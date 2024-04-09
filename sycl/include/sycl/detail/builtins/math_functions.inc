@@ -511,11 +511,5 @@ template <typename T> detail::builtin_enable_nan_t<T> nan(T x) {
 }
 #endif
 
-template <typename T>
-__SYCL_DEPRECATED("abs for floating point types is non-standard and has been "
-                  "deprecated. Please use fabs instead.")
-detail::builtin_enable_math_allow_scalar_t<T> abs(T x) {
-  return fabs(x);
-}
 } // namespace _V1
 } // namespace sycl

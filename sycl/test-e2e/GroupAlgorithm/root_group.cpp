@@ -52,7 +52,8 @@ void testRootGroup() {
           sycl::group_barrier(root);
 
           root =
-              sycl::ext::oneapi::experimental::this_kernel::get_root_group<1>();
+              sycl::ext::oneapi::experimental::this_work_item::get_root_group<
+                  1>();
           int sum = data[root.get_local_id()] +
                     data[root.get_local_range() - root.get_local_id() - 1];
           sycl::group_barrier(root);

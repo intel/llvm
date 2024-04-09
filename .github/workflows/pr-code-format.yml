@@ -26,7 +26,7 @@ jobs:
 
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@v42
+        uses: tj-actions/changed-files@v44
         with:
           separator: ","
           skip_initial_fetch: true
@@ -36,7 +36,7 @@ jobs:
       - name: Fetch code formatting utils
         uses: actions/checkout@v4
         with:
-          reository: ${{ github.repository }}
+          repository: ${{ github.repository }}
           ref: ${{ github.base_ref }}
           sparse-checkout: |
             llvm/utils/git/requirements_formatting.txt

@@ -43,7 +43,7 @@ Specifically, this library depends on the following SYCL extensions:
 * [sycl_ext_oneapi_complex](
     ../extensions/experimental/sycl_ext_oneapi_complex.asciidoc)
 * [sycl_ext_oneapi_free_function_queries](
-    ../extensions/experimental/sycl_ext_oneapi_free_function_queries.asciidoc)
+    ../extensions/supported/sycl_ext_oneapi_free_function_queries.asciidoc)
 * [sycl_ext_oneapi_assert](
     ../extensions/supported/sycl_ext_oneapi_assert.asciidoc)
 * [sycl_ext_oneapi_enqueue_barrier](
@@ -1229,7 +1229,7 @@ as a vector of elements, and returning `0` for vector components for which
 `vectorized_sum_abs_diff` calculates the absolute difference for two values
 without modulo overflow for vector types.
 
-The functions `cmul`,`cdiv`,`cabs`, and `conj` define complex math operations
+The functions `cmul`,`cdiv`,`cabs`, `cmul_add`, and `conj` define complex math operations
 which accept `sycl::vec<T,2>` arguments representing complex values.
 
 ```cpp
@@ -1258,6 +1258,16 @@ template <typename T>
 sycl::vec<T, 2> cdiv(sycl::vec<T, 2> x, sycl::vec<T, 2> y);
 
 template <typename T> T cabs(sycl::vec<T, 2> x);
+
+template <typename ValueT>
+inline sycl::vec<ValueT, 2> cmul_add(const sycl::vec<ValueT, 2> a,
+                                     const sycl::vec<ValueT, 2> b,
+                                     const sycl::vec<ValueT, 2> c);
+
+template <typename ValueT>
+inline sycl::marray<ValueT, 2> cmul_add(const sycl::marray<ValueT, 2> a,
+                                        const sycl::marray<ValueT, 2> b,
+                                        const sycl::marray<ValueT, 2> c);
 
 template <typename T> sycl::vec<T, 2> conj(sycl::vec<T, 2> x);
 
