@@ -322,35 +322,46 @@ void queue_impl::addSharedEvent(const event &Event) {
   MEventsShared.push_back(Event);
 }
 
-static bool
-areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
-                                ContextImplPtr Context) {
-  auto CheckEvent = [&Context](const sycl::event &Event) {
-    const EventImplPtr &SyclEventImplPtr = detail::getSyclObjImpl(Event);
-    // Events that don't have an initialized context are throwaway events that
-    // don't represent actual dependencies. Calling getContextImpl() would set
-    // their context, which we wish to avoid as it is expensive.
-    // NOP events also don't represent actual dependencies.
-    if ((!SyclEventImplPtr->isContextInitialized() &&
-         !SyclEventImplPtr->is_host()) ||
-        SyclEventImplPtr->isNOP()) {
-      return true;
-    }
-    if (SyclEventImplPtr->is_host()) {
-      return SyclEventImplPtr->isCompleted();
-    }
-    // Cross-context dependencies can't be passed to the backend directly.
-    if (SyclEventImplPtr->getContextImpl() != Context)
-      return false;
+bool CheckEventReadiness(const ContextImplPtr &Context,
+                         const EventImplPtr &SyclEventImplPtr) {
+  // Events that don't have an initialized context are throwaway events that
+  // don't represent actual dependencies. Calling getContextImpl() would set
+  // their context, which we wish to avoid as it is expensive.
+  // NOP events also don't represent actual dependencies.
+  if ((!SyclEventImplPtr->isContextInitialized() &&
+       !SyclEventImplPtr->is_host()) ||
+      SyclEventImplPtr->isNOP()) {
+    return true;
+  }
+  if (SyclEventImplPtr->is_host()) {
+    return SyclEventImplPtr->isCompleted();
+  }
+  // Cross-context dependencies can't be passed to the backend directly.
+  if (SyclEventImplPtr->getContextImpl() != Context)
+    return false;
 
-    // A nullptr here means that the commmand does not produce a PI event or it
-    // hasn't been enqueued yet.
-    return SyclEventImplPtr->getHandleRef() != nullptr;
-  };
+  // A nullptr here means that the commmand does not produce a PI event or it
+  // hasn't been enqueued yet.
+  return SyclEventImplPtr->getHandleRef() != nullptr;
+};
+
+bool queue_impl::areEventsSafeForSchedulerBypass(
+    const std::vector<sycl::event> &DepEvents, ContextImplPtr Context) const {
 
   return std::all_of(
-      DepEvents.begin(), DepEvents.end(),
-      [&CheckEvent](const sycl::event &Event) { return CheckEvent(Event); });
+      DepEvents.begin(), DepEvents.end(), [&Context](const sycl::event &Event) {
+        const EventImplPtr &SyclEventImplPtr = detail::getSyclObjImpl(Event);
+        return CheckEventReadiness(Context, SyclEventImplPtr);
+      });
+}
+
+bool queue_impl::areEventsSafeForSchedulerBypass(
+    const std::vector<EventImplPtr> &DepEvents, ContextImplPtr Context) const {
+
+  return std::all_of(DepEvents.begin(), DepEvents.end(),
+                     [&Context](const EventImplPtr &SyclEventImplPtr) {
+                       return CheckEventReadiness(Context, SyclEventImplPtr);
+                     });
 }
 
 template <typename HandlerFuncT>

@@ -92,7 +92,7 @@ public:
   /// \param PropList is a list of properties to use for queue construction.
   queue_impl(const DeviceImplPtr &Device, const async_handler &AsyncHandler,
              const property_list &PropList)
-      : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList){};
+      : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList) {};
 
   /// Constructs a SYCL queue with an async_handler and property_list provided
   /// form a device and a context.
@@ -745,6 +745,13 @@ public:
                           std::vector<event> &MutableVec,
                           std::unique_lock<std::mutex> &QueueLock);
 
+  bool
+  areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
+                                  ContextImplPtr Context) const;
+  bool
+  areEventsSafeForSchedulerBypass(const std::vector<EventImplPtr> &DepEvents,
+                                  ContextImplPtr Context) const;
+
 protected:
   event discard_or_return(const event &Event);
   // Hook to the scheduler to clean up any fusion command held on destruction.
@@ -783,7 +790,6 @@ protected:
       EventRet = Handler.finalize();
   }
 
-protected:
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.

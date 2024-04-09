@@ -241,10 +241,12 @@ event handler::finalize() {
     }
 
     if (MQueue && !MGraph && !MSubgraphNode && !MQueue->getCommandGraph() &&
-        !MQueue->is_in_fusion_mode() &&
-        CGData.MRequirements.size() + CGData.MEvents.size() +
-                MStreamStorage.size() ==
-            0) {
+        !MQueue->is_in_fusion_mode() && !CGData.MRequirements.size() &&
+        !MStreamStorage.size() &&
+        (!CGData.MEvents.size() ||
+         (MQueue->isInOrder() &&
+          MQueue->areEventsSafeForSchedulerBypass(
+              CGData.MEvents, MQueue->getContextImplPtr())))) {
       // if user does not add a new dependency to the dependency graph, i.e.
       // the graph is not changed, and the queue is not in fusion mode, then
       // this faster path is used to submit kernel bypassing scheduler and
