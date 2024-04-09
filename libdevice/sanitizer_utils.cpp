@@ -28,16 +28,18 @@ uptr __AsanShadowMemoryGlobalStart;
 uptr __AsanShadowMemoryGlobalEnd;
 DeviceType __DeviceType;
 uint64_t __AsanDebug;
+// Save the pointer to LaunchInfo
+__SYCL_GLOBAL__ uptr *__SYCL_LOCAL__ __AsanLaunchInfo;
 #pragma omp end declare target
 
 #else
 
 DeviceGlobal<uptr> __AsanShadowMemoryGlobalStart;
 DeviceGlobal<uptr> __AsanShadowMemoryGlobalEnd;
-
 DeviceGlobal<DeviceType> __DeviceType;
 DeviceGlobal<uint64_t> __AsanDebug;
 
+// Save the pointer to LaunchInfo
 __SYCL_GLOBAL__ uptr *__SYCL_LOCAL__ __AsanLaunchInfo;
 
 #endif // OMP_LIBDEVICE && INTEL_COLLAB
