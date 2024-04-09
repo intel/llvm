@@ -42,7 +42,6 @@
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLLowerIR/SanitizeDeviceGlobal.h"
-#include "llvm/SYCLLowerIR/SanitizeExtendArgument.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
@@ -611,33 +610,6 @@ template <class PassClass> bool runModulePass(Module &M) {
   return !Res.areAllPreserved();
 }
 
-bool runSanitizerPasses(Module &M) {
-  // Register required analysis
-  LoopAnalysisManager LAM;
-  CGSCCAnalysisManager CGAM;
-  FunctionAnalysisManager FAM;
-  ModuleAnalysisManager MAM;
-
-  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
-
-  Triple ModuleTriple(M.getTargetTriple());
-  TargetLibraryInfoImpl TLII(ModuleTriple);
-  FAM.registerPass([&] { return TargetLibraryAnalysis(TLII); });
-
-  PassBuilder PB;
-  PB.registerModuleAnalyses(MAM);
-  PB.registerCGSCCAnalyses(CGAM);
-  PB.registerFunctionAnalyses(FAM);
-  PB.registerLoopAnalyses(LAM);
-  PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
-
-  ModulePassManager MPM;
-  MPM.addPass(SanitizeDeviceGlobalPass{});
-  // MPM.addPass(SanitizeExtendArgumentPass{}); // need TargetLibraryAnalysis
-  PreservedAnalyses Res = MPM.run(M, MAM);
-  return !Res.areAllPreserved();
-}
-
 // When ESIMD code was separated from the regular SYCL code,
 // we can safely process ESIMD part.
 // TODO: support options like -debug-pass, -print-[before|after], and others
@@ -1013,9 +985,8 @@ processInputModule(std::unique_ptr<Module> M) {
 
   // Instrument each image scope device globals if the module has been
   // instrumented by sanitizer pass.
-  if (isModuleUsingAsan(*M)) {
-    Modified |= runSanitizerPasses(*M);
-  }
+  if (isModuleUsingAsan(*M))
+    Modified |= runModulePass<SanitizeDeviceGlobalPass>(*M);
 
   // Do invoke_simd processing before splitting because this:
   // - saves processing time (the pass is run once, even though on larger IR)
