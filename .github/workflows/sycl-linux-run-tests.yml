@@ -342,7 +342,8 @@ jobs:
           fi
         done
         if [ -n "$status" ]; then
-          echo "Failed suite(s): $failed_suites" >> GITHUB_STEP_SUMMARY
+          echo "Failed suite(s): $failed_suites"
+          echo "Failed suite(s): $failed_suites" >> $GITHUB_STEP_SUMMARY
           exit 1
         fi
         exit 0
