@@ -5862,9 +5862,9 @@ __ESIMD_API simd<T, N> slm_atomic_update_impl(simd<uint32_t, N> offsets,
 template <atomic_op Op, typename T, int N>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 0, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset, simd_mask<N> mask = 1) {
-  // 2 byte, 8 byte types, non-power of two, and operations wider than 32 are
-  // supported only by LSC.
-  if constexpr (sizeof(T) == 2 || sizeof(T) == 8 ||
+  // 1 byte, 2 byte, 8 byte types, non-power of two, and operations wider than
+  // 32 are supported only by LSC.
+  if constexpr (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 8 ||
                 !__ESIMD_DNS::isPowerOf2(N, 32)) {
     return slm_atomic_update_impl<Op, T, N,
                                   detail::lsc_data_size::default_size>(
@@ -5942,9 +5942,9 @@ template <atomic_op Op, typename T, int N>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
                   simd_mask<N> mask = 1) {
-  // 2 byte, 8 byte types, non-power of two, and operations wider than 32 are
-  // supported only by LSC.
-  if constexpr (sizeof(T) == 2 || sizeof(T) == 8 ||
+  // 1 byte, 2 byte, 8 byte types, non-power of two, and operations wider than
+  // 32 are supported only by LSC.
+  if constexpr (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 8 ||
                 !__ESIMD_DNS::isPowerOf2(N, 32)) {
     // half and short are supported in LSC.
     return slm_atomic_update_impl<Op, T, N,
@@ -6031,9 +6031,9 @@ template <atomic_op Op, typename T, int N>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
                   simd<T, N> src1, simd_mask<N> mask = 1) {
-  // 2 byte, 8 byte types, non-power of two, and operations wider than 32 are
-  // supported only by LSC.
-  if constexpr (sizeof(T) == 2 || sizeof(T) == 8 ||
+  // 1 byte, 2 byte, 8 byte types, non-power of two, and operations wider than
+  // 32 are supported only by LSC.
+  if constexpr (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 8 ||
                 !__ESIMD_DNS::isPowerOf2(N, 32)) {
     // 2-argument lsc_atomic_update arguments order matches the standard one -
     // expected value first, then new value. But atomic_update uses reverse
@@ -6417,7 +6417,7 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd_mask<N> mask,
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
 
   if constexpr (detail::has_cache_hints<PropertyListT>() ||
-                !__ESIMD_DNS::isPowerOf2(N, 32)) {
+                !__ESIMD_DNS::isPowerOf2(N, 32) || sizeof(T) < 4) {
     return detail::atomic_update_impl<
         Op, T, N, detail::lsc_data_size::default_size, PropertyListT, Toffset>(
         p, byte_offset, mask);
@@ -6640,7 +6640,7 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
   if constexpr (detail::has_cache_hints<PropertyListT>() ||
                 (Op == atomic_op::fmin) || (Op == atomic_op::fmax) ||
                 (Op == atomic_op::fadd) || (Op == atomic_op::fsub) ||
-                !__ESIMD_DNS::isPowerOf2(N, 32)) {
+                !__ESIMD_DNS::isPowerOf2(N, 32) || sizeof(T) < 4) {
     return detail::atomic_update_impl<
         Op, T, N, detail::lsc_data_size::default_size, PropertyListT, Toffset>(
         p, byte_offset, src0, mask);
@@ -6888,9 +6888,11 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
 
   // Use LSC atomic when cache hints are present, FP atomics is used,
-  // non-power of two length is used, or operation width greater than 32.
+  // non-power of two length is used, or operation width greater than 32, or the
+  // data size is less than 4 bytes.
   if constexpr (detail::has_cache_hints<PropertyListT>() ||
-                Op == atomic_op::fcmpxchg || !__ESIMD_DNS::isPowerOf2(N, 32)) {
+                Op == atomic_op::fcmpxchg || !__ESIMD_DNS::isPowerOf2(N, 32) ||
+                sizeof(T) < 4) {
     // 2-argument lsc_atomic_update arguments order matches the standard one -
     // expected value first, then new value. But atomic_update uses reverse
     // order, hence the src1/src0 swap.
@@ -7116,7 +7118,7 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd_mask<N> mask,
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
 
   if constexpr (detail::has_cache_hints<PropertyListT>() ||
-                !detail::isPowerOf2(N, 32)) {
+                !detail::isPowerOf2(N, 32) || sizeof(T) < 4) {
     return detail::atomic_update_impl<
         Op, T, N, detail::lsc_data_size::default_size, PropertyListT>(
         acc, byte_offset, mask);
@@ -7384,7 +7386,7 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
   if constexpr (detail::has_cache_hints<PropertyListT>() ||
                 Op == atomic_op::fmin || Op == atomic_op::fmax ||
                 Op == atomic_op::fadd || Op == atomic_op::fsub ||
-                !__ESIMD_DNS::isPowerOf2(N, 32)) {
+                !__ESIMD_DNS::isPowerOf2(N, 32) || sizeof(T) < 4) {
     return detail::atomic_update_impl<
         Op, T, N, detail::lsc_data_size::default_size, PropertyListT>(
         acc, byte_offset, src0, mask);
@@ -7681,9 +7683,11 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   static_assert(sizeof(Toffset) == 4, "Only 32 bit offset is supported");
   // Use LSC atomic when cache hints are present, FP atomics is used,
-  // non-power of two length is used, or operation width greater than 32.
+  // non-power of two length is used, operation width greater than 32, or the
+  // data size is less than 4 bytes,
   if constexpr (detail::has_cache_hints<PropertyListT>() ||
-                Op == atomic_op::fcmpxchg || !__ESIMD_DNS::isPowerOf2(N, 32)) {
+                Op == atomic_op::fcmpxchg || !__ESIMD_DNS::isPowerOf2(N, 32) ||
+                sizeof(T) < 4) {
     // 2-argument lsc_atomic_update arguments order matches the standard one -
     // expected value first, then new value. But atomic_update uses reverse
     // order, hence the src1/src0 swap.

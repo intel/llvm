@@ -782,14 +782,14 @@ The template parameter `N` is the number of elements being atomically updated.
 | `Function` | `Condition` | Required Intel GPU |
 |-|-|-|
 | `(usm-au0-*)`, `(acc-au0-*)` | !(cache-hints) and (`N` == 1,2,4,8,16,32) and (sizeof(T) >= 4) | Any Intel GPU |
-| `(usm-au0-*)`, `(acc-au0-*)` | (cache-hints) or (`N` != 1,2,4,8,16,32) or (sizeof(T) == 2) | DG2 or PVC |
+| `(usm-au0-*)`, `(acc-au0-*)` | (cache-hints) or (`N` != 1,2,4,8,16,32) or (sizeof(T) < 4) | DG2 or PVC |
 | `(usm-au1-*)`, `(acc-au1-*)`, `(usm-au2-*)`, `(acc-au2-*)`  | !(cache-hints) and (`N` == 1,2,4,8,16,32) and (sizeof(T) >= 4) and (`Op` is integral operation) | Any Intel GPU |
-| `(usm-au1-*)`, `(acc-au1-*)`, `(usm-au2-*)`, `(acc-au2-*)` | (cache-hints) or (`N` != 1,2,4,8,16,32) or (sizeof(T) == 2) or (`Op` is FP operation) | DG2 or PVC |
+| `(usm-au1-*)`, `(acc-au1-*)`, `(usm-au2-*)`, `(acc-au2-*)` | (cache-hints) or (`N` != 1,2,4,8,16,32) or (sizeof(T) < 4) or (`Op` is FP operation) | DG2 or PVC |
 |-|-|-|
 | `(slm-au0-*)`, `(lacc-au0-*)` | (`N` == 1,2,4,8,16,32) and (sizeof(T) == 4) | Any Intel GPU |
-| `(slm-au0-*)`, `(lacc-au0-*)` | (`N` != 1,2,4,8,16,32) or (sizeof(T) == 2) or (sizeof(T) == 8)| DG2 or PVC |
+| `(slm-au0-*)`, `(lacc-au0-*)` | (`N` != 1,2,4,8,16,32) or (sizeof(T) < 4) or (sizeof(T) == 8)| DG2 or PVC |
 | `(slm-au1-*)`, `(lacc-au1-*)`, `(slm-au2-*)`, `(lacc-au2-*)` | (`N` == 1,2,4,8,16,32) and (sizeof(T) == 4) and (`Op` is integral operation) | Any Intel GPU |
-| `(slm-au1-*)`, `(lacc-au1-*)`, `(slm-au2-*)`, `(lacc-au2-*)` | (`N` != 1,2,4,8,16,32) or (sizeof(T) == 2) or (sizeof(T) == 8) or (`Op` is FP operation)| DG2 or PVC |
+| `(slm-au1-*)`, `(lacc-au1-*)`, `(slm-au2-*)`, `(lacc-au2-*)` | (`N` != 1,2,4,8,16,32) or (sizeof(T) < 4) or (sizeof(T) == 8) or (`Op` is FP operation)| DG2 or PVC |
 
 
 ## prefetch(...)
