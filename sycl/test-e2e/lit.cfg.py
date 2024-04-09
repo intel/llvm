@@ -5,9 +5,8 @@ import platform
 import copy
 import re
 import subprocess
-import tempfile
 import textwrap
-from distutils.spawn import find_executable
+import shutil
 
 import lit.formats
 import lit.util
@@ -563,7 +562,7 @@ for tool in feature_tools:
     else:
         lit_config.warning("Can't find " + tool.key)
 
-if find_executable("cmc"):
+if shutil.which("cmc") is not None:
     config.available_features.add("cm-compiler")
 
 # Device AOT compilation tools aren't part of the SYCL project,
@@ -571,7 +570,7 @@ if find_executable("cmc"):
 aot_tools = ["ocloc", "opencl-aot"]
 
 for aot_tool in aot_tools:
-    if find_executable(aot_tool) is not None:
+    if shutil.which(aot_tool) is not None:
         lit_config.note("Found pre-installed AOT device compiler " + aot_tool)
         config.available_features.add(aot_tool)
     else:

@@ -94,15 +94,6 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  # set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # # commit 065bf2dd97b58a4ceeb2fb83eed1df9319e61c59
-  # # Merge: b9153547 ec773e6c
-  # # Author: aarongreig <aaron.greig@codeplay.com>
-  # # Date:   Fri Apr 5 14:26:59 2024 +0100
-  # #     Merge pull request #1486 from nrspruit/fix_memfree_report
-  # #     [L0] Fix DeviceInfo global mem free to report unsupported given MemCount==0
-  # set(UNIFIED_RUNTIME_TAG 065bf2dd97b58a4ceeb2fb83eed1df9319e61c59)
-
   set(UNIFIED_RUNTIME_REPO "https://github.com/przemektmalon/unified-runtime.git")
   # commit 4dd5604c3d7a7b2b606c97ba88cffb6363eebe2c
   # Author: Przemek Malon <przemek.malon@codeplay.com>
@@ -118,6 +109,15 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP
   set(UNIFIED_RUNTIME_TAG 4dd5604c3d7a7b2b606c97ba88cffb6363eebe2c)
 
+  # set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # # commit a7c202b49aff130f60da0c03916d08bb22b91aa0
+  # # Merge: f85e2e96 e548dc1e
+  # # Author: Martin Grant <martin.morrisongrant@codeplay.com>
+  # # Date:   Mon Apr 8 15:58:32 2024 +0100
+  # #    Merge pull request #1493 from martygrant/martin/fixCoverityCTSErrors
+  # #    [CTS] Fix Coverity warning: Add a & before auto so object is not copied unnecessarily
+  # set(UNIFIED_RUNTIME_TAG a7c202b49aff130f60da0c03916d08bb22b91aa0)
+
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
     ${UNIFIED_RUNTIME_TAG}
@@ -125,12 +125,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(opencl
     ${UNIFIED_RUNTIME_REPO}
-    # Merge: e60c3c22 9287547e
+    # commit 85b7559033e329389452cb87615ad42fbb644d59 (HEAD -> main, origin/main, origin/HEAD)
+    # Merge: a7c202b4 5c300799
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Apr 4 10:23:33 2024 +0200
-    #     Merge pull request #1448 from steffenlarsen/steffen/make_ext_func_fail_unsupported
-    #     [OpenCL] Make extension function lookup return unusupported error
-    3609afc7f8781f2eae5de74deaf50ba52b1bb344
+    # Date:   Tue Apr 9 14:06:49 2024 +0100
+    #     Merge pull request #1496 from steffenlarsen/steffen/revert_memory_lookup_error
+    #     [OpenCL] Revert urMemBufferCreate extension function lookup error
+    85b7559033e329389452cb87615ad42fbb644d59
   )
 
   fetch_adapter_source(cuda

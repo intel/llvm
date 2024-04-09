@@ -1031,6 +1031,12 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type =
         Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type =
         Desc.depth > 0
@@ -1078,6 +1084,12 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type = DestImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
                                                : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        DestImgDesc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type = DestImgDesc.depth > 0
                             ? PI_MEM_TYPE_IMAGE3D
@@ -1123,6 +1135,12 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type =
         Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type =
         Desc.depth > 0
@@ -1170,6 +1188,12 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type = SrcImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
                                               : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        SrcImgDesc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type = SrcImgDesc.depth > 0
                             ? PI_MEM_TYPE_IMAGE3D
@@ -1215,6 +1239,12 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type =
         Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type =
         Desc.depth > 0
@@ -1264,6 +1294,13 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type = DeviceImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
                                                  : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        DeviceImgDesc.type ==
+                sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type = DeviceImgDesc.depth > 0
                             ? PI_MEM_TYPE_IMAGE3D

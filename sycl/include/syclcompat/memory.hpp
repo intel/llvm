@@ -42,9 +42,13 @@
 #include <utility>
 
 #include <sycl/builtins.hpp>
-#include <sycl/ext/intel/experimental/usm_properties.hpp>
 #include <sycl/ext/oneapi/group_local_memory.hpp>
+#include <sycl/group.hpp>
 #include <sycl/usm.hpp>
+
+#ifdef SYCL_EXT_ONEAPI_USM_DEVICE_READ_ONLY
+#include <sycl/ext/intel/experimental/usm_properties.hpp>
+#endif
 
 #include <syclcompat/device.hpp>
 #include <syclcompat/traits.hpp>
@@ -52,7 +56,9 @@
 #if defined(__linux__)
 #include <sys/mman.h>
 #elif defined(_WIN64)
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <windows.h>
 #else
 #error "Only support Windows and Linux."
@@ -123,9 +129,8 @@ public:
       (Memory == memory_region::local)
           ? sycl::access::address_space::local_space
           : sycl::access::address_space::global_space;
-  static constexpr syclcompat::target target = (Memory == memory_region::local)
-                                                   ? syclcompat::target::local
-                                                   : syclcompat::target::device;
+  static constexpr target target =
+      (Memory == memory_region::local) ? target::local : target::device;
   static constexpr sycl::access_mode mode = (Memory == memory_region::constant)
                                                 ? sycl::access_mode::read
                                                 : sycl::access_mode::read_write;
@@ -136,7 +141,7 @@ public:
   using value_t = typename std::remove_cv_t<T>;
   template <size_t Dimension = 1>
   using accessor_t =
-      typename std::conditional_t<target == syclcompat::target::local,
+      typename std::conditional_t<target == target::local,
                                   sycl::local_accessor<T, Dimension>,
                                   sycl::accessor<T, Dimension, mode>>;
   using pointer_t = T *;
@@ -148,20 +153,27 @@ static inline void *malloc(size_t size, sycl::queue q) {
 
 /// Calculate pitch (padded length of major dimension \p x) by rounding up to
 /// multiple of 32.
-/// \param x The dimension to be padded
-/// \returns size_t representing pitched length of dimension x.
+/// \param x The dimension to be padded (in bytes)
+/// \returns size_t representing pitched length of dimension x (in bytes).
 static inline constexpr size_t get_pitch(size_t x) {
   return ((x) + 31) & ~(0x1F);
 }
 
+/// \brief Malloc pitched 3D data
+/// \param [out] pitch returns the calculated pitch (in bytes)
+/// \param [in] x width of the allocation (in bytes)
+/// \param [in] y height of the allocation
+/// \param [in] z depth of the allocation
+/// \param [in] q The queue in which the operation is done.
+/// \returns A pointer to the allocated memory
 static inline void *malloc(size_t &pitch, size_t x, size_t y, size_t z,
                            sycl::queue q) {
   pitch = get_pitch(x);
   return malloc(pitch * y * z, q);
 }
 
-/// Set \p pattern to the first \p count elements of type \p T starting from \p
-/// dev_ptr.
+/// \brief Set \p pattern to the first \p count elements of type \p T
+/// starting from \p dev_ptr.
 ///
 /// \tparam T Datatype of the pattern to be set.
 /// \param q The queue in which the operation is done.
@@ -211,10 +223,18 @@ static inline std::vector<sycl::event> memset(sycl::queue q, pitched_data data,
   return event_list;
 }
 
-/// memset 2D matrix with pitch.
+/// \brief Sets \p val to the pitched 2D memory region pointed by \p ptr in \p
+/// q.
+/// \param [in] q The queue in which the operation is done.
+/// \param [in] ptr Pointer to the virtual device memory.
+/// \param [in] pitch The pitch size by number of elements, including padding.
+/// \param [in] value The value to be set.
+/// \param [in] x The width of memory region by number of elements.
+/// \param [in] y The height of memory region by number of elements.
+/// \return An event list representing the memset operations.
 static inline std::vector<sycl::event>
-memset(sycl::queue q, void *ptr, size_t pitch, int val, size_t x, size_t y) {
-  return memset(q, pitched_data(ptr, pitch, x, 1), val,
+memset(sycl::queue q, void *ptr, size_t pitch, int value, size_t x, size_t y) {
+  return memset(q, pitched_data(ptr, pitch, x, 1), value,
                 sycl::range<3>(x, y, 1));
 }
 
@@ -387,7 +407,7 @@ memcpy(sycl::queue q, void *to_ptr, const void *from_ptr,
     }));
     break;
   default:
-    throw std::runtime_error("syclcompat::"
+    throw std::runtime_error("[SYCLcompat]"
                              "memcpy: invalid direction value");
   }
   return event_list;
@@ -523,6 +543,7 @@ static inline void free(void *ptr, sycl::queue q = get_default_queue()) {
 /// \param pointers The pointers point to the device memory requested to be
 /// freed. \param events The events to be waited. \param q The sycl::queue the
 /// memory relates to.
+// Can't be static due to the friend declaration in the memory header.
 inline sycl::event free_async(const std::vector<void *> &pointers,
                               const std::vector<sycl::event> &events,
                               sycl::queue q = get_default_queue()) {
@@ -637,7 +658,7 @@ static inline void memcpy(void *to_ptr, size_t to_pitch, const void *from_ptr,
 /// \param x Range of dim x of matrix to be copied.
 /// \param y Range of dim y of matrix to be copied.
 /// \param q Queue to execute the copy task.
-/// \returns no return value.
+/// \returns An event representing the memcpy operation.
 static inline sycl::event memcpy_async(void *to_ptr, size_t to_pitch,
                                        const void *from_ptr, size_t from_pitch,
                                        size_t x, size_t y,
@@ -676,7 +697,7 @@ static inline void memcpy(pitched_data to, sycl::id<3> to_pos,
 /// \param from_pos Position of destination.
 /// \param size Range of the submatrix to be copied.
 /// \param q Queue to execute the copy task.
-/// \returns no return value.
+/// \returns An event representing the memcpy operation.
 static inline sycl::event memcpy_async(pitched_data to, sycl::id<3> to_pos,
                                        pitched_data from, sycl::id<3> from_pos,
                                        sycl::range<3> size,
@@ -845,8 +866,8 @@ public:
   using accessor_t = typename memory_t::template accessor_t<2>;
   accessor(pointer_t data, const sycl::range<2> &in_range)
       : _data(data), _range(in_range) {}
-  template <memory_region M = Memory>
-  accessor(typename std::enable_if<M != memory_region::local,
+  template <memory_region Mem = Memory>
+  accessor(typename std::enable_if<Mem != memory_region::local,
                                    const accessor_t>::type &acc)
       : accessor(acc, acc.get_range()) {}
   accessor(const accessor_t &acc, const sycl::range<2> &in_range)
@@ -869,7 +890,7 @@ public:
   using accessor_t =
       typename detail::memory_traits<Memory, T>::template accessor_t<Dimension>;
   using value_t = typename detail::memory_traits<Memory, T>::value_t;
-  using compat_accessor_t = syclcompat::accessor<T, Memory, Dimension>;
+  using syclcompat_accessor_t = syclcompat::accessor<T, Memory, Dimension>;
 
   device_memory(sycl::queue q = get_default_queue())
       : device_memory(sycl::range<Dimension>(1), q) {}
@@ -886,9 +907,9 @@ public:
   }
 
   /// Constructor of 2-D array with initializer list
-  template <size_t D = Dimension>
+  template <size_t Dim = Dimension>
   device_memory(
-      const typename std::enable_if<D == 2, sycl::range<2>>::type &in_range,
+      const typename std::enable_if<Dim == 2, sycl::range<2>>::type &in_range,
       std::initializer_list<std::initializer_list<value_t>> &&init_list,
       sycl::queue q = get_default_queue())
       : device_memory(in_range, q) {
@@ -919,8 +940,8 @@ public:
   /// Constructor with range
   // enable_if_t SFINAE to avoid ambiguity with
   // device_memory(Args... Arguments, sycl::queue q)
-  template <class... Args, size_t D = Dimension,
-            typename = std::enable_if_t<sizeof...(Args) == D>>
+  template <class... Args, size_t Dim = Dimension,
+            typename = std::enable_if_t<sizeof...(Args) == Dim>>
   device_memory(Args... Arguments)
       : device_memory(sycl::range<Dimension>(Arguments...),
                       get_default_queue()) {}
@@ -937,7 +958,8 @@ public:
       std::free(_host_ptr);
   }
 
-  /// Allocate memory with default queue, and init memory if has initial value.
+  /// Allocate memory with the queue specified in the constuctor, and init
+  /// memory if has initial value
   void init() { init(_q); }
   /// Allocate memory with specified queue, and init memory if has initial
   /// value.
@@ -957,11 +979,10 @@ public:
     new (this) device_memory(src, size, _q);
   }
 
-  /// Get memory pointer of the memory object, which is virtual pointer when
-  /// usm is not used, and device pointer when usm is used.
+  // Get memory pointer of the memory object, a device USM pointer.
   value_t *get_ptr() { return get_ptr(_q); }
-  /// Get memory pointer of the memory object, which is virtual pointer when
-  /// usm is not used, and device pointer when usm is used.
+
+  // Get memory pointer of the memory object, a device USM pointer.
   value_t *get_ptr(sycl::queue q) {
     init(q);
     return _device_ptr;
@@ -970,18 +991,18 @@ public:
   /// Get the device memory object size in bytes.
   size_t get_size() { return _size; }
 
-  template <size_t D = Dimension>
-  typename std::enable_if<D == 1, T>::type &operator[](size_t index) {
+  template <size_t Dim = Dimension>
+  typename std::enable_if<Dim == 1, T>::type &operator[](size_t index) {
     init();
     return _device_ptr[index];
   }
 
   /// Get compat_accessor with dimension info for the device memory object
   /// when usm is used and dimension is greater than 1.
-  template <size_t D = Dimension>
-  typename std::enable_if<D != 1, compat_accessor_t>::type
+  template <size_t Dim = Dimension>
+  typename std::enable_if<Dim != 1, syclcompat_accessor_t>::type
   get_access(sycl::handler &cgh) {
-    return compat_accessor_t((T *)_device_ptr, _range);
+    return syclcompat_accessor_t((T *)_device_ptr, _range);
   }
 
 private:
@@ -1023,10 +1044,11 @@ public:
       typename detail::memory_traits<Memory, T>::template accessor_t<0>;
 
   /// Constructor with initial value.
-  device_memory(const value_t &val) : base(sycl::range<1>(1), {val}) {}
+  device_memory(const value_t &val, sycl::queue q = get_default_queue())
+      : base(sycl::range<1>(1), {val}, q) {}
 
   /// Default constructor
-  device_memory() : base(1) {}
+  device_memory(sycl::queue q = get_default_queue()) : base(1, q) {}
 };
 
 template <class T, size_t Dimension>

@@ -1264,6 +1264,11 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     PI_TO_UR_MAP_DEVICE_INFO(
         PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT,
         UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SUPPORT,
+                             UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT,
+        UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(
         PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM,
         UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP)
@@ -2970,6 +2975,8 @@ static void pi2urImageDesc(const pi_image_format *ImageFormat,
                             UR_MEM_TYPE_IMAGE1D_ARRAY)
     PI_TO_UR_MAP_IMAGE_TYPE(PI_MEM_TYPE_IMAGE1D_BUFFER,
                             UR_MEM_TYPE_IMAGE1D_BUFFER)
+    PI_TO_UR_MAP_IMAGE_TYPE(PI_MEM_TYPE_IMAGE_CUBEMAP,
+                            UR_MEM_TYPE_IMAGE_CUBEMAP_EXP)
 #undef PI_TO_UR_MAP_IMAGE_TYPE
   default: {
     die("piMemImageCreate: unsuppported image_type.");
@@ -5077,8 +5084,12 @@ inline pi_result piextBindlessImageSamplerCreate(
   ur_exp_sampler_addr_modes_t UrAddrModes{};
   UrAddrModes.stype = UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES;
   UrMipProps.pNext = &UrAddrModes;
-
   int addrIndex = 0;
+
+  ur_exp_sampler_cubemap_properties_t UrCubemapProps{};
+  UrCubemapProps.stype = UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES;
+  UrAddrModes.pNext = &UrCubemapProps;
+
   const pi_sampler_properties *CurProperty = SamplerProperties;
   while (*CurProperty != 0) {
     switch (*CurProperty) {
@@ -5127,6 +5138,20 @@ inline pi_result piextBindlessImageSamplerCreate(
         UrMipProps.mipFilterMode = UR_SAMPLER_FILTER_MODE_NEAREST;
       else if (CurValueFilterMode == PI_SAMPLER_FILTER_MODE_LINEAR)
         UrMipProps.mipFilterMode = UR_SAMPLER_FILTER_MODE_LINEAR;
+    } break;
+
+    case PI_SAMPLER_PROPERTIES_CUBEMAP_FILTER_MODE: {
+      pi_sampler_cubemap_filter_mode CurValueFilterMode =
+          ur_cast<pi_sampler_cubemap_filter_mode>(
+              ur_cast<pi_uint32>(*(++CurProperty)));
+
+      if (CurValueFilterMode == PI_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS)
+        UrCubemapProps.cubemapFilterMode =
+            UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS;
+      else if (CurValueFilterMode == PI_SAMPLER_CUBEMAP_FILTER_MODE_DISJOINTED)
+        UrCubemapProps.cubemapFilterMode =
+            UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_DISJOINTED;
+
     } break;
 
     default:

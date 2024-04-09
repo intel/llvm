@@ -7,10 +7,6 @@
 
 // REQUIRES: aspect-usm_shared_allocations
 
-// Skip as executable graph update and host tasks both aren't
-// implemented.
-// REQUIRES: NOT_YET_IMPLEMENTED
+#define GRAPH_E2E_RECORD_REPLAY
 
-#define GRAPH_E2E_EXPLICIT
-
-#include "../Inputs/executable_graph_update_ordering.cpp"
+#include "../../Inputs/whole_update_usm.cpp"

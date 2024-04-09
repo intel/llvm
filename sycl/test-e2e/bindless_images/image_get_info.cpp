@@ -122,6 +122,17 @@ int main() {
               << mipmapLevelReferenceSupport << "\n";
 #endif
 
+    // Extension: query for bindless image cubemaps support -- aspects.
+    bool cubemapSupport = dev.has(sycl::aspect::ext_oneapi_cubemap);
+    bool cubemapSeamlessFilterSupport =
+        dev.has(sycl::aspect::ext_oneapi_cubemap_seamless_filtering);
+
+#ifdef VERBOSE_PRINT
+    std::cout << "cubemapSupport: " << cubemapSupport
+              << "\ncubemapSeamlessFilterSupport: "
+              << cubemapSeamlessFilterSupport << "\n";
+#endif
+
     // Extension: query for bindless image interop support -- device aspects
     bool interopMemoryImportSupport =
         dev.has(sycl::aspect::ext_oneapi_interop_memory_import);
