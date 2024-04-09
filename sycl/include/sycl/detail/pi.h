@@ -978,8 +978,7 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 /// Extension to denote native support of assert feature by an arbitrary device
 /// piDeviceGetInfo call should return this extension when the device supports
 /// native asserts if supported extensions' names are requested
-#define PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT                              \
-  "pi_ext_intel_devicelib_assert"
+#define PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT "cl_intel_devicelib_assert"
 
 /// Device binary image property set names recognized by the SYCL runtime.
 /// Name must be consistent with

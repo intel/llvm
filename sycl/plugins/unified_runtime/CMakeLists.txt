@@ -104,12 +104,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   set(UNIFIED_RUNTIME_TAG a7c202b49aff130f60da0c03916d08bb22b91aa0)
 
   fetch_adapter_source(level_zero
-    "https://github.com/oneapi-src/unified-runtime.git"
+    ${UNIFIED_RUNTIME_REPO}
     ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
-    "https://github.com/oneapi-src/unified-runtime.git"
+    ${UNIFIED_RUNTIME_REPO}
     # Merge: e60c3c22 9287547e
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
     # Date:   Thu Apr 4 10:23:33 2024 +0200
@@ -119,17 +119,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(cuda
-    "https://github.com/oneapi-src/unified-runtime.git"
+    ${UNIFIED_RUNTIME_REPO}
     ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(hip
-    "https://github.com/oneapi-src/unified-runtime.git"
+    ${UNIFIED_RUNTIME_REPO}
     ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(native_cpu
-    "https://github.com/oneapi-src/unified-runtime.git"
+    ${UNIFIED_RUNTIME_REPO}
     ${UNIFIED_RUNTIME_TAG}
   )
 
