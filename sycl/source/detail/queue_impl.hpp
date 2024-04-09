@@ -745,13 +745,6 @@ public:
                           std::vector<event> &MutableVec,
                           std::unique_lock<std::mutex> &QueueLock);
 
-  bool
-  areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
-                                  ContextImplPtr Context) const;
-  bool
-  areEventsSafeForSchedulerBypass(const std::vector<EventImplPtr> &DepEvents,
-                                  ContextImplPtr Context) const;
-
 protected:
   event discard_or_return(const event &Event);
   // Hook to the scheduler to clean up any fusion command held on destruction.

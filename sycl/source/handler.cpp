@@ -245,7 +245,7 @@ event handler::finalize() {
         !MStreamStorage.size() &&
         (!CGData.MEvents.size() ||
          (MQueue->isInOrder() &&
-          MQueue->areEventsSafeForSchedulerBypass(
+          detail::Scheduler::areEventsSafeForSchedulerBypass(
               CGData.MEvents, MQueue->getContextImplPtr())))) {
       // if user does not add a new dependency to the dependency graph, i.e.
       // the graph is not changed, and the queue is not in fusion mode, then

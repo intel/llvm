@@ -322,48 +322,6 @@ void queue_impl::addSharedEvent(const event &Event) {
   MEventsShared.push_back(Event);
 }
 
-bool CheckEventReadiness(const ContextImplPtr &Context,
-                         const EventImplPtr &SyclEventImplPtr) {
-  // Events that don't have an initialized context are throwaway events that
-  // don't represent actual dependencies. Calling getContextImpl() would set
-  // their context, which we wish to avoid as it is expensive.
-  // NOP events also don't represent actual dependencies.
-  if ((!SyclEventImplPtr->isContextInitialized() &&
-       !SyclEventImplPtr->is_host()) ||
-      SyclEventImplPtr->isNOP()) {
-    return true;
-  }
-  if (SyclEventImplPtr->is_host()) {
-    return SyclEventImplPtr->isCompleted();
-  }
-  // Cross-context dependencies can't be passed to the backend directly.
-  if (SyclEventImplPtr->getContextImpl() != Context)
-    return false;
-
-  // A nullptr here means that the commmand does not produce a PI event or it
-  // hasn't been enqueued yet.
-  return SyclEventImplPtr->getHandleRef() != nullptr;
-};
-
-bool queue_impl::areEventsSafeForSchedulerBypass(
-    const std::vector<sycl::event> &DepEvents, ContextImplPtr Context) const {
-
-  return std::all_of(
-      DepEvents.begin(), DepEvents.end(), [&Context](const sycl::event &Event) {
-        const EventImplPtr &SyclEventImplPtr = detail::getSyclObjImpl(Event);
-        return CheckEventReadiness(Context, SyclEventImplPtr);
-      });
-}
-
-bool queue_impl::areEventsSafeForSchedulerBypass(
-    const std::vector<EventImplPtr> &DepEvents, ContextImplPtr Context) const {
-
-  return std::all_of(DepEvents.begin(), DepEvents.end(),
-                     [&Context](const EventImplPtr &SyclEventImplPtr) {
-                       return CheckEventReadiness(Context, SyclEventImplPtr);
-                     });
-}
-
 template <typename HandlerFuncT>
 event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,
                                     const std::vector<event> &DepEvents,
@@ -393,8 +351,8 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
 
     // If we have a command graph set we need to capture the op through the
     // handler rather than by-passing the scheduler.
-    if (MGraph.expired() &&
-        areEventsSafeForSchedulerBypass(ExpandedDepEvents, MContext)) {
+    if (MGraph.expired() && Scheduler::areEventsSafeForSchedulerBypass(
+                                ExpandedDepEvents, MContext)) {
       if (MSupportsDiscardingPiEvents) {
         MemOpFunc(MemOpArgs..., getPIEvents(ExpandedDepEvents),
                   /*PiEvent*/ nullptr, /*EventImplPtr*/ nullptr);
