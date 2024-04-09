@@ -850,27 +850,18 @@ struct is_property_key_of<save_log_key,
 __SYCL_EXPORT bool is_source_kernel_bundle_supported(backend BE,
                                                      source_language Language);
 
-/////////////////////////
-// syclex::create_kernel_bundle_from_source
-/////////////////////////
-
-__SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
-create_kernel_bundle_from_source(const context &SyclContext,
-                                 source_language Language,
-                                 const std::string &Source);
-
-#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-__SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
-create_kernel_bundle_from_source(const context &SyclContext,
-                                 source_language Language,
-                                 const std::vector<std::byte> &Bytes);
-#endif
-
-/////////////////////////
-// syclex::build(source_kb) => exe_kb
-/////////////////////////
 namespace detail {
-// forward decl
+// forward decls
+__SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
+make_kernel_bundle_from_source(const context &SyclContext,
+                               source_language Language,
+                               const std::vector<std::byte> &Bytes);
+
+__SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
+make_kernel_bundle_from_source(const context &SyclContext,
+                               source_language Language,
+                               const std::string &Source);
+
 __SYCL_EXPORT kernel_bundle<bundle_state::executable>
 build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
                   const std::vector<device> &Devices,
@@ -879,7 +870,48 @@ build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
 
 } // namespace detail
 
-template <typename PropertyListT = empty_properties_t,
+/////////////////////////
+// syclex::create_kernel_bundle_from_source
+/////////////////////////
+template <typename PropertyListT = detail::empty_properties_t,
+          typename = std::enable_if_t<
+              is_property_list_v<PropertyListT> &&
+              detail::all_props_are_keys_of<
+                  kernel_bundle<bundle_state::ext_oneapi_source>,
+                  PropertyListT>::value>>
+__SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
+create_kernel_bundle_from_source(const context &SyclContext,
+                                 source_language Language,
+                                 const std::string &Source,
+                                 PropertyListT props = {}) {
+  // handle the props, which are templated.
+
+  return detail::make_kernel_bundle_from_source(SyclContext, Language, Source);
+}
+
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+template <typename PropertyListT = detail::empty_properties_t,
+          typename = std::enable_if_t<
+              is_property_list_v<PropertyListT> &&
+              detail::all_props_are_keys_of<
+                  kernel_bundle<bundle_state::ext_oneapi_source>,
+                  PropertyListT>::value>>
+__SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
+create_kernel_bundle_from_source(const context &SyclContext,
+                                 source_language Language,
+                                 const std::vector<std::byte> &Bytes,
+                                 PropertyListT props = {}) {
+  // handle the props, which are templated.
+
+  return detail::make_kernel_bundle_from_source(SyclContext, Language, Bytes);
+}
+#endif
+
+/////////////////////////
+// syclex::build(source_kb) => exe_kb
+/////////////////////////
+
+template <typename PropertyListT = detail::empty_properties_t,
           typename = std::enable_if_t<
               is_property_list_v<PropertyListT> &&
               detail::all_props_are_keys_of<

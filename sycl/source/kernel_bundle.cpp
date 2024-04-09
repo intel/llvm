@@ -388,12 +388,13 @@ bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
 }
 
 /////////////////////////
-// syclex::create_kernel_bundle_from_source
+// syclex::detail::create_kernel_bundle_from_source
 /////////////////////////
+namespace detail {
 
-source_kb create_kernel_bundle_from_source(const context &SyclContext,
-                                           source_language Language,
-                                           const std::string &Source) {
+source_kb make_kernel_bundle_from_source(const context &SyclContext,
+                                         source_language Language,
+                                         const std::string &Source) {
   // TODO: if we later support a "reason" why support isn't present
   // (like a missing shared library etc.) it'd be nice to include it in
   // the exception message here.
@@ -407,10 +408,9 @@ source_kb create_kernel_bundle_from_source(const context &SyclContext,
   return sycl::detail::createSyclObjFromImpl<source_kb>(KBImpl);
 }
 
-source_kb
-create_kernel_bundle_from_source(const context &SyclContext,
-                                 source_language Language,
-                                 const std::vector<std::byte> &Bytes) {
+source_kb make_kernel_bundle_from_source(const context &SyclContext,
+                                         source_language Language,
+                                         const std::vector<std::byte> &Bytes) {
   backend BE = SyclContext.get_backend();
   if (!is_source_kernel_bundle_supported(BE, Language))
     throw sycl::exception(make_error_code(errc::invalid),
@@ -424,7 +424,6 @@ create_kernel_bundle_from_source(const context &SyclContext,
 /////////////////////////
 // syclex::detail::build_from_source(source_kb) => exe_kb
 /////////////////////////
-namespace detail {
 
 exe_kb build_from_source(source_kb &SourceKB,
                          const std::vector<device> &Devices,
