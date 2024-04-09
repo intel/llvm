@@ -4,7 +4,7 @@ The "Graph" directory contains tests for the
 [sycl_ext_oneapi_graph](../../doc/extensions/experimental/sycl_ext_oneapi_graph.asciidoc)
 extension.
 
-Each subdirectory contains a `lit.local.cfg` file. This file sets the `lit`
+Many subdirectories contain a `lit.local.cfg` file. This file sets the `lit`
 option `config.required_features` to the graph aspect required to run the tests:
 
 - `aspect-ext_oneapi_limited_graph` for any test that doesn't require the
@@ -27,9 +27,35 @@ directories. These tests also define `GRAPH_E2E_EXPLICIT`
 or `GRAPH_E2E_RECORD_REPLAY` respectively to choose which API is used by the
 common code.
 
-The other directories are used to group similar tests together. They might
-themselves contain subdirectories named `Explicit` and `RecordReplay` if they
-make use of the framework described above.
+The other directories are used to group similar tests together. Tests that
+require a specific `aspect` are also grouped together in order to use the
+`lit.local.cfg` file. Directories might themselves contain subdirectories named 
+`Explicit` and `RecordReplay` if they make use of the framework described above.
 
 In addition, in order to help identify specific tests, the matching files
 in `Explicit`, `RecordReplay` and `Inputs` folders should have identical names.
+
+## Test Execution
+
+Tests might be run multiple times using different options. The most commonly used
+options are:
+
+- `l0_leak_check`: `lit` directive which, on the `level-zero` backend, enables
+checks for memory leaks caused by mismatched number of calls to memory
+allocation / release APIs in `Unified Runtime`.
+- `SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS`: Environment variable which, 
+on the `level-zero` backend, enables or disables
+[immediate command-lists](https://spec.oneapi.io/level-zero/latest/core/PROG.html#low-latency-immediate-command-lists).
+Without this option, depending on the hardware, command lists might be enabled
+or disabled by default.
+
+Tests might be run multiple times using different combination of the options 
+described above. Most tests do the following:
+
+1. A default run which runs for all backends. 
+2. On the `level-zero` backend only, tests for leaks and forcefully **disables**
+command-lists in order to test this codepath on hardware that enables
+command-lists by default.
+3. On the `level-zero` backend only, tests for leaks and forcefully **enables**
+command-lists in order to test this codepath on hardware that disables
+command-lists by default.
