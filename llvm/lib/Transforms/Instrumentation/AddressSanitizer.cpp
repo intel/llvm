@@ -880,7 +880,6 @@ private:
   Constant *AsanShadowGlobal;
   Constant *AsanShadowDevicePrivate;
   StringMap<GlobalVariable *> GlobalStringMap;
-  Constant *AsanDummpyLaunch;
   Constant *AsanLaunchInfo;
 
   // These arrays is indexed by AccessIsWrite, Experiment and log2(AccessSize).
@@ -1541,10 +1540,6 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
   Args.push_back(
       ConstantInt::get(Type::getInt32Ty(C), PtrTy->getPointerAddressSpace()));
 
-  auto *F = InsertBefore->getFunction();
-  Args.push_back(new LoadInst(IntptrTy->getPointerTo(kSpirOffloadGlobalAS),
-                              AsanLaunchInfo, "__asan_launch", InsertBefore));
-
   // File & Line
   if (Loc) {
     llvm::SmallString<128> Source = Loc->getDirectory();
@@ -1631,10 +1626,9 @@ void AddressSanitizer::instrumentSyclStaticLocalMemory(CallInst *CI) {
   //   size_t size_with_redzone,
   //   uptr launch_info
   // )
-  IRB.CreateCall(AsanSetShadowStaticLocalFunc,
-                 {IRB.CreatePointerCast(NewCI, IntptrTy), Size, SizeWithRedZone,
-                  IRB.CreateLoad(IntptrTy->getPointerTo(kSpirOffloadGlobalAS),
-                                 AsanLaunchInfo, "__asan_launch")});
+  IRB.CreateCall(
+      AsanSetShadowStaticLocalFunc,
+      {IRB.CreatePointerCast(NewCI, IntptrTy), Size, SizeWithRedZone});
 
   CI->replaceAllUsesWith(NewCI);
   CI->eraseFromParent();
@@ -1644,7 +1638,10 @@ void AddressSanitizer::instrumentSyclStaticLocalMemory(CallInst *CI) {
 void AddressSanitizer::instrumentSyclDynamicLocalMemory(Function &F) {
   InstrumentationIRBuilder IRB(F.getEntryBlock().getFirstNonPHI());
 
+  // Save "__asan_launch" into local memory "__AsanLaunchInfo"
   auto *LastArg = F.getArg(F.arg_size() - 1);
+  assert(LastArg->getName() == "__asan_launch" &&
+         "Instrument on extended SPIR kernel function only");
   IRB.CreateStore(LastArg, AsanLaunchInfo);
 
   SmallVector<Argument *> LocalArgs;
@@ -1667,9 +1664,7 @@ void AddressSanitizer::instrumentSyclDynamicLocalMemory(Function &F) {
   }
   IRB.CreateCall(AsanSetShadowDynamicLocalFunc,
                  {IRB.CreatePointerCast(ArgsArray, IntptrTy),
-                  ConstantInt::get(Int32Ty, LocalArgs.size()),
-                  IRB.CreateLoad(IntptrTy->getPointerTo(kSpirOffloadGlobalAS),
-                                 AsanLaunchInfo, "__asan_launch")});
+                  ConstantInt::get(Int32Ty, LocalArgs.size())});
 }
 
 // Instrument memset/memmove/memcpy
@@ -2215,7 +2210,7 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
   if (UseCalls) {
     if (Exp == 0) {
       if (TargetTriple.isSPIR()) {
-        SmallVector<Value *, 6> Args;
+        SmallVector<Value *, 5> Args;
         Args.push_back(AddrLong);
         AppendDebugInfoToArgs(InsertBefore, Addr, Args);
         RTCI.createRuntimeCall(
@@ -2297,7 +2292,7 @@ void AddressSanitizer::instrumentUnusualSizeOrAlignment(
   if (UseCalls) {
     if (Exp == 0) {
       if (TargetTriple.isSPIR()) {
-        SmallVector<Value *, 7> Args;
+        SmallVector<Value *, 6> Args;
         Args.push_back(AddrLong);
         Args.push_back(Size);
         AppendDebugInfoToArgs(InsertBefore, Addr, Args);
@@ -3191,7 +3186,6 @@ void AddressSanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo *T
       // __asan_loadX/__asan_storeX(
       //   ...
       //   int32_t as, // Address Space
-      //   uptr as(1)* launch_data, // per launch specific data
       //   char* file,
       //   unsigned int line,
       //   char* func
@@ -3201,15 +3195,11 @@ void AddressSanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo *T
             Type::getInt8Ty(*C)->getPointerTo(kSpirOffloadConstantAS);
 
         Args1.push_back(Type::getInt32Ty(*C)); // address_space
-        Args1.push_back(
-            IntptrTy->getPointerTo(kSpirOffloadGlobalAS)); // launch_data
         Args1.push_back(Int8PtrTy);            // file
         Args1.push_back(Type::getInt32Ty(*C)); // line
         Args1.push_back(Int8PtrTy);            // func
 
         Args2.push_back(Type::getInt32Ty(*C)); // address_space
-        Args2.push_back(
-            IntptrTy->getPointerTo(kSpirOffloadGlobalAS)); // launch_data
         Args2.push_back(Int8PtrTy);            // file
         Args2.push_back(Type::getInt32Ty(*C)); // line
         Args2.push_back(Int8PtrTy);            // func
@@ -3273,32 +3263,18 @@ void AddressSanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo *T
     // __asan_set_shadow_static_local(
     //   uptr ptr,
     //   size_t size,
-    //   size_t size_with_redzone,
-    //   uptr* launch_info
+    //   size_t size_with_redzone
     // )
-    AsanSetShadowStaticLocalFunc = M.getOrInsertFunction(
-        "__asan_set_shadow_static_local", IRB.getVoidTy(), IntptrTy, IntptrTy,
-        IntptrTy, IntptrTy->getPointerTo(kSpirOffloadGlobalAS));
+    AsanSetShadowStaticLocalFunc =
+        M.getOrInsertFunction("__asan_set_shadow_static_local", IRB.getVoidTy(),
+                              IntptrTy, IntptrTy, IntptrTy);
 
     // __asan_set_shadow_dynamic_local(
     //   uptr ptr,
-    //   uint32_t num_args,
-    //   uptr* launch_info
+    //   uint32_t num_args
     // )
     AsanSetShadowDynamicLocalFunc = M.getOrInsertFunction(
-        "__asan_set_shadow_dynamic_local", IRB.getVoidTy(), IntptrTy, Int32Ty,
-        IntptrTy->getPointerTo(kSpirOffloadGlobalAS));
-
-    // A temporary global varible, which is used to mark all instructions
-    // that use "__asan_launch" parameter. It will be used and removed in
-    // sycl-post-link.
-    AsanDummpyLaunch =
-        M.getOrInsertGlobal("__asan_dummy_launch", IntptrTy, [&] {
-          return new GlobalVariable(
-              M, IntptrTy, false, GlobalVariable::InternalLinkage,
-              ConstantInt::get(IntptrTy, 0), "__asan_dummy_launch", nullptr,
-              GlobalVariable::NotThreadLocal, kSpirOffloadGlobalAS);
-        });
+        "__asan_set_shadow_dynamic_local", IRB.getVoidTy(), IntptrTy, Int32Ty);
 
     AsanLaunchInfo = M.getOrInsertGlobal(
         "__AsanLaunchInfo", IntptrTy->getPointerTo(kSpirOffloadGlobalAS), [&] {
