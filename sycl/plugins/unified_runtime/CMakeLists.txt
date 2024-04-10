@@ -110,17 +110,23 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(opencl
     ${UNIFIED_RUNTIME_REPO}
-    # Merge: e60c3c22 9287547e
+    # commit 85b7559033e329389452cb87615ad42fbb644d59 (HEAD -> main, origin/main, origin/HEAD)
+    # Merge: a7c202b4 5c300799
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Apr 4 10:23:33 2024 +0200
-    #     Merge pull request #1448 from steffenlarsen/steffen/make_ext_func_fail_unsupported
-    #     [OpenCL] Make extension function lookup return unusupported error
-    3609afc7f8781f2eae5de74deaf50ba52b1bb344
+    # Date:   Tue Apr 9 14:06:49 2024 +0100
+    #     Merge pull request #1496 from steffenlarsen/steffen/revert_memory_lookup_error
+    #     [OpenCL] Revert urMemBufferCreate extension function lookup error
+    85b7559033e329389452cb87615ad42fbb644d59
   )
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # Merge: ecdd159f c02d137e
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Apr 10 11:04:28 2024 +0100
+    #     Merge pull request #1181 from DuncanMcBain/cuda-mem-size-fix
+    #     Return device total global memory for MaxAllocSize
+    05b5899202f7e3b3f12f4c5b8fc8f01451d08105
   )
 
   fetch_adapter_source(hip
