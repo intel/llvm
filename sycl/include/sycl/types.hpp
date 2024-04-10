@@ -548,17 +548,6 @@ public:
   }
 #endif // __SYCL_DEVICE_ONLY__
 
-#ifdef __SYCL_DEVICE_ONLY__
-  // Optimized naive constructors with NumElements of DataT values.
-  // We don't expect compilers to optimize vararg recursive functions well.
-
-  // Helper type to make specific constructors available only for specific
-  // number of elements.
-  template <int IdxNum, typename T = void>
-  using EnableIfMultipleElems = typename std::enable_if_t<
-      std::is_convertible_v<T, DataT> && NumElements == IdxNum, DataT>;
-#endif // __SYCL_DEVICE_ONLY__
-
   // Constructor from values of base type or vec of base type. Checks that
   // base types are match and that the NumElements == sum of lengths of args.
   template <typename... argTN, typename = EnableIfSuitableTypes<argTN...>,
@@ -1024,55 +1013,58 @@ public:
   // operator~() available only when: dataT != float && dataT != double
   // && dataT != half
   friend vec operator~(const vec &Rhs) {
-    if constexpr (IsUsingArrayOnDevice || IsUsingArrayOnHost) {
-      vec Ret{};
-      for (size_t I = 0; I < NumElements; ++I) {
-        Ret.setValue(I, ~Rhs.getValue(I));
-      }
-      return Ret;
-    } else {
-      vec Ret{(typename vec::DataType) ~Rhs.m_Data};
-      if constexpr (std::is_same_v<Type, bool>) {
-        Ret.ConvertToDataT();
-      }
-      return Ret;
+#ifdef __SYCL_DEVICE_ONLY__
+    auto extVec = detail::BitCast<DataType, vector_t>(Rhs.m_Data);
+    vec Ret{~extVec};
+    if constexpr (std::is_same_v<Type, bool>) {
+      Ret.ConvertToDataT();
     }
+    return Ret;
+#else
+    vec Ret{};
+    for (size_t I = 0; I < NumElements; ++I) {
+      Ret.setValue(I, ~Rhs.getValue(I));
+    }
+    return Ret;
+#endif
   }
 
   // operator!
   friend vec<detail::rel_t<DataT>, NumElements> operator!(const vec &Rhs) {
-    if constexpr (IsUsingArrayOnDevice || IsUsingArrayOnHost) {
-      vec Ret{};
-      for (size_t I = 0; I < NumElements; ++I) {
+    vec Ret{};
+#ifndef __SYCL_DEVICE_ONLY__
+    for (size_t I = 0; I < NumElements; ++I) {
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-        // std::byte neither supports ! unary op or casting, so special handling
-        // is needed. And, worse, Windows has a conflict with 'byte'.
-        if constexpr (std::is_same_v<std::byte, DataT>) {
-          Ret.setValue(I, std::byte{!vec_data<DataT>::get(Rhs.getValue(I))});
-        } else
+      // std::byte neither supports ! unary op or casting, so special handling
+      // is needed. And, worse, Windows has a conflict with 'byte'.
+      if constexpr (std::is_same_v<std::byte, DataT>) {
+        Ret.setValue(I, std::byte{!vec_data<DataT>::get(Rhs.getValue(I))});
+      } else
 #endif // (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-        {
-          Ret.setValue(I, !vec_data<DataT>::get(Rhs.getValue(I)));
-        }
+      {
+        Ret.setValue(I, !vec_data<DataT>::get(Rhs.getValue(I)));
       }
-      return Ret.template as<vec<detail::rel_t<DataT>, NumElements>>();
-    } else {
-      return vec{(typename vec<DataT, NumElements>::DataType) !Rhs.m_Data}
-          .template as<vec<detail::rel_t<DataT>, NumElements>>();
     }
+    return Ret.template as<vec<detail::rel_t<DataT>, NumElements>>();
+#else
+    auto extVec = detail::BitCast<DataType, vector_t>(Rhs.m_Data);
+    return vec{!extVec}
+        .template as<vec<detail::rel_t<DataT>, NumElements>>();
+#endif
   }
 
   // operator +
   friend vec operator+(const vec &Lhs) {
-    if constexpr (IsUsingArrayOnDevice || IsUsingArrayOnHost) {
-      vec Ret{};
-      for (size_t I = 0; I < NumElements; ++I)
-        Ret.setValue(
-            I, vec_data<DataT>::get(+vec_data<DataT>::get(Lhs.getValue(I))));
-      return Ret;
-    } else {
-      return vec{+Lhs.m_Data};
-    }
+#ifdef __SYCL_DEVICE_ONLY__
+    auto extVec = detail::BitCast<DataType, vector_t>(Lhs.m_Data);
+    return vec{+extVec};
+#else
+    vec Ret{};
+    for (size_t I = 0; I < NumElements; ++I)
+      Ret.setValue(
+          I, vec_data<DataT>::get(+vec_data<DataT>::get(Lhs.getValue(I))));
+    return Ret;
+#endif
   }
 
   // operator -
@@ -1089,18 +1081,20 @@ public:
         oneapi::bfloat16 w = -v;
         Ret.m_Data[I] = oneapi::detail::bfloat16ToBits(w);
       }
-    } else if constexpr (IsUsingArrayOnDevice || IsUsingArrayOnHost) {
+    } else {
+#ifndef __SYCL_DEVICE_ONLY__
       for (size_t I = 0; I < NumElements; ++I)
         Ret.setValue(
             I, vec_data<DataT>::get(-vec_data<DataT>::get(Lhs.getValue(I))));
-      return Ret;
-    } else {
-      Ret = vec{-Lhs.m_Data};
+#else
+      auto extVec = detail::BitCast<DataType, vector_t>(Lhs.m_Data);
+      Ret = vec{-extVec};
       if constexpr (std::is_same_v<Type, bool>) {
         Ret.ConvertToDataT();
       }
-      return Ret;
+#endif
     }
+    return Ret;
   }
 
   // OP is: &&, ||
