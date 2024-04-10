@@ -17,9 +17,12 @@ RUN /install.sh
 RUN apt install "linux-headers-$(uname -r)" "linux-modules-extra-$(uname -r)"
 RUN wget https://repo.radeon.com/amdgpu-install/6.0.2/ubuntu/jammy/amdgpu-install_6.0.60002-1_all.deb
 RUN apt install ./amdgpu-install_6.0.60002-1_all.deb
+RUN y
 RUN apt update
 RUN apt install amdgpu-dkms
+RUN y
 RUN apt install rocm
+RUN y
 RUN apt update
 RUN dkms status
 RUN /opt/rocm-6.0.2/bin/rocminfo
