@@ -10,7 +10,6 @@
 #include "spir_global_var.hpp"
 #include <cstdint>
 
-#if !OMP_LIBDEVICE || !INTEL_COLLAB
 template <typename T>
 class
 #ifdef __SYCL_DEVICE_ONLY__
@@ -40,6 +39,5 @@ public:
 private:
   T val;
 };
-#endif
 
 enum DeviceType : uint64_t { UNKNOWN, CPU, GPU_PVC, GPU_DG2 };
