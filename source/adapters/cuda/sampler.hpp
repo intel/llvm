@@ -15,7 +15,8 @@
 /// Sampler property layout:
 /// |     <bits>     | <usage>
 /// -----------------------------------
-/// |  31 30 ... 12  | N/A
+/// |  31 30 ... 13  | N/A
+/// |       12       | cubemap filter mode
 /// |       11       | mip filter mode
 /// |    10 9 8      | addressing mode 3
 /// |     7 6 5      | addressing mode 2
@@ -59,5 +60,10 @@ struct ur_sampler_handle_t_ {
 
   ur_sampler_filter_mode_t getMipFilterMode() const noexcept {
     return static_cast<ur_sampler_filter_mode_t>((Props >> 11) & 0b1);
+  }
+
+  ur_exp_sampler_cubemap_filter_mode_t getCubemapFilterMode() const noexcept {
+    return static_cast<ur_exp_sampler_cubemap_filter_mode_t>((Props >> 12) &
+                                                             0b1);
   }
 };
