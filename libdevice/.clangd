@@ -1,0 +1,5 @@
+CompileFlags:
+  Add: [-D__SPIR__, -D__SPIRV__, -D__SYCL_DEVICE_ONLY__, -DDEVICE_EXTERNAL=,-DSYCL_EXTERNAL=]
+Diagnostics:
+  ClangTidy:
+    Remove: readability-identifier-naming
