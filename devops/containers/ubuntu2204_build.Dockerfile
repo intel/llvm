@@ -14,13 +14,23 @@ RUN /install.sh
 
 # Install AMD ROCm
 
+# Make the directory if it doesn't exist yet.
+# This location is recommended by the distribution maintainers.
+RUN mkdir --parents --mode=0755 /etc/apt/keyrings
+# Download the key, convert the signing-key to a full
+# keyring required by apt and store in the keyring directory
+RUN https://repo.radeon.com/rocm/rocm.gpg.key -O - | \
+    gpg --dearmor | tee /etc/apt/keyrings/rocm.gpg > /dev/null
+RUN echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/amdgpu/6.0/ubuntu jammy main" \
+    | tee /etc/apt/sources.list.d/amdgpu.list
 RUN apt update
-RUN wget https://repo.radeon.com/amdgpu-install/6.0.2/ubuntu/jammy/amdgpu-install_6.0.60002-1_all.deb
-RUN yes | apt install ./amdgpu-install_6.0.60002-1_all.deb
-RUN yes | amdgpu-install --no-dkms --usecase=graphics
-RUN export PATH=$PATH:/opt/rocm-6.0.2/bin
-# Verification
-RUN /opt/rocm-6.0.2/bin/rocminfo
+RUN echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.0 jammy main" \
+    | tee --append /etc/apt/sources.list.d/rocm.list
+RUN echo -e 'Package: *\nPin: release o=repo.radeon.com\nPin-Priority: 600' \
+    | tee /etc/apt/preferences.d/rocm-pin-600
+RUN yes | apt install amdgpu-dkms
+RUN apt update
+RUN yes | apt install rocm-core
 
 # By default Ubuntu sets an arbitrary UID value, that is different from host
 # system. When CI passes default UID value of 1001, some of LLVM tools fail to
