@@ -1541,7 +1541,7 @@ class KernelObjVisitor {
   void visitParam(ParmVarDecl *Param, QualType ParamTy,
                   HandlerTys &...Handlers) {
     if (isSyclSpecialType(ParamTy, SemaRef))
-      KP_FOR_EACH(handleSyclSpecialType, Param, ParamTy);
+      KP_FOR_EACH(handleOtherType, Param, ParamTy);
     else if (ParamTy->isStructureOrClassType()) {
       if (KP_FOR_EACH(handleStructType, Param, ParamTy)) {
         CXXRecordDecl *RD = ParamTy->getAsCXXRecordDecl();
@@ -1553,12 +1553,12 @@ class KernelObjVisitor {
         VisitUnion(nullptr, Param, RD, Handlers...);
       }
     } else if (ParamTy->isReferenceType())
-      KP_FOR_EACH(handleReferenceType, Param, ParamTy);
+      KP_FOR_EACH(handleOtherType, Param, ParamTy);
     else if (ParamTy->isPointerType())
       KP_FOR_EACH(handlePointerType, Param, ParamTy);
     else if (ParamTy->isArrayType())
-      visitArray(Param, ParamTy, Handlers...);
-    else if (ParamTy->isScalarType() || ParamTy->isVectorType())
+      KP_FOR_EACH(handleOtherType, Param, ParamTy);
+    else if (ParamTy->isScalarType())
       KP_FOR_EACH(handleScalarType, Param, ParamTy);
     else
       KP_FOR_EACH(handleOtherType, Param, ParamTy);
@@ -2976,6 +2976,7 @@ public:
   }
 
   bool leaveStruct(const CXXRecordDecl *, FieldDecl *, QualType) final {
+    --StructDepth;
     return true;
   }
 
