@@ -40,16 +40,16 @@ std::string generate_semi_unique_id() {
 }
 
 std::filesystem::path prepare_ws(const std::string &id) {
-  // const std::filesystem::path    tmp = std::filesystem::current_path();
   const std::filesystem::path tmp = std::filesystem::temp_directory_path();
 
   std::filesystem::path new_directory_path = tmp / id;
 
-  // std::cout << "tmp: " << tmp << "  id: " << id << std::endl;
+  try {
+    std::filesystem::create_directories(new_directory_path);
+  } catch (std::filesystem::filesystem_error const &e) {
+    throw sycl::exception(sycl::errc::build, e.what());
+  }
 
-  // will throw an exception ( fs::filesystem_error )
-  // should we catch that and change it to errc::build ?
-  std::filesystem::create_directories(new_directory_path);
   // CP
   std::cout << "Directory created: " << new_directory_path << std::endl;
 
@@ -85,9 +85,8 @@ std::filesystem::path output_cpp(const std::filesystem::path &parent_dir,
   return file_path;
 }
 
-void output_include_files(
-    const std::filesystem::path &dpath,
-    std::vector<std::pair<std::string, std::string>> IncludePairs) {
+void output_include_files(const std::filesystem::path &dpath,
+                          include_pairs_t IncludePairs) {
   using pairStrings = std::pair<std::string, std::string>;
   for (pairStrings p : IncludePairs) {
     std::filesystem::path file_path = dpath / p.first;
@@ -167,7 +166,6 @@ std::filesystem::path find_spv(const std::filesystem::path &parent_dir,
   for (const auto &entry : std::filesystem::directory_iterator(parent_dir)) {
     if (entry.is_regular_file() &&
         std::regex_match(entry.path().filename().string(), pattern_regex)) {
-      // Found the matching file
       // CP
       std::cout << "Matching file found: " << entry.path() << std::endl;
       return entry.path();
@@ -179,35 +177,30 @@ std::filesystem::path find_spv(const std::filesystem::path &parent_dir,
                                                parent_dir.filename().string());
 }
 
-using spirv_vec_t = std::vector<uint8_t>;
-
-spirv_vec_t loadSPIRVFromFile(std::filesystem::path file_name) {
+spirv_vec_t load_spv_from_file(std::filesystem::path file_name) {
   std::ifstream spv_stream(file_name, std::ios::binary);
   spv_stream.seekg(0, std::ios::end);
   size_t sz = spv_stream.tellg();
   spv_stream.seekg(0);
-  // std::vector<std::byte> spv(sz);
   spirv_vec_t spv(sz);
   spv_stream.read(reinterpret_cast<char *>(spv.data()), sz);
 
   return spv;
 }
 
-using spirv_vec_t = std::vector<uint8_t>;
-
-spirv_vec_t
-SYCL_to_SPIRV(const std::string &SYCLSource,
-              std::vector<std::pair<std::string, std::string>> IncludePairs,
-              const std::vector<std::string> &UserArgs, std::string *LogPtr) {
-  const std::string id = generate_semi_unique_id();
-  const std::filesystem::path parent_dir = prepare_ws(id);
-  std::filesystem::path file_path = output_cpp(parent_dir, id, SYCLSource);
-  output_include_files(parent_dir, IncludePairs);
-  invoke_compiler(file_path, parent_dir, id, UserArgs, LogPtr);
-  std::filesystem::path spv_path = find_spv(parent_dir, id);
-  return loadSPIRVFromFile(spv_path);
-
-  // throw sycl::exception(sycl::errc::build, "hi");
+spirv_vec_t SYCL_to_SPIRV(const std::string &SYCLSource,
+                          include_pairs_t IncludePairs,
+                          const std::vector<std::string> &UserArgs,
+                          std::string *LogPtr) {
+  // clang-format off
+  const std::string id                    = generate_semi_unique_id();
+  const std::filesystem::path parent_dir  = prepare_ws(id);
+  std::filesystem::path file_path         = output_cpp(parent_dir, id, SYCLSource);
+                                            output_include_files(parent_dir, IncludePairs);
+                                            invoke_compiler(file_path, parent_dir, id, UserArgs, LogPtr);
+  std::filesystem::path spv_path          = find_spv(parent_dir, id);
+                                     return load_spv_from_file(spv_path);
+  // clang-format on
 }
 
 bool SYCL_Compilation_Available() {

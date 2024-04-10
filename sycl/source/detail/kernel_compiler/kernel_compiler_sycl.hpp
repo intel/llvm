@@ -21,10 +21,12 @@ namespace ext::oneapi::experimental {
 namespace detail {
 
 using spirv_vec_t = std::vector<uint8_t>;
-spirv_vec_t
-SYCL_to_SPIRV(const std::string &Source,
-              std::vector<std::pair<std::string, std::string>> IncludePairs,
-              const std::vector<std::string> &UserArgs, std::string *LogPtr);
+using include_pairs_t = std::vector<std::pair<std::string, std::string>>;
+
+spirv_vec_t SYCL_to_SPIRV(const std::string &Source,
+                          include_pairs_t IncludePairs,
+                          const std::vector<std::string> &UserArgs,
+                          std::string *LogPtr);
 
 bool SYCL_Compilation_Available();
 

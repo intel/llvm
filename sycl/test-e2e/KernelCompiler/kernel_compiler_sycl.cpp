@@ -85,6 +85,7 @@ void test_build_and_run() {
     return;
   }
 
+  // TODO: replace with device.ext_support_blah_nha
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl, SYCLSource,
       syclex::properties{syclex::include_files{"AddEm.h", AddEmH}});

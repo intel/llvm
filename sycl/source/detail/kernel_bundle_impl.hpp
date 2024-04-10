@@ -330,12 +330,12 @@ public:
     }
   }
 
+  using include_pairs_t =
+      std::vector<std::pair<std::string /* name */, std::string /* content */>>;
   // oneapi_ext_kernel_compiler
   // construct from source string
-  kernel_bundle_impl(
-      const context &Context, syclex::source_language Lang,
-      const std::string &Src,
-      std::vector<std::pair<std::string, std::string>> IncludePairsVec)
+  kernel_bundle_impl(const context &Context, syclex::source_language Lang,
+                     const std::string &Src, include_pairs_t IncludePairsVec)
       : MContext(Context), MDevices(Context.get_devices()),
         MState(bundle_state::ext_oneapi_source), Language(Lang), Source(Src),
         IncludePairs(IncludePairsVec) {}
@@ -724,8 +724,7 @@ private:
   const std::variant<std::string, std::vector<std::byte>> Source;
   // only kernel_bundles created from source have KernelNames member.
   std::vector<std::string> KernelNames;
-  std::vector<std::pair<std::string /* name */, std::string /* content */>>
-      IncludePairs;
+  include_pairs_t IncludePairs;
 };
 
 } // namespace detail
