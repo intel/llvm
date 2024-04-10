@@ -57,11 +57,11 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 26cc04e258b82696bfd7738d08d95e34db4aecf6
+  # commit 532dac51118881e91831287538d634e5e6d54f5c
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Apr 8 09:52:16 2024 +0100
-  #     Merge pull request #1433 from Seanst98/sean/cubemaps-UR
-  #     [Bindless][CUDA] Add support for cubemaps
+  # Date:   Wed Apr 10 10:21:22 2024 +0100
+  #     Merge pull request #1455 from GeorgeWeb/georgi/fix-hip-usm-copy2d
+  #     [HIP] Fix memory type detection in allocation info queries and USM copy2D
   set(UNIFIED_RUNTIME_TAG 26cc04e258b82696bfd7738d08d95e34db4aecf6)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
