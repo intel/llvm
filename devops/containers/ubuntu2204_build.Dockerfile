@@ -17,7 +17,7 @@ RUN /install.sh
 RUN apt update
 RUN wget https://repo.radeon.com/amdgpu-install/6.0.2/ubuntu/jammy/amdgpu-install_6.0.60002-1_all.deb
 RUN yes | apt install ./amdgpu-install_6.0.60002-1_all.deb
-RUN yes | amdgpu-install --no-dkms --usecase=rocm
+RUN yes | amdgpu-install --no-dkms --usecase=graphics
 RUN export PATH=$PATH:/opt/rocm-6.0.2/bin
 # Verification
 RUN /opt/rocm-6.0.2/bin/rocminfo
