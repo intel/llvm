@@ -15,6 +15,7 @@ RUN /install.sh
 # Install AMD ROCm
 
 RUN apt install "linux-headers-$(uname -r)" "linux-modules-extra-$(uname -r)"
+RUN y
 RUN wget https://repo.radeon.com/amdgpu-install/6.0.2/ubuntu/jammy/amdgpu-install_6.0.60002-1_all.deb
 RUN apt install ./amdgpu-install_6.0.60002-1_all.deb
 RUN y
