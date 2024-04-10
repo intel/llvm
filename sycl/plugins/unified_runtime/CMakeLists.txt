@@ -131,7 +131,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 08b3e8fe6c5ad0aed125823c335eb44343845f6c
+    # Merge: 758c6149 db47fc0a
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Apr 10 16:22:00 2024 +0100
+    #     Merge pull request #1359 from lplewa/hip_log
+    #     Refactor hip adapter to new logger
+    08b3e8fe6c5ad0aed125823c335eb44343845f6c
   )
 
   fetch_adapter_source(native_cpu
