@@ -879,8 +879,8 @@ llvm::CallInst *mlir::LLVM::detail::createConstrainedIntrinsicCall(
         roundingModeOp.getRoundingModeAttr().getValue());
   }
   llvm::fp::ExceptionBehavior except =
-      convertExceptionBehaviorToLLVM(cast<ExceptionBehaviorOpInterface>(intrOp)
-                                         .getExceptionBehaviorAttr()
+      convertFPExceptionBehaviorToLLVM(cast<FPExceptionBehaviorOpInterface>(intrOp)
+                                         .getFPExceptionBehaviorAttr()
                                          .getValue());
   return builder.CreateConstrainedFPCall(callee, args, "", rounding, except);
 }
@@ -1742,6 +1742,16 @@ ModuleTranslation::translateGlobalVariableExpression(
 
 llvm::Metadata *ModuleTranslation::translateDebugInfo(LLVM::DINodeAttr attr) {
   return debugTranslation->translate(attr);
+}
+
+llvm::RoundingMode
+ModuleTranslation::translateRoundingMode(LLVM::RoundingMode rounding) {
+  return convertRoundingModeToLLVM(rounding);
+}
+
+llvm::fp::ExceptionBehavior ModuleTranslation::translateFPExceptionBehavior(
+    LLVM::FPExceptionBehavior exceptionBehavior) {
+  return convertFPExceptionBehaviorToLLVM(exceptionBehavior);
 }
 
 llvm::NamedMDNode *

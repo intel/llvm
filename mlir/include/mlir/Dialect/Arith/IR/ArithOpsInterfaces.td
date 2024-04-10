@@ -115,16 +115,27 @@ def ArithRoundingModeInterface : OpInterface<"ArithRoundingModeInterface"> {
 
   let methods = [
     InterfaceMethod<
-      /*desc=*/        "Returns an RoundingModeAttr attribute for the operation",
+      /*desc=*/        "Returns a RoundingModeAttr attribute for the operation",
       /*returnType=*/  "RoundingModeAttr",
       /*methodName=*/  "getRoundingModeAttr",
       /*args=*/        (ins),
       /*methodBody=*/  [{}],
       /*defaultImpl=*/ [{
         auto op = cast<ConcreteOp>(this->getOperation());
-        return op.getRoundingModeAttr();
+        return op.getRoundingmodeAttr();
       }]
-      >,
+    >,
+    StaticInterfaceMethod<
+      /*desc=*/        [{Returns the name of the RoundingModeAttr attribute for
+                         the operation}],
+      /*returnType=*/  "StringRef",
+      /*methodName=*/  "getRoundingModeAttrName",
+      /*args=*/        (ins),
+      /*methodBody=*/  [{}],
+      /*defaultImpl=*/ [{
+        return "roundingmode";
+      }]
+    >
   ];
 }
 

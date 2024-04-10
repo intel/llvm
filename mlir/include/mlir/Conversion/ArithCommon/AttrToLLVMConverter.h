@@ -36,7 +36,8 @@ convertArithOverflowFlagsToLLVM(arith::IntegerOverflowFlags arithFlags);
 LLVM::IntegerOverflowFlagsAttr
 convertArithOverflowAttrToLLVM(arith::IntegerOverflowFlagsAttr flagsAttr);
 
-/// Maps arithmetic rounding enum values to LLVM enum values.
+/// Creates an LLVM rounding mode enum value from a given arithmetic rounding
+/// mode enum value.
 LLVM::RoundingMode
 convertArithRoundingModeToLLVM(arith::RoundingMode roundingMode);
 
@@ -45,9 +46,9 @@ convertArithRoundingModeToLLVM(arith::RoundingMode roundingMode);
 LLVM::RoundingModeAttr
 convertArithRoundingModeAttrToLLVM(arith::RoundingModeAttr roundingModeAttr);
 
-/// Return the default LLVM exception behavior attribute.
-LLVM::ExceptionBehaviorAttr
-getDefaultExceptionBehaviorAttr(MLIRContext *context);
+/// Returns an attribute for the default LLVM FP exception behavior.
+LLVM::FPExceptionBehaviorAttr
+getLLVMDefaultFPExceptionBehavior(MLIRContext &context);
 
 // Attribute converter that populates a NamedAttrList by removing the fastmath
 // attribute from the source operation attributes, and replacing it with an
@@ -105,14 +106,13 @@ private:
 
 template <typename SourceOp, typename TargetOp>
 class AttrConverterConstrainedFPToLLVM {
-public:
-  static_assert(
-      TargetOp::template hasTrait<LLVM::ExceptionBehaviorOpInterface::Trait>(),
-      "Target constrained FP operations must implement "
-      "LLVM::ExceptionBehaviorOpInterface");
+  static_assert(TargetOp::template hasTrait<
+                    LLVM::FPExceptionBehaviorOpInterface::Trait>(),
+                "Target constrained FP operations must implement "
+                "LLVM::FPExceptionBehaviorOpInterface");
 
-  AttrConverterConstrainedFPToLLVM(
-      SourceOp srcOp) {
+public:
+  AttrConverterConstrainedFPToLLVM(SourceOp srcOp) {
     // Copy the source attributes.
     convertedAttr = NamedAttrList{srcOp->getAttrs()};
 
@@ -127,8 +127,8 @@ public:
       convertedAttr.set(TargetOp::getRoundingModeAttrName(),
                         convertArithRoundingModeAttrToLLVM(arithAttr));
     }
-    convertedAttr.set(TargetOp::getExceptionBehaviorAttrName(),
-                      getDefaultExceptionBehaviorAttr(srcOp->getContext()));
+    convertedAttr.set(TargetOp::getFPExceptionBehaviorAttrName(),
+                      getLLVMDefaultFPExceptionBehavior(*srcOp->getContext()));
   }
 
   ArrayRef<NamedAttribute> getAttrs() const { return convertedAttr.getAttrs(); }

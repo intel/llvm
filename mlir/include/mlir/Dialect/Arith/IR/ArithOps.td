@@ -343,7 +343,9 @@ def Arith_SubIOp : Arith_IntBinaryOpWithOverflowFlags<"subi"> {
 // MulIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_MulIOp : Arith_IntBinaryOpWithOverflowFlags<"muli", [Commutative]> {
+def Arith_MulIOp : Arith_IntBinaryOpWithOverflowFlags<"muli",
+  [Commutative, DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>]
+> {
   let summary = [{
     Integer multiplication operation.
   }];
@@ -1230,10 +1232,10 @@ def Arith_TruncIOp : Arith_IToICastOp<"trunci"> {
 def Arith_TruncFOp :
     Arith_Op<"truncf",
       [Pure, SameOperandsAndResultShape,
-       ArithRoundingModeInterface,
+       DeclareOpInterfaceMethods<ArithRoundingModeInterface>,
        DeclareOpInterfaceMethods<CastOpInterface>]>,
     Arguments<(ins FloatLike:$in,
-                   OptionalAttr<Arith_RoundingModeAttr>:$rounding_mode)>,
+                   OptionalAttr<Arith_RoundingModeAttr>:$roundingmode)>,
     Results<(outs FloatLike:$out)> {
   let summary = "cast from floating-point to narrower floating-point";
   let description = [{
@@ -1252,7 +1254,7 @@ def Arith_TruncFOp :
 
   let hasFolder = 1;
   let hasVerifier = 1;
-  let assemblyFormat = "$in ($rounding_mode^)? attr-dict `:` type($in) `to` type($out)";
+  let assemblyFormat = "$in ($roundingmode^)? attr-dict `:` type($in) `to` type($out)";
 }
 
 //===----------------------------------------------------------------------===//

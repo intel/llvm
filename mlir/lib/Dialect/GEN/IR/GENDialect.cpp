@@ -41,5 +41,5 @@ void GENDialect::initialize() {
 #define GET_ATTRDEF_LIST
 #include "mlir/Dialect/GEN/IR/GENOpsAttrDefs.cpp.inc"
       >();
-  declarePromisedInterface<GENDialect, ConvertToLLVMPatternInterface>();
+  declarePromisedInterface<ConvertToLLVMPatternInterface, GENDialect>();
 }

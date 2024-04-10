@@ -176,7 +176,7 @@ static Value clampInput(PatternRewriter &rewriter, Location loc,
 
 LogicalResult TruncFToFloat8RewritePattern::match(arith::TruncFOp op) const {
   // Only supporting default rounding mode as of now.
-  if (op.getRoundingMode())
+  if (op.getRoundingmodeAttr())
     return failure();
   Type outType = op.getOut().getType();
   if (auto outVecType = outType.dyn_cast<VectorType>()) {

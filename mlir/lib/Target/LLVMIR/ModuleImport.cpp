@@ -1271,7 +1271,7 @@ static RoundingModeAttr metadataToRoundingMode(Builder &builder,
       convertRoundingModeFromLLVM(*optLLVM));
 }
 
-static ExceptionBehaviorAttr
+static FPExceptionBehaviorAttr
 metadataToExceptionBehavior(Builder &builder, llvm::Metadata *metadata) {
   auto *mdstr = dyn_cast<llvm::MDString>(metadata);
   if (!mdstr)
@@ -1280,8 +1280,8 @@ metadataToExceptionBehavior(Builder &builder, llvm::Metadata *metadata) {
       llvm::convertStrToExceptionBehavior(mdstr->getString());
   if (!optLLVM)
     return {};
-  return builder.getAttr<ExceptionBehaviorAttr>(
-      convertExceptionBehaviorFromLLVM(*optLLVM));
+  return builder.getAttr<FPExceptionBehaviorAttr>(
+      convertFPExceptionBehaviorFromLLVM(*optLLVM));
 }
 
 static void
@@ -1322,11 +1322,11 @@ Value ModuleImport::translateConstrainedIntrinsic(
       builder.create(loc, opNameAttr, mlirOperands, type, mlirAttrs);
 
   // Set exception behavior attribute.
-  auto exceptionBehaviorOp = cast<LLVM::ExceptionBehaviorOpInterface>(op);
+  auto exceptionBehaviorOp = cast<LLVM::FPExceptionBehaviorOpInterface>(op);
   auto attr = metadataToExceptionBehavior(builder, metadata.back());
   if (!attr)
     return {};
-  op->setAttr(exceptionBehaviorOp.getExceptionBehaviorAttrName(), attr);
+  op->setAttr(exceptionBehaviorOp.getFPExceptionBehaviorAttrName(), attr);
 
   // If avaialbe, set rounding mode attribute.
   if (auto roundingModeOp = dyn_cast<LLVM::RoundingModeOpInterface>(op)) {
@@ -1373,6 +1373,27 @@ DILabelAttr ModuleImport::matchLabelAttr(llvm::Value *value) {
   auto *nodeAsVal = cast<llvm::MetadataAsValue>(value);
   auto *node = cast<llvm::DILabel>(nodeAsVal->getMetadata());
   return debugImporter->translate(node);
+}
+
+FPExceptionBehaviorAttr
+ModuleImport::matchFPExceptionBehaviorAttr(llvm::Value *value) {
+  auto *metadata = cast<llvm::MetadataAsValue>(value);
+  auto *mdstr = cast<llvm::MDString>(metadata->getMetadata());
+  std::optional<llvm::fp::ExceptionBehavior> optLLVM =
+      llvm::convertStrToExceptionBehavior(mdstr->getString());
+  assert(optLLVM && "Expecting FP exception behavior");
+  return builder.getAttr<FPExceptionBehaviorAttr>(
+      convertFPExceptionBehaviorFromLLVM(*optLLVM));
+}
+
+RoundingModeAttr ModuleImport::matchRoundingModeAttr(llvm::Value *value) {
+  auto *metadata = cast<llvm::MetadataAsValue>(value);
+  auto *mdstr = cast<llvm::MDString>(metadata->getMetadata());
+  std::optional<llvm::RoundingMode> optLLVM =
+      llvm::convertStrToRoundingMode(mdstr->getString());
+  assert(optLLVM && "Expecting rounding mode");
+  return builder.getAttr<RoundingModeAttr>(
+      convertRoundingModeFromLLVM(*optLLVM));
 }
 
 FailureOr<SmallVector<AliasScopeAttr>>
