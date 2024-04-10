@@ -35,6 +35,7 @@
 #include <array>
 #include <functional>
 #include <initializer_list>
+#include <iostream>
 
 using namespace clang;
 using namespace std::placeholders;
@@ -1008,31 +1009,11 @@ public:
     return D;
   }
 
-  ExprResult TransformMemberExpr(MemberExpr *ME) {
-    auto VD = ME->getMemberDecl();
-    FieldDecl *OldFD = dyn_cast<FieldDecl>(VD);
-    // TODO: handle static member
-    if (OldFD) {
-      if (auto Replacement = FieldMap.find(OldFD);
-          Replacement != FieldMap.end()) {
-        FieldDecl *NewFD = dyn_cast<FieldDecl>(Replacement->second.NewField);
-        auto NewFDParent = dyn_cast<CXXRecordDecl>(NewFD->getParent());
-        ParmVarDecl *NewPD = Replacement->second.NewParm;
-        auto Base = DeclRefExpr::Create(
-            SemaRef.getASTContext(), NestedNameSpecifierLoc(), ME->getExprLoc(),
-            NewPD, false, DeclarationNameInfo(),
-            QualType(NewFDParent->getTypeForDecl(), 0), ME->getValueKind());
-        DeclAccessPair MemberDAP = DeclAccessPair::make(NewFD, AS_none);
-        MemberExpr *NewME = SemaRef.BuildMemberExpr(
-            Base, /*IsArrow */ false, ME->getExprLoc(),
-            NestedNameSpecifierLoc(), ME->getExprLoc(), NewFD, MemberDAP,
-            /*HadMultipleCandidates*/ false,
-            DeclarationNameInfo(NewFD->getDeclName(), ME->getExprLoc()),
-            NewFD->getType(), VK_LValue, OK_Ordinary);
-        return NewME;
-      }
-    }
-    return TreeTransform::TransformMemberExpr(ME);
+  ExprResult TransformImplicitCastExpr(ImplicitCastExpr *E) {
+    // Normally, implicit casts are eliminated during transformation, since they
+    // will be recomputed by semantic analysis after transformation. Here we
+    // retain them.
+    return TreeTransform::TransformExpr(E->getSubExpr());
   }
 
 private:
