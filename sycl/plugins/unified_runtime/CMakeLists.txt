@@ -136,7 +136,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit e2b5b7fafa8721bfcd46426623adc2b586bacf56
+    # Merge: cda0cd94 d05476f4
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Apr 10 14:22:28 2024 +0100
+    #     Merge pull request #1345 from lplewa/native_cpu_log
+    #     Refactor native cpu adapter to new logger
+    e2b5b7fafa8721bfcd46426623adc2b586bacf56
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
