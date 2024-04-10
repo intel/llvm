@@ -4,45 +4,56 @@
 ---
 ci-cd:
   - changed-files:
-    - .github/**
+    - any-glob-to-any-file:
+      - .github/**
 
 specification:
   - changed-files:
-    - scripts/core/**
+    - any-glob-to-any-file:
+      - scripts/core/**
 
 experimental:
   - changed-files:
-    - scripts/core/EXP*.rst
-    - scripts/core/exp*.yml
+    - any-glob-to-any-file:
+      - scripts/core/EXP*.rst
+      - scripts/core/exp*.yml
 
 common:
   - changed-files:
-    - source/common/**
+    - any-glob-to-any-file:
+      - source/common/**
 
 loader:
   - changed-files:
-    - source/loader/**
+    - any-glob-to-any-file:
+      - source/loader/**
 
 opencl:
   - changed-files:
-    - source/adapter/opencl/**
+    - any-glob-to-any-file:
+      - source/adapter/opencl/**
 
 level-zero:
   - changed-files:
-    - source/adapters/level_zero/**
+    - any-glob-to-any-file:
+      - source/adapters/level_zero/**
 
 cuda:
   - changed-files:
-    - source/adapters/cuda/**
+    - any-glob-to-any-file:
+      - source/adapters/cuda/**
 
 hip:
   - changed-files:
-    - source/adapters/hip/**
+    - any-glob-to-any-file:
+      - source/adapters/hip/**
 
 native-cpu:
   - changed-files:
-    - source/adapters/native_cpu/**
+    - any-glob-to-any-file:
+      - source/adapters/native_cpu/**
 
 conformance:
   - changed-files:
-    - test/conformance/**
+    - any-glob-to-any-file:
+      - test/conformance/**
