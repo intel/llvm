@@ -29,9 +29,9 @@ RUN echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.rad
     | tee --append /etc/apt/sources.list.d/rocm.list
 RUN apt update
 # Install the kernel driver
-RUN apt install amdgpu-dkms
+RUN yes | apt install amdgpu-dkms
 RUN apt update
-RUN apt install rocm
+RUN yes | apt install rocm
 # Cleanup
 RUN apt-get clean && \
   rm -rf /var/lib/apt/lists/*
