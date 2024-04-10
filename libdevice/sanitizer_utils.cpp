@@ -34,6 +34,7 @@ DeviceGlobal<DeviceSanitizerReport> __DeviceSanitizerReportMem;
 #if defined(__SYCL_DEVICE_ONLY__)
 
 #define __USE_SPIR_BUILTIN__ 1
+
 #ifndef SYCL_EXTERNAL
 #define SYCL_EXTERNAL
 #endif // SYCL_EXTERNAL
@@ -637,4 +638,4 @@ __asan_set_shadow_local_memory(uptr ptr, size_t size,
   }
 }
 
-#endif // __SPIR__
+#endif // __SPIR__ || __SPIRV__
