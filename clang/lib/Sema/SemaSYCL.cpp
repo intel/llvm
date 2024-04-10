@@ -1410,16 +1410,16 @@ class KernelObjVisitor {
 
   template <typename... HandlerTys>
   void visitFirstArrayElement(const CXXRecordDecl *Owner, FieldDecl *ArrayField,
-                              QualType ElementTy, HandlerTys &... Handlers) {
+                              QualType ElementTy, HandlerTys &...Handlers) {
     visitArrayElementImpl(Owner, ArrayField, ElementTy, 0, Handlers...);
   }
   template <typename... HandlerTys>
   void visitNthArrayElement(const CXXRecordDecl *Owner, FieldDecl *ArrayField,
                             QualType ElementTy, uint64_t Index,
-                            HandlerTys &... Handlers);
+                            HandlerTys &...Handlers);
   template <typename... HandlerTys>
   void visitSimpleArray(const CXXRecordDecl *Owner, FieldDecl *Field,
-                        QualType ArrayTy, HandlerTys &... Handlers) {
+                        QualType ArrayTy, HandlerTys &...Handlers) {
     (void)std::initializer_list<int>{
         (Handlers.handleSimpleArrayType(Field, ArrayTy), 0)...};
   }
