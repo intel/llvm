@@ -712,6 +712,11 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
 
     for (auto ZeCommandListIt = ZeCommandListCache.begin();
          ZeCommandListIt != ZeCommandListCache.end(); ++ZeCommandListIt) {
+      // If this is an InOrder Queue, then only allow lists which are in order.
+      if (Queue->Device->useDriverInOrderLists() && Queue->isInOrderQueue() &&
+          !(ZeCommandListIt->second.InOrderList)) {
+        continue;
+      }
       auto &ZeCommandList = ZeCommandListIt->first;
       auto it = Queue->CommandListMap.find(ZeCommandList);
       if (it != Queue->CommandListMap.end()) {
@@ -765,6 +770,12 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
     // Make sure this is the command list type needed.
     if (UseCopyEngine != it->second.isCopy(Queue))
       continue;
+
+    // If this is an InOrder Queue, then only allow lists which are in order.
+    if (Queue->Device->useDriverInOrderLists() && Queue->isInOrderQueue() &&
+        !(it->second.IsInOrderList)) {
+      continue;
+    }
 
     ze_result_t ZeResult =
         ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
