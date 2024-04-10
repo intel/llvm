@@ -29,6 +29,6 @@ ur_result_t urGetLastResult(ur_platform_handle_t, const char **ppMessage) {
 }
 
 void detail::ur::die(const char *pMessage) {
-  std::cerr << "ur_die: " << pMessage << '\n';
+  logger::always("ur_die: {}", pMessage);
   std::terminate();
 }
