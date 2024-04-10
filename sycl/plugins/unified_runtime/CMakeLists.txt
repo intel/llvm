@@ -121,12 +121,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # Merge: e27528ac 46604bea
+    # commit 6e76c98a1f5cd3c4f5e99011e92bd55b3a46cc4c
+    # Merge: 08b3e8fe 834e6435
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Apr 10 13:47:33 2024 +0100
-    #     Merge pull request #1213 from fabiomestre/fabio/imagegetinfo_cuda
-    #     [CUDA] Implement urMemImageGetInfo
-    cda0cd942027323124629f6d9ee30ca32b12d807
+    # Date:   Wed Apr 10 16:26:17 2024 +0100
+    #     Merge pull request #1220 from fabiomestre/fabio/cuda_multimap
+    #     [CUDA] Add support for multiple active mappings
+    6e76c98a1f5cd3c4f5e99011e92bd55b3a46cc4c
   )
 
   fetch_adapter_source(hip
