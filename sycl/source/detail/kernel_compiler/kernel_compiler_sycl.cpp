@@ -50,27 +50,34 @@ std::filesystem::path prepare_ws(const std::string &id) {
     throw sycl::exception(sycl::errc::build, e.what());
   }
 
-  // CP
-  std::cout << "Directory created: " << new_directory_path << std::endl;
-
   return new_directory_path;
 }
 
-void output_preamble(std::ofstream &os, const std::filesystem::path &file_path,
-                     const std::string &id) {
+std::string user_args_as_string(const std::vector<std::string> &UserArgs) {
+  return std::accumulate(UserArgs.begin(), UserArgs.end(), std::string(""),
+                         [](const std::string &a, const std::string &b) {
+                           return a.empty() ? b : a + " " + b;
+                         });
+}
 
-  os << "/*\n  clang++ -fsycl -o " << id << ".bin -fsycl-dump-device-code=./ "
-     << id << ".cpp \n */" << std::endl;
+void output_preamble(std::ofstream &os, const std::filesystem::path &file_path,
+                     const std::string &id,
+                     const std::vector<std::string> &UserArgs) {
+
+  os << "/*\n  clang++ -fsycl -o " << id << ".bin "
+     << user_args_as_string(UserArgs) << " -fsycl-dump-device-code=./ " << id
+     << ".cpp \n */" << std::endl;
 }
 
 std::filesystem::path output_cpp(const std::filesystem::path &parent_dir,
                                  const std::string &id,
-                                 std::string raw_code_string) {
+                                 std::string raw_code_string,
+                                 const std::vector<std::string> &UserArgs) {
   std::filesystem::path file_path = parent_dir / (id + ".cpp");
   std::ofstream outfile(file_path, std::ios::out | std::ios::trunc);
 
   if (outfile.is_open()) {
-    output_preamble(outfile, file_path, id);
+    output_preamble(outfile, file_path, id, UserArgs);
     outfile << raw_code_string << std::endl;
 
     // temporarily needed until -c works with -fsycl-dump-spirv
@@ -118,16 +125,12 @@ void invoke_compiler(const std::filesystem::path &fpath,
   std::string compiler = "clang++";
 #endif
 
-  // TODO: UserArgs!!!
-
   std::string command =
-      compiler + " -fsycl -o " + target_path.make_preferred().string() +
+      compiler + " -fsycl -o " + target_path.make_preferred().string() + " " +
+      user_args_as_string(UserArgs) +
       " -fsycl-dump-device-code=" + parent_dir.make_preferred().string() + " " +
       file_path.make_preferred().string() + " 2> " +
       log_path.make_preferred().string();
-
-  // CP
-  std::cout << "command: " << command << std::endl;
 
   int result = std::system(command.c_str());
 
@@ -142,8 +145,6 @@ void invoke_compiler(const std::filesystem::path &fpath,
     if (LogPtr != nullptr)
       LogPtr->append(log_buffer.str());
 
-    // CP
-    std::cout << "compile log: " << CompileLog << std::endl;
   } else if (result == 0 && LogPtr != nullptr) {
     // if there was a compilation problem, we want to report that (below)
     // not a mere "missing log" error.
@@ -166,8 +167,6 @@ std::filesystem::path find_spv(const std::filesystem::path &parent_dir,
   for (const auto &entry : std::filesystem::directory_iterator(parent_dir)) {
     if (entry.is_regular_file() &&
         std::regex_match(entry.path().filename().string(), pattern_regex)) {
-      // CP
-      std::cout << "Matching file found: " << entry.path() << std::endl;
       return entry.path();
     }
   }
@@ -195,7 +194,7 @@ spirv_vec_t SYCL_to_SPIRV(const std::string &SYCLSource,
   // clang-format off
   const std::string id                    = generate_semi_unique_id();
   const std::filesystem::path parent_dir  = prepare_ws(id);
-  std::filesystem::path file_path         = output_cpp(parent_dir, id, SYCLSource);
+  std::filesystem::path file_path         = output_cpp(parent_dir, id, SYCLSource, UserArgs);
                                             output_include_files(parent_dir, IncludePairs);
                                             invoke_compiler(file_path, parent_dir, id, UserArgs, LogPtr);
   std::filesystem::path spv_path          = find_spv(parent_dir, id);
