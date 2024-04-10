@@ -254,6 +254,10 @@ template <> ze_structure_type_t getZeStructureType<ze_device_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
 }
 template <>
+ze_structure_type_t getZeStructureType<ze_device_p2p_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_P2P_PROPERTIES;
+}
+template <>
 ze_structure_type_t getZeStructureType<ze_device_compute_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_COMPUTE_PROPERTIES;
 }
