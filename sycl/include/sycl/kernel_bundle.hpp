@@ -815,6 +815,27 @@ build(const kernel_bundle<bundle_state::input> &InputBundle,
 namespace ext::oneapi::experimental {
 
 /////////////////////////
+// PropertyT syclex::include_files
+/////////////////////////
+struct include_files
+    : detail::run_time_property_key<detail::PropKind::IncludeFiles> {
+  include_files();
+  include_files(const std::string &name, const std::string &content) {
+    record.emplace_back(std::make_pair(name, content));
+  }
+  void add(const std::string &name, const std::string &content) {
+    record.emplace_back(std::make_pair(name, content));
+  }
+  std::vector<std::pair<std::string, std::string>> record;
+};
+using include_files_key = include_files;
+
+template <>
+struct is_property_key_of<include_files_key,
+                          sycl::kernel_bundle<bundle_state::ext_oneapi_source>>
+    : std::true_type {};
+
+/////////////////////////
 // PropertyT syclex::build_options
 /////////////////////////
 struct build_options
@@ -853,14 +874,16 @@ __SYCL_EXPORT bool is_source_kernel_bundle_supported(backend BE,
 namespace detail {
 // forward decls
 __SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
-make_kernel_bundle_from_source(const context &SyclContext,
-                               source_language Language,
-                               const std::vector<std::byte> &Bytes);
+make_kernel_bundle_from_source(
+    const context &SyclContext, source_language Language,
+    const std::string &Source,
+    std::vector<std::pair<std::string, std::string>> IncludePairsVec);
 
 __SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
-make_kernel_bundle_from_source(const context &SyclContext,
-                               source_language Language,
-                               const std::string &Source);
+make_kernel_bundle_from_source(
+    const context &SyclContext, source_language Language,
+    const std::vector<std::byte> &Bytes,
+    std::vector<std::pair<std::string, std::string>> IncludePairsVec);
 
 __SYCL_EXPORT kernel_bundle<bundle_state::executable>
 build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
@@ -884,9 +907,13 @@ create_kernel_bundle_from_source(const context &SyclContext,
                                  source_language Language,
                                  const std::string &Source,
                                  PropertyListT props = {}) {
-  // handle the props, which are templated.
+  std::vector<std::pair<std::string, std::string>> IncludePairsVec;
+  if constexpr (props.template has_property<include_files>()) {
+    IncludePairsVec = props.template get_property<include_files>().record;
+  }
 
-  return detail::make_kernel_bundle_from_source(SyclContext, Language, Source);
+  return detail::make_kernel_bundle_from_source(SyclContext, Language, Source,
+                                                IncludePairsVec);
 }
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
@@ -901,9 +928,13 @@ create_kernel_bundle_from_source(const context &SyclContext,
                                  source_language Language,
                                  const std::vector<std::byte> &Bytes,
                                  PropertyListT props = {}) {
-  // handle the props, which are templated.
+  std::vector<std::pair<std::string, std::string>> IncludePairsVec;
+  if constexpr (props.template has_property<include_files>()) {
+    IncludePairsVec = props.template get_property<include_files>().record;
+  }
 
-  return detail::make_kernel_bundle_from_source(SyclContext, Language, Bytes);
+  return detail::make_kernel_bundle_from_source(SyclContext, Language, Bytes,
+                                                IncludePairsVec);
 }
 #endif
 

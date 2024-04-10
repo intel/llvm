@@ -9,6 +9,7 @@
 #include <detail/device_binary_image.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_compiler/kernel_compiler_opencl.hpp>
+#include <detail/kernel_compiler/kernel_compiler_sycl.hpp>
 #include <detail/kernel_id_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
@@ -375,11 +376,12 @@ bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
   bool BE_Acceptable = (BE == sycl::backend::ext_oneapi_level_zero) ||
                        (BE == sycl::backend::opencl);
   if (BE_Acceptable) {
-    // At the moment, OpenCL and SPIR-V are the only supported languages.
     if (Language == source_language::opencl) {
       return detail::OpenCLC_Compilation_Available();
     } else if (Language == source_language::spirv) {
       return true;
+    } else if (Language == source_language::sycl) {
+      return detail::SYCL_Compilation_Available();
     }
   }
 
@@ -392,9 +394,10 @@ bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
 /////////////////////////
 namespace detail {
 
-source_kb make_kernel_bundle_from_source(const context &SyclContext,
-                                         source_language Language,
-                                         const std::string &Source) {
+source_kb make_kernel_bundle_from_source(
+    const context &SyclContext, source_language Language,
+    const std::string &Source,
+    std::vector<std::pair<std::string, std::string>> IncludePairs) {
   // TODO: if we later support a "reason" why support isn't present
   // (like a missing shared library etc.) it'd be nice to include it in
   // the exception message here.
@@ -403,18 +406,26 @@ source_kb make_kernel_bundle_from_source(const context &SyclContext,
     throw sycl::exception(make_error_code(errc::invalid),
                           "kernel_bundle creation from source not supported");
 
+  // throw if include not supported?   awaiting guidance
+  // if(!IncludePairs.empty() && is_include_supported(Languuage)){ throw invalid
+  // }
+
   std::shared_ptr<kernel_bundle_impl> KBImpl =
-      std::make_shared<kernel_bundle_impl>(SyclContext, Language, Source);
+      std::make_shared<kernel_bundle_impl>(SyclContext, Language, Source,
+                                           IncludePairs);
   return sycl::detail::createSyclObjFromImpl<source_kb>(KBImpl);
 }
 
-source_kb make_kernel_bundle_from_source(const context &SyclContext,
-                                         source_language Language,
-                                         const std::vector<std::byte> &Bytes) {
+source_kb make_kernel_bundle_from_source(
+    const context &SyclContext, source_language Language,
+    const std::vector<std::byte> &Bytes,
+    std::vector<std::pair<std::string, std::string>> IncludePairs) {
   backend BE = SyclContext.get_backend();
   if (!is_source_kernel_bundle_supported(BE, Language))
     throw sycl::exception(make_error_code(errc::invalid),
                           "kernel_bundle creation from source not supported");
+
+  // throw if !IncludePairs.empty() ? awaiting guidance.
 
   std::shared_ptr<kernel_bundle_impl> KBImpl =
       std::make_shared<kernel_bundle_impl>(SyclContext, Language, Bytes);

@@ -1,0 +1,34 @@
+//==-- kernel_compiler_opencl.cpp  OpenCL kernel compilation support       -==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include <sycl/exception.hpp> // make_error_code
+
+#include "kernel_compiler_sycl.hpp"
+
+namespace sycl {
+inline namespace _V1 {
+namespace ext::oneapi::experimental {
+namespace detail {
+
+using spirv_vec_t = std::vector<uint8_t>;
+
+spirv_vec_t
+SYCL_to_SPIRV(const std::string &Source,
+              std::vector<std::pair<std::string, std::string>> IncludePairs,
+              const std::vector<std::string> &UserArgs, std::string *LogPtr) {}
+
+bool SYCL_Compilation_Available() {
+  // check for clang++ clang++.exe icpx icpx.exe on PATH
+
+  return true;
+}
+
+} // namespace detail
+} // namespace ext::oneapi::experimental
+} // namespace _V1
+} // namespace sycl

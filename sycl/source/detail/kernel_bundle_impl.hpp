@@ -10,6 +10,7 @@
 
 #include <detail/device_image_impl.hpp>
 #include <detail/kernel_compiler/kernel_compiler_opencl.hpp>
+#include <detail/kernel_compiler/kernel_compiler_sycl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/backend_types.hpp>
@@ -331,10 +332,13 @@ public:
 
   // oneapi_ext_kernel_compiler
   // construct from source string
-  kernel_bundle_impl(const context &Context, syclex::source_language Lang,
-                     const std::string &Src)
+  kernel_bundle_impl(
+      const context &Context, syclex::source_language Lang,
+      const std::string &Src,
+      std::vector<std::pair<std::string, std::string>> IncludePairsVec)
       : MContext(Context), MDevices(Context.get_devices()),
-        MState(bundle_state::ext_oneapi_source), Language(Lang), Source(Src) {}
+        MState(bundle_state::ext_oneapi_source), Language(Lang), Source(Src),
+        IncludePairs(IncludePairsVec) {}
 
   // oneapi_ext_kernel_compiler
   // construct from source bytes
@@ -396,6 +400,11 @@ public:
         std::transform(SourceBytes.cbegin(), SourceBytes.cend(), Result.begin(),
                        [](std::byte B) { return static_cast<uint8_t>(B); });
         return Result;
+      }
+      if (Language == syclex::source_language::sycl) {
+        const auto &SourceStr = std::get<std::string>(this->Source);
+        return syclex::detail::SYCL_to_SPIRV(SourceStr, IncludePairs,
+                                             BuildOptions, LogPtr);
       }
       throw sycl::exception(
           make_error_code(errc::invalid),
@@ -710,11 +719,13 @@ private:
   SpecConstMapT MSpecConstValues;
   bool MIsInterop = false;
   bundle_state MState;
-  // ext_oneapi_kernel_compiler : Source, Languauge, KernelNames
+  // ext_oneapi_kernel_compiler : Source, Languauge, KernelNames, IncludePairs
   const syclex::source_language Language = syclex::source_language::opencl;
   const std::variant<std::string, std::vector<std::byte>> Source;
   // only kernel_bundles created from source have KernelNames member.
   std::vector<std::string> KernelNames;
+  std::vector<std::pair<std::string /* name */, std::string /* content */>>
+      IncludePairs;
 };
 
 } // namespace detail
