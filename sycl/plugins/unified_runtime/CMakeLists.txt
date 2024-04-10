@@ -95,42 +95,54 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 065bf2dd97b58a4ceeb2fb83eed1df9319e61c59
-  # Merge: b9153547 ec773e6c
+  # commit e00a764f8dafd1319b636aa99c15601ec0d4d7fc
+  # Merge: 85b75590 92b60b77
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Fri Apr 5 14:26:59 2024 +0100
-  #     Merge pull request #1486 from nrspruit/fix_memfree_report
-  #     [L0] Fix DeviceInfo global mem free to report unsupported given MemCount==0
-  set(UNIFIED_RUNTIME_TAG 065bf2dd97b58a4ceeb2fb83eed1df9319e61c59)
+  # Date:   Wed Apr 10 10:21:22 2024 +0100
+  #    Merge pull request #1455 from GeorgeWeb/georgi/fix-hip-usm-copy2d
+  #    [HIP] Fix memory type detection in allocation info queries and USM copy2D
+  set(UNIFIED_RUNTIME_TAG e00a764f8dafd1319b636aa99c15601ec0d4d7fc)
 
   fetch_adapter_source(level_zero
-    "https://github.com/oneapi-src/unified-runtime.git"
+    ${UNIFIED_RUNTIME_REPO}
     ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
-    "https://github.com/oneapi-src/unified-runtime.git"
-    # Merge: e60c3c22 9287547e
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 85b7559033e329389452cb87615ad42fbb644d59 (HEAD -> main, origin/main, origin/HEAD)
+    # Merge: a7c202b4 5c300799
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Apr 4 10:23:33 2024 +0200
-    #     Merge pull request #1448 from steffenlarsen/steffen/make_ext_func_fail_unsupported
-    #     [OpenCL] Make extension function lookup return unusupported error
-    3609afc7f8781f2eae5de74deaf50ba52b1bb344
+    # Date:   Tue Apr 9 14:06:49 2024 +0100
+    #     Merge pull request #1496 from steffenlarsen/steffen/revert_memory_lookup_error
+    #     [OpenCL] Revert urMemBufferCreate extension function lookup error
+    85b7559033e329389452cb87615ad42fbb644d59
   )
 
   fetch_adapter_source(cuda
-    "https://github.com/oneapi-src/unified-runtime.git"
-    ${UNIFIED_RUNTIME_TAG}
+    ${UNIFIED_RUNTIME_REPO}
+    # Merge: e27528ac 46604bea
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Apr 10 13:47:33 2024 +0100
+    #     Merge pull request #1213 from fabiomestre/fabio/imagegetinfo_cuda
+    #     [CUDA] Implement urMemImageGetInfo
+    cda0cd942027323124629f6d9ee30ca32b12d807
   )
 
   fetch_adapter_source(hip
-    "https://github.com/oneapi-src/unified-runtime.git"
+    ${UNIFIED_RUNTIME_REPO}
     ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(native_cpu
-    "https://github.com/oneapi-src/unified-runtime.git"
-    ${UNIFIED_RUNTIME_TAG}
+    ${UNIFIED_RUNTIME_REPO}
+    # commit e2b5b7fafa8721bfcd46426623adc2b586bacf56
+    # Merge: cda0cd94 d05476f4
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Apr 10 14:22:28 2024 +0100
+    #     Merge pull request #1345 from lplewa/native_cpu_log
+    #     Refactor native cpu adapter to new logger
+    e2b5b7fafa8721bfcd46426623adc2b586bacf56
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)

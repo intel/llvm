@@ -35,7 +35,7 @@ int main() {
 
   // Add commands to first graph
   add_nodes(GraphA, Queue, Size, PtrA, PtrB, PtrC);
-  auto GraphExec = GraphA.finalize();
+  auto GraphExec = GraphA.finalize(exp_ext::property::graph::updatable{});
 
   exp_ext::command_graph GraphB{Queue.get_context(), Queue.get_device()};
 
