@@ -56,6 +56,16 @@ Adapter Change Process
     `oneapi-src/unified-runtime`_ project targeting the `main
     <https://github.com/oneapi-src/unified-runtime/tree/main>`_ branch.
 
+    .. note::
+        Historically, convention on the project has been to add one or more
+        ``[COMPONENT]`` prefixes to the pull request title to signify which
+        components are changed within. This is no longer necessary as pull
+        requests are now automatically labeled by the `Pull Request Labeler
+        <https://github.com/oneapi-src/unified-runtime/blob/main/.github/labeler.yml>`_
+        GitHub Action. This approach is less error prone and much easier to
+        filter on the GitHub pull requests tab. Lastly, commit and pull request
+        summaries should strive be short to align with Git convention.
+
 2.  Create a draft pull request in the `intel/llvm`_ project to take advantage
     of the pre-merge testing. Add any required implementation changes in
     addition to changing:
