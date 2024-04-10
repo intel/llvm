@@ -311,8 +311,6 @@ template <typename Type, int NumElements> class vec {
   // the data type.
   static constexpr bool IsUsingArrayOnDevice = true;
 
-  // TODO: Remove NativeVec - inline usages.
-  static constexpr bool NativeVec = false;
 #if defined(__SYCL_DEVICE_ONLY__)
   static constexpr bool IsUsingArrayOnHost = false; // not compiling for host.
 #else
@@ -513,24 +511,6 @@ public:
   using EnableIfUsingArrayOnDevice =
       typename std::enable_if_t<IsUsingArrayOnDevice, T>;
 
-  template <typename T = void>
-  using EnableIfNotUsingArrayOnDevice =
-      typename std::enable_if_t<!IsUsingArrayOnDevice, T>;
-
-  template <typename Ty = DataT>
-  explicit constexpr vec(const EnableIfNotUsingArrayOnDevice<Ty> &arg)
-      : m_Data{DataType(vec_data<Ty>::get(arg))} {}
-
-  template <typename Ty = DataT>
-  typename std::enable_if_t<
-      std::is_fundamental_v<vec_data_t<Ty>> ||
-          detail::is_half_or_bf16_v<typename std::remove_const_t<Ty>>,
-      vec &>
-  operator=(const EnableIfNotUsingArrayOnDevice<Ty> &Rhs) {
-    m_Data = (DataType)vec_data<Ty>::get(Rhs);
-    return *this;
-  }
-
   template <typename Ty = DataT>
   explicit constexpr vec(const EnableIfUsingArrayOnDevice<Ty> &arg)
       : vec{detail::RepeatValue<NumElements>(
@@ -577,46 +557,6 @@ public:
   template <int IdxNum, typename T = void>
   using EnableIfMultipleElems = typename std::enable_if_t<
       std::is_convertible_v<T, DataT> && NumElements == IdxNum, DataT>;
-  template <typename Ty = DataT>
-  constexpr vec(const EnableIfMultipleElems<2, Ty> Arg0,
-                const EnableIfNotUsingArrayOnDevice<Ty> Arg1)
-      : m_Data{vec_data<Ty>::get(Arg0), vec_data<Ty>::get(Arg1)} {}
-  template <typename Ty = DataT>
-  constexpr vec(const EnableIfMultipleElems<3, Ty> Arg0,
-                const EnableIfNotUsingArrayOnDevice<Ty> Arg1, const DataT Arg2)
-      : m_Data{vec_data<Ty>::get(Arg0), vec_data<Ty>::get(Arg1),
-               vec_data<Ty>::get(Arg2)} {}
-  template <typename Ty = DataT>
-  constexpr vec(const EnableIfMultipleElems<4, Ty> Arg0,
-                const EnableIfNotUsingArrayOnDevice<Ty> Arg1, const DataT Arg2,
-                const Ty Arg3)
-      : m_Data{vec_data<Ty>::get(Arg0), vec_data<Ty>::get(Arg1),
-               vec_data<Ty>::get(Arg2), vec_data<Ty>::get(Arg3)} {}
-  template <typename Ty = DataT>
-  constexpr vec(const EnableIfMultipleElems<8, Ty> Arg0,
-                const EnableIfNotUsingArrayOnDevice<Ty> Arg1, const DataT Arg2,
-                const DataT Arg3, const DataT Arg4, const DataT Arg5,
-                const DataT Arg6, const DataT Arg7)
-      : m_Data{vec_data<Ty>::get(Arg0), vec_data<Ty>::get(Arg1),
-               vec_data<Ty>::get(Arg2), vec_data<Ty>::get(Arg3),
-               vec_data<Ty>::get(Arg4), vec_data<Ty>::get(Arg5),
-               vec_data<Ty>::get(Arg6), vec_data<Ty>::get(Arg7)} {}
-  template <typename Ty = DataT>
-  constexpr vec(const EnableIfMultipleElems<16, Ty> Arg0,
-                const EnableIfNotUsingArrayOnDevice<Ty> Arg1, const DataT Arg2,
-                const DataT Arg3, const DataT Arg4, const DataT Arg5,
-                const DataT Arg6, const DataT Arg7, const DataT Arg8,
-                const DataT Arg9, const DataT ArgA, const DataT ArgB,
-                const DataT ArgC, const DataT ArgD, const DataT ArgE,
-                const DataT ArgF)
-      : m_Data{vec_data<Ty>::get(Arg0), vec_data<Ty>::get(Arg1),
-               vec_data<Ty>::get(Arg2), vec_data<Ty>::get(Arg3),
-               vec_data<Ty>::get(Arg4), vec_data<Ty>::get(Arg5),
-               vec_data<Ty>::get(Arg6), vec_data<Ty>::get(Arg7),
-               vec_data<Ty>::get(Arg8), vec_data<Ty>::get(Arg9),
-               vec_data<Ty>::get(ArgA), vec_data<Ty>::get(ArgB),
-               vec_data<Ty>::get(ArgC), vec_data<Ty>::get(ArgD),
-               vec_data<Ty>::get(ArgE), vec_data<Ty>::get(ArgF)} {}
 #endif // __SYCL_DEVICE_ONLY__
 
   // Constructor from values of base type or vec of base type. Checks that
@@ -710,19 +650,21 @@ public:
 #if defined(__SYCL_DEVICE_ONLY__)
     using OpenCLVecT = OpenCLT __attribute__((ext_vector_type(NumElements)));
     using OpenCLVecR = OpenCLR __attribute__((ext_vector_type(NumElements)));
+
+    auto extVecType = detail::BitCast<DataType, vector_t>(m_Data);
+    using ConvertTVecType = typename vec<convertT, NumElements>::vector_t;
+
     // Whole vector conversion can only be done, if:
     constexpr bool canUseNativeVectorConvert =
 #ifdef __NVPTX__
         // - we are not on CUDA, see intel/llvm#11840
         false &&
 #endif
-        // - both vectors are represented using native vector types;
-        NativeVec && vec<convertT, NumElements>::NativeVec &&
         // - vec storage has an equivalent OpenCL native vector it is implicitly
         //   convertible to. There are some corner cases where it is not the
         //   case with char, long and long long types.
-        std::is_convertible_v<decltype(m_Data), OpenCLVecT> &&
-        std::is_convertible_v<decltype(Result.m_Data), OpenCLVecR> &&
+        std::is_convertible_v<vector_t, OpenCLVecT> &&
+        std::is_convertible_v<ConvertTVecType, OpenCLVecR> &&
         // - it is not a signed to unsigned (or vice versa) conversion
         //   see comments within 'convertImpl' for more details;
         !detail::is_sint_to_from_uint<T, R>::value &&
@@ -733,8 +675,9 @@ public:
         //   right results here;
         !std::is_same_v<convertT, bool>;
     if constexpr (canUseNativeVectorConvert) {
-      Result.m_Data = detail::convertImpl<T, R, roundingMode, NumElements,
-                                          OpenCLVecT, OpenCLVecR>(m_Data);
+      Result.m_Data = detail::BitCast<ConvertTVecType, decltype(Result.m_Data)>(
+                        detail::convertImpl<T, R, roundingMode, NumElements,
+                        OpenCLVecT, OpenCLVecR>(extVecType));
     } else
 #endif // defined(__SYCL_DEVICE_ONLY__)
     {
@@ -783,8 +726,6 @@ public:
   // not changed.
   //
   // Implement operator [] in the same way for host and device.
-  // TODO: change host side implementation when underlying type for host side
-  // will be changed to std::array.
   // NOTE: aliasing the incompatible types of bfloat16 may lead to problems if
   // aggressively optimized. Specializing with noinline to avoid as workaround.
 
@@ -943,12 +884,9 @@ public:
 #define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
   friend vec operator BINOP(const vec &Lhs, const vec &Rhs) {                  \
     vec Ret{};                                                                 \
-    if constexpr (NativeVec)                                                   \
-      Ret.m_Data = Lhs.m_Data BINOP Rhs.m_Data;                                \
-    else                                                                       \
-      for (size_t I = 0; I < NumElements; ++I)                                 \
-        Ret.setValue(I, (DataT)(vec_data<DataT>::get(Lhs.getValue(             \
-                            I)) BINOP vec_data<DataT>::get(Rhs.getValue(I)))); \
+    for (size_t I = 0; I < NumElements; ++I)                                   \
+      Ret.setValue(I, (DataT)(vec_data<DataT>::get(Lhs.getValue(               \
+                          I)) BINOP vec_data<DataT>::get(Rhs.getValue(I))));   \
     return Ret;                                                                \
   }                                                                            \
   friend vec operator BINOP(const vec &Lhs, const DataT &Rhs) {                \
