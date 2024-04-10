@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit a7c202b49aff130f60da0c03916d08bb22b91aa0
-  # Merge: f85e2e96 e548dc1e
-  # Author: Martin Grant <martin.morrisongrant@codeplay.com>
-  # Date:   Mon Apr 8 15:58:32 2024 +0100
-  #    Merge pull request #1493 from martygrant/martin/fixCoverityCTSErrors
-  #    [CTS] Fix Coverity warning: Add a & before auto so object is not copied unnecessarily
-  set(UNIFIED_RUNTIME_TAG a7c202b49aff130f60da0c03916d08bb22b91aa0)
+  # commit e00a764f8dafd1319b636aa99c15601ec0d4d7fc
+  # Merge: 85b75590 92b60b77
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Wed Apr 10 10:21:22 2024 +0100
+  #    Merge pull request #1455 from GeorgeWeb/georgi/fix-hip-usm-copy2d
+  #    [HIP] Fix memory type detection in allocation info queries and USM copy2D
+  set(UNIFIED_RUNTIME_TAG e00a764f8dafd1319b636aa99c15601ec0d4d7fc)
 
   fetch_adapter_source(level_zero
     https://github.com/winstonzhang-intel/unified-runtime.git
@@ -121,17 +121,35 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 6e76c98a1f5cd3c4f5e99011e92bd55b3a46cc4c
+    # Merge: 08b3e8fe 834e6435
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Apr 10 16:26:17 2024 +0100
+    #     Merge pull request #1220 from fabiomestre/fabio/cuda_multimap
+    #     [CUDA] Add support for multiple active mappings
+    6e76c98a1f5cd3c4f5e99011e92bd55b3a46cc4c
   )
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 08b3e8fe6c5ad0aed125823c335eb44343845f6c
+    # Merge: 758c6149 db47fc0a
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Apr 10 16:22:00 2024 +0100
+    #     Merge pull request #1359 from lplewa/hip_log
+    #     Refactor hip adapter to new logger
+    08b3e8fe6c5ad0aed125823c335eb44343845f6c
   )
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit e2b5b7fafa8721bfcd46426623adc2b586bacf56
+    # Merge: cda0cd94 d05476f4
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Apr 10 14:22:28 2024 +0100
+    #     Merge pull request #1345 from lplewa/native_cpu_log
+    #     Refactor native cpu adapter to new logger
+    e2b5b7fafa8721bfcd46426623adc2b586bacf56
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
