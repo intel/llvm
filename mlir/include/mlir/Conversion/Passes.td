@@ -541,6 +541,16 @@ def LowerHostCodeToLLVMPass : Pass<"lower-host-to-llvm", "ModuleOp"> {
 }
 
 //===----------------------------------------------------------------------===//
+// GPUToGEN
+//===----------------------------------------------------------------------===//
+
+def ConvertGpuOpsToGENOps : Pass<"convert-gpu-to-gen"> {
+  let summary = "Generate GEN operations for gpu operations";
+  let constructor = "mlir::createLowerGpuOpsToGENOpsPass()";
+  let dependentDialects = ["GEN::GENDialect"];
+}
+
+//===----------------------------------------------------------------------===//
 // GPUToGENX
 //===----------------------------------------------------------------------===//
 
