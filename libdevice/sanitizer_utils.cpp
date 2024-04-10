@@ -21,19 +21,6 @@ using u8 = unsigned char;
 using s16 = short;
 using u16 = unsigned short;
 
-#if OMP_LIBDEVICE && INTEL_COLLAB
-
-#pragma omp declare target
-uptr __AsanShadowMemoryGlobalStart;
-uptr __AsanShadowMemoryGlobalEnd;
-DeviceType __DeviceType;
-uint64_t __AsanDebug;
-// Save the pointer to LaunchInfo
-__SYCL_GLOBAL__ uptr *__SYCL_LOCAL__ __AsanLaunchInfo;
-#pragma omp end declare target
-
-#else
-
 DeviceGlobal<uptr> __AsanShadowMemoryGlobalStart;
 DeviceGlobal<uptr> __AsanShadowMemoryGlobalEnd;
 DeviceGlobal<DeviceType> __DeviceType;
@@ -42,22 +29,21 @@ DeviceGlobal<uint64_t> __AsanDebug;
 // Save the pointer to LaunchInfo
 __SYCL_GLOBAL__ uptr *__SYCL_LOCAL__ __AsanLaunchInfo;
 
-#endif // OMP_LIBDEVICE && INTEL_COLLAB
+#if defined(__SPIR__) || defined(__SPIRV__)
 
-#ifdef __SPIR__
-
-#if defined(__SYCL_DEVICE_ONLY__) || (OMP_LIBDEVICE && INTEL_COLLAB)
+#if defined(__SYCL_DEVICE_ONLY__)
 
 #define __USE_SPIR_BUILTIN__ 1
+
 #ifndef SYCL_EXTERNAL
 #define SYCL_EXTERNAL
 #endif // SYCL_EXTERNAL
 
-#else // __SYCL_DEVICE_ONLY__ || (OMP_LIBDEVICE && INTEL_COLLAB)
+#else // __SYCL_DEVICE_ONLY__
 
 #define __USE_SPIR_BUILTIN__
 
-#endif // __SYCL_DEVICE_ONLY__ || (OMP_LIBDEVICE && INTEL_COLLAB)
+#endif // __SYCL_DEVICE_ONLY__
 
 #if __USE_SPIR_BUILTIN__
 extern SYCL_EXTERNAL int
@@ -70,10 +56,6 @@ __spirv_GenericCastToPtrExplicit_ToLocal(void *, int);
 extern SYCL_EXTERNAL __SYCL_PRIVATE__ void *
 __spirv_GenericCastToPtrExplicit_ToPrivate(void *, int);
 #endif // __USE_SPIR_BUILTIN__
-
-#if OMP_LIBDEVICE && INTEL_COLLAB
-#pragma omp declare target
-#endif // OMP_LIBDEVICE && INTEL_COLLAB
 
 static const __SYCL_CONSTANT__ char __asan_shadow_value_start[] =
     "[kernel] %p(%d) -> %p:";
@@ -720,8 +702,4 @@ __asan_set_shadow_dynamic_local(uptr ptr, uint32_t num_args) {
     __spirv_ocl_printf(__mem_set_shadow_dynamic_local_end);
 }
 
-#if OMP_LIBDEVICE && INTEL_COLLAB
-#pragma omp end declare target
-#endif // OMP_LIBDEVICE && INTEL_COLLAB
-
-#endif // __SPIR__
+#endif // __SPIR__ || __SPIRV__

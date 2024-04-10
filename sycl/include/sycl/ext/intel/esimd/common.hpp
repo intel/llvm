@@ -545,7 +545,8 @@ public:
   }
 };
 
-constexpr bool are_both(cache_hint First, cache_hint Second, cache_hint Val) {
+template <cache_hint Val>
+constexpr bool are_all(cache_hint First, cache_hint Second) {
   return First == Val && Second == Val;
 }
 
@@ -559,9 +560,8 @@ template <typename PropertyListT> constexpr bool has_cache_hints() {
   return L1H != cache_hint::none || L2H != cache_hint::none;
 }
 
-// Currently, this is just a wrapper around 'check_cache_hint' function.
-// It accepts the compile-time properties that may include cache-hints
-// to be verified.
+// Verifies cache-hint properties from 'PropertyListT`. The parameter 'Action'
+// specifies the usage context.
 template <cache_action Action, typename PropertyListT>
 void check_cache_hints() {
   constexpr auto L1H =
@@ -576,11 +576,11 @@ void check_cache_hints() {
                                cache_hint::streaming>() &&
             L2H.template is_one_of<cache_hint::cached,
                                    cache_hint::uncached>() &&
-            !are_both(L1H, L2H, cache_hint::uncached),
+            !are_all<cache_hint::uncached>(L1H, L2H),
         "unsupported cache hint");
   } else if constexpr (Action == cache_action::load) {
     static_assert(
-        are_both(L1H, L2H, cache_hint::none) ||
+        are_all<cache_hint::none>(L1H, L2H) ||
             (L1H.template is_one_of<cache_hint::uncached, cache_hint::cached,
                                     cache_hint::streaming>() &&
              L2H.template is_one_of<cache_hint::uncached,
@@ -588,8 +588,8 @@ void check_cache_hints() {
             (L1H == cache_hint::read_invalidate && L2H == cache_hint::cached),
         "unsupported cache hint");
   } else if constexpr (Action == cache_action::store) {
-    static_assert(are_both(L1H, L2H, cache_hint::none) ||
-                      are_both(L1H, L2H, cache_hint::write_back) ||
+    static_assert(are_all<cache_hint::none>(L1H, L2H) ||
+                      are_all<cache_hint::write_back>(L1H, L2H) ||
                       (L1H.template is_one_of<cache_hint::uncached,
                                               cache_hint::write_through,
                                               cache_hint::streaming>() &&
@@ -597,7 +597,7 @@ void check_cache_hints() {
                                               cache_hint::write_back>()),
                   "unsupported cache hint");
   } else if constexpr (Action == cache_action::atomic) {
-    static_assert(are_both(L1H, L2H, cache_hint::none) ||
+    static_assert(are_all<cache_hint::none>(L1H, L2H) ||
                       (L1H == cache_hint::uncached &&
                        L2H.template is_one_of<cache_hint::uncached,
                                               cache_hint::write_back>()),

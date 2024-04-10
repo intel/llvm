@@ -10,10 +10,6 @@
 
 #include <cinttypes>
 
-#if OMP_LIBDEVICE && INTEL_COLLAB
-#pragma omp declare target
-#endif
-
 // NOTE This file should be sync with
 // unified-runtime/source/loader/layers/sanitizer/device_sanitizer_report.hpp
 
@@ -157,7 +153,3 @@ inline const char *ToString(DeviceSanitizerErrorType ErrorType) {
     return "unknown-error";
   }
 }
-
-#if OMP_LIBDEVICE && INTEL_COLLAB
-#pragma omp end declare target
-#endif

@@ -50,7 +50,7 @@ struct joint_matrix {
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
   sycl::ext::oneapi::detail::joint_matrix_hip<T, Use, Rows, Cols, Layout>
       matrix_impl;
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   __spv::__spirv_JointMatrixINTEL<
       T, Rows, Cols, spv_matrix_layout_traits<Layout>::value,
       spv_scope_traits<Group>::value, spv_matrix_use_traits<Use>::value> *spvm;
@@ -74,10 +74,10 @@ struct joint_matrix {
 #endif
   }
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__SPIR__)
+#if defined(__SPIR__) || defined(__SPIRV__)
   joint_matrix(const joint_matrix &other) = delete;
   joint_matrix &operator=(const joint_matrix &rhs) = delete;
-#endif // defined(__SPIR__)
+#endif // defined(__SPIR__) || defined(__SPIRV__)
 #endif
 };
 
