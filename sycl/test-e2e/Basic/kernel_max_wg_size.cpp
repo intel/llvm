@@ -1,7 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// REQUIRES: gpu && gpu-intel-pvc
+// Currently grf_size property can take value 256 (large) on PVC and DG2:
+// https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_intel_grf_size.asciidoc
+// REQUIRES: gpu && (gpu-intel-pvc || gpu-intel-dg2)
 // UNSUPPORTED: cuda || hip
 
 // Currently fails because of issue in UR Level Zero adapter.
@@ -22,8 +24,8 @@ class MyKernel;
 namespace syclex = sycl::ext::oneapi::experimental;
 namespace intelex = sycl::ext::intel::experimental;
 
-__attribute__((noinline)) void f(int *Result, nd_item<1> &index) {
-  Result[index.get_global_id()] = index.get_global_id();
+__attribute__((noinline)) void f(int *result, nd_item<1> &index) {
+  result[index.get_global_id()] = index.get_global_id();
 }
 
 int main() {
@@ -39,14 +41,15 @@ int main() {
   size_t maxWgSize =
       myKernel.get_info<info::kernel_device_specific::work_group_size>(myDev);
 
+  // Submit kernel with maximum work group size.
   nd_range myRange{range{maxWgSize}, range{maxWgSize}};
 
-  int *Result = sycl::malloc_shared<int>(maxWgSize, myQueue);
-  syclex::properties kernel_properties{intelex::grf_size<256>};
+  int *result = sycl::malloc_shared<int>(maxWgSize, myQueue);
+  syclex::properties kernelProperties{intelex::grf_size<256>};
   myQueue.submit([&](handler &cgh) {
     cgh.use_kernel_bundle(myBundle);
-    cgh.parallel_for<MyKernel>(myRange, kernel_properties,
-                               ([=](nd_item<1> index) { f(Result, index); }));
+    cgh.parallel_for<MyKernel>(myRange, kernelProperties,
+                               ([=](nd_item<1> index) { f(result, index); }));
   });
 
   myQueue.wait();
