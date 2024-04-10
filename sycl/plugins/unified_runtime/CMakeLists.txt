@@ -17,7 +17,6 @@ set(SYCL_PI_UR_SOURCE_DIR
 
 # Override default to enable building tests from unified-runtime
 set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests.")
-set(UMF_ENABLE_POOL_TRACKING ON)
 
 if("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_L0 ON)
@@ -191,7 +190,7 @@ set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/com
 
 add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 add_library(UnifiedRuntimeCommon ALIAS ur_common)
-add_library(UnifiedMemoryFramework ALIAS umf)
+add_library(UnifiedMemoryFramework ALIAS ur_umf)
 
 add_library(UnifiedRuntime-Headers INTERFACE)
 
