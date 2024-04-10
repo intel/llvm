@@ -165,10 +165,6 @@ void test_error() {
 }
 
 int main() {
-  // TODO - awaiting guidance
-  // #ifndef SYCL_EXT_ONEAPI_KERNEL_COMPILER_SYCL
-  //   static_assert(false, "KernelCompiler SYCL feature test macro undefined");
-  // #endif
 
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
   test_build_and_run();

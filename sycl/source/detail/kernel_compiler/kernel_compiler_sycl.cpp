@@ -110,6 +110,15 @@ void output_include_files(const std::filesystem::path &dpath,
   }
 }
 
+std::string get_compiler_name() {
+#ifdef __WIN32
+  std::string compiler = "clang++.exe";
+#else
+  std::string compiler = "clang++";
+#endif
+  return compiler;
+}
+
 void invoke_compiler(const std::filesystem::path &fpath,
                      const std::filesystem::path &dpath, const std::string &id,
                      const std::vector<std::string> &UserArgs,
@@ -119,11 +128,7 @@ void invoke_compiler(const std::filesystem::path &fpath,
   std::filesystem::path parent_dir(dpath);
   std::filesystem::path target_path = parent_dir / (id + ".bin");
   std::filesystem::path log_path = parent_dir / "compilation_log.txt";
-#ifdef __WIN32
-  std::string compiler = "clang++.exe";
-#else
-  std::string compiler = "clang++";
-#endif
+  std::string compiler = get_compiler_name();
 
   std::string command =
       compiler + " -fsycl -o " + target_path.make_preferred().string() + " " +
@@ -203,9 +208,16 @@ spirv_vec_t SYCL_to_SPIRV(const std::string &SYCLSource,
 }
 
 bool SYCL_Compilation_Available() {
-  // check for clang++ clang++.exe icpx icpx.exe on PATH
+  // is compiler on $PATH ? We try to invoke it.
+  std::string id = generate_semi_unique_id();
+  const std::filesystem::path tmp = std::filesystem::temp_directory_path();
+  std::filesystem::path dump_path = tmp / (id + "_version.txt");
+  std::string compiler = get_compiler_name();
+  std::string test_command =
+      compiler + " --version &> " + dump_path.make_preferred().string();
+  int result = std::system(test_command.c_str());
 
-  return true;
+  return (result == 0);
 }
 
 } // namespace detail
