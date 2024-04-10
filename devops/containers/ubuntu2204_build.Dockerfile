@@ -31,7 +31,7 @@ RUN apt update
 # Install the kernel driver
 #RUN yes | apt install amdgpu-dkms
 #RUN apt update
-RUN yes | apt install rocm --no-dkms
+RUN yes | apt install rocm
 # Cleanup
 RUN apt-get clean && \
   rm -rf /var/lib/apt/lists/*
@@ -43,7 +43,6 @@ EOF
 RUN ldconfig
 RUN export PATH=$PATH:/opt/rocm-6.0.2/bin
 # Verification
-RUN dkms status
 RUN /opt/rocm-6.0.2/bin/rocminfo
 
 # By default Ubuntu sets an arbitrary UID value, that is different from host
