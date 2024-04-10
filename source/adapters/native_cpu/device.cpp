@@ -32,9 +32,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
   if (NumEntries == 0) {
     /// Runtime queries number of devices
     if (phDevices != nullptr) {
-      if (PrintTrace) {
-        std::cerr << "Invalid Arguments for urDevicesGet\n";
-      }
+      logger::error("Invalid Arguments for urDevicesGet");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     return UR_RESULT_SUCCESS;
