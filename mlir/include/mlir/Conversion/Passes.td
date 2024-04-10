@@ -477,8 +477,12 @@ def GENToLLVMConversionPass : Pass<"convert-gen-to-llvm"> {
 
 def ConvertGENToSPIRV : Pass<"convert-gen-to-spirv"> {
   let summary = "Convert GEN dialect to SPIR-V dialect";
-  let constructor = "mlir::GEN::createConvertGENToSPIRVPass()";
   let dependentDialects = ["spirv::SPIRVDialect"];
+  let options = [
+    Option<"use64bitIndex", "use-64bit-index",
+           "bool", /*default=*/"false",
+           "Use 64-bit integers to convert index types">,
+  ];
 }
 
 //===----------------------------------------------------------------------===//
