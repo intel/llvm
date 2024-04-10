@@ -136,7 +136,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # Merge: ecdd159f c02d137e
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Apr 10 11:04:28 2024 +0100
+    #     Merge pull request #1181 from DuncanMcBain/cuda-mem-size-fix
+    #     Return device total global memory for MaxAllocSize
+    05b5899202f7e3b3f12f4c5b8fc8f01451d08105
   )
 
   fetch_adapter_source(hip
