@@ -1,0 +1,48 @@
+# Config file for .github/workflows/labeler.yml to automatically add labels to
+# pull requests based on the globs below. For documentation see:
+# https://github.com/marketplace/actions/labeler
+---
+ci-cd:
+  - changed-files:
+    - .github/**
+
+specification:
+  - changed-files:
+    - scripts/core/**
+
+experimental:
+  - changed-files:
+    - scripts/core/EXP*.rst
+    - scripts/core/exp*.yml
+
+common:
+  - changed-files:
+    - source/common/**
+
+loader:
+  - changed-files:
+    - source/loader/**
+
+opencl:
+  - changed-files:
+    - source/adapter/opencl/**
+
+level-zero:
+  - changed-files:
+    - source/adapters/level_zero/**
+
+cuda:
+  - changed-files:
+    - source/adapters/cuda/**
+
+hip:
+  - changed-files:
+    - source/adapters/hip/**
+
+native-cpu:
+  - changed-files:
+    - source/adapters/native_cpu/**
+
+conformance:
+  - changed-files:
+    - test/conformance/**
