@@ -33,6 +33,9 @@ hostDescToClFlags(const ur_usm_host_desc_t &desc) {
   if (desc.flags & UR_USM_HOST_MEM_FLAG_INITIAL_PLACEMENT) {
     allocFlags |= CL_MEM_ALLOC_INITIAL_PLACEMENT_HOST_INTEL;
   }
+  if (desc.flags & UR_USM_HOST_MEM_FLAG_WRITE_COMBINE) {
+    allocFlags |= CL_MEM_ALLOC_WRITE_COMBINED_INTEL;
+  }
   return allocFlags;
 }
 
