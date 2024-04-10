@@ -737,7 +737,7 @@ bool CheckEventReadiness(const ContextImplPtr &Context,
   // A nullptr here means that the commmand does not produce a PI event or it
   // hasn't been enqueued yet.
   return SyclEventImplPtr->getHandleRef() != nullptr;
-};
+}
 
 bool Scheduler::areEventsSafeForSchedulerBypass(
     const std::vector<sycl::event> &DepEvents, ContextImplPtr Context) {

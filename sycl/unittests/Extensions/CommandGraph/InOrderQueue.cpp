@@ -375,10 +375,7 @@ TEST_F(CommandGraphTest, InOrderQueueHostTaskAndGraph) {
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
   auto EventLastImpl = sycl::detail::getSyclObjImpl(EventLast);
   auto EventLastWaitList = EventLastImpl->getWaitList();
-  // Previous task is not a host task. Explicit dependency is still needed
-  // to properly handle blocked tasks (the event will be filtered out before
-  // submission to the backend).
-  ASSERT_EQ(EventLastWaitList.size(), 1lu);
+  ASSERT_EQ(EventLastWaitList.size(), 0lu);
   ASSERT_EQ(EventLastWaitList[0], EventGraphImpl);
 }
 
