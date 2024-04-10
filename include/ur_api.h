@@ -278,6 +278,7 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR = 0x2003,                          ///< ::ur_exp_file_descriptor_t
     UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE = 0x2004,                             ///< ::ur_exp_win32_handle_t
     UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES = 0x2005,                       ///< ::ur_exp_sampler_addr_modes_t
+    UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES = 0x2006,               ///< ::ur_exp_sampler_cubemap_properties_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1625,6 +1626,10 @@ typedef enum ur_device_info_t {
                                                                     ///< semaphore resources
     UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP = 0x200F,   ///< [::ur_bool_t] returns true if the device supports exporting internal
                                                                     ///< event resources
+    UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP = 0x2010,                    ///< [::ur_bool_t] returns true if the device supports allocating and
+                                                                    ///< accessing cubemap resources
+    UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP = 0x2011, ///< [::ur_bool_t] returns true if the device supports sampling cubemapped
+                                                                    ///< images across face boundaries
     /// @cond
     UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1650,7 +1655,7 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP < propName`
+///         + `::UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -2421,13 +2426,14 @@ typedef enum ur_mem_flag_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Memory types
 typedef enum ur_mem_type_t {
-    UR_MEM_TYPE_BUFFER = 0,         ///< Buffer object
-    UR_MEM_TYPE_IMAGE2D = 1,        ///< 2D image object
-    UR_MEM_TYPE_IMAGE3D = 2,        ///< 3D image object
-    UR_MEM_TYPE_IMAGE2D_ARRAY = 3,  ///< 2D image array object
-    UR_MEM_TYPE_IMAGE1D = 4,        ///< 1D image object
-    UR_MEM_TYPE_IMAGE1D_ARRAY = 5,  ///< 1D image array object
-    UR_MEM_TYPE_IMAGE1D_BUFFER = 6, ///< 1D image buffer object
+    UR_MEM_TYPE_BUFFER = 0,                 ///< Buffer object
+    UR_MEM_TYPE_IMAGE2D = 1,                ///< 2D image object
+    UR_MEM_TYPE_IMAGE3D = 2,                ///< 3D image object
+    UR_MEM_TYPE_IMAGE2D_ARRAY = 3,          ///< 2D image array object
+    UR_MEM_TYPE_IMAGE1D = 4,                ///< 1D image object
+    UR_MEM_TYPE_IMAGE1D_ARRAY = 5,          ///< 1D image array object
+    UR_MEM_TYPE_IMAGE1D_BUFFER = 6,         ///< 1D image buffer object
+    UR_MEM_TYPE_IMAGE_CUBEMAP_EXP = 0x2000, ///< Experimental cubemap image object
     /// @cond
     UR_MEM_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -7242,6 +7248,17 @@ typedef enum ur_exp_image_copy_flag_t {
 #define UR_EXP_IMAGE_COPY_FLAGS_MASK 0xfffffff8
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Sampler cubemap seamless filtering mode.
+typedef enum ur_exp_sampler_cubemap_filter_mode_t {
+    UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_DISJOINTED = 0, ///< Disable seamless filtering
+    UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS = 1,   ///< Enable Seamless filtering
+    /// @cond
+    UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_exp_sampler_cubemap_filter_mode_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief File descriptor
 typedef struct ur_exp_file_descriptor_t {
     ur_structure_type_t stype; ///< [in] type of this structure, must be
@@ -7294,6 +7311,21 @@ typedef struct ur_exp_sampler_addr_modes_t {
     ur_sampler_addressing_mode_t addrModes[3]; ///< [in] Specify the address mode of the sampler per dimension
 
 } ur_exp_sampler_addr_modes_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Describes cubemap sampler properties
+///
+/// @details
+///     - Specify these properties in ::urSamplerCreate via ::ur_sampler_desc_t
+///       as part of a `pNext` chain.
+typedef struct ur_exp_sampler_cubemap_properties_t {
+    ur_structure_type_t stype;                              ///< [in] type of this structure, must be
+                                                            ///< ::UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES
+    void *pNext;                                            ///< [in,out][optional] pointer to extension-specific structure
+    ur_exp_sampler_cubemap_filter_mode_t cubemapFilterMode; ///< [in] enables or disables seamless cubemap filtering between cubemap
+                                                            ///< faces
+
+} ur_exp_sampler_cubemap_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Describes an interop memory resource descriptor

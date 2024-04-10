@@ -917,6 +917,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // CUDA does not support exporting semaphores or events.
     return ReturnValue(false);
   }
+  case UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP: {
+    // CUDA supports cubemaps.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP: {
+    // CUDA supports cubemap seamless filtering.
+    return ReturnValue(true);
+  }
   case UR_DEVICE_INFO_DEVICE_ID: {
     int Value = 0;
     UR_CHECK_ERROR(cuDeviceGetAttribute(
