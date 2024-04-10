@@ -1747,16 +1747,6 @@ block_load(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
   return block_load<T, N>(detail::accessorToPointer<T>(acc, byte_offset),
                           props);
 #else  // !__ESIMD_FORCE_STATELESS_MEM
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
-  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
-                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
-                "hint is cache_level::L2 now.");
-
   // If the alignment property is not passed, then assume the pointer
   // is element-aligned.
   constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
@@ -1822,17 +1812,9 @@ __ESIMD_API std::enable_if_t<
 block_load(AccessorT acc, PropertyListT /* props */ = {}) {
   // Create new properties without the alignment property passed in 'props',
   // and add alignment<16> as it is usable and most favourable in this case.
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
-  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
-                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
-                "hint is cache_level::L2 now.");
-  properties Props{cache_hint_L1<L1Hint>, cache_hint_L2<L2Hint>, alignment<16>};
-  return block_load<T, N>(acc, 0, Props);
+  using NewPropertyListT =
+      detail::add_or_replace_alignment_property_t<PropertyListT, 16>;
+  return block_load<T, N>(acc, 0, NewPropertyListT{});
 }
 
 /// simd<T, N>
@@ -1877,18 +1859,8 @@ __ESIMD_API std::enable_if_t<
 block_load(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
            simd_mask<1> pred, simd<T, N> pass_thru,
            PropertyListT /* props */ = {}) {
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
-  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
-                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
-                "hint is cache_level::L2 now.");
-
   // If the alignment property is not passed, then assume the byte_offset
-  // is element-aligned and is at leat 4-bytes.
+  // is element-aligned and is at least 4-bytes.
   constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
   using NewPropertyListT =
       detail::add_alignment_property_t<PropertyListT, DefaultAlignment>;
@@ -1980,17 +1952,9 @@ block_load(AccessorT acc, simd_mask<1> pred, simd<T, N> pass_thru,
            PropertyListT /* props */ = {}) {
   // Create new properties without the alignment property passed in 'props',
   // and add alignment<16> as it is usable and most favourable in this case.
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
-  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
-                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
-                "hint is cache_level::L2 now.");
-  properties Props{cache_hint_L1<L1Hint>, cache_hint_L2<L2Hint>, alignment<16>};
-  return block_load<T, N>(acc, 0, pred, pass_thru, Props);
+  using NewPropertyListT =
+      detail::add_or_replace_alignment_property_t<PropertyListT, 16>;
+  return block_load<T, N>(acc, 0, pred, pass_thru, NewPropertyListT{});
 }
 
 /// simd<T, N>
@@ -2030,19 +1994,10 @@ __ESIMD_API std::enable_if_t<
 block_load(AccessorT acc, simd_mask<1> pred, PropertyListT /* props */ = {}) {
   // Create new properties without the alignment property passed in 'props',
   // and add alignment<16> as it is usable and most favourable in this case.
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
-  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
-                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
-                "hint is cache_level::L2 now.");
-  properties Props{cache_hint_L1<L1Hint>, cache_hint_L2<L2Hint>, alignment<16>};
-
+  using NewPropertyListT =
+      detail::add_or_replace_alignment_property_t<PropertyListT, 16>;
   simd<T, N> PassThru; // Intentionally uninitialized.
-  return block_load<T, N>(acc, 0, pred, PassThru, Props);
+  return block_load<T, N>(acc, 0, pred, PassThru, NewPropertyListT{});
 }
 
 /// Each of the following block store functions stores a contiguous memory block
@@ -2398,14 +2353,9 @@ __ESIMD_API std::enable_if_t<
 block_store(AccessorT acc, simd<T, N> vals, PropertyListT props = {}) {
   // Create new properties without the alignment property passed in 'props',
   // and add alignment<16> as it is usable and most favourable in this case.
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
-  properties Props{cache_hint_L1<L1Hint>, cache_hint_L2<L2Hint>, alignment<16>};
-  block_store<T, N>(acc, 0, vals, Props);
+  using NewPropertyListT =
+      detail::add_or_replace_alignment_property_t<PropertyListT, 16>;
+  block_store<T, N>(acc, 0, vals, NewPropertyListT{});
 }
 
 /// void block_store(AccessorT acc, OffsetT byte_offset,          // (acc-bs-3)
@@ -2490,14 +2440,9 @@ block_store(AccessorT acc, simd<T, N> vals, simd_mask<1> pred,
             PropertyListT props = {}) {
   // Create new properties without the alignment property passed in 'props',
   // and add alignment<16> as it is usable and most favourable in this case.
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
-  properties Props{cache_hint_L1<L1Hint>, cache_hint_L2<L2Hint>, alignment<16>};
-  block_store<T, N>(acc, 0, vals, pred, Props);
+  using NewPropertyListT =
+      detail::add_or_replace_alignment_property_t<PropertyListT, 16>;
+  block_store<T, N>(acc, 0, vals, pred, NewPropertyListT{});
 }
 
 /// @} sycl_esimd_memory_block
@@ -7168,16 +7113,6 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd_mask<N> mask,
   return atomic_update<Op, T, N>(__ESIMD_DNS::accessorToPointer<T>(acc),
                                  byte_offset, mask, props);
 #else
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
-  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
-                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
-                "hint is cache_level::L2 now.");
-
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
 
   if constexpr (detail::has_cache_hints<PropertyListT>() ||
