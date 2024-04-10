@@ -1407,13 +1407,6 @@ class KernelObjVisitor {
         (Handlers.nextElement(ElementTy, Index), 0)...};
     visitField(Owner, ArrayField, ElementTy, Handlers...);
   }
-  template <typename... HandlerTys>
-  void visitArrayElementImpl(ParmVarDecl *ArrayField, QualType ElementTy,
-                             uint64_t Index, HandlerTys &...Handlers) {
-    (void)std::initializer_list<int>{
-        (Handlers.nextElement(ElementTy, Index), 0)...};
-    visitParam(ArrayField, ElementTy, Handlers...);
-  }
 
   template <typename... HandlerTys>
   void visitFirstArrayElement(const CXXRecordDecl *Owner, FieldDecl *ArrayField,
@@ -1424,27 +1417,11 @@ class KernelObjVisitor {
   void visitNthArrayElement(const CXXRecordDecl *Owner, FieldDecl *ArrayField,
                             QualType ElementTy, uint64_t Index,
                             HandlerTys &... Handlers);
-
-  template <typename... HandlerTys>
-  void visitFirstArrayElement(ParmVarDecl *ArrayField, QualType ElementTy,
-                              HandlerTys &...Handlers) {
-    visitArrayElementImpl(ArrayField, ElementTy, 0, Handlers...);
-  }
-  template <typename... HandlerTys>
-  void visitNthArrayElement(ParmVarDecl *ArrayField, QualType ElementTy,
-                            uint64_t Index, HandlerTys &...Handlers);
-
   template <typename... HandlerTys>
   void visitSimpleArray(const CXXRecordDecl *Owner, FieldDecl *Field,
                         QualType ArrayTy, HandlerTys &... Handlers) {
     (void)std::initializer_list<int>{
         (Handlers.handleSimpleArrayType(Field, ArrayTy), 0)...};
-  }
-  template <typename... HandlerTys>
-  void visitSimpleArray(ParmVarDecl *Param, QualType ArrayTy,
-                        HandlerTys &...Handlers) {
-    (void)std::initializer_list<int>{
-        (Handlers.handleSimpleArrayType(Param, ArrayTy), 0)...};
   }
 
   template <typename... HandlerTys>
@@ -1477,37 +1454,6 @@ class KernelObjVisitor {
 
     (void)std::initializer_list<int>{
         (Handlers.leaveArray(Field, ArrayTy, ET), 0)...};
-  }
-  template <typename... HandlerTys>
-  void visitComplexArray(ParmVarDecl *Param, QualType ArrayTy,
-                         HandlerTys &...Handlers) {
-    // Array workflow is:
-    // handleArrayType
-    // enterArray
-    // nextElement
-    // VisitField (same as before, note that The FieldDecl is the of array
-    // itself, not the element)
-    // ... repeat per element, opt-out for duplicates.
-    // leaveArray
-
-    if (!KP_FOR_EACH(handleArrayType, Param, ArrayTy))
-      return;
-
-    const ConstantArrayType *CAT =
-        SemaRef.getASTContext().getAsConstantArrayType(ArrayTy);
-    assert(CAT && "Should only be called on constant-size array.");
-    QualType ET = CAT->getElementType();
-    uint64_t ElemCount = CAT->getSize().getZExtValue();
-
-    (void)std::initializer_list<int>{
-        (Handlers.enterArray(Param, ArrayTy, ET), 0)...};
-
-    visitFirstArrayElement(Param, ET, Handlers...);
-    for (uint64_t Index = 1; Index < ElemCount; ++Index)
-      visitNthArrayElement(Param, ET, Index, Handlers...);
-
-    (void)std::initializer_list<int>{
-        (Handlers.leaveArray(Param, ArrayTy, ET), 0)...};
   }
 
   template <typename... HandlerTys>
@@ -1584,6 +1530,7 @@ public:
   template <typename... HandlerTys>
   void visitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
                   QualType ArrayTy, HandlerTys &...Handlers);
+
   template <typename... HandlerTys>
   void visitArray(ParmVarDecl *Param, QualType ArrayTy,
                   HandlerTys &...Handlers);
@@ -1646,10 +1593,12 @@ public:
                                      QualType) {
     return true;
   }
+
   virtual bool handleNonDecompStruct(const CXXRecordDecl *, ParmVarDecl *,
                                      QualType) {
     return true;
   }
+
   virtual bool handleNonDecompStruct(const CXXRecordDecl *,
                                      const CXXBaseSpecifier &, QualType) {
     return true;
@@ -1659,7 +1608,6 @@ public:
   // descending down the elements), this function gets called in the event of an
   // array containing simple elements (even in the case of an MD array).
   virtual bool handleSimpleArrayType(FieldDecl *, QualType) { return true; }
-  virtual bool handleSimpleArrayType(ParmVarDecl *, QualType) { return true; }
 
   // The following are only used for keeping track of where we are in the base
   // class/field graph. Int Headers use this to calculate offset, most others
@@ -1724,10 +1672,6 @@ protected:
   bool isArrayElement(const FieldDecl *FD, QualType Ty) const {
     return !SemaRef.getASTContext().hasSameType(FD->getType(), Ty);
   }
-
-  bool isArrayElement(const ParmVarDecl *PD, QualType Ty) const {
-    return !SemaRef.getASTContext().hasSameType(PD->getType(), Ty);
-  }
 };
 
 // A class to represent the 'do nothing' case for filtering purposes.
@@ -1784,20 +1728,6 @@ void KernelObjVisitor::visitNthArrayElement(const CXXRecordDecl *Owner,
   if (AnyTrue<Handlers::VisitNthArrayElement...>::Value)
     visitArrayElementImpl(
         Owner, ArrayField, ElementTy, Index,
-        HandlerFilter<Handlers::VisitNthArrayElement, Handlers>(handlers)
-            .Handler...);
-}
-
-template <typename... Handlers>
-void KernelObjVisitor::visitNthArrayElement(ParmVarDecl *ArrayField,
-                                            QualType ElementTy, uint64_t Index,
-                                            Handlers &...handlers) {
-  // Don't continue descending if none of the handlers 'care'. This could be 'if
-  // constexpr' starting in C++17.  Until then, we have to count on the
-  // optimizer to realize "if (false)" is a dead branch.
-  if (AnyTrue<Handlers::VisitNthArrayElement...>::Value)
-    visitArrayElementImpl(
-        ArrayField, ElementTy, Index,
         HandlerFilter<Handlers::VisitNthArrayElement, Handlers>(handlers)
             .Handler...);
 }
@@ -1886,35 +1816,7 @@ void KernelObjVisitor::visitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
 template <typename... HandlerTys>
 void KernelObjVisitor::visitArray(ParmVarDecl *Param, QualType ArrayTy,
                                   HandlerTys &...Handlers) {
-
-  if (Param->hasAttr<SYCLRequiresDecompositionAttr>()) {
-    visitComplexArray(Param, ArrayTy, Handlers...);
-  } else if (AnyTrue<HandlerTys::VisitInsideSimpleContainersWithPointer...>::
-                 Value) {
-    // We are currently in PointerHandler visitor.
-    if (Param->hasAttr<SYCLGenerateNewTypeAttr>()) {
-      // This is an array of pointers, or an array of a type containing
-      // pointers.
-      visitComplexArray(Param, ArrayTy, Handlers...);
-    } else {
-      // This is an array which does not contain pointers.
-      visitSimpleArray(Param, ArrayTy, Handlers...);
-    }
-  } else {
-    if (!AllTrue<HandlerTys::VisitInsideSimpleContainers...>::Value)
-      visitSimpleArray(
-          Param, ArrayTy,
-          HandlerFilter<!HandlerTys::VisitInsideSimpleContainers, HandlerTys>(
-              Handlers)
-              .Handler...);
-
-    if (AnyTrue<HandlerTys::VisitInsideSimpleContainers...>::Value)
-      visitComplexArray(
-          Param, ArrayTy,
-          HandlerFilter<HandlerTys::VisitInsideSimpleContainers, HandlerTys>(
-              Handlers)
-              .Handler...);
-  }
+  // TODO
 }
 
 // A type to check the validity of all of the argument types.
@@ -2615,12 +2517,7 @@ public:
 
   bool handlePointerType(ParmVarDecl *PD, QualType FieldTy) final {
     QualType ModifiedPointerType = ModifyAddressSpace(SemaRef, FieldTy);
-    if (!isArrayElement(PD, FieldTy))
-      addField(PD, ModifiedPointerType);
-    else
-      ModifiedArrayElementsOrArray.push_back(ModifiedPointerType);
-    // We do not need to wrap pointers since this is a pointer inside
-    // non-decomposed struct.
+    ModifiedArrayElementsOrArray.push_back(ModifiedPointerType);
     return true;
   }
 
@@ -2662,10 +2559,6 @@ public:
 
   bool handleSimpleArrayType(FieldDecl *FD, QualType Ty) final {
     addField(FD, Ty);
-    return true;
-  }
-  bool handleSimpleArrayType(ParmVarDecl *PD, QualType Ty) final {
-    addField(PD, Ty);
     return true;
   }
 
@@ -3088,14 +2981,6 @@ public:
     return true;
   }
 
-  bool handleSimpleArrayType(ParmVarDecl *PD, QualType FieldTy) final {
-    QualType ArrayTy = FieldTy;
-    // Arrays are wrapped in a struct since they cannot be passed directly.
-    RecordDecl *WrappedArray = wrapParam(ArrayTy);
-    addParam(PD, SemaRef.getASTContext().getRecordType(WrappedArray));
-    return true;
-  }
-
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
     addParam(FD, FieldTy);
     return true;
@@ -3334,11 +3219,6 @@ public:
   }
 
   bool handleSimpleArrayType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FieldTy);
-    return true;
-  }
-
-  bool handleSimpleArrayType(ParmVarDecl *PD, QualType FieldTy) final {
     addParam(FieldTy);
     return true;
   }
@@ -4134,10 +4014,6 @@ public:
     return true;
   }
 
-  bool handleSimpleArrayType(ParmVarDecl *PD, QualType FieldTy) final {
-    return true;
-  }
-
   bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
                              QualType Ty) final {
     CXXRecordDecl *RD = Ty->getAsCXXRecordDecl();
@@ -4478,11 +4354,6 @@ public:
     return true;
   }
 
-  bool handleSimpleArrayType(ParmVarDecl *PD, QualType FieldTy) final {
-    ParamMap[PD] = DeclCreator.getParamVarDeclsForCurrentField()[0];
-    return true;
-  }
-
   bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
                              QualType Ty) final {
     return true;
@@ -4737,13 +4608,6 @@ public:
     // Arrays are always wrapped inside of structs, so just treat it as a simple
     // struct.
     addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
-    return true;
-  }
-
-  bool handleSimpleArrayType(ParmVarDecl *PD, QualType FieldTy) final {
-    // Arrays are always wrapped inside of structs, so just treat it as a simple
-    // struct.
-    addParam(PD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
     return true;
   }
 

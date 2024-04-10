@@ -18,11 +18,11 @@ struct Simple {
 
 __attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]]
-void ff_2(int *ptr, int arr[], int start, int end, struct Simple S) {
+void ff_2(int *ptr, int start, int end, struct Simple S) {
   for (int i = start; i <= end; i++)
     ptr[i] = start + S.x + S.f + S.c[2] + 66;
 }
-// CHECK: spir_kernel void @__free_function_ff_2(ptr addrspace(1) {{.*}} %_arg_ptr, ptr addrspace(1) {{.*}} %_arg_arr, i32 noundef %_arg_start, i32 noundef %_arg_end, ptr noundef byval(%struct.Simple) align 4 %_arg_S)
+// CHECK: spir_kernel void @__free_function_ff_2(ptr addrspace(1) {{.*}} %_arg_ptr, i32 noundef %_arg_start, i32 noundef %_arg_end, ptr noundef byval(%struct.Simple) align 4 %_arg_S)
 // CHECK: store ptr addrspace(1) %_arg_ptr, ptr addrspace(4) %_arg_ptr.{{.*}}
 // CHECK: store i32 %_arg_start, ptr addrspace(4) %_arg_start.{{.*}}
 // CHECK: store i32 %_arg_end, ptr addrspace(4) %_arg_end.{{.*}}

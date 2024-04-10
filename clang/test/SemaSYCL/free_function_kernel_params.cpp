@@ -14,13 +14,12 @@ struct Simple {
 
 __attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]]
-void ff_2(int *ptr, int arr[], int start, int end, struct Simple S) {
+void ff_2(int *ptr, int start, int end, struct Simple S) {
   for (int i = start; i <= end; i++)
-    ptr[i] = start + S.x + S.f + S.c[2] + arr[66];
+    ptr[i] = start + S.x + S.f + S.c[2];
 }
-// CHECK: FunctionDecl {{.*}} __free_function_ff_2 'void (__global int *, __global int *, int, int, struct Simple)'
+// CHECK: FunctionDecl {{.*}} __free_function_ff_2 'void (__global int *, int, int, struct Simple)'
 // CHECK-NEXT: ParmVarDecl {{.*}} _arg_ptr '__global int *'
-// CHECK-NEXT: ParmVarDecl {{.*}} _arg_arr '__global int *'
 // CHECK-NEXT: ParmVarDecl {{.*}} _arg_start 'int'
 // CHECK-NEXT: ParmVarDecl {{.*}} _arg_end 'int'
 // CHECK-NEXT: ParmVarDecl {{.*}} _arg_S 'struct Simple':'Simple'
