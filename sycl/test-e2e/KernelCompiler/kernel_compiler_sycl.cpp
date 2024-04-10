@@ -26,7 +26,8 @@ auto constexpr SYCLSource = R"===(
 
 SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((sycl::ext::oneapi::experimental::nd_range_kernel<1>))
 void ff_cp(int *ptr) {
-  sycl::nd_item<1> Item = sycl::ext::oneapi::experimental::this_nd_item<1>();
+  //sycl::nd_item<1> Item = sycl::ext::oneapi::experimental::this_nd_item<1>();
+  sycl::nd_item<1> Item = sycl::ext::oneapi::this_work_item::get_nd_item<1>();
   sycl::id<1> GId = Item.get_global_id();
   ptr[GId.get(0)] = AddEm(GId.get(0), 37);
 }
@@ -61,11 +62,20 @@ void test_1(sycl::queue &Queue, sycl::kernel &Kernel) {
 
 void test_build_and_run() {
   namespace syclex = sycl::ext::oneapi::experimental;
-  // this dance avoids a bug on L0, ensuring context is of exactly one device
-  sycl::device d;
-  sycl::context ctx{d};
-  sycl::queue q{ctx, d};
+  using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
+  using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
 
+  // TODO: remove this dance from other tests
+  // this dance avoids a bug on L0, ensuring context is of exactly one device
+  // sycl::device d;
+  // sycl::context ctx{d};
+  // sycl::queue q{ctx, d};
+
+  sycl::queue q;
+  sycl::context ctx = q.get_context();
+
+  // TODO: replace is_source_kernel_bundle_supported() with
+  // device::ext_oneapi_can_compile()
   bool ok = syclex::is_source_kernel_bundle_supported(
       ctx.get_backend(), syclex::source_language::sycl);
   if (!ok) {
@@ -76,9 +86,10 @@ void test_build_and_run() {
   }
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::opencl, SYCLSource);
+      ctx, syclex::source_language::sycl, SYCLSource,
+      syclex::properties{syclex::include_files{"AddEm.h", AddEmH}});
   // compilation of empty prop list, no devices
-  exe_kb kbExe1 = syclex::build(kbSrc);
+  exe_kb kbExe = syclex::build(kbSrc);
 
   sycl::kernel k = kbExe.ext_oneapi_get_kernel(
       "__free_function_ff_cp"); // amend __free_function_  to kernel f name.
