@@ -23,12 +23,10 @@ RUN https://repo.radeon.com/rocm/rocm.gpg.key -O - | \
     gpg --dearmor | tee /etc/apt/keyrings/rocm.gpg > /dev/null
 RUN echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/amdgpu/6.0/ubuntu jammy main" \
     | tee /etc/apt/sources.list.d/amdgpu.list
-RUN apt update
 RUN echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.0 jammy main" \
     | tee --append /etc/apt/sources.list.d/rocm.list
 RUN echo -e 'Package: *\nPin: release o=repo.radeon.com\nPin-Priority: 600' \
     | tee /etc/apt/preferences.d/rocm-pin-600
-RUN yes | apt install amdgpu-dkms
 RUN apt update
 RUN yes | apt install rocm-core
 
