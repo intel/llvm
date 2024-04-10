@@ -2,7 +2,7 @@
 # pull requests based on the globs below. For documentation see:
 # https://github.com/marketplace/actions/labeler
 ---
-ci-cd:
+ci/cd:
   - changed-files:
     - any-glob-to-any-file:
       - .github/**
