@@ -281,6 +281,8 @@ def err_builtin_needs_feature : Error<"%0 needs target feature %1">;
 def err_function_needs_feature : Error<
   "always_inline function %1 requires target feature '%2', but would "
   "be inlined into function %0 that is compiled without support for '%2'">;
+
+let CategoryName = "Codegen ABI Check" in {
 def err_function_always_inline_attribute_mismatch : Error<
   "always_inline function %1 and its caller %0 have mismatching %2 attributes">;
 def err_function_always_inline_new_za : Error<
@@ -292,12 +294,17 @@ def warn_avx_calling_convention
       InGroup<DiagGroup<"psabi">>;
 def err_avx_calling_convention : Error<warn_avx_calling_convention.Summary>;
 
+
 def warn_sycl_device_has_aspect_mismatch
     : Warning<"function '%0' uses aspect '%1' not listed in its "
               "%select{'device_has' property|'sycl::device_has' attribute}2">,
               BackendInfo, InGroup<SyclAspectMismatch>;
 def note_sycl_aspect_propagated_from_call
     : Note<"propagated from call to function '%0'">, BackendInfo;
+
+def err_target_unsupported_type_for_abi
+    : Error<"%0 requires %1 type support, but ABI '%2' does not support it">;
+}
 
 def err_alias_to_undefined : Error<
   "%select{alias|ifunc}0 must point to a defined "
@@ -366,5 +373,9 @@ def warn_profile_data_misexpect : Warning<
 
 def err_extract_api_ignores_file_not_found :
   Error<"file '%0' specified by '--extract-api-ignores=' not found">, DefaultFatal;
+
+def warn_missing_symbol_graph_dir : Warning<
+  "Missing symbol graph output directory, defaulting to working directory">,
+  InGroup<ExtractAPIMisuse>;
 
 }

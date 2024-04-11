@@ -59,8 +59,8 @@ int main(int Argc, const char *Argv[]) {
       sycl::local_accessor<int, 1> LocalAcc(LocalMemSize, CGH);
 
       CGH.parallel_for<class kernel_using_local_memory>(
-          NDRange, [=](sycl::item<1> itemID) {
-            size_t i = itemID.get_id(0);
+          NDRange, [=](sycl::nd_item<1> ndi) {
+            size_t i = ndi.get_global_id(0);
             int *Ptr = LocalAcc.get_pointer();
             Ptr[i] = i + 5;
             Harray[i] = Ptr[i] + 5;

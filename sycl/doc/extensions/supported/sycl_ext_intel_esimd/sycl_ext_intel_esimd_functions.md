@@ -6,13 +6,18 @@ See more general ESIMD documentation [here](./sycl_ext_intel_esimd.md).
 
 ## Table of contents
 - [Compile-time properties](#compile-time-properties)
+  - [Cache-hint properties and restrictions depending on the usage context](#cache-hint-properties)
 - [Stateless/stateful memory mode](#statelessstateful-memory-mode)
 - [block_load(...) - fast load from a contiguous memory block](#block_load---fast-load-from-a-contiguous-memory-block)
 - [block_store(...) - fast store to a contiguous memory block](#block-store---fast-store-to-a-contiguous-memory-block)
 - [gather(...)](#gather---load-from-memory-locations-addressed-by-a-vector-of-offsets)
 - [scatter(...)](#scatter---store-to-memory-locations-addressed-by-a-vector-of-offsets)
+- [load_2d(...) - load 2D block](#load_2d---load-2d-block)
+- [prefetch_2d(...) - prefetch 2D block](#prefetch_2d---prefetch-2d-block)
+- [store_2d(...) - store 2D block](#store_2d---store-2d-block)
 - [atomic_update(...)](#atomic_update)
 - [prefetch(...)](#prefetch)
+- [fence(...) - set the memory read/write order](#fence---set-the-memory-readwrite-order)
 - [Examples](#examples)
 
 ## Other content:
@@ -61,8 +66,54 @@ auto vec_a = block_load<float, 16>(f32_ptr, properties{alignment<16>});
 properties props{cache_hint_L1<cache_hint::uncached>, alignment<4> cache_hint_L1<cache_hint::cached>};
 auto vec_b = block_load<float, 16>(f32_ptr + 1, props);
 ```
+### Cache-hint properties
+Cache-hint properties (if passed) currently add a restriction on the target-device, it must be a Intel® Arc Series (aka DG2) or Intel® Data Center GPU Max Series (aka PVC).  
+The valid combinations of L1/L2 cache-hints depend on the usage context.. There are 4 contexts:
+* load: `block_load()`, `load_2d()`, `gather()` functions;
+* prefetch: `prefetch()` and `prefetch_2d()` functions;
+* store: `block_store()`, `store_2d()`, `scatter()` functions;
+* atomic_update: `atomic_update()` functions.
 
-Cache-hint properties (if passed) currently adds a restriction on the target-device, it must be a Intel® Arc Series (aka DG2) or Intel® Data Center GPU Max Series (aka PVC).
+#### Valid combinations of `L1` and `L2` cache-hints for `load` functions:
+| `L1` | `L2` |
+|-|-|
+| none | none |
+| uncached | uncached |
+| uncached | cached |
+| cached | uncached |
+| cached | cached |
+| streaming | uncached |
+| streaming | cached |
+| read_invalidate | cached |
+
+#### Valid combinations of `L1` and `L2` cache-hints for `prefetch` functions:
+| `L1` | `L2` |
+|-|-|
+| uncached | cached |
+| cached | uncached |
+| cached | cached |
+| streaming | uncached |
+| streaming | cached |
+
+#### Valid combinations of `L1` and `L2` cache-hints for `store` functions:
+| `L1` | `L2` |
+|-|-|
+| none | none |
+| uncached | uncached |
+| uncached | write_back |
+| write_through | uncached |
+| write_through | write_back |
+| streaming | uncached |
+| streaming | write_back |
+| write_back | write_back |
+
+#### Valid combinations of `L1` and `L2` cache-hints for `atomic_update` functions:
+| `L1` | `L2` |
+|-|-|
+| none | none |
+| uncached | uncached |
+| uncached | write_back |
+
 
 ## block_load(...) - fast load from a contiguous memory block
 ```C++
@@ -99,7 +150,7 @@ template <typename T, int N, typename PropertyListT = empty_properties_t>
 /*slm-bl-1*/ simd<T, N> slm_block_load(uint32_t byte_offset, PropertyListT props={});
 /*slm-bl-2*/ simd<T, N> slm_block_load(uint32_t byte_offset, simd_mask<1> pred, PropertyListT props={});
 /*slm-bl-3*/ simd<T, N> slm_block_load(uint32_t byte_offset, simd_mask<1> pred, simd<T, N> pass_thru, PropertyListT props={});
-}
+} // end namespace sycl::ext::intel::esimd
 ```
 ### Description
 `(usm-bl-*)`: Loads a contiguous memory block from global memory referenced by the USM pointer `ptr` optionally adjusted by `byte_offset`.  
@@ -113,6 +164,8 @@ The optional [compile-time properties](#compile-time-properties) list `props` ma
 ### Restrictions/assumptions:
 `Alignment` - if not specified by the `props` param, then `assumed` alignment is used. If the actual memory reference has a smaller alignment than the `assumed`, then it must be explicitly passed in `props` argument.
 
+`Cache-hint` properties, if passed, must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-load-functions) for `load` functions.
+
 | `Function` | `Assumed` alignment   | `Minimally required` alignment |
 |-|-|-|
 | `(usm-bl-*)`  | `max(4, sizeof(T))` | `sizeof(T)` if no cache-hints, otherwise it is `max(4, sizeof(T))` |
@@ -121,7 +174,7 @@ The optional [compile-time properties](#compile-time-properties) list `props` ma
 
 `N` - the valid values may depend on usage of cache-hints or passing of the `pred` argument:
 
-| `Function` | `Condition` | Requirement for `N` | Required/supported Intel GPU |
+| `Function` | `Condition` | Requirement for `N` | Required Intel GPU |
 |-|-|-|-|
 | `(usm-bl-*)` | (no cache-hints) and (`pred` is not passed) | `N` is any positive number | Any Intel GPU |
 | `(usm-bl-*)` | (cache-hints) or (`pred` is passed) | `N` must be from [Table1 below](#table1---valid-values-of-n-if-cache-hints-used-or-pred-parameter-is-passed) | DG2 or PVC |
@@ -169,7 +222,7 @@ void block_store(AccessorT lacc, simd<T, N> vals, simd_mask<1> pred, PropertyLis
 template <typename T, int N, typename PropertyListT = empty_properties_t>
 /*slm-bs-1*/ void slm_block_store(uint32_t byte_offset, simd<T, N> vals, simd_mask<1> pred, PropertyListT props={});
 /*slm-bs-2*/ void slm_block_store(uint32_t byte_offset, simd<T, N> vals, PropertyListT props={});
-}
+} // end namespace sycl::ext::intel::esimd
 ```
 ### Description
 `(usm-bs-*)`: Stores `vals` to a contiguous global memory block referenced by the USM pointer `ptr` optionally adjusted by `byte_offset`.  
@@ -181,6 +234,8 @@ The optional [compile-time properties](#compile-time-properties) list `props` ma
 
 ### Restrictions/assumptions:
 `Alignment` - if not specified by the `props` param, then `assumed` alignment is used. If the actual memory reference requires a smaller alignment than the `assumed`, then it must be explicitly passed in `props` argument.
+
+`Cache-hint` properties, if passed, must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-store-functions) for `store` functions.
 
 | `Function` | Condition | `Assumed` alignment   | `Minimally required` alignment |
 |-|-|-|-|
@@ -194,7 +249,7 @@ The optional [compile-time properties](#compile-time-properties) list `props` ma
 
 `N` - the valid values may depend on usage of cache-hints or passing of the `pred` argument:
 
-| `Function` | `Condition` | Requirement for `N` | Required/supported Intel GPU |
+| `Function` | `Condition` | Requirement for `N` | Required Intel GPU |
 |-|-|-|-|
 | `(usm-bs-*)` | (no cache-hints) and (`pred` is not passed) | `N` is any positive number | Any Intel GPU |
 | `(usm-bs-*)` | (cache-hints) or (`pred` is passed) | `N` must be from [Table2 below](#table1---valid-values-of-n-if-cache-hints-used-or-pred-parameter-is-passed) | DG2 or PVC |
@@ -235,13 +290,13 @@ template <typename T, int N, typename OffsetT, typename PropertyListT = empty_pr
                                PropertyListT props = {});
 
 // gather from USM - general form accepting offsets as simd_view
-template <typename T, int N, int VS = 1, typename OffsetObjT,
-          typename OffsetRegionT, typename PropertyListT = empty_props_t>
-/*usm-ga-7*/ simd <T, N> gather(const T *p, simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
+template <typename T, int N, int VS = 1,
+          typename OffsetSimdViewT, typename PropertyListT = empty_props_t>
+/*usm-ga-7*/ simd <T, N> gather(const T *p, OffsetSimdViewT byte_offsets,
                                 simd_mask<N / VS> mask, simd<T, N> pass_thru, PropertyListT props = {});
-/*usm-ga-8*/ simd <T, N> gather(const T *p, simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
+/*usm-ga-8*/ simd <T, N> gather(const T *p, OffsetSimdViewT byte_offsets,
                                 simd_mask<N / VS> mask, PropertyListT props = {});
-/*usm-ga-9*/ simd <T, N> gather(const T *p, simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
+/*usm-ga-9*/ simd <T, N> gather(const T *p, OffsetSimdViewT byte_offsets,
                                 PropertyListT props = {});
 
 
@@ -264,13 +319,13 @@ template <typename T, int N, typename AccessorT, typename OffsetT, typename Prop
                                PropertyListT props = {});
 
 // gather from memory accessed via device-accessor - general form accepting offsets as simd_view
-template <typename T, int N, int VS = 1, typename AccessorT, typename OffsetObjT,
-          typename OffsetRegionT, typename PropertyListT = empty_props_t>
-/*acc-ga-7*/ simd <T, N> gather(AccessorT acc, simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
+template <typename T, int N, int VS = 1, typename AccessorT,
+          typename OffsetSimdViewT, typename PropertyListT = empty_props_t>
+/*acc-ga-7*/ simd <T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
                                 simd_mask<N / VS> mask, simd<T, N> pass_thru, PropertyListT props = {});
-/*acc-ga-8*/ simd <T, N> gather(AccessorT acc, simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
+/*acc-ga-8*/ simd <T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
                                 simd_mask<N / VS> mask, PropertyListT props = {});
-/*acc-ga-9*/ simd <T, N> gather(AccessorT acc, simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
+/*acc-ga-9*/ simd <T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
                                 PropertyListT props = {});
 
 
@@ -328,6 +383,7 @@ template <typename T, int N, int VS = 1, typename OffsetSimdViewT, typename Prop
                                 simd_mask<N / VS> mask, PropertyListT props = {});
 /*slm-ga-9*/ simd <T, N> gather(OffsetSimdViewT byte_offsets,
                                 PropertyListT props = {});
+} // end namespace sycl::ext::intel::esimd
 ```
 
 ### Description
@@ -336,8 +392,40 @@ template <typename T, int N, int VS = 1, typename OffsetSimdViewT, typename Prop
 `(slm-ga-*)`: Loads ("gathers") elements of the type `T` from shared local memory locations addressed by `byte_offsets`.  
 The parameter `byte_offset` is a vector of any integral type elements for `(usm-ga-*)`, 32-bit integer elements for `(lacc-ga-*)` and `(slm-ga-*)`, any integral type integer elements for `(acc-ga-*)` in [stateless](#statelessstateful-memory-mode) mode(default),
 and up-to-32-bit integer elements for `(acc-ga-*)` in [stateful](#statelessstateful-memory-mode) mode.  
-The optional parameter `pred` provides a `simd_mask`. If some element in `pred` is zero, then the load of the corresponding memory location is skipped and the element of the result is copied from `pass_thru` (if it is passed) or it is undefined (if `pass_thru` is omitted).  
-The optional [compile-time properties](#compile-time-properties) list `props` may specify `alignment` and/or `cache-hints`. The cache-hints are ignored for `(lacc-*)` and `(slm-*)` functions.
+The optional parameter `mask` provides a `simd_mask`. If some element in `mask` is zero, then the load of the corresponding memory location is skipped and the element of the result is copied from `pass_thru` (if it is passed) or it is undefined (if `pass_thru` is omitted).  
+The optional [compile-time properties](#compile-time-properties) list `props` may specify `alignment` and/or `cache-hints`. The cache-hints are ignored for `(lacc-*)` and `(slm-*)` functions.  
+The template parameter `N` can be any positive number.  
+The optional template parameter `VS` must be one of `{1, 2, 3, 4, 8, 16, 32, 64}` values. It specifies how many conseсutive elements are loaded per each element in `byte_offsets`.   
+### Example
+```C++
+simd<int64_t, 4> offsets(0, 100); // 0, 100, 200, 300 - offsets in bytes
+// loads and returns a vector {ptr[0], ptr[100/4], ptr[200/4], ptr[300/4]};
+simd<float, 4> vec4 = gather<float, 4>(ptr, offsets);
+
+// VS = 2, loads and returns a vector {ptr[0], ptr[100/4],     ptr[200/4],     ptr[300/4],
+//                                     ptr[1], ptr[100/4 + 1], ptr[200/4 + 1], ptr[300/4 + 1]};
+simd<float, 8> vec8 = gather<float, 8, 2>(ptr, offsets);
+```
+
+### Restrictions
+
+`Cache-hint` properties, if passed, must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-load-functions) for `load` functions.
+
+| `Function` | `Condition` | Required Intel GPU |
+|-|-|-|
+| `(usm-ga-1,4,7)`,`(acc-ga-1,4,7)` | true (`pass_thru` arg is passed) | DG2 or PVC |
+| `(usm-ga-2,3,8,9)`, `(acc-ga-2,3,8,9)` | !(cache-hints) and (`VS` == 1) and (`N` == 1,2,4,8,16,32) | Any Intel GPU |
+| `(usm-ga-2,3,8,9)`, `(acc-ga-2,3,8,9)` | (cache-hints) or (`VS` > 1) or (`N` != 1,2,4,8,16,32) | DG2 or PVC |
+| `(usm-ga-5,6)`, `(acc-ga-5,6)` | !(cache-hints) and (`N` == 1,2,4,8,16,32) | Any Intel GPU |
+| `(usm-ga-5,6)`, `(acc-ga-5,6)` | (cache-hints) or (`N` != 1,2,4,8,16,32) | DG2 or PVC |
+| The next 5 lines are similar to the previous 5 lines. They are for SLM gather and the only difference is that SLM gathers ignore cache-hints|||
+| `(slm-ga-1,4,7)`,`(lacc-ga-1,4,7)` | true (`pass_thru` is passed) | DG2 or PVC |
+| `(slm-ga-2,3,8,9)`, `(lacc-ga-2,3,8,9)` | (`VS` == 1) and (`N` == 1,2,4,8,16,32) | Any Intel GPU |
+| `(slm-ga-2,3,8,9)`, `(lacc-ga-2,3,8,9)` | (`VS` > 1) or (`N` != 1,2,4,8,16,32) | DG2 or PVC |
+| `(slm-ga-5,6)`, `(lacc-ga-5,6)` | (`N` == 1,2,4,8,16,32) | Any Intel GPU |
+| `(slm-ga-5,6)`, `(lacc-ga-5,6)` | (`N` != 1,2,4,8,16,32) | DG2 or PVC |
+
+
 
 ## scatter(...) - store to memory locations addressed by a vector of offsets
 ```C++
@@ -399,6 +487,7 @@ template <typename T, int N, int VS = 1, typename OffsetSimdViewT, typename Prop
                           simd_mask<N / VS> mask, PropertyListT props = {});
 /*slm-sc-4*/ void scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
                           PropertyListT props = {});
+} // end namespace sycl::ext::intel::esimd
 ```
 
 ### Description
@@ -407,23 +496,163 @@ template <typename T, int N, int VS = 1, typename OffsetSimdViewT, typename Prop
 `(slm-sc-*)`: Stores ("scatters") the vector `vals` to shared local memory locations addressed by `byte_offsets`.  
 The parameter `byte_offset` is a vector of any integral type elements for `(usm-sc-*)`, 32-bit integer elements for `(lacc-sc-*)` and `(slm-sc-*)`, any integral type integer elements for `(acc-sc-*)` in [stateless](#statelessstateful-memory-mode) mode(default),
 and up-to-32-bit integer elements for `(acc-sc-*)` in [stateful](#statelessstateful-memory-mode) mode.  
-The optional parameter `pred` provides a `simd_mask`. If some element in `pred` is zero, then the store to the corresponding memory location is skipped.  
+The optional parameter `mask` provides a `simd_mask`. If some element in `mask` is zero, then the store to the corresponding memory location is skipped.  
 The optional [compile-time properties](#compile-time-properties) list `props` may specify `alignment` and/or `cache-hints`. The cache-hints are ignored for `(lacc-sc-*)` and `(slm-sc-*)` functions.
+The template parameter `N` can be any positive number.  
+The optional template parameter `VS` must be one of `{1, 2, 3, 4, 8, 16, 32, 64}` values. It specifies how many conseсutive elements are written per each element in `byte_offsets`.   
+### Example
+```C++
+simd<int64_t, 4> offsets4(0, 100); // 0, 100, 200, 300 - offsets in bytes
+simd<float, 4> vec4;
+// stores the elements of vec4 to memory locations {ptr[0], ptr[100/4], ptr[200/4], ptr[300/4]};
+scatter(ptr, offsets4, vec4);
+
+// VS = 2, stores the elements of vec8 to memory locations {ptr[0], ptr[100/4],     ptr[200/4],     ptr[300/4],
+//                                                          ptr[1], ptr[100/4 + 1], ptr[200/4 + 1], ptr[300/4 + 1]};
+simd<float, 8> vec8;
+scatter<float, 8, 2>(ptr, offsets4);
+```
+
+### Restrictions
+
+`Cache-hint` properties, if passed, must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-store-functions) for `store` functions.
+
+
+| `Function` | `Condition` | Required Intel GPU |
+|-|-|-|
+| `(usm-sc-*)`, `(acc-sc-*)` | !(cache-hints) and (`VS` == 1) and (`N` == 1,2,4,8,16,32) | Any Intel GPU |
+| `(usm-sc-*)`, `(acc-sc-*)` | (cache-hints) or (`VS` > 1) or (`N` != 1,2,4,8,16,32) | DG2 or PVC |
+| The next 2 lines are similar to the previous 2 lines. They are for SLM gather and the only difference is that SLM scatters ignore cache-hints|||
+| `(slm-sc-*)`, `(lacc-sc-*)` | !(cache-hints) and (`VS` == 1) and (`N` == 1,2,4,8,16,32) | Any Intel GPU |
+| `(slm-sc-*)`, `(lacc-sc-*)` | (cache-hints) or (`VS` > 1) or (`N` != 1,2,4,8,16,32) | DG2 or PVC |
+
+## load_2d(...) - load 2D block
+```C++
+template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
+          bool Transposed = false, bool Transformed = false,
+          int N = detail::get_lsc_block_2d_data_size<T, NBlocks, BlockHeight, BlockWidth, Transposed, Transformed>(),
+          typename PropertyListT = empty_properties_t>
+simd<T, N> load_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
+                   unsigned SurfacePitch, int X, int Y, PropertyListT props = {});
+```
+### Description
+Loads and returns a vector `simd<T, N>` where `N` is `BlockWidth * BlockHeight * NBlocks`.  
+`T` is element type.  
+`BlockWidth` - the block width in number of elements.  
+`BlockHeight` - the block height in number of elements.  
+`NBlocks` - the number of blocks.  
+`Transposed` - the transposed version or not.  
+`Transformed` - apply VNNI transform or not.  
+`N` - (automatically deduced) the size of the returned vector in elements.  
+`Ptr` - the surface base address for this operation.  
+`SurfaceWidth` - the surface width minus 1 in bytes.  
+`SurfaceHeight` - the surface height minus 1 in rows.  
+`SurfacePitch` - the surface pitch minus 1 in bytes.  
+`X` - zero based X-coordinate of the left upper rectangle corner in number of elements.  
+`Y` - zero based Y-coordinate of the left upper rectangle corner in rows.  
+`props` - The optional compile-time properties. Only cache hint properties are used.
+
+### Restrictions
+* This function is available only for Intel® Data Center GPU Max Series (aka PVC).
+* `Cache-hint` properties, if passed, must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-load-functions) for `load` functions.
+* `Transformed` and `Transposed` cannot be set to true at the same time.
+* `BlockWidth` * `BlockHeight` * `NBlocks` * sizeof(`T`) must not exceed 2048.
+* If `Transposed` is `true` then:
+  * sizeof(`T`) must be 4- or 8-byte (`dwords` or `qwords`).
+  * `NBlocks` must be 1.
+  * `BlockHeight` must be 8 for `qwords` and be in range [`1`..`32`] for `dwords`.
+  * `BlockWidth` must be 1,2,4 for `qwords` and be in range [`1`..`8`] for `dwords`.
+* If `Transformed` is `true` then:
+  * sizeof(`T`) must be 1- or 2-byte (`bytes` or `words`).
+  * `NBlocks` must be 1,2,4.
+  * `BlockHeight` must be in range [4..32] for `bytes` and [2..32] for `words`.
+  * `BlockWidth` must be in range [4..16] for `bytes` and [2..16] for `words`.
+  * `BlockWidth` * `NBlocks` must not exceed 64 for `bytes` and 32 for `words`.
+* If `Transposed` and `Transformed` are both set to `false` then:
+  * `NBlocks` must be {1,2,4} for `bytes` and `words`, {1,2} for `dwords`, 1 for `qwords`.
+  * `BlockHeight` must not exceed 32.
+  * `BlockWidth` must be 4 or more for `bytes`, 2 or more for `words`, 1 or more for `dwords` and `qwords`.
+  * `BlockWidth` * `NBlocks` must not exceed 64 for `bytes`, 32 for `words`, 16 for `dwords`, and 8 for `qwords`.
+
+
+## prefetch_2d(...) - prefetch 2D block
+```C++
+template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
+          int N = detail::get_lsc_block_2d_data_size<T, NBlocks, BlockHeight, BlockWidth, false /*Transposed*/, false /*Transformed*/>(),
+          typename PropertyListT = empty_properties_t>
+void prefetch_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
+                 unsigned SurfacePitch, int X, int Y, PropertyListT props = {});
+```
+### Description
+Prefetches elements from a memory block of the size `BlockWidth * BlockHeight * NBlocks` to cache.  
+`T` is element type.  
+`BlockWidth` - the block width in number of elements.  
+`BlockHeight` - the block height in number of elements.  
+`NBlocks` - the number of blocks.  
+`N` - (automatically deduced) the size of the returned vector in elements.  
+`Ptr` - the surface base address for this operation.  
+`SurfaceWidth` - the surface width minus 1 in bytes.  
+`SurfaceHeight` - the surface height minus 1 in rows.  
+`SurfacePitch` - the surface pitch minus 1 in bytes.  
+`X` - zero based X-coordinate of the left upper rectangle corner in number of elements.  
+`Y` - zero based Y-coordinate of the left upper rectangle corner in rows.  
+`props` - The compile-time properties, which must specify cache-hints.
+
+### Restrictions
+* This function is available only for Intel® Data Center GPU Max Series (aka PVC).
+* `Cache-hint` properties must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-prefetch-functions) for `prefetch` functions.
+* `BlockWidth` * `BlockHeight` * `NBlocks` * sizeof(`T`) must not exceed 2048.
+* `NBlocks` must be {1,2,4} for `bytes` and `words`, {1,2} for `dwords`, 1 for `qwords`.
+* `BlockHeight` must not exceed 32.
+* `BlockWidth` must be 4 or more for `bytes`, 2 or more for `words`, 1 or more for `dwords` and `qwords`.
+* `BlockWidth` * `NBlocks` must not exceed 64 for `bytes`, 32 for `words`, 16 for `dwords`, and 8 for `qwords`.
+
+## store_2d(...) - store 2D block
+```C++
+template <typename T, int BlockWidth, int BlockHeight = 1,
+          int N = detail::get_lsc_block_2d_data_size<T, 1u, BlockHeight, BlockWidth, false /*Transposed*/, false /*Transformed*/>(),
+          typename PropertyListT = empty_properties_t>
+void store_2d(T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
+              unsigned SurfacePitch, int X, int Y, simd<T, N> Vals, PropertyListT props = {});
+
+```
+### Description
+Stores the vector `Vals` of the type `simd<T, N>` to 2D memory block where `N` is `BlockWidth * BlockHeight`.  
+`T` is element type of the values to be stored to memory.  
+`BlockWidth` - the block width in number of elements.  
+`BlockHeight` - the block height in number of elements.  
+`N` - (automatically deduced) the size of the vector to be stored.  
+`Ptr` - the surface base address for this operation.  
+`SurfaceWidth` - the surface width minus 1 in bytes.  
+`SurfaceHeight` - the surface height minus 1 in rows.  
+`SurfacePitch` - the surface pitch minus 1 in bytes.  
+`X` - zero based X-coordinate of the left upper rectangle corner in number of elements.  
+`Y` - zero based Y-coordinate of the left upper rectangle corner in rows.  
+`props` - The optional compile-time properties. Only cache hint properties are used.
+
+### Restrictions
+* This function is available only for Intel® Data Center GPU Max Series (aka PVC).
+* `Cache-hint` properties, if passed, must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-store-functions) for `store` functions.
+* `BlockWidth` * `BlockHeight` * sizeof(`T`) must not exceed 512.
+* `BlockHeight` must not exceed 8.
+* `BlockWidth` must be 4 or more for `bytes`, 2 or more for `words`, 1 or more for `dwords` and `qwords`.
+* `BlockWidth` must not exceed 64 for `bytes`, 32 for `words`, 16 for `dwords`, and 8 for `qwords`.
 
 ## atomic_update(...)
 
 ### atomic_update() with 0 operands (inc, dec, load)
 ```C++
+namespace sycl::ext::intel::esimd {
 // Atomic update the USM memory locations - zero operands (dec, load, etc.).
 template <atomic_op Op, typename T, int N, typename Toffset, typename PropertyListT = empty_properties_t>
 /*usm-au0-1*/ simd<T, N> atomic_update(T *p, simd<Toffset, N> byte_offset, simd_mask<N> mask, props = {});
 /*usm-au0-2*/ simd<T, N> atomic_update(T *p, simd<Toffset, N> byte_offset,props = {});
 
 // Similar to (usm-au0-1,2), but `byte_offset` is `simd_view`.
-template <atomic_op Op, typename T, int N, typename OffsetObjT, typename RegionT,
+template <atomic_op Op, typename T, int N, typename OffsetSimdViewT,
           typename PropertyListT = detail::empty_properties_t>
-/*usm-au0-3*/ simd<T, N> atomic_update(T *p, simd_view<OffsetObjT, RegionT> byte_offset, simd_mask<N> mask, props = {});
-/*usm-au0-4*/simd<T, N> atomic_update(T *p, simd_view<OffsetObjT, RegionT> byte_offset, props = {});
+/*usm-au0-3*/ simd<T, N> atomic_update(T *p, OffsetSimdViewT byte_offset, simd_mask<N> mask, props = {});
+/*usm-au0-4*/ simd<T, N> atomic_update(T *p, OffsetSimdViewT byte_offset, props = {});
 
 
 // Atomic update the memory locations referenced by device-accessor - zero operands (dec, load, etc.).
@@ -435,18 +664,18 @@ template <atomic_op Op, typename T, int N, typename Toffset, typename AccessorT,
                                        props = {});
 
 // Similar to (acc-au0-1,2), but `byte_offset` is `simd_view`.
-template <atomic_op Op, typename T, int N, typename OffsetObjT, typename AccessorT, typename RegionT,
+template <atomic_op Op, typename T, int N, typename AccessorT, typename OffsetSimdViewT,
           typename PropertyListT = empty_properties_t>
-/*acc-au0-3*/ simd<T, N> atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionT> byte_offset,
+/*acc-au0-3*/ simd<T, N> atomic_update(AccessorT acc, OffsetSimdViewT byte_offset,
                                        simd_mask<N> mask, props = {});
-/*acc-au0-4*/ simd<T, N> atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionT> byte_offset,
+/*acc-au0-4*/ simd<T, N> atomic_update(AccessorT acc, OffsetSimdViewT byte_offset,
                                        props = {});
 
 
 // Atomic update the memory locations referenced by local-accessor (SLM) - zero operands (dec, load, etc.).
 template <atomic_op Op, typename T, int N, typename AccessorT>
 /*lacc-au0-1*/ simd<T, N> atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset,
-                                        simd_mask<1> pred = 1);
+                                        simd_mask<1> mask = 1);
 
 // Atomic update the shared local memory (SLM) - zero operands (dec, load, etc.).
 template <atomic_op Op, typename T, int N>
@@ -462,9 +691,9 @@ template <atomic_op Op, typename T, int N>
 /*usm-au1-2*/ simd<T, N> atomic_update(T *ptr, simd<Toffset, N> byte_offset,
                                        simd<T, N> src0, props = {});
 // Similar to (usm-au1-1,2), but `byte_offset` is `simd_view`.
-/*usm-au1-3*/ simd<T, N> atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
+/*usm-au1-3*/ simd<T, N> atomic_update(T *p, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, simd_mask<N> mask, props = {});
-/*usm-au1-4*/ simd<T, N> atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
+/*usm-au1-4*/ simd<T, N> atomic_update(T *p, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, props = {});
 
 
@@ -477,17 +706,17 @@ template <atomic_op Op, typename T, int N, typename Toffset, typename AccessorT,
                                        simd<T, N> src0, props = {});
 
 // Similar to (acc-au1-1,2), but `byte_offset` is `simd_view`.
-template <atomic_op Op, typename T, int N, typename OffsetObjT, typename AccessorT,
-          typename RegionT, typename PropertyListT = empty_properties_t>
-/*acc-au1-3*/ simd<T, N> atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionT> byte_offset,
+template <atomic_op Op, typename T, int N, typename AccessorT,
+          typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
+/*acc-au1-3*/ simd<T, N> atomic_update(AccessorT acc, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, simd_mask<N> mask, props = {});
-/*acc-au1-4*/ simd<T, N> atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionT> byte_offset,
+/*acc-au1-4*/ simd<T, N> atomic_update(AccessorT acc, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, props = {});
 
 // Atomic update the memory locations referenced by local-accessor (SLM) - one operand (add, max, etc.).
 template <atomic_op Op, typename T, int N, typename AccessorT>
 /*lacc-au1-1*/ simd<T, N> atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset,
-                                        simd<T, N> src0, simd_mask<1> pred = 1);
+                                        simd<T, N> src0, simd_mask<1> mask = 1);
 
 // Atomic update the shared local memory (SLM) - one operand (add, max etc.).
 template <atomic_op Op, typename T, int N>
@@ -502,9 +731,9 @@ template <atomic_op Op, typename T, int N>
 /*usm-au2-2*/ simd<T, N> atomic_update(T *ptr, simd<Toffset, N> byte_offset,
                                        simd<T, N> src0, simd<T, N> src1, props = {});
 // Similar to (usm-au2-1,2), but `byte_offset` is `simd_view`.
-/*usm-au2-3*/ simd<T, N> atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
+/*usm-au2-3*/ simd<T, N> atomic_update(T *p, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, simd<T, N> src1, simd_mask<N> mask, props = {});
-/*usm-au2-4*/ simd<T, N> atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
+/*usm-au2-4*/ simd<T, N> atomic_update(T *p, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, simd<T, N> src1, props = {});
 
 
@@ -517,22 +746,23 @@ template <atomic_op Op, typename T, int N, typename Toffset, typename AccessorT,
                                        simd<T, N> src0, simd<T, N> src1, props = {});
 
 // Similar to (acc-au2-1,2), but `byte_offset` is `simd_view`.
-template <atomic_op Op, typename T, int N, typename OffsetObjT, typename AccessorT,
-          typename RegionT, typename PropertyListT = empty_properties_t>
-/*acc-au2-3*/ simd<T, N> atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionT> byte_offset,
+template <atomic_op Op, typename T, int N, typename AccessorT,
+          typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
+/*acc-au2-3*/ simd<T, N> atomic_update(AccessorT acc, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, simd<T, N> src1, simd_mask<N> mask, props = {});
-/*acc-au2-4*/ simd<T, N> atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionT> byte_offset,
+/*acc-au2-4*/ simd<T, N> atomic_update(AccessorT acc, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, simd<T, N> src1, props = {});
 
 // Atomic update the memory locations referenced by local-accessor (SLM) - two operands: cmpxchg, fcmpxchg.
 template <atomic_op Op, typename T, int N, typename AccessorT>
 /*lacc-au2-1*/ simd<T, N> atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset,
-                                        simd<T, N> src0, simd<T, N> src1, simd_mask<1> pred = 1);
+                                        simd<T, N> src0, simd<T, N> src1, simd_mask<1> mask = 1);
 
 // Atomic update the shared local memory (SLM) - two operands: cmpxchg, fcmpxchg.
 template <atomic_op Op, typename T, int N>
 /*slm-au2-1*/ simd<T, N> slm_atomic_update(simd<uint32_t, N> byte_offset,
                                            simd<T, N> src0, simd<T, N> src1, simd_mask<N> mask = 1);
+} // end namespace sycl::ext::intel::esimd
 ```
 ### Description
 `(usm-*)`: Atomically updates the global memory locations addressed by the base USM pointer `ptr` and byte-offsets `byte_offset`.  
@@ -540,11 +770,31 @@ template <atomic_op Op, typename T, int N>
 `(slm-*)`: Atomically updates the shared memory locations addressed by `byte_offset`.  
 The parameter `byte_offset` is a vector of any integral type elements for `(usm-*)`, 32-bit integer elements for `(lacc-*)` and `(slm-*)`, any integral type integer elements for `(acc-*)` in [stateless](#statelessstateful-memory-mode) mode(default),
 and up-to-32-bit integer elements for `(acc-*)` in [stateful](#statelessstateful-memory-mode) mode.  
-The optional parameter `pred` provides a `simd_mask`. If some element in `pred` is zero, then the corresponding memory location is not updated.  
-`(usm-*)`, `(acc-*)`: The optional [compile-time properties](#compile-time-properties) list `props` may specify `cache-hints`.
+The optional parameter `mask` provides a `simd_mask`. If some element in `mask` is zero, then the corresponding memory location is not updated.  
+`(usm-*)`, `(acc-*)`: The optional [compile-time properties](#compile-time-properties) list `props` may specify `cache-hints`.  
+The template parameter `Op` specifies the atomic operation applied to the memory.  
+The template parameter `T` specifies the type of the elements used in the atomic_update operation. Only 2,4,8-byte types are supported.  
+The template parameter `N` is the number of elements being atomically updated.
+
+### Restrictions
+`Cache-hint` properties, if passed, must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-atomic_update-functions) for `atomic_update` functions.
+
+| `Function` | `Condition` | Required Intel GPU |
+|-|-|-|
+| `(usm-au0-*)`, `(acc-au0-*)` | !(cache-hints) and (`N` == 1,2,4,8,16,32) and (sizeof(T) >= 4) | Any Intel GPU |
+| `(usm-au0-*)`, `(acc-au0-*)` | (cache-hints) or (`N` != 1,2,4,8,16,32) or (sizeof(T) == 2) | DG2 or PVC |
+| `(usm-au1-*)`, `(acc-au1-*)`, `(usm-au2-*)`, `(acc-au2-*)`  | !(cache-hints) and (`N` == 1,2,4,8,16,32) and (sizeof(T) >= 4) and (`Op` is integral operation) | Any Intel GPU |
+| `(usm-au1-*)`, `(acc-au1-*)`, `(usm-au2-*)`, `(acc-au2-*)` | (cache-hints) or (`N` != 1,2,4,8,16,32) or (sizeof(T) == 2) or (`Op` is FP operation) | DG2 or PVC |
+|-|-|-|
+| `(slm-au0-*)`, `(lacc-au0-*)` | (`N` == 1,2,4,8,16,32) and (sizeof(T) == 4) | Any Intel GPU |
+| `(slm-au0-*)`, `(lacc-au0-*)` | (`N` != 1,2,4,8,16,32) or (sizeof(T) == 2) or (sizeof(T) == 8)| DG2 or PVC |
+| `(slm-au1-*)`, `(lacc-au1-*)`, `(slm-au2-*)`, `(lacc-au2-*)` | (`N` == 1,2,4,8,16,32) and (sizeof(T) == 4) and (`Op` is integral operation) | Any Intel GPU |
+| `(slm-au1-*)`, `(lacc-au1-*)`, `(slm-au2-*)`, `(lacc-au2-*)` | (`N` != 1,2,4,8,16,32) or (sizeof(T) == 2) or (sizeof(T) == 8) or (`Op` is FP operation)| DG2 or PVC |
+
 
 ## prefetch(...)
 ```C++
+namespace sycl::ext::intel::esimd {
 template <typename T, int N, int VS, typename OffsetT, typename PropertyListT = empty_properties_t>
 /*usm-pf-1*/ void prefetch(const T *p, simd<OffsetT, N / VS> byte_offsets,
                            simd_mask<N / VS> mask, PropertyListT props = {});
@@ -612,6 +862,7 @@ template <typename T, int VS = 1, typename AccessorT,
           typename PropertyListT = empty_properties_t>
 /*acc-pf-9*/ void prefetch(AccessorT acc, simd_mask<1> mask, PropertyListT props = {});
 /*acc-pf-10*/ void prefetch(AccessorT acc, PropertyListT props = {});
+} // end namespace sycl::ext::intel::esimd
 ```
 ### Description
 `(usm-pf-1,2,3,4,5,6)`: Prefetches the memory locations addressed by the base USM pointer `ptr` and the vector of any integral type byte-offsets `byte_offsets`.
@@ -623,13 +874,91 @@ The `byte_offsets` is a vector of any integral type elements, limited in [statef
 
 `(acc-pf-7,8,9,10)`: Prefetches a linear block of memory addressed by the accessor `acc` and the optional `byte-offset` parameter, which is 64-bit in [stateless](#statelessstateful-memory-mode) mode(default), and 32-bit in [stateful](#statelessstateful-memory-mode) mode.
 
-
 `(usm-pf-1,2,3,4,5,6)`, `(acc-pf-1,2,3,4,5,6)`: The optional parameter `mask` provides a `simd_mask`. If some element in `mask` is zero, then the corresponding memory location is not prefetched.  
 `(usm-pf-7,8,9,10)`, `(acc-pf-7,8,9,10)`: The optional parameter `mask` provides 1-element
 `simd_mask`. If it is zero, then the whole prefetch operation is skipped.
 
 `(usm-pf-*)`, `(acc-pf-*)`: The [compile-time properties](#compile-time-properties) list `props` must specify `cache-hints`.
 
+### Restrictions
+
+* This function is available only for Intel® Arc Series (aka DG2) or Intel® Data Center GPU Max Series (aka PVC).
+* `Cache-hint` properties must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-prefetch-functions) for `prefetch` functions.
+
+
+
+## fence(...) - set the memory read/write order
+```C++
+namespace sycl::ext::intel::esimd {
+enum fence_mask : uint8_t {
+  /// “Commit enable” - wait for fence to complete before continuing.
+  global_coherent_fence = 0x1,
+  /// Flush the instruction cache.
+  l2_flush_instructions = 0x2,
+  /// Flush sampler (texture) cache.
+  l2_flush_texture_data = 0x4,
+  /// Flush constant cache.
+  l2_flush_constant_data = 0x8,
+  /// Flush constant cache.
+  l2_flush_rw_data = 0x10,
+  /// Issue SLM memory barrier only. If not set, the memory barrier is global.
+  local_barrier = 0x20,
+  /// Flush L1 read - only data cache.
+  l1_flush_ro_data = 0x40
+};
+/*fence-1*/template <uint8_t ctrl_mask> void fence();
+
+
+/// The target memory kind for fence() operation.
+enum class memory_kind : uint8_t {
+  global = 0, /// untyped global memory
+  image = 2, /// image (also known as typed global memory)
+  local = 3, /// shared local memory
+};
+/// The cache flush operation to apply to caches after fence() is complete.
+enum class fence_flush_op : uint8_t {
+  none = 0,       /// no operation;
+  evict = 1,      /// R/W: evict dirty lines; R/W and RO: invalidate clean lines
+  invalidate = 2, /// R/W and RO: invalidate all clean lines;
+  clean = 4 /// R/W: dirty lines are written to memory, but retained in
+            /// cache in clean state; RO: no effect.
+};
+/// The scope that fence() operation should apply to.
+enum class fence_scope : uint8_t {
+  /// Wait until all previous memory transactions from this thread are observed
+  /// within the local thread-group.
+  group = 0,
+  /// Wait until all previous memory transactions from this thread are observed
+  /// within the local sub-slice.
+  local = 1,
+  /// Wait until all previous memory transactions from this thread are observed
+  /// in the local tile.
+  tile = 2,
+  /// Wait until all previous memory transactions from this thread are observed
+  /// in the local GPU.
+  gpu = 3,
+  /// Wait until all previous memory transactions from this thread are observed
+  /// across all GPUs in the system.
+  gpus = 4,
+  /// Global memory data-port only: wait until all previous memory transactions
+  /// from this thread are observed at the "system" level.
+  system = 5,
+  /// Global memory data-port only: for GPUs that do not follow
+  /// PCIe Write ordering for downstream writes targeting device memory,
+  /// this op will commit to device memory all downstream and peer writes that
+  /// have reached the device.
+  system_acquire = 6
+};
+
+/*fence-2*/template <memory_kind Kind = memory_kind::global,
+                     fence_flush_op FenceOp = fence_flush_op::none,
+                     fence_scope Scope = fence_scope::group> void fence();
+} // end namespace sycl::ext::intel::esimd
+```
+### Description
+`(fence-1)`: Sets the memory read/write order. This function has pretty limited functionality compared to `(fence-2)`. It accepts an 8-bit `ctrl_mask` containing one or more `fence_mask` enum values in it. It can be used for any Intel GPU.
+
+`(fence-2)`: Sets the memory read/write order. This function provide a bit more flexible controls comparing to `(fence-1)`, but requires `Intel® Arc Series` (aka `DG2`) or `Intel® Data Center GPU Max Series` (aka `PVC`) to run.
 
 ## Examples
 ```C++
