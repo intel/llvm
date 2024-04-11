@@ -273,37 +273,39 @@ cbrt(ValueT val) {
 // For integer types, `std::uint32_t`, `std::int32_t`, `std::uint64_t` or
 // `std::int64_t` type arguments are acceptable.
 // sycl::half supported as well.
-template <typename T1, typename T2>
-std::enable_if_t<std::is_integral_v<T1> && std::is_integral_v<T2>,
-                 std::common_type_t<T1, T2>>
-min(T1 a, T2 b) {
-  return sycl::min<std::common_type_t<T1, T2>>(a, b);
+template <typename ValueT, typename ValueU>
+std::enable_if_t<std::is_integral_v<ValueT> && std::is_integral_v<ValueU>,
+                 std::common_type_t<ValueT, ValueU>>
+min(ValueT a, ValueU b) {
+  return sycl::min(static_cast<std::common_type_t<ValueT, ValueU>>(a),
+                   static_cast<std::common_type_t<ValueT, ValueU>>(b));
 }
-template <typename T1, typename T2>
-std::enable_if_t<std::is_floating_point_v<T1> && std::is_floating_point_v<T2>,
-                 std::common_type_t<T1, T2>>
-min(T1 a, T2 b) {
-  return sycl::fmin<std::common_type_t<T1, T2>>(a, b);
+template <typename ValueT, typename ValueU>
+std::enable_if_t<std::is_floating_point_v<ValueT> &&
+                     std::is_floating_point_v<ValueU>,
+                 std::common_type_t<ValueT, ValueU>>
+min(ValueT a, ValueU b) {
+  return sycl::fmin(static_cast<std::common_type_t<ValueT, ValueU>>(a),
+                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
 }
-sycl::half min(sycl::half a, sycl::half b) {
-  return sycl::fmin<sycl::half>(a, b);
-}
+sycl::half min(sycl::half a, sycl::half b) { return sycl::fmin(a, b); }
 
-template <typename T1, typename T2>
-std::enable_if_t<std::is_integral_v<T1> && std::is_integral_v<T2>,
-                 std::common_type_t<T1, T2>>
-max(T1 a, T2 b) {
-  return sycl::max<std::common_type_t<T1, T2>>(a, b);
+template <typename ValueT, typename ValueU>
+std::enable_if_t<std::is_integral_v<ValueT> && std::is_integral_v<ValueU>,
+                 std::common_type_t<ValueT, ValueU>>
+max(ValueT a, ValueU b) {
+  return sycl::max(static_cast<std::common_type_t<ValueT, ValueU>>(a),
+                   static_cast<std::common_type_t<ValueT, ValueU>>(b));
 }
-template <typename T1, typename T2>
-std::enable_if_t<std::is_floating_point_v<T1> && std::is_floating_point_v<T2>,
-                 std::common_type_t<T1, T2>>
-max(T1 a, T2 b) {
-  return sycl::fmax<std::common_type_t<T1, T2>>(a, b);
+template <typename ValueT, typename ValueU>
+std::enable_if_t<std::is_floating_point_v<ValueT> &&
+                     std::is_floating_point_v<ValueU>,
+                 std::common_type_t<ValueT, ValueU>>
+max(ValueT a, ValueU b) {
+  return sycl::fmax(static_cast<std::common_type_t<ValueT, ValueU>>(a),
+                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
 }
-sycl::half max(sycl::half a, sycl::half b) {
-  return sycl::fmax<sycl::half>(a, b);
-}
+sycl::half max(sycl::half a, sycl::half b) { return sycl::fmax(a, b); }
 
 /// Performs 2 elements comparison and returns the bigger one. If either of
 /// inputs is NaN, then return NaN.
@@ -315,7 +317,8 @@ inline std::common_type_t<ValueT, ValueU> fmax_nan(const ValueT a,
                                                    const ValueU b) {
   if (detail::isnan(a) || detail::isnan(b))
     return NAN;
-  return sycl::fmax<std::common_type_t<ValueT, ValueU>>(a, b);
+  return sycl::fmax(static_cast<std::common_type_t<ValueT, ValueU>>(a),
+                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
 }
 template <typename ValueT, typename ValueU>
 inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
@@ -333,7 +336,8 @@ inline std::common_type_t<ValueT, ValueU> fmin_nan(const ValueT a,
                                                    const ValueU b) {
   if (detail::isnan(a) || detail::isnan(b))
     return NAN;
-  return sycl::fmin<std::common_type_t<ValueT, ValueU>>(a, b);
+  return sycl::fmin(static_cast<std::common_type_t<ValueT, ValueU>>(a),
+                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
 }
 template <typename ValueT, typename ValueU>
 inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
