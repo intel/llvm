@@ -1,7 +1,7 @@
 ; It's possible that access to builtin variable is represented by
 ; GetElementPtrConstantExpr rather than GetElementPtrInst. This
 ; test case presents a pattern that results into a ConstantExpr.
-
+; REQUIRES: spirv-as
 ; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s
