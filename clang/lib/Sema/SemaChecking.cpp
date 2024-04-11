@@ -62,6 +62,7 @@
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaInternal.h"
+#include "clang/Sema/SemaSYCL.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/APSInt.h"
@@ -3295,8 +3296,8 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
 
       // Detect when host builtins are used in device code only
       if (getLangOpts().SYCLIsDevice)
-        SYCLDiagIfDeviceCode(TheCall->getBeginLoc(),
-                             diag::err_builtin_target_unsupported);
+        SYCL().DiagIfDeviceCode(TheCall->getBeginLoc(),
+                                diag::err_builtin_target_unsupported);
     } else {
       if (CheckTSBuiltinFunctionCall(Context.getTargetInfo(), BuiltinID,
                                      TheCall))
@@ -7823,7 +7824,7 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
       return true;
     Ty = Ty->getPointeeType();
     return !(Ty.getQualifiers().empty() &&
-             isSyclType(Ty, SYCLTypeAttr::kernel_handler));
+             SemaSYCL::isSyclType(Ty, SYCLTypeAttr::kernel_handler));
   };
   if (CheckArg(FD->getParamDecl(0)->getType())) {
     Diag(Loc, diag::err_intel_sycl_alloca_wrong_arg)
@@ -7835,7 +7836,7 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
   // sycl::access::address_space::private_space, DecoratedAddress>`:
   // - `ET`: cv-unqualified trivial type
   constexpr auto CheckType = [](QualType RT, const ASTContext &Ctx) {
-    if (!isSyclType(RT, SYCLTypeAttr::multi_ptr))
+    if (!SemaSYCL::isSyclType(RT, SYCLTypeAttr::multi_ptr))
       return true;
     // Check element type
     const TemplateArgumentList &TAL =
@@ -7860,7 +7861,7 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
     if (Ty.isNull() || !Ty->isReferenceType())
       return true;
     Ty = Ty->getPointeeType();
-    if (!isSyclType(Ty, SYCLTypeAttr::specialization_id))
+    if (!SemaSYCL::isSyclType(Ty, SYCLTypeAttr::specialization_id))
       return true;
     const TemplateArgumentList &TAL =
         cast<ClassTemplateSpecializationDecl>(Ty->getAsCXXRecordDecl())
@@ -7880,7 +7881,6 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
 
   return false;
 }
-
 /// Given a FunctionDecl's FormatAttr, attempts to populate the FomatStringInfo
 /// parameter with the FormatAttr's correct format_idx and firstDataArg.
 /// Returns true when the format fits the function and the FormatStringInfo has
@@ -8361,13 +8361,13 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
     diagnoseArgDependentDiagnoseIfAttrs(FD, ThisArg, Args, Loc);
 
   if (FD && FD->hasAttr<SYCLKernelAttr>())
-    CheckSYCLKernelCall(FD, Args);
+    SYCL().CheckSYCLKernelCall(FD, Args);
 
   // Diagnose variadic calls in SYCL.
   if (FD && FD->isVariadic() && getLangOpts().SYCLIsDevice &&
-      !isUnevaluatedContext() && !isDeclAllowedInSYCLDeviceCode(FD))
-    SYCLDiagIfDeviceCode(Loc, diag::err_sycl_restrict)
-        << Sema::KernelCallVariadicFunction;
+      !isUnevaluatedContext() && !SYCL().isDeclAllowedInSYCLDeviceCode(FD))
+    SYCL().DiagIfDeviceCode(Loc, diag::err_sycl_restrict)
+        << SemaSYCL::KernelCallVariadicFunction;
 }
 
 /// CheckConstructorCall - Check a constructor call for correctness and safety
@@ -16572,7 +16572,8 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
                   S.Context.getFloatTypeSemantics(QualType(TargetBT, 0)),
                   S.Context.getFloatTypeSemantics(QualType(SourceBT, 0)))) {
             if (S.getLangOpts().SYCLIsDevice)
-              S.SYCLDiagIfDeviceCode(CC, diag::warn_imp_float_size_conversion);
+              S.SYCL().DiagIfDeviceCode(CC,
+                                        diag::warn_imp_float_size_conversion);
             else
               DiagnoseImpCast(S, E, T, CC,
                               diag::warn_imp_float_size_conversion);
@@ -16588,7 +16589,7 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
         // warning.
         if (S.Diags.isIgnored(diag::warn_impcast_float_precision, CC)) {
           if (S.getLangOpts().SYCLIsDevice)
-            S.SYCLDiagIfDeviceCode(CC, diag::warn_imp_float_size_conversion);
+            S.SYCL().DiagIfDeviceCode(CC, diag::warn_imp_float_size_conversion);
           else
             DiagnoseImpCast(S, E, T, CC, diag::warn_imp_float_size_conversion);
         }

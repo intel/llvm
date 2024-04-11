@@ -34,6 +34,7 @@
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/SemaInternal.h"
+#include "clang/Sema/SemaSYCL.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
@@ -4580,8 +4581,8 @@ StmtResult Sema::ActOnCXXTryBlock(SourceLocation TryLoc, Stmt *TryBlock,
 
   // Exceptions aren't allowed in SYCL device code.
   if (getLangOpts().SYCLIsDevice)
-    SYCLDiagIfDeviceCode(TryLoc, diag::err_sycl_restrict)
-        << KernelUseExceptions;
+    SYCL().DiagIfDeviceCode(TryLoc, diag::err_sycl_restrict)
+        << SemaSYCL::KernelUseExceptions;
 
   if (getCurScope() && getCurScope()->isOpenMPSimdDirectiveScope())
     Diag(TryLoc, diag::err_omp_simd_region_cannot_use_stmt) << "try";
@@ -4693,8 +4694,8 @@ StmtResult Sema::ActOnSEHTryBlock(bool IsCXXTry, SourceLocation TryLoc,
 
   // Exceptions aren't allowed in SYCL device code.
   if (getLangOpts().SYCLIsDevice)
-    SYCLDiagIfDeviceCode(TryLoc, diag::err_sycl_restrict)
-        << KernelUseExceptions;
+    SYCL().DiagIfDeviceCode(TryLoc, diag::err_sycl_restrict)
+        << SemaSYCL::KernelUseExceptions;
 
   FSI->setHasSEHTry(TryLoc);
 
@@ -4712,7 +4713,7 @@ StmtResult Sema::ActOnSEHTryBlock(bool IsCXXTry, SourceLocation TryLoc,
   // Reject __try on unsupported targets.
   if (!Context.getTargetInfo().isSEHTrySupported()) {
     if (getLangOpts().SYCLIsDevice)
-      SYCLDiagIfDeviceCode(TryLoc, diag::err_seh_try_unsupported);
+      SYCL().DiagIfDeviceCode(TryLoc, diag::err_seh_try_unsupported);
     else
       Diag(TryLoc, diag::err_seh_try_unsupported);
   }

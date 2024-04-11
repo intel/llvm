@@ -233,28 +233,28 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
       bool IsRuntimeEvaluated =
           ExprEvalContexts.empty() ||
           (!isUnevaluatedContext() && !isConstantEvaluatedContext());
-      bool IsEsimdPrivateGlobal = isSYCLEsimdPrivateGlobal(VD);
+      bool IsEsimdPrivateGlobal = SYCL().isSYCLEsimdPrivateGlobal(VD);
       // Non-const statics are not allowed in SYCL except for ESIMD or with the
       // SYCLGlobalVar or SYCLGlobalVariableAllowed attribute.
       if (IsRuntimeEvaluated && !IsEsimdPrivateGlobal && !IsConst &&
           VD->getStorageClass() == SC_Static &&
           !VD->hasAttr<SYCLGlobalVarAttr>() &&
-          !isTypeDecoratedWithDeclAttribute<SYCLGlobalVariableAllowedAttr>(
-              VD->getType()))
-        SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
-            << Sema::KernelNonConstStaticDataVariable;
+          !SemaSYCL::isTypeDecoratedWithDeclAttribute<
+              SYCLGlobalVariableAllowedAttr>(VD->getType()))
+        SYCL().DiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
+            << SemaSYCL::KernelNonConstStaticDataVariable;
       // Non-const globals are not allowed in SYCL except for ESIMD or with the
       // SYCLGlobalVar or SYCLGlobalVariableAllowed attribute.
       else if (IsRuntimeEvaluated && !IsEsimdPrivateGlobal && !IsConst &&
                VD->hasGlobalStorage() && !VD->hasAttr<SYCLGlobalVarAttr>() &&
-               !isTypeDecoratedWithDeclAttribute<SYCLGlobalVariableAllowedAttr>(
-                   VD->getType()))
-        SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
-            << Sema::KernelGlobalVariable;
+               !SemaSYCL::isTypeDecoratedWithDeclAttribute<
+                   SYCLGlobalVariableAllowedAttr>(VD->getType()))
+        SYCL().DiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
+            << SemaSYCL::KernelGlobalVariable;
       // ESIMD globals cannot be used in a SYCL context.
       else if (IsRuntimeEvaluated && IsEsimdPrivateGlobal &&
                VD->hasGlobalStorage())
-        SYCLDiagIfDeviceCode(*Locs.begin(),
+        SYCL().DiagIfDeviceCode(*Locs.begin(),
                              diag::err_esimd_global_in_sycl_context,
                              Sema::DeviceDiagnosticReason::Sycl);
     } else if (auto *FDecl = dyn_cast<FunctionDecl>(D)) {
@@ -288,7 +288,7 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
           !Id->getName().starts_with("__devicelib_ConvertFToBF16INTEL") &&
           !Id->getName().starts_with("__assert_fail") &&
           !isMsvcMathFn(Id->getName())) {
-        SYCLDiagIfDeviceCode(
+        SYCL().DiagIfDeviceCode(
             *Locs.begin(), diag::err_sycl_device_function_is_called_from_esimd,
             Sema::DeviceDiagnosticReason::Esimd);
       }
@@ -3510,11 +3510,10 @@ static bool ShouldLookupResultBeMultiVersionOverload(const LookupResult &R) {
 
 ExprResult Sema::BuildDeclarationNameExpr(const CXXScopeSpec &SS,
                                           LookupResult &R, bool NeedsADL,
-                                          bool AcceptInvalidDecl,
-                                          bool NeedUnresolved) {
+                                          bool AcceptInvalidDecl) {
   // If this is a single, fully-resolved result and we don't need ADL,
   // just build an ordinary singleton decl ref.
-  if (!NeedUnresolved && !NeedsADL && R.isSingleResult() &&
+  if (!NeedsADL && R.isSingleResult() &&
       !R.getAsSingle<FunctionTemplateDecl>() &&
       !ShouldLookupResultBeMultiVersionOverload(R))
     return BuildDeclarationNameExpr(SS, R.getLookupNameInfo(), R.getFoundDecl(),
@@ -3861,65 +3860,6 @@ ExprResult Sema::BuildPredefinedExpr(SourceLocation Loc,
 
   return PredefinedExpr::Create(Context, Loc, ResTy, IK, LangOpts.MicrosoftExt,
                                 SL);
-}
-
-ExprResult Sema::BuildSYCLUniqueStableNameExpr(SourceLocation OpLoc,
-                                               SourceLocation LParen,
-                                               SourceLocation RParen,
-                                               TypeSourceInfo *TSI) {
-  return SYCLUniqueStableNameExpr::Create(Context, OpLoc, LParen, RParen, TSI);
-}
-
-ExprResult Sema::ActOnSYCLUniqueStableNameExpr(SourceLocation OpLoc,
-                                               SourceLocation LParen,
-                                               SourceLocation RParen,
-                                               ParsedType ParsedTy) {
-  TypeSourceInfo *TSI = nullptr;
-  QualType Ty = GetTypeFromParser(ParsedTy, &TSI);
-
-  if (Ty.isNull())
-    return ExprError();
-  if (!TSI)
-    TSI = Context.getTrivialTypeSourceInfo(Ty, LParen);
-
-  return BuildSYCLUniqueStableNameExpr(OpLoc, LParen, RParen, TSI);
-}
-
-ExprResult Sema::BuildSYCLUniqueStableIdExpr(SourceLocation OpLoc,
-                                             SourceLocation LParen,
-                                             SourceLocation RParen, Expr *E) {
-  if (!E->isInstantiationDependent()) {
-    // Special handling to get us better error messages for a member variable.
-    if (auto *ME = dyn_cast<MemberExpr>(E->IgnoreUnlessSpelledInSource())) {
-      if (isa<FieldDecl>(ME->getMemberDecl()))
-        Diag(E->getExprLoc(), diag::err_unique_stable_id_global_storage);
-      else
-        Diag(E->getExprLoc(), diag::err_unique_stable_id_expected_var);
-      return ExprError();
-    }
-
-    auto *DRE = dyn_cast<DeclRefExpr>(E->IgnoreUnlessSpelledInSource());
-
-    if (!DRE || !isa_and_nonnull<VarDecl>(DRE->getDecl())) {
-      Diag(E->getExprLoc(), diag::err_unique_stable_id_expected_var);
-      return ExprError();
-    }
-
-    auto *Var = cast<VarDecl>(DRE->getDecl());
-
-    if (!Var->hasGlobalStorage()) {
-      Diag(E->getExprLoc(), diag::err_unique_stable_id_global_storage);
-      return ExprError();
-    }
-  }
-
-  return SYCLUniqueStableIdExpr::Create(Context, OpLoc, LParen, RParen, E);
-}
-
-ExprResult Sema::ActOnSYCLUniqueStableIdExpr(SourceLocation OpLoc,
-                                             SourceLocation LParen,
-                                             SourceLocation RParen, Expr *E) {
-  return BuildSYCLUniqueStableIdExpr(OpLoc, LParen, RParen, E);
 }
 
 ExprResult Sema::ActOnPredefinedExpr(SourceLocation Loc, tok::TokenKind Kind) {

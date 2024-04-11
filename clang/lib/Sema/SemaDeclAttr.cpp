@@ -40,6 +40,7 @@
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/SemaInternal.h"
+#include "clang/Sema/SemaSYCL.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/Assumptions.h"
@@ -6587,7 +6588,7 @@ static void handleSYCLDeviceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     // Diagnose only for non-dependent types since dependent type don't have
     // attributes applied on them ATM.
     if (!VarType->isDependentType() &&
-        !S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+        !S.SYCL().isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
             VD->getType())) {
       S.Diag(AL.getLoc(), diag::err_sycl_attribute_not_device_global) << AL;
       return;
@@ -7475,7 +7476,7 @@ static bool CheckValidFPGAMemoryAttributesVar(Sema &S, Decl *D) {
     if (!(isa<FieldDecl>(D) ||
           (VD->getKind() != Decl::ImplicitParam &&
            VD->getKind() != Decl::NonTypeTemplateParm &&
-           (S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+           (S.SYCL().isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
                 VD->getType()) ||
             VD->getType().isConstQualified() ||
             VD->getType().getAddressSpace() == LangAS::opencl_constant ||
@@ -8170,7 +8171,7 @@ void Sema::AddSYCLIntelPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
              VD->getKind() != Decl::NonTypeTemplateParm &&
              VD->getKind() != Decl::ParmVar &&
              (VD->hasLocalStorage() ||
-              isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+              SYCL().isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
                   VD->getType())))))) {
         Diag(CI.getLoc(), diag::err_fpga_attribute_invalid_decl) << CI;
         return;

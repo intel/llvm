@@ -43,6 +43,7 @@
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/SemaInternal.h"
+#include "clang/Sema/SemaSYCL.h"
 #include "clang/Sema/Template.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
@@ -3776,7 +3777,7 @@ Sema::ActOnCXXMemberDeclarator(Scope *S, AccessSpecifier AS, Declarator &D,
   // attribute is accessed.
   if (getLangOpts().SYCLIsDevice) {
     if (auto Value = dyn_cast<ValueDecl>(Member)) {
-      if (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+      if (SYCL().isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
               Value->getType())) {
         if (Value->getAccess() == AS_private ||
             Value->getAccess() == AS_protected) {

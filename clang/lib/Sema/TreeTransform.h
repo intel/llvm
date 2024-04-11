@@ -40,6 +40,7 @@
 #include "clang/Sema/SemaDiagnostic.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/SemaOpenACC.h"
+#include "clang/Sema/SemaSYCL.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <algorithm>
@@ -2634,13 +2635,15 @@ public:
                                              SourceLocation LParen,
                                              SourceLocation RParen,
                                              TypeSourceInfo *TSI) {
-    return getSema().BuildSYCLUniqueStableNameExpr(OpLoc, LParen, RParen, TSI);
+    return getSema().SYCL().BuildUniqueStableNameExpr(OpLoc, LParen, RParen,
+                                                      TSI);
   }
 
   ExprResult RebuildSYCLUniqueStableIdExpr(SourceLocation OpLoc,
                                            SourceLocation LParen,
                                            SourceLocation RParen, Expr *E) {
-    return getSema().BuildSYCLUniqueStableIdExpr(OpLoc, LParen, RParen, E);
+    return getSema().SYCL().BuildUniqueStableIdExpr(OpLoc, LParen, RParen,
+                                                        E);
   }
 
   /// Build a new predefined expression.
@@ -3271,22 +3274,22 @@ public:
 
   ExprResult RebuildSYCLBuiltinNumFieldsExpr(SourceLocation Loc,
                                              QualType SourceTy) {
-    return getSema().BuildSYCLBuiltinNumFieldsExpr(Loc, SourceTy);
+    return getSema().SYCL().BuildSYCLBuiltinNumFieldsExpr(Loc, SourceTy);
   }
 
   ExprResult RebuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
                                              QualType SourceTy, Expr *Idx) {
-    return getSema().BuildSYCLBuiltinFieldTypeExpr(Loc, SourceTy, Idx);
+    return getSema().SYCL().BuildSYCLBuiltinFieldTypeExpr(Loc, SourceTy, Idx);
   }
 
   ExprResult RebuildSYCLBuiltinNumBasesExpr(SourceLocation Loc,
                                             QualType SourceTy) {
-    return getSema().BuildSYCLBuiltinNumBasesExpr(Loc, SourceTy);
+    return getSema().SYCL().BuildSYCLBuiltinNumBasesExpr(Loc, SourceTy);
   }
 
   ExprResult RebuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc,
                                             QualType SourceTy, Expr *Idx) {
-    return getSema().BuildSYCLBuiltinBaseTypeExpr(Loc, SourceTy, Idx);
+    return getSema().SYCL().BuildSYCLBuiltinBaseTypeExpr(Loc, SourceTy, Idx);
   }
 
   /// Build a new C++ typeid(type) expression.
@@ -3335,13 +3338,12 @@ public:
 
   /// Build a new C++ "this" expression.
   ///
-  /// By default, performs semantic analysis to build a new "this" expression.
-  /// Subclasses may override this routine to provide different behavior.
+  /// By default, builds a new "this" expression without performing any
+  /// semantic analysis. Subclasses may override this routine to provide
+  /// different behavior.
   ExprResult RebuildCXXThisExpr(SourceLocation ThisLoc,
                                 QualType ThisType,
                                 bool isImplicit) {
-    if (getSema().CheckCXXThisType(ThisLoc, ThisType))
-      return ExprError();
     return getSema().BuildCXXThisExpr(ThisLoc, ThisType, isImplicit);
   }
 

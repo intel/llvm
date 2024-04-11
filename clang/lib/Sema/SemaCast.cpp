@@ -24,6 +24,7 @@
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/SemaInternal.h"
+#include "clang/Sema/SemaSYCL.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include <set>
@@ -2634,8 +2635,8 @@ static TryCastResult TryAddressSpaceCast(Sema &Self, ExprResult &SrcExpr,
     Qualifiers SrcQ = SrcPointeeType.getQualifiers();
     Qualifiers DestQ = DestPointeeType.getQualifiers();
     if (!DestQ.isAddressSpaceSupersetOf(SrcQ) && OpRange.isValid()) {
-      Self.SYCLDiagIfDeviceCode(OpRange.getBegin(),
-                                diag::warn_sycl_potentially_invalid_as_cast)
+      Self.SYCL().DiagIfDeviceCode(OpRange.getBegin(),
+                                   diag::warn_sycl_potentially_invalid_as_cast)
           << SrcType << DestType << OpRange;
     }
   }

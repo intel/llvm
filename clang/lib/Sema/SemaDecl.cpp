@@ -46,6 +46,7 @@
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/SemaInternal.h"
+#include "clang/Sema/SemaSYCL.h"
 #include "clang/Sema/Template.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
@@ -7972,13 +7973,13 @@ NamedDecl *Sema::ActOnVariableDeclarator(
   if (getLangOpts().SYCLIsDevice) {
     // device_global array is not allowed.
     if (const ArrayType *AT = getASTContext().getAsArrayType(NewVD->getType()))
-      if (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+      if (SYCL().isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
               AT->getElementType()))
         Diag(NewVD->getLocation(), diag::err_sycl_device_global_array);
 
     // Global variables with types decorated with device_global attribute must
     // be static if they are declared in SYCL device code.
-    if (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+    if (SYCL().isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
             NewVD->getType())) {
       if (SCSpec == DeclSpec::SCS_static) {
         const DeclContext *DC = NewVD->getDeclContext();
@@ -8000,10 +8001,10 @@ NamedDecl *Sema::ActOnVariableDeclarator(
     // constexpr unless their types are decorated with global_variable_allowed
     // attribute.
     if (SCSpec == DeclSpec::SCS_static && !R.isConstant(Context) &&
-        !isTypeDecoratedWithDeclAttribute<SYCLGlobalVariableAllowedAttr>(
+        !SYCL().isTypeDecoratedWithDeclAttribute<SYCLGlobalVariableAllowedAttr>(
             NewVD->getType()))
-      SYCLDiagIfDeviceCode(D.getIdentifierLoc(), diag::err_sycl_restrict)
-          << Sema::KernelNonConstStaticDataVariable;
+      SYCL().DiagIfDeviceCode(D.getIdentifierLoc(), diag::err_sycl_restrict)
+          << SemaSYCL::KernelNonConstStaticDataVariable;
   }
 
   switch (D.getDeclSpec().getConstexprSpecifier()) {
@@ -8168,8 +8169,8 @@ NamedDecl *Sema::ActOnVariableDeclarator(
         if (!Context.getTargetInfo().isValidGCCRegisterName(Label) &&
             DeclAttrsMatchCUDAMode(getLangOpts(), getCurFunctionDecl())) {
           if (getLangOpts().SYCLIsDevice)
-            SYCLDiagIfDeviceCode(E->getExprLoc(),
-                                 diag::err_asm_unknown_register_name)
+            SYCL().DiagIfDeviceCode(E->getExprLoc(),
+                                    diag::err_asm_unknown_register_name)
                 << Label;
           else
             Diag(E->getExprLoc(), diag::err_asm_unknown_register_name) << Label;
@@ -8362,7 +8363,7 @@ NamedDecl *Sema::ActOnVariableDeclarator(
   if (IsMemberSpecialization && !NewVD->isInvalidDecl())
     CompleteMemberSpecialization(NewVD, Previous);
 
-  addSyclVarDecl(NewVD);
+  SYCL().addSyclVarDecl(NewVD);
   emitReadOnlyPlacementAttrWarning(*this, NewVD);
 
   return NewVD;
@@ -13853,7 +13854,7 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit) {
   }
   // In the SYCL explicit SIMD extension non constant "private globals" can't
   // be explicitly initialized in the declaration.
-  if (isSYCLEsimdPrivateGlobal(VDecl)) {
+  if (SYCL().isSYCLEsimdPrivateGlobal(VDecl)) {
     Diag(VDecl->getLocation(), diag::err_esimd_glob_cant_init);
     VDecl->setInvalidDecl();
     return;
@@ -14510,7 +14511,7 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
       return;
     // In SYCL explicit SIMD extension "private global" variables can't be
     // initialized even implicitly, so don't synthesize an implicit initializer.
-    if (isSYCLEsimdPrivateGlobal(Var))
+    if (SYCL().isSYCLEsimdPrivateGlobal(Var))
       return;
 
     // C++03 [dcl.init]p9:
@@ -14652,7 +14653,7 @@ void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
   }
 
   if (getLangOpts().SYCLIsDevice)
-    checkSYCLDeviceVarDecl(var);
+    SYCL().checkSYCLDeviceVarDecl(var);
 
   // In Objective-C, don't allow jumps past the implicit initialization of a
   // local retaining variable.

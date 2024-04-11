@@ -1732,7 +1732,7 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
   // adding the VarTemplateSpecializationDecl later.
   if (!InstantiatingVarTemplate) {
     if (SemaRef.getLangOpts().SYCLIsDevice &&
-        SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+        SemaRef.SYCL().isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
             Var->getType())) {
       if (!Var->hasGlobalStorage())
         SemaRef.Diag(D->getLocation(),
@@ -1756,13 +1756,13 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
       }
     }
     if (const auto *SYCLDevice = Var->getAttr<SYCLDeviceAttr>()) {
-      if (!SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+      if (!SemaRef.SYCL().isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
               Var->getType()))
         SemaRef.Diag(SYCLDevice->getLoc(),
                      diag::err_sycl_attribute_not_device_global)
             << SYCLDevice;
     }
-    SemaRef.addSyclVarDecl(Var);
+    SemaRef.SYCL().addSyclVarDecl(Var);
   }
 
   if (Var->getTLSKind())
@@ -1859,7 +1859,7 @@ Decl *TemplateDeclInstantiator::VisitFieldDecl(FieldDecl *D) {
   // Static members are not processed here, so error out if we have a device
   // global without checking access modifier.
   if (SemaRef.getLangOpts().SYCLIsDevice) {
-    if (SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+    if (SemaRef.SYCL().isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
             Field->getType())) {
       SemaRef.Diag(D->getLocation(),
                    diag::err_sycl_device_global_incorrect_scope);
@@ -5611,14 +5611,6 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
   EnterExpressionEvaluationContext EvalContext(
       *this, Sema::ExpressionEvaluationContext::PotentiallyEvaluated);
 
-  Qualifiers ThisTypeQuals;
-  CXXRecordDecl *ThisContext = nullptr;
-  if (CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(Function)) {
-    ThisContext = Method->getParent();
-    ThisTypeQuals = Method->getMethodQualifiers();
-  }
-  CXXThisScopeRAII ThisScope(*this, ThisContext, ThisTypeQuals);
-
   // Introduce a new scope where local variable instantiations will be
   // recorded, unless we're actually a member function within a local
   // class, in which case we need to merge our results with the parent
@@ -5821,7 +5813,7 @@ VarTemplateSpecializationDecl *Sema::BuildVarTemplateInstantiation(
       Instantiator.VisitVarTemplateSpecializationDecl(
           VarTemplate, FromVar, TemplateArgsInfo, Converted));
 
-  addSyclVarDecl(VD);
+  SYCL().addSyclVarDecl(VD);
 
   return VD;
 }
@@ -7010,7 +7002,7 @@ static void processFunctionInstantiation(Sema &S,
   if (!FD->isDefined())
     return;
   if (S.LangOpts.SYCLIsDevice && FD->hasAttr<SYCLKernelAttr>())
-    S.ConstructOpenCLKernel(FD, MC);
+    S.SYCL().ConstructOpenCLKernel(FD, MC);
   FD->setInstantiationIsPending(false);
 }
 

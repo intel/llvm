@@ -51,6 +51,7 @@
 #include "clang/CodeGen/ConstantInitBuilder.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
 #include "clang/Sema/Sema.h"
+#include "clang/Sema/SemaSYCL.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -6254,7 +6255,7 @@ CodeGenModule::getLLVMLinkageForDeclarator(const DeclaratorDecl *D,
   // is only one translation unit and can so mark them internal.
   if (getLangOpts().SYCLIsDevice && !D->hasAttr<SYCLKernelAttr>() &&
       !D->hasAttr<SYCLDeviceAttr>() &&
-      !Sema::isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+      !SemaSYCL::isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
           D->getType()))
     return getLangOpts().GPURelocatableDeviceCode
                ? llvm::Function::LinkOnceODRLinkage

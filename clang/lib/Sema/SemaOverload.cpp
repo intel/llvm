@@ -32,6 +32,7 @@
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/SemaInternal.h"
+#include "clang/Sema/SemaSYCL.h"
 #include "clang/Sema/Template.h"
 #include "clang/Sema/TemplateDeduction.h"
 #include "llvm/ADT/DenseSet.h"
@@ -11110,9 +11111,9 @@ static bool checkAddressOfFunctionIsAvailable(Sema &S, const FunctionDecl *FD,
   if (Complain && S.getLangOpts().SYCLIsDevice &&
       S.getLangOpts().SYCLAllowFuncPtr) {
     if (!FD->hasAttr<SYCLDeviceIndirectlyCallableAttr>()) {
-      S.SYCLDiagIfDeviceCode(Loc,
-                             diag::err_sycl_taking_address_of_wrong_function,
-                             Sema::DeviceDiagnosticReason::Sycl);
+      S.SYCL().DiagIfDeviceCode(Loc,
+                                diag::err_sycl_taking_address_of_wrong_function,
+                                Sema::DeviceDiagnosticReason::Sycl);
     }
   }
 

@@ -45,6 +45,7 @@
 #include "clang/Sema/SemaHLSL.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/SemaOpenACC.h"
+#include "clang/Sema/SemaSYCL.h"
 #include "clang/Sema/TemplateDeduction.h"
 #include "clang/Sema/TemplateInstCallback.h"
 #include "clang/Sema/TypoCorrection.h"
@@ -201,6 +202,7 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       CurScope(nullptr), Ident_super(nullptr),
       HLSLPtr(std::make_unique<SemaHLSL>(*this)),
       OpenACCPtr(std::make_unique<SemaOpenACC>(*this)),
+      SYCLPtr(std::make_unique<SemaSYCL>(*this)),
       MSPointerToMemberRepresentationMethod(
           LangOpts.getMSPointerToMemberRepresentationMethod()),
       MSStructPragmaOn(false), VtorDispStack(LangOpts.getVtorDispMode()),
@@ -224,8 +226,7 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       ValueWithBytesObjCTypeMethod(nullptr), NSArrayDecl(nullptr),
       ArrayWithObjectsMethod(nullptr), NSDictionaryDecl(nullptr),
       DictionaryWithObjectsMethod(nullptr), CodeCompleter(CodeCompleter),
-      VarDataSharingAttributesStack(nullptr),
-      SyclIntHeader(nullptr), SyclIntFooter(nullptr) {
+      VarDataSharingAttributesStack(nullptr) {
   assert(pp.TUKind == TUKind);
   TUScope = nullptr;
 
@@ -1125,16 +1126,16 @@ void Sema::ActOnEndOfTranslationUnitFragment(TUFragmentKind Kind) {
   if (getLangOpts().SYCLIsDevice) {
     // Set the names of the kernels, now that the names have settled down. This
     // needs to happen before we generate the integration headers.
-    SetSYCLKernelNames();
+    SYCL().SetSYCLKernelNames();
     // Make sure that the footer is emitted before header, since only after the
     // footer is emitted is it known that translation unit contains device
     // global variables.
-    if (SyclIntFooter != nullptr)
-      SyclIntFooter->emit(getLangOpts().SYCLIntFooter);
+    if (SYCL().hasSyclIntegrationFooter())
+      SYCL().getSyclIntegrationFooter().emit(getLangOpts().SYCLIntFooter);
     // Emit SYCL integration header for current translation unit if needed
-    if (SyclIntHeader != nullptr)
-      SyclIntHeader->emit(getLangOpts().SYCLIntHeader);
-    MarkDevices();
+    if (SYCL().hasSyclIntegrationHeader())
+      SYCL().getSyclIntegrationHeader().emit(getLangOpts().SYCLIntHeader);
+    SYCL().MarkDevices();
   }
 
   emitDeferredDiags();
@@ -1760,15 +1761,16 @@ public:
   void visitUsedDecl(SourceLocation Loc, Decl *D) {
     if (S.LangOpts.SYCLIsDevice && ShouldEmitRootNode) {
       if (auto *VD = dyn_cast<VarDecl>(D)) {
-        if (!S.checkAllowedSYCLInitializer(VD) &&
-            !S.isTypeDecoratedWithDeclAttribute<SYCLGlobalVariableAllowedAttr>(
-                VD->getType())) {
+        if (!S.SYCL().checkAllowedSYCLInitializer(VD) &&
+            !S.SYCL()
+                 .isTypeDecoratedWithDeclAttribute<
+                     SYCLGlobalVariableAllowedAttr>(VD->getType())) {
           S.Diag(Loc, diag::err_sycl_restrict)
-              << Sema::KernelConstStaticVariable;
+              << SemaSYCL::KernelConstStaticVariable;
           return;
         }
         if (!VD->hasInit() &&
-            S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+            S.SYCL().isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
                 VD->getType()) &&
             !VD->hasAttr<SYCLDeviceAttr>())
           S.Diag(Loc, diag::err_sycl_external_global);
@@ -1819,7 +1821,7 @@ public:
       S.finalizeOpenMPDelayedAnalysis(Caller, FD, Loc);
     // Finalize analysis of SYCL-specific constructs.
     if (Caller && S.LangOpts.SYCLIsDevice)
-      S.finalizeSYCLDelayedAnalysis(Caller, FD, Loc, RootReason);
+      S.SYCL().finalizeSYCLDelayedAnalysis(Caller, FD, Loc, RootReason);
     if (Caller)
       S.DeviceKnownEmittedFns[FD] = {Caller, Loc};
     // Always emit deferred diagnostics for the direct users. This does not
@@ -1994,7 +1996,7 @@ Sema::targetDiag(SourceLocation Loc, unsigned DiagID, const FunctionDecl *FD) {
                : diagIfOpenMPHostCode(Loc, DiagID, FD);
 
   if (getLangOpts().SYCLIsDevice)
-    return SYCLDiagIfDeviceCode(Loc, DiagID);
+    return SYCL().DiagIfDeviceCode(Loc, DiagID);
 
   if (getLangOpts().CUDA)
     return getLangOpts().CUDAIsDevice ? CUDADiagIfDeviceCode(Loc, DiagID)
@@ -2014,7 +2016,7 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
   // constant byte size like zero length arrays. So, do a deep check for SYCL.
   if (D && LangOpts.SYCLIsDevice) {
     llvm::DenseSet<QualType> Visited;
-    deepTypeCheckForSYCLDevice(Loc, Visited, D);
+    SYCL().deepTypeCheckForDevice(Loc, Visited, D);
   }
 
   Decl *C = cast<Decl>(getCurLexicalContext());

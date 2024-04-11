@@ -30,6 +30,7 @@
 #include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Scope.h"
+#include "clang/Sema/SemaSYCL.h"
 #include "clang/Sema/TypoCorrection.h"
 #include "llvm/ADT/SmallVector.h"
 #include <optional>
@@ -1949,8 +1950,8 @@ ExprResult Parser::ParseSYCLBuiltinNum() {
   T.consumeClose();
 
   if (IsNumFields)
-    return Actions.ActOnSYCLBuiltinNumFieldsExpr(TR.get());
-  return Actions.ActOnSYCLBuiltinNumBasesExpr(TR.get());
+    return Actions.SYCL().ActOnSYCLBuiltinNumFieldsExpr(TR.get());
+  return Actions.SYCL().ActOnSYCLBuiltinNumBasesExpr(TR.get());
 }
 
 /// __builtin_field_type '(' type-id ',' integer-constant ')' or
@@ -1981,8 +1982,8 @@ ExprResult Parser::ParseSYCLBuiltinType() {
   T.consumeClose();
 
   if (IsFieldType)
-    return Actions.ActOnSYCLBuiltinFieldTypeExpr(TR.get(), IdxRes.get());
-  return Actions.ActOnSYCLBuiltinBaseTypeExpr(TR.get(), IdxRes.get());
+    return Actions.SYCL().ActOnSYCLBuiltinFieldTypeExpr(TR.get(), IdxRes.get());
+  return Actions.SYCL().ActOnSYCLBuiltinBaseTypeExpr(TR.get(), IdxRes.get());
 }
 
 /// Once the leading part of a postfix-expression is parsed, this
@@ -2559,8 +2560,8 @@ ExprResult Parser::ParseSYCLUniqueStableNameExpression() {
   if (T.consumeClose())
     return ExprError();
 
-  return Actions.ActOnSYCLUniqueStableNameExpr(OpLoc, T.getOpenLocation(),
-                                               T.getCloseLocation(), Ty.get());
+  return Actions.SYCL().ActOnUniqueStableNameExpr(
+      OpLoc, T.getOpenLocation(), T.getCloseLocation(), Ty.get());
 }
 
 // Parse a __builtin_sycl_unique_stable_id expression. Accepts an expression,
@@ -2590,7 +2591,7 @@ ExprResult Parser::ParseSYCLUniqueStableIdExpression() {
   if (T.consumeClose())
     return ExprError();
 
-  return Actions.ActOnSYCLUniqueStableIdExpr(
+  return Actions.SYCL().ActOnUniqueStableIdExpr(
       OpLoc, T.getOpenLocation(), T.getCloseLocation(), VarExpr.get());
 }
 
