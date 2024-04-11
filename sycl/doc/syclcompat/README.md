@@ -1121,7 +1121,7 @@ However, they provide an optional argument to represent the `logical_group` size
 
 Experimental support for masked versions of `select_from_sub_group`,
 `shift_sub_group_left`, `shift_sub_group_right` and `permute_sub_group_by_xor` is
-provided only for SPIRV devices.
+provided only for SPIRV or cuda devices.
 
 ```c++
 namespace syclcompat {
