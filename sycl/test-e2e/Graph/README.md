@@ -40,7 +40,7 @@ in `Explicit`, `RecordReplay` and `Inputs` folders should have identical names.
 Tests might be run multiple times using different options. The most commonly used
 options are:
 
-- `l0_leak_check`: `lit` directive which, on the `level-zero` backend, enables
+- `l0_leak_check`: `lit` substitution which, on the `level-zero` backend, enables
 checks for memory leaks caused by mismatched number of calls to memory
 allocation / release APIs in `Unified Runtime`.
 - `SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS`: Environment variable which, 
