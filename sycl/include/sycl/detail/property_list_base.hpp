@@ -90,8 +90,9 @@ protected:
                             PropT>
   get_property_helper() const {
     const int PropKind = static_cast<int>(PropT::getKind());
-    assert(PropKind >= PropWithDataKind::PropWithDataKindSize &&
-           "The property is not found");
+    if (PropKind >= PropWithDataKind::PropWithDataKindSize)
+      assert(PropKind >= PropWithDataKind::PropWithDataKindSize &&
+             "The property is not found");
 
     for (const std::shared_ptr<PropertyWithDataBase> &Prop : MPropsWithData)
       if (Prop->isSame(PropKind))
