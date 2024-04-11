@@ -65,3 +65,9 @@ command-buffer:
       - scripts/core/exp-command-buffer.yml
       - source/adapters/**/command_buffer.*
       - test/conformance/exp_command_buffer**
+images:
+  - changed-files:
+    - any-glob-to-any-file:
+      - scripts/core/EXP-BINDLESS-IMAGES.rst
+      - scripts/core/exp-bindless-images.yml
+      - source/adapters/**/image.*
