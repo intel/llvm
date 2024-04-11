@@ -330,8 +330,7 @@ template <typename T> auto convertToOpenCLType(T &&x) {
     // non-uniform groups implementation.
     if constexpr (std::is_same_v<MatchingVec, no_ref>) {
       return bit_cast<typename no_ref::vector_t>(x);
-    }
-    else {
+    } else {
       return bit_cast<typename MatchingVec::vector_t>(x);
     }
 #else

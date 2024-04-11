@@ -121,7 +121,8 @@ static constexpr ToType BitCast(const FromType &Value) {
 #endif
 }
 
-/* Heper functions to get and set values in vec, depdending on the underlying data type. */
+/* Heper functions to get and set values in vec, depdending on the underlying
+ * data type. */
 template <typename T> struct vec_helper {
   using RetType = T;
   static constexpr RetType get(T value) { return value; }
@@ -307,8 +308,8 @@ template <typename Type, int NumElements> class vec {
   // vector extension. This is for MSVC compatibility, which has a max alignment
   // of 64 for direct params. If we drop MSVC, we can have alignment the same as
   // size and use vector extensions for all sizes.
-  // TODO: Inline this ans we are now always using array on device, irrespective of
-  // the data type.
+  // TODO: Inline this ans we are now always using array on device, irrespective
+  // of the data type.
   static constexpr bool IsUsingArrayOnDevice = true;
 
 #if defined(__SYCL_DEVICE_ONLY__)
@@ -522,7 +523,8 @@ public:
       std::is_fundamental_v<vec_data_t<Ty>> ||
           detail::is_half_or_bf16_v<typename std::remove_const_t<Ty>>,
       vec &>
-  // TODO: Can we use std::fill or something similar to vectorize assignment operation?
+  // TODO: Can we use std::fill or something similar to vectorize assignment
+  // operation?
   operator=(const EnableIfUsingArrayOnDevice<Ty> &Rhs) {
     for (int i = 0; i < NumElements; ++i) {
       setValue(i, Rhs);
@@ -567,8 +569,8 @@ public:
 
   /* @SYCL2020
    * Available only when: compiled for the device.
-   * Converts this SYCL vec instance to the underlying backend-native vector type
-   * defined by vector_t.
+   * Converts this SYCL vec instance to the underlying backend-native vector
+   * type defined by vector_t.
    */
   operator vector_t() const {
     if constexpr (NumElements == 1) {
@@ -665,8 +667,8 @@ public:
         !std::is_same_v<convertT, bool>;
     if constexpr (canUseNativeVectorConvert) {
       Result.m_Data = detail::BitCast<ConvertTVecType, decltype(Result.m_Data)>(
-                        detail::convertImpl<T, R, roundingMode, NumElements,
-                        OpenCLVecT, OpenCLVecR>(extVecType));
+          detail::convertImpl<T, R, roundingMode, NumElements, OpenCLVecT,
+                              OpenCLVecR>(extVecType));
     } else
 #endif // defined(__SYCL_DEVICE_ONLY__)
     {
@@ -835,7 +837,8 @@ public:
 #define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
   friend vec operator BINOP(const vec &Lhs, const vec &Rhs) {                  \
     vec Ret;                                                                   \
-    if constexpr (IsBfloat16 || std::is_same_v<DataT, sycl::detail::half_impl::half>) {                                      \
+    if constexpr (IsBfloat16 ||                                                \
+                  std::is_same_v<DataT, sycl::detail::half_impl::half>) {      \
       for (size_t I = 0; I < NumElements; ++I) {                               \
         Ret.setValue(I, (Lhs.getValue(I) BINOP Rhs.getValue(I)));              \
       }                                                                        \
@@ -874,8 +877,9 @@ public:
   friend vec operator BINOP(const vec &Lhs, const vec &Rhs) {                  \
     vec Ret{};                                                                 \
     for (size_t I = 0; I < NumElements; ++I)                                   \
-      Ret.setValue(I, (DataT)(vec_data<DataT>::get(Lhs.getValue(               \
-                          I)) BINOP vec_data<DataT>::get(Rhs.getValue(I))));   \
+      Ret.setValue(I,                                                          \
+                   (DataT)(vec_data<DataT>::get(Lhs.getValue(I))               \
+                               BINOP vec_data<DataT>::get(Rhs.getValue(I))));  \
     return Ret;                                                                \
   }                                                                            \
   friend vec operator BINOP(const vec &Lhs, const DataT &Rhs) {                \
@@ -931,7 +935,8 @@ public:
     vec<rel_t, NumElements> Ret{};                                             \
     /* ext_vector_type does not support bfloat16 or half, so for these   */    \
     /* we do element-by-element operation on the underlying std::array.  */    \
-    if constexpr (IsBfloat16 || std::is_same_v<DataT, sycl::detail::half_impl::half>) {                                  \
+    if constexpr (IsBfloat16 ||                                                \
+                  std::is_same_v<DataT, sycl::detail::half_impl::half>) {      \
       for (size_t I = 0; I < NumElements; ++I) {                               \
         /* We cannot use SetValue here as the operator is not a friend of*/    \
         /* Ret on Windows. */                                                  \
@@ -1036,14 +1041,14 @@ public:
     if constexpr (!std::is_same_v<DataT, sycl::ext::oneapi::bfloat16> &&
                   !std::is_same_v<DataT, sycl::detail::half_impl::half> &&
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-                  !std::is_same_v<DataT, std::byte>)   
+                  !std::is_same_v<DataT, std::byte>)
 #else
                   1)
-#endif         
-  {
-    auto extVec = detail::BitCast<DataType, vector_t>(Rhs.m_Data);
-    return vec<detail::rel_t<DataT>, NumElements>{!extVec};
-  } else
+#endif
+    {
+      auto extVec = detail::BitCast<DataType, vector_t>(Rhs.m_Data);
+      return vec<detail::rel_t<DataT>, NumElements>{!extVec};
+    } else
 #endif
     {
       for (size_t I = 0; I < NumElements; ++I) {
@@ -1159,7 +1164,7 @@ private:
   constexpr DataT getValue(EnableIfNotHostHalf<Ty> Index, int) const {
     return vec_data<DataT>::get(m_Data[Index]);
   }
-#else // __SYCL_DEVICE_ONLY__
+#else  // __SYCL_DEVICE_ONLY__
   template <int Num = NumElements,
             typename = typename std::enable_if_t<1 != Num>>
   constexpr void setValue(int Index, const DataT &Value, int) {
@@ -1971,7 +1976,8 @@ template <typename T, int N> struct VecStorageImpl {
   static constexpr size_t Num = (N == 3) ? 4 : N;
   static constexpr size_t Sz = Num * sizeof(T);
   // using DataType =
-  //     typename std::conditional<Sz <= 64, T __attribute__((ext_vector_type(N))),
+  //     typename std::conditional<Sz <= 64, T
+  //     __attribute__((ext_vector_type(N))),
   //                               std::array<T, Num>>::type;
   using DataType = std::array<T, (N == 3) ? 4 : N>;
   using VectorDataType = T __attribute__((ext_vector_type(N)));
@@ -2073,7 +2079,7 @@ template <> struct VecStorage<half, 1, void> {
 #if defined(__SYCL_DEVICE_ONLY__)
 #define __SYCL_DEFINE_HALF_VECSTORAGE(Num)                                     \
   template <> struct VecStorage<half, Num, void> {                             \
-    using DataType = sycl::detail::half_impl::Vec##Num##DeviceStorageT;              \
+    using DataType = sycl::detail::half_impl::Vec##Num##DeviceStorageT;        \
     using VectorDataType = sycl::detail::half_impl::Vec##Num##StorageT;        \
   };
 #else // defined(__SYCL_DEVICE_ONLY__)
@@ -2105,8 +2111,10 @@ template <> struct VecStorage<sycl::ext::oneapi::bfloat16, 1, void> {
 #else
 #define __SYCL_DEFINE_BF16_VECSTORAGE(Num)                                     \
   template <> struct VecStorage<sycl::ext::oneapi::bfloat16, Num, void> {      \
-    using DataType = sycl::ext::oneapi::detail::bf16::Vec##Num##DeviceStorageT; \
-    using VectorDataType = sycl::ext::oneapi::detail::bf16::Vec##Num##StorageT;  \
+    using DataType =                                                           \
+        sycl::ext::oneapi::detail::bf16::Vec##Num##DeviceStorageT;             \
+    using VectorDataType =                                                     \
+        sycl::ext::oneapi::detail::bf16::Vec##Num##StorageT;                   \
   };
 #endif
 __SYCL_DEFINE_BF16_VECSTORAGE(2)
