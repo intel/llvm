@@ -367,7 +367,7 @@ inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
                             std::is_same_v<sycl::half, ValueT>,
                         ValueT>
 relu(const ValueT a) {
-  if (!detail::isnan(a) && a < 0.f)
+  if (!detail::isnan(a) && a < ValueT(0))
     return 0.f;
   return a;
 }
