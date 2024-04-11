@@ -659,6 +659,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     enqueueEventsWait(hQueue, Stream, numEventsInWaitList, phEventWaitList);
 
     // We have to use a different copy function for each image dimensionality.
+    // All the async copy function should be treated as synchronous because of
+    // the explicit call to cuStreamSynchronize at the end
 
     if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
       if (pImageDesc->type == UR_MEM_TYPE_IMAGE1D) {
@@ -893,12 +895,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.Depth = pImageDesc->arraySize;
         UR_CHECK_ERROR(cuMemcpy3DAsync(&cpy_desc, Stream));
       }
+      // Synchronization is required here to handle the case of copying data
+      // from
+      // host to device, then device to device and finally device to host.
+      // Without it, there is a risk of the copies not being executed in the
+      // intended order.
+      cuStreamSynchronize(Stream);
     }
-    // Synchronization is required here to handle the case of copying data from
-    // host to device, then device to device and finally device to host.
-    // Without it, there is a risk of the copies not being executed in the
-    // intended order.
-    cuStreamSynchronize(Stream);
+
     if (phEvent) {
       auto NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_COPY,
                                                      hQueue, Stream);
