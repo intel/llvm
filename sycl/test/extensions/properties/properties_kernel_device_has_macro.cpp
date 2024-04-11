@@ -8,8 +8,7 @@ using namespace sycl;
 using namespace ext::oneapi::experimental;
 
 static constexpr auto device_has_all = device_has<
-    aspect::ext_oneapi_cuda_async_barrier,
-    aspect::custom, aspect::fp16,
+    aspect::ext_oneapi_cuda_async_barrier, aspect::custom, aspect::fp16,
     aspect::fp64, aspect::image, aspect::online_compiler, aspect::online_linker,
     aspect::queue_profiling, aspect::usm_device_allocations,
     aspect::usm_system_allocations, aspect::ext_intel_pci_address, aspect::cpu,

@@ -62,7 +62,7 @@ int main() {
               Visible += TmpAcc[Other];
             }
           }
-        /*  BarrierAcc[WI] = (Visible == BallotGroup.get_local_linear_range());
+          BarrierAcc[WI] = (Visible == BallotGroup.get_local_linear_range());
 
           // Simple check of group algorithms.
           uint32_t OriginalLID = SG.get_local_linear_id();
@@ -92,12 +92,12 @@ int main() {
           } else {
             NoneAcc[WI] = (NoneResult == true);
           }
-*/
-          double ReduceResult =
-              sycl::reduce_over_group(BallotGroup, double(0.5), sycl::plus<>());
-          ReduceAcc[WI] = (ReduceResult == BallotGroupSize/2);
 
-         /* uint32_t ExScanResult =
+          uint32_t ReduceResult =
+              sycl::reduce_over_group(BallotGroup, 1, sycl::plus<>());
+          ReduceAcc[WI] = (ReduceResult == BallotGroupSize);
+
+          uint32_t ExScanResult =
               sycl::exclusive_scan_over_group(BallotGroup, 1, sycl::plus<>());
           ExScanAcc[WI] = (ExScanResult == LID);
 
