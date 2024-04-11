@@ -110,13 +110,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(opencl
     ${UNIFIED_RUNTIME_REPO}
-    # commit 85b7559033e329389452cb87615ad42fbb644d59 (HEAD -> main, origin/main, origin/HEAD)
-    # Merge: a7c202b4 5c300799
+    # commit 0d2a972c71ba4dd5935478c7b7124a372a1eeca0
+    # Merge: ac89abfe 44aef877
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Tue Apr 9 14:06:49 2024 +0100
-    #     Merge pull request #1496 from steffenlarsen/steffen/revert_memory_lookup_error
-    #     [OpenCL] Revert urMemBufferCreate extension function lookup error
-    85b7559033e329389452cb87615ad42fbb644d59
+    # Date:   Thu Apr 11 10:24:19 2024 +0100
+    #     Merge pull request #1440 from fabiomestre/fabio/opencl_remove_queued_hack
+    #     [OPENCL] Remove EVENT_STATUS_QUEUED workaround
+    0d2a972c71ba4dd5935478c7b7124a372a1eeca0
   )
 
   fetch_adapter_source(cuda
