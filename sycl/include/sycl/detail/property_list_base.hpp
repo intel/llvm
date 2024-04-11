@@ -98,7 +98,7 @@ protected:
       if (Prop->isSame(PropKind))
         return *static_cast<PropT *>(Prop.get());
 
-    assert(false && "The property is not found");
+    throw std::invalid_argument("The property is not found");
   }
 
   void add_or_replace_accessor_properties_helper(
