@@ -944,7 +944,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
     }
 
     // Signal this event
-    ZE2UR_CALL(zeEventHostSignal, (ZeEvent));
+    if (!(*Event)->CounterBasedEventsEnabled)
+      ZE2UR_CALL(zeEventHostSignal, (ZeEvent));
     (*Event)->Completed = true;
     return UR_RESULT_SUCCESS;
   }
@@ -1078,8 +1079,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
     if (Buffer->MapHostPtr)
       memcpy(ZeHandleDst + MapInfo.Offset, MappedPtr, MapInfo.Size);
 
-    // Signal this event
-    ZE2UR_CALL(zeEventHostSignal, (ZeEvent));
+    // Signal this event if it is not using counter based events
+    if (!(*Event)->CounterBasedEventsEnabled)
+      ZE2UR_CALL(zeEventHostSignal, (ZeEvent));
     (*Event)->Completed = true;
     return UR_RESULT_SUCCESS;
   }
