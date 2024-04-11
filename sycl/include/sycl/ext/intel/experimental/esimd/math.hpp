@@ -1730,6 +1730,27 @@ ESIMD_INLINE uint64_t rdtsc() {
   return retv.template bit_cast_view<uint64_t>()[0];
 }
 
+/// Performs a fused multiply add computation with three vector operands.
+/// @tparam T type of the vector operands
+/// @tparam N size of the vector operands
+/// @param a First vector function argument.
+/// @param b Second vector function argument.
+/// @param c Third vector function argument.
+/// @return the computation result
+template <typename T, int N>
+ESIMD_INLINE __ESIMD_NS::simd<T, N> fma(__ESIMD_NS::simd<T, N> a,
+                                        __ESIMD_NS::simd<T, N> b,
+                                        __ESIMD_NS::simd<T, N> c) {
+  static_assert(__ESIMD_DNS::is_generic_floating_point_v<T>,
+                "fma only supports floating point types");
+  using CppT = __ESIMD_DNS::element_type_traits<T>::EnclosingCppT;
+  auto Ret = __esimd_fmadd<__ESIMD_DNS::__raw_t<CppT>, N>(
+      __ESIMD_DNS::convert_vector<CppT, T, N>(a.data()),
+      __ESIMD_DNS::convert_vector<CppT, T, N>(b.data()),
+      __ESIMD_DNS::convert_vector<CppT, T, N>(c.data()));
+  return __ESIMD_DNS::convert_vector<T, CppT, N>(Ret);
+}
+
 /// @} sycl_esimd_logical
 
 } // namespace ext::intel::experimental::esimd
