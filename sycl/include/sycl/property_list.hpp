@@ -44,7 +44,8 @@ public:
   }
 
   template <typename PropT> PropT get_property() const {
-    assert(has_property<PropT>() && "The property is not found");
+    if (!has_property<PropT>())
+      throw std::invalid_argument("The property is not found");
     return get_property_helper<PropT>();
   }
 

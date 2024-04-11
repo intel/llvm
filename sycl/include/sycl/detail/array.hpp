@@ -11,9 +11,9 @@
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_VALUE
 
-#include <cassert>
 #include <stddef.h>    // for size_t
 #include <type_traits> // for enable_if_t
+#include <stdexcept>
 
 namespace sycl {
 inline namespace _V1 {
@@ -103,10 +103,11 @@ public:
 
 protected:
   size_t common_array[dimensions];
-  __SYCL_ALWAYS_INLINE
-  void check_dimension(int dimension) const {
+  __SYCL_ALWAYS_INLINE void check_dimension(int dimension) const {
 #ifndef __SYCL_DEVICE_ONLY__
-    assert(dimension < dimensions && dimension >= 0 && "Index out of range");
+    if (dimension >= dimensions || dimension < 0) {
+      throw std::out_of_range("Index out of range");
+    }
 #endif
     (void)dimension;
   }
