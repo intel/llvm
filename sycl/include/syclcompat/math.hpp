@@ -67,14 +67,6 @@ inline sycl::ext::oneapi::bfloat16 clamp(sycl::ext::oneapi::bfloat16 val,
 }
 #endif
 
-template <typename ValueT>
-inline sycl::marray<ValueT, 2> clamp(sycl::marray<ValueT, 2> val,
-                                     sycl::marray<ValueT, 2> min_val,
-                                     sycl::marray<ValueT, 2> max_val) {
-  return {clamp(val[0], min_val[0], max_val[0]),
-          clamp(val[1], min_val[1], max_val[1])};
-}
-
 template <typename VecT, class BinaryOperation, class = void>
 class vectorized_binary {
 public:
