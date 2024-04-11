@@ -46,8 +46,8 @@ allocation / release APIs in `Unified Runtime`.
 - `SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS`: Environment variable which, 
 on the `level-zero` backend, enables or disables
 [immediate command-lists](https://spec.oneapi.io/level-zero/latest/core/PROG.html#low-latency-immediate-command-lists).
-Without this option, depending on the hardware, command lists might be enabled
-or disabled by default.
+Without this option, depending on the hardware, immediate command-lists might be
+enabled or disabled by default.
 
 Tests might be run multiple times using different combination of the options 
 described above. Most tests do the following:
