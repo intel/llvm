@@ -1032,25 +1032,34 @@ public:
   // operator!
   friend vec<detail::rel_t<DataT>, NumElements> operator!(const vec &Rhs) {
     vec Ret{};
-#ifndef __SYCL_DEVICE_ONLY__
-    for (size_t I = 0; I < NumElements; ++I) {
+#ifdef __SYCL_DEVICE_ONLY__
+    if constexpr (!std::is_same_v<DataT, sycl::ext::oneapi::bfloat16> &&
+                  !std::is_same_v<DataT, sycl::detail::half_impl::half> &&
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-      // std::byte neither supports ! unary op or casting, so special handling
-      // is needed. And, worse, Windows has a conflict with 'byte'.
-      if constexpr (std::is_same_v<std::byte, DataT>) {
-        Ret.setValue(I, std::byte{!vec_data<DataT>::get(Rhs.getValue(I))});
-      } else
-#endif // (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-      {
-        Ret.setValue(I, !vec_data<DataT>::get(Rhs.getValue(I)));
-      }
-    }
-    return Ret.template as<vec<detail::rel_t<DataT>, NumElements>>();
+                  !std::is_same_v<DataT, std::byte>)   
 #else
+                  1)
+#endif         
+  {
     auto extVec = detail::BitCast<DataType, vector_t>(Rhs.m_Data);
-    return vec{!extVec}
-        .template as<vec<detail::rel_t<DataT>, NumElements>>();
+    return vec<detail::rel_t<DataT>, NumElements>{!extVec};
+  } else
 #endif
+    {
+      for (size_t I = 0; I < NumElements; ++I) {
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+        // std::byte neither supports ! unary op or casting, so special handling
+        // is needed. And, worse, Windows has a conflict with 'byte'.
+        if constexpr (std::is_same_v<std::byte, DataT>) {
+          Ret.setValue(I, std::byte{!vec_data<DataT>::get(Rhs.getValue(I))});
+        } else
+#endif // (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+        {
+          Ret.setValue(I, !vec_data<DataT>::get(Rhs.getValue(I)));
+        }
+      }
+      return Ret.template as<vec<detail::rel_t<DataT>, NumElements>>();
+    }
   }
 
   // operator +
@@ -2088,12 +2097,18 @@ template <> struct VecStorage<sycl::ext::oneapi::bfloat16, 1, void> {
   using VectorDataType = sycl::ext::oneapi::detail::Bfloat16StorageT;
 };
 // Multiple elements bfloat16
+#ifndef __SYCL_DEVICE_ONLY__
 #define __SYCL_DEFINE_BF16_VECSTORAGE(Num)                                     \
   template <> struct VecStorage<sycl::ext::oneapi::bfloat16, Num, void> {      \
     using DataType = sycl::ext::oneapi::detail::bf16::Vec##Num##StorageT;      \
-    using VectorDataType =                                                     \
-        sycl::ext::oneapi::detail::bf16::Vec##Num##StorageT;                   \
   };
+#else
+#define __SYCL_DEFINE_BF16_VECSTORAGE(Num)                                     \
+  template <> struct VecStorage<sycl::ext::oneapi::bfloat16, Num, void> {      \
+    using DataType = sycl::ext::oneapi::detail::bf16::Vec##Num##DeviceStorageT; \
+    using VectorDataType = sycl::ext::oneapi::detail::bf16::Vec##Num##StorageT;  \
+  };
+#endif
 __SYCL_DEFINE_BF16_VECSTORAGE(2)
 __SYCL_DEFINE_BF16_VECSTORAGE(3)
 __SYCL_DEFINE_BF16_VECSTORAGE(4)
