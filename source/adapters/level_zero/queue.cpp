@@ -449,7 +449,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(
                         ->ZeCopyCommandListCache[Queue->Device->ZeDevice]
                   : Queue->Context
                         ->ZeComputeCommandListCache[Queue->Device->ZeDevice];
-          ZeCommandListCache.push_back({it->first, it->second.ZeQueueDesc});
+          struct l0_command_list_cache_info ListInfo;
+          ListInfo.ZeQueueDesc = it->second.ZeQueueDesc;
+          ListInfo.InOrderList = it->second.IsInOrderList;
+          ZeCommandListCache.push_back({it->first, ListInfo});
         } else {
           // A non-reusable comamnd list that came from a make_queue call is
           // destroyed since it cannot be recycled.
@@ -1708,8 +1711,10 @@ ur_result_t ur_queue_handle_t_::resetCommandList(
         UseCopyEngine
             ? this->Context->ZeCopyCommandListCache[this->Device->ZeDevice]
             : this->Context->ZeComputeCommandListCache[this->Device->ZeDevice];
-    ZeCommandListCache.push_back(
-        {CommandList->first, CommandList->second.ZeQueueDesc});
+    struct l0_command_list_cache_info ListInfo;
+    ListInfo.ZeQueueDesc = CommandList->second.ZeQueueDesc;
+    ListInfo.InOrderList = CommandList->second.IsInOrderList;
+    ZeCommandListCache.push_back({CommandList->first, ListInfo});
   }
 
   return UR_RESULT_SUCCESS;
@@ -1870,8 +1875,10 @@ ur_result_t ur_queue_handle_t_::createCommandList(
   ZeStruct<ze_command_list_desc_t> ZeCommandListDesc;
   ZeCommandListDesc.commandQueueGroupOrdinal = QueueGroupOrdinal;
 
+  bool IsInOrderList = false;
   if (Device->useDriverInOrderLists() && isInOrderQueue()) {
     ZeCommandListDesc.flags = ZE_COMMAND_LIST_FLAG_IN_ORDER;
+    IsInOrderList = true;
   }
 
   ZE2UR_CALL(zeCommandListCreate, (Context->ZeContext, Device->ZeDevice,
@@ -1882,7 +1889,8 @@ ur_result_t ur_queue_handle_t_::createCommandList(
   ZeQueueDesc.ordinal = QueueGroupOrdinal;
   std::tie(CommandList, std::ignore) = CommandListMap.insert(
       std::pair<ze_command_list_handle_t, ur_command_list_info_t>(
-          ZeCommandList, {ZeFence, false, false, ZeCommandQueue, ZeQueueDesc}));
+          ZeCommandList,
+          {ZeFence, false, false, ZeCommandQueue, ZeQueueDesc, IsInOrderList}));
 
   UR_CALL(insertStartBarrierIfDiscardEventsMode(CommandList));
   UR_CALL(insertActiveBarriers(CommandList, UseCopyEngine));
@@ -2011,7 +2019,7 @@ ur_command_list_ptr_t &ur_queue_handle_t_::ur_queue_group_t::getImmCmdList() {
                   ->ZeComputeCommandListCache[Queue->Device->ZeDevice];
     for (auto ZeCommandListIt = ZeCommandListCache.begin();
          ZeCommandListIt != ZeCommandListCache.end(); ++ZeCommandListIt) {
-      const auto &Desc = (*ZeCommandListIt).second;
+      const auto &Desc = (*ZeCommandListIt).second.ZeQueueDesc;
       if (Desc.index == ZeCommandQueueDesc.index &&
           Desc.flags == ZeCommandQueueDesc.flags &&
           Desc.mode == ZeCommandQueueDesc.mode &&
