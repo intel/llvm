@@ -246,7 +246,6 @@ set(SYCL_COMMON_SOURCES
     "exception.cpp"
     "exception_list.cpp"
     "handler.cpp"
-    "id.cpp"
     "image.cpp"
     "interop_handle.cpp"
     "kernel.cpp"
