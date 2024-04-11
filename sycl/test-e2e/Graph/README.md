@@ -54,8 +54,8 @@ described above. Most tests do the following:
 
 1. A default run which runs for all backends. 
 2. On the `level-zero` backend only, tests for leaks and forcefully **disables**
-command-lists in order to test this codepath on hardware that enables
-command-lists by default.
+immediate command-lists in order to test this codepath on hardware that enables
+immediate command-lists by default.
 3. On the `level-zero` backend only, tests for leaks and forcefully **enables**
-command-lists in order to test this codepath on hardware that disables
-command-lists by default.
+immediate command-lists in order to test this codepath on hardware that disables
+immediate command-lists by default.
