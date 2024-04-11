@@ -1167,6 +1167,17 @@ ur_queue_handle_t_::ur_queue_handle_t_(
   ComputeCommandBatch.QueueBatchSize =
       ZeCommandListBatchComputeConfig.startSize();
   CopyCommandBatch.QueueBatchSize = ZeCommandListBatchCopyConfig.startSize();
+
+  static const bool useDriverCounterBasedEvents = [] {
+    const char *UrRet = std::getenv("UR_L0_USE_DRIVER_COUNTER_BASED_EVENTS");
+    if (!UrRet)
+      return true;
+    return std::atoi(UrRet) != 0;
+  }();
+  this->CounterBasedEventsEnabled =
+      isInOrderQueue() && Device->useDriverInOrderLists() &&
+      useDriverCounterBasedEvents &&
+      Device->Platform->ZeDriverEventPoolCountingEventsExtensionFound;
 }
 
 void ur_queue_handle_t_::adjustBatchSizeForFullBatch(bool IsCopy) {
@@ -1447,8 +1458,10 @@ ur_queue_handle_t_::resetDiscardedEvent(ur_command_list_ptr_t CommandList) {
   if (LastCommandEvent && LastCommandEvent->IsDiscarded) {
     ZE2UR_CALL(zeCommandListAppendBarrier,
                (CommandList->first, nullptr, 1, &(LastCommandEvent->ZeEvent)));
-    ZE2UR_CALL(zeCommandListAppendEventReset,
-               (CommandList->first, LastCommandEvent->ZeEvent));
+    if (!CounterBasedEventsEnabled) {
+      ZE2UR_CALL(zeCommandListAppendEventReset,
+                 (CommandList->first, LastCommandEvent->ZeEvent));
+    }
 
     // Create new ur_event_handle_t but with the same ze_event_handle_t. We are
     // going to use this ur_event_handle_t for the next command with discarded
@@ -1750,7 +1763,8 @@ ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
 
   if (*Event == nullptr)
     UR_CALL(EventCreate(Queue->Context, Queue, IsMultiDevice,
-                        HostVisible.value(), Event));
+                        HostVisible.value(), Event,
+                        Queue->CounterBasedEventsEnabled));
 
   (*Event)->UrQueue = Queue;
   (*Event)->CommandType = CommandType;
@@ -1858,6 +1872,9 @@ ur_result_t ur_queue_handle_t_::executeOpenCommandList(bool IsCopy) {
 ur_result_t ur_queue_handle_t_::resetCommandList(
     ur_command_list_ptr_t CommandList, bool MakeAvailable,
     std::vector<ur_event_handle_t> &EventListToCleanup, bool CheckStatus) {
+  bool CounterBasedEventsResetable = CounterBasedEventsEnabled &&
+                                     Device->useDriverInOrderLists() &&
+                                     isInOrderQueue() && !UsingImmCmdLists;
   bool UseCopyEngine = CommandList->second.isCopy(this);
 
   // Immediate commandlists do not have an associated fence.
@@ -1866,7 +1883,8 @@ ur_result_t ur_queue_handle_t_::resetCommandList(
     // Reset the fence and put the command list into a cache for reuse in PI
     // calls.
     ZE2UR_CALL(zeFenceReset, (CommandList->second.ZeFence));
-    ZE2UR_CALL(zeCommandListReset, (CommandList->first));
+    if (!CounterBasedEventsResetable)
+      ZE2UR_CALL(zeCommandListReset, (CommandList->first));
     CommandList->second.ZeFenceInUse = false;
     CommandList->second.IsClosed = false;
   }

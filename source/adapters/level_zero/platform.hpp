@@ -35,6 +35,7 @@ struct ur_platform_handle_t_ : public _ur_platform {
   // Flags to tell whether various Level Zero platform extensions are available.
   bool ZeDriverGlobalOffsetExtensionFound{false};
   bool ZeDriverModuleProgramExtensionFound{false};
+  bool ZeDriverEventPoolCountingEventsExtensionFound{false};
 
   // Cache UR devices for reuse
   std::vector<std::unique_ptr<ur_device_handle_t_>> URDevicesCache;
