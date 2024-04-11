@@ -61,8 +61,8 @@ autoconf/autom4te.cache
 .vs
 # pythonenv for github Codespaces
 pythonenv*
-# clangd index. (".clangd" is a config file now, thus trailing slash)
-.clangd/
+# clangd config file and index 
+.clangd
 .cache
 # static analyzer regression testing project files
 /clang/utils/analyzer/projects/*/CachedSource
