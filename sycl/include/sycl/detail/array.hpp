@@ -10,7 +10,6 @@
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_VALUE
-//#include <sycl/exception.hpp>                 // for invalid_parameter_error
 
 #include <cassert>
 #include <stddef.h>    // for size_t
@@ -104,7 +103,7 @@ public:
 
 protected:
   size_t common_array[dimensions];
-  __SYCL_ALWAYS_INLINE 
+  __SYCL_ALWAYS_INLINE
   void check_dimension(int dimension) const {
 #ifndef __SYCL_DEVICE_ONLY__
     assert(dimension < dimensions && dimension >= 0 && "Index out of range");

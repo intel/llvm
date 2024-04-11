@@ -10,7 +10,6 @@
 
 #include <sycl/detail/pi.h>                // for PI_ERROR_INVALID_VALUE
 #include <sycl/detail/property_helper.hpp> // for DataLessPropKind, Propert...
-//#include <sycl/exception.hpp>              // for invalid_object_error
 
 #include <algorithm>   // for iter_swap
 #include <bitset>      // for bitset
@@ -92,7 +91,7 @@ protected:
   get_property_helper() const {
     const int PropKind = static_cast<int>(PropT::getKind());
     assert(PropKind >= PropWithDataKind::PropWithDataKindSize &&
-      "The property is not found");
+           "The property is not found");
 
     for (const std::shared_ptr<PropertyWithDataBase> &Prop : MPropsWithData)
       if (Prop->isSame(PropKind))

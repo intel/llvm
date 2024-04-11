@@ -10,15 +10,13 @@
 
 // 4.9.2 Exception Class Interface
 
-#include <sycl/backend_types.hpp>             // for backend
+#include <sycl/backend_types.hpp> // for backend
+#include <sycl/context.hpp>
 #include <sycl/detail/cl.h>                   // for cl_int
 #include <sycl/detail/common.hpp>             // for codeToString
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/pi.h>                   // for pi_int32
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-#include <sycl/context.hpp>
-#endif
 
 #include <exception>    // for exception
 #include <memory>       // for allocator, shared_ptr, make...
@@ -89,17 +87,11 @@ public:
   exception(int, const std::error_category &, const char *);
   exception(int, const std::error_category &);
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   exception(context Ctx, std::error_code Ec, const std::string &WhatArg)
       : exception(Ec, std::make_shared<context>(Ctx), WhatArg.c_str()) {}
   exception(context Ctx, int EV, const std::error_category &ECat,
             const std::string &WhatArg)
       : exception(Ctx, {EV, ECat}, WhatArg) {}
-#else
-  exception(context Ctx, std::error_code Ec, const std::string &Str);
-  exception(context Ctx, int, const std::error_category &Ec,
-            const std::string &Str);
-#endif
   exception(context, std::error_code, const char *);
   exception(context, std::error_code);
   exception(context, int, const std::error_category &, const char *);
