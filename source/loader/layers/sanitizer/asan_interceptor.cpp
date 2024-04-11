@@ -119,6 +119,42 @@ std::string getKernelName(ur_kernel_handle_t Kernel) {
     return std::string(KernelNameBuf.data(), KernelNameSize - 1);
 }
 
+std::string getDeviceName(ur_device_handle_t Device) {
+    size_t Size = 0;
+    [[maybe_unused]] auto Res = context.urDdiTable.Device.pfnGetInfo(
+        Device, UR_DEVICE_INFO_NAME, 0, nullptr, &Size);
+    assert(Res == UR_RESULT_SUCCESS);
+
+    std::vector<char> NameBuf(Size);
+    Res = context.urDdiTable.Device.pfnGetInfo(Device, UR_DEVICE_INFO_NAME,
+                                               Size, NameBuf.data(), nullptr);
+    assert(Res == UR_RESULT_SUCCESS);
+
+    return std::string(NameBuf.data(), Size - 1);
+}
+
+DeviceType getDeviceType(ur_device_handle_t Device) {
+    // Query device type
+    ur_device_type_t DeviceType;
+    [[maybe_unused]] auto Res = context.urDdiTable.Device.pfnGetInfo(
+        Device, UR_DEVICE_INFO_TYPE, sizeof(DeviceType), &DeviceType, nullptr);
+    assert(Res == UR_RESULT_SUCCESS);
+
+    if (DeviceType == UR_DEVICE_TYPE_CPU || DeviceType == UR_DEVICE_TYPE_FPGA) {
+        return DeviceType::CPU;
+    }
+    if (DeviceType == UR_DEVICE_TYPE_GPU) {
+        auto Name = getDeviceName(Device);
+        if (Name.rfind("Intel(R) Data Center GPU Max", 0) == 0) {
+            return DeviceType::GPU_PVC;
+        } else if (Name.rfind("Intel(R) Arc(TM)", 0) == 0 ||
+                   Name.rfind("Intel(R) Data Center GPU Flex", 0) == 0) {
+            return DeviceType::GPU_DG2;
+        }
+    }
+    return DeviceType::UNKNOWN;
+}
+
 } // namespace
 
 SanitizerInterceptor::SanitizerInterceptor()
@@ -655,19 +691,7 @@ ur_result_t SanitizerInterceptor::insertDevice(ur_context_handle_t Context,
     auto DeviceInfo = std::make_shared<ur_sanitizer_layer::DeviceInfo>();
 
     // Query device type
-    ur_device_type_t DeviceType;
-    UR_CALL(context.urDdiTable.Device.pfnGetInfo(
-        Device, UR_DEVICE_INFO_TYPE, sizeof(DeviceType), &DeviceType, nullptr));
-    switch (DeviceType) {
-    case UR_DEVICE_TYPE_CPU:
-        DeviceInfo->Type = DeviceType::CPU;
-        break;
-    case UR_DEVICE_TYPE_GPU:
-        DeviceInfo->Type = DeviceType::GPU_PVC;
-        break;
-    default:
-        DeviceInfo->Type = DeviceType::UNKNOWN;
-    }
+    DeviceInfo->Type = getDeviceType(Device);
 
     // Query alignment
     UR_CALL(context.urDdiTable.Device.pfnGetInfo(
