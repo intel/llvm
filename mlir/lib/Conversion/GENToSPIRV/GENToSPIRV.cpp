@@ -106,13 +106,17 @@ void mlir::GEN::populateGENToSPIRVPatterns(SPIRVTypeConverter &converter,
 namespace {
 struct ConvertGENToSPIRVPass
     : public impl::ConvertGENToSPIRVBase<ConvertGENToSPIRVPass> {
+  using Base::Base;
+
   void runOnOperation() override {
     Operation *op = getOperation();
     spirv::TargetEnvAttr targetAttr = spirv::lookupTargetEnvOrDefault(op);
     std::unique_ptr<SPIRVConversionTarget> target =
         SPIRVConversionTarget::get(targetAttr);
 
-    SPIRVTypeConverter typeConverter(targetAttr);
+    SPIRVConversionOptions options;
+    options.use64bitIndex = this->use64bitIndex;
+    SPIRVTypeConverter typeConverter(targetAttr, options);
 
     // Fail hard when there are any remaining GEN ops.
     target->addIllegalDialect<GEN::GENDialect>();
@@ -125,7 +129,3 @@ struct ConvertGENToSPIRVPass
   }
 };
 } // namespace
-
-std::unique_ptr<OperationPass<>> mlir::GEN::createConvertGENToSPIRVPass() {
-  return std::make_unique<ConvertGENToSPIRVPass>();
-}

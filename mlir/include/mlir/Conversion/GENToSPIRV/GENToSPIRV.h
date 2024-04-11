@@ -23,8 +23,6 @@ class RewritePatternSet;
 namespace GEN {
 void populateGENToSPIRVPatterns(SPIRVTypeConverter &typeConverter,
                                 RewritePatternSet &patterns);
-
-std::unique_ptr<OperationPass<>> createConvertGENToSPIRVPass();
 } // namespace GEN
 } // namespace mlir
 
