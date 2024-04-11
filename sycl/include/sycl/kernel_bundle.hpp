@@ -865,14 +865,11 @@ struct is_property_key_of<save_log_key,
                           sycl::kernel_bundle<bundle_state::ext_oneapi_source>>
     : std::true_type {};
 
-/////////////////////////
-// syclex::is_source_kernel_bundle_supported
-/////////////////////////
+namespace detail {
+// forward decls
 __SYCL_EXPORT bool is_source_kernel_bundle_supported(backend BE,
                                                      source_language Language);
 
-namespace detail {
-// forward decls
 __SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
 make_kernel_bundle_from_source(
     const context &SyclContext, source_language Language,

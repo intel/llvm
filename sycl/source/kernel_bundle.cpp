@@ -368,8 +368,10 @@ using source_kb = kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
 using exe_kb = kernel_bundle<bundle_state::executable>;
 using kernel_bundle_impl = sycl::detail::kernel_bundle_impl;
 
+namespace detail {
+
 /////////////////////////
-// syclex::is_source_kernel_bundle_supported
+// syclex::detail::is_source_kernel_bundle_supported
 /////////////////////////
 bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
   // Support is limited to the opencl and level_zero backends.
@@ -392,7 +394,6 @@ bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
 /////////////////////////
 // syclex::detail::create_kernel_bundle_from_source
 /////////////////////////
-namespace detail {
 
 using include_pairs_t = std::vector<std::pair<std::string, std::string>>;
 

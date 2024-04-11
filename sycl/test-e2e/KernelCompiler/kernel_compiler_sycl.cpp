@@ -80,25 +80,16 @@ void test_build_and_run() {
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
 
-  // TODO: remove this dance from other tests
-  // this dance avoids a bug on L0, ensuring context is of exactly one device
-  // sycl::device d;
-  // sycl::context ctx{d};
-  // sycl::queue q{ctx, d};
-
   sycl::queue q;
   sycl::context ctx = q.get_context();
 
-  // TODO: replace is_source_kernel_bundle_supported() with
-  // device::ext_oneapi_can_compile()
-  // bool ok = syclex::is_source_kernel_bundle_supported(ctx.get_backend(),
-  // syclex::source_language::sycl);
   bool ok =
       q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
   if (!ok) {
-    std::cout << "Apparently this backend does not support SYCL source "
+    std::cout << "Apparently this device does not support SYCL source "
                  "kernel bundle extension: "
-              << ctx.get_backend() << std::endl;
+              << q.get_device().get_info<sycl::info::device::name>()
+              << std::endl;
     return;
   }
 
