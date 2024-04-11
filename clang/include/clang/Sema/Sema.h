@@ -6681,14 +6681,6 @@ private:
   void CheckSubscriptAccessOfNoDeref(const ArraySubscriptExpr *E);
   void CheckAddressOfNoDeref(const Expr *E);
 
-public:
-  ExprResult BuildSYCLUniqueStableIdExpr(SourceLocation OpLoc,
-                                         SourceLocation LParen,
-                                         SourceLocation RParen, Expr *E);
-  ExprResult ActOnSYCLUniqueStableIdExpr(SourceLocation OpLoc,
-                                         SourceLocation LParen,
-                                         SourceLocation RParen, Expr *E);
-
   ///@}
 
   //

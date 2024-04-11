@@ -109,9 +109,7 @@ public:
   /// Signals that emission of __sycl_host_pipe_registration type and
   /// declaration of variable __sycl_host_pipe_registrar of this type in
   /// integration header is required.
-  void addHostPipeRegistration() {
-    NeedToEmitHostPipeRegistration = true;
-  }
+  void addHostPipeRegistration() { NeedToEmitHostPipeRegistration = true; }
 
 private:
   // Kernel actual parameter descriptor.
@@ -217,7 +215,6 @@ private:
 
 class SemaSYCL : public SemaBase {
 private:
-
   // We store SYCL Kernels here and handle separately -- which is a hack.
   // FIXME: It would be best to refactor this.
   llvm::SetVector<Decl *> SyclDeviceDecls;

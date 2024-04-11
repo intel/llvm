@@ -2642,8 +2642,7 @@ public:
   ExprResult RebuildSYCLUniqueStableIdExpr(SourceLocation OpLoc,
                                            SourceLocation LParen,
                                            SourceLocation RParen, Expr *E) {
-    return getSema().SYCL().BuildUniqueStableIdExpr(OpLoc, LParen, RParen,
-                                                        E);
+    return getSema().SYCL().BuildUniqueStableIdExpr(OpLoc, LParen, RParen, E);
   }
 
   /// Build a new predefined expression.

@@ -226,7 +226,7 @@ ExprResult SemaSYCL::ActOnSYCLBuiltinNumBasesExpr(ParsedType PT) {
 }
 
 ExprResult SemaSYCL::BuildSYCLBuiltinNumBasesExpr(SourceLocation Loc,
-                                              QualType SourceTy) {
+                                                  QualType SourceTy) {
   if (!SourceTy->isDependentType()) {
     if (SemaRef.RequireCompleteType(
             Loc, SourceTy, diag::err_sycl_type_trait_requires_complete_type,
@@ -426,8 +426,7 @@ static void checkSYCLType(SemaSYCL &S, QualType Ty, SourceRange Loc,
 
   // zero length arrays
   if (isZeroSizedArray(S, Ty)) {
-    S.DiagIfDeviceCode(Loc.getBegin(),
-                              diag::err_typecheck_zero_array_size)
+    S.DiagIfDeviceCode(Loc.getBegin(), diag::err_typecheck_zero_array_size)
         << 1;
     Emitting = true;
   }
@@ -617,7 +616,8 @@ public:
       // builtin is supported for SYCL
       unsigned BuiltinID = Callee->getBuiltinID();
       if (BuiltinID && !IsSyclMathFunc(BuiltinID)) {
-        StringRef Name = SemaSYCLRef.getASTContext().BuiltinInfo.getName(BuiltinID);
+        StringRef Name =
+            SemaSYCLRef.getASTContext().BuiltinInfo.getName(BuiltinID);
         SemaSYCLRef.Diag(e->getExprLoc(), diag::err_builtin_target_unsupported)
             << Name << "SYCL device";
       }
@@ -799,7 +799,7 @@ class SingleDeviceFunctionTracker {
     if (!CurrentDecl->isDefined() && !CurrentDecl->hasAttr<SYCLKernelAttr>() &&
         !CurrentDecl->hasAttr<SYCLDeviceAttr>())
       Parent.SemaSYCLRef.addFDToReachableFromSyclDevice(CurrentDecl,
-                                                    CallStack.back());
+                                                        CallStack.back());
 
     // If this is a parallel_for_work_item that is declared in the
     // sycl namespace, mark it with the WorkItem scope attribute.
@@ -810,9 +810,8 @@ class SingleDeviceFunctionTracker {
         CurrentDecl->getIdentifier()->getName() == "parallel_for_work_item" &&
         isDeclaredInSYCLNamespace(CurrentDecl) &&
         !CurrentDecl->hasAttr<SYCLScopeAttr>()) {
-      CurrentDecl->addAttr(
-          SYCLScopeAttr::CreateImplicit(Parent.SemaSYCLRef.getASTContext(),
-                                        SYCLScopeAttr::Level::WorkItem));
+      CurrentDecl->addAttr(SYCLScopeAttr::CreateImplicit(
+          Parent.SemaSYCLRef.getASTContext(), SYCLScopeAttr::Level::WorkItem));
     }
 
     // We previously thought we could skip this function if we'd seen it before,
@@ -836,8 +835,8 @@ class SingleDeviceFunctionTracker {
     // Collect attributes for functions that aren't the root kernel.
     if (!CallStack.empty()) {
       bool DirectlyCalled = CallStack.size() == 1;
-      collectSYCLAttributes(Parent.SemaSYCLRef, CurrentDecl, CollectedAttributes,
-                            DirectlyCalled);
+      collectSYCLAttributes(Parent.SemaSYCLRef, CurrentDecl,
+                            CollectedAttributes, DirectlyCalled);
     }
 
     // Calculate the kernel body.  Note the 'isSYCLKernelBodyFunction' only
@@ -1649,7 +1648,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
         cast<ClassTemplateSpecializationDecl>(PropListTy->getAsRecordDecl());
     if (AccPropListDecl->getTemplateArgs().size() != 1)
       return SemaSYCLRef.Diag(Loc,
-                          diag::err_sycl_invalid_property_list_param_number)
+                              diag::err_sycl_invalid_property_list_param_number)
              << "accessor_property_list";
 
     const auto TemplArg = AccPropListDecl->getTemplateArgs()[0];
@@ -1679,7 +1678,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
         cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
     if (PropDecl->getTemplateArgs().size() != 1)
       return SemaSYCLRef.Diag(Loc,
-                          diag::err_sycl_invalid_property_list_param_number)
+                              diag::err_sycl_invalid_property_list_param_number)
              << "buffer_location";
 
     const auto BufferLoc = PropDecl->getTemplateArgs()[0];
@@ -1709,7 +1708,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
          SemaSYCL::isSyclType(Ty, SYCLTypeAttr::annotated_arg)) &&
         (StructFieldDepth > 0 || StructBaseDepth > 0))
       return SemaSYCLRef.Diag(Loc.getBegin(),
-                          diag::err_bad_kernel_param_data_members)
+                              diag::err_bad_kernel_param_data_members)
              << Ty << /*Struct*/ 1;
 
     const RecordDecl *RecD = Ty->getAsRecordDecl();
@@ -1912,8 +1911,8 @@ public:
     } else if (PointerStack.pop_back_val()) {
       PointerStack.back() = true;
       if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
-        RD->addAttr(
-            SYCLGenerateNewTypeAttr::CreateImplicit(SemaSYCLRef.getASTContext()));
+        RD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
+            SemaSYCLRef.getASTContext()));
     }
     return true;
   }
@@ -1942,8 +1941,8 @@ public:
     } else if (PointerStack.pop_back_val()) {
       PointerStack.back() = true;
       if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
-        RD->addAttr(
-            SYCLGenerateNewTypeAttr::CreateImplicit(SemaSYCLRef.getASTContext()));
+        RD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
+            SemaSYCLRef.getASTContext()));
     }
     return true;
   }
@@ -1970,8 +1969,8 @@ public:
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
       if (!FD->hasAttr<SYCLGenerateNewTypeAttr>())
-        FD->addAttr(
-            SYCLGenerateNewTypeAttr::CreateImplicit(SemaSYCLRef.getASTContext()));
+        FD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
+            SemaSYCLRef.getASTContext()));
       PointerStack.back() = true;
     }
     return true;
@@ -2044,8 +2043,9 @@ class SyclKernelPointerHandler : public SyclKernelFieldHandler {
 
   void createBaseSpecifier(const CXXRecordDecl *Parent, const CXXRecordDecl *RD,
                            const CXXBaseSpecifier &BS) {
-    TypeSourceInfo *TInfo = SemaSYCLRef.getASTContext().getTrivialTypeSourceInfo(
-        QualType(RD->getTypeForDecl(), 0), SourceLocation());
+    TypeSourceInfo *TInfo =
+        SemaSYCLRef.getASTContext().getTrivialTypeSourceInfo(
+            QualType(RD->getTypeForDecl(), 0), SourceLocation());
     CXXBaseSpecifier *ModifiedBase = SemaSYCLRef.SemaRef.CheckBaseSpecifier(
         const_cast<CXXRecordDecl *>(Parent), SourceRange(), BS.isVirtual(),
         BS.getAccessSpecifier(), TInfo, SourceLocation());
@@ -2302,8 +2302,8 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
       const TemplateArgument &AccessModeArg =
           AccessorSpecializationDecl->getTemplateArgs().get(2);
       if (isReadOnlyAccessor(AccessModeArg))
-        Params.back()->addAttr(
-            SYCLAccessorReadonlyAttr::CreateImplicit(SemaSYCLRef.getASTContext()));
+        Params.back()->addAttr(SYCLAccessorReadonlyAttr::CreateImplicit(
+            SemaSYCLRef.getASTContext()));
     }
 
     // Add implicit attribute to parameter decl when it is a read only
@@ -2507,7 +2507,7 @@ public:
         SemaSYCLRef.getASTContext(), WrapperClass, SourceLocation(),
         SourceLocation(), /*Id=*/nullptr, FieldTy,
         SemaSYCLRef.getASTContext().getTrivialTypeSourceInfo(FieldTy,
-                                                         SourceLocation()),
+                                                             SourceLocation()),
         /*BW=*/nullptr, /*Mutable=*/false, /*InitStyle=*/ICIS_NoInit);
     Field->setAccess(AS_public);
     WrapperClass->addDecl(Field);
@@ -2674,7 +2674,7 @@ class ESIMDKernelDiagnostics : public SyclKernelFieldHandler {
 
     if (IsESIMD && !isSyclAccessorType(FieldTy))
       return SemaSYCLRef.Diag(KernelLoc,
-                          diag::err_sycl_esimd_not_supported_for_type)
+                              diag::err_sycl_esimd_not_supported_for_type)
              << RecordDecl;
     return true;
   }
@@ -2787,8 +2787,9 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
     if (KernelArgParent && KernelArgDescription == "decomposed struct/class")
       NameToEmitInDescription = KernelArgParent->getName();
 
-    unsigned KernelArgSize =
-        SemaSYCLRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
+    unsigned KernelArgSize = SemaSYCLRef.getASTContext()
+                                 .getTypeSizeInChars(KernelArgType)
+                                 .getQuantity();
 
     SemaSYCLRef.getDiagnostics().getSYCLOptReport().AddKernelArgs(
         DC.getKernelDecl(), NameToEmitInDescription,
@@ -2814,8 +2815,9 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
   void addParam(const CXXBaseSpecifier &, QualType KernelArgType,
                 StringRef KernelArgDescription,
                 bool IsCompilerGeneratedType = false) {
-    unsigned KernelArgSize =
-        SemaSYCLRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
+    unsigned KernelArgSize = SemaSYCLRef.getASTContext()
+                                 .getTypeSizeInChars(KernelArgType)
+                                 .getQuantity();
     SemaSYCLRef.getDiagnostics().getSYCLOptReport().AddKernelArgs(
         DC.getKernelDecl(), KernelArgType.getAsString(),
         IsCompilerGeneratedType ? "Compiler generated"
@@ -2826,8 +2828,9 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
 
   // Handles specialization constants.
   void addParam(QualType KernelArgType, std::string KernelArgDescription) {
-    unsigned KernelArgSize =
-        SemaSYCLRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
+    unsigned KernelArgSize = SemaSYCLRef.getASTContext()
+                                 .getTypeSizeInChars(KernelArgType)
+                                 .getQuantity();
     SemaSYCLRef.getDiagnostics().getSYCLOptReport().AddKernelArgs(
         DC.getKernelDecl(), "", KernelArgType.getAsString(),
         KernelInvocationLoc, KernelArgSize,
@@ -2836,7 +2839,8 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
 
 public:
   static constexpr const bool VisitInsideSimpleContainers = false;
-  SyclOptReportCreator(SemaSYCL &S, SyclKernelDeclCreator &DC, SourceLocation Loc)
+  SyclOptReportCreator(SemaSYCL &S, SyclKernelDeclCreator &DC,
+                       SourceLocation Loc)
       : SyclKernelFieldHandler(S), DC(DC), KernelInvocationLoc(Loc) {}
 
   bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
@@ -3038,8 +3042,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
         DeclCreator.getParamVarDeclsForCurrentField()[0];
 
     QualType ParamType = KernelParameter->getOriginalType();
-    Expr *DRE = SemaSYCLRef.SemaRef.BuildDeclRefExpr(KernelParameter, ParamType,
-                                                 VK_LValue, KernelCallerSrcLoc);
+    Expr *DRE = SemaSYCLRef.SemaRef.BuildDeclRefExpr(
+        KernelParameter, ParamType, VK_LValue, KernelCallerSrcLoc);
     return DRE;
   }
 
@@ -3050,8 +3054,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
         DeclCreator.getParamVarDeclsForCurrentField()[0];
 
     QualType ParamType = KernelParameter->getOriginalType();
-    Expr *DRE = SemaSYCLRef.SemaRef.BuildDeclRefExpr(KernelParameter, ParamType,
-                                                 VK_LValue, KernelCallerSrcLoc);
+    Expr *DRE = SemaSYCLRef.SemaRef.BuildDeclRefExpr(
+        KernelParameter, ParamType, VK_LValue, KernelCallerSrcLoc);
 
     // Struct Type kernel arguments are decomposed. The pointer fields are
     // then wrapped inside a compiler generated struct. Therefore when
@@ -3081,8 +3085,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     ParmVarDecl *KernelParameter =
         DeclCreator.getParamVarDeclsForCurrentField()[0];
     QualType ParamType = KernelParameter->getOriginalType();
-    Expr *DRE = SemaSYCLRef.SemaRef.BuildDeclRefExpr(KernelParameter, ParamType,
-                                                 VK_LValue, KernelCallerSrcLoc);
+    Expr *DRE = SemaSYCLRef.SemaRef.BuildDeclRefExpr(
+        KernelParameter, ParamType, VK_LValue, KernelCallerSrcLoc);
 
     // Unwrap the array.
     CXXRecordDecl *WrapperStruct = ParamType->getAsCXXRecordDecl();
@@ -3114,8 +3118,10 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
   void addFieldInit(FieldDecl *FD, QualType Ty, MultiExprArg ParamRef,
                     InitializationKind InitKind, InitializedEntity Entity) {
-    InitializationSequence InitSeq(SemaSYCLRef.SemaRef, Entity, InitKind, ParamRef);
-    ExprResult Init = InitSeq.Perform(SemaSYCLRef.SemaRef, Entity, InitKind, ParamRef);
+    InitializationSequence InitSeq(SemaSYCLRef.SemaRef, Entity, InitKind,
+                                   ParamRef);
+    ExprResult Init =
+        InitSeq.Perform(SemaSYCLRef.SemaRef, Entity, InitKind, ParamRef);
 
     InitListExpr *ParentILE = CollectionInitExprs.back();
     ParentILE->updateInit(SemaSYCLRef.getASTContext(), ParentILE->getNumInits(),
@@ -3127,8 +3133,10 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     InitializedEntity Entity = InitializedEntity::InitializeBase(
         SemaSYCLRef.getASTContext(), &BS, /*IsInheritedVirtualBase*/ false,
         &VarEntity);
-    InitializationSequence InitSeq(SemaSYCLRef.SemaRef, Entity, InitKind, std::nullopt);
-    ExprResult Init = InitSeq.Perform(SemaSYCLRef.SemaRef, Entity, InitKind, std::nullopt);
+    InitializationSequence InitSeq(SemaSYCLRef.SemaRef, Entity, InitKind,
+                                   std::nullopt);
+    ExprResult Init =
+        InitSeq.Perform(SemaSYCLRef.SemaRef, Entity, InitKind, std::nullopt);
 
     InitListExpr *ParentILE = CollectionInitExprs.back();
     ParentILE->updateInit(SemaSYCLRef.getASTContext(), ParentILE->getNumInits(),
@@ -3141,7 +3149,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
         SemaSYCLRef.getASTContext(), &BS, /*IsInheritedVirtualBase*/ false,
         &VarEntity);
     InitializationSequence InitSeq(SemaSYCLRef.SemaRef, Entity, InitKind, Args);
-    ExprResult Init = InitSeq.Perform(SemaSYCLRef.SemaRef, Entity, InitKind, Args);
+    ExprResult Init =
+        InitSeq.Perform(SemaSYCLRef.SemaRef, Entity, InitKind, Args);
 
     InitListExpr *ParentILE = CollectionInitExprs.back();
     ParentILE->updateInit(SemaSYCLRef.getASTContext(), ParentILE->getNumInits(),
@@ -3157,8 +3166,10 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
         &VarEntity);
 
     Expr *ParamRef = createParamReferenceExpr();
-    InitializationSequence InitSeq(SemaSYCLRef.SemaRef, Entity, InitKind, ParamRef);
-    ExprResult Init = InitSeq.Perform(SemaSYCLRef.SemaRef, Entity, InitKind, ParamRef);
+    InitializationSequence InitSeq(SemaSYCLRef.SemaRef, Entity, InitKind,
+                                   ParamRef);
+    ExprResult Init =
+        InitSeq.Perform(SemaSYCLRef.SemaRef, Entity, InitKind, ParamRef);
 
     InitListExpr *ParentILE = CollectionInitExprs.back();
     ParentILE->updateInit(SemaSYCLRef.getASTContext(), ParentILE->getNumInits(),
@@ -3189,7 +3200,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   Expr *createReinterpretCastExpr(Expr *E, QualType To) {
     return CXXReinterpretCastExpr::Create(
         SemaSYCLRef.getASTContext(), To, VK_PRValue, CK_BitCast, E,
-        /*Path=*/nullptr, SemaSYCLRef.getASTContext().getTrivialTypeSourceInfo(To),
+        /*Path=*/nullptr,
+        SemaSYCLRef.getASTContext().getTrivialTypeSourceInfo(To),
         SourceLocation(), SourceLocation(), SourceRange());
   }
 
@@ -3265,13 +3277,13 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     ResultTy = ResultTy.getNonLValueExprType(SemaSYCLRef.getASTContext());
     llvm::SmallVector<Expr *, 4> ParamStmts;
     const auto *Proto = cast<FunctionProtoType>(Method->getType());
-    SemaSYCLRef.SemaRef.GatherArgumentsForCall(KernelCallerSrcLoc, Method, Proto, 0,
-                                           ParamDREs, ParamStmts);
+    SemaSYCLRef.SemaRef.GatherArgumentsForCall(KernelCallerSrcLoc, Method,
+                                               Proto, 0, ParamDREs, ParamStmts);
     // [kernel_obj or wrapper object].accessor.__init(_ValueType*,
     // range<int>, range<int>, id<int>)
     AddTo.push_back(CXXMemberCallExpr::Create(
-        SemaSYCLRef.getASTContext(), MethodME, ParamStmts, ResultTy, VK, KernelCallerSrcLoc,
-        FPOptionsOverride()));
+        SemaSYCLRef.getASTContext(), MethodME, ParamStmts, ResultTy, VK,
+        KernelCallerSrcLoc, FPOptionsOverride()));
   }
 
   // Creates an empty InitListExpr of the correct number of child-inits
@@ -3291,8 +3303,9 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   }
 
   InitListExpr *createInitListExpr(QualType InitTy, uint64_t NumChildInits) {
-    InitListExpr *ILE = new (SemaSYCLRef.getASTContext()) InitListExpr(
-        SemaSYCLRef.getASTContext(), KernelCallerSrcLoc, {}, KernelCallerSrcLoc);
+    InitListExpr *ILE = new (SemaSYCLRef.getASTContext())
+        InitListExpr(SemaSYCLRef.getASTContext(), KernelCallerSrcLoc, {},
+                     KernelCallerSrcLoc);
     ILE->reserveInits(SemaSYCLRef.getASTContext(), NumChildInits);
     ILE->setType(InitTy);
 
@@ -3358,10 +3371,10 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
   // Generate __init call for kernel handler argument
   void handleSpecialType(QualType KernelHandlerTy) {
-    DeclRefExpr *KernelHandlerCloneRef =
-        DeclRefExpr::Create(SemaSYCLRef.getASTContext(), NestedNameSpecifierLoc(),
-                            KernelCallerSrcLoc, KernelHandlerClone, false,
-                            DeclarationNameInfo(), KernelHandlerTy, VK_LValue);
+    DeclRefExpr *KernelHandlerCloneRef = DeclRefExpr::Create(
+        SemaSYCLRef.getASTContext(), NestedNameSpecifierLoc(),
+        KernelCallerSrcLoc, KernelHandlerClone, false, DeclarationNameInfo(),
+        KernelHandlerTy, VK_LValue);
     const auto *RecordDecl =
         KernelHandlerClone->getType()->getAsCXXRecordDecl();
     MemberExprBases.push_back(KernelHandlerCloneRef);
@@ -3563,9 +3576,9 @@ public:
                              DeclCreator.getKernelDecl(), KernelHandlerArg);
 
     // Add declaration statement to openCL kernel body
-    Stmt *DS =
-        new (SemaSYCLRef.getASTContext()) DeclStmt(DeclGroupRef(KernelHandlerClone),
-                                       KernelCallerSrcLoc, KernelCallerSrcLoc);
+    Stmt *DS = new (SemaSYCLRef.getASTContext())
+        DeclStmt(DeclGroupRef(KernelHandlerClone), KernelCallerSrcLoc,
+                 KernelCallerSrcLoc);
     BodyStmts.push_back(DS);
 
     // Generate
@@ -3708,7 +3721,8 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
 
 public:
   static constexpr const bool VisitInsideSimpleContainers = false;
-  SyclKernelIntHeaderCreator(bool IsESIMD, SemaSYCL &S, SYCLIntegrationHeader &H,
+  SyclKernelIntHeaderCreator(bool IsESIMD, SemaSYCL &S,
+                             SYCLIntegrationHeader &H,
                              const CXXRecordDecl *KernelObj, QualType NameType,
                              FunctionDecl *KernelFunc)
       : SyclKernelFieldHandler(S), Header(H) {
@@ -3851,7 +3865,8 @@ public:
   }
 
   bool nextElement(QualType ET, uint64_t Index) final {
-    int64_t Size = SemaSYCLRef.getASTContext().getTypeSizeInChars(ET).getQuantity();
+    int64_t Size =
+        SemaSYCLRef.getASTContext().getTypeSizeInChars(ET).getQuantity();
     CurOffset = ArrayBaseOffsets.back() + Size * Index;
     return true;
   }
@@ -4064,7 +4079,7 @@ public:
 };
 
 void SemaSYCL::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
-                               ArrayRef<const Expr *> Args) {
+                                   ArrayRef<const Expr *> Args) {
   QualType KernelNameType =
       calculateKernelNameType(getASTContext(), KernelFunc);
   SYCLKernelNameTypeVisitor KernelNameTypeVisitor(
@@ -4074,7 +4089,7 @@ void SemaSYCL::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
 
   // FIXME: In place until the library works around its 'host' invocation
   // issues.
-  if (SemaRef.LangOpts.SYCLIsDevice)
+  if (!SemaRef.LangOpts.SYCLIsDevice)
     return;
 
   const CXXRecordDecl *KernelObj =
@@ -4227,7 +4242,7 @@ void SemaSYCL::SetSYCLKernelNames() {
 //
 //
 void SemaSYCL::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
-                                 MangleContext &MC) {
+                                     MangleContext &MC) {
   // The first argument to the KernelCallerFunc is the lambda object.
   const CXXRecordDecl *KernelObj =
       GetSYCLKernelObjectType(KernelCallerFunc)->getAsCXXRecordDecl();
@@ -4274,7 +4289,8 @@ void SemaSYCL::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
                                     CallOperator);
   SyclKernelIntHeaderCreator int_header(
       IsSIMDKernel, *this, getSyclIntegrationHeader(), KernelObj,
-      calculateKernelNameType(getASTContext(), KernelCallerFunc), KernelCallerFunc);
+      calculateKernelNameType(getASTContext(), KernelCallerFunc),
+      KernelCallerFunc);
 
   SyclKernelIntFooterCreator int_footer(*this, getSyclIntegrationFooter());
   SyclOptReportCreator opt_report(*this, kernel_decl, KernelObj->getLocation());
@@ -4605,7 +4621,8 @@ SemaSYCL::DiagIfDeviceCode(SourceLocation Loc, unsigned DiagID,
       return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
     if (!FD)
       return SemaDiagnosticBuilder::K_Nop;
-    if (SemaRef.getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted) {
+    if (SemaRef.getEmissionStatus(FD) ==
+        Sema::FunctionEmissionStatus::Emitted) {
       // Skip the diagnostic if we know it won't be emitted.
       if ((SemaRef.getEmissionReason(FD) & Reason) ==
           Sema::DeviceDiagnosticReason::None)
@@ -4711,9 +4728,9 @@ void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
 }
 
 void SemaSYCL::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
-                                       const FunctionDecl *Callee,
-                                       SourceLocation Loc,
-                                       DeviceDiagnosticReason Reason) {
+                                           const FunctionDecl *Callee,
+                                           SourceLocation Loc,
+                                           DeviceDiagnosticReason Reason) {
   Callee = Callee->getMostRecentDecl();
 
   // If the reason for the emission of this diagnostic is not SYCL-specific,
