@@ -659,8 +659,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     enqueueEventsWait(hQueue, Stream, numEventsInWaitList, phEventWaitList);
 
     // We have to use a different copy function for each image dimensionality.
-    // All the async copy function should be treated as synchronous because of
-    // the explicit call to cuStreamSynchronize at the end
 
     if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
       if (pImageDesc->type == UR_MEM_TYPE_IMAGE1D) {
@@ -834,6 +832,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
       }
     } else {
       // imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE
+
+      // All the following async copy function calls should be treated as
+      // synchronous because of the explicit call to cuStreamSynchronize at
+      // the end
       if (pImageDesc->type == UR_MEM_TYPE_IMAGE1D) {
         CUDA_MEMCPY2D cpy_desc = {};
         cpy_desc.srcXInBytes = srcOffset.x;
