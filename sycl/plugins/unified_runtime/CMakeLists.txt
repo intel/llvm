@@ -60,12 +60,25 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # fetch for a UR adapter, this allows development of adapters to be decoupled
   # from each other.
   #
+  # A separate content fetch will not be performed if:
+  # * The adapter name is not present in the SYCL_ENABLE_PLUGINS variable.
+  # * The repo and tag provided match the values of the
+  #   UNIFIED_RUNTIME_REPO/UNIFIED_RUNTIME_TAG variables
+  #
   # Args:
   #   * name - Must be the directory name of the adapter
   #   * repo - A valid Git URL of a Unified Runtime repo
   #   * tag - A valid Git branch/tag/commit in the Unified Runtime repo
   function(fetch_adapter_source name repo tag)
-    message(STATUS "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
+    if(NOT ${name} IN_LIST SYCL_ENABLE_PLUGINS)
+      return()
+    endif()
+    if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
+        tag STREQUAL UNIFIED_RUNTIME_TAG)
+      return()
+    endif()
+    message(STATUS
+      "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
     set(fetch-name unified-runtime-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
@@ -81,14 +94,63 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/PietroGhg/unified-runtime.git")
-  # commit 47102cb2b275472054803a9399b5b977ef210b23
-  # Merge: 186bfb9d 2390664d
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit e00a764f8dafd1319b636aa99c15601ec0d4d7fc
+  # Merge: 85b75590 92b60b77
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Fri Feb 9 12:21:47 2024 +0000
-  #     Merge pull request #1328 from Bensuo/maxime/events-reset-bugfix
-  #     [EXP][CMDBUF] Reset events for multiple submissions (bugfix)
-  set(UNIFIED_RUNTIME_TAG pietro/vecz_threadpool)
+  # Date:   Wed Apr 10 10:21:22 2024 +0100
+  #    Merge pull request #1455 from GeorgeWeb/georgi/fix-hip-usm-copy2d
+  #    [HIP] Fix memory type detection in allocation info queries and USM copy2D
+  set(UNIFIED_RUNTIME_TAG e00a764f8dafd1319b636aa99c15601ec0d4d7fc)
+
+  fetch_adapter_source(level_zero
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(opencl
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 85b7559033e329389452cb87615ad42fbb644d59 (HEAD -> main, origin/main, origin/HEAD)
+    # Merge: a7c202b4 5c300799
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Tue Apr 9 14:06:49 2024 +0100
+    #     Merge pull request #1496 from steffenlarsen/steffen/revert_memory_lookup_error
+    #     [OpenCL] Revert urMemBufferCreate extension function lookup error
+    85b7559033e329389452cb87615ad42fbb644d59
+  )
+
+  fetch_adapter_source(cuda
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 6e76c98a1f5cd3c4f5e99011e92bd55b3a46cc4c
+    # Merge: 08b3e8fe 834e6435
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Apr 10 16:26:17 2024 +0100
+    #     Merge pull request #1220 from fabiomestre/fabio/cuda_multimap
+    #     [CUDA] Add support for multiple active mappings
+    6e76c98a1f5cd3c4f5e99011e92bd55b3a46cc4c
+  )
+
+  fetch_adapter_source(hip
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 08b3e8fe6c5ad0aed125823c335eb44343845f6c
+    # Merge: 758c6149 db47fc0a
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Apr 10 16:22:00 2024 +0100
+    #     Merge pull request #1359 from lplewa/hip_log
+    #     Refactor hip adapter to new logger
+    08b3e8fe6c5ad0aed125823c335eb44343845f6c
+  )
+
+  fetch_adapter_source(native_cpu
+    "https://github.com/PietroGhg/unified-runtime.git"
+    # commit e2b5b7fafa8721bfcd46426623adc2b586bacf56
+    # Merge: cda0cd94 d05476f4
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Apr 10 14:22:28 2024 +0100
+    #     Merge pull request #1345 from lplewa/native_cpu_log
+    #     Refactor native cpu adapter to new logger
+    pietro/vecz_threadpool
+  )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

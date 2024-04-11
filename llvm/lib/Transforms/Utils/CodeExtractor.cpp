@@ -745,7 +745,7 @@ void CodeExtractor::severSplitPHINodesOfEntry(BasicBlock *&Header) {
 /// and other with remaining incoming blocks; then first PHIs are placed in
 /// outlined region.
 void CodeExtractor::severSplitPHINodesOfExits(
-    const SmallPtrSetImpl<BasicBlock *> &Exits) {
+    const SetVector<BasicBlock *> &Exits) {
   for (BasicBlock *ExitBB : Exits) {
     BasicBlock *NewBB = nullptr;
 
@@ -1619,8 +1619,8 @@ static void fixupDebugInfoPostExtraction(Function &OldFunc, Function &NewFunc,
 
   auto UpdateDbgRecordsOnInst = [&](Instruction &I) -> void {
     for (DbgRecord &DR : I.getDbgRecordRange()) {
-      if (DPLabel *DPL = dyn_cast<DPLabel>(&DR)) {
-        UpdateDbgLabel(DPL);
+      if (DbgLabelRecord *DLR = dyn_cast<DbgLabelRecord>(&DR)) {
+        UpdateDbgLabel(DLR);
         continue;
       }
 
@@ -1751,7 +1751,7 @@ CodeExtractor::extractCodeRegion(const CodeExtractorAnalysisCache &CEAC,
   // Calculate the exit blocks for the extracted region and the total exit
   // weights for each of those blocks.
   DenseMap<BasicBlock *, BlockFrequency> ExitWeights;
-  SmallPtrSet<BasicBlock *, 1> ExitBlocks;
+  SetVector<BasicBlock *> ExitBlocks;
   for (BasicBlock *Block : Blocks) {
     for (BasicBlock *Succ : successors(Block)) {
       if (!Blocks.count(Succ)) {

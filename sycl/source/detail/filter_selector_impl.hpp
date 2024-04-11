@@ -23,11 +23,7 @@ namespace ext {
 namespace oneapi {
 namespace detail {
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-typedef struct sycl::detail::ods_target filter;
-#else
-typedef struct sycl::detail::device_filter filter;
-#endif
+using filter = sycl::detail::ods_target;
 
 class filter_selector_impl {
 public:

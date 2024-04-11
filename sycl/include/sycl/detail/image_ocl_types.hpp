@@ -104,6 +104,18 @@ static void __invoke__ImageArrayWrite(ImageT Img, CoordT Coords, int ArrayLayer,
       Img, TmpCoords, ArrayLayer, TmpVal);
 }
 
+template <typename RetType, typename SmpImageT, typename DirVecT>
+static RetType __invoke__ImageReadCubemap(SmpImageT SmpImg, DirVecT DirVec) {
+
+  // Convert from sycl types to builtin types to get correct function mangling.
+  using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
+  auto TmpDirVec = sycl::detail::convertToOpenCLType(DirVec);
+
+  return sycl::detail::convertFromOpenCLTypeFor<RetType>(
+      __spirv_ImageSampleCubemap<SmpImageT, TempRetT, decltype(TmpDirVec)>(
+          SmpImg, TmpDirVec));
+}
+
 template <typename RetType, typename SmpImageT, typename CoordT>
 static RetType __invoke__ImageReadLod(SmpImageT SmpImg, CoordT Coords,
                                       float Level) {

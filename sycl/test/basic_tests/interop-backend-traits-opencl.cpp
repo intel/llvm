@@ -1,4 +1,4 @@
-// REQUIRES: opencl_be
+// REQUIRES: opencl
 // RUN: %clangxx -fsycl -fsyntax-only %s
 
 #include <CL/cl.h>

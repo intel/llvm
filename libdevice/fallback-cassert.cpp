@@ -10,7 +10,7 @@
 #include "include/assert-happened.hpp"
 #include "wrapper.h"
 
-#ifdef __SPIR__
+#if defined(__SPIR__) || defined(__SPIRV__)
 
 #define ASSERT_NONE 0
 #define ASSERT_START 1
@@ -98,7 +98,7 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
   // volatile int *die = (int *)0x0;
   // *die = 0xdead;
 }
-#endif // __SPIR__
+#endif // __SPIR__ || __SPIRV__
 
 #ifdef __NVPTX__
 

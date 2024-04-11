@@ -251,6 +251,32 @@ template <typename T> sycl::vec<T, 2> conj(sycl::vec<T, 2> x) {
   return sycl::vec<T, 2>(t.real(), t.imag());
 }
 
+/// Performs complex number multiply addition.
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns the operation result
+template <typename ValueT>
+inline sycl::vec<ValueT, 2> cmul_add(const sycl::vec<ValueT, 2> a,
+                                     const sycl::vec<ValueT, 2> b,
+                                     const sycl::vec<ValueT, 2> c) {
+  sycl::ext::oneapi::experimental::complex<ValueT> t(a[0], a[1]);
+  sycl::ext::oneapi::experimental::complex<ValueT> u(b[0], b[1]);
+  sycl::ext::oneapi::experimental::complex<ValueT> v(c[0], c[1]);
+  t = t * u + v;
+  return sycl::vec<ValueT, 2>{t.real(), t.imag()};
+}
+template <typename ValueT>
+inline sycl::marray<ValueT, 2> cmul_add(const sycl::marray<ValueT, 2> a,
+                                        const sycl::marray<ValueT, 2> b,
+                                        const sycl::marray<ValueT, 2> c) {
+  sycl::ext::oneapi::experimental::complex<ValueT> t(a[0], a[1]);
+  sycl::ext::oneapi::experimental::complex<ValueT> u(b[0], b[1]);
+  sycl::ext::oneapi::experimental::complex<ValueT> v(c[0], c[1]);
+  t = t * u + v;
+  return sycl::marray<ValueT, 2>{t.real(), t.imag()};
+}
+
 /// A sycl::abs wrapper functors.
 struct abs {
   template <typename ValueT> auto operator()(const ValueT x) const {
