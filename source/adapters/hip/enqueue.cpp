@@ -1618,25 +1618,57 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     hipPointerAttribute_t srcAttribs{};
     hipPointerAttribute_t dstAttribs{};
 
+    // Determine if pSrc and/or pDst are system allocated pageable host memory.
     bool srcIsSystemAlloc{false};
     bool dstIsSystemAlloc{false};
 
     hipError_t hipRes{};
-    // hipErrorInvalidValue returned from hipPointerGetAttributes for a non-null
-    // pointer refers to an OS-allocation, hence pageable host memory. However,
-    // this means we cannot rely on the attributes result, hence we mark system
-    // pageable memory allocation manually as host memory. The HIP runtime can
-    // handle the registering/unregistering of the memory as long as the right
-    // copy-kind (direction) is provided to hipMemcpy2DAsync for this case.
-    hipRes = hipPointerGetAttributes(&srcAttribs, (const void *)pSrc);
+    // Error code hipErrorInvalidValue returned from hipPointerGetAttributes
+    // for a non-null pointer refers to an OS-allocation, hence we can work
+    // with the assumption that this is a pointer to a pageable host memory.
+    // Since ROCm version 6.0.0, the enum hipMemoryType can also be marked as
+    // hipMemoryTypeUnregistered explicitly to relay that information better.
+    // This means we cannot rely on any attribute result, hence we just mark
+    // the pointer handle as system allocated pageable host memory.
+    // The HIP runtime can handle the registering/unregistering of the memory
+    // as long as the right copy-kind (direction) is provided to hipMemcpy2D*.
+    hipRes = hipPointerGetAttributes(&srcAttribs, pSrc);
     if (hipRes == hipErrorInvalidValue && pSrc)
       srcIsSystemAlloc = true;
     hipRes = hipPointerGetAttributes(&dstAttribs, (const void *)pDst);
     if (hipRes == hipErrorInvalidValue && pDst)
       dstIsSystemAlloc = true;
+#if HIP_VERSION_MAJOR >= 6
+    srcIsSystemAlloc |= srcAttribs.type == hipMemoryTypeUnregistered;
+    dstIsSystemAlloc |= dstAttribs.type == hipMemoryTypeUnregistered;
+#endif
 
-    const unsigned int srcMemType{srcAttribs.type};
-    const unsigned int dstMemType{dstAttribs.type};
+    unsigned int srcMemType{srcAttribs.type};
+    unsigned int dstMemType{dstAttribs.type};
+
+    // ROCm 5.7.1 finally started updating the type attribute member to
+    // hipMemoryTypeManaged for shared memory allocations(hipMallocManaged).
+    // Hence, we use a separate query that verifies the pointer use via flags.
+#if HIP_VERSION >= 50700001
+    // Determine the source/destination memory type for shared allocations.
+    //
+    // NOTE: The hipPointerGetAttribute API is marked as [BETA] and fails with
+    // exit code -11 when passing a system allocated pointer to it.
+    if (!srcIsSystemAlloc && srcAttribs.isManaged) {
+      UR_ASSERT(srcAttribs.hostPointer && srcAttribs.devicePointer,
+                UR_RESULT_ERROR_INVALID_VALUE);
+      UR_CHECK_ERROR(hipPointerGetAttribute(
+          &srcMemType, HIP_POINTER_ATTRIBUTE_MEMORY_TYPE,
+          reinterpret_cast<hipDeviceptr_t>(const_cast<void *>(pSrc))));
+    }
+    if (!dstIsSystemAlloc && dstAttribs.isManaged) {
+      UR_ASSERT(dstAttribs.hostPointer && dstAttribs.devicePointer,
+                UR_RESULT_ERROR_INVALID_VALUE);
+      UR_CHECK_ERROR(
+          hipPointerGetAttribute(&dstMemType, HIP_POINTER_ATTRIBUTE_MEMORY_TYPE,
+                                 reinterpret_cast<hipDeviceptr_t>(pDst)));
+    }
+#endif
 
     const bool srcIsHost{(srcMemType == hipMemoryTypeHost) || srcIsSystemAlloc};
     const bool srcIsDevice{srcMemType == hipMemoryTypeDevice};
