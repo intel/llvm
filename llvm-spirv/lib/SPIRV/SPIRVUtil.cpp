@@ -2168,13 +2168,13 @@ bool lowerBuiltinCallsToVariables(Module *M) {
       auto *CI = dyn_cast<CallInst>(U);
       assert(CI && "invalid instruction");
       const DebugLoc &DLoc = CI->getDebugLoc();
-      Instruction *NewValue = new LoadInst(GVType, BV, "", CI);
+      Instruction *NewValue = new LoadInst(GVType, BV, "", CI->getIterator());
       if (DLoc)
         NewValue->setDebugLoc(DLoc);
       LLVM_DEBUG(dbgs() << "Transform: " << *CI << " => " << *NewValue << '\n');
       if (IsVec) {
-        NewValue =
-            ExtractElementInst::Create(NewValue, CI->getArgOperand(0), "", CI);
+        NewValue = ExtractElementInst::Create(NewValue, CI->getArgOperand(0),
+                                              "", CI->getIterator());
         if (DLoc)
           NewValue->setDebugLoc(DLoc);
         LLVM_DEBUG(dbgs() << *NewValue << '\n');
@@ -2272,11 +2272,12 @@ bool postProcessBuiltinWithArrayArguments(Function *F,
           if (!T->isArrayTy())
             continue;
           auto *Alloca = new AllocaInst(T, 0, "", &(*FBegin));
-          new StoreInst(I, Alloca, false, CI);
+          new StoreInst(I, Alloca, false, CI->getIterator());
           auto *Zero =
               ConstantInt::getNullValue(Type::getInt32Ty(T->getContext()));
           Value *Index[] = {Zero, Zero};
-          I = GetElementPtrInst::CreateInBounds(T, Alloca, Index, "", CI);
+          I = GetElementPtrInst::CreateInBounds(T, Alloca, Index, "",
+                                                CI->getIterator());
         }
         return Name.str();
       },
