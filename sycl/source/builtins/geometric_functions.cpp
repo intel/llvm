@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/builtins_preview.hpp>
+#include <sycl/detail/builtins/builtins.hpp>
 
 #include "host_helper_macros.hpp"
 

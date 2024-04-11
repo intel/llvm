@@ -658,6 +658,9 @@ ExprDependence clang::computeDependence(MemberExpr *E) {
     D |= toExprDependence(NNS->getDependence() &
                           ~NestedNameSpecifierDependence::Dependent);
 
+  for (const auto &A : E->template_arguments())
+    D |= toExprDependence(A.getArgument().getDependence());
+
   auto *MemberDecl = E->getMemberDecl();
   if (FieldDecl *FD = dyn_cast<FieldDecl>(MemberDecl)) {
     DeclContext *DC = MemberDecl->getDeclContext();
@@ -674,7 +677,6 @@ ExprDependence clang::computeDependence(MemberExpr *E) {
       D |= ExprDependence::Type;
     }
   }
-  // FIXME: move remaining dependence computation from MemberExpr::Create()
   return D;
 }
 

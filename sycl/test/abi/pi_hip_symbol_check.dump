@@ -5,7 +5,7 @@
 
 # RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir %python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %sycl_libs_dir/libpi_hip.so
 # REQUIRES: linux
-# REQUIRES: hip_be
+# REQUIRES: hip
 # UNSUPPORTED: libcxx
 
 piContextCreate
