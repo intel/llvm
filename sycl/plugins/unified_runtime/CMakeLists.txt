@@ -120,14 +120,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(cuda
-    ${UNIFIED_RUNTIME_REPO}
-    # commit 6e76c98a1f5cd3c4f5e99011e92bd55b3a46cc4c
-    # Merge: 08b3e8fe 834e6435
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Apr 10 16:26:17 2024 +0100
-    #     Merge pull request #1220 from fabiomestre/fabio/cuda_multimap
-    #     [CUDA] Add support for multiple active mappings
-    6e76c98a1f5cd3c4f5e99011e92bd55b3a46cc4c
+    https://github.com/cppchedy/unified-runtime.git
+    f894c7ffc57efe1918386d36612026b590f6d7d9
   )
 
   fetch_adapter_source(hip
