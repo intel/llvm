@@ -9,9 +9,10 @@
 #pragma once
 
 #include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
+#include <sycl/detail/export.hpp> // __SYCL_EXPORT
 #include <sycl/device.hpp>
 
+#include <numeric> // std::accumulate
 #include <string>
 #include <vector>
 

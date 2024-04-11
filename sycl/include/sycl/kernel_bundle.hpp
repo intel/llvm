@@ -899,11 +899,9 @@ template <typename PropertyListT = detail::empty_properties_t,
               detail::all_props_are_keys_of<
                   kernel_bundle<bundle_state::ext_oneapi_source>,
                   PropertyListT>::value>>
-__SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
-create_kernel_bundle_from_source(const context &SyclContext,
-                                 source_language Language,
-                                 const std::string &Source,
-                                 PropertyListT props = {}) {
+kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
+    const context &SyclContext, source_language Language,
+    const std::string &Source, PropertyListT props = {}) {
   std::vector<std::pair<std::string, std::string>> IncludePairsVec;
   if constexpr (props.template has_property<include_files>()) {
     IncludePairsVec = props.template get_property<include_files>().record;
@@ -920,11 +918,9 @@ template <typename PropertyListT = detail::empty_properties_t,
               detail::all_props_are_keys_of<
                   kernel_bundle<bundle_state::ext_oneapi_source>,
                   PropertyListT>::value>>
-__SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
-create_kernel_bundle_from_source(const context &SyclContext,
-                                 source_language Language,
-                                 const std::vector<std::byte> &Bytes,
-                                 PropertyListT props = {}) {
+kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
+    const context &SyclContext, source_language Language,
+    const std::vector<std::byte> &Bytes, PropertyListT props = {}) {
   std::vector<std::pair<std::string, std::string>> IncludePairsVec;
   if constexpr (props.template has_property<include_files>()) {
     IncludePairsVec = props.template get_property<include_files>().record;
