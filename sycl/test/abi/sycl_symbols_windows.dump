@@ -127,7 +127,6 @@
 ??$get_info_impl@Uext_intel_max_mem_bandwidth@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Uext_intel_mem_channel@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
 ??$get_info_impl@Uext_intel_pci_address@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AVstring@detail@12@XZ
-??$get_info_impl@Uext_oneapi_bfloat16_math_functions@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
 ??$get_info_impl@Uext_oneapi_max_global_work_groups@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Uext_oneapi_max_work_groups_1d@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$id@$00@12@XZ
 ??$get_info_impl@Uext_oneapi_max_work_groups_2d@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$id@$01@12@XZ

@@ -43,7 +43,6 @@ def AspectExt_oneapi_native_assert : Aspect<"ext_oneapi_native_assert">;
 def AspectHost_debuggable : Aspect<"host_debuggable">;
 def AspectExt_intel_gpu_hw_threads_per_eu : Aspect<"ext_intel_gpu_hw_threads_per_eu">;
 def AspectExt_oneapi_cuda_async_barrier : Aspect<"ext_oneapi_cuda_async_barrier">;
-def AspectExt_oneapi_bfloat16_math_functions : Aspect<"ext_oneapi_bfloat16_math_functions">;
 def AspectExt_intel_free_memory : Aspect<"ext_intel_free_memory">;
 def AspectExt_intel_device_id : Aspect<"ext_intel_device_id">;
 def AspectExt_intel_memory_clock_rate : Aspect<"ext_intel_memory_clock_rate">;
@@ -117,7 +116,7 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_intel_max_mem_bandwidth, AspectExt_intel_mem_channel, AspectUsm_atomic_host_allocations,
     AspectUsm_atomic_shared_allocations, AspectAtomic64, AspectExt_intel_device_info_uuid, AspectExt_oneapi_srgb,
     AspectExt_oneapi_native_assert, AspectHost_debuggable, AspectExt_intel_gpu_hw_threads_per_eu,
-    AspectExt_oneapi_cuda_async_barrier, AspectExt_oneapi_bfloat16_math_functions, AspectExt_intel_free_memory,
+    AspectExt_oneapi_cuda_async_barrier, AspectExt_intel_free_memory,
     AspectExt_intel_device_id, AspectExt_intel_memory_clock_rate, AspectExt_intel_memory_bus_width, AspectEmulated,
     AspectExt_intel_legacy_image, AspectExt_oneapi_bindless_images,
     AspectExt_oneapi_bindless_images_shared_usm, AspectExt_oneapi_bindless_images_1d_usm, AspectExt_oneapi_bindless_images_2d_usm,
