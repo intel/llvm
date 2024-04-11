@@ -226,29 +226,38 @@ static Type *getStateType(Module &M) {
   return StateType;
 }
 
-static Function *addReplaceFunc(Module &M, StringRef Name, Type *StateType) {
+static Function *addReplaceFunc(Module &M, StringRef Name, Type *RetTy,
+                                const SmallVector<Value *> &Args) {
   // emit empty functions for now.
   auto &Ctx = M.getContext();
-  Type *I32Ty = Type::getInt32Ty(Ctx);
-  Type *RetTy = Type::getVoidTy(Ctx);
-  Type *ValTy = I32Ty;
-  Type *PtrTy = PointerType::get(Ctx, NativeCPUGlobalAS);
-  static FunctionType *FTy = FunctionType::get(RetTy, {ValTy, PtrTy}, false);
+  llvm::SmallVector<llvm::Type*> Paras;
+  for (Value *arg: Args)
+    Paras.push_back(arg->getType());
+  FunctionType *FTy = FunctionType::get(RetTy, Paras, false);
   auto FCallee = M.getOrInsertFunction(Name, FTy);
   auto *F = cast<Function>(FCallee.getCallee());
+  if (!RetTy->isIntegerTy() && !RetTy->isVoidTy())
+    return F;
   IRBuilder<> Builder(Ctx);
   BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
   Builder.SetInsertPoint(BB);
-  Builder.CreateRetVoid();
+  if (RetTy->isVoidTy())
+    Builder.CreateRetVoid();
+  else {
+    auto bits = RetTy->getPrimitiveSizeInBits().getFixedValue();
+    auto zval = llvm::APInt::getZero(bits);
+    Builder.CreateRet(Builder.getInt(zval));
+  }
   Function *Res = F;
   Res->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
   return Res;
 }
 
-static Function *getReplaceFunc(Module &M, StringRef Name, Type *StateType) {
+static Function *getReplaceFunc(Module &M, StringRef Name, const Use &U,
+                                const SmallVector<Value *> &Args) {
   Function *F = M.getFunction(Name);
   if (!F)
-    return addReplaceFunc(M, Name, StateType);
+    return addReplaceFunc(M, Name, U.getUser()->getType(), Args);
   assert(F && "Error retrieving replace function");
   return F;
 }
@@ -287,7 +296,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   // Todo: fix this check since we are emitting the state type in the pass now
   if (!StateType)
     return PreservedAnalyses::all();
-  Type *StatePtrType = PointerType::get(StateType, 1);
+  Type *StatePtrType = PointerType::get(StateType, NativeCPUGlobalAS);
 
   CurrentStatePointerTLS = nullptr;
 
@@ -382,10 +391,10 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     SmallVector<std::pair<Instruction *, Instruction *>> ToRemove;
     Function *const Glob = Entry.first;
     for (const auto &Use : Glob->uses()) {
-      auto *ReplaceFunc = getReplaceFunc(M, Entry.second, StateType);
       auto I = cast<CallInst>(Use.getUser());
       SmallVector<Value *> Args(I->arg_begin(), I->arg_end());
       Args.push_back(getStateArg(I->getFunction(), CurrentStatePointerTLS));
+      auto *ReplaceFunc = getReplaceFunc(M, Entry.second, Use, Args);
       auto *NewI = CallInst::Create(ReplaceFunc->getFunctionType(), ReplaceFunc,
                                     Args, "", I);
       // If the parent function has debug info, we need to make sure that the
