@@ -43,7 +43,7 @@ Specifically, this library depends on the following SYCL extensions:
 * [sycl_ext_oneapi_complex](
     ../extensions/experimental/sycl_ext_oneapi_complex.asciidoc)
 * [sycl_ext_oneapi_free_function_queries](
-    ../extensions/experimental/sycl_ext_oneapi_free_function_queries.asciidoc)
+    ../extensions/supported/sycl_ext_oneapi_free_function_queries.asciidoc)
 * [sycl_ext_oneapi_assert](
     ../extensions/supported/sycl_ext_oneapi_assert.asciidoc)
 * [sycl_ext_oneapi_enqueue_barrier](
@@ -681,17 +681,18 @@ class device_info {
 public:
   const char *get_name();
   char *get_name();
-  template <typename WorkItemSizesTy = sycl::id<3>,
+  template <typename WorkItemSizesTy = sycl::range<3>,
             std::enable_if_t<std::is_same_v<WorkItemSizesTy, sycl::id<3>> ||
                                  std::is_same_v<WorkItemSizesTy, int *>,
                              int> = 0>
   auto get_max_work_item_sizes() const;
 
-  template <typename WorkItemSizesTy = sycl::id<3>,
+  template <typename WorkItemSizesTy = sycl::range<3>,
           std::enable_if_t<std::is_same_v<WorkItemSizesTy, sycl::id<3>> ||
                                 std::is_same_v<WorkItemSizesTy, int *>,
                             int> = 0>
   auto get_max_work_item_sizes() const;
+  bool get_host_unified_memory() const;
   int get_major_version() const;
   int get_minor_version() const;
   int get_integrated() const;
@@ -700,6 +701,7 @@ public:
   int get_max_work_group_size() const;
   int get_max_sub_group_size() const;
   int get_max_work_items_per_compute_unit() const;
+  int get_max_register_size_per_work_group() const;
   template <typename NDRangeSizeTy = size_t *,
             std::enable_if_t<std::is_same_v<NDRangeSizeTy, size_t *> ||
                                  std::is_same_v<NDRangeSizeTy, int *>,
@@ -713,8 +715,17 @@ public:
   size_t get_global_mem_size() const;
   size_t get_local_mem_size() const;
 
-void set_name(const char *name);
-  void set_max_work_item_sizes(const sycl::id<3> max_work_item_sizes);
+  unsigned int get_memory_clock_rate() const;
+  unsigned int get_memory_bus_width() const;
+  uint32_t get_device_id() const;
+  std::array<unsigned char, 16> get_uuid() const;
+  unsigned int get_global_mem_cache_size() const;
+
+  void set_name(const char *name);
+  void set_max_work_item_sizes(const sycl::range<3> max_work_item_sizes);
+  [[deprecated]] void
+  set_max_work_item_sizes(const sycl::id<3> max_work_item_sizes);
+  void set_host_unified_memory(bool host_unified_memory);
   void set_major_version(int major);
   void set_minor_version(int minor);
   void set_integrated(int integrated);
@@ -727,6 +738,13 @@ void set_name(const char *name);
   void
   set_max_work_items_per_compute_unit(int max_work_items_per_compute_unit);
   void set_max_nd_range_size(int max_nd_range_size[]);
+  void set_memory_clock_rate(unsigned int memory_clock_rate);
+  void set_memory_bus_width(unsigned int memory_bus_width);
+  void 
+  set_max_register_size_per_work_group(int max_register_size_per_work_group);
+  void set_device_id(uint32_t device_id);
+  void set_uuid(std::array<unsigned char, 16> uuid);
+  void set_global_mem_cache_size(unsigned int global_mem_cache_size);
 };
 ```
 
@@ -797,6 +815,9 @@ destructor waits on a set of `sycl::event` which can be added to via
 `add_event`. This is used, for example, to implement `syclcompat::free_async` to
 schedule release of memory after a kernel or `mempcy`. SYCL device properties
 can be queried through `device_ext` as well.
+`device_ext` also provides the `has_capability_or_fail` member function, which
+throws a `sycl::exception` if the device does not have the specified list of
+`sycl::aspect`.
 
 Users can manage queues through the `syclcompat::set_default_queue(sycl::queue q)`
 free function, and the `device_ext` `set_saved_queue`, `set_default_queue`,
@@ -816,19 +837,26 @@ namespace syclcompat {
 
 class device_ext : public sycl::device {
   device_ext();
-  device_ext(const sycl::device &base);
+  device_ext(const sycl::device &base, bool print_on_async_exceptions = false,
+             bool in_order = true);
   ~device_ext();
 
   bool is_native_host_atomic_supported();
-  int get_major_version();
-  int get_minor_version();
-  int get_max_compute_units();
-  int get_max_clock_frequency();
-  int get_integrated();
-  void get_device_info(device_info &out);
+  int get_major_version() const;
+  int get_minor_version() const;
+  int get_max_compute_units() const;
+  int get_max_clock_frequency() const;
+  int get_integrated() const;
+  int get_max_sub_group_size() const;
+  int get_max_register_size_per_work_group() const;
+  int get_max_work_group_size() const;
+  int get_mem_base_addr_align() const;
+  size_t get_global_mem_size() const;
+  void get_memory_info(size_t &free_memory, size_t &total_memory) const;
 
-  device_info get_device_info();
-  void reset();
+  void get_device_info(device_info &out) const;
+  device_info get_device_info() const;
+  void reset(bool print_on_async_exceptions = false, bool in_order = true);
 
   sycl::queue *default_queue();
   void set_default_queue(const sycl::queue &q);
@@ -839,6 +867,9 @@ class device_ext : public sycl::device {
   void set_saved_queue(sycl::queue *q);
   sycl::queue *get_saved_queue();
   sycl::context get_context();
+
+  void
+  has_capability_or_fail(const std::initializer_list<sycl::aspect> &props) const;
 };
 
 } // syclcompat
@@ -1088,6 +1119,10 @@ functionality to `sycl::select_from_group`, `sycl::shift_group_left`,
 However, they provide an optional argument to represent the `logical_group` size
 (default 32).
 
+Experimental support for masked versions of `select_from_sub_group`,
+`shift_sub_group_left`, `shift_sub_group_right` and `permute_sub_group_by_xor` is
+provided only for SPIRV devices.
+
 ```c++
 namespace syclcompat {
 
@@ -1116,6 +1151,25 @@ template <typename ValueT>
 ValueT permute_sub_group_by_xor(sycl::sub_group g, ValueT x, unsigned int mask,
                            int logical_sub_group_size = 32);
 
+namespace experimental {
+
+template <typename ValueT>
+ValueT select_from_sub_group(unsigned int member_mask, sycl::sub_group g, ValueT x,
+                             int remote_local_id, int logical_sub_group_size = 32);
+
+template <typename ValueT>
+ValueT shift_sub_group_left(unsigned int member_mask, sycl::sub_group g, ValueT x,
+                            unsigned int delta, int logical_sub_group_size = 32);
+
+template <typename ValueT>
+ValueT shift_sub_group_right(unsigned int member_mask, sycl::sub_group g, ValueT x,
+                             unsigned int delta, int logical_sub_group_size = 32);
+
+template <typename ValueT>
+ValueT permute_sub_group_by_xor(unsigned int member_mask, sycql::sub_group g, ValueT x,
+                                unsigned int mask, int logical_sub_group_size = 32);
+
+} // namespace experimental
 } // namespace syclcompat
 ```
 
@@ -1229,7 +1283,7 @@ as a vector of elements, and returning `0` for vector components for which
 `vectorized_sum_abs_diff` calculates the absolute difference for two values
 without modulo overflow for vector types.
 
-The functions `cmul`,`cdiv`,`cabs`, and `conj` define complex math operations
+The functions `cmul`,`cdiv`,`cabs`, `cmul_add`, and `conj` define complex math operations
 which accept `sycl::vec<T,2>` arguments representing complex values.
 
 ```cpp
@@ -1258,6 +1312,16 @@ template <typename T>
 sycl::vec<T, 2> cdiv(sycl::vec<T, 2> x, sycl::vec<T, 2> y);
 
 template <typename T> T cabs(sycl::vec<T, 2> x);
+
+template <typename ValueT>
+inline sycl::vec<ValueT, 2> cmul_add(const sycl::vec<ValueT, 2> a,
+                                     const sycl::vec<ValueT, 2> b,
+                                     const sycl::vec<ValueT, 2> c);
+
+template <typename ValueT>
+inline sycl::marray<ValueT, 2> cmul_add(const sycl::marray<ValueT, 2> a,
+                                        const sycl::marray<ValueT, 2> b,
+                                        const sycl::marray<ValueT, 2> c);
 
 template <typename T> sycl::vec<T, 2> conj(sycl::vec<T, 2> x);
 

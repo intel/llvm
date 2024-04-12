@@ -26,44 +26,44 @@
 
 namespace syclcompat {
 
-using sycl::ext::oneapi::experimental::this_nd_item;
+using sycl::ext::oneapi::this_work_item::get_nd_item;
 
-inline void wg_barrier() { this_nd_item<3>().barrier(); }
+inline void wg_barrier() { get_nd_item<3>().barrier(); }
 
 namespace local_id {
-inline size_t x() { return this_nd_item<3>().get_local_id(2); }
-inline size_t y() { return this_nd_item<3>().get_local_id(1); }
-inline size_t z() { return this_nd_item<3>().get_local_id(0); }
+inline size_t x() { return get_nd_item<3>().get_local_id(2); }
+inline size_t y() { return get_nd_item<3>().get_local_id(1); }
+inline size_t z() { return get_nd_item<3>().get_local_id(0); }
 } // namespace local_id
 
 namespace local_range {
-inline size_t x() { return this_nd_item<3>().get_local_range(2); }
-inline size_t y() { return this_nd_item<3>().get_local_range(1); }
-inline size_t z() { return this_nd_item<3>().get_local_range(0); }
+inline size_t x() { return get_nd_item<3>().get_local_range(2); }
+inline size_t y() { return get_nd_item<3>().get_local_range(1); }
+inline size_t z() { return get_nd_item<3>().get_local_range(0); }
 } // namespace local_range
 
 namespace work_group_id {
-inline size_t x() { return this_nd_item<3>().get_group(2); }
-inline size_t y() { return this_nd_item<3>().get_group(1); }
-inline size_t z() { return this_nd_item<3>().get_group(0); }
+inline size_t x() { return get_nd_item<3>().get_group(2); }
+inline size_t y() { return get_nd_item<3>().get_group(1); }
+inline size_t z() { return get_nd_item<3>().get_group(0); }
 } // namespace work_group_id
 
 namespace work_group_range {
-inline size_t x() { return this_nd_item<3>().get_group_range(2); }
-inline size_t y() { return this_nd_item<3>().get_group_range(1); }
-inline size_t z() { return this_nd_item<3>().get_group_range(0); }
+inline size_t x() { return get_nd_item<3>().get_group_range(2); }
+inline size_t y() { return get_nd_item<3>().get_group_range(1); }
+inline size_t z() { return get_nd_item<3>().get_group_range(0); }
 } // namespace work_group_range
 
 namespace global_range {
-inline size_t x() { return this_nd_item<3>().get_global_range(2); }
-inline size_t y() { return this_nd_item<3>().get_global_range(1); }
-inline size_t z() { return this_nd_item<3>().get_global_range(0); }
+inline size_t x() { return get_nd_item<3>().get_global_range(2); }
+inline size_t y() { return get_nd_item<3>().get_global_range(1); }
+inline size_t z() { return get_nd_item<3>().get_global_range(0); }
 } // namespace global_range
 
 namespace global_id {
-inline size_t x() { return this_nd_item<3>().get_global_id(2); }
-inline size_t y() { return this_nd_item<3>().get_global_id(1); }
-inline size_t z() { return this_nd_item<3>().get_global_id(0); }
+inline size_t x() { return get_nd_item<3>().get_global_id(2); }
+inline size_t y() { return get_nd_item<3>().get_global_id(1); }
+inline size_t z() { return get_nd_item<3>().get_global_id(0); }
 } // namespace global_id
 
 } // namespace syclcompat
