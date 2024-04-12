@@ -8,17 +8,17 @@ using namespace sycl;
 
 // Create sycl::vec for each type and verify the storage
 // type on device side.
-#define CHECK(Q, T, N)                                                            \
+#define CHECK(Q, T, N)                                                         \
   {                                                                            \
       T Result;                                                                \
       {                                                                        \
         Q.submit([&](handler &CGH) {                                           \
           CGH.single_task([=]() {                                              \
-            vec<T, 2> InVec##N##2{static_cast<T>(5)};                                \
-            vec<T, 3> InVec##N##3{static_cast<T>(5)};                                \
-            vec<T, 4> InVec##N##4{static_cast<T>(5)};                      \
-            vec<T, 8> InVec##N##8{static_cast<T>(5)};                      \
-            vec<T, 16> InVec##N##16{static_cast<T>(5)};                    \
+            vec<T, 2> InVec##N##2{static_cast<T>(5)};                          \
+            vec<T, 3> InVec##N##3{static_cast<T>(5)};                          \
+            vec<T, 4> InVec##N##4{static_cast<T>(5)};                          \
+            vec<T, 8> InVec##N##8{static_cast<T>(5)};                          \
+            vec<T, 16> InVec##N##16{static_cast<T>(5)};                        \
           });                                                                  \
         });                                                                    \                                                                       
       }                                                                        \
