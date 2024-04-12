@@ -2209,6 +2209,191 @@ inline sycl::device get_device_info_host<
                       PI_ERROR_INVALID_DEVICE);
 }
 
+template <>
+inline std::vector<ext::oneapi::experimental::forward_progress_guarantee>
+get_device_info_host<
+    ext::oneapi::experimental::info::device::work_group_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::root_group>>() {
+  return {
+      ext::oneapi::experimental::forward_progress_guarantee::weakly_parallel};
+}
+
+template <>
+inline std::vector<ext::oneapi::experimental::forward_progress_guarantee>
+get_device_info_host<
+    ext::oneapi::experimental::info::device::sub_group_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::root_group>>() {
+  return {
+      ext::oneapi::experimental::forward_progress_guarantee::weakly_parallel};
+}
+
+template <>
+inline std::vector<ext::oneapi::experimental::forward_progress_guarantee>
+get_device_info_host<
+    ext::oneapi::experimental::info::device::sub_group_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::work_group>>() {
+  return {
+      ext::oneapi::experimental::forward_progress_guarantee::weakly_parallel};
+}
+
+template <>
+inline std::vector<ext::oneapi::experimental::forward_progress_guarantee>
+get_device_info_host<
+    ext::oneapi::experimental::info::device::work_item_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::root_group>>() {
+  return {
+      ext::oneapi::experimental::forward_progress_guarantee::weakly_parallel};
+}
+
+template <>
+inline std::vector<ext::oneapi::experimental::forward_progress_guarantee>
+get_device_info_host<
+    ext::oneapi::experimental::info::device::work_item_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::work_group>>() {
+  return {
+      ext::oneapi::experimental::forward_progress_guarantee::weakly_parallel};
+}
+
+template <>
+inline std::vector<ext::oneapi::experimental::forward_progress_guarantee>
+get_device_info_host<
+    ext::oneapi::experimental::info::device::work_item_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::sub_group>>() {
+  return {
+      ext::oneapi::experimental::forward_progress_guarantee::weakly_parallel};
+}
+
+const int forward_progress_guarantee_size = 3;
+
+template <typename ReturnT>
+struct get_device_info_impl<
+    ReturnT,
+    ext::oneapi::experimental::info::device::work_group_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::root_group>> {
+  static ReturnT get(const DeviceImplPtr &Dev) {
+    using forward_progress_guarantee =
+        ext::oneapi::experimental::forward_progress_guarantee;
+    using execution_scope = ext::oneapi::experimental::execution_scope;
+    ReturnT res;
+    auto guarantee =
+        Dev->get_immediate_progress_guarantee(execution_scope::root_group);
+    int guarantee_val = static_cast<int>(guarantee);
+    for (int i = forward_progress_guarantee_size - 1; i >= guarantee_val; --i) {
+      res.emplace_back(static_cast<forward_progress_guarantee>(i));
+    }
+    return res;
+  }
+};
+template <typename ReturnT>
+struct get_device_info_impl<
+    ReturnT,
+    ext::oneapi::experimental::info::device::sub_group_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::root_group>> {
+  static ReturnT get(const DeviceImplPtr &Dev) {
+    using forward_progress_guarantee =
+        ext::oneapi::experimental::forward_progress_guarantee;
+    using execution_scope = ext::oneapi::experimental::execution_scope;
+    ReturnT res;
+    auto guarantee = static_cast<forward_progress_guarantee>(
+        std::min({static_cast<int>(Dev->get_immediate_progress_guarantee(
+                      execution_scope::work_group)),
+                  static_cast<int>(Dev->get_immediate_progress_guarantee(
+                      execution_scope::root_group))}));
+    int guarantee_val = static_cast<int>(guarantee);
+    for (int i = forward_progress_guarantee_size - 1; i >= guarantee_val; --i) {
+      res.emplace_back(static_cast<forward_progress_guarantee>(i));
+    }
+    return res;
+  }
+};
+
+template <typename ReturnT>
+struct get_device_info_impl<
+    ReturnT,
+    ext::oneapi::experimental::info::device::sub_group_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::work_group>> {
+  static ReturnT get(const DeviceImplPtr &Dev) {
+    using forward_progress_guarantee =
+        ext::oneapi::experimental::forward_progress_guarantee;
+    using execution_scope = ext::oneapi::experimental::execution_scope;
+    ReturnT res;
+    auto guarantee =
+        Dev->get_immediate_progress_guarantee(execution_scope::work_group);
+    int guarantee_val = static_cast<int>(guarantee);
+    for (int i = forward_progress_guarantee_size - 1; i >= guarantee_val; --i) {
+      res.emplace_back(static_cast<forward_progress_guarantee>(i));
+    }
+    return res;
+  }
+};
+
+template <typename ReturnT>
+struct get_device_info_impl<
+    ReturnT,
+    ext::oneapi::experimental::info::device::work_item_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::root_group>> {
+  static ReturnT get(const DeviceImplPtr &Dev) {
+    using forward_progress_guarantee =
+        ext::oneapi::experimental::forward_progress_guarantee;
+    using execution_scope = ext::oneapi::experimental::execution_scope;
+    ReturnT res;
+    auto guarantee = static_cast<forward_progress_guarantee>(
+        std::min({static_cast<int>(Dev->get_immediate_progress_guarantee(
+                      execution_scope::root_group)),
+                  static_cast<int>(Dev->get_immediate_progress_guarantee(
+                      execution_scope::work_group)),
+                  static_cast<int>(Dev->get_immediate_progress_guarantee(
+                      execution_scope::sub_group))}));
+    int guarantee_val = static_cast<int>(guarantee);
+    for (int i = forward_progress_guarantee_size - 1; i >= guarantee_val; --i) {
+      res.emplace_back(static_cast<forward_progress_guarantee>(i));
+    }
+    return res;
+  }
+};
+template <typename ReturnT>
+struct get_device_info_impl<
+    ReturnT,
+    ext::oneapi::experimental::info::device::work_item_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::work_group>> {
+  static ReturnT get(const DeviceImplPtr &Dev) {
+    using forward_progress_guarantee =
+        ext::oneapi::experimental::forward_progress_guarantee;
+    using execution_scope = ext::oneapi::experimental::execution_scope;
+    ReturnT res;
+    auto guarantee = static_cast<forward_progress_guarantee>(
+        std::min({static_cast<int>(Dev->get_immediate_progress_guarantee(
+                      execution_scope::root_group)),
+                  static_cast<int>(Dev->get_immediate_progress_guarantee(
+                      execution_scope::work_group))}));
+    int guarantee_val = static_cast<int>(guarantee);
+    for (int i = forward_progress_guarantee_size - 1; i >= guarantee_val; --i) {
+      res.emplace_back(static_cast<forward_progress_guarantee>(i));
+    }
+    return res;
+  }
+};
+
+template <typename ReturnT>
+struct get_device_info_impl<
+    ReturnT,
+    ext::oneapi::experimental::info::device::work_item_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::sub_group>> {
+  static ReturnT get(const DeviceImplPtr &Dev) {
+    using forward_progress_guarantee =
+        ext::oneapi::experimental::forward_progress_guarantee;
+    using execution_scope = ext::oneapi::experimental::execution_scope;
+    ReturnT res;
+    auto guarantee =
+        Dev->get_immediate_progress_guarantee(execution_scope::sub_group);
+    int guarantee_val = static_cast<int>(guarantee);
+    for (int i = forward_progress_guarantee_size - 1; i >= guarantee_val; --i) {
+      res.emplace_back(static_cast<forward_progress_guarantee>(i));
+    }
+    return res;
+  }
+};
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

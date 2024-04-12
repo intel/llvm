@@ -17,6 +17,7 @@
 #include <sycl/aspects.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
+#include <sycl/ext/oneapi/experimental/forward_progress.hpp>
 #include <sycl/ext/oneapi/matrix/query-types.hpp>
 
 #include <sycl/range.hpp>
@@ -195,6 +196,13 @@ template <typename T, T param> struct compatibility_param_traits {};
 
 namespace ext::oneapi::experimental::info::device {
 template <int Dimensions> struct max_work_groups;
+template <ext::oneapi::experimental::execution_scope CoordinationScope>
+struct work_group_progress_capabilities;
+template <ext::oneapi::experimental::execution_scope CoordinationScope>
+struct sub_group_progress_capabilities;
+template <ext::oneapi::experimental::execution_scope CoordinationScope>
+struct work_item_progress_capabilities;
+
 } // namespace ext::oneapi::experimental::info::device
 #include <sycl/info/ext_codeplay_device_traits.def>
 #include <sycl/info/ext_intel_device_traits.def>

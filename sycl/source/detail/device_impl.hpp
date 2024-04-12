@@ -13,6 +13,7 @@
 #include <sycl/detail/cl.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
+#include <sycl/ext/oneapi/experimental/forward_progress.hpp>
 #include <sycl/kernel_bundle.hpp>
 
 #include <memory>
@@ -252,6 +253,28 @@ public:
   }
 
   bool extOneapiCanCompile(ext::oneapi::experimental::source_language Language);
+
+  template <ext::oneapi::experimental::forward_progress_guarantee Guarantee,
+            ext::oneapi::experimental::execution_scope CoordinationScope>
+  bool supports_sub_group_progress(
+      ext::oneapi::experimental::sub_group_progress_key::value_t<
+          Guarantee, CoordinationScope>) const;
+
+  template <ext::oneapi::experimental::forward_progress_guarantee Guarantee,
+            ext::oneapi::experimental::execution_scope CoordinationScope>
+  bool supports_work_group_progress(
+      ext::oneapi::experimental::work_group_progress_key::value_t<
+          Guarantee, CoordinationScope>) const;
+
+  template <ext::oneapi::experimental::forward_progress_guarantee Guarantee,
+            ext::oneapi::experimental::execution_scope CoordinationScope>
+  bool supports_work_item_progress(
+      ext::oneapi::experimental::work_item_progress_key::value_t<
+          Guarantee, CoordinationScope>) const;
+
+  ext::oneapi::experimental::forward_progress_guarantee
+  get_immediate_progress_guarantee(
+      ext::oneapi::experimental::execution_scope coordination_scope) const;
 
   /// Gets the current device timestamp
   /// @throw sycl::feature_not_supported if feature is not supported on device

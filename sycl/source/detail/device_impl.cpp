@@ -743,6 +743,70 @@ bool device_impl::extOneapiCanCompile(
   }
 }
 
+template <ext::oneapi::experimental::forward_progress_guarantee Guarantee,
+          ext::oneapi::experimental::execution_scope CoordinationScope>
+bool device_impl::supports_work_group_progress(
+    ext::oneapi::experimental::work_group_progress_key::value_t<
+        Guarantee, CoordinationScope>) const {
+  auto guarantees =
+      get_info<ext::oneapi::experimental::info::device::
+                   work_group_progress_capabilities<CoordinationScope>>();
+  return std::find(guarantees.begin(), guarantees.end(), Guarantee) !=
+         guarantees.end();
+}
+
+template <ext::oneapi::experimental::forward_progress_guarantee Guarantee,
+          ext::oneapi::experimental::execution_scope CoordinationScope>
+bool device_impl::supports_sub_group_progress(
+    ext::oneapi::experimental::sub_group_progress_key::value_t<
+        Guarantee, CoordinationScope>) const {
+  auto guarantees =
+      get_info<ext::oneapi::experimental::info::device::
+                   sub_group_progress_capabilities<CoordinationScope>>();
+  return std::find(guarantees.begin(), guarantees.end(), Guarantee) !=
+         guarantees.end();
+}
+
+template <ext::oneapi::experimental::forward_progress_guarantee Guarantee,
+          ext::oneapi::experimental::execution_scope CoordinationScope>
+bool device_impl::supports_work_item_progress(
+    ext::oneapi::experimental::work_item_progress_key::value_t<
+        Guarantee, CoordinationScope>) const {
+  auto guarantees =
+      get_info<ext::oneapi::experimental::info::device::
+                   work_item_progress_capabilities<CoordinationScope>>();
+  return std::find(guarantees.begin(), guarantees.end(), Guarantee) !=
+         guarantees.end();
+}
+
+ext::oneapi::experimental::forward_progress_guarantee
+device_impl::get_immediate_progress_guarantee(
+    ext::oneapi::experimental::execution_scope coordination_scope) const {
+  using forward_progress_guarantee =
+      ext::oneapi::experimental::forward_progress_guarantee;
+  using execution_scope = ext::oneapi::experimental::execution_scope;
+  if (is_cpu() && getBackend() == backend::opencl) {
+    switch (coordination_scope) {
+    case execution_scope::root_group:
+      return forward_progress_guarantee::parallel;
+    case execution_scope::work_group:
+      return forward_progress_guarantee::weakly_parallel;
+    case execution_scope::sub_group:
+      return forward_progress_guarantee::weakly_parallel;
+    }
+  } else if (is_gpu() && getBackend() == backend::ext_oneapi_level_zero) {
+    switch (coordination_scope) {
+    case execution_scope::root_group:
+      return forward_progress_guarantee::concurrent;
+    case execution_scope::work_group:
+      return forward_progress_guarantee::concurrent;
+    case execution_scope::sub_group:
+      return forward_progress_guarantee::weakly_parallel;
+    }
+  }
+  return forward_progress_guarantee::weakly_parallel;
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

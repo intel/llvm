@@ -8,16 +8,15 @@
 
 #pragma once
 
+#include <array>                                         // for array
+#include <stddef.h>                                      // for size_t
+#include <stdint.h>                                      // for uint32_t
 #include <sycl/aspects.hpp>                              // for aspect
 #include <sycl/ext/oneapi/properties/property.hpp>       // for PropKind
 #include <sycl/ext/oneapi/properties/property_utils.hpp> // for SizeListToStr
 #include <sycl/ext/oneapi/properties/property_value.hpp> // for property_value
-
-#include <array>       // for array
-#include <stddef.h>    // for size_t
-#include <stdint.h>    // for uint32_t
-#include <type_traits> // for true_type
-#include <utility>     // for declval
+#include <type_traits>                                   // for true_type
+#include <utility>                                       // for declval
 
 namespace sycl {
 inline namespace _V1 {
@@ -55,7 +54,8 @@ struct sub_group_size_key
                                  std::integral_constant<uint32_t, Size>>;
 };
 
-struct device_has_key : detail::compile_time_property_key<detail::PropKind::DeviceHas> {
+struct device_has_key
+    : detail::compile_time_property_key<detail::PropKind::DeviceHas> {
   template <aspect... Aspects>
   using value_t = property_value<device_has_key,
                                  std::integral_constant<aspect, Aspects>...>;
@@ -125,6 +125,55 @@ inline constexpr sub_group_size_key::value_t<Size> sub_group_size;
 
 template <aspect... Aspects>
 inline constexpr device_has_key::value_t<Aspects...> device_has;
+
+struct work_group_progress_key
+    : detail::compile_time_property_key<detail::PropKind::WorkGroupProgress> {
+  template <forward_progress_guarantee Guarantee,
+            execution_scope CoordinationScope>
+  using value_t = property_value<
+      work_group_progress_key,
+      std::integral_constant<forward_progress_guarantee, Guarantee>,
+      std::integral_constant<execution_scope, CoordinationScope>>;
+};
+
+struct sub_group_progress_key
+    : detail::compile_time_property_key<detail::PropKind::SubGroupProgress> {
+  template <forward_progress_guarantee Guarantee,
+            execution_scope CoordinationScope>
+  using value_t = property_value<
+      sub_group_progress_key,
+      std::integral_constant<forward_progress_guarantee, Guarantee>,
+      std::integral_constant<execution_scope, CoordinationScope>>;
+};
+
+struct work_item_progress_key
+    : detail::compile_time_property_key<detail::PropKind::WorkItemProgress> {
+  template <forward_progress_guarantee Guarantee,
+            execution_scope CoordinationScope>
+  using value_t = property_value<
+      work_item_progress_key,
+      std::integral_constant<forward_progress_guarantee, Guarantee>,
+      std::integral_constant<execution_scope, CoordinationScope>>;
+};
+
+template <forward_progress_guarantee Guarantee,
+          execution_scope CoordinationScope>
+inline constexpr work_group_progress_key::value_t<Guarantee, CoordinationScope>
+    work_group_progress;
+
+template <forward_progress_guarantee Guarantee,
+          execution_scope CoordinationScope>
+inline constexpr sub_group_progress_key::value_t<Guarantee, CoordinationScope>
+    sub_group_progress;
+
+template <forward_progress_guarantee Guarantee,
+          execution_scope CoordinationScope>
+inline constexpr work_item_progress_key::value_t<Guarantee, CoordinationScope>
+    work_item_progress;
+
+template <> struct is_property_key<work_group_progress_key> : std::true_type {};
+template <> struct is_property_key<sub_group_progress_key> : std::true_type {};
+template <> struct is_property_key<work_item_progress_key> : std::true_type {};
 
 namespace detail {
 template <size_t Dim0, size_t... Dims>

@@ -27,6 +27,7 @@
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/experimental/group_sort.hpp>
+#include <sycl/ext/oneapi/experimental/forward_progress.hpp>
 #include <sycl/feature_test.hpp>
 #include <sycl/functional.hpp>
 #include <sycl/group.hpp>
