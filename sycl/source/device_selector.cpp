@@ -336,8 +336,7 @@ device filter_selector::select_device() const {
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
 using namespace ext::oneapi;
 filter_selector::filter_selector(sycl::detail::string_view Input)
-    : ext::oneapi::filter_selector(Input) {
-}
+    : ext::oneapi::filter_selector(Input) {}
 
 int filter_selector::operator()(const device &Dev) const {
   return ext::oneapi::filter_selector::operator()(Dev);
