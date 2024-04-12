@@ -11,7 +11,7 @@ permissions:
 jobs:
   validate_email:
     runs-on: ubuntu-latest
-    if: github.repository == 'llvm/llvm-project'
+    if: github.repository == 'intel/llvm'
     steps:
       - name: Fetch LLVM sources
         uses: actions/checkout@v4
@@ -28,7 +28,6 @@ jobs:
 
       - name: Validate author email
         if: ${{ endsWith(steps.author.outputs.EMAIL, 'noreply.github.com')  }}
-        uses: actions/github-script@v7
         env:
           COMMENT: >-
             ⚠️ We detected that you are using a GitHub private e-mail address to contribute to the repo.<br/>
