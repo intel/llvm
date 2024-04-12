@@ -94,14 +94,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 758c61490442456933e3957aac568e13287429eb
-  # Merge: e2b5b7fa e2e44728
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Apr 10 16:15:45 2024 +0100
-  #    Merge pull request #1483 from nrspruit/fix_inorder_lists_reuse
-  #    [L0] Fix regular in order command list reuse given inorder queue
-  set(UNIFIED_RUNTIME_TAG 758c61490442456933e3957aac568e13287429eb)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/pbalcer/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG 53f07aba585c57758b9d843f416f0a39bb16c9c8)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
