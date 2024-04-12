@@ -121,13 +121,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit 0eab26c7925c5ef341a6409d3766686b060b736b
-    # Merge: 70ba1503 1cf4a4e9
+    # commit 68e525a448a5f8fe52bda48d6b9709230f53f029
+    # Merge: 1473ed8a 1d159312
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri Apr 12 09:58:26 2024 +0100
-    #     Merge pull request #1310 from pasaulais/remove-old-cuda-tracing-fn
-    #     [CUDA] Remove unused function variant
-    0eab26c7925c5ef341a6409d3766686b060b736b
+    # Date:   Fri Apr 12 14:29:50 2024 +0100
+    #     Merge pull request #1317 from JackAKirk/usm-p2p-cuda-return
+    #     [CUDA] Return caught UR error directly.
+    68e525a448a5f8fe52bda48d6b9709230f53f029
   )
 
   fetch_adapter_source(hip
