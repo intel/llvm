@@ -607,20 +607,18 @@ void queue_impl::revisitNotEnqueuedCommandsState(
     if (Deps.LastBarrier && Deps.LastBarrier->isEnqueued()) {
       Deps.LastBarrier = nullptr;
       Deps.NotEnqueuedCmdEvents.clear();
-    }
-    else
-    {
+    } else {
       if (Deps.NotEnqueuedCmdEvents.empty())
-      return;
-    Deps.NotEnqueuedCmdEvents.erase(
-        std::remove_if(Deps.NotEnqueuedCmdEvents.begin(),
-                       Deps.NotEnqueuedCmdEvents.end(),
-                       [](const EventImplPtr &CommandEvent) {
-                         return (CommandEvent->is_host()
-                                     ? CommandEvent->isCompleted()
-                                     : CommandEvent->isEnqueued());
-                       }),
-        Deps.NotEnqueuedCmdEvents.end());
+        return;
+      Deps.NotEnqueuedCmdEvents.erase(
+          std::remove_if(Deps.NotEnqueuedCmdEvents.begin(),
+                         Deps.NotEnqueuedCmdEvents.end(),
+                         [](const EventImplPtr &CommandEvent) {
+                           return (CommandEvent->is_host()
+                                       ? CommandEvent->isCompleted()
+                                       : CommandEvent->isEnqueued());
+                         }),
+          Deps.NotEnqueuedCmdEvents.end());
     }
   };
   std::lock_guard<std::mutex> Lock{MMutex};

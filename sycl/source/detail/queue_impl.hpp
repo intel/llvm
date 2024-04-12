@@ -817,13 +817,12 @@ protected:
       EventImplPtr EventRetImpl = getSyclObjImpl(EventRet);
       if (Type == CG::CodeplayHostTask)
         Deps.NotEnqueuedCmdEvents.push_back(EventRetImpl);
-      else if (!EventRetImpl->getHandleRef()) //not enqueued
+      else if (!EventRetImpl->getHandleRef()) // not enqueued
       {
         if (Type == CG::Barrier || Type == CG::BarrierWaitlist) {
           Deps.LastBarrier = EventRetImpl;
           Deps.NotEnqueuedCmdEvents.clear();
-        }
-        else
+        } else
           Deps.NotEnqueuedCmdEvents.push_back(EventRetImpl);
       }
     }

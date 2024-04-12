@@ -320,10 +320,7 @@ public:
     return MPostCompleteEvents;
   }
 
-  void updateEnqueuedState(bool IsEnqueued)
-  {
-    MIsEnqueued = IsEnqueued;
-  }
+  void updateEnqueuedState(bool IsEnqueued) { MIsEnqueued = IsEnqueued; }
 
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
@@ -392,7 +389,7 @@ protected:
   getOrWaitEvents(std::vector<sycl::event> DepEvents,
                   std::shared_ptr<sycl::detail::context_impl> Context);
 
-  std::atomic_bool MIsEnqueued {false};
+  std::atomic_bool MIsEnqueued{false};
 };
 
 } // namespace detail
