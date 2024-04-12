@@ -106,7 +106,7 @@ static constexpr ToType BitCast(const FromType &Value) {
   static_assert(sizeof(FromType) == sizeof(ToType),
                 "BitCast: sizes of types are different");
 
-#if defined(__SYCL_BITCAST_IS_CONSTEXPR)
+#ifdef __SYCL_BITCAST_IS_CONSTEXPR
   return sycl::bit_cast<ToType>(Value);
 #else
   // awkward workaround. sycl::bit_cast isn't constexpr in older GCC
@@ -312,7 +312,7 @@ template <typename Type, int NumElements> class vec {
   // of the data type.
   static constexpr bool IsUsingArrayOnDevice = true;
 
-#if defined(__SYCL_DEVICE_ONLY__)
+#ifdef __SYCL_DEVICE_ONLY__
   static constexpr bool IsUsingArrayOnHost = false; // not compiling for host.
 #else
   static constexpr bool IsUsingArrayOnHost = true; // host always std::array.
@@ -638,7 +638,7 @@ public:
     using OpenCLR = detail::ConvertToOpenCLType_t<R>;
     vec<convertT, NumElements> Result;
 
-#if defined(__SYCL_DEVICE_ONLY__)
+#ifdef __SYCL_DEVICE_ONLY__
     using OpenCLVecT = OpenCLT __attribute__((ext_vector_type(NumElements)));
     using OpenCLVecR = OpenCLR __attribute__((ext_vector_type(NumElements)));
 
@@ -670,7 +670,7 @@ public:
           detail::convertImpl<T, R, roundingMode, NumElements, OpenCLVecT,
                               OpenCLVecR>(extVecType));
     } else
-#endif // defined(__SYCL_DEVICE_ONLY__)
+#endif // __SYCL_DEVICE_ONLY__
     {
       // Otherwise, we fallback to per-element conversion:
       for (size_t I = 0; I < NumElements; ++I) {
@@ -2076,18 +2076,18 @@ template <> struct VecStorage<half, 1, void> {
 };
 
 // Multiple elements half
-#if defined(__SYCL_DEVICE_ONLY__)
+#ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_DEFINE_HALF_VECSTORAGE(Num)                                     \
   template <> struct VecStorage<half, Num, void> {                             \
     using DataType = sycl::detail::half_impl::Vec##Num##DeviceStorageT;        \
     using VectorDataType = sycl::detail::half_impl::Vec##Num##StorageT;        \
   };
-#else // defined(__SYCL_DEVICE_ONLY__)
+#else // __SYCL_DEVICE_ONLY__
 #define __SYCL_DEFINE_HALF_VECSTORAGE(Num)                                     \
   template <> struct VecStorage<half, Num, void> {                             \
     using DataType = sycl::detail::half_impl::Vec##Num##StorageT;              \
   };
-#endif // defined(__SYCL_DEVICE_ONLY__)
+#endif // __SYCL_DEVICE_ONLY__
 
 __SYCL_DEFINE_HALF_VECSTORAGE(2)
 __SYCL_DEFINE_HALF_VECSTORAGE(3)

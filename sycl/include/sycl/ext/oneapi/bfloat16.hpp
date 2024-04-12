@@ -40,7 +40,7 @@ using Vec8StorageT = Bfloat16StorageT __attribute__((ext_vector_type(8)));
 using Vec16StorageT = Bfloat16StorageT __attribute__((ext_vector_type(16)));
 
 using Vec2DeviceStorageT = std::array<Bfloat16StorageT, 2>;
-using Vec3DeviceStorageT = std::array<Bfloat16StorageT, 3>;
+using Vec3DeviceStorageT = std::array<Bfloat16StorageT, 4>;
 using Vec4DeviceStorageT = std::array<Bfloat16StorageT, 4>;
 using Vec8DeviceStorageT = std::array<Bfloat16StorageT, 8>;
 using Vec16DeviceStorageT = std::array<Bfloat16StorageT, 16>;
