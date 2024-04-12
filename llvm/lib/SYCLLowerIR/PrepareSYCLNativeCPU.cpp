@@ -255,11 +255,9 @@ static Function *addReplaceFunc(Module &M, StringRef Name, Type *RetTy,
 
 static Function *getReplaceFunc(Module &M, StringRef Name, const Use &U,
                                 const SmallVector<Value *> &Args) {
-  Function *F = M.getFunction(Name);
-  if (!F)
-    return addReplaceFunc(M, Name, U.getUser()->getType(), Args);
-  assert(F && "Error retrieving replace function");
-  return F;
+  if (Function *F = M.getFunction(Name))
+    return F;
+  return addReplaceFunc(M, Name, U.getUser()->getType(), Args);
 }
 
 static Value *getStateArg(Function *F, llvm::Constant *StateTLS) {
