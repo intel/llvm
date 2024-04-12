@@ -20,6 +20,7 @@
 #include <sycl/sycl.hpp>
 
 #include <climits>
+#include <cmath>
 #include <limits>
 #include <type_traits>
 
@@ -122,9 +123,9 @@ template <typename DataT> struct value {
     static_assert(type_traits::is_sycl_floating_point_v<DataT>,
                   "NaN has meaning only for floating point data types.");
     if constexpr (std::is_same_v<DataT, double>) {
-      return sycl::nan(static_cast<unsigned long>(opcode));
+      return sycl::nan(static_cast<uint64_t>(opcode));
     } else if constexpr (std::is_same_v<DataT, float>) {
-      return sycl::nan(static_cast<unsigned int>(opcode));
+      return sycl::nan(static_cast<uint32_t>(opcode));
     } else if constexpr (std::is_same_v<DataT, sycl::half>) {
       return details::half_from_bytes(0b11111110u, 0b00000000u + opcode);
     }

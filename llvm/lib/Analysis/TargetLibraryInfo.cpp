@@ -571,12 +571,16 @@ static void initialize(TargetLibraryInfoImpl &TLI, const Triple &T,
     break;
   case Triple::Linux:
     // exp10, exp10f, exp10l is available on Linux (GLIBC) but are extremely
-    // buggy prior to glibc version 2.18. As this version is so old, we
-    // don't really need to worry about using exp10 on Linux.
-    TLI.setAvailableWithName(LibFunc_exp10, "__exp10");
-    TLI.setAvailableWithName(LibFunc_exp10f, "__exp10f");
-    TLI.setAvailableWithName(LibFunc_exp10l, "__exp10l");
-    break;
+    // buggy prior to glibc version 2.18. Until this version is widely deployed
+    // or we have a reasonable detection strategy, we cannot use exp10 reliably
+    // on Linux.
+    //
+    // Fall through to disable all of them.
+    [[fallthrough]];
+  default:
+    TLI.setUnavailable(LibFunc_exp10);
+    TLI.setUnavailable(LibFunc_exp10f);
+    TLI.setUnavailable(LibFunc_exp10l);
   }
 
   // ffsl is available on at least Darwin, Mac OS X, iOS, FreeBSD, and
@@ -848,9 +852,6 @@ static void initialize(TargetLibraryInfoImpl &TLI, const Triple &T,
     TLI.setUnavailable(LibFunc_strndup);
     TLI.setUnavailable(LibFunc_strnlen);
     TLI.setUnavailable(LibFunc_toascii);
-    TLI.setUnavailable(LibFunc_exp10);
-    TLI.setUnavailable(LibFunc_exp10f);
-    TLI.setUnavailable(LibFunc_exp10l);
   }
 
   // As currently implemented in clang, NVPTX code has no standard library to
@@ -1289,107 +1290,113 @@ void TargetLibraryInfoImpl::addVectorizableFunctions(ArrayRef<VecDesc> Fns) {
   llvm::sort(ScalarDescs, compareByVectorFnName);
 }
 
-void TargetLibraryInfoImpl::addVectorizableFunctionsFromVecLib(
-    enum VectorLibrary VecLib, const llvm::Triple &TargetTriple) {
-  switch (VecLib) {
-  case Accelerate: {
-    const VecDesc VecFuncs[] = {
-    #define TLI_DEFINE_ACCELERATE_VECFUNCS
-    #include "llvm/Analysis/VecFuncs.def"
-    };
-    addVectorizableFunctions(VecFuncs);
-    break;
-  }
-  case DarwinLibSystemM: {
-    const VecDesc VecFuncs[] = {
-    #define TLI_DEFINE_DARWIN_LIBSYSTEM_M_VECFUNCS
-    #include "llvm/Analysis/VecFuncs.def"
-    };
-    addVectorizableFunctions(VecFuncs);
-    break;
-  }
-  case LIBMVEC_X86: {
-    const VecDesc VecFuncs[] = {
-    #define TLI_DEFINE_LIBMVEC_X86_VECFUNCS
-    #include "llvm/Analysis/VecFuncs.def"
-    };
-    addVectorizableFunctions(VecFuncs);
-    break;
-  }
-  case MASSV: {
-    const VecDesc VecFuncs[] = {
-    #define TLI_DEFINE_MASSV_VECFUNCS
-    #include "llvm/Analysis/VecFuncs.def"
-    };
-    addVectorizableFunctions(VecFuncs);
-    break;
-  }
-  case SVML: {
-    const VecDesc VecFuncs[] = {
-    #define TLI_DEFINE_SVML_VECFUNCS
-    #include "llvm/Analysis/VecFuncs.def"
-    };
-    addVectorizableFunctions(VecFuncs);
-    break;
-  }
-  case SLEEFGNUABI: {
-    const VecDesc VecFuncs_VF2[] = {
+static const VecDesc VecFuncs_Accelerate[] = {
+#define TLI_DEFINE_ACCELERATE_VECFUNCS
+#include "llvm/Analysis/VecFuncs.def"
+};
+
+static const VecDesc VecFuncs_DarwinLibSystemM[] = {
+#define TLI_DEFINE_DARWIN_LIBSYSTEM_M_VECFUNCS
+#include "llvm/Analysis/VecFuncs.def"
+};
+
+static const VecDesc VecFuncs_LIBMVEC_X86[] = {
+#define TLI_DEFINE_LIBMVEC_X86_VECFUNCS
+#include "llvm/Analysis/VecFuncs.def"
+};
+
+static const VecDesc VecFuncs_MASSV[] = {
+#define TLI_DEFINE_MASSV_VECFUNCS
+#include "llvm/Analysis/VecFuncs.def"
+};
+
+static const VecDesc VecFuncs_SVML[] = {
+#define TLI_DEFINE_SVML_VECFUNCS
+#include "llvm/Analysis/VecFuncs.def"
+};
+
+static const VecDesc VecFuncs_SLEEFGNUABI_VF2[] = {
 #define TLI_DEFINE_SLEEFGNUABI_VF2_VECFUNCS
 #define TLI_DEFINE_VECFUNC(SCAL, VEC, VF, VABI_PREFIX)                         \
   {SCAL, VEC, VF, /* MASK = */ false, VABI_PREFIX},
 #include "llvm/Analysis/VecFuncs.def"
-    };
-    const VecDesc VecFuncs_VF4[] = {
+};
+static const VecDesc VecFuncs_SLEEFGNUABI_VF4[] = {
 #define TLI_DEFINE_SLEEFGNUABI_VF4_VECFUNCS
 #define TLI_DEFINE_VECFUNC(SCAL, VEC, VF, VABI_PREFIX)                         \
   {SCAL, VEC, VF, /* MASK = */ false, VABI_PREFIX},
 #include "llvm/Analysis/VecFuncs.def"
-    };
-    const VecDesc VecFuncs_VFScalable[] = {
+};
+static const VecDesc VecFuncs_SLEEFGNUABI_VFScalable[] = {
 #define TLI_DEFINE_SLEEFGNUABI_SCALABLE_VECFUNCS
 #define TLI_DEFINE_VECFUNC(SCAL, VEC, VF, MASK, VABI_PREFIX)                   \
   {SCAL, VEC, VF, MASK, VABI_PREFIX},
 #include "llvm/Analysis/VecFuncs.def"
-    };
+};
 
+static const VecDesc VecFuncs_ArmPL[] = {
+#define TLI_DEFINE_ARMPL_VECFUNCS
+#define TLI_DEFINE_VECFUNC(SCAL, VEC, VF, MASK, VABI_PREFIX)                   \
+  {SCAL, VEC, VF, MASK, VABI_PREFIX},
+#include "llvm/Analysis/VecFuncs.def"
+};
+
+const VecDesc VecFuncs_AMDLIBM[] = {
+#define TLI_DEFINE_AMDLIBM_VECFUNCS
+#define TLI_DEFINE_VECFUNC(SCAL, VEC, VF, MASK, VABI_PREFIX)                   \
+  {SCAL, VEC, VF, MASK, VABI_PREFIX},
+#include "llvm/Analysis/VecFuncs.def"
+};
+
+void TargetLibraryInfoImpl::addVectorizableFunctionsFromVecLib(
+    enum VectorLibrary VecLib, const llvm::Triple &TargetTriple) {
+  switch (VecLib) {
+  case Accelerate: {
+    addVectorizableFunctions(VecFuncs_Accelerate);
+    break;
+  }
+  case DarwinLibSystemM: {
+    addVectorizableFunctions(VecFuncs_DarwinLibSystemM);
+    break;
+  }
+  case LIBMVEC_X86: {
+    addVectorizableFunctions(VecFuncs_LIBMVEC_X86);
+    break;
+  }
+  case MASSV: {
+    addVectorizableFunctions(VecFuncs_MASSV);
+    break;
+  }
+  case SVML: {
+    addVectorizableFunctions(VecFuncs_SVML);
+    break;
+  }
+  case SLEEFGNUABI: {
     switch (TargetTriple.getArch()) {
     default:
       break;
     case llvm::Triple::aarch64:
     case llvm::Triple::aarch64_be:
-      addVectorizableFunctions(VecFuncs_VF2);
-      addVectorizableFunctions(VecFuncs_VF4);
-      addVectorizableFunctions(VecFuncs_VFScalable);
+      addVectorizableFunctions(VecFuncs_SLEEFGNUABI_VF2);
+      addVectorizableFunctions(VecFuncs_SLEEFGNUABI_VF4);
+      addVectorizableFunctions(VecFuncs_SLEEFGNUABI_VFScalable);
       break;
     }
     break;
   }
   case ArmPL: {
-    const VecDesc VecFuncs[] = {
-#define TLI_DEFINE_ARMPL_VECFUNCS
-#define TLI_DEFINE_VECFUNC(SCAL, VEC, VF, MASK, VABI_PREFIX)                   \
-  {SCAL, VEC, VF, MASK, VABI_PREFIX},
-#include "llvm/Analysis/VecFuncs.def"
-    };
-
     switch (TargetTriple.getArch()) {
     default:
       break;
     case llvm::Triple::aarch64:
     case llvm::Triple::aarch64_be:
-      addVectorizableFunctions(VecFuncs);
+      addVectorizableFunctions(VecFuncs_ArmPL);
       break;
     }
     break;
   }
   case AMDLIBM: {
-    const VecDesc VecFuncs[] = {
-#define TLI_DEFINE_AMDLIBM_VECFUNCS
-#define TLI_DEFINE_VECFUNC(SCAL, VEC, VF, MASK, VABI_PREFIX)                   \
-  {SCAL, VEC, VF, MASK, VABI_PREFIX},
-#include "llvm/Analysis/VecFuncs.def"
-    };
-    addVectorizableFunctions(VecFuncs);
+    addVectorizableFunctions(VecFuncs_AMDLIBM);
     break;
   }
   case NoLibrary:

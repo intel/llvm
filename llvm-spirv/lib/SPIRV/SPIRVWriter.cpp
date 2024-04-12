@@ -4012,19 +4012,30 @@ bool allowDecorateWithLatencyControlINTEL(IntrinsicInst *II) {
 
 SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
                                                 SPIRVBasicBlock *BB) {
-  auto GetMemoryAccess = [](MemIntrinsic *MI) -> std::vector<SPIRVWord> {
+  auto GetMemoryAccess =
+      [](MemIntrinsic *MI,
+         bool AllowTwoMemAccessMasks) -> std::vector<SPIRVWord> {
     std::vector<SPIRVWord> MemoryAccess(1, MemoryAccessMaskNone);
     MaybeAlign DestAlignVal = MI->getDestAlign();
     if (DestAlignVal) {
       Align AlignVal = *DestAlignVal;
       MemoryAccess[0] |= MemoryAccessAlignedMask;
-      if (auto *MTI = dyn_cast<MemTransferInst>(MI)) {
+      if (auto *MTI = dyn_cast<MemCpyInst>(MI)) {
         MaybeAlign SourceAlignVal = MTI->getSourceAlign();
         assert(SourceAlignVal && "Missed Source alignment!");
 
         // In a case when alignment of source differs from dest one
-        // least value is guaranteed anyway.
-        AlignVal = std::min(*DestAlignVal, *SourceAlignVal);
+        // we either preserve both (allowed since SPIR-V 1.4), or the least
+        // value is guaranteed anyway.
+        if (AllowTwoMemAccessMasks) {
+          if (*DestAlignVal != *SourceAlignVal) {
+            MemoryAccess.push_back(DestAlignVal.valueOrOne().value());
+            MemoryAccess.push_back(MemoryAccessAlignedMask);
+            AlignVal = *SourceAlignVal;
+          }
+        } else {
+          AlignVal = std::min(*DestAlignVal, *SourceAlignVal);
+        }
       }
       MemoryAccess.push_back(AlignVal.value());
     }
@@ -4519,14 +4530,19 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
         transPointerType(Val->getType(), SPIRV::SPIRAS_Constant);
     SPIRVValue *Source = BM->addUnaryInst(OpBitcast, SourceTy, Var, BB);
     SPIRVValue *Target = transValue(MSI->getRawDest(), BB);
-    return BM->addCopyMemorySizedInst(Target, Source, CompositeTy->getLength(),
-                                      GetMemoryAccess(MSI), BB);
+    return BM->addCopyMemorySizedInst(
+        Target, Source, CompositeTy->getLength(),
+        GetMemoryAccess(MSI,
+                        BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4)),
+        BB);
   } break;
   case Intrinsic::memcpy:
     return BM->addCopyMemorySizedInst(
         transValue(II->getOperand(0), BB), transValue(II->getOperand(1), BB),
         transValue(II->getOperand(2), BB),
-        GetMemoryAccess(cast<MemIntrinsic>(II)), BB);
+        GetMemoryAccess(cast<MemIntrinsic>(II),
+                        BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4)),
+        BB);
   case Intrinsic::lifetime_start:
   case Intrinsic::lifetime_end: {
     Op OC = (II->getIntrinsicID() == Intrinsic::lifetime_start)

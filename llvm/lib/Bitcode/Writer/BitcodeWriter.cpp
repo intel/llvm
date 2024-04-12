@@ -203,7 +203,7 @@ public:
     for (const auto &GUIDSummaryLists : *Index)
       // Examine all summaries for this GUID.
       for (auto &Summary : GUIDSummaryLists.second.SummaryList)
-        if (auto FS = dyn_cast<FunctionSummary>(Summary.get()))
+        if (auto FS = dyn_cast<FunctionSummary>(Summary.get())) {
           // For each call in the function summary, see if the call
           // is to a GUID (which means it is for an indirect call,
           // otherwise we would have a Value for it). If so, synthesize
@@ -211,6 +211,15 @@ public:
           for (auto &CallEdge : FS->calls())
             if (!CallEdge.first.haveGVs() || !CallEdge.first.getValue())
               assignValueId(CallEdge.first.getGUID());
+
+          // For each referenced variables in the function summary, see if the
+          // variable is represented by a GUID (as opposed to a symbol to
+          // declarations or definitions in the module). If so, synthesize a
+          // value id.
+          for (auto &RefEdge : FS->refs())
+            if (!RefEdge.haveGVs() || !RefEdge.getValue())
+              assignValueId(RefEdge.getGUID());
+        }
   }
 
 protected:
@@ -1640,6 +1649,11 @@ static uint64_t getOptimizationFlags(const Value *V) {
   } else if (const auto *NNI = dyn_cast<PossiblyNonNegInst>(V)) {
     if (NNI->hasNonNeg())
       Flags |= 1 << bitc::PNNI_NON_NEG;
+  } else if (const auto *TI = dyn_cast<TruncInst>(V)) {
+    if (TI->hasNoSignedWrap())
+      Flags |= 1 << bitc::TIO_NO_SIGNED_WRAP;
+    if (TI->hasNoUnsignedWrap())
+      Flags |= 1 << bitc::TIO_NO_UNSIGNED_WRAP;
   }
 
   return Flags;
@@ -2751,9 +2765,10 @@ void ModuleBitcodeWriter::writeConstants(unsigned FirstVal, unsigned LastVal,
         Code = bitc::CST_CODE_CE_GEP;
         const auto *GO = cast<GEPOperator>(C);
         Record.push_back(VE.getTypeID(GO->getSourceElementType()));
-        if (std::optional<unsigned> Idx = GO->getInRangeIndex()) {
-          Code = bitc::CST_CODE_CE_GEP_WITH_INRANGE_INDEX;
-          Record.push_back((*Idx << 1) | GO->isInBounds());
+        if (std::optional<ConstantRange> Range = GO->getInRange()) {
+          Code = bitc::CST_CODE_CE_GEP_WITH_INRANGE;
+          Record.push_back(GO->isInBounds());
+          emitConstantRange(Record, *Range);
         } else if (GO->isInBounds())
           Code = bitc::CST_CODE_CE_INBOUNDS_GEP;
         for (unsigned i = 0, e = CE->getNumOperands(); i != e; ++i) {
@@ -3568,10 +3583,10 @@ void ModuleBitcodeWriter::writeFunction(
         // Write out non-instruction debug information attached to this
         // instruction. Write it after the instruction so that it's easy to
         // re-attach to the instruction reading the records in.
-        for (DbgRecord &DR : I.DbgMarker->getDbgRecordRange()) {
-          if (DPLabel *DPL = dyn_cast<DPLabel>(&DR)) {
-            Vals.push_back(VE.getMetadataID(&*DPL->getDebugLoc()));
-            Vals.push_back(VE.getMetadataID(DPL->getLabel()));
+        for (DbgRecord &DR : I.DebugMarker->getDbgRecordRange()) {
+          if (DbgLabelRecord *DLR = dyn_cast<DbgLabelRecord>(&DR)) {
+            Vals.push_back(VE.getMetadataID(&*DLR->getDebugLoc()));
+            Vals.push_back(VE.getMetadataID(DLR->getLabel()));
             Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_LABEL, Vals);
             Vals.clear();
             continue;
@@ -4182,7 +4197,7 @@ void ModuleBitcodeWriterBase::writePerModuleFunctionSummaryRecord(
   NameVals.push_back(SpecialRefCnts.second); // worefcnt
 
   for (auto &RI : FS->refs())
-    NameVals.push_back(VE.getValueID(RI.getValue()));
+    NameVals.push_back(getValueId(RI));
 
   const bool UseRelBFRecord =
       WriteRelBFToSummary && !F.hasProfileData() &&

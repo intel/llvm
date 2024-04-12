@@ -101,7 +101,7 @@
 /// -fsycl-targets=spir64_x86_64 should set a specific macro
 // RUN: %clangxx -c -fsycl -fsycl-targets=spir64_x86_64 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=MACRO_X86_64
-// RUN: %clang_cl -c -fsycl -fsycl-targets=spir64_x86_64 -### %s 2>&1 | \
+// RUN: %clang_cl -c -fsycl -fsycl-targets=spir64_x86_64 -### -- %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=MACRO_X86_64
 // MACRO_X86_64: clang{{.*}} "-triple" "spir64_x86_64-unknown-unknown"
 // MACRO_X86_64: "-D__SYCL_TARGET_INTEL_X86_64__"
@@ -111,7 +111,7 @@
 /// test for invalid intel arch
 // RUN: not %clangxx -c -fsycl -fsycl-targets=intel_gpu_bad -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_INPUT
-// RUN: not %clang_cl -c -fsycl -fsycl-targets=intel_gpu_bad -### %s 2>&1 | \
+// RUN: not %clang_cl -c -fsycl -fsycl-targets=intel_gpu_bad -### -- %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_INPUT
 // BAD_INPUT: error: SYCL target is invalid: 'intel_gpu_bad'
 
@@ -233,3 +233,9 @@
 // CHECK_TOOLS_BEOPTS_MIX: opencl-aot{{.*}} "-DCPU"
 // CHECK_TOOLS_BEOPTS_MIX-NOT: "-DDG1"
 // CHECK_TOOLS_BEOPTS_MIX: ocloc{{.*}} "-device" "skl"{{.*}}"-DSKL2"
+
+/// Check that target is passed to sycl-post-link for filtering
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc,intel_gpu_dg1 \
+// RUN:   -### %s 2>&1 | FileCheck %s --check-prefix=CHECK_TOOLS_FILTER
+// CHECK_TOOLS_FILTER: sycl-post-link{{.*}} "-o" "intel_gpu_pvc,{{.*}}"
+// CHECK_TOOLS_FILTER: sycl-post-link{{.*}} "-o" "intel_gpu_dg1,{{.*}}"

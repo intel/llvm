@@ -3,9 +3,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// RUN: %if linux %{ %{build} -DINCLUDE_BEFORE -fsycl-host-compiler=g++ -o %t.out %}
+// RUN: %if linux %{ %{build} -DINCLUDE_BEFORE -fsycl-host-compiler=g++ -fsycl-host-compiler-options="-std=c++17" -o %t.out %}
 // RUN: %if linux %{ %{run} %t.out %}
-// RUN: %if linux %{ %{build} -fsycl-host-compiler=g++ -o %t.out %}
+// RUN: %if linux %{ %{build} -fsycl-host-compiler=g++ -fsycl-host-compiler-options="-std=c++17" -o %t.out %}
 // RUN: %if linux %{ %{run} %t.out %}
 
 // RUN: %if windows %{ %{build} -DINCLUDE_BEFORE -fsycl-host-compiler=cl -fsycl-host-compiler-options="/std:c++17" -o %t.out %}
