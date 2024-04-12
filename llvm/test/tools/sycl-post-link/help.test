@@ -45,7 +45,7 @@ CHECK: sycl-post-link options:
 CHECK: --device-globals     - Lower and generate information about device global variables
 CHECK: -f                   - Enable binary output on terminals
 CHECK: --ir-output-only     - Output single IR file
-CHECK: -o <filename>        - Output filename
+CHECK: -o <target filename pair>  - Specifies an output file. Multiple output files can be specified. Additionally, a target may be specified alongside an output file, which has the effect that when module splitting is performed, the modules that are in that output table are filtered so those modules are compatible with the target.
 CHECK: --out-dir=<dirname>  - Directory where files listed in the result file table will be output
 CHECK: --spec-const=<value> - lower and generate specialization constants information
 CHECK:   =native            - lower spec constants to native spirv instructions so that these values could be set at runtime
