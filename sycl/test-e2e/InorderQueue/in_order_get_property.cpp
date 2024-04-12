@@ -24,7 +24,7 @@ int main() {
     Queue1.get_property<property::queue::in_order>();
     assert(false && "Queue1 was created without any properties therefore get "
                     "property should fail.");
-  } catch (const invalid_object_error &e) {
+  } catch (const std::invalid_argument &e) {
     std::string ErrorMessage = e.what();
     assert(
         (ErrorMessage.find("The property is not found") != std::string::npos) &&
