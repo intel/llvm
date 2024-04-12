@@ -12,6 +12,16 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
 COPY scripts/install_build_tools.sh /install.sh
 RUN /install.sh
 
+# Install AMD ROCm
+RUN printf 'Package: *\nPin: release o=repo.radeon.com\nPin-Priority: 600\n' | tee /etc/apt/preferences.d/rocm-pin-600
+RUN apt install -yqq libnuma-dev wget gnupg2 && \
+  wget -q -O - https://repo.radeon.com/rocm/rocm.gpg.key | apt-key add - && \
+  echo 'deb [arch=amd64] https://repo.radeon.com/rocm/apt/debian/ ubuntu main' | tee /etc/apt/sources.list.d/rocm.list && \
+  apt update && \
+  apt install -yqq rocm-dev && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/*
+
 # By default Ubuntu sets an arbitrary UID value, that is different from host
 # system. When CI passes default UID value of 1001, some of LLVM tools fail to
 # discover user home directory and fail a few LIT tests. Fixes UID and GID to
@@ -24,4 +34,3 @@ RUN usermod -aG irc sycl
 COPY scripts/docker_entrypoint.sh /docker_entrypoint.sh
 
 ENTRYPOINT ["/docker_entrypoint.sh"]
-
