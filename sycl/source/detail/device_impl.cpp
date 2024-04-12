@@ -793,6 +793,8 @@ device_impl::get_immediate_progress_guarantee(
       return forward_progress_guarantee::weakly_parallel;
     case execution_scope::sub_group:
       return forward_progress_guarantee::weakly_parallel;
+    default:
+      throw sycl::exception(sycl::errc::invalid, "Work item is not a valid coordination scope!");
     }
   } else if (is_gpu() && getBackend() == backend::ext_oneapi_level_zero) {
     switch (coordination_scope) {
@@ -802,6 +804,8 @@ device_impl::get_immediate_progress_guarantee(
       return forward_progress_guarantee::concurrent;
     case execution_scope::sub_group:
       return forward_progress_guarantee::weakly_parallel;
+    default:
+      throw sycl::exception(sycl::errc::invalid, "Work item is not a valid coordination scope!");
     }
   }
   return forward_progress_guarantee::weakly_parallel;

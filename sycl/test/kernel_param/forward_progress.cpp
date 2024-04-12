@@ -1,7 +1,8 @@
 // RUN: %clangxx -fsycl %s -fsyntax-only
-#include <sycl/sycl.hpp>
-using namespace sycl::ext::oneapi::experimental;
 
+#include <sycl/sycl.hpp>
+
+using namespace sycl::ext::oneapi::experimental;
 
 template <forward_progress_guarantee guarantee>
 void check_props(sycl::queue &q) {

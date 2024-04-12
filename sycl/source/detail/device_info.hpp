@@ -2295,7 +2295,7 @@ struct get_device_info_impl<
     using execution_scope = ext::oneapi::experimental::execution_scope;
     ReturnT res;
     auto guarantee = static_cast<forward_progress_guarantee>(
-        std::min({static_cast<int>(Dev->get_immediate_progress_guarantee(
+        std::max({static_cast<int>(Dev->get_immediate_progress_guarantee(
                       execution_scope::work_group)),
                   static_cast<int>(Dev->get_immediate_progress_guarantee(
                       execution_scope::root_group))}));
@@ -2338,7 +2338,7 @@ struct get_device_info_impl<
     using execution_scope = ext::oneapi::experimental::execution_scope;
     ReturnT res;
     auto guarantee = static_cast<forward_progress_guarantee>(
-        std::min({static_cast<int>(Dev->get_immediate_progress_guarantee(
+        std::max({static_cast<int>(Dev->get_immediate_progress_guarantee(
                       execution_scope::root_group)),
                   static_cast<int>(Dev->get_immediate_progress_guarantee(
                       execution_scope::work_group)),
@@ -2362,8 +2362,8 @@ struct get_device_info_impl<
     using execution_scope = ext::oneapi::experimental::execution_scope;
     ReturnT res;
     auto guarantee = static_cast<forward_progress_guarantee>(
-        std::min({static_cast<int>(Dev->get_immediate_progress_guarantee(
-                      execution_scope::root_group)),
+        std::max({static_cast<int>(Dev->get_immediate_progress_guarantee(
+                      execution_scope::sub_group)),
                   static_cast<int>(Dev->get_immediate_progress_guarantee(
                       execution_scope::work_group))}));
     int guarantee_val = static_cast<int>(guarantee);
