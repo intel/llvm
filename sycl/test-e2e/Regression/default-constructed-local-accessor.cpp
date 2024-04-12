@@ -14,7 +14,5 @@ struct foo {
 
 int main() {
   queue q;
-  q.submit([&](handler &cgh) {
-    cgh.parallel_for(nd_range<1>(1, 1), foo{});
-  });
+  q.submit([&](handler &cgh) { cgh.parallel_for(nd_range<1>(1, 1), foo{}); });
 }
