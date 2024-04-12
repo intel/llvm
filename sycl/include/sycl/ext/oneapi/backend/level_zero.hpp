@@ -125,6 +125,30 @@ inline context make_context<backend::ext_oneapi_level_zero>(
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
 }
 
+// Specialization of sycl::make_device for Level-Zero backend.
+template <>
+inline device make_device<backend::ext_oneapi_level_zero>(
+    const backend_input_t<backend::ext_oneapi_level_zero, device>
+        &BackendObject) {
+  // Unlike OpenCL, we can't get information about zeDriver from zeDevice.
+  // Majority of Level-Zero APIs also suggest that there might be multiple
+  // zeDevice at the same time. However, the code at
+  // https://github.com/intel/compute-runtime/blob/864f42116cf4b0f5a91699cfe099d0c9186ca45b/level_zero/core/source/driver/driver.cpp#L27
+  // has a single globalDriverHandle that is later used everywhere (e.g.
+  // driverHandleGet just returns it for all elements in outgoing
+  // phDriverHandles). As such, I'd expect that once multiple zeDriver are fully
+  // implemented we'd get something akin clGetDeviceInfo with CL_DEVICE_PLATFORM
+  // parameter. Until then, rely on the current behavior.
+  auto platforms = platform::get_platforms();
+  auto level_zero_platform_it =
+      std::find_if(platforms.begin(), platforms.end(), [](auto &&p) {
+        return p.get_backend() == backend::ext_oneapi_level_zero;
+      });
+  assert(level_zero_platform_it != platforms.end());
+  return ext::oneapi::level_zero::make_device(
+      *level_zero_platform_it, sycl::bit_cast<pi_native_handle>(BackendObject));
+}
+
 // Specialization of sycl::make_queue for Level-Zero backend.
 template <>
 inline queue make_queue<backend::ext_oneapi_level_zero>(
