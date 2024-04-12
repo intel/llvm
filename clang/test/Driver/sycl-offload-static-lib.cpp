@@ -6,7 +6,7 @@
 /// test behaviors of passing a fat static lib
 // Build a fat static lib that will be used for all tests
 // RUN: echo "void foo(void) {}" > %t1.cpp
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl %t1.cpp -c -o %t1_bundle.o
+// RUN: %clangxx -fno-sycl-use-footer --target=x86_64-unknown-linux-gnu -fsycl %t1.cpp -c -o %t1_bundle.o
 // RUN: llvm-ar cr %t.a %t1_bundle.o
 // RUN: llvm-ar cr %t_2.a %t1_bundle.o
 
@@ -54,28 +54,27 @@
 
 // FOFFLOAD_STATIC_LIB_SRC: 0: input, "[[INPUTA:.+\.a]]", object, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 1: input, "[[INPUTC:.+\.cpp]]", c++, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 2: append-footer, {1}, c++, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 3: preprocessor, {2}, c++-cpp-output, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 4: input, "[[INPUTC]]", c++, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 5: preprocessor, {4}, c++-cpp-output, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 6: compiler, {5}, ir, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 7: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (spir64-unknown-unknown)" {6}, c++-cpp-output
-// FOFFLOAD_STATIC_LIB_SRC: 8: compiler, {7}, ir, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 9: backend, {8}, assembler, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 10: assembler, {9}, object, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 11: linker, {0, 10}, host_dep_image, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 12: clang-offload-deps, {11}, ir, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 13: input, "[[INPUTA]]", archive
-// FOFFLOAD_STATIC_LIB_SRC: 14: clang-offload-unbundler, {13}, tempfilelist
-// FOFFLOAD_STATIC_LIB_SRC: 15: spirv-to-ir-wrapper, {14}, tempfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 16: linker, {6, 12, 15}, ir, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 17: sycl-post-link, {16}, tempfiletable, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 18: file-table-tform, {17}, tempfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 19: llvm-spirv, {18}, tempfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 20: file-table-tform, {17, 19}, tempfiletable, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 21: clang-offload-wrapper, {20}, object, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 22: offload, "device-sycl (spir64-unknown-unknown)" {21}, object
-// FOFFLOAD_STATIC_LIB_SRC: 23: linker, {0, 10, 22}, image, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 3: input, "[[INPUTC]]", c++, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 4: preprocessor, {3}, c++-cpp-output, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 5: compiler, {4}, ir, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (spir64-unknown-unknown)" {5}, c++-cpp-output
+// FOFFLOAD_STATIC_LIB_SRC: 7: compiler, {6}, ir, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 8: backend, {7}, assembler, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 9: assembler, {8}, object, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 10: linker, {0, 9}, host_dep_image, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 11: clang-offload-deps, {10}, ir, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 12: input, "[[INPUTA]]", archive
+// FOFFLOAD_STATIC_LIB_SRC: 13: clang-offload-unbundler, {12}, tempfilelist
+// FOFFLOAD_STATIC_LIB_SRC: 14: spirv-to-ir-wrapper, {13}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 15: linker, {5, 11, 14}, ir, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 16: sycl-post-link, {15}, tempfiletable, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 17: file-table-tform, {16}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 18: llvm-spirv, {17}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 19: file-table-tform, {16, 18}, tempfiletable, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 20: clang-offload-wrapper, {19}, object, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 21: offload, "device-sycl (spir64-unknown-unknown)" {20}, object
+// FOFFLOAD_STATIC_LIB_SRC: 22: linker, {0, 9, 21}, image, (host-sycl)
 
 /// ###########################################################################
 
@@ -155,7 +154,7 @@
 /// ###########################################################################
 
 /// test behaviors of -foffload-static-lib with no value
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -foffload-static-lib= -c %s 2>&1 \
+// RUN: %clangxx -fno-sycl-use-footer --target=x86_64-unknown-linux-gnu -fsycl -foffload-static-lib= -c %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefixes=FOFFLOAD_STATIC_LIB_NOVALUE
 // FOFFLOAD_STATIC_LIB_NOVALUE: warning: argument unused during compilation: '-foffload-static-lib='
 

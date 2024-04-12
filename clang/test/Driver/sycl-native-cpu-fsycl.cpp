@@ -10,30 +10,27 @@
 
 
 //CHECK_ACTIONS:                     +- 0: input, "{{.*}}sycl-native-cpu-fsycl.cpp", c++, (host-sycl)
-//CHECK_ACTIONS:                  +- 1: append-footer, {0}, c++, (host-sycl)
-//CHECK_ACTIONS:               +- 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
-//CHECK_ACTIONS:               |     +- 3: input, "{{.*}}sycl-native-cpu-fsycl.cpp", c++, (device-sycl)
-//CHECK_ACTIONS:               |  +- 4: preprocessor, {3}, c++-cpp-output, (device-sycl)
-//CHECK_ACTIONS:               |- 5: compiler, {4}, ir, (device-sycl)
-//CHECK_ACTIONS:            +- 6: offload, "host-sycl ({{.*}})" {2}, "device-sycl ({{.*}})" {5}, c++-cpp-output
-//CHECK_ACTIONS:         +- 7: compiler, {6}, ir, (host-sycl)
-//CHECK_ACTIONS:      +- 8: backend, {7}, assembler, (host-sycl)
-//CHECK_ACTIONS:   +- 9: assembler, {8}, object, (host-sycl)
-
-//CHECK_ACTIONS:|           +- 10: linker, {5}, ir, (device-sycl)
-//CHECK_ACTIONS:|           |- 11: input, "{{.*}}libspirv{{.*}}", ir, (device-sycl)
-//CHECK_ACTIONS:|        +- 12: linker, {10, 11}, ir, (device-sycl)
-//CHECK_ACTIONS:|     +- 13: backend, {12}, assembler, (device-sycl)
-//CHECK_ACTIONS:|  +- 14: assembler, {13}, object, (device-sycl)
-//CHECK_ACTIONS:|- 15: offload, "device-sycl ({{.*}})" {14}, object
-//CHECK_ACTIONS:|     +- 16: sycl-post-link, {12}, tempfiletable, (device-sycl)
-//CHECK_ACTIONS:|  +- 17: clang-offload-wrapper, {16}, object, (device-sycl)
-//CHECK_ACTIONS:|- 18: offload, "device-sycl ({{.*}})" {17}, object
-//CHECK_ACTIONS:19: linker, {9, 15, 18}, image, (host-sycl)
+//CHECK_ACTIONS:            +- 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
+//CHECK_ACTIONS:            |     +- 2: input, "{{.*}}sycl-native-cpu-fsycl.cpp", c++, (device-sycl)
+//CHECK_ACTIONS:            |  +- 3: preprocessor, {2}, c++-cpp-output, (device-sycl)
+//CHECK_ACTIONS:            |- 4: compiler, {3}, ir, (device-sycl)
+//CHECK_ACTIONS:         +- 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (x86_64-unknown-linux-gnu)" {4}, c++-cpp-output
+//CHECK_ACTIONS:      +- 6: compiler, {5}, ir, (host-sycl)
+//CHECK_ACTIONS:   +- 7: backend, {6}, assembler, (host-sycl)
+//CHECK_ACTIONS:+- 8: assembler, {7}, object, (host-sycl)
+//CHECK_ACTIONS:|           +- 9: linker, {4}, ir, (device-sycl)
+//CHECK_ACTIONS:|           |- 10: input, "{{.*}}libspirv{{.*}}", ir, (device-sycl)
+//CHECK_ACTIONS:|        +- 11: linker, {9, 10}, ir, (device-sycl)
+//CHECK_ACTIONS:|     +- 12: backend, {11}, assembler, (device-sycl)
+//CHECK_ACTIONS:|  +- 13: assembler, {12}, object, (device-sycl)
+//CHECK_ACTIONS:|- 14: offload, "device-sycl (x86_64-unknown-linux-gnu)" {13}, object
+//CHECK_ACTIONS:|     +- 15: sycl-post-link, {11}, tempfiletable, (device-sycl)
+//CHECK_ACTIONS:|  +- 16: clang-offload-wrapper, {15}, object, (device-sycl)
+//CHECK_ACTIONS:|- 17: offload, "device-sycl (x86_64-unknown-linux-gnu)" {16}, object
+//CHECK_ACTIONS:18: linker, {8, 14, 17}, image, (host-sycl)
 
 //CHECK_BINDINGS:# "{{.*}}" - "clang", inputs: ["{{.*}}sycl-native-cpu-fsycl.cpp"], output: "[[KERNELIR:.*]].bc"
-//CHECK_BINDINGS:# "{{.*}}" - "Append Footer to source", inputs: ["{{.*}}sycl-native-cpu-fsycl.cpp"], output: "[[SRCWFOOTER:.*]].cpp"
-//CHECK_BINDINGS:# "{{.*}}" - "clang", inputs: ["[[SRCWFOOTER]].cpp", "[[KERNELIR]].bc"], output: "[[HOSTOBJ:.*]].o"
+//CHECK_BINDINGS:# "{{.*}}" - "clang", inputs: ["{{.*}}sycl-native-cpu-fsycl.cpp", "[[KERNELIR]].bc"], output: "[[HOSTOBJ:.*]].o"
 //CHECK_BINDINGS:# "{{.*}}" - "SYCL::Linker", inputs: ["[[KERNELIR]].bc"], output: "[[KERNELLINK:.*]].bc"
 //CHECK_BINDINGS:# "{{.*}}" - "SYCL::Linker", inputs: ["[[KERNELLINK]].bc", "{{.*}}.bc"], output: "[[KERNELLINKWLIB:.*]].bc"
 //CHECK_BINDINGS:# "{{.*}}" - "clang", inputs: ["[[KERNELLINKWLIB]].bc"], output: "[[KERNELOBJ:.*]].o"
@@ -48,9 +45,9 @@
 //CHECK_INVO-NOT:{{.*}}sycl-post-link{{.*}}-emit-only-kernels-as-entry-points
 
 // checks that the device and host triple is correct in the generated actions when it is set explicitly
-//CHECK_ACTIONS-AARCH64:            +- 6: offload, "host-sycl (aarch64-unknown-linux-gnu)" {2}, "device-sycl (aarch64-unknown-linux-gnu)" {5}, c++-cpp-output
-//CHECK_ACTIONS-AARCH64:|- 15: offload, "device-sycl (aarch64-unknown-linux-gnu)" {14}, object
-//CHECK_ACTIONS-AARCH64:|- 18: offload, "device-sycl (aarch64-unknown-linux-gnu)" {17}, object
+//CHECK_ACTIONS-AARCH64:            +- 5: offload, "host-sycl (aarch64-unknown-linux-gnu)" {1}, "device-sycl (aarch64-unknown-linux-gnu)" {4}, c++-cpp-output
+//CHECK_ACTIONS-AARCH64:|- 14: offload, "device-sycl (aarch64-unknown-linux-gnu)" {13}, object
+//CHECK_ACTIONS-AARCH64:|- 17: offload, "device-sycl (aarch64-unknown-linux-gnu)" {16}, object
 
 // checks that bindings are correct when linking together multiple TUs on native cpu
 //CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "offload bundler", inputs: ["{{.*}}.o"], outputs: ["[[FILE1HOST:.*]].o", "[[FILE1DEV:.*]].o"] 
