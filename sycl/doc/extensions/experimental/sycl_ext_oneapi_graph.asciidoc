@@ -275,7 +275,7 @@ been submitted.
 
 | Edge
 | An edge in a queue recorded graph is expressed through command group
-dependencies in one of two ways. Firstly, through buffer accessors that
+dependencies in one of three ways. Firstly, through buffer accessors that
 represent data dependencies between two command groups captured as nodes.
 Secondly, by using the `handler::depends_on()` mechanism inside a command group
 captured as a node. However, for an event passed to `handler::depends_on()` to
@@ -283,7 +283,8 @@ create an edge, it must be an event returned from a queue
 submission captured by the same graph. Otherwise, a synchronous error will be
 thrown with error code `invalid`. `handler::depends_on()` can be
 used to express edges when a user is working with USM memory rather than SYCL
-buffers.
+buffers. Thirdly, for a graph recorded with an in-order queue, an edge is added
+automatically between two sequential command groups submitted to the in-order queue.
 |===
 
 ==== Sub-Graph
