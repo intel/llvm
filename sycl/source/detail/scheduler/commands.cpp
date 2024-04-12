@@ -300,16 +300,6 @@ bool Command::isHostTask() const {
           CG::CGTYPE::CodeplayHostTask);
 }
 
-bool Command::isBarrier() const {
-  if ((MType != CommandType::RUN_CG)) {
-    return false;
-  }
-  const auto CGType =
-      (static_cast<const ExecCGCommand &>(*this)).getCG().getType();
-  return (CGType == CG::CGTYPE::Barrier ||
-          CGType == CG::CGTYPE::BarrierWaitlist);
-}
-
 bool Command::isFusable() const {
   if ((MType != CommandType::RUN_CG)) {
     return false;

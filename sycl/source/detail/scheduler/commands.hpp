@@ -249,7 +249,6 @@ public:
   getPiEventsBlocking(const std::vector<EventImplPtr> &EventImpls) const;
 
   bool isHostTask() const;
-  bool isBarrier() const;
 
   bool isFusable() const;
 
