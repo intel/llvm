@@ -28,7 +28,6 @@ jobs:
 
       - name: Validate author email
         if: ${{ endsWith(steps.author.outputs.EMAIL, 'noreply.github.com')  }}
-        uses: actions/github-script@v7
         env:
           COMMENT: >-
             ⚠️ We detected that you are using a GitHub private e-mail address to contribute to the repo.<br/>
