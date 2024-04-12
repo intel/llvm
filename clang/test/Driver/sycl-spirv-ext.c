@@ -84,6 +84,7 @@
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_task_sequence
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_usm_storage_classes
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_runtime_aligned
+// CHECK-FPGA-HW-SAME:,+SPV_INTEL_arbitrary_precision_integers
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_cluster_attributes,+SPV_INTEL_loop_fuse
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_dsp_control
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_memory_accesses
