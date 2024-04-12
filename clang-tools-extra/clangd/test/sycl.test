@@ -25,11 +25,11 @@
 # CHECK-NEXT:        "range": {
 # CHECK-NEXT:          "end": {
 # CHECK-NEXT:            "character": 16,
-# CHECK-NEXT:            "line": 124
+# CHECK-NEXT:            "line": 116
 # CHECK-NEXT:          },
 # CHECK-NEXT:          "start": {
 # CHECK-NEXT:            "character": 11,
-# CHECK-NEXT:            "line": 124
+# CHECK-NEXT:            "line": 116
 # CHECK-NEXT:          }
 # CHECK-NEXT:        },
 # CHECK-NEXT:        "uri": "file://{{.*}}/include/sycl/queue.hpp"

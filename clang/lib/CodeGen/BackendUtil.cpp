@@ -112,14 +112,13 @@ using namespace llvm;
 namespace llvm {
 extern cl::opt<bool> PrintPipelinePasses;
 
-cl::opt<bool> ClRemoveTraps("clang-remove-traps", cl::Optional,
-                            cl::desc("Insert remove-traps pass."),
-                            cl::init(false));
+static cl::opt<bool> ClRemoveTraps("clang-remove-traps", cl::Optional,
+                                   cl::desc("Insert remove-traps pass."));
 
 // Experiment to move sanitizers earlier.
 static cl::opt<bool> ClSanitizeOnOptimizerEarlyEP(
     "sanitizer-early-opt-ep", cl::Optional,
-    cl::desc("Insert sanitizers on OptimizerEarlyEP."), cl::init(false));
+    cl::desc("Insert sanitizers on OptimizerEarlyEP."));
 
 extern cl::opt<InstrProfCorrelator::ProfCorrelatorKind> ProfileCorrelate;
 
@@ -130,7 +129,7 @@ cl::opt<bool> ClRelinkBuiltinBitcodePostop(
 
 static cl::opt<bool> SYCLNativeCPUBackend(
     "sycl-native-cpu-backend", cl::init(false),
-    cl::desc("Run the backend passes for SYCL Native CPU"));
+    cl::desc("Re-link builtin bitcodes after optimization."));
 } // namespace llvm
 
 namespace {
@@ -1138,10 +1137,10 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
       // Add SPIRITTAnnotations pass to the pass manager if
       // -fsycl-instrument-device-code option was passed. This option can be
-      // used only with spir triple.
+      // used only with spir or spirv triple.
       if (CodeGenOpts.SPIRITTAnnotations) {
         assert(
-            TargetTriple.isSPIR() &&
+            TargetTriple.isSPIROrSPIRV() &&
             "ITT annotations can only be added to a module with spir target");
         MPM.addPass(SPIRITTAnnotationsPass());
       }
