@@ -600,11 +600,11 @@ event queue_impl::discard_or_return(const event &Event) {
 }
 
 void queue_impl::revisitNotEnqueuedCommandsState(
-    const EventImplPtr &EnqueuedBarrierEvent) {
+    const EventImplPtr &CompletedHostTask) {
   if (MIsInorder)
     return;
-  auto tryToCleanup = [&EnqueuedBarrierEvent](DependencyTrackingItems &Deps) {
-    if (Deps.LastBarrier.isEnqueued()) {
+  auto tryToCleanup = [](DependencyTrackingItems &Deps) {
+    if (Deps.LastBarrier && Deps.LastBarrier->isEnqueued()) {
       Deps.LastBarrier = nullptr;
       Deps.NotEnqueuedCmdEvents.clear();
     }
@@ -615,9 +615,8 @@ void queue_impl::revisitNotEnqueuedCommandsState(
     Deps.NotEnqueuedCmdEvents.erase(
         std::remove_if(Deps.NotEnqueuedCmdEvents.begin(),
                        Deps.NotEnqueuedCmdEvents.end(),
-                       [&CompletedHostTask](const EventImplPtr &CommandEvent) {
-                         return (CommandEvent == CompletedHostTask) ||
-                                (CommandEvent->is_host()
+                       [](const EventImplPtr &CommandEvent) {
+                         return (CommandEvent->is_host()
                                      ? CommandEvent->isCompleted()
                                      : CommandEvent->isEnqueued());
                        }),
@@ -628,7 +627,7 @@ void queue_impl::revisitNotEnqueuedCommandsState(
   // Barrier enqueue could be significantly postponed due to host task
   // dependency if any. No guarantee that it will happen while same graph deps
   // are still recording.
-  if (auto Graph = EnqueuedBarrierEvent->getCommandGraph()) {
+  if (auto Graph = CompletedHostTask->getCommandGraph()) {
     if (Graph == getCommandGraph())
       tryToCleanup(MExtGraphDeps);
   } else
