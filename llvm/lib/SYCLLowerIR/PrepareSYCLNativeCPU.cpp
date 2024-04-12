@@ -390,11 +390,13 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   for (const auto &Entry : UsedBuiltins) {
     SmallVector<std::pair<Instruction *, Instruction *>> ToRemove;
     Function *const Glob = Entry.first;
+    Function *ReplaceFunc = nullptr;
     for (const auto &Use : Glob->uses()) {
       auto I = cast<CallInst>(Use.getUser());
       SmallVector<Value *> Args(I->arg_begin(), I->arg_end());
       Args.push_back(getStateArg(I->getFunction(), CurrentStatePointerTLS));
-      auto *ReplaceFunc = getReplaceFunc(M, Entry.second, Use, Args);
+      if (nullptr == ReplaceFunc)
+        ReplaceFunc = getReplaceFunc(M, Entry.second, Use, Args);
       auto *NewI = CallInst::Create(ReplaceFunc->getFunctionType(), ReplaceFunc,
                                     Args, "", I);
       // If the parent function has debug info, we need to make sure that the
