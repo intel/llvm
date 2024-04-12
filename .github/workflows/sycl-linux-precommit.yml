@@ -24,6 +24,16 @@ on:
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
 
+  workflow_dispatch:
+    inputs:
+      intel_drivers_docker_image_tag:
+        type: choice
+        options:
+          - 'latest'
+          - 'devigc'
+          - 'unstable'
+        default: 'latest'
+
 concurrency:
   #  Cancel a currently running workflow from the same PR, branch or tag.
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -81,7 +91,7 @@ jobs:
             target_devices: ext_oneapi_hip:gpu
           - name: Intel
             runner: '["Linux", "gen12"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:${{ github.event_name == 'workflow_dispatch' && inputs.intel_drivers_docker_image_tag || 'latest' }}
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: ext_oneapi_level_zero:gpu;opencl:gpu;opencl:cpu
             reset_gpu: true
@@ -89,7 +99,7 @@ jobs:
             extra_lit_opts: --param gpu-intel-gen12=True
           - name: E2E tests on Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:${{ github.event_name == 'workflow_dispatch' && inputs.intel_drivers_docker_image_tag || 'latest' }}
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
             reset_gpu: true
