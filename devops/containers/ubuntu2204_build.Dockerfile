@@ -28,6 +28,7 @@ RUN apt update
 RUN yes | apt install rocm-core
 # Cleanup
 RUN apt-get clean && \
+  rm -rf /var/lib/apt/lists/*
 
 # By default Ubuntu sets an arbitrary UID value, that is different from host
 # system. When CI passes default UID value of 1001, some of LLVM tools fail to
