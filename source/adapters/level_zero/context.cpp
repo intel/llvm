@@ -697,12 +697,6 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
   // command list is available for reuse.
   ur_result_t ur_result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
 
-  // As a limitation of regular command list, when counter based events are used
-  // the command list in the cache still has the potential of having events that
-  // are still associated with another command list. We disable cache for
-  // regular command list when counter based events are enabled to avoid race
-  // condition.
-  if (!Queue->CounterBasedEventsEnabled)
   // Initally, we need to check if a command list has already been created
   // on this device that is available for use. If so, then reuse that
   // Level-Zero Command List and Fence for this PI call.
