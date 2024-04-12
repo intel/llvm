@@ -57,12 +57,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 532dac51118881e91831287538d634e5e6d54f5c
+  # commit bcbe255536e9a0332b5fa572021909a70da955e0
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Apr 10 10:21:22 2024 +0100
-  #     Merge pull request #1455 from GeorgeWeb/georgi/fix-hip-usm-copy2d
-  #     [HIP] Fix memory type detection in allocation info queries and USM copy2D
-  set(UNIFIED_RUNTIME_TAG 26cc04e258b82696bfd7738d08d95e34db4aecf6)
+  # Date:   Wed Apr 10 16:15:45 2024 +0100
+  #     Merge pull request #1483 from nrspruit/fix_inorder_lists_reuse
+  #     [L0] Fix regular in order command list reuse given inorder queue
+  set(UNIFIED_RUNTIME_TAG bcbe255536e9a0332b5fa572021909a70da955e0)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
