@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit e00a764f8dafd1319b636aa99c15601ec0d4d7fc
-  # Merge: 85b75590 92b60b77
+  # commit 758c61490442456933e3957aac568e13287429eb
+  # Merge: e2b5b7fa e2e44728
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Apr 10 10:21:22 2024 +0100
-  #    Merge pull request #1455 from GeorgeWeb/georgi/fix-hip-usm-copy2d
-  #    [HIP] Fix memory type detection in allocation info queries and USM copy2D
-  set(UNIFIED_RUNTIME_TAG e00a764f8dafd1319b636aa99c15601ec0d4d7fc)
+  # Date:   Wed Apr 10 16:15:45 2024 +0100
+  #    Merge pull request #1483 from nrspruit/fix_inorder_lists_reuse
+  #    [L0] Fix regular in order command list reuse given inorder queue
+  set(UNIFIED_RUNTIME_TAG 758c61490442456933e3957aac568e13287429eb)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -121,24 +121,24 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit 6e76c98a1f5cd3c4f5e99011e92bd55b3a46cc4c
-    # Merge: 08b3e8fe 834e6435
+    # commit 0eab26c7925c5ef341a6409d3766686b060b736b
+    # Merge: 70ba1503 1cf4a4e9
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Apr 10 16:26:17 2024 +0100
-    #     Merge pull request #1220 from fabiomestre/fabio/cuda_multimap
-    #     [CUDA] Add support for multiple active mappings
-    6e76c98a1f5cd3c4f5e99011e92bd55b3a46cc4c
+    # Date:   Fri Apr 12 09:58:26 2024 +0100
+    #     Merge pull request #1310 from pasaulais/remove-old-cuda-tracing-fn
+    #     [CUDA] Remove unused function variant
+    0eab26c7925c5ef341a6409d3766686b060b736b
   )
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 08b3e8fe6c5ad0aed125823c335eb44343845f6c
-    # Merge: 758c6149 db47fc0a
+    # commit 1473ed8a81ca86e67321dfc90c79e951ead212ac
+    # Merge: 6ccaf387 f2774226
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Apr 10 16:22:00 2024 +0100
-    #     Merge pull request #1359 from lplewa/hip_log
-    #     Refactor hip adapter to new logger
-    08b3e8fe6c5ad0aed125823c335eb44343845f6c
+    # Date:   Fri Apr 12 10:43:00 2024 +0100
+    #     Merge pull request #1395 from konradkusiak97/improvedQueueFill
+    #     [HIP] Implement workaround for hipMemset2D
+    1473ed8a81ca86e67321dfc90c79e951ead212ac
   )
 
   fetch_adapter_source(native_cpu
