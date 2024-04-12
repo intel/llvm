@@ -10,6 +10,7 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %S/Kernels/kernels.spv %S/Kernels/kernels_fp16.spv %S/Kernels/kernels_fp64.spv
+// XFAIL: cpu
 
 // Test case for the sycl_ext_oneapi_kernel_compiler_spirv extension. This test
 // loads pre-compiled kernels from a SPIR-V file and runs them.

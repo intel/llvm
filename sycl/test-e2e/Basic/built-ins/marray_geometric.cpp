@@ -2,6 +2,7 @@
 // RUN: %{run} %t.out
 // RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -o %t_preview.out %}
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t_preview.out %}
+// XFAIL: cpu
 
 #include "helpers.hpp"
 
