@@ -109,7 +109,7 @@ static constexpr ToType BitCast(const FromType &Value) {
 #ifdef __SYCL_BITCAST_IS_CONSTEXPR
   return sycl::bit_cast<ToType>(Value);
 #else
-  // awkward workaround. sycl::bit_cast isn't constexpr in older GCC
+  // Awkward workaround. sycl::bit_cast isn't constexpr in older GCC
   // C++20 will give us both std::bit_cast and constexpr reinterpet for void*
   // but neither available yet.
   union {
@@ -286,14 +286,6 @@ template <typename Type, int NumElements> class vec {
   // This represent type of underlying value. There should be only one field
   // in the class, so vec<float, 16> should be equal to float16 in memory.
   using DataType = typename detail::VecStorage<DataT, NumElements>::DataType;
-
-  // Are we using half on the host? For device, sycl::half uses Float16 as
-  // storage data type but for the host, we use a custom data type
-  // (detail::host_half_impl::half).
-  static constexpr bool IsHostHalf =
-      std::is_same_v<DataT, sycl::detail::half_impl::half> &&
-      std::is_same_v<sycl::detail::half_impl::StorageT,
-                     sycl::detail::host_half_impl::half>;
 
   static constexpr bool IsBfloat16 =
       std::is_same_v<DataT, sycl::ext::oneapi::bfloat16>;
@@ -503,11 +495,6 @@ public:
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
-  // This should always be true for device code using sycl::half.
-  // TODO: We should remove this and its uses.
-  template <typename T = void>
-  using EnableIfNotHostHalf = typename std::enable_if_t<!IsHostHalf, T>;
-
   template <typename T = void>
   using EnableIfUsingArrayOnDevice =
       typename std::enable_if_t<IsUsingArrayOnDevice, T>;
@@ -1154,14 +1141,14 @@ private:
 #ifdef __SYCL_DEVICE_ONLY__
   template <int Num = NumElements, typename Ty = int,
             typename = typename std::enable_if_t<1 != Num>>
-  constexpr void setValue(EnableIfNotHostHalf<Ty> Index, const DataT &Value,
+  constexpr void setValue(Ty Index, const DataT &Value,
                           int) {
     m_Data[Index] = vec_data<DataT>::set(Value);
   }
 
   template <int Num = NumElements, typename Ty = int,
             typename = typename std::enable_if_t<1 != Num>>
-  constexpr DataT getValue(EnableIfNotHostHalf<Ty> Index, int) const {
+  constexpr DataT getValue(Ty Index, int) const {
     return vec_data<DataT>::get(m_Data[Index]);
   }
 #else  // __SYCL_DEVICE_ONLY__
