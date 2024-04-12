@@ -46,7 +46,10 @@ cl_khr_int64_extended_atomics/atom_max.cl
 cl_khr_int64_extended_atomics/atom_min.cl
 cl_khr_int64_extended_atomics/atom_or.cl
 cl_khr_int64_extended_atomics/atom_xor.cl
+<<<<<<< HEAD
 convert-clc.cl
+=======
+>>>>>>> 72f9881c3ffcf4be6361c3e4312d91c9c8d94a98
 common/degrees.cl
 common/mix.cl
 common/radians.cl

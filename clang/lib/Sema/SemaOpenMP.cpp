@@ -4480,6 +4480,8 @@ void Sema::ActOnOpenMPRegionStart(OpenMPDirectiveKind DKind, Scope *CurScope) {
                              Params);
     break;
   }
+  // For 'target teams loop', collect all captured regions so codegen can
+  // later decide the best IR to emit given the associated loop-nest.
   case OMPD_target_teams_loop:
   case OMPD_target_teams_distribute_parallel_for:
   case OMPD_target_teams_distribute_parallel_for_simd: {
@@ -6137,6 +6139,79 @@ processImplicitMapsWithDefaultMappers(Sema &S, DSAStackTy *Stack,
   }
 }
 
+namespace {
+/// A 'teams loop' with a nested 'loop bind(parallel)' or generic function
+/// call in the associated loop-nest cannot be a 'parallel for'.
+class TeamsLoopChecker final : public ConstStmtVisitor<TeamsLoopChecker> {
+  Sema &SemaRef;
+
+public:
+  bool teamsLoopCanBeParallelFor() const { return TeamsLoopCanBeParallelFor; }
+
+  // Is there a nested OpenMP loop bind(parallel)
+  void VisitOMPExecutableDirective(const OMPExecutableDirective *D) {
+    if (D->getDirectiveKind() == llvm::omp::Directive::OMPD_loop) {
+      if (const auto *C = D->getSingleClause<OMPBindClause>())
+        if (C->getBindKind() == OMPC_BIND_parallel) {
+          TeamsLoopCanBeParallelFor = false;
+          // No need to continue visiting any more
+          return;
+        }
+    }
+    for (const Stmt *Child : D->children())
+      if (Child)
+        Visit(Child);
+  }
+
+  void VisitCallExpr(const CallExpr *C) {
+    // Function calls inhibit parallel loop translation of 'target teams loop'
+    // unless the assume-no-nested-parallelism flag has been specified.
+    // OpenMP API runtime library calls do not inhibit parallel loop
+    // translation, regardless of the assume-no-nested-parallelism.
+    if (C) {
+      bool IsOpenMPAPI = false;
+      auto *FD = dyn_cast_or_null<FunctionDecl>(C->getCalleeDecl());
+      if (FD) {
+        std::string Name = FD->getNameInfo().getAsString();
+        IsOpenMPAPI = Name.find("omp_") == 0;
+      }
+      TeamsLoopCanBeParallelFor =
+          IsOpenMPAPI || SemaRef.getLangOpts().OpenMPNoNestedParallelism;
+      if (!TeamsLoopCanBeParallelFor)
+        return;
+    }
+    for (const Stmt *Child : C->children())
+      if (Child)
+        Visit(Child);
+  }
+
+  void VisitCapturedStmt(const CapturedStmt *S) {
+    if (!S)
+      return;
+    Visit(S->getCapturedDecl()->getBody());
+  }
+
+  void VisitStmt(const Stmt *S) {
+    if (!S)
+      return;
+    for (const Stmt *Child : S->children())
+      if (Child)
+        Visit(Child);
+  }
+  explicit TeamsLoopChecker(Sema &SemaRef)
+      : SemaRef(SemaRef), TeamsLoopCanBeParallelFor(true) {}
+
+private:
+  bool TeamsLoopCanBeParallelFor;
+};
+} // namespace
+
+static bool teamsLoopCanBeParallelFor(Stmt *AStmt, Sema &SemaRef) {
+  TeamsLoopChecker Checker(SemaRef);
+  Checker.Visit(AStmt);
+  return Checker.teamsLoopCanBeParallelFor();
+}
+
 bool Sema::mapLoopConstruct(llvm::SmallVector<OMPClause *> &ClausesWithoutBind,
                             ArrayRef<OMPClause *> Clauses,
                             OpenMPBindClauseKind &BindKind,
@@ -7302,7 +7377,7 @@ void Sema::ActOnStartOfFunctionDefinitionInOpenMPDeclareVariantScope(
           llvm::omp::TraitProperty::implementation_extension_allow_templates))
     return;
 
-  IdentifierInfo *BaseII = D.getIdentifier();
+  const IdentifierInfo *BaseII = D.getIdentifier();
   LookupResult Lookup(*this, DeclarationName(BaseII), D.getIdentifierLoc(),
                       LookupOrdinaryName);
   LookupParsedName(Lookup, S, &D.getCXXScopeSpec());
@@ -10897,7 +10972,8 @@ StmtResult Sema::ActOnOpenMPTargetTeamsGenericLoopDirective(
   setFunctionHasBranchProtectedScope();
 
   return OMPTargetTeamsGenericLoopDirective::Create(
-      Context, StartLoc, EndLoc, NestedLoopCount, Clauses, AStmt, B);
+      Context, StartLoc, EndLoc, NestedLoopCount, Clauses, AStmt, B,
+      teamsLoopCanBeParallelFor(AStmt, *this));
 }
 
 StmtResult Sema::ActOnOpenMPParallelGenericLoopDirective(
@@ -15647,6 +15723,12 @@ static OpenMPDirectiveKind getOpenMPCaptureRegionForClause(
       if (NameModifier == OMPD_unknown || NameModifier == OMPD_parallel)
         CaptureRegion = OMPD_target;
       break;
+    case OMPD_teams_loop:
+    case OMPD_target_teams_loop:
+      // For [target] teams loop, assume capture region is 'teams' so it's
+      // available for codegen later to use if/when necessary.
+      CaptureRegion = OMPD_teams;
+      break;
     case OMPD_target_teams_distribute_parallel_for_simd:
       if (OpenMPVersion >= 50 &&
           (NameModifier == OMPD_unknown || NameModifier == OMPD_simd)) {
@@ -15654,7 +15736,6 @@ static OpenMPDirectiveKind getOpenMPCaptureRegionForClause(
         break;
       }
       [[fallthrough]];
-    case OMPD_target_teams_loop:
     case OMPD_target_teams_distribute_parallel_for:
       // If this clause applies to the nested 'parallel' region, capture within
       // the 'teams' region, otherwise do not capture.
@@ -15777,7 +15858,6 @@ static OpenMPDirectiveKind getOpenMPCaptureRegionForClause(
     case OMPD_declare_target:
     case OMPD_end_declare_target:
     case OMPD_loop:
-    case OMPD_teams_loop:
     case OMPD_teams:
     case OMPD_tile:
     case OMPD_unroll:
