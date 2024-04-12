@@ -236,14 +236,10 @@ public:
   /// \param extension_name is a name of queried extension.
   /// \return true if SYCL device supports the extension.
   __SYCL2020_DEPRECATED("use device::has() function with aspects APIs instead")
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   bool has_extension(const std::string &extension_name) const {
     return has_extension(detail::string_view{extension_name});
   }
   bool has_extension(detail::string_view extension_name) const;
-#else
-  bool has_extension(const std::string &extension_name) const;
-#endif
 
   /// Query available SYCL devices
   ///
