@@ -197,12 +197,8 @@ event handler::finalize() {
           !MImpl->isStateExplicitKernelBundle()) {
         auto Dev = MGraph ? MGraph->getDevice() : MQueue->get_device();
         kernel_id KernelID =
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
             detail::ProgramManager::getInstance().getSYCLKernelID(
                 MKernelName.c_str());
-#else
-            detail::ProgramManager::getInstance().getSYCLKernelID(MKernelName);
-#endif
         bool KernelInserted = KernelBundleImpPtr->add_kernel(KernelID, Dev);
         // If kernel was not inserted and the bundle is in input mode we try
         // building it and trying to find the kernel in executable mode
@@ -261,11 +257,7 @@ event handler::finalize() {
       // uint32_t StreamID, uint64_t InstanceID, xpti_td* TraceEvent,
       int32_t StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
       auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
           StreamID, MKernel, MCodeLoc, MKernelName.c_str(), MQueue, MNDRDesc,
-#else
-          StreamID, MKernel, MCodeLoc, MKernelName, MQueue, MNDRDesc,
-#endif
           KernelBundleImpPtr, MArgs);
       auto EnqueueKernel = [&, CmdTraceEvent = CmdTraceEvent,
                             InstanceID = InstanceID]() {
@@ -315,11 +307,7 @@ event handler::finalize() {
           } else {
             Result = enqueueImpKernel(
                 MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
                 MKernelName.c_str(), RawEvents, NewEvent, nullptr,
-#else
-                MKernelName, RawEvents, NewEvent, nullptr,
-#endif
                 MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative);
           }
         }
@@ -341,12 +329,8 @@ event handler::finalize() {
         // Kernel only uses assert if it's non interop one
         bool KernelUsesAssert =
             !(MKernel && MKernel->isInterop()) &&
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
             detail::ProgramManager::getInstance().kernelUsesAssert(
                 MKernelName.c_str());
-#else
-            detail::ProgramManager::getInstance().kernelUsesAssert(MKernelName);
-#endif
         DiscardEvent = !KernelUsesAssert;
       }
 
@@ -382,11 +366,7 @@ event handler::finalize() {
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(MImpl->MKernelBundle), std::move(CGData), std::move(MArgs),
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
         MKernelName.c_str(), std::move(MStreamStorage),
-#else
-        MKernelName, std::move(MStreamStorage),
-#endif
         std::move(MImpl->MAuxiliaryResources), MCGType,
         MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative, MCodeLoc));
     break;
@@ -918,11 +898,7 @@ detail::string handler::getKernelName() {
   return detail::string{MKernel->get_info<info::kernel::function_name>()};
 }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
-#else
-void handler::verifyUsedKernelBundle(const std::string &KernelName) {
-#endif
   auto UsedKernelBundleImplPtr =
       getOrInsertHandlerKernelBundle(/*Insert=*/false);
   if (!UsedKernelBundleImplPtr)
@@ -1055,6 +1031,12 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type =
         Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type =
         Desc.depth > 0
@@ -1102,6 +1084,12 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type = DestImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
                                                : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        DestImgDesc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type = DestImgDesc.depth > 0
                             ? PI_MEM_TYPE_IMAGE3D
@@ -1147,6 +1135,12 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type =
         Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type =
         Desc.depth > 0
@@ -1194,6 +1188,12 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type = SrcImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
                                               : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        SrcImgDesc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type = SrcImgDesc.depth > 0
                             ? PI_MEM_TYPE_IMAGE3D
@@ -1239,6 +1239,12 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type =
         Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type =
         Desc.depth > 0
@@ -1288,6 +1294,13 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type = DeviceImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
                                                  : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        DeviceImgDesc.type ==
+                sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type = DeviceImgDesc.depth > 0
                             ? PI_MEM_TYPE_IMAGE3D
@@ -1437,15 +1450,9 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
 }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
                                        size_t Size, bool Block) {
   MImpl->HostPipeName = Name.data();
-#else
-void handler::ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
-                                       size_t Size, bool Block) {
-  MImpl->HostPipeName = Name;
-#endif
   MImpl->HostPipePtr = Ptr;
   MImpl->HostPipeTypeSize = Size;
   MImpl->HostPipeBlocking = Block;
@@ -1453,15 +1460,9 @@ void handler::ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
   setType(detail::CG::ReadWriteHostPipe);
 }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
                                         size_t Size, bool Block) {
   MImpl->HostPipeName = Name.data();
-#else
-void handler::ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
-                                        size_t Size, bool Block) {
-  MImpl->HostPipeName = Name;
-#endif
   MImpl->HostPipePtr = Ptr;
   MImpl->HostPipeTypeSize = Size;
   MImpl->HostPipeBlocking = Block;

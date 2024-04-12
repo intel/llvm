@@ -60,12 +60,25 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # fetch for a UR adapter, this allows development of adapters to be decoupled
   # from each other.
   #
+  # A separate content fetch will not be performed if:
+  # * The adapter name is not present in the SYCL_ENABLE_PLUGINS variable.
+  # * The repo and tag provided match the values of the
+  #   UNIFIED_RUNTIME_REPO/UNIFIED_RUNTIME_TAG variables
+  #
   # Args:
   #   * name - Must be the directory name of the adapter
   #   * repo - A valid Git URL of a Unified Runtime repo
   #   * tag - A valid Git branch/tag/commit in the Unified Runtime repo
   function(fetch_adapter_source name repo tag)
-    message(STATUS "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
+    if(NOT ${name} IN_LIST SYCL_ENABLE_PLUGINS)
+      return()
+    endif()
+    if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
+        tag STREQUAL UNIFIED_RUNTIME_TAG)
+      return()
+    endif()
+    message(STATUS
+      "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
     set(fetch-name unified-runtime-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
@@ -82,13 +95,62 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ff276ab1cd584557f8ed4d176109057684a5f4ca
-  # Merge: ed949ecd 2968cc14
+  # commit 758c61490442456933e3957aac568e13287429eb
+  # Merge: e2b5b7fa e2e44728
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Mar 27 11:28:34 2024 +0000
-  #     Merge pull request #1363 from hdelan/refactor-device-initialization
-  #     [CUDA] Refactor device initialization
-  set(UNIFIED_RUNTIME_TAG ff276ab1cd584557f8ed4d176109057684a5f4ca)
+  # Date:   Wed Apr 10 16:15:45 2024 +0100
+  #    Merge pull request #1483 from nrspruit/fix_inorder_lists_reuse
+  #    [L0] Fix regular in order command list reuse given inorder queue
+  set(UNIFIED_RUNTIME_TAG 758c61490442456933e3957aac568e13287429eb)
+
+  fetch_adapter_source(level_zero
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(opencl
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 0d2a972c71ba4dd5935478c7b7124a372a1eeca0
+    # Merge: ac89abfe 44aef877
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu Apr 11 10:24:19 2024 +0100
+    #     Merge pull request #1440 from fabiomestre/fabio/opencl_remove_queued_hack
+    #     [OPENCL] Remove EVENT_STATUS_QUEUED workaround
+    0d2a972c71ba4dd5935478c7b7124a372a1eeca0
+  )
+
+  fetch_adapter_source(cuda
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 0eab26c7925c5ef341a6409d3766686b060b736b
+    # Merge: 70ba1503 1cf4a4e9
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Fri Apr 12 09:58:26 2024 +0100
+    #     Merge pull request #1310 from pasaulais/remove-old-cuda-tracing-fn
+    #     [CUDA] Remove unused function variant
+    0eab26c7925c5ef341a6409d3766686b060b736b
+  )
+
+  fetch_adapter_source(hip
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 1473ed8a81ca86e67321dfc90c79e951ead212ac
+    # Merge: 6ccaf387 f2774226
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Fri Apr 12 10:43:00 2024 +0100
+    #     Merge pull request #1395 from konradkusiak97/improvedQueueFill
+    #     [HIP] Implement workaround for hipMemset2D
+    1473ed8a81ca86e67321dfc90c79e951ead212ac
+  )
+
+  fetch_adapter_source(native_cpu
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 38e9478b8a7a01fcf37f55b50c735ca1de29c76d
+    # Merge: b582fb80 c594cdc0
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu Apr 11 11:39:02 2024 +0100
+    #     Merge pull request #1478 from PietroGhg/pietro/vecz_threadpool
+    #     [NATIVECPU] Initial threadpool implementation for Native CPU
+    38e9478b8a7a01fcf37f55b50c735ca1de29c76d
+  )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
