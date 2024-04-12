@@ -15,12 +15,13 @@ on:
       - completed
 
 permissions:
-  contents: read-all
+  contents: read
 
 jobs:
   create-check:
     runs-on: [Linux, build]
     permissions:
+      checks: write
       statuses: write
     steps:
       - uses: actions/github-script@v7
@@ -80,6 +81,7 @@ jobs:
     if: always()
     runs-on: [Linux, build]
     permissions:
+      checks: write
       statuses: write
     steps:
       - uses: actions/github-script@v7
