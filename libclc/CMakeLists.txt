@@ -64,12 +64,10 @@ set( LIBCLC_TEST_TARGETS_ALL
 set( LIBCLC_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR} )
 set( LIBCLC_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR} )
 
-# $&$ maybe delete
 # mesa3d environment is only available since LLVM 4.0
 if( LLVM_PACKAGE_VERSION VERSION_GREATER_EQUAL 4.0.0 )
   list( APPEND LIBCLC_TARGETS_ALL amdgcn-mesa-mesa3d )
 endif()
-# $&$ end delete
 
 set( LIBCLC_TARGETS_TO_BUILD "all"
     CACHE STRING "Semicolon-separated list of targets to build, or 'all'." )
