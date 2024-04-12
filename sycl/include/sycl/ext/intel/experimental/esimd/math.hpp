@@ -1731,8 +1731,8 @@ ESIMD_INLINE uint64_t rdtsc() {
 }
 
 /// Performs a fused multiply add computation with three vector operands.
-/// @tparam T type of the vector operands
-/// @tparam N size of the vector operands
+/// @tparam T type of the vector operands.
+/// @tparam N size of the vector operands.
 /// @param a First vector function argument.
 /// @param b Second vector function argument.
 /// @param c Third vector function argument.
