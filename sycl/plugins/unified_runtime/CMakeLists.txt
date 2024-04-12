@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit a7c202b49aff130f60da0c03916d08bb22b91aa0
-  # Merge: f85e2e96 e548dc1e
-  # Author: Martin Grant <martin.morrisongrant@codeplay.com>
-  # Date:   Mon Apr 8 15:58:32 2024 +0100
-  #    Merge pull request #1493 from martygrant/martin/fixCoverityCTSErrors
-  #    [CTS] Fix Coverity warning: Add a & before auto so object is not copied unnecessarily
-  set(UNIFIED_RUNTIME_TAG a7c202b49aff130f60da0c03916d08bb22b91aa0)
+  # commit 758c61490442456933e3957aac568e13287429eb
+  # Merge: e2b5b7fa e2e44728
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Wed Apr 10 16:15:45 2024 +0100
+  #    Merge pull request #1483 from nrspruit/fix_inorder_lists_reuse
+  #    [L0] Fix regular in order command list reuse given inorder queue
+  set(UNIFIED_RUNTIME_TAG 758c61490442456933e3957aac568e13287429eb)
 
   fetch_adapter_source(level_zero
     https://github.com/wenju-he/unified-runtime.git
@@ -110,27 +110,46 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(opencl
     ${UNIFIED_RUNTIME_REPO}
-    # Merge: e60c3c22 9287547e
+    # commit 0d2a972c71ba4dd5935478c7b7124a372a1eeca0
+    # Merge: ac89abfe 44aef877
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Apr 4 10:23:33 2024 +0200
-    #     Merge pull request #1448 from steffenlarsen/steffen/make_ext_func_fail_unsupported
-    #     [OpenCL] Make extension function lookup return unusupported error
-    3609afc7f8781f2eae5de74deaf50ba52b1bb344
+    # Date:   Thu Apr 11 10:24:19 2024 +0100
+    #     Merge pull request #1440 from fabiomestre/fabio/opencl_remove_queued_hack
+    #     [OPENCL] Remove EVENT_STATUS_QUEUED workaround
+    0d2a972c71ba4dd5935478c7b7124a372a1eeca0
   )
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 0eab26c7925c5ef341a6409d3766686b060b736b
+    # Merge: 70ba1503 1cf4a4e9
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Fri Apr 12 09:58:26 2024 +0100
+    #     Merge pull request #1310 from pasaulais/remove-old-cuda-tracing-fn
+    #     [CUDA] Remove unused function variant
+    0eab26c7925c5ef341a6409d3766686b060b736b
   )
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 760eaa38ae8cacf3143188a3293d8f9a2a3608f7
+    # Merge: 38e9478b e68f26fa
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu Apr 11 15:36:52 2024 +0100
+    #     Merge pull request #1357 from Bensuo/ewan/hip_nullptr
+    #     [HIP] Check for null arg to urKernelSetArgMemObj
+    760eaa38ae8cacf3143188a3293d8f9a2a3608f7
   )
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 38e9478b8a7a01fcf37f55b50c735ca1de29c76d
+    # Merge: b582fb80 c594cdc0
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu Apr 11 11:39:02 2024 +0100
+    #     Merge pull request #1478 from PietroGhg/pietro/vecz_threadpool
+    #     [NATIVECPU] Initial threadpool implementation for Native CPU
+    38e9478b8a7a01fcf37f55b50c735ca1de29c76d
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
