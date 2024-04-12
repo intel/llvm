@@ -36,7 +36,6 @@ platform::platform(const device_selector &dev_selector) {
 cl_platform_id platform::get() const { return impl->get(); }
 
 bool platform::has_extension(detail::string_view ExtName) const {
-  //std::string ExtensionName{ExtName.data()};
   return impl->has_extension(ExtName.data());
 }
 
