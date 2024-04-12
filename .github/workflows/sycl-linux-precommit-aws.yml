@@ -77,6 +77,8 @@ jobs:
     needs: [create-check, e2e-cuda]
     if: always()
     runs-on: [Linux, build]
+    permissions:
+      statuses: write
     steps:
       - uses: actions/github-script@v7
         with:
