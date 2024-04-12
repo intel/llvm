@@ -773,7 +773,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       // to a single kernel argument set above.
       if (!IsESIMD && !IsKernelCreatedFromSource) {
         ++IndexShift;
-        const size_t SizeAccField = Dims * sizeof(Size[0]);
+        const size_t SizeAccField = (Dims == 0 ? 1 : Dims) * sizeof(Size[0]);
         MArgs.emplace_back(kernel_param_kind_t::kind_std_layout, &Size,
                            SizeAccField, Index + IndexShift);
         ++IndexShift;
