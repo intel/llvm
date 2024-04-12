@@ -295,15 +295,6 @@ template <typename Type, int NumElements> class vec {
   static constexpr bool IsSizeGreaterThanMaxAlign =
       (Sz > detail::MaxVecAlignment);
 
-  // TODO: There is no support for vector half type on host yet.
-  // Also, when Sz is greater than alignment, we use std::array instead of
-  // vector extension. This is for MSVC compatibility, which has a max alignment
-  // of 64 for direct params. If we drop MSVC, we can have alignment the same as
-  // size and use vector extensions for all sizes.
-  // TODO: Inline this ans we are now always using array on device, irrespective
-  // of the data type.
-  static constexpr bool IsUsingArrayOnDevice = true;
-
 #ifdef __SYCL_DEVICE_ONLY__
   static constexpr bool IsUsingArrayOnHost = false; // not compiling for host.
 #else
@@ -495,12 +486,8 @@ public:
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
-  template <typename T = void>
-  using EnableIfUsingArrayOnDevice =
-      typename std::enable_if_t<IsUsingArrayOnDevice, T>;
-
   template <typename Ty = DataT>
-  explicit constexpr vec(const EnableIfUsingArrayOnDevice<Ty> &arg)
+  explicit constexpr vec(const Ty &arg)
       : vec{detail::RepeatValue<NumElements>(
                 static_cast<vec_data_t<DataT>>(arg)),
             std::make_index_sequence<NumElements>()} {}
@@ -512,7 +499,7 @@ public:
       vec &>
   // TODO: Can we use std::fill or something similar to vectorize assignment
   // operation?
-  operator=(const EnableIfUsingArrayOnDevice<Ty> &Rhs) {
+  operator=(const Ty &Rhs) {
     for (int i = 0; i < NumElements; ++i) {
       setValue(i, Rhs);
     }
@@ -563,7 +550,7 @@ public:
     if constexpr (NumElements == 1) {
       return m_Data;
     } else {
-      return detail::BitCast<DataType, vector_t>(m_Data);
+      return sycl::bit_cast<vector_t>(m_Data);
     }
   }
 #endif // __SYCL_DEVICE_ONLY__
@@ -629,7 +616,7 @@ public:
     using OpenCLVecT = OpenCLT __attribute__((ext_vector_type(NumElements)));
     using OpenCLVecR = OpenCLR __attribute__((ext_vector_type(NumElements)));
 
-    auto extVecType = detail::BitCast<DataType, vector_t>(m_Data);
+    auto NativeVector = sycl::bit_cast<vector_t>(m_Data);
     using ConvertTVecType = typename vec<convertT, NumElements>::vector_t;
 
     // Whole vector conversion can only be done, if:
@@ -653,9 +640,9 @@ public:
         //   right results here;
         !std::is_same_v<convertT, bool>;
     if constexpr (canUseNativeVectorConvert) {
-      Result.m_Data = detail::BitCast<ConvertTVecType, decltype(Result.m_Data)>(
+      Result.m_Data = sycl::bit_cast<decltype(Result.m_Data)>(
           detail::convertImpl<T, R, roundingMode, NumElements, OpenCLVecT,
-                              OpenCLVecR>(extVecType));
+                              OpenCLVecR>(NativeVector));
     } else
 #endif // __SYCL_DEVICE_ONLY__
     {
@@ -830,8 +817,8 @@ public:
         Ret.setValue(I, (Lhs.getValue(I) BINOP Rhs.getValue(I)));              \
       }                                                                        \
     } else {                                                                   \
-      vector_t ExtVecLhs = detail::BitCast<DataType, vector_t>(Lhs.m_Data);    \
-      vector_t ExtVecRhs = detail::BitCast<DataType, vector_t>(Rhs.m_Data);    \
+      vector_t ExtVecLhs = sycl::bit_cast<vector_t>(Lhs.m_Data);               \
+      vector_t ExtVecRhs = sycl::bit_cast<vector_t>(Rhs.m_Data);               \
       Ret = vec<DataT, NumElements>(                                           \
           (typename vec<DataT, NumElements>::vector_t)(                        \
               ExtVecLhs BINOP ExtVecRhs));                                     \
@@ -931,8 +918,8 @@ public:
             Lhs.getValue(I)) RELLOGOP vec_data<DataT>::get(Rhs.getValue(I)))); \
       }                                                                        \
     } else {                                                                   \
-      vector_t ExtVecLhs = detail::BitCast<DataType, vector_t>(Lhs.m_Data);    \
-      vector_t ExtVecRhs = detail::BitCast<DataType, vector_t>(Rhs.m_Data);    \
+      vector_t ExtVecLhs = sycl::bit_cast<vector_t>(Lhs.m_Data);               \
+      vector_t ExtVecRhs = sycl::bit_cast<vector_t>(Rhs.m_Data);               \
       Ret = vec<rel_t, NumElements>(                                           \
           (typename vec<rel_t, NumElements>::vector_t)(                        \
               ExtVecLhs RELLOGOP ExtVecRhs));                                  \
@@ -1006,7 +993,7 @@ public:
   // && dataT != half
   friend vec operator~(const vec &Rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
-    auto extVec = detail::BitCast<DataType, vector_t>(Rhs.m_Data);
+    auto extVec = sycl::bit_cast<vector_t>(Rhs.m_Data);
     vec Ret{~extVec};
     if constexpr (std::is_same_v<Type, bool>) {
       Ret.ConvertToDataT();
@@ -1033,7 +1020,7 @@ public:
                   1)
 #endif
     {
-      auto extVec = detail::BitCast<DataType, vector_t>(Rhs.m_Data);
+      auto extVec = sycl::bit_cast<vector_t>(Rhs.m_Data);
       return vec<detail::rel_t<DataT>, NumElements>{!extVec};
     } else
 #endif
@@ -1057,7 +1044,7 @@ public:
   // operator +
   friend vec operator+(const vec &Lhs) {
 #ifdef __SYCL_DEVICE_ONLY__
-    auto extVec = detail::BitCast<DataType, vector_t>(Lhs.m_Data);
+    auto extVec = sycl::bit_cast<vector_t>(Lhs.m_Data);
     return vec{+extVec};
 #else
     vec Ret{};
@@ -1088,7 +1075,7 @@ public:
         Ret.setValue(
             I, vec_data<DataT>::get(-vec_data<DataT>::get(Lhs.getValue(I))));
 #else
-      auto extVec = detail::BitCast<DataType, vector_t>(Lhs.m_Data);
+      auto extVec = sycl::bit_cast<vector_t>(Lhs.m_Data);
       Ret = vec{-extVec};
       if constexpr (std::is_same_v<Type, bool>) {
         Ret.ConvertToDataT();
@@ -1112,14 +1099,14 @@ private:
   template <template <typename> class Operation,
             typename Ty = vec<DataT, NumElements>>
   vec<DataT, NumElements>
-  operatorHelper(const EnableIfUsingArrayOnDevice<Ty> &Rhs) const {
+  operatorHelper(const Ty &Rhs) const {
     vec<DataT, NumElements> Result;
     Operation<DataT> Op;
     // Typecast to ext_vector_type, carryout the operation, and type cast back.
     // Compiler optimizations will remove redundant casts.
-    auto OpResult = Op(detail::BitCast<DataType, vector_t>(m_Data),
-                       detail::BitCast<DataType, vector_t>(Rhs.m_Data));
-    Result.m_Data = detail::BitCast<vector_t, DataType>(OpResult);
+    auto OpResult = Op(sycl::bit_cast<vector_t>(m_Data),
+                       sycl::bit_cast<vector_t>(Rhs.m_Data));
+    Result.m_Data = sycl::bit_cast<DataType>(OpResult);
     return Result;
   }
 #else  // __SYCL_DEVICE_ONLY__
