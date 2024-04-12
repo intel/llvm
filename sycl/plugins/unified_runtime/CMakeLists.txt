@@ -143,13 +143,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    # commit 38e9478b8a7a01fcf37f55b50c735ca1de29c76d
-    # Merge: b582fb80 c594cdc0
+    # commit 15233fd2521f9e9b35e3a24037be99ceef334a8e
+    # Merge: 68e525a4 a04b062e
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Apr 11 11:39:02 2024 +0100
-    #     Merge pull request #1478 from PietroGhg/pietro/vecz_threadpool
-    #     [NATIVECPU] Initial threadpool implementation for Native CPU
-    38e9478b8a7a01fcf37f55b50c735ca1de29c76d
+    # Date:   Fri Apr 12 15:46:49 2024 +0100
+    #     Merge pull request #1489 from konradkusiak97/nativeCPUqueueFill
+    #     [NATIVECPU] Extended usm fill to bigger patterns than 1 byte
+    15233fd2521f9e9b35e3a24037be99ceef334a8e
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
