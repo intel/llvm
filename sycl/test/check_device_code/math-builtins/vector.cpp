@@ -28,6 +28,14 @@ int main() {
 
     queue q;
 
+    // CHECK: %"class.sycl::_V1::ext::oneapi::bfloat16" = type { i16 }
+    // CHECK: %"struct.std::array{{.*}}" = type { [2 x %"class.sycl::_V1::ext::oneapi::bfloat16"] }
+    // CHECK: %"struct.std::array{{.*}}" = type { [3 x %"class.sycl::_V1::ext::oneapi::bfloat16"] }
+    // CHECK: %"struct.std::array{{.*}}" = type { [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"] }
+    // CHECK: %"struct.std::array{{.*}}" = type { [8 x %"class.sycl::_V1::ext::oneapi::bfloat16"] }
+    // CHECK: %"struct.std::array{{.*}}" = type { [16 x %"class.sycl::_V1::ext::oneapi::bfloat16"] }
+    CHECK(q, ext::oneapi::bfloat16, BF)
+
     // CHECK: {{.*}}InVecINT2 = {{.*}} %"struct.std::array{{.*}}" { [2 x i32] {{.*}}
     // CHECK: {{.*}}InVecINT3 = {{.*}} %"struct.std::array.{{.*}}" { [4 x i32] {{.*}}
     // CHECK: {{.*}}InVecINT4 = {{.*}} %"struct.std::array.{{.*}}" { [4 x i32] {{.*}}
@@ -69,14 +77,6 @@ int main() {
     // CHECK: {{.*}}InVecBYTE8 = {{.*}} %"struct.std::array.{{.*}}" { [8 x i8] {{.*}}
     // CHECK: {{.*}}InVecBYTE16 = {{.*}} %"struct.std::array.{{.*}}" { [16 x i8] {{.*}}
     CHECK(q, std::byte, BYTE)
-
-    // CHECK: %"class.sycl::_V1::ext::oneapi::bfloat16" = type { i16 }
-    // CHECK: %"struct.std::array{{.*}}" = type { [2 x %"class.sycl::_V1::ext::oneapi::bfloat16"] }
-    // CHECK: %"struct.std::array{{.*}}" = type { [3 x %"class.sycl::_V1::ext::oneapi::bfloat16"] }
-    // CHECK: %"struct.std::array{{.*}}" = type { [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"] }
-    // CHECK: %"struct.std::array{{.*}}" = type { [8 x %"class.sycl::_V1::ext::oneapi::bfloat16"] }
-    // CHECK: %"struct.std::array{{.*}}" = type { [16 x %"class.sycl::_V1::ext::oneapi::bfloat16"] }
-    CHECK(q, ext::oneapi::bfloat16, BF)
    
   return 0;
 };
