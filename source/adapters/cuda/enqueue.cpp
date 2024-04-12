@@ -1160,27 +1160,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
             UR_RESULT_ERROR_INVALID_SIZE);
 
   auto &BufferImpl = std::get<BufferMem>(hBuffer->Mem);
-  ur_result_t Result = UR_RESULT_ERROR_INVALID_MEM_OBJECT;
+  auto MapPtr = BufferImpl.mapToPtr(size, offset, mapFlags);
+
+  if (!MapPtr) {
+    return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
+  }
+
   const bool IsPinned =
       BufferImpl.MemAllocMode == BufferMem::AllocMode::AllocHostPtr;
 
-  // Currently no support for overlapping regions
-  if (BufferImpl.getMapPtr() != nullptr) {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  }
-
-  // Allocate a pointer in the host to store the mapped information
-  auto HostPtr = BufferImpl.mapToPtr(size, offset, mapFlags);
-  *ppRetMap = BufferImpl.getMapPtr();
-  if (HostPtr) {
-    Result = UR_RESULT_SUCCESS;
-  }
-
+  ur_result_t Result = UR_RESULT_SUCCESS;
   if (!IsPinned &&
       ((mapFlags & UR_MAP_FLAG_READ) || (mapFlags & UR_MAP_FLAG_WRITE))) {
     // Pinned host memory is already on host so it doesn't need to be read.
     Result = urEnqueueMemBufferRead(hQueue, hBuffer, blockingMap, offset, size,
-                                    HostPtr, numEventsInWaitList,
+                                    MapPtr, numEventsInWaitList,
                                     phEventWaitList, phEvent);
   } else {
     ScopedContext Active(hQueue->getContext());
@@ -1201,6 +1195,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
       }
     }
   }
+  *ppRetMap = MapPtr;
 
   return Result;
 }
@@ -1213,23 +1208,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
     ur_queue_handle_t hQueue, ur_mem_handle_t hMem, void *pMappedPtr,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
   UR_ASSERT(hMem->MemType == ur_mem_handle_t_::Type::Buffer,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  UR_ASSERT(std::get<BufferMem>(hMem->Mem).getMapPtr() != nullptr,
-            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  UR_ASSERT(std::get<BufferMem>(hMem->Mem).getMapPtr() == pMappedPtr,
-            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+  auto &BufferImpl = std::get<BufferMem>(hMem->Mem);
 
-  const bool IsPinned = std::get<BufferMem>(hMem->Mem).MemAllocMode ==
-                        BufferMem::AllocMode::AllocHostPtr;
+  auto *Map = BufferImpl.getMapDetails(pMappedPtr);
+  UR_ASSERT(Map != nullptr, UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
-  if (!IsPinned &&
-      (std::get<BufferMem>(hMem->Mem).getMapFlags() & UR_MAP_FLAG_WRITE)) {
+  const bool IsPinned =
+      BufferImpl.MemAllocMode == BufferMem::AllocMode::AllocHostPtr;
+
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  if (!IsPinned && (Map->getMapFlags() & UR_MAP_FLAG_WRITE)) {
     // Pinned host memory is only on host so it doesn't need to be written to.
     Result = urEnqueueMemBufferWrite(
-        hQueue, hMem, true, std::get<BufferMem>(hMem->Mem).getMapOffset(),
-        std::get<BufferMem>(hMem->Mem).getMapSize(), pMappedPtr,
+        hQueue, hMem, true, Map->getMapOffset(), Map->getMapSize(), pMappedPtr,
         numEventsInWaitList, phEventWaitList, phEvent);
   } else {
     ScopedContext Active(hQueue->getContext());
@@ -1250,8 +1243,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
       }
     }
   }
+  BufferImpl.unmap(pMappedPtr);
 
-  std::get<BufferMem>(hMem->Mem).unmap(pMappedPtr);
   return Result;
 }
 

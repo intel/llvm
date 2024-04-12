@@ -27,6 +27,11 @@
 
 #include <umf_helpers.hpp>
 
+struct l0_command_list_cache_info {
+  ZeStruct<ze_command_queue_desc_t> ZeQueueDesc;
+  bool InOrderList = false;
+};
+
 struct ur_context_handle_t_ : _ur_object {
   ur_context_handle_t_(ze_context_handle_t ZeContext, uint32_t NumDevices,
                        const ur_device_handle_t *Devs, bool OwnZeContext)
@@ -87,11 +92,11 @@ struct ur_context_handle_t_ : _ur_object {
   //
   std::unordered_map<ze_device_handle_t,
                      std::list<std::pair<ze_command_list_handle_t,
-                                         ZeStruct<ze_command_queue_desc_t>>>>
+                                         l0_command_list_cache_info>>>
       ZeComputeCommandListCache;
   std::unordered_map<ze_device_handle_t,
                      std::list<std::pair<ze_command_list_handle_t,
-                                         ZeStruct<ze_command_queue_desc_t>>>>
+                                         l0_command_list_cache_info>>>
       ZeCopyCommandListCache;
 
   // Store USM pool for USM shared and device allocations. There is 1 memory

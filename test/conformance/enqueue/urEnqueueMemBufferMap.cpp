@@ -194,8 +194,8 @@ TEST_P(urEnqueueMemBufferMapTestWithParam, SuccessMultiMaps) {
     for (size_t i = 0; i < map_count; ++i) {
         map_a[i] = 42;
     }
-    for (size_t i = map_count; i < count; ++i) {
-        map_a[i] = 24;
+    for (size_t i = 0; i < map_count; ++i) {
+        map_b[i] = 24;
     }
     ASSERT_SUCCESS(
         urEnqueueMemUnmap(queue, buffer, map_a, 0, nullptr, nullptr));
