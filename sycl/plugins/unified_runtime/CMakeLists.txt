@@ -121,13 +121,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit 6e76c98a1f5cd3c4f5e99011e92bd55b3a46cc4c
-    # Merge: 08b3e8fe 834e6435
+    # commit 0eab26c7925c5ef341a6409d3766686b060b736b
+    # Merge: 70ba1503 1cf4a4e9
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Apr 10 16:26:17 2024 +0100
-    #     Merge pull request #1220 from fabiomestre/fabio/cuda_multimap
-    #     [CUDA] Add support for multiple active mappings
-    6e76c98a1f5cd3c4f5e99011e92bd55b3a46cc4c
+    # Date:   Fri Apr 12 09:58:26 2024 +0100
+    #     Merge pull request #1310 from pasaulais/remove-old-cuda-tracing-fn
+    #     [CUDA] Remove unused function variant
+    0eab26c7925c5ef341a6409d3766686b060b736b
   )
 
   fetch_adapter_source(hip
