@@ -287,7 +287,8 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     auto Device = hKernel->getProgram()->getDevice();
-    hKernel->Args.addMemObjArg(argIndex, hArgValue, Properties->memoryAccess);
+    hKernel->Args.addMemObjArg(argIndex, hArgValue,
+                               Properties ? Properties->memoryAccess : 0);
     if (hArgValue->isImage()) {
       auto array = std::get<SurfaceMem>(hArgValue->Mem).getArray(Device);
       hipArray_Format Format{};
