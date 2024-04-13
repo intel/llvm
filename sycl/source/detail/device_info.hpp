@@ -12,7 +12,6 @@
 #include <detail/platform_util.hpp>
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
-#include <sycl/detail/common_info.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
@@ -26,6 +25,8 @@
 
 #include <chrono>
 #include <thread>
+
+#include "split_string.hpp"
 
 namespace sycl {
 inline namespace _V1 {

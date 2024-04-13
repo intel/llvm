@@ -19,7 +19,7 @@
 // RUNx: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-LAST,CHECK --implicit-check-not=piProgramBuild
 // clang-format on
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <dlfcn.h>
 #include <iostream>

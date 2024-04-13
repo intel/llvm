@@ -471,11 +471,6 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   std::vector<device> Res;
 
   ods_target_list *OdsTargetList = SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Will we be filtering with SYCL_DEVICE_FILTER or ONEAPI_DEVICE_SELECTOR ?
-  // We do NOT attempt to support both simultaneously.
-  device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
-#endif
 
   if (is_host() && (DeviceType == info::device_type::host ||
                     DeviceType == info::device_type::all)) {
@@ -535,21 +530,8 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   // device ids are assigned.
   std::vector<int> PlatformDeviceIndices;
   if (OdsTargetList) {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    if (FilterList) {
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "ONEAPI_DEVICE_SELECTOR cannot be used in "
-                            "conjunction with SYCL_DEVICE_FILTER");
-    }
-#endif
     PlatformDeviceIndices = filterDeviceFilter<ods_target_list, ods_target>(
         PiDevices, OdsTargetList);
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  } else if (FilterList) {
-    PlatformDeviceIndices =
-        filterDeviceFilter<device_filter_list, device_filter>(PiDevices,
-                                                              FilterList);
-#endif
   }
 
   // The next step is to inflate the filtered PIDevices into SYCL Device
@@ -608,6 +590,51 @@ typename Param::return_type platform_impl::get_info() const {
     return get_platform_info_host<Param>();
 
   return get_platform_info<Param>(this->getHandleRef(), getPlugin());
+}
+
+template <>
+typename info::platform::version::return_type
+platform_impl::get_backend_info<info::platform::version>() const {
+  if (getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::platform::version info descriptor can "
+                          "only be queried with an OpenCL backend");
+  }
+  return get_info<info::platform::version>();
+}
+
+device select_device(DSelectorInvocableType DeviceSelectorInvocable,
+                     std::vector<device> &Devices);
+
+template <>
+typename info::device::version::return_type
+platform_impl::get_backend_info<info::device::version>() const {
+  if (getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::version info descriptor can only "
+                          "be queried with an OpenCL backend");
+  }
+  auto Devices = get_devices();
+  if (Devices.empty()) {
+    return "No available device";
+  }
+  // Use default selector to pick a device.
+  return select_device(default_selector_v, Devices)
+      .get_info<info::device::version>();
+}
+
+template <>
+typename info::device::backend_version::return_type
+platform_impl::get_backend_info<info::device::backend_version>() const {
+  if (getBackend() != backend::ext_oneapi_level_zero) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::backend_version info descriptor "
+                          "can only be queried with a Level Zero backend");
+  }
+  return "";
+  // Currently The Level Zero backend does not define the value of this
+  // information descriptor and implementations are encouraged to return the
+  // empty string as per specification.
 }
 
 // All devices on the platform must have the given aspect.

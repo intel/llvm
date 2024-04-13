@@ -1,3 +1,5 @@
+#include <sycl/usm.hpp>
+
 #define TM 8
 #define TK 16
 
