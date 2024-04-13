@@ -4202,7 +4202,12 @@ void CodeGenFunction::EmitDelegateCallArg(CallArgList &args,
 }
 
 static bool isProvablyNull(llvm::Value *addr) {
-  return isa<llvm::ConstantPointerNull>(addr);
+  return llvm::isa_and_nonnull<llvm::ConstantPointerNull>(addr);
+}
+
+static bool isProvablyNonNull(Address Addr, CodeGenFunction &CGF) {
+  return llvm::isKnownNonZero(Addr.getPointer(), /*Depth=*/0,
+                              CGF.CGM.getDataLayout());
 }
 
 /// Emit the actual writing-back of a writeback.
@@ -4217,7 +4222,7 @@ static void emitWriteback(CodeGenFunction &CGF,
 
   // If the argument wasn't provably non-null, we need to null check
   // before doing the store.
-  bool provablyNonNull = llvm::isKnownNonZero(srcAddr.getPointer(),
+  bool provablyNonNull = llvm::isKnownNonZero(srcAddr.getPointer(), 0,
                                               CGF.CGM.getDataLayout());
   if (!provablyNonNull) {
     llvm::BasicBlock *writebackBB = CGF.createBasicBlock("icr.writeback");
@@ -4357,7 +4362,7 @@ static void emitWritebackArg(CodeGenFunction &CGF, CallArgList &args,
   // If the address is *not* known to be non-null, we need to switch.
   llvm::Value *finalArgument;
 
-  bool provablyNonNull = llvm::isKnownNonZero(srcAddr.getPointer(),
+  bool provablyNonNull = llvm::isKnownNonZero(srcAddr.getPointer(), 0,
                                               CGF.CGM.getDataLayout());
   if (provablyNonNull) {
     finalArgument = temp.getPointer();
