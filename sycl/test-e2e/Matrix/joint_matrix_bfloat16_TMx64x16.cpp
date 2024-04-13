@@ -19,7 +19,6 @@ using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
 #define SG_SZ 16
-constexpr size_t TM = 32;
 constexpr size_t TN = 64;
 constexpr size_t TK = 16;
 

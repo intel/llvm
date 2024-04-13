@@ -1,4 +1,5 @@
-template <typename T1, typename T2, size_t M, size_t N, size_t K>
+template <size_t TM, class kernel_name, typename T1, typename T2, size_t M,
+          size_t N, size_t K>
 void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
                      big_matrix<T2, K / 2, N * 2> &B) {
   size_t NDRangeM = M / TM;
@@ -13,7 +14,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
      auto accA = bufA.get_access<access::mode::read_write>(cgh);
      auto accB = bufB.get_access<access::mode::read_write>(cgh);
 
-     cgh.parallel_for<class imatrix>(
+     cgh.parallel_for<kernel_name>(
          nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
          [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]]
 
@@ -63,7 +64,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
    }).wait();
 }
 
-int main() {
+template <size_t TM, class kernel_name> int test() {
   static constexpr size_t MATRIX_M = TM * 2;
   static constexpr size_t MATRIX_N = TN * 2;
   static constexpr size_t MATRIX_K = TK * 2;
@@ -83,12 +84,15 @@ int main() {
   big_matrix<float, MATRIX_M, MATRIX_N> MD((float *)&D);
   big_matrix<bfloat16, MATRIX_M, MATRIX_K> MA((bfloat16 *)&A);
   big_matrix<bfloat16, MATRIX_K / 2, MATRIX_N * 2> MB((bfloat16 *)&B);
-  matrix_multiply(MC, MA, MB);
+  matrix_multiply<TM, kernel_name>(MC, MA, MB);
   matrix_multiply_ref<bfloat16, bfloat16, float, 2>(
       (bfloat16 *)A, (bfloat16 *)B, (float *)D, MATRIX_M, MATRIX_N,
       MATRIX_K / 2);
 
   bool res = matrix_compare(MATRIX_M, MATRIX_N, (float *)C, (float *)D);
+  std::cout << TM << "x" << TN << "x" << TK << " ";
   std::cout << (res ? "passed" : "failed") << std::endl;
   return !res;
 }
+
+int main() { return test<32, class m32>() + test<1, class m1>(); }
