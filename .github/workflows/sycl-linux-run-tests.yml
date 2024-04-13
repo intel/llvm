@@ -191,6 +191,9 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ github.token }}
       run: |
+        if [ "${{ inputs.use_dev_igc }}" = "true" ]; then
+            sudo apt-get install -yqq libllvm14;
+        fi
         sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json --all ${{ inputs.use_dev_igc == 'true' && '--use-dev-igc' || '' }}
     - name: Source OneAPI TBB vars.sh
       shell: bash
