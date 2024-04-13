@@ -16,7 +16,7 @@
       "github_tag": "igc-dev-db4de5f",
       "version": "db4de5f",
       "updated_at": "2024-04-12T11:06:26Z",
-      "url": "https://github.com/intel/intel-graphics-compiler/actions/runs/8664146042/artifacts/1409219375/zip",
+      "url": "https://api.github.com/repos/intel/intel-graphics-compiler/actions/artifacts/1409219375/zip",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "cm": {
