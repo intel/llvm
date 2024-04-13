@@ -14,8 +14,7 @@ on:
     types:
       - completed
 
-permissions:
-  contents: read
+permissions: write-all
 
 jobs:
   create-check:
