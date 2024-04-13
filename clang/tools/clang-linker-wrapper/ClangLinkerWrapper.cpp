@@ -963,13 +963,6 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   SmallVector<StringRef, 16> InputFilesVec;
   for (StringRef InputFile : InputFiles)
     InputFilesVec.emplace_back(InputFile);
-  // First llvm-link step.
-  auto LinkedFile = sycl::linkDeviceInputFiles(InputFilesVec, Args);
-  if (!LinkedFile)
-    reportError(LinkedFile.takeError());
-
-  InputFilesVec.clear();
-  InputFilesVec.emplace_back(*LinkedFile);
 
   // Get SYCL device library files
   // Gathering device library files
@@ -1278,10 +1271,6 @@ Error linkBitcodeFiles(SmallVectorImpl<OffloadFile> &InputFiles,
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
 
-  // Early exit for SPIR targets
-  if (Triple.isSPIR())
-    return Error::success();
-
   SmallVector<OffloadFile, 4> BitcodeInputFiles;
   DenseSet<StringRef> StrongResolutions;
   DenseSet<StringRef> UsedInRegularObj;
@@ -1360,14 +1349,13 @@ Error linkBitcodeFiles(SmallVectorImpl<OffloadFile> &InputFiles,
     BitcodeOutput.push_back(*TempFileOrErr);
     return false;
   };
-
   // We assume visibility of the whole program if every input file was bitcode.
   auto Features = getTargetFeatures(BitcodeInputFiles);
-  auto LTOBackend = Args.hasArg(OPT_embed_bitcode) ||
-                            Args.hasArg(OPT_builtin_bitcode_EQ) ||
-                            Args.hasArg(OPT_clang_backend)
-                        ? createLTO(Args, Features, OutputBitcode)
-                        : createLTO(Args, Features);
+  auto LTOBackend =
+      Args.hasArg(OPT_embed_bitcode) || Args.hasArg(OPT_builtin_bitcode_EQ) ||
+              Args.hasArg(OPT_clang_backend) || Triple.isSPIROrSPIRV()
+          ? createLTO(Args, Features, OutputBitcode)
+          : createLTO(Args, Features);
 
   // We need to resolve the symbols so the LTO backend knows which symbols need
   // to be kept or can be internalized. This is a simplified symbol resolution
@@ -1477,10 +1465,11 @@ Error linkBitcodeFiles(SmallVectorImpl<OffloadFile> &InputFiles,
 
   // Append the new inputs to the device linker input. If the user requested an
   // internalizing link we need to pass the bitcode to clang.
-  for (StringRef File :
-       Args.hasArg(OPT_clang_backend) || Args.hasArg(OPT_builtin_bitcode_EQ)
-           ? BitcodeOutput
-           : Files)
+  for (StringRef File : Args.hasArg(OPT_clang_backend) ||
+                                Args.hasArg(OPT_builtin_bitcode_EQ) ||
+                                Triple.isSPIROrSPIRV()
+                            ? BitcodeOutput
+                            : Files)
     OutputFiles.push_back(File);
 
   return Error::success();
@@ -1770,7 +1759,6 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
     SmallVector<StringRef> InputFiles;
     if (Error Err = linkBitcodeFiles(Input, InputFiles, LinkerArgs))
       return Err;
-
     // Write any remaining device inputs to an output file for the linker.
     for (const OffloadFile &File : Input) {
       auto FileNameOrErr = writeOffloadFile(File);
@@ -1780,8 +1768,8 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
     }
 
     if (HasSYCLOffloadKind) {
-      // Link the remaining device files using the device linker for SYCL
-      // offload.
+      // Link in the remaining device library files using the device linker for
+      // SYCL offload.
       auto TmpOutputOrErr = sycl::linkDevice(InputFiles, LinkerArgs);
       if (!TmpOutputOrErr)
         return TmpOutputOrErr.takeError();

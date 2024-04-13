@@ -40,6 +40,7 @@ def do_configure(args):
     libdevice_dir = os.path.join(abs_src_dir, "libdevice")
     fusion_dir = os.path.join(abs_src_dir, "sycl-fusion")
     llvm_targets_to_build = args.host_target
+    llvm_experimental_targets_to_build = 'SPIRV'
     llvm_enable_projects = 'clang;' + llvm_external_projects
     libclc_targets_to_build = ''
     libclc_gen_remangled_variants = 'OFF'
@@ -154,6 +155,7 @@ def do_configure(args):
         "-DCMAKE_BUILD_TYPE={}".format(args.build_type),
         "-DLLVM_ENABLE_ASSERTIONS={}".format(llvm_enable_assertions),
         "-DLLVM_TARGETS_TO_BUILD={}".format(llvm_targets_to_build),
+        "-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD={}".format(llvm_experimental_targets_to_build),
         "-DLLVM_EXTERNAL_PROJECTS={}".format(llvm_external_projects),
         "-DLLVM_EXTERNAL_SYCL_SOURCE_DIR={}".format(sycl_dir),
         "-DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR={}".format(spirv_dir),
