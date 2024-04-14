@@ -486,8 +486,7 @@ public:
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
-  template <typename Ty = DataT>
-  explicit constexpr vec(const Ty &arg)
+  explicit constexpr vec(const DataT &arg)
       : vec{detail::RepeatValue<NumElements>(
                 static_cast<vec_data_t<DataT>>(arg)),
             std::make_index_sequence<NumElements>()} {}
