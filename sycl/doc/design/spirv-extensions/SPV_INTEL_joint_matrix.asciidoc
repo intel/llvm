@@ -274,9 +274,9 @@ Note: To specify cache level for *OpCooperativeMatrixStoreKHR* one
 can use *CacheControlStoreINTEL* decoration from {cache_control_url}[SPV_INTEL_cache_controls extension]. +
  +
 
-[cols="1,1,8*3",width="100%"]
+[cols="1,1,9*3",width="100%"]
 |=====
-9+|[[OpCooperativeMatrixPrefetchINTEL]]*OpCooperativeMatrixPrefetchINTEL* +
+10+|[[OpCooperativeMatrixPrefetchINTEL]]*OpCooperativeMatrixPrefetchINTEL* +
  +
 The instruction does not modify the behaviour of the program. The instruction
 prefetches 'Rows' X 'Columns' block of data. +
@@ -309,6 +309,12 @@ a description of the layouts and detailed layout-specific rules. +
 'Stride' further qualifies how matrix elements are laid out in memory. It must be a
 scalar 'integer type' and its exact semantics depend on 'MemoryLayout'. +
  +
+'Memory Operand', if present, must begin with a _Memory Operand_ literal.
+If not present, it is the same as specifying the _Memory Operand_ None. +
+ +
+All the operands to this instruction must be dynamically uniform within every
+instance of the 'Scope' of the cooperative matrix. +
+ +
 1+|Capability: +
 *{capability_prefetch_name}*
 1+| 8+variable | {OpCooperativeMatrixPrefetchINTEL_token} | '<id>' +
@@ -319,7 +325,8 @@ scalar 'integer type' and its exact semantics depend on 'MemoryLayout'. +
 'Columns' | Literal +
 'Cache Level' | '<id>' +
 'MemoryLayout' | Optional '<id>' +
-'Stride' |
+'Stride' | Optional +
+'Memory Operand' |
 |=====
 
 [cols="1,1,10*3",width="100%"]
@@ -360,11 +367,8 @@ scalar 'integer type' and its exact semantics depend on 'MemoryLayout'. +
 'Memory Operand' must be a +Memory Operand+ literal. If not present, it is the
 same as specifying *None*. +
  +
-For a given dynamic instance of this instruction, all operands of this
-instruction must be the same for all invocations in a given scope instance
-(where the scope is the scope the cooperative matrix type was created with).
-All invocations in a given scope instance must be active or all must be
-inactive. +
+All the operands to this instruction must be dynamically uniform within every
+instance of the 'Scope' of the cooperative matrix. +
  +
 Note: To specify cache level for *OpCooperativeMatrixLoadCheckedINTEL* one
 can use *CacheControlLoadINTEL* decoration from {cache_control_url}[SPV_INTEL_cache_controls extension]. +
@@ -420,11 +424,8 @@ scalar 'integer type' and its exact semantics depend on 'MemoryLayout'. +
 'Memory Operand' must be a +Memory Operand+ literal. If not present, it is the
 same as specifying *None*. +
  +
-For a given dynamic instance of this instruction, all operands of this
-instruction must be the same for all invocations in a given scope instance
-(where the scope is the scope the cooperative matrix type was created with).
-All invocations in a given scope instance must be active or all must be
-inactive. +
+All the operands to this instruction must be dynamically uniform within every
+instance of the 'Scope' of the cooperative matrix. +
  +
 Note: To specify cache level for *OpCooperativeMatrixStoreCheckedINTEL* one
 can use *CacheControlStoreINTEL* decoration from {cache_control_url}[SPV_INTEL_cache_controls extension]. +
@@ -468,11 +469,8 @@ It must be a scalar 'integer type'. +
 'Value' is an initializer value for the constructed object. It must have the same type
 as an element type of the 'Result Type'. +
  +
-For a given dynamic instance of this instruction, all operands of this
-instruction must be the same for all invocations in a given scope instance
-(where the scope is the scope the cooperative matrix type was created with).
-All invocations in a given scope instance must be active or all must be
-inactive. +
+All the operands to this instruction must be dynamically uniform within every
+instance of the 'Scope' of the cooperative matrix. +
  +
 1+|Capability: +
 *{capability_checked_name}*
