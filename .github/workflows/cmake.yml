@@ -174,6 +174,10 @@ jobs:
         ]
         build_type: [Debug, Release]
         compiler: [{c: gcc, cxx: g++}, {c: clang, cxx: clang++}]
+        # TODO: The latest L0 loader segfaults when built with clang.
+        exclude:
+         - adapter: {name: L0, platform: ""}
+           compiler: {c: clang, cxx: clang++}
 
     runs-on: ${{matrix.adapter.name}}
 
