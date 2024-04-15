@@ -1121,7 +1121,7 @@ However, they provide an optional argument to represent the `logical_group` size
 
 Experimental support for masked versions of `select_from_sub_group`,
 `shift_sub_group_left`, `shift_sub_group_right` and `permute_sub_group_by_xor` is
-provided only for SPIRV devices.
+provided only for SPIRV or cuda devices.
 
 ```c++
 namespace syclcompat {
@@ -1386,6 +1386,90 @@ struct sub_sat {
 };
 
 } // namespace syclcompat
+```
+
+Finally, the math header provides a set of functions to extend 32-bit operations
+to 33 bit, and handle sign extension internally. There is support for `add`,
+`sub`, `absdiff`, `min` and `max` operations. Each operation provides overloads
+to include a second, separate, `BinaryOperation` after the first, and include
+the `_sat` variation, determines if the returning value is saturated or not.
+
+```cpp
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_add(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_add(AT a, BT b, CT c, BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_add_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_add_sat(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_sub(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_sub(AT a, BT b, CT c, BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_sub_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_sub_sat(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_absdiff(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_absdiff(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_absdiff_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_absdiff_sat(AT a, BT b, CT c,
+                                         BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_min(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_min(AT a, BT b, CT c, BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_min_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_min_sat(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_max(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_max(AT a, BT b, CT c, BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_max_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_max_sat(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
 ```
 
 ## Sample Code
