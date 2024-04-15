@@ -410,8 +410,7 @@ memcpy(sycl::queue q, void *to_ptr, const void *from_ptr,
     }));
     break;
   default:
-    throw std::runtime_error("[SYCLcompat]"
-                             "memcpy: invalid direction value");
+    throw std::runtime_error("[SYCLcompat] memcpy: invalid direction value");
   }
   return event_list;
 }
@@ -783,8 +782,8 @@ static inline void memset_d32(void *dev_ptr, unsigned int value, size_t size,
 /// \param value Value to be set.
 /// \param size Number of bytes to be set to the value.
 /// \returns An event representing the memset operation.
-static sycl::event memset_async(void *dev_ptr, int value, size_t size,
-                                sycl::queue q = get_default_queue()) {
+static inline sycl::event memset_async(void *dev_ptr, int value, size_t size,
+                                       sycl::queue q = get_default_queue()) {
   return detail::memset(q, dev_ptr, value, size);
 }
 
