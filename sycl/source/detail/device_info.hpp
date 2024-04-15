@@ -108,12 +108,8 @@ affinityDomainToString(info::partition_affinity_domain AffinityDomain) {
 }
 
 // Mapping expected SYCL return types to those returned by PI calls
-template <typename T> struct sycl_to_pi {
-  using type = T;
-};
-template <> struct sycl_to_pi<bool> {
-  using type = pi_bool;
-};
+template <typename T> struct sycl_to_pi { using type = T; };
+template <> struct sycl_to_pi<bool> { using type = pi_bool; };
 template <> struct sycl_to_pi<device> {
   using type = sycl::detail::pi::PiDevice;
 };
@@ -2265,6 +2261,17 @@ get_device_info_host<
 }
 
 const int forward_progress_guarantee_size = 3;
+template <typename ReturnT>
+ReturnT get_progress_guarantee_vector(
+    ext::oneapi::experimental::forward_progress_guarantee guarantee) {
+  int guarantee_val = static_cast<int>(guarantee);
+  ReturnT res;
+  res.reserve(forward_progress_guarantee_size - guarantee_val);
+  for (int i = forward_progress_guarantee_size - 1; i >= guarantee_val; --i) {
+    res.emplace_back(static_cast<ext::oneapi::experimental::forward_progress_guarantee>(i));
+  }
+  return res;
+}
 
 template <typename ReturnT>
 struct get_device_info_impl<
@@ -2275,14 +2282,9 @@ struct get_device_info_impl<
     using forward_progress_guarantee =
         ext::oneapi::experimental::forward_progress_guarantee;
     using execution_scope = ext::oneapi::experimental::execution_scope;
-    ReturnT res;
     auto guarantee =
         Dev->get_immediate_progress_guarantee(execution_scope::root_group);
-    int guarantee_val = static_cast<int>(guarantee);
-    for (int i = forward_progress_guarantee_size - 1; i >= guarantee_val; --i) {
-      res.emplace_back(static_cast<forward_progress_guarantee>(i));
-    }
-    return res;
+    return get_progress_guarantee_vector<ReturnT>(guarantee);
   }
 };
 template <typename ReturnT>
@@ -2294,17 +2296,12 @@ struct get_device_info_impl<
     using forward_progress_guarantee =
         ext::oneapi::experimental::forward_progress_guarantee;
     using execution_scope = ext::oneapi::experimental::execution_scope;
-    ReturnT res;
     auto guarantee = static_cast<forward_progress_guarantee>(
         std::max({static_cast<int>(Dev->get_immediate_progress_guarantee(
                       execution_scope::work_group)),
                   static_cast<int>(Dev->get_immediate_progress_guarantee(
                       execution_scope::root_group))}));
-    int guarantee_val = static_cast<int>(guarantee);
-    for (int i = forward_progress_guarantee_size - 1; i >= guarantee_val; --i) {
-      res.emplace_back(static_cast<forward_progress_guarantee>(i));
-    }
-    return res;
+    return get_progress_guarantee_vector<ReturnT>(guarantee);
   }
 };
 
@@ -2317,14 +2314,9 @@ struct get_device_info_impl<
     using forward_progress_guarantee =
         ext::oneapi::experimental::forward_progress_guarantee;
     using execution_scope = ext::oneapi::experimental::execution_scope;
-    ReturnT res;
     auto guarantee =
         Dev->get_immediate_progress_guarantee(execution_scope::work_group);
-    int guarantee_val = static_cast<int>(guarantee);
-    for (int i = forward_progress_guarantee_size - 1; i >= guarantee_val; --i) {
-      res.emplace_back(static_cast<forward_progress_guarantee>(i));
-    }
-    return res;
+    return get_progress_guarantee_vector<ReturnT>(guarantee);
   }
 };
 
@@ -2337,7 +2329,6 @@ struct get_device_info_impl<
     using forward_progress_guarantee =
         ext::oneapi::experimental::forward_progress_guarantee;
     using execution_scope = ext::oneapi::experimental::execution_scope;
-    ReturnT res;
     auto guarantee = static_cast<forward_progress_guarantee>(
         std::max({static_cast<int>(Dev->get_immediate_progress_guarantee(
                       execution_scope::root_group)),
@@ -2345,11 +2336,7 @@ struct get_device_info_impl<
                       execution_scope::work_group)),
                   static_cast<int>(Dev->get_immediate_progress_guarantee(
                       execution_scope::sub_group))}));
-    int guarantee_val = static_cast<int>(guarantee);
-    for (int i = forward_progress_guarantee_size - 1; i >= guarantee_val; --i) {
-      res.emplace_back(static_cast<forward_progress_guarantee>(i));
-    }
-    return res;
+    return get_progress_guarantee_vector<ReturnT>(guarantee);
   }
 };
 template <typename ReturnT>
@@ -2361,17 +2348,12 @@ struct get_device_info_impl<
     using forward_progress_guarantee =
         ext::oneapi::experimental::forward_progress_guarantee;
     using execution_scope = ext::oneapi::experimental::execution_scope;
-    ReturnT res;
     auto guarantee = static_cast<forward_progress_guarantee>(
         std::max({static_cast<int>(Dev->get_immediate_progress_guarantee(
                       execution_scope::sub_group)),
                   static_cast<int>(Dev->get_immediate_progress_guarantee(
                       execution_scope::work_group))}));
-    int guarantee_val = static_cast<int>(guarantee);
-    for (int i = forward_progress_guarantee_size - 1; i >= guarantee_val; --i) {
-      res.emplace_back(static_cast<forward_progress_guarantee>(i));
-    }
-    return res;
+    return get_progress_guarantee_vector<ReturnT>(guarantee);
   }
 };
 
@@ -2384,14 +2366,9 @@ struct get_device_info_impl<
     using forward_progress_guarantee =
         ext::oneapi::experimental::forward_progress_guarantee;
     using execution_scope = ext::oneapi::experimental::execution_scope;
-    ReturnT res;
     auto guarantee =
         Dev->get_immediate_progress_guarantee(execution_scope::sub_group);
-    int guarantee_val = static_cast<int>(guarantee);
-    for (int i = forward_progress_guarantee_size - 1; i >= guarantee_val; --i) {
-      res.emplace_back(static_cast<forward_progress_guarantee>(i));
-    }
-    return res;
+    return get_progress_guarantee_vector<ReturnT>(guarantee);
   }
 };
 
