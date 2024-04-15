@@ -113,8 +113,10 @@ template <size_t PartitionSize> void test() {
           ShiftRightAcc[WI] = (LID < 2 || ShiftRightResult == LID - 2);
 
           uint32_t SelectResult = sycl::select_from_group(
-              Partition, LID, (Partition.get_local_id() + 2) % PartitionSize);
-          SelectAcc[WI] = (SelectResult == (LID + 2) % PartitionSize);
+              Partition, OriginalLID,
+              (Partition.get_local_id() + 2) % PartitionSize);
+          SelectAcc[WI] =
+              SelectResult == OriginalLID - LID + ((LID + 2) % PartitionSize);
 
           uint32_t Mask = PartitionSize <= 2 ? 0 : 2;
           uint32_t PermuteXorResult =
