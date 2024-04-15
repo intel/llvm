@@ -165,9 +165,11 @@
 //        - Added device queries for cubemap support
 //          - PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SUPPORT
 //          - PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT
+// 15.50 Removed ret_mem argument from piextMemUnsampledImageCreate and
+// piextMemSampledImageCreate
 
 #define _PI_H_VERSION_MAJOR 15
-#define _PI_H_VERSION_MINOR 48
+#define _PI_H_VERSION_MINOR 50
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
