@@ -3,6 +3,7 @@ name: Update GPU driver
 on:
   schedule:
     - cron:  '0 3 * * 2'
+    - cron:  '0 3 * * 1,4'
   workflow_dispatch:
 
 permissions: read-all
@@ -15,9 +16,19 @@ jobs:
     if: github.repository == 'intel/llvm'
     steps:
     - uses: actions/checkout@v4
+    - name: Determine parameters based on the day of the week
+       id: params
+       run: |
+         DAY_OF_WEEK=$(date +%u)
+         if [ "$DAY_OF_WEEK" = "2" ]; then
+           PARAM=""
+         else
+           PARAM="--igc-dev-only"
+         fi
+         echo "PARAM=$PARAM" >> $GITHUB_ENV
     - name: Update dependencies file
       run: |
-        version="$(python3 devops/scripts/update_drivers.py linux)"
+        version="$(python3 devops/scripts/update_drivers.py $PARAM linux)"
         echo 'NEW_DRIVER_VERSION='$version >> $GITHUB_ENV
     - name: Create Pull Request
       env:
