@@ -669,9 +669,20 @@ protected:
              "Invalid type for bitwise instruction");
       assert((Op1Ty->getIntegerBitWidth() == Op2Ty->getIntegerBitWidth()) &&
              "Inconsistent BitWidth");
+    } else if (isBinaryPtrOpCode(OpCode)) {
+      assert((Op1Ty->isTypePointer() && Op2Ty->isTypePointer()) &&
+             "Invalid types for PtrEqual, PtrNotEqual, or PtrDiff instruction");
+      assert(static_cast<SPIRVTypePointer *>(Op1Ty)->getElementType() ==
+                 static_cast<SPIRVTypePointer *>(Op2Ty)->getElementType() &&
+             "Invalid types for PtrEqual, PtrNotEqual, or PtrDiff instruction");
     } else {
       assert(0 && "Invalid op code!");
     }
+  }
+  VersionNumber getRequiredSPIRVVersion() const override {
+    if (isBinaryPtrOpCode(OpCode))
+      return VersionNumber::SPIRV_1_4;
+    return VersionNumber::SPIRV_1_0;
   }
 };
 
@@ -707,6 +718,9 @@ _SPIRV_OP(BitwiseAnd)
 _SPIRV_OP(BitwiseOr)
 _SPIRV_OP(BitwiseXor)
 _SPIRV_OP(Dot)
+_SPIRV_OP(PtrEqual)
+_SPIRV_OP(PtrNotEqual)
+_SPIRV_OP(PtrDiff)
 #undef _SPIRV_OP
 
 template <Op TheOpCode> class SPIRVInstNoOperand : public SPIRVInstruction {
