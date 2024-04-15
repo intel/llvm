@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 758c61490442456933e3957aac568e13287429eb
-  # Merge: e2b5b7fa e2e44728
+  # commit 6ccaf38708cfa614ab7f9b34c351826cd74028f2
+  # Merge: 0eab26c7 0497923a
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Apr 10 16:15:45 2024 +0100
-  #    Merge pull request #1483 from nrspruit/fix_inorder_lists_reuse
-  #    [L0] Fix regular in order command list reuse given inorder queue
-  set(UNIFIED_RUNTIME_TAG 758c61490442456933e3957aac568e13287429eb)
+  # Date:   Fri Apr 12 10:22:00 2024 +0100
+  #    Merge pull request #1498 from wenju-he/ZeImageDesc-urMemImageCreateWithNativeHandle
+  #    [L0][Image] Set ZeImageDesc member of _ur_image in release build for legacy image
+  set(UNIFIED_RUNTIME_TAG 6ccaf38708cfa614ab7f9b34c351826cd74028f2)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
