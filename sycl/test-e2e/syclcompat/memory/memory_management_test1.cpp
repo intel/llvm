@@ -128,27 +128,36 @@ void test_memcpy_q() {
   free(h_C);
 }
 
-void test_memset() {
+template <size_t memset_size_bits = 8> void test_memset_impl() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
+  // ValueT -> int for memset and memset_d32, short for memset_d16.
+  using ValueT = std::conditional_t<
+      memset_size_bits == 8 || memset_size_bits == 32, int,
+      std::conditional_t<memset_size_bits == 16, short, void>>;
+  static_assert(!std::is_void_v<ValueT>,
+                "memset tests only work for 8, 16 and 32 bits");
 
   constexpr int Num = 10;
-  int *h_A = (int *)malloc(Num * sizeof(int));
+  ValueT *h_A = (ValueT *)malloc(Num * sizeof(ValueT));
 
   for (int i = 0; i < Num; i++) {
     h_A[i] = 4;
   }
 
-  int *d_A = nullptr;
-
-  d_A = (int *)syclcompat::malloc(Num * sizeof(int));
+  ValueT *d_A = (ValueT *)syclcompat::malloc(Num * sizeof(ValueT));
   // hostA -> deviceA
-  syclcompat::memcpy((void *)d_A, (void *)h_A, Num * sizeof(int));
+  syclcompat::memcpy((void *)d_A, (void *)h_A, Num * sizeof(ValueT));
 
   // set d_A[0,..., 6] = 0
-  syclcompat::memset((void *)d_A, 0, (Num - 3) * sizeof(int));
+  if constexpr (memset_size_bits == 8)
+    syclcompat::memset((void *)d_A, 0, (Num - 3) * sizeof(ValueT));
+  else if constexpr (memset_size_bits == 16)
+    syclcompat::memset_d16((void *)d_A, 0, (Num - 3));
+  else if constexpr (memset_size_bits == 32)
+    syclcompat::memset_d32((void *)d_A, 0, (Num - 3));
 
   // deviceA -> hostA
-  syclcompat::memcpy((void *)h_A, (void *)d_A, Num * sizeof(int));
+  syclcompat::memcpy((void *)h_A, (void *)d_A, Num * sizeof(ValueT));
 
   syclcompat::free((void *)d_A);
 
@@ -165,28 +174,37 @@ void test_memset() {
   free(h_A);
 }
 
-void test_memset_q() {
+template <size_t memset_size_bits = 8> void test_memset_q_impl() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
+  // ValueT -> int for memset and memset_d32, short for memset_d16.
+  using ValueT = std::conditional_t<
+      memset_size_bits == 8 || memset_size_bits == 32, int,
+      std::conditional_t<memset_size_bits == 16, short, void>>;
+  static_assert(!std::is_void_v<ValueT>,
+                "memset tests only work for 8, 16 and 32 bits");
 
   sycl::queue q{{sycl::property::queue::in_order()}};
   constexpr int Num = 10;
-  int *h_A = (int *)malloc(Num * sizeof(int));
+  ValueT *h_A = (ValueT *)malloc(Num * sizeof(ValueT));
 
   for (int i = 0; i < Num; i++) {
     h_A[i] = 4;
   }
 
-  int *d_A = nullptr;
-
-  d_A = (int *)syclcompat::malloc(Num * sizeof(int), q);
+  ValueT *d_A = (ValueT *)syclcompat::malloc(Num * sizeof(ValueT), q);
   // hostA -> deviceA
-  syclcompat::memcpy((void *)d_A, (void *)h_A, Num * sizeof(int), q);
+  syclcompat::memcpy((void *)d_A, (void *)h_A, Num * sizeof(ValueT), q);
 
   // set d_A[0,..., 6] = 0
-  syclcompat::memset((void *)d_A, 0, (Num - 3) * sizeof(int), q);
+  if constexpr (memset_size_bits == 8)
+    syclcompat::memset((void *)d_A, 0, (Num - 3) * sizeof(ValueT), q);
+  else if constexpr (memset_size_bits == 16)
+    syclcompat::memset_d16((void *)d_A, 0, (Num - 3), q);
+  else if constexpr (memset_size_bits == 32)
+    syclcompat::memset_d32((void *)d_A, 0, (Num - 3), q);
 
   // deviceA -> hostA
-  syclcompat::memcpy((void *)h_A, (void *)d_A, Num * sizeof(int), q);
+  syclcompat::memcpy((void *)h_A, (void *)d_A, Num * sizeof(ValueT), q);
 
   syclcompat::free((void *)d_A, q);
 
@@ -201,6 +219,42 @@ void test_memset_q() {
   }
 
   free(h_A);
+}
+
+void test_memset() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  constexpr size_t memset_size_in_bits = 8;
+  test_memset_impl<memset_size_in_bits>();
+}
+
+void test_memset_d16() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  constexpr size_t memset_size_in_bits = 16;
+  test_memset_impl<memset_size_in_bits>();
+}
+
+void test_memset_d32() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  constexpr size_t memset_size_in_bits = 32;
+  test_memset_impl<memset_size_in_bits>();
+}
+
+void test_memset_q() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  constexpr size_t memset_size_in_bits = 8;
+  test_memset_q_impl<memset_size_in_bits>();
+}
+
+void test_memset_d16_q() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  constexpr size_t memset_size_in_bits = 16;
+  test_memset_q_impl<memset_size_in_bits>();
+}
+
+void test_memset_d32_q() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  constexpr size_t memset_size_in_bits = 32;
+  test_memset_q_impl<memset_size_in_bits>();
 }
 
 template <typename T> void test_memcpy_t() {
@@ -480,6 +534,10 @@ int main() {
   test_memcpy_q();
   test_memset();
   test_memset_q();
+  test_memset_d16();
+  test_memset_d16_q();
+  test_memset_d32();
+  test_memset_d32_q();
   test_constant_memcpy();
   test_constant_memcpy_q();
 
