@@ -808,7 +808,7 @@ protected:
       EventImplPtr EventRetImpl = getSyclObjImpl(EventRet);
       if (Type == CG::CodeplayHostTask)
         Deps.NotEnqueuedCmdEvents.push_back(EventRetImpl);
-      else if (!EventRetImpl->getHandleRef()) // not enqueued
+      else if (!EventRetImpl->isEnqueued())
       {
         if (Type == CG::Barrier || Type == CG::BarrierWaitlist) {
           Deps.LastBarrier = EventRetImpl;
