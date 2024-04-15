@@ -3,6 +3,7 @@ import json
 import sys
 import os
 import re
+import argparse
 
 
 def get_latest_release(repo):
@@ -39,7 +40,7 @@ def uplift_linux_igfx_driver(config, platform_tag,igc_dev_only):
         "intel/intel-graphics-compiler", "IGC_Ubuntu22.04_llvm14_clang-" + igcdevver
     )
 
-    if(igc_dev_only)
+    if(igc_dev_only):
         return config
 
     compute_runtime = get_latest_release('intel/compute-runtime')
@@ -85,7 +86,7 @@ def main(platform_tag, igc_dev_only):
         json.dump(config, f, indent=2)
         f.write('\n')
 
-    if(igc_dev_only)
+    if(igc_dev_only):
         return config[platform_tag]["igc_dev"]["github_tag"]
 
     return config[platform_tag]['compute_runtime']['version']
