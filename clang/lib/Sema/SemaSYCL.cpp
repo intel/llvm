@@ -2756,8 +2756,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     // all the params.
     FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
     QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, {}, Info);
-    const IdentifierInfo *NewIdent =
-        &Ctx.Idents.get(constructFFKernelName(FD));
+    const IdentifierInfo *NewIdent = &Ctx.Idents.get(constructFFKernelName(FD));
     FD = FunctionDecl::Create(
         Ctx, Ctx.getTranslationUnitDecl(), Loc, Loc, DeclarationName(NewIdent),
         FuncType, Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), SC_None);
