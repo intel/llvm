@@ -1,5 +1,13 @@
-template <size_t TM, class kernel_name, typename T1, typename T2, size_t M,
-          size_t N, size_t K>
+//=----- joint_matrix_bfloat16_packedB_impl.hpp - DPC++ joint_matrix -------=//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//=-------------------------------------------------------------------------=//
+
+template <size_t TM, size_t TN, size_t TK, class kernel_name, typename T1,
+          typename T2, size_t M, size_t N, size_t K>
 void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
                      big_matrix<T2, K / 2, N * 2> &B) {
   size_t NDRangeM = M / TM;
@@ -64,7 +72,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
    }).wait();
 }
 
-template <size_t TM, class kernel_name> int test() {
+template <size_t TM, size_t TN, size_t TK, class kernel_name> int test() {
   static constexpr size_t MATRIX_M = TM * 2;
   static constexpr size_t MATRIX_N = TN * 2;
   static constexpr size_t MATRIX_K = TK * 2;
@@ -84,7 +92,7 @@ template <size_t TM, class kernel_name> int test() {
   big_matrix<float, MATRIX_M, MATRIX_N> MD((float *)&D);
   big_matrix<bfloat16, MATRIX_M, MATRIX_K> MA((bfloat16 *)&A);
   big_matrix<bfloat16, MATRIX_K / 2, MATRIX_N * 2> MB((bfloat16 *)&B);
-  matrix_multiply<TM, kernel_name>(MC, MA, MB);
+  matrix_multiply<TM, TN, TK, kernel_name>(MC, MA, MB);
   matrix_multiply_ref<bfloat16, bfloat16, float, 2>(
       (bfloat16 *)A, (bfloat16 *)B, (float *)D, MATRIX_M, MATRIX_N,
       MATRIX_K / 2);
@@ -95,4 +103,27 @@ template <size_t TM, class kernel_name> int test() {
   return !res;
 }
 
-int main() { return test<32, class m32>() + test<1, class m1>(); }
+int main() {
+  queue q;
+  std::vector<combination> combinations =
+      q.get_device()
+          .get_info<sycl::ext::oneapi::experimental::info::device::
+                        matrix_combinations>();
+
+  int ret = 0;
+  for (auto &combination : combinations) {
+    if (combination.nsize == 0) { // Intel AMX
+      ret += test<16, 16, 16, class amx16x16x16>();
+      break;
+    }
+
+    if (combination.nsize == 16) { // architecture::intel_gpu_pvc
+      ret += test<16, 16, 16, class pvc16x16x16>();
+      ret += test<32, 64, 16, class pvc32x64x16>();
+      ret += test<1, 64, 16, class pvc1x64x16>();
+      break;
+    }
+  }
+
+  return ret;
+}
