@@ -1,20 +1,22 @@
 //===----------- enqueue.cpp - NATIVE CPU Adapter -------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
-//
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 #include <array>
+#include <cstddef>
 #include <cstdint>
+#include <vector>
 
 #include "ur_api.h"
 
 #include "common.hpp"
 #include "kernel.hpp"
 #include "memory.hpp"
+#include "queue.hpp"
+#include "threadpool.hpp"
 
 namespace native_cpu {
 struct NDRDescT {
@@ -37,8 +39,28 @@ struct NDRDescT {
       GlobalOffset[I] = 0;
     }
   }
+
+  void dump(std::ostream &os) const {
+    os << "GlobalSize: " << GlobalSize[0] << " " << GlobalSize[1] << " "
+       << GlobalSize[2] << "\n";
+    os << "LocalSize: " << LocalSize[0] << " " << LocalSize[1] << " "
+       << LocalSize[2] << "\n";
+    os << "GlobalOffset: " << GlobalOffset[0] << " " << GlobalOffset[1] << " "
+       << GlobalOffset[2] << "\n";
+  }
 };
 } // namespace native_cpu
+
+#ifdef NATIVECPU_USE_OCK
+static native_cpu::state getResizedState(const native_cpu::NDRDescT &ndr,
+                                         size_t itemsPerThread) {
+  native_cpu::state resized_state(
+      ndr.GlobalSize[0], ndr.GlobalSize[1], ndr.GlobalSize[2], itemsPerThread,
+      ndr.LocalSize[1], ndr.LocalSize[2], ndr.GlobalOffset[0],
+      ndr.GlobalOffset[1], ndr.GlobalOffset[2]);
+  return resized_state;
+}
+#endif
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
@@ -63,23 +85,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   // TODO: add proper event dep management
   native_cpu::NDRDescT ndr(workDim, pGlobalWorkOffset, pGlobalWorkSize,
                            pLocalWorkSize);
-  hKernel->handleLocalArgs();
-
+  auto &tp = hQueue->device->tp;
+  const size_t numParallelThreads = tp.num_threads();
+  hKernel->updateMemPool(numParallelThreads);
+  std::vector<std::future<void>> futures;
+  std::vector<std::function<void(size_t, ur_kernel_handle_t_)>> groups;
+  auto numWG0 = ndr.GlobalSize[0] / ndr.LocalSize[0];
+  auto numWG1 = ndr.GlobalSize[1] / ndr.LocalSize[1];
+  auto numWG2 = ndr.GlobalSize[2] / ndr.LocalSize[2];
   native_cpu::state state(ndr.GlobalSize[0], ndr.GlobalSize[1],
                           ndr.GlobalSize[2], ndr.LocalSize[0], ndr.LocalSize[1],
                           ndr.LocalSize[2], ndr.GlobalOffset[0],
                           ndr.GlobalOffset[1], ndr.GlobalOffset[2]);
-
-  auto numWG0 = ndr.GlobalSize[0] / ndr.LocalSize[0];
-  auto numWG1 = ndr.GlobalSize[1] / ndr.LocalSize[1];
-  auto numWG2 = ndr.GlobalSize[2] / ndr.LocalSize[2];
+#ifndef NATIVECPU_USE_OCK
+  hKernel->handleLocalArgs(1, 0);
   for (unsigned g2 = 0; g2 < numWG2; g2++) {
     for (unsigned g1 = 0; g1 < numWG1; g1++) {
       for (unsigned g0 = 0; g0 < numWG0; g0++) {
-#ifdef NATIVECPU_USE_OCK
-        state.update(g0, g1, g2);
-        hKernel->_subhandler(hKernel->_args.data(), &state);
-#else
         for (unsigned local2 = 0; local2 < ndr.LocalSize[2]; local2++) {
           for (unsigned local1 = 0; local1 < ndr.LocalSize[1]; local1++) {
             for (unsigned local0 = 0; local0 < ndr.LocalSize[0]; local0++) {
@@ -88,10 +110,118 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
             }
           }
         }
-#endif
       }
     }
   }
+#else
+  bool isLocalSizeOne =
+      ndr.LocalSize[0] == 1 && ndr.LocalSize[1] == 1 && ndr.LocalSize[2] == 1;
+  if (isLocalSizeOne && ndr.GlobalSize[0] > numParallelThreads) {
+    // If the local size is one, we make the assumption that we are running a
+    // parallel_for over a sycl::range.
+    // Todo: we could add compiler checks and
+    // kernel properties for this (e.g. check that no barriers are called, no
+    // local memory args).
+
+    // Todo: this assumes that dim 0 is the best dimension over which we want to
+    // parallelize
+
+    // Since we also vectorize the kernel, and vectorization happens within the
+    // work group loop, it's better to have a large-ish local size. We can
+    // divide the global range by the number of threads, set that as the local
+    // size and peel everything else.
+
+    size_t new_num_work_groups_0 = numParallelThreads;
+    size_t itemsPerThread = ndr.GlobalSize[0] / numParallelThreads;
+
+    for (unsigned g2 = 0; g2 < numWG2; g2++) {
+      for (unsigned g1 = 0; g1 < numWG1; g1++) {
+        for (unsigned g0 = 0; g0 < new_num_work_groups_0; g0 += 1) {
+          futures.emplace_back(
+              tp.schedule_task([&ndr = std::as_const(ndr), itemsPerThread,
+                                hKernel, g0, g1, g2](size_t) {
+                native_cpu::state resized_state =
+                    getResizedState(ndr, itemsPerThread);
+                resized_state.update(g0, g1, g2);
+                hKernel->_subhandler(hKernel->_args.data(), &resized_state);
+              }));
+        }
+        // Peel the remaining work items. Since the local size is 1, we iterate
+        // over the work groups.
+        for (unsigned g0 = new_num_work_groups_0 * itemsPerThread; g0 < numWG0;
+             g0++) {
+          state.update(g0, g1, g2);
+          hKernel->_subhandler(hKernel->_args.data(), &state);
+        }
+      }
+    }
+
+  } else {
+    // We are running a parallel_for over an nd_range
+
+    if (numWG1 * numWG2 >= numParallelThreads) {
+      // Dimensions 1 and 2 have enough work, split them across the threadpool
+      for (unsigned g2 = 0; g2 < numWG2; g2++) {
+        for (unsigned g1 = 0; g1 < numWG1; g1++) {
+          futures.emplace_back(
+              tp.schedule_task([state, kernel = *hKernel, numWG0, g1, g2,
+                                numParallelThreads](size_t threadId) mutable {
+                for (unsigned g0 = 0; g0 < numWG0; g0++) {
+                  kernel.handleLocalArgs(numParallelThreads, threadId);
+                  state.update(g0, g1, g2);
+                  kernel._subhandler(kernel._args.data(), &state);
+                }
+              }));
+        }
+      }
+    } else {
+      // Split dimension 0 across the threadpool
+      // Here we try to create groups of workgroups in order to reduce
+      // synchronization overhead
+      for (unsigned g2 = 0; g2 < numWG2; g2++) {
+        for (unsigned g1 = 0; g1 < numWG1; g1++) {
+          for (unsigned g0 = 0; g0 < numWG0; g0++) {
+            groups.push_back(
+                [state, g0, g1, g2, numParallelThreads](
+                    size_t threadId, ur_kernel_handle_t_ kernel) mutable {
+                  kernel.handleLocalArgs(numParallelThreads, threadId);
+                  state.update(g0, g1, g2);
+                  kernel._subhandler(kernel._args.data(), &state);
+                });
+          }
+        }
+      }
+      auto numGroups = groups.size();
+      auto groupsPerThread = numGroups / numParallelThreads;
+      auto remainder = numGroups % numParallelThreads;
+      for (unsigned thread = 0; thread < numParallelThreads; thread++) {
+        futures.emplace_back(tp.schedule_task(
+            [&groups, thread, groupsPerThread, hKernel](size_t threadId) {
+              for (unsigned i = 0; i < groupsPerThread; i++) {
+                auto index = thread * groupsPerThread + i;
+                groups[index](threadId, *hKernel);
+              }
+            }));
+      }
+
+      // schedule the remaining tasks
+      if (remainder) {
+        futures.emplace_back(
+            tp.schedule_task([&groups, remainder,
+                              scheduled = numParallelThreads * groupsPerThread,
+                              hKernel](size_t threadId) {
+              for (unsigned i = 0; i < remainder; i++) {
+                auto index = scheduled + i;
+                groups[index](threadId, *hKernel);
+              }
+            }));
+      }
+    }
+  }
+
+  for (auto &f : futures)
+    f.get();
+#endif // NATIVECPU_USE_OCK
   // TODO: we should avoid calling clear here by avoiding using push_back
   // in setKernelArgs.
   hKernel->_args.clear();
@@ -374,8 +504,41 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
   UR_ASSERT(size % patternSize == 0 || patternSize > size,
             UR_RESULT_ERROR_INVALID_SIZE);
 
-  memset(ptr, *static_cast<const uint8_t *>(pPattern), size * patternSize);
-
+  switch (patternSize) {
+  case 1:
+    memset(ptr, *static_cast<const uint8_t *>(pPattern), size * patternSize);
+    break;
+  case 2: {
+    const auto pattern = *static_cast<const uint16_t *>(pPattern);
+    auto *start = reinterpret_cast<uint16_t *>(ptr);
+    auto *end =
+        reinterpret_cast<uint16_t *>(reinterpret_cast<uint16_t *>(ptr) + size);
+    std::fill(start, end, pattern);
+    break;
+  }
+  case 4: {
+    const auto pattern = *static_cast<const uint32_t *>(pPattern);
+    auto *start = reinterpret_cast<uint32_t *>(ptr);
+    auto *end =
+        reinterpret_cast<uint32_t *>(reinterpret_cast<uint32_t *>(ptr) + size);
+    std::fill(start, end, pattern);
+    break;
+  }
+  case 8: {
+    const auto pattern = *static_cast<const uint64_t *>(pPattern);
+    auto *start = reinterpret_cast<uint64_t *>(ptr);
+    auto *end =
+        reinterpret_cast<uint64_t *>(reinterpret_cast<uint64_t *>(ptr) + size);
+    std::fill(start, end, pattern);
+    break;
+  }
+  default:
+    for (unsigned int step{0}; step < size; ++step) {
+      auto *dest = reinterpret_cast<void *>(reinterpret_cast<uint8_t *>(ptr) +
+                                            step * patternSize);
+      memcpy(dest, pPattern, patternSize);
+    }
+  }
   return UR_RESULT_SUCCESS;
 }
 
