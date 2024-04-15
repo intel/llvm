@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 758c61490442456933e3957aac568e13287429eb
-  # Merge: e2b5b7fa e2e44728
+  # commit 6ccaf38708cfa614ab7f9b34c351826cd74028f2
+  # Merge: 0eab26c7 0497923a
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Apr 10 16:15:45 2024 +0100
-  #    Merge pull request #1483 from nrspruit/fix_inorder_lists_reuse
-  #    [L0] Fix regular in order command list reuse given inorder queue
-  set(UNIFIED_RUNTIME_TAG 758c61490442456933e3957aac568e13287429eb)
+  # Date:   Fri Apr 12 10:22:00 2024 +0100
+  #    Merge pull request #1498 from wenju-he/ZeImageDesc-urMemImageCreateWithNativeHandle
+  #    [L0][Image] Set ZeImageDesc member of _ur_image in release build for legacy image
+  set(UNIFIED_RUNTIME_TAG 6ccaf38708cfa614ab7f9b34c351826cd74028f2)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -121,13 +121,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit 0eab26c7925c5ef341a6409d3766686b060b736b
-    # Merge: 70ba1503 1cf4a4e9
+    # commit 68e525a448a5f8fe52bda48d6b9709230f53f029
+    # Merge: 1473ed8a 1d159312
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri Apr 12 09:58:26 2024 +0100
-    #     Merge pull request #1310 from pasaulais/remove-old-cuda-tracing-fn
-    #     [CUDA] Remove unused function variant
-    0eab26c7925c5ef341a6409d3766686b060b736b
+    # Date:   Fri Apr 12 14:29:50 2024 +0100
+    #     Merge pull request #1317 from JackAKirk/usm-p2p-cuda-return
+    #     [CUDA] Return caught UR error directly.
+    68e525a448a5f8fe52bda48d6b9709230f53f029
   )
 
   fetch_adapter_source(hip
@@ -143,13 +143,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    # commit 38e9478b8a7a01fcf37f55b50c735ca1de29c76d
-    # Merge: b582fb80 c594cdc0
+    # commit 15233fd2521f9e9b35e3a24037be99ceef334a8e
+    # Merge: 68e525a4 a04b062e
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Apr 11 11:39:02 2024 +0100
-    #     Merge pull request #1478 from PietroGhg/pietro/vecz_threadpool
-    #     [NATIVECPU] Initial threadpool implementation for Native CPU
-    38e9478b8a7a01fcf37f55b50c735ca1de29c76d
+    # Date:   Fri Apr 12 15:46:49 2024 +0100
+    #     Merge pull request #1489 from konradkusiak97/nativeCPUqueueFill
+    #     [NATIVECPU] Extended usm fill to bigger patterns than 1 byte
+    15233fd2521f9e9b35e3a24037be99ceef334a8e
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
