@@ -121,13 +121,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit 68e525a448a5f8fe52bda48d6b9709230f53f029
-    # Merge: 1473ed8a 1d159312
+    # commit 1333d4a0fe84f1e2b3ab8196c7fd746825ee7b94
+    # Merge: 55cf3ba8 281e3aaf
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri Apr 12 14:29:50 2024 +0100
-    #     Merge pull request #1317 from JackAKirk/usm-p2p-cuda-return
-    #     [CUDA] Return caught UR error directly.
-    68e525a448a5f8fe52bda48d6b9709230f53f029
+    # Date:   Mon Apr 15 09:54:18 2024 +0100
+    #     Merge pull request #1342 from lplewa/cuda_log
+    #     Refactor cuda adapter to new logger
+    1333d4a0fe84f1e2b3ab8196c7fd746825ee7b94
   )
 
   fetch_adapter_source(hip
