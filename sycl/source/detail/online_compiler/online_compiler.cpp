@@ -200,10 +200,14 @@ compileToSPIRV(const std::string &Source, sycl::info::device_type DeviceType,
 
 template <>
 template <>
-std::vector<byte> online_compiler<source_language::opencl_c>::compile(
+__SYCL_EXPORT std::vector<byte> online_compiler<source_language::opencl_c>::compile(
     sycl::detail::string_view SourceView,
-    const std::vector<std::string> &UserArgs) {
+    const std::vector<sycl::detail::string_view> &UserArgs) {
   const std::string Source{SourceView.data()};
+  std::vector<std::string> Args;
+  for (const sycl::detail::string_view& arg : UserArgs)
+    Args.push_back(arg.data());
+  
   if (OutputFormatVersion != std::pair<int, int>{0, 0}) {
     std::string Version = std::to_string(OutputFormatVersion.first) + ", " +
                           std::to_string(OutputFormatVersion.second);
@@ -213,16 +217,20 @@ std::vector<byte> online_compiler<source_language::opencl_c>::compile(
 
   return detail::compileToSPIRV(Source, DeviceType, DeviceArch, Is64Bit,
                                 DeviceStepping, CompileToSPIRVHandle,
-                                FreeSPIRVOutputsHandle, UserArgs);
+                                FreeSPIRVOutputsHandle, Args);
 }
 
 template <>
 template <>
-std::vector<byte> online_compiler<source_language::cm>::compile(
+__SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
     sycl::detail::string_view SourceView,
-    const std::vector<std::string> &UserArgs) {
+    const std::vector<sycl::detail::string_view> &UserArgs) {
 
   const std::string Source{SourceView.data()};
+  std::vector<std::string> Args;
+  for (const sycl::detail::string_view& arg : UserArgs)
+    Args.push_back(arg.data());
+
   if (OutputFormatVersion != std::pair<int, int>{0, 0}) {
     std::string Version = std::to_string(OutputFormatVersion.first) + ", " +
                           std::to_string(OutputFormatVersion.second);
@@ -230,11 +238,10 @@ std::vector<byte> online_compiler<source_language::cm>::compile(
                                Version + ") is not supported yet");
   }
 
-  std::vector<std::string> CMUserArgs = UserArgs;
-  CMUserArgs.push_back("-cmc");
+  Args.push_back("-cmc");
   return detail::compileToSPIRV(Source, DeviceType, DeviceArch, Is64Bit,
                                 DeviceStepping, CompileToSPIRVHandle,
-                                FreeSPIRVOutputsHandle, CMUserArgs);
+                                FreeSPIRVOutputsHandle, Args);
 }
 } // namespace ext::intel::experimental
 
