@@ -918,12 +918,12 @@ the `T` template parameter as follows: +
 `tf32`: `sycl::ext::oneapi::experimental::matrix::precision::tf32` +
 `fp32`: `float` +
 `fp64`: `double` +
-`sint4`: `int4_t` +
+`sint4`: `sycl::ext::oneapi::experimental::matrix::precision::sint4_t` +
 `sint8`: `int8_t` +
 `sint16`: `int16_t` +
 `sint32`: `int32_t` +
 `sint64`: `int64_t` +
-`uint4`: `uint4_t` +
+`uint4`: `sycl::ext::oneapi::experimental::matrix::precision::uint4_t` +
 `uint8`: `uint8_t` +
 `uint16`: `uint16_t` +
 `uint32`: `uint32_t` +
@@ -1161,6 +1161,7 @@ and Intel XMX
 |8   |2023-10-05 |Mahmoud Moadeli |Add AMD Matrix Core supported combinations
 |9   |2023-11-13 |Dounia Khaldi |Add Granite Rapids Intel AMX
 supported combinations
-|9   |2023-12-04 |Dounia Khaldi |Add prefetch and `annotated_ptr`
+|10   |2023-12-04 |Dounia Khaldi |Add prefetch and `annotated_ptr`
 load/store overloads
+|11   |2024-04-15 |Dounia Khaldi |Add 4 bits integer type
 |======================
