@@ -5,6 +5,11 @@ on:
     - cron:  '0 3 * * 2'
     - cron:  '0 3 * * 1,4'
   workflow_dispatch:
+  inputs:
+    day_of_week:
+      description: 'Override the day of the week (e.g., 1 for Monday, 2 for Tuesday, etc.)'
+      required: false
+      default: '2'
 
 permissions: read-all
 
@@ -17,9 +22,15 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Determine parameters based on the day of the week
-       id: params
        run: |
-         DAY_OF_WEEK=$(date +%u)
+         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+           # Use the input day_of_week when manually triggered
+           DAY_OF_WEEK="${{ inputs.day_of_week }}"
+         else
+           # Use the current day of the week when triggered by a schedule
+           DAY_OF_WEEK=$(date +%u)
+         fi
+
          if [ "$DAY_OF_WEEK" = "2" ]; then
            PARAM=""
          else
