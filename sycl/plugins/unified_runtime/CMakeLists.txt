@@ -105,7 +105,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     https://github.com/winstonzhang-intel/unified-runtime.git
-    f71a0cb5f761a63ed5594feab260bc2fc8d09487
+    cfde409fbf17cfb933413795afe7d52173aa97d9
   )
 
   fetch_adapter_source(opencl
