@@ -231,6 +231,16 @@ static const uint32_t UrL0Serialize = [] {
   return SerializeModeValue;
 }();
 
+static const uint32_t UrL0QueueSyncNonBlocking = [] {
+  const char *UrL0QueueSyncNonBlocking =
+      std::getenv("UR_L0_QUEUE_SYNCHRONIZE_NON_BLOCKING");
+  uint32_t L0QueueSyncLockingModeValue = 1;
+  if (UrL0QueueSyncNonBlocking) {
+    L0QueueSyncLockingModeValue = std::atoi(UrL0QueueSyncNonBlocking);
+  }
+  return L0QueueSyncLockingModeValue;
+}();
+
 // This class encapsulates actions taken along with a call to Level Zero API.
 class ZeCall {
 private:
