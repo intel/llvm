@@ -104,8 +104,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   set(UNIFIED_RUNTIME_TAG 6ccaf38708cfa614ab7f9b34c351826cd74028f2)
 
   fetch_adapter_source(level_zero
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    https://github.com/nrspruit/unified-runtime.git
+    f8c4facdd688fa1d7b82130bb16d6ee350cccd99
   )
 
   fetch_adapter_source(opencl
