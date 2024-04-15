@@ -5,11 +5,11 @@ on:
     - cron:  '0 3 * * 2'
     - cron:  '0 3 * * 1,4'
   workflow_dispatch:
-  inputs:
-    dayofweek:
-      description: 'Override the day of the week (e.g., 1 for Monday, 2 for Tuesday, etc.)'
-      required: false
-      default: '2'
+    inputs:
+      dayofweek:
+        description: 'Override the day of the week (e.g., 1 for Monday, 2 for Tuesday, etc.)'
+        required: false
+        default: '2'
 
 permissions: read-all
 
