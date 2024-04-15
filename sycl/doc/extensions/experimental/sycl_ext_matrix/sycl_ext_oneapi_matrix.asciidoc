@@ -484,6 +484,8 @@ format type.
 namespace sycl::ext::oneapi::experimental::matrix::precision {
 
 class tf32;
+class sint4;
+class uint4;
 
 } // namespace sycl::ext::oneapi::experimental::matrix::precision
 ```
@@ -494,6 +496,10 @@ class tf32;
 |precision::tf32 | float | The TF32 type has a 19 bit format with one
 sign bit, 8 exponent bits (offering the same range as float), and 10
 mantissa bits (offering the same precision as sycl::half).
+|precision::sint4 | int32_t | Four 4-bit signed integers are packed
+into 32 bits.
+|precision::uint4 | int32_t | Four 4-bit unsigned integers are packed
+into 32 bits.
 |======================
 
 In order to declare a `joint_matrix` with one of these element types,
@@ -857,10 +863,12 @@ enum class matrix_type {
   tf32,
   fp32,
   fp64,
+  sint4,
   sint8,
   sint16,
   sint32,
   sint64,
+  uint4,
   uint8,
   uint16,
   uint32,
@@ -910,10 +918,12 @@ the `T` template parameter as follows: +
 `tf32`: `sycl::ext::oneapi::experimental::matrix::precision::tf32` +
 `fp32`: `float` +
 `fp64`: `double` +
+`sint4`: `int4_t` +
 `sint8`: `int8_t` +
 `sint16`: `int16_t` +
 `sint32`: `int32_t` +
 `sint64`: `int64_t` +
+`uint4`: `uint4_t` +
 `uint8`: `uint8_t` +
 `uint16`: `uint16_t` +
 `uint32`: `uint32_t` +
@@ -986,6 +996,26 @@ column in the table below.
 [frame="none",options="header"]
 |======================
 | A type | B type | C and D type | M | N | K | device
+.2+| `matrix_type::uint4`  .2+| `matrix_type::uint4` .2+|
+`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  64
+|`architecture::intel_gpu_pvc`
+|8|`architecture::intel_gpu_dg2_g10,
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+.2+| `matrix_type::uint4`  .2+| `matrix_type::sint4` .2+|
+`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  64 |
+`architecture::intel_gpu_pvc`
+|8|`architecture::intel_gpu_dg2_g10,
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+.2+| `matrix_type::sint4`  .2+| `matrix_type::uint4` .2+|
+`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  64 |
+`architecture::intel_gpu_pvc`
+|8|`architecture::intel_gpu_dg2_g10,
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+.2+| `matrix_type::sint4`  .2+| `matrix_type::sint4` .2+|
+`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  64 |
+`architecture::intel_gpu_pvc`
+|8|`architecture::intel_gpu_dg2_g10,
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
 .2+| `matrix_type::uint8`  .2+| `matrix_type::uint8` .2+|
 `matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32
 |`architecture::intel_gpu_pvc`
