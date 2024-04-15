@@ -52,7 +52,7 @@ template <typename T, typename Tp, std::size_t R, std::size_t C,
 extern __DPCPP_SYCL_EXTERNAL
     __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *
     __spirv_CooperativeMatrixConstructCheckedINTEL(
-        const T Value, int32_t Height, size_t Stride, int32_t Width,
+        const T Value, uint32_t Height, size_t Stride, uint32_t Width,
         int32_t CoordX, int32_t CoordY);
 
 template <typename T, typename Tp, std::size_t R, std::size_t C,
@@ -62,7 +62,7 @@ template <typename T, typename Tp, std::size_t R, std::size_t C,
 extern __DPCPP_SYCL_EXTERNAL
     __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *
     __spirv_JointMatrixLoadCheckedINTEL(T *Ptr, std::size_t Stride,
-                                        int32_t Height, int32_t Width,
+                                        uint32_t Height, uint32_t Width,
                                         int32_t CoordX, int32_t CoordY,
                                         __spv::MatrixLayout Layout = L,
                                         __spv::Scope::Flag Sc = S,
@@ -74,7 +74,7 @@ template <typename T, typename Tp, std::size_t R, std::size_t C,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern __DPCPP_SYCL_EXTERNAL void __spirv_JointMatrixStoreCheckedINTEL(
     T *Ptr, __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *Object,
-    std::size_t Stride, int32_t Height, int32_t Width, int32_t CoordX,
+    std::size_t Stride, uint32_t Height, uint32_t Width, int32_t CoordX,
     int32_t CoordY, __spv::MatrixLayout Layout = L, __spv::Scope::Flag Sc = S,
     int MemOperand = 0);
 
@@ -176,8 +176,8 @@ __spirv_VectorInsertDynamic(__spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *,
 
 template <typename T>
 extern __DPCPP_SYCL_EXTERNAL void __spirv_CooperativeMatrixPrefetchINTEL(
-    T *Ptr, int32_t coordX, int32_t coordY, int32_t NumRows,
-    int32_t NumCols, unsigned int CacheLevel, __spv::MatrixLayout Layout,
+    T *Ptr, int32_t coordX, int32_t coordY, uint32_t NumRows,
+    uint32_t NumCols, unsigned int CacheLevel, __spv::MatrixLayout Layout,
     size_t Stride);
 
 #ifndef __SPIRV_BUILTIN_DECLARATIONS__
