@@ -6,7 +6,7 @@ on:
     - cron:  '0 3 * * 1,4'
   workflow_dispatch:
   inputs:
-    day_of_week:
+    dayofweek:
       description: 'Override the day of the week (e.g., 1 for Monday, 2 for Tuesday, etc.)'
       required: false
       default: '2'
@@ -22,21 +22,21 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Determine parameters based on the day of the week
-       run: |
-         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-           # Use the input day_of_week when manually triggered
-           DAY_OF_WEEK="${{ inputs.day_of_week }}"
-         else
-           # Use the current day of the week when triggered by a schedule
-           DAY_OF_WEEK=$(date +%u)
-         fi
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          # Use the input dayofweek when manually triggered
+          DAY_OF_WEEK="${{ github.event.inputs.dayofweek }}"
+        else
+          # Use the current day of the week when triggered by a schedule
+          DAY_OF_WEEK=$(date +%u)
+        fi
 
-         if [ "$DAY_OF_WEEK" = "2" ]; then
-           PARAM=""
-         else
-           PARAM="--igc-dev-only"
-         fi
-         echo "PARAM=$PARAM" >> $GITHUB_ENV
+        if [ "$DAY_OF_WEEK" = "2" ]; then
+          PARAM=""
+        else
+          PARAM="--igc-dev-only"
+        fi
+        echo "PARAM=$PARAM" >> $GITHUB_ENV
     - name: Update dependencies file
       run: |
         version="$(python3 devops/scripts/update_drivers.py $PARAM linux)"
