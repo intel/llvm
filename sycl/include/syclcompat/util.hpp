@@ -76,7 +76,6 @@ private:
   T value;
 };
 
-
 template <typename T> struct DataType {
   using T2 = T;
 };
