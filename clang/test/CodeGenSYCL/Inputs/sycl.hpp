@@ -101,6 +101,7 @@ enum class __SYCL_TYPE(aspect) aspect { // #AspectEnum
   custom = 4,
   fp16 = 5,
   fp64 = 6,
+  ext_oneapi_private_alloca = 7,
 };
 
 using access::target;

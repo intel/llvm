@@ -471,11 +471,6 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   std::vector<device> Res;
 
   ods_target_list *OdsTargetList = SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Will we be filtering with SYCL_DEVICE_FILTER or ONEAPI_DEVICE_SELECTOR ?
-  // We do NOT attempt to support both simultaneously.
-  device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
-#endif
 
   if (is_host() && (DeviceType == info::device_type::host ||
                     DeviceType == info::device_type::all)) {
@@ -535,21 +530,8 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   // device ids are assigned.
   std::vector<int> PlatformDeviceIndices;
   if (OdsTargetList) {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    if (FilterList) {
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "ONEAPI_DEVICE_SELECTOR cannot be used in "
-                            "conjunction with SYCL_DEVICE_FILTER");
-    }
-#endif
     PlatformDeviceIndices = filterDeviceFilter<ods_target_list, ods_target>(
         PiDevices, OdsTargetList);
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  } else if (FilterList) {
-    PlatformDeviceIndices =
-        filterDeviceFilter<device_filter_list, device_filter>(PiDevices,
-                                                              FilterList);
-#endif
   }
 
   // The next step is to inflate the filtered PIDevices into SYCL Device

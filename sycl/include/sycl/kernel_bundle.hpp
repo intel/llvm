@@ -15,9 +15,7 @@
 #include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
 #include <sycl/detail/pi.h>                // for pi_native_handle
 #include <sycl/detail/pi.hpp>              // for cast
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string_view.hpp>
-#endif
 #include <sycl/device.hpp>              // for device
 #include <sycl/kernel.hpp>              // for kernel, kernel_bundle
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
@@ -185,7 +183,6 @@ public:
 
   bool native_specialization_constant() const noexcept;
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   bool ext_oneapi_has_kernel(const std::string &name) {
     return ext_oneapi_has_kernel(name.c_str());
   }
@@ -195,11 +192,6 @@ public:
     return ext_oneapi_get_kernel(name.c_str());
   }
   kernel ext_oneapi_get_kernel(detail::string_view name);
-#else
-  bool ext_oneapi_has_kernel(const std::string &name);
-
-  kernel ext_oneapi_get_kernel(const std::string &name);
-#endif
 
 protected:
   // \returns a kernel object which represents the kernel identified by
@@ -462,16 +454,9 @@ kernel_bundle(kernel_bundle<State> &&) -> kernel_bundle<State>;
 /////////////////////////
 
 namespace detail {
-// #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// using string_view = std::string;
-// #endif
 // Internal non-template versions of get_kernel_id API which is used by public
 // onces
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_EXPORT kernel_id get_kernel_id_impl(string_view KernelName);
-#else
-__SYCL_EXPORT kernel_id get_kernel_id_impl(const std::string &KernelName);
-#endif
 } // namespace detail
 
 /// \returns the kernel_id associated with the KernelName
@@ -479,11 +464,7 @@ template <typename KernelName> kernel_id get_kernel_id() {
   // FIXME: This must fail at link-time if KernelName not in any available
   // translation units.
   using KI = sycl::detail::KernelInfo<KernelName>;
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   return detail::get_kernel_id_impl(detail::string_view{KI::getName()});
-#else
-  return detail::get_kernel_id_impl(KI::getName());
-#endif
 }
 
 /// \returns a vector with all kernel_id's defined in the application
@@ -879,7 +860,6 @@ __SYCL_EXPORT bool is_source_kernel_bundle_supported(backend BE,
 // syclex::create_kernel_bundle_from_source
 /////////////////////////
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 kernel_bundle<bundle_state::ext_oneapi_source>
 create_kernel_bundle_from_source(const context &SyclContext,
                                  source_language Language,
@@ -891,12 +871,6 @@ create_kernel_bundle_from_source(const context &SyclContext,
   return create_kernel_bundle_from_source(SyclContext, Language,
                                           sycl::detail::string_view(Source));
 }
-#else
-__SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
-create_kernel_bundle_from_source(const context &SyclContext,
-                                 source_language Language,
-                                 const std::string &Source);
-#endif
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 __SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
@@ -910,7 +884,6 @@ create_kernel_bundle_from_source(const context &SyclContext,
 /////////////////////////
 namespace detail {
 // forward decl
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 kernel_bundle<bundle_state::executable>
 build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
                   const std::vector<device> &Devices,
@@ -924,13 +897,7 @@ build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
   return build_from_source(SourceKB, Devices, BuildOptions,
                            sycl::detail::string_view(*LogPtr));
 }
-#else
-__SYCL_EXPORT kernel_bundle<bundle_state::executable>
-build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
-                  const std::vector<device> &Devices,
-                  const std::vector<std::string> &BuildOptions,
-                  std::string *LogPtr);
-#endif
+
 } // namespace detail
 
 template <typename PropertyListT = detail::empty_properties_t,

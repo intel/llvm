@@ -582,6 +582,23 @@ bool device_impl::has(aspect Aspect) const {
             sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
     return call_successful && support;
   }
+  case aspect::ext_oneapi_cubemap: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SUPPORT, sizeof(pi_bool),
+            &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_cubemap_seamless_filtering: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice,
+            PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
   case aspect::ext_intel_esimd: {
     pi_bool support = PI_FALSE;
     bool call_successful =
@@ -666,6 +683,12 @@ bool device_impl::has(aspect Aspect) const {
   }
   case aspect::ext_intel_fpga_task_sequence: {
     return is_accelerator();
+  }
+  case aspect::ext_oneapi_private_alloca: {
+    // Extension only supported on SPIR-V targets.
+    backend be = getBackend();
+    return be == sycl::backend::ext_oneapi_level_zero ||
+           be == sycl::backend::opencl;
   }
   }
   throw runtime_error("This device aspect has not been implemented yet.",

@@ -146,7 +146,7 @@ jobs:
           echo "TAG=$(date +'%Y-%m-%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         fi
     - name: Upload binaries
-      uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844
+      uses: softprops/action-gh-release@9d7c94cfd0a1f3ed45544c887983e9fa900f0564
       with:
         files: |
           sycl_linux.tar.gz
@@ -160,6 +160,8 @@ jobs:
   ubuntu2204_docker_build_push:
     if: github.repository == 'intel/llvm'
     runs-on: [Linux, build]
+    permissions:
+      packages: write
     needs: ubuntu2204_build
     steps:
     - uses: actions/checkout@v4
