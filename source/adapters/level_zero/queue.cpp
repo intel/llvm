@@ -1403,7 +1403,13 @@ ur_result_t ur_queue_handle_t_::synchronize() {
       return UR_RESULT_SUCCESS;
 
     // wait for all commands previously submitted to this immediate command list
-    ZE2UR_CALL(zeCommandListHostSynchronize, (ImmCmdList->first, UINT64_MAX));
+    if (UrL0QueueSyncNonBlocking) {
+      Queue->Mutex.unlock();
+      ZE2UR_CALL(zeCommandListHostSynchronize, (ImmCmdList->first, UINT64_MAX));
+      Queue->Mutex.lock();
+    } else {
+      ZE2UR_CALL(zeCommandListHostSynchronize, (ImmCmdList->first, UINT64_MAX));
+    }
 
     // Cleanup all events from the synced command list.
     CleanupEventListFromResetCmdList(ImmCmdList->second.EventList, true);
@@ -1417,7 +1423,13 @@ ur_result_t ur_queue_handle_t_::synchronize() {
     // zero handle can have device scope, so we can't synchronize the last
     // event.
     if (isInOrderQueue() && !LastCommandEvent->IsDiscarded) {
-      ZE2UR_CALL(zeHostSynchronize, (LastCommandEvent->ZeEvent));
+      if (UrL0QueueSyncNonBlocking) {
+        this->Mutex.unlock();
+        ZE2UR_CALL(zeHostSynchronize, (LastCommandEvent->ZeEvent));
+        this->Mutex.lock();
+      } else {
+        ZE2UR_CALL(zeHostSynchronize, (LastCommandEvent->ZeEvent));
+      }
 
       // clean up all events known to have been completed as well,
       // so they can be reused later
@@ -1444,8 +1456,15 @@ ur_result_t ur_queue_handle_t_::synchronize() {
               UR_CALL(syncImmCmdList(this, ImmCmdList));
           } else {
             for (auto &ZeQueue : QueueGroup.second.ZeQueues)
-              if (ZeQueue)
-                ZE2UR_CALL(zeHostSynchronize, (ZeQueue));
+              if (ZeQueue) {
+                if (UrL0QueueSyncNonBlocking) {
+                  this->Mutex.unlock();
+                  ZE2UR_CALL(zeHostSynchronize, (ZeQueue));
+                  this->Mutex.lock();
+                } else {
+                  ZE2UR_CALL(zeHostSynchronize, (ZeQueue));
+                }
+              }
           }
         }
       }
