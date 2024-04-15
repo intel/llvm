@@ -350,6 +350,7 @@ event handler::finalize() {
                               PI_ERROR_INVALID_OPERATION);
         else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
           NewEvent->setComplete();
+        NewEvent->updateEnqueuedState(true);
 
         MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
       }
