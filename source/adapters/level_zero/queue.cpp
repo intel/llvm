@@ -1170,8 +1170,11 @@ ur_queue_handle_t_::ur_queue_handle_t_(
 
   static const bool useDriverCounterBasedEvents = [Device] {
     const char *UrRet = std::getenv("UR_L0_USE_DRIVER_COUNTER_BASED_EVENTS");
-    if (!UrRet && Device->isPVC())
-      return true;
+    if (!UrRet) {
+      if (Device->isPVC())
+        return true;
+      return false;
+    }
     return std::atoi(UrRet) != 0;
   }();
   this->CounterBasedEventsEnabled =
