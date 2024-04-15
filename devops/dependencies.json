@@ -13,10 +13,10 @@
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "igc_dev": {
-      "github_tag": "igc-dev-db4de5f",
-      "version": "db4de5f",
-      "updated_at": "2024-04-12T11:06:26Z",
-      "url": "https://api.github.com/repos/intel/intel-graphics-compiler/actions/artifacts/1409219375/zip",
+      "github_tag": "igc-dev-64dfe0d",
+      "version": "64dfe0d",
+      "updated_at": "2024-04-15T17:43:37Z",
+      "url": "https://api.github.com/repos/intel/intel-graphics-compiler/actions/artifacts/1415369579/zip",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "cm": {
