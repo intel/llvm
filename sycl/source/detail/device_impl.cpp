@@ -851,7 +851,6 @@ device_impl::get_immediate_progress_guarantee(
     case execution_scope::root_group:
       return forward_progress_guarantee::parallel;
     case execution_scope::work_group:
-      return forward_progress_guarantee::weakly_parallel;
     case execution_scope::sub_group:
       return forward_progress_guarantee::weakly_parallel;
     default:
@@ -861,7 +860,6 @@ device_impl::get_immediate_progress_guarantee(
   } else if (is_gpu() && getBackend() == backend::ext_oneapi_level_zero) {
     switch (coordination_scope) {
     case execution_scope::root_group:
-      return forward_progress_guarantee::concurrent;
     case execution_scope::work_group:
       return forward_progress_guarantee::concurrent;
     case execution_scope::sub_group:
