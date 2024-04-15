@@ -176,9 +176,8 @@ __spirv_VectorInsertDynamic(__spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *,
 
 template <typename T>
 extern __DPCPP_SYCL_EXTERNAL void __spirv_CooperativeMatrixPrefetchINTEL(
-    T *Ptr, int32_t coordX, int32_t coordY, uint32_t NumRows,
-    uint32_t NumCols, unsigned int CacheLevel, __spv::MatrixLayout Layout,
-    size_t Stride);
+    T *Ptr, int32_t coordX, int32_t coordY, uint32_t NumRows, uint32_t NumCols,
+    unsigned int CacheLevel, __spv::MatrixLayout Layout, size_t Stride);
 
 #ifndef __SPIRV_BUILTIN_DECLARATIONS__
 #error                                                                         \
