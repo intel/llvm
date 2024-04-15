@@ -1297,25 +1297,19 @@ inline float fast_length(const float *a, int len);
 template <typename ValueT>
 inline ValueT length(const ValueT *a, const int len);
 
+// The following definition is enabled when BinaryOperation(ValueT, ValueT) returns bool
+// std::enable_if_t<std::is_same_v<std::invoke_result_t<BinaryOperation, ValueT, ValueT>, bool>, bool>
 template <typename ValueT, class BinaryOperation>
-inline std::enable_if_t<
-    std::is_same_v<std::invoke_result_t<BinaryOperation, ValueT, ValueT>, bool>,
-    bool>
+inline bool 
 compare(const ValueT a, const ValueT b, const BinaryOperation binary_op);
-template <typename ValueT>
-inline std::enable_if_t<
-    std::is_same_v<std::invoke_result_t<std::not_equal_to<>, ValueT, ValueT>,
-                   bool>,
-    bool>
-compare(const ValueT a, const ValueT b, const std::not_equal_to<> binary_op);
 template <typename ValueT, class BinaryOperation>
 inline std::enable_if_t<ValueT::size() == 2, ValueT>
 compare(const ValueT a, const ValueT b, const BinaryOperation binary_op);
-template <typename ValueT, class BinaryOperation>
-inline std::enable_if_t<
-    std::is_same_v<std::invoke_result_t<BinaryOperation, ValueT, ValueT>, bool>,
-    bool>
 
+// The following definition is enabled when BinaryOperation(ValueT, ValueT) returns bool
+// std::enable_if_t<std::is_same_v<std::invoke_result_t<BinaryOperation, ValueT, ValueT>, bool>, bool>
+template <typename ValueT, class BinaryOperation>
+inline bool
 unordered_compare(const ValueT a, const ValueT b,
                   const BinaryOperation binary_op);
 template <typename ValueT, class BinaryOperation>
