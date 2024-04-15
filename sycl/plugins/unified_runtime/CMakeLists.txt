@@ -56,14 +56,101 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
+  # The fetch_adapter_source function can be used to perform a separate content
+  # fetch for a UR adapter, this allows development of adapters to be decoupled
+  # from each other.
+  #
+  # A separate content fetch will not be performed if:
+  # * The adapter name is not present in the SYCL_ENABLE_PLUGINS variable.
+  # * The repo and tag provided match the values of the
+  #   UNIFIED_RUNTIME_REPO/UNIFIED_RUNTIME_TAG variables
+  #
+  # Args:
+  #   * name - Must be the directory name of the adapter
+  #   * repo - A valid Git URL of a Unified Runtime repo
+  #   * tag - A valid Git branch/tag/commit in the Unified Runtime repo
+  function(fetch_adapter_source name repo tag)
+    if(NOT ${name} IN_LIST SYCL_ENABLE_PLUGINS)
+      return()
+    endif()
+    if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
+        tag STREQUAL UNIFIED_RUNTIME_TAG)
+      return()
+    endif()
+    message(STATUS
+      "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
+    set(fetch-name unified-runtime-${name})
+    FetchContent_Declare(${fetch-name}
+      GIT_REPOSITORY ${repo} GIT_TAG ${tag})
+    # We don't want to add this repo to the build, only fetch its source.
+    FetchContent_Populate(${fetch-name})
+    # Get the path to the source directory
+    string(TOUPPER ${name} NAME)
+    set(source_dir_var UR_ADAPTER_${NAME}_SOURCE_DIR)
+    FetchContent_GetProperties(${fetch-name} SOURCE_DIR UR_ADAPTER_${NAME}_SOURCE_DIR)
+    # Set the variable which informs UR where to get the adapter source from.
+    set(UR_ADAPTER_${NAME}_SOURCE_DIR
+      "${UR_ADAPTER_${NAME}_SOURCE_DIR}/source/adapters/${name}"
+      CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
+  endfunction()
+
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 93e84695190d0b985b3c4b2fb7ea896e1f3e529e
-  # Merge: 1f6cbe61 2b3d016a
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Mar 12 15:22:59 2024 +0000
-  #     Merge pull request #1406 from wenju-he/urBindlessImagesSampledImageCreateExp-Coverity
-  #     [Coverity][L0] Remove overlapping mem copy in urBindlessImagesSampledImageCreateExp
-  set(UNIFIED_RUNTIME_TAG 93e84695190d0b985b3c4b2fb7ea896e1f3e529e)
+  # commit 6ccaf38708cfa614ab7f9b34c351826cd74028f2
+  # Merge: 0eab26c7 0497923a
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Fri Apr 12 10:22:00 2024 +0100
+  #    Merge pull request #1498 from wenju-he/ZeImageDesc-urMemImageCreateWithNativeHandle
+  #    [L0][Image] Set ZeImageDesc member of _ur_image in release build for legacy image
+  set(UNIFIED_RUNTIME_TAG 6ccaf38708cfa614ab7f9b34c351826cd74028f2)
+
+  fetch_adapter_source(level_zero
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(opencl
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 0d2a972c71ba4dd5935478c7b7124a372a1eeca0
+    # Merge: ac89abfe 44aef877
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu Apr 11 10:24:19 2024 +0100
+    #     Merge pull request #1440 from fabiomestre/fabio/opencl_remove_queued_hack
+    #     [OPENCL] Remove EVENT_STATUS_QUEUED workaround
+    0d2a972c71ba4dd5935478c7b7124a372a1eeca0
+  )
+
+  fetch_adapter_source(cuda
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 68e525a448a5f8fe52bda48d6b9709230f53f029
+    # Merge: 1473ed8a 1d159312
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Fri Apr 12 14:29:50 2024 +0100
+    #     Merge pull request #1317 from JackAKirk/usm-p2p-cuda-return
+    #     [CUDA] Return caught UR error directly.
+    68e525a448a5f8fe52bda48d6b9709230f53f029
+  )
+
+  fetch_adapter_source(hip
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 1473ed8a81ca86e67321dfc90c79e951ead212ac
+    # Merge: 6ccaf387 f2774226
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Fri Apr 12 10:43:00 2024 +0100
+    #     Merge pull request #1395 from konradkusiak97/improvedQueueFill
+    #     [HIP] Implement workaround for hipMemset2D
+    1473ed8a81ca86e67321dfc90c79e951ead212ac
+  )
+
+  fetch_adapter_source(native_cpu
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 15233fd2521f9e9b35e3a24037be99ceef334a8e
+    # Merge: 68e525a4 a04b062e
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Fri Apr 12 15:46:49 2024 +0100
+    #     Merge pull request #1489 from konradkusiak97/nativeCPUqueueFill
+    #     [NATIVECPU] Extended usm fill to bigger patterns than 1 byte
+    15233fd2521f9e9b35e3a24037be99ceef334a8e
+  )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

@@ -30,9 +30,11 @@ void populate_pi_structs(const image_descriptor &desc, pi_image_desc &piDesc,
   piDesc.image_depth = desc.depth;
 
   if (desc.array_size > 1) {
-    // Image array.
-    piDesc.image_type =
-        desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+    // Image array or cubemap
+    piDesc.image_type = desc.type == image_type::cubemap
+                            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+                        : desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
+                                          : PI_MEM_TYPE_IMAGE1D_ARRAY;
   } else {
     piDesc.image_type =
         desc.depth > 0
@@ -266,7 +268,8 @@ __SYCL_EXPORT void free_image_mem(image_mem_handle memHandle,
                    sycl::detail::PiApiKind::piextMemMipmapFree>(
           C, Device, memHandle.raw_handle);
     } else if (imageType == image_type::standard ||
-               imageType == image_type::array) {
+               imageType == image_type::array ||
+               imageType == image_type::cubemap) {
       Plugin->call<sycl::errc::memory_allocation,
                    sycl::detail::PiApiKind::piextMemImageFree>(
           C, Device, memHandle.raw_handle);
@@ -431,6 +434,8 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
       static_cast<pi_sampler_properties>(sampler.filtering),
       PI_SAMPLER_PROPERTIES_MIP_FILTER_MODE,
       static_cast<pi_sampler_properties>(sampler.mipmap_filtering),
+      PI_SAMPLER_PROPERTIES_CUBEMAP_FILTER_MODE,
+      static_cast<pi_sampler_properties>(sampler.cubemap_filtering),
       0};
 
   pi_sampler piSampler = {};
@@ -462,8 +467,8 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
 }
 
 template <>
-__SYCL_EXPORT interop_mem_handle import_external_memory<external_mem_fd>(
-    external_mem_descriptor<external_mem_fd> externalMem,
+__SYCL_EXPORT interop_mem_handle import_external_memory<resource_fd>(
+    external_mem_descriptor<resource_fd> externalMem,
     const sycl::device &syclDevice, const sycl::context &syclContext) {
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
@@ -477,13 +482,39 @@ __SYCL_EXPORT interop_mem_handle import_external_memory<external_mem_fd>(
   Plugin->call<sycl::errc::invalid,
                sycl::detail::PiApiKind::piextMemImportOpaqueFD>(
       C, Device, externalMem.size_in_bytes,
-      externalMem.external_handle.file_descriptor, &piInteropMem);
+      externalMem.external_resource.file_descriptor, &piInteropMem);
 
   return interop_mem_handle{piInteropMem};
 }
 
 template <>
-__SYCL_EXPORT interop_mem_handle import_external_memory<external_mem_fd>(
+__SYCL_EXPORT interop_mem_handle import_external_memory<resource_fd>(
+    external_mem_descriptor<resource_fd> externalMem,
+    const sycl::queue &syclQueue) {
+  return import_external_memory<resource_fd>(
+      externalMem, syclQueue.get_device(), syclQueue.get_context());
+}
+
+template <>
+__SYCL_EXPORT_DEPRECATED(
+    "import_external_memory templated by external_mem_fd is deprecated."
+    "Template with resource_fd instead.")
+interop_mem_handle import_external_memory<external_mem_fd>(
+    external_mem_descriptor<external_mem_fd> externalMem,
+    const sycl::device &syclDevice, const sycl::context &syclContext) {
+
+  external_mem_descriptor<resource_fd> extMem;
+  extMem.external_resource.file_descriptor =
+      externalMem.external_resource.file_descriptor;
+  extMem.size_in_bytes = externalMem.size_in_bytes;
+  return import_external_memory<resource_fd>(extMem, syclDevice, syclContext);
+}
+
+template <>
+__SYCL_EXPORT_DEPRECATED(
+    "import_external_memory templated by external_mem_fd is deprecated."
+    "Template with resource_fd instead.")
+interop_mem_handle import_external_memory<external_mem_fd>(
     external_mem_descriptor<external_mem_fd> externalMem,
     const sycl::queue &syclQueue) {
   return import_external_memory<external_mem_fd>(
@@ -569,7 +600,7 @@ __SYCL_EXPORT void release_external_memory(interop_mem_handle interopMem,
 
 template <>
 __SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
-    external_semaphore_descriptor<external_semaphore_fd> externalSemaphoreDesc,
+    external_semaphore_descriptor<resource_fd> externalSemaphoreDesc,
     const sycl::device &syclDevice, const sycl::context &syclContext) {
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
@@ -583,7 +614,7 @@ __SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
 
   Plugin->call<sycl::errc::invalid,
                sycl::detail::PiApiKind::piextImportExternalSemaphoreOpaqueFD>(
-      C, Device, externalSemaphoreDesc.external_handle.file_descriptor,
+      C, Device, externalSemaphoreDesc.external_resource.file_descriptor,
       &piInteropSemaphore);
 
   return interop_semaphore_handle{piInteropSemaphore};
@@ -591,6 +622,32 @@ __SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
 
 template <>
 __SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
+    external_semaphore_descriptor<resource_fd> externalSemaphoreDesc,
+    const sycl::queue &syclQueue) {
+  return import_external_semaphore(
+      externalSemaphoreDesc, syclQueue.get_device(), syclQueue.get_context());
+}
+
+template <>
+__SYCL_EXPORT_DEPRECATED("import_external_semaphore templated by "
+                         "external_semaphore_fd is deprecated."
+                         "Template with resource_fd instead.")
+interop_semaphore_handle import_external_semaphore(
+    external_semaphore_descriptor<external_semaphore_fd> externalSemaphoreDesc,
+    const sycl::device &syclDevice, const sycl::context &syclContext) {
+
+  external_semaphore_descriptor<resource_fd> extSem;
+  extSem.external_resource.file_descriptor =
+      externalSemaphoreDesc.external_resource.file_descriptor;
+  return import_external_semaphore<resource_fd>(extSem, syclDevice,
+                                                syclContext);
+}
+
+template <>
+__SYCL_EXPORT_DEPRECATED("import_external_semaphore templated by "
+                         "external_semaphore_fd is deprecated."
+                         "Template with resource_fd instead.")
+interop_semaphore_handle import_external_semaphore(
     external_semaphore_descriptor<external_semaphore_fd> externalSemaphoreDesc,
     const sycl::queue &syclQueue) {
   return import_external_semaphore(

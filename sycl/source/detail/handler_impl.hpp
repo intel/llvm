@@ -15,6 +15,9 @@
 
 namespace sycl {
 inline namespace _V1 {
+namespace ext::oneapi::experimental::detail {
+class dynamic_parameter_impl;
+}
 namespace detail {
 
 using KernelBundleImplPtr = std::shared_ptr<detail::kernel_bundle_impl>;
@@ -128,6 +131,16 @@ public:
   // created for later query by users.
   sycl::ext::oneapi::experimental::node_type MUserFacingNodeType =
       sycl::ext::oneapi::experimental::node_type::empty;
+
+  // Storage for any SYCL Graph dynamic parameters which have been flagged for
+  // registration in the CG, along with the argument index for the parameter.
+  std::vector<std::pair<
+      ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
+      MDynamicParameters;
+
+  // Track whether an NDRange was used when submitting a kernel (as opposed to a
+  // range), needed for graph update
+  bool MNDRangeUsed = false;
 };
 
 } // namespace detail

@@ -17,7 +17,7 @@
 // RUNx: %{compile} -DRUN_LAST
 // RUNx: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <dlfcn.h>
 #include <iostream>

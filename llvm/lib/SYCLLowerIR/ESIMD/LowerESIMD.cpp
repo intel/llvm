@@ -494,8 +494,9 @@ public:
         {"dpasw", {"dpasw", {a(0), a(1), a(2), t(0)}}},
         {"dpasw_nosrc0", {"dpasw.nosrc0", {a(0), a(1), t(0)}}},
         {"nbarrier", {"nbarrier", {a(0), a(1), a(2)}}},
-        {"raw_send_nbarrier_signal",
+	{"raw_send_nbarrier_signal",
          {"raw.send.noresult", {a(0), ai1(4), a(1), a(2), a(3)}}},
+        {"nbarrier_arrive", {"nbarrier.arrive", {a(0), a(1), a(2), a(3)}}},
         {"lsc_load_slm",
          {"lsc.load.slm",
           {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
@@ -512,6 +513,13 @@ public:
          {"lsc.load.merge.bti",
           {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
            t8(6), t8(7), c8(0), a(1), aSI(2), a(3)}}},
+        // lsc_load_stateless is not used in ESIMD headers, it is kept for
+        // backward compatibility of sycl-post-link, e.g. to support object
+        // files and/or static libraries compiled by the older compilers.
+        {"lsc_load_stateless",
+         {"lsc.load.stateless",
+          {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
+           t8(6), t8(7), c8(0), a(1), c32(0)}}},
         {"lsc_load_merge_stateless",
          {"lsc.load.merge.stateless",
           {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
@@ -1746,6 +1754,83 @@ void lowerGlobalsToVector(Module &M) {
 
 } // namespace
 
+static void checkSLMInit(Module &M) {
+  SmallPtrSet<const Function *, 8u> SLMInitKernels;
+  SmallPtrSet<const Function *, 8u> LocalAccessorKernels;
+
+  for (auto &F : M) {
+    if (!isSlmInit(F)) {
+      if (!llvm::esimd::isESIMDKernel(F))
+        continue;
+      unsigned Idx = 0;
+      for (const Argument &Arg : F.args()) {
+        if (Arg.getType()->isPointerTy()) {
+          auto *KernelArgAccPtrs = F.getMetadata("kernel_arg_accessor_ptr");
+
+          if (KernelArgAccPtrs) {
+            auto *AccMD =
+                cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx));
+            auto AccMDVal = cast<ConstantInt>(AccMD->getValue())->getValue();
+            bool IsAcc = static_cast<unsigned>(AccMDVal.getZExtValue());
+
+            constexpr unsigned LocalAS{3};
+            if (IsAcc && cast<PointerType>(Arg.getType())->getAddressSpace() ==
+                             LocalAS) {
+              LocalAccessorKernels.insert(&F);
+              break;
+            }
+          }
+        }
+        Idx++;
+      }
+    } else {
+      for (User *U : F.users()) {
+        auto *FCall = dyn_cast<CallInst>(U);
+        if (FCall && FCall->getCalledFunction() == &F) {
+          Function *GenF = FCall->getFunction();
+          SmallPtrSet<Function *, 32> Visited;
+          sycl::utils::traverseCallgraphUp(
+              GenF,
+              [&](Function *GraphNode) {
+                if (llvm::esimd::isESIMDKernel(*GraphNode)) {
+                  if (SLMInitKernels.contains(GraphNode)) {
+                    StringRef KernelName = GraphNode->getName();
+                    std::string ErrorMsg =
+                        std::string("slm_init is called more than once "
+                                    "from kernel '") +
+                        demangle(KernelName.str()) + "'.";
+                    GraphNode->getContext().emitError(ErrorMsg);
+                  } else {
+                    SLMInitKernels.insert(GraphNode);
+                  }
+                }
+              },
+              Visited, false);
+          bool VisitedKernel = false;
+          for (const Function *Caller : Visited) {
+            if (llvm::esimd::isESIMDKernel(*Caller)) {
+              VisitedKernel = true;
+              break;
+            }
+          }
+          if (!VisitedKernel) {
+            F.getContext().emitError(
+                "slm_init must be called directly from ESIMD kernel.");
+          }
+        } else {
+          F.getContext().emitError(
+              "slm_init can only be used as a direct call.");
+        }
+      }
+    }
+    for (const Function *Kernel : LocalAccessorKernels) {
+      if (SLMInitKernels.contains(Kernel))
+        F.getContext().emitError(
+            "slm_init can not be used with local accessors.");
+    }
+  }
+}
+
 bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
 
   auto markAlwaysInlined = [](Function &F) -> bool {
@@ -1913,6 +1998,10 @@ static void fixFunctionReadWriteAttributes(Module &M) {
 
 PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
                                           ModuleAnalysisManager &MAM) {
+
+  // Check validity of slm_init calls.
+  checkSLMInit(M);
+
   // AlwaysInlinerPass is required for correctness.
   bool ForceInline = prepareForAlwaysInliner(M);
   if (ForceInline) {
@@ -1924,7 +2013,7 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
   generateKernelMetadata(M);
   // This function needs to run after generateKernelMetadata, as it
   // uses the generated metadata:
-  size_t AmountOfESIMDIntrCalls = lowerSLMReservationCalls(M);
+  size_t AmountOfESIMDIntrCalls = 0;
   SmallPtrSet<Type *, 4> GVTS = collectGenXVolatileTypes(M);
   lowerGlobalStores(M, GVTS);
   lowerGlobalsToVector(M);
@@ -1992,6 +2081,13 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
 
       // process ESIMD builtins that go through special handling instead of
       // the translation procedure
+
+      // SLM allocation API will be lowered in LowerESIMDSlmReservationCalls
+      // pass
+      if (Name.starts_with("__esimd_slm_alloc") ||
+          Name.starts_with("__esimd_slm_free")) {
+        continue;
+      }
 
       if (Name.starts_with("__esimd_svm_block_ld") ||
           Name.starts_with("__esimd_slm_block_ld")) {

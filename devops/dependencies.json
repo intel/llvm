@@ -12,6 +12,13 @@
       "url": "https://github.com/intel/intel-graphics-compiler/releases/tag/igc-1.0.15985.7",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
+    "igc_dev": {
+      "github_tag": "igc-dev-3af2d9c",
+      "version": "3af2d9c",
+      "updated_at": "2024-04-04T12:27:26Z",
+      "url": "https://api.github.com/repos/intel/intel-graphics-compiler/actions/artifacts/1383563495/zip",
+      "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
+    },
     "cm": {
       "github_tag": "cmclang-1.0.144",
       "version": "1.0.144",
@@ -19,9 +26,9 @@
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "level_zero": {
-      "github_tag": "v1.16.1",
-      "version": "v1.16.1",
-      "url": "https://github.com/oneapi-src/level-zero/releases/tag/v1.16.1",
+      "github_tag": "v1.16.11",
+      "version": "v1.16.11",
+      "url": "https://github.com/oneapi-src/level-zero/releases/tag/v1.16.11",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "tbb": {

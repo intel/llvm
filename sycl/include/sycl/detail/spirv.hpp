@@ -12,6 +12,10 @@
 
 #include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp> // for IdToMaskPosition
 
+#if defined(__NVPTX__)
+#include <sycl/ext/oneapi/experimental/cuda/masked_shuffles.hpp>
+#endif
+
 #include <sycl/detail/memcpy.hpp> // sycl::detail::memcpy
 
 namespace sycl {
@@ -49,6 +53,31 @@ GetMultiPtrDecoratedAs(multi_ptr<FromT, Space, IsDecorated> MPtr) {
 }
 
 namespace spirv {
+
+template <typename Group>
+struct is_tangle_or_opportunistic_group : std::false_type {};
+
+template <typename ParentGroup>
+struct is_tangle_or_opportunistic_group<
+    sycl::ext::oneapi::experimental::tangle_group<ParentGroup>>
+    : std::true_type {};
+
+template <>
+struct is_tangle_or_opportunistic_group<
+    sycl::ext::oneapi::experimental::opportunistic_group> : std::true_type {};
+
+template <typename Group> struct is_ballot_group : std::false_type {};
+
+template <typename ParentGroup>
+struct is_ballot_group<
+    sycl::ext::oneapi::experimental::ballot_group<ParentGroup>>
+    : std::true_type {};
+
+template <typename Group> struct is_fixed_size_group : std::false_type {};
+
+template <size_t PartitionSize, typename ParentGroup>
+struct is_fixed_size_group<sycl::ext::oneapi::experimental::fixed_size_group<
+    PartitionSize, ParentGroup>> : std::true_type {};
 
 template <typename Group> struct group_scope {};
 
@@ -260,6 +289,8 @@ template <> struct GroupId<::sycl::ext::oneapi::sub_group> {
 template <> struct GroupId<::sycl::sub_group> {
   using type = uint32_t;
 };
+
+// Consolidated function for converting group arguments to OpenCL types.
 template <typename Group, typename T, typename IdT>
 EnableIfNativeBroadcast<T, IdT> GroupBroadcast(Group, T x, IdT local_id) {
   auto GroupLocalId = static_cast<typename GroupId<Group>::type>(local_id);
@@ -268,6 +299,7 @@ EnableIfNativeBroadcast<T, IdT> GroupBroadcast(Group, T x, IdT local_id) {
   auto OCLId = detail::convertToOpenCLType(GroupLocalId);
   return __spirv_GroupBroadcast(group_scope<Group>::value, WideOCLX, OCLId);
 }
+
 template <typename ParentGroup, typename T, typename IdT>
 EnableIfNativeBroadcast<T, IdT>
 GroupBroadcast(sycl::ext::oneapi::experimental::ballot_group<ParentGroup> g,
@@ -781,103 +813,245 @@ inline uint32_t membermask() {
 }
 #endif
 
+template <typename GroupT>
+inline uint32_t MapShuffleID(GroupT g, id<1> local_id) {
+  if constexpr (is_tangle_or_opportunistic_group<GroupT>::value ||
+                is_ballot_group<GroupT>::value)
+    return detail::IdToMaskPosition(g, local_id);
+  else if constexpr (is_fixed_size_group<GroupT>::value)
+    return g.get_group_linear_id() * g.get_local_range().size() + local_id;
+  else
+    return local_id.get(0);
+}
+
 // Forward declarations for template overloadings
-template <typename T>
-EnableIfBitcastShuffle<T> SubgroupShuffle(T x, id<1> local_id);
+template <typename GroupT, typename T>
+EnableIfBitcastShuffle<T> Shuffle(GroupT g, T x, id<1> local_id);
 
-template <typename T>
-EnableIfBitcastShuffle<T> SubgroupShuffleXor(T x, id<1> local_id);
+template <typename GroupT, typename T>
+EnableIfBitcastShuffle<T> ShuffleXor(GroupT g, T x, id<1> local_id);
 
-template <typename T>
-EnableIfBitcastShuffle<T> SubgroupShuffleDown(T x, uint32_t delta);
+template <typename GroupT, typename T>
+EnableIfBitcastShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta);
 
-template <typename T>
-EnableIfBitcastShuffle<T> SubgroupShuffleUp(T x, uint32_t delta);
+template <typename GroupT, typename T>
+EnableIfBitcastShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta);
 
-template <typename T>
-EnableIfGenericShuffle<T> SubgroupShuffle(T x, id<1> local_id);
+template <typename GroupT, typename T>
+EnableIfGenericShuffle<T> Shuffle(GroupT g, T x, id<1> local_id);
 
-template <typename T>
-EnableIfGenericShuffle<T> SubgroupShuffleXor(T x, id<1> local_id);
+template <typename GroupT, typename T>
+EnableIfGenericShuffle<T> ShuffleXor(GroupT g, T x, id<1> local_id);
 
-template <typename T>
-EnableIfGenericShuffle<T> SubgroupShuffleDown(T x, uint32_t delta);
+template <typename GroupT, typename T>
+EnableIfGenericShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta);
 
-template <typename T>
-EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, uint32_t delta);
+template <typename GroupT, typename T>
+EnableIfGenericShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta);
 
-template <typename T>
-EnableIfNativeShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
+template <typename GroupT, typename T>
+EnableIfNativeShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
+  uint32_t LocalId = MapShuffleID(g, local_id);
 #ifndef __NVPTX__
-  return __spirv_SubgroupShuffleINTEL(convertToOpenCLType(x),
-                                      static_cast<uint32_t>(local_id.get(0)));
+  std::ignore = g;
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
+                    GroupT> &&
+                detail::is_vec<T>::value) {
+    // Temporary work-around due to a bug in IGC.
+    // TODO: Remove when IGC bug is fixed.
+    T result;
+    for (int s = 0; s < x.size(); ++s)
+      result[s] = Shuffle(g, x[s], local_id);
+    return result;
+  } else if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
+                           GroupT>) {
+    return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
+                                          convertToOpenCLType(x), LocalId);
+  } else {
+    // Subgroup.
+    return __spirv_SubgroupShuffleINTEL(convertToOpenCLType(x), LocalId);
+  }
 #else
-  return __nvvm_shfl_sync_idx_i32(membermask(), x, local_id.get(0), 0x1f);
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
+                    GroupT>) {
+    return cuda_shfl_sync_idx_i32(detail::ExtractMask(detail::GetMask(g))[0], x,
+                                  LocalId, 31);
+  } else {
+    return cuda_shfl_sync_idx_i32(membermask(), x, LocalId, 31);
+  }
 #endif
 }
 
-template <typename T>
-EnableIfNativeShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
+template <typename GroupT, typename T>
+EnableIfNativeShuffle<T> ShuffleXor(GroupT g, T x, id<1> mask) {
 #ifndef __NVPTX__
-  return __spirv_SubgroupShuffleXorINTEL(
-      convertToOpenCLType(x), static_cast<uint32_t>(local_id.get(0)));
+  std::ignore = g;
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
+                    GroupT> &&
+                detail::is_vec<T>::value) {
+    // Temporary work-around due to a bug in IGC.
+    // TODO: Remove when IGC bug is fixed.
+    T result;
+    for (int s = 0; s < x.size(); ++s)
+      result[s] = ShuffleXor(g, x[s], mask);
+    return result;
+  } else if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
+                           GroupT>) {
+    // Since the masks are relative to the groups, we could either try to adjust
+    // the mask or simply do the xor ourselves. Latter option is efficient,
+    // general, and simple so we go with that.
+    id<1> TargetLocalId = g.get_local_id() ^ mask;
+    uint32_t TargetId = MapShuffleID(g, TargetLocalId);
+    return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
+                                          convertToOpenCLType(x), TargetId);
+  } else {
+    // Subgroup.
+    return __spirv_SubgroupShuffleXorINTEL(convertToOpenCLType(x),
+                                           static_cast<uint32_t>(mask.get(0)));
+  }
 #else
-  return __nvvm_shfl_sync_bfly_i32(membermask(), x, local_id.get(0), 0x1f);
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
+                    GroupT>) {
+    auto MemberMask = detail::ExtractMask(detail::GetMask(g))[0];
+    if constexpr (is_fixed_size_group_v<GroupT>) {
+      return cuda_shfl_sync_bfly_i32(MemberMask, x,
+                                     static_cast<uint32_t>(mask.get(0)), 0x1f);
+
+    } else {
+      int unfoldedSrcSetBit =
+          (g.get_local_id()[0] ^ static_cast<uint32_t>(mask.get(0))) + 1;
+      return cuda_shfl_sync_idx_i32(
+          MemberMask, x, __nvvm_fns(MemberMask, 0, unfoldedSrcSetBit), 31);
+    }
+  } else {
+    return cuda_shfl_sync_bfly_i32(membermask(), x,
+                                   static_cast<uint32_t>(mask.get(0)), 0x1f);
+  }
 #endif
 }
 
-template <typename T>
-EnableIfNativeShuffle<T> SubgroupShuffleDown(T x, uint32_t delta) {
+template <typename GroupT, typename T>
+EnableIfNativeShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
 #ifndef __NVPTX__
-  return __spirv_SubgroupShuffleDownINTEL(convertToOpenCLType(x),
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
+                    GroupT> &&
+                detail::is_vec<T>::value) {
+    // Temporary work-around due to a bug in IGC.
+    // TODO: Remove when IGC bug is fixed.
+    T result;
+    for (int s = 0; s < x.size(); ++s)
+      result[s] = ShuffleDown(g, x[s], delta);
+    return result;
+  } else if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
+                           GroupT>) {
+    id<1> TargetLocalId = g.get_local_id();
+    // ID outside the group range is UB, so we just keep the current item ID
+    // unchanged.
+    if (TargetLocalId[0] + delta < g.get_local_linear_range())
+      TargetLocalId[0] += delta;
+    uint32_t TargetId = MapShuffleID(g, TargetLocalId);
+    return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
+                                          convertToOpenCLType(x), TargetId);
+  } else {
+    // Subgroup.
+    return __spirv_SubgroupShuffleDownINTEL(convertToOpenCLType(x),
+                                            convertToOpenCLType(x), delta);
+  }
+#else
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
+                    GroupT>) {
+    auto MemberMask = detail::ExtractMask(detail::GetMask(g))[0];
+    if constexpr (is_fixed_size_group_v<GroupT>) {
+      return cuda_shfl_sync_down_i32(MemberMask, x, delta, 31);
+    } else {
+      unsigned localSetBit = g.get_local_id()[0] + 1;
+      int unfoldedSrcSetBit = localSetBit + delta;
+      return cuda_shfl_sync_idx_i32(
+          MemberMask, x, __nvvm_fns(MemberMask, 0, unfoldedSrcSetBit), 31);
+    }
+  } else {
+    return cuda_shfl_sync_down_i32(membermask(), x, delta, 31);
+  }
+#endif
+}
+
+template <typename GroupT, typename T>
+EnableIfNativeShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
+#ifndef __NVPTX__
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
+                    GroupT> &&
+                detail::is_vec<T>::value) {
+    // Temporary work-around due to a bug in IGC.
+    // TODO: Remove when IGC bug is fixed.
+    T result;
+    for (int s = 0; s < x.size(); ++s)
+      result[s] = ShuffleUp(g, x[s], delta);
+    return result;
+  } else if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
+                           GroupT>) {
+    id<1> TargetLocalId = g.get_local_id();
+    // Underflow is UB, so we just keep the current item ID unchanged.
+    if (TargetLocalId[0] >= delta)
+      TargetLocalId[0] -= delta;
+    uint32_t TargetId = MapShuffleID(g, TargetLocalId);
+    return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
+                                          convertToOpenCLType(x), TargetId);
+  } else {
+    // Subgroup.
+    return __spirv_SubgroupShuffleUpINTEL(convertToOpenCLType(x),
                                           convertToOpenCLType(x), delta);
+  }
 #else
-  return __nvvm_shfl_sync_down_i32(membermask(), x, delta, 0x1f);
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
+                    GroupT>) {
+    auto MemberMask = detail::ExtractMask(detail::GetMask(g))[0];
+    if constexpr (is_fixed_size_group_v<GroupT>) {
+      return cuda_shfl_sync_up_i32(MemberMask, x, delta, 0);
+    } else {
+      unsigned localSetBit = g.get_local_id()[0] + 1;
+      int unfoldedSrcSetBit = localSetBit - delta;
+
+      return cuda_shfl_sync_idx_i32(
+          MemberMask, x, __nvvm_fns(MemberMask, 0, unfoldedSrcSetBit), 31);
+    }
+  } else {
+    return cuda_shfl_sync_up_i32(membermask(), x, delta, 0);
+  }
 #endif
 }
 
-template <typename T>
-EnableIfNativeShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
-#ifndef __NVPTX__
-  return __spirv_SubgroupShuffleUpINTEL(convertToOpenCLType(x),
-                                        convertToOpenCLType(x), delta);
-#else
-  return __nvvm_shfl_sync_up_i32(membermask(), x, delta, 0);
-#endif
-}
-
-template <typename T>
-EnableIfVectorShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
+template <typename GroupT, typename T>
+EnableIfVectorShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
   T result;
   for (int s = 0; s < x.size(); ++s) {
-    result[s] = SubgroupShuffle(x[s], local_id);
+    result[s] = Shuffle(g, x[s], local_id);
   }
   return result;
 }
 
-template <typename T>
-EnableIfVectorShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
+template <typename GroupT, typename T>
+EnableIfVectorShuffle<T> ShuffleXor(GroupT g, T x, id<1> local_id) {
   T result;
   for (int s = 0; s < x.size(); ++s) {
-    result[s] = SubgroupShuffleXor(x[s], local_id);
+    result[s] = ShuffleXor(g, x[s], local_id);
   }
   return result;
 }
 
-template <typename T>
-EnableIfVectorShuffle<T> SubgroupShuffleDown(T x, uint32_t delta) {
+template <typename GroupT, typename T>
+EnableIfVectorShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
   T result;
   for (int s = 0; s < x.size(); ++s) {
-    result[s] = SubgroupShuffleDown(x[s], delta);
+    result[s] = ShuffleDown(g, x[s], delta);
   }
   return result;
 }
 
-template <typename T>
-EnableIfVectorShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
+template <typename GroupT, typename T>
+EnableIfVectorShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
   T result;
   for (int s = 0; s < x.size(); ++s) {
-    result[s] = SubgroupShuffleUp(x[s], delta);
+    result[s] = ShuffleUp(g, x[s], delta);
   }
   return result;
 }
@@ -885,113 +1059,92 @@ EnableIfVectorShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
 template <typename T>
 using ConvertToNativeShuffleType_t = select_cl_scalar_integral_unsigned_t<T>;
 
-template <typename T>
-EnableIfBitcastShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
+template <typename GroupT, typename T>
+EnableIfBitcastShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
   using ShuffleT = ConvertToNativeShuffleType_t<T>;
   auto ShuffleX = sycl::bit_cast<ShuffleT>(x);
-#ifndef __NVPTX__
-  ShuffleT Result = __spirv_SubgroupShuffleINTEL(
-      ShuffleX, static_cast<uint32_t>(local_id.get(0)));
-#else
-  ShuffleT Result =
-      __nvvm_shfl_sync_idx_i32(membermask(), ShuffleX, local_id.get(0), 0x1f);
-#endif
+  ShuffleT Result = Shuffle(g, ShuffleX, local_id);
   return sycl::bit_cast<T>(Result);
 }
 
-template <typename T>
-EnableIfBitcastShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
+template <typename GroupT, typename T>
+EnableIfBitcastShuffle<T> ShuffleXor(GroupT g, T x, id<1> local_id) {
   using ShuffleT = ConvertToNativeShuffleType_t<T>;
   auto ShuffleX = sycl::bit_cast<ShuffleT>(x);
-#ifndef __NVPTX__
-  ShuffleT Result = __spirv_SubgroupShuffleXorINTEL(
-      ShuffleX, static_cast<uint32_t>(local_id.get(0)));
-#else
-  ShuffleT Result =
-      __nvvm_shfl_sync_bfly_i32(membermask(), ShuffleX, local_id.get(0), 0x1f);
-#endif
+  ShuffleT Result = ShuffleXor(g, ShuffleX, local_id);
   return sycl::bit_cast<T>(Result);
 }
 
-template <typename T>
-EnableIfBitcastShuffle<T> SubgroupShuffleDown(T x, uint32_t delta) {
+template <typename GroupT, typename T>
+EnableIfBitcastShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
   using ShuffleT = ConvertToNativeShuffleType_t<T>;
   auto ShuffleX = sycl::bit_cast<ShuffleT>(x);
-#ifndef __NVPTX__
-  ShuffleT Result = __spirv_SubgroupShuffleDownINTEL(ShuffleX, ShuffleX, delta);
-#else
-  ShuffleT Result =
-      __nvvm_shfl_sync_down_i32(membermask(), ShuffleX, delta, 0x1f);
-#endif
+  ShuffleT Result = ShuffleDown(g, ShuffleX, delta);
   return sycl::bit_cast<T>(Result);
 }
 
-template <typename T>
-EnableIfBitcastShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
+template <typename GroupT, typename T>
+EnableIfBitcastShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
   using ShuffleT = ConvertToNativeShuffleType_t<T>;
   auto ShuffleX = sycl::bit_cast<ShuffleT>(x);
-#ifndef __NVPTX__
-  ShuffleT Result = __spirv_SubgroupShuffleUpINTEL(ShuffleX, ShuffleX, delta);
-#else
-  ShuffleT Result = __nvvm_shfl_sync_up_i32(membermask(), ShuffleX, delta, 0);
-#endif
+  ShuffleT Result = ShuffleUp(g, ShuffleX, delta);
   return sycl::bit_cast<T>(Result);
 }
 
-template <typename T>
-EnableIfGenericShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
+template <typename GroupT, typename T>
+EnableIfGenericShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
   T Result;
   char *XBytes = reinterpret_cast<char *>(&x);
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
     detail::memcpy(&ShuffleX, XBytes + Offset, Size);
-    ShuffleResult = SubgroupShuffle(ShuffleX, local_id);
+    ShuffleResult = Shuffle(g, ShuffleX, local_id);
     detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
   return Result;
 }
 
-template <typename T>
-EnableIfGenericShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
+template <typename GroupT, typename T>
+EnableIfGenericShuffle<T> ShuffleXor(GroupT g, T x, id<1> local_id) {
   T Result;
   char *XBytes = reinterpret_cast<char *>(&x);
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
     detail::memcpy(&ShuffleX, XBytes + Offset, Size);
-    ShuffleResult = SubgroupShuffleXor(ShuffleX, local_id);
+    ShuffleResult = ShuffleXor(g, ShuffleX, local_id);
     detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
   return Result;
 }
 
-template <typename T>
-EnableIfGenericShuffle<T> SubgroupShuffleDown(T x, uint32_t delta) {
+template <typename GroupT, typename T>
+EnableIfGenericShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
   T Result;
   char *XBytes = reinterpret_cast<char *>(&x);
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
     detail::memcpy(&ShuffleX, XBytes + Offset, Size);
-    ShuffleResult = SubgroupShuffleDown(ShuffleX, delta);
+    ShuffleResult = ShuffleDown(g, ShuffleX, delta);
     detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
   return Result;
 }
 
-template <typename T>
-EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
+template <typename GroupT, typename T>
+EnableIfGenericShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
   T Result;
   char *XBytes = reinterpret_cast<char *>(&x);
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
     detail::memcpy(&ShuffleX, XBytes + Offset, Size);
-    ShuffleResult = SubgroupShuffleUp(ShuffleX, delta);
+    ShuffleResult = ShuffleUp(g, ShuffleX, delta);
     detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
@@ -1028,18 +1181,6 @@ ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
                             __spv::MemorySemanticsMask::CrossWorkgroupMemory);
 #endif
 }
-
-template <typename Group>
-struct is_tangle_or_opportunistic_group : std::false_type {};
-
-template <typename ParentGroup>
-struct is_tangle_or_opportunistic_group<
-    sycl::ext::oneapi::experimental::tangle_group<ParentGroup>>
-    : std::true_type {};
-
-template <>
-struct is_tangle_or_opportunistic_group<
-    sycl::ext::oneapi::experimental::opportunistic_group> : std::true_type {};
 
 // TODO: Refactor to avoid duplication after design settles
 #define __SYCL_GROUP_COLLECTIVE_OVERLOAD(Instruction)                          \

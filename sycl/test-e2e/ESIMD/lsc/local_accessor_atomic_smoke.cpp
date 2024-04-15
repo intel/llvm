@@ -180,8 +180,8 @@ bool test(queue q) {
       auto accessor = local_accessor<T, 1>(size, cgh);
 
       cgh.parallel_for<TestID<T, N, ImplF>>(
-          rng, [=](id<1> ii) SYCL_ESIMD_KERNEL {
-            int i = ii;
+          rng, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+            int i = ndi.get_global_id(0);
 #ifndef USE_SCALAR_OFFSET
             simd<uint32_t, N> offsets(start_ind * sizeof(T),
                                       stride * sizeof(T));
@@ -192,7 +192,8 @@ bool test(queue q) {
             data.copy_from(arr);
 
             simd<uint32_t, size> LocalOffsets(0, sizeof(T));
-            scatter<T, size>(accessor, LocalOffsets, data, 0, 1);
+            if (ndi.get_local_id(0) == 0)
+              scatter<T, size>(accessor, LocalOffsets, data, 0, 1);
             simd_mask<N> m = 1;
             if (masked_lane < N)
               m[masked_lane] = 0;
@@ -221,8 +222,11 @@ bool test(queue q) {
                   ;
               }
             }
-            auto data0 = gather<T, size>(accessor, LocalOffsets, 0);
-            data0.copy_to(arr);
+            barrier();
+            if (ndi.get_local_id(0) == 0) {
+              auto data0 = gather<T, size>(accessor, LocalOffsets, 0);
+              data0.copy_to(arr);
+            }
           });
     });
     e.wait();

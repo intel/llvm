@@ -31,7 +31,7 @@ namespace LIBC_NAMESPACE::fputil {
 // To simplify and improve the efficiency, many functions will assume that the
 // inputs are normal.
 template <size_t Bits> struct DyadicFloat {
-  using MantissaType = LIBC_NAMESPACE::cpp::UInt<Bits>;
+  using MantissaType = LIBC_NAMESPACE::UInt<Bits>;
 
   Sign sign = Sign::POS;
   int exponent = 0;
@@ -58,9 +58,9 @@ template <size_t Bits> struct DyadicFloat {
   // significant bit.
   LIBC_INLINE constexpr DyadicFloat &normalize() {
     if (!mantissa.is_zero()) {
-      int shift_length = static_cast<int>(mantissa.clz());
+      int shift_length = cpp::countl_zero(mantissa);
       exponent -= shift_length;
-      mantissa.shift_left(static_cast<size_t>(shift_length));
+      mantissa <<= static_cast<size_t>(shift_length);
     }
     return *this;
   }
@@ -233,7 +233,7 @@ LIBC_INLINE constexpr DyadicFloat<Bits> quick_add(DyadicFloat<Bits> a,
     result.sign = a.sign;
     result.exponent = a.exponent;
     result.mantissa = a.mantissa;
-    if (result.mantissa.add(b.mantissa)) {
+    if (result.mantissa.add_overflow(b.mantissa)) {
       // Mantissa addition overflow.
       result.shift_right(1);
       result.mantissa.val[DyadicFloat<Bits>::MantissaType::WORD_COUNT - 1] |=

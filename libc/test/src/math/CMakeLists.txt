@@ -638,6 +638,21 @@ add_fp_unittest(
 )
 
 add_fp_unittest(
+  exp2m1f_test
+  NEED_MPFR
+  SUITE
+    libc-math-unittests
+  SRCS
+    exp2m1f_test.cpp
+  DEPENDS
+    libc.include.llvm-libc-macros.math_macros
+    libc.src.errno.errno
+    libc.src.math.exp2m1f
+    libc.src.__support.CPP.array
+    libc.src.__support.FPUtil.fp_bits
+)
+
+add_fp_unittest(
   exp10f_test
   NEED_MPFR
   SUITE
@@ -1273,6 +1288,21 @@ add_fp_unittest(
     libc.src.__support.FPUtil.fp_bits
 )
 
+add_fp_unittest(
+  nextafterf128_test
+  SUITE
+    libc-math-unittests
+  SRCS
+    nextafterf128_test.cpp
+  HDRS
+    NextAfterTest.h
+  DEPENDS
+    libc.include.math
+    libc.src.math.nextafterf128
+    libc.src.__support.FPUtil.basic_operations
+    libc.src.__support.FPUtil.fp_bits
+)
+
 # TODO(lntue): The current implementation of fputil::general::fma<float> is only
 # correctly rounded for the default rounding mode round-to-nearest tie-to-even.
 add_fp_unittest(
@@ -1503,6 +1533,8 @@ add_fp_unittest(
   DEPENDS
     libc.include.math
     libc.src.math.generic.explogxf
+    libc.src.math.fabs
+    libc.src.math.fabsf
     libc.src.__support.FPUtil.fp_bits
 )
 
@@ -1629,20 +1661,6 @@ add_fp_unittest(
 )
 
 add_fp_unittest(
-  inv_trigf_utils_test
-  NEED_MPFR
-  SUITE
-    libc-math-unittests
-  HDRS
-    in_float_range_test_helper.h
-  SRCS
-    inv_trigf_utils_test.cpp
-  DEPENDS
-    libc.src.math.generic.inv_trigf_utils
-    libc.src.__support.FPUtil.fp_bits
-)
-
-add_fp_unittest(
   scalbn_test
   NEED_MPFR
   SUITE
@@ -1716,10 +1734,23 @@ add_fp_unittest(
     libc.src.__support.FPUtil.fp_bits
 )
 
+add_fp_unittest(
+  atan2f_test
+  NEED_MPFR
+  SUITE
+    libc-math-unittests
+  SRCS
+    atan2f_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.atan2f
+    libc.src.__support.FPUtil.fp_bits
+)
+
 add_subdirectory(generic)
 add_subdirectory(smoke)
 
 if(NOT LLVM_LIBC_FULL_BUILD)
   add_subdirectory(exhaustive)
-  add_subdirectory(differential_testing)
+  add_subdirectory(performance_testing)
 endif()

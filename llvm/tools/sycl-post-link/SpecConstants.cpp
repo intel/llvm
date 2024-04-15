@@ -18,7 +18,9 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/TargetParser/Triple.h"
 
 #include <vector>
 
@@ -814,12 +816,21 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   // intrinsic to find its calls and lower them depending on the HandlingMode.
   bool IRModified = false;
   LLVMContext &Ctx = M.getContext();
+  bool IsSPIREmulated =
+      Triple(M.getTargetTriple()).isSPIR() && Mode == HandlingMode::emulation;
   for (Function &F : M) {
     if (!F.isDeclaration())
       continue;
 
+    const bool IsSYCLAlloca = F.getIntrinsicID() == Intrinsic::sycl_alloca;
+
+    // 'llvm.sycl.alloca' is not supported in emulation mode on SPIR-V targets.
+    if (IsSPIREmulated && IsSYCLAlloca)
+      continue;
+
     if (!F.getName().starts_with(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) &&
-        !F.getName().starts_with(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL))
+        !F.getName().starts_with(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL) &&
+        !IsSYCLAlloca)
       continue;
 
     SmallVector<CallInst *, 32> SCIntrCalls;
@@ -838,21 +849,39 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
 
       SmallVector<Instruction *, 3> DelInsts;
       DelInsts.push_back(CI);
-      Type *SCTy = CI->getType();
-      unsigned NameArgNo = 0;
       Function *Callee = CI->getCalledFunction();
       assert(Callee && "Failed to get spec constant call");
-      bool HasSretParameter = Callee->hasStructRetAttr();
+
       // Structs are returned via 'sret' arguments if they are larger than 64b
-      if (HasSretParameter) {
-        // Get structure type stored in an argument annotated with 'sret'
-        // parameter attribute and skip it.
-        SCTy = Callee->getParamStructRetType(NameArgNo++);
-      }
+      bool HasSretParameter = Callee->hasStructRetAttr();
+      assert(!(HasSretParameter && IsSYCLAlloca) &&
+             "'llvm.sycl.alloca' returns a pointer");
+      // Skip 'sret' parameter.
+      unsigned NameArgNo = HasSretParameter ? 1 : 0;
+
       StringRef SymID = getStringLiteralArg(CI, NameArgNo, DelInsts);
       Value *Replacement = nullptr;
 
       Constant *DefaultValue = getSpecConstInitializerFromCI(CI, NameArgNo + 1);
+      Type *SCTy;
+      if (HasSretParameter) {
+        // Specialization constant type is given by the 'sret' parameter.
+        SCTy = Callee->getParamStructRetType(0);
+      } else if (IsSYCLAlloca) {
+        // 'llvm.sycl.alloca' returns a pointer, so we need to take the
+        // specialization constant type from the default value. At this stage,
+        // we will have lost the original scalar representation of the type, so
+        // we have to take the in-memory representation. This is only relevant
+        // when a 'bool' ('i1' scalar representation and 'i8' in-memory
+        // representation) specialization constant is used as size. In that
+        // case, for a value of 'true' (the only legal value), the default value
+        // will be 1 ('i8'), thus keeping the original semantics.
+        SCTy = DefaultValue->getType();
+      } else {
+        // Specialization constant type is the same as the one returned by the
+        // function in the general case.
+        SCTy = CI->getType();
+      }
 
       bool IsNewSpecConstant = false;
       unsigned Padding = 0;
@@ -945,6 +974,21 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         }
         DefaultsMetadata.push_back(
             generateSpecConstDefaultValueMetadata(DefaultValue));
+      }
+
+      if (IsSYCLAlloca) {
+        // In case this is a 'sycl.llvm.alloca' intrinsic, use the emitted
+        // specialization constant as the allocation size.
+        auto *Intr = cast<SYCLAllocaInst>(CI);
+        // For emulation mode, use the default value for now. This code should
+        // never be run, as the runtime should throw a 'kernel_not_supported'
+        // exception.
+        Value *ArraySize =
+            Mode == HandlingMode::emulation ? DefaultValue : Replacement;
+        assert(ArraySize->getType()->isIntegerTy() && "Expecting integer type");
+        Replacement =
+            new AllocaInst(Intr->getAllocatedType(), Intr->getAddressSpace(),
+                           ArraySize, Intr->getAlign(), "alloca", CI);
       }
 
       if (HasSretParameter)
@@ -1043,7 +1087,8 @@ bool SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
 bool llvm::checkModuleContainsSpecConsts(const Module &M) {
   for (const Function &F : M.functions()) {
     if (F.getName().starts_with(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) ||
-        F.getName().starts_with(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL))
+        F.getName().starts_with(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL) ||
+        F.getIntrinsicID() == llvm::Intrinsic::sycl_alloca)
       return true;
   }
 

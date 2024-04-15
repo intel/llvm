@@ -157,6 +157,7 @@ MODULE_PASS("sycl-propagate-joint-matrix-usage", SYCLPropagateJointMatrixUsagePa
 MODULE_PASS("sycl-add-opt-level-attribute", SYCLAddOptLevelAttributePass())
 MODULE_PASS("compile-time-properties", CompileTimePropertiesPass())
 MODULE_PASS("cleanup-sycl-metadata", CleanupSYCLMetadataPass())
+MODULE_PASS("lower-slm-reservation-calls", ESIMDLowerSLMReservationCalls())
 #undef MODULE_PASS
 
 #ifndef MODULE_PASS_WITH_PARAMS
@@ -438,6 +439,7 @@ FUNCTION_PASS("print<uniformity>", UniformityInfoPrinterPass(dbgs()))
 FUNCTION_PASS("reassociate", ReassociatePass())
 FUNCTION_PASS("redundant-dbg-inst-elim", RedundantDbgInstEliminationPass())
 FUNCTION_PASS("reg2mem", RegToMemPass())
+FUNCTION_PASS("remove-traps", RemoveTrapsPass())
 FUNCTION_PASS("safe-stack", SafeStackPass(TM))
 FUNCTION_PASS("scalarize-masked-mem-intrin", ScalarizeMaskedMemIntrinPass())
 FUNCTION_PASS("scalarizer", ScalarizerPass())
