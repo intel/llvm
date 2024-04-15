@@ -64,6 +64,13 @@ set( LIBCLC_TEST_TARGETS_ALL
 set( LIBCLC_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR} )
 set( LIBCLC_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR} )
 
+# $&$ maybe delete
+# mesa3d environment is only available since LLVM 4.0
+if( LLVM_PACKAGE_VERSION VERSION_GREATER_EQUAL 4.0.0 )
+  list( APPEND LIBCLC_TARGETS_ALL amdgcn-mesa-mesa3d )
+endif()
+# $&$ end delete
+
 set( LIBCLC_TARGETS_TO_BUILD "all"
     CACHE STRING "Semicolon-separated list of targets to build, or 'all'." )
 
@@ -203,7 +210,7 @@ set( CMAKE_LLAsm_COMPILER ${LLVM_AS} )
 set( CMAKE_LLAsm_ARCHIVE ${LLVM_LINK} )
 
 # LLVM 13 enables standard includes by default
-if( ${LLVM_VERSION} VERSION_GREATER "12.99.99" )
+if( LLVM_PACKAGE_VERSION VERSION_GREATER_EQUAL 13.0.0 )
   set( CMAKE_LLAsm_FLAGS "${CMAKE_LLAsm_FLAGS} -cl-no-stdinc" )
   set( CMAKE_CLC_FLAGS "${CMAKE_CLC_FLAGS} -cl-no-stdinc" )
 endif()
@@ -321,7 +328,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     list( APPEND dirs amdgpu )
   endif()
 
-  #nvptx is special
+  # nvptx is special
   if( ${ARCH} STREQUAL nvptx OR ${ARCH} STREQUAL nvptx64 )
     set( DARCH ptx )
   else()
@@ -352,8 +359,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     endforeach()
   endforeach()
 
-  # Add the generated convert.cl here to prevent adding
-  # the one listed in SOURCES
+  # Add the generated convert.cl here to prevent adding the one listed in
+  # SOURCES
   if( NOT ${ARCH} STREQUAL "spirv" AND NOT ${ARCH} STREQUAL "spirv64" )
     set( rel_files convert.cl )
     set( objects convert.cl )
