@@ -668,7 +668,14 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
     LPM2.addPass(LoopIdiomRecognizePass());
     LPM2.addPass(IndVarSimplifyPass());
 
-   invokeLateLoopOptimizationsEPCallbacks(LPM2, Level);
+  {
+    ExtraSimpleLoopUnswitchPassManager ExtraPasses;
+    ExtraPasses.addPass(SimpleLoopUnswitchPass(/* NonTrivial */ Level ==
+                                               OptimizationLevel::O3));
+    LPM2.addPass(std::move(ExtraPasses));
+  }
+
+  invokeLateLoopOptimizationsEPCallbacks(LPM2, Level);
 
     LPM2.addPass(LoopDeletionPass());
 
