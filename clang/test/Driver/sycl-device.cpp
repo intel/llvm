@@ -18,7 +18,7 @@
 // RUN:   | FileCheck -check-prefix=CHECK-SYCL-NO_STRICT %s
 // CHECK-SYCL-NO_STRICT: clang{{.*}} "-Wno-sycl-strict"
 
-/// Check that -sycl-std=2017 is set if no std version is provided by user
+/// Check that -sycl-std=2020 is set if no std version is provided by user
 // RUN:   %clang -### -fsycl %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-SYCL-STD_VERSION %s
 // CHECK-SYCL-STD_VERSION: clang{{.*}} "-sycl-std=2020"
