@@ -11,14 +11,42 @@
 #include <ur_api.h>
 
 #include "common.hpp"
+#include "logger/ur_logger.hpp"
 #include "tracing.hpp"
 
 struct ur_adapter_handle_t_ {
   std::atomic<uint32_t> RefCount = 0;
   std::mutex Mutex;
   struct cuda_tracing_context_t_ *TracingCtx = nullptr;
+  logger::Logger &logger;
+  ur_adapter_handle_t_();
 };
 
+class ur_legacy_sink : public logger::Sink {
+public:
+  ur_legacy_sink(std::string logger_name = "", bool skip_prefix = true)
+      : Sink(std::move(logger_name), skip_prefix) {
+    this->ostream = &std::cerr;
+  }
+
+  virtual void print([[maybe_unused]] logger::Level level,
+                     const std::string &msg) override {
+    std::cerr << msg << std::endl;
+  }
+
+  ~ur_legacy_sink() = default;
+};
+ur_adapter_handle_t_::ur_adapter_handle_t_()
+    : logger(logger::get_logger("cuda")) {
+
+  if (std::getenv("UR_LOG_CUDA") != nullptr)
+    return;
+
+  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") != nullptr ||
+      std::getenv("UR_SUPPRESS_ERROR_MESSAGE") != nullptr) {
+    logger.setLegacySink(std::make_unique<ur_legacy_sink>());
+  }
+}
 ur_adapter_handle_t_ adapter{};
 
 UR_APIEXPORT ur_result_t UR_APICALL
