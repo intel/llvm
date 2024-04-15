@@ -12317,9 +12317,6 @@ def err_sycl_invalid_aspect_argument : Error<
 def warn_sycl_pass_by_value_deprecated 
     : Warning<"passing kernel functions by value is deprecated in SYCL 2020">,
       InGroup<Sycl2020Compat>, ShowInSystemHeader;
-def warn_sycl_pass_by_reference_future 
-    : Warning<"passing of kernel functions by reference is a SYCL 2020 extension">,
-      InGroup<Sycl2017Compat>, ShowInSystemHeader;
 def warn_sycl_implicit_decl
     : Warning<"SYCL 1.2.1 specification requires an explicit forward "
               "declaration for a kernel type name; your program may not "

@@ -139,17 +139,13 @@ public:
 
   enum SYCLMajorVersion {
     SYCL_None,
-    SYCL_2017,
     SYCL_2020,
     // The "default" SYCL version to be used when none is specified on the
     // frontend command line.
     SYCL_Default = SYCL_2020
   };
 
-  enum class SYCLVersionList {
-    sycl_1_2_1,
-    undefined
-  };
+  enum class SYCLVersionList { sycl_2020, undefined };
 
   enum class SYCLRangeRoundingPreference {
     On,

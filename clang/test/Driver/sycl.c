@@ -1,10 +1,6 @@
 // RUN: %clang -### -fsycl -c %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clang -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=ENABLED
-// RUN: %clang -### -fsycl -sycl-std=1.2.1 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
-// RUN: %clang -### -fsycl -sycl-std=121 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
-// RUN: %clang -### -fsycl -sycl-std=2017 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clang -### -fsycl -sycl-std=2020 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
-// RUN: %clang -### -fsycl -sycl-std=sycl-1.2.1 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clang -### -fno-sycl -fsycl %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clang -### -sycl-std=2017 %s 2>&1 | FileCheck %s --check-prefix=NOT_ENABLED
 // RUN: %clangxx -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=ENABLED

@@ -3721,9 +3721,6 @@ void CompilerInvocationBase::GenerateLangArgs(const LangOptions &Opts,
 
   if (Opts.isSYCL()) {
     switch (Opts.SYCLVersion) {
-    case LangOptions::SYCL_2017:
-      GenerateArg(Consumer, OPT_sycl_std_EQ, "2017");
-      break;
     case LangOptions::SYCL_2020:
       GenerateArg(Consumer, OPT_sycl_std_EQ, "2020");
       break;
@@ -3928,10 +3925,8 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
     if (const Arg *A = Args.getLastArg(OPT_sycl_std_EQ)) {
       Opts.setSYCLVersion(
           llvm::StringSwitch<LangOptions::SYCLMajorVersion>(A->getValue())
-              .Case("2020", LangOptions::SYCL_2020)
-              .Cases("2017", "121", "1.2.1", "sycl-1.2.1",
-                     LangOptions::SYCL_2017)
-              .Default(LangOptions::SYCL_None));
+              .Case("2020", LangOptions::SYCL_2020),
+          .Default(LangOptions::SYCL_None));
 
       if (Opts.SYCLVersion == LangOptions::SYCL_None)
         Diags.Report(diag::err_drv_invalid_value)

@@ -335,38 +335,28 @@ void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
     return;
   }
 
-  // Diagnose SYCL 2017 spellings in later SYCL modes.
-  if (LangOpts.getSYCLVersion() > LangOptions::SYCL_2017) {
-    // All attributes in the cl vendor namespace are deprecated in favor of a
-    // name in the sycl namespace as of SYCL 2020.
-    if (A.hasScope() && A.getScopeName()->isStr("cl")) {
-      DiagnoseDeprecatedAttribute(A, "sycl", NewName);
-      return;
-    }
-
-    // All GNU-style spellings are deprecated in favor of a C++-style spelling.
-    if (A.getSyntax() == ParsedAttr::AS_GNU) {
-      // Note: we cannot suggest an automatic fix-it because GNU-style
-      // spellings can appear in locations that are not valid for a C++-style
-      // spelling, and the attribute could be part of an attribute list within
-      // a single __attribute__ specifier. Just tell the user it's deprecated
-      // manually.
-      //
-      // This currently assumes that the GNU-style spelling is the same as the
-      // SYCL 2020 spelling (sans the vendor namespace).
-      Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated)
-          << "'" + A.getNormalizedFullName() + "'";
-      Diag(A.getLoc(), diag::note_spelling_suggestion)
-          << "'[[sycl::" + A.getNormalizedFullName() + "]]'";
-      return;
-    }
+  // Diagnose SYCL 2017 spellings.
+  // All attributes in the cl vendor namespace are deprecated in favor of a
+  // name in the sycl namespace as of SYCL 2020.
+  if (A.hasScope() && A.getScopeName()->isStr("cl")) {
+    DiagnoseDeprecatedAttribute(A, "sycl", NewName);
+    return;
   }
 
-  // Diagnose SYCL 2020 spellings used in earlier SYCL modes as being an
-  // extension.
-  if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2017 && A.hasScope() &&
-      A.getScopeName()->isStr("sycl")) {
-    Diag(A.getLoc(), diag::ext_sycl_2020_attr_spelling) << A;
+  // All GNU-style spellings are deprecated in favor of a C++-style spelling.
+  if (A.getSyntax() == ParsedAttr::AS_GNU) {
+    // Note: we cannot suggest an automatic fix-it because GNU-style
+    // spellings can appear in locations that are not valid for a C++-style
+    // spelling, and the attribute could be part of an attribute list within
+    // a single __attribute__ specifier. Just tell the user it's deprecated
+    // manually.
+    //
+    // This currently assumes that the GNU-style spelling is the same as the
+    // SYCL 2020 spelling (sans the vendor namespace).
+    Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated)
+        << "'" + A.getNormalizedFullName() + "'";
+    Diag(A.getLoc(), diag::note_spelling_suggestion)
+        << "'[[sycl::" + A.getNormalizedFullName() + "]]'";
     return;
   }
 }
@@ -4756,41 +4746,8 @@ static void handleSYCLIntelLoopFuseAttr(Sema &S, Decl *D, const ParsedAttr &A) {
 static void handleVecTypeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
   // This attribute is deprecated without replacement in SYCL 2020 mode.
   // Ignore the attribute in SYCL 2020.
-  if (S.LangOpts.getSYCLVersion() > LangOptions::SYCL_2017) {
-    S.Diag(AL.getLoc(), diag::warn_attribute_deprecated_ignored) << AL;
-    return;
-  }
-
-  // If the attribute is used with the [[sycl::vec_type_hint]] spelling in SYCL
-  // 2017 mode, we want to warn about using the newer name in the older
-  // standard as a compatibility extension.
-  if (S.LangOpts.getSYCLVersion() == LangOptions::SYCL_2017 && AL.hasScope())
-    S.Diag(AL.getLoc(), diag::ext_sycl_2020_attr_spelling) << AL;
-
-  if (!AL.hasParsedType()) {
-    S.Diag(AL.getLoc(), diag::err_attribute_wrong_number_arguments) << AL << 1;
-    return;
-  }
-
-  TypeSourceInfo *ParmTSI = nullptr;
-  QualType ParmType = S.GetTypeFromParser(AL.getTypeArg(), &ParmTSI);
-  assert(ParmTSI && "no type source info for attribute argument");
-
-  if (!ParmType->isExtVectorType() && !ParmType->isFloatingType() &&
-      (ParmType->isBooleanType() ||
-       !ParmType->isIntegralType(S.getASTContext()))) {
-    S.Diag(AL.getLoc(), diag::err_attribute_invalid_argument) << 2 << AL;
-    return;
-  }
-
-  if (VecTypeHintAttr *A = D->getAttr<VecTypeHintAttr>()) {
-    if (!S.Context.hasSameType(A->getTypeHint(), ParmType)) {
-      S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
-      return;
-    }
-  }
-
-  D->addAttr(::new (S.Context) VecTypeHintAttr(S.Context, AL, ParmTSI));
+  S.Diag(AL.getLoc(), diag::warn_attribute_deprecated_ignored) << AL;
+  return;
 }
 
 SectionAttr *Sema::mergeSectionAttr(Decl *D, const AttributeCommonInfo &CI,
