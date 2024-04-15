@@ -15,8 +15,6 @@
 
 #include <vector>
 
-// TODO:: barrier with wait list -> another dep building????
-
 namespace {
 using namespace sycl;
 using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
@@ -70,11 +68,13 @@ protected:
       MainLock.unlock();
   }
 
-  sycl::event AddTask(TestCGType Type) {
+  sycl::event AddTask(TestCGType Type, bool BlockHostTask = true) {
     if (Type == TestCGType::HOST_TASK) {
       return QueueDevImpl->submit(
-          [&](handler &CGH) { CGH.host_task(CustomHostLambda); }, QueueDevImpl,
-          nullptr, {});
+          [&](handler &CGH) {
+            CGH.host_task(BlockHostTask ? CustomHostLambda : [] {});
+          },
+          QueueDevImpl, nullptr, {});
     } else if (Type == TestCGType::KERNEL_TASK) {
       return QueueDevImpl->submit(
           [&](handler &CGH) { CGH.single_task<TestKernel<>>([] {}); },
@@ -85,6 +85,13 @@ protected:
           [&](handler &CGH) { CGH.ext_oneapi_barrier(); }, QueueDevImpl,
           nullptr, {});
     }
+  }
+
+  sycl::event
+  InsertBarrierWithWaitList(const std::vector<sycl::event> &WaitList) {
+    return QueueDevImpl->submit(
+        [&](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); }, QueueDevImpl,
+        nullptr, {});
   }
 
   sycl::unittest::PiMock Mock;
@@ -238,6 +245,41 @@ TEST_F(BarrierHandlingWithHostTask, KernelBarrierHostTask) {
   auto HostTaskWaitList = HostTaskEventImpl->getWaitList();
   ASSERT_EQ(HostTaskWaitList.size(), 0u);
   EXPECT_EQ(HostTaskEventImpl->isEnqueued(), true);
+
+  MainLock.unlock();
+  QueueDevImpl->wait();
+}
+
+TEST_F(BarrierHandlingWithHostTask, HostTaskUnblockedWaitListBarrierKernel) {
+  sycl::event HTEvent = AddTask(TestCGType::HOST_TASK, false);
+  EventImplPtr HostTaskEventImpl = sycl::detail::getSyclObjImpl(HTEvent);
+  auto HostTaskWaitList = HostTaskEventImpl->getWaitList();
+  EXPECT_EQ(HostTaskWaitList.size(), 0u);
+  EXPECT_EQ(HostTaskEventImpl->isEnqueued(), true);
+
+  sycl::event BlockedHostTask = AddTask(TestCGType::HOST_TASK);
+  EventImplPtr BlockedHostTaskImpl =
+      sycl::detail::getSyclObjImpl(BlockedHostTask);
+  auto BlockedHostTaskWaitList = BlockedHostTaskImpl->getWaitList();
+  EXPECT_EQ(BlockedHostTaskWaitList.size(), 0u);
+  EXPECT_EQ(BlockedHostTaskImpl->isEnqueued(), true);
+
+  HostTaskEventImpl->wait(HostTaskEventImpl);
+
+  std::vector<sycl::event> WaitList{HTEvent};
+  sycl::event BarrierEvent = InsertBarrierWithWaitList(WaitList);
+  EventImplPtr BarrierEventImpl = sycl::detail::getSyclObjImpl(BarrierEvent);
+  auto BarrierWaitList = BarrierEventImpl->getWaitList();
+  // Events to wait by barrier are stored in a separated vector. Here we are
+  // interested in implicit deps only.
+  ASSERT_EQ(BarrierWaitList.size(), 0u);
+  EXPECT_EQ(BarrierEventImpl->isEnqueued(), true);
+
+  sycl::event KernelEvent = AddTask(TestCGType::KERNEL_TASK);
+  EventImplPtr KernelEventImpl = sycl::detail::getSyclObjImpl(KernelEvent);
+  auto KernelWaitList = KernelEventImpl->getWaitList();
+  ASSERT_EQ(KernelWaitList.size(), 0u);
+  EXPECT_EQ(KernelEventImpl->isEnqueued(), true);
 
   MainLock.unlock();
   QueueDevImpl->wait();
