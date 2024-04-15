@@ -145,7 +145,6 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     #     [NATIVECPU] Extended usm fill to bigger patterns than 1 byte
     15233fd2521f9e9b35e3a24037be99ceef334a8e
   )
->>>>>>> sycl
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
