@@ -126,9 +126,11 @@ if (NOT MSVC)
   set(sanitizer_obj_deps device.h atomic.hpp spirv_vars.h include/sanitizer_device_utils.hpp include/spir_global_var.hpp sycl-compiler)
 endif()
 
-##if(LIBDEVICE_NATIVE_CPU)
-add_devicelib_obj(libsycl-nativecpu_utils SRC nativecpu_utils.cpp DEP ${itt_obj_deps})
-##endif()
+if(LIBDEVICE_NATIVE_CPU)
+  # enabling finding header with state definition from Native CPU UR adapter
+  list(APPEND compile_opts -I ${UR_ADAPTER_NATIVE_CPU_SOURCE_DIR})
+  add_devicelib_obj(libsycl-nativecpu_utils SRC nativecpu_utils.cpp DEP ${itt_obj_deps})
+endif()
 
 add_devicelib_obj(libsycl-itt-stubs SRC itt_stubs.cpp DEP ${itt_obj_deps})
 add_devicelib_obj(libsycl-itt-compiler-wrappers SRC itt_compiler_wrappers.cpp DEP ${itt_obj_deps})
