@@ -64,6 +64,13 @@ set( LIBCLC_TEST_TARGETS_ALL
 set( LIBCLC_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR} )
 set( LIBCLC_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR} )
 
+# $&$ maybe delete
+# mesa3d environment is only available since LLVM 4.0
+if( LLVM_PACKAGE_VERSION VERSION_GREATER_EQUAL 4.0.0 )
+  list( APPEND LIBCLC_TARGETS_ALL amdgcn-mesa-mesa3d )
+endif()
+# $&$ end delete
+
 set( LIBCLC_TARGETS_TO_BUILD "all"
     CACHE STRING "Semicolon-separated list of targets to build, or 'all'." )
 
@@ -174,20 +181,22 @@ FindToolBinary( "${BINARY_VARIABLES}" "${BINARY_NAMES}"
   ${LLVM_TOOLS_BINARY_DIR} )
 
 # Print toolchain
-message( "clang: ${LLVM_CLANG}" )
-message( "llvm-as: ${LLVM_AS}" )
-message( "llvm-link: ${LLVM_LINK}" )
-message( "opt: ${LLVM_OPT}" )
-message( "llvm-spirv: ${LLVM_SPIRV}" )
-message( "libclc-remangler: ${LIBCLC_REMANGLER}" )
-message( "" )
+message( STATUS "libclc toolchain - clang: ${LLVM_CLANG}" )
+message( STATUS "libclc toolchain - llvm-as: ${LLVM_AS}" )
+message( STATUS "libclc toolchain - llvm-link: ${LLVM_LINK}" )
+message( STATUS "libclc toolchain - opt: ${LLVM_OPT}" )
+message( STATUS "libclc toolchain - llvm-spirv: ${LLVM_SPIRV}" )
+message( STATUS "libclc toolchain - libclc-remangler: ${LIBCLC_REMANGLER}" )
+message( STATUS "" )
 if( NOT LLVM_CLANG OR NOT LLVM_OPT OR NOT LLVM_AS OR NOT LLVM_LINK
     OR NOT LIBCLC_REMANGLER )
-  message( FATAL_ERROR "toolchain incomplete!" )
+  message( FATAL_ERROR "libclc toolchain incomplete!" )
 endif()
 
 list( SORT LIBCLC_TARGETS_TO_BUILD )
 
+# Verify that the user hasn't requested mesa3d targets without an available
+# llvm-spirv tool.
 if( "spirv-mesa3d-" IN_LIST LIBCLC_TARGETS_TO_BUILD OR "spirv64-mesa3d-" IN_LIST LIBCLC_TARGETS_TO_BUILD )
   if( NOT LLVM_SPIRV )
     message( FATAL_ERROR "SPIR-V targets requested, but spirv-tools is not installed" )
@@ -201,7 +210,7 @@ set( CMAKE_LLAsm_COMPILER ${LLVM_AS} )
 set( CMAKE_LLAsm_ARCHIVE ${LLVM_LINK} )
 
 # LLVM 13 enables standard includes by default
-if( ${LLVM_VERSION} VERSION_GREATER "12.99.99" )
+if( LLVM_PACKAGE_VERSION VERSION_GREATER_EQUAL 13.0.0 )
   set( CMAKE_LLAsm_FLAGS "${CMAKE_LLAsm_FLAGS} -cl-no-stdinc" )
   set( CMAKE_CLC_FLAGS "${CMAKE_CLC_FLAGS} -cl-no-stdinc" )
 endif()
@@ -261,6 +270,12 @@ find_package( Python3 REQUIRED COMPONENTS Interpreter )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/gen_convert.py clc_script_loc )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/libspirv/gen_core_convert.py core_script_loc )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/libspirv/gen_convert.py spirv_script_loc )
+file( TO_CMAKE_PATH ${PROJECT_SOURCE_DIR}/generic/lib/gen_convert.py script_loc )
+add_custom_command(
+  OUTPUT convert.cl
+  COMMAND ${Python3_EXECUTABLE} ${script_loc} > convert.cl
+  DEPENDS ${script_loc} )
+add_custom_target( "generate_convert.cl" DEPENDS convert.cl )
 
 add_custom_command(
   OUTPUT convert-core.cl
@@ -296,7 +311,7 @@ endif(LIBCLC_STANDALONE_BUILD)
 file( TO_CMAKE_PATH ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/clc LIBCLC_LIBRARY_OUTPUT_INTDIR )
 
 foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
-  message( "BUILDING ${t}" )
+  message( STATUS "libclc target '${t}' is enabled" )
   string( REPLACE "-" ";" TRIPLE  ${t} )
   list( GET TRIPLE 0 ARCH )
   list( GET TRIPLE 1 VENDOR )
@@ -313,7 +328,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     list( APPEND dirs amdgpu )
   endif()
 
-  #nvptx is special
+  # nvptx is special
   if( ${ARCH} STREQUAL nvptx OR ${ARCH} STREQUAL nvptx64 )
     set( DARCH ptx )
   else()
@@ -335,7 +350,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
   foreach( l ${dirs} ${DARCH} ${DARCH}-${OS} ${DARCH}-${VENDOR}-${OS} )
     foreach( s "SOURCES" "SOURCES_${LLVM_MAJOR}.${LLVM_MINOR}" )
       file( TO_CMAKE_PATH ${l}/lib/${s} file_loc )
-      file( TO_CMAKE_PATH ${CMAKE_SOURCE_DIR}/${file_loc} loc )
+      file( TO_CMAKE_PATH ${PROJECT_SOURCE_DIR}/${file_loc} loc )
       # Prepend the location to give higher priority to
       # specialized implementation
       if( EXISTS ${loc} )
@@ -344,8 +359,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     endforeach()
   endforeach()
 
-  # Add the generated convert.cl here to prevent adding
-  # the one listed in SOURCES
+  # Add the generated convert.cl here to prevent adding the one listed in
+  # SOURCES
   if( NOT ${ARCH} STREQUAL "spirv" AND NOT ${ARCH} STREQUAL "spirv64" )
     set( rel_files convert.cl )
     set( objects convert.cl )
@@ -368,7 +383,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
         list( APPEND objects ${f} )
         list( APPEND rel_files ${dir}/${f} )
         # FIXME: This should really go away
-        file( TO_CMAKE_PATH ${CMAKE_SOURCE_DIR}/${dir}/${f} src_loc )
+        file( TO_CMAKE_PATH ${PROJECT_SOURCE_DIR}/${dir}/${f} src_loc )
         get_filename_component( fdir ${src_loc} DIRECTORY )
 
         set_source_files_properties( ${dir}/${f}
@@ -404,7 +419,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       set( flags "-mcpu=${d}" )
       set( arch_suffix "${d}-${t}" )
     endif()
-    message( "    DEVICE: ${d} ( ${${d}_aliases} )" )
+    message( STATUS "  device: ${d} ( ${${d}_aliases} )" )
 
     set ( supports_generic_addrspace TRUE )
     if ( ${ARCH} STREQUAL "spirv" OR ${ARCH} STREQUAL "spirv64" )

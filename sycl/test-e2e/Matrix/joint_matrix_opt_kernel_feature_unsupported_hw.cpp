@@ -1,6 +1,6 @@
 // REQUIRES: gpu-intel-gen12, gpu
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // Test checks that exception will be thrown in case object of joint_matrix type

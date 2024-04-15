@@ -65,14 +65,6 @@
 #define _KERNELFUNCPARAM(a) const KernelType &a
 #endif
 
-// Helper macro to identify if fallback assert is needed
-// FIXME remove __NVPTX__ condition once devicelib supports CUDA
-#if defined(SYCL_FALLBACK_ASSERT)
-#define __SYCL_USE_FALLBACK_ASSERT SYCL_FALLBACK_ASSERT
-#else
-#define __SYCL_USE_FALLBACK_ASSERT 0
-#endif
-
 namespace sycl {
 inline namespace _V1 {
 
@@ -2893,10 +2885,6 @@ private:
         Rest...);
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  buffer<detail::AssertHappened, 1> &getAssertHappenedBuffer();
-#endif
-
   event memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
                              bool IsDeviceImageScope, size_t NumBytes,
                              size_t Offset,
@@ -3014,5 +3002,3 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
 } // namespace _V1
 } // namespace sycl
 #endif // __SYCL_USE_FALLBACK_ASSERT
-
-#undef __SYCL_USE_FALLBACK_ASSERT

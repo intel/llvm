@@ -533,10 +533,10 @@ static T extractMaskValue(T KeyPath) {
 
 #define PARSE_OPTION_WITH_MARSHALLING(                                         \
     ARGS, DIAGS, PREFIX_TYPE, SPELLING, ID, KIND, GROUP, ALIAS, ALIASARGS,     \
-    FLAGS, VISIBILITY, PARAM, HELPTEXT, METAVAR, VALUES, SHOULD_PARSE,         \
-    ALWAYS_EMIT, KEYPATH, DEFAULT_VALUE, IMPLIED_CHECK, IMPLIED_VALUE,         \
-    NORMALIZER, DENORMALIZER, MERGER, EXTRACTOR, TABLE_INDEX)                  \
-  if ((VISIBILITY)&options::CC1Option) {                                       \
+    FLAGS, VISIBILITY, PARAM, HELPTEXT, HELPTEXTSFORVARIANTS, METAVAR, VALUES, \
+    SHOULD_PARSE, ALWAYS_EMIT, KEYPATH, DEFAULT_VALUE, IMPLIED_CHECK,          \
+    IMPLIED_VALUE, NORMALIZER, DENORMALIZER, MERGER, EXTRACTOR, TABLE_INDEX)   \
+  if ((VISIBILITY) & options::CC1Option) {                                     \
     KEYPATH = MERGER(KEYPATH, DEFAULT_VALUE);                                  \
     if (IMPLIED_CHECK)                                                         \
       KEYPATH = MERGER(KEYPATH, IMPLIED_VALUE);                                \
@@ -550,10 +550,10 @@ static T extractMaskValue(T KeyPath) {
 // with lifetime extension of the reference.
 #define GENERATE_OPTION_WITH_MARSHALLING(                                      \
     CONSUMER, PREFIX_TYPE, SPELLING, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, \
-    VISIBILITY, PARAM, HELPTEXT, METAVAR, VALUES, SHOULD_PARSE, ALWAYS_EMIT,   \
-    KEYPATH, DEFAULT_VALUE, IMPLIED_CHECK, IMPLIED_VALUE, NORMALIZER,          \
-    DENORMALIZER, MERGER, EXTRACTOR, TABLE_INDEX)                              \
-  if ((VISIBILITY)&options::CC1Option) {                                       \
+    VISIBILITY, PARAM, HELPTEXT, HELPTEXTSFORVARIANTS, METAVAR, VALUES,        \
+    SHOULD_PARSE, ALWAYS_EMIT, KEYPATH, DEFAULT_VALUE, IMPLIED_CHECK,          \
+    IMPLIED_VALUE, NORMALIZER, DENORMALIZER, MERGER, EXTRACTOR, TABLE_INDEX)   \
+  if ((VISIBILITY) & options::CC1Option) {                                     \
     [&](const auto &Extracted) {                                               \
       if (ALWAYS_EMIT ||                                                       \
           (Extracted !=                                                        \
@@ -2773,6 +2773,9 @@ static void GenerateFrontendArgs(const FrontendOptions &Opts,
     case Language::HLSL:
       Lang = "hlsl";
       break;
+    case Language::CIR:
+      Lang = "cir";
+      break;
     }
 
     GenerateArg(Consumer, OPT_x,
@@ -2974,6 +2977,7 @@ static bool ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
                   .Cases("ast", "pcm", "precompiled-header",
                          InputKind(Language::Unknown, InputKind::Precompiled))
                   .Case("ir", Language::LLVM_IR)
+                  .Case("cir", Language::CIR)
                   .Default(Language::Unknown);
 
     if (DashX.isUnknown())
@@ -3339,6 +3343,7 @@ static bool IsInputCompatibleWithStandard(InputKind IK,
   switch (IK.getLanguage()) {
   case Language::Unknown:
   case Language::LLVM_IR:
+  case Language::CIR:
     llvm_unreachable("should not parse language flags for this input");
 
   case Language::C:
@@ -3404,6 +3409,8 @@ static StringRef GetInputKindName(InputKind IK) {
     return "Asm";
   case Language::LLVM_IR:
     return "LLVM IR";
+  case Language::CIR:
+    return "Clang IR";
 
   case Language::HLSL:
     return "HLSL";
@@ -3419,7 +3426,8 @@ void CompilerInvocationBase::GenerateLangArgs(const LangOptions &Opts,
                                               const llvm::Triple &T,
                                               InputKind IK) {
   if (IK.getFormat() == InputKind::Precompiled ||
-      IK.getLanguage() == Language::LLVM_IR) {
+      IK.getLanguage() == Language::LLVM_IR ||
+      IK.getLanguage() == Language::CIR) {
     if (Opts.ObjCAutoRefCount)
       GenerateArg(Consumer, OPT_fobjc_arc);
     if (Opts.PICLevel != 0)
@@ -3533,7 +3541,8 @@ void CompilerInvocationBase::GenerateLangArgs(const LangOptions &Opts,
     GenerateArg(Consumer, OPT_fblocks);
 
   if (Opts.ConvergentFunctions &&
-      !(Opts.OpenCL || (Opts.CUDA && Opts.CUDAIsDevice) || Opts.SYCLIsDevice))
+      !(Opts.OpenCL || (Opts.CUDA && Opts.CUDAIsDevice) || Opts.SYCLIsDevice ||
+        Opts.HLSL))
     GenerateArg(Consumer, OPT_fconvergent_functions);
 
   if (Opts.NoBuiltin && !Opts.Freestanding)
@@ -3822,7 +3831,8 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   unsigned NumErrorsBefore = Diags.getNumErrors();
 
   if (IK.getFormat() == InputKind::Precompiled ||
-      IK.getLanguage() == Language::LLVM_IR) {
+      IK.getLanguage() == Language::LLVM_IR ||
+      IK.getLanguage() == Language::CIR) {
     // ObjCAAutoRefCount and Sanitize LangOpts are used to setup the
     // PassManager in BackendUtil.cpp. They need to be initialized no matter
     // what the input type is.
@@ -4080,7 +4090,7 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
 
   Opts.ConvergentFunctions = Args.hasArg(OPT_fconvergent_functions) ||
                              Opts.OpenCL || (Opts.CUDA && Opts.CUDAIsDevice) ||
-                             Opts.SYCLIsDevice;
+                             Opts.SYCLIsDevice || Opts.HLSL;
 
   Opts.NoBuiltin = Args.hasArg(OPT_fno_builtin) || Opts.Freestanding;
   if (!Opts.NoBuiltin)
@@ -4452,10 +4462,29 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
           Diags.Report(diag::err_drv_hlsl_bad_shader_unsupported)
               << ShaderModel << T.getOSName() << T.str();
         }
+        // Validate that if fnative-half-type is given, that
+        // the language standard is at least hlsl2018, and that
+        // the target shader model is at least 6.2.
+        if (Args.getLastArg(OPT_fnative_half_type)) {
+          const LangStandard &Std =
+              LangStandard::getLangStandardForKind(Opts.LangStd);
+          if (!(Opts.LangStd >= LangStandard::lang_hlsl2018 &&
+                T.getOSVersion() >= VersionTuple(6, 2)))
+            Diags.Report(diag::err_drv_hlsl_16bit_types_unsupported)
+                << "-enable-16bit-types" << true << Std.getName()
+                << T.getOSVersion().getAsString();
+        }
       } else if (T.isSPIRVLogical()) {
         if (!T.isVulkanOS() || T.getVulkanVersion() == VersionTuple(0)) {
           Diags.Report(diag::err_drv_hlsl_bad_shader_unsupported)
               << VulkanEnv << T.getOSName() << T.str();
+        }
+        if (Args.getLastArg(OPT_fnative_half_type)) {
+          const LangStandard &Std =
+              LangStandard::getLangStandardForKind(Opts.LangStd);
+          if (!(Opts.LangStd >= LangStandard::lang_hlsl2018))
+            Diags.Report(diag::err_drv_hlsl_16bit_types_unsupported)
+                << "-fnative-half-type" << false << Std.getName();
         }
       } else {
         llvm_unreachable("expected DXIL or SPIR-V target");
