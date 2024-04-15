@@ -1148,6 +1148,18 @@ public:
 } // namespace syclcompat
 ```
 
+As part of the compatibility utilities to facilitate machine translation to SYCL,
+two aliases for errors are provided, `err0` and `err1`.
+
+```cpp
+namespace syclcompat {
+
+using err0 = detail::generic_error_type<struct err0_tag, int>;
+using err1 = detail::generic_error_type<struct err1_tag, int>;
+
+} // namespace syclcompat
+```
+
 The function `experimental::nd_range_barrier` synchronizes work items from all
 work groups within a SYCL kernel. This is not officially supported by the SYCL
 spec, and so should be used with caution.

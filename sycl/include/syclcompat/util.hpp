@@ -53,8 +53,6 @@ private:
   T value;
 };
 
-using err0 = generic_error_type<struct err0_tag, int>;
-using err1 = generic_error_type<struct err1_tag, int>;
 
 template <typename T> struct DataType {
   using T2 = T;
@@ -108,6 +106,9 @@ inline void matrix_mem_copy(T *to_ptr, const T *from_ptr, int to_ld,
                   sizeof(Ty), queue, async);
 }
 } // namespace detail
+
+using err0 = detail::generic_error_type<struct err0_tag, int>;
+using err1 = detail::generic_error_type<struct err1_tag, int>;
 
 /// Cast the high or low 32 bits of a double to an integer.
 /// \param [in] d The double value.
