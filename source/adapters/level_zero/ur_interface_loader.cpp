@@ -404,6 +404,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
     return result;
   }
   pDdiTable->pfnPitchedAllocExp = urUSMPitchedAllocExp;
+  pDdiTable->pfnImportExp = urUSMImportExp;
+  pDdiTable->pfnReleaseExp = urUSMReleaseExp;
   return UR_RESULT_SUCCESS;
 }
 
