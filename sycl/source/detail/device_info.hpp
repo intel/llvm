@@ -2279,8 +2279,6 @@ struct get_device_info_impl<
     ext::oneapi::experimental::info::device::work_group_progress_capabilities<
         ext::oneapi::experimental::execution_scope::root_group>> {
   static ReturnT get(const DeviceImplPtr &Dev) {
-    using forward_progress_guarantee =
-        ext::oneapi::experimental::forward_progress_guarantee;
     using execution_scope = ext::oneapi::experimental::execution_scope;
     auto guarantee =
         Dev->get_immediate_progress_guarantee(execution_scope::root_group);
@@ -2311,8 +2309,6 @@ struct get_device_info_impl<
     ext::oneapi::experimental::info::device::sub_group_progress_capabilities<
         ext::oneapi::experimental::execution_scope::work_group>> {
   static ReturnT get(const DeviceImplPtr &Dev) {
-    using forward_progress_guarantee =
-        ext::oneapi::experimental::forward_progress_guarantee;
     using execution_scope = ext::oneapi::experimental::execution_scope;
     auto guarantee =
         Dev->get_immediate_progress_guarantee(execution_scope::work_group);
@@ -2363,8 +2359,6 @@ struct get_device_info_impl<
     ext::oneapi::experimental::info::device::work_item_progress_capabilities<
         ext::oneapi::experimental::execution_scope::sub_group>> {
   static ReturnT get(const DeviceImplPtr &Dev) {
-    using forward_progress_guarantee =
-        ext::oneapi::experimental::forward_progress_guarantee;
     using execution_scope = ext::oneapi::experimental::execution_scope;
     auto guarantee =
         Dev->get_immediate_progress_guarantee(execution_scope::sub_group);
