@@ -53,6 +53,7 @@ Specifically, this library depends on the following SYCL extensions:
 If available, the following extensions extend SYCLcompat functionality:
 
 * [sycl_ext_intel_device_info](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_intel_device_info.md) \[Optional\]
+* [sycl_ext_oneapi_bfloat16_math_functions](../extensions/experimental/sycl_ext_oneapi_bfloat16_math_functions.asciidoc) \[Optional\]
 
 ## Usage
 
@@ -1275,6 +1276,10 @@ static kernel_function_info get_kernel_function_info(const void *function);
 length. `syclcompat::length` provides a templated version that wraps over
 `sycl::length`.
 
+`compare`, `unordered_compare`, `compare_both`, `unordered_compare_both`,
+`compare_mask`, and `unordered_compare_mask`, handle both ordered and unordered
+comparisons.
+
 `vectorized_max` and `vectorized_min` are binary operations returning the
 max/min of two arguments, where each argument is treated as a `sycl::vec` type.
 `vectorized_isgreater` performs elementwise `isgreater`, treating each argument
@@ -1291,6 +1296,51 @@ inline float fast_length(const float *a, int len);
 
 template <typename ValueT>
 inline ValueT length(const ValueT *a, const int len);
+
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<
+    std::is_same_v<std::invoke_result_t<BinaryOperation, ValueT, ValueT>, bool>,
+    bool>
+compare(const ValueT a, const ValueT b, const BinaryOperation binary_op);
+template <typename ValueT>
+inline std::enable_if_t<
+    std::is_same_v<std::invoke_result_t<std::not_equal_to<>, ValueT, ValueT>,
+                   bool>,
+    bool>
+compare(const ValueT a, const ValueT b, const std::not_equal_to<> binary_op);
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<ValueT::size() == 2, ValueT>
+compare(const ValueT a, const ValueT b, const BinaryOperation binary_op);
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<
+    std::is_same_v<std::invoke_result_t<BinaryOperation, ValueT, ValueT>, bool>,
+    bool>
+
+unordered_compare(const ValueT a, const ValueT b,
+                  const BinaryOperation binary_op);
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<ValueT::size() == 2, ValueT>
+unordered_compare(const ValueT a, const ValueT b,
+                  const BinaryOperation binary_op);
+
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<ValueT::size() == 2, bool>
+compare_both(const ValueT a, const ValueT b, const BinaryOperation binary_op);
+template <typename ValueT, class BinaryOperation>
+
+inline std::enable_if_t<ValueT::size() == 2, bool>
+unordered_compare_both(const ValueT a, const ValueT b,
+                       const BinaryOperation binary_op);
+
+template <typename ValueT, class BinaryOperation>
+inline unsigned compare_mask(const sycl::vec<ValueT, 2> a,
+                             const sycl::vec<ValueT, 2> b,
+                             const BinaryOperation binary_op);
+
+template <typename ValueT, class BinaryOperation>
+inline unsigned unordered_compare_mask(const sycl::vec<ValueT, 2> a,
+                                       const sycl::vec<ValueT, 2> b,
+                                       const BinaryOperation binary_op);
 
 template <typename S, typename T> inline T vectorized_max(T a, T b);
 

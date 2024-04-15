@@ -118,6 +118,15 @@ inline constexpr RetT extend_binary(AT a, BT b, CT c,
   return second_op(extend_temp, extend_c);
 }
 
+template <typename ValueT> inline bool isnan(const ValueT a) {
+  return sycl::isnan(a);
+}
+#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
+inline bool isnan(const sycl::ext::oneapi::bfloat16 a) {
+  return sycl::ext::oneapi::experimental::isnan(a);
+}
+#endif
+
 } // namespace detail
 
 /// Compute fast_length for variable-length array
@@ -165,6 +174,121 @@ inline ValueT length(const ValueT *a, const int len) {
       ret += a[i] * a[i];
     return sycl::sqrt(ret);
   }
+}
+
+/// Performs comparison.
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] binary_op functor that implements the binary operation
+/// \returns the comparison result
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<
+    std::is_same_v<std::invoke_result_t<BinaryOperation, ValueT, ValueT>, bool>,
+    bool>
+compare(const ValueT a, const ValueT b, const BinaryOperation binary_op) {
+  return binary_op(a, b);
+}
+template <typename ValueT>
+inline std::enable_if_t<
+    std::is_same_v<std::invoke_result_t<std::not_equal_to<>, ValueT, ValueT>,
+                   bool>,
+    bool>
+compare(const ValueT a, const ValueT b, const std::not_equal_to<> binary_op) {
+  return !detail::isnan(a) && !detail::isnan(b) && binary_op(a, b);
+}
+
+/// Performs 2 element comparison.
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] binary_op functor that implements the binary operation
+/// \returns the comparison result
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<ValueT::size() == 2, ValueT>
+compare(const ValueT a, const ValueT b, const BinaryOperation binary_op) {
+  return {compare(a[0], b[0], binary_op), compare(a[1], b[1], binary_op)};
+}
+
+/// Performs unordered comparison.
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] binary_op functor that implements the binary operation
+/// \returns the comparison result
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<
+    std::is_same_v<std::invoke_result_t<BinaryOperation, ValueT, ValueT>, bool>,
+    bool>
+unordered_compare(const ValueT a, const ValueT b,
+                  const BinaryOperation binary_op) {
+  return detail::isnan(a) || detail::isnan(b) || binary_op(a, b);
+}
+
+/// Performs 2 element unordered comparison.
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] binary_op functor that implements the binary operation
+/// \returns the comparison result
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<ValueT::size() == 2, ValueT>
+unordered_compare(const ValueT a, const ValueT b,
+                  const BinaryOperation binary_op) {
+  return {unordered_compare(a[0], b[0], binary_op),
+          unordered_compare(a[1], b[1], binary_op)};
+}
+
+/// Performs 2 element comparison and return true if both results are true.
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] binary_op functor that implements the binary operation
+/// \returns the comparison result
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<ValueT::size() == 2, bool>
+compare_both(const ValueT a, const ValueT b, const BinaryOperation binary_op) {
+  return compare(a[0], b[0], binary_op) && compare(a[1], b[1], binary_op);
+}
+
+/// Performs 2 element unordered comparison and return true if both results are
+/// true.
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] binary_op functor that implements the binary operation
+/// \returns the comparison result
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<ValueT::size() == 2, bool>
+unordered_compare_both(const ValueT a, const ValueT b,
+                       const BinaryOperation binary_op) {
+  return unordered_compare(a[0], b[0], binary_op) &&
+         unordered_compare(a[1], b[1], binary_op);
+}
+
+/// Performs 2 elements comparison, compare result of each element is 0 (false)
+/// or 0xffff (true), returns an unsigned int by composing compare result of two
+/// elements.
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] binary_op functor that implements the binary operation
+/// \returns the comparison result
+template <typename ValueT, class BinaryOperation>
+inline unsigned compare_mask(const sycl::vec<ValueT, 2> a,
+                             const sycl::vec<ValueT, 2> b,
+                             const BinaryOperation binary_op) {
+  // Since compare returns 0 or 1, -compare will be 0x00000000 or 0xFFFFFFFF
+  return ((-compare(a[0], b[0], binary_op)) << 16) |
+         ((-compare(a[1], b[1], binary_op)) & 0xFFFF);
+}
+
+/// Performs 2 elements unordered comparison, compare result of each element is
+/// 0 (false) or 0xffff (true), returns an unsigned int by composing compare
+/// result of two elements.
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] binary_op functor that implements the binary operation
+/// \returns the comparison result
+template <typename ValueT, class BinaryOperation>
+inline unsigned unordered_compare_mask(const sycl::vec<ValueT, 2> a,
+                                       const sycl::vec<ValueT, 2> b,
+                                       const BinaryOperation binary_op) {
+  return ((-unordered_compare(a[0], b[0], binary_op)) << 16) |
+         ((-unordered_compare(a[1], b[1], binary_op)) & 0xFFFF);
 }
 
 /// Compute vectorized max for two values, with each value treated as a vector
