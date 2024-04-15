@@ -3658,6 +3658,8 @@ private:
   bool ParseOpenACCGangArgList();
   /// Parses a 'gang-arg', used for the 'gang' clause.
   bool ParseOpenACCGangArg();
+  /// Parses a 'condition' expr, ensuring it results in a
+  ExprResult ParseOpenACCConditionExpr();
 
 private:
   //===--------------------------------------------------------------------===//
