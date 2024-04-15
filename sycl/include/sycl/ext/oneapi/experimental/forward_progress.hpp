@@ -9,7 +9,12 @@
 
 #pragma once
 
-namespace sycl::ext::oneapi::experimental {
+
+namespace sycl {
+inline namespace _V1 {
+namespace ext {
+namespace oneapi {
+namespace experimental {
 
 enum class forward_progress_guarantee { concurrent, parallel, weakly_parallel };
 
@@ -20,4 +25,8 @@ enum class execution_scope {
   root_group,
 };
 
-} // namespace sycl::ext::oneapi::experimental
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
+} // namespace _V1
+} // namespace sycl
