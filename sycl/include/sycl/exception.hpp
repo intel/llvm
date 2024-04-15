@@ -27,11 +27,6 @@
 namespace sycl {
 inline namespace _V1 {
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// Forward declaration
-class context;
-#endif
-
 enum class errc : unsigned int {
   success = 0,
   runtime = 1,
