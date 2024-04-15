@@ -1183,8 +1183,8 @@ If no exceptions are thrown, it returns `syclcompat::error_code::SUCCESS`.
 If a `sycl::exception` is caught, it returns `syclcompat::error_code::BACKEND_ERROR`.
 If a `std::runtime_error` exception is caught,
 `syclcompat::error_code::DEFAULT_ERROR` is returned instead.
-For both cases, it prints the error message to the standar
-d error stream.
+For both cases, it prints the error message to the standard
+error stream.
 
 ``` c++
 namespace syclcompat {
