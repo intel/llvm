@@ -1131,8 +1131,7 @@ static bool IsFreeFunction(Sema &SemaRef, const FunctionDecl *FD) {
         SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
             AnAttr->getAttributeNameValuePairs(SemaRef.Context);
         for (const auto &NameValuePair : NameValuePairs) {
-          if (NameValuePair.first == "sycl-range-kernel" ||
-              NameValuePair.first == "sycl-nd-range-kernel" ||
+          if (NameValuePair.first == "sycl-nd-range-kernel" ||
               NameValuePair.first == "sycl-single-task-kernel")
             return true;
         }
@@ -1142,8 +1141,7 @@ static bool IsFreeFunction(Sema &SemaRef, const FunctionDecl *FD) {
   return false;
 }
 
-static std::string constructFFKernelName(ASTContext &Ctx,
-                                         const FunctionDecl *FD) {
+static std::string constructFFKernelName(const FunctionDecl *FD) {
   IdentifierInfo *Id = FD->getIdentifier();
   std::string NewIdent = (Twine("__free_function_") + Id->getName()).str();
   return NewIdent;
@@ -1152,18 +1150,18 @@ static std::string constructFFKernelName(ASTContext &Ctx,
 // Gets a name for the free function kernel function. The suffix allows a normal
 // device function to coexist with the kernel function.
 static std::pair<std::string, std::string>
-constructFreeFunctionKernelName(Sema &S, const FunctionDecl *KernelCallerFunc,
+constructFreeFunctionKernelName(Sema &S, const FunctionDecl *FreeFunc,
                                 MangleContext &MC) {
   SmallString<256> Result;
   llvm::raw_svector_ostream Out(Result);
   std::string MangledName;
   std::string StableName;
 
-  if (KernelCallerFunc->getTemplateSpecializationArgs()) {
-    MC.mangleName(KernelCallerFunc, Out);
+  if (FreeFunc->getTemplateSpecializationArgs()) {
+    MC.mangleName(FreeFunc, Out);
     MangledName = (Twine("__free_function") + Out.str()).str();
   } else {
-    MangledName = constructFFKernelName(S.getASTContext(), KernelCallerFunc);
+    MangledName = constructFFKernelName(FreeFunc);
   }
   StableName = MangledName;
   return {MangledName, StableName};
@@ -2759,7 +2757,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
     QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, {}, Info);
     const IdentifierInfo *NewIdent =
-        &Ctx.Idents.get(constructFFKernelName(Ctx, FD));
+        &Ctx.Idents.get(constructFFKernelName(FD));
     FD = FunctionDecl::Create(
         Ctx, Ctx.getTranslationUnitDecl(), Loc, Loc, DeclarationName(NewIdent),
         FuncType, Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), SC_None);

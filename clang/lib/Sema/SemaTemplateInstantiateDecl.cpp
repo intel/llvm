@@ -7034,10 +7034,6 @@ void Sema::PerformPendingInstantiations(bool LocalOnly) {
           TUKind == TU_Prefix && Function->instantiationIsPending())
         delayedPCHInstantiations.push_back(Inst);
       continue;
-
-      // Handle SYCL free function.
-      if (LangOpts.SYCLIsDevice && Function->hasAttr<SYCLDeviceAttr>())
-        ProcessFreeFunction(Function);
     }
 
     // Instantiate variable definitions
