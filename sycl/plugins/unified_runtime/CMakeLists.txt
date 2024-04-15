@@ -121,13 +121,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit 1333d4a0fe84f1e2b3ab8196c7fd746825ee7b94
-    # Merge: 55cf3ba8 281e3aaf
+    # commit 3f5f5688471a23a8d49ad6f47333df92e9f2e5c6
+    # Merge: fe9a05e5 6027c6bc
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Mon Apr 15 09:54:18 2024 +0100
-    #     Merge pull request #1342 from lplewa/cuda_log
-    #     Refactor cuda adapter to new logger
-    1333d4a0fe84f1e2b3ab8196c7fd746825ee7b94
+    # Date:   Tue Apr 16 13:59:32 2024 +0100
+    #     Merge pull request #1510 from kbenzie/benie/cuda-fix-wrapper-escape
+    #     Fix Coverity wrapper escape issue
+    3f5f5688471a23a8d49ad6f47333df92e9f2e5c6
   )
 
   fetch_adapter_source(hip
