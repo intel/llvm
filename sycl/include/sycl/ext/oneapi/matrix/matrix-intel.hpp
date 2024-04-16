@@ -612,7 +612,7 @@ template <typename Group, typename T, size_t NumRows, size_t NumCols, use Use,
           layout Layout, typename T2>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_fill_checked(
     Group, joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &Res,
-    const T2 &Value, size_t Stride, size_t Height, size_t Width, size_t CoordX,
+    const T2 &Value, size_t Height, size_t Width, size_t CoordX,
     size_t CoordY) {
 #if defined(__SYCL_DEVICE_ONLY__)
   using storage_element_type =
@@ -626,7 +626,6 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_fill_checked(
 #else
   std::ignore = Res;
   std::ignore = Value;
-  std::ignore = Stride;
   std::ignore = Height;
   std::ignore = Width;
   std::ignore = CoordX;
@@ -763,8 +762,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
   __spirv_CooperativeMatrixStoreCheckedINTEL<
       DecorT, Tp, NumRows, NumCols, spv_matrix_use_traits<Use>::value,
       spv_matrix_layout_traits<Layout>::value>(
-      Ptr, CoordX, CoordY, Src.spvm,
-      spv_matrix_layout_traits<Layout>::value, Height, Width, Stride);
+      Ptr, CoordX, CoordY, Src.spvm, spv_matrix_layout_traits<Layout>::value,
+      Height, Width, Stride);
 #else
   std::ignore = sg;
   std::ignore = Src;
