@@ -34,7 +34,7 @@ struct BufferMem {
           MapMem(nullptr) {}
 
     BufferMap(size_t MapSize, size_t MapOffset, ur_map_flags_t MapFlags,
-              std::unique_ptr<unsigned char[]> &MapMem)
+              std::unique_ptr<unsigned char[]> &&MapMem)
         : MapSize(MapSize), MapOffset(MapOffset), MapFlags(MapFlags),
           MapMem(std::move(MapMem)) {}
 
@@ -105,7 +105,7 @@ struct BufferMem {
       auto MapMem = std::make_unique<unsigned char[]>(MapSize);
       MapPtr = MapMem.get();
       PtrToBufferMap.insert(
-          {MapPtr, BufferMap(MapSize, MapOffset, MapFlags, MapMem)});
+          {MapPtr, BufferMap(MapSize, MapOffset, MapFlags, std::move(MapMem))});
     } else {
       /// However, if HostPtr already has valid memory (e.g. pinned allocation),
       /// we can just use that memory for the mapping.
