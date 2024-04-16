@@ -536,9 +536,9 @@ event handler::finalize() {
   }
 
   if (!CommandGroup)
-    throw sycl::runtime_error(
-        "Internal Error. Command group cannot be constructed.",
-        PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(
+        sycl::errc::runtime,
+        "Internal Error. Command group cannot be constructed.");
 
   // If there is a graph associated with the handler we are in the explicit
   // graph mode, so we store the CG instead of submitting it to the scheduler,

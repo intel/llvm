@@ -128,8 +128,8 @@ public:
       break;
     }
     default:
-      throw sycl::runtime_error("Unhandled type of command group",
-                                PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(sycl::errc::runtime,
+                            "Unhandled type of command group");
     }
 
     return CommandGroup;

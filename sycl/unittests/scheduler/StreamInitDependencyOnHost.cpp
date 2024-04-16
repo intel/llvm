@@ -38,8 +38,8 @@ public:
       break;
     }
     default:
-      throw sycl::runtime_error("Unhandled type of command group",
-                                PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(sycl::errc::runtime,
+                            "Unhandled type of command group");
     }
 
     return CommandGroup;
@@ -57,8 +57,8 @@ static bool ValidateDepCommandsTree(const detail::Command *Cmd,
                                     const detail::SYCLMemObjI *MemObj,
                                     size_t Depth = 0) {
   if (!Cmd || Depth >= DepCmdsTypes.size())
-    throw sycl::runtime_error("Command parameters are invalid",
-                              PI_ERROR_INVALID_VALUE);
+    throw sycl::exception(sycl::errc::runtime,
+                          "Command parameters are invalid");
 
   for (const detail::DepDesc &Dep : Cmd->MDeps) {
     if (Dep.MDepCommand &&

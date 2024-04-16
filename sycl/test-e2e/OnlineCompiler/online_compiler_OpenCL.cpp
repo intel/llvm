@@ -26,15 +26,16 @@ sycl::kernel getSYCLKernelWithIL(sycl::queue &Queue,
       clCreateProgramWithIL(sycl::get_native<sycl::backend::opencl>(Context),
                             IL.data(), IL.size(), &Err);
   if (Err != CL_SUCCESS)
-    throw sycl::runtime_error("clCreateProgramWithIL() failed", Err);
+    throw sycl::exception(sycl::errc::runtime,
+                          "clCreateProgramWithIL() failed");
 
   Err = clBuildProgram(ClProgram, 0, nullptr, nullptr, nullptr, nullptr);
   if (Err != CL_SUCCESS)
-    throw sycl::runtime_error("clBuildProgram() failed", Err);
+    throw sycl::exception(sycl::errc::runtime, "clBuildProgram() failed");
 
   cl_kernel ClKernel = clCreateKernel(ClProgram, "my_kernel", &Err);
   if (Err != CL_SUCCESS)
-    throw sycl::runtime_error("clCreateKernel() failed", Err);
+    throw sycl::exception(sycl::errc::runtime, "clCreateKernel() failed");
 
   return sycl::make_kernel<sycl::backend::opencl>(ClKernel, Context);
 }
