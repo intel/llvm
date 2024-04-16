@@ -268,7 +268,7 @@ void exec_graph_impl::makePartitions() {
     }
     if (Partition->MRoots.size() > 0) {
       Partition->schedule();
-      Partition->checkIfGraphIsSinglePath();
+      Partition->MIsInOrderGraph = Partition->checkIfGraphIsSinglePath();
       MPartitions.push_back(Partition);
       PartitionFinalNum++;
     }

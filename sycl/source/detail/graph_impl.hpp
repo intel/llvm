@@ -815,22 +815,21 @@ public:
   }
 
   /// Checks if the graph is single path, i.e. each node has a single successor.
-  /// If so, the MIsInOrderGraph flag is set.
-  void checkIfGraphIsSinglePath() {
-    MIsInOrderGraph = true;
+  /// @return True if the graph is a single path
+  bool checkIfGraphIsSinglePath() {
     if (MRoots.size() > 1) {
-      MIsInOrderGraph = false;
-      return;
+      return false;
     }
     for (const auto &Node : MSchedule) {
       // In version 1.3.28454 of the L0 driver, 2D Copy ops cannot not
       // be enqueued in an in-order cmd-list (causing execution to stall).
       // The 2D Copy test should be removed from here when the bug is fixed.
       if ((Node->MSuccessors.size() > 1) || (Node->isNDCopyNode())) {
-        MIsInOrderGraph = false;
-        return;
+        return false;
       }
     }
+
+    return true;
   }
 
   /// Add nodes to MSchedule.

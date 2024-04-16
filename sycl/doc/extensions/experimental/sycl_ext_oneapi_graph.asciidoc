@@ -1382,13 +1382,12 @@ ways:
 
 2. `property::queue::enable_profiling` - This property must be set on the queue
    in recording mode if users want to profile the commands recorded to 
-   the graph. This property must also be set on the queue the queue an
-   executable graph is submitted to. It allows profiling information to be
-   obtained from the event returned by a graph submission. 
-   As it is not defined how a submitted graph will be split up for
-   scheduling at runtime, the `uint64_t` timestamp reported from a profiling
-   query on a graph execution event has the following semantics, which may be
-   pessimistic about execution time on device.
+   the graph. This property must also be set on the queue an executable graph is
+   submitted to. It allows profiling information to be obtained from the event
+   returned by a graph submission. As it is not defined how a submitted graph
+   will be split up for scheduling at runtime, the `uint64_t` timestamp reported
+   from a profiling query on a graph execution event has the following
+   semantics, which may be pessimistic about execution time on device.
 
    * `info::event_profiling::command_submit` - Timestamp when the graph is
       submitted to the queue.
