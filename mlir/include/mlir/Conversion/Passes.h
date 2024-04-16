@@ -36,7 +36,7 @@
 #include "mlir/Conversion/GENToLLVM/GENToLLVM.h"
 #include "mlir/Conversion/GENToSPIRV/GENToSPIRV.h"
 #include "mlir/Conversion/GPUCommon/GPUCommonPass.h"
-#include "mlir/Conversion/GPUToGEN/GPUToGEN.h" // TODO should I have the Pass suffix?
+#include "mlir/Conversion/GPUToGEN/GPUToGEN.h"
 #include "mlir/Conversion/GPUToGENX/GPUToGENXPass.h"
 #include "mlir/Conversion/GPUToNVVM/GPUToNVVMPass.h"
 #include "mlir/Conversion/GPUToROCDL/GPUToROCDLPass.h"

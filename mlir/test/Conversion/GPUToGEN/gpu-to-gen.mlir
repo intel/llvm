@@ -135,21 +135,21 @@ gpu.module @shuffle_kernels {
     %0, %1 = gpu.shuffle xor %in, %offset, %width : f32
     gpu.return
   }
-  // CHECK: gpu.func @gen_shuffle_up(%[[IN_UP:.*]]: f32, %[[OFFSET_UP:.*]]: i32, %{{.*}}: i32) kernel {
+  // CHECK: gpu.func @gen_shuffle_up(%[[IN_UP:.*]]: f32, %[[OFFSET_UP:.*]]: i32) kernel {
   gpu.func @gen_shuffle_up(%in : f32, %offset: i32) kernel {
     // CHECK: %{{.*}} = gen.sub_group_shuffle up %[[IN_UP]], %[[OFFSET_UP]] : f32
     %width = arith.constant 32 : i32
     %0, %1 = gpu.shuffle up %in, %offset, %width : f32
     gpu.return
   }
-  // CHECK: gpu.func @gen_shuffle_down(%[[IN_DOWN:.*]]: f32, %[[OFFSET_DOWN:.*]]: i32, %{{.*}}: i32) kernel {
+  // CHECK: gpu.func @gen_shuffle_down(%[[IN_DOWN:.*]]: f32, %[[OFFSET_DOWN:.*]]: i32) kernel {
   gpu.func @gen_shuffle_down(%in : f32, %offset: i32) kernel {
     // CHECK: %{{.*}} = gen.sub_group_shuffle down %[[IN_DOWN]], %[[OFFSET_DOWN]] : f32
     %width = arith.constant 32 : i32
     %0, %1 = gpu.shuffle down %in, %offset, %width : f32
     gpu.return
   }
-  // CHECK: gpu.func @gen_shuffle_idx(%[[IN_IDX:.*]]: f32, %[[OFFSET_IDX:.*]]: i32, %{{.*}}: i32) kernel {
+  // CHECK: gpu.func @gen_shuffle_idx(%[[IN_IDX:.*]]: f32, %[[OFFSET_IDX:.*]]: i32) kernel {
   gpu.func @gen_shuffle_idx(%in : f32, %offset: i32) kernel {
     // CHECK: %{{.*}} = gen.sub_group_shuffle idx %[[IN_IDX]], %[[OFFSET_IDX]] : f32
     %width = arith.constant 32 : i32

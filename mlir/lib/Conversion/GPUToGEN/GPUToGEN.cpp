@@ -40,8 +40,7 @@ public:
   matchAndRewrite(GPUOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
     auto dim = static_cast<std::uint32_t>(adaptor.getDimension());
-    Value idxDim = rewriter.create<arith::ConstantOp>(
-        op->getLoc(), rewriter.getI32IntegerAttr(dim));
+    Value idxDim = rewriter.create<arith::ConstantIntOp>(op->getLoc(), dim, 32);
     rewriter.replaceOpWithNewOp<GENOp>(op, rewriter.getIndexType(), idxDim);
     return success();
   }
@@ -134,6 +133,6 @@ struct ConvertGpuOpsToGENOpsPass
 };
 } // namespace
 
-std::unique_ptr<OperationPass<>> mlir::createLowerGpuOpsToGENOpsPass() {
+std::unique_ptr<OperationPass<>> mlir::createConvertGpuOpsToGENOps() {
   return std::make_unique<ConvertGpuOpsToGENOpsPass>();
 }

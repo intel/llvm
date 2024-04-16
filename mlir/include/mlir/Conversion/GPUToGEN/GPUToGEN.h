@@ -24,9 +24,8 @@ class RewritePatternSet;
 #define GEN_PASS_DECL_CONVERTGPUOPSTOGENOPS
 #include "mlir/Conversion/Passes.h.inc"
 
-std::unique_ptr<OperationPass<void>> createLowerGpuOpsToGENOpsPass();
-
 void populateGPUToGENPatterns(RewritePatternSet &patterns);
+std::unique_ptr<OperationPass<void>> createConvertGpuOpsToGENOps();
 
 } // namespace mlir
 #endif // MLIR_CONVERSION_GPUTOGEN_GPUTOGEN_H
