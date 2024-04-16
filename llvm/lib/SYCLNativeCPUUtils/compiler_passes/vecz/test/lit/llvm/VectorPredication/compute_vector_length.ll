@@ -40,7 +40,7 @@ define spir_kernel void @get_sub_group_size(i32 addrspace(1)* %in, i32 addrspace
 ; CHECK-F2: [[SZ:%.*]] = call i64 @__mux_get_local_size(i32 0)
 ; CHECK-F2: [[WL:%.*]] = sub {{.*}} i64 [[SZ]], [[ID]]
 ; CHECK-F2: [[VL0:%.*]] = call i64 @llvm.umin.i64(i64 [[WL]], i64 2)
-; CHECK-F2: [[VL1:%.*]] = trunc i64 [[VL0]] to i32
+; CHECK-F2: [[VL1:%.*]] = trunc {{(nuw )?(nsw )?}}i64 [[VL0]] to i32
 ; CHECK-F2: [[RED:%.*]] = call i32 @__mux_sub_group_reduce_add_i32(i32 [[VL1]])
 ; CHECK-F2: store i32 [[RED]], ptr addrspace(1) {{.*}}
 
@@ -51,6 +51,6 @@ define spir_kernel void @get_sub_group_size(i32 addrspace(1)* %in, i32 addrspace
 ; CHECK-S4: [[VF0:%.*]] = call i64 @llvm.vscale.i64()
 ; CHECK-S4: [[VF1:%.*]] = shl i64 [[VF0]], 2
 ; CHECK-S4: [[VL0:%.*]] = call i64 @llvm.umin.i64(i64 [[WL]], i64 [[VF1]])
-; CHECK-S4: [[VL1:%.*]] = trunc i64 [[VL0]] to i32
+; CHECK-S4: [[VL1:%.*]] = trunc {{(nuw )?(nsw )?}}i64 [[VL0]] to i32
 ; CHECK-S4: [[RED:%.*]] = call i32 @__mux_sub_group_reduce_add_i32(i32 [[VL1]])
 ; CHECK-S4: store i32 [[RED]], ptr addrspace(1) {{.*}}
