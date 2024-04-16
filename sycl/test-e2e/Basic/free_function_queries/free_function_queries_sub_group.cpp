@@ -52,11 +52,11 @@ int main() {
           static_assert(std::is_same<decltype(nd_i), sycl::nd_item<1>>::value,
                         "lambda arg type is unexpected");
           auto that_nd_item =
-              sycl::ext::oneapi::experimental::this_nd_item<1>();
+              sycl::ext::oneapi::this_work_item::get_nd_item<1>();
           results_acc[0] = that_nd_item == nd_i;
 
           auto that_sub_group =
-              sycl::ext::oneapi::experimental::this_sub_group();
+              sycl::ext::oneapi::this_work_item::get_sub_group();
           results_acc[1] = that_sub_group.get_local_linear_id() ==
                            that_nd_item.get_sub_group().get_local_linear_id();
           results_acc[2] = that_sub_group.get_local_id() ==

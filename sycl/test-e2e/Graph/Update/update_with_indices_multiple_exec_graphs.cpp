@@ -5,7 +5,6 @@
 // Extra run to check for immediate-command-list in Level Zero
 // RUN: %if level_zero && linux %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 //
-// UNSUPPORTED: opencl, level_zero
 
 // Tests creating multiple executable graphs from the same modifiable graph and
 // only updating one of them.
