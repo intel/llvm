@@ -57,12 +57,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 6465c983ab623e10cdfa33f5a55f16527c6e0cb8
+  # commit e9f363d5eed413e53f9f96b0f4550921d5fb86b3
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Fri Apr 12 10:22:00 2024 +0100
-  #     Merge pull request #1498 from wenju-he/ZeImageDesc-urMemImageCreateWithNativeHandle
-  #     [L0][Image] Set ZeImageDesc member of _ur_image in release build for legacy image
-  set(UNIFIED_RUNTIME_TAG 6465c983ab623e10cdfa33f5a55f16527c6e0cb8)
+  # Date:   Tue Apr 16 10:10:10 2024 +0100
+  #     Merge pull request #1507 from nrspruit/fix_p2p_properties_init
+  #     [L0] Fix to p2p properties init for pNext and stype
+  set(UNIFIED_RUNTIME_TAG e9f363d5eed413e53f9f96b0f4550921d5fb86b3)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
