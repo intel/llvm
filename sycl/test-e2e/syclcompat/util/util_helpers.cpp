@@ -36,15 +36,22 @@
 #include <sycl/sycl.hpp>
 #include <syclcompat/util.hpp>
 
-void test_int_as_queue_ptr() {
+void test_reinterpreted_queue_ptr() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
-  syclcompat::device_ext &device = syclcompat::get_current_device();
 
   sycl::queue q;
   sycl::queue *q_ptr = &q;
   uintptr_t reinterpreted_q = reinterpret_cast<uintptr_t>(q_ptr);
   assert(q_ptr == syclcompat::int_as_queue_ptr(reinterpreted_q));
-  // Queue addresses may not be equal, but the queues have the same device.
+}
+
+void test_default_queue_from_int_as_queue_ptr() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  // Check that int_as_queue_ptr with x < 2 maps to the default queue.
+  // Queue addresses may not be equal, but the queues should have the same
+  // device.
+  syclcompat::device_ext &device = syclcompat::get_current_device();
   assert(device.get_info<sycl::info::device::name>() ==
          syclcompat::int_as_queue_ptr(1)
              ->get_device()
@@ -88,7 +95,8 @@ void test_args_selector() {
 }
 
 int main() {
-  test_int_as_queue_ptr();
+  test_reinterpreted_queue_ptr();
+  test_default_queue_from_int_as_queue_ptr();
   test_args_selector();
   return 0;
 }
