@@ -24,7 +24,7 @@ RUN echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.rad
 RUN echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.0.2 jammy main" \
     | tee --append /etc/apt/sources.list.d/rocm.list
 RUN apt update
-RUN apt install -yqq rocm-dev
+RUN apt install -yqqf rocm-dev
 # Cleanup
 RUN apt-get clean && \
   rm -rf /var/lib/apt/lists/*
