@@ -353,10 +353,8 @@ struct ur_queue_handle_t_ : _ur_object {
   // end-time member.
   struct end_time_recording {
     // RecordEventEndTimestamp is not adjusted for valid bits nor resolution, as
-    // it is written asynchronously. We use a heap allocation for these so they
-    // do not move after the timestamp recording is given the address to write
-    // the result to.
-    uint64_t *RecordEventEndTimestamp = nullptr;
+    // it is written asynchronously.
+    uint64_t RecordEventEndTimestamp = 0;
     // The event may die before the recording has been written back. In this
     // case the event will mark this for deletion when the queue sees fit.
     bool EventHasDied = false;

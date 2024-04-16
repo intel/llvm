@@ -1309,7 +1309,7 @@ void ur_queue_handle_t_::clearEndTimeRecordings() {
     if (!Entry.second.EventHasDied) {
       // Write the result back to the event if it is not dead.
       uint64_t ContextEndTime =
-          ((*EndTimeRecording.RecordEventEndTimestamp) & TimestampMaxValue) *
+          (EndTimeRecording.RecordEventEndTimestamp & TimestampMaxValue) *
           ZeTimerResolution;
 
       // Handle a possible wrap-around (the underlying HW counter is < 64-bit).
@@ -1322,7 +1322,6 @@ void ur_queue_handle_t_::clearEndTimeRecordings() {
       // Store it in the event.
       Event->RecordEventEndTimestamp = ContextEndTime;
     }
-    free(EndTimeRecording.RecordEventEndTimestamp);
   }
   EndTimeRecordings.clear();
 }
