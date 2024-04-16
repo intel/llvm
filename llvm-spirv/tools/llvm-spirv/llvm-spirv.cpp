@@ -112,8 +112,7 @@ static cl::opt<VersionNumber> MaxSPIRVVersion(
                clEnumValN(VersionNumber::SPIRV_1_2, "1.2", "SPIR-V 1.2"),
                clEnumValN(VersionNumber::SPIRV_1_3, "1.3", "SPIR-V 1.3"),
                clEnumValN(VersionNumber::SPIRV_1_4, "1.4", "SPIR-V 1.4"),
-               clEnumValN(VersionNumber::SPIRV_1_5, "1.5",
-                          "SPIR-V 1.5 (experimental)")),
+               clEnumValN(VersionNumber::SPIRV_1_5, "1.5", "SPIR-V 1.5")),
     cl::init(VersionNumber::MaximumVersion));
 
 static cl::list<std::string>
