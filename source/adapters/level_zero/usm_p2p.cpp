@@ -41,7 +41,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
   switch (propName) {
   case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED: {
     bool p2pAccessSupported = false;
-    ze_device_p2p_properties_t p2pProperties;
+    ZeStruct<ze_device_p2p_properties_t> p2pProperties;
     ZE2UR_CALL(zeDeviceGetP2PProperties,
                (commandDevice->ZeDevice, peerDevice->ZeDevice, &p2pProperties));
     if (p2pProperties.flags & ZE_DEVICE_P2P_PROPERTY_FLAG_ACCESS) {
@@ -55,7 +55,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
     break;
   }
   case UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED: {
-    ze_device_p2p_properties_t p2pProperties;
+    ZeStruct<ze_device_p2p_properties_t> p2pProperties;
     ZE2UR_CALL(zeDeviceGetP2PProperties,
                (commandDevice->ZeDevice, peerDevice->ZeDevice, &p2pProperties));
     propertyValue = p2pProperties.flags & ZE_DEVICE_P2P_PROPERTY_FLAG_ATOMICS;
