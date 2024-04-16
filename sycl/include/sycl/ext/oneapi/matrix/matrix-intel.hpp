@@ -695,7 +695,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
   Res.spvm = __spirv_CooperativeMatrixLoadCheckedINTEL<
       DecorT, S, NumRows, NumCols, spv_matrix_use_traits<Use>::value,
       spv_matrix_layout_traits<Layout>::value>(
-      Ptr, CoordX, CoordY, spv_matrix_layout_traits<Layout>::value Height,
+      Ptr, CoordX, CoordY, spv_matrix_layout_traits<Layout>::value, Height,
       Width, Stride);
 #else
   std::ignore = sg;
@@ -764,7 +764,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
       DecorT, Tp, NumRows, NumCols, spv_matrix_use_traits<Use>::value,
       spv_matrix_layout_traits<Layout>::value>(
       Ptr, CoordX, CoordY, Src.spvm,
-      spv_matrix_layout_traits<Layout>::value Height, Width, Stride);
+      spv_matrix_layout_traits<Layout>::value, Height, Width, Stride);
 #else
   std::ignore = sg;
   std::ignore = Src;
