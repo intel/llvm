@@ -312,14 +312,16 @@ public:
 #endif
 
 #define __SYCL_UOP(UOP, OPASSIGN)                                              \
+  template <typename T = DataT>                                                \
   friend std::enable_if_t<                                                     \
-      !std::is_same_v<typename std::remove_cv<DataT>::type, bool>, marray>     \
+      !std::is_same_v<typename std::remove_cv<T>::type, bool>, marray>         \
       &operator UOP(marray & Lhs) {                                            \
     Lhs OPASSIGN 1;                                                            \
     return Lhs;                                                                \
   }                                                                            \
+  template <typename T = DataT>                                                \
   friend std::enable_if_t<                                                     \
-      !std::is_same_v<typename std::remove_cv<DataT>::type, bool>, marray>     \
+      !std::is_same_v<typename std::remove_cv<T>::type, bool>, marray>         \
   operator UOP(marray & Lhs, int) {                                            \
     marray Ret(Lhs);                                                           \
     Lhs OPASSIGN 1;                                                            \
