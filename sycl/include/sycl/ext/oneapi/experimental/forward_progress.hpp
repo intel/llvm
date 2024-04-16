@@ -9,7 +9,6 @@
 
 #pragma once
 
-
 namespace sycl {
 inline namespace _V1 {
 namespace ext {

@@ -108,11 +108,11 @@ affinityDomainToString(info::partition_affinity_domain AffinityDomain) {
 }
 
 // Mapping expected SYCL return types to those returned by PI calls
-template <typename T> struct sycl_to_pi { 
-  using type = T; 
+template <typename T> struct sycl_to_pi {
+  using type = T;
 };
-template <> struct sycl_to_pi<bool> { 
-  using type = pi_bool; 
+template <> struct sycl_to_pi<bool> {
+  using type = pi_bool;
 };
 template <> struct sycl_to_pi<device> {
   using type = sycl::detail::pi::PiDevice;
