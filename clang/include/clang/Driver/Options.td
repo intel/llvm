@@ -4112,6 +4112,10 @@ def fsycl_remove_unused_external_funcs : Flag<["-"], "fsycl-remove-unused-extern
   Group<sycl_Group>, HelpText<"Allow removal of unused `SYCL_EXTERNAL` functions (default)">;
 def fno_sycl_remove_unused_external_funcs : Flag<["-"], "fno-sycl-remove-unused-external-funcs">,
   Group<sycl_Group>, HelpText<"Prevent removal of unused `SYCL_EXTERNAL` functions">;
+def sycl_embed_devicelib : Flag<["--"], "sycl-embed-devicelib">,
+  Group<sycl_Group>, Flags<[HelpHidden]>, Visibility<[ClangOption, CLOption]>,
+  HelpText<"Embed the SYCL device libraries during the device compile step "
+           "as opposed to unbundling and using during device link.">;
 
 def fsave_optimization_record : Flag<["-"], "fsave-optimization-record">,
   Visibility<[ClangOption, FlangOption]>,

@@ -157,10 +157,10 @@ bool SYCL::shouldDoPerObjectFileLinking(const Compilation &C) {
 }
 
 // Return whether to use native bfloat16 library.
-static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
-                             bool &UseNative) {
-  const llvm::opt::ArgList &Args = C.getArgs();
+static bool selectBfloatLibs(const ToolChain &TC,
+                             const llvm::opt::ArgList &Args, bool &UseNative) {
   bool NeedLibs = false;
+  const llvm::Triple &Triple(TC.getTriple());
 
   // spir64 target is actually JIT compilation, so we defer selection of
   // bfloat16 libraries to runtime. For AOT we need libraries, but skip
@@ -168,21 +168,11 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
   NeedLibs =
       Triple.getSubArch() != llvm::Triple::NoSubArch && !Triple.isNVPTX();
   UseNative = false;
-  if (NeedLibs && Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
-      C.hasOffloadToolChain<Action::OFK_SYCL>()) {
+  if (NeedLibs && Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
     ArgStringList TargArgs;
-    auto ToolChains = C.getOffloadToolChains<Action::OFK_SYCL>();
-    // Match up the toolchain with the incoming Triple so we are grabbing the
-    // expected arguments to scrutinize.
-    for (auto TI = ToolChains.first, TE = ToolChains.second; TI != TE; ++TI) {
-      llvm::Triple SYCLTriple = TI->second->getTriple();
-      if (SYCLTriple == Triple) {
-        const toolchains::SYCLToolChain *SYCLTC =
-            static_cast<const toolchains::SYCLToolChain *>(TI->second);
-        SYCLTC->TranslateBackendTargetArgs(Triple, Args, TargArgs);
-        break;
-      }
-    }
+    const toolchains::SYCLToolChain &SYCLTC =
+        static_cast<const toolchains::SYCLToolChain &>(TC);
+    SYCLTC.TranslateBackendTargetArgs(Triple, Args, TargArgs);
 
     auto checkBF = [](StringRef Device) {
       return Device.starts_with("pvc") || Device.starts_with("ats");
@@ -205,11 +195,11 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
   return NeedLibs;
 }
 
-SmallVector<std::string, 8>
-SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
-                         bool IsSpirvAOT) {
+static SmallVector<std::string, 8>
+getSYCLDeviceLibraries(const llvm::opt::ArgList &Args,
+                       const llvm::Triple &TargetTriple, const ToolChain &TC,
+                       bool IsSpirvAOT) {
   SmallVector<std::string, 8> LibraryList;
-  const llvm::opt::ArgList &Args = C.getArgs();
 
   struct DeviceLibOptInfo {
     StringRef DeviceLibName;
@@ -226,7 +216,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   if (Arg *A = Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
                                options::OPT_fno_sycl_device_lib_EQ)) {
     if (A->getValues().size() == 0)
-      C.getDriver().Diag(diag::warn_drv_empty_joined_argument)
+      TC.getDriver().Diag(diag::warn_drv_empty_joined_argument)
           << A->getAsString(Args);
     else {
       if (A->getOption().matches(options::OPT_fno_sycl_device_lib_EQ))
@@ -244,16 +234,17 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
           // TODO: Move the diagnostic to the SYCL section of
           // Driver::CreateOffloadingDeviceToolChains() to minimize code
           // duplication.
-          C.getDriver().Diag(diag::err_drv_unsupported_option_argument)
+          TC.getDriver().Diag(diag::err_drv_unsupported_option_argument)
               << A->getSpelling() << Val;
         }
         DeviceLibLinkInfo[Val] = true && !NoDeviceLibs;
       }
     }
   }
-  StringRef LibSuffix =
-      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() ? ".obj"
-                                                                     : ".o";
+  bool EmbedDevice = Args.hasArg(options::OPT_sycl_embed_devicelib);
+  StringRef LibSuffix = EmbedDevice                                     ? ".bc"
+                        : TC.getAuxTriple()->isWindowsMSVCEnvironment() ? ".obj"
+                                                                        : ".o";
   using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
 
   const SYCLDeviceLibsList SYCLDeviceWrapperLibs = {
@@ -310,7 +301,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     addLibraries(SYCLDeviceFallbackLibs);
 
   bool NativeBfloatLibs;
-  bool NeedBfloatLibs = selectBfloatLibs(TargetTriple, C, NativeBfloatLibs);
+  bool NeedBfloatLibs = selectBfloatLibs(TC, Args, NativeBfloatLibs);
   if (NeedBfloatLibs) {
     // Add native or fallback bfloat16 library.
     if (NativeBfloatLibs)
@@ -361,6 +352,29 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       addLibraries(SYCLDeviceSanitizerLibs);
   }
 #endif
+  return LibraryList;
+}
+
+SmallVector<std::string, 8>
+SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
+                         bool IsSpirvAOT) {
+  const llvm::opt::ArgList &Args = C.getArgs();
+  SmallVector<std::string, 8> LibraryList;
+  if (C.hasOffloadToolChain<Action::OFK_SYCL>()) {
+    const ToolChain *DeviceTC = nullptr;
+    auto ToolChains = C.getOffloadToolChains<Action::OFK_SYCL>();
+    // Match up the toolchain with the incoming Triple so we are grabbing the
+    // expected arguments to scrutinize.
+    for (auto TI = ToolChains.first, TE = ToolChains.second; TI != TE; ++TI) {
+      llvm::Triple SYCLTriple = TI->second->getTriple();
+      if (SYCLTriple == TargetTriple) {
+        DeviceTC = TI->second;
+        break;
+      }
+    }
+    LibraryList =
+        getSYCLDeviceLibraries(Args, TargetTriple, *DeviceTC, IsSpirvAOT);
+  }
   return LibraryList;
 }
 
@@ -1144,7 +1158,32 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
 void SYCLToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
     Action::OffloadKind DeviceOffloadingKind) const {
-  HostTC.addClangTargetOptions(DriverArgs, CC1Args, DeviceOffloadingKind);
+  SmallVector<SmallString<128>, 4> LibLocCandidates;
+  SYCLInstallationDetector SYCLInstallation(getDriver());
+  SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
+
+  const llvm::Triple &SYCLTriple(getTriple());
+  SmallVector<std::string, 8> DeviceLibraries;
+  if (DriverArgs.hasArg(options::OPT_sycl_embed_devicelib))
+    DeviceLibraries = getSYCLDeviceLibraries(DriverArgs, SYCLTriple, *this,
+                                             /*IsSpirvAOT=*/false);
+
+  for (const auto &DeviceLib : DeviceLibraries) {
+    bool LibLocSelected = false;
+    for (const auto &LLCandidate : LibLocCandidates) {
+      if (LibLocSelected)
+        break;
+      SmallString<128> LibName(LLCandidate);
+      llvm::sys::path::append(LibName, DeviceLib);
+      if (llvm::sys::fs::exists(LibName)) {
+        CC1Args.push_back("-mlink-bitcode-file");
+        // CC1Args.push_back("-mlink-builtin-bitcode");
+        CC1Args.push_back(DriverArgs.MakeArgString(LibName));
+        if (!LibLocSelected)
+          LibLocSelected = !LibLocSelected;
+      }
+    }
+  }
 }
 
 llvm::opt::DerivedArgList *

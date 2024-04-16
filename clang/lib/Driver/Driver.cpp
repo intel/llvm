@@ -5887,8 +5887,9 @@ class OffloadingActionBuilder final {
       SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
 
       SmallVector<std::string, 8> DeviceLibraries;
-      DeviceLibraries =
-          tools::SYCL::getDeviceLibraries(C, TC->getTriple(), isSpirvAOT);
+      if (!Args.hasArg(options::OPT_sycl_embed_devicelib))
+        DeviceLibraries =
+            tools::SYCL::getDeviceLibraries(C, TC->getTriple(), isSpirvAOT);
 
       for (const auto &DeviceLib : DeviceLibraries) {
         bool LibLocSelected = false;
