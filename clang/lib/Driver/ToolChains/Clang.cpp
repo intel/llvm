@@ -4747,7 +4747,8 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
       CmdArgs.push_back("-debug-info-macro");
 
   // -fno-system-debug turns off debug info generation for system headers
-  if (Args.hasArg(options::OPT_fno_system_debug))
+  if (!Args.hasFlag(options::OPT_fsystem_debug, options::OPT_fno_system_debug,
+                    true))
     CmdArgs.push_back("-fno-system-debug");
 
   // -ggnu-pubnames turns on gnu style pubnames in the backend.
@@ -10386,7 +10387,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     std::string DefaultExtArg =
         ",+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
         ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls"
-        ",+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr,+SPV_KHR_bit_instructions";
+        ",+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr";
     std::string INTELExtArg =
         ",+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io"
         ",+SPV_INTEL_device_side_avc_motion_estimation"
