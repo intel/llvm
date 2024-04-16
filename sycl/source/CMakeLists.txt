@@ -251,6 +251,7 @@ set(SYCL_COMMON_SOURCES
     "kernel.cpp"
     "kernel_bundle.cpp"
     "platform.cpp"
+    "property_list.cpp"
     "queue.cpp"
     "sampler.cpp"
     "stream.cpp"

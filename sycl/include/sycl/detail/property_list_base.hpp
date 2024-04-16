@@ -17,6 +17,7 @@
 #include <type_traits> // for enable_if_t
 #include <utility>     // for move
 #include <vector>      // for vector
+#include <stdexcept>
 
 namespace sycl {
 inline namespace _V1 {
