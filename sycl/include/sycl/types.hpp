@@ -498,7 +498,7 @@ public:
       vec &>
   // TODO: Can we use std::fill or something similar to vectorize assignment
   // operation?
-  operator=(const Ty &Rhs) {
+  operator=(const Ty & Rhs) {
     for (int i = 0; i < NumElements; ++i) {
       setValue(i, Rhs);
     }
@@ -1097,8 +1097,7 @@ private:
 #ifdef __SYCL_DEVICE_ONLY__
   template <template <typename> class Operation,
             typename Ty = vec<DataT, NumElements>>
-  vec<DataT, NumElements>
-  operatorHelper(const Ty &Rhs) const {
+  vec<DataT, NumElements> operatorHelper(const Ty &Rhs) const {
     vec<DataT, NumElements> Result;
     Operation<DataT> Op;
     // Typecast to ext_vector_type, carryout the operation, and type cast back.
@@ -1127,8 +1126,7 @@ private:
 #ifdef __SYCL_DEVICE_ONLY__
   template <int Num = NumElements, typename Ty = int,
             typename = typename std::enable_if_t<1 != Num>>
-  constexpr void setValue(Ty Index, const DataT &Value,
-                          int) {
+  constexpr void setValue(Ty Index, const DataT &Value, int) {
     m_Data[Index] = vec_data<DataT>::set(Value);
   }
 
