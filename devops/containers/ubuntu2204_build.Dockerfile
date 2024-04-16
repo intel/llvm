@@ -18,17 +18,13 @@ RUN mkdir --parents --mode=0755 /etc/apt/keyrings
 # keyring required by apt and store in the keyring directory
 RUN wget https://repo.radeon.com/rocm/rocm.gpg.key -O - | \
     gpg --dearmor | tee /etc/apt/keyrings/rocm.gpg > /dev/null && \
-    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/amdgpu/6.0.2/ubuntu jammy main" \
+    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/amdgpu/6.0/ubuntu jammy main" \
     | tee /etc/apt/sources.list.d/amdgpu.list && \
 # Add rocm repo
-    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.0.2 jammy main" \
+    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.0 jammy main" \
     | tee --append /etc/apt/sources.list.d/rocm.list && \
     apt update && \
-    apt install -yqq rocm-cmake rocminfo rocm-device-libs && \
-    apt update && \
-    apt install -yqq rocm-utils && \
-    apt update && \
-    apt install -yqq rocm-dev && \
+    apt install -fyqq rocm-dev && \
 # Cleanup
     apt-get clean && \
   rm -rf /var/lib/apt/lists/*
