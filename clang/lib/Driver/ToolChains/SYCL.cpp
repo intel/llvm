@@ -565,7 +565,7 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                 const ArgList &Args,
                                 const char *LinkingOutput) const {
 
-  assert((getToolChain().getTriple().isSPIR() ||
+  assert((getToolChain().getTriple().isSPIROrSPIRV() ||
           getToolChain().getTriple().isNVPTX() ||
           getToolChain().getTriple().isAMDGCN() || isSYCLNativeCPU(Args)) &&
          "Unsupported target");
@@ -667,9 +667,7 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
     Compilation &C, const JobAction &JA, const InputInfo &Output,
     const InputInfoList &Inputs, const ArgList &Args,
     const char *LinkingOutput) const {
-  assert((getToolChain().getTriple().getArch() == llvm::Triple::spir ||
-          getToolChain().getTriple().getArch() == llvm::Triple::spir64) &&
-         "Unsupported target");
+  assert(getToolChain().getTriple().isSPIROrSPIRV() && "Unsupported target");
 
   // Grab the -Xsycl-target* options.
   const toolchains::SYCLToolChain &TC =
@@ -847,9 +845,7 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
                                               const InputInfoList &Inputs,
                                               const ArgList &Args,
                                               const char *LinkingOutput) const {
-  assert((getToolChain().getTriple().getArch() == llvm::Triple::spir ||
-          getToolChain().getTriple().getArch() == llvm::Triple::spir64) &&
-         "Unsupported target");
+  assert(getToolChain().getTriple().isSPIROrSPIRV() && "Unsupported target");
   ArgStringList CmdArgs{"-output", Output.getFilename()};
   InputInfoList ForeachInputs;
   for (const auto &II : Inputs) {
@@ -1351,7 +1347,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
         // option to honor the user's specification.
         PerDeviceArgs.push_back(
             {DeviceName, Args.MakeArgString(BackendOptName)});
-      } else if (Triple.isSPIR() &&
+      } else if (Triple.isSPIROrSPIRV() &&
                  Triple.getSubArch() == llvm::Triple::NoSubArch) {
         // For JIT, pass -ftarget-register-alloc-mode=Device:BackendOpt to
         // clang-offload-wrapper to be processed by the runtime.
@@ -1370,7 +1366,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     StringRef BackendOptName = SYCL::gen::getGenGRFFlag("auto");
     if (IsGen)
       PerDeviceArgs.push_back({DeviceName, Args.MakeArgString(BackendOptName)});
-    else if (Triple.isSPIR() &&
+    else if (Triple.isSPIROrSPIRV() &&
              Triple.getSubArch() == llvm::Triple::NoSubArch) {
       BeArgs.push_back(Args.MakeArgString(RegAllocModeOptName + DeviceName +
                                           ":" + BackendOptName));
@@ -1411,7 +1407,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
                      options::OPT_fno_target_export_symbols, false))
       BeArgs.push_back("-library-compilation");
   } else if (Triple.getSubArch() == llvm::Triple::NoSubArch &&
-             Triple.isSPIR()) {
+             Triple.isSPIROrSPIRV()) {
     // -ftarget-compile-fast JIT
     Args.AddLastArg(BeArgs, options::OPT_ftarget_compile_fast);
   }
@@ -1456,12 +1452,12 @@ void SYCLToolChain::TranslateBackendTargetArgs(
     //   -XsDFOO -XsDBAR
     // All of the above examples will pass -DFOO -DBAR to the backend compiler.
 
-    // Do not add the -Xs to the default SYCL triple (spir64) when we know we
-    // have implied the setting.
+    // Do not add the -Xs to the default SYCL triple when we know we have
+    // implied the setting.
     if ((A->getOption().matches(options::OPT_Xs) ||
          A->getOption().matches(options::OPT_Xs_separate)) &&
-        Triple.getSubArch() == llvm::Triple::NoSubArch && Triple.isSPIR() &&
-        getDriver().isSYCLDefaultTripleImplied())
+        Triple.getSubArch() == llvm::Triple::NoSubArch &&
+        Triple.isSPIROrSPIRV() && getDriver().isSYCLDefaultTripleImplied())
       continue;
 
     if (A->getOption().matches(options::OPT_Xs)) {
@@ -1480,9 +1476,9 @@ void SYCLToolChain::TranslateBackendTargetArgs(
       continue;
     }
   }
-  // Do not process -Xsycl-target-backend for implied spir64
-  if (Triple.getSubArch() == llvm::Triple::NoSubArch && Triple.isSPIR() &&
-      getDriver().isSYCLDefaultTripleImplied())
+  // Do not process -Xsycl-target-backend for implied spir64/spirv64
+  if (Triple.getSubArch() == llvm::Triple::NoSubArch &&
+      Triple.isSPIROrSPIRV() && getDriver().isSYCLDefaultTripleImplied())
     return;
   // Handle -Xsycl-target-backend.
   TranslateTargetOpt(Args, CmdArgs, options::OPT_Xsycl_backend,
@@ -1493,9 +1489,9 @@ void SYCLToolChain::TranslateBackendTargetArgs(
 void SYCLToolChain::TranslateLinkerTargetArgs(
     const llvm::Triple &Triple, const llvm::opt::ArgList &Args,
     llvm::opt::ArgStringList &CmdArgs) const {
-  // Do not process -Xsycl-target-linker for implied spir64
-  if (Triple.getSubArch() == llvm::Triple::NoSubArch && Triple.isSPIR() &&
-      getDriver().isSYCLDefaultTripleImplied())
+  // Do not process -Xsycl-target-linker for implied spir64/spirv64
+  if (Triple.getSubArch() == llvm::Triple::NoSubArch &&
+      Triple.isSPIROrSPIRV() && getDriver().isSYCLDefaultTripleImplied())
     return;
   // Handle -Xsycl-target-linker.
   TranslateTargetOpt(Args, CmdArgs, options::OPT_Xsycl_linker,
@@ -1512,8 +1508,7 @@ Tool *SYCLToolChain::buildBackendCompiler() const {
 }
 
 Tool *SYCLToolChain::buildLinker() const {
-  assert(getTriple().getArch() == llvm::Triple::spir ||
-         getTriple().getArch() == llvm::Triple::spir64 || IsSYCLNativeCPU);
+  assert(getTriple().isSPIROrSPIRV() || IsSYCLNativeCPU);
   return new tools::SYCL::Linker(*this);
 }
 

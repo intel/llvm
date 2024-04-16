@@ -22,7 +22,7 @@
 //       -O2        |    /* no option */
 //       -O3        |    /* no option */
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::queue q;

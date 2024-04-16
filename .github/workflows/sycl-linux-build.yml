@@ -103,6 +103,8 @@ on:
         options:
           - 3
 
+permissions: read-all
+
 jobs:
   build:
     name: Build + LIT

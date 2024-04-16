@@ -4,7 +4,9 @@
 // Test complete fusion with local internalization specified on the
 // accessors.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 using namespace sycl;
 
@@ -39,9 +41,11 @@ int main() {
       auto accIn2 = bIn2.get_access(cgh);
       auto accTmp = bTmp.get_access(
           cgh, sycl::ext::codeplay::experimental::property::promote_local{});
-      cgh.parallel_for<class KernelOne>(
-          nd_range<1>{{dataSize}, {16}},
-          [=](id<1> i) { accTmp[i] = accIn1[i] + accIn2[i]; });
+      cgh.parallel_for<class KernelOne>(nd_range<1>{{dataSize}, {16}},
+                                        [=](nd_item<1> ndi) {
+                                          auto i = ndi.get_global_id(0);
+                                          accTmp[i] = accIn1[i] + accIn2[i];
+                                        });
     });
 
     q.submit([&](handler &cgh) {
@@ -49,9 +53,11 @@ int main() {
           cgh, sycl::ext::codeplay::experimental::property::promote_local{});
       auto accIn3 = bIn3.get_access(cgh);
       auto accOut = bOut.get_access(cgh);
-      cgh.parallel_for<class KernelTwo>(
-          nd_range<1>{{dataSize}, {16}},
-          [=](id<1> i) { accOut[i] = accTmp[i] * accIn3[i]; });
+      cgh.parallel_for<class KernelTwo>(nd_range<1>{{dataSize}, {16}},
+                                        [=](nd_item<1> ndi) {
+                                          auto i = ndi.get_global_id(0);
+                                          accOut[i] = accTmp[i] * accIn3[i];
+                                        });
     });
 
     fw.complete_fusion({ext::codeplay::experimental::property::no_barriers{}});

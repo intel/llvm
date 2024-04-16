@@ -47,6 +47,12 @@
 using namespace llvm;
 using namespace SPIRV;
 
+void TranslatorOpts::enableAllExtensions() {
+#define EXT(X) ExtStatusMap[ExtensionID::X] = true;
+#include "LLVMSPIRVExtensions.inc"
+#undef EXT
+}
+
 bool TranslatorOpts::isUnknownIntrinsicAllowed(IntrinsicInst *II) const
     noexcept {
   if (!SPIRVAllowUnknownIntrinsics.has_value())

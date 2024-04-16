@@ -12,6 +12,8 @@ constexpr sycl::specialization_id<float> badsize(1);
 
 struct wrapped_int { int a; };
 
+struct non_trivial { int a = 1; };
+
 template <typename ElementType, auto &Size,
           sycl::access::decorated DecorateAddress>
 __SYCL_BUILTIN_ALIAS(__builtin_intel_sycl_alloca)
@@ -88,23 +90,26 @@ void test(sycl::kernel_handler &h) {
   // expected-error@+1 {{__builtin_intel_sycl_alloca expects to be passed an argument of type 'sycl::kernel_handler &'. Got 'const sycl::kernel_handler &'}}
   private_alloca_bad_5<float, size, sycl::access::decorated::yes>(h);
 
-  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified object type. Got 'multi_ptr<const float, access::address_space::private_space, (decorated)0>'}}
+  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<const float, access::address_space::private_space, (decorated)0>'}}
   sycl::ext::oneapi::experimental::private_alloca<const float, size, sycl::access::decorated::no>(h);
 
-  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified object type. Got 'multi_ptr<volatile float, access::address_space::private_space, (decorated)0>'}}
+  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<volatile float, access::address_space::private_space, (decorated)0>'}}
   sycl::ext::oneapi::experimental::private_alloca<volatile float, size, sycl::access::decorated::no>(h);
 
-  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified object type. Got 'multi_ptr<void, access::address_space::private_space, (decorated)1>'}}
+  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<void, access::address_space::private_space, (decorated)1>'}}
   sycl::ext::oneapi::experimental::private_alloca<void, size, sycl::access::decorated::yes>(h);
 
-  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified object type. Got 'multi_ptr<int *(int), access::address_space::private_space, (decorated)0>'}}
+  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<int *(int), access::address_space::private_space, (decorated)0>'}}
   sycl::ext::oneapi::experimental::private_alloca<int *(int), size, sycl::access::decorated::no>(h);
 
-  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified object type. Got 'multi_ptr<int &, access::address_space::private_space, (decorated)0>'}}
+  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<int &, access::address_space::private_space, (decorated)0>'}}
   sycl::ext::oneapi::experimental::private_alloca<int &, size, sycl::access::decorated::no>(h);
 
-  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified object type. Got 'sycl::multi_ptr<float, sycl::access::address_space::local_space, (decorated)0>'}}
+  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'sycl::multi_ptr<float, sycl::access::address_space::local_space, (decorated)0>'}}
   private_alloca_bad_6<float, size, sycl::access::decorated::no>(h);
+
+  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<non_trivial, access::address_space::private_space, (decorated)1>'}}
+  sycl::ext::oneapi::experimental::private_alloca<non_trivial, size, sycl::access::decorated::yes>(h);
 
   // expected-error@+1 {{__builtin_intel_sycl_alloca must be passed a specialization constant of integral value type as a template argument. Got 'int'}}
   private_alloca_bad_7<float, int, sycl::access::decorated::no>(h);

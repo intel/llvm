@@ -57,6 +57,42 @@ template <> device queue_impl::get_info<info::queue::device>() const {
   return get_device();
 }
 
+template <>
+typename info::platform::version::return_type
+queue_impl::get_backend_info<info::platform::version>() const {
+  if (getContextImplPtr()->getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::platform::version info descriptor can "
+                          "only be queried with an OpenCL backend");
+  }
+  return get_device().get_platform().get_info<info::platform::version>();
+}
+
+template <>
+typename info::device::version::return_type
+queue_impl::get_backend_info<info::device::version>() const {
+  if (getContextImplPtr()->getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::version info descriptor can only "
+                          "be queried with an OpenCL backend");
+  }
+  return get_device().get_info<info::device::version>();
+}
+
+template <>
+typename info::device::backend_version::return_type
+queue_impl::get_backend_info<info::device::backend_version>() const {
+  if (getContextImplPtr()->getBackend() != backend::ext_oneapi_level_zero) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::backend_version info descriptor "
+                          "can only be queried with a Level Zero backend");
+  }
+  return "";
+  // Currently The Level Zero backend does not define the value of this
+  // information descriptor and implementations are encouraged to return the
+  // empty string as per specification.
+}
+
 static event prepareSYCLEventAssociatedWithQueue(
     const std::shared_ptr<detail::queue_impl> &QueueImpl) {
   auto EventImpl = std::make_shared<detail::event_impl>(QueueImpl);
@@ -286,37 +322,6 @@ void queue_impl::addSharedEvent(const event &Event) {
   MEventsShared.push_back(Event);
 }
 
-static bool
-areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
-                                ContextImplPtr Context) {
-  auto CheckEvent = [&Context](const sycl::event &Event) {
-    const EventImplPtr &SyclEventImplPtr = detail::getSyclObjImpl(Event);
-    // Events that don't have an initialized context are throwaway events that
-    // don't represent actual dependencies. Calling getContextImpl() would set
-    // their context, which we wish to avoid as it is expensive.
-    // NOP events also don't represent actual dependencies.
-    if ((!SyclEventImplPtr->isContextInitialized() &&
-         !SyclEventImplPtr->is_host()) ||
-        SyclEventImplPtr->isNOP()) {
-      return true;
-    }
-    if (SyclEventImplPtr->is_host()) {
-      return SyclEventImplPtr->isCompleted();
-    }
-    // Cross-context dependencies can't be passed to the backend directly.
-    if (SyclEventImplPtr->getContextImpl() != Context)
-      return false;
-
-    // A nullptr here means that the commmand does not produce a PI event or it
-    // hasn't been enqueued yet.
-    return SyclEventImplPtr->getHandleRef() != nullptr;
-  };
-
-  return std::all_of(
-      DepEvents.begin(), DepEvents.end(),
-      [&CheckEvent](const sycl::event &Event) { return CheckEvent(Event); });
-}
-
 template <typename HandlerFuncT>
 event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,
                                     const std::vector<event> &DepEvents,
@@ -346,8 +351,8 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
 
     // If we have a command graph set we need to capture the op through the
     // handler rather than by-passing the scheduler.
-    if (MGraph.expired() &&
-        areEventsSafeForSchedulerBypass(ExpandedDepEvents, MContext)) {
+    if (MGraph.expired() && Scheduler::areEventsSafeForSchedulerBypass(
+                                ExpandedDepEvents, MContext)) {
       if (MSupportsDiscardingPiEvents) {
         MemOpFunc(MemOpArgs..., getPIEvents(ExpandedDepEvents),
                   /*PiEvent*/ nullptr, /*EventImplPtr*/ nullptr);

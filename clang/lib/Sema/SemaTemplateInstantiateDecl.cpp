@@ -802,7 +802,7 @@ static void instantiateSYCLIntelMaxConcurrencyAttr(
     const SYCLIntelMaxConcurrencyAttr *A, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(A->getNThreadsExpr(), TemplateArgs);
+  ExprResult Result = S.SubstExpr(A->getNExpr(), TemplateArgs);
   if (!Result.isInvalid())
     S.AddSYCLIntelMaxConcurrencyAttr(New, *A, Result.getAs<Expr>());
 }
@@ -832,7 +832,7 @@ static void instantiateSYCLIntelInitiationIntervalAttr(
     const SYCLIntelInitiationIntervalAttr *A, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(A->getIntervalExpr(), TemplateArgs);
+  ExprResult Result = S.SubstExpr(A->getNExpr(), TemplateArgs);
   if (!Result.isInvalid())
     S.AddSYCLIntelInitiationIntervalAttr(New, *A, Result.getAs<Expr>());
 }
@@ -1582,6 +1582,15 @@ TemplateDeclInstantiator::VisitTypeAliasTemplateDecl(TypeAliasTemplateDecl *D) {
     return nullptr;
 
   TypeAliasDecl *Pattern = D->getTemplatedDecl();
+  Sema::InstantiatingTemplate InstTemplate(
+      SemaRef, D->getBeginLoc(), D,
+      D->getTemplateDepth() >= TemplateArgs.getNumLevels()
+          ? ArrayRef<TemplateArgument>()
+          : (TemplateArgs.begin() + TemplateArgs.getNumLevels() - 1 -
+             D->getTemplateDepth())
+                ->Args);
+  if (InstTemplate.isInvalid())
+    return nullptr;
 
   TypeAliasTemplateDecl *PrevAliasTemplate = nullptr;
   if (getPreviousDeclForInstantiation<TypedefNameDecl>(Pattern)) {
@@ -2245,6 +2254,7 @@ Decl *TemplateDeclInstantiator::VisitClassTemplateDecl(ClassTemplateDecl *D) {
     assert(!Owner->isDependentContext());
     Inst->setLexicalDeclContext(Owner);
     RecordInst->setLexicalDeclContext(Owner);
+    Inst->setObjectOfFriendDecl();
 
     if (PrevClassTemplate) {
       Inst->setCommonPtr(PrevClassTemplate->getCommonPtr());
@@ -5600,6 +5610,14 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
 
   EnterExpressionEvaluationContext EvalContext(
       *this, Sema::ExpressionEvaluationContext::PotentiallyEvaluated);
+
+  Qualifiers ThisTypeQuals;
+  CXXRecordDecl *ThisContext = nullptr;
+  if (CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(Function)) {
+    ThisContext = Method->getParent();
+    ThisTypeQuals = Method->getMethodQualifiers();
+  }
+  CXXThisScopeRAII ThisScope(*this, ThisContext, ThisTypeQuals);
 
   // Introduce a new scope where local variable instantiations will be
   // recorded, unless we're actually a member function within a local
