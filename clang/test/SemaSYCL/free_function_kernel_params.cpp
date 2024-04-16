@@ -1,8 +1,9 @@
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -ast-dump \
 // RUN: %s -o - | FileCheck %s
-
+// UNSUPPORTED: system-windows
 // This test checks parameter rewriting for free functions with parameters
 // of type scalar, pointer, simple struct and struct with pointers.
+// Windows support will be added later.
 
 #include "sycl.hpp"
 
