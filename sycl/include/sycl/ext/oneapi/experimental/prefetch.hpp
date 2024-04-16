@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
+#include <sycl/ext/oneapi/accessor_property_list.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 
 namespace sycl {
@@ -166,7 +167,9 @@ template <typename DataT, int Dimensions, access_mode AccessMode,
           typename Properties = empty_properties_t>
 std::enable_if_t<detail::check_prefetch_acc_mode<AccessMode> &&
                  (Dimensions > 0) &&
-                 is_property_list_v<std::decay_t<Properties>>>
+                 (is_property_list_v<std::decay_t<Properties>> ||
+                  sycl::ext::oneapi::detail::is_accessor_property_list<
+                      std::decay_t<Properties>>::value)>
 prefetch(accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder,
                   Properties>
              acc,
@@ -179,7 +182,9 @@ template <typename DataT, int Dimensions, access_mode AccessMode,
           typename Properties = empty_properties_t>
 std::enable_if_t<detail::check_prefetch_acc_mode<AccessMode> &&
                  (Dimensions > 0) &&
-                 is_property_list_v<std::decay_t<Properties>>>
+                 (is_property_list_v<std::decay_t<Properties>> ||
+                  sycl::ext::oneapi::detail::is_accessor_property_list<
+                      std::decay_t<Properties>>::value)>
 prefetch(accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder,
                   Properties>
              acc,
@@ -264,7 +269,9 @@ template <typename Group, typename DataT, int Dimensions,
           typename Properties = empty_properties_t>
 std::enable_if_t<detail::check_prefetch_acc_mode<AccessMode> &&
                  (Dimensions > 0) && sycl::is_group_v<std::decay_t<Group>> &&
-                 is_property_list_v<std::decay_t<Properties>>>
+                 (is_property_list_v<std::decay_t<Properties>> ||
+                  sycl::ext::oneapi::detail::is_accessor_property_list<
+                      std::decay_t<Properties>>::value)>
 joint_prefetch(Group g,
                accessor<DataT, Dimensions, AccessMode, target::device,
                         IsPlaceholder, Properties>
@@ -278,7 +285,9 @@ template <typename Group, typename DataT, int Dimensions,
           typename Properties = empty_properties_t>
 std::enable_if_t<detail::check_prefetch_acc_mode<AccessMode> &&
                  (Dimensions > 0) && sycl::is_group_v<std::decay_t<Group>> &&
-                 is_property_list_v<std::decay_t<Properties>>>
+                 (is_property_list_v<std::decay_t<Properties>> ||
+                  sycl::ext::oneapi::detail::is_accessor_property_list<
+                      std::decay_t<Properties>>::value)>
 joint_prefetch(Group g,
                accessor<DataT, Dimensions, AccessMode, target::device,
                         IsPlaceholder, Properties>
