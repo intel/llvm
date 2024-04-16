@@ -12,14 +12,20 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
 COPY scripts/install_build_tools.sh /install.sh
 RUN /install.sh
 
-# Install AMD ROCm
-RUN printf 'Package: *\nPin: release o=repo.radeon.com\nPin-Priority: 600\n' | tee /etc/apt/preferences.d/rocm-pin-600
-RUN apt install -yqq libnuma-dev wget gnupg2 && \
-  wget -q -O - https://repo.radeon.com/rocm/rocm.gpg.key | apt-key add - && \
-  echo 'deb [arch=amd64] https://repo.radeon.com/rocm/apt/debian/ ubuntu main' | tee /etc/apt/sources.list.d/rocm.list && \
-  apt update && \
-  apt install -yqq rocm-dev && \
-  apt-get clean && \
+RUN mkdir --parents --mode=0755 /etc/apt/keyrings
+# Download the key, convert the signing-key to a full
+# keyring required by apt and store in the keyring directory
+RUN wget https://repo.radeon.com/rocm/rocm.gpg.key -O - | \
+    gpg --dearmor | tee /etc/apt/keyrings/rocm.gpg > /dev/null
+RUN echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/amdgpu/6.0.2/ubuntu jammy main" \
+    | tee /etc/apt/sources.list.d/amdgpu.list
+# Add rocm repo
+RUN echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.0.2 jammy main" \
+    | tee --append /etc/apt/sources.list.d/rocm.list
+RUN apt update
+RUN yes | apt install rocm-core
+# Cleanup
+RUN apt-get clean && \
   rm -rf /var/lib/apt/lists/*
 
 # By default Ubuntu sets an arbitrary UID value, that is different from host
