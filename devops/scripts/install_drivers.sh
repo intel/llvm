@@ -13,7 +13,7 @@ if [ -f "$1" ]; then
     TBB_TAG=$(jq -r '.linux.tbb.github_tag' $CONFIG_FILE)
     FPGA_TAG=$(jq -r '.linux.fpgaemu.github_tag' $CONFIG_FILE)
     CPU_TAG=$(jq -r '.linux.oclcpu.github_tag' $CONFIG_FILE)
-    if [[ "$*" == *"--use-dev-igc"* ]]
+    if [[ "$*" == *"--use-dev-igc"* ]]; then
        CONFIG_FILE_IGC_DEV=$2
        IGC_DEV_TAG=$(jq -r '.linux.igc_dev.github_tag' $CONFIG_FILE_IGC_DEV)
        IGC_DEV_VER=$(jq -r '.linux.igc_dev.version' $CONFIG_FILE_IGC_DEV)
@@ -38,8 +38,6 @@ else
     TBB_TAG=$tbb_tag
     FPGA_TAG=$fpgaemu_tag
     CPU_TAG=$cpu_tag
-    if [[ "$*" == *"--use-dev-igc"* ]]
-    fi
 fi
 
 function get_release() {
