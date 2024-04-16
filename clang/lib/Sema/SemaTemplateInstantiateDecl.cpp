@@ -2957,7 +2957,7 @@ Decl *TemplateDeclInstantiator::VisitFunctionDecl(
       return nullptr;
   }
   if (D->isDeleted())
-    SemaRef.SetDeclDeleted(Function, D->getLocation());
+    SemaRef.SetDeclDeleted(Function, D->getLocation(), D->getDeletedMessage());
 
   NamedDecl *PrincipalDecl =
       (TemplateParams ? cast<NamedDecl>(FunctionTemplate) : Function);
@@ -3333,7 +3333,8 @@ Decl *TemplateDeclInstantiator::VisitCXXMethodDecl(
       return nullptr;
   }
   if (D->isDeletedAsWritten())
-    SemaRef.SetDeclDeleted(Method, Method->getLocation());
+    SemaRef.SetDeclDeleted(Method, Method->getLocation(),
+                           D->getDeletedMessage());
 
   // If this is an explicit specialization, mark the implicitly-instantiated
   // template specialization as being an explicit specialization too.
@@ -5385,7 +5386,7 @@ TemplateDeclInstantiator::InitMethodInstantiation(CXXMethodDecl *New,
 bool TemplateDeclInstantiator::SubstDefaultedFunction(FunctionDecl *New,
                                                       FunctionDecl *Tmpl) {
   // Transfer across any unqualified lookups.
-  if (auto *DFI = Tmpl->getDefaultedFunctionInfo()) {
+  if (auto *DFI = Tmpl->getDefalutedOrDeletedInfo()) {
     SmallVector<DeclAccessPair, 32> Lookups;
     Lookups.reserve(DFI->getUnqualifiedLookups().size());
     bool AnyChanged = false;
@@ -5400,8 +5401,8 @@ bool TemplateDeclInstantiator::SubstDefaultedFunction(FunctionDecl *New,
 
     // It's unlikely that substitution will change any declarations. Don't
     // store an unnecessary copy in that case.
-    New->setDefaultedFunctionInfo(
-        AnyChanged ? FunctionDecl::DefaultedFunctionInfo::Create(
+    New->setDefaultedOrDeletedInfo(
+        AnyChanged ? FunctionDecl::DefaultedOrDeletedFunctionInfo::Create(
                          SemaRef.Context, Lookups)
                    : DFI);
   }
@@ -5613,14 +5614,6 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
 
   EnterExpressionEvaluationContext EvalContext(
       *this, Sema::ExpressionEvaluationContext::PotentiallyEvaluated);
-
-  Qualifiers ThisTypeQuals;
-  CXXRecordDecl *ThisContext = nullptr;
-  if (CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(Function)) {
-    ThisContext = Method->getParent();
-    ThisTypeQuals = Method->getMethodQualifiers();
-  }
-  CXXThisScopeRAII ThisScope(*this, ThisContext, ThisTypeQuals);
 
   // Introduce a new scope where local variable instantiations will be
   // recorded, unless we're actually a member function within a local
@@ -6012,7 +6005,6 @@ void Sema::InstantiateVariableInitializer(
         *this, Sema::ExpressionEvaluationContext::PotentiallyEvaluated, Var);
 
     keepInLifetimeExtendingContext();
-    keepInMaterializeTemporaryObjectContext();
     // Instantiate the initializer.
     ExprResult Init;
 

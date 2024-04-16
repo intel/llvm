@@ -3953,6 +3953,14 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
     // decl and its redeclarations may be required.
   }
 
+  StringLiteral *Msg = D->getDeletedMessage();
+  if (Msg) {
+    auto Imported = import(Msg);
+    if (!Imported)
+      return Imported.takeError();
+    Msg = *Imported;
+  }
+
   ToFunction->setQualifierInfo(ToQualifierLoc);
   ToFunction->setAccess(D->getAccess());
   ToFunction->setLexicalDeclContext(LexicalDC);
@@ -3966,6 +3974,11 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
       D->FriendConstraintRefersToEnclosingTemplate());
   ToFunction->setRangeEnd(ToEndLoc);
   ToFunction->setDefaultLoc(ToDefaultLoc);
+
+  if (Msg)
+    ToFunction->setDefaultedOrDeletedInfo(
+        FunctionDecl::DefaultedOrDeletedFunctionInfo::Create(
+            Importer.getToContext(), {}, Msg));
 
   // Set the parameters.
   for (auto *Param : Parameters) {

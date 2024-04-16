@@ -2000,6 +2000,8 @@ public:
   };
 
   bool IsLayoutCompatible(QualType T1, QualType T2) const;
+  bool IsPointerInterconvertibleBaseOf(const TypeSourceInfo *Base,
+                                       const TypeSourceInfo *Derived);
 
   bool CheckFunctionCall(FunctionDecl *FDecl, CallExpr *TheCall,
                          const FunctionProtoType *Proto);
@@ -3051,14 +3053,18 @@ public:
   void ActOnDocumentableDecls(ArrayRef<Decl *> Group);
 
   enum class FnBodyKind {
-    /// C++ [dcl.fct.def.general]p1
+    /// C++26 [dcl.fct.def.general]p1
     /// function-body:
     ///   ctor-initializer[opt] compound-statement
     ///   function-try-block
     Other,
     ///   = default ;
     Default,
+    ///   deleted-function-body
+    ///
+    /// deleted-function-body:
     ///   = delete ;
+    ///   = delete ( unevaluated-string ) ;
     Delete
   };
 
@@ -4918,10 +4924,12 @@ public:
                                SourceLocation EqualLoc);
 
   void ActOnPureSpecifier(Decl *D, SourceLocation PureSpecLoc);
-  void SetDeclDeleted(Decl *dcl, SourceLocation DelLoc);
+  void SetDeclDeleted(Decl *dcl, SourceLocation DelLoc,
+                      StringLiteral *Message = nullptr);
   void SetDeclDefaulted(Decl *dcl, SourceLocation DefaultLoc);
 
-  void SetFunctionBodyKind(Decl *D, SourceLocation Loc, FnBodyKind BodyKind);
+  void SetFunctionBodyKind(Decl *D, SourceLocation Loc, FnBodyKind BodyKind,
+                           StringLiteral *DeletedMessage = nullptr);
   void ActOnStartTrailingRequiresClause(Scope *S, Declarator &D);
   ExprResult ActOnFinishTrailingRequiresClause(ExprResult ConstraintExpr);
   ExprResult ActOnRequiresClause(ExprResult ConstraintExpr);
@@ -5260,34 +5268,6 @@ public:
     /// example, in a for-range initializer).
     bool InLifetimeExtendingContext = false;
 
-    /// Whether we are currently in a context in which all temporaries must be
-    /// materialized.
-    ///
-    /// [class.temporary]/p2:
-    /// The materialization of a temporary object is generally delayed as long
-    /// as possible in order to avoid creating unnecessary temporary objects.
-    ///
-    /// Temporary objects are materialized:
-    ///   (2.1) when binding a reference to a prvalue ([dcl.init.ref],
-    ///   [expr.type.conv], [expr.dynamic.cast], [expr.static.cast],
-    ///   [expr.const.cast], [expr.cast]),
-    ///
-    ///   (2.2) when performing member access on a class prvalue ([expr.ref],
-    ///   [expr.mptr.oper]),
-    ///
-    ///   (2.3) when performing an array-to-pointer conversion or subscripting
-    ///   on an array prvalue ([conv.array], [expr.sub]),
-    ///
-    ///   (2.4) when initializing an object of type
-    ///   std​::​initializer_list<T> from a braced-init-list
-    ///   ([dcl.init.list]),
-    ///
-    ///   (2.5) for certain unevaluated operands ([expr.typeid], [expr.sizeof])
-    ///
-    ///   (2.6) when a prvalue that has type other than cv void appears as a
-    ///   discarded-value expression ([expr.context]).
-    bool InMaterializeTemporaryObjectContext = false;
-
     // When evaluating immediate functions in the initializer of a default
     // argument or default member initializer, this is the declaration whose
     // default initializer is being evaluated and the location of the call
@@ -5613,8 +5593,7 @@ public:
 
   ExprResult BuildDeclarationNameExpr(const CXXScopeSpec &SS, LookupResult &R,
                                       bool NeedsADL,
-                                      bool AcceptInvalidDecl = false,
-                                      bool NeedUnresolved = false);
+                                      bool AcceptInvalidDecl = false);
   ExprResult BuildDeclarationNameExpr(
       const CXXScopeSpec &SS, const DeclarationNameInfo &NameInfo, NamedDecl *D,
       NamedDecl *FoundD = nullptr,
@@ -6560,19 +6539,6 @@ public:
     }
   }
 
-  /// keepInMaterializeTemporaryObjectContext - Pull down
-  /// InMaterializeTemporaryObjectContext flag from previous context.
-  void keepInMaterializeTemporaryObjectContext() {
-    if (ExprEvalContexts.size() > 2 &&
-        ExprEvalContexts[ExprEvalContexts.size() - 2]
-            .InMaterializeTemporaryObjectContext) {
-      auto &LastRecord = ExprEvalContexts.back();
-      auto &PrevRecord = ExprEvalContexts[ExprEvalContexts.size() - 2];
-      LastRecord.InMaterializeTemporaryObjectContext =
-          PrevRecord.InMaterializeTemporaryObjectContext;
-    }
-  }
-
   DefaultedComparisonKind getDefaultedComparisonKind(const FunctionDecl *FD) {
     return getDefaultedFunctionKind(FD).asComparison();
   }
@@ -6716,12 +6682,6 @@ public:
   /// used in initializer of the field.
   llvm::MapVector<FieldDecl *, DeleteLocs> DeleteExprs;
 
-  bool isInMaterializeTemporaryObjectContext() const {
-    assert(!ExprEvalContexts.empty() &&
-           "Must be in an expression evaluation context");
-    return ExprEvalContexts.back().InMaterializeTemporaryObjectContext;
-  }
-
   ParsedType getInheritingConstructorName(CXXScopeSpec &SS,
                                           SourceLocation NameLoc,
                                           const IdentifierInfo &Name);
@@ -6757,10 +6717,7 @@ public:
                             SourceLocation RParenLoc);
 
   //// ActOnCXXThis -  Parse 'this' pointer.
-  ExprResult ActOnCXXThis(SourceLocation Loc);
-
-  /// Check whether the type of 'this' is valid in the current context.
-  bool CheckCXXThisType(SourceLocation Loc, QualType Type);
+  ExprResult ActOnCXXThis(SourceLocation loc);
 
   /// Build a CXXThisExpr and mark it referenced in the current context.
   Expr *BuildCXXThisExpr(SourceLocation Loc, QualType Type, bool IsImplicit);
@@ -7183,14 +7140,10 @@ private:
   ///@{
 
 public:
-  /// Check whether an expression might be an implicit class member access.
-  bool isPotentialImplicitMemberAccess(const CXXScopeSpec &SS, LookupResult &R,
-                                       bool IsAddressOfOperand);
-
   ExprResult BuildPossibleImplicitMemberExpr(
       const CXXScopeSpec &SS, SourceLocation TemplateKWLoc, LookupResult &R,
-      const TemplateArgumentListInfo *TemplateArgs, const Scope *S);
-
+      const TemplateArgumentListInfo *TemplateArgs, const Scope *S,
+      UnresolvedLookupExpr *AsULE = nullptr);
   ExprResult
   BuildImplicitMemberExpr(const CXXScopeSpec &SS, SourceLocation TemplateKWLoc,
                           LookupResult &R,
@@ -8260,6 +8213,11 @@ public:
   bool IsFunctionConversion(QualType FromType, QualType ToType,
                             QualType &ResultTy);
   bool DiagnoseMultipleUserDefinedConversion(Expr *From, QualType ToType);
+  void DiagnoseUseOfDeletedFunction(SourceLocation Loc, SourceRange Range,
+                                    DeclarationName Name,
+                                    OverloadCandidateSet &CandidateSet,
+                                    FunctionDecl *Fn, MultiExprArg Args,
+                                    bool IsMember = false);
 
   ExprResult InitializeExplicitObjectArgument(Sema &S, Expr *Obj,
                                               FunctionDecl *Fun);
