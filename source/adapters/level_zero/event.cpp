@@ -84,8 +84,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
 
     // Get a new command list to be used on this call
     ur_command_list_ptr_t CommandList{};
-    UR_CALL(Queue->Context->getAvailableCommandList(Queue, CommandList,
-                                                    UseCopyEngine));
+    UR_CALL(Queue->Context->getAvailableCommandList(
+        Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList));
 
     ze_event_handle_t ZeEvent = nullptr;
     ur_event_handle_t InternalEvent;
@@ -255,7 +255,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     // Get an arbitrary command-list in the queue.
     ur_command_list_ptr_t CmdList;
     UR_CALL(Queue->Context->getAvailableCommandList(
-        Queue, CmdList, false /*UseCopyEngine=*/, OkToBatch));
+        Queue, CmdList, false /*UseCopyEngine=*/, NumEventsInWaitList,
+        EventWaitList, OkToBatch));
 
     // Insert the barrier into the command-list and execute.
     UR_CALL(insertBarrierIntoCmdList(CmdList, TmpWaitList, *Event, IsInternal));
@@ -310,7 +311,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
           if (ZeQueue) {
             ur_command_list_ptr_t CmdList;
             UR_CALL(Queue->Context->getAvailableCommandList(
-                Queue, CmdList, UseCopyEngine, OkToBatch, &ZeQueue));
+                Queue, CmdList, UseCopyEngine, NumEventsInWaitList,
+                EventWaitList, OkToBatch, &ZeQueue));
             CmdLists.push_back(CmdList);
           }
         }
@@ -323,7 +325,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     // Get any available command list.
     ur_command_list_ptr_t CmdList;
     UR_CALL(Queue->Context->getAvailableCommandList(
-        Queue, CmdList, false /*UseCopyEngine=*/, OkToBatch));
+        Queue, CmdList, false /*UseCopyEngine=*/, NumEventsInWaitList,
+        EventWaitList, OkToBatch));
     CmdLists.push_back(CmdList);
   }
 
@@ -611,7 +614,7 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
 
     ur_command_list_ptr_t CommandList{};
     UR_CALL(UrQueue->Context->getAvailableCommandList(
-        UrQueue, CommandList, false /* UseCopyEngine */, OkToBatch))
+        UrQueue, CommandList, false /* UseCopyEngine */, 0, nullptr, OkToBatch))
 
     // Create a "proxy" host-visible event.
     UR_CALL(createEventAndAssociateQueue(
@@ -1317,8 +1320,8 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
           // Get a command list prior to acquiring an event lock.
           // This prevents a potential deadlock with recursive
           // event locks.
-          UR_CALL(Queue->Context->getAvailableCommandList(Queue, CommandList,
-                                                          false, true));
+          UR_CALL(Queue->Context->getAvailableCommandList(
+              Queue, CommandList, false, 0, nullptr, true));
         }
 
         std::shared_lock<ur_shared_mutex> Lock(EventList[I]->Mutex);

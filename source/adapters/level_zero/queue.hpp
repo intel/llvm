@@ -688,6 +688,24 @@ ur_result_t createEventAndAssociateQueue(
     ur_command_list_ptr_t CommandList, bool IsInternal, bool IsMultiDevice,
     std::optional<bool> HostVisible = std::nullopt);
 
+// This helper function checks to see if an event for a command can be included
+// at the end of a command list batch. This will only be true if the event does
+// not have dependencies or the dependencies are not for events which exist in
+// this batch.
+bool eventCanBeBatched(ur_queue_handle_t Queue, bool UseCopyEngine,
+                       uint32_t NumEventsInWaitList,
+                       const ur_event_handle_t *EventWaitList);
+
+// This helper function checks to see if a signal event at the end of a command
+// should be set. If the Queue is out of order and the command has no
+// dependencies, then this command can be enqueued without a signal event set in
+// a command list batch. The signal event will be appended at the end of the
+// batch to be signalled at the end of the command list.
+ur_result_t setSignalEvent(ur_queue_handle_t Queue, bool UseCopyEngine,
+                           ze_event_handle_t *ZeEvent, ur_event_handle_t *Event,
+                           uint32_t NumEventsInWaitList,
+                           const ur_event_handle_t *EventWaitList);
+
 // Helper function to perform the necessary cleanup of the events from reset cmd
 // list.
 ur_result_t CleanupEventListFromResetCmdList(

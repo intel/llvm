@@ -201,7 +201,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
   UR_CALL(Queue->Context->getAvailableCommandList(
-      Queue, CommandList, UseCopyEngine, true /* AllowBatching */));
+      Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
+      true /* AllowBatching */));
 
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent{};
@@ -210,7 +211,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_KERNEL_LAUNCH,
                                        CommandList, IsInternal, false));
-  ZeEvent = (*Event)->ZeEvent;
+  UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
+                         NumEventsInWaitList, EventWaitList));
   (*Event)->WaitList = TmpWaitList;
 
   // Save the kernel in the event, so that when the event is signalled

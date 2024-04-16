@@ -1395,6 +1395,13 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
               zeCommandListAppendBarrier,
               (CommandList->first, HostVisibleEvent->ZeEvent, 0, nullptr));
         }
+        // Append Signalling of the inner events at the end of the batch
+        for (auto &Event : CommandList->second.EventList) {
+          if (Event->IsInnerBatchedEvent) {
+            ZE2UR_CALL(zeCommandListAppendSignalEvent,
+                       (CommandList->first, Event->ZeEvent));
+          }
+        }
       } else {
         // If we don't have host visible proxy then signal event if needed.
         this->signalEventFromCmdListIfLastEventDiscarded(CommandList);
@@ -1716,6 +1723,55 @@ ur_event_handle_t ur_queue_handle_t_::getEventFromQueueCache(bool IsMultiDevice,
   ur_event_handle_t RetEvent = *It;
   Cache->erase(It);
   return RetEvent;
+}
+
+// This helper function checks to see if an event for a command can be included
+// at the end of a command list batch. This will only be true if the event does
+// not have dependencies or the dependencies are not for events which exist in
+// this batch.
+bool eventCanBeBatched(ur_queue_handle_t Queue, bool UseCopyEngine,
+                       uint32_t NumEventsInWaitList,
+                       const ur_event_handle_t *EventWaitList) {
+  auto &CommandBatch =
+      UseCopyEngine ? Queue->CopyCommandBatch : Queue->ComputeCommandBatch;
+  // First see if there is an command-list open for batching commands
+  // for this queue.
+  if (Queue->hasOpenCommandList(UseCopyEngine)) {
+    // If this command should be batched, but the command has a dependency on a
+    // command in the current batch, then the command needs to have an event
+    // to track its completion so this event cannot be batched to the end of the
+    // command list.
+    if (NumEventsInWaitList > 0) {
+      for (auto &Event : CommandBatch.OpenCommandList->second.EventList) {
+        for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
+          if (Event == EventWaitList[i]) {
+            return false;
+          }
+        }
+      }
+    }
+  }
+  return true;
+}
+
+// This helper function checks to see if a signal event at the end of a command
+// should be set. If the Queue is out of order and the command has no
+// dependencies, then this command can be enqueued without a signal event set in
+// a command list batch. The signal event will be appended at the end of the
+// batch to be signalled at the end of the command list.
+ur_result_t setSignalEvent(ur_queue_handle_t Queue, bool UseCopyEngine,
+                           ze_event_handle_t *ZeEvent, ur_event_handle_t *Event,
+                           uint32_t NumEventsInWaitList,
+                           const ur_event_handle_t *EventWaitList) {
+  if (eventCanBeBatched(Queue, UseCopyEngine, NumEventsInWaitList,
+                        EventWaitList) &&
+      !Queue->isInOrderQueue() && !Queue->UsingImmCmdLists) {
+    ZeEvent = nullptr;
+    (*Event)->IsInnerBatchedEvent = true;
+  } else {
+    (*ZeEvent) = (*Event)->ZeEvent;
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 // This helper function creates a ur_event_handle_t and associate a
