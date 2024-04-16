@@ -101,10 +101,10 @@ __esimd_abs_common_internal(simd<TArg, SZ> src0) {
 }
 
 template <typename TRes, typename TArg>
-ESIMD_NODEBUG ESIMD_INLINE
-    std::enable_if_t<detail::is_esimd_scalar<TRes>::value &&
-                         detail::is_esimd_scalar<TArg>::value,
-                     TRes>
+ESIMD_NODEBUG
+    ESIMD_INLINE std::enable_if_t<detail::is_esimd_scalar<TRes>::value &&
+                                      detail::is_esimd_scalar<TArg>::value,
+                                  TRes>
     __esimd_abs_common_internal(TArg src0) {
   simd<TArg, 1> Src0 = src0;
   simd<TArg, 1> Result = __esimd_abs_common_internal<TArg>(Src0);
@@ -641,8 +641,8 @@ __ESIMD_API RT trunc(float src0, Sat sat = {}) {
 /// @param src0 The input mask.
 /// @return The packed mask as an <code>unsgined int</code> 32-bit value.
 template <int N>
-ESIMD_NODEBUG ESIMD_INLINE
-    std::enable_if_t<(N == 8 || N == 16 || N == 32), uint>
+ESIMD_NODEBUG
+    ESIMD_INLINE std::enable_if_t<(N == 8 || N == 16 || N == 32), uint>
     pack_mask(simd_mask<N> src0) {
   return __esimd_pack_mask<N>(src0.data());
 }
@@ -655,8 +655,8 @@ ESIMD_NODEBUG ESIMD_INLINE
 /// @param src0 The input packed mask.
 /// @return The unpacked mask as a simd_mask object.
 template <int N>
-ESIMD_NODEBUG ESIMD_INLINE
-    std::enable_if_t<(N == 8 || N == 16 || N == 32), simd_mask<N>>
+ESIMD_NODEBUG
+    ESIMD_INLINE std::enable_if_t<(N == 8 || N == 16 || N == 32), simd_mask<N>>
     unpack_mask(uint src0) {
   return __esimd_unpack_mask<N>(src0);
 }
@@ -698,10 +698,9 @@ ballot(simd<T, N> mask) {
 /// @return a vector of \c uint32_t, where each element is set to bit count of
 ///     the corresponding element of the source operand.
 template <typename T, int N>
-ESIMD_NODEBUG ESIMD_INLINE
-    std::enable_if_t<std::is_integral<T>::value && (sizeof(T) <= 4),
-                     simd<uint32_t, N>>
-    cbit(simd<T, N> src) {
+ESIMD_NODEBUG ESIMD_INLINE std::enable_if_t<
+    std::is_integral<T>::value && (sizeof(T) <= 4), simd<uint32_t, N>>
+cbit(simd<T, N> src) {
   return __esimd_cbit<T, N>(src.data());
 }
 
@@ -1300,6 +1299,13 @@ __ESIMD_API uint32_t subb(uint32_t &borrow, uint32_t src0, uint32_t src1) {
   __ESIMD_NS::simd<uint32_t, 1> Res = subb(BorrowV, Src0V, Src1V);
   borrow = BorrowV[0];
   return Res[0];
+}
+
+/// rdtsc - get the value of timestamp counter.
+/// \return the current value of timestamp counter
+__ESIMD_API uint64_t rdtsc() {
+  __ESIMD_NS::simd<uint32_t, 4> retv = __esimd_timestamp();
+  return retv.template bit_cast_view<uint64_t>()[0];
 }
 
 /// @} sycl_esimd_math

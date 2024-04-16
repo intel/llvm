@@ -1725,10 +1725,8 @@ __ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T>::value &&
 
 /// rdtsc - get the value of timestamp counter.
 /// \return the current value of timestamp counter
-ESIMD_INLINE uint64_t rdtsc() {
-  __ESIMD_NS::simd<uint32_t, 4> retv = __esimd_timestamp();
-  return retv.template bit_cast_view<uint64_t>()[0];
-}
+__SYCL_DEPRECATED("Please use sycl::ext::intel::esimd::rdtsc();")
+ESIMD_INLINE uint64_t rdtsc() { return __ESIMD_NS::rdtsc(); }
 
 /// @} sycl_esimd_logical
 
