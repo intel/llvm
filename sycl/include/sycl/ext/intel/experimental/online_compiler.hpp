@@ -195,12 +195,14 @@ private:
 template <>
 template <>
 std::vector<byte> online_compiler<source_language::opencl_c>::compile(
-    sycl::detail::string_view src, const std::vector<sycl::detail::string_view> &options);
+    sycl::detail::string_view src,
+    const std::vector<sycl::detail::string_view> &options);
 
 template <>
 template <>
 std::vector<byte> online_compiler<source_language::cm>::compile(
-    sycl::detail::string_view src, const std::vector<sycl::detail::string_view> &options);
+    sycl::detail::string_view src,
+    const std::vector<sycl::detail::string_view> &options);
 
 /// Compiles the given OpenCL source. May throw \c online_compile_error.
 /// @param src - contents of the source.
@@ -212,7 +214,7 @@ __SYCL_EXPORT std::vector<byte>
 online_compiler<source_language::opencl_c>::compile(
     const std::string &src, const std::vector<std::string> &options) {
   std::vector<sycl::detail::string_view> opts;
-  for (const std::string& opt : options)
+  for (const std::string &opt : options)
     opts.push_back(sycl::detail::string_view{opt});
   return compile(sycl::detail::string_view(src), opts);
 }
@@ -223,7 +225,8 @@ template <>
 template <>
 std::vector<byte>
 online_compiler<source_language::opencl_c>::compile(const std::string &src) {
-  return compile(sycl::detail::string_view(src), std::vector<sycl::detail::string_view>{});
+  return compile(sycl::detail::string_view(src),
+                 std::vector<sycl::detail::string_view>{});
 }
 
 /// Compiles the given CM source \p src.
@@ -234,7 +237,7 @@ template <>
 __SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
     const std::string &src, const std::vector<std::string> &options) {
   std::vector<sycl::detail::string_view> opts;
-  for (const std::string& opt : options)
+  for (const std::string &opt : options)
     opts.push_back(sycl::detail::string_view{opt});
   return compile(sycl::detail::string_view(src), opts);
 }
@@ -244,7 +247,8 @@ template <>
 template <>
 std::vector<byte>
 online_compiler<source_language::cm>::compile(const std::string &src) {
-  return compile(sycl::detail::string_view(src), std::vector<sycl::detail::string_view>{});
+  return compile(sycl::detail::string_view(src),
+                 std::vector<sycl::detail::string_view>{});
 }
 
 } // namespace ext::intel::experimental
