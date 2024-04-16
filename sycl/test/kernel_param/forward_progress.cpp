@@ -25,7 +25,7 @@ void check_props(sycl::queue &q) {
       properties{work_item_progress<guarantee, execution_scope::work_group>},
       [=]() {});
 
-  // Check properties at execution_scope::sub_group coordination level 
+  // Check properties at execution_scope::sub_group coordination level
   q.single_task(
       properties{work_item_progress<guarantee, execution_scope::sub_group>},
       [=]() {});

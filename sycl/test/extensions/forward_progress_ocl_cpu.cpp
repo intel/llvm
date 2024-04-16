@@ -33,7 +33,7 @@ int main() {
   guarantees = d.get_info<info::device::work_item_progress_capabilities<
       execution_scope::work_group>>();
   assert(guarantees == ref1);
-  
+
   // Check guarantees for execution_scope::sub_group
   guarantees = d.get_info<info::device::work_item_progress_capabilities<
       execution_scope::sub_group>>();
