@@ -45,12 +45,6 @@ jobs:
             file: ubuntu2204_intel_drivers
             tag: latest
             build_args: "use_latest=false"
-          - name: Intel Drivers Ubuntu 22.04 Docker image with dev IGC
-            file: ubuntu2204_intel_drivers
-            tag: devigc
-            build_args: |
-                  "use_latest=false"
-                  "use_igc_dev=true"
           - name: Intel Drivers (unstable) Ubuntu 22.04 Docker image
             file: ubuntu2204_intel_drivers
             tag: unstable
