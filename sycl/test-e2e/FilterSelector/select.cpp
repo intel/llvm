@@ -104,7 +104,7 @@ int main() {
   try {
     // pick something crazy
     device d9(filter_selector("gpu:999"));
-  } catch (const sycl::runtime_error &e) {
+  } catch (const sycl::exception &e) {
     const char *ErrorMesg =
         "Could not find a device that matches the specified filter(s)!";
     assert(std::string{e.what()}.find(ErrorMesg) == 0 &&
@@ -114,7 +114,7 @@ int main() {
   try {
     // pick something crazy
     device d10(filter_selector("bob:gpu"));
-  } catch (const sycl::runtime_error &e) {
+  } catch (const sycl::exception &e) {
     const char *ErrorMesg = "Invalid filter string!";
     assert(std::string{e.what()}.find(ErrorMesg) == 0 &&
            "filter_selector(\"bob:gpu\") unexpectedly selected a device");
@@ -123,7 +123,7 @@ int main() {
   try {
     // pick something crazy
     device d11(filter_selector("opencl:bob"));
-  } catch (const sycl::runtime_error &e) {
+  } catch (const sycl::exception &e) {
     const char *ErrorMesg = "Invalid filter string!";
     assert(std::string{e.what()}.find(ErrorMesg) == 0 &&
            "filter_selector(\"opencl:bob\") unexpectedly selected a device");

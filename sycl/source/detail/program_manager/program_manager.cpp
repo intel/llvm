@@ -2033,7 +2033,7 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   if (InputImpl->get_bin_image_ref()->getFormat() !=
           PI_DEVICE_BINARY_TYPE_SPIRV &&
       Devs.size() > 1)
-    sycl::exception(sycl::errc::runtime,
+    sycl::exception(sycl::errc::feature_not_supported,
                     "Creating a program from AOT binary for multiple device is "
                     "not supported");
 
@@ -2226,7 +2226,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     if (InputImpl->get_bin_image_ref()->getFormat() !=
             PI_DEVICE_BINARY_TYPE_SPIRV &&
         Devs.size() > 1)
-      sycl::exception(sycl::errc::runtime,
+      sycl::exception(sycl::errc::feature_not_supported,
                       "Creating a program from AOT binary for multiple device "
                       "is not supported");
 
