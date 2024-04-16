@@ -70,11 +70,12 @@ static bool isTargetFormatSupported(BinaryFormat TargetFormat) {
   }
 }
 
-FusionResult KernelFusion::fuseKernels(
-    View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
-    View<ParameterIdentity> Identities, BarrierFlags BarriersFlags,
-    View<ParameterInternalization> Internalization,
-    View<jit_compiler::JITConstant> Constants) {
+extern "C" FusionResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
+                         const char *FusedKernelName,
+                         View<ParameterIdentity> Identities,
+                         BarrierFlags BarriersFlags,
+                         View<ParameterInternalization> Internalization,
+                         View<jit_compiler::JITConstant> Constants) {
 
   std::vector<std::string> KernelsToFuse;
   llvm::transform(KernelInformation, std::back_inserter(KernelsToFuse),
@@ -191,8 +192,8 @@ FusionResult KernelFusion::fuseKernels(
   return FusionResult{FusedKernelInfo};
 }
 
-void KernelFusion::resetConfiguration() { ConfigHelper::reset(); }
+extern "C" void resetJITConfiguration() { ConfigHelper::reset(); }
 
-void KernelFusion::addToConfiguration(OptionStorage&& Opt){
+extern "C" void addToJITConfiguration(OptionStorage &&Opt) {
   ConfigHelper::getConfig().set(std::move(Opt));
 }

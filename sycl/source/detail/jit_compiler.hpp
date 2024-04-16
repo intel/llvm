@@ -37,6 +37,8 @@ public:
   fuseKernels(QueueImplPtr Queue, std::vector<ExecCGCommand *> &InputKernels,
               const property_list &);
 
+  bool isAvailable();
+
   static jit_compiler &get_instance() {
     static jit_compiler instance{};
     return instance;
@@ -62,6 +64,12 @@ private:
 
   // Manages the lifetime of the PI structs for device binaries.
   std::vector<DeviceBinariesCollection> JITDeviceBinaries;
+
+  // Handles to the entry points of the lazily loaded JIT library.
+  using raw_function_handle = void *;
+  raw_function_handle FuseKernelsHandle = nullptr;
+  raw_function_handle ResetConfigHandle = nullptr;
+  raw_function_handle AddToConfigHandle = nullptr;
 };
 
 } // namespace detail

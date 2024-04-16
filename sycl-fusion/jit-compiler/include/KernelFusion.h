@@ -51,23 +51,22 @@ private:
   DynString ErrorMessage;
 };
 
-class KernelFusion {
+extern "C" {
 
-public:
-  static FusionResult
-  fuseKernels(View<SYCLKernelInfo> KernelInformation,
-              const char *FusedKernelName, View<ParameterIdentity> Identities,
-              BarrierFlags BarriersFlags,
-              View<ParameterInternalization> Internalization,
-              View<jit_compiler::JITConstant> JITConstants);
+FusionResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
+                                const char *FusedKernelName,
+                                View<ParameterIdentity> Identities,
+                                BarrierFlags BarriersFlags,
+                                View<ParameterInternalization> Internalization,
+                                View<jit_compiler::JITConstant> JITConstants);
 
-  /// Clear all previously set options.
-  static void resetConfiguration();
+/// Clear all previously set options.
+void resetJITConfiguration();
 
-  /// Add an option to the configuration.
-  static void addToConfiguration(OptionStorage&& Opt);
+/// Add an option to the configuration.
+void addToJITConfiguration(OptionStorage &&Opt);
 
-};
+} // end of extern "C"
 
 } // namespace jit_compiler
 
