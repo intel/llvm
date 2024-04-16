@@ -29,7 +29,7 @@ def get_artifacts_download_url(repo, name):
     return json.loads(artifacts)["artifacts"][0]["archive_download_url"]
 
 
-def uplift_linux_igfx_driver(config, platform_tag,igc_dev_only):
+def uplift_linux_igfx_driver(config, platform_tag, igc_dev_only):
 
     if igc_dev_only:
         igc_dev = get_latest_workflow_runs("intel/intel-graphics-compiler", "build-IGC")
@@ -76,7 +76,7 @@ def main(platform_tag, igc_dev_only):
     script = os.path.dirname(os.path.realpath(__file__))
     config_name = os.path.join(script, '..', 'dependencies.json')
     if igc_dev_only:
-       config_name = os.path.join(script, '..', 'dependencies-igc-dev.json')
+        config_name = os.path.join(script, "..", "dependencies-igc-dev.json")
     config = {}
 
     with open(config_name, "r") as f:
@@ -87,7 +87,7 @@ def main(platform_tag, igc_dev_only):
         json.dump(config, f, indent=2)
         f.write('\n')
 
-    if(igc_dev_only):
+    if igc_dev_only:
         return config[platform_tag]["igc_dev"]["github_tag"]
 
     return config[platform_tag]['compute_runtime']['version']
@@ -95,7 +95,7 @@ def main(platform_tag, igc_dev_only):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('platform_tag')
-    parser.add_argument('--igc-dev-only', action='store_true')
+    parser.add_argument("platform_tag")
+    parser.add_argument("--igc-dev-only", action="store_true")
     args = parser.parse_args()
-    sys.stdout.write(main(args.platform_tag, args.igc_dev_only) + '\n')
+    sys.stdout.write(main(args.platform_tag, args.igc_dev_only) + "\n")
