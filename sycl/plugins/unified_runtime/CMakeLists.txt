@@ -132,13 +132,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 1473ed8a81ca86e67321dfc90c79e951ead212ac
-    # Merge: 6ccaf387 f2774226
+    # commit 55cf3ba8139f8ffea9cf5cf42ea1f79c049b3520
+    # Merge: 15233fd2 35a6899d
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri Apr 12 10:43:00 2024 +0100
-    #     Merge pull request #1395 from konradkusiak97/improvedQueueFill
-    #     [HIP] Implement workaround for hipMemset2D
-    1473ed8a81ca86e67321dfc90c79e951ead212ac
+    # Date:   Mon Apr 15 09:50:52 2024 +0100
+    #     Merge pull request #1437 from hdelan/event-wait-with-good-context
+    #     [HIP] Use context to get active device
+    55cf3ba8139f8ffea9cf5cf42ea1f79c049b3520
   )
 
   fetch_adapter_source(native_cpu
