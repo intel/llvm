@@ -8,6 +8,7 @@
 #pragma once
 
 #include "xpti/xpti_trace_framework.hpp"
+#include "xpti_helpers.hpp"
 
 #include <chrono>
 #include <iomanip>
@@ -25,12 +26,6 @@
 namespace test {
 namespace utils {
 enum class OptionType { Boolean, Integer, Float, String, Range };
-
-// We are using C++ 11, hence we cannot use
-// std::variant or std::any
-using table_row_t = std::map<int, long double>;
-using table_t = std::map<int, table_row_t>;
-using titles_t = std::vector<std::string>;
 
 class ScopedTimer {
 public:
@@ -301,56 +296,6 @@ private:
   std::string MAppName;
 };
 
-class TableModel {
-public:
-  using row_titles_t = std::map<int, std::string>;
-
-  TableModel() {}
-
-  void setHeaders(titles_t &Titles) { MColumnTitles = Titles; }
-
-  table_row_t &addRow(int Row, std::string &RowName) {
-    if (MRowTitles.count(Row)) {
-      std::cout << "Warning: Row title already specified!\n";
-    }
-    MRowTitles[Row] = RowName;
-    return MTable[Row];
-  }
-
-  table_row_t &addRow(int Row, const char *RowName) {
-    if (MRowTitles.count(Row)) {
-      std::cout << "Warning: Row title already specified!\n";
-    }
-    MRowTitles[Row] = RowName;
-    return MTable[Row];
-  }
-
-  table_row_t &operator[](int Row) { return MTable[Row]; }
-
-  void print() {
-    std::cout << std::setw(14) << " ";
-    for (auto &Title : MColumnTitles) {
-      std::cout << std::setw(14) << Title; // Column headers
-    }
-    std::cout << "\n";
-
-    for (auto &Row : MTable) {
-      std::cout << std::setw(14) << MRowTitles[Row.first];
-      for (auto &Data : Row.second) {
-        std::cout << std::fixed << std::setw(14) << std::setprecision(0)
-                  << Data.second;
-      }
-      std::cout << "\n";
-    }
-    std::cout << "\n";
-  }
-
-private:
-  titles_t MColumnTitles;
-  row_titles_t MRowTitles;
-  table_t MTable;
-};
-
 class RangeDecoder {
 public:
   RangeDecoder(std::string &RangeStr) : MRange(RangeStr) {
@@ -436,16 +381,16 @@ public:
 private:
   void runStringTableTests();
   void runStringTableTestThreads(int RunNo, int NThreads,
-                                 test::utils::TableModel &Table);
+                                 xpti::utils::TableModel &Table);
   void runTracepointTests();
   void runTracepointTestThreads(int RunNo, int nt,
-                                test::utils::TableModel &Table);
+                                xpti::utils::TableModel &Table);
   void runNotificationTests();
   void runNotificationTestThreads(int RunNo, int NThreads,
-                                  test::utils::TableModel &Table);
+                                  xpti::utils::TableModel &Table);
 
   test::utils::CommandLineParser &MParser;
-  test::utils::TableModel MTable;
+  xpti::utils::TableModel MTable;
   std::set<long> MThreads, MTests;
   long MTracepoints;
   const char *MSource = "foo.cpp";
@@ -598,13 +543,13 @@ public:
 private:
   void runDataStructureTests();
   void runDataStructureTestsThreads(int RunNo, int NThreads,
-                                    test::utils::TableModel &Table);
+                                    xpti::utils::TableModel &Table);
   void runInstrumentationTests();
   void runInstrumentationTestsThreads(int RunNo, int NThreads,
-                                      test::utils::TableModel &Table);
+                                      xpti::utils::TableModel &Table);
 
   test::utils::CommandLineParser &MParser;
-  test::utils::TableModel MTable;
+  xpti::utils::TableModel MTable;
   std::set<long> MThreads, MTests;
   long MTracepoints;
   long MTracepointInstances;

@@ -2,8 +2,10 @@
 // RUN: FileCheck -input-file=%t.h %s --check-prefix=CHECK-SYCL2020
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -sycl-std=2017 -fsycl-int-header=%t.h %s
 // RUN: FileCheck -input-file=%t.h %s --check-prefix=CHECK-SYCL2017
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -fsycl-disable-range-rounding -fsycl-int-header=%t.h %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -fsycl-range-rounding=disable -fsycl-int-header=%t.h %s
 // RUN: FileCheck -input-file=%t.h %s --check-prefix=CHECK-RANGE
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -fsycl-range-rounding=force -fsycl-int-header=%t.h %s
+// RUN: FileCheck -input-file=%t.h %s --check-prefix=CHECK-FORCE-RANGE
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -fsycl-int-header=%t.h %s
 // RUN: FileCheck -input-file=%t.h %s --check-prefix=CHECK-NO-RANGE
 
@@ -33,4 +35,10 @@ int main() {
 // CHECK-RANGE: #ifndef __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__
 // CHECK-RANGE-NEXT: #define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1
 // CHECK-RANGE-NEXT: #endif //__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__
+
+// CHECK-FORCE-RANGE: #ifndef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
+// CHECK-FORCE-RANGE-NEXT: #define __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__ 1
+// CHECK-FORCE-RANGE-NEXT: #endif //__SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
+
 // CHECK-NO-RANGE-NOT: #define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1
+// CHECK-NO-RANGE-NOT: #define __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__ 1

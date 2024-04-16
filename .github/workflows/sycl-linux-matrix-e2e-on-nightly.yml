@@ -10,6 +10,8 @@ on:
           Format: '{"VAR1":"VAL1","VAR2":"VAL2",...}'
         default: '{"LIT_FILTER":""}'
 
+permissions: read-all
+
 jobs:
   linux_e2e_on_nightly:
     name: E2E on Nightly

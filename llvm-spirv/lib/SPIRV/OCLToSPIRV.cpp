@@ -52,6 +52,7 @@
 #include "llvm/Support/Debug.h"
 
 #include <algorithm>
+#include <regex>
 #include <set>
 
 using namespace llvm;
@@ -167,9 +168,11 @@ bool OCLToSPIRVBase::runOCLToSPIRV(Module &Module) {
   auto Src = getSPIRVSource(&Module);
   // This is a pre-processing pass, which transform LLVM IR module to a more
   // suitable form for the SPIR-V translation: it is specifically designed to
-  // handle OpenCL C built-in functions and shouldn't be launched for other
-  // source languages
-  if (std::get<0>(Src) != spv::SourceLanguageOpenCL_C)
+  // handle OpenCL C/C++ and C++ for OpenCL modules and shouldn't be launched
+  // for other source languages.
+  if (std::get<0>(Src) != spv::SourceLanguageOpenCL_C &&
+      std::get<0>(Src) != spv::SourceLanguageOpenCL_CPP &&
+      std::get<0>(Src) != spv::SourceLanguageCPP_for_OpenCL)
     return false;
 
   CLVer = std::get<1>(Src);
@@ -724,6 +727,13 @@ void OCLToSPIRVBase::visitCallBarrier(CallInst *CI) {
 
 void OCLToSPIRVBase::visitCallConvert(CallInst *CI, StringRef MangledName,
                                       StringRef DemangledName) {
+  // OpenCL Explicit Conversions (6.4.3) formed as below for scalars:
+  // destType convert_destType<_sat><_roundingMode>(sourceType)
+  // and for vector type:
+  // destTypeN convert_destTypeN<_sat><_roundingMode>(sourceTypeN)
+  // If the demangled name is not matching the suggested pattern and does not
+  // meet allowed destination type restrictions - this is not an OpenCL builtin,
+  // return from the function and translate such CallInst as a function call.
   if (eraseUselessConvert(CI, MangledName, DemangledName))
     return;
   Op OC = OpNop;
@@ -735,15 +745,25 @@ void OCLToSPIRVBase::visitCallConvert(CallInst *CI, StringRef MangledName,
     SrcTy = VecTy->getElementType();
   auto IsTargetInt = isa<IntegerType>(TargetTy);
 
-  std::string TargetTyName(
-      DemangledName.substr(strlen(kOCLBuiltinName::ConvertPrefix)));
-  auto FirstUnderscoreLoc = TargetTyName.find('_');
-  if (FirstUnderscoreLoc != std::string::npos)
-    TargetTyName = TargetTyName.substr(0, FirstUnderscoreLoc);
-  TargetTyName = std::string("_R") + TargetTyName;
+  // Validate conversion function name and vector size if present
+  std::regex Expr(
+      "convert_(float|double|half|u?char|u?short|u?int|u?long)(2|3|4|8|16)*"
+      "(_sat)*(_rt[ezpn])*$");
+  std::smatch DestTyMatch;
+  std::string ConversionFunc(DemangledName.str());
+  if (!std::regex_match(ConversionFunc, DestTyMatch, Expr))
+    return;
 
-  std::string Sat = DemangledName.find("_sat") != StringRef::npos ? "_sat" : "";
-  auto TargetSigned = DemangledName[8] != 'u';
+  // The first sub_match is the whole string; the next
+  // sub_matches are the parenthesized expressions.
+  enum { TypeIdx = 1, VecSizeIdx = 2, SatIdx = 3, RoundingIdx = 4 };
+  std::string DestTy = DestTyMatch[TypeIdx].str();
+  std::string VecSize = DestTyMatch[VecSizeIdx].str();
+  std::string Sat = DestTyMatch[SatIdx].str();
+  std::string Rounding = DestTyMatch[RoundingIdx].str();
+
+  bool TargetSigned = DestTy[0] != 'u';
+
   if (isa<IntegerType>(SrcTy)) {
     bool Signed = isLastFuncParamSigned(MangledName);
     if (IsTargetInt) {
@@ -760,13 +780,13 @@ void OCLToSPIRVBase::visitCallConvert(CallInst *CI, StringRef MangledName,
     } else
       OC = OpFConvert;
   }
-  auto Loc = DemangledName.find("_rt");
-  std::string Rounding;
-  if (Loc != StringRef::npos && !(isa<IntegerType>(SrcTy) && IsTargetInt)) {
-    Rounding = DemangledName.substr(Loc, 4).str();
-  }
+
+  if (!Rounding.empty() && (isa<IntegerType>(SrcTy) && IsTargetInt))
+    return;
+
   assert(CI->getCalledFunction() && "Unexpected indirect call");
-  mutateCallInst(CI, getSPIRVFuncName(OC, TargetTyName + Sat + Rounding));
+  mutateCallInst(
+      CI, getSPIRVFuncName(OC, "_R" + DestTy + VecSize + Sat + Rounding));
 }
 
 void OCLToSPIRVBase::visitCallGroupBuiltin(CallInst *CI,

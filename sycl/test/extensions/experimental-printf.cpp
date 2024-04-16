@@ -1,15 +1,15 @@
 // This test is intended to check that internal
-// __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__ works as expected, i.e. we can
+// __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__ works as expected, i.e. we can
 // see printf ExtInst regardless of the macro presence and that argument
 // promotion is disabled if the macro is present.
 //
 // RUN: %clangxx -fsycl -fsycl-device-only -fno-sycl-use-bitcode %s -o %t.spv
 // RUN: llvm-spirv -to-text %t.spv -o %t.spt
-// RUN: FileCheck %s --check-prefixes CHECK,CHECK-DOUBLE < %t.spt
-//
-// RUN: %clangxx -fsycl -fsycl-device-only -fno-sycl-use-bitcode -D__SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__ %s -o %t.spv
-// RUN: llvm-spirv -to-text %t.spv -o %t.spt
 // RUN: FileCheck %s --check-prefixes CHECK,CHECK-FLOAT < %t.spt
+//
+// RUN: %clangxx -fsycl -fsycl-device-only -fno-sycl-use-bitcode -D__SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__ %s -o %t.spv
+// RUN: llvm-spirv -to-text %t.spv -o %t.spt
+// RUN: FileCheck %s --check-prefixes CHECK,CHECK-DOUBLE < %t.spt
 
 // CHECK-FLOAT: TypeFloat [[#TYPE:]] 32
 // CHECK-DOUBLE: TypeFloat [[#TYPE:]] 64

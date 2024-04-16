@@ -146,7 +146,7 @@ inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
 get_ballot_group(Group group, bool predicate) {
   (void)group;
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__SPIR__) || defined(__NVPTX__)
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__)
   // ballot_group partitions into two groups using the predicate
   // Membership mask for one group is negation of the other
   sub_group_mask mask = sycl::ext::oneapi::group_ballot(group, predicate);

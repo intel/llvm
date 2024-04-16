@@ -240,7 +240,7 @@ public:
   virtual void eraseInstruction(SPIRVInstruction *, SPIRVBasicBlock *) = 0;
 
   // Type creation functions
-  virtual SPIRVTypeArray *addArrayType(SPIRVType *, SPIRVConstant *) = 0;
+  virtual SPIRVTypeArray *addArrayType(SPIRVType *, SPIRVValue *) = 0;
   virtual SPIRVTypeBool *addBoolType() = 0;
   virtual SPIRVTypeFloat *addFloatType(unsigned) = 0;
   virtual SPIRVTypeFunction *
@@ -266,6 +266,8 @@ public:
   virtual SPIRVTypeCooperativeMatrixKHR *
   addCooperativeMatrixKHRType(SPIRVType *, std::vector<SPIRVValue *>) = 0;
   virtual SPIRVTypeTaskSequenceINTEL *addTaskSequenceINTELType() = 0;
+  virtual SPIRVInstruction *
+  addTaskSequenceGetINTELInst(SPIRVType *, SPIRVValue *, SPIRVBasicBlock *) = 0;
   virtual SPIRVTypeVoid *addVoidType() = 0;
   virtual SPIRVType *addOpaqueGenericType(Op) = 0;
   virtual SPIRVTypeDeviceEvent *addDeviceEventType() = 0;

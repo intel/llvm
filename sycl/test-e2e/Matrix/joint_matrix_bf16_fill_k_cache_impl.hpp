@@ -7,7 +7,9 @@
 //===-------------------------------------------------------------------------===//
 
 #include <random>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/matrix/matrix.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;

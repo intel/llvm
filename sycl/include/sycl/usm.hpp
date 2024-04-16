@@ -7,14 +7,14 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-#include <sycl/builtins.hpp>      // for max
-#include <sycl/context.hpp>       // for context
-#include <sycl/detail/common.hpp> // for code_location
-#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
-#include <sycl/device.hpp>        // for device
-#include <sycl/property_list.hpp> // for property_list
-#include <sycl/queue.hpp>         // for queue
-#include <sycl/usm/usm_enums.hpp> // for alloc
+#include <sycl/builtins.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/device.hpp>
+#include <sycl/property_list.hpp>
+#include <sycl/queue.hpp>
+#include <sycl/usm/usm_pointer_info.hpp>
 
 #include <algorithm> // for max
 #include <cstddef>   // for size_t
