@@ -101,7 +101,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   #    [Bindless][Exp] Remove phMem argument from bindless image creation functions
   #     Remove phMem argument from bindless image creation functions.
   #     It not used outside of UR and is currently causing a minor memory leak.
-  set(UNIFIED_RUNTIME_TAG c3ef6425ff90327e00647a49b633bb513016f903)
+  set(UNIFIED_RUNTIME_TAG e066743c4e81550e65bfa64062a91b7f660664a6)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
