@@ -5,7 +5,9 @@
 // RUN: %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -55,8 +57,8 @@ int main() {
     std::cout << "bindless_images_support: " << bindlessSupport
               << "\nbindless_images_shared_usm_support: "
               << bindlessSharedUsmSupport
-              << "\nbindless_images_1d_usm_support: " 1dS
-              << "\nbindless_images_2d_usm_support: " << S << "\n";
+              << "\nbindless_images_1d_usm_support: " << usm1dSupport
+              << "\nbindless_images_2d_usm_support: " << usm2dSupport << "\n";
 #endif
 
     // Extension: get pitch alignment information from device -- device info
@@ -95,6 +97,17 @@ int main() {
               << "\nmipmapMaxAnisotropy: " << mipmapMaxAnisotropy
               << "\nmipmapLevelReferenceSupport: "
               << mipmapLevelReferenceSupport << "\n";
+#endif
+
+    // Extension: query for bindless image cubemaps support -- aspects.
+    bool cubemapSupport = dev.has(sycl::aspect::ext_oneapi_cubemap);
+    bool cubemapSeamlessFilterSupport =
+        dev.has(sycl::aspect::ext_oneapi_cubemap_seamless_filtering);
+
+#ifdef VERBOSE_PRINT
+    std::cout << "cubemapSupport: " << cubemapSupport
+              << "\ncubemapSeamlessFilterSupport: "
+              << cubemapSeamlessFilterSupport << "\n";
 #endif
 
     // Extension: query for bindless image interop support -- device aspects

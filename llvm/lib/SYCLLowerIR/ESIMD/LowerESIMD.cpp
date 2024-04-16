@@ -494,6 +494,8 @@ public:
         {"dpasw", {"dpasw", {a(0), a(1), a(2), t(0)}}},
         {"dpasw_nosrc0", {"dpasw.nosrc0", {a(0), a(1), t(0)}}},
         {"nbarrier", {"nbarrier", {a(0), a(1), a(2)}}},
+	{"raw_send_nbarrier_signal",
+         {"raw.send.noresult", {a(0), ai1(4), a(1), a(2), a(3)}}},
         {"nbarrier_arrive", {"nbarrier.arrive", {a(0), a(1), a(2), a(3)}}},
         {"lsc_load_slm",
          {"lsc.load.slm",
@@ -2011,7 +2013,7 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
   generateKernelMetadata(M);
   // This function needs to run after generateKernelMetadata, as it
   // uses the generated metadata:
-  size_t AmountOfESIMDIntrCalls = lowerSLMReservationCalls(M);
+  size_t AmountOfESIMDIntrCalls = 0;
   SmallPtrSet<Type *, 4> GVTS = collectGenXVolatileTypes(M);
   lowerGlobalStores(M, GVTS);
   lowerGlobalsToVector(M);
@@ -2079,6 +2081,13 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
 
       // process ESIMD builtins that go through special handling instead of
       // the translation procedure
+
+      // SLM allocation API will be lowered in LowerESIMDSlmReservationCalls
+      // pass
+      if (Name.starts_with("__esimd_slm_alloc") ||
+          Name.starts_with("__esimd_slm_free")) {
+        continue;
+      }
 
       if (Name.starts_with("__esimd_svm_block_ld") ||
           Name.starts_with("__esimd_slm_block_ld")) {

@@ -10,6 +10,7 @@ namespace experimental {
 
 template <typename ElementType, auto &Size, access::decorated DecorateAddress>
 __SYCL_BUILTIN_ALIAS(__builtin_intel_sycl_alloca)
+[[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_private_alloca)]]
 multi_ptr<ElementType, access::address_space::private_space,
           DecorateAddress> private_alloca(kernel_handler &h);
 

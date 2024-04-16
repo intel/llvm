@@ -1,0 +1,235 @@
+= sycl_ext_oneapi_free_function_queries
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2020-2024 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 8 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This extension is implemented and fully supported by {dpcpp}.
+
+== Overview
+
+The extension allows developers to access `sycl::nd_item`, `sycl::group` and
+`sycl::sub_group` instances globally, without having to explicitly pass them as
+arguments to each function used on the device.
+
+[_Note:_ Passing such instances as arguments can result in a clearer interface
+that is less error-prone to use. For example, if a function accepts a
+`sycl::group`, the caller must assume that function may call a
+`sycl::group_barrier` and ensure that associated control flow requirements are
+satisfied. It is recommended that this extension is used only when modifying
+existing interfaces is not feasible. _{endnote}_]
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_FREE_FUNCTION_QUERIES` to one of the values defined in
+the table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== Accessing instances of special SYCL classes
+
+The `sycl::ext::oneapi::this_work_item` namespace contains functionality
+related to the currently executing kernel.
+
+It is the user's responsibility to ensure that these functions are called
+in a manner that is compatible with the kernel's launch parameters, as detailed
+in the definition of each function. Calling these functions from an incompatible
+kernel results in undefined behavior.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::this_work_item {
+
+template <int Dimensions>
+nd_item<Dimensions> get_nd_item();
+
+template <int Dimensions>
+group<Dimensions> get_work_group();
+
+sub_group get_sub_group();
+
+}
+----
+
+[source,c++]
+----
+template <int Dimensions>
+nd_item<Dimensions> get_nd_item();
+----
+_Preconditions_: `Dimensions` must match the dimensionality of the currently
+executing kernel. The currently executing kernel must have been launched with a
+`sycl::nd_range` argument.
+
+_Returns_: A `sycl::nd_item` instance representing the current work-item in a
+`sycl::nd_range`.
+
+[source,c++]
+----
+template <int Dimensions>
+group<Dimensions> get_work_group();
+----
+_Preconditions_: `Dimensions` must match the dimensionality of the currently
+executing kernel. The currently executing kernel must have been launched with a
+`sycl::nd_range` argument.
+
+_Returns_: A `sycl::group` instance representing the work-group to which the
+current work-item belongs.
+
+[source,c++]
+----
+sub_group get_sub_group();
+----
+_Preconditions_: The currently executing kernel must have been launched with a
+`sycl::nd_range` argument.
+
+_Returns_: A `sycl::sub_group` instance representing the sub-group to which the
+current work-item belongs.
+
+=== Deprecated functionality
+
+The functionality in this section was previously part of an experimental
+version of this extension, but is now deprecated.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <int Dimensions>
+id<Dimensions> this_id();
+
+template <int Dimensions>
+item<Dimensions, false> this_item();
+
+template <int Dimensions>
+nd_item<Dimensions> this_nd_item();
+
+template <int Dimensions>
+group this_group();
+
+sub_group this_sub_group();
+
+}
+----
+
+[source,c++]
+----
+template <int Dimensions>
+id<Dimensions> this_id();
+----
+_Preconditions_: `Dimensions` must match the dimensionality of the currently
+executing kernel. The currently executing kernel must have been launched with a
+`sycl::range` or `sycl::nd_range` argument.
+
+_Returns_: A `sycl::id` instance representing the current work-item in the
+global iteration space.
+
+[source,c++]
+----
+template <int Dimensions>
+item<Dimensions, false> this_item();
+----
+_Preconditions_: `Dimensions` must match the dimensionality of the currently
+executing kernel. The currently executing kernel must have been launched with a
+`sycl::range` or `sycl::nd_range` argument.
+
+_Returns_: A `sycl::item` instance representing the current work-item in the
+global iteration space.
+
+[_Note:_ The `offset` parameter to `parallel_for` is deprecated in SYCL 2020, as
+is the ability of an `item` to carry an offset. This extension returns an
+`item` where the `WithOffset` template parameter is set to `false` to prevent
+usage of the new queries in conjunction with deprecated
+functionality._{endnote}_]
+
+[source,c++]
+----
+template <int Dimensions>
+nd_item<Dimensions> this_nd_item();
+----
+_Effects_: Equivalent to `return this_work_item::get_nd_item()`.
+
+[source,c++]
+----
+template <int Dimensions>
+group<Dimensions> this_group();
+----
+_Effects_: Equivalent to `return this_work_item::get_work_group()`.
+
+[source,c++]
+----
+sub_group this_sub_group();
+----
+_Effects_: Equivalent to `return this_work_item::get_sub_group()`.
+
+
+== Issues
+
+. Can undefined behavior be avoided or detected?
+--
+*UNRESOLVED*: Good run-time errors would likely require support for device-side
+assertions or exceptions, while good compile-time errors would likely require
+some additional compiler modifications and/or kernel properties.
+--
+
+//. asd
+//+
+//--
+//*RESOLUTION*: Not resolved.
+//--

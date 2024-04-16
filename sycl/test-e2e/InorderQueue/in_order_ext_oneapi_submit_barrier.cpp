@@ -70,9 +70,7 @@ int main() {
 
   {
     // Test cast 4 - graph.
-    sycl::queue GQueue{
-        {sycl::property::queue::in_order{},
-         sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+    sycl::queue GQueue{sycl::property::queue::in_order{}};
 
     if (GQueue.get_device().has(sycl::aspect::ext_oneapi_graph)) {
       std::cout << "Test 4" << std::endl;
@@ -84,7 +82,6 @@ int main() {
         cgh.single_task<class kernel3>([=]() { *Res += 9; });
       });
       auto Barrier = GQueue.ext_oneapi_submit_barrier();
-      assert(Barrier == BeforeBarrierEvent);
       GQueue.submit([&](sycl::handler &cgh) {
         cgh.single_task<class kernel4>([=]() { *Res *= 2; });
       });

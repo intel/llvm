@@ -1569,11 +1569,12 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
           AI, LocalVar.first, GetExpression(Ops[ExpressionIdx]),
           LocalVar.second, BB);
       AI->eraseFromParent();
-      return cast<Instruction *>(DbgDeclare);
+      return DbgDeclare.get<Instruction *>();
     }
-    return cast<Instruction *>(getDIBuilder(DebugInst).insertDeclare(
-        GetValue(Ops[VariableIdx]), LocalVar.first,
-        GetExpression(Ops[ExpressionIdx]), LocalVar.second, BB));
+    return getDIBuilder(DebugInst)
+        .insertDeclare(GetValue(Ops[VariableIdx]), LocalVar.first,
+                       GetExpression(Ops[ExpressionIdx]), LocalVar.second, BB)
+        .get<Instruction *>();
   }
   case SPIRVDebug::Value: {
     using namespace SPIRVDebug::Operand::DebugValue;
@@ -1589,10 +1590,10 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
     }
     if (!MDs.empty()) {
       DIArgList *AL = DIArgList::get(M->getContext(), MDs);
-      cast<DbgVariableIntrinsic>(cast<Instruction *>(DbgValIntr))
-                                               ->setRawLocation(AL);
+      cast<DbgVariableIntrinsic>(DbgValIntr.get<Instruction *>())
+          ->setRawLocation(AL);
     }
-    return cast<Instruction *>(DbgValIntr);
+    return DbgValIntr.get<Instruction *>();
   }
   default:
     llvm_unreachable("Unknown debug intrinsic!");

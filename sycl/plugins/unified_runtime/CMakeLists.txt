@@ -60,12 +60,25 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # fetch for a UR adapter, this allows development of adapters to be decoupled
   # from each other.
   #
+  # A separate content fetch will not be performed if:
+  # * The adapter name is not present in the SYCL_ENABLE_PLUGINS variable.
+  # * The repo and tag provided match the values of the
+  #   UNIFIED_RUNTIME_REPO/UNIFIED_RUNTIME_TAG variables
+  #
   # Args:
   #   * name - Must be the directory name of the adapter
   #   * repo - A valid Git URL of a Unified Runtime repo
   #   * tag - A valid Git branch/tag/commit in the Unified Runtime repo
   function(fetch_adapter_source name repo tag)
-    message(STATUS "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
+    if(NOT ${name} IN_LIST SYCL_ENABLE_PLUGINS)
+      return()
+    endif()
+    if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
+        tag STREQUAL UNIFIED_RUNTIME_TAG)
+      return()
+    endif()
+    message(STATUS
+      "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
     set(fetch-name unified-runtime-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
@@ -82,13 +95,62 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 4c22f5c69dc0c36ad135a3f3bc4021b47b22585e
-  # Merge: c98fdbcf f67dc0c6
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Mar 21 17:08:13 2024 +0000
-  #     Merge pull request #1445 from raiyanla/enable-in-order
-  #     [L0] Enable default support for L0 in-order lists
-  set(UNIFIED_RUNTIME_TAG 4c22f5c69dc0c36ad135a3f3bc4021b47b22585e)
+  # commit 6ccaf38708cfa614ab7f9b34c351826cd74028f2
+  # Merge: 0eab26c7 0497923a
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Fri Apr 12 10:22:00 2024 +0100
+  #    Merge pull request #1498 from wenju-he/ZeImageDesc-urMemImageCreateWithNativeHandle
+  #    [L0][Image] Set ZeImageDesc member of _ur_image in release build for legacy image
+  set(UNIFIED_RUNTIME_TAG 6ccaf38708cfa614ab7f9b34c351826cd74028f2)
+
+  fetch_adapter_source(level_zero
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(opencl
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 0d2a972c71ba4dd5935478c7b7124a372a1eeca0
+    # Merge: ac89abfe 44aef877
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu Apr 11 10:24:19 2024 +0100
+    #     Merge pull request #1440 from fabiomestre/fabio/opencl_remove_queued_hack
+    #     [OPENCL] Remove EVENT_STATUS_QUEUED workaround
+    0d2a972c71ba4dd5935478c7b7124a372a1eeca0
+  )
+
+  fetch_adapter_source(cuda
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 1333d4a0fe84f1e2b3ab8196c7fd746825ee7b94
+    # Merge: 55cf3ba8 281e3aaf
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Mon Apr 15 09:54:18 2024 +0100
+    #     Merge pull request #1342 from lplewa/cuda_log
+    #     Refactor cuda adapter to new logger
+    1333d4a0fe84f1e2b3ab8196c7fd746825ee7b94
+  )
+
+  fetch_adapter_source(hip
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 1473ed8a81ca86e67321dfc90c79e951ead212ac
+    # Merge: 6ccaf387 f2774226
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Fri Apr 12 10:43:00 2024 +0100
+    #     Merge pull request #1395 from konradkusiak97/improvedQueueFill
+    #     [HIP] Implement workaround for hipMemset2D
+    1473ed8a81ca86e67321dfc90c79e951ead212ac
+  )
+
+  fetch_adapter_source(native_cpu
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 15233fd2521f9e9b35e3a24037be99ceef334a8e
+    # Merge: 68e525a4 a04b062e
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Fri Apr 12 15:46:49 2024 +0100
+    #     Merge pull request #1489 from konradkusiak97/nativeCPUqueueFill
+    #     [NATIVECPU] Extended usm fill to bigger patterns than 1 byte
+    15233fd2521f9e9b35e3a24037be99ceef334a8e
+  )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

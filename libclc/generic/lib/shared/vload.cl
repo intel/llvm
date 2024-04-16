@@ -25,13 +25,23 @@
   typedef PRIM_TYPE##16 less_aligned_##ADDR_SPACE##PRIM_TYPE##16 __attribute__ ((aligned (sizeof(PRIM_TYPE))));\
   _CLC_OVERLOAD _CLC_DEF PRIM_TYPE##16 vload16(size_t offset, const ADDR_SPACE PRIM_TYPE *x) { \
     return *((const ADDR_SPACE less_aligned_##ADDR_SPACE##PRIM_TYPE##16*) (&x[16*offset])); \
-  } \
+  }
 
-#define VLOAD_ADDR_SPACES(__CLC_SCALAR_GENTYPE) \
-    VLOAD_VECTORIZE(__CLC_SCALAR_GENTYPE, __private) \
-    VLOAD_VECTORIZE(__CLC_SCALAR_GENTYPE, __local) \
-    VLOAD_VECTORIZE(__CLC_SCALAR_GENTYPE, __constant) \
-    VLOAD_VECTORIZE(__CLC_SCALAR_GENTYPE, __global) \
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+#define VLOAD_VECTORIZE_GENERIC VLOAD_VECTORIZE
+#else
+// The generic address space isn't available, so make the macro do nothing
+#define VLOAD_VECTORIZE_GENERIC(X,Y)
+#endif
+
+#define VLOAD_ADDR_SPACES(__CLC_SCALAR_GENTYPE)                                \
+  VLOAD_VECTORIZE(__CLC_SCALAR_GENTYPE, __private)                             \
+  VLOAD_VECTORIZE(__CLC_SCALAR_GENTYPE, __local)                               \
+  VLOAD_VECTORIZE(__CLC_SCALAR_GENTYPE, __constant)                            \
+  VLOAD_VECTORIZE(__CLC_SCALAR_GENTYPE, __global)                              \
+  VLOAD_VECTORIZE_GENERIC(__CLC_SCALAR_GENTYPE, __generic)
 
 #define VLOAD_TYPES() \
     VLOAD_ADDR_SPACES(char) \
@@ -62,6 +72,11 @@ float __clc_vload_half_float_helper__constant(const __constant half *);
 float __clc_vload_half_float_helper__global(const __global half *);
 float __clc_vload_half_float_helper__local(const __local half *);
 float __clc_vload_half_float_helper__private(const __private half *);
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+float __clc_vload_half_float_helper__generic(const __generic half *);
+#endif
 
 #define VEC_LOAD1(val, AS) val = __clc_vload_half_float_helper##AS (&mem[offset++]);
 #else
@@ -115,3 +130,4 @@ float __clc_vload_half_float_helper__private(const __private half *);
 #undef VLOAD_TYPES
 #undef VLOAD_ADDR_SPACES
 #undef VLOAD_VECTORIZE
+#undef VLOAD_VECTORIZE_GENERIC
