@@ -193,6 +193,6 @@ FusionResult KernelFusion::fuseKernels(
 
 void KernelFusion::resetConfiguration() { ConfigHelper::reset(); }
 
-void KernelFusion::set(OptionPtrBase *Option) {
-  ConfigHelper::getConfig().set(Option);
+void KernelFusion::addToConfiguration(OptionStorage&& Opt){
+  ConfigHelper::getConfig().set(std::move(Opt));
 }

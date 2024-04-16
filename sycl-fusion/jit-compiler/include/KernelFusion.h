@@ -64,14 +64,9 @@ public:
   /// Clear all previously set options.
   static void resetConfiguration();
 
-  /// Set \p Opt to the value built in-place by \p As.
-  template <typename Opt, typename... Args> static void set(Args &&...As) {
-    set(new Opt{std::forward<Args>(As)...});
-  }
+  /// Add an option to the configuration.
+  static void addToConfiguration(OptionStorage&& Opt);
 
-private:
-  /// Take ownership of \p Option and include it in the current configuration.
-  static void set(OptionPtrBase *Option);
 };
 
 } // namespace jit_compiler

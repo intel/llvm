@@ -856,15 +856,16 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   ::jit_compiler::KernelFusion::resetConfiguration();
   bool DebugEnabled =
       detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0;
-  ::jit_compiler::KernelFusion::set<::jit_compiler::option::JITEnableVerbose>(
-      DebugEnabled);
-  ::jit_compiler::KernelFusion::set<::jit_compiler::option::JITEnableCaching>(
-      detail::SYCLConfig<detail::SYCL_ENABLE_FUSION_CACHING>::get());
+  ::jit_compiler::KernelFusion::addToConfiguration(
+      ::jit_compiler::option::JITEnableVerbose::set(DebugEnabled));
+  ::jit_compiler::KernelFusion::addToConfiguration(
+      ::jit_compiler::option::JITEnableCaching::set(
+          detail::SYCLConfig<detail::SYCL_ENABLE_FUSION_CACHING>::get()));
 
   ::jit_compiler::TargetInfo TargetInfo = getTargetInfo(Queue);
   ::jit_compiler::BinaryFormat TargetFormat = TargetInfo.getFormat();
-  ::jit_compiler::KernelFusion::set<::jit_compiler::option::JITTargetInfo>(
-      std::move(TargetInfo));
+  ::jit_compiler::KernelFusion::addToConfiguration(
+      ::jit_compiler::option::JITTargetInfo::set(std::move(TargetInfo)));
 
   using ::jit_compiler::View;
   auto FusionResult = ::jit_compiler::KernelFusion::fuseKernels(
