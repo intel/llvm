@@ -118,9 +118,9 @@ struct ConvertGpuOpsToGENOpsPass
   void runOnOperation() override {
     ConversionTarget target(getContext());
 
-    // The ops of gpu dialect that can currently be mapped to GEN
     target.addLegalOp<arith::ConstantOp>();
     target.addLegalDialect<GEN::GENDialect>();
+    // The ops of gpu dialect that can currently be mapped to GEN
     target.addIllegalOp<gpu::ThreadIdOp, gpu::BlockIdOp, gpu::BlockDimOp,
                         gpu::GridDimOp, gpu::BarrierOp, gpu::ShuffleOp>();
 
