@@ -133,6 +133,7 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
   const auto &ContextImpl = getSyclObjImpl(Context);
 
   // Create PI properties from SYCL properties.
+  /* FIXME: interop stuff
   sycl::detail::pi::PiQueueProperties Properties[] = {
       PI_QUEUE_FLAGS,
       queue_impl::createPiQueueProperties(
@@ -145,12 +146,13 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
         make_error_code(errc::invalid),
         "Queue create using make_queue cannot have compute_index property.");
   }
-
+*/
   // Create PI queue first.
   pi::PiQueue PiQueue = nullptr;
+  /*
   Plugin->call<PiApiKind::piextQueueCreateWithNativeHandle>(
       NativeHandle, NativeHandleDesc, ContextImpl->getHandleRef(), PiDevice,
-      !KeepOwnership, Properties, &PiQueue);
+      !KeepOwnership, Properties, &PiQueue);*/
   // Construct the SYCL queue from PI queue.
   return detail::createSyclObjFromImpl<queue>(
       std::make_shared<queue_impl>(PiQueue, ContextImpl, Handler, PropList));

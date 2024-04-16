@@ -55,10 +55,10 @@ getPIEvents(const std::vector<sycl::event> &DepEvents) {
 
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
-  sycl::detail::pi::PiResult result = PI_SUCCESS;
+  ur_result_t result = UR_RESULT_SUCCESS;
   if (!is_host())
-    getPlugin()->call<PiApiKind::piQueueGetInfo>(
-        MQueues[0], PI_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
+    getUrPlugin()->call(urQueueGetInfo,
+        MUrQueues[0], UR_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
         nullptr);
   return result;
 }
@@ -596,8 +596,8 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
     }
   }
   if (SupportsPiFinish) {
-    const PluginPtr &Plugin = getPlugin();
-    Plugin->call<detail::PiApiKind::piQueueFinish>(getHandleRef());
+    const UrPluginPtr &Plugin = getUrPlugin();
+    Plugin->call(urQueueFinish, getUrHandleRef());
     assert(SharedEvents.empty() && "Queues that support calling piQueueFinish "
                                    "shouldn't have shared events");
   } else {
@@ -618,13 +618,16 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 #endif
 }
 
-pi_native_handle queue_impl::getNative(int32_t &NativeHandleDesc) const {
-  const PluginPtr &Plugin = getPlugin();
+ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
+  const UrPluginPtr &Plugin = getUrPlugin();
   if (getContextImplPtr()->getBackend() == backend::opencl)
-    Plugin->call<PiApiKind::piQueueRetain>(MQueues[0]);
-  pi_native_handle Handle{};
-  Plugin->call<PiApiKind::piextQueueGetNativeHandle>(MQueues[0], &Handle,
-                                                     &NativeHandleDesc);
+    Plugin->call(urQueueRetain, MUrQueues[0]);
+  ur_native_handle_t Handle{};
+  ur_queue_native_desc_t UrNativeDesc{UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC, nullptr, nullptr};
+  UrNativeDesc.pNativeData = &NativeHandleDesc;
+
+  Plugin->call(urQueueGetNativeHandle, MUrQueues[0], 
+                                                     &UrNativeDesc, &Handle);
   return Handle;
 }
 
@@ -647,9 +650,9 @@ bool queue_impl::ext_oneapi_empty() const {
 
   // Check the status of the backend queue if this is not a host queue.
   if (!is_host()) {
-    pi_bool IsReady = false;
-    getPlugin()->call<PiApiKind::piQueueGetInfo>(
-        MQueues[0], PI_EXT_ONEAPI_QUEUE_INFO_EMPTY, sizeof(pi_bool), &IsReady,
+    ur_bool_t IsReady = false;
+    getUrPlugin()->call(urQueueGetInfo,
+        MUrQueues[0], UR_QUEUE_INFO_EMPTY, sizeof(IsReady), &IsReady,
         nullptr);
     if (!IsReady)
       return false;

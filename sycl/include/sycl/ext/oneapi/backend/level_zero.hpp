@@ -213,7 +213,7 @@ template <>
 inline auto get_native<backend::ext_oneapi_level_zero, queue>(const queue &Obj)
     -> backend_return_t<backend::ext_oneapi_level_zero, queue> {
   int32_t IsImmCmdList;
-  pi_native_handle Handle = Obj.getNative(IsImmCmdList);
+  ur_native_handle_t Handle = Obj.getNative(IsImmCmdList);
   return IsImmCmdList
              ? backend_return_t<
                    backend::ext_oneapi_level_zero,

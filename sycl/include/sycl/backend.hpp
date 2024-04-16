@@ -153,7 +153,7 @@ auto get_native(const queue &Obj) -> backend_return_t<BackendName, queue> {
                           "Backends mismatch");
   }
   int32_t IsImmCmdList;
-  pi_native_handle Handle = Obj.getNative(IsImmCmdList);
+  ur_native_handle_t Handle = Obj.getNative(IsImmCmdList);
   backend_return_t<BackendName, queue> RetVal;
   if constexpr (BackendName == backend::ext_oneapi_level_zero)
     RetVal = IsImmCmdList
