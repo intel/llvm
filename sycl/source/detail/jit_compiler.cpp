@@ -23,10 +23,8 @@ inline namespace _V1 {
 namespace detail {
 
 using FuseKernelsFuncT = decltype(::jit_compiler::fuseKernels) *;
-using ResetConfigFuncT =
-    decltype(::jit_compiler::resetJITConfiguration) *;
-using AddToConfigFuncT =
-    decltype(::jit_compiler::addToJITConfiguration) *;
+using ResetConfigFuncT = decltype(::jit_compiler::resetJITConfiguration) *;
+using AddToConfigFuncT = decltype(::jit_compiler::addToJITConfiguration) *;
 
 static inline void printPerformanceWarning(const std::string &Message) {
   if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0) {
@@ -60,8 +58,8 @@ bool jit_compiler::isAvailable() {
       return false;
     }
 
-    this->FuseKernelsHandle = sycl::detail::pi::getOsLibraryFuncAddress(
-        LibraryPtr, "fuseKernels");
+    this->FuseKernelsHandle =
+        sycl::detail::pi::getOsLibraryFuncAddress(LibraryPtr, "fuseKernels");
     if (!this->FuseKernelsHandle) {
       printPerformanceWarning(
           "Cannot resolve JIT library function entry point");

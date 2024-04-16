@@ -29,7 +29,7 @@ public:
     return static_cast<const OptionBase<Opt, Opt::Id, T> *>(ConfigValue)->Value;
   }
 
-  void set(OptionStorage&& Option) {
+  void set(OptionStorage &&Option) {
     auto ID = Option.get()->Id;
     OptionValues[ID] = std::move(Option);
   }

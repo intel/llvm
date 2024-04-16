@@ -70,12 +70,11 @@ static bool isTargetFormatSupported(BinaryFormat TargetFormat) {
   }
 }
 
-extern "C" FusionResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
-                         const char *FusedKernelName,
-                         View<ParameterIdentity> Identities,
-                         BarrierFlags BarriersFlags,
-                         View<ParameterInternalization> Internalization,
-                         View<jit_compiler::JITConstant> Constants) {
+extern "C" FusionResult
+fuseKernels(View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
+            View<ParameterIdentity> Identities, BarrierFlags BarriersFlags,
+            View<ParameterInternalization> Internalization,
+            View<jit_compiler::JITConstant> Constants) {
 
   std::vector<std::string> KernelsToFuse;
   llvm::transform(KernelInformation, std::back_inserter(KernelsToFuse),

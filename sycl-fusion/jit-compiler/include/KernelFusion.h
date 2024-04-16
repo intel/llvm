@@ -54,11 +54,11 @@ private:
 extern "C" {
 
 FusionResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
-                                const char *FusedKernelName,
-                                View<ParameterIdentity> Identities,
-                                BarrierFlags BarriersFlags,
-                                View<ParameterInternalization> Internalization,
-                                View<jit_compiler::JITConstant> JITConstants);
+                         const char *FusedKernelName,
+                         View<ParameterIdentity> Identities,
+                         BarrierFlags BarriersFlags,
+                         View<ParameterInternalization> Internalization,
+                         View<jit_compiler::JITConstant> JITConstants);
 
 /// Clear all previously set options.
 void resetJITConfiguration();
