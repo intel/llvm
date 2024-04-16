@@ -50,7 +50,13 @@ public:
   /// a device event.
   event_impl(std::optional<HostEventState> State = HES_Complete)
       : MIsInitialized(false), MHostEvent(State), MIsFlushed(true),
-        MState(State.value_or(HES_Complete)) {}
+        MState(State.value_or(HES_Complete)) {
+    // Need to fail in event() constructor  if there are problems with the
+    // ONEAPI_DEVICE_SELECTOR. Deferring may lead to conficts with noexcept
+    // event methods. This ::get() call uses static vars to read and parse the
+    // ODS env var exactly once.
+    SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
+  }
 
   /// Constructs an event instance from a plug-in event handle.
   ///
