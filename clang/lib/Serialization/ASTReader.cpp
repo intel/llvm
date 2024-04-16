@@ -11788,6 +11788,12 @@ OpenACCClause *ASTRecordReader::readOpenACCClause() {
     return OpenACCIfClause::Create(getContext(), BeginLoc, LParenLoc, CondExpr,
                                    EndLoc);
   }
+  case OpenACCClauseKind::Self: {
+    SourceLocation LParenLoc = readSourceLocation();
+    Expr *CondExpr = readBool() ? readSubExpr() : nullptr;
+    return OpenACCSelfClause::Create(getContext(), BeginLoc, LParenLoc,
+                                     CondExpr, EndLoc);
+  }
   case OpenACCClauseKind::Finalize:
   case OpenACCClauseKind::IfPresent:
   case OpenACCClauseKind::Seq:
@@ -11796,7 +11802,6 @@ OpenACCClause *ASTRecordReader::readOpenACCClause() {
   case OpenACCClauseKind::Worker:
   case OpenACCClauseKind::Vector:
   case OpenACCClauseKind::NoHost:
-  case OpenACCClauseKind::Self:
   case OpenACCClauseKind::Copy:
   case OpenACCClauseKind::UseDevice:
   case OpenACCClauseKind::Attach:
