@@ -325,7 +325,7 @@ template <typename T> auto convertToOpenCLType(T &&x) {
                                                    std::declval<ElemTy>()))>,
                             no_ref::size()>;
 #ifdef __SYCL_DEVICE_ONLY__
-    return bit_cast<typename MatchingVec::vector_t>(x);
+    return sycl::bit_cast<typename MatchingVec::vector_t>(x);
 #else
     return x.template as<MatchingVec>();
 #endif

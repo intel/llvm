@@ -121,7 +121,7 @@ static constexpr ToType BitCast(const FromType &Value) {
 #endif
 }
 
-/* Heper functions to get and set values in vec, depdending on the underlying
+/* Helper functions to get and set values in vec, depdending on the underlying
  * data type. */
 template <typename T> struct vec_helper {
   using RetType = T;
@@ -536,7 +536,7 @@ public:
             typename =
                 typename std::enable_if_t<std::is_same_v<vector_t_, vector_t> &&
                                           !std::is_same_v<vector_t_, DataT>>>
-  constexpr vec(vector_t openclVector) {
+  constexpr vec(vector_t_ openclVector) {
     m_Data = detail::BitCast<vector_t, DataType>(openclVector);
   }
 
