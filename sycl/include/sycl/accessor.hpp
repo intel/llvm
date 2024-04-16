@@ -2402,9 +2402,9 @@ public:
       typename = std::enable_if_t<(AccessTarget_ == access::target::device)>>
   __SYCL2020_DEPRECATED(
       "accessor::get_pointer() is deprecated, please use get_multi_ptr()")
-  global_ptr<DataT> get_pointer() const noexcept {
-    return global_ptr<DataT>(
-        const_cast<typename detail::DecoratedType<DataT, AS>::type *>(
+  global_ptr<value_type> get_pointer() const noexcept {
+    return global_ptr<value_type>(
+        const_cast<typename detail::DecoratedType<value_type, AS>::type *>(
             getPointerAdjusted()));
   }
 
