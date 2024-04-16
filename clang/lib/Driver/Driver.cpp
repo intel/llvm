@@ -5912,22 +5912,17 @@ class OffloadingActionBuilder final {
 
           // Select remangled libclc variant
           std::string LibSpirvTargetName =
+
+              isNativeCPU ?
+                // libclc name will likely change when nativecpu supports
+                // other targets (and Windows)
+                "builtins.link.libspirv-" + TC->getTripleString() + ".bc":
+
               (TC->getAuxTriple()->isOSWindows())
                   ? "remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda."
                     "bc"
                   : "remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda."
                     "bc";
-
-          if (isNativeCPU) {
-            // For Native CPU we select the NativeCPU libclc file using the same
-            // convention used for ptx above. Todo: The current naming will be
-            // changed when we support other targets, but also to reflect support
-            // for Windows
-            LibSpirvTargetName =
-                (TC->getAuxTriple()->isOSWindows())
-                    ? "remangled-l32-signed_char.libspirv-x86_64-unknown-linux-gnu.bc"
-                    : "remangled-l64-signed_char.libspirv-x86_64-unknown-linux-gnu.bc";
-          }
 
           for (StringRef LibraryPath : LibraryPaths) {
             SmallString<128> LibSpirvTargetFile(LibraryPath);
