@@ -316,7 +316,7 @@ public:
   }
 
   void setProfilingEnabled(bool Value) { MIsProfilingEnabled = Value; }
-  
+
   // Sets a command-buffer command when this event represents an enqueue to a
   // Command Buffer.
   void

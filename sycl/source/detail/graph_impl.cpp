@@ -707,9 +707,8 @@ void exec_graph_impl::createCommandBuffers(
   sycl::detail::pi::PiExtCommandBufferDesc Desc{
       pi_ext_structure_type::PI_EXT_STRUCTURE_TYPE_COMMAND_BUFFER_DESC, nullptr,
       pi_bool(Partition->MIsInOrderGraph && !MEnableProfiling),
-      pi_bool(MEnableProfiling),
-      pi_bool(MIsUpdatable)};
-      
+      pi_bool(MEnableProfiling), pi_bool(MIsUpdatable)};
+
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(Device);
