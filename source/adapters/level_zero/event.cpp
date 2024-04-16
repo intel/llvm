@@ -664,9 +664,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 
   ur_device_handle_t Device = Queue->Device;
 
-  uint64_t DeviceStartTimestamp = 0;
-  UR_CALL(urDeviceGetGlobalTimestamps(Device, &DeviceStartTimestamp, nullptr));
-
   bool UseCopyEngine = false;
   _ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
@@ -682,6 +679,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
       /* IsInternal */ false, /* HostVisible */ true));
   ze_event_handle_t ZeEvent = (*OutEvent)->ZeEvent;
   (*OutEvent)->WaitList = TmpWaitList;
+
+  uint64_t DeviceStartTimestamp = 0;
+  UR_CALL(urDeviceGetGlobalTimestamps(Device, &DeviceStartTimestamp, nullptr));
   (*OutEvent)->RecordEventStartTimestamp = DeviceStartTimestamp;
 
   // Allocate new entry in the queue's recordings.
