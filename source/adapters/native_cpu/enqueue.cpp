@@ -504,8 +504,41 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
   UR_ASSERT(size % patternSize == 0 || patternSize > size,
             UR_RESULT_ERROR_INVALID_SIZE);
 
-  memset(ptr, *static_cast<const uint8_t *>(pPattern), size * patternSize);
-
+  switch (patternSize) {
+  case 1:
+    memset(ptr, *static_cast<const uint8_t *>(pPattern), size * patternSize);
+    break;
+  case 2: {
+    const auto pattern = *static_cast<const uint16_t *>(pPattern);
+    auto *start = reinterpret_cast<uint16_t *>(ptr);
+    auto *end =
+        reinterpret_cast<uint16_t *>(reinterpret_cast<uint16_t *>(ptr) + size);
+    std::fill(start, end, pattern);
+    break;
+  }
+  case 4: {
+    const auto pattern = *static_cast<const uint32_t *>(pPattern);
+    auto *start = reinterpret_cast<uint32_t *>(ptr);
+    auto *end =
+        reinterpret_cast<uint32_t *>(reinterpret_cast<uint32_t *>(ptr) + size);
+    std::fill(start, end, pattern);
+    break;
+  }
+  case 8: {
+    const auto pattern = *static_cast<const uint64_t *>(pPattern);
+    auto *start = reinterpret_cast<uint64_t *>(ptr);
+    auto *end =
+        reinterpret_cast<uint64_t *>(reinterpret_cast<uint64_t *>(ptr) + size);
+    std::fill(start, end, pattern);
+    break;
+  }
+  default:
+    for (unsigned int step{0}; step < size; ++step) {
+      auto *dest = reinterpret_cast<void *>(reinterpret_cast<uint8_t *>(ptr) +
+                                            step * patternSize);
+      memcpy(dest, pPattern, patternSize);
+    }
+  }
   return UR_RESULT_SUCCESS;
 }
 

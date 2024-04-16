@@ -15,6 +15,7 @@
 #include "adapter.hpp"
 #include "context.hpp"
 #include "device.hpp"
+#include "logger/ur_logger.hpp"
 #include "platform.hpp"
 #include "ur_util.hpp"
 
@@ -293,7 +294,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         std::getenv("UR_CUDA_ENABLE_IMAGE_SUPPORT") != nullptr) {
       Enabled = true;
     } else {
-      detail::ur::cuPrint(
+      logger::always(
           "Images are not fully supported by the CUDA BE, their support is "
           "disabled by default. Their partial support can be activated by "
           "setting SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT environment variable at "
