@@ -73,6 +73,21 @@ public:
                const std::vector<sycl::device> &DeviceList = {},
                bool OwnedByRuntime = true);
 
+  /// Construct a context_impl using plug-in interoperability handle.
+  ///
+  /// The constructed context_impl will use the AsyncHandler parameter to
+  /// handle exceptions.
+  ///
+  /// \param PiContext is an instance of a valid plug-in context handle.
+  /// \param AsyncHandler is an instance of async_handler.
+  /// \param Plugin is the reference to the underlying Plugin that this
+  /// \param OwnedByRuntime is the flag if ownership is kept by user or
+  /// transferred to runtime
+  context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
+               const PluginPtr &Plugin,
+               const std::vector<sycl::device> &DeviceList = {},
+               bool OwnedByRuntime = true);
+
   ~context_impl();
 
   /// Checks if this context_impl has a property of type propertyT.
@@ -110,6 +125,9 @@ public:
   /// \return the Plugin associated with the platform of this context.
   const PluginPtr &getPlugin() const { return MPlatform->getPlugin(); }
 
+  /// \return the Plugin associated with the platform of this context.
+  const UrPluginPtr &getUrPlugin() const { return MPlatform->getUrPlugin(); }
+
   /// \return the PlatformImpl associated with this context.
   PlatformImplPtr getPlatformImpl() const { return MPlatform; }
 
@@ -143,6 +161,26 @@ public:
   ///
   /// \return an instance of raw plug-in context handle.
   const sycl::detail::pi::PiContext &getHandleRef() const;
+
+  /// Gets the underlying context object (if any) without reference count
+  /// modification.
+  ///
+  /// Caller must ensure the returned object lives on stack only. It can also
+  /// be safely passed to the underlying native runtime API. Warning. Returned
+  /// reference will be invalid if context_impl was destroyed.
+  ///
+  /// \return an instance of raw plug-in context handle.
+  ur_context_handle_t &getUrHandleRef();
+
+  /// Gets the underlying context object (if any) without reference count
+  /// modification.
+  ///
+  /// Caller must ensure the returned object lives on stack only. It can also
+  /// be safely passed to the underlying native runtime API. Warning. Returned
+  /// reference will be invalid if context_impl was destroyed.
+  ///
+  /// \return an instance of raw plug-in context handle.
+  const ur_context_handle_t &getUrHandleRef() const;
 
   /// Unlike `get_info<info::context::devices>', this function returns a
   /// reference.
@@ -215,6 +253,10 @@ public:
   DeviceImplPtr
   findMatchingDeviceImpl(sycl::detail::pi::PiDevice &DevicePI) const;
 
+  /// Given a UR device, returns the matching shared_ptr<device_impl>
+  /// within this context. May return nullptr if no match discovered.
+  DeviceImplPtr findMatchingDeviceImpl(ur_device_handle_t &DeviceUR) const;
+
   /// Gets the native handle of the SYCL context.
   ///
   /// \return a native handle.
@@ -232,7 +274,7 @@ public:
                                   const RTDeviceBinaryImage *BinImage);
 
   /// Initializes device globals for a program on the associated queue.
-  std::vector<sycl::detail::pi::PiEvent>
+  std::vector<ur_event_handle_t>
   initializeDeviceGlobals(pi::PiProgram NativePrg,
                           const std::shared_ptr<queue_impl> &QueueImpl);
 
@@ -270,6 +312,7 @@ private:
   async_handler MAsyncHandler;
   std::vector<device> MDevices;
   sycl::detail::pi::PiContext MContext;
+  ur_context_handle_t MUrContext;
   PlatformImplPtr MPlatform;
   property_list MPropList;
   bool MHostContext;
@@ -291,7 +334,7 @@ private:
     }
 
     /// Clears all events of the initializer. This will not acquire the lock.
-    void ClearEvents(const PluginPtr &Plugin);
+    void ClearEvents(const UrPluginPtr &Plugin);
 
     /// The binary image of the program.
     const RTDeviceBinaryImage *MBinImage = nullptr;
@@ -310,7 +353,7 @@ private:
 
     /// A vector of events associated with the initialization of device globals.
     /// MDeviceGlobalInitMutex must be held when accessing this.
-    std::vector<sycl::detail::pi::PiEvent> MDeviceGlobalInitEvents;
+    std::vector<ur_event_handle_t> MDeviceGlobalInitEvents;
   };
 
   std::map<std::pair<sycl::detail::pi::PiProgram, sycl::detail::pi::PiDevice>,

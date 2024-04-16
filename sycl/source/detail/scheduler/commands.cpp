@@ -2623,12 +2623,14 @@ pi_int32 enqueueImpKernel(
   }
 
   // We may need more events for the launch, so we make another reference.
-  std::vector<sycl::detail::pi::PiEvent> &EventsWaitList = RawEvents;
+  /* FIXME: broke all this while porting context, needs event and possibly
+   * as much as kernel submit working
+  std::vector<ur_event_handle_t> &EventsWaitList = RawEvents;
 
   // Initialize device globals associated with this.
-  std::vector<sycl::detail::pi::PiEvent> DeviceGlobalInitEvents =
+  std::vector<ur_event_handle_t> DeviceGlobalInitEvents =
       ContextImpl->initializeDeviceGlobals(Program, Queue);
-  std::vector<sycl::detail::pi::PiEvent> EventsWithDeviceGlobalInits;
+  std::vector<ur_event_handle_t> EventsWithDeviceGlobalInits;
   if (!DeviceGlobalInitEvents.empty()) {
     EventsWithDeviceGlobalInits.reserve(RawEvents.size() +
                                         DeviceGlobalInitEvents.size());
@@ -2638,7 +2640,7 @@ pi_int32 enqueueImpKernel(
                                        DeviceGlobalInitEvents.begin(),
                                        DeviceGlobalInitEvents.end());
     EventsWaitList = EventsWithDeviceGlobalInits;
-  }
+  }*/
 
   pi_result Error = PI_SUCCESS;
   {
@@ -2657,12 +2659,12 @@ pi_int32 enqueueImpKernel(
           Kernel, PI_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG,
           sizeof(sycl::detail::pi::PiKernelCacheConfig), &KernelCacheConfig);
     }
-
-    Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
-                                     NDRDesc, EventsWaitList, OutEventImpl,
-                                     EliminatedArgMask, getMemAllocationFunc,
-                                     KernelIsCooperative);
-
+    /*
+        Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
+                                         NDRDesc, EventsWaitList, OutEventImpl,
+                                         EliminatedArgMask,
+       getMemAllocationFunc, KernelIsCooperative);
+    */
     const PluginPtr &Plugin = Queue->getPlugin();
     if (!SyclKernelImpl && !MSyclKernel) {
       Plugin->call<PiApiKind::piKernelRelease>(Kernel);
