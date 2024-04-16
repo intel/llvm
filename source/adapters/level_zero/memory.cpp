@@ -61,8 +61,9 @@ ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
 
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
-  UR_CALL(Queue->Context->getAvailableCommandList(Queue, CommandList,
-                                                  UseCopyEngine, OkToBatch));
+  UR_CALL(Queue->Context->getAvailableCommandList(
+      Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
+      OkToBatch));
 
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent;
@@ -70,7 +71,8 @@ ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
   UR_CALL(createEventAndAssociateQueue(Queue, Event, CommandType, CommandList,
                                        IsInternal, false));
-  ZeEvent = (*Event)->ZeEvent;
+  UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
+                         NumEventsInWaitList, EventWaitList));
   (*Event)->WaitList = TmpWaitList;
 
   const auto &ZeCommandList = CommandList->first;
@@ -111,8 +113,9 @@ ur_result_t enqueueMemCopyRectHelper(
 
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
-  UR_CALL(Queue->Context->getAvailableCommandList(Queue, CommandList,
-                                                  UseCopyEngine, OkToBatch));
+  UR_CALL(Queue->Context->getAvailableCommandList(
+      Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
+      OkToBatch));
 
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent;
@@ -120,8 +123,8 @@ ur_result_t enqueueMemCopyRectHelper(
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
   UR_CALL(createEventAndAssociateQueue(Queue, Event, CommandType, CommandList,
                                        IsInternal, false));
-
-  ZeEvent = (*Event)->ZeEvent;
+  UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
+                         NumEventsInWaitList, EventWaitList));
   (*Event)->WaitList = TmpWaitList;
 
   const auto &ZeCommandList = CommandList->first;
@@ -221,8 +224,9 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
   ur_command_list_ptr_t CommandList{};
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
-  UR_CALL(Queue->Context->getAvailableCommandList(Queue, CommandList,
-                                                  UseCopyEngine, OkToBatch));
+  UR_CALL(Queue->Context->getAvailableCommandList(
+      Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
+      OkToBatch));
 
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent;
@@ -230,8 +234,8 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
   UR_CALL(createEventAndAssociateQueue(Queue, Event, CommandType, CommandList,
                                        IsInternal, false));
-
-  ZeEvent = (*Event)->ZeEvent;
+  UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
+                         NumEventsInWaitList, EventWaitList));
   (*Event)->WaitList = TmpWaitList;
 
   const auto &ZeCommandList = CommandList->first;
@@ -312,8 +316,9 @@ static ur_result_t enqueueMemImageCommandHelper(
 
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
-  UR_CALL(Queue->Context->getAvailableCommandList(Queue, CommandList,
-                                                  UseCopyEngine, OkToBatch));
+  UR_CALL(Queue->Context->getAvailableCommandList(
+      Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
+      OkToBatch));
 
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent;
@@ -321,7 +326,8 @@ static ur_result_t enqueueMemImageCommandHelper(
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
   UR_CALL(createEventAndAssociateQueue(Queue, Event, CommandType, CommandList,
                                        IsInternal, false));
-  ZeEvent = (*Event)->ZeEvent;
+  UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
+                         NumEventsInWaitList, EventWaitList));
   (*Event)->WaitList = TmpWaitList;
 
   const auto &ZeCommandList = CommandList->first;
@@ -878,7 +884,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
         Queue, Event, UR_COMMAND_MEM_BUFFER_MAP, Queue->CommandListMap.end(),
         IsInternal, false));
 
-    ZeEvent = (*Event)->ZeEvent;
+    UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
+                           NumEventsInWaitList, EventWaitList));
     (*Event)->WaitList = TmpWaitList;
   }
 
@@ -968,8 +975,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
   } else {
     // For discrete devices we need a command list
     ur_command_list_ptr_t CommandList{};
-    UR_CALL(Queue->Context->getAvailableCommandList(Queue, CommandList,
-                                                    UseCopyEngine));
+    UR_CALL(Queue->Context->getAvailableCommandList(
+        Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList));
 
     // Add the event to the command list.
     CommandList->second.append(reinterpret_cast<ur_event_handle_t>(*Event));
@@ -1035,7 +1042,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
     UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_MEM_UNMAP,
                                          Queue->CommandListMap.end(),
                                          IsInternal, false));
-    ZeEvent = (*Event)->ZeEvent;
+    UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
+                           NumEventsInWaitList, EventWaitList));
     (*Event)->WaitList = TmpWaitList;
   }
 
@@ -1090,7 +1098,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
 
   ur_command_list_ptr_t CommandList{};
   UR_CALL(Queue->Context->getAvailableCommandList(
-      reinterpret_cast<ur_queue_handle_t>(Queue), CommandList, UseCopyEngine));
+      reinterpret_cast<ur_queue_handle_t>(Queue), CommandList, UseCopyEngine,
+      NumEventsInWaitList, EventWaitList));
 
   CommandList->second.append(reinterpret_cast<ur_event_handle_t>(*Event));
   (*Event)->RefCount.increment();
@@ -1217,8 +1226,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   ur_command_list_ptr_t CommandList{};
   // TODO: Change UseCopyEngine argument to 'true' once L0 backend
   // support is added
-  UR_CALL(Queue->Context->getAvailableCommandList(Queue, CommandList,
-                                                  UseCopyEngine));
+  UR_CALL(Queue->Context->getAvailableCommandList(
+      Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList));
 
   // TODO: do we need to create a unique command type for this?
   ze_event_handle_t ZeEvent = nullptr;
@@ -1227,7 +1236,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
   UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_USM_PREFETCH,
                                        CommandList, IsInternal, false));
-  ZeEvent = (*Event)->ZeEvent;
+  UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
+                         NumEventsInWaitList, EventWaitList));
   (*Event)->WaitList = TmpWaitList;
 
   const auto &WaitList = (*Event)->WaitList;
@@ -1274,7 +1284,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
   // TODO: Additional analysis is required to check if this operation will
   // run faster on copy engines.
   UR_CALL(Queue->Context->getAvailableCommandList(Queue, CommandList,
-                                                  UseCopyEngine));
+                                                  UseCopyEngine, 0, nullptr));
 
   // TODO: do we need to create a unique command type for this?
   ze_event_handle_t ZeEvent = nullptr;
@@ -1283,7 +1293,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
   UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_USM_ADVISE,
                                        CommandList, IsInternal, false));
-  ZeEvent = (*Event)->ZeEvent;
+  UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event, 0, nullptr));
   (*Event)->WaitList = TmpWaitList;
 
   const auto &ZeCommandList = CommandList->first;

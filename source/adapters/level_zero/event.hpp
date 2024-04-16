@@ -196,6 +196,8 @@ struct ur_event_handle_t_ : _ur_object {
   // performance
   bool IsMultiDevice = {false};
 
+  bool IsInnerBatchedEvent = {false};
+
   // Besides each PI object keeping a total reference count in
   // _ur_object::RefCount we keep special track of the event *external*
   // references. This way we are able to tell when the event is not referenced

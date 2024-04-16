@@ -922,8 +922,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
       // Create command-list to execute before `CommandListPtr` and will signal
       // when `EventWaitList` dependencies are complete.
       ur_command_list_ptr_t WaitCommandList{};
-      UR_CALL(Queue->Context->getAvailableCommandList(Queue, WaitCommandList,
-                                                      false, false));
+      UR_CALL(Queue->Context->getAvailableCommandList(
+          Queue, WaitCommandList, false, NumEventsInWaitList, EventWaitList,
+          false));
 
       ZE2UR_CALL(zeCommandListAppendBarrier,
                  (WaitCommandList->first, CommandBuffer->WaitEvent->ZeEvent,
@@ -958,7 +959,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   // Create a command-list to signal RetEvent on completion
   ur_command_list_ptr_t SignalCommandList{};
   UR_CALL(Queue->Context->getAvailableCommandList(Queue, SignalCommandList,
-                                                  false, false));
+                                                  false, NumEventsInWaitList,
+                                                  EventWaitList, false));
   // Reset the wait-event for the UR command-buffer that is signaled when its
   // submission dependencies have been satisfied.
   ZE2UR_CALL(zeCommandListAppendEventReset,
