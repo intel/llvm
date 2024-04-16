@@ -12,6 +12,7 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
 COPY scripts/install_build_tools.sh /install.sh
 RUN /install.sh
 
+RUN apt install -yqq libnuma-dev wget gnupg2
 RUN mkdir --parents --mode=0755 /etc/apt/keyrings
 # Download the key, convert the signing-key to a full
 # keyring required by apt and store in the keyring directory
@@ -23,7 +24,7 @@ RUN echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.rad
 RUN echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.0.2 jammy main" \
     | tee --append /etc/apt/sources.list.d/rocm.list
 RUN apt update
-RUN yes | apt install rocm-core
+RUN apt install -yqq rocm-dev
 # Cleanup
 RUN apt-get clean && \
   rm -rf /var/lib/apt/lists/*
