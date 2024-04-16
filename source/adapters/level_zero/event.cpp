@@ -506,7 +506,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
 
       // End time needs to be adjusted for resolution and valid bits.
       uint64_t ContextEndTime =
-          ((*EndTimeRecording.RecordEventEndTimestamp) & TimestampMaxValue) *
+          (EndTimeRecording.RecordEventEndTimestamp & TimestampMaxValue) *
           ZeTimerResolution;
 
       // If the result is 0, we have not yet gotten results back and so we just
@@ -525,7 +525,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
       // anymore, so we cache it on the event and evict the record from the
       // queue.
       Event->RecordEventEndTimestamp = ContextEndTime;
-      free(EndTimeRecording.RecordEventEndTimestamp);
       Event->UrQueue->EndTimeRecordings.erase(Entry);
 
       return ReturnValue(ContextEndTime);
@@ -684,15 +683,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
   UR_CALL(urDeviceGetGlobalTimestamps(Device, &DeviceStartTimestamp, nullptr));
   (*OutEvent)->RecordEventStartTimestamp = DeviceStartTimestamp;
 
-  // Allocate new entry in the queue's recordings.
-  uint64_t *EndTimestampPtr = (uint64_t *)malloc(sizeof(uint64_t));
-  *EndTimestampPtr = 0;
-  Queue->EndTimeRecordings[*OutEvent] = ur_queue_handle_t_::end_time_recording{
-      EndTimestampPtr, /*EventHasDied=*/false};
+  // Create a new entry in the queue's recordings.
+  Queue->EndTimeRecordings[*OutEvent] =
+      ur_queue_handle_t_::end_time_recording{};
 
   ZE2UR_CALL(zeCommandListAppendWriteGlobalTimestamp,
-             (CommandList->first, EndTimestampPtr, ZeEvent,
-              (*OutEvent)->WaitList.Length, (*OutEvent)->WaitList.ZeEventList));
+             (CommandList->first,
+              &Queue->EndTimeRecordings[*OutEvent].RecordEventEndTimestamp,
+              ZeEvent, (*OutEvent)->WaitList.Length,
+              (*OutEvent)->WaitList.ZeEventList));
 
   UR_CALL(
       Queue->executeCommandList(CommandList, Blocking, /* OkToBatch */ false));
@@ -999,13 +998,12 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
     auto Entry = Queue->EndTimeRecordings.find(Event);
     if (Entry != Queue->EndTimeRecordings.end()) {
       auto &EndTimeRecording = Entry->second;
-      if ((EndTimeRecording.RecordEventEndTimestamp) == 0) {
+      if (EndTimeRecording.RecordEventEndTimestamp == 0) {
         // If the end time recording has not finished, we tell the queue that
         // the event is no longer alive to avoid invalid write-backs.
         EndTimeRecording.EventHasDied = true;
       } else {
         // Otherwise we evict the entry.
-        free(EndTimeRecording.RecordEventEndTimestamp);
         Event->UrQueue->EndTimeRecordings.erase(Entry);
       }
     }
