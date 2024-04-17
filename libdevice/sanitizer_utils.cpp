@@ -132,8 +132,8 @@ inline uptr MemToShadow_DG2(uptr addr, int32_t as) {
     addr &= 0x7FFFFFFFFFFFULL;
     return __AsanShadowMemoryGlobalStart + (addr >> 3);
   } else if (as == AS_LOCAL) { // local
-    // The size of SLM is 128KB on PVC
-    constexpr unsigned slm_size = 128 * 1024;
+    // The size of SLM is 64KB on DG2
+    constexpr unsigned slm_size = 64 * 1024;
     const auto wg_lid =
         __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
             __spirv_BuiltInNumWorkgroups.z +
