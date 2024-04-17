@@ -176,11 +176,6 @@ public:
   // once #7598 is merged.
   template <typename Param>
   typename Param::return_type ext_oneapi_get_info(const queue &q) const;
-  template <typename Param, typename = typename Param::device_desc>
-  typename detail::is_kernel_device_specific_info_desc<Param>::return_type
-  ext_oneapi_get_info(const device &Device) const {
-    return Device.get_info<Param::device_desc>();
-  }
 
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.
