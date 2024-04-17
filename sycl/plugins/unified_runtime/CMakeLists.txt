@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit e00a764f8dafd1319b636aa99c15601ec0d4d7fc
-  # Merge: 85b75590 92b60b77
+  # commit fe9a05e528992cd1db7b05e2857fb17879442e86
+  # Merge: ee2feb22 9222315f
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Apr 10 10:21:22 2024 +0100
-  #    Merge pull request #1455 from GeorgeWeb/georgi/fix-hip-usm-copy2d
-  #    [HIP] Fix memory type detection in allocation info queries and USM copy2D
-  set(UNIFIED_RUNTIME_TAG e00a764f8dafd1319b636aa99c15601ec0d4d7fc)
+  # Date:   Tue Apr 16 10:10:10 2024 +0100
+  #    Merge pull request #1507 from nrspruit/fix_p2p_properties_init
+  #    [L0] Fix to p2p properties init for pNext and stype
+  set(UNIFIED_RUNTIME_TAG fe9a05e528992cd1db7b05e2857fb17879442e86)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -121,24 +121,24 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit 6e76c98a1f5cd3c4f5e99011e92bd55b3a46cc4c
-    # Merge: 08b3e8fe 834e6435
+    # commit 3f5f5688471a23a8d49ad6f47333df92e9f2e5c6
+    # Merge: fe9a05e5 6027c6bc
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Apr 10 16:26:17 2024 +0100
-    #     Merge pull request #1220 from fabiomestre/fabio/cuda_multimap
-    #     [CUDA] Add support for multiple active mappings
-    6e76c98a1f5cd3c4f5e99011e92bd55b3a46cc4c
+    # Date:   Tue Apr 16 13:59:32 2024 +0100
+    #     Merge pull request #1510 from kbenzie/benie/cuda-fix-wrapper-escape
+    #     Fix Coverity wrapper escape issue
+    3f5f5688471a23a8d49ad6f47333df92e9f2e5c6
   )
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 08b3e8fe6c5ad0aed125823c335eb44343845f6c
-    # Merge: 758c6149 db47fc0a
+    # commit 55cf3ba8139f8ffea9cf5cf42ea1f79c049b3520
+    # Merge: 15233fd2 35a6899d
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Apr 10 16:22:00 2024 +0100
-    #     Merge pull request #1359 from lplewa/hip_log
-    #     Refactor hip adapter to new logger
-    08b3e8fe6c5ad0aed125823c335eb44343845f6c
+    # Date:   Mon Apr 15 09:50:52 2024 +0100
+    #     Merge pull request #1437 from hdelan/event-wait-with-good-context
+    #     [HIP] Use context to get active device
+    55cf3ba8139f8ffea9cf5cf42ea1f79c049b3520
   )
 
   fetch_adapter_source(native_cpu
