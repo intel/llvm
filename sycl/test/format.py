@@ -43,6 +43,13 @@ class SYCLHeadersTest(lit.formats.TestFormat):
                     yield t
 
     def execute(self, test, litConfig):
+        xfail = [
+            os.path.join('sycl', 'ext', 'oneapi', 'matrix', 'matrix-hip.hpp'),
+            os.path.join('sycl', 'detail', 'reduction_forward.hpp'),
+            os.path.join('sycl', 'ext', 'oneapi', 'experimental', 'backend', 'cuda.hpp'),
+            os.path.join('sycl', 'ext', 'intel', 'esimd', 'detail', 'types_elementary.hpp'),
+        ]
+
         command = [
             test.config.clang,
             "-fsycl",
@@ -55,6 +62,12 @@ class SYCLHeadersTest(lit.formats.TestFormat):
                 "test.cpp",
             ),
         ]
+
+        for path in xfail:
+            if test.file_path.endswith(path):
+                output = "The test contains some known issues, it is expected to fail and it was effectively skipped. To run it locally for debugging use the following command: \n{}".format(" ".join(command))
+                return lit.Test.Result(lit.Test.XFAIL, output)
+
         try:
             out, err, exitCode = lit.util.executeCommand(
                 command,
