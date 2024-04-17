@@ -899,7 +899,7 @@ public:
   void addEventForNode(std::shared_ptr<graph_impl> GraphImpl,
                        std::shared_ptr<sycl::detail::event_impl> EventImpl,
                        std::shared_ptr<node_impl> NodeImpl) {
-    if ((nullptr != EventImpl) && !(EventImpl->getCommandGraph()))
+    if (EventImpl && !(EventImpl->getCommandGraph()))
       EventImpl->setCommandGraph(GraphImpl);
     MEventsMap[EventImpl] = NodeImpl;
   }
