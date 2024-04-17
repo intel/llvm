@@ -312,6 +312,8 @@ jobs:
 
     - name: SYCL CTS List devices
       if: inputs.tests_selector == 'cts'
+      env:
+        ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
       run: |
         ./build-cts/bin/test_all --list-devices
 
