@@ -115,20 +115,36 @@ inline uptr MemToShadow_CPU(uptr addr, int32_t as) {
 }
 
 inline uptr MemToShadow_DG2(uptr addr, int32_t as) {
-  uptr shadow_ptr = 0;
-  if (addr & (~0xffffffffffff)) {
-    shadow_ptr =
-        (((addr & 0xffffffffffff) >> 3) + __AsanShadowMemoryGlobalStart) |
-        (~0xffffffffffff);
-  } else {
-    shadow_ptr = (addr >> 3) + __AsanShadowMemoryGlobalStart;
+  if (as == AS_GENERIC) {
+    auto old = addr;
+    if ((addr = (uptr)ToGlobal((void *)old))) {
+      as = AS_GLOBAL;
+    } else if ((addr = (uptr)ToPrivate((void *)old))) {
+      as = AS_PRIVATE;
+    } else if ((addr = (uptr)ToLocal((void *)old))) {
+      as = AS_LOCAL;
+    } else {
+      return 0;
+    }
   }
 
-  if (shadow_ptr > __AsanShadowMemoryGlobalEnd) {
-    __spirv_ocl_printf(__global_shadow_out_of_bound, addr, shadow_ptr);
+  if (as == AS_GLOBAL) { // global
+    addr &= 0x7FFFFFFFFFFFULL;
+    return __AsanShadowMemoryGlobalStart + (addr >> 3);
+  } else if (as == AS_LOCAL) { // local
+    // The size of SLM is 128KB on PVC
+    constexpr unsigned slm_size = 128 * 1024;
+    const auto wg_lid =
+        __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
+            __spirv_BuiltInNumWorkgroups.z +
+        __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
+        __spirv_BuiltInWorkgroupId.z;
+
+    return __AsanShadowMemoryLocalStart + ((wg_lid * slm_size) >> 3) +
+           ((addr & (slm_size - 1)) >> 3);
   }
 
-  return shadow_ptr;
+  return 0;
 }
 
 inline uptr MemToShadow_PVC(uptr addr, int32_t as) {
@@ -191,6 +207,8 @@ inline uptr MemToShadow(uptr addr, int32_t as) {
     shadow_ptr = MemToShadow_CPU(addr, as);
   } else if (__DeviceType == DeviceType::GPU_PVC) {
     shadow_ptr = MemToShadow_PVC(addr, as);
+  } else if (__DeviceType == DeviceType::GPU_DG2) {
+    shadow_ptr = MemToShadow_DG2(addr, as);
   } else {
     __spirv_ocl_printf(__unsupport_device_type, (int)__DeviceType);
     return shadow_ptr;
