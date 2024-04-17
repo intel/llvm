@@ -270,6 +270,7 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
 
     case Type::Adjusted:
     case Type::Decayed:
+    case Type::ArrayParameter:
     case Type::Pointer:
     case Type::BlockPointer:
     case Type::LValueReference:
@@ -603,6 +604,16 @@ void TypePrinter::printAdjustedAfter(const AdjustedType *T, raw_ostream &OS) {
 void TypePrinter::printDecayedBefore(const DecayedType *T, raw_ostream &OS) {
   // Print as though it's a pointer.
   printAdjustedBefore(T, OS);
+}
+
+void TypePrinter::printArrayParameterAfter(const ArrayParameterType *T,
+                                           raw_ostream &OS) {
+  printConstantArrayAfter(T, OS);
+}
+
+void TypePrinter::printArrayParameterBefore(const ArrayParameterType *T,
+                                            raw_ostream &OS) {
+  printConstantArrayBefore(T, OS);
 }
 
 void TypePrinter::printDecayedAfter(const DecayedType *T, raw_ostream &OS) {
@@ -1750,14 +1761,15 @@ void TypePrinter::printPackExpansionAfter(const PackExpansionType *T,
 static void printCountAttributedImpl(const CountAttributedType *T,
                                      raw_ostream &OS,
                                      const PrintingPolicy &Policy) {
+  OS << ' ';
   if (T->isCountInBytes() && T->isOrNull())
-    OS << " __sized_by_or_null(";
+    OS << "__sized_by_or_null(";
   else if (T->isCountInBytes())
-    OS << " __sized_by(";
+    OS << "__sized_by(";
   else if (T->isOrNull())
-    OS << " __counted_by_or_null(";
+    OS << "__counted_by_or_null(";
   else
-    OS << " __counted_by(";
+    OS << "__counted_by(";
   if (T->getCountExpr())
     T->getCountExpr()->printPretty(OS, nullptr, Policy);
   OS << ')';
@@ -1766,14 +1778,14 @@ static void printCountAttributedImpl(const CountAttributedType *T,
 void TypePrinter::printCountAttributedBefore(const CountAttributedType *T,
                                              raw_ostream &OS) {
   printBefore(T->desugar(), OS);
-  if (!T->desugar()->isArrayType())
+  if (!T->isArrayType())
     printCountAttributedImpl(T, OS, Policy);
 }
 
 void TypePrinter::printCountAttributedAfter(const CountAttributedType *T,
                                             raw_ostream &OS) {
   printAfter(T->desugar(), OS);
-  if (T->desugar()->isArrayType())
+  if (T->isArrayType())
     printCountAttributedImpl(T, OS, Policy);
 }
 

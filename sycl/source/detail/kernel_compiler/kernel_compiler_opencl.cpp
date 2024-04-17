@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/detail/common_info.hpp> // split_string
 #include <sycl/detail/pi.hpp>          // getOsLibraryFuncAddress
 #include <sycl/exception.hpp>          // make_error_code
 
 #include "kernel_compiler_opencl.hpp"
 
 #include "../online_compiler/ocloc_api.h"
+#include "../split_string.hpp"
 
 #include <cstring> // strlen
 #include <numeric> // for std::accumulate
@@ -308,7 +308,7 @@ bool OpenCLC_Supports_Version(
   // "OpenCL C":1.0.0 "OpenCL C":1.1.0 "OpenCL C":1.2.0 "OpenCL C":3.0.0
   std::stringstream ss;
   ss << Version.major << "." << Version.minor << "." << Version.patch;
-  return VersionLog.find(ss.str());
+  return VersionLog.find(ss.str()) != std::string::npos;
 }
 
 bool OpenCLC_Supports_Extension(

@@ -3112,6 +3112,11 @@ void MicrosoftCXXNameMangler::mangleArrayType(const ArrayType *T) {
   mangleType(ElementTy, SourceRange(), QMM_Escape);
 }
 
+void MicrosoftCXXNameMangler::mangleType(const ArrayParameterType *T,
+                                         Qualifiers, SourceRange) {
+  mangleArrayType(cast<ConstantArrayType>(T));
+}
+
 // <type>                   ::= <pointer-to-member-type>
 // <pointer-to-member-type> ::= <pointer-cvr-qualifiers> <cvr-qualifiers>
 //                                                          <class name> <type>

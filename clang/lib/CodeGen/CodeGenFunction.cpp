@@ -93,6 +93,8 @@ CodeGenFunction::CodeGenFunction(CodeGenModule &cgm, bool suppressNewContext)
 
 CodeGenFunction::~CodeGenFunction() {
   assert(LifetimeExtendedCleanupStack.empty() && "failed to emit a cleanup");
+  assert(DeferredDeactivationCleanupStack.empty() &&
+         "missed to deactivate a cleanup");
 
   if (getLangOpts().OpenMP && CurFn)
     CGM.getOpenMPRuntime().functionFinished(*this);
@@ -269,6 +271,7 @@ TypeEvaluationKind CodeGenFunction::getEvaluationKind(QualType type) {
     case Type::Record:
     case Type::ObjCObject:
     case Type::ObjCInterface:
+    case Type::ArrayParameter:
       return TEK_Aggregate;
 
     // We operate on atomic values according to their underlying type.
@@ -338,6 +341,10 @@ static void EmitIfUsed(CodeGenFunction &CGF, llvm::BasicBlock *BB) {
 void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
   assert(BreakContinueStack.empty() &&
          "mismatched push/pop in break/continue stack!");
+  assert(LifetimeExtendedCleanupStack.empty() &&
+         "mismatched push/pop of cleanups in EHStack!");
+  assert(DeferredDeactivationCleanupStack.empty() &&
+         "mismatched activate/deactivate of cleanups!");
 
   bool OnlySimpleReturnStmts = NumSimpleReturnExprs > 0
     && NumSimpleReturnExprs == NumReturnExprs
@@ -1213,7 +1220,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   // return value. Initialize the flag to 'true' and refine it in EmitParmDecl.
   if (SanOpts.has(SanitizerKind::NullabilityReturn)) {
     auto Nullability = FnRetTy->getNullability();
-    if (Nullability && *Nullability == NullabilityKind::NonNull) {
+    if (Nullability && *Nullability == NullabilityKind::NonNull &&
+        !FnRetTy->isRecordType()) {
       if (!(SanOpts.has(SanitizerKind::ReturnsNonnullAttribute) &&
             CurCodeDecl && CurCodeDecl->getAttr<ReturnsNonNullAttr>()))
         RetValNullabilityPrecondition =
@@ -2627,6 +2635,7 @@ void CodeGenFunction::EmitVariablyModifiedType(QualType type) {
       type = cast<MemberPointerType>(ty)->getPointeeType();
       break;
 
+    case Type::ArrayParameter:
     case Type::ConstantArray:
     case Type::IncompleteArray:
       // Losing element qualification here is fine.
