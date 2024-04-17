@@ -8,13 +8,15 @@
 
 #pragma once
 
+#include <sycl/detail/exception_helper.hpp>
 #include <sycl/detail/pi.h>                    // for PI_ERROR_INVALID_VALUE
 #include <sycl/detail/property_helper.hpp>     // for DataLessPropKind, Pro...
 #include <sycl/detail/property_list_base.hpp>  // for PropertyListBase
 #include <sycl/properties/property_traits.hpp> // for is_property
 
-#include <bitset>      // for bitset
-#include <memory>      // for shared_ptr
+#include <bitset> // for bitset
+#include <memory> // for shared_ptr
+#include <system_error>
 #include <type_traits> // for conditional_t, enable...
 #include <vector>      // for vector
 
@@ -44,8 +46,11 @@ public:
   }
 
   template <typename PropT> PropT get_property() const {
-    if (!has_property<PropT>())
-      throw std::invalid_argument("The property is not found");
+    if (!has_property<PropT>()) {
+      detail::throw_invalid_parameter("The property is not found",
+                                      PI_ERROR_INVALID_VALUE);
+    }
+
     return get_property_helper<PropT>();
   }
 

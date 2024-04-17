@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/detail/exception_helper.hpp>
 #include <sycl/detail/pi.h>                // for PI_ERROR_INVALID_VALUE
 #include <sycl/detail/property_helper.hpp> // for DataLessPropKind, Propert...
 
@@ -85,20 +86,26 @@ protected:
     return PropT{};
   }
 
+// The following pragmas intend to silent warning of no return
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wreturn-type"
   template <typename PropT>
   typename std::enable_if_t<std::is_base_of_v<PropertyWithDataBase, PropT>,
                             PropT>
   get_property_helper() const {
     const int PropKind = static_cast<int>(PropT::getKind());
     if (PropKind >= PropWithDataKind::PropWithDataKindSize)
-      throw std::invalid_argument("The property is not found");
+      detail::throw_invalid_parameter("The property is not found",
+                                      PI_ERROR_INVALID_VALUE);
 
     for (const std::shared_ptr<PropertyWithDataBase> &Prop : MPropsWithData)
       if (Prop->isSame(PropKind))
         return *static_cast<PropT *>(Prop.get());
 
-    throw std::invalid_argument("The property is not found");
+    detail::throw_invalid_parameter("The property is not found",
+                                    PI_ERROR_INVALID_VALUE);
   }
+#pragma GCC diagnostic pop
 
   void add_or_replace_accessor_properties_helper(
       const std::vector<std::shared_ptr<PropertyWithDataBase>> &PropsWithData) {

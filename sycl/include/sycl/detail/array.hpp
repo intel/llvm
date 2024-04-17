@@ -9,10 +9,10 @@
 #pragma once
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
-#include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_VALUE
+#include <sycl/detail/exception_helper.hpp>
+#include <sycl/detail/pi.h> // for PI_ERROR_INVALID_VALUE
 
 #include <stddef.h>    // for size_t
-#include <stdexcept>
 #include <type_traits> // for enable_if_t
 
 namespace sycl {
@@ -106,7 +106,8 @@ protected:
   __SYCL_ALWAYS_INLINE void check_dimension(int dimension) const {
 #ifndef __SYCL_DEVICE_ONLY__
     if (dimension >= dimensions || dimension < 0) {
-      throw std::out_of_range("Index out of range");
+      detail::throw_invalid_parameter("Index out of range",
+                                      PI_ERROR_INVALID_VALUE);
     }
 #endif
     (void)dimension;
