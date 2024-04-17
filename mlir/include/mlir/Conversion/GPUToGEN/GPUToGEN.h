@@ -17,15 +17,13 @@
 
 namespace mlir {
 
-template <typename OpT>
-class OperationPass;
+class Pass;
 class RewritePatternSet;
 
 #define GEN_PASS_DECL_CONVERTGPUOPSTOGENOPS
 #include "mlir/Conversion/Passes.h.inc"
 
 void populateGPUToGENPatterns(RewritePatternSet &patterns);
-std::unique_ptr<OperationPass<void>> createConvertGpuOpsToGENOps();
 
 } // namespace mlir
 #endif // MLIR_CONVERSION_GPUTOGEN_GPUTOGEN_H

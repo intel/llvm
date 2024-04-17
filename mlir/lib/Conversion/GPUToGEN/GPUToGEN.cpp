@@ -132,7 +132,3 @@ struct ConvertGpuOpsToGENOpsPass
   }
 };
 } // namespace
-
-std::unique_ptr<OperationPass<>> mlir::createConvertGpuOpsToGENOps() {
-  return std::make_unique<ConvertGpuOpsToGENOpsPass>();
-}
