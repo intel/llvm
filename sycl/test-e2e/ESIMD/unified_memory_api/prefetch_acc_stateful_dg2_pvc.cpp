@@ -32,6 +32,18 @@ int main() {
   if (Q.get_device().has(sycl::aspect::fp64))
     Passed &= testACC<double>(Q);
 
+  Passed &= testBlockLoadPrefetchACC<int8_t>(Q);
+  Passed &= testBlockLoadPrefetchACC<int16_t>(Q);
+  if (Q.get_device().has(sycl::aspect::fp16))
+    Passed &= testBlockLoadPrefetchACC<sycl::half>(Q);
+  Passed &= testBlockLoadPrefetchACC<uint32_t>(Q);
+  Passed &= testBlockLoadPrefetchACC<float>(Q);
+  Passed &=
+      testBlockLoadPrefetchACC<ext::intel::experimental::esimd::tfloat32>(Q);
+  Passed &= testBlockLoadPrefetchACC<int64_t>(Q);
+  if (Q.get_device().has(sycl::aspect::fp64))
+    Passed &= testBlockLoadPrefetchACC<double>(Q);
+
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;
 }

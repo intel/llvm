@@ -32,6 +32,18 @@ int main() {
   if (Q.get_device().has(sycl::aspect::fp64))
     Passed &= testUSM<double>(Q);
 
+  Passed &= testBlockLoadPrefetchUSM<int8_t>(Q);
+  Passed &= testBlockLoadPrefetchUSM<int16_t>(Q);
+  if (Q.get_device().has(sycl::aspect::fp16))
+    Passed &= testBlockLoadPrefetchUSM<sycl::half>(Q);
+  Passed &= testBlockLoadPrefetchUSM<uint32_t>(Q);
+  Passed &= testBlockLoadPrefetchUSM<float>(Q);
+  Passed &=
+      testBlockLoadPrefetchUSM<ext::intel::experimental::esimd::tfloat32>(Q);
+  Passed &= testBlockLoadPrefetchUSM<int64_t>(Q);
+  if (Q.get_device().has(sycl::aspect::fp64))
+    Passed &= testBlockLoadPrefetchUSM<double>(Q);
+
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;
 }
