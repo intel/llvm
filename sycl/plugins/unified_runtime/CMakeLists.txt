@@ -104,14 +104,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   set(UNIFIED_RUNTIME_TAG b37fa2c4b09a49839a83228f687c811595fce3fd)
 
   fetch_adapter_source(level_zero
-    ${UNIFIED_RUNTIME_REPO}
-    # commit f4a94976f880de64d0c144abb1080a8262c158f3
-    # Merge: ee075703 39fcb2be
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri Apr 26 11:50:56 2024 +0100
-    #     Merge pull request #1370 from winstonzhang-intel/counter-based-events
-    #     [L0] Support for counter-based events using L0 driver
-    f4a94976f880de64d0c144abb1080a8262c158f3
+    "https://github.com/nrspruit/unified-runtime.git"
+    987c422c668455db04da12acbc5178084823c3b0
   )
 
   fetch_adapter_source(opencl
