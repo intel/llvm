@@ -294,5 +294,5 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     [[maybe_unused]] const size_t *pGlobalWorkOffset,
     [[maybe_unused]] const size_t *pGlobalWorkSize,
     [[maybe_unused]] size_t *pSuggestedLocalWorkSize) {
-  DIE_NO_IMPLEMENTATION
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
