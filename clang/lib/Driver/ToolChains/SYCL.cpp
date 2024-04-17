@@ -195,11 +195,11 @@ static bool selectBfloatLibs(const ToolChain &TC,
   return NeedLibs;
 }
 
-static SmallVector<std::string, 8>
+static SmallVector<ToolChain::BitCodeLibraryInfo, 8>
 getSYCLDeviceLibraries(const llvm::opt::ArgList &Args,
                        const llvm::Triple &TargetTriple, const ToolChain &TC,
                        bool IsSpirvAOT) {
-  SmallVector<std::string, 8> LibraryList;
+  SmallVector<ToolChain::BitCodeLibraryInfo, 8> LibraryList;
 
   struct DeviceLibOptInfo {
     StringRef DeviceLibName;
@@ -286,13 +286,14 @@ getSYCLDeviceLibraries(const llvm::opt::ArgList &Args,
       {"libsycl-sanitizer", "internal"}};
 #endif
 
-  auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
+  auto addLibraries = [&](const SYCLDeviceLibsList &LibsList,
+                          bool Internalize = true) {
     for (const DeviceLibOptInfo &Lib : LibsList) {
       if (!DeviceLibLinkInfo[Lib.DeviceLibOption])
         continue;
       SmallString<128> LibName(Lib.DeviceLibName);
       llvm::sys::path::replace_extension(LibName, LibSuffix);
-      LibraryList.push_back(Args.MakeArgString(LibName));
+      LibraryList.emplace_back(Args.MakeArgString(LibName), Internalize);
     }
   };
 
@@ -312,7 +313,7 @@ getSYCLDeviceLibraries(const llvm::opt::ArgList &Args,
 
   if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
                    options::OPT_fno_sycl_instrument_device_code, true))
-    addLibraries(SYCLDeviceAnnotationLibs);
+    addLibraries(SYCLDeviceAnnotationLibs, false);
 
 #if !defined(_WIN32)
   if (Arg *A = Args.getLastArg(options::OPT_fsanitize_EQ,
@@ -372,8 +373,11 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
         break;
       }
     }
-    LibraryList =
+    SmallVector<ToolChain::BitCodeLibraryInfo, 8> BitCodeList;
+    BitCodeList =
         getSYCLDeviceLibraries(Args, TargetTriple, *DeviceTC, IsSpirvAOT);
+    for (const auto &BitCodeFile : BitCodeList)
+      LibraryList.push_back(BitCodeFile.Path);
   }
   return LibraryList;
 }
@@ -1163,7 +1167,7 @@ void SYCLToolChain::addClangTargetOptions(
   SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
 
   const llvm::Triple &SYCLTriple(getTriple());
-  SmallVector<std::string, 8> DeviceLibraries;
+  SmallVector<ToolChain::BitCodeLibraryInfo, 8> DeviceLibraries;
   if (DriverArgs.hasArg(options::OPT_sycl_embed_devicelib))
     DeviceLibraries = getSYCLDeviceLibraries(DriverArgs, SYCLTriple, *this,
                                              /*IsSpirvAOT=*/false);
@@ -1174,10 +1178,10 @@ void SYCLToolChain::addClangTargetOptions(
       if (LibLocSelected)
         break;
       SmallString<128> LibName(LLCandidate);
-      llvm::sys::path::append(LibName, DeviceLib);
+      llvm::sys::path::append(LibName, DeviceLib.Path);
       if (llvm::sys::fs::exists(LibName)) {
-        CC1Args.push_back("-mlink-bitcode-file");
-        // CC1Args.push_back("-mlink-builtin-bitcode");
+        CC1Args.push_back(DeviceLib.ShouldInternalize ? "-mlink-builtin-bitcode"
+                                                      : "-mlink-bitcode-file");
         CC1Args.push_back(DriverArgs.MakeArgString(LibName));
         if (!LibLocSelected)
           LibLocSelected = !LibLocSelected;
