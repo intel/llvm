@@ -496,6 +496,10 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
+        if (UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP < propName) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
         if (UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
