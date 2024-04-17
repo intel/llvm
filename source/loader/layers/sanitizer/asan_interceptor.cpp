@@ -46,6 +46,11 @@ uptr MemToShadow_CPU(uptr USM_SHADOW_BASE, uptr UPtr) {
     return USM_SHADOW_BASE + (UPtr >> 3);
 }
 
+uptr MemToShadow_DG2(uptr USM_SHADOW_BASE, uptr UPtr) {
+    UPtr &= 0x7FFFFFFFFFFFULL;
+    return USM_SHADOW_BASE + (UPtr >> 3);
+}
+
 uptr MemToShadow_PVC(uptr USM_SHADOW_BASE, uptr UPtr) {
     if (UPtr & 0xFF00000000000000ULL) { // Device USM
         return USM_SHADOW_BASE + 0x200000000000ULL +
@@ -314,9 +319,11 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
     auto Program = getProgram(Kernel);
     ur_event_handle_t ReadEvent{};
 
+    // FIXME: We must use urQueueFinish here, until we support urEventSetCallback
+    context.urDdiTable.Queue.pfnFinish(Queue);
+
     // If kernel has defined SPIR_DeviceSanitizerReportMem, then we try to read it
-    // to host, but it's okay that it isn't defined
-    // FIXME: We must use block operation here, until we support urEventSetCallback
+    // to host, but it's okay that it hasn't be defined
     auto Result = context.urDdiTable.Enqueue.pfnDeviceGlobalVariableRead(
         Queue, Program, kSPIR_DeviceSanitizerReportMem, true,
         sizeof(LaunchInfo.SPIR_DeviceSanitizerReportMem), 0,
@@ -371,11 +378,46 @@ ur_result_t SanitizerInterceptor::allocShadowMemory(
         DeviceInfo->ShadowOffset = LOW_SHADOW_BEGIN;
         DeviceInfo->ShadowOffsetEnd = HIGH_SHADOW_END;
     } else if (DeviceInfo->Type == DeviceType::GPU_PVC) {
+        ///
+        /// USM allocation Range:
+        ///   Host/Shared USM : 0xffff_0000_0000_0000 ~ 0xffff_7fff_ffff_ffff
+        ///   Device      USM : 0xff00_0000_0000_0000 ~ 0xff00_ffff_ffff_ffff
+        ///
         /// SHADOW MEMORY MAPPING (PVC, with CPU 47bit)
         ///   Host/Shared USM : 0x0              ~ 0x0fff_ffff_ffff
         ///   ?               : 0x1000_0000_0000 ~ 0x1fff_ffff_ffff
         ///   Device USM      : 0x2000_0000_0000 ~ 0x3fff_ffff_ffff
         constexpr size_t SHADOW_SIZE = 1ULL << 46;
+        // FIXME: Currently, Level-Zero doesn't create independent VAs for each contexts,
+        // which will cause out-of-resource error when users use multiple contexts
+        static uptr ShadowOffset, ShadowOffsetEnd;
+
+        if (!ShadowOffset) {
+            // TODO: Protect Bad Zone
+            auto Result = context.urDdiTable.VirtualMem.pfnReserve(
+                Context, nullptr, SHADOW_SIZE, (void **)&ShadowOffset);
+            if (Result != UR_RESULT_SUCCESS) {
+                context.logger.error(
+                    "Failed to allocate shadow memory on PVC: {}", Result);
+                return Result;
+            }
+            ShadowOffsetEnd = ShadowOffset + SHADOW_SIZE;
+        }
+
+        DeviceInfo->ShadowOffset = ShadowOffset;
+        DeviceInfo->ShadowOffsetEnd = ShadowOffsetEnd;
+    } else if (DeviceInfo->Type == DeviceType::GPU_DG2) {
+        ///
+        /// USM Allocation Range:
+        ///   Host/Shared USM : 0x0000_0000_0000_0000 ~ 0x0000_7fff_ffff_ffff
+        ///   Device      USM : 0xffff_8000_0000_0000 ~ 0xffff_ffff_ffff_ffff
+        ///                     (high 17 bits are tag)
+        ///
+        /// SHADOW MEMORY MAPPING (DG2)
+        ///   Host/Shared USM : 0x0              ~ 0x0fff_ffff_ffff
+        ///   Device USM      : 0x1000_0000_0000 ~ 0x2fff_ffff_ffff
+        ///
+        constexpr size_t SHADOW_SIZE = 1ULL << 44;
         // FIXME: Currently, Level-Zero doesn't create independent VAs for each contexts,
         // which will cause out-of-resource error when users use multiple contexts
         static uptr ShadowOffset, ShadowOffsetEnd;
@@ -430,10 +472,18 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
             "enqueueMemSetShadow (addr={}, count={}, value={})",
             (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
             (void *)(size_t)Value);
-    } else if (DeviceInfo->Type == DeviceType::GPU_PVC) {
-        uptr ShadowBegin = MemToShadow_PVC(DeviceInfo->ShadowOffset, Ptr);
-        uptr ShadowEnd =
-            MemToShadow_PVC(DeviceInfo->ShadowOffset, Ptr + Size - 1);
+    } else if (DeviceInfo->Type == DeviceType::GPU_PVC ||
+               DeviceInfo->Type == DeviceType::GPU_DG2) {
+        uptr ShadowBegin = 0, ShadowEnd = 0;
+        if (DeviceInfo->Type == DeviceType::GPU_PVC) {
+            ShadowBegin = MemToShadow_PVC(DeviceInfo->ShadowOffset, Ptr);
+            ShadowEnd =
+                MemToShadow_PVC(DeviceInfo->ShadowOffset, Ptr + Size - 1);
+        } else if (DeviceInfo->Type == DeviceType::GPU_DG2) {
+            ShadowBegin = MemToShadow_DG2(DeviceInfo->ShadowOffset, Ptr);
+            ShadowEnd =
+                MemToShadow_DG2(DeviceInfo->ShadowOffset, Ptr + Size - 1);
+        }
 
         uint32_t NumEventsInWaitList = DepEvent ? 1 : 0;
         const ur_event_handle_t *EventsWaitList =
@@ -450,7 +500,7 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
                         UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED,
                         sizeof(Size), &Size, nullptr);
                 assert(Result == UR_RESULT_SUCCESS);
-                context.logger.info("PVC PageSize: {}", Size);
+                context.logger.info("GPU PageSize: {}", Size);
                 return Size;
             }();
 
@@ -479,7 +529,8 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
                     Context, (void *)MappedPtr, PageSize, PhysicalMem, 0,
                     UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
                 if (URes != UR_RESULT_SUCCESS) {
-                    context.logger.debug("urVirtualMemMap(): {}", URes);
+                    context.logger.debug("urVirtualMemMap({}, {}): {}",
+                                         (void *)MappedPtr, PageSize, URes);
                 }
 
                 // Initialize to zero
@@ -635,10 +686,6 @@ SanitizerInterceptor::registerDeviceGlobals(ur_context_handle_t Context,
         if (Result == UR_RESULT_ERROR_INVALID_ARGUMENT) {
             context.logger.info("No device globals");
             continue;
-        } else if (Result != UR_RESULT_SUCCESS) {
-            context.logger.error("Device Global[{}] Read Failed: {}",
-                                 kSPIR_AsanDeviceGlobalCount, Result);
-            return Result;
         }
 
         std::vector<DeviceGlobalInfo> GVInfos(NumOfDeviceGlobal);
