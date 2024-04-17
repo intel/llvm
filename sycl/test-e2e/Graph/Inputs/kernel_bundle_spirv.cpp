@@ -1,6 +1,6 @@
-// Tests importing a spirv kernel using sycl_ext_oneapi_kernel_compiler_spirv.
-// The SPIR-V kernels are identical to the ones used in
-// KernelCompiler/Kernels/kernels.spv
+// Tests creating a node using a SPIR-V kernel imported with
+// sycl_ext_oneapi_kernel_compiler_spirv. The SPIR-V kernels used in this test
+// are identical to the ones used in KernelCompiler/Kernels/kernels.spv
 
 #include "../graph_common.hpp"
 #include <fstream>
@@ -28,7 +28,7 @@ loadKernelsFromFile(sycl::queue &Q, std::string FileName) {
 }
 
 int main(int, char **argv) {
-  
+
   const sycl::device Dev{sycl::default_selector_v};
   const sycl::context Ctx{Dev};
 
@@ -75,7 +75,8 @@ int main(int, char **argv) {
                CGH.set_arg(
                    0, input_buffer.get_access<sycl::access::mode::read>(CGH));
                CGH.set_arg(
-                   1, output_buffer2.get_access<sycl::access::mode::write>(CGH));
+                   1,
+                   output_buffer2.get_access<sycl::access::mode::write>(CGH));
                CGH.parallel_for(sycl::range<1>{N}, kernel);
              }));
 
