@@ -1,3 +1,4 @@
+// REQUIRES: native_cpu_ock
 // RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -mllvm -inline-threshold=500 -S -emit-llvm  -o %t_temp.ll %s
 // RUN: %clangxx -mllvm -sycl-native-cpu-backend -S -emit-llvm -o - %t_temp.ll | FileCheck %s
 
