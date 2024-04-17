@@ -142,14 +142,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(native_cpu
-    ${UNIFIED_RUNTIME_REPO}
+    "https://github.com/PietroGhg/unified-runtime.git"
     # commit 15233fd2521f9e9b35e3a24037be99ceef334a8e
     # Merge: 68e525a4 a04b062e
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
     # Date:   Fri Apr 12 15:46:49 2024 +0100
     #     Merge pull request #1489 from konradkusiak97/nativeCPUqueueFill
     #     [NATIVECPU] Extended usm fill to bigger patterns than 1 byte
-    15233fd2521f9e9b35e3a24037be99ceef334a8e
+    pietro/native_cpu_half
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)

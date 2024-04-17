@@ -1,26 +1,6 @@
 #include "func.h"
-#include "types.h"
 
-#ifdef NO_CLANG_BUILTINS
-
-#define GEN_UNARY_BUILTIN_T(NAME, TYPE)                                        \
-  _CLC_OVERLOAD TYPE __##NAME##_helper(TYPE);                                  \
-  _CLC_OVERLOAD TYPE __spirv_ocl_##NAME(TYPE n) { return __##NAME##_helper(n); }
-
-#define GEN_TERNARY_BUILTIN_T(NAME, TYPE)                                      \
-  _CLC_OVERLOAD TYPE __##NAME##_helper(TYPE, TYPE, TYPE);                      \
-  _CLC_OVERLOAD TYPE __spirv_ocl_##NAME(TYPE a, TYPE b, TYPE c) {              \
-    return __##NAME##_helper(a, b, c);                                         \
-  }
-#define GEN_UNARY_BUILTIN(NAME)                                                \
-  GEN_UNARY_BUILTIN_T(NAME, float)                                             \
-  GEN_UNARY_BUILTIN_T(NAME, double)
-
-#define GEN_TERNARY_BUILTIN(NAME)                                              \
-  GEN_TERNARY_BUILTIN_T(NAME, float)                                           \
-  GEN_TERNARY_BUILTIN_T(NAME, double)
-
-#else
+#pragma OPENCL EXTENSION cl_khr_fp16: enable                                    
 
 #ifndef IS_NATIVE
 #define GETNAME(ID) __spirv_ocl_##ID
@@ -54,7 +34,9 @@
     return __builtin_##NAME##f(n);                                             \
   }                                                                            \
   _CLC_OVERLOAD double GETNAME(NAME)(double n) { return __builtin_##NAME(n); } \
+  _CLC_OVERLOAD half GETNAME(NAME)(half n) { return __builtin_##NAME(n); }     \
   GEN_UNARY_VECTOR_BUILTIN_T(NAME, float)                                      \
+  GEN_UNARY_VECTOR_BUILTIN_T(NAME, half)                                       \
   GEN_UNARY_VECTOR_BUILTIN_T(NAME, double)
 
 #define GEN_TERNARY_VECTOR_BUILTIN(NAME, TYPE, NUM)                            \
@@ -77,6 +59,9 @@
   _CLC_OVERLOAD double GETNAME(NAME)(double n1, double n2, double n3) {        \
     return __builtin_##NAME(n1, n2, n3);                                       \
   }                                                                            \
+  _CLC_OVERLOAD half GETNAME(NAME)(half n1, half n2, half n3) {                \
+    return __builtin_##NAME(n1, n2, n3);                                       \
+  }                                                                            \
   GEN_TERNARY_VECTOR_BUILTIN_T(NAME, float)                                    \
-  GEN_TERNARY_VECTOR_BUILTIN_T(NAME, double)
-#endif
+  GEN_TERNARY_VECTOR_BUILTIN_T(NAME, double)                                   \
+  GEN_TERNARY_VECTOR_BUILTIN_T(NAME, half)
