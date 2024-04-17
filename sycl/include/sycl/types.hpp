@@ -623,6 +623,7 @@ public:
         // - we are not on CUDA, see intel/llvm#11840
         false &&
 #endif
+        NumElements > 1 &&
         // - vec storage has an equivalent OpenCL native vector it is implicitly
         //   convertible to. There are some corner cases where it is not the
         //   case with char, long and long long types.
