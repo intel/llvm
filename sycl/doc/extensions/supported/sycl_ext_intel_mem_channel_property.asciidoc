@@ -96,7 +96,7 @@ enum class aspect {
     host,
     cpu,
     ...
-    usm_system_allocator,
+    usm_system_allocations,
     ext_intel_mem_channel
 };
 

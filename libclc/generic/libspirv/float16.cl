@@ -4720,9 +4720,9 @@ __spirv_ocl_fmod(__clc_vec16_float16_t args_0, __clc_vec16_float16_t args_1) {
   return __spirv_ocl_fmod(as_half16(args_0), as_half16(args_1));
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_fp16_t __spirv_ocl_fract(__clc_float16_t args_0,
-                                                      __clc_float16_t *args_1) {
-  return __spirv_ocl_fract(as_half(args_0), (__clc_fp16_t *)(args_1));
+_CLC_OVERLOAD _CLC_DEF __clc_fp16_t
+__spirv_ocl_fract(__clc_float16_t args_0, __clc_float16_t __private *args_1) {
+  return __spirv_ocl_fract(as_half(args_0), (__clc_fp16_t __private *)(args_1));
 }
 
 _CLC_OVERLOAD _CLC_DEF __clc_fp16_t
@@ -4735,9 +4735,19 @@ __spirv_ocl_fract(__clc_float16_t args_0, __clc_float16_t __global *args_1) {
   return __spirv_ocl_fract(as_half(args_0), (__clc_fp16_t __global *)(args_1));
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t
-__spirv_ocl_fract(__clc_vec2_float16_t args_0, __clc_vec2_float16_t *args_1) {
-  return __spirv_ocl_fract(as_half2(args_0), (__clc_vec2_fp16_t *)(args_1));
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_fp16_t
+__spirv_ocl_fract(__clc_float16_t args_0, __clc_float16_t __generic *args_1) {
+  return __spirv_ocl_fract(as_half(args_0), (__clc_fp16_t __generic *)(args_1));
+}
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t __spirv_ocl_fract(
+    __clc_vec2_float16_t args_0, __clc_vec2_float16_t __private *args_1) {
+  return __spirv_ocl_fract(as_half2(args_0),
+                           (__clc_vec2_fp16_t __private *)(args_1));
 }
 
 _CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t __spirv_ocl_fract(
@@ -4752,9 +4762,20 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t __spirv_ocl_fract(
                            (__clc_vec2_fp16_t __global *)(args_1));
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t
-__spirv_ocl_fract(__clc_vec3_float16_t args_0, __clc_vec3_float16_t *args_1) {
-  return __spirv_ocl_fract(as_half3(args_0), (__clc_vec3_fp16_t *)(args_1));
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t __spirv_ocl_fract(
+    __clc_vec2_float16_t args_0, __clc_vec2_float16_t __generic *args_1) {
+  return __spirv_ocl_fract(as_half2(args_0),
+                           (__clc_vec2_fp16_t __generic *)(args_1));
+}
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t __spirv_ocl_fract(
+    __clc_vec3_float16_t args_0, __clc_vec3_float16_t __private *args_1) {
+  return __spirv_ocl_fract(as_half3(args_0),
+                           (__clc_vec3_fp16_t __private *)(args_1));
 }
 
 _CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t __spirv_ocl_fract(
@@ -4769,9 +4790,20 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t __spirv_ocl_fract(
                            (__clc_vec3_fp16_t __global *)(args_1));
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t
-__spirv_ocl_fract(__clc_vec4_float16_t args_0, __clc_vec4_float16_t *args_1) {
-  return __spirv_ocl_fract(as_half4(args_0), (__clc_vec4_fp16_t *)(args_1));
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t __spirv_ocl_fract(
+    __clc_vec3_float16_t args_0, __clc_vec3_float16_t __generic *args_1) {
+  return __spirv_ocl_fract(as_half3(args_0),
+                           (__clc_vec3_fp16_t __generic *)(args_1));
+}
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t __spirv_ocl_fract(
+    __clc_vec4_float16_t args_0, __clc_vec4_float16_t __private *args_1) {
+  return __spirv_ocl_fract(as_half4(args_0),
+                           (__clc_vec4_fp16_t __private *)(args_1));
 }
 
 _CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t __spirv_ocl_fract(
@@ -4786,9 +4818,20 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t __spirv_ocl_fract(
                            (__clc_vec4_fp16_t __global *)(args_1));
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t
-__spirv_ocl_fract(__clc_vec8_float16_t args_0, __clc_vec8_float16_t *args_1) {
-  return __spirv_ocl_fract(as_half8(args_0), (__clc_vec8_fp16_t *)(args_1));
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t __spirv_ocl_fract(
+    __clc_vec4_float16_t args_0, __clc_vec4_float16_t __generic *args_1) {
+  return __spirv_ocl_fract(as_half4(args_0),
+                           (__clc_vec4_fp16_t __generic *)(args_1));
+}
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t __spirv_ocl_fract(
+    __clc_vec8_float16_t args_0, __clc_vec8_float16_t __private *args_1) {
+  return __spirv_ocl_fract(as_half8(args_0),
+                           (__clc_vec8_fp16_t __private *)(args_1));
 }
 
 _CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t __spirv_ocl_fract(
@@ -4803,9 +4846,20 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t __spirv_ocl_fract(
                            (__clc_vec8_fp16_t __global *)(args_1));
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_vec16_fp16_t
-__spirv_ocl_fract(__clc_vec16_float16_t args_0, __clc_vec16_float16_t *args_1) {
-  return __spirv_ocl_fract(as_half16(args_0), (__clc_vec16_fp16_t *)(args_1));
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t __spirv_ocl_fract(
+    __clc_vec8_float16_t args_0, __clc_vec8_float16_t __generic *args_1) {
+  return __spirv_ocl_fract(as_half8(args_0),
+                           (__clc_vec8_fp16_t __generic *)(args_1));
+}
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __clc_vec16_fp16_t __spirv_ocl_fract(
+    __clc_vec16_float16_t args_0, __clc_vec16_float16_t __private *args_1) {
+  return __spirv_ocl_fract(as_half16(args_0),
+                           (__clc_vec16_fp16_t __private *)(args_1));
 }
 
 _CLC_OVERLOAD _CLC_DEF __clc_vec16_fp16_t __spirv_ocl_fract(
@@ -4820,8 +4874,18 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec16_fp16_t __spirv_ocl_fract(
                            (__clc_vec16_fp16_t __global *)(args_1));
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_fp16_t __spirv_ocl_frexp(__clc_float16_t args_0,
-                                                      __clc_int32_t *args_1) {
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec16_fp16_t __spirv_ocl_fract(
+    __clc_vec16_float16_t args_0, __clc_vec16_float16_t __generic *args_1) {
+  return __spirv_ocl_fract(as_half16(args_0),
+                           (__clc_vec16_fp16_t __generic *)(args_1));
+}
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __clc_fp16_t
+__spirv_ocl_frexp(__clc_float16_t args_0, __clc_int32_t __private *args_1) {
   return __spirv_ocl_frexp(as_half(args_0), args_1);
 }
 
@@ -4835,8 +4899,17 @@ __spirv_ocl_frexp(__clc_float16_t args_0, __clc_int32_t __global *args_1) {
   return __spirv_ocl_frexp(as_half(args_0), args_1);
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t
-__spirv_ocl_frexp(__clc_vec2_float16_t args_0, __clc_vec2_int32_t *args_1) {
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_fp16_t
+__spirv_ocl_frexp(__clc_float16_t args_0, __clc_int32_t __generic *args_1) {
+  return __spirv_ocl_frexp(as_half(args_0), args_1);
+}
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t __spirv_ocl_frexp(
+    __clc_vec2_float16_t args_0, __clc_vec2_int32_t __private *args_1) {
   return __spirv_ocl_frexp(as_half2(args_0), args_1);
 }
 
@@ -4850,8 +4923,17 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t __spirv_ocl_frexp(
   return __spirv_ocl_frexp(as_half2(args_0), args_1);
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t
-__spirv_ocl_frexp(__clc_vec3_float16_t args_0, __clc_vec3_int32_t *args_1) {
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t __spirv_ocl_frexp(
+    __clc_vec2_float16_t args_0, __clc_vec2_int32_t __generic *args_1) {
+  return __spirv_ocl_frexp(as_half2(args_0), args_1);
+}
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t __spirv_ocl_frexp(
+    __clc_vec3_float16_t args_0, __clc_vec3_int32_t __private *args_1) {
   return __spirv_ocl_frexp(as_half3(args_0), args_1);
 }
 
@@ -4865,8 +4947,17 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t __spirv_ocl_frexp(
   return __spirv_ocl_frexp(as_half3(args_0), args_1);
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t
-__spirv_ocl_frexp(__clc_vec4_float16_t args_0, __clc_vec4_int32_t *args_1) {
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t __spirv_ocl_frexp(
+    __clc_vec3_float16_t args_0, __clc_vec3_int32_t __generic *args_1) {
+  return __spirv_ocl_frexp(as_half3(args_0), args_1);
+}
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t __spirv_ocl_frexp(
+    __clc_vec4_float16_t args_0, __clc_vec4_int32_t __private *args_1) {
   return __spirv_ocl_frexp(as_half4(args_0), args_1);
 }
 
@@ -4880,8 +4971,17 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t __spirv_ocl_frexp(
   return __spirv_ocl_frexp(as_half4(args_0), args_1);
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t
-__spirv_ocl_frexp(__clc_vec8_float16_t args_0, __clc_vec8_int32_t *args_1) {
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t __spirv_ocl_frexp(
+    __clc_vec4_float16_t args_0, __clc_vec4_int32_t __generic *args_1) {
+  return __spirv_ocl_frexp(as_half4(args_0), args_1);
+}
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t __spirv_ocl_frexp(
+    __clc_vec8_float16_t args_0, __clc_vec8_int32_t __private *args_1) {
   return __spirv_ocl_frexp(as_half8(args_0), args_1);
 }
 
@@ -4895,8 +4995,17 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t __spirv_ocl_frexp(
   return __spirv_ocl_frexp(as_half8(args_0), args_1);
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_vec16_fp16_t
-__spirv_ocl_frexp(__clc_vec16_float16_t args_0, __clc_vec16_int32_t *args_1) {
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t __spirv_ocl_frexp(
+    __clc_vec8_float16_t args_0, __clc_vec8_int32_t __generic *args_1) {
+  return __spirv_ocl_frexp(as_half8(args_0), args_1);
+}
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __clc_vec16_fp16_t __spirv_ocl_frexp(
+    __clc_vec16_float16_t args_0, __clc_vec16_int32_t __private *args_1) {
   return __spirv_ocl_frexp(as_half16(args_0), args_1);
 }
 
@@ -4909,6 +5018,15 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec16_fp16_t __spirv_ocl_frexp(
     __clc_vec16_float16_t args_0, __clc_vec16_int32_t __global *args_1) {
   return __spirv_ocl_frexp(as_half16(args_0), args_1);
 }
+
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec16_fp16_t __spirv_ocl_frexp(
+    __clc_vec16_float16_t args_0, __clc_vec16_int32_t __generic *args_1) {
+  return __spirv_ocl_frexp(as_half16(args_0), args_1);
+}
+#endif
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONSTFN __clc_fp16_t
 __spirv_ocl_hypot(__clc_float16_t args_0, __clc_float16_t args_1) {
@@ -5081,7 +5199,7 @@ __spirv_ocl_lgamma(__clc_vec16_float16_t args_0) {
 }
 
 _CLC_OVERLOAD _CLC_DEF __clc_fp16_t
-__spirv_ocl_lgamma_r(__clc_float16_t args_0, __clc_int32_t *args_1) {
+__spirv_ocl_lgamma_r(__clc_float16_t args_0, __clc_int32_t __private *args_1) {
   return __spirv_ocl_lgamma_r(as_half(args_0), args_1);
 }
 
@@ -5095,8 +5213,17 @@ __spirv_ocl_lgamma_r(__clc_float16_t args_0, __clc_int32_t __global *args_1) {
   return __spirv_ocl_lgamma_r(as_half(args_0), args_1);
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t
-__spirv_ocl_lgamma_r(__clc_vec2_float16_t args_0, __clc_vec2_int32_t *args_1) {
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_fp16_t
+__spirv_ocl_lgamma_r(__clc_float16_t args_0, __clc_int32_t __generic *args_1) {
+  return __spirv_ocl_lgamma_r(as_half(args_0), args_1);
+}
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t __spirv_ocl_lgamma_r(
+    __clc_vec2_float16_t args_0, __clc_vec2_int32_t __private *args_1) {
   return __spirv_ocl_lgamma_r(as_half2(args_0), args_1);
 }
 
@@ -5110,8 +5237,17 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t __spirv_ocl_lgamma_r(
   return __spirv_ocl_lgamma_r(as_half2(args_0), args_1);
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t
-__spirv_ocl_lgamma_r(__clc_vec3_float16_t args_0, __clc_vec3_int32_t *args_1) {
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t __spirv_ocl_lgamma_r(
+    __clc_vec2_float16_t args_0, __clc_vec2_int32_t __generic *args_1) {
+  return __spirv_ocl_lgamma_r(as_half2(args_0), args_1);
+}
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t __spirv_ocl_lgamma_r(
+    __clc_vec3_float16_t args_0, __clc_vec3_int32_t __private *args_1) {
   return __spirv_ocl_lgamma_r(as_half3(args_0), args_1);
 }
 
@@ -5125,8 +5261,17 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t __spirv_ocl_lgamma_r(
   return __spirv_ocl_lgamma_r(as_half3(args_0), args_1);
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t
-__spirv_ocl_lgamma_r(__clc_vec4_float16_t args_0, __clc_vec4_int32_t *args_1) {
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t __spirv_ocl_lgamma_r(
+    __clc_vec3_float16_t args_0, __clc_vec3_int32_t __generic *args_1) {
+  return __spirv_ocl_lgamma_r(as_half3(args_0), args_1);
+}
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t __spirv_ocl_lgamma_r(
+    __clc_vec4_float16_t args_0, __clc_vec4_int32_t __private *args_1) {
   return __spirv_ocl_lgamma_r(as_half4(args_0), args_1);
 }
 
@@ -5140,8 +5285,17 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t __spirv_ocl_lgamma_r(
   return __spirv_ocl_lgamma_r(as_half4(args_0), args_1);
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t
-__spirv_ocl_lgamma_r(__clc_vec8_float16_t args_0, __clc_vec8_int32_t *args_1) {
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t __spirv_ocl_lgamma_r(
+    __clc_vec4_float16_t args_0, __clc_vec4_int32_t __generic *args_1) {
+  return __spirv_ocl_lgamma_r(as_half4(args_0), args_1);
+}
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t __spirv_ocl_lgamma_r(
+    __clc_vec8_float16_t args_0, __clc_vec8_int32_t __private *args_1) {
   return __spirv_ocl_lgamma_r(as_half8(args_0), args_1);
 }
 
@@ -5155,8 +5309,17 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t __spirv_ocl_lgamma_r(
   return __spirv_ocl_lgamma_r(as_half8(args_0), args_1);
 }
 
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t __spirv_ocl_lgamma_r(
+    __clc_vec8_float16_t args_0, __clc_vec8_int32_t __generic *args_1) {
+  return __spirv_ocl_lgamma_r(as_half8(args_0), args_1);
+}
+#endif
+
 _CLC_OVERLOAD _CLC_DEF __clc_vec16_fp16_t __spirv_ocl_lgamma_r(
-    __clc_vec16_float16_t args_0, __clc_vec16_int32_t *args_1) {
+    __clc_vec16_float16_t args_0, __clc_vec16_int32_t __private *args_1) {
   return __spirv_ocl_lgamma_r(as_half16(args_0), args_1);
 }
 
@@ -5169,6 +5332,15 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec16_fp16_t __spirv_ocl_lgamma_r(
     __clc_vec16_float16_t args_0, __clc_vec16_int32_t __global *args_1) {
   return __spirv_ocl_lgamma_r(as_half16(args_0), args_1);
 }
+
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec16_fp16_t __spirv_ocl_lgamma_r(
+    __clc_vec16_float16_t args_0, __clc_vec16_int32_t __generic *args_1) {
+  return __spirv_ocl_lgamma_r(as_half16(args_0), args_1);
+}
+#endif
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONSTFN __clc_fp16_t
 __spirv_ocl_log(__clc_float16_t args_0) {
@@ -5452,9 +5624,9 @@ __spirv_ocl_mix(__clc_vec16_float16_t args_0, __clc_vec16_float16_t args_1,
                          as_half16(args_2));
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_fp16_t __spirv_ocl_modf(__clc_float16_t args_0,
-                                                     __clc_float16_t *args_1) {
-  return __spirv_ocl_modf(as_half(args_0), (__clc_fp16_t *)(args_1));
+_CLC_OVERLOAD _CLC_DEF __clc_fp16_t
+__spirv_ocl_modf(__clc_float16_t args_0, __clc_float16_t __private *args_1) {
+  return __spirv_ocl_modf(as_half(args_0), (__clc_fp16_t __private *)(args_1));
 }
 
 _CLC_OVERLOAD _CLC_DEF __clc_fp16_t
@@ -5467,9 +5639,19 @@ __spirv_ocl_modf(__clc_float16_t args_0, __clc_float16_t __global *args_1) {
   return __spirv_ocl_modf(as_half(args_0), (__clc_fp16_t __global *)(args_1));
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t
-__spirv_ocl_modf(__clc_vec2_float16_t args_0, __clc_vec2_float16_t *args_1) {
-  return __spirv_ocl_modf(as_half2(args_0), (__clc_vec2_fp16_t *)(args_1));
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_fp16_t
+__spirv_ocl_modf(__clc_float16_t args_0, __clc_float16_t __generic *args_1) {
+  return __spirv_ocl_modf(as_half(args_0), (__clc_fp16_t __generic *)(args_1));
+}
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t __spirv_ocl_modf(
+    __clc_vec2_float16_t args_0, __clc_vec2_float16_t __private *args_1) {
+  return __spirv_ocl_modf(as_half2(args_0),
+                          (__clc_vec2_fp16_t __private *)(args_1));
 }
 
 _CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t __spirv_ocl_modf(
@@ -5484,9 +5666,20 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t __spirv_ocl_modf(
                           (__clc_vec2_fp16_t __global *)(args_1));
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t
-__spirv_ocl_modf(__clc_vec3_float16_t args_0, __clc_vec3_float16_t *args_1) {
-  return __spirv_ocl_modf(as_half3(args_0), (__clc_vec3_fp16_t *)(args_1));
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t __spirv_ocl_modf(
+    __clc_vec2_float16_t args_0, __clc_vec2_float16_t __generic *args_1) {
+  return __spirv_ocl_modf(as_half2(args_0),
+                          (__clc_vec2_fp16_t __generic *)(args_1));
+}
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t __spirv_ocl_modf(
+    __clc_vec3_float16_t args_0, __clc_vec3_float16_t __private *args_1) {
+  return __spirv_ocl_modf(as_half3(args_0),
+                          (__clc_vec3_fp16_t __private *)(args_1));
 }
 
 _CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t __spirv_ocl_modf(
@@ -5501,9 +5694,20 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t __spirv_ocl_modf(
                           (__clc_vec3_fp16_t __global *)(args_1));
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t
-__spirv_ocl_modf(__clc_vec4_float16_t args_0, __clc_vec4_float16_t *args_1) {
-  return __spirv_ocl_modf(as_half4(args_0), (__clc_vec4_fp16_t *)(args_1));
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t __spirv_ocl_modf(
+    __clc_vec3_float16_t args_0, __clc_vec3_float16_t __generic *args_1) {
+  return __spirv_ocl_modf(as_half3(args_0),
+                          (__clc_vec3_fp16_t __generic *)(args_1));
+}
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t __spirv_ocl_modf(
+    __clc_vec4_float16_t args_0, __clc_vec4_float16_t __private *args_1) {
+  return __spirv_ocl_modf(as_half4(args_0),
+                          (__clc_vec4_fp16_t __private *)(args_1));
 }
 
 _CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t __spirv_ocl_modf(
@@ -5518,9 +5722,20 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t __spirv_ocl_modf(
                           (__clc_vec4_fp16_t __global *)(args_1));
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t
-__spirv_ocl_modf(__clc_vec8_float16_t args_0, __clc_vec8_float16_t *args_1) {
-  return __spirv_ocl_modf(as_half8(args_0), (__clc_vec8_fp16_t *)(args_1));
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t __spirv_ocl_modf(
+    __clc_vec4_float16_t args_0, __clc_vec4_float16_t __generic *args_1) {
+  return __spirv_ocl_modf(as_half4(args_0),
+                          (__clc_vec4_fp16_t __generic *)(args_1));
+}
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t __spirv_ocl_modf(
+    __clc_vec8_float16_t args_0, __clc_vec8_float16_t __private *args_1) {
+  return __spirv_ocl_modf(as_half8(args_0),
+                          (__clc_vec8_fp16_t __private *)(args_1));
 }
 
 _CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t __spirv_ocl_modf(
@@ -5535,9 +5750,19 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t __spirv_ocl_modf(
                           (__clc_vec8_fp16_t __global *)(args_1));
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_vec16_fp16_t
-__spirv_ocl_modf(__clc_vec16_float16_t args_0, __clc_vec16_float16_t *args_1) {
-  return __spirv_ocl_modf(as_half16(args_0), (__clc_vec16_fp16_t *)(args_1));
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t __spirv_ocl_modf(
+    __clc_vec8_float16_t args_0, __clc_vec8_float16_t __generic *args_1) {
+  return __spirv_ocl_modf(as_half8(args_0),
+                          (__clc_vec8_fp16_t __generic *)(args_1));
+}
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __clc_vec16_fp16_t __spirv_ocl_modf(
+    __clc_vec16_float16_t args_0, __clc_vec16_float16_t __private *args_1) {
+  return __spirv_ocl_modf(as_half16(args_0), (__clc_vec16_fp16_t __private *)(args_1));
 }
 
 _CLC_OVERLOAD _CLC_DEF __clc_vec16_fp16_t __spirv_ocl_modf(
@@ -5551,6 +5776,16 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec16_fp16_t __spirv_ocl_modf(
   return __spirv_ocl_modf(as_half16(args_0),
                           (__clc_vec16_fp16_t __global *)(args_1));
 }
+
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec16_fp16_t __spirv_ocl_modf(
+    __clc_vec16_float16_t args_0, __clc_vec16_float16_t __generic *args_1) {
+  return __spirv_ocl_modf(as_half16(args_0),
+                          (__clc_vec16_fp16_t __generic *)(args_1));
+}
+#endif
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONSTFN __clc_fp16_t
 __spirv_ocl_nextafter(__clc_float16_t args_0, __clc_float16_t args_1) {
@@ -5788,9 +6023,9 @@ _CLC_OVERLOAD _CLC_DEF _CLC_CONSTFN __clc_vec16_fp16_t __spirv_ocl_remainder(
   return __spirv_ocl_remainder(as_half16(args_0), as_half16(args_1));
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_fp16_t __spirv_ocl_remquo(__clc_float16_t args_0,
-                                                       __clc_float16_t args_1,
-                                                       __clc_int32_t *args_2) {
+_CLC_OVERLOAD _CLC_DEF __clc_fp16_t
+__spirv_ocl_remquo(__clc_float16_t args_0, __clc_float16_t args_1,
+                   __clc_int32_t __private *args_2) {
   return __spirv_ocl_remquo(as_half(args_0), as_half(args_1), args_2);
 }
 
@@ -5806,9 +6041,19 @@ __spirv_ocl_remquo(__clc_float16_t args_0, __clc_float16_t args_1,
   return __spirv_ocl_remquo(as_half(args_0), as_half(args_1), args_2);
 }
 
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_fp16_t
+__spirv_ocl_remquo(__clc_float16_t args_0, __clc_float16_t args_1,
+                   __clc_int32_t __generic *args_2) {
+  return __spirv_ocl_remquo(as_half(args_0), as_half(args_1), args_2);
+}
+#endif
+
 _CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t
 __spirv_ocl_remquo(__clc_vec2_float16_t args_0, __clc_vec2_float16_t args_1,
-                   __clc_vec2_int32_t *args_2) {
+                   __clc_vec2_int32_t __private *args_2) {
   return __spirv_ocl_remquo(as_half2(args_0), as_half2(args_1), args_2);
 }
 
@@ -5824,9 +6069,19 @@ __spirv_ocl_remquo(__clc_vec2_float16_t args_0, __clc_vec2_float16_t args_1,
   return __spirv_ocl_remquo(as_half2(args_0), as_half2(args_1), args_2);
 }
 
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t
+__spirv_ocl_remquo(__clc_vec2_float16_t args_0, __clc_vec2_float16_t args_1,
+                   __clc_vec2_int32_t __generic *args_2) {
+  return __spirv_ocl_remquo(as_half2(args_0), as_half2(args_1), args_2);
+}
+#endif
+
 _CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t
 __spirv_ocl_remquo(__clc_vec3_float16_t args_0, __clc_vec3_float16_t args_1,
-                   __clc_vec3_int32_t *args_2) {
+                   __clc_vec3_int32_t __private *args_2) {
   return __spirv_ocl_remquo(as_half3(args_0), as_half3(args_1), args_2);
 }
 
@@ -5842,9 +6097,19 @@ __spirv_ocl_remquo(__clc_vec3_float16_t args_0, __clc_vec3_float16_t args_1,
   return __spirv_ocl_remquo(as_half3(args_0), as_half3(args_1), args_2);
 }
 
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t
+__spirv_ocl_remquo(__clc_vec3_float16_t args_0, __clc_vec3_float16_t args_1,
+                   __clc_vec3_int32_t __generic *args_2) {
+  return __spirv_ocl_remquo(as_half3(args_0), as_half3(args_1), args_2);
+}
+#endif
+
 _CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t
 __spirv_ocl_remquo(__clc_vec4_float16_t args_0, __clc_vec4_float16_t args_1,
-                   __clc_vec4_int32_t *args_2) {
+                   __clc_vec4_int32_t __private *args_2) {
   return __spirv_ocl_remquo(as_half4(args_0), as_half4(args_1), args_2);
 }
 
@@ -5860,9 +6125,19 @@ __spirv_ocl_remquo(__clc_vec4_float16_t args_0, __clc_vec4_float16_t args_1,
   return __spirv_ocl_remquo(as_half4(args_0), as_half4(args_1), args_2);
 }
 
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t
+__spirv_ocl_remquo(__clc_vec4_float16_t args_0, __clc_vec4_float16_t args_1,
+                   __clc_vec4_int32_t __generic *args_2) {
+  return __spirv_ocl_remquo(as_half4(args_0), as_half4(args_1), args_2);
+}
+#endif
+
 _CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t
 __spirv_ocl_remquo(__clc_vec8_float16_t args_0, __clc_vec8_float16_t args_1,
-                   __clc_vec8_int32_t *args_2) {
+                   __clc_vec8_int32_t __private *args_2) {
   return __spirv_ocl_remquo(as_half8(args_0), as_half8(args_1), args_2);
 }
 
@@ -5878,9 +6153,19 @@ __spirv_ocl_remquo(__clc_vec8_float16_t args_0, __clc_vec8_float16_t args_1,
   return __spirv_ocl_remquo(as_half8(args_0), as_half8(args_1), args_2);
 }
 
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t
+__spirv_ocl_remquo(__clc_vec8_float16_t args_0, __clc_vec8_float16_t args_1,
+                   __clc_vec8_int32_t __generic *args_2) {
+  return __spirv_ocl_remquo(as_half8(args_0), as_half8(args_1), args_2);
+}
+#endif
+
 _CLC_OVERLOAD _CLC_DEF __clc_vec16_fp16_t
 __spirv_ocl_remquo(__clc_vec16_float16_t args_0, __clc_vec16_float16_t args_1,
-                   __clc_vec16_int32_t *args_2) {
+                   __clc_vec16_int32_t __private *args_2) {
   return __spirv_ocl_remquo(as_half16(args_0), as_half16(args_1), args_2);
 }
 
@@ -5895,6 +6180,16 @@ __spirv_ocl_remquo(__clc_vec16_float16_t args_0, __clc_vec16_float16_t args_1,
                    __clc_vec16_int32_t __global *args_2) {
   return __spirv_ocl_remquo(as_half16(args_0), as_half16(args_1), args_2);
 }
+
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec16_fp16_t
+__spirv_ocl_remquo(__clc_vec16_float16_t args_0, __clc_vec16_float16_t args_1,
+                   __clc_vec16_int32_t __generic *args_2) {
+  return __spirv_ocl_remquo(as_half16(args_0), as_half16(args_1), args_2);
+}
+#endif
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONSTFN __clc_fp16_t
 __spirv_ocl_rint(__clc_float16_t args_0) {
@@ -6323,8 +6618,9 @@ __spirv_ocl_sin(__clc_vec16_float16_t args_0) {
 }
 
 _CLC_OVERLOAD _CLC_DEF __clc_fp16_t
-__spirv_ocl_sincos(__clc_float16_t args_0, __clc_float16_t *args_1) {
-  return __spirv_ocl_sincos(as_half(args_0), (__clc_fp16_t *)(args_1));
+__spirv_ocl_sincos(__clc_float16_t args_0, __clc_float16_t __private *args_1) {
+  return __spirv_ocl_sincos(as_half(args_0),
+                            (__clc_fp16_t __private *)(args_1));
 }
 
 _CLC_OVERLOAD _CLC_DEF __clc_fp16_t
@@ -6337,9 +6633,19 @@ __spirv_ocl_sincos(__clc_float16_t args_0, __clc_float16_t __global *args_1) {
   return __spirv_ocl_sincos(as_half(args_0), (__clc_fp16_t __global *)(args_1));
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t
-__spirv_ocl_sincos(__clc_vec2_float16_t args_0, __clc_vec2_float16_t *args_1) {
-  return __spirv_ocl_sincos(as_half2(args_0), (__clc_vec2_fp16_t *)(args_1));
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_fp16_t
+__spirv_ocl_sincos(__clc_float16_t args_0, __clc_float16_t __generic *args_1) {
+  return __spirv_ocl_sincos(as_half(args_0),
+                            (__clc_fp16_t __generic *)(args_1));
+}
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t __spirv_ocl_sincos(
+    __clc_vec2_float16_t args_0, __clc_vec2_float16_t __private *args_1) {
+  return __spirv_ocl_sincos(as_half2(args_0), (__clc_vec2_fp16_t __private *)(args_1));
 }
 
 _CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t __spirv_ocl_sincos(
@@ -6353,10 +6659,18 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t __spirv_ocl_sincos(
   return __spirv_ocl_sincos(as_half2(args_0),
                             (__clc_vec2_fp16_t __global *)(args_1));
 }
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec2_fp16_t __spirv_ocl_sincos(
+    __clc_vec2_float16_t args_0, __clc_vec2_float16_t __generic *args_1) {
+  return __spirv_ocl_sincos(as_half2(args_0), (__clc_vec2_fp16_t __generic *)(args_1));
+}
+#endif
 
-_CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t
-__spirv_ocl_sincos(__clc_vec3_float16_t args_0, __clc_vec3_float16_t *args_1) {
-  return __spirv_ocl_sincos(as_half3(args_0), (__clc_vec3_fp16_t *)(args_1));
+_CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t __spirv_ocl_sincos(
+    __clc_vec3_float16_t args_0, __clc_vec3_float16_t __private *args_1) {
+  return __spirv_ocl_sincos(as_half3(args_0), (__clc_vec3_fp16_t __private *)(args_1));
 }
 
 _CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t __spirv_ocl_sincos(
@@ -6371,9 +6685,19 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t __spirv_ocl_sincos(
                             (__clc_vec3_fp16_t __global *)(args_1));
 }
 
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec3_fp16_t __spirv_ocl_sincos(
+    __clc_vec3_float16_t args_0, __clc_vec3_float16_t __generic *args_1) {
+  return __spirv_ocl_sincos(as_half3(args_0), (__clc_vec3_fp16_t __generic *)(args_1));
+}
+#endif
+
 _CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t
-__spirv_ocl_sincos(__clc_vec4_float16_t args_0, __clc_vec4_float16_t *args_1) {
-  return __spirv_ocl_sincos(as_half4(args_0), (__clc_vec4_fp16_t *)(args_1));
+__spirv_ocl_sincos(__clc_vec4_float16_t args_0, __clc_vec4_float16_t __private *args_1) {
+  return __spirv_ocl_sincos(as_half4(args_0),
+                            (__clc_vec4_fp16_t __private *)(args_1));
 }
 
 _CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t __spirv_ocl_sincos(
@@ -6388,9 +6712,20 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t __spirv_ocl_sincos(
                             (__clc_vec4_fp16_t __global *)(args_1));
 }
 
-_CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t
-__spirv_ocl_sincos(__clc_vec8_float16_t args_0, __clc_vec8_float16_t *args_1) {
-  return __spirv_ocl_sincos(as_half8(args_0), (__clc_vec8_fp16_t *)(args_1));
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec4_fp16_t
+__spirv_ocl_sincos(__clc_vec4_float16_t args_0, __clc_vec4_float16_t __generic *args_1) {
+  return __spirv_ocl_sincos(as_half4(args_0),
+                            (__clc_vec4_fp16_t __generic *)(args_1));
+}
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t __spirv_ocl_sincos(
+    __clc_vec8_float16_t args_0, __clc_vec8_float16_t __private *args_1) {
+  return __spirv_ocl_sincos(as_half8(args_0),
+                            (__clc_vec8_fp16_t __private *)(args_1));
 }
 
 _CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t __spirv_ocl_sincos(
@@ -6405,9 +6740,20 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t __spirv_ocl_sincos(
                             (__clc_vec8_fp16_t __global *)(args_1));
 }
 
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec8_fp16_t __spirv_ocl_sincos(
+    __clc_vec8_float16_t args_0, __clc_vec8_float16_t __generic *args_1) {
+  return __spirv_ocl_sincos(as_half8(args_0),
+                            (__clc_vec8_fp16_t __generic *)(args_1));
+}
+#endif
+
 _CLC_OVERLOAD _CLC_DEF __clc_vec16_fp16_t __spirv_ocl_sincos(
-    __clc_vec16_float16_t args_0, __clc_vec16_float16_t *args_1) {
-  return __spirv_ocl_sincos(as_half16(args_0), (__clc_vec16_fp16_t *)(args_1));
+    __clc_vec16_float16_t args_0, __clc_vec16_float16_t __private *args_1) {
+  return __spirv_ocl_sincos(as_half16(args_0),
+                            (__clc_vec16_fp16_t __private *)(args_1));
 }
 
 _CLC_OVERLOAD _CLC_DEF __clc_vec16_fp16_t __spirv_ocl_sincos(
@@ -6421,6 +6767,16 @@ _CLC_OVERLOAD _CLC_DEF __clc_vec16_fp16_t __spirv_ocl_sincos(
   return __spirv_ocl_sincos(as_half16(args_0),
                             (__clc_vec16_fp16_t __global *)(args_1));
 }
+
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+_CLC_OVERLOAD _CLC_DEF __clc_vec16_fp16_t __spirv_ocl_sincos(
+    __clc_vec16_float16_t args_0, __clc_vec16_float16_t __generic *args_1) {
+  return __spirv_ocl_sincos(as_half16(args_0),
+                            (__clc_vec16_fp16_t __generic *)(args_1));
+}
+#endif
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONSTFN __clc_fp16_t
 __spirv_ocl_sinh(__clc_float16_t args_0) {

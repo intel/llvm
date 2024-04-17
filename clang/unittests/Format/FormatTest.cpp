@@ -1865,6 +1865,13 @@ TEST_F(FormatTest, UnderstandsMacros) {
   verifyFormat("MACRO(co_return##something)");
 
   verifyFormat("#define A x:");
+
+  verifyFormat("#define Foo(Bar) {#Bar}", "#define Foo(Bar) \\\n"
+                                          "  { \\\n"
+                                          "    #Bar \\\n"
+                                          "  }");
+  verifyFormat("#define Foo(Bar) {#Bar}", "#define Foo(Bar) \\\n"
+                                          "  { #Bar }");
 }
 
 TEST_F(FormatTest, ShortBlocksInMacrosDontMergeWithCodeAfterMacro) {
@@ -7976,6 +7983,41 @@ TEST_F(FormatTest, AllowAllArgumentsOnNextLineDontAlign) {
                Input, Style);
 }
 
+TEST_F(FormatTest, BreakFunctionDefinitionParameters) {
+  StringRef Input = "void functionDecl(paramA, paramB, paramC);\n"
+                    "void emptyFunctionDefinition() {}\n"
+                    "void functionDefinition(int A, int B, int C) {}\n"
+                    "Class::Class(int A, int B) : m_A(A), m_B(B) {}";
+  verifyFormat(Input);
+
+  FormatStyle Style = getLLVMStyle();
+  EXPECT_FALSE(Style.BreakFunctionDefinitionParameters);
+  Style.BreakFunctionDefinitionParameters = true;
+  verifyFormat("void functionDecl(paramA, paramB, paramC);\n"
+               "void emptyFunctionDefinition() {}\n"
+               "void functionDefinition(\n"
+               "    int A, int B, int C) {}\n"
+               "Class::Class(\n"
+               "    int A, int B)\n"
+               "    : m_A(A), m_B(B) {}",
+               Input, Style);
+
+  // Test the style where all parameters are on their own lines.
+  Style.AllowAllParametersOfDeclarationOnNextLine = false;
+  Style.BinPackParameters = false;
+  verifyFormat("void functionDecl(paramA, paramB, paramC);\n"
+               "void emptyFunctionDefinition() {}\n"
+               "void functionDefinition(\n"
+               "    int A,\n"
+               "    int B,\n"
+               "    int C) {}\n"
+               "Class::Class(\n"
+               "    int A,\n"
+               "    int B)\n"
+               "    : m_A(A), m_B(B) {}",
+               Input, Style);
+}
+
 TEST_F(FormatTest, BreakBeforeInlineASMColon) {
   FormatStyle Style = getLLVMStyle();
   Style.BreakBeforeInlineASMColon = FormatStyle::BBIAS_Never;
@@ -10998,7 +11040,7 @@ TEST_F(FormatTest, UnderstandsTemplateParameters) {
   verifyFormat("some_templated_type<decltype([](int i) { return i; })>");
 
   verifyFormat("#define FOO(typeName, realClass)                           \\\n"
-               "  { #typeName, foo<FooType>(new foo<realClass>(#typeName)) }",
+               "  {#typeName, foo<FooType>(new foo<realClass>(#typeName))}",
                getLLVMStyleWithColumns(60));
 }
 
@@ -12075,6 +12117,7 @@ TEST_F(FormatTest, UnderstandsSquareAttributes) {
   verifyFormat("SomeType s [[gnu::unused]] (InitValue);");
   verifyFormat("SomeType s [[using gnu: unused]] (InitValue);");
   verifyFormat("[[gsl::suppress(\"clang-tidy-check-name\")]] void f() {}");
+  verifyFormat("[[suppress(type.5)]] int uninitialized_on_purpose;");
   verifyFormat("void f() [[deprecated(\"so sorry\")]];");
   verifyFormat("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
                "    [[unused]] aaaaaaaaaaaaaaaaaaaaaaa(int i);");
@@ -27232,6 +27275,18 @@ TEST_F(FormatTest, PPBranchesInBracedInit) {
                "#endif\n"
                "      kFlag4\n"
                "};");
+}
+
+TEST_F(FormatTest, PPDirectivesAndCommentsInBracedInit) {
+  verifyFormat("{\n"
+               "  char *a[] = {\n"
+               "      /* abc */ \"abc\",\n"
+               "#if FOO\n"
+               "      /* xyz */ \"xyz\",\n"
+               "#endif\n"
+               "      /* last */ \"last\"};\n"
+               "}",
+               getLLVMStyleWithColumns(30));
 }
 
 TEST_F(FormatTest, StreamOutputOperator) {
