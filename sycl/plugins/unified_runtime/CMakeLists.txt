@@ -161,8 +161,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
-    GIT_REPOSITORY    ${UNIFIED_RUNTIME_REPO}
-    GIT_TAG           ${UNIFIED_RUNTIME_TAG}
+    GIT_REPOSITORY    "https://github.com/AllanZyne/unified-runtime.git"
+    GIT_TAG           "review/yang/dg2"
   )
 
   FetchContent_GetProperties(unified-runtime)
