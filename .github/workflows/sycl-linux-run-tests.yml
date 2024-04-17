@@ -328,7 +328,7 @@ jobs:
       # Proceed with execution even if the 'build' step did not succeed.
       if: inputs.tests_selector == 'cts' && (success() || failure())
       run: |
-        ./build-cts/bin/test_accessor --list-devices
+        ./build-cts/bin/* --list-devices
 
     - name: Run SYCL CTS tests
       # Proceed with execution even if the previous two steps did not succeed.
