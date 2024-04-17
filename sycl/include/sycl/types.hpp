@@ -496,8 +496,7 @@ public:
       std::is_fundamental_v<vec_data_t<Ty>> ||
           detail::is_half_or_bf16_v<typename std::remove_const_t<Ty>>,
       vec &>
-  // TODO: Can we use std::fill or something similar to vectorize assignment
-  // operation?
+
   operator=(const Ty & Rhs) {
     for (int i = 0; i < NumElements; ++i) {
       setValue(i, Rhs);
@@ -821,7 +820,6 @@ public:
       Ret = vec<DataT, NumElements>(                                           \
           (typename vec<DataT, NumElements>::vector_t)(                        \
               ExtVecLhs BINOP ExtVecRhs));                                     \
-      /*[Udit] Do we still need this? */                                       \
       if constexpr (std::is_same_v<Type, bool> && CONVERT) {                   \
         Ret.ConvertToDataT();                                                  \
       }                                                                        \
