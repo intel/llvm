@@ -94,29 +94,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/przemektmalon/unified-runtime.git")
-  # commit 21f023f386c3352d11ceb16959f8b54a2be34757
-  # Author: Przemek Malon <przemek.malon@codeplay.com>
-  # Date:   Wed Nov 29 11:25:34 2023 +0000
-  #   [Bindless][Exp] Add device queries for sampled image fetch  
-  #     Added the following queries for device capabilities of fetching sampled
-  #     images:
-  #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP
-  #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP
-  #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP
-  #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP
-  #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP
-  #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP
-  set(UNIFIED_RUNTIME_TAG 21f023f386c3352d11ceb16959f8b54a2be34757)
-  
-  # set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # # commit e00a764f8dafd1319b636aa99c15601ec0d4d7fc
-  # # Merge: 85b75590 92b60b77
-  # # Author: aarongreig <aaron.greig@codeplay.com>
-  # # Date:   Wed Apr 10 10:21:22 2024 +0100
-  # #    Merge pull request #1455 from GeorgeWeb/georgi/fix-hip-usm-copy2d
-  # #    [HIP] Fix memory type detection in allocation info queries and USM copy2D
-  # set(UNIFIED_RUNTIME_TAG e00a764f8dafd1319b636aa99c15601ec0d4d7fc)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 4347e0c19167ef402f2e74ea02eccdfb42016939
+  # Merge: 76115428 21f023f3
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Wed Apr 17 10:30:45 2024 +0100
+  #    Merge pull request #1264 from przemektmalon/przemek/sampled-image-fetch
+  #    [Bindless][Exp] Add device queries for sampled image fetch
+  set(UNIFIED_RUNTIME_TAG 4347e0c19167ef402f2e74ea02eccdfb42016939)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -125,46 +110,22 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(opencl
     ${UNIFIED_RUNTIME_REPO}
-    # commit 85b7559033e329389452cb87615ad42fbb644d59 (HEAD -> main, origin/main, origin/HEAD)
-    # Merge: a7c202b4 5c300799
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Tue Apr 9 14:06:49 2024 +0100
-    #     Merge pull request #1496 from steffenlarsen/steffen/revert_memory_lookup_error
-    #     [OpenCL] Revert urMemBufferCreate extension function lookup error
-    85b7559033e329389452cb87615ad42fbb644d59
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit 6e76c98a1f5cd3c4f5e99011e92bd55b3a46cc4c
-    # Merge: 08b3e8fe 834e6435
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Apr 10 16:26:17 2024 +0100
-    #     Merge pull request #1220 from fabiomestre/fabio/cuda_multimap
-    #     [CUDA] Add support for multiple active mappings
-    6e76c98a1f5cd3c4f5e99011e92bd55b3a46cc4c
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 08b3e8fe6c5ad0aed125823c335eb44343845f6c
-    # Merge: 758c6149 db47fc0a
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Apr 10 16:22:00 2024 +0100
-    #     Merge pull request #1359 from lplewa/hip_log
-    #     Refactor hip adapter to new logger
-    08b3e8fe6c5ad0aed125823c335eb44343845f6c
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    # commit e2b5b7fafa8721bfcd46426623adc2b586bacf56
-    # Merge: cda0cd94 d05476f4
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Apr 10 14:22:28 2024 +0100
-    #     Merge pull request #1345 from lplewa/native_cpu_log
-    #     Refactor native cpu adapter to new logger
-    e2b5b7fafa8721bfcd46426623adc2b586bacf56
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)

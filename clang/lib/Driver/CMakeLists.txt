@@ -98,6 +98,7 @@ add_clang_library(clangDriver
 
   DEPENDS
   ClangDriverOptions
+  DeviceConfigFile
 
   LINK_LIBS
   clangBasic
