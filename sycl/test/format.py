@@ -3,6 +3,7 @@ import lit.util
 import lit.formats
 
 import os
+import re
 
 
 class SYCLHeadersTest(lit.formats.TestFormat):
@@ -14,12 +15,20 @@ class SYCLHeadersTest(lit.formats.TestFormat):
     def getTestsInDirectory(self, testSuite, path_in_suite, litConfig, localConfig):
         # We traverse build/sycl/include/sycl directory
         source_path = os.path.join(localConfig.sycl_include, "sycl")
+
+        # Optional filter can be passed through command line options
+        headers_filter = localConfig.sycl_headers_filter
         for dirpath, _, filenames in os.walk(source_path):
             relative_dirpath = dirpath[len(localConfig.sycl_include) + 1 :]
             for filename in filenames:
                 if not filename.endswith(".hpp"):
                     continue
                 filepath = os.path.join(dirpath, filename)
+
+                if headers_filter is not None:
+                    # Skip headers that doesn't match passed regexp
+                    if re.match(headers_filter, filepath) is None:
+                        continue
                 for t in self.getTestsForPath(
                     testSuite,
                     path_in_suite
