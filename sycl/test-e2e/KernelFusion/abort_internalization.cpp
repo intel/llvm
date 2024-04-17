@@ -49,8 +49,10 @@ void performFusion(queue &q, Internalization intKernel1,
 
       if (localSizeKernel1 > 0) {
         cgh.parallel_for<class Kernel1>(
-            nd_range<1>{{dataSize}, {localSizeKernel1}},
-            [=](id<1> i) { accTmp[i] = accIn[i] + 5; });
+            nd_range<1>{{dataSize}, {localSizeKernel1}}, [=](nd_item<1> ndi) {
+              auto i = ndi.get_global_id(0);
+              accTmp[i] = accIn[i] + 5;
+            });
       } else {
         cgh.parallel_for<class KernelOne>(
             dataSize, [=](id<1> i) { accTmp[i] = accIn[i] + 5; });
@@ -70,8 +72,10 @@ void performFusion(queue &q, Internalization intKernel1,
       auto accOut = bOut.get_access(cgh);
       if (localSizeKernel2 > 0) {
         cgh.parallel_for<class Kernel2>(
-            nd_range<1>{{dataSize}, {localSizeKernel2}},
-            [=](id<1> i) { accOut[i] = accTmp[i] * 2; });
+            nd_range<1>{{dataSize}, {localSizeKernel2}}, [=](nd_item<1> ndi) {
+              auto i = ndi.get_global_id(0);
+              accOut[i] = accTmp[i] * 2;
+            });
       } else {
         cgh.parallel_for<class KernelTwo>(
             dataSize, [=](id<1> i) { accOut[i] = accTmp[i] * 2; });

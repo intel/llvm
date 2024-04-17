@@ -28,8 +28,12 @@ int main() {
         void *ptr =
             s::malloc_shared(100, myQueue.get_device(), myQueue.get_context());
         myQueue.submit([&](s::handler &cgh) {
-          cgh.single_task<class fractF1UF1>(
-              [=]() { Buf[0] = s::fract(float{1.5f}, &Buf[1]); });
+          cgh.single_task<class fractF1UF1>([=]() {
+            Buf[0] = s::fract(
+                float{1.5f},
+                s::address_space_cast<s::access::address_space::global_space,
+                                      s::access::decorated::yes>(Buf + 1));
+          });
         });
         myQueue.wait();
         r = Buf[0];
@@ -47,7 +51,10 @@ int main() {
           sizeof(s::float2) * 2, myQueue.get_device(), myQueue.get_context());
       myQueue.submit([&](s::handler &cgh) {
         cgh.single_task<class fractF2UF2>([=]() {
-          Buf[0] = s::fract(s::float2{1.5f, 2.5f}, &Buf[1]);
+          Buf[0] = s::fract(
+              s::float2{1.5f, 2.5f},
+              s::address_space_cast<s::access::address_space::global_space,
+                                    s::access::decorated::yes>(Buf + 1));
         });
       });
       myQueue.wait();
@@ -74,8 +81,12 @@ int main() {
             sizeof(int) * 2, myQueue.get_device(), myQueue.get_context());
         myQueue.submit([&](s::handler &cgh) {
           auto AccR = BufR.get_access<s::access::mode::read_write>(cgh);
-          cgh.single_task<class lgamma_rF1PI1>(
-              [=]() { AccR[0] = s::lgamma_r(float{10.f}, BufI); });
+          cgh.single_task<class lgamma_rF1PI1>([=]() {
+            AccR[0] = s::lgamma_r(
+                float{10.f},
+                s::address_space_cast<s::access::address_space::global_space,
+                                      s::access::decorated::yes>(BufI));
+          });
         });
         myQueue.wait();
         i = *BufI;
@@ -95,8 +106,12 @@ int main() {
             sizeof(int) * 2, myQueue.get_device(), myQueue.get_context());
         myQueue.submit([&](s::handler &cgh) {
           auto AccR = BufR.get_access<s::access::mode::read_write>(cgh);
-          cgh.single_task<class lgamma_rF1PI1_neg>(
-              [=]() { AccR[0] = s::lgamma_r(float{-2.4f}, BufI); });
+          cgh.single_task<class lgamma_rF1PI1_neg>([=]() {
+            AccR[0] = s::lgamma_r(
+                float{-2.4f},
+                s::address_space_cast<s::access::address_space::global_space,
+                                      s::access::decorated::yes>(BufI));
+          });
         });
         myQueue.wait();
         i = *BufI;
@@ -117,7 +132,10 @@ int main() {
         myQueue.submit([&](s::handler &cgh) {
           auto AccR = BufR.get_access<s::access::mode::read_write>(cgh);
           cgh.single_task<class lgamma_rF2PF2>([=]() {
-            AccR[0] = s::lgamma_r(s::float2{10.f, -2.4f}, BufI);
+            AccR[0] = s::lgamma_r(
+                s::float2{10.f, -2.4f},
+                s::address_space_cast<s::access::address_space::global_space,
+                                      s::access::decorated::yes>(BufI));
           });
         });
         myQueue.wait();

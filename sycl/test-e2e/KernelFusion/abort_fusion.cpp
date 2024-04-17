@@ -25,12 +25,16 @@ template <int Dimensions> size_t getSize(nd_range<Dimensions> r) {
   return r.get_global_range().size();
 }
 
+template <int N> auto global_linear_id(sycl::nd_item<N> ndi) {
+  return ndi.get_global_linear_id();
+}
+template <int N> auto global_linear_id(sycl::item<N> i) {
+  return i.get_linear_id();
+}
+
 template <typename Kernel1Name, typename Kernel2Name, typename Range1,
           typename Range2>
 void performFusion(queue &q, Range1 R1, Range2 R2) {
-  using IndexTy1 = item<Range1::dimensions>;
-  using IndexTy2 = item<Range2::dimensions>;
-
   int in[dataSize], tmp[dataSize], out[dataSize];
 
   for (size_t i = 0; i < dataSize; ++i) {
@@ -51,8 +55,8 @@ void performFusion(queue &q, Range1 R1, Range2 R2) {
     q.submit([&](handler &cgh) {
       auto accIn = bIn.get_access(cgh);
       auto accTmp = bTmp.get_access(cgh);
-      cgh.parallel_for<Kernel1Name>(R1, [=](IndexTy1 i) {
-        size_t j = i.get_linear_id();
+      cgh.parallel_for<Kernel1Name>(R1, [=](auto i) {
+        size_t j = global_linear_id(i);
         accTmp[j] = accIn[j] + 5;
       });
     });
@@ -60,8 +64,8 @@ void performFusion(queue &q, Range1 R1, Range2 R2) {
     q.submit([&](handler &cgh) {
       auto accTmp = bTmp.get_access(cgh);
       auto accOut = bOut.get_access(cgh);
-      cgh.parallel_for<Kernel2Name>(R2, [=](IndexTy2 i) {
-        size_t j = i.get_linear_id();
+      cgh.parallel_for<Kernel2Name>(R2, [=](auto i) {
+        size_t j = global_linear_id(i);
         accOut[j] = accTmp[j] * 2;
       });
     });

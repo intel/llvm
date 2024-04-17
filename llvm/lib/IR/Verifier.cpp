@@ -544,7 +544,7 @@ private:
 
   void visitTemplateParams(const MDNode &N, const Metadata &RawParams);
 
-  void visit(DPLabel &DPL);
+  void visit(DbgLabelRecord &DLR);
   void visit(DbgVariableRecord &DVR);
   // InstVisitor overrides...
   using InstVisitor<Verifier>::visit;
@@ -678,15 +678,15 @@ private:
   } while (false)
 
 void Verifier::visitDbgRecords(Instruction &I) {
-  if (!I.DbgMarker)
+  if (!I.DebugMarker)
     return;
-  CheckDI(I.DbgMarker->MarkedInstr == &I, "Instruction has invalid DbgMarker",
-          &I);
+  CheckDI(I.DebugMarker->MarkedInstr == &I,
+          "Instruction has invalid DebugMarker", &I);
   CheckDI(!isa<PHINode>(&I) || !I.hasDbgRecords(),
           "PHI Node must not have any attached DbgRecords", &I);
   for (DbgRecord &DR : I.getDbgRecordRange()) {
-    CheckDI(DR.getMarker() == I.DbgMarker, "DbgRecord had invalid DbgMarker",
-            &I, &DR);
+    CheckDI(DR.getMarker() == I.DebugMarker,
+            "DbgRecord had invalid DebugMarker", &I, &DR);
     if (auto *Loc =
             dyn_cast_or_null<DILocation>(DR.getDebugLoc().getAsMDNode()))
       visitMDNode(*Loc, AreDebugLocsAllowed::Yes);
@@ -696,8 +696,8 @@ void Verifier::visitDbgRecords(Instruction &I) {
       // intrinsic behaviour.
       verifyFragmentExpression(*DVR);
       verifyNotEntryValue(*DVR);
-    } else if (auto *DPL = dyn_cast<DPLabel>(&DR)) {
-      visit(*DPL);
+    } else if (auto *DLR = dyn_cast<DbgLabelRecord>(&DR)) {
+      visit(*DLR);
     }
   }
 }
@@ -1734,8 +1734,28 @@ void Verifier::visitModuleFlags() {
   // Scan each flag, and track the flags and requirements.
   DenseMap<const MDString*, const MDNode*> SeenIDs;
   SmallVector<const MDNode*, 16> Requirements;
-  for (const MDNode *MDN : Flags->operands())
+  uint64_t PAuthABIPlatform = -1;
+  uint64_t PAuthABIVersion = -1;
+  for (const MDNode *MDN : Flags->operands()) {
     visitModuleFlag(MDN, SeenIDs, Requirements);
+    if (MDN->getNumOperands() != 3)
+      continue;
+    if (const auto *FlagName = dyn_cast_or_null<MDString>(MDN->getOperand(1))) {
+      if (FlagName->getString() == "aarch64-elf-pauthabi-platform") {
+        if (const auto *PAP =
+                mdconst::dyn_extract_or_null<ConstantInt>(MDN->getOperand(2)))
+          PAuthABIPlatform = PAP->getZExtValue();
+      } else if (FlagName->getString() == "aarch64-elf-pauthabi-version") {
+        if (const auto *PAV =
+                mdconst::dyn_extract_or_null<ConstantInt>(MDN->getOperand(2)))
+          PAuthABIVersion = PAV->getZExtValue();
+      }
+    }
+  }
+
+  if ((PAuthABIPlatform == uint64_t(-1)) != (PAuthABIVersion == uint64_t(-1)))
+    CheckFailed("either both or no 'aarch64-elf-pauthabi-platform' and "
+                "'aarch64-elf-pauthabi-version' module flags must be present");
 
   // Validate that the requirements in the module are valid.
   for (const MDNode *Requirement : Requirements) {
@@ -4247,9 +4267,10 @@ void Verifier::visitAtomicRMWInst(AtomicRMWInst &RMWI) {
               " operand must have integer or floating point type!",
           &RMWI, ElTy);
   } else if (AtomicRMWInst::isFPOperation(Op)) {
-    Check(ElTy->isFloatingPointTy(),
+    Check(ElTy->isFPOrFPVectorTy() && !isa<ScalableVectorType>(ElTy),
           "atomicrmw " + AtomicRMWInst::getOperationName(Op) +
-              " operand must have floating point type!",
+              " operand must have floating-point or fixed vector of floating-point "
+              "type!",
           &RMWI, ElTy);
   } else {
     Check(ElTy->isIntegerTy(),
@@ -4342,6 +4363,11 @@ void Verifier::visitEHPadPredecessors(Instruction &I) {
     if (auto *II = dyn_cast<InvokeInst>(TI)) {
       Check(II->getUnwindDest() == BB && II->getNormalDest() != BB,
             "EH pad must be jumped to via an unwind edge", ToPad, II);
+      auto *CalledFn =
+          dyn_cast<Function>(II->getCalledOperand()->stripPointerCasts());
+      if (CalledFn && CalledFn->isIntrinsic() && II->doesNotThrow() &&
+          !IntrinsicInst::mayLowerToFunctionCall(CalledFn->getIntrinsicID()))
+        continue;
       if (auto Bundle = II->getOperandBundle(LLVMContext::OB_funclet))
         FromPad = Bundle->Inputs[0];
       else
@@ -5015,7 +5041,7 @@ void Verifier::visitInstruction(Instruction &I) {
                 F->getIntrinsicID() == Intrinsic::coro_await_suspend_handle ||
                 F->getIntrinsicID() ==
                     Intrinsic::experimental_patchpoint_void ||
-                F->getIntrinsicID() == Intrinsic::experimental_patchpoint_i64 ||
+                F->getIntrinsicID() == Intrinsic::experimental_patchpoint ||
                 F->getIntrinsicID() == Intrinsic::experimental_gc_statepoint ||
                 F->getIntrinsicID() == Intrinsic::wasm_rethrow ||
                 IsAttachedCallOperand(F, CBI, i),
@@ -5660,6 +5686,13 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
     }
     break;
   }
+  case Intrinsic::experimental_patchpoint: {
+    if (Call.getCallingConv() == CallingConv::AnyReg) {
+      Check(Call.getType()->isSingleValueType(),
+            "patchpoint: invalid return type used with anyregcc", Call);
+    }
+    break;
+  }
   case Intrinsic::eh_exceptioncode:
   case Intrinsic::eh_exceptionpointer: {
     Check(isa<CatchPadInst>(Call.getArgOperand(0)),
@@ -6190,6 +6223,14 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
           &Call);
     break;
   }
+  case Intrinsic::threadlocal_address: {
+    const Value &Arg0 = *Call.getArgOperand(0);
+    Check(isa<GlobalVariable>(Arg0),
+          "llvm.threadlocal.address first argument must be a GlobalVariable");
+    Check(cast<GlobalVariable>(Arg0).isThreadLocal(),
+          "llvm.threadlocal.address operand isThreadLocal() must no be false");
+    break;
+  }
   };
 
   // Verify that there aren't any unmediated control transfers between funclets.
@@ -6243,22 +6284,22 @@ static DISubprogram *getSubprogram(Metadata *LocalScope) {
   return nullptr;
 }
 
-void Verifier::visit(DPLabel &DPL) {
-  CheckDI(isa<DILabel>(DPL.getRawLabel()),
-          "invalid #dbg_label intrinsic variable", &DPL, DPL.getRawLabel());
+void Verifier::visit(DbgLabelRecord &DLR) {
+  CheckDI(isa<DILabel>(DLR.getRawLabel()),
+          "invalid #dbg_label intrinsic variable", &DLR, DLR.getRawLabel());
 
   // Ignore broken !dbg attachments; they're checked elsewhere.
-  if (MDNode *N = DPL.getDebugLoc().getAsMDNode())
+  if (MDNode *N = DLR.getDebugLoc().getAsMDNode())
     if (!isa<DILocation>(N))
       return;
 
-  BasicBlock *BB = DPL.getParent();
+  BasicBlock *BB = DLR.getParent();
   Function *F = BB ? BB->getParent() : nullptr;
 
   // The scopes for variables and !dbg attachments must agree.
-  DILabel *Label = DPL.getLabel();
-  DILocation *Loc = DPL.getDebugLoc();
-  CheckDI(Loc, "#dbg_label record requires a !dbg attachment", &DPL, BB, F);
+  DILabel *Label = DLR.getLabel();
+  DILocation *Loc = DLR.getDebugLoc();
+  CheckDI(Loc, "#dbg_label record requires a !dbg attachment", &DLR, BB, F);
 
   DISubprogram *LabelSP = getSubprogram(Label->getRawScope());
   DISubprogram *LocSP = getSubprogram(Loc->getRawScope());
@@ -6267,7 +6308,7 @@ void Verifier::visit(DPLabel &DPL) {
 
   CheckDI(LabelSP == LocSP,
           "mismatched subprogram between #dbg_label label and !dbg attachment",
-          &DPL, BB, F, Label, Label->getScope()->getSubprogram(), Loc,
+          &DLR, BB, F, Label, Label->getScope()->getSubprogram(), Loc,
           Loc->getScope()->getSubprogram());
 }
 

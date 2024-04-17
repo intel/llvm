@@ -53,9 +53,11 @@ int main() {
       auto accIn2 = bIn2.get_access(cgh);
       auto accTmp = bTmp.get_access(
           cgh, sycl::ext::codeplay::experimental::property::promote_private{});
-      cgh.parallel_for<class KernelOne>(
-          nd_range<1>{{dataSize}, {8}},
-          [=](id<1> i) { accTmp[i] = accIn1[i] + accIn2[i]; });
+      cgh.parallel_for<class KernelOne>(nd_range<1>{{dataSize}, {8}},
+                                        [=](nd_item<1> ndi) {
+                                          auto i = ndi.get_global_id(0);
+                                          accTmp[i] = accIn1[i] + accIn2[i];
+                                        });
     });
 
     q.submit([&](handler &cgh) {

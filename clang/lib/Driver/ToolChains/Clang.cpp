@@ -1076,6 +1076,8 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   // Do not add dependency generation information when compiling the source +
   // footer combination.  The dependency generation is done in a separate
   // compile step so we can retain original source information.
+  // TODO: remove this when/if we can improve the host compilation situation
+  // when dealing with the temporary file generated for the footer.
   if (ContainsAppendFooterAction(&JA))
     ArgM = nullptr;
 
@@ -1092,12 +1094,6 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
             DepFile, Clang::getBaseInputName(Args, Inputs[0]));
     } else if (Output.getType() == types::TY_Dependencies) {
       DepFile = Output.getFilename();
-      if (!ContainsAppendFooterAction(&JA) && Args.hasArg(options::OPT_fsycl) &&
-          !Args.hasArg(options::OPT_fno_sycl_use_footer) &&
-          !JA.isDeviceOffloading(Action::OFK_SYCL))
-        // Name the dependency file for the specific dependency generation
-        // step created for the integration footer enabled compilation.
-        DepFile = getDependencyFileName(Args, Inputs);
     } else if (!ArgMD) {
       DepFile = "-";
     } else if (IsIntelFPGA && JA.isDeviceOffloading(Action::OFK_SYCL)) {
@@ -1912,6 +1908,9 @@ void Clang::AddAArch64TargetArgs(const ArgList &Args,
   }
 
   AddUnalignedAccessWarning(CmdArgs);
+
+  Args.addOptInFlag(CmdArgs, options::OPT_fptrauth_intrinsics,
+                    options::OPT_fno_ptrauth_intrinsics);
 }
 
 void Clang::AddLoongArchTargetArgs(const ArgList &Args,
@@ -2823,60 +2822,43 @@ static void CollectArgsForIntegratedAssembler(Compilation &C,
   }
 }
 
-static StringRef EnumComplexRangeToStr(LangOptions::ComplexRangeKind Range,
-                                       StringRef Option) {
+static std::string ComplexRangeKindToStr(LangOptions::ComplexRangeKind Range) {
   switch (Range) {
-  case LangOptions::ComplexRangeKind::CX_Limited:
-    return "-fcx-limited-range";
+  case LangOptions::ComplexRangeKind::CX_Full:
+    return "full";
     break;
-  case LangOptions::ComplexRangeKind::CX_Fortran:
-    return "-fcx-fortran-rules";
+  case LangOptions::ComplexRangeKind::CX_Basic:
+    return "basic";
+    break;
+  case LangOptions::ComplexRangeKind::CX_Improved:
+    return "improved";
+    break;
+  case LangOptions::ComplexRangeKind::CX_Promoted:
+    return "promoted";
     break;
   default:
-    return Option;
-    break;
+    return "";
   }
 }
 
-static void EmitComplexRangeDiag(const Driver &D,
-                                 LangOptions::ComplexRangeKind Range1,
-                                 LangOptions::ComplexRangeKind Range2,
-                                 StringRef Option = StringRef()) {
-  if (Range1 != Range2 && Range1 != LangOptions::ComplexRangeKind::CX_None) {
-    bool NegateFortranOption = false;
-    bool NegateLimitedOption = false;
-    if (!Option.empty()) {
-      NegateFortranOption =
-          Range1 == LangOptions::ComplexRangeKind::CX_Fortran &&
-          Option == "-fno-cx-fortran-rules";
-      NegateLimitedOption =
-          Range1 == LangOptions::ComplexRangeKind::CX_Limited &&
-          Option == "-fno-cx-limited-range";
-    }
-    if (Option.empty() ||
-        (!Option.empty() && !NegateFortranOption && !NegateLimitedOption))
-      D.Diag(clang::diag::warn_drv_overriding_option)
-          << EnumComplexRangeToStr(Range1, Option)
-          << EnumComplexRangeToStr(Range2, Option);
+static std::string ComplexArithmeticStr(LangOptions::ComplexRangeKind Range) {
+  return (Range == LangOptions::ComplexRangeKind::CX_None)
+             ? ""
+             : "-fcomplex-arithmetic=" + ComplexRangeKindToStr(Range);
+}
+
+static void EmitComplexRangeDiag(const Driver &D, std::string str1,
+                                 std::string str2) {
+  if ((str1.compare(str2) != 0) && !str2.empty() && !str1.empty()) {
+    D.Diag(clang::diag::warn_drv_overriding_option) << str1 << str2;
   }
 }
 
 static std::string
 RenderComplexRangeOption(LangOptions::ComplexRangeKind Range) {
-  std::string ComplexRangeStr = "-complex-range=";
-  switch (Range) {
-  case LangOptions::ComplexRangeKind::CX_Full:
-    ComplexRangeStr += "full";
-    break;
-  case LangOptions::ComplexRangeKind::CX_Limited:
-    ComplexRangeStr += "limited";
-    break;
-  case LangOptions::ComplexRangeKind::CX_Fortran:
-    ComplexRangeStr += "fortran";
-    break;
-  default:
-    assert(0 && "Unexpected range option");
-  }
+  std::string ComplexRangeStr = ComplexRangeKindToStr(Range);
+  if (!ComplexRangeStr.empty())
+    return "-complex-range=" + ComplexRangeStr;
   return ComplexRangeStr;
 }
 
@@ -2929,6 +2911,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   StringRef FPAccuracy = "";
   LangOptions::ComplexRangeKind Range = LangOptions::ComplexRangeKind::CX_None;
   std::string ComplexRangeStr = "";
+  std::string GccRangeComplexOption = "";
 
   // Lambda to set fast-math options. This is also used by -ffp-model=fast
   auto applyFastMath = [&]() {
@@ -2944,9 +2927,19 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     FPExceptionBehavior = "";
     // If fast-math is set then set the fp-contract mode to fast.
     FPContract = "fast";
-    // ffast-math enables limited range rules for complex multiplication and
+    // ffast-math enables basic range rules for complex multiplication and
     // division.
-    Range = LangOptions::ComplexRangeKind::CX_Limited;
+    // Warn if user expects to perform full implementation of complex
+    // multiplication or division in the presence of nan or ninf flags.
+    if (Range == LangOptions::ComplexRangeKind::CX_Full ||
+        Range == LangOptions::ComplexRangeKind::CX_Improved ||
+        Range == LangOptions::ComplexRangeKind::CX_Promoted)
+      EmitComplexRangeDiag(
+          D, ComplexArithmeticStr(Range),
+          !GccRangeComplexOption.empty()
+              ? GccRangeComplexOption
+              : ComplexArithmeticStr(LangOptions::ComplexRangeKind::CX_Basic));
+    Range = LangOptions::ComplexRangeKind::CX_Basic;
     SeenUnsafeMathModeOption = true;
   };
 
@@ -2966,26 +2959,87 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       FPAccuracy = Val;
       break;
     }
-    case options::OPT_fcx_limited_range: {
-      EmitComplexRangeDiag(D, Range, LangOptions::ComplexRangeKind::CX_Limited);
-      Range = LangOptions::ComplexRangeKind::CX_Limited;
+    case options::OPT_fcx_limited_range:
+      if (GccRangeComplexOption.empty()) {
+        if (Range != LangOptions::ComplexRangeKind::CX_Basic)
+          EmitComplexRangeDiag(D, RenderComplexRangeOption(Range),
+                               "-fcx-limited-range");
+      } else {
+        if (GccRangeComplexOption != "-fno-cx-limited-range")
+          EmitComplexRangeDiag(D, GccRangeComplexOption, "-fcx-limited-range");
+      }
+      GccRangeComplexOption = "-fcx-limited-range";
+      Range = LangOptions::ComplexRangeKind::CX_Basic;
       break;
-    }
     case options::OPT_fno_cx_limited_range:
-      EmitComplexRangeDiag(D, Range, LangOptions::ComplexRangeKind::CX_Full,
-                           "-fno-cx-limited-range");
+      if (GccRangeComplexOption.empty()) {
+        EmitComplexRangeDiag(D, RenderComplexRangeOption(Range),
+                             "-fno-cx-limited-range");
+      } else {
+        if (GccRangeComplexOption.compare("-fcx-limited-range") != 0 &&
+            GccRangeComplexOption.compare("-fno-cx-fortran-rules") != 0)
+          EmitComplexRangeDiag(D, GccRangeComplexOption,
+                               "-fno-cx-limited-range");
+      }
+      GccRangeComplexOption = "-fno-cx-limited-range";
       Range = LangOptions::ComplexRangeKind::CX_Full;
       break;
-    case options::OPT_fcx_fortran_rules: {
-      EmitComplexRangeDiag(D, Range, LangOptions::ComplexRangeKind::CX_Fortran);
-      Range = LangOptions::ComplexRangeKind::CX_Fortran;
+    case options::OPT_fcx_fortran_rules:
+      if (GccRangeComplexOption.empty())
+        EmitComplexRangeDiag(D, RenderComplexRangeOption(Range),
+                             "-fcx-fortran-rules");
+      else
+        EmitComplexRangeDiag(D, GccRangeComplexOption, "-fcx-fortran-rules");
+      GccRangeComplexOption = "-fcx-fortran-rules";
+      Range = LangOptions::ComplexRangeKind::CX_Improved;
+      break;
+    case options::OPT_fno_cx_fortran_rules:
+      if (GccRangeComplexOption.empty()) {
+        EmitComplexRangeDiag(D, RenderComplexRangeOption(Range),
+                             "-fno-cx-fortran-rules");
+      } else {
+        if (GccRangeComplexOption != "-fno-cx-limited-range")
+          EmitComplexRangeDiag(D, GccRangeComplexOption,
+                               "-fno-cx-fortran-rules");
+      }
+      GccRangeComplexOption = "-fno-cx-fortran-rules";
+      Range = LangOptions::ComplexRangeKind::CX_Full;
+      break;
+    case options::OPT_fcomplex_arithmetic_EQ: {
+      LangOptions::ComplexRangeKind RangeVal;
+      StringRef Val = A->getValue();
+      if (Val.equals("full"))
+        RangeVal = LangOptions::ComplexRangeKind::CX_Full;
+      else if (Val.equals("improved"))
+        RangeVal = LangOptions::ComplexRangeKind::CX_Improved;
+      else if (Val.equals("promoted"))
+        RangeVal = LangOptions::ComplexRangeKind::CX_Promoted;
+      else if (Val.equals("basic"))
+        RangeVal = LangOptions::ComplexRangeKind::CX_Basic;
+      else {
+        D.Diag(diag::err_drv_unsupported_option_argument)
+            << A->getSpelling() << Val;
+        break;
+      }
+      if (!GccRangeComplexOption.empty()) {
+        if (GccRangeComplexOption.compare("-fcx-limited-range") != 0) {
+          if (GccRangeComplexOption.compare("-fcx-fortran-rules") != 0) {
+            if (RangeVal != LangOptions::ComplexRangeKind::CX_Improved)
+              EmitComplexRangeDiag(D, GccRangeComplexOption,
+                                   ComplexArithmeticStr(RangeVal));
+          } else {
+            EmitComplexRangeDiag(D, GccRangeComplexOption,
+                                 ComplexArithmeticStr(RangeVal));
+          }
+        } else {
+          if (RangeVal != LangOptions::ComplexRangeKind::CX_Basic)
+            EmitComplexRangeDiag(D, GccRangeComplexOption,
+                                 ComplexArithmeticStr(RangeVal));
+        }
+      }
+      Range = RangeVal;
       break;
     }
-    case options::OPT_fno_cx_fortran_rules:
-      EmitComplexRangeDiag(D, Range, LangOptions::ComplexRangeKind::CX_Full,
-                           "-fno-cx-fortran-rules");
-      Range = LangOptions::ComplexRangeKind::CX_Full;
-      break;
     case options::OPT_ffp_model_EQ: {
       // If -ffp-model= is seen, reset to fno-fast-math
       HonorINFs = true;
@@ -3406,8 +3460,12 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
 
   if (Range != LangOptions::ComplexRangeKind::CX_None)
     ComplexRangeStr = RenderComplexRangeOption(Range);
-  if (!ComplexRangeStr.empty())
+  if (!ComplexRangeStr.empty()) {
     CmdArgs.push_back(Args.MakeArgString(ComplexRangeStr));
+    if (Args.hasArg(options::OPT_fcomplex_arithmetic_EQ))
+      CmdArgs.push_back(Args.MakeArgString("-fcomplex-arithmetic=" +
+                                           ComplexRangeKindToStr(Range)));
+  }
   if (Args.hasArg(options::OPT_fcx_limited_range))
     CmdArgs.push_back("-fcx-limited-range");
   if (Args.hasArg(options::OPT_fcx_fortran_rules))
@@ -3927,6 +3985,24 @@ bool Driver::getDefaultModuleCachePath(SmallVectorImpl<char> &Result) {
   return false;
 }
 
+llvm::SmallString<256>
+clang::driver::tools::getCXX20NamedModuleOutputPath(const ArgList &Args,
+                                                    const char *BaseInput) {
+  if (Arg *ModuleOutputEQ = Args.getLastArg(options::OPT_fmodule_output_EQ))
+    return StringRef(ModuleOutputEQ->getValue());
+
+  SmallString<256> OutputPath;
+  if (Arg *FinalOutput = Args.getLastArg(options::OPT_o);
+      FinalOutput && Args.hasArg(options::OPT_c))
+    OutputPath = FinalOutput->getValue();
+  else
+    OutputPath = BaseInput;
+
+  const char *Extension = types::getTypeTempSuffix(types::TY_ModuleFile);
+  llvm::sys::path::replace_extension(OutputPath, Extension);
+  return OutputPath;
+}
+
 static bool RenderModulesOptions(Compilation &C, const Driver &D,
                                  const ArgList &Args, const InputInfo &Input,
                                  const InputInfo &Output, bool HaveStd20,
@@ -4115,9 +4191,18 @@ static bool RenderModulesOptions(Compilation &C, const Driver &D,
   // module fragment.
   CmdArgs.push_back("-fskip-odr-check-in-gmf");
 
-  // Claim `-fmodule-output` and `-fmodule-output=` to avoid unused warnings.
-  Args.ClaimAllArgs(options::OPT_fmodule_output);
-  Args.ClaimAllArgs(options::OPT_fmodule_output_EQ);
+  // We need to include the case the input file is a module file here.
+  // Since the default compilation model for C++ module interface unit will
+  // create temporary module file and compile the temporary module file
+  // to get the object file. Then the `-fmodule-output` flag will be
+  // brought to the second compilation process. So we have to claim it for
+  // the case too.
+  if (Input.getType() == driver::types::TY_CXXModule ||
+      Input.getType() == driver::types::TY_PP_CXXModule ||
+      Input.getType() == driver::types::TY_ModuleFile) {
+    Args.ClaimAllArgs(options::OPT_fmodule_output);
+    Args.ClaimAllArgs(options::OPT_fmodule_output_EQ);
+  }
 
   return HaveModules;
 }
@@ -4641,7 +4726,8 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
       CmdArgs.push_back("-debug-info-macro");
 
   // -fno-system-debug turns off debug info generation for system headers
-  if (Args.hasArg(options::OPT_fno_system_debug))
+  if (!Args.hasFlag(options::OPT_fsystem_debug, options::OPT_fno_system_debug,
+                    true))
     CmdArgs.push_back("-fno-system-debug");
 
   // -ggnu-pubnames turns on gnu style pubnames in the backend.
@@ -5439,6 +5525,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (Arg *A = Args.getLastArg(options::OPT_fsycl_range_rounding_EQ))
       A->render(Args, CmdArgs);
 
+    if (Arg *A = Args.getLastArg(options::OPT_fsycl_exp_range_rounding))
+      A->render(Args, CmdArgs);
+
     // Add the Unique ID prefix
     StringRef UniqueID = D.getSYCLUniqueID(Input.getBaseInput());
     if (!UniqueID.empty())
@@ -5686,11 +5775,26 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     assert(JA.getType() == types::TY_API_INFO &&
            "Extract API actions must generate a API information.");
     CmdArgs.push_back("-extract-api");
+
+    if (Arg *PrettySGFArg = Args.getLastArg(options::OPT_emit_pretty_sgf))
+      PrettySGFArg->render(Args, CmdArgs);
+
+    Arg *SymbolGraphDirArg = Args.getLastArg(options::OPT_symbol_graph_dir_EQ);
+
     if (Arg *ProductNameArg = Args.getLastArg(options::OPT_product_name_EQ))
       ProductNameArg->render(Args, CmdArgs);
     if (Arg *ExtractAPIIgnoresFileArg =
             Args.getLastArg(options::OPT_extract_api_ignores_EQ))
       ExtractAPIIgnoresFileArg->render(Args, CmdArgs);
+    if (Arg *EmitExtensionSymbolGraphs =
+            Args.getLastArg(options::OPT_emit_extension_symbol_graphs)) {
+      if (!SymbolGraphDirArg)
+        D.Diag(diag::err_drv_missing_symbol_graph_dir);
+
+      EmitExtensionSymbolGraphs->render(Args, CmdArgs);
+    }
+    if (SymbolGraphDirArg)
+      SymbolGraphDirArg->render(Args, CmdArgs);
   } else {
     assert((isa<CompileJobAction>(JA) || isa<BackendJobAction>(JA)) &&
            "Invalid action for clang tool.");
@@ -6544,7 +6648,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CM = "large";
     if (Triple.isAArch64(64)) {
       Ok = CM == "tiny" || CM == "small" || CM == "large";
-      if (CM == "large" && RelocationModel != llvm::Reloc::Static)
+      if (CM == "large" && !Triple.isOSBinFormatMachO() &&
+          RelocationModel != llvm::Reloc::Static)
         D.Diag(diag::err_drv_argument_only_allowed_with)
             << A->getAsString(Args) << "-fno-pic";
     } else if (Triple.isLoongArch()) {
@@ -6570,8 +6675,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     } else if (Triple.getArch() == llvm::Triple::x86_64) {
       Ok = llvm::is_contained({"small", "kernel", "medium", "large", "tiny"},
                               CM);
-    } else if (Triple.isNVPTX() || Triple.isAMDGPU()) {
-      // NVPTX/AMDGPU does not care about the code model and will accept
+    } else if (Triple.isNVPTX() || Triple.isAMDGPU() || Triple.isSPIRV()) {
+      // NVPTX/AMDGPU/SPIRV does not care about the code model and will accept
       // whatever works for the host.
       Ok = true;
     } else if (Triple.isSPARC64()) {
@@ -8014,10 +8119,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   // -fno-common is the default, set -fcommon only when that flag is set.
   Args.addOptInFlag(CmdArgs, options::OPT_fcommon, options::OPT_fno_common);
-
-  if (Args.hasFlag(options::OPT_fptrauth_intrinsics,
-                   options::OPT_fno_ptrauth_intrinsics, false))
-    CmdArgs.push_back("-fptrauth-intrinsics");
 
   // -fsigned-bitfields is default, and clang doesn't yet support
   // -funsigned-bitfields.
@@ -10229,8 +10330,88 @@ void OffloadDeps::ConstructJobMultipleOutputs(Compilation &C,
   constructJob(C, JA, Outputs, Inputs, TCArgs, LinkingOutput);
 }
 
-// Begin SPIRVTranslator
+// Utility function to gather all llvm-spirv options.
+static void getOtherSPIRVTransOpts(Compilation &C,
+                                   const llvm::opt::ArgList &TCArgs,
+                                   llvm::Triple Triple,
+                                   ArgStringList &TranslatorArgs) {
+  bool IsCPU = Triple.isSPIR() &&
+               Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
+  TranslatorArgs.push_back("-spirv-max-version=1.4");
+  TranslatorArgs.push_back("-spirv-debug-info-version=ocl-100");
+  // Prevent crash in the translator if input IR contains DIExpression
+  // operations which don't have mapping to OpenCL.DebugInfo.100 spec.
+  TranslatorArgs.push_back("-spirv-allow-extra-diexpressions");
+  std::string UnknownIntrinsics("-spirv-allow-unknown-intrinsics=llvm.genx.");
+  if (IsCPU)
+    UnknownIntrinsics += ",llvm.fpbuiltin";
+  TranslatorArgs.push_back(TCArgs.MakeArgString(UnknownIntrinsics));
+  bool CreatingSyclSPIRVFatObj =
+      C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
+      TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
+          .equals_insensitive("spirv") &&
+      !TCArgs.hasArg(options::OPT_fsycl_device_only);
+  bool ShouldPreserveMetadataInFinalImage =
+      TCArgs.hasArg(options::OPT_fsycl_preserve_device_nonsemantic_metadata);
+  bool ShouldPreserveMetadata =
+      CreatingSyclSPIRVFatObj || ShouldPreserveMetadataInFinalImage;
+  if (ShouldPreserveMetadata)
+    TranslatorArgs.push_back("--spirv-preserve-auxdata");
 
+  // Disable all the extensions by default
+  std::string ExtArg("-spirv-ext=-all");
+  std::string DefaultExtArg =
+      ",+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
+      ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls"
+      ",+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr";
+  std::string INTELExtArg =
+      ",+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io"
+      ",+SPV_INTEL_device_side_avc_motion_estimation"
+      ",+SPV_INTEL_fpga_loop_controls,+SPV_INTEL_unstructured_loop_controls"
+      ",+SPV_INTEL_fpga_reg,+SPV_INTEL_blocking_pipes"
+      ",+SPV_INTEL_function_pointers,+SPV_INTEL_kernel_attributes"
+      ",+SPV_INTEL_io_pipes,+SPV_INTEL_inline_assembly"
+      ",+SPV_INTEL_arbitrary_precision_integers"
+      ",+SPV_INTEL_float_controls2,+SPV_INTEL_vector_compute"
+      ",+SPV_INTEL_fast_composite"
+      ",+SPV_INTEL_arbitrary_precision_fixed_point"
+      ",+SPV_INTEL_arbitrary_precision_floating_point"
+      ",+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode"
+      ",+SPV_INTEL_long_constant_composite"
+      ",+SPV_INTEL_arithmetic_fence"
+      ",+SPV_INTEL_global_variable_decorations"
+      ",+SPV_INTEL_cache_controls"
+      ",+SPV_INTEL_fpga_buffer_location"
+      ",+SPV_INTEL_fpga_argument_interfaces"
+      ",+SPV_INTEL_fpga_invocation_pipelining_attributes"
+      ",+SPV_INTEL_fpga_latency_control"
+      ",+SPV_INTEL_task_sequence";
+  ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
+  if (C.getDriver().IsFPGAHWMode())
+    // Enable several extensions on FPGA H/W exclusively
+    ExtArg += ",+SPV_INTEL_usm_storage_classes,+SPV_INTEL_runtime_aligned"
+              ",+SPV_INTEL_fpga_cluster_attributes,+SPV_INTEL_loop_fuse"
+              ",+SPV_INTEL_fpga_dsp_control,+SPV_INTEL_fpga_memory_accesses"
+              ",+SPV_INTEL_fpga_memory_attributes";
+  else
+    // Don't enable several freshly added extensions on FPGA H/W
+    ExtArg += ",+SPV_INTEL_token_type"
+              ",+SPV_INTEL_bfloat16_conversion"
+              ",+SPV_INTEL_joint_matrix"
+              ",+SPV_INTEL_hw_thread_queries"
+              ",+SPV_KHR_uniform_group_instructions"
+              ",+SPV_INTEL_masked_gather_scatter"
+              ",+SPV_INTEL_tensor_float32_conversion"
+              ",+SPV_INTEL_optnone";
+  if (ShouldPreserveMetadata)
+    ExtArg += ",+SPV_KHR_non_semantic_info";
+  if (IsCPU)
+    ExtArg += ",+SPV_INTEL_fp_max_error";
+
+  TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
+}
+
+// Begin SPIRVTranslator
 void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
                                   const InputInfo &Output,
                                   const InputInfoList &Inputs,
@@ -10250,80 +10431,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     const toolchains::SYCLToolChain &TC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
     llvm::Triple Triple = TC.getTriple();
-    bool IsCPU = Triple.isSPIR() &&
-                 Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
-    TranslatorArgs.push_back("-spirv-max-version=1.4");
-    TranslatorArgs.push_back("-spirv-debug-info-version=ocl-100");
-    // Prevent crash in the translator if input IR contains DIExpression
-    // operations which don't have mapping to OpenCL.DebugInfo.100 spec.
-    TranslatorArgs.push_back("-spirv-allow-extra-diexpressions");
-    std::string UnknownIntrinsics("-spirv-allow-unknown-intrinsics=llvm.genx.");
-    if (IsCPU)
-      UnknownIntrinsics += ",llvm.fpbuiltin";
-    TranslatorArgs.push_back(TCArgs.MakeArgString(UnknownIntrinsics));
-    bool CreatingSyclSPIRVFatObj =
-        C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
-        TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
-            .equals_insensitive("spirv") &&
-        !TCArgs.hasArg(options::OPT_fsycl_device_only);
-    bool ShouldPreserveMetadataInFinalImage =
-        TCArgs.hasArg(options::OPT_fsycl_preserve_device_nonsemantic_metadata);
-    bool ShouldPreserveMetadata =
-        CreatingSyclSPIRVFatObj || ShouldPreserveMetadataInFinalImage;
-    if (ShouldPreserveMetadata)
-      TranslatorArgs.push_back("--spirv-preserve-auxdata");
-
-    // Disable all the extensions by default
-    std::string ExtArg("-spirv-ext=-all");
-    std::string DefaultExtArg =
-        ",+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
-        ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls"
-        ",+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr,+SPV_KHR_bit_instructions";
-    std::string INTELExtArg =
-        ",+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io"
-        ",+SPV_INTEL_device_side_avc_motion_estimation"
-        ",+SPV_INTEL_fpga_loop_controls,+SPV_INTEL_unstructured_loop_controls"
-        ",+SPV_INTEL_fpga_reg,+SPV_INTEL_blocking_pipes"
-        ",+SPV_INTEL_function_pointers,+SPV_INTEL_kernel_attributes"
-        ",+SPV_INTEL_io_pipes,+SPV_INTEL_inline_assembly"
-        ",+SPV_INTEL_arbitrary_precision_integers"
-        ",+SPV_INTEL_float_controls2,+SPV_INTEL_vector_compute"
-        ",+SPV_INTEL_fast_composite"
-        ",+SPV_INTEL_arbitrary_precision_fixed_point"
-        ",+SPV_INTEL_arbitrary_precision_floating_point"
-        ",+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode"
-        ",+SPV_INTEL_long_constant_composite"
-        ",+SPV_INTEL_arithmetic_fence"
-        ",+SPV_INTEL_global_variable_decorations"
-        ",+SPV_INTEL_cache_controls"
-        ",+SPV_INTEL_fpga_buffer_location"
-        ",+SPV_INTEL_fpga_argument_interfaces"
-        ",+SPV_INTEL_fpga_invocation_pipelining_attributes"
-        ",+SPV_INTEL_fpga_latency_control"
-        ",+SPV_INTEL_task_sequence";
-    ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
-    if (C.getDriver().IsFPGAHWMode())
-      // Enable several extensions on FPGA H/W exclusively
-      ExtArg += ",+SPV_INTEL_usm_storage_classes,+SPV_INTEL_runtime_aligned"
-                ",+SPV_INTEL_fpga_cluster_attributes,+SPV_INTEL_loop_fuse"
-                ",+SPV_INTEL_fpga_dsp_control,+SPV_INTEL_fpga_memory_accesses"
-                ",+SPV_INTEL_fpga_memory_attributes";
-    else
-      // Don't enable several freshly added extensions on FPGA H/W
-      ExtArg += ",+SPV_INTEL_token_type"
-                ",+SPV_INTEL_bfloat16_conversion"
-                ",+SPV_INTEL_joint_matrix"
-                ",+SPV_INTEL_hw_thread_queries"
-                ",+SPV_KHR_uniform_group_instructions"
-                ",+SPV_INTEL_masked_gather_scatter"
-                ",+SPV_INTEL_tensor_float32_conversion"
-                ",+SPV_INTEL_optnone";
-    if (ShouldPreserveMetadata)
-      ExtArg += ",+SPV_KHR_non_semantic_info";
-    if (IsCPU)
-      ExtArg += ",+SPV_INTEL_fp_max_error";
-
-    TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
+    getOtherSPIRVTransOpts(C, TCArgs, Triple, TranslatorArgs);
 
     // Handle -Xspirv-translator
     TC.TranslateTargetOpt(
@@ -10533,7 +10641,12 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Add output file table file option
   assert(Output.isFilename() && "output must be a filename");
-  addArgs(CmdArgs, TCArgs, {"-o", Output.getFilename()});
+  StringRef Device = JA.getOffloadingArch();
+  std::string OutputArg = Output.getFilename();
+  if (T.getSubArch() == llvm::Triple::SPIRSubArch_gen && Device.data())
+    OutputArg = ("intel_gpu_" + Device + "," + OutputArg).str();
+
+  addArgs(CmdArgs, TCArgs, {"-o", OutputArg});
 
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
@@ -10895,28 +11008,32 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     }
     CmdArgs.push_back(Args.MakeArgString(
         Twine("-sycl-device-library-location=") + DeviceLibDir));
-  }
 
-  auto appendOption = [](SmallString<128> &OptString, StringRef AddOpt) {
-    if (!OptString.empty())
-      OptString += " ";
-    OptString += AddOpt.str();
-  };
-  // --sycl-post-link-options="options" provides a string of options to be
-  // passed along to the sycl-post-link tool during device link.
-  if (Args.hasArg(options::OPT_Xdevice_post_link)) {
-    SmallString<128> OptString;
-    for (const auto &A : Args.getAllArgValues(options::OPT_Xdevice_post_link))
-      appendOption(OptString, A);
-    CmdArgs.push_back(
-        Args.MakeArgString("--sycl-post-link-options=" + OptString));
-  }
+    auto appendOption = [](SmallString<128> &OptString, StringRef AddOpt) {
+      if (!OptString.empty())
+        OptString += " ";
+      OptString += AddOpt.str();
+    };
+    // --sycl-post-link-options="options" provides a string of options to be
+    // passed along to the sycl-post-link tool during device link.
+    if (Args.hasArg(options::OPT_Xdevice_post_link)) {
+      SmallString<128> OptString;
+      for (const auto &A : Args.getAllArgValues(options::OPT_Xdevice_post_link))
+        appendOption(OptString, A);
+      CmdArgs.push_back(
+          Args.MakeArgString("--sycl-post-link-options=" + OptString));
+    }
 
-  // --llvm-spirv-options="options" provides a string of options to be passed
-  // along to the llvm-spirv (translation) step during device link.
-  if (Args.hasArg(options::OPT_Xspirv_translator)) {
+    // --llvm-spirv-options="options" provides a string of options to be passed
+    // along to the llvm-spirv (translation) step during device link.
     SmallString<128> OptString;
-    for (const auto &A : Args.getAllArgValues(options::OPT_Xspirv_translator))
+    if (Args.hasArg(options::OPT_Xspirv_translator)) {
+      for (const auto &A : Args.getAllArgValues(options::OPT_Xspirv_translator))
+        appendOption(OptString, A);
+    }
+    ArgStringList TranslatorArgs;
+    getOtherSPIRVTransOpts(C, Args, TargetTriple, TranslatorArgs);
+    for (const auto &A : TranslatorArgs)
       appendOption(OptString, A);
     CmdArgs.push_back(Args.MakeArgString("--llvm-spirv-options=" + OptString));
   }

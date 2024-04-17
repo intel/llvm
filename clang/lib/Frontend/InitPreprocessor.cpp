@@ -589,6 +589,12 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     default:
       break;
     }
+
+    // Set __SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__ macro for
+    // both host and device compilations if -fsycl-exp-range-rounding
+    // flag is used.
+    if (LangOpts.SYCLExperimentalRangeRounding)
+      Builder.defineMacro("__SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__");
   }
 
   if (LangOpts.DeclareSPIRVBuiltins) {
@@ -747,10 +753,7 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
   if (LangOpts.CPlusPlus20) {
     Builder.defineMacro("__cpp_aggregate_paren_init", "201902L");
 
-    // P0848 is implemented, but we're still waiting for other concepts
-    // issues to be addressed before bumping __cpp_concepts up to 202002L.
-    // Refer to the discussion of this at https://reviews.llvm.org/D128619.
-    Builder.defineMacro("__cpp_concepts", "201907L");
+    Builder.defineMacro("__cpp_concepts", "202002");
     Builder.defineMacro("__cpp_conditional_explicit", "201806L");
     Builder.defineMacro("__cpp_consteval", "202211L");
     Builder.defineMacro("__cpp_constexpr_dynamic_alloc", "201907L");

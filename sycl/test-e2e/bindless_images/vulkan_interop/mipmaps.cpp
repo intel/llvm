@@ -200,7 +200,8 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
             bindless_helpers::init_vector<DType, NChannels>(y +
                                                             (width / 2 * x));
 
-        if (!equal_vec<DType, NChannels>(out[j + (width * i)], expected)) {
+        if (!bindless_helpers::equal_vec<DType, NChannels>(out[j + (width * i)],
+                                                           expected)) {
           mismatch = true;
           validated = false;
         }

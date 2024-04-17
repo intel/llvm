@@ -272,8 +272,6 @@ ApplyNonVirtualAndVirtualOffset(CodeGenFunction &CGF, Address addr,
 
   // Apply the base offset.
   llvm::Value *ptr = addr.getPointer();
-  unsigned AddrSpace = ptr->getType()->getPointerAddressSpace();
-  ptr = CGF.Builder.CreateBitCast(ptr, CGF.Int8Ty->getPointerTo(AddrSpace));
   ptr = CGF.Builder.CreateInBoundsGEP(CGF.Int8Ty, ptr, baseOffset, "add.ptr");
 
   // If we have a virtual component, the alignment of the result will
@@ -329,8 +327,8 @@ Address CodeGenFunction::GetAddressOfBaseClass(
 
   // Get the base pointer type.
   llvm::Type *BaseValueTy = ConvertType((PathEnd[-1])->getType());
-  llvm::Type *BasePtrTy =
-      BaseValueTy->getPointerTo(Value.getType()->getPointerAddressSpace());
+  llvm::Type *PtrTy = llvm::PointerType::get(
+      CGM.getLLVMContext(), Value.getType()->getPointerAddressSpace());
 
   QualType DerivedTy = getContext().getRecordType(Derived);
   CharUnits DerivedAlign = CGM.getClassPointerAlignment(Derived);
@@ -389,9 +387,9 @@ Address CodeGenFunction::GetAddressOfBaseClass(
     Builder.CreateBr(endBB);
     EmitBlock(endBB);
 
-    llvm::PHINode *PHI = Builder.CreatePHI(BasePtrTy, 2, "cast.result");
+    llvm::PHINode *PHI = Builder.CreatePHI(PtrTy, 2, "cast.result");
     PHI->addIncoming(Value.getPointer(), notNullBB);
-    PHI->addIncoming(llvm::Constant::getNullValue(BasePtrTy), origBB);
+    PHI->addIncoming(llvm::Constant::getNullValue(PtrTy), origBB);
     Value = Value.withPointer(PHI, NotKnownNonNull);
   }
 
@@ -1399,7 +1397,7 @@ FieldHasTrivialDestructorBody(ASTContext &Context,
 
   // The destructor for an implicit anonymous union member is never invoked.
   if (FieldClassDecl->isUnion() && FieldClassDecl->isAnonymousStructOrUnion())
-    return false;
+    return true;
 
   return HasTrivialDestructorBody(Context, FieldClassDecl, FieldClassDecl);
 }
