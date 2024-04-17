@@ -25,7 +25,7 @@ string(CONCAT sycl_targets_opt
 if (NOT WIN32)
   # Don't build for spirv64 on Windows due to
   # some type size difference issues.
-  # Build on once Windows once internal tracker is fixed.
+  # Build on Windows once internal tracker is fixed.
   string(APPEND
     sycl_targets_opt
     ",spirv64-unknown-unknown")

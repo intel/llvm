@@ -308,7 +308,7 @@ bool OpenCLC_Supports_Version(
   // "OpenCL C":1.0.0 "OpenCL C":1.1.0 "OpenCL C":1.2.0 "OpenCL C":3.0.0
   std::stringstream ss;
   ss << Version.major << "." << Version.minor << "." << Version.patch;
-  return VersionLog.find(ss.str());
+  return VersionLog.find(ss.str()) != std::string::npos;
 }
 
 bool OpenCLC_Supports_Extension(

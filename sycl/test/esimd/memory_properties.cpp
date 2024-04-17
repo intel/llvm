@@ -322,6 +322,17 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
           atomic_update<atomic_op::inc, int, VL>(ptr, offsets, pred);
     }
 
+    // Try with int16_t to check that LSC atomic is generated
+    // The result is later casted to int16, not captured here.
+    // CHECK: call <8 x i32> @llvm.genx.lsc.xatomic.stateless.v8i32.v8i1.v8i64(<8 x i1> {{[^)]+}}, i8 8, i8 0, i8 0, i16 1, i32 0, i8 6, i8 1, i8 1, i8 0, <8 x i64> {{[^)]+}}, <8 x i32> undef, <8 x i32> undef, i32 0, <8 x i32> undef)
+    {
+      int16_t *ptr = 0;
+      constexpr int VL = 8;
+      simd<uint32_t, VL> offsets = simd<uint32_t, VL>(1) * sizeof(int16_t);
+      auto atomic_res =
+          atomic_update<atomic_op::inc, int16_t, VL>(ptr, offsets);
+    }
+
     // Accessor
 
     // CHECK-STATEFUL:  call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 8, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
@@ -376,6 +387,19 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
       auto pred = simd_mask<VL>(1);
       auto atomic_res_acc =
           atomic_update<atomic_op::inc, int, VL>(acc, offsets, pred);
+    }
+    // Try with int16_t to check that LSC atomic is generated
+    // The result is later casted to int16, not captured here.
+    // CHECK-STATEFUL:  call <8 x i32> @llvm.genx.lsc.xatomic.bti.v8i32.v8i1.v8i32(<8 x i1> {{[^)]+}}, i8 8, i8 0, i8 0, i16 1, i32 0, i8 6, i8 1, i8 1, i8 0, <8 x i32> {{[^)]+}}, <8 x i32> undef, <8 x i32> undef, i32 {{[^)]+}}, <8 x i32> undef)
+    // CHECK-STATELESS: call <8 x i32> @llvm.genx.lsc.xatomic.stateless.v8i32.v8i1.v8i64(<8 x i1> {{[^)]+}}, i8 8, i8 0, i8 0, i16 1, i32 0, i8 6, i8 1, i8 1, i8 0, <8 x i64> {{[^)]+}}, <8 x i32> undef, <8 x i32> undef, i32 0, <8 x i32> undef)
+    {
+      using AccType =
+          sycl::accessor<int16_t, 1, sycl::access::mode::read_write>;
+      AccType *acc = nullptr;
+      constexpr int VL = 8;
+      simd<uint32_t, VL> offsets = simd<uint32_t, VL>(1) * sizeof(int16_t);
+      auto atomic_res =
+          atomic_update<atomic_op::inc, int16_t, VL>(*acc, offsets);
     }
   }
 
@@ -432,6 +456,18 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
     auto res_atomic_8 =
         atomic_update<atomic_op::add, int>(ptr, offsets, add, pred);
 
+    // Try with int16_t to check that LSC atomic is generated
+    // The result is later casted to int16, not captured here.
+    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 12, i8 0, i8 0, i16 1, i32 0, i8 6, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32>{{[^)]+}}, <4 x i32> undef, i32 0, <4 x i32> undef)
+    {
+      int16_t *ptr = 0;
+      constexpr int VL = 4;
+      simd<uint32_t, VL> offsets = simd<uint32_t, VL>(1) * sizeof(int16_t);
+      auto add = simd<int16_t, VL>(5);
+      auto atomic_res =
+          atomic_update<atomic_op::add, int16_t, VL>(ptr, offsets, add);
+    }
+
     // Accessors
 
     // CHECK-STATEFUL-COUNT-14:  call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 12, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
@@ -483,6 +519,21 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
     // CHECK-STATELESS: call <4 x i32> @llvm.genx.svm.atomic.sub.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
     auto res_atomic_17 =
         atomic_update<atomic_op::sub, int>(acc, offsets, add, pred);
+
+    // Try with int16_t to check that LSC atomic is generated
+    // The result is later casted to int16, not captured here.
+    // CHECK-STATEFUL: call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 12, i8 0, i8 0, i16 1, i32 0, i8 6, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATELESS: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 12, i8 0, i8 0, i16 1, i32 0, i8 6, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef, i32 0, <4 x i32> undef)
+    {
+      using AccType =
+          sycl::accessor<int16_t, 1, sycl::access::mode::read_write>;
+      AccType *acc = nullptr;
+      constexpr int VL = 4;
+      simd<uint32_t, VL> offsets = simd<uint32_t, VL>(1) * sizeof(int16_t);
+      auto add = simd<int16_t, VL>(5);
+      auto atomic_res =
+          atomic_update<atomic_op::add, int16_t, VL>(*acc, offsets, add);
+    }
   }
 
   // Test atomic update with two operands.
@@ -626,6 +677,19 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
     auto res_atomic_100 = atomic_update<atomic_op::cmpxchg, int, VL>(
         ptr, offsets, swap, compare, pred);
 
+    // Try with int16_t to check that LSC atomic is generated
+    // The result is later casted to int16, not captured here.
+    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 0, i8 0, i16 1, i32 0, i8 6, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
+    {
+      int16_t *ptr = 0;
+      constexpr int VL = 4;
+      simd<uint32_t, VL> offsets = simd<uint32_t, VL>(1) * sizeof(int16_t);
+      simd<int16_t, VL> swap = simd<int16_t, VL>(1) * sizeof(int);
+      auto compare = swap * 2;
+      auto atomic_res = atomic_update<atomic_op::cmpxchg, int16_t, VL>(
+          ptr, offsets, swap, compare);
+    }
+
     // Accessors
 
     // CHECK-STATEFUL-COUNT-30:  call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> undef)
@@ -751,6 +815,22 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
     // CHECK-STATELESS: call <4 x i32> @llvm.genx.svm.atomic.cmpxchg.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
     auto res_atomic_33 = atomic_update<atomic_op::cmpxchg, int, VL>(
         acc, offsets, swap, compare, pred);
+
+    // Try with int16_t to check that LSC atomic is generated
+    // The result is later casted to int16, not captured here.
+    // CHECK-STATEFUL: call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 18, i8 0, i8 0, i16 1, i32 0, i8 6, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATELESS: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 0, i8 0, i16 1, i32 0, i8 6, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
+    {
+      using AccType =
+          sycl::accessor<int16_t, 1, sycl::access::mode::read_write>;
+      AccType *acc = nullptr;
+      constexpr int VL = 4;
+      simd<uint32_t, VL> offsets = simd<uint32_t, VL>(1) * sizeof(int16_t);
+      simd<int16_t, VL> swap = simd<int16_t, VL>(1) * sizeof(int);
+      auto compare = swap * 2;
+      auto atomic_res = atomic_update<atomic_op::cmpxchg, int16_t, VL>(
+          *acc, offsets, compare, swap);
+    }
   }
 
   // Test slm_atomic_update without operands.
@@ -824,12 +904,11 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
     {
       constexpr int VL = 16;
       simd<uint32_t, VL> offsets = simd<uint32_t, VL>(1) * sizeof(int16_t);
-      auto pred = simd_mask<VL>(1);
       simd<int16_t, VL> add = simd<int16_t, VL>(1) * sizeof(int);
 
       // CHECK: call <16 x i32> @llvm.genx.lsc.xatomic.slm.v16i32.v16i1.v16i32(<16 x i1> {{[^)]+}}, i8 12, i8 0, i8 0, i16 1, i32 0, i8 6, i8 1, i8 1, i8 0, <16 x i32> {{[^)]+}}, <16 x i32> {{[^)]+}}, <16 x i32> undef, i32 0, <16 x i32> undef)
       auto res_slm_atomic_0 =
-          slm_atomic_update<atomic_op::add, int16_t>(offsets, add, pred);
+          slm_atomic_update<atomic_op::add, int16_t>(offsets, add);
     }
     // Expect DWORD for fmin.
     {
@@ -934,6 +1013,19 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
         offsets_view.select<VL, 1>(), swap_view.select<VL, 1>(),
         compare_view.select<VL, 1>());
 
+    // Expect LSC for short.
+    {
+      constexpr int VL = 16;
+      simd<uint32_t, VL> offsets = simd<uint32_t, VL>(1) * sizeof(int16_t);
+      auto compare = simd<int16_t, VL>(VL, 1);
+      auto swap = compare * 2;
+
+      // CHECK: call <16 x i32> @llvm.genx.lsc.xatomic.slm.v16i32.v16i1.v16i32(<16 x i1> {{[^)]+}}, i8 18, i8 0, i8 0, i16 1, i32 0, i8 6, i8 1, i8 1, i8 0, <16 x i32> {{[^)]+}}, <16 x i32> {{[^)]+}}, <16 x i32> {{[^)]+}}, i32 0, <16 x i32> undef)
+      auto res_slm_atomic_0 =
+          slm_atomic_update<atomic_op::cmpxchg, int16_t, VL>(offsets, swap,
+                                                             compare);
+    }
+
     // Expect LSC for int64_t.
     {
       constexpr int VL = 16;
@@ -964,6 +1056,15 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
         local_acc, offsets_view.select<VL, 1>(), pred);
     auto res_slm_atomic_6 = atomic_update<atomic_op::inc, int, VL>(
         local_acc, offsets_view.select<VL, 1>());
+
+    // Expect LSC for short.
+    {
+      using LocalAccType = sycl::local_accessor<int16_t, 1>;
+      LocalAccType *local_acc = nullptr;
+      // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.slm.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 8, i8 0, i8 0, i16 1, i32 0, i8 6, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 0, <4 x i32> undef)
+      auto res_slm_atomic_1 =
+          atomic_update<atomic_op::inc, int16_t>(*local_acc, offsets);
+    }
   }
   // One operand atomic.
   {
@@ -997,6 +1098,16 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
         pred);
     res_slm_atomic_8 = atomic_update<atomic_op::add, int, VL>(
         local_acc, offsets_view.select<VL, 1>(), add_view.select<VL, 1>());
+
+    // Expect LSC for short.
+    {
+      using LocalAccType = sycl::local_accessor<int16_t, 1>;
+      LocalAccType *local_acc = nullptr;
+      simd<int16_t, VL> add = simd<int16_t, VL>(1) * sizeof(int);
+      // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.slm.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 12, i8 0, i8 0, i16 1, i32 0, i8 6, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef, i32 0, <4 x i32> undef)
+      auto res_slm_atomic_1 =
+          atomic_update<atomic_op::add, int16_t>(*local_acc, offsets, add);
+    }
   }
   // Two operand atomic.
   {
@@ -1069,6 +1180,17 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
     res_slm_atomic_16 = atomic_update<atomic_op::cmpxchg, int, VL>(
         local_acc, offsets_view.select<VL, 1>(), swap_view.select<VL, 1>(),
         compare_view.select<VL, 1>());
+
+    // Expect LSC for short.
+    {
+      using LocalAccType = sycl::local_accessor<int16_t, 1>;
+      LocalAccType *local_acc = nullptr;
+      auto compare = simd<int16_t, VL>(VL, 1);
+      auto swap = compare * 2;
+      // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.slm.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 18, i8 0, i8 0, i16 1, i32 0, i8 6, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
+      auto res_slm_atomic_1 = atomic_update<atomic_op::cmpxchg, int16_t, VL>(
+          *local_acc, offsets, swap, compare);
+    }
   }
 }
 

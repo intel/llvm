@@ -147,14 +147,10 @@ int main() {
     assert(ReduceAcc[WI] == true);
     assert(ExScanAcc[WI] == true);
     assert(IncScanAcc[WI] == true);
-    // TODO: Enable for CUDA devices when issue with shuffles have been
-    // addressed.
-    if (Q.get_backend() != sycl::backend::ext_oneapi_cuda) {
-      assert(ShiftLeftAcc[WI] == true);
-      assert(ShiftRightAcc[WI] == true);
-      assert(SelectAcc[WI] == true);
-      assert(PermuteXorAcc[WI] == true);
-    }
+    assert(ShiftLeftAcc[WI] == true);
+    assert(ShiftRightAcc[WI] == true);
+    assert(SelectAcc[WI] == true);
+    assert(PermuteXorAcc[WI] == true);
   }
   return 0;
 }
