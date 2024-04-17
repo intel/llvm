@@ -79,14 +79,6 @@ public:
   }
 };
 
-template <typename ValueT> inline bool isnan(const ValueT a) {
-  return sycl::isnan(a);
-}
-#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
-inline bool isnan(const sycl::ext::oneapi::bfloat16 a) {
-  return sycl::ext::oneapi::experimental::isnan(a);
-}
-#endif
 /// Extend the 'val' to 'bit' size, zero extend for unsigned int and signed
 /// extend for signed int.
 template <typename ValueT>
