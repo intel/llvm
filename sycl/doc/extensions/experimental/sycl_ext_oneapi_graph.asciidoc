@@ -1799,6 +1799,12 @@ code `invalid` if a user tries to add them to a graph.
 Removing this restriction is something we may look at for future revisions of
 `sycl_ext_oneapi_graph`.
 
+==== sycl_ext_oneapi_kernel_compiler_spirv
+
+The kernels loaded using
+link:../experimental/sycl_ext_oneapi_kernel_compiler_spirv.asciidoc[sycl_ext_oneapi_kernel_compiler_spirv]
+behave as normal when used in graph nodes.
+
 == Examples
 
 [NOTE]
