@@ -5,7 +5,7 @@ import lit.formats
 import os
 
 
-class CustomFormat(lit.formats.TestFormat):
+class SYCLHeadersTest(lit.formats.TestFormat):
     def getTestsForPath(
         self, testSuite, path_in_suite, filepath, litConfig, localConfig
     ):
