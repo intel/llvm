@@ -148,11 +148,13 @@ DeviceType getDeviceType(ur_device_handle_t Device) {
     if (DeviceType == UR_DEVICE_TYPE_CPU || DeviceType == UR_DEVICE_TYPE_FPGA) {
         return DeviceType::CPU;
     }
+    // Ref: https://github.com/intel/compute-runtime/blob/master/shared/source/dll/devices/devices_base.inl
     if (DeviceType == UR_DEVICE_TYPE_GPU) {
         auto Name = getDeviceName(Device);
         if (Name.rfind("Intel(R) Data Center GPU Max", 0) == 0) {
             return DeviceType::GPU_PVC;
-        } else if (Name.rfind("Intel(R) Arc(TM)", 0) == 0 ||
+        } else if ((Name.rfind("Intel(R) Arc(TM)", 0) == 0 &&
+                    Name != "Intel(R) Arc(TM) Graphics") ||
                    Name.rfind("Intel(R) Data Center GPU Flex", 0) == 0) {
             return DeviceType::GPU_DG2;
         }
