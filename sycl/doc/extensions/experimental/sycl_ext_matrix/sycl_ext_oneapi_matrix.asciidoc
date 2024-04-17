@@ -496,9 +496,9 @@ class uint4;
 |precision::tf32 | float | The TF32 type has a 19 bit format with one
 sign bit, 8 exponent bits (offering the same range as float), and 10
 mantissa bits (offering the same precision as sycl::half).
-|precision::sint4 | int32_t | Four 4-bit signed integers are packed
+|precision::sint4 | int32_t | Eight 4-bit signed integers are packed
 into 32 bits.
-|precision::uint4 | int32_t | Four 4-bit unsigned integers are packed
+|precision::uint4 | int32_t | Eight 4-bit unsigned integers are packed
 into 32 bits.
 |======================
 
