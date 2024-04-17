@@ -8,6 +8,7 @@ on:
     branches:
       - sycl
     paths:
+      - 'devops/actions/build_container/**'
       - 'devops/containers/**'
       - 'devops/dependencies.json'
       - 'devops/scripts/install_drivers.sh'
@@ -15,6 +16,7 @@ on:
       - '.github/workflows/sycl-containers.yaml'
   pull_request:
     paths:
+      - 'devops/actions/build_container/**'
       - 'devops/containers/**'
       - 'devops/dependencies.json'
       - 'devops/scripts/install_drivers.sh'
