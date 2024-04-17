@@ -1,5 +1,6 @@
 // Tests importing a spirv kernel using sycl_ext_oneapi_kernel_compiler_spirv.
-// The SPIR-V kernels are the same as KernelCompiler/Kernels/kernels.spv
+// The SPIR-V kernels are identical to the ones used in
+// KernelCompiler/Kernels/kernels.spv
 
 #include "../graph_common.hpp"
 #include <fstream>
@@ -27,8 +28,7 @@ loadKernelsFromFile(sycl::queue &Q, std::string FileName) {
 }
 
 int main(int, char **argv) {
-  using T = int;
-
+  
   const sycl::device Dev{sycl::default_selector_v};
   const sycl::context Ctx{Dev};
 
