@@ -198,32 +198,17 @@ static constexpr unsigned int NativeCPUGlobalAS = 1;
 static constexpr char StateTypeName[] = "struct.__nativecpu_state";
 
 static Type *getStateType(Module &M) {
-  // %struct.__nativecpu_state = type { [3 x i64], [3 x i64], [3 x i64], [3 x
-  // i64], [3 x i64], [3 x i64], [3 x i64] } Check that there's no
   // __nativecpu_state type
   auto Types = M.getIdentifiedStructTypes();
   auto str = llvm::find_if(Types, [](auto T) { return T->getName() == StateTypeName; });
   if (str == Types.end()) {
-    //report_fatal_error("Native CPU state unexpectedly found in the module.");
   } else if ((*str)->isStructTy()) {
     // state struct should come from linked builtin bc file
     return *str;
   }
-  // old code, to be removed
-  bool HasStateT =
-      llvm::any_of(Types, [](auto T) { return T->getName() == StateTypeName; });
-  if (HasStateT)
-    report_fatal_error("Native CPU state unexpectedly found in the module.");
+  // Declare state struct if there isn't one in the module
   auto &Ctx = M.getContext();
-  auto *I64Ty = Type::getInt64Ty(Ctx);
-  auto *Array3dTy = ArrayType::get(I64Ty, 3);
-  std::array<Type *, 7 + 4> Elements;
-  std::fill(Elements.begin(), Elements.begin() + 7, Array3dTy);
-  auto* I32Ty = Type::getInt32Ty(Ctx);
-  std::fill(Elements.begin() + 7, Elements.begin() + 11, I32Ty);
-  auto *StateType = StructType::create(Ctx, StateTypeName);
-  StateType->setBody(Elements);
-  return StateType;
+  return StructType::create(Ctx, StateTypeName);
 }
 
 static Function *addReplaceFunc(Module &M, StringRef Name, Type *RetTy,
