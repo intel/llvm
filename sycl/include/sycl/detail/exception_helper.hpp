@@ -19,7 +19,7 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-void throw_invalid_parameter(const char *Msg, const pi_int32 PIErr);
+__SYCL_EXPORT void throw_invalid_parameter(const char *Msg, const pi_int32 PIErr);
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
