@@ -926,6 +926,30 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // CUDA supports cubemap seamless filtering.
     return ReturnValue(true);
   }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP: {
+    // CUDA does support fetching 1D USM sampled image data.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP: {
+    // CUDA does not support fetching 1D non-USM sampled image data.
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP: {
+    // CUDA does support fetching 2D USM sampled image data.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP: {
+    // CUDA does support fetching 2D non-USM sampled image data.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP: {
+    // CUDA does not support 3D USM sampled textures
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP: {
+    // CUDA does support fetching 3D non-USM sampled image data.
+    return ReturnValue(true);
+  }
   case UR_DEVICE_INFO_DEVICE_ID: {
     int Value = 0;
     UR_CHECK_ERROR(cuDeviceGetAttribute(
