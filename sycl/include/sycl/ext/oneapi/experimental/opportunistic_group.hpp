@@ -13,6 +13,7 @@
 #include <sycl/detail/type_traits.hpp> // for is_group, is_user_cons...
 #include <sycl/exception.hpp>          // for runtime_error
 #include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
+#include <sycl/ext/oneapi/free_function_queries.hpp> // for this_sub_group
 #include <sycl/ext/oneapi/sub_group_mask.hpp> // for sub_group_mask
 #include <sycl/id.hpp>                        // for id
 #include <sycl/memory_enums.hpp>              // for memory_scope
