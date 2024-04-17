@@ -86,11 +86,6 @@ protected:
     return PropT{};
   }
 
-// The following pragmas intend to silent warning of no return
-#ifndef __SYCL_RT_OS_WINDOWS
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wreturn-type"
-#endif
   template <typename PropT>
   typename std::enable_if_t<std::is_base_of_v<PropertyWithDataBase, PropT>,
                             PropT>
@@ -106,10 +101,10 @@ protected:
 
     detail::throw_invalid_parameter("The property is not found",
                                     PI_ERROR_INVALID_VALUE);
+    // The above will throw an exception, but compilers complain about no return value.
+    // So, create an unreachable dummy throw to make it silent.
+    throw "dummy";
   }
-#ifndef __SYCL_RT_OS_WINDOWS
-#pragma GCC diagnostic pop
-#endif
 
   void add_or_replace_accessor_properties_helper(
       const std::vector<std::shared_ptr<PropertyWithDataBase>> &PropsWithData) {
