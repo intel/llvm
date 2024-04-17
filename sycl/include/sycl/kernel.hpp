@@ -21,7 +21,7 @@
 #include <sycl/detail/string_view.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>                           // for device
-#include <sycl/ext/oneapi/kernel_launch_queries.hpp> // for kernel information descriptors
+#include <sycl/ext/oneapi/kernel_launch_queries.hpp> // for the kernel progress guarantees
 #include <sycl/kernel_bundle_enums.hpp>              // for bundle_state
 #include <sycl/range.hpp>                            // for range
 #include <variant>                                   // for hash
@@ -160,16 +160,6 @@ public:
   typename detail::is_kernel_device_specific_info_desc<Param>::return_type
   get_info(const device &Device) const;
 
-  /// Query queue-specific information from the kernel object.
-  /// The information is in the form of a kernel descriptor in Param
-  /// and its arguments in the parameter pack T.
-  /// The return type depends on the information being queried.
-  template <typename Param, typename... T>
-  typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
-  ext_oneapi_get_info(T... args) const {
-    return Param::get(args...);
-  }
-
   /// Query device-specific information from a kernel using the
   /// info::kernel_device_specific descriptor for a specific device and value.
   /// max_sub_group_size is the only valid descriptor for this function.
@@ -186,6 +176,11 @@ public:
   // once #7598 is merged.
   template <typename Param>
   typename Param::return_type ext_oneapi_get_info(const queue &q) const;
+  template <typename Param, typename = typename Param::device_desc>
+  typename detail::is_kernel_device_specific_info_desc<Param>::return_type
+  ext_oneapi_get_info(const device &Device) const {
+    return Device.get_info<Param::device_desc>();
+  }
 
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.
