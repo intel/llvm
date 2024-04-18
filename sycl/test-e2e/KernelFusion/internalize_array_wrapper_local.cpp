@@ -84,7 +84,8 @@ int main() {
       auto accTmp = bTmp.get_access(
           cgh, sycl::ext::codeplay::experimental::property::promote_local{});
       cgh.parallel_for<class KernelOne>(
-          nd_range<1>{{dataSize}, {4}}, [=](id<1> id) {
+          nd_range<1>{{dataSize}, {4}}, [=](nd_item<1> ndi) {
+            auto id = ndi.get_global_id();
             const auto &accIn1Wrapp = accIn1[id];
             const auto &accIn2Wrapp = accIn2[id];
             auto &accTmpWrapp = accTmp[id];
@@ -105,7 +106,8 @@ int main() {
       auto accIn3 = bIn3.get_access(cgh);
       auto accOut = bOut.get_access(cgh);
       cgh.parallel_for<class KernelTwo>(
-          nd_range<1>{{dataSize}, {4}}, [=](id<1> id) {
+          nd_range<1>{{dataSize}, {4}}, [=](nd_item<1> ndi) {
+            auto id = ndi.get_global_id();
             const auto &tmpWrapp = accTmp[id];
             const auto &accIn3Wrapp = accIn3[id];
             auto &accOutWrapp = accOut[id];

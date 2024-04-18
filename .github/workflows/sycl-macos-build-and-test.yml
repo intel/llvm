@@ -19,6 +19,8 @@ on:
         required: false
         default: ""
 
+permissions: read-all
+
 jobs:
   build:
     name: Build

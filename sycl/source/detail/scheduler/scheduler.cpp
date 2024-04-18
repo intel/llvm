@@ -266,13 +266,13 @@ bool Scheduler::isInstanceAlive() {
   return GlobalHandler::instance().isSchedulerAlive();
 }
 
-void Scheduler::waitForEvent(const EventImplPtr &Event) {
+void Scheduler::waitForEvent(const EventImplPtr &Event, bool *Success) {
   ReadLockT Lock = acquireReadLock();
   // It's fine to leave the lock unlocked upon return from waitForEvent as
   // there's no more actions to do here with graph
   std::vector<Command *> ToCleanUp;
   GraphProcessor::waitForEvent(std::move(Event), Lock, ToCleanUp,
-                               /*LockTheLock=*/false);
+                               /*LockTheLock=*/false, Success);
   cleanupCommands(ToCleanUp);
 }
 

@@ -75,7 +75,12 @@ public:
   /// Self is needed in order to pass shared_ptr to Scheduler.
   ///
   /// \param Self is a pointer to this event.
-  void wait(std::shared_ptr<sycl::detail::event_impl> Self);
+  /// \param Success is an optional parameter that, when set to a non-null
+  ///        pointer, indicates that failure is a valid outcome for this wait
+  ///        (e.g., in case of a non-blocking read from a pipe), and the value
+  ///        it's pointing to is then set according to the outcome.
+  void wait(std::shared_ptr<sycl::detail::event_impl> Self,
+            bool *Success = nullptr);
 
   /// Waits for the event.
   ///
@@ -105,10 +110,20 @@ public:
   /// \return depends on the information being requested.
   template <typename Param> typename Param::return_type get_info();
 
+  /// Queries this SYCL event for SYCL backend-specific information.
+  ///
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename Param::return_type get_backend_info() const;
+
   ~event_impl();
 
   /// Waits for the event with respect to device type.
-  void waitInternal();
+  /// \param Success is an optional parameter that, when set to a non-null
+  ///        pointer, indicates that failure is a valid outcome for this wait
+  ///        (e.g., in case of a non-blocking read from a pipe), and the value
+  ///        it's pointing to is then set according to the outcome.
+  void waitInternal(bool *Success = nullptr);
 
   /// Marks this event as completed.
   void setComplete();

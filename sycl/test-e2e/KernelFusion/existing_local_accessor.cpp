@@ -56,9 +56,11 @@ int main() {
           cgh, sycl::ext::codeplay::experimental::property::promote_local{});
       auto accIn3 = bIn3.get_access(cgh);
       auto accOut = bOut.get_access(cgh);
-      cgh.parallel_for<class KernelTwo>(
-          nd_range<1>{{dataSize}, {16}},
-          [=](id<1> i) { accOut[i] = accTmp[i] * accIn3[i]; });
+      cgh.parallel_for<class KernelTwo>(nd_range<1>{{dataSize}, {16}},
+                                        [=](nd_item<1> ndi) {
+                                          auto i = ndi.get_global_id(0);
+                                          accOut[i] = accTmp[i] * accIn3[i];
+                                        });
     });
 
     fw.complete_fusion({ext::codeplay::experimental::property::no_barriers{}});
