@@ -241,10 +241,12 @@ event handler::finalize() {
     }
 
     if (MQueue && !MGraph && !MSubgraphNode && !MQueue->getCommandGraph() &&
-        !MQueue->is_in_fusion_mode() &&
-        CGData.MRequirements.size() + CGData.MEvents.size() +
-                MStreamStorage.size() ==
-            0) {
+        !MQueue->is_in_fusion_mode() && !CGData.MRequirements.size() &&
+        !MStreamStorage.size() &&
+        (!CGData.MEvents.size() ||
+         (MQueue->isInOrder() &&
+          detail::Scheduler::areEventsSafeForSchedulerBypass(
+              CGData.MEvents, MQueue->getContextImplPtr())))) {
       // if user does not add a new dependency to the dependency graph, i.e.
       // the graph is not changed, and the queue is not in fusion mode, then
       // this faster path is used to submit kernel bypassing scheduler and
@@ -1031,6 +1033,12 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type =
         Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type =
         Desc.depth > 0
@@ -1078,6 +1086,12 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type = DestImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
                                                : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        DestImgDesc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type = DestImgDesc.depth > 0
                             ? PI_MEM_TYPE_IMAGE3D
@@ -1123,6 +1137,12 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type =
         Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type =
         Desc.depth > 0
@@ -1170,6 +1190,12 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type = SrcImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
                                               : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        SrcImgDesc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type = SrcImgDesc.depth > 0
                             ? PI_MEM_TYPE_IMAGE3D
@@ -1215,6 +1241,12 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type =
         Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type =
         Desc.depth > 0
@@ -1264,6 +1296,13 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type = DeviceImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
                                                  : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        DeviceImgDesc.type ==
+                sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type = DeviceImgDesc.depth > 0
                             ? PI_MEM_TYPE_IMAGE3D

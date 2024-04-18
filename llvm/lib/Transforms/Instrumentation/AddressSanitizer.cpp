@@ -1328,7 +1328,7 @@ static bool isUnsupportedSPIRAccess(Value *Addr, Function *Func) {
   }
 
   // All the rest address spaces: skip SPIR-V built-in varibles
-  auto *OrigValue = Addr->stripPointerCasts();
+  auto *OrigValue = Addr->stripInBoundsOffsets();
   return OrigValue->getName().starts_with("__spirv_BuiltIn");
 }
 
@@ -2909,12 +2909,6 @@ bool ModuleAddressSanitizer::instrumentModule(Module &M) {
       IRBuilder<> IRB(*C);
       instrumentGlobals(IRB, M, &CtorComdat);
     }
-  }
-
-  // SPIR kernel needn't AsanCtorFunction & AsanDtorFunction
-  if (TargetTriple.isSPIR()) {
-    AsanCtorFunction = nullptr;
-    AsanDtorFunction = nullptr;
   }
 
   const uint64_t Priority = GetCtorAndDtorPriority(TargetTriple);

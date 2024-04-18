@@ -28,7 +28,7 @@ bool apply_verify(Tc *C, Tc *D, Ta *A, Ta *Ar) {
   return true;
 }
 template <typename Tc, typename Ta, size_t TM, size_t TN, size_t TK, size_t M,
-          size_t N, class kernel_name>
+          size_t N, size_t K, class kernel_name>
 bool apply_two_matrices(Tc *C, Tc *D, Ta *A, Ta *Ar, queue q) {
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
@@ -76,13 +76,13 @@ bool apply_two_matrices(Tc *C, Tc *D, Ta *A, Ta *Ar, queue q) {
                sg, sub_d, pD + (sg_startx * TM) * N + sg_starty / sg_size * TN,
                N, layout::row_major);
            joint_matrix_load(
-               sg, sub_a, pA + (sg_startx * TM) * N + sg_starty / sg_size * TK,
-               N);
+               sg, sub_a, pA + (sg_startx * TM) * K + sg_starty / sg_size * TK,
+               K);
            joint_matrix_apply(sg, sub_a, sub_ar,
                               [](const Ta &x, Ta &y) { y = x + 42; });
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_ar,
-               pAr + (sg_startx * TM) * N + sg_starty / sg_size * TK, N);
+               pAr + (sg_startx * TM) * K + sg_starty / sg_size * TK, K);
          }); // parallel for
    }).wait();
   return apply_verify<Tc, Ta, M, N>(C, D, A, Ar);
@@ -91,27 +91,27 @@ bool apply_two_matrices(Tc *C, Tc *D, Ta *A, Ta *Ar, queue q) {
 template <typename Ta, typename Tc, size_t TM, size_t TN, size_t TK,
           class kernel_name>
 bool test() {
-
   static constexpr size_t M = TM * 2;
   static constexpr size_t N = TN * 2;
+  static constexpr size_t K = TK * 2;
   queue q;
 
   Tc *C = malloc_shared<Tc>(M * N, q);
   Tc *D = malloc_shared<Tc>(M * N, q);
-  Ta *A = malloc_shared<Ta>(M * N, q);
-  Ta *Ar = malloc_shared<Ta>(M * N, q);
+  Ta *A = malloc_shared<Ta>(M * K, q);
+  Ta *Ar = malloc_shared<Ta>(M * K, q);
 
   matrix_rand(M, N, (Tc *)C, (Tc)100);
-  matrix_rand(M, N, (Ta *)A, (Ta)100);
+  matrix_rand(M, K, (Ta *)A, (Ta)100);
 
-  bool res =
-      apply_two_matrices<Tc, Ta, TM, TN, TK, M, N, kernel_name>(C, D, A, Ar, q);
+  bool res = apply_two_matrices<Tc, Ta, TM, TN, TK, M, N, K, kernel_name>(
+      C, D, A, Ar, q);
 
   if constexpr (std::is_same_v<Ta, bfloat16>)
-    std::cout << "bfloat16 " << TM << "x" << TN << ": "
+    std::cout << "bfloat16 " << TM << "x" << TN << "x" << TK << ": "
               << (res ? "passed" : "failed") << std::endl;
   else if constexpr (std::is_same_v<Ta, int8_t>)
-    std::cout << "int8_t " << TM << "x" << TN << ": "
+    std::cout << "int8_t " << TM << "x" << TN << "x" << TK << ": "
               << (res ? "passed" : "failed") << std::endl;
   return res;
 }
@@ -126,8 +126,8 @@ int main() {
   bool passed = true;
   for (unsigned int i = 0; i < combinations.size(); i++) {
     if (combinations[i].nsize == 0) { // Intel AMX
-      passed &= test<int8_t, int32_t, 8, 16, 32, class amx_int_8x16x32>();
-      passed &= test<bfloat16, float, 8, 16, 32, class amx_bf16_8x16x32>();
+      passed &= test<int8_t, int32_t, 16, 16, 64, class amx_int_16x16x64>();
+      passed &= test<bfloat16, float, 16, 16, 32, class amx_bf16_16x16x32>();
       break;
     }
 
