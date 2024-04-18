@@ -250,11 +250,14 @@ using Vec4StorageT = StorageT __attribute__((ext_vector_type(4)));
 using Vec8StorageT = StorageT __attribute__((ext_vector_type(8)));
 using Vec16StorageT = StorageT __attribute__((ext_vector_type(16)));
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 using Vec2DeviceStorageT = std::array<sycl::half, 2>;
 using Vec3DeviceStorageT = std::array<sycl::half, 4>;
 using Vec4DeviceStorageT = std::array<sycl::half, 4>;
 using Vec8DeviceStorageT = std::array<sycl::half, 8>;
 using Vec16DeviceStorageT = std::array<sycl::half, 16>;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
 #else // SYCL_DEVICE_ONLY
 using StorageT = detail::host_half_impl::half;
 // No need to extract underlying data type for built-in functions operating on

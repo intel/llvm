@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl-device-only -S -O0 -Xclang -emit-llvm -o - %s | FileCheck %s --dump-input=always
+// RUN: %if preview-breaking-changes-supported %{ %clangxx -fpreview-breaking-changes -fsycl-device-only -S -O0 -Xclang -emit-llvm -o - %s | FileCheck %s %}
 
 // This test checks that sycl::vec uses std::array as storage type on device for
 // all data types.
