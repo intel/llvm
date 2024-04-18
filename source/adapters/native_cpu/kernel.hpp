@@ -45,7 +45,8 @@ struct ur_kernel_handle_t_ : RefCounted {
         HasReqdWGSize(false) {}
 
   ur_kernel_handle_t_(const ur_kernel_handle_t_ &other)
-      : _name(other._name), _subhandler(other._subhandler), _args(other._args),
+      : hProgram(other.hProgram), _name(other._name),
+        _subhandler(other._subhandler), _args(other._args),
         _localArgInfo(other._localArgInfo), _localMemPool(other._localMemPool),
         _localMemPoolSize(other._localMemPoolSize),
         HasReqdWGSize(other.HasReqdWGSize), ReqdWGSize(other.ReqdWGSize) {
