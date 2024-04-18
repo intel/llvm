@@ -862,7 +862,7 @@ __SYCL_EXPORT bool is_source_kernel_bundle_supported(backend BE,
 // syclex::create_kernel_bundle_from_source
 /////////////////////////
 
-kernel_bundle<bundle_state::ext_oneapi_source>
+__SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
 create_kernel_bundle_from_source(const context &SyclContext,
                                  source_language Language,
                                  sycl::detail::string_view Source);
@@ -886,7 +886,7 @@ create_kernel_bundle_from_source(const context &SyclContext,
 /////////////////////////
 namespace detail {
 // forward decl
-kernel_bundle<bundle_state::executable>
+__SYCL_EXPORT kernel_bundle<bundle_state::executable>
 build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
                   const std::vector<device> &Devices,
                   const std::vector<std::string> &BuildOptions,
