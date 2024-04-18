@@ -884,8 +884,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
         Queue, Event, UR_COMMAND_MEM_BUFFER_MAP, Queue->CommandListMap.end(),
         IsInternal, false));
 
-    UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
-                           NumEventsInWaitList, EventWaitList));
+    ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
   }
 
@@ -988,6 +987,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
     char *ZeHandleSrc;
     UR_CALL(Buffer->getZeHandle(ZeHandleSrc, AccessMode, Queue->Device));
 
+    UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
+                           NumEventsInWaitList, EventWaitList));
+
     ZE2UR_CALL(zeCommandListAppendMemoryCopy,
                (ZeCommandList, *RetMap, ZeHandleSrc + Offset, Size, ZeEvent,
                 WaitList.Length, WaitList.ZeEventList));
@@ -1042,8 +1044,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
     UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_MEM_UNMAP,
                                          Queue->CommandListMap.end(),
                                          IsInternal, false));
-    UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
-                           NumEventsInWaitList, EventWaitList));
+    ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
   }
 
@@ -1115,6 +1116,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
   char *ZeHandleDst;
   UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
                               Queue->Device));
+
+  UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
+                         NumEventsInWaitList, EventWaitList));
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopy,
              (ZeCommandList, ZeHandleDst + MapInfo.Offset, MappedPtr,
