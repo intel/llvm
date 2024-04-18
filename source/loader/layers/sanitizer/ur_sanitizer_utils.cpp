@@ -72,6 +72,20 @@ ur_device_handle_t GetDevice(ur_queue_handle_t Queue) {
     return Device;
 }
 
+std::string GetDeviceName(ur_device_handle_t Device) {
+    size_t Size = 0;
+    [[maybe_unused]] auto Res = context.urDdiTable.Device.pfnGetInfo(
+        Device, UR_DEVICE_INFO_NAME, 0, nullptr, &Size);
+    assert(Res == UR_RESULT_SUCCESS);
+
+    std::vector<char> NameBuf(Size);
+    Res = context.urDdiTable.Device.pfnGetInfo(Device, UR_DEVICE_INFO_NAME,
+                                               Size, NameBuf.data(), nullptr);
+    assert(Res == UR_RESULT_SUCCESS);
+
+    return std::string(NameBuf.data(), Size - 1);
+}
+
 ur_program_handle_t GetProgram(ur_kernel_handle_t Kernel) {
     ur_program_handle_t Program{};
     [[maybe_unused]] auto Result = context.urDdiTable.Kernel.pfnGetInfo(
@@ -126,8 +140,16 @@ DeviceType GetDeviceType(ur_device_handle_t Device) {
         // TODO: Check fpga is fpga emulator
         return DeviceType::CPU;
     case UR_DEVICE_TYPE_GPU: {
-        // TODO: Check device name
-        return DeviceType::GPU_PVC;
+        // Ref: https://github.com/intel/compute-runtime/blob/master/shared/source/dll/devices/devices_base.inl
+        auto Name = getDeviceName(Device);
+        if (Name.rfind("Intel(R) Data Center GPU Max", 0) == 0) {
+            return DeviceType::GPU_PVC;
+        } else if ((Name.rfind("Intel(R) Arc(TM)", 0) == 0 &&
+                    Name != "Intel(R) Arc(TM) Graphics") ||
+                   Name.rfind("Intel(R) Data Center GPU Flex", 0) == 0) {
+            return DeviceType::GPU_DG2;
+        }
+        return DeviceType::UNKNOWN;
     }
     default:
         return DeviceType::UNKNOWN;
