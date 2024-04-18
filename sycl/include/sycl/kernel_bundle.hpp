@@ -186,12 +186,10 @@ public:
   bool ext_oneapi_has_kernel(const std::string &name) {
     return ext_oneapi_has_kernel(name.c_str());
   }
-  bool ext_oneapi_has_kernel(detail::string_view name);
 
   kernel ext_oneapi_get_kernel(const std::string &name) {
     return ext_oneapi_get_kernel(name.c_str());
   }
-  kernel ext_oneapi_get_kernel(detail::string_view name);
 
 protected:
   // \returns a kernel object which represents the kernel identified by
@@ -217,6 +215,10 @@ protected:
   bool is_specialization_constant_set(const char *SpecName) const noexcept;
 
   detail::KernelBundleImplPtr impl;
+
+private:
+  bool ext_oneapi_has_kernel(detail::string_view name);
+  kernel ext_oneapi_get_kernel(detail::string_view name);
 };
 
 } // namespace detail
@@ -864,7 +866,7 @@ kernel_bundle<bundle_state::ext_oneapi_source>
 create_kernel_bundle_from_source(const context &SyclContext,
                                  source_language Language,
                                  sycl::detail::string_view Source);
-__SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
+__SYCL_EXPORT inline kernel_bundle<bundle_state::ext_oneapi_source>
 create_kernel_bundle_from_source(const context &SyclContext,
                                  source_language Language,
                                  const std::string &Source) {
@@ -889,7 +891,7 @@ build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
                   const std::vector<device> &Devices,
                   const std::vector<std::string> &BuildOptions,
                   sycl::detail::string_view LogPtr);
-__SYCL_EXPORT kernel_bundle<bundle_state::executable>
+__SYCL_EXPORT inline kernel_bundle<bundle_state::executable>
 build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
                   const std::vector<device> &Devices,
                   const std::vector<std::string> &BuildOptions,
