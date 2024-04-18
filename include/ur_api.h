@@ -1631,7 +1631,7 @@ typedef enum ur_device_info_t {
                                                                     ///< accessing cubemap resources
     UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP = 0x2011, ///< [::ur_bool_t] returns true if the device supports sampling cubemapped
                                                                     ///< images across face boundaries
-    UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP = 0x2012,         ///< [::ur_bool_t] returns true if the device supports timestamp recording
+    UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP = 0x2012,        ///< [::ur_bool_t] returns true if the device supports timestamp recording
     /// @cond
     UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1657,7 +1657,7 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP < propName`
+///         + `::UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
