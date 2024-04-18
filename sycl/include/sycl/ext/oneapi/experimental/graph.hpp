@@ -272,14 +272,16 @@ public:
   /// @param RecordingQueue The queue to change state on and associate this
   /// graph with.
   /// @param PropList Property list used to pass properties for recording.
-  void begin_recording(queue &RecordingQueue, const property_list& PropList = {});
+  void begin_recording(queue &RecordingQueue,
+                       const property_list &PropList = {});
 
   /// Change the state of multiple queues to be recording and associate this
   /// graph with each of them.
   /// @param RecordingQueues The queues to change state on and associate this
   /// graph with.
   /// @param PropList Property list used to pass properties for recording.
-  void begin_recording(const std::vector<queue> &RecordingQueues, const property_list& PropList = {});
+  void begin_recording(const std::vector<queue> &RecordingQueues,
+                       const property_list &PropList = {});
 
   /// Set all queues currently recording to this graph to the executing state.
   void end_recording();
