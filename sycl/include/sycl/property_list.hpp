@@ -47,8 +47,7 @@ public:
 
   template <typename PropT> PropT get_property() const {
     if (!has_property<PropT>()) {
-      detail::throw_invalid_parameter("The property is not found",
-                                      PI_ERROR_INVALID_VALUE);
+      detail::throw_invalid_parameter("The property is not found");
     }
 
     return get_property_helper<PropT>();

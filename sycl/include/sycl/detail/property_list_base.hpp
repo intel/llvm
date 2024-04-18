@@ -92,15 +92,13 @@ protected:
   get_property_helper() const {
     const int PropKind = static_cast<int>(PropT::getKind());
     if (PropKind >= PropWithDataKind::PropWithDataKindSize)
-      detail::throw_invalid_parameter("The property is not found",
-                                      PI_ERROR_INVALID_VALUE);
+      detail::throw_invalid_parameter("The property is not found");
 
     for (const std::shared_ptr<PropertyWithDataBase> &Prop : MPropsWithData)
       if (Prop->isSame(PropKind))
         return *static_cast<PropT *>(Prop.get());
 
-    detail::throw_invalid_parameter("The property is not found",
-                                    PI_ERROR_INVALID_VALUE);
+    detail::throw_invalid_parameter("The property is not found");
     // The above will throw an exception, but compilers complain about no return
     // value. So, create an unreachable dummy throw to make it silent.
     throw "dummy";
