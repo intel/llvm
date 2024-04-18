@@ -210,7 +210,7 @@ std::vector<byte> online_compiler<source_language::cm>::compile(
 ///   OpenCL JIT compiler options must be supported.
 template <>
 template <>
-__SYCL_EXPORT std::vector<byte>
+__SYCL_EXPORT inline std::vector<byte>
 online_compiler<source_language::opencl_c>::compile(
     const std::string &src, const std::vector<std::string> &options) {
   std::vector<sycl::detail::string_view> opts;
@@ -234,7 +234,8 @@ online_compiler<source_language::opencl_c>::compile(const std::string &src) {
 /// @param options - compilation options (implementation defined).
 template <>
 template <>
-__SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
+__SYCL_EXPORT inline std::vector<byte>
+online_compiler<source_language::cm>::compile(
     const std::string &src, const std::vector<std::string> &options) {
   std::vector<sycl::detail::string_view> opts;
   for (const std::string &opt : options)

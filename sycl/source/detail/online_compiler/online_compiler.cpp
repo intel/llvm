@@ -205,9 +205,12 @@ online_compiler<source_language::opencl_c>::compile(
     sycl::detail::string_view SourceView,
     const std::vector<sycl::detail::string_view> &UserArgs) {
   const std::string Source{SourceView.data()};
+  std::cout << Source << std::endl;
   std::vector<std::string> Args;
-  for (const sycl::detail::string_view &arg : UserArgs)
+  for (const sycl::detail::string_view &arg : UserArgs) {
     Args.push_back(arg.data());
+    std::cout << Args.back() << std::endl;
+  }
 
   if (OutputFormatVersion != std::pair<int, int>{0, 0}) {
     std::string Version = std::to_string(OutputFormatVersion.first) + ", " +
