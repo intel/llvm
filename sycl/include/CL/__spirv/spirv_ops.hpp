@@ -1265,6 +1265,7 @@ __CLC_BF16_SCAL_VEC(uint32_t)
 
 extern __DPCPP_SYCL_EXTERNAL int32_t __spirv_BuiltInGlobalHWThreadIDINTEL();
 extern __DPCPP_SYCL_EXTERNAL int32_t __spirv_BuiltInSubDeviceIDINTEL();
+extern __DPCPP_SYCL_EXTERNAL uint64_t __spirv_ReadClockKHR(int);
 
 template <typename from, typename to>
 extern __DPCPP_SYCL_EXTERNAL
