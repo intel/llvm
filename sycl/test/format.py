@@ -47,8 +47,6 @@ class SYCLHeadersTest(lit.formats.TestFormat):
         # standalone. `os.path.join` is required here so the filtering works
         # cross-platform
         xfail = [
-            os.path.join("sycl", "ext", "oneapi", "matrix", "matrix-hip.hpp"),
-            os.path.join("sycl", "detail", "reduction_forward.hpp"),
             os.path.join(
                 "sycl", "ext", "oneapi", "experimental", "backend", "cuda.hpp"
             ),
