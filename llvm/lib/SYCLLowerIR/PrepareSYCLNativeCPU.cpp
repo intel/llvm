@@ -156,42 +156,27 @@ Function *cloneFunctionAndAddParam(Function *OldF, Type *T,
   return NewF;
 }
 
-/*
-uint32_t NumSubGroups,
-         SubGroup_id,
-         SubGroup_local_id,
-         SubGroup_size;*/
-
-#define NCPUPREFIX "__dpcpp_nativecpu"
-         // subgroup getters
-constexpr const char* NativeCPUNumSubGroups = NCPUPREFIX "_get_num_sub_groups";
-constexpr const char* NativeCPUSubGroup_id = NCPUPREFIX "_get_sub_group_id";
-constexpr const char* NativeCPUSubGroup_local_id = NCPUPREFIX "_get_sub_group_local_id";
-constexpr const char* NativeCPUSubGroup_size = NCPUPREFIX "_get_sub_group_size";
-constexpr const char* NativeCPUSubGroup_max_size = NCPUPREFIX "_get_max_sub_group_size";
-// subgroup setters
-constexpr const char* NativeCPUSetNumSubGroups = NCPUPREFIX "_set_num_sub_groups";
-constexpr const char* NativeCPUSetSubGroup_id = NCPUPREFIX "_set_sub_group_id";
-constexpr const char* NativeCPUSetSubGroup_size = NCPUPREFIX "_set_sub_group_size";
+#define BMapEntry2(n1, n2) { "__mux_" #n1, "__dpcpp_nativecpu_" #n2 }
+#define BMapEntry1(n) BMapEntry2(n, n)
 
 static const std::pair<StringRef, StringRef> BuiltinNamesMap[]{
-    {"__mux_get_global_id", NativeCPUGlobalId},
-    {"__mux_get_global_size", NativeCPUGlobaRange},
-    {"__mux_get_global_offset", NativeCPUGlobalOffset},
-    {"__mux_get_local_id", NativeCPULocalId},
-    {"__mux_get_num_groups", NativeCPUNumGroups},
-    {"__mux_get_local_size", NativeCPUWGSize},
-    {"__mux_get_group_id", NativeCPUWGId},
-    {"__mux_set_num_sub_groups", NativeCPUSetNumSubgroups},
-    {"__mux_set_sub_group_id", NativeCPUSetSubgroupId},
-    {"__mux_set_max_sub_group_size", NativeCPUSetMaxSubgroupSize},
-    {"__mux_set_local_id", NativeCPUSetLocalId},
-    // subgroup getters
-    {"__mux_get_sub_group_local_id", NativeCPUSubGroup_local_id},
-    {"__mux_get_max_sub_group_size", NativeCPUSubGroup_max_size},
-    {"__mux_get_sub_group_id", NativeCPUSubGroup_id},
-    {"__mux_get_num_sub_groups", NativeCPUNumSubGroups},
-    {"__mux_get_sub_group_size", NativeCPUSubGroup_size}
+    BMapEntry1(get_global_id),
+    BMapEntry2(get_global_size, get_global_range),
+    BMapEntry1(get_global_offset),
+    BMapEntry1(get_local_id),
+    BMapEntry1(get_num_groups),
+    BMapEntry2(get_local_size, get_wg_size),
+    BMapEntry2(get_group_id, get_wg_id),
+    BMapEntry1(set_num_sub_groups),
+    BMapEntry1(set_sub_group_id),
+    BMapEntry1(set_max_sub_group_size),
+    BMapEntry1(set_local_id),
+
+    BMapEntry1(get_sub_group_local_id),
+    BMapEntry1(get_max_sub_group_size),
+    BMapEntry1(get_sub_group_id),
+    BMapEntry1(get_num_sub_groups),
+    BMapEntry1(get_sub_group_size)
 };
 
 static constexpr unsigned int NativeCPUGlobalAS = 1;
