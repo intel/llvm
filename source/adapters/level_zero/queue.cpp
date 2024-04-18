@@ -1407,7 +1407,7 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
     for (auto &Event : CommandList->second.EventList) {
       if (Event->IsInnerBatchedEvent) {
         ZE2UR_CALL(zeCommandListAppendSignalEvent,
-                    (CommandList->first, Event->ZeEvent));
+                   (CommandList->first, Event->ZeEvent));
       }
     }
 
