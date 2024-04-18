@@ -1395,13 +1395,6 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
               zeCommandListAppendBarrier,
               (CommandList->first, HostVisibleEvent->ZeEvent, 0, nullptr));
         }
-        // Append Signalling of the inner events at the end of the batch
-        for (auto &Event : CommandList->second.EventList) {
-          if (Event->IsInnerBatchedEvent) {
-            ZE2UR_CALL(zeCommandListAppendSignalEvent,
-                       (CommandList->first, Event->ZeEvent));
-          }
-        }
       } else {
         // If we don't have host visible proxy then signal event if needed.
         this->signalEventFromCmdListIfLastEventDiscarded(CommandList);
@@ -1409,6 +1402,13 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
     } else {
       // If we don't have host visible proxy then signal event if needed.
       this->signalEventFromCmdListIfLastEventDiscarded(CommandList);
+    }
+    // Append Signalling of the inner events at the end of the batch
+    for (auto &Event : CommandList->second.EventList) {
+      if (Event->IsInnerBatchedEvent) {
+        ZE2UR_CALL(zeCommandListAppendSignalEvent,
+                    (CommandList->first, Event->ZeEvent));
+      }
     }
 
     // Close the command list and have it ready for dispatch.
