@@ -71,3 +71,8 @@ images:
       - scripts/core/EXP-BINDLESS-IMAGES.rst
       - scripts/core/exp-bindless-images.yml
       - source/adapters/**/image.*
+
+sanitizer:
+  - changed-files:
+    - any-glob-to-any-file:
+      - source/loader/layers/sanitizer/*
