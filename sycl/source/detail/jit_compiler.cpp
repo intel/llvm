@@ -22,17 +22,13 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-using FuseKernelsFuncT = decltype(::jit_compiler::fuseKernels) *;
-using ResetConfigFuncT = decltype(::jit_compiler::resetJITConfiguration) *;
-using AddToConfigFuncT = decltype(::jit_compiler::addToJITConfiguration) *;
-
 static inline void printPerformanceWarning(const std::string &Message) {
   if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0) {
     std::cerr << "WARNING: " << Message << "\n";
   }
 }
 
-bool jit_compiler::isAvailable() {
+jit_compiler::jit_compiler() {
   auto checkJITLibrary = [this]() -> bool {
     static const std::string JITLibraryName = "libsycl-fusion.so";
 
@@ -42,24 +38,26 @@ bool jit_compiler::isAvailable() {
       return false;
     }
 
-    this->AddToConfigHandle = sycl::detail::pi::getOsLibraryFuncAddress(
-        LibraryPtr, "addToJITConfiguration");
+    this->AddToConfigHandle = reinterpret_cast<AddToConfigFuncT>(
+        sycl::detail::pi::getOsLibraryFuncAddress(LibraryPtr,
+                                                  "addToJITConfiguration"));
     if (!this->AddToConfigHandle) {
       printPerformanceWarning(
           "Cannot resolve JIT library function entry point");
       return false;
     }
 
-    this->ResetConfigHandle = sycl::detail::pi::getOsLibraryFuncAddress(
-        LibraryPtr, "resetJITConfiguration");
+    this->ResetConfigHandle = reinterpret_cast<ResetConfigFuncT>(
+        sycl::detail::pi::getOsLibraryFuncAddress(LibraryPtr,
+                                                  "resetJITConfiguration"));
     if (!this->ResetConfigHandle) {
       printPerformanceWarning(
           "Cannot resolve JIT library function entry point");
       return false;
     }
 
-    this->FuseKernelsHandle =
-        sycl::detail::pi::getOsLibraryFuncAddress(LibraryPtr, "fuseKernels");
+    this->FuseKernelsHandle = reinterpret_cast<FuseKernelsFuncT>(
+        sycl::detail::pi::getOsLibraryFuncAddress(LibraryPtr, "fuseKernels"));
     if (!this->FuseKernelsHandle) {
       printPerformanceWarning(
           "Cannot resolve JIT library function entry point");
@@ -68,8 +66,7 @@ bool jit_compiler::isAvailable() {
 
     return true;
   };
-  static bool available = checkJITLibrary();
-  return available;
+  Available = checkJITLibrary();
 }
 
 static ::jit_compiler::BinaryFormat
@@ -901,21 +898,21 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
 
   static size_t FusedKernelNameIndex = 0;
   auto FusedKernelName = "fused_" + std::to_string(FusedKernelNameIndex++);
-  reinterpret_cast<ResetConfigFuncT>(ResetConfigHandle)();
-  auto AddToConfigFunc = reinterpret_cast<AddToConfigFuncT>(AddToConfigHandle);
+  ResetConfigHandle();
   bool DebugEnabled =
       detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0;
-  AddToConfigFunc(::jit_compiler::option::JITEnableVerbose::set(DebugEnabled));
-  AddToConfigFunc(::jit_compiler::option::JITEnableCaching::set(
+  AddToConfigHandle(
+      ::jit_compiler::option::JITEnableVerbose::set(DebugEnabled));
+  AddToConfigHandle(::jit_compiler::option::JITEnableCaching::set(
       detail::SYCLConfig<detail::SYCL_ENABLE_FUSION_CACHING>::get()));
 
   ::jit_compiler::TargetInfo TargetInfo = getTargetInfo(Queue);
   ::jit_compiler::BinaryFormat TargetFormat = TargetInfo.getFormat();
-  AddToConfigFunc(
+  AddToConfigHandle(
       ::jit_compiler::option::JITTargetInfo::set(std::move(TargetInfo)));
 
   using ::jit_compiler::View;
-  auto FusionResult = reinterpret_cast<FuseKernelsFuncT>(FuseKernelsHandle)(
+  auto FusionResult = FuseKernelsHandle(
       View{InputKernelInfo}, FusedKernelName.c_str(), View(ParamIdentities),
       BarrierFlags, View(InternalizeParams), View(JITConstants));
 

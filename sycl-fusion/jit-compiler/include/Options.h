@@ -27,10 +27,7 @@ public:
 
 class OptionStorage {
 public:
-  ~OptionStorage() {
-    if (Storage)
-      delete Storage;
-  }
+  ~OptionStorage() { delete Storage; }
 
   OptionStorage() : Storage{nullptr} {}
 
