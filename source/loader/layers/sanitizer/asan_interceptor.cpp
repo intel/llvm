@@ -205,6 +205,7 @@ SanitizerInterceptor::SanitizerInterceptor() {
 SanitizerInterceptor::~SanitizerInterceptor() {
     DestroyShadowMemoryOnCPU();
     DestroyShadowMemoryOnPVC();
+    DestroyShadowMemoryOnDG2();
 }
 
 /// The memory chunk allocated from the underlying allocator looks like this:
