@@ -60,6 +60,10 @@ ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
     if (Size == 0) {
         return UR_RESULT_SUCCESS;
     }
+
+    ///
+    /// CPU Device: CPU needs to use a special memset function
+    ///
     if (DeviceInfo->Type == DeviceType::CPU) {
         uptr ShadowBegin = MemToShadow_CPU(DeviceInfo->ShadowOffset, Ptr);
         uptr ShadowEnd =
@@ -76,74 +80,85 @@ ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
                              (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
                              (void *)(size_t)Value);
         MemSet((void *)ShadowBegin, Value, ShadowEnd - ShadowBegin + 1);
-    } else if (DeviceInfo->Type == DeviceType::GPU_PVC) {
-        uptr ShadowBegin = MemToShadow_PVC(DeviceInfo->ShadowOffset, Ptr);
-        uptr ShadowEnd =
-            MemToShadow_PVC(DeviceInfo->ShadowOffset, Ptr + Size - 1);
-        assert(ShadowBegin <= ShadowEnd);
-        {
-            static const size_t PageSize =
-                GetVirtualMemGranularity(Context, DeviceInfo->Handle);
+        return UR_RESULT_SUCCESS;
+    }
 
-            ur_physical_mem_properties_t Desc{
-                UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES, nullptr, 0};
-            static ur_physical_mem_handle_t PhysicalMem{};
+    ///
+    /// GPU Device: GPU needs to manually map physical memory before memset
+    ///
+    uptr ShadowBegin = 0, ShadowEnd = 0;
 
-            // Make sure [Ptr, Ptr + Size] is mapped to physical memory
-            for (auto MappedPtr = RoundDownTo(ShadowBegin, PageSize);
-                 MappedPtr <= ShadowEnd; MappedPtr += PageSize) {
-                if (!PhysicalMem) {
-                    auto URes = context.urDdiTable.PhysicalMem.pfnCreate(
-                        Context, DeviceInfo->Handle, PageSize, &Desc,
-                        &PhysicalMem);
-                    if (URes != UR_RESULT_SUCCESS) {
-                        context.logger.error("urPhysicalMemCreate(): {}", URes);
-                        return URes;
-                    }
-                }
-
-                context.logger.debug("urVirtualMemMap: {} ~ {}",
-                                     (void *)MappedPtr,
-                                     (void *)(MappedPtr + PageSize - 1));
-
-                // FIXME: No flag to check the failed reason is VA is already mapped
-                auto URes = context.urDdiTable.VirtualMem.pfnMap(
-                    Context, (void *)MappedPtr, PageSize, PhysicalMem, 0,
-                    UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
-                if (URes != UR_RESULT_SUCCESS) {
-                    context.logger.debug("urVirtualMemMap({}, {}): {}",
-                                         (void *)MappedPtr, PageSize, URes);
-                }
-
-                // Initialize to zero
-                if (URes == UR_RESULT_SUCCESS) {
-                    // Reset PhysicalMem to null since it's been mapped
-                    PhysicalMem = nullptr;
-
-                    auto URes =
-                        urEnqueueUSMSet(Queue, (void *)MappedPtr, 0, PageSize);
-                    if (URes != UR_RESULT_SUCCESS) {
-                        context.logger.error("urEnqueueUSMFill(): {}", URes);
-                        return URes;
-                    }
-                }
-            }
-        }
-
-        auto URes = urEnqueueUSMSet(Queue, (void *)ShadowBegin, Value,
-                                    ShadowEnd - ShadowBegin + 1);
-        context.logger.debug(
-            "enqueueMemSetShadow (addr={}, count={}, value={}): {}",
-            (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
-            (void *)(size_t)Value, URes);
-        if (URes != UR_RESULT_SUCCESS) {
-            context.logger.error("urEnqueueUSMFill(): {}", URes);
-            return URes;
-        }
+    if (DeviceInfo->Type == DeviceType::GPU_PVC) {
+        ShadowBegin = MemToShadow_PVC(DeviceInfo->ShadowOffset, Ptr);
+        ShadowEnd = MemToShadow_PVC(DeviceInfo->ShadowOffset, Ptr + Size - 1);
+    } else if (DeviceInfo->Type == DeviceType::GPU_DG2) {
+        ShadowBegin = MemToShadow_DG2(DeviceInfo->ShadowOffset, Ptr);
+        ShadowEnd = MemToShadow_DG2(DeviceInfo->ShadowOffset, Ptr + Size - 1);
     } else {
         context.logger.error("Unsupport device type");
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
+
+    assert(ShadowBegin <= ShadowEnd);
+
+    {
+        static const size_t PageSize =
+            GetVirtualMemGranularity(Context, DeviceInfo->Handle);
+
+        ur_physical_mem_properties_t Desc{
+            UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES, nullptr, 0};
+        static ur_physical_mem_handle_t PhysicalMem{};
+
+        // Make sure [Ptr, Ptr + Size] is mapped to physical memory
+        for (auto MappedPtr = RoundDownTo(ShadowBegin, PageSize);
+             MappedPtr <= ShadowEnd; MappedPtr += PageSize) {
+            if (!PhysicalMem) {
+                auto URes = context.urDdiTable.PhysicalMem.pfnCreate(
+                    Context, DeviceInfo->Handle, PageSize, &Desc, &PhysicalMem);
+                if (URes != UR_RESULT_SUCCESS) {
+                    context.logger.error("urPhysicalMemCreate(): {}", URes);
+                    return URes;
+                }
+            }
+
+            context.logger.debug("urVirtualMemMap: {} ~ {}", (void *)MappedPtr,
+                                 (void *)(MappedPtr + PageSize - 1));
+
+            // FIXME: No flag to check the failed reason is VA is already mapped
+            auto URes = context.urDdiTable.VirtualMem.pfnMap(
+                Context, (void *)MappedPtr, PageSize, PhysicalMem, 0,
+                UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
+            if (URes != UR_RESULT_SUCCESS) {
+                context.logger.debug("urVirtualMemMap({}, {}): {}",
+                                     (void *)MappedPtr, PageSize, URes);
+            }
+
+            // Initialize to zero
+            if (URes == UR_RESULT_SUCCESS) {
+                // Reset PhysicalMem to null since it's been mapped
+                PhysicalMem = nullptr;
+
+                auto URes =
+                    urEnqueueUSMSet(Queue, (void *)MappedPtr, 0, PageSize);
+                if (URes != UR_RESULT_SUCCESS) {
+                    context.logger.error("urEnqueueUSMFill(): {}", URes);
+                    return URes;
+                }
+            }
+        }
+    }
+
+    auto URes = urEnqueueUSMSet(Queue, (void *)ShadowBegin, Value,
+                                ShadowEnd - ShadowBegin + 1);
+    context.logger.debug(
+        "enqueueMemSetShadow (addr={}, count={}, value={}): {}",
+        (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1, (void *)(size_t)Value,
+        URes);
+    if (URes != UR_RESULT_SUCCESS) {
+        context.logger.error("urEnqueueUSMFill(): {}", URes);
+        return URes;
+    }
+
     return UR_RESULT_SUCCESS;
 }
 
