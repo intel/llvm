@@ -889,14 +889,17 @@ namespace detail {
 __SYCL_EXPORT kernel_bundle<bundle_state::executable>
 build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
                   const std::vector<device> &Devices,
-                  const std::vector<std::string> &BuildOptions,
+                  const std::vector<sycl::detail::string_view> &BuildOptions,
                   sycl::detail::string_view LogPtr);
 __SYCL_EXPORT inline kernel_bundle<bundle_state::executable>
 build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
                   const std::vector<device> &Devices,
                   const std::vector<std::string> &BuildOptions,
                   std::string *LogPtr) {
-  return build_from_source(SourceKB, Devices, BuildOptions,
+  std::vector<sycl::detail::string_view> Options;
+  for (const std::string &opt : BuildOptions)
+    Options.push_back(sycl::detail::string_view{opt});
+  return build_from_source(SourceKB, Devices, Options,
                            sycl::detail::string_view(*LogPtr));
 }
 
