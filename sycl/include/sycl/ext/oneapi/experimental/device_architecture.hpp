@@ -10,9 +10,7 @@
 
 #include <cstdint> // for uint64_t
 #include <optional>
-#ifdef SYCL_EXT_ONEAPI_DEVICE_ARCHITECTURE_NEW_DESIGN_IMPL
 #include <utility> // for std::integer_sequence
-#endif
 
 namespace sycl {
 inline namespace _V1 {
@@ -1012,7 +1010,6 @@ public:
 
 namespace ext::oneapi::experimental {
 
-#ifdef SYCL_EXT_ONEAPI_DEVICE_ARCHITECTURE_NEW_DESIGN_IMPL
 namespace detail {
 // Call the callable object "fn" only when this code runs on a device which
 // has a certain set of aspects or a particular architecture.
@@ -1159,6 +1156,7 @@ public:
 
 } // namespace detail
 
+#ifdef SYCL_EXT_ONEAPI_DEVICE_ARCHITECTURE_NEW_DESIGN_IMPL
 template <architecture... Archs, typename T>
 static auto if_architecture_is(T fn) {
   using make_call_if = detail::ConditionAnyArchitectureBuilder<Archs...>;
