@@ -1763,7 +1763,8 @@ ur_result_t setSignalEvent(ur_queue_handle_t Queue, bool UseCopyEngine,
                            ze_event_handle_t *ZeEvent, ur_event_handle_t *Event,
                            uint32_t NumEventsInWaitList,
                            const ur_event_handle_t *EventWaitList) {
-  if (eventCanBeBatched(Queue, UseCopyEngine, NumEventsInWaitList,
+  if (Queue->Device->isIntegrated() &&
+      eventCanBeBatched(Queue, UseCopyEngine, NumEventsInWaitList,
                         EventWaitList) &&
       !Queue->isInOrderQueue() && !Queue->UsingImmCmdLists) {
     ZeEvent = nullptr;
