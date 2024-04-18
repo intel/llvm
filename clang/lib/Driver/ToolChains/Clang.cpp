@@ -10393,8 +10393,7 @@ static void getOtherSPIRVTransOpts(Compilation &C,
               ",+SPV_INTEL_tensor_float32_conversion"
               ",+SPV_INTEL_optnone"
               ",+SPV_KHR_non_semantic_info";
-  if (C.getDriver().IsFPGAHWMode() ||
-      C.getDriver().IsFPGAEmulationMode())
+  if (C.getDriver().IsFPGAHWMode() || C.getDriver().IsFPGAEmulationMode())
     ExtArg += ",+SPV_INTEL_arbitrary_precision_integers";
 
   if (IsCPU)
