@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/DBDuncan/unified-runtime.git")
-  # commit c25f2f91c5abfe3c59600c1a6bc153acad790c66
+  # commit 14fa0fbfa668babbd8a2f7a0a55cf5a3657e3af2
   # Author: Duncan Brawley <duncan.brawley@codeplay.com>
   # Date:   Thu, 21 Mar 2024 16:35:42 +0000
   #    [Bindless][Exp] Remove phMem argument from bindless image creation functions
   #     Remove phMem argument from bindless image creation functions.
   #     It not used outside of UR and is currently causing a minor memory leak.
-  set(UNIFIED_RUNTIME_TAG a5867ed241212052198a9b6905f20cb7e0af592b)
+  set(UNIFIED_RUNTIME_TAG 14fa0fbfa668babbd8a2f7a0a55cf5a3657e3af2)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -115,25 +115,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-<<<<<<< HEAD
     ${UNIFIED_RUNTIME_TAG}
-||||||| c959b5313c6c
-    # commit 1333d4a0fe84f1e2b3ab8196c7fd746825ee7b94
-    # Merge: 55cf3ba8 281e3aaf
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Mon Apr 15 09:54:18 2024 +0100
-    #     Merge pull request #1342 from lplewa/cuda_log
-    #     Refactor cuda adapter to new logger
-    1333d4a0fe84f1e2b3ab8196c7fd746825ee7b94
-=======
-    # commit 3f5f5688471a23a8d49ad6f47333df92e9f2e5c6
-    # Merge: fe9a05e5 6027c6bc
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Tue Apr 16 13:59:32 2024 +0100
-    #     Merge pull request #1510 from kbenzie/benie/cuda-fix-wrapper-escape
-    #     Fix Coverity wrapper escape issue
-    3f5f5688471a23a8d49ad6f47333df92e9f2e5c6
->>>>>>> origin/sycl
   )
 
   fetch_adapter_source(hip
