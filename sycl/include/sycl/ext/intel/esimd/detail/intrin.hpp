@@ -157,7 +157,7 @@ __ESIMD_DNS::vector_type_t<__st<typename RTy::element_type>, RTy::length>
     constexpr int Stride = RTy::Stride_x;
     int16_t Offset = static_cast<int16_t>(Region.M_offset_x * sizeof(ElemTy));
     // read-region
-    check_region_params<N, M, /*VS*/ 0, M, Stride>();
+    check_rdregion_params<N, M, /*VS*/ 0, M, Stride>();
     return __esimd_rdregion<ElemTy, N, M, /*VS*/ 0, M, Stride>(Base1, Offset);
   }
 }
@@ -190,7 +190,7 @@ ESIMD_INLINE
     constexpr int ParentWidth = PaTy::Size_x;
     uint16_t Offset = static_cast<uint16_t>(Region.first.M_offset_y *
                                             PaTy::Size_x * sizeof(ElemTy));
-    check_region_params<BN1, M, VS, W, HS>();
+    check_rdregion_params<BN1, M, VS, W, HS>();
     auto R =
         __esimd_rdregion<ElemTy, BN1, M, VS, W, HS, ParentWidth>(Base1, Offset);
 
@@ -202,7 +202,7 @@ ESIMD_INLINE
     constexpr int HS1 = T::Stride_x;
     uint16_t Offset1 =
         static_cast<uint16_t>(Region.first.M_offset_x * sizeof(ElemTy));
-    check_region_params<N1, M1, VS1, W1, HS1>();
+    check_rdregion_params<N1, M1, VS1, W1, HS1>();
 
     return __esimd_rdregion<ElemTy, N1, M1, VS1, W1, HS1, ParentWidth>(R,
                                                                        Offset1);

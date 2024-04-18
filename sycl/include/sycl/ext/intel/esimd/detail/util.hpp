@@ -210,15 +210,20 @@ auto accessorToPointer(AccessorTy Acc, OffsetTy Offset = 0) {
 #endif // __ESIMD_FORCE_STATELESS_MEM
 
 template <int N, int M, int VStride, int Width, int Stride>
-constexpr void check_region_params() {
-  static_assert(M <= N, "Attempt to access beyond viewed area: The "
-                        "viewed object in LHS does not fit RHS.");
-  static_assert(M > 0 && Width > 0 && M % Width == 0, "Malformed RHS region.");
-  static_assert((M - 1) * Stride < N, "Malformed RHS region - too big stride.");
-  static_assert(Width == 0 ||
+constexpr void check_rdregion_params() {
+  static_assert(Width > 0 && M % Width == 0, "Malformed RHS region.");
+  static_assert(Width == M ||
                     ((M / Width) - 1) * VStride + (Width - 1) * Stride < N,
                 "Malformed RHS region - too big vertical and/or "
                 "horizontal stride.");
+}
+
+template <int N, int M, int VStride, int Width, int Stride>
+constexpr void check_wrregion_params() {
+  static_assert(M <= N, "Attempt to access beyond viewed area: The "
+                        "viewed object in LHS does not fit RHS.");
+  static_assert((M - 1) * Stride < N, "Malformed RHS region - too big stride.");
+  check_rdregion_params<N, M, VStride, Width, Stride>();
 }
 
 } // namespace ext::intel::esimd::detail

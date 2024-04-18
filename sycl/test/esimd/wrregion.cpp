@@ -19,7 +19,6 @@ SYCL_ESIMD_FUNCTION void test_wrregion_size_check() {
 
   // expected-error@sycl/ext/intel/esimd/detail/util.hpp:* {{static assertion failed due to requirement '(64 - 1) * 1 < 16'}}
   // expected-note@* {{expression evaluates to '63 < 16'}}
-  // expected-error@* {{static assertion failed due to requirement '64 == 0 || ((64 / 64) - 1) * 0 + (64 - 1) * 1 < 16'}}
 
   // expected-error@* {{no matching function for call to '__esimd_wrregion'}}
   // expected-note@sycl/ext/intel/esimd/detail/simd_view_impl.hpp:* {{in instantiation of function template specialization}}
@@ -35,5 +34,4 @@ SYCL_ESIMD_FUNCTION void test_wrregion_size_check() {
   // expected-note@sycl/ext/intel/esimd/detail/simd_view_impl.hpp:* {{in instantiation of member function}}
   // expected-note@* {{in instantiation of member function}}
   // expected-note@* {{expression evaluates to '64 < 16'}}
-  // expected-error@sycl/ext/intel/esimd/detail/util.hpp:* {{static assertion failed due to requirement '2 == 0 || ((2 / 2) - 1) * 0 + (2 - 1) * 64 < 16'}}
 }

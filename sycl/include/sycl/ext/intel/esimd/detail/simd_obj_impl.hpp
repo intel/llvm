@@ -405,7 +405,7 @@ public:
   /// @param Val The object to take new values from.
   /// @param Mask The mask.
   void merge(const Derived &Val, const simd_mask_type<N> &Mask) {
-    check_region_params<N, N, 0 /*VS*/, N, 1>();
+    check_wrregion_params<N, N, 0 /*VS*/, N, 1>();
     set(__esimd_wrregion<RawTy, N, N, 0 /*VS*/, N, 1, N>(data(), Val.data(), 0,
                                                          Mask.data()));
   }
@@ -479,7 +479,7 @@ public:
     static_assert(Size > 1 || Stride == 1,
                   "Stride must be 1 in single-element region");
     Derived &&Val = std::move(cast_this_to_derived());
-    check_region_params<N, Size, /*VS*/ 0, Size, Stride>();
+    check_rdregion_params<N, Size, /*VS*/ 0, Size, Stride>();
     return __esimd_rdregion<RawTy, N, Size, /*VS*/ 0, Size, Stride>(Val.data(),
                                                                     Offset);
   }
@@ -616,7 +616,7 @@ public:
   template <int Rep, int VS, int W, int HS>
   resize_a_simd_type_t<Derived, Rep * W>
   replicate_vs_w_hs(uint16_t Offset) const {
-    check_region_params<N, Rep * W, VS, W, HS>();
+    check_rdregion_params<N, Rep * W, VS, W, HS>();
     return __esimd_rdregion<RawTy, N, Rep * W, VS, W, HS, N>(
         data(), Offset * sizeof(RawTy));
   }
@@ -658,7 +658,7 @@ protected:
       constexpr int M = RTy::Size_x;
       constexpr int Stride = RTy::Stride_x;
       uint16_t Offset = Region.M_offset_x * sizeof(ElemTy);
-      check_region_params<BN, M, /*VS*/ 0, M, Stride>();
+      check_wrregion_params<BN, M, /*VS*/ 0, M, Stride>();
       // Merge and update.
       auto Merged = __esimd_wrregion<ElemTy, BN, M,
                                      /*VS*/ 0, M, Stride>(Base, Val, Offset);
@@ -693,7 +693,7 @@ protected:
         constexpr int Stride = TR::Stride_x;
         uint16_t Offset = Region.first.M_offset_x * sizeof(ElemTy);
 
-        check_region_params<BN1, M, /*VS*/ 0, M, Stride>();
+        check_wrregion_params<BN1, M, /*VS*/ 0, M, Stride>();
         // Merge and update.
         Base1 = __esimd_wrregion<ElemTy, BN1, M,
                                  /*VS*/ 0, M, Stride>(Base1, Val, Offset);
@@ -711,7 +711,7 @@ protected:
             (Region.first.M_offset_y * PaTy::Size_x + Region.first.M_offset_x) *
             sizeof(ElemTy));
 
-        check_region_params<BN1, M, VS, W, HS>();
+        check_wrregion_params<BN1, M, VS, W, HS>();
         // Merge and update.
         Base1 = __esimd_wrregion<ElemTy, BN1, M, VS, W, HS, ParentWidth>(
             Base1, Val, Offset);
