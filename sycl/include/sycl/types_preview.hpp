@@ -497,7 +497,7 @@ public:
           detail::is_half_or_bf16_v<typename std::remove_const_t<Ty>>,
       vec &>
 
-  operator=(const Ty & Rhs) {
+  operator=(const Ty &Rhs) {
     for (int i = 0; i < NumElements; ++i) {
       setValue(i, Rhs);
     }
@@ -1945,14 +1945,11 @@ template <typename T, int N, typename V> struct VecStorage {
 template <typename T, int N> struct VecStorageImpl {
   static constexpr size_t Num = (N == 3) ? 4 : N;
   static constexpr size_t Sz = Num * sizeof(T);
-  // using DataType =
-  //     typename std::conditional<Sz <= 64, T
-  //     __attribute__((ext_vector_type(N))),
-  //                               std::array<T, Num>>::type;
+
   using DataType = std::array<T, (N == 3) ? 4 : N>;
   using VectorDataType = T __attribute__((ext_vector_type(N)));
 };
-#else // __SYCL_DEVICE_ONLY__
+#else  // __SYCL_DEVICE_ONLY__
 template <typename T, int N> struct VecStorageImpl {
   using DataType = std::array<T, (N == 3) ? 4 : N>;
 };
