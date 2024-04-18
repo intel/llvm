@@ -101,8 +101,8 @@ protected:
 
     detail::throw_invalid_parameter("The property is not found",
                                     PI_ERROR_INVALID_VALUE);
-    // The above will throw an exception, but compilers complain about no return value.
-    // So, create an unreachable dummy throw to make it silent.
+    // The above will throw an exception, but compilers complain about no return
+    // value. So, create an unreachable dummy throw to make it silent.
     throw "dummy";
   }
 
