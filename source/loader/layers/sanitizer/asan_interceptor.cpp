@@ -64,7 +64,6 @@ ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
     if (Size == 0) {
         return UR_RESULT_SUCCESS;
     }
-
     if (DeviceInfo->Type == DeviceType::CPU) {
         ///
         /// CPU Device: CPU needs to use a special memset function
@@ -164,7 +163,6 @@ ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
             return URes;
         }
     }
-
     return UR_RESULT_SUCCESS;
 }
 
