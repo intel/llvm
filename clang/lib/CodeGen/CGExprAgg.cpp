@@ -1751,7 +1751,9 @@ void AggExprEmitter::VisitCXXParenListOrInitListExpr(
       // Make sure that it's really an empty and not a failure of
       // semantic analysis.
       for (const auto *Field : record->fields())
-        assert((Field->isUnnamedBitfield() || Field->isAnonymousStructOrUnion()) && "Only unnamed bitfields or ananymous class allowed");
+        assert(
+            (Field->isUnnamedBitField() || Field->isAnonymousStructOrUnion()) &&
+            "Only unnamed bitfields or ananymous class allowed");
 #endif
       return;
     }
@@ -1779,7 +1781,7 @@ void AggExprEmitter::VisitCXXParenListOrInitListExpr(
       break;
 
     // Always skip anonymous bitfields.
-    if (field->isUnnamedBitfield())
+    if (field->isUnnamedBitField())
       continue;
 
     // We're done if we reach the end of the explicit initializers, we
@@ -1984,7 +1986,7 @@ static CharUnits GetNumNonZeroBytesInInit(const Expr *E, CodeGenFunction &CGF) {
         if (Field->getType()->isIncompleteArrayType() ||
             ILEElement == ILE->getNumInits())
           break;
-        if (Field->isUnnamedBitfield())
+        if (Field->isUnnamedBitField())
           continue;
 
         const Expr *E = ILE->getInit(ILEElement++);

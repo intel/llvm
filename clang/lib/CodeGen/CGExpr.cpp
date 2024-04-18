@@ -4729,7 +4729,7 @@ unsigned CodeGenFunction::getDebugInfoFIndex(const RecordDecl *Rec,
   for (auto *F : Rec->getDefinition()->fields()) {
     if (I == FieldIndex)
       break;
-    if (F->isUnnamedBitfield())
+    if (F->isUnnamedBitField())
       Skipped++;
     I++;
   }

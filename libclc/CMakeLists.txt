@@ -104,6 +104,14 @@ if( NOT TARGET libclc::clang OR NOT TARGET libclc::opt
   message( FATAL_ERROR "libclc toolchain incomplete!" )
 endif()
 
+# llvm-spirv is an optional dependency, used to build spirv-* targets.
+find_program( LLVM_SPIRV llvm-spirv PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+
+if( LLVM_SPIRV )
+  add_executable( libclc::llvm-spirv IMPORTED GLOBAL )
+  set_target_properties( libclc::llvm-spirv PROPERTIES IMPORTED_LOCATION ${LLVM_SPIRV} )
+endif()
+
 # List of all targets. Note that some are added dynamically below.
 set( LIBCLC_TARGETS_ALL
   amdgcn--
