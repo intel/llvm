@@ -43,6 +43,9 @@ class SYCLHeadersTest(lit.formats.TestFormat):
                     yield t
 
     def execute(self, test, litConfig):
+        # List of files that are not expected to compile cleanly when used
+        # standalone. `os.path.join` is required here so the filtering works
+        # cross-platform
         xfail = [
             os.path.join("sycl", "ext", "oneapi", "matrix", "matrix-hip.hpp"),
             os.path.join("sycl", "detail", "reduction_forward.hpp"),
@@ -67,12 +70,11 @@ class SYCLHeadersTest(lit.formats.TestFormat):
             ),
         ]
 
+        is_xfail = False
         for path in xfail:
             if test.file_path.endswith(path):
-                output = "The test contains some known issues, it is expected to fail and it was effectively skipped. To run it locally for debugging use the following command: \n{}".format(
-                    " ".join(command)
-                )
-                return lit.Test.Result(lit.Test.XFAIL, output)
+                is_xfail = True
+                break
 
         try:
             out, err, exitCode = lit.util.executeCommand(
@@ -81,7 +83,10 @@ class SYCLHeadersTest(lit.formats.TestFormat):
                 env=test.config.environment,
                 timeout=litConfig.maxIndividualTestTime,
             )
-            status = lit.Test.PASS if exitCode == 0 else lit.Test.FAIL
+            if is_xfail:
+                status = lit.Test.XPASS if exitCode == 0 else lit.Test.XFAIL
+            else:
+                status = lit.Test.PASS if exitCode == 0 else lit.Test.FAIL
             timeoutInfo = None
         except lit.util.ExecuteCommandTimeoutException as e:
             out, err, exitCode, timeoutInfo = e.out, e.err, e.exitCode, e.msg
@@ -91,6 +96,8 @@ class SYCLHeadersTest(lit.formats.TestFormat):
         output += f"Exit Code: {exitCode}\n"
         if timeoutInfo is not None:
             output += """Timeout: %s\n""" % (timeoutInfo,)
+        if is_xfail:
+            output += "This test is marked as XFAIL in sycl/test/format.py\n"
         output += "\n"
 
         # Append the outputs, if present.
