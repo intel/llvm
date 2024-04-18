@@ -359,7 +359,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     OldF->eraseFromParent();
     NewKernels.push_back(NewF);
     ModuleChanged = true;
-  };
+  }
 
   StructType *NativeCPUArgDescType =
       StructType::create({PointerType::getUnqual(M.getContext())});
