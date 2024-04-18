@@ -657,23 +657,12 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
   // for this queue.
   if (Queue->hasOpenCommandList(UseCopyEngine)) {
     if (AllowBatching) {
-      bool CannotBatch = false;
-      // If this command should be batched, but the command has a dependency on
-      // a command in the current batch, then the open command list must be
-      // executed and this command must be batched into a new command list.
-      if (NumEventsInWaitList > 0) {
-        for (auto &Event : CommandBatch.OpenCommandList->second.EventList) {
-          for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
-            if (Event == EventWaitList[i]) {
-              CannotBatch = true;
-              break;
-            }
-          }
-          if (CannotBatch)
-            break;
-        }
+      bool batchingAllowed = true;
+      if (Queue->Device->isIntegrated()) {
+        batchingAllowed = eventCanBeBatched(Queue, UseCopyEngine,
+                                            NumEventsInWaitList, EventWaitList);
       }
-      if (!CannotBatch) {
+      if (batchingAllowed) {
         CommandList = CommandBatch.OpenCommandList;
         UR_CALL(Queue->insertStartBarrierIfDiscardEventsMode(CommandList));
         return UR_RESULT_SUCCESS;
