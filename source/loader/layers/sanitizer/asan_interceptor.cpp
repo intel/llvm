@@ -29,8 +29,12 @@ uptr MemToShadow_CPU(uptr USM_SHADOW_BASE, uptr UPtr) {
 }
 
 uptr MemToShadow_DG2(uptr USM_SHADOW_BASE, uptr UPtr) {
-    UPtr &= 0x7FFFFFFFFFFFULL;
-    return USM_SHADOW_BASE + (UPtr >> 3);
+    if (UPtr & 0xFFFF000000000000ULL) { // Device USM
+        return USM_SHADOW_BASE + 0x100000000000ULL +
+               ((UPtr & 0x7FFFFFFFFFFFULL) >> 3);
+    } else { // Host/Shared USM
+        return USM_SHADOW_BASE + (UPtr >> 3);
+    }
 }
 
 uptr MemToShadow_PVC(uptr USM_SHADOW_BASE, uptr UPtr) {
@@ -428,6 +432,8 @@ ur_result_t DeviceInfo::allocShadowMemory(ur_context_handle_t Context) {
         UR_CALL(SetupShadowMemoryOnCPU(ShadowOffset, ShadowOffsetEnd));
     } else if (Type == DeviceType::GPU_PVC) {
         UR_CALL(SetupShadowMemoryOnPVC(Context, ShadowOffset, ShadowOffsetEnd));
+    } else if (Type == DeviceType::GPU_DG2) {
+        UR_CALL(SetupShadowMemoryOnDG2(Context, ShadowOffset, ShadowOffsetEnd));
     } else {
         context.logger.error("Unsupport device type");
         return UR_RESULT_ERROR_INVALID_ARGUMENT;

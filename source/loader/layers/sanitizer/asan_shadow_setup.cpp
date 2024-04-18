@@ -121,6 +121,60 @@ ur_result_t DestroyShadowMemory() {
 
 } // namespace pvc
 
+namespace dg2 {
+///
+/// USM Allocation Range
+///   Host/Shared USM : 0x0000_0000_0000_0000 ~ 0x0000_7fff_ffff_ffff
+///   Device      USM : 0xffff_8000_0000_0000 ~ 0xffff_ffff_ffff_ffff
+///
+/// SHADOW MEMORY MAPPING
+///   Host/Shared USM : 0x0              ~ 0x0fff_ffff_ffff
+///   ?               : 0x1000_0000_0000 ~ 0x1fff_ffff_ffff
+///
+constexpr size_t SHADOW_SIZE = 0x200000000000ULL;
+
+uptr LOW_SHADOW_BEGIN;
+uptr HIGH_SHADOW_END;
+
+ur_context_handle_t ShadowContext;
+
+ur_result_t SetupShadowMemory(ur_context_handle_t Context, uptr &ShadowBegin,
+                              uptr &ShadowEnd) {
+    // Currently, Level-Zero doesn't create independent VAs for each contexts, if we reserve
+    // shadow memory for each contexts, this will cause out-of-resource error when user uses
+    // multiple contexts. Therefore, we just create one shadow memory here.
+    static ur_result_t Result = [&Context]() {
+        // TODO: Protect Bad Zone
+        auto Result = context.urDdiTable.VirtualMem.pfnReserve(
+            Context, nullptr, SHADOW_SIZE, (void **)&LOW_SHADOW_BEGIN);
+        if (Result == UR_RESULT_SUCCESS) {
+            HIGH_SHADOW_END = LOW_SHADOW_BEGIN + SHADOW_SIZE;
+            // Retain the context which reserves shadow memory
+            ShadowContext = Context;
+            context.urDdiTable.Context.pfnRetain(Context);
+        }
+        return Result;
+    }();
+    ShadowBegin = LOW_SHADOW_BEGIN;
+    ShadowEnd = HIGH_SHADOW_END;
+    return Result;
+}
+
+ur_result_t DestroyShadowMemory() {
+    static ur_result_t Result = []() {
+        if (!ShadowContext) {
+            return UR_RESULT_SUCCESS;
+        }
+        auto Result = context.urDdiTable.VirtualMem.pfnFree(
+            ShadowContext, (const void *)LOW_SHADOW_BEGIN, SHADOW_SIZE);
+        context.urDdiTable.Context.pfnRelease(ShadowContext);
+        return Result;
+    }();
+    return Result;
+}
+
+} // namespace dg2
+
 ur_result_t SetupShadowMemoryOnCPU(uptr &ShadowBegin, uptr &ShadowEnd) {
     return cpu::SetupShadowMemory(ShadowBegin, ShadowEnd);
 }
@@ -133,5 +187,12 @@ ur_result_t SetupShadowMemoryOnPVC(ur_context_handle_t Context,
 }
 
 ur_result_t DestroyShadowMemoryOnPVC() { return pvc::DestroyShadowMemory(); }
+
+ur_result_t SetupShadowMemoryOnDG2(ur_context_handle_t Context,
+                                   uptr &ShadowBegin, uptr &ShadowEnd) {
+    return dg2::SetupShadowMemory(Context, ShadowBegin, ShadowEnd);
+}
+
+ur_result_t DestroyShadowMemoryOnDG2() { return dg2::DestroyShadowMemory(); }
 
 } // namespace ur_sanitizer_layer
