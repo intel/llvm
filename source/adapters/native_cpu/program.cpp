@@ -81,7 +81,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
       auto [Prefix, Tag] = splitMetadataName(mdName);
       if (Tag == __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE) {
         native_cpu::ReqdWGSize_t reqdWGSize;
-        getReqdWGSize(mdNode, reqdWGSize);
+        auto res = getReqdWGSize(mdNode, reqdWGSize);
+        if (res != UR_RESULT_SUCCESS) {
+          return res;
+        }
         hProgram->KernelReqdWorkGroupSizeMD[Prefix] = std::move(reqdWGSize);
       }
     }
