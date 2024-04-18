@@ -10,6 +10,7 @@
 
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Module.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/Support/PropertySetIO.h"
@@ -41,8 +42,15 @@ llvm::computeDeviceRequirements(const module_split::ModuleDesc &MD) {
   // Process all functions in the module
   for (const Function &F : MD.getModule()) {
     if (auto *MDN = F.getMetadata("sycl_used_aspects")) {
-      for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
-        auto Val = ExtractSignedIntegerFromMDNodeOperand(MDN, I);
+      for (auto &MDOp : MDN->operands()) {
+        int64_t Val;
+        if (auto Pair = dyn_cast<MDNode>(MDOp)) {
+          assert(Pair->getNumOperands() == 2);
+          Val = mdconst::extract<ConstantInt>(Pair->getOperand(1))
+                    ->getZExtValue();
+        } else {
+          Val = mdconst::extract<ConstantInt>(MDOp)->getZExtValue();
+        }
         // Don't put internal aspects (with negative integer value) into the
         // requirements, they are used only for device image splitting.
         if (Val >= 0)

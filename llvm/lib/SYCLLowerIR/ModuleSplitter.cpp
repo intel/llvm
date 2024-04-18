@@ -980,7 +980,29 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
     // output files in existing tests.
     Categorizer.registerSimpleStringAttributeRule("sycl-register-alloc-mode");
     Categorizer.registerSimpleStringAttributeRule("sycl-grf-size");
-    Categorizer.registerListOfIntegersInMetadataSortedRule("sycl_used_aspects");
+    Categorizer.registerRule([&](Function *F) {
+      std::string Result = "";
+      if (MDNode *UsedAspects = F->getMetadata("sycl_used_aspects")) {
+        SmallVector<std::uint64_t, 8> Values;
+        for (const MDOperand &MDOp : UsedAspects->operands()) {
+          if (auto MDN = dyn_cast<MDNode>(MDOp)) {
+            assert(MDN->getNumOperands() == 2);
+            Values.push_back(mdconst::extract<ConstantInt>(MDN->getOperand(1))
+                                 ->getZExtValue());
+          } else if (auto C = mdconst::dyn_extract<ConstantInt>(MDOp)) {
+            Values.push_back(C->getZExtValue());
+          }
+        }
+
+        llvm::sort(Values);
+
+        for (std::uint64_t V : Values)
+          Result += ("-" + Twine(V)).str();
+      }
+
+      return Result;
+    });
+    // Categorizer.registerListOfIntegersInMetadataSortedRule("sycl_used_aspects");
     Categorizer.registerListOfIntegersInMetadataRule("reqd_work_group_size");
     Categorizer.registerListOfIntegersInMetadataRule(
         "intel_reqd_sub_group_size");
