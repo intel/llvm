@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 6ccaf38708cfa614ab7f9b34c351826cd74028f2
-  # Merge: 0eab26c7 0497923a
+  # commit fe9a05e528992cd1db7b05e2857fb17879442e86
+  # Merge: ee2feb22 9222315f
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Fri Apr 12 10:22:00 2024 +0100
-  #    Merge pull request #1498 from wenju-he/ZeImageDesc-urMemImageCreateWithNativeHandle
-  #    [L0][Image] Set ZeImageDesc member of _ur_image in release build for legacy image
-  set(UNIFIED_RUNTIME_TAG 6ccaf38708cfa614ab7f9b34c351826cd74028f2)
+  # Date:   Tue Apr 16 10:10:10 2024 +0100
+  #    Merge pull request #1507 from nrspruit/fix_p2p_properties_init
+  #    [L0] Fix to p2p properties init for pNext and stype
+  set(UNIFIED_RUNTIME_TAG fe9a05e528992cd1db7b05e2857fb17879442e86)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -121,24 +121,24 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit 68e525a448a5f8fe52bda48d6b9709230f53f029
-    # Merge: 1473ed8a 1d159312
+    # commit 3f5f5688471a23a8d49ad6f47333df92e9f2e5c6
+    # Merge: fe9a05e5 6027c6bc
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri Apr 12 14:29:50 2024 +0100
-    #     Merge pull request #1317 from JackAKirk/usm-p2p-cuda-return
-    #     [CUDA] Return caught UR error directly.
-    68e525a448a5f8fe52bda48d6b9709230f53f029
+    # Date:   Tue Apr 16 13:59:32 2024 +0100
+    #     Merge pull request #1510 from kbenzie/benie/cuda-fix-wrapper-escape
+    #     Fix Coverity wrapper escape issue
+    3f5f5688471a23a8d49ad6f47333df92e9f2e5c6
   )
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 1473ed8a81ca86e67321dfc90c79e951ead212ac
-    # Merge: 6ccaf387 f2774226
+    # commit 55cf3ba8139f8ffea9cf5cf42ea1f79c049b3520
+    # Merge: 15233fd2 35a6899d
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri Apr 12 10:43:00 2024 +0100
-    #     Merge pull request #1395 from konradkusiak97/improvedQueueFill
-    #     [HIP] Implement workaround for hipMemset2D
-    1473ed8a81ca86e67321dfc90c79e951ead212ac
+    # Date:   Mon Apr 15 09:50:52 2024 +0100
+    #     Merge pull request #1437 from hdelan/event-wait-with-good-context
+    #     [HIP] Use context to get active device
+    55cf3ba8139f8ffea9cf5cf42ea1f79c049b3520
   )
 
   fetch_adapter_source(native_cpu
