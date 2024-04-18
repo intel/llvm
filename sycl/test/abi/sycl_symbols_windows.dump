@@ -562,9 +562,11 @@
 ??0filter_selector@ONEAPI@_V1@sycl@@QEAA@$$QEAV0123@@Z
 ??0filter_selector@ONEAPI@_V1@sycl@@QEAA@AEBV0123@@Z
 ??0filter_selector@ONEAPI@_V1@sycl@@QEAA@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
+??0filter_selector@ONEAPI@_V1@sycl@@QEAA@Vstring_view@detail@23@@Z
 ??0filter_selector@oneapi@ext@_V1@sycl@@QEAA@$$QEAV01234@@Z
 ??0filter_selector@oneapi@ext@_V1@sycl@@QEAA@AEBV01234@@Z
 ??0filter_selector@oneapi@ext@_V1@sycl@@QEAA@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
+??0filter_selector@oneapi@ext@_V1@sycl@@QEAA@Vstring_view@detail@34@@Z
 ??0fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEAA@$$QEAV012345@@Z
 ??0fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEAA@AEAVqueue@45@@Z
 ??0fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEAA@AEBV012345@@Z
