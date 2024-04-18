@@ -129,8 +129,12 @@ inline uptr MemToShadow_DG2(uptr addr, int32_t as) {
   }
 
   if (as == AS_GLOBAL) { // global
-    addr &= 0x7FFFFFFFFFFFULL;
-    return __AsanShadowMemoryGlobalStart + (addr >> 3);
+    if (addr & 0xFFFF000000000000ULL) { // Device USM
+      return __AsanShadowMemoryGlobalStart + 0x100000000000ULL +
+             ((addr & 0x7FFFFFFFFFFFULL) >> 3);
+    } else { // Host/Shared USM
+      return __AsanShadowMemoryGlobalStart + (addr >> 3);
+    }
   } else if (as == AS_LOCAL) { // local
     // The size of SLM is 64KB on DG2
     constexpr unsigned slm_size = 64 * 1024;
