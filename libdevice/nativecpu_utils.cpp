@@ -44,7 +44,7 @@ DEVICE_EXTERN_C void __mux_work_group_barrier(uint32_t id, uint32_t scope,
                                               uint32_t semantics);
 __SYCL_CONVERGENT__ DEVICE_EXTERNAL void
 __spirv_ControlBarrier(uint32_t Execution, uint32_t Memory,
-                       uint32_t Semantics) noexcept {
+                       uint32_t Semantics) {
   if (__spv::Scope::Flag::Workgroup == Execution)
     // todo: check id and args; use mux constants
     __mux_work_group_barrier(0, Execution, Semantics);
