@@ -13,8 +13,6 @@
 // Check the logs first.
 // RUN: %{build_cmd} -DVALUE=1 -o %t.out
 // RUN: rm -rf %t/cache_dir/*
-// xUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s %if
-// windows %{ --check-prefixes=CHECK,CHECK-WIN %}
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-WRITE
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ
@@ -34,8 +32,6 @@
 // Check the logs first.
 // RUN: %{build_cmd} -DVALUE=1 -o %t.out
 // RUN: rm -rf %t/cache_dir/*
-// xUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s %if
-// windows %{ --check-prefixes=CHECK,CHECK-WIN %}
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-WRITE
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ
@@ -56,8 +52,6 @@
 // Check the logs first.
 // RUN: %{build_cmd} -DVALUE=1 -o %t.out
 // RUN: rm -rf %t/cache_dir/*
-// xUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s %if
-// windows %{ --check-prefixes=CHECK,CHECK-WIN %}
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-WRITE
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ
