@@ -141,7 +141,7 @@ DeviceType GetDeviceType(ur_device_handle_t Device) {
         return DeviceType::CPU;
     case UR_DEVICE_TYPE_GPU: {
         // Ref: https://github.com/intel/compute-runtime/blob/master/shared/source/dll/devices/devices_base.inl
-        auto Name = getDeviceName(Device);
+        auto Name = GetDeviceName(Device);
         if (Name.rfind("Intel(R) Data Center GPU Max", 0) == 0) {
             return DeviceType::GPU_PVC;
         } else if ((Name.rfind("Intel(R) Arc(TM)", 0) == 0 &&
