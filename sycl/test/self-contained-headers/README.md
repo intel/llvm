@@ -1,0 +1,64 @@
+# Self-contained SYCL headers
+
+## Overview
+
+This subfolder contains a special test suite that is intended to check that our
+SYCL headers are self-contained, i.e. if you include a single SYCL header and
+compile an empty `.cpp` file it should work just fine.
+
+The intent of having such tests is to provide a mechanism to us to write cleaner
+code: with tests like this you can do more aggressive `#include`s cleanup and
+still be sure that we haven't accidentally removed a necessary `#include`.
+
+## Implementation
+
+There was a couple of iterations on the suite design and its current shape
+features the following:
+- each header in `build/include/sycl` is checked as a separate test
+- each such test is generated on the fly dynamically during LIT discovery phase
+
+That is done to allow for massive parallelism and keep those tests small and
+quick.
+
+Absolute most of the magic is happenning within
+[`sycl/test/format.py`](/sycl/test/format.py): we define a custom test format in
+there which overrides standard discovery and test execution rules.
+
+## How to use and maintain
+
+Those tests are part of `check-sycl` target and you can pass a regexp acepted
+by Python's `re` package as `SYCL_HEADERS_FILTER` parameter to LIT to filter
+which headers you would like to see checked (only those that match the passed
+regexp will be used to generate tests).
+
+```
+llvm-lit sycl/test -DSYCL_HEADERS_FILTER="ext/*"
+```
+
+Documentation for Python's regexp can be found [here][python-3-re].
+
+[python-3-re]: https://docs.python.org/3/library/re.html#regular-expression-syntax
+
+Since there are no dedicated files for each test, `XFAIL`ing them using regular
+method is impossible, but it is still supported. To do so, open
+[the test format file](/sycl/test/format.py) and modify list of files which
+should be treated as expected to fail (you can find it within `execute` method).
+
+## Known issues and quirks
+
+### Launching this suite directly doesn't seem to work
+
+The following command:
+
+```
+llvm-lit sycl/test/self-contained-headers
+```
+
+Will results in LIT saying that no tests were discovered.
+
+### Old legacy files in build/ area are still checked
+
+The custom discovery script uses `build/include/sycl/` folder contents to
+generate tests for each header it finds there. It means that if some header was
+removed from the codebase, it may still be present in `build` folder unless
+some cleanup is performed.
