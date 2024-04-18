@@ -1516,7 +1516,10 @@ modifiable_command_graph::finalize(const sycl::property_list &PropList) const {
       this->impl, this->impl->getContext(), PropList};
 }
 
-bool modifiable_command_graph::begin_recording(queue &RecordingQueue) {
+void modifiable_command_graph::begin_recording(
+    queue &RecordingQueue, const sycl::property_list &PropList) {
+  std::ignore = PropList;
+
   auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
   assert(QueueImpl);
   if (QueueImpl->get_context() != impl->getContext()) {
@@ -1551,56 +1554,46 @@ bool modifiable_command_graph::begin_recording(queue &RecordingQueue) {
     QueueImpl->setCommandGraph(impl);
     graph_impl::WriteLock Lock(impl->MMutex);
     impl->addQueue(QueueImpl);
-    return true;
   }
   if (QueueImpl->getCommandGraph() != impl) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "begin_recording called for a queue which is already "
                           "recording to a different graph.");
   }
-  // Queue was already recording to this graph.
-  return false;
 }
 
-bool modifiable_command_graph::begin_recording(
-    const std::vector<queue> &RecordingQueues) {
-  bool QueueStateChanged = false;
+void modifiable_command_graph::begin_recording(
+    const std::vector<queue> &RecordingQueues,
+    const sycl::property_list &PropList) {
   for (queue Queue : RecordingQueues) {
-    QueueStateChanged |= this->begin_recording(Queue);
+    this->begin_recording(Queue, PropList);
   }
-  return QueueStateChanged;
 }
 
-bool modifiable_command_graph::end_recording() {
+void modifiable_command_graph::end_recording() {
   graph_impl::WriteLock Lock(impl->MMutex);
-  return impl->clearQueues();
+  impl->clearQueues();
 }
 
-bool modifiable_command_graph::end_recording(queue &RecordingQueue) {
+void modifiable_command_graph::end_recording(queue &RecordingQueue) {
   auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
   if (QueueImpl && QueueImpl->getCommandGraph() == impl) {
     QueueImpl->setCommandGraph(nullptr);
     graph_impl::WriteLock Lock(impl->MMutex);
     impl->removeQueue(QueueImpl);
-    return true;
   }
   if (QueueImpl->getCommandGraph() != nullptr) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "end_recording called for a queue which is recording "
                           "to a different graph.");
   }
-
-  // Queue was not recording to a graph.
-  return false;
 }
 
-bool modifiable_command_graph::end_recording(
+void modifiable_command_graph::end_recording(
     const std::vector<queue> &RecordingQueues) {
-  bool QueueStateChanged = false;
   for (queue Queue : RecordingQueues) {
-    QueueStateChanged |= this->end_recording(Queue);
+    this->end_recording(Queue);
   }
-  return QueueStateChanged;
 }
 
 void modifiable_command_graph::print_graph(std::string path,
