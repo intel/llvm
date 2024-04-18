@@ -184,11 +184,11 @@ public:
   bool native_specialization_constant() const noexcept;
 
   bool ext_oneapi_has_kernel(const std::string &name) {
-    return ext_oneapi_has_kernel(name.c_str());
+    return ext_oneapi_has_kernel(detail::string_view{name});
   }
 
   kernel ext_oneapi_get_kernel(const std::string &name) {
-    return ext_oneapi_get_kernel(name.c_str());
+    return ext_oneapi_get_kernel(detail::string_view{name});
   }
 
 protected:
