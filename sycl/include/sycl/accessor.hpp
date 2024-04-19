@@ -2415,11 +2415,21 @@ public:
     return constant_ptr<DataT>(getPointerAdjusted());
   }
 
-  template <
-      access::decorated IsDecorated,
-      access::target AccessTarget_ = AccessTarget,
-      typename = std::enable_if_t<(AccessTarget_ == access::target::device)>>
-  accessor_ptr<IsDecorated> get_multi_ptr() const noexcept {
+  template <access::decorated IsDecorated,
+            access::target AccessTarget_ = AccessTarget>
+  typename std::enable_if_t<AccessTarget_ == access::target::device,
+                            accessor_ptr<IsDecorated>>
+  get_multi_ptr() const noexcept {
+    return accessor_ptr<IsDecorated>(getPointerAdjusted());
+  }
+
+  template <access::decorated IsDecorated,
+            access::target AccessTarget_ = AccessTarget>
+  __SYCL_DEPRECATED(
+      "accessor::get_multi_ptr() is deprecated for non-device accessors")
+  typename std::enable_if_t<AccessTarget_ != access::target::device,
+                            accessor_ptr<IsDecorated>> get_multi_ptr()
+      const noexcept {
     return accessor_ptr<IsDecorated>(getPointerAdjusted());
   }
 

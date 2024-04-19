@@ -326,6 +326,25 @@ public:
     marray Ret(Lhs);                                                           \
     Lhs OPASSIGN 1;                                                            \
     return Ret;                                                                \
+  }                                                                            \
+  template <typename T = DataT>                                                \
+  __SYCL_DEPRECATED(                                                           \
+      "++ and -- operators are deprecated for marray<bool, ...>")              \
+  friend std::enable_if_t<                                                     \
+      std::is_same_v<typename std::remove_cv<T>::type, bool>, marray>          \
+      &operator UOP(marray & Lhs) {                                            \
+    Lhs OPASSIGN 1;                                                            \
+    return Lhs;                                                                \
+  }                                                                            \
+  template <typename T = DataT>                                                \
+  __SYCL_DEPRECATED(                                                           \
+      "++ and -- operators are deprecated for marray<bool, ...>")              \
+  friend std::enable_if_t<                                                     \
+      std::is_same_v<typename std::remove_cv<T>::type, bool>, marray>          \
+  operator UOP(marray & Lhs, int) {                                            \
+    marray Ret(Lhs);                                                           \
+    Lhs OPASSIGN 1;                                                            \
+    return Ret;                                                                \
   }
 
   __SYCL_UOP(++, +=)
