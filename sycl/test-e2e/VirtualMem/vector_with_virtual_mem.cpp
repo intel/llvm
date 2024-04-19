@@ -1,9 +1,14 @@
-// REQUIRES: aspect-ext_oneapi_virtual_mem
+// REQUIRES: aspect-ext_oneapi_virtual_mem, usm_shared_allocations
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
+
+#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
+#include <sycl/ext/oneapi/virtual_mem/physical_mem.hpp>
+#include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp>
 
 namespace syclext = sycl::ext::oneapi::experimental;
 
@@ -15,11 +20,11 @@ public:
 
   ~VirtualVector() {
     // Free all mapped ranges.
-    unmap_all_va();
+    unmap_all();
     for (const VirtualAddressRange &VARange : MVARanges)
       syclext::free_virtual_mem(VARange.Ptr, VARange.Size, MContext);
     // Physical memory allocations will be freed when the physical_mem objects
-    // die with MPhysicalMems.
+    // die with MPhysicalMemMappings.
   }
 
   void reserve(size_t NewSize) {
@@ -60,9 +65,11 @@ public:
     // Create new physical memory allocation and map the new range to it.
     syclext::physical_mem NewPhysicalMem{MDevice, MContext,
                                          AlignedNewVARangeSize};
-    NewPhysicalMem.map(NewVAPtr, AlignedNewVARangeSize,
-                       syclext::address_access_mode::read_write);
-    MPhysicalMems.push_back(std::move(NewPhysicalMem));
+    void *MappedPtr =
+        NewPhysicalMem.map(NewVAPtr, AlignedNewVARangeSize,
+                           syclext::address_access_mode::read_write);
+    MPhysicalMemMappings.push_back(
+        std::make_pair(std::move(NewPhysicalMem), MappedPtr));
 
     // Update the byte size of the vector.
     MSize = NewSize;
@@ -78,10 +85,14 @@ private:
            MGranularity;
   }
 
-  void unmap_all_va() {
-    for (const VirtualAddressRange &VARange : MVARanges)
-      syclext::unmap(reinterpret_cast<const void *>(VARange.Ptr), VARange.Size,
-                     MContext);
+  void unmap_all() {
+    for (std::pair<syclext::physical_mem, void *> &Mapping :
+         MPhysicalMemMappings) {
+      if (Mapping.second == 0)
+        continue;
+      syclext::unmap(Mapping.second, Mapping.first.size(), MContext);
+      Mapping.second = 0;
+    }
   }
 
   uintptr_t RecreateAddressRange(size_t AlignedNewByteSize) {
@@ -90,14 +101,16 @@ private:
         syclext::reserve_virtual_mem(AlignedNewByteSize, MContext);
 
     // Unmap the old virtual address ranges.
-    unmap_all_va();
+    unmap_all();
 
     // Remap all existing ranges.
     uintptr_t NewEnd = NewFullVAPtr;
-    for (const syclext::physical_mem &PhysicalMem : MPhysicalMems) {
-      PhysicalMem.map(NewEnd, PhysicalMem.size(),
-                      syclext::address_access_mode::read_write);
-      NewEnd += PhysicalMem.size();
+    for (std::pair<syclext::physical_mem, void *> &Mapping :
+         MPhysicalMemMappings) {
+      Mapping.second =
+          Mapping.first.map(NewEnd, Mapping.first.size(),
+                            syclext::address_access_mode::read_write);
+      NewEnd += Mapping.first.size();
     }
 
     // Free the old ranges.
@@ -126,7 +139,7 @@ private:
   sycl::context MContext;
 
   std::vector<VirtualAddressRange> MVARanges;
-  std::vector<syclext::physical_mem> MPhysicalMems;
+  std::vector<std::pair<syclext::physical_mem, void *>> MPhysicalMemMappings;
 
   T *MBasePtr = nullptr;
   size_t MSize = 0;
@@ -135,9 +148,9 @@ private:
   const size_t MGranularity = 0;
 };
 
-constexpr size_t NumIters = 10;
-constexpr size_t WriteValueOffset = 42;
-constexpr size_t NumWorkItems = 512;
+static constexpr size_t NumIters = 10;
+static constexpr size_t WriteValueOffset = 42;
+static constexpr size_t NumWorkItems = 512;
 
 int main() {
   sycl::queue Q;
@@ -175,9 +188,13 @@ int main() {
     // Copy back the values and verify.
     int *CopyBack = sycl::malloc_shared<int>(NewVecSize, Q);
 
-    // TODO: Level-zero does not currently allow copy across virtual memory
-    //       ranges, even if they are consequtive.
-    if (Q.get_backend() == sycl::backend::ext_oneapi_level_zero) {
+    // TODO: Level-zero (excluding on PVC) does not currently allow copy across
+    //       virtual memory ranges, even if they are consequtive.
+    syclext::architecture DevArch =
+        Q.get_device().get_info<syclext::info::device::architecture>();
+    if (Q.get_backend() == sycl::backend::ext_oneapi_level_zero &&
+        DevArch != syclext::architecture::intel_gpu_pvc &&
+        DevArch != syclext::architecture::intel_gpu_pvc_vg) {
       Q.parallel_for(sycl::range<1>{NewVecSize}, [=](sycl::id<1> Idx) {
          CopyBack[Idx] = VecDataPtr[Idx];
        }).wait_and_throw();

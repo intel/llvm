@@ -349,12 +349,15 @@ Returns the access mode of the virtual memory range specified by `ptr` and
 |`void unmap(const void *ptr, size_t numBytes, const device &syclDevice, const context &syclContext)` |
 Unmaps the range specified by `ptr` and `numBytes`. The range must have been
 mapped through a call to `physical_mem::map()` prior to calling this. The range
-must not be a proper sub-range of a previously mapped range, but `ptr` and
-`numBytes` may span multiple contiguous ranges. `syclContext` must be the same
-as the context returned by the `get_context()` member function on all the
-`physical_mem` the address ranges are currently mapped to.
+must not be a proper sub-range of a previously mapped range. `syclContext` must
+be the same as the context returned by the `get_context()` member function on
+all the `physical_mem` the address ranges are currently mapped to.
 
 After this call, the full range will again be ready to be mapped through a calls
 to `physical_mem::map()`.
+
+[_Note:_ Unmapping ranges that span multiple contiguous mapped ranges. Doing so
+will result in undefined behavior. This restriction may be lifted in the
+future. _{endnote}_]
 
 |=====================
