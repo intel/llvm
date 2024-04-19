@@ -106,7 +106,7 @@ protected:
   __SYCL_ALWAYS_INLINE void check_dimension(int dimension) const {
 #ifndef __SYCL_DEVICE_ONLY__
     if (dimension >= dimensions || dimension < 0) {
-      detail::throw_invalid_parameter("Index out of range");
+      detail::throw_exception(errc::invalid, "Index out of range");
     }
 #endif
     (void)dimension;

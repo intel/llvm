@@ -14,12 +14,13 @@
 
 #pragma once
 
-#include <sycl/detail/pi.h>
+#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
+#include <sycl/errc.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-__SYCL_EXPORT void throw_invalid_parameter(const char *Msg);
+__SYCL_EXPORT void throw_exception(errc Ec, const char *Msg);
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
