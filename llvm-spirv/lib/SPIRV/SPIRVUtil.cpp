@@ -57,6 +57,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Metadata.h"
+#include "llvm/IR/Operator.h"
 #include "llvm/IR/TypedPointerType.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -1980,13 +1981,14 @@ static void replaceUsesOfBuiltinVar(Value *V, const APInt &AccumulatedOffset,
     if (auto *Cast = dyn_cast<CastInst>(U)) {
       replaceUsesOfBuiltinVar(Cast, AccumulatedOffset, ReplacementFunc, GV);
       InstsToRemove.push_back(Cast);
-    } else if (auto *GEP = dyn_cast<GetElementPtrInst>(U)) {
+    } else if (auto *GEP = dyn_cast<GEPOperator>(U)) {
       APInt NewOffset = AccumulatedOffset.sextOrTrunc(
           DL.getIndexSizeInBits(GEP->getPointerAddressSpace()));
       if (!GEP->accumulateConstantOffset(DL, NewOffset))
         llvm_unreachable("Illegal GEP of a SPIR-V builtin variable");
       replaceUsesOfBuiltinVar(GEP, NewOffset, ReplacementFunc, GV);
-      InstsToRemove.push_back(GEP);
+      if (auto *AsInst = dyn_cast<Instruction>(U))
+        InstsToRemove.push_back(AsInst);
     } else if (auto *Load = dyn_cast<LoadInst>(U)) {
       // Figure out which index the accumulated offset corresponds to. If we
       // have a weird offset (e.g., trying to load byte 7), bail out.

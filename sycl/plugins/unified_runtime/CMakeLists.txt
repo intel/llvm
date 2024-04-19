@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit a7c202b49aff130f60da0c03916d08bb22b91aa0
-  # Merge: f85e2e96 e548dc1e
-  # Author: Martin Grant <martin.morrisongrant@codeplay.com>
-  # Date:   Mon Apr 8 15:58:32 2024 +0100
-  #    Merge pull request #1493 from martygrant/martin/fixCoverityCTSErrors
-  #    [CTS] Fix Coverity warning: Add a & before auto so object is not copied unnecessarily
-  set(UNIFIED_RUNTIME_TAG a7c202b49aff130f60da0c03916d08bb22b91aa0)
+  # commit 003d4da84fd6eda5240c9b90217f8901559a28a4
+  # Merge: e38e79e6 7a5c1ad1
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Wed Apr 17 17:52:21 2024 +0100
+  #    Merge pull request #1402 from AllanZyne/user-after-free
+  #    [DeviceSanitizer] Checking "sycl::free" related errors
+  set(UNIFIED_RUNTIME_TAG 003d4da84fd6eda5240c9b90217f8901559a28a4)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -110,12 +110,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(opencl
     ${UNIFIED_RUNTIME_REPO}
-    # Merge: e60c3c22 9287547e
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Apr 4 10:23:33 2024 +0200
-    #     Merge pull request #1448 from steffenlarsen/steffen/make_ext_func_fail_unsupported
-    #     [OpenCL] Make extension function lookup return unusupported error
-    3609afc7f8781f2eae5de74deaf50ba52b1bb344
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(cuda
