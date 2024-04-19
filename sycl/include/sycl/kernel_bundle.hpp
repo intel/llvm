@@ -890,7 +890,7 @@ __SYCL_EXPORT kernel_bundle<bundle_state::executable>
 build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
                   const std::vector<device> &Devices,
                   const std::vector<sycl::detail::string_view> &BuildOptions,
-                  sycl::detail::string_view LogPtr);
+                  sycl::detail::string *LogPtr);
 __SYCL_EXPORT inline kernel_bundle<bundle_state::executable>
 build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
                   const std::vector<device> &Devices,
@@ -899,8 +899,14 @@ build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
   std::vector<sycl::detail::string_view> Options;
   for (const std::string &opt : BuildOptions)
     Options.push_back(sycl::detail::string_view{opt});
-  return build_from_source(SourceKB, Devices, Options,
-                           sycl::detail::string_view(*LogPtr));
+
+  sycl::detail::string Log;
+  if (LogPtr) {
+    auto result = build_from_source(SourceKB, Devices, Options, &Log);
+    *LogPtr = Log.c_str();
+    return result;
+  }
+  return build_from_source(SourceKB, Devices, Options, nullptr);
 }
 
 } // namespace detail
