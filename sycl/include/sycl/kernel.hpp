@@ -20,10 +20,10 @@
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
 #include <sycl/detail/util.hpp>
-#include <sycl/device.hpp>                           // for device
-#include <sycl/kernel_bundle_enums.hpp>              // for bundle_state
-#include <sycl/range.hpp>                            // for range
-#include <variant>                                   // for hash
+#include <sycl/device.hpp>              // for device
+#include <sycl/kernel_bundle_enums.hpp> // for bundle_state
+#include <sycl/range.hpp>               // for range
+#include <variant>                      // for hash
 
 namespace sycl {
 inline namespace _V1 {

@@ -21,8 +21,10 @@
 #include <sycl/detail/pi.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/detail/reduction_forward.hpp>
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
+#endif
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
@@ -51,6 +53,8 @@
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 #include <sycl/sampler.hpp>
+#include <sycl/usm/usm_enums.hpp>
+#include <sycl/usm/usm_pointer_info.hpp>
 
 #include <assert.h>
 #include <functional>
@@ -212,11 +216,6 @@ __SYCL_EXPORT device getDeviceFromHandler(handler &);
 
 // Checks if a device_global has any registered kernel usage.
 __SYCL_EXPORT bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr);
-
-// Extracts a pointer to the value inside a dynamic parameter
-__SYCL_EXPORT void *getValueFromDynamicParameter(
-    ext::oneapi::experimental::detail::dynamic_parameter_base
-        &DynamicParamBase);
 
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
 template <typename T> struct NotIntMsg;
@@ -421,6 +420,11 @@ template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
   }
   return true;
 }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+using string = std::string;
+using string_view = std::string;
+#endif
+
 } // namespace detail
 
 /// Command group handler class.
@@ -705,30 +709,6 @@ private:
                        sizeof(sampler), ArgIndex);
   }
 
-  // setArgHelper for graph dynamic_parameters
-  template <typename T>
-  void
-  setArgHelper(int ArgIndex,
-               ext::oneapi::experimental::dynamic_parameter<T> DynamicParam) {
-    // Extract and copy arg so we can move it into setArgHelper
-    T ArgValue =
-        *static_cast<T *>(detail::getValueFromDynamicParameter(DynamicParam));
-    // Set the arg in the handler as normal
-    setArgHelper(ArgIndex, std::move(ArgValue));
-    // Register the dynamic parameter with the handler for later association
-    // with the node being added
-    registerDynamicParameter(DynamicParam, ArgIndex);
-  }
-
-  /// Registers a dynamic parameter with the handler for later association with
-  /// the node being created
-  /// @param DynamicParamBase
-  /// @param ArgIndex
-  void registerDynamicParameter(
-      ext::oneapi::experimental::detail::dynamic_parameter_base
-          &DynamicParamBase,
-      int ArgIndex);
-
   // TODO: Unusued. Remove when ABI break is allowed.
   void verifyKernelInvoc(const kernel &Kernel) {
     std::ignore = Kernel;
@@ -866,10 +846,14 @@ private:
   ///
   /// \param KernelName is the name of the SYCL kernel to check that the used
   ///                   kernel bundle contains.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   void verifyUsedKernelBundle(const std::string &KernelName) {
     verifyUsedKernelBundleInternal(detail::string_view{KernelName});
   }
   void verifyUsedKernelBundleInternal(detail::string_view KernelName);
+#else
+  void verifyUsedKernelBundle(const std::string &KernelName);
+#endif
 
   /// Stores lambda to the template-free object
   ///
@@ -925,9 +909,8 @@ private:
     } else {
       // In case w/o the integration header it is necessary to process
       // accessors from the list(which are associated with this handler) as
-      // arguments. We must copy the associated accessors as they are checked
-      // later during finalize.
-      MArgs = MAssociatedAccesors;
+      // arguments.
+      MArgs = std::move(MAssociatedAccesors);
     }
 
     // If the kernel lambda is callable with a kernel_handler argument, manifest
@@ -995,6 +978,7 @@ private:
     } else {
       std::ignore = Props;
     }
+
     constexpr bool UsesRootSync = PropertiesT::template has_property<
         sycl::ext::oneapi::experimental::use_root_sync_key>();
     setKernelIsCooperative(UsesRootSync);
@@ -1024,9 +1008,9 @@ private:
     }
   }
 
-  /// Checks whether it is possible to copy the source shape to the
-  /// destination shape(the shapes are described by the accessor ranges) by
-  /// using copying by regions of memory and not copying element by element
+  /// Checks whether it is possible to copy the source shape to the destination
+  /// shape(the shapes are described by the accessor ranges) by using
+  /// copying by regions of memory and not copying element by element
   /// Shapes can be 1, 2 or 3 dimensional rectangles.
   template <int Dims_Src, int Dims_Dst>
   static bool IsCopyingRectRegionAvailable(const range<Dims_Src> Src,
@@ -1250,6 +1234,7 @@ private:
     // non-32-bit global range, we wrap the old kernel in a new kernel
     // that has each work item peform multiple invocations the old
     // kernel in a 32-bit global range.
+    auto Dev = detail::getSyclObjImpl(detail::getDeviceFromHandler(*this));
     id<Dims> MaxNWGs = [&] {
       auto [MaxWGs, HasMaxWGs] = getMaxWorkGroups_v2();
       if (!HasMaxWGs) {
@@ -1282,29 +1267,6 @@ private:
       DidAdjust = true;
     };
 
-#ifdef __SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__
-    size_t GoodExpFactor = 1;
-    switch (Dims) {
-    case 1:
-      GoodExpFactor = 32; // Make global range multiple of {32}
-      break;
-    case 2:
-      GoodExpFactor = 16; // Make global range multiple of {16, 16}
-      break;
-    case 3:
-      GoodExpFactor = 8; // Make global range multiple of {8, 8, 8}
-      break;
-    }
-
-    // Check if rounding parameters have been set through environment:
-    // SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS=MinRound:PreferredRound:MinRange
-    this->GetRangeRoundingSettings(MinFactorX, GoodExpFactor, MinRangeX);
-
-    for (auto i = 0; i < Dims; ++i)
-      if (UserRange[i] % GoodExpFactor) {
-        Adjust(i, ((UserRange[i] / GoodExpFactor) + 1) * GoodExpFactor);
-      }
-#else
     // Perform range rounding if there are sufficient work-items to
     // need rounding and the user-specified range is not a multiple of
     // a "good" value.
@@ -1315,12 +1277,6 @@ private:
       // will yield a rounded-up value for the total range.
       Adjust(0, ((RoundedRange[0] + GoodFactor - 1) / GoodFactor) * GoodFactor);
     }
-#endif // __SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__
-#ifdef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
-    // If we are forcing range rounding kernels to be used, we always want the
-    // rounded range kernel to be generated, even if rounding isn't needed
-    DidAdjust = true;
-#endif // __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
 
     for (int i = 0; i < Dims; ++i)
       if (RoundedRange[i] > MaxRange[i])
@@ -1334,10 +1290,11 @@ private:
   /// Defines and invokes a SYCL kernel function for the specified range.
   ///
   /// The SYCL kernel function is defined as a lambda function or a named
-  /// function object type and given an id or item for indexing in the
-  /// indexing space defined by range. If it is a named function object and
-  /// the function object type is globally visible, there is no need for the
-  /// developer to provide a kernel name for it.
+  /// function object type and given an id or item for indexing in the indexing
+  /// space defined by range.
+  /// If it is a named function object and the function object type is
+  /// globally visible, there is no need for the developer to provide
+  /// a kernel name for it.
   ///
   /// \param NumWorkItems is a range defining indexing space.
   /// \param KernelFunc is a SYCL kernel function.
@@ -1366,6 +1323,8 @@ private:
                   "Kernel argument cannot have a sycl::nd_item type in "
                   "sycl::parallel_for with sycl::range");
 
+#if defined(SYCL2020_CONFORMANT_APIS) ||                                       \
+    defined(__INTEL_PREVIEW_BREAKING_CHANGES)
     static_assert(std::is_convertible_v<item<Dims>, LambdaArgType> ||
                       std::is_convertible_v<item<Dims, false>, LambdaArgType>,
                   "sycl::parallel_for(sycl::range) kernel must have the "
@@ -1376,9 +1335,9 @@ private:
     static_assert(
         (std::is_invocable_v<KernelType, RefLambdaArgType> ||
          std::is_invocable_v<KernelType, RefLambdaArgType, kernel_handler>),
-        "SYCL kernel lambda/functor has an unexpected signature, it should "
-        "be "
+        "SYCL kernel lambda/functor has an unexpected signature, it should be "
         "invocable with sycl::item and optionally sycl::kernel_handler");
+#endif
 
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
@@ -1416,7 +1375,6 @@ private:
       StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
       setType(detail::CG::Kernel);
-      setNDRangeUsed(false);
 #endif
     } else
 #endif // !__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ &&
@@ -1425,9 +1383,6 @@ private:
     {
       (void)UserRange;
       (void)Props;
-#ifndef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
-      // If parallel_for range rounding is forced then only range rounded
-      // kernel is generated
       kernel_parallel_for_wrapper<NameT, TransformedArgType, KernelType,
                                   PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
@@ -1437,21 +1392,18 @@ private:
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
           std::move(KernelFunc));
       setType(detail::CG::Kernel);
-      setNDRangeUsed(false);
 #endif
-#else
-      (void)KernelFunc;
-#endif // __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
     }
   }
 
   /// Defines and invokes a SYCL kernel function for the specified nd_range.
   ///
   /// The SYCL kernel function is defined as a lambda function or a named
-  /// function object type and given an id or item for indexing in the
-  /// indexing space defined by range. If it is a named function object and
-  /// the function object type is globally visible, there is no need for the
-  /// developer to provide a kernel name for it.
+  /// function object type and given an id or item for indexing in the indexing
+  /// space defined by range.
+  /// If it is a named function object and the function object type is
+  /// globally visible, there is no need for the developer to provide
+  /// a kernel name for it.
   ///
   /// \param ExecutionRange is a ND-range defining global and local sizes as
   /// well as offset.
@@ -1469,11 +1421,19 @@ private:
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
+#if defined(SYCL2020_CONFORMANT_APIS) ||                                       \
+    defined(__INTEL_PREVIEW_BREAKING_CHANGES)
     static_assert(
         std::is_convertible_v<sycl::nd_item<Dims>, LambdaArgType>,
         "Kernel argument of a sycl::parallel_for with sycl::nd_range "
         "must be either sycl::nd_item or be convertible from sycl::nd_item");
     using TransformedArgType = sycl::nd_item<Dims>;
+#else
+    // If user type is convertible from sycl::item/sycl::nd_item, use
+    // sycl::item/sycl::nd_item to transport item information
+    using TransformedArgType =
+        typename TransformUserItemType<Dims, LambdaArgType>::type;
+#endif
 
     (void)ExecutionRange;
     (void)Props;
@@ -1486,7 +1446,6 @@ private:
     StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
         std::move(KernelFunc));
     setType(detail::CG::Kernel);
-    setNDRangeUsed(true);
 #endif
   }
 
@@ -1504,7 +1463,6 @@ private:
     detail::checkValueRange<Dims>(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
     setType(detail::CG::Kernel);
-    setNDRangeUsed(false);
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -1543,7 +1501,6 @@ private:
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
     setType(detail::CG::Kernel);
-    setNDRangeUsed(false);
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -1635,8 +1592,8 @@ private:
 #endif
   }
 
-  // NOTE: the name of these functions - "kernel_parallel_for" - are used by
-  // the Front End to determine kernel invocation kind.
+  // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
+  // Front End to determine kernel invocation kind.
   template <typename KernelName, typename ElementType, typename KernelType,
             typename... Props>
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1653,8 +1610,8 @@ private:
 #endif
   }
 
-  // NOTE: the name of these functions - "kernel_parallel_for" - are used by
-  // the Front End to determine kernel invocation kind.
+  // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
+  // Front End to determine kernel invocation kind.
   template <typename KernelName, typename ElementType, typename KernelType,
             typename... Props>
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1753,8 +1710,8 @@ private:
   //   * Make use of the KernelPropertiesUnpacker above
   //   * Decide if we need an extra kernel_handler parameter
   //
-  // The interface uses a \p Lambda callback to propagate that information
-  // back to the caller as we need the caller to communicate:
+  // The interface uses a \p Lambda callback to propagate that information back
+  // to the caller as we need the caller to communicate:
   //
   //   * Name of the method to call
   //   * Provide explicit template type parameters for the call
@@ -1880,9 +1837,7 @@ private:
     throwIfActionIsCreated();
 
     MNDRDesc.set(range<1>(1));
-    // Need to copy these rather than move so that we can check associated
-    // accessors during finalize
-    MArgs = MAssociatedAccesors;
+    MArgs = std::move(MAssociatedAccesors);
 
     MHostTask.reset(new detail::HostTask(std::move(Func)));
 
@@ -1890,8 +1845,8 @@ private:
   }
 
   /// @brief Get the command graph if any associated with this handler. It can
-  /// come from either the associated queue or from being set explicitly
-  /// through the appropriate constructor.
+  /// come from either the associated queue or from being set explicitly through
+  /// the appropriate constructor.
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
   getCommandGraph() const;
 
@@ -1958,27 +1913,6 @@ public:
       associateWithHandler(&Acc, AccTarget);
   }
 
-  /// Requires access to the memory object associated with the placeholder
-  /// accessor contained in a dynamic_parameter object. Calling this function
-  /// with a non-placeholder accessor has no effect.
-  ///
-  /// The command group has a requirement to gain access to the given memory
-  /// object before executing.
-  ///
-  /// \param dynamicParamAcc is dynamic_parameter containing a SYCL accessor
-  /// describing required memory region.
-  template <typename DataT, int Dims, access::mode AccMode,
-            access::target AccTarget, access::placeholder isPlaceholder>
-  void require(ext::oneapi::experimental::dynamic_parameter<
-               accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder>>
-                   dynamicParamAcc) {
-    using AccT = accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder>;
-    AccT Acc = *static_cast<AccT *>(
-        detail::getValueFromDynamicParameter(dynamicParamAcc));
-    if (Acc.is_placeholder())
-      associateWithHandler(&Acc, AccTarget);
-  }
-
   /// Registers event dependencies on this command group.
   ///
   /// \param Event is a valid SYCL event to wait on.
@@ -2030,13 +1964,6 @@ public:
   template <typename DataT, int Dims>
   void set_arg(int ArgIndex, local_accessor<DataT, Dims> Arg) {
     setArgHelper(ArgIndex, std::move(Arg));
-  }
-
-  // set_arg for graph dynamic_parameters
-  template <typename T>
-  void set_arg(int argIndex,
-               ext::oneapi::experimental::dynamic_parameter<T> &dynamicParam) {
-    setArgHelper(argIndex, dynamicParam);
   }
 
   /// Sets arguments for OpenCL interoperability kernels.
@@ -2096,14 +2023,15 @@ public:
   /// offset.
   ///
   /// The SYCL kernel function is defined as a lambda function or a named
-  /// function object type and given an id or item for indexing in the
-  /// indexing space defined by range. If it is a named function object and
-  /// the function object type is globally visible, there is no need for the
-  /// developer to provide a kernel name for it.
+  /// function object type and given an id or item for indexing in the indexing
+  /// space defined by range.
+  /// If it is a named function object and the function object type is
+  /// globally visible, there is no need for the developer to provide
+  /// a kernel name for it.
   ///
   /// \param NumWorkItems is a range defining indexing space.
-  /// \param WorkItemOffset is an offset to be applied to each work item
-  /// index. \param KernelFunc is a SYCL kernel function.
+  /// \param WorkItemOffset is an offset to be applied to each work item index.
+  /// \param KernelFunc is a SYCL kernel function.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
@@ -2126,7 +2054,6 @@ public:
     StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
         std::move(KernelFunc));
     setType(detail::CG::Kernel);
-    setNDRangeUsed(false);
 #endif
   }
 
@@ -2179,8 +2106,7 @@ public:
   /// \param Kernel is a SYCL kernel object.
   void single_task(kernel Kernel) {
     throwIfActionIsCreated();
-    // Ignore any set kernel bundles and use the one associated with the
-    // kernel
+    // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
@@ -2209,8 +2135,8 @@ public:
   /// The SYCL kernel function is defined as SYCL kernel object.
   ///
   /// \param NumWorkItems is a range defining indexing space.
-  /// \param WorkItemOffset is an offset to be applied to each work item
-  /// index. \param Kernel is a SYCL kernel function.
+  /// \param WorkItemOffset is an offset to be applied to each work item index.
+  /// \param Kernel is a SYCL kernel function.
   template <int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
   void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
@@ -2220,7 +2146,6 @@ public:
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     setType(detail::CG::Kernel);
-    setNDRangeUsed(false);
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -2239,7 +2164,6 @@ public:
     detail::checkValueRange<Dims>(NDRange);
     MNDRDesc.set(std::move(NDRange));
     setType(detail::CG::Kernel);
-    setNDRangeUsed(true);
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -2253,8 +2177,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType>
   void single_task(kernel Kernel, _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
-    // Ignore any set kernel bundles and use the one associated with the
-    // kernel
+    // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -2289,8 +2212,7 @@ public:
   void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
                     _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
-    // Ignore any set kernel bundles and use the one associated with the
-    // kernel
+    // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -2304,7 +2226,6 @@ public:
     MNDRDesc.set(std::move(NumWorkItems));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CG::Kernel);
-    setNDRangeUsed(false);
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -2320,17 +2241,16 @@ public:
   /// \param Kernel is a SYCL kernel that is executed on a SYCL device
   /// (except for the host device).
   /// \param NumWorkItems is a range defining indexing space.
-  /// \param WorkItemOffset is an offset to be applied to each work item
-  /// index. \param KernelFunc is a lambda that is used if device, queue is
-  /// bound to, is a host device.
+  /// \param WorkItemOffset is an offset to be applied to each work item index.
+  /// \param KernelFunc is a lambda that is used if device, queue is bound to,
+  /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
   void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
                     id<Dims> WorkItemOffset, _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
-    // Ignore any set kernel bundles and use the one associated with the
-    // kernel
+    // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -2345,7 +2265,6 @@ public:
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CG::Kernel);
-    setNDRangeUsed(false);
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -2369,8 +2288,7 @@ public:
   void parallel_for(kernel Kernel, nd_range<Dims> NDRange,
                     _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
-    // Ignore any set kernel bundles and use the one associated with the
-    // kernel
+    // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -2385,7 +2303,6 @@ public:
     MNDRDesc.set(std::move(NDRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CG::Kernel);
-    setNDRangeUsed(true);
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -2399,10 +2316,10 @@ public:
   ///
   /// This version of \c parallel_for_work_group takes two parameters
   /// representing the same kernel. The first one - \c Kernel - is a
-  /// compiled form of the second one - \c kernelFunc, which is the source
-  /// form of the kernel. The same source kernel can be compiled multiple
-  /// times yielding multiple kernel class objects accessible via the \c
-  /// program class interface.
+  /// compiled form of the second one - \c kernelFunc, which is the source form
+  /// of the kernel. The same source kernel can be compiled multiple times
+  /// yielding multiple kernel class objects accessible via the \c program class
+  /// interface.
   ///
   /// \param Kernel is a compiled SYCL kernel.
   /// \param NumWorkGroups is a range describing the number of work-groups in
@@ -2413,8 +2330,7 @@ public:
   void parallel_for_work_group(kernel Kernel, range<Dims> NumWorkGroups,
                                _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
-    // Ignore any set kernel bundles and use the one associated with the
-    // kernel
+    // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -2437,10 +2353,10 @@ public:
   ///
   /// This version of \c parallel_for_work_group takes two parameters
   /// representing the same kernel. The first one - \c Kernel - is a
-  /// compiled form of the second one - \c kernelFunc, which is the source
-  /// form of the kernel. The same source kernel can be compiled multiple
-  /// times yielding multiple kernel class objects accessible via the \c
-  /// program class interface.
+  /// compiled form of the second one - \c kernelFunc, which is the source form
+  /// of the kernel. The same source kernel can be compiled multiple times
+  /// yielding multiple kernel class objects accessible via the \c program class
+  /// interface.
   ///
   /// \param Kernel is a compiled SYCL kernel.
   /// \param NumWorkGroups is a range describing the number of work-groups in
@@ -2454,8 +2370,7 @@ public:
                                range<Dims> WorkGroupSize,
                                _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
-    // Ignore any set kernel bundles and use the one associated with the
-    // kernel
+    // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -2814,9 +2729,9 @@ public:
     static_assert(isValidModeForDestinationAccessor(AccessMode_Dst),
                   "Invalid destination accessor mode for the copy method.");
     if (Dst.get_size() < Src.get_size())
-      throw sycl::invalid_object_error("The destination accessor size is too "
-                                       "small to copy the memory into.",
-                                       PI_ERROR_INVALID_OPERATION);
+      throw sycl::invalid_object_error(
+          "The destination accessor size is too small to copy the memory into.",
+          PI_ERROR_INVALID_OPERATION);
 
     if (copyAccToAccHelper(Src, Dst))
       return;
@@ -2867,8 +2782,8 @@ public:
   /// Fills memory pointed by accessor with the pattern given.
   ///
   /// If the operation is submitted to queue associated with OpenCL device and
-  /// accessor points to one dimensional memory object then use special type
-  /// for filling. Otherwise fill using regular kernel.
+  /// accessor points to one dimensional memory object then use special type for
+  /// filling. Otherwise fill using regular kernel.
   ///
   /// \param Dst is a destination SYCL accessor.
   /// \param Pattern is a value to be used to fill the memory.
@@ -2890,8 +2805,8 @@ public:
     // TODO add check:T must be an integral scalar value or a SYCL vector type
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the fill method.");
-    // CG::Fill will result in piEnqueuFillBuffer/Image which requires that
-    // mem data is contiguous. Thus we check range and offset when dim > 1
+    // CG::Fill will result in piEnqueuFillBuffer/Image which requires that mem
+    // data is contiguous. Thus we check range and offset when dim > 1
     // Images don't allow ranged accessors and are fine.
     if constexpr (isBackendSupportedFillSize(sizeof(T)) &&
                   ((Dims <= 1) || isImageOrImageArray(AccessTarget))) {
@@ -2943,8 +2858,8 @@ public:
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
-  /// until all events in WaitList have entered the complete state. If
-  /// WaitList is empty, then the barrier has no effect.
+  /// until all events in WaitList have entered the complete state. If WaitList
+  /// is empty, then the barrier has no effect.
   ///
   /// \param WaitList is a vector of valid SYCL events that need to complete
   /// before barrier command can be executed.
@@ -2989,8 +2904,8 @@ public:
   /// on a device earlier than Unified Shared Memory would normally require it
   /// to be available.
   ///
-  /// \param Ptr is a USM pointer to the memory to be prefetched to the
-  /// device. \param Count is a number of bytes to be prefetched.
+  /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
+  /// \param Count is a number of bytes to be prefetched.
   void prefetch(const void *Ptr, size_t Count);
 
   /// Provides additional information to the underlying runtime about how
@@ -3005,8 +2920,8 @@ public:
   /// USM pointers.
   /// No operations is done if \p Width or \p Height is zero. An exception is
   /// thrown if either \p Dest or \p Src is nullptr or if \p Width is strictly
-  /// greater than either \p DestPitch or \p SrcPitch. The behavior is
-  /// undefined if any of the pointer parameters is invalid.
+  /// greater than either \p DestPitch or \p SrcPitch. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
   ///
   /// NOTE: Function is dependent to prevent the fallback kernels from
   /// materializing without the use of the function.
@@ -3020,31 +2935,101 @@ public:
   template <typename T = unsigned char,
             typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
   void ext_oneapi_memcpy2d(void *Dest, size_t DestPitch, const void *Src,
-                           size_t SrcPitch, size_t Width, size_t Height);
+                           size_t SrcPitch, size_t Width, size_t Height) {
+    throwIfGraphAssociated<
+        ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+            sycl_ext_oneapi_memcpy2d>();
+    throwIfActionIsCreated();
+    if (Width > DestPitch)
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "Destination pitch must be greater than or equal "
+                            "to the width specified in 'ext_oneapi_memcpy2d'");
+    if (Width > SrcPitch)
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "Source pitch must be greater than or equal "
+                            "to the width specified in 'ext_oneapi_memcpy2d'");
+
+    // Get the type of the pointers.
+    context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());
+    usm::alloc SrcAllocType = get_pointer_type(Src, Ctx);
+    usm::alloc DestAllocType = get_pointer_type(Dest, Ctx);
+    bool SrcIsHost =
+        SrcAllocType == usm::alloc::unknown || SrcAllocType == usm::alloc::host;
+    bool DestIsHost = DestAllocType == usm::alloc::unknown ||
+                      DestAllocType == usm::alloc::host;
+
+    // Do the following:
+    // 1. If both are host, use host_task to copy.
+    // 2. If either pointer is host or the backend supports native memcpy2d, use
+    //    special command.
+    // 3. Otherwise, launch a kernel for copying.
+    if (SrcIsHost && DestIsHost) {
+      commonUSMCopy2DFallbackHostTask<T>(Src, SrcPitch, Dest, DestPitch, Width,
+                                         Height);
+    } else if (SrcIsHost || DestIsHost || supportsUSMMemcpy2D()) {
+      ext_oneapi_memcpy2d_impl(Dest, DestPitch, Src, SrcPitch, Width, Height);
+    } else {
+      commonUSMCopy2DFallbackKernel<T>(Src, SrcPitch, Dest, DestPitch, Width,
+                                       Height);
+    }
+  }
 
   /// Copies data from one 2D memory region to another, both pointed by
   /// USM pointers.
   /// No operations is done if \p Width or \p Height is zero. An exception is
   /// thrown if either \p Dest or \p Src is nullptr or if \p Width is strictly
-  /// greater than either \p DestPitch or \p SrcPitch. The behavior is
-  /// undefined if any of the pointer parameters is invalid.
+  /// greater than either \p DestPitch or \p SrcPitch. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param SrcPitch is the pitch of the rows in \p Src.
   /// \param Dest is a USM pointer to the destination memory.
   /// \param DestPitch is the pitch of the rows in \p Dest.
-  /// \param Width is the width in number of elements of the 2D region to
-  /// copy. \param Height is the height in number of rows of the 2D region to
-  /// copy.
+  /// \param Width is the width in number of elements of the 2D region to copy.
+  /// \param Height is the height in number of rows of the 2D region to copy.
   template <typename T>
   void ext_oneapi_copy2d(const T *Src, size_t SrcPitch, T *Dest,
-                         size_t DestPitch, size_t Width, size_t Height);
+                         size_t DestPitch, size_t Width, size_t Height) {
+    if (Width > DestPitch)
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "Destination pitch must be greater than or equal "
+                            "to the width specified in 'ext_oneapi_copy2d'");
+    if (Width > SrcPitch)
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "Source pitch must be greater than or equal "
+                            "to the width specified in 'ext_oneapi_copy2d'");
+
+    // Get the type of the pointers.
+    context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());
+    usm::alloc SrcAllocType = get_pointer_type(Src, Ctx);
+    usm::alloc DestAllocType = get_pointer_type(Dest, Ctx);
+    bool SrcIsHost =
+        SrcAllocType == usm::alloc::unknown || SrcAllocType == usm::alloc::host;
+    bool DestIsHost = DestAllocType == usm::alloc::unknown ||
+                      DestAllocType == usm::alloc::host;
+
+    // Do the following:
+    // 1. If both are host, use host_task to copy.
+    // 2. If either pointer is host or of the backend supports native memcpy2d,
+    //    use special command.
+    // 3. Otherwise, launch a kernel for copying.
+    if (SrcIsHost && DestIsHost) {
+      commonUSMCopy2DFallbackHostTask<T>(Src, SrcPitch, Dest, DestPitch, Width,
+                                         Height);
+    } else if (SrcIsHost || DestIsHost || supportsUSMMemcpy2D()) {
+      ext_oneapi_memcpy2d_impl(Dest, DestPitch * sizeof(T), Src,
+                               SrcPitch * sizeof(T), Width * sizeof(T), Height);
+    } else {
+      commonUSMCopy2DFallbackKernel<T>(Src, SrcPitch, Dest, DestPitch, Width,
+                                       Height);
+    }
+  }
 
   /// Fills the memory pointed by a USM pointer with the value specified.
   /// No operations is done if \p Width or \p Height is zero. An exception is
   /// thrown if either \p Dest or \p Src is nullptr or if \p Width is strictly
-  /// greater than \p DestPitch. The behavior is undefined if any of the
-  /// pointer parameters is invalid.
+  /// greater than \p DestPitch. The behavior is undefined if any of the pointer
+  /// parameters is invalid.
   ///
   /// NOTE: Function is dependent to prevent the fallback kernels from
   /// materializing without the use of the function.
@@ -3053,35 +3038,74 @@ public:
   /// \param DestPitch is the pitch of the rows in \p Dest.
   /// \param Value is the value to fill into the region in \p Dest. Value is
   /// cast as an unsigned char.
-  /// \param Width is the width in number of elements of the 2D region to
-  /// fill. \param Height is the height in number of rows of the 2D region to
-  /// fill.
+  /// \param Width is the width in number of elements of the 2D region to fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
   template <typename T = unsigned char,
             typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
   void ext_oneapi_memset2d(void *Dest, size_t DestPitch, int Value,
-                           size_t Width, size_t Height);
+                           size_t Width, size_t Height) {
+    throwIfActionIsCreated();
+    if (Width > DestPitch)
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "Destination pitch must be greater than or equal "
+                            "to the width specified in 'ext_oneapi_memset2d'");
+    T CharVal = static_cast<T>(Value);
+
+    context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());
+    usm::alloc DestAllocType = get_pointer_type(Dest, Ctx);
+
+    // If the backends supports 2D fill we use that. Otherwise we use a fallback
+    // kernel. If the target is on host we will always do the operation on host.
+    if (DestAllocType == usm::alloc::unknown ||
+        DestAllocType == usm::alloc::host)
+      commonUSMFill2DFallbackHostTask(Dest, DestPitch, CharVal, Width, Height);
+    else if (supportsUSMMemset2D())
+      ext_oneapi_memset2d_impl(Dest, DestPitch, Value, Width, Height);
+    else
+      commonUSMFill2DFallbackKernel(Dest, DestPitch, CharVal, Width, Height);
+  }
 
   /// Fills the memory pointed by a USM pointer with the value specified.
   /// No operations is done if \p Width or \p Height is zero. An exception is
   /// thrown if either \p Dest or \p Src is nullptr or if \p Width is strictly
-  /// greater than \p DestPitch. The behavior is undefined if any of the
-  /// pointer parameters is invalid.
+  /// greater than \p DestPitch. The behavior is undefined if any of the pointer
+  /// parameters is invalid.
   ///
   /// \param Dest is a USM pointer to the destination memory.
   /// \param DestPitch is the pitch of the rows in \p Dest.
   /// \param Pattern is the pattern to fill into the memory.  T should be
   /// device copyable.
-  /// \param Width is the width in number of elements of the 2D region to
-  /// fill. \param Height is the height in number of rows of the 2D region to
-  /// fill.
+  /// \param Width is the width in number of elements of the 2D region to fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
   template <typename T>
   void ext_oneapi_fill2d(void *Dest, size_t DestPitch, const T &Pattern,
-                         size_t Width, size_t Height);
+                         size_t Width, size_t Height) {
+    throwIfActionIsCreated();
+    static_assert(is_device_copyable<T>::value,
+                  "Pattern must be device copyable");
+    if (Width > DestPitch)
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "Destination pitch must be greater than or equal "
+                            "to the width specified in 'ext_oneapi_fill2d'");
+
+    context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());
+    usm::alloc DestAllocType = get_pointer_type(Dest, Ctx);
+
+    // If the backends supports 2D fill we use that. Otherwise we use a fallback
+    // kernel. If the target is on host we will always do the operation on host.
+    if (DestAllocType == usm::alloc::unknown ||
+        DestAllocType == usm::alloc::host)
+      commonUSMFill2DFallbackHostTask(Dest, DestPitch, Pattern, Width, Height);
+    else if (supportsUSMFill2D())
+      ext_oneapi_fill2d_impl(Dest, DestPitch, &Pattern, sizeof(T), Width,
+                             Height);
+    else
+      commonUSMFill2DFallbackKernel(Dest, DestPitch, Pattern, Width, Height);
+  }
 
   /// Copies data from a USM memory region to a device_global.
   /// Throws an exception if the copy operation intends to write outside the
-  /// memory range \p Dest, as specified through \p NumBytes and \p
-  /// DestOffset.
+  /// memory range \p Dest, as specified through \p NumBytes and \p DestOffset.
   ///
   /// \param Dest is the destination device_glboal.
   /// \param Src is a USM pointer to the source memory.
@@ -3155,8 +3179,7 @@ public:
   /// \param Src is a USM pointer to the source memory.
   /// \param Dest is the destination device_glboal.
   /// \param Count is a number of elements to copy.
-  /// \param StartIndex is the index of the first element in \p Dest to copy
-  /// to.
+  /// \param StartIndex is the index of the first element in \p Dest to copy to.
   template <typename T, typename PropertyListT>
   void copy(const std::remove_all_extents_t<T> *Src,
             ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
@@ -3194,9 +3217,8 @@ public:
 
   /// Copies data from one memory region to another, where \p Src is a USM
   /// pointer and \p Dest is an opaque image memory handle. An exception is
-  /// thrown if either \p Src is nullptr or \p Dest is incomplete. The
-  /// behavior is undefined if \p Desc is inconsistent with the allocated
-  /// memory region.
+  /// thrown if either \p Src is nullptr or \p Dest is incomplete. The behavior
+  /// is undefined if \p Desc is inconsistent with the allocated memory region.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param Dest is an opaque image memory handle to the destination memory.
@@ -3254,8 +3276,7 @@ public:
   /// incomplete.
   ///
   /// \param Src is an opaque image memory handle to the source memory.
-  /// \param SrcOffset is an offset from the origin of source measured in
-  /// pixels
+  /// \param SrcOffset is an offset from the origin of source measured in pixels
   ///                   (pixel size determined by \p SrcImgDesc )
   /// \param SrcImgDesc is the source image descriptor
   /// \param Dest is a USM pointer to the destination memory.
@@ -3282,9 +3303,8 @@ public:
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param Dest is a USM pointer to the destination memory.
-  /// \param DeviceImgDesc is the image descriptor (format, order,
-  /// dimensions). \param DeviceRowPitch is the pitch of the rows on the
-  /// device.
+  /// \param DeviceImgDesc is the image descriptor (format, order, dimensions).
+  /// \param DeviceRowPitch is the pitch of the rows on the device.
   void ext_oneapi_copy(
       void *Src, void *Dest,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
@@ -3362,8 +3382,7 @@ private:
   /// Use getType and setType methods to access this variable unless
   /// manipulations with version are required
   detail::CG::CGTYPE MCGType = detail::CG::None;
-  /// Pointer to the source host memory or accessor(depending on command
-  /// type).
+  /// Pointer to the source host memory or accessor(depending on command type).
   void *MSrcPtr = nullptr;
   /// Pointer to the dest host memory or accessor(depends on command type).
   void *MDstPtr = nullptr;
@@ -3381,8 +3400,8 @@ private:
 
   /// The graph that is associated with this handler.
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph;
-  /// If we are submitting a graph using ext_oneapi_graph this will be the
-  /// graph to be executed.
+  /// If we are submitting a graph using ext_oneapi_graph this will be the graph
+  /// to be executed.
   std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
       MExecGraph;
   /// Storage for a node created from a subgraph submission.
@@ -3408,8 +3427,7 @@ private:
   template <typename DataT, int Dimensions, access::mode AccessMode,
             access::target AccessTarget, access::placeholder IsPlaceholder>
   friend class detail::image_accessor;
-  // Make stream class friend to be able to keep the list of associated
-  // streams
+  // Make stream class friend to be able to keep the list of associated streams
   friend class stream;
   friend class detail::stream_impl;
   // Make reduction friends to store buffers and arrays created for it
@@ -3455,32 +3473,40 @@ private:
 
   /// Read from a host pipe given a host address and
   /// \param Name name of the host pipe to be passed into lower level runtime
-  /// \param Ptr host pointer of host pipe as identified by address of its
-  /// const
+  /// \param Ptr host pointer of host pipe as identified by address of its const
   ///        expr m_Storage member
   /// \param Size the size of data getting read back / to.
   /// \param Block if read operation is blocking, default to false.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   void ext_intel_read_host_pipe(const std::string &Name, void *Ptr, size_t Size,
                                 bool Block = false) {
     ext_intel_read_host_pipe(detail::string_view(Name), Ptr, Size, Block);
   }
   void ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
                                 size_t Size, bool Block = false);
+#else
+  void ext_intel_read_host_pipe(const std::string &Name, void *Ptr, size_t Size,
+                                bool Block = false);
+#endif
 
   /// Write to host pipes given a host address and
   /// \param Name name of the host pipe to be passed into lower level runtime
-  /// \param Ptr host pointer of host pipe as identified by address of its
-  /// const expr m_Storage member \param Size the size of data getting read
-  /// back / to. \param Block if write opeartion is blocking, default to
-  /// false.
+  /// \param Ptr host pointer of host pipe as identified by address of its const
+  /// expr m_Storage member
+  /// \param Size the size of data getting read back / to.
+  /// \param Block if write opeartion is blocking, default to false.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
                                  size_t Size, bool Block = false) {
     ext_intel_write_host_pipe(detail::string_view(Name), Ptr, Size, Block);
   }
   void ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
                                  size_t Size, bool Block = false);
+#else
+  void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
+                                 size_t Size, bool Block = false);
+#endif
   friend class ext::oneapi::experimental::detail::graph_impl;
-  friend class ext::oneapi::experimental::detail::dynamic_parameter_impl;
 
   bool DisableRangeRounding();
 
@@ -3519,8 +3545,8 @@ private:
   // Helper function for getting a loose bound on work-items.
   id<2> computeFallbackKernelBounds(size_t Width, size_t Height);
 
-  // Common function for launching a 2D USM memcpy kernel to avoid
-  // redefinitions of the kernel from copy and memcpy.
+  // Common function for launching a 2D USM memcpy kernel to avoid redefinitions
+  // of the kernel from copy and memcpy.
   template <typename T>
   void commonUSMCopy2DFallbackKernel(const void *Src, size_t SrcPitch,
                                      void *Dest, size_t DestPitch, size_t Width,
@@ -3634,8 +3660,7 @@ private:
   void ext_oneapi_memcpy2d_impl(void *Dest, size_t DestPitch, const void *Src,
                                 size_t SrcPitch, size_t Width, size_t Height);
 
-  // Untemplated version of ext_oneapi_fill2d using command for native 2D
-  // fill.
+  // Untemplated version of ext_oneapi_fill2d using command for native 2D fill.
   void ext_oneapi_fill2d_impl(void *Dest, size_t DestPitch, const void *Value,
                               size_t ValueSize, size_t Width, size_t Height);
 
@@ -3705,9 +3730,6 @@ private:
                                 "for use with the SYCL Graph extension.");
     }
   }
-
-  // Set that an ND Range was used during a call to parallel_for
-  void setNDRangeUsed(bool Value);
 };
 } // namespace _V1
 } // namespace sycl
