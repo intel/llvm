@@ -1188,6 +1188,12 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type = ImageDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
                                              : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        ImageDesc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type = ImageDesc.depth > 0
                             ? PI_MEM_TYPE_IMAGE3D
