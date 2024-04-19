@@ -184,14 +184,6 @@ static constexpr char StateTypeName[] = "struct.__nativecpu_state";
 
 static Type *getStateType(Module &M) {
   // __nativecpu_state type
-  auto Types = M.getIdentifiedStructTypes();
-  auto str = llvm::find_if(Types, [](auto T) { return T->getName() == StateTypeName; });
-  if (str == Types.end()) {
-  } else if ((*str)->isStructTy()) {
-    // state struct should come from linked builtin bc file
-    return *str;
-  }
-  // Declare state struct if there isn't one in the module
   auto &Ctx = M.getContext();
   return StructType::create(Ctx, StateTypeName);
 }
