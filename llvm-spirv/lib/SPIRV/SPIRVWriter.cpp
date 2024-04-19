@@ -3036,7 +3036,9 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
     auto Opcode = BVF->getOpcode();
     if (Opcode == Instruction::FAdd || Opcode == Instruction::FSub ||
         Opcode == Instruction::FMul || Opcode == Instruction::FDiv ||
-        Opcode == Instruction::FRem) {
+        Opcode == Instruction::FRem ||
+        ((Opcode == Instruction::FNeg || Opcode == Instruction::FCmp) &&
+         BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))) {
       FastMathFlags FMF = BVF->getFastMathFlags();
       SPIRVWord M{0};
       if (FMF.isFast())
