@@ -1,6 +1,7 @@
 // RUN: %clang_cc1 -fsyntax-only -fsycl-is-device -triple spir64-unknown-unknown -verify -Wpedantic %s
 
-// Test verification of __builtin_intel_sycl_alloca when used in different valid ways.
+// Test verification of __builtin_intel_sycl_alloca and
+// __builtin_intel_sycl_alloca_with_align when used in different valid ways.
 
 #include <stddef.h>
 
@@ -25,4 +26,11 @@ void basic_test(sycl::kernel_handler &kh) {
     float, intSize, sycl::access::decorated::no>(kh);
   sycl::ext::oneapi::experimental::private_alloca<
     myStruct, shortSize, sycl::access::decorated::legacy>(kh);
+
+  sycl::ext::oneapi::experimental::aligned_private_alloca<
+    int, alignof(int), size, sycl::access::decorated::yes>(kh);
+  sycl::ext::oneapi::experimental::aligned_private_alloca<
+    float, alignof(float) * 2, intSize, sycl::access::decorated::no>(kh);
+  sycl::ext::oneapi::experimental::aligned_private_alloca<
+    myStruct, alignof(myStruct) * 2, shortSize, sycl::access::decorated::legacy>(kh);
 }

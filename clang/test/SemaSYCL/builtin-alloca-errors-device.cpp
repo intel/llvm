@@ -1,6 +1,7 @@
 // RUN: %clang_cc1 -fsyntax-only -fsycl-is-device -triple spir64-unknown-unknown -verify %s
 
-// Test errors of __builtin_intel_sycl_alloca when used in SYCL device code.
+// Test errors of __builtin_intel_sycl_alloca and
+// __builtin_intel_sycl_alloca_with_align when used in SYCL device code.
 
 #include <stddef.h>
 
