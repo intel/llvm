@@ -57,12 +57,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit e9f363d5eed413e53f9f96b0f4550921d5fb86b3
+  # commit 84d7a4970a6e094a0648a0d1d60d10389b71fad3 (tag: v0.9.0)
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Tue Apr 16 10:10:10 2024 +0100
-  #     Merge pull request #1507 from nrspruit/fix_p2p_properties_init
-  #     [L0] Fix to p2p properties init for pNext and stype
-  set(UNIFIED_RUNTIME_TAG e9f363d5eed413e53f9f96b0f4550921d5fb86b3)
+  # Date:   Fri Apr 19 10:35:14 2024 +0100
+  #     Merge pull request #1517 from nrspruit/fix_l0_coverity_sync
+  #     [L0] Store LastCommandEvent before unlock during queue sync
+  set(UNIFIED_RUNTIME_TAG v0.9.0)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
