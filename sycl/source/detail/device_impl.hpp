@@ -260,26 +260,39 @@ public:
 
   bool extOneapiCanCompile(ext::oneapi::experimental::source_language Language);
 
-  template <ext::oneapi::experimental::forward_progress_guarantee Guarantee,
-            ext::oneapi::experimental::execution_scope CoordinationScope>
-  bool supports_sub_group_progress(
-      ext::oneapi::experimental::sub_group_progress_key::value_t<
-          Guarantee, CoordinationScope>) const;
+  template <typename ReturnT>
+  static ReturnT getProgressGuaranteesUpTo(
+      ext::oneapi::experimental::forward_progress_guarantee guarantee) {
+    const int forwardProgressGuaranteeSize = 3;
+    int guaranteeVal = static_cast<int>(guarantee);
+    ReturnT res;
+    res.reserve(forwardProgressGuaranteeSize - guaranteeVal);
+    for (int currentGuarantee = forwardProgressGuaranteeSize - 1;
+         currentGuarantee >= guaranteeVal; --currentGuarantee) {
+      res.emplace_back(
+          static_cast<ext::oneapi::experimental::forward_progress_guarantee>(
+              currentGuarantee));
+    }
+    return res;
+  }
 
-  template <ext::oneapi::experimental::forward_progress_guarantee Guarantee,
-            ext::oneapi::experimental::execution_scope CoordinationScope>
-  bool supports_work_group_progress(
-      ext::oneapi::experimental::work_group_progress_key::value_t<
-          Guarantee, CoordinationScope>) const;
+  static sycl::ext::oneapi::experimental::forward_progress_guarantee
+      getHostProgressGuarantee(
+          sycl::ext::oneapi::experimental::execution_scope,
+          sycl::ext::oneapi::experimental::execution_scope);
 
-  template <ext::oneapi::experimental::forward_progress_guarantee Guarantee,
-            ext::oneapi::experimental::execution_scope CoordinationScope>
-  bool supports_work_item_progress(
-      ext::oneapi::experimental::work_item_progress_key::value_t<
-          Guarantee, CoordinationScope>) const;
+  sycl::ext::oneapi::experimental::forward_progress_guarantee
+  getProgressGuarantee(
+      ext::oneapi::experimental::execution_scope threadScope,
+      ext::oneapi::experimental::execution_scope coordinationScope) const;
+
+  bool supportsForwardProgress(
+      ext::oneapi::experimental::forward_progress_guarantee guarantee,
+      ext::oneapi::experimental::execution_scope threadScope,
+      ext::oneapi::experimental::execution_scope coordinationScope) const;
 
   ext::oneapi::experimental::forward_progress_guarantee
-  get_immediate_progress_guarantee(
+  getImmediateProgressGuarantee(
       ext::oneapi::experimental::execution_scope coordination_scope) const;
 
   /// Gets the current device timestamp

@@ -108,12 +108,8 @@ affinityDomainToString(info::partition_affinity_domain AffinityDomain) {
 }
 
 // Mapping expected SYCL return types to those returned by PI calls
-template <typename T> struct sycl_to_pi {
-  using type = T;
-};
-template <> struct sycl_to_pi<bool> {
-  using type = pi_bool;
-};
+template <typename T> struct sycl_to_pi { using type = T; };
+template <> struct sycl_to_pi<bool> { using type = pi_bool; };
 template <> struct sycl_to_pi<device> {
   using type = sycl::detail::pi::PiDevice;
 };
@@ -2215,8 +2211,13 @@ inline std::vector<ext::oneapi::experimental::forward_progress_guarantee>
 get_device_info_host<
     ext::oneapi::experimental::info::device::work_group_progress_capabilities<
         ext::oneapi::experimental::execution_scope::root_group>>() {
-  return {
-      ext::oneapi::experimental::forward_progress_guarantee::weakly_parallel};
+
+  using execution_scope = ext::oneapi::experimental::execution_scope;
+  using ReturnT =
+      std::vector<ext::oneapi::experimental::forward_progress_guarantee>;
+  return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+      device_impl::getHostProgressGuarantee(execution_scope::work_group,
+                                            execution_scope::root_group));
 }
 
 template <>
@@ -2224,8 +2225,13 @@ inline std::vector<ext::oneapi::experimental::forward_progress_guarantee>
 get_device_info_host<
     ext::oneapi::experimental::info::device::sub_group_progress_capabilities<
         ext::oneapi::experimental::execution_scope::root_group>>() {
-  return {
-      ext::oneapi::experimental::forward_progress_guarantee::weakly_parallel};
+
+  using execution_scope = ext::oneapi::experimental::execution_scope;
+  using ReturnT =
+      std::vector<ext::oneapi::experimental::forward_progress_guarantee>;
+  return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+      device_impl::getHostProgressGuarantee(execution_scope::sub_group,
+                                            execution_scope::root_group));
 }
 
 template <>
@@ -2233,8 +2239,12 @@ inline std::vector<ext::oneapi::experimental::forward_progress_guarantee>
 get_device_info_host<
     ext::oneapi::experimental::info::device::sub_group_progress_capabilities<
         ext::oneapi::experimental::execution_scope::work_group>>() {
-  return {
-      ext::oneapi::experimental::forward_progress_guarantee::weakly_parallel};
+  using execution_scope = ext::oneapi::experimental::execution_scope;
+  using ReturnT =
+      std::vector<ext::oneapi::experimental::forward_progress_guarantee>;
+  return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+      device_impl::getHostProgressGuarantee(execution_scope::sub_group,
+                                            execution_scope::work_group));
 }
 
 template <>
@@ -2242,8 +2252,13 @@ inline std::vector<ext::oneapi::experimental::forward_progress_guarantee>
 get_device_info_host<
     ext::oneapi::experimental::info::device::work_item_progress_capabilities<
         ext::oneapi::experimental::execution_scope::root_group>>() {
-  return {
-      ext::oneapi::experimental::forward_progress_guarantee::weakly_parallel};
+
+  using execution_scope = ext::oneapi::experimental::execution_scope;
+  using ReturnT =
+      std::vector<ext::oneapi::experimental::forward_progress_guarantee>;
+  return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+      device_impl::getHostProgressGuarantee(execution_scope::work_item,
+                                            execution_scope::root_group));
 }
 
 template <>
@@ -2251,8 +2266,12 @@ inline std::vector<ext::oneapi::experimental::forward_progress_guarantee>
 get_device_info_host<
     ext::oneapi::experimental::info::device::work_item_progress_capabilities<
         ext::oneapi::experimental::execution_scope::work_group>>() {
-  return {
-      ext::oneapi::experimental::forward_progress_guarantee::weakly_parallel};
+  using execution_scope = ext::oneapi::experimental::execution_scope;
+  using ReturnT =
+      std::vector<ext::oneapi::experimental::forward_progress_guarantee>;
+  return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+      device_impl::getHostProgressGuarantee(execution_scope::work_item,
+                                            execution_scope::work_group));
 }
 
 template <>
@@ -2260,22 +2279,12 @@ inline std::vector<ext::oneapi::experimental::forward_progress_guarantee>
 get_device_info_host<
     ext::oneapi::experimental::info::device::work_item_progress_capabilities<
         ext::oneapi::experimental::execution_scope::sub_group>>() {
-  return {
-      ext::oneapi::experimental::forward_progress_guarantee::weakly_parallel};
-}
-
-const int forward_progress_guarantee_size = 3;
-template <typename ReturnT>
-ReturnT get_progress_guarantee_vector(
-    ext::oneapi::experimental::forward_progress_guarantee guarantee) {
-  int guarantee_val = static_cast<int>(guarantee);
-  ReturnT res;
-  res.reserve(forward_progress_guarantee_size - guarantee_val);
-  for (int i = forward_progress_guarantee_size - 1; i >= guarantee_val; --i) {
-    res.emplace_back(
-        static_cast<ext::oneapi::experimental::forward_progress_guarantee>(i));
-  }
-  return res;
+  using execution_scope = ext::oneapi::experimental::execution_scope;
+  using ReturnT =
+      std::vector<ext::oneapi::experimental::forward_progress_guarantee>;
+  return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+      device_impl::getHostProgressGuarantee(execution_scope::work_item,
+                                            execution_scope::sub_group));
 }
 
 template <typename ReturnT>
@@ -2285,9 +2294,9 @@ struct get_device_info_impl<
         ext::oneapi::experimental::execution_scope::root_group>> {
   static ReturnT get(const DeviceImplPtr &Dev) {
     using execution_scope = ext::oneapi::experimental::execution_scope;
-    auto guarantee =
-        Dev->get_immediate_progress_guarantee(execution_scope::root_group);
-    return get_progress_guarantee_vector<ReturnT>(guarantee);
+    return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+        Dev->getProgressGuarantee(execution_scope::work_group,
+                                  execution_scope::root_group));
   }
 };
 template <typename ReturnT>
@@ -2296,15 +2305,10 @@ struct get_device_info_impl<
     ext::oneapi::experimental::info::device::sub_group_progress_capabilities<
         ext::oneapi::experimental::execution_scope::root_group>> {
   static ReturnT get(const DeviceImplPtr &Dev) {
-    using forward_progress_guarantee =
-        ext::oneapi::experimental::forward_progress_guarantee;
     using execution_scope = ext::oneapi::experimental::execution_scope;
-    auto guarantee = static_cast<forward_progress_guarantee>(
-        std::max({static_cast<int>(Dev->get_immediate_progress_guarantee(
-                      execution_scope::work_group)),
-                  static_cast<int>(Dev->get_immediate_progress_guarantee(
-                      execution_scope::root_group))}));
-    return get_progress_guarantee_vector<ReturnT>(guarantee);
+    return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+        Dev->getProgressGuarantee(execution_scope::sub_group,
+                                  execution_scope::root_group));
   }
 };
 
@@ -2314,10 +2318,11 @@ struct get_device_info_impl<
     ext::oneapi::experimental::info::device::sub_group_progress_capabilities<
         ext::oneapi::experimental::execution_scope::work_group>> {
   static ReturnT get(const DeviceImplPtr &Dev) {
+
     using execution_scope = ext::oneapi::experimental::execution_scope;
-    auto guarantee =
-        Dev->get_immediate_progress_guarantee(execution_scope::work_group);
-    return get_progress_guarantee_vector<ReturnT>(guarantee);
+    return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+        Dev->getProgressGuarantee(execution_scope::sub_group,
+                                  execution_scope::work_group));
   }
 };
 
@@ -2327,17 +2332,11 @@ struct get_device_info_impl<
     ext::oneapi::experimental::info::device::work_item_progress_capabilities<
         ext::oneapi::experimental::execution_scope::root_group>> {
   static ReturnT get(const DeviceImplPtr &Dev) {
-    using forward_progress_guarantee =
-        ext::oneapi::experimental::forward_progress_guarantee;
+
     using execution_scope = ext::oneapi::experimental::execution_scope;
-    auto guarantee = static_cast<forward_progress_guarantee>(
-        std::max({static_cast<int>(Dev->get_immediate_progress_guarantee(
-                      execution_scope::root_group)),
-                  static_cast<int>(Dev->get_immediate_progress_guarantee(
-                      execution_scope::work_group)),
-                  static_cast<int>(Dev->get_immediate_progress_guarantee(
-                      execution_scope::sub_group))}));
-    return get_progress_guarantee_vector<ReturnT>(guarantee);
+    return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+        Dev->getProgressGuarantee(execution_scope::work_item,
+                                  execution_scope::root_group));
   }
 };
 template <typename ReturnT>
@@ -2346,15 +2345,11 @@ struct get_device_info_impl<
     ext::oneapi::experimental::info::device::work_item_progress_capabilities<
         ext::oneapi::experimental::execution_scope::work_group>> {
   static ReturnT get(const DeviceImplPtr &Dev) {
-    using forward_progress_guarantee =
-        ext::oneapi::experimental::forward_progress_guarantee;
+
     using execution_scope = ext::oneapi::experimental::execution_scope;
-    auto guarantee = static_cast<forward_progress_guarantee>(
-        std::max({static_cast<int>(Dev->get_immediate_progress_guarantee(
-                      execution_scope::sub_group)),
-                  static_cast<int>(Dev->get_immediate_progress_guarantee(
-                      execution_scope::work_group))}));
-    return get_progress_guarantee_vector<ReturnT>(guarantee);
+    return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+        Dev->getProgressGuarantee(execution_scope::work_item,
+                                  execution_scope::work_group));
   }
 };
 
@@ -2364,10 +2359,11 @@ struct get_device_info_impl<
     ext::oneapi::experimental::info::device::work_item_progress_capabilities<
         ext::oneapi::experimental::execution_scope::sub_group>> {
   static ReturnT get(const DeviceImplPtr &Dev) {
+
     using execution_scope = ext::oneapi::experimental::execution_scope;
-    auto guarantee =
-        Dev->get_immediate_progress_guarantee(execution_scope::sub_group);
-    return get_progress_guarantee_vector<ReturnT>(guarantee);
+    return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+        Dev->getProgressGuarantee(execution_scope::work_item,
+                                  execution_scope::sub_group));
   }
 };
 

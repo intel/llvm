@@ -804,44 +804,50 @@ bool device_impl::extOneapiCanCompile(
   }
 }
 
-template <ext::oneapi::experimental::forward_progress_guarantee Guarantee,
-          ext::oneapi::experimental::execution_scope CoordinationScope>
-bool device_impl::supports_work_group_progress(
-    ext::oneapi::experimental::work_group_progress_key::value_t<
-        Guarantee, CoordinationScope>) const {
-  auto guarantees =
-      get_info<ext::oneapi::experimental::info::device::
-                   work_group_progress_capabilities<CoordinationScope>>();
-  return std::find(guarantees.begin(), guarantees.end(), Guarantee) !=
-         guarantees.end();
+sycl::ext::oneapi::experimental::forward_progress_guarantee
+device_impl::getHostProgressGuarantee(
+    ext::oneapi::experimental::execution_scope threadScope,
+    ext::oneapi::experimental::execution_scope coordinationScope) {
+  return sycl::ext::oneapi::experimental::forward_progress_guarantee::
+      weakly_parallel;
 }
 
-template <ext::oneapi::experimental::forward_progress_guarantee Guarantee,
-          ext::oneapi::experimental::execution_scope CoordinationScope>
-bool device_impl::supports_sub_group_progress(
-    ext::oneapi::experimental::sub_group_progress_key::value_t<
-        Guarantee, CoordinationScope>) const {
-  auto guarantees =
-      get_info<ext::oneapi::experimental::info::device::
-                   sub_group_progress_capabilities<CoordinationScope>>();
-  return std::find(guarantees.begin(), guarantees.end(), Guarantee) !=
-         guarantees.end();
+sycl::ext::oneapi::experimental::forward_progress_guarantee
+device_impl::getProgressGuarantee(
+    ext::oneapi::experimental::execution_scope threadScope,
+    ext::oneapi::experimental::execution_scope coordinationScope) const {
+  if (MIsHostDevice)
+    return getHostProgressGuarantee(threadScope, coordinationScope);
+  using forward_progress_guarantee =
+      ext::oneapi::experimental::forward_progress_guarantee;
+  using execution_scope = ext::oneapi::experimental::execution_scope;
+  const int executionScopeSize = 4;
+  int threadScopeNum = static_cast<int>(threadScope);
+  int guaranteeNum = static_cast<int>(
+      getImmediateProgressGuarantee(execution_scope::root_group));
+  for (int currentScope = executionScopeSize - 2; currentScope > threadScopeNum;
+       --currentScope) {
+    guaranteeNum = std::max(guaranteeNum,
+                            static_cast<int>(getImmediateProgressGuarantee(
+                                static_cast<execution_scope>(currentScope))));
+  }
+  return static_cast<forward_progress_guarantee>(guaranteeNum);
 }
 
-template <ext::oneapi::experimental::forward_progress_guarantee Guarantee,
-          ext::oneapi::experimental::execution_scope CoordinationScope>
-bool device_impl::supports_work_item_progress(
-    ext::oneapi::experimental::work_item_progress_key::value_t<
-        Guarantee, CoordinationScope>) const {
-  auto guarantees =
-      get_info<ext::oneapi::experimental::info::device::
-                   work_item_progress_capabilities<CoordinationScope>>();
-  return std::find(guarantees.begin(), guarantees.end(), Guarantee) !=
+bool device_impl::supportsForwardProgress(
+    ext::oneapi::experimental::forward_progress_guarantee guarantee,
+    ext::oneapi::experimental::execution_scope threadScope,
+    ext::oneapi::experimental::execution_scope coordinationScope) const {
+  using ReturnT =
+      std::vector<ext::oneapi::experimental::forward_progress_guarantee>;
+  auto guarantees = getProgressGuaranteesUpTo<ReturnT>(
+      getProgressGuarantee(threadScope, coordinationScope));
+  return std::find(guarantees.begin(), guarantees.end(), guarantee) !=
          guarantees.end();
 }
 
 ext::oneapi::experimental::forward_progress_guarantee
-device_impl::get_immediate_progress_guarantee(
+device_impl::getImmediateProgressGuarantee(
     ext::oneapi::experimental::execution_scope coordination_scope) const {
   using forward_progress_guarantee =
       ext::oneapi::experimental::forward_progress_guarantee;

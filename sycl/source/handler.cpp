@@ -1410,6 +1410,31 @@ checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
   return SupportsOp;
 }
 
+void handler::verifyDeviceHasProgressGuarantee(
+    sycl::ext::oneapi::experimental::forward_progress_guarantee Guarantee,
+    sycl::ext::oneapi::experimental::execution_scope threadScope,
+    sycl::ext::oneapi::experimental::execution_scope CoordinationScope) const {
+  using execution_scope = sycl::ext::oneapi::experimental::execution_scope;
+  if (!MQueue->getDeviceImplPtr()->supportsForwardProgress(
+          Guarantee, threadScope, CoordinationScope)) {
+    if (threadScope == execution_scope::work_group) {
+      throw sycl::exception(
+          sycl::errc::feature_not_supported,
+          "Required progress guarantee for work groups is not "
+          "supported by your device!");
+    } else if (threadScope == execution_scope::sub_group) {
+      throw sycl::exception(sycl::errc::feature_not_supported,
+                            "Required progress guarantee for sub groups is not "
+                            "supported by your device!");
+
+    } else {
+      throw sycl::exception(sycl::errc::feature_not_supported,
+                            "Required progress guarantee for work items is not "
+                            "supported by your device!");
+    }
+  }
+}
+
 bool handler::supportsUSMMemcpy2D() {
   for (const std::shared_ptr<detail::queue_impl> &QueueImpl :
        {MImpl->MSubmissionPrimaryQueue, MImpl->MSubmissionSecondaryQueue}) {
