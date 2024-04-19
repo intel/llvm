@@ -2416,20 +2416,18 @@ public:
   }
 
   template <access::decorated IsDecorated,
-            access::target AccessTarget_ = AccessTarget>
-  typename std::enable_if_t<AccessTarget_ == access::target::device,
-                            accessor_ptr<IsDecorated>>
-  get_multi_ptr() const noexcept {
+            access::target AccessTarget_ = AccessTarget,
+            std::enable_if_t<AccessTarget_ == access::target::device, int> = 0>
+  accessor_ptr<IsDecorated> get_multi_ptr() const noexcept {
     return accessor_ptr<IsDecorated>(getPointerAdjusted());
   }
 
   template <access::decorated IsDecorated,
-            access::target AccessTarget_ = AccessTarget>
+            access::target AccessTarget_ = AccessTarget,
+            std::enable_if_t<AccessTarget_ != access::target::device, int> = 0>
   __SYCL_DEPRECATED(
       "accessor::get_multi_ptr() is deprecated for non-device accessors")
-  typename std::enable_if_t<AccessTarget_ != access::target::device,
-                            accessor_ptr<IsDecorated>> get_multi_ptr()
-      const noexcept {
+  accessor_ptr<IsDecorated> get_multi_ptr() const noexcept {
     return accessor_ptr<IsDecorated>(getPointerAdjusted());
   }
 
