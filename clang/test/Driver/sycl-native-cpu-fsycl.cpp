@@ -66,7 +66,7 @@
 //CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "Convert SPIR-V to LLVM-IR if needed", inputs: ["[[FILE2DEV]].o"], output: "[[FILE2SPV:.*]].bc"
 //CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "SYCL::Linker", inputs: ["[[FILE1SPV]].bc", "[[FILE2SPV]].bc"], output: "[[LINK1:.*]].bc"
 //CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "SYCL::Linker", inputs: ["[[LINK1]].bc", "{{.*}}.bc"], output: "[[LINK2:.*]].bc"
-//CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "clang", inputs: ["[[LINK2]].bc"], output: "[[KERNELO:.*]].o"
+//CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "clang", inputs: ["{{.*}}.bc"], output: "[[KERNELO:.*]].o"
 //CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "SYCL post link", inputs: ["[[LINK2]].bc"], output: "[[POSTL:.*]].table"
 //CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "offload wrapper", inputs: ["[[POSTL]].table"], output: "[[WRAP:.*]].o"
 //CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "{{.*}}::Linker", inputs: ["[[FILE1HOST]].o", "[[FILE2HOST]].o", "[[KERNELO]].o", "[[WRAP]].o"], output: "{{.*}}"
