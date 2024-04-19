@@ -812,6 +812,8 @@ device_impl::getHostProgressGuarantee(
       weakly_parallel;
 }
 
+// Returns the strongest progress guarantee that can be provided for threads created
+// at threadScope from the coordination scope given by coordinationScope.
 sycl::ext::oneapi::experimental::forward_progress_guarantee
 device_impl::getProgressGuarantee(
     ext::oneapi::experimental::execution_scope threadScope,
@@ -823,6 +825,10 @@ device_impl::getProgressGuarantee(
   using execution_scope = ext::oneapi::experimental::execution_scope;
   const int executionScopeSize = 4;
   int threadScopeNum = static_cast<int>(threadScope);
+  // we get the immediate progress guarantee that is provided by each scope between 
+  // root_group and threadScope and then returns the weakest of these.
+  // Counterintuitively, this corresponds to taking the max of the enum values 
+  // because of how the forward_progress_guarantee enum values are declared.
   int guaranteeNum = static_cast<int>(
       getImmediateProgressGuarantee(execution_scope::root_group));
   for (int currentScope = executionScopeSize - 2; currentScope > threadScopeNum;
@@ -846,6 +852,11 @@ bool device_impl::supportsForwardProgress(
          guarantees.end();
 }
 
+// Returns the progress guarantee provided for a coordination scope
+// given by coordination_scope for threads created at a scope 
+// immediately below coordination_scope. For example, for root_group
+// coordination scope it return the progress guarantee provided
+// at root_group for threads created at work_group.
 ext::oneapi::experimental::forward_progress_guarantee
 device_impl::getImmediateProgressGuarantee(
     ext::oneapi::experimental::execution_scope coordination_scope) const {
