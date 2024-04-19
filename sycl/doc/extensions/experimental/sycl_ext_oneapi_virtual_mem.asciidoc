@@ -286,6 +286,8 @@ the returned pointer is accessible after the call as read-only or read-write
 respectively. Otherwise, it is considered inaccessible and accessing it will
 result in undefined behavior.
 
+The returned pointer is equivalent to `reinterpret_cast<void *>(ptr)`.
+
 Writing to any address in the virtual memory range with access mode set to
 `access_mode::read` results in undefined behavior.
 
