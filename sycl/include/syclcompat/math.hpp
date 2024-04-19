@@ -118,6 +118,15 @@ inline constexpr RetT extend_binary(AT a, BT b, CT c,
   return second_op(extend_temp, extend_c);
 }
 
+template <typename ValueT> inline bool isnan(const ValueT a) {
+  return sycl::isnan(a);
+}
+#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
+inline bool isnan(const sycl::ext::oneapi::bfloat16 a) {
+  return sycl::ext::oneapi::experimental::isnan(a);
+}
+#endif
+
 } // namespace detail
 
 /// Compute fast_length for variable-length array
@@ -165,6 +174,121 @@ inline ValueT length(const ValueT *a, const int len) {
       ret += a[i] * a[i];
     return sycl::sqrt(ret);
   }
+}
+
+/// Performs comparison.
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] binary_op functor that implements the binary operation
+/// \returns the comparison result
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<
+    std::is_same_v<std::invoke_result_t<BinaryOperation, ValueT, ValueT>, bool>,
+    bool>
+compare(const ValueT a, const ValueT b, const BinaryOperation binary_op) {
+  return binary_op(a, b);
+}
+template <typename ValueT>
+inline std::enable_if_t<
+    std::is_same_v<std::invoke_result_t<std::not_equal_to<>, ValueT, ValueT>,
+                   bool>,
+    bool>
+compare(const ValueT a, const ValueT b, const std::not_equal_to<> binary_op) {
+  return !detail::isnan(a) && !detail::isnan(b) && binary_op(a, b);
+}
+
+/// Performs 2 element comparison.
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] binary_op functor that implements the binary operation
+/// \returns the comparison result
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<ValueT::size() == 2, ValueT>
+compare(const ValueT a, const ValueT b, const BinaryOperation binary_op) {
+  return {compare(a[0], b[0], binary_op), compare(a[1], b[1], binary_op)};
+}
+
+/// Performs unordered comparison.
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] binary_op functor that implements the binary operation
+/// \returns the comparison result
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<
+    std::is_same_v<std::invoke_result_t<BinaryOperation, ValueT, ValueT>, bool>,
+    bool>
+unordered_compare(const ValueT a, const ValueT b,
+                  const BinaryOperation binary_op) {
+  return detail::isnan(a) || detail::isnan(b) || binary_op(a, b);
+}
+
+/// Performs 2 element unordered comparison.
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] binary_op functor that implements the binary operation
+/// \returns the comparison result
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<ValueT::size() == 2, ValueT>
+unordered_compare(const ValueT a, const ValueT b,
+                  const BinaryOperation binary_op) {
+  return {unordered_compare(a[0], b[0], binary_op),
+          unordered_compare(a[1], b[1], binary_op)};
+}
+
+/// Performs 2 element comparison and return true if both results are true.
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] binary_op functor that implements the binary operation
+/// \returns the comparison result
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<ValueT::size() == 2, bool>
+compare_both(const ValueT a, const ValueT b, const BinaryOperation binary_op) {
+  return compare(a[0], b[0], binary_op) && compare(a[1], b[1], binary_op);
+}
+
+/// Performs 2 element unordered comparison and return true if both results are
+/// true.
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] binary_op functor that implements the binary operation
+/// \returns the comparison result
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<ValueT::size() == 2, bool>
+unordered_compare_both(const ValueT a, const ValueT b,
+                       const BinaryOperation binary_op) {
+  return unordered_compare(a[0], b[0], binary_op) &&
+         unordered_compare(a[1], b[1], binary_op);
+}
+
+/// Performs 2 elements comparison, compare result of each element is 0 (false)
+/// or 0xffff (true), returns an unsigned int by composing compare result of two
+/// elements.
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] binary_op functor that implements the binary operation
+/// \returns the comparison result
+template <typename ValueT, class BinaryOperation>
+inline unsigned compare_mask(const sycl::vec<ValueT, 2> a,
+                             const sycl::vec<ValueT, 2> b,
+                             const BinaryOperation binary_op) {
+  // Since compare returns 0 or 1, -compare will be 0x00000000 or 0xFFFFFFFF
+  return ((-compare(a[0], b[0], binary_op)) << 16) |
+         ((-compare(a[1], b[1], binary_op)) & 0xFFFF);
+}
+
+/// Performs 2 elements unordered comparison, compare result of each element is
+/// 0 (false) or 0xffff (true), returns an unsigned int by composing compare
+/// result of two elements.
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] binary_op functor that implements the binary operation
+/// \returns the comparison result
+template <typename ValueT, class BinaryOperation>
+inline unsigned unordered_compare_mask(const sycl::vec<ValueT, 2> a,
+                                       const sycl::vec<ValueT, 2> b,
+                                       const BinaryOperation binary_op) {
+  return ((-unordered_compare(a[0], b[0], binary_op)) << 16) |
+         ((-unordered_compare(a[1], b[1], binary_op)) & 0xFFFF);
 }
 
 /// Compute vectorized max for two values, with each value treated as a vector
@@ -265,6 +389,156 @@ inline unsigned vectorized_isgreater<sycl::ushort2, unsigned>(unsigned a,
   v4[1] = v2[1] > v3[1];
   v0 = v4.template as<sycl::vec<unsigned, 1>>();
   return v0;
+}
+
+/// Returns min(max(val, min_val), max_val)
+/// \param [in] val The input value
+/// \param [in] min_val The minimum value
+/// \param [in] max_val The maximum value
+/// \returns the value between min_val and max_val
+template <typename ValueT>
+inline ValueT clamp(ValueT val, ValueT min_val, ValueT max_val) {
+  return detail::clamp(val, min_val, max_val);
+}
+
+/// Determine whether 2 element value is NaN.
+/// \param [in] a The input value
+/// \returns the comparison result
+template <typename ValueT>
+inline std::enable_if_t<ValueT::size() == 2, ValueT> isnan(const ValueT a) {
+  return {detail::isnan(a[0]), detail::isnan(a[1])};
+}
+
+/// cbrt function wrapper.
+template <typename ValueT>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        ValueT>
+cbrt(ValueT val) {
+  return sycl::cbrt(static_cast<ValueT>(val));
+}
+
+// min/max function overloads.
+// For floating-point types, `float` or `double` arguments are acceptable.
+// For integer types, `std::uint32_t`, `std::int32_t`, `std::uint64_t` or
+// `std::int64_t` type arguments are acceptable.
+// sycl::half supported as well.
+template <typename ValueT, typename ValueU>
+std::enable_if_t<std::is_integral_v<ValueT> && std::is_integral_v<ValueU>,
+                 std::common_type_t<ValueT, ValueU>>
+min(ValueT a, ValueU b) {
+  return sycl::min(static_cast<std::common_type_t<ValueT, ValueU>>(a),
+                   static_cast<std::common_type_t<ValueT, ValueU>>(b));
+}
+template <typename ValueT, typename ValueU>
+std::enable_if_t<std::is_floating_point_v<ValueT> &&
+                     std::is_floating_point_v<ValueU>,
+                 std::common_type_t<ValueT, ValueU>>
+min(ValueT a, ValueU b) {
+  return sycl::fmin(static_cast<std::common_type_t<ValueT, ValueU>>(a),
+                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
+}
+sycl::half min(sycl::half a, sycl::half b) { return sycl::fmin(a, b); }
+
+template <typename ValueT, typename ValueU>
+std::enable_if_t<std::is_integral_v<ValueT> && std::is_integral_v<ValueU>,
+                 std::common_type_t<ValueT, ValueU>>
+max(ValueT a, ValueU b) {
+  return sycl::max(static_cast<std::common_type_t<ValueT, ValueU>>(a),
+                   static_cast<std::common_type_t<ValueT, ValueU>>(b));
+}
+template <typename ValueT, typename ValueU>
+std::enable_if_t<std::is_floating_point_v<ValueT> &&
+                     std::is_floating_point_v<ValueU>,
+                 std::common_type_t<ValueT, ValueU>>
+max(ValueT a, ValueU b) {
+  return sycl::fmax(static_cast<std::common_type_t<ValueT, ValueU>>(a),
+                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
+}
+sycl::half max(sycl::half a, sycl::half b) { return sycl::fmax(a, b); }
+
+/// Performs 2 elements comparison and returns the bigger one. If either of
+/// inputs is NaN, then return NaN.
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \returns the bigger value
+template <typename ValueT, typename ValueU>
+inline std::common_type_t<ValueT, ValueU> fmax_nan(const ValueT a,
+                                                   const ValueU b) {
+  if (detail::isnan(a) || detail::isnan(b))
+    return NAN;
+  return sycl::fmax(static_cast<std::common_type_t<ValueT, ValueU>>(a),
+                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
+}
+template <typename ValueT, typename ValueU>
+inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
+fmax_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b) {
+  return {fmax_nan(a[0], b[0]), fmax_nan(a[1], b[1])};
+}
+
+/// Performs 2 elements comparison and returns the smaller one. If either of
+/// inputs is NaN, then return NaN.
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \returns the smaller value
+template <typename ValueT, typename ValueU>
+inline std::common_type_t<ValueT, ValueU> fmin_nan(const ValueT a,
+                                                   const ValueU b) {
+  if (detail::isnan(a) || detail::isnan(b))
+    return NAN;
+  return sycl::fmin(static_cast<std::common_type_t<ValueT, ValueU>>(a),
+                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
+}
+template <typename ValueT, typename ValueU>
+inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
+fmin_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b) {
+  return {fmin_nan(a[0], b[0]), fmin_nan(a[1], b[1])};
+}
+
+// pow functions overload.
+inline float pow(const float a, const int b) { return sycl::pown(a, b); }
+inline double pow(const double a, const int b) { return sycl::pown(a, b); }
+
+template <typename ValueT, typename ValueU>
+inline typename std::enable_if_t<std::is_floating_point_v<ValueT>, ValueT>
+pow(const ValueT a, const ValueU b) {
+  return sycl::pow(a, static_cast<ValueT>(b));
+}
+
+// TODO: calling pow with non-floating point values is currently defaulting to
+// double, which fails on devices without aspect::fp64. This has to be properly
+// documented, and maybe changed to support all devices.
+template <typename ValueT, typename ValueU>
+inline typename std::enable_if_t<!std::is_floating_point_v<ValueT>, double>
+pow(const ValueT a, const ValueU b) {
+  return sycl::pow(static_cast<double>(a), static_cast<double>(b));
+}
+
+/// Performs relu saturation.
+/// \param [in] a The input value
+/// \returns the relu saturation result
+template <typename ValueT>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        ValueT>
+relu(const ValueT a) {
+  if (!detail::isnan(a) && a < ValueT(0))
+    return ValueT(0);
+  return a;
+}
+template <class ValueT>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        sycl::vec<ValueT, 2>>
+relu(const sycl::vec<ValueT, 2> a) {
+  return {relu(a[0]), relu(a[1])};
+}
+template <class ValueT>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        sycl::marray<ValueT, 2>>
+relu(const sycl::marray<ValueT, 2> a) {
+  return {relu(a[0]), relu(a[1])};
 }
 
 /// Computes the multiplication of two complex numbers.

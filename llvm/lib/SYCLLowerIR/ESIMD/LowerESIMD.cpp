@@ -1513,12 +1513,6 @@ void generateKernelMetadata(Module &M) {
   LLVMContext &Ctx = M.getContext();
   Type *I32Ty = Type::getInt32Ty(Ctx);
 
-  std::string TargetTriple = M.getTargetTriple();
-  llvm::Triple T(TargetTriple);
-  T.setArchName("genx64");
-  TargetTriple = T.str();
-  M.setTargetTriple(TargetTriple);
-
   enum { AK_NORMAL, AK_SAMPLER, AK_SURFACE, AK_VME };
   enum { IK_NORMAL, IK_INPUT, IK_OUTPUT, IK_INPUT_OUTPUT };
 
