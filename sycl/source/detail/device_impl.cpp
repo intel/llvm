@@ -826,7 +826,7 @@ device_impl::getProgressGuarantee(
   const int executionScopeSize = 4;
   int threadScopeNum = static_cast<int>(threadScope);
   // we get the immediate progress guarantee that is provided by each scope between 
-  // root_group and threadScope and then returns the weakest of these.
+  // root_group and threadScope and then return the weakest of these.
   // Counterintuitively, this corresponds to taking the max of the enum values 
   // because of how the forward_progress_guarantee enum values are declared.
   int guaranteeNum = static_cast<int>(
@@ -855,7 +855,7 @@ bool device_impl::supportsForwardProgress(
 // Returns the progress guarantee provided for a coordination scope
 // given by coordination_scope for threads created at a scope 
 // immediately below coordination_scope. For example, for root_group
-// coordination scope it return the progress guarantee provided
+// coordination scope it returns the progress guarantee provided
 // at root_group for threads created at work_group.
 ext::oneapi::experimental::forward_progress_guarantee
 device_impl::getImmediateProgressGuarantee(
