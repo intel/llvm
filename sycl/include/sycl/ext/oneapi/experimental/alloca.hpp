@@ -68,9 +68,8 @@ private_ptr<ElementType, DecorateAddress> private_alloca(kernel_handler &kh) {
 
 template <typename ElementType, std::size_t Alignment, auto &SizeSpecName,
           access::decorated DecorateAddress>
-__SYCL_BUILTIN_ALIAS(__builtin_intel_sycl_alloca_with_align)
-[[__sycl_detail__::__uses_aspects__(aspect::ext_oneapi_private_alloca)]] private_ptr<
-    ElementType, DecorateAddress> aligned_private_alloca(kernel_handler &kh) {
+private_ptr<ElementType, DecorateAddress>
+aligned_private_alloca(kernel_handler &kh) {
   throw feature_not_supported("sycl::ext::oneapi::experimental::aligned_"
                               "private_alloca is not supported on host",
                               PI_ERROR_INVALID_OPERATION);
