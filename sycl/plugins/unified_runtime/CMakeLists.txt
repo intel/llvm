@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 003d4da84fd6eda5240c9b90217f8901559a28a4
-  # Merge: e38e79e6 7a5c1ad1
+  # commit 717791bfc636a1cd69f95f09fea15fcd70a9fb23
+  # Merge: 601062ba f8c4facd
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Apr 17 17:52:21 2024 +0100
-  #    Merge pull request #1402 from AllanZyne/user-after-free
-  #    [DeviceSanitizer] Checking "sycl::free" related errors
-  set(UNIFIED_RUNTIME_TAG 003d4da84fd6eda5240c9b90217f8901559a28a4)
+  # Date:   Fri Apr 19 10:35:14 2024 +0100
+  #    Merge pull request #1517 from nrspruit/fix_l0_coverity_sync
+  #    [L0] Store LastCommandEvent before unlock during queue sync
+  set(UNIFIED_RUNTIME_TAG 717791bfc636a1cd69f95f09fea15fcd70a9fb23)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
