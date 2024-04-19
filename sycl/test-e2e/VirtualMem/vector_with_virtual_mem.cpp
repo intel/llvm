@@ -15,7 +15,7 @@ public:
 
   ~VirtualVector() {
     // Free all mapped ranges.
-    syclext::unmap(MBasePtr, MByteSize, MContext);
+    unmap_all_va();
     for (const VirtualAddressRange &VARange : MVARanges)
       syclext::free_virtual_mem(VARange.Ptr, VARange.Size, MContext);
     // Physical memory allocations will be freed when the physical_mem objects
@@ -78,13 +78,19 @@ private:
            MGranularity;
   }
 
+  void unmap_all_va() {
+    for (const VirtualAddressRange &VARange : MVARanges)
+      syclext::unmap(reinterpret_cast<const void *>(VARange.Ptr), VARange.Size,
+                     MContext);
+  }
+
   uintptr_t RecreateAddressRange(size_t AlignedNewByteSize) {
     // Reserve the full range.
     uintptr_t NewFullVAPtr =
         syclext::reserve_virtual_mem(AlignedNewByteSize, MContext);
 
-    // Unmap the old virtual address in its entirety.
-    syclext::unmap(MBasePtr, MByteSize, MContext);
+    // Unmap the old virtual address ranges.
+    unmap_all_va();
 
     // Remap all existing ranges.
     uintptr_t NewEnd = NewFullVAPtr;
