@@ -5855,7 +5855,7 @@ class OffloadingActionBuilder final {
         LibraryPaths.emplace_back(WithInstallPath.c_str());
 
         // Select libclc variant based on target triple
-        std::string LibSpirvTargetName = "builtins.link.libspirv-";
+        std::string LibSpirvTargetName = "libspirv-";
         LibSpirvTargetName.append(TC->getTripleString() + ".bc");
 
         for (StringRef LibraryPath : LibraryPaths) {
