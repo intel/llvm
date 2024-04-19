@@ -1177,11 +1177,10 @@ piextCommandBufferReleaseCommand(pi_ext_command_buffer_command Command) {
   return pi2ur::piextCommandBufferReleaseCommand(Command);
 }
 
-__SYCL_EXPORT pi_result
-piextVirtualMemGranularityGetInfo(pi_context Context, pi_device Device,
-                                  pi_virtual_mem_granularity_info ParamName,
-                                  size_t ParamValueSize, void *ParamValue,
-                                  size_t *ParamValueSizeRet) {
+__SYCL_EXPORT pi_result piextVirtualMemGranularityGetInfo(
+    pi_context Context, pi_device Device,
+    pi_virtual_mem_granularity_info ParamName, size_t ParamValueSize,
+    void *ParamValue, size_t *ParamValueSizeRet) {
   return pi2ur::piextVirtualMemGranularityGetInfo(Context, Device, ParamName,
                                                   ParamValueSize, ParamValue,
                                                   ParamValueSizeRet);
@@ -1229,8 +1228,9 @@ __SYCL_EXPORT pi_result piextVirtualMemMap(pi_context Context, const void *Ptr,
                                    Flags);
 }
 
-__SYCL_EXPORT pi_result
-piextVirtualMemUnmap(pi_context Context, const void *Ptr, size_t RangeSize) {
+__SYCL_EXPORT pi_result piextVirtualMemUnmap(pi_context Context,
+                                             const void *Ptr,
+                                             size_t RangeSize) {
   return pi2ur::piextVirtualMemUnmap(Context, Ptr, RangeSize);
 }
 
