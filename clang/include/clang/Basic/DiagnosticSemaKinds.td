@@ -199,8 +199,8 @@ def err_intel_sycl_alloca_no_size
     : Error<"__builtin_intel_sycl_alloca must be passed a specialization "
             "constant of integral value type as a template argument. Got %0">;
 def warn_intel_sycl_alloca_bad_default_value : Warning<
-    "__builtin_intel_sycl_alloca should be passed a specialization constant with "
-    "a default value of at least one as an argument. Got %0">,
+    "__builtin_intel_sycl_alloca expects a specialization constant with a "
+    "default value of at least one as an argument. Got %0">,
     InGroup<SyclPrivateAllocaPositiveSize>;
 
 // C99 variable-length arrays

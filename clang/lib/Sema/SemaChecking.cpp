@@ -7794,13 +7794,14 @@ static llvm::APSInt getSYCLAllocaDefaultSize(const ASTContext &Ctx,
                                              const VarDecl *VD) {
   assert(VD && "Expecting valid declaration");
   APValue *SpecializationId = VD->evaluateValue();
-  assert(SpecializationId && "Expecting value");
+  assert(SpecializationId && "Expecting a non-null SpecializationId");
   assert(SpecializationId->getKind() == APValue::ValueKind::Struct &&
-         "Expecting specialization_id struct");
+         "Expecting SpecializationId to be of kind Struct");
   assert(SpecializationId->getStructNumFields() == 1 &&
-         "Expecting single field for default value");
+         "Expecting SpecializationId to have a single field for the default "
+         "value");
   APValue Default = SpecializationId->getStructField(0);
-  assert(Default.isInt() && "Expecting default integer value");
+  assert(Default.isInt() && "Expecting the default value to be an integer");
   return Default.getInt();
 }
 

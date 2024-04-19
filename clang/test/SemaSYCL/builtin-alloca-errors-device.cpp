@@ -124,12 +124,12 @@ void test(sycl::kernel_handler &h) {
   // expected-error@+1 {{__builtin_intel_sycl_alloca must be passed a specialization constant of integral value type as a template argument. Got 'const sycl::specialization_id<float> &'}}
   sycl::ext::oneapi::experimental::private_alloca<float, badsize, sycl::access::decorated::yes>(h);
 
-  // expected-warning@+1 {{__builtin_intel_sycl_alloca should be passed a specialization constant with a default value of at least one as an argument. Got 0}}
+  // expected-warning@+1 {{__builtin_intel_sycl_alloca expects a specialization constant with a default value of at least one as an argument. Got 0}}
   sycl::ext::oneapi::experimental::private_alloca<float, zero, sycl::access::decorated::yes>(h);
 
-  // expected-warning@+1 {{__builtin_intel_sycl_alloca should be passed a specialization constant with a default value of at least one as an argument. Got -1}}
+  // expected-warning@+1 {{__builtin_intel_sycl_alloca expects a specialization constant with a default value of at least one as an argument. Got -1}}
   sycl::ext::oneapi::experimental::private_alloca<float, negative, sycl::access::decorated::yes>(h);
 
-  // expected-warning@+1 {{__builtin_intel_sycl_alloca should be passed a specialization constant with a default value of at least one as an argument. Got -9}}
+  // expected-warning@+1 {{__builtin_intel_sycl_alloca expects a specialization constant with a default value of at least one as an argument. Got -9}}
   sycl::ext::oneapi::experimental::private_alloca<float, negative_expr_ref, sycl::access::decorated::yes>(h);
 }
