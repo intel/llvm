@@ -183,10 +183,10 @@ namespace kernel_device_specific {
 } // namespace kernel_device_specific
 
 // A.6 Event information desctiptors
-enum class event_command_status : pi_int32 {
-  submitted = PI_EVENT_SUBMITTED,
-  running = PI_EVENT_RUNNING,
-  complete = PI_EVENT_COMPLETE,
+enum class event_command_status : int32_t {
+  submitted = UR_EVENT_STATUS_SUBMITTED,
+  running = UR_EVENT_STATUS_RUNNING,
+  complete = UR_EVENT_STATUS_COMPLETE,
   // Since all BE values are positive, it is safe to use a negative value If you
   // add other ext_oneapi values
   ext_oneapi_unknown = -1

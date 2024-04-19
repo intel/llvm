@@ -229,16 +229,16 @@ static std::string commandToName(Command::CommandType Type) {
 }
 #endif
 
-std::vector<sycl::detail::pi::PiEvent>
-Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
-  std::vector<sycl::detail::pi::PiEvent> RetPiEvents;
+std::vector<ur_event_handle_t>
+Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls) const {
+  std::vector<ur_event_handle_t> RetUrEvents;
   for (auto &EventImpl : EventImpls) {
     if (EventImpl->getHandleRef() == nullptr)
       continue;
 
     // Do not add redundant event dependencies for in-order queues.
-    // At this stage dependency is definitely pi task and need to check if
-    // current one is a host task. In this case we should not skip pi event due
+    // At this stage dependency is definitely ur task and need to check if
+    // current one is a host task. In this case we should not skip ur event due
     // to different sync mechanisms for different task types on in-order queue.
     const QueueImplPtr &WorkerQueue = getWorkerQueue();
     // MWorkerQueue in command is always not null. So check if
@@ -247,19 +247,19 @@ Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
         WorkerQueue->isInOrder() && !isHostTask())
       continue;
 
-    RetPiEvents.push_back(EventImpl->getHandleRef());
+    RetUrEvents.push_back(EventImpl->getHandleRef());
   }
 
-  return RetPiEvents;
+  return RetUrEvents;
 }
 
-// This function is implemented (duplicating getPiEvents a lot) as short term
+// This function is implemented (duplicating getUrEvents a lot) as short term
 // solution for the issue that barrier with wait list could not
 // handle empty pi event handles when kernel is enqueued on host task
 // completion.
-std::vector<sycl::detail::pi::PiEvent> Command::getPiEventsBlocking(
+std::vector<ur_event_handle_t> Command::getUrEventsBlocking(
     const std::vector<EventImplPtr> &EventImpls) const {
-  std::vector<sycl::detail::pi::PiEvent> RetPiEvents;
+  std::vector<ur_event_handle_t> RetUrEvents;
   for (auto &EventImpl : EventImpls) {
     // Throwaway events created with empty constructor will not have a context
     // (which is set lazily) calling getContextImpl() would set that
@@ -289,10 +289,10 @@ std::vector<sycl::detail::pi::PiEvent> Command::getPiEventsBlocking(
         WorkerQueue->isInOrder() && !isHostTask())
       continue;
 
-    RetPiEvents.push_back(EventImpl->getHandleRef());
+    RetUrEvents.push_back(EventImpl->getHandleRef());
   }
 
-  return RetPiEvents;
+  return RetUrEvents;
 }
 
 bool Command::isHostTask() const {
@@ -322,11 +322,11 @@ class DispatchHostTask {
   std::vector<interop_handle::ReqToMem> MReqToMem;
 
   pi_result waitForEvents() const {
-    std::map<const PluginPtr, std::vector<EventImplPtr>>
+    std::map<const UrPluginPtr, std::vector<EventImplPtr>>
         RequiredEventsPerPlugin;
 
     for (const EventImplPtr &Event : MThisCmd->MPreparedDepsEvents) {
-      const PluginPtr &Plugin = Event->getPlugin();
+      const UrPluginPtr &Plugin = Event->getUrPlugin();
       RequiredEventsPerPlugin[Plugin].push_back(Event);
     }
 
@@ -336,13 +336,13 @@ class DispatchHostTask {
     // sophisticated waiting mechanism to allow to utilize this thread for any
     // other available job and resume once all required events are ready.
     for (auto &PluginWithEvents : RequiredEventsPerPlugin) {
-      std::vector<sycl::detail::pi::PiEvent> RawEvents =
-          MThisCmd->getPiEvents(PluginWithEvents.second);
+      std::vector<ur_event_handle_t> RawEvents =
+          MThisCmd->getUrEvents(PluginWithEvents.second);
       if (RawEvents.size() == 0)
         continue;
       try {
-        PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
-                                                              RawEvents.data());
+        PluginWithEvents.first->call(urEventWait, RawEvents.size(),
+                                     RawEvents.data());
       } catch (const sycl::exception &E) {
         CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
         HostTask.MQueue->reportAsyncException(std::current_exception());
@@ -455,7 +455,7 @@ void Command::waitForPreparedHostEvents() const {
 
 void Command::waitForEvents(QueueImplPtr Queue,
                             std::vector<EventImplPtr> &EventImpls,
-                            sycl::detail::pi::PiEvent &Event) {
+                            ur_event_handle_t &Event) {
   if (!EventImpls.empty()) {
     if (Queue->is_host()) {
       // Host queue can wait for events from different contexts, i.e. it may
@@ -482,10 +482,10 @@ void Command::waitForEvents(QueueImplPtr Queue,
       }
 
       for (auto &CtxWithEvents : RequiredEventsPerContext) {
-        std::vector<sycl::detail::pi::PiEvent> RawEvents =
-            getPiEvents(CtxWithEvents.second);
-        CtxWithEvents.first->getPlugin()->call<PiApiKind::piEventsWait>(
-            RawEvents.size(), RawEvents.data());
+        std::vector<ur_event_handle_t> RawEvents =
+            getUrEvents(CtxWithEvents.second);
+        CtxWithEvents.first->getUrPlugin()->call(urEventWait, RawEvents.size(),
+                                                 RawEvents.data());
       }
     } else {
 #ifndef NDEBUG
@@ -494,15 +494,14 @@ void Command::waitForEvents(QueueImplPtr Queue,
                "Only non-host events are expected to be waited for here");
 #endif
 
-      std::vector<sycl::detail::pi::PiEvent> RawEvents =
-          getPiEvents(EventImpls);
+      std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
       flushCrossQueueDeps(EventImpls, getWorkerQueue());
-      const PluginPtr &Plugin = Queue->getPlugin();
+      const UrPluginPtr &Plugin = Queue->getUrPlugin();
 
       if (MEvent != nullptr)
         MEvent->setHostEnqueueTime();
-      Plugin->call<PiApiKind::piEnqueueEventsWait>(
-          Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
+      Plugin->call(urEnqueueEventsWait, Queue->getUrHandleRef(),
+                   RawEvents.size(), &RawEvents[0], &Event);
     }
   }
 }
@@ -602,8 +601,8 @@ void Command::emitEdgeEventForCommandDependence(
 /// @param Cmd The command object of the source of the edge
 /// @param PiEventAddr The address that defines the edge dependency, which in
 /// this case is an event
-void Command::emitEdgeEventForEventDependence(
-    Command *Cmd, sycl::detail::pi::PiEvent &PiEventAddr) {
+void Command::emitEdgeEventForEventDependence(Command *Cmd,
+                                              ur_event_handle_t &UrEventAddr) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // If we have failed to create an event to represent the Command, then we
   // cannot emit an edge event. Bail early!
@@ -613,13 +612,12 @@ void Command::emitEdgeEventForEventDependence(
   if (Cmd && Cmd->MTraceEvent) {
     // If the event is associated with a command, we use this command's trace
     // event as the source of edge, hence modeling the control flow
-    emitEdgeEventForCommandDependence(Cmd, (void *)PiEventAddr, false);
+    emitEdgeEventForCommandDependence(Cmd, (void *)UrEventAddr, false);
     return;
   }
-  if (PiEventAddr) {
+  if (UrEventAddr) {
     xpti::utils::StringHelper SH;
-    std::string AddressStr =
-        SH.addressAsString<sycl::detail::pi::PiEvent>(PiEventAddr);
+    std::string AddressStr = SH.addressAsString<ur_event_handle_t>(UrEventAddr);
     // This is the case when it is a OCL event enqueued by the user or another
     // event is registered by the runtime as a dependency The dependency on
     // this occasion is an OCL event; so we build a virtual node in the graph
@@ -650,7 +648,7 @@ void Command::emitEdgeEventForEventDependence(
       EdgeEvent->source_id = NodeEvent->unique_id;
       EdgeEvent->target_id = TgtEvent->unique_id;
       xpti::addMetadata(EdgeEvent, "event",
-                        reinterpret_cast<size_t>(PiEventAddr));
+                        reinterpret_cast<size_t>(UrEventAddr));
       xptiNotifySubscribers(MStreamID, xpti::trace_edge_create,
                             detail::GSYCLGraphEvent, EdgeEvent, EdgeInstanceNo,
                             nullptr);
@@ -789,22 +787,22 @@ Command *Command::addDep(EventImplPtr Event,
   // We need this for just the instrumentation, so guarding it will prevent
   // unused variable warnings when instrumentation is turned off
   Command *Cmd = (Command *)Event->getCommand();
-  sycl::detail::pi::PiEvent &PiEventAddr = Event->getHandleRef();
+  ur_event_handle_t &UrEventAddr = Event->getHandleRef();
   // Now make an edge for the dependent event
-  emitEdgeEventForEventDependence(Cmd, PiEventAddr);
+  emitEdgeEventForEventDependence(Cmd, UrEventAddr);
 #endif
 
   return processDepEvent(std::move(Event), DepDesc{nullptr, nullptr, nullptr},
                          ToCleanUp);
 }
 
-void Command::emitEnqueuedEventSignal(sycl::detail::pi::PiEvent &PiEventAddr) {
+void Command::emitEnqueuedEventSignal(ur_event_handle_t &UrEventAddr) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   emitInstrumentationGeneral(
       MStreamID, MInstanceID, static_cast<xpti_td *>(MTraceEvent),
-      xpti::trace_signal, static_cast<const void *>(PiEventAddr));
+      xpti::trace_signal, static_cast<const void *>(UrEventAddr));
 #endif
-  std::ignore = PiEventAddr;
+  std::ignore = UrEventAddr;
 }
 
 void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
@@ -1057,7 +1055,7 @@ pi_int32 AllocaCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
 
-  sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
+  ur_event_handle_t &Event = MEvent->getHandleRef();
 
   void *HostPtr = nullptr;
   if (!MIsLeaderAlloca) {
@@ -1066,17 +1064,19 @@ pi_int32 AllocaCommand::enqueueImp() {
       // Do not need to make allocation if we have a linked device allocation
       Command::waitForEvents(MQueue, EventImpls, Event);
 
-      return PI_SUCCESS;
+      return UR_RESULT_SUCCESS;
     }
     HostPtr = MLinkedAllocaCmd->getMemAllocation();
   }
   // TODO: Check if it is correct to use std::move on stack variable and
   // delete it RawEvents below.
+  /* FIXME: port memory manager and re-enable
   MMemAllocation = MemoryManager::allocate(
       MQueue->getContextImplPtr(), getSYCLMemObj(), MInitFromUserData, HostPtr,
-      std::move(EventImpls), Event);
+      std::move(EventImpls), Event);*/
+  pi::die("memory manager not ported");
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 void AllocaCommand::printDot(std::ostream &Stream) const {
@@ -1153,12 +1153,14 @@ void *AllocaSubBufCommand::getMemAllocation() const {
 pi_int32 AllocaSubBufCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
+  ur_event_handle_t &Event = MEvent->getHandleRef();
 
+  pi::die("memory manager not ported");
+  /* FIXME: port memory manager and re-enable
   MMemAllocation = MemoryManager::allocateMemSubBuffer(
       MQueue->getContextImplPtr(), MParentAlloca->getMemAllocation(),
       MRequirement.MElemSize, MRequirement.MOffsetInBytes,
-      MRequirement.MAccessRange, std::move(EventImpls), Event);
+      MRequirement.MAccessRange, std::move(EventImpls), Event);*/
 
   XPTIRegistry::bufferAssociateNotification(MParentAlloca->getSYCLMemObj(),
                                             MMemAllocation);
@@ -1222,7 +1224,7 @@ void ReleaseCommand::emitInstrumentationData() {
 pi_int32 ReleaseCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
+  std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
   bool SkipRelease = false;
 
   // On host side we only allocate memory for full buffers.
@@ -1255,7 +1257,7 @@ pi_int32 ReleaseCommand::enqueueImp() {
     EventImplPtr UnmapEventImpl(new event_impl(Queue));
     UnmapEventImpl->setContextImpl(Queue->getContextImplPtr());
     UnmapEventImpl->setStateIncomplete();
-    sycl::detail::pi::PiEvent &UnmapEvent = UnmapEventImpl->getHandleRef();
+    ur_event_handle_t &UnmapEvent = UnmapEventImpl->getHandleRef();
 
     void *Src = CurAllocaIsHost
                     ? MAllocaCmd->getMemAllocation()
@@ -1265,20 +1267,24 @@ pi_int32 ReleaseCommand::enqueueImp() {
                     ? MAllocaCmd->getMemAllocation()
                     : MAllocaCmd->MLinkedAllocaCmd->getMemAllocation();
 
+    /* FIXME: port memory manager
     MemoryManager::unmap(MAllocaCmd->getSYCLMemObj(), Dst, Queue, Src,
-                         RawEvents, UnmapEvent);
+                         RawEvents, UnmapEvent);*/
+    pi::die("memory manager not ported yet");
 
     std::swap(MAllocaCmd->MIsActive, MAllocaCmd->MLinkedAllocaCmd->MIsActive);
     EventImpls.clear();
     EventImpls.push_back(UnmapEventImpl);
   }
-  sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
+  ur_event_handle_t &Event = MEvent->getHandleRef();
   if (SkipRelease)
     Command::waitForEvents(MQueue, EventImpls, Event);
   else {
+    /* FIXME: port memory manager
     MemoryManager::release(
         MQueue->getContextImplPtr(), MAllocaCmd->getSYCLMemObj(),
-        MAllocaCmd->getMemAllocation(), std::move(EventImpls), Event);
+        MAllocaCmd->getMemAllocation(), std::move(EventImpls), Event);*/
+    pi::die("memory manager not ported yet");
   }
   return PI_SUCCESS;
 }
@@ -1345,14 +1351,16 @@ void MapMemObject::emitInstrumentationData() {
 pi_int32 MapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
+  std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
-  sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
+  ur_event_handle_t &Event = MEvent->getHandleRef();
+  /* FIXME: port memory manager
   *MDstPtr = MemoryManager::map(
       MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(), MQueue,
       MMapMode, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
-      MSrcReq.MOffset, MSrcReq.MElemSize, std::move(RawEvents), Event);
+      MSrcReq.MOffset, MSrcReq.MElemSize, std::move(RawEvents), Event);*/
+  pi::die("memory manager not ported yet");
 
   return PI_SUCCESS;
 }
@@ -1431,13 +1439,15 @@ bool UnMapMemObject::producesPiEvent() const {
 pi_int32 UnMapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
+  std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
-  sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
+  ur_event_handle_t &Event = MEvent->getHandleRef();
+  /* FIXME: port memory manager
   MemoryManager::unmap(MDstAllocaCmd->getSYCLMemObj(),
                        MDstAllocaCmd->getMemAllocation(), MQueue, *MSrcPtr,
-                       std::move(RawEvents), Event);
+                       std::move(RawEvents), Event);*/
+  pi::die("memory manager not ported yet");
 
   return PI_SUCCESS;
 }
@@ -1542,17 +1552,19 @@ pi_int32 MemCpyCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
 
-  sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
+  ur_event_handle_t &Event = MEvent->getHandleRef();
 
-  auto RawEvents = getPiEvents(EventImpls);
+  auto RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
+  /* FIXME: port memory manager
   MemoryManager::copy(
       MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(),
       MSrcQueue, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
       MSrcReq.MOffset, MSrcReq.MElemSize, MDstAllocaCmd->getMemAllocation(),
       MQueue, MDstReq.MDims, MDstReq.MMemoryRange, MDstReq.MAccessRange,
-      MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), Event, MEvent);
+      MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), Event,
+  MEvent);*/
 
   return PI_SUCCESS;
 }
@@ -1604,7 +1616,7 @@ void ExecCGCommand::clearAuxiliaryResources() {
 pi_int32 UpdateHostRequirementCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
+  ur_event_handle_t &Event = MEvent->getHandleRef();
   Command::waitForEvents(MQueue, EventImpls, Event);
 
   assert(MSrcAllocaCmd && "Expected valid alloca command");
@@ -1698,9 +1710,9 @@ pi_int32 MemCpyCommandHost::enqueueImp() {
   const QueueImplPtr &Queue = getWorkerQueue();
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
+  std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
 
-  sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
+  ur_event_handle_t &Event = MEvent->getHandleRef();
   // Omit copying if mode is discard one.
   // TODO: Handle this at the graph building time by, for example, creating
   // empty node instead of memcpy.
@@ -1712,13 +1724,15 @@ pi_int32 MemCpyCommandHost::enqueueImp() {
   }
 
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
+  /* FIXME: port memory manager
   MemoryManager::copy(
       MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(),
       MSrcQueue, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
       MSrcReq.MOffset, MSrcReq.MElemSize, *MDstPtr, MQueue, MDstReq.MDims,
       MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
-      MDstReq.MElemSize, std::move(RawEvents), MEvent->getHandleRef(), MEvent);
-
+      MDstReq.MElemSize, std::move(RawEvents), MEvent->getHandleRef(),
+  MEvent);*/
+  pi::die("memory manager not ported yet");
   return PI_SUCCESS;
 }
 
@@ -2416,7 +2430,10 @@ static pi_result SetKernelParamsAndLaunch(
   }
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
-  pi_result Error =
+
+  pi_result Error = PI_ERROR_UNKNOWN;
+  pi::die("command not yet ported");
+  /*
       [&](auto... Args) {
         if (IsCooperative) {
           return Plugin
@@ -2427,7 +2444,7 @@ static pi_result SetKernelParamsAndLaunch(
       }(Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
         &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
         RawEvents.empty() ? nullptr : &RawEvents[0],
-        OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
+        OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);*/
   return Error;
 }
 
@@ -2718,6 +2735,7 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
   auto OutEvent = OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr;
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
+  /*
   if (read) {
     Error =
         Plugin->call_nocheck<sycl::detail::PiApiKind::piextEnqueueReadHostPipe>(
@@ -2731,7 +2749,8 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
                 pi_q, Program, PipeName.c_str(), blocking, ptr, size,
                 RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
                 OutEvent);
-  }
+  }*/
+  pi::die("command not ported yet");
   return Error;
 }
 
@@ -2744,17 +2763,15 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
   // them, e.g. initial copies from host to device
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
-  std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
+  std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
   if (!RawEvents.empty()) {
-    const PluginPtr &Plugin = MQueue->getPlugin();
-    Plugin->call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
+    MQueue->getUrPlugin()->call(urEventWait, RawEvents.size(), &RawEvents[0]);
   }
 
-  sycl::detail::pi::PiEvent *Event =
-      (MQueue->supportsDiscardingPiEvents() &&
-       MCommandGroup->getRequirements().size() == 0)
-          ? nullptr
-          : &MEvent->getHandleRef();
+  ur_event_handle_t *Event = (MQueue->supportsDiscardingPiEvents() &&
+                              MCommandGroup->getRequirements().size() == 0)
+                                 ? nullptr
+                                 : &MEvent->getHandleRef();
   sycl::detail::pi::PiExtSyncPoint OutSyncPoint;
   sycl::detail::pi::PiExtCommandBufferCommand OutCommand = nullptr;
   switch (MCommandGroup->getType()) {
@@ -2781,7 +2798,8 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
         *ExecKernel, MSyncPointDeps, &OutSyncPoint, &OutCommand,
         getMemAllocationFunc);
     MEvent->setSyncPoint(OutSyncPoint);
-    MEvent->setCommandBufferCommand(OutCommand);
+    /* FIXME: port command buffer so this can work
+    MEvent->setCommandBufferCommand(OutCommand);*/
     return result;
   }
   case CG::CGTYPE::CopyUSM: {
@@ -2898,13 +2916,12 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   if (getCG().getType() != CG::CGTYPE::CodeplayHostTask)
     waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  auto RawEvents = getPiEvents(EventImpls);
+  auto RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
   bool DiscardPiEvent = (MQueue->supportsDiscardingPiEvents() &&
                          MCommandGroup->getRequirements().size() == 0);
-  sycl::detail::pi::PiEvent *Event =
-      DiscardPiEvent ? nullptr : &MEvent->getHandleRef();
+  ur_event_handle_t *Event = DiscardPiEvent ? nullptr : &MEvent->getHandleRef();
   detail::EventImplPtr EventImpl = DiscardPiEvent ? nullptr : MEvent;
 
   switch (MCommandGroup->getType()) {
@@ -2914,7 +2931,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
                           "Update host should be handled by the Scheduler. " +
                               codeToString(PI_ERROR_INVALID_VALUE));
   }
-  case CG::CGTYPE::CopyAccToPtr: {
+  case CG::CGTYPE::CopyAccToPtr:/* {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
     Requirement *Req = (Requirement *)Copy->getSrc();
     AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
@@ -2924,12 +2941,12 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
         Req->MElemSize, Copy->getDst(),
         Scheduler::getInstance().getDefaultHostQueue(), Req->MDims,
-        Req->MAccessRange, Req->MAccessRange, /*DstOffset=*/{0, 0, 0},
+        Req->MAccessRange, Req->MAccessRange, /*DstOffset=*//*{0, 0, 0},
         Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef(), MEvent);
 
     return PI_SUCCESS;
-  }
-  case CG::CGTYPE::CopyPtrToAcc: {
+  }*/
+  case CG::CGTYPE::CopyPtrToAcc:/* {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
     Requirement *Req = (Requirement *)(Copy->getDst());
     AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
@@ -2940,13 +2957,13 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         AllocaCmd->getSYCLMemObj(), Copy->getSrc(),
         Scheduler::getInstance().getDefaultHostQueue(), Req->MDims,
         Req->MAccessRange, Req->MAccessRange,
-        /*SrcOffset*/ {0, 0, 0}, Req->MElemSize, AllocaCmd->getMemAllocation(),
+        /*SrcOffset*//* {0, 0, 0}, Req->MElemSize, AllocaCmd->getMemAllocation(),
         MQueue, Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
         Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef(), MEvent);
 
     return PI_SUCCESS;
-  }
-  case CG::CGTYPE::CopyAccToAcc: {
+  }*/
+  case CG::CGTYPE::CopyAccToAcc: /*{
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
     Requirement *ReqSrc = (Requirement *)(Copy->getSrc());
     Requirement *ReqDst = (Requirement *)(Copy->getDst());
@@ -2963,20 +2980,21 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         MEvent->getHandleRef(), MEvent);
 
     return PI_SUCCESS;
-  }
-  case CG::CGTYPE::Fill: {
-    CGFill *Fill = (CGFill *)MCommandGroup.get();
-    Requirement *Req = (Requirement *)(Fill->getReqToFill());
-    AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
-
-    MemoryManager::fill(
-        AllocaCmd->getSYCLMemObj(), AllocaCmd->getMemAllocation(), MQueue,
-        Fill->MPattern.size(), Fill->MPattern.data(), Req->MDims,
-        Req->MMemoryRange, Req->MAccessRange, Req->MOffset, Req->MElemSize,
-        std::move(RawEvents), MEvent->getHandleRef(), MEvent);
-
-    return PI_SUCCESS;
-  }
+  }*/
+  case CG::CGTYPE::Fill:         /* {
+             CGFill *Fill = (CGFill *)MCommandGroup.get();
+             Requirement *Req = (Requirement *)(Fill->getReqToFill());
+             AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+        
+             MemoryManager::fill(
+                 AllocaCmd->getSYCLMemObj(), AllocaCmd->getMemAllocation(), MQueue,
+                 Fill->MPattern.size(), Fill->MPattern.data(), Req->MDims,
+                 Req->MMemoryRange, Req->MAccessRange, Req->MOffset, Req->MElemSize,
+                 std::move(RawEvents), MEvent->getHandleRef(), MEvent);
+        
+             return PI_SUCCESS;
+           }*/
+    pi::die("memory manager not ported yet");
   case CG::CGTYPE::Kernel: {
     CGExecKernel *ExecKernel = (CGExecKernel *)MCommandGroup.get();
 
@@ -2993,8 +3011,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         }
       if (!RawEvents.empty()) {
         // Assuming that the events are for devices to the same Plugin.
-        const PluginPtr &Plugin = EventImpls[0]->getPlugin();
-        Plugin->call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
+        const UrPluginPtr &Plugin = EventImpls[0]->getUrPlugin();
+        Plugin->call(urEventWait, RawEvents.size(), &RawEvents[0]);
       }
 
       if (MQueue->is_host()) {
@@ -3034,68 +3052,70 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         EventImpl = MEvent;
       }
     }
-
-    return enqueueImpKernel(
-        MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
-        KernelName, RawEvents, EventImpl, getMemAllocationFunc,
-        ExecKernel->MKernelCacheConfig, ExecKernel->MKernelIsCooperative);
+    /*
+        return enqueueImpKernel(
+            MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
+            KernelName, RawEvents, EventImpl, getMemAllocationFunc,
+            ExecKernel->MKernelCacheConfig, ExecKernel->MKernelIsCooperative);*/
+    pi::die("command not ported yet");
   }
-  case CG::CGTYPE::CopyUSM: {
-    CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
-    MemoryManager::copy_usm(Copy->getSrc(), MQueue, Copy->getLength(),
-                            Copy->getDst(), std::move(RawEvents), Event,
-                            MEvent);
-
-    return PI_SUCCESS;
-  }
-  case CG::CGTYPE::FillUSM: {
-    CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
-    MemoryManager::fill_usm(Fill->getDst(), MQueue, Fill->getLength(),
-                            Fill->getFill(), std::move(RawEvents), Event,
-                            MEvent);
-
-    return PI_SUCCESS;
-  }
-  case CG::CGTYPE::PrefetchUSM: {
+  case CG::CGTYPE::CopyUSM:     /* {
+         CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
+         MemoryManager::copy_usm(Copy->getSrc(), MQueue, Copy->getLength(),
+                                 Copy->getDst(), std::move(RawEvents), Event,
+                                 MEvent);
+    
+         return PI_SUCCESS;
+       }*/
+  case CG::CGTYPE::FillUSM:     /*{
+        CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
+        MemoryManager::fill_usm(Fill->getDst(), MQueue, Fill->getLength(),
+                                Fill->getFill(), std::move(RawEvents), Event,
+                                MEvent);
+    
+        return PI_SUCCESS;
+      }*/
+  case CG::CGTYPE::PrefetchUSM: /*{
     CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
     MemoryManager::prefetch_usm(Prefetch->getDst(), MQueue,
                                 Prefetch->getLength(), std::move(RawEvents),
                                 Event, MEvent);
 
     return PI_SUCCESS;
-  }
-  case CG::CGTYPE::AdviseUSM: {
-    CGAdviseUSM *Advise = (CGAdviseUSM *)MCommandGroup.get();
-    MemoryManager::advise_usm(Advise->getDst(), MQueue, Advise->getLength(),
-                              Advise->getAdvice(), std::move(RawEvents), Event,
-                              MEvent);
-
-    return PI_SUCCESS;
-  }
-  case CG::CGTYPE::Copy2DUSM: {
-    CGCopy2DUSM *Copy = (CGCopy2DUSM *)MCommandGroup.get();
-    MemoryManager::copy_2d_usm(Copy->getSrc(), Copy->getSrcPitch(), MQueue,
-                               Copy->getDst(), Copy->getDstPitch(),
-                               Copy->getWidth(), Copy->getHeight(),
-                               std::move(RawEvents), Event, MEvent);
-    return PI_SUCCESS;
-  }
-  case CG::CGTYPE::Fill2DUSM: {
-    CGFill2DUSM *Fill = (CGFill2DUSM *)MCommandGroup.get();
-    MemoryManager::fill_2d_usm(Fill->getDst(), MQueue, Fill->getPitch(),
-                               Fill->getWidth(), Fill->getHeight(),
-                               Fill->getPattern(), std::move(RawEvents), Event,
-                               MEvent);
-    return PI_SUCCESS;
-  }
-  case CG::CGTYPE::Memset2DUSM: {
+  }*/
+  case CG::CGTYPE::AdviseUSM:   /*{
+      CGAdviseUSM *Advise = (CGAdviseUSM *)MCommandGroup.get();
+      MemoryManager::advise_usm(Advise->getDst(), MQueue, Advise->getLength(),
+                                Advise->getAdvice(), std::move(RawEvents), Event,
+                                MEvent);
+  
+      return PI_SUCCESS;
+    }*/
+  case CG::CGTYPE::Copy2DUSM:   /*{
+      CGCopy2DUSM *Copy = (CGCopy2DUSM *)MCommandGroup.get();
+      MemoryManager::copy_2d_usm(Copy->getSrc(), Copy->getSrcPitch(), MQueue,
+                                 Copy->getDst(), Copy->getDstPitch(),
+                                 Copy->getWidth(), Copy->getHeight(),
+                                 std::move(RawEvents), Event, MEvent);
+      return PI_SUCCESS;
+    }*/
+  case CG::CGTYPE::Fill2DUSM:   /*{
+      CGFill2DUSM *Fill = (CGFill2DUSM *)MCommandGroup.get();
+      MemoryManager::fill_2d_usm(Fill->getDst(), MQueue, Fill->getPitch(),
+                                 Fill->getWidth(), Fill->getHeight(),
+                                 Fill->getPattern(), std::move(RawEvents), Event,
+                                 MEvent);
+      return PI_SUCCESS;
+    }*/
+  case CG::CGTYPE::Memset2DUSM: /*{
     CGMemset2DUSM *Memset = (CGMemset2DUSM *)MCommandGroup.get();
     MemoryManager::memset_2d_usm(Memset->getDst(), MQueue, Memset->getPitch(),
                                  Memset->getWidth(), Memset->getHeight(),
                                  Memset->getValue(), std::move(RawEvents),
                                  Event, MEvent);
     return PI_SUCCESS;
-  }
+  }*/
+    pi::die("memory manager not ported yet");
   case CG::CGTYPE::CodeplayHostTask: {
     CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
 
@@ -3165,29 +3185,28 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       // NOP for host device.
       return PI_SUCCESS;
     }
-    const PluginPtr &Plugin = MQueue->getPlugin();
+    const UrPluginPtr &Plugin = MQueue->getUrPlugin();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
-    Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
-        MQueue->getHandleRef(), 0, nullptr, Event);
+    Plugin->call(urEnqueueEventsWaitWithBarrier, MQueue->getUrHandleRef(), 0,
+                 nullptr, Event);
 
     return PI_SUCCESS;
   }
   case CG::CGTYPE::BarrierWaitlist: {
     CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
     std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
-    std::vector<sycl::detail::pi::PiEvent> PiEvents =
-        getPiEventsBlocking(Events);
-    if (MQueue->getDeviceImplPtr()->is_host() || PiEvents.empty()) {
+    std::vector<ur_event_handle_t> UrEvents = getUrEventsBlocking(Events);
+    if (MQueue->getDeviceImplPtr()->is_host() || UrEvents.empty()) {
       // NOP for host device.
       // If Events is empty, then the barrier has no effect.
       return PI_SUCCESS;
     }
-    const PluginPtr &Plugin = MQueue->getPlugin();
+    const UrPluginPtr &Plugin = MQueue->getUrPlugin();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
-    Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
-        MQueue->getHandleRef(), PiEvents.size(), &PiEvents[0], Event);
+    Plugin->call(urEnqueueEventsWaitWithBarrier, MQueue->getUrHandleRef(),
+                 UrEvents.size(), &UrEvents[0], Event);
 
     return PI_SUCCESS;
   }
@@ -3207,16 +3226,16 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
 
     return PI_SUCCESS;
   }
-  case CG::CGTYPE::CopyToDeviceGlobal: {
-    CGCopyToDeviceGlobal *Copy = (CGCopyToDeviceGlobal *)MCommandGroup.get();
-    MemoryManager::copy_to_device_global(
-        Copy->getDeviceGlobalPtr(), Copy->isDeviceImageScoped(), MQueue,
-        Copy->getNumBytes(), Copy->getOffset(), Copy->getSrc(),
-        std::move(RawEvents), Event, MEvent);
-
-    return CL_SUCCESS;
-  }
-  case CG::CGTYPE::CopyFromDeviceGlobal: {
+  case CG::CGTYPE::CopyToDeviceGlobal:   /*{
+      CGCopyToDeviceGlobal *Copy = (CGCopyToDeviceGlobal *)MCommandGroup.get();
+      MemoryManager::copy_to_device_global(
+          Copy->getDeviceGlobalPtr(), Copy->isDeviceImageScoped(), MQueue,
+          Copy->getNumBytes(), Copy->getOffset(), Copy->getSrc(),
+          std::move(RawEvents), Event, MEvent);
+  
+      return CL_SUCCESS;
+    }*/
+  case CG::CGTYPE::CopyFromDeviceGlobal: /*{
     CGCopyFromDeviceGlobal *Copy =
         (CGCopyFromDeviceGlobal *)MCommandGroup.get();
     MemoryManager::copy_from_device_global(
@@ -3225,7 +3244,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         std::move(RawEvents), Event, MEvent);
 
     return CL_SUCCESS;
-  }
+  }*/
+    pi::die("memory manager not ported yet");
   case CG::CGTYPE::ReadWriteHostPipe: {
     CGReadWriteHostPipe *ExecReadWriteHostPipe =
         (CGReadWriteHostPipe *)MCommandGroup.get();
@@ -3238,30 +3258,34 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     if (!EventImpl) {
       EventImpl = MEvent;
     }
+    pi::die("command not ported yet");
+    /*
     return enqueueReadWriteHostPipe(MQueue, pipeName, blocking, hostPtr,
-                                    typeSize, RawEvents, EventImpl, read);
+                                    typeSize, RawEvents, EventImpl, read);*/
   }
   case CG::CGTYPE::ExecCommandBuffer: {
     CGExecCommandBuffer *CmdBufferCG =
         static_cast<CGExecCommandBuffer *>(MCommandGroup.get());
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
-    return MQueue->getPlugin()
-        ->call_nocheck<sycl::detail::PiApiKind::piextEnqueueCommandBuffer>(
-            CmdBufferCG->MCommandBuffer, MQueue->getHandleRef(),
-            RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
-            Event);
+    pi::die("command not ported yet"); /*
+     return MQueue->getPlugin()
+         ->call_nocheck<sycl::detail::PiApiKind::piextEnqueueCommandBuffer>(
+             CmdBufferCG->MCommandBuffer, MQueue->getHandleRef(),
+             RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
+             Event);*/
   }
   case CG::CGTYPE::CopyImage: {
     CGCopyImage *Copy = (CGCopyImage *)MCommandGroup.get();
 
     sycl::detail::pi::PiMemImageDesc Desc = Copy->getDesc();
-
-    MemoryManager::copy_image_bindless(
-        Copy->getSrc(), MQueue, Copy->getDst(), Desc, Copy->getFormat(),
-        Copy->getCopyFlags(), Copy->getSrcOffset(), Copy->getDstOffset(),
-        Copy->getHostExtent(), Copy->getCopyExtent(), std::move(RawEvents),
-        Event);
+    /*
+        MemoryManager::copy_image_bindless(
+            Copy->getSrc(), MQueue, Copy->getDst(), Desc, Copy->getFormat(),
+            Copy->getCopyFlags(), Copy->getSrcOffset(), Copy->getDstOffset(),
+            Copy->getHostExtent(), Copy->getCopyExtent(), std::move(RawEvents),
+            Event);*/
+    pi::die("memory manager not ported yet");
     return PI_SUCCESS;
   }
   case CG::CGTYPE::SemaphoreWait: {
@@ -3461,7 +3485,7 @@ UpdateCommandBufferCommand::UpdateCommandBufferCommand(
 pi_int32 UpdateCommandBufferCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  auto RawEvents = getPiEvents(EventImpls);
+  auto RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
   for (auto &Node : MNodes) {

@@ -121,13 +121,13 @@ static void waitForEvents(const std::vector<EventImplPtr> &Events) {
   // Assuming all events will be on the same device or
   // devices associated with the same Backend.
   if (!Events.empty()) {
-    const PluginPtr &Plugin = Events[0]->getPlugin();
-    std::vector<sycl::detail::pi::PiEvent> PiEvents(Events.size());
-    std::transform(Events.begin(), Events.end(), PiEvents.begin(),
+    const UrPluginPtr &Plugin = Events[0]->getUrPlugin();
+    std::vector<ur_event_handle_t> UrEvents(Events.size());
+    std::transform(Events.begin(), Events.end(), UrEvents.begin(),
                    [](const EventImplPtr &EventImpl) {
                      return EventImpl->getHandleRef();
                    });
-    Plugin->call<PiApiKind::piEventsWait>(PiEvents.size(), &PiEvents[0]);
+    Plugin->call(urEventWait, UrEvents.size(), &UrEvents[0]);
   }
 }
 
@@ -310,13 +310,15 @@ void *MemoryManager::allocateInteropMemObject(
   (void)InteropContext;
   // If memory object is created with interop c'tor return cl_mem as is.
   assert(TargetContext == InteropContext && "Expected matching contexts");
+  /*
   OutEventToWait = InteropEvent->getHandleRef();
   // Retain the event since it will be released during alloca command
   // destruction
   if (nullptr != OutEventToWait) {
     const PluginPtr &Plugin = InteropEvent->getPlugin();
     Plugin->call<PiApiKind::piEventRetain>(OutEventToWait);
-  }
+  }*/
+  sycl::detail::pi::die("memory manager is not yet ported");
   return UserPtr;
 }
 
@@ -1124,26 +1126,30 @@ void MemoryManager::copy_2d_usm(
 #endif // NDEBUG
 
   // The fallback in this case is to insert a copy per row.
-  std::vector<OwnedPiEvent> CopyEventsManaged;
+  std::vector<OwnedUrEvent> CopyEventsManaged;
   CopyEventsManaged.reserve(Height);
   // We'll need continuous range of events for a wait later as well.
   std::vector<sycl::detail::pi::PiEvent> CopyEvents(Height);
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
+  /*
   for (size_t I = 0; I < Height; ++I) {
     char *DstItBegin = static_cast<char *>(DstMem) + I * DstPitch;
     const char *SrcItBegin = static_cast<const char *>(SrcMem) + I * SrcPitch;
     Plugin->call<PiApiKind::piextUSMEnqueueMemcpy>(
-        Queue->getHandleRef(), /* blocking */ PI_FALSE, DstItBegin, SrcItBegin,
-        Width, DepEvents.size(), DepEvents.data(), CopyEvents.data() + I);
-    CopyEventsManaged.emplace_back(CopyEvents[I], Plugin,
-                                   /*TakeOwnership=*/true);
-  }
-  if (OutEventImpl != nullptr)
-    OutEventImpl->setHostEnqueueTime();
-  // Then insert a wait to coalesce the copy events.
-  Queue->getPlugin()->call<PiApiKind::piEnqueueEventsWait>(
-      Queue->getHandleRef(), CopyEvents.size(), CopyEvents.data(), OutEvent);
+        Queue->getHandleRef(), */
+  /* blocking */    /* PI_FALSE, DstItBegin, SrcItBegin,
+Width, DepEvents.size(), DepEvents.data(), CopyEvents.data() + I);
+CopyEventsManaged.emplace_back(CopyEvents[I], Plugin,
+        */
+  /*TakeOwnership=*//*true);
+}
+if (OutEventImpl != nullptr)
+OutEventImpl->setHostEnqueueTime();
+// Then insert a wait to coalesce the copy events.
+Queue->getPlugin()->call<PiApiKind::piEnqueueEventsWait>(
+Queue->getHandleRef(), CopyEvents.size(), CopyEvents.data(), OutEvent);*/
+  pi::die("memory manager not yet ported");
 }
 
 // TODO: This function will remain until ABI-breaking change
@@ -1251,7 +1257,7 @@ memcpyToDeviceGlobalUSM(QueueImplPtr Queue,
 
   // OwnedPiEvent will keep the initialization event alive for the duration
   // of this function call.
-  OwnedPiEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Queue->getPlugin());
+  OwnedUrEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Queue->getUrPlugin());
 
   // We may need addtional events, so create a non-const dependency events list
   // to use if we need to modify it.
@@ -1261,6 +1267,7 @@ memcpyToDeviceGlobalUSM(QueueImplPtr Queue,
 
   // If there is a zero-initializer event the memory operation should wait for
   // it.
+  /*
   if (ZIEvent) {
     AuxDepEventsStorage = DepEvents;
     AuxDepEventsStorage.push_back(ZIEvent.GetEvent());
@@ -1269,6 +1276,8 @@ memcpyToDeviceGlobalUSM(QueueImplPtr Queue,
   MemoryManager::copy_usm(Src, Queue, NumBytes,
                           reinterpret_cast<char *>(Dest) + Offset,
                           ActualDepEvents, OutEvent, OutEventImpl);
+                          */
+  pi::die("memory manager not yet ported");
 }
 
 static void memcpyFromDeviceGlobalUSM(
@@ -1285,7 +1294,7 @@ static void memcpyFromDeviceGlobalUSM(
 
   // OwnedPiEvent will keep the initialization event alive for the duration
   // of this function call.
-  OwnedPiEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Queue->getPlugin());
+  OwnedUrEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Queue->getUrPlugin());
 
   // We may need addtional events, so create a non-const dependency events list
   // to use if we need to modify it.
@@ -1295,6 +1304,7 @@ static void memcpyFromDeviceGlobalUSM(
 
   // If there is a zero-initializer event the memory operation should wait for
   // it.
+  /*
   if (ZIEvent) {
     AuxDepEventsStorage = DepEvents;
     AuxDepEventsStorage.push_back(ZIEvent.GetEvent());
@@ -1302,7 +1312,8 @@ static void memcpyFromDeviceGlobalUSM(
 
   MemoryManager::copy_usm(reinterpret_cast<const char *>(Src) + Offset, Queue,
                           NumBytes, Dest, ActualDepEvents, OutEvent,
-                          OutEventImpl);
+                          OutEventImpl);*/
+  pi::die("memory manager not yet ported");
 }
 
 static sycl::detail::pi::PiProgram

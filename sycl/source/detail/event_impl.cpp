@@ -55,23 +55,22 @@ bool event_impl::is_host() {
 
 event_impl::~event_impl() {
   if (MEvent)
-    getPlugin()->call<PiApiKind::piEventRelease>(MEvent);
+    getUrPlugin()->call(urEventRelease, MEvent);
 }
 
 void event_impl::waitInternal(bool *Success) {
   if (!MHostEvent && MEvent) {
     // Wait for the native event
-    sycl::detail::pi::PiResult Err =
-        getPlugin()->call_nocheck<PiApiKind::piEventsWait>(1, &MEvent);
+    ur_result_t Err = getUrPlugin()->call_nocheck(urEventWait, 1, &MEvent);
     // TODO drop the PI_ERROR_UKNOWN from here once the UR counterpart to
     // PI_ERROR_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST is added:
     // https://github.com/oneapi-src/unified-runtime/issues/1459
     if (Success != nullptr &&
-        (Err == PI_ERROR_UNKNOWN ||
-         Err == PI_ERROR_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST))
+        (Err == UR_RESULT_ERROR_UNKNOWN ||
+         Err == UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS))
       *Success = false;
     else {
-      getPlugin()->checkPiResult(Err);
+      getUrPlugin()->checkUrResult(Err);
       if (Success != nullptr)
         *Success = true;
     }
@@ -119,10 +118,8 @@ static uint64_t inline getTimestamp() {
       .count();
 }
 
-const sycl::detail::pi::PiEvent &event_impl::getHandleRef() const {
-  return MEvent;
-}
-sycl::detail::pi::PiEvent &event_impl::getHandleRef() { return MEvent; }
+const ur_event_handle_t &event_impl::getHandleRef() const { return MEvent; }
+ur_event_handle_t &event_impl::getHandleRef() { return MEvent; }
 
 const ContextImplPtr &event_impl::getContextImpl() {
   ensureContextInitialized();
@@ -134,6 +131,11 @@ const PluginPtr &event_impl::getPlugin() {
   return MContext->getPlugin();
 }
 
+const UrPluginPtr &event_impl::getUrPlugin() {
+  ensureContextInitialized();
+  return MContext->getUrPlugin();
+}
+
 void event_impl::setStateIncomplete() { MState = HES_NotComplete; }
 
 void event_impl::setContextImpl(const ContextImplPtr &Context) {
@@ -142,8 +144,7 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MIsContextInitialized = true;
 }
 
-event_impl::event_impl(sycl::detail::pi::PiEvent Event,
-                       const context &SyclContext)
+event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
     : MIsContextInitialized(true), MEvent(Event),
       MContext(detail::getSyclObjImpl(SyclContext)), MHostEvent(false),
       MIsFlushed(true), MState(HES_Complete) {
@@ -155,11 +156,10 @@ event_impl::event_impl(sycl::detail::pi::PiEvent Event,
                               codeToString(PI_ERROR_INVALID_CONTEXT));
   }
 
-  sycl::detail::pi::PiContext TempContext;
-  getPlugin()->call<PiApiKind::piEventGetInfo>(
-      MEvent, PI_EVENT_INFO_CONTEXT, sizeof(sycl::detail::pi::PiContext),
-      &TempContext, nullptr);
-  if (MContext->getHandleRef() != TempContext) {
+  ur_context_handle_t TempContext;
+  getUrPlugin()->call(urEventGetInfo, MEvent, UR_EVENT_INFO_CONTEXT,
+                      sizeof(ur_context_handle_t), &TempContext, nullptr);
+  if (MContext->getUrHandleRef() != TempContext) {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "The syclContext must match the OpenCL context "
                           "associated with the clEvent. " +
@@ -177,9 +177,10 @@ event_impl::event_impl(const QueueImplPtr &Queue)
     if (Queue->has_property<property::queue::enable_profiling>()) {
       MHostProfilingInfo.reset(new HostProfilingInfo());
       if (!MHostProfilingInfo)
-        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                              "Out of host memory " +
-                                  codeToString(PI_ERROR_OUT_OF_HOST_MEMORY));
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::runtime),
+            "Out of host memory " +
+                codeToString(UR_RESULT_ERROR_OUT_OF_HOST_MEMORY));
     }
     return;
   }
@@ -201,7 +202,7 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
   // Create a string with the event address so it
   // can be associated with other debug data
   xpti::utils::StringHelper SH;
-  Name = SH.nameWithAddress<sycl::detail::pi::PiEvent>("event.wait", MEvent);
+  Name = SH.nameWithAddress<ur_event_handle_t>("event.wait", MEvent);
 
   // We can emit the wait associated with the graph if the
   // event does not have a command object or associated with
@@ -322,7 +323,7 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   if (MEventFromSubmittedExecCommandBuffer && !MHostEvent && MEvent) {
     uint64_t StartTime =
         get_event_profiling_info<info::event_profiling::command_start>(
-            this->getHandleRef(), this->getPlugin());
+            this->getHandleRef(), this->getUrPlugin());
     if (StartTime < MSubmitTime)
       MSubmitTime = StartTime;
   }
@@ -337,13 +338,13 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
     if (MEvent) {
       auto StartTime =
           get_event_profiling_info<info::event_profiling::command_start>(
-              this->getHandleRef(), this->getPlugin());
+              this->getHandleRef(), this->getUrPlugin());
       if (!MFallbackProfiling) {
         return StartTime;
       } else {
         auto DeviceBaseTime =
             get_event_profiling_info<info::event_profiling::command_submit>(
-                this->getHandleRef(), this->getPlugin());
+                this->getHandleRef(), this->getUrPlugin());
         return MHostBaseTime - DeviceBaseTime + StartTime;
       }
     }
@@ -364,13 +365,13 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
     if (MEvent) {
       auto EndTime =
           get_event_profiling_info<info::event_profiling::command_end>(
-              this->getHandleRef(), this->getPlugin());
+              this->getHandleRef(), this->getUrPlugin());
       if (!MFallbackProfiling) {
         return EndTime;
       } else {
         auto DeviceBaseTime =
             get_event_profiling_info<info::event_profiling::command_submit>(
-                this->getHandleRef(), this->getPlugin());
+                this->getHandleRef(), this->getUrPlugin());
         return MHostBaseTime - DeviceBaseTime + EndTime;
       }
     }
@@ -380,14 +381,14 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::invalid),
         "Profiling info is not available. " +
-            codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
+            codeToString(UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE));
   return MHostProfilingInfo->getEndTime();
 }
 
 template <> uint32_t event_impl::get_info<info::event::reference_count>() {
   if (!MHostEvent && MEvent) {
     return get_event_info<info::event::reference_count>(this->getHandleRef(),
-                                                        this->getPlugin());
+                                                        this->getUrPlugin());
   }
   return 0;
 }
@@ -402,7 +403,7 @@ event_impl::get_info<info::event::command_execution_status>() {
     // Command is enqueued and PiEvent is ready
     if (MEvent)
       return get_event_info<info::event::command_execution_status>(
-          this->getHandleRef(), this->getPlugin());
+          this->getHandleRef(), this->getUrPlugin());
     // Command is blocked and not enqueued, PiEvent is not assigned yet
     else if (MCommand)
       return sycl::info::event_command_status::submitted;
@@ -472,19 +473,21 @@ void HostProfilingInfo::start() { StartTime = getTimestamp(); }
 
 void HostProfilingInfo::end() { EndTime = getTimestamp(); }
 
-pi_native_handle event_impl::getNative() {
+ur_native_handle_t event_impl::getNative() {
   ensureContextInitialized();
 
-  auto Plugin = getPlugin();
+  auto Plugin = getUrPlugin();
   if (!MIsInitialized) {
     MIsInitialized = true;
-    auto TempContext = MContext.get()->getHandleRef();
-    Plugin->call<PiApiKind::piEventCreate>(TempContext, &MEvent);
+    auto TempContext = MContext.get()->getUrHandleRef();
+    ur_event_native_properties_t NativeProperties{};
+    Plugin->call(urEventCreateWithNativeHandle, nullptr, TempContext,
+                 &NativeProperties, &MEvent);
   }
   if (MContext->getBackend() == backend::opencl)
-    Plugin->call<PiApiKind::piEventRetain>(getHandleRef());
-  pi_native_handle Handle;
-  Plugin->call<PiApiKind::piextEventGetNativeHandle>(getHandleRef(), &Handle);
+    Plugin->call(urEventRetain, getHandleRef());
+  ur_native_handle_t Handle;
+  Plugin->call(urEventGetNativeHandle, getHandleRef(), &Handle);
   return Handle;
 }
 
@@ -523,12 +526,12 @@ void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
     return;
 
   // Check if the task for this event has already been submitted.
-  pi_event_status Status = PI_EVENT_QUEUED;
-  getPlugin()->call<PiApiKind::piEventGetInfo>(
-      MEvent, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(pi_int32), &Status,
-      nullptr);
-  if (Status == PI_EVENT_QUEUED) {
-    getPlugin()->call<PiApiKind::piQueueFlush>(Queue->getHandleRef());
+  ur_event_status_t Status = UR_EVENT_STATUS_QUEUED;
+  getUrPlugin()->call(urEventGetInfo, MEvent,
+                      UR_EVENT_INFO_COMMAND_EXECUTION_STATUS,
+                      sizeof(ur_event_status_t), &Status, nullptr);
+  if (Status == UR_EVENT_STATUS_QUEUED) {
+    getUrPlugin()->call(urQueueFlush, Queue->getUrHandleRef());
   }
   MIsFlushed = true;
 }

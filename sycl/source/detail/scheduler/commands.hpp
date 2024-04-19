@@ -194,9 +194,9 @@ public:
       std::optional<access::mode> AccMode = std::nullopt);
   /// Creates an edge event when the dependency is an event.
   void emitEdgeEventForEventDependence(Command *Cmd,
-                                       sycl::detail::pi::PiEvent &EventAddr);
+                                       ur_event_handle_t &EventAddr);
   /// Creates a signal event with the enqueued kernel event handle.
-  void emitEnqueuedEventSignal(sycl::detail::pi::PiEvent &PiEventAddr);
+  void emitEnqueuedEventSignal(ur_event_handle_t &UrEventAddr);
   /// Create a trace event of node_create type; this must be guarded by a
   /// check for xptiTraceEnabled().
   /// Post Condition: MTraceEvent will be set to the event created.
@@ -238,15 +238,15 @@ public:
   /// Returns true iff this command is ready to be submitted for cleanup.
   virtual bool readyForCleanup() const;
 
-  /// Collect PI events from EventImpls and filter out some of them in case of
+  /// Collect UR events from EventImpls and filter out some of them in case of
   /// in order queue
-  std::vector<sycl::detail::pi::PiEvent>
-  getPiEvents(const std::vector<EventImplPtr> &EventImpls) const;
-  /// Collect PI events from EventImpls and filter out some of them in case of
-  /// in order queue. Does blocking enqueue if event is expected to produce pi
+  std::vector<ur_event_handle_t>
+  getUrEvents(const std::vector<EventImplPtr> &EventImpls) const;
+  /// Collect UR events from EventImpls and filter out some of them in case of
+  /// in order queue. Does blocking enqueue if event is expected to produce ur
   /// event but has empty native handle.
-  std::vector<sycl::detail::pi::PiEvent>
-  getPiEventsBlocking(const std::vector<EventImplPtr> &EventImpls) const;
+  std::vector<ur_event_handle_t>
+  getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls) const;
 
   bool isHostTask() const;
 
@@ -263,7 +263,7 @@ protected:
   std::vector<EventImplPtr> &MPreparedHostDepsEvents;
 
   void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
-                     sycl::detail::pi::PiEvent &Event);
+                     ur_event_handle_t &Event);
 
   void waitForPreparedHostEvents() const;
 

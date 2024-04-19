@@ -39,12 +39,12 @@ struct DeviceGlobalUSMMem {
 
   // Gets the initialization event if it exists. If not the OwnedPiEvent
   // will contain no event.
-  OwnedPiEvent getInitEvent(const PluginPtr &Plugin);
+  OwnedUrEvent getInitEvent(const UrPluginPtr &Plugin);
 
 private:
   void *MPtr;
   std::mutex MInitEventMutex;
-  std::optional<sycl::detail::pi::PiEvent> MInitEvent;
+  std::optional<ur_event_handle_t> MInitEvent;
 
   friend struct DeviceGlobalMapEntry;
 };

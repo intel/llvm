@@ -691,7 +691,8 @@ sycl::detail::pi::PiExtSyncPoint exec_graph_impl::enqueueNode(
       sycl::detail::Scheduler::getInstance().addCG(
           Node->getCGCopy(), AllocaQueue, CommandBuffer, Deps);
 
-  MCommandMap[Node] = Event->getCommandBufferCommand();
+  sycl::detail::pi::die("graph not yet ported");
+  // MCommandMap[Node] = Event->getCommandBufferCommand();
   return Event->getSyncPoint();
 }
 void exec_graph_impl::createCommandBuffers(
@@ -891,7 +892,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       }
 
       NewEvent = CreateNewEvent();
-      sycl::detail::pi::PiEvent *OutEvent = &NewEvent->getHandleRef();
+      ur_event_handle_t *OutEvent = &NewEvent->getHandleRef();
       // Merge requirements from the nodes into requirements (if any) from the
       // handler.
       CGData.MRequirements.insert(CGData.MRequirements.end(),
@@ -904,11 +905,13 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       if (CGData.MRequirements.empty() && CGData.MEvents.empty()) {
         if (NewEvent != nullptr)
           NewEvent->setHostEnqueueTime();
-        pi_result Res =
-            Queue->getPlugin()
+        pi_result Res = PI_ERROR_UNKNOWN;
+        /*    Queue->getPlugin()
                 ->call_nocheck<
                     sycl::detail::PiApiKind::piextEnqueueCommandBuffer>(
-                    CommandBuffer, Queue->getHandleRef(), 0, nullptr, OutEvent);
+                    CommandBuffer, Queue->getHandleRef(), 0, nullptr,
+           OutEvent);*/
+        sycl::detail::pi::die("command buffer not yet ported");
         if (Res == pi_result::PI_ERROR_INVALID_QUEUE_PROPERTIES) {
           throw sycl::exception(
               make_error_code(errc::invalid),

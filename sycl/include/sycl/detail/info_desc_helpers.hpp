@@ -54,14 +54,14 @@ template <typename T> struct is_backend_info_desc : std::false_type {};
     using return_type = info::DescType::Desc::return_type;                     \
   };
 // #include <sycl/info/context_traits.def>
-#include <sycl/info/event_traits.def>
+// #include <sycl/info/event_traits.def>
 #include <sycl/info/kernel_traits.def>
 // #include <sycl/info/platform_traits.def>
 //#include <sycl/info/queue_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template <> struct PiInfoCode<info::DescType::Desc> {                        \
-    static constexpr pi_profiling_info value = PiCode;                         \
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
+  template <> struct UrInfoCode<info::DescType::Desc> {                        \
+    static constexpr ur_profiling_info_t value = UrCode;                       \
   };                                                                           \
   template <>                                                                  \
   struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
@@ -87,7 +87,7 @@ template <typename T> struct is_backend_info_desc : std::false_type {};
     using return_type = info::DescType::Desc::return_type;                     \
   };
 #include <sycl/info/context_traits.def>
-// #include <sycl/info/event_traits.def>
+#include <sycl/info/event_traits.def>
 // #include <sycl/info/kernel_traits.def>
 #include <sycl/info/platform_traits.def>
 #include <sycl/info/queue_traits.def>

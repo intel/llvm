@@ -25,20 +25,20 @@ DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
   assert(!MInitEvent.has_value() && "MInitEvent has not been cleaned up.");
 }
 
-OwnedPiEvent DeviceGlobalUSMMem::getInitEvent(const PluginPtr &Plugin) {
+OwnedUrEvent DeviceGlobalUSMMem::getInitEvent(const UrPluginPtr &Plugin) {
   std::lock_guard<std::mutex> Lock(MInitEventMutex);
   // If there is a init event we can remove it if it is done.
   if (MInitEvent.has_value()) {
     if (get_event_info<info::event::command_execution_status>(
             *MInitEvent, Plugin) == info::event_command_status::complete) {
-      Plugin->call<PiApiKind::piEventRelease>(*MInitEvent);
+      Plugin->call(urEventRelease, *MInitEvent);
       MInitEvent = {};
-      return OwnedPiEvent(Plugin);
+      return OwnedUrEvent(Plugin);
     } else {
-      return OwnedPiEvent(*MInitEvent, Plugin);
+      return OwnedUrEvent(*MInitEvent, Plugin);
     }
   }
-  return OwnedPiEvent(Plugin);
+  return OwnedUrEvent(Plugin);
 }
 
 DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
@@ -76,13 +76,15 @@ DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
     // some pointer arithmetic to memcopy over this value to the usm_ptr. This
     // value inside of the device_global will be zero-initialized if it was not
     // given a value on construction.
+    /*
     MemoryManager::copy_usm(reinterpret_cast<const void *>(
                                 reinterpret_cast<uintptr_t>(MDeviceGlobalPtr) +
                                 sizeof(MDeviceGlobalPtr)),
                             QueueImpl, MDeviceGlobalTSize, NewAlloc.MPtr,
                             std::vector<sycl::detail::pi::PiEvent>{},
                             &InitEvent);
-    NewAlloc.MInitEvent = InitEvent;
+    NewAlloc.MInitEvent = InitEvent;*/
+    pi::die("memory manager not yet ported");
   }
 
   CtxImpl->addAssociatedDeviceGlobal(MDeviceGlobalPtr);
@@ -99,8 +101,7 @@ void DeviceGlobalMapEntry::removeAssociatedResources(
       DeviceGlobalUSMMem &USMMem = USMPtrIt->second;
       detail::usm::freeInternal(USMMem.MPtr, CtxImpl);
       if (USMMem.MInitEvent.has_value())
-        CtxImpl->getPlugin()->call<PiApiKind::piEventRelease>(
-            *USMMem.MInitEvent);
+        CtxImpl->getUrPlugin()->call(urEventRelease, *USMMem.MInitEvent);
 #ifndef NDEBUG
       // For debugging we set the event and memory to some recognizable values
       // to allow us to check that this cleanup happens before erasure.

@@ -13,6 +13,7 @@
 #include "detail/platform_impl.hpp"
 #include "detail/plugin.hpp"
 #include "detail/queue_impl.hpp"
+#include "sycl/detail/impl_utils.hpp"
 #include <sycl/backend.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
@@ -169,15 +170,17 @@ __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
   const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(Context);
 
-  pi::PiEvent PiEvent = nullptr;
-  Plugin->call<PiApiKind::piextEventCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(), !KeepOwnership, &PiEvent);
-
+  /* FIXME: interop stuff
+    pi::PiEvent PiEvent = nullptr;
+    Plugin->call<PiApiKind::piextEventCreateWithNativeHandle>(
+        NativeHandle, ContextImpl->getHandleRef(), !KeepOwnership, &PiEvent);
+    event Event = detail::createSyclObjFromImpl<event>(
+        std::make_shared<event_impl>(PiEvent, Context));*/
   event Event = detail::createSyclObjFromImpl<event>(
-      std::make_shared<event_impl>(PiEvent, Context));
-
-  if (Backend == backend::opencl)
-    Plugin->call<PiApiKind::piEventRetain>(PiEvent);
+      std::make_shared<event_impl>(nullptr, Context));
+  /*
+    if (Backend == backend::opencl)
+      Plugin->call<PiApiKind::piEventRetain>(PiEvent);*/
   return Event;
 }
 

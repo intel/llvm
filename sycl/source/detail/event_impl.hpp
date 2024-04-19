@@ -65,7 +65,7 @@ public:
   ///
   /// \param Event is a valid instance of plug-in event.
   /// \param SyclContext is an instance of SYCL context.
-  event_impl(sycl::detail::pi::PiEvent Event, const context &SyclContext);
+  event_impl(ur_event_handle_t Event, const context &SyclContext);
   event_impl(const QueueImplPtr &Queue);
 
   /// Checks if this event is a SYCL host event.
@@ -134,16 +134,16 @@ public:
   /// Marks this event as completed.
   void setComplete();
 
-  /// Returns raw interoperability event handle. Returned reference will be]
+  /// Returns raw interoperability event handle. Returned reference will be
   /// invalid if event_impl was destroyed.
   ///
   /// \return a reference to an instance of plug-in event handle.
-  sycl::detail::pi::PiEvent &getHandleRef();
-  /// Returns raw interoperability event handle. Returned reference will be]
+  ur_event_handle_t &getHandleRef();
+  /// Returns raw interoperability event handle. Returned reference will be
   /// invalid if event_impl was destroyed.
   ///
   /// \return a const reference to an instance of plug-in event handle.
-  const sycl::detail::pi::PiEvent &getHandleRef() const;
+  const ur_event_handle_t &getHandleRef() const;
 
   /// Returns context that is associated with this event.
   ///
@@ -153,6 +153,10 @@ public:
   /// \return the Plugin associated with the context of this event.
   /// Should be called when this is not a Host Event.
   const PluginPtr &getPlugin();
+
+  /// \return the Plugin associated with the context of this event.
+  /// Should be called when this is not a Host Event.
+  const UrPluginPtr &getUrPlugin();
 
   /// Associate event with the context.
   ///
@@ -187,7 +191,7 @@ public:
   /// Gets the native handle of the SYCL event.
   ///
   /// \return a native handle.
-  pi_native_handle getNative();
+  ur_native_handle_t getNative();
 
   /// Returns vector of event dependencies.
   ///
@@ -296,12 +300,12 @@ public:
 
   // Sets a sync point which is used when this event represents an enqueue to a
   // Command Buffer.
-  void setSyncPoint(sycl::detail::pi::PiExtSyncPoint SyncPoint) {
+  void setSyncPoint(ur_exp_command_buffer_sync_point_t SyncPoint) {
     MSyncPoint = SyncPoint;
   }
 
   // Get the sync point associated with this event.
-  sycl::detail::pi::PiExtSyncPoint getSyncPoint() const { return MSyncPoint; }
+  ur_exp_command_buffer_sync_point_t getSyncPoint() const { return MSyncPoint; }
 
   void setCommandGraph(
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
@@ -325,12 +329,11 @@ public:
 
   // Sets a command-buffer command when this event represents an enqueue to a
   // Command Buffer.
-  void
-  setCommandBufferCommand(sycl::detail::pi::PiExtCommandBufferCommand Command) {
+  void setCommandBufferCommand(ur_exp_command_buffer_command_handle_t Command) {
     MCommandBufferCommand = Command;
   }
 
-  sycl::detail::pi::PiExtCommandBufferCommand getCommandBufferCommand() const {
+  ur_exp_command_buffer_command_handle_t getCommandBufferCommand() const {
     return MCommandBufferCommand;
   }
 
@@ -358,7 +361,7 @@ protected:
   void ensureContextInitialized();
   bool MIsInitialized = true;
   bool MIsContextInitialized = false;
-  sycl::detail::pi::PiEvent MEvent = nullptr;
+  ur_event_handle_t MEvent = nullptr;
   // Stores submission time of command associated with event
   uint64_t MSubmitTime = 0;
   uint64_t MHostBaseTime = 0;
@@ -400,20 +403,16 @@ protected:
   // If this event represents a submission to a
   // sycl::detail::pi::PiExtCommandBuffer the sync point for that submission is
   // stored here.
-  sycl::detail::pi::PiExtSyncPoint MSyncPoint;
+  ur_exp_command_buffer_sync_point_t MSyncPoint;
 
   // If this event represents a submission to a
   // sycl::detail::pi::PiExtCommandBuffer the command-buffer command
   // (if any) associated with that submission is stored here.
-  sycl::detail::pi::PiExtCommandBufferCommand MCommandBufferCommand = nullptr;
+  ur_exp_command_buffer_command_handle_t MCommandBufferCommand = nullptr;
 
   // Signifies whether this event is the result of a profiling tag command. This
   // allows for profiling, even if the queue does not have profiling enabled.
   bool MProfilingTagEvent = false;
-
-  friend std::vector<sycl::detail::pi::PiEvent>
-  getOrWaitEvents(std::vector<sycl::event> DepEvents,
-                  std::shared_ptr<sycl::detail::context_impl> Context);
 
   std::atomic_bool MIsEnqueued{false};
 };

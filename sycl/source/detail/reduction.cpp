@@ -173,9 +173,15 @@ addCounterInit(handler &CGH, std::shared_ptr<sycl::detail::queue_impl> &Queue,
   EventImpl->setContextImpl(detail::getSyclObjImpl(Queue->get_context()));
   EventImpl->setStateIncomplete();
   MemoryManager::fill_usm(Counter.get(), Queue, sizeof(int), 0, {},
-                          &EventImpl->getHandleRef(), EventImpl);
+                          reinterpret_cast<pi_event*>(&EventImpl->getHandleRef()), EventImpl);
   CGH.depends_on(createSyclObjFromImpl<event>(EventImpl));
 }
+/*
+void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
+                             int Pattern,
+                             std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                             sycl::detail::pi::PiEvent *OutEvent) {
+*/
 
 } // namespace detail
 } // namespace _V1
