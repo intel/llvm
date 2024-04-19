@@ -1023,10 +1023,6 @@ private:
       extractForwardProgressPropArgsAndVerify<
           sycl::ext::oneapi::experimental::work_item_progress_key>(prop);
     }
-
-    constexpr bool UsesRootSync = PropertiesT::template has_property<
-        sycl::ext::oneapi::experimental::use_root_sync_key>();
-    setKernelIsCooperative(UsesRootSync);
   }
 
   /// Checks whether it is possible to copy the source shape to the destination
