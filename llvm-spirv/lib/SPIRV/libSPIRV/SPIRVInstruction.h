@@ -276,6 +276,9 @@ public:
     } else
       SPIRVEntry::setWordCount(WC);
     Ops = TheOps;
+    // The required SPIR-V version depends on the operands for some
+    // instructions.
+    updateModuleVersion();
   }
   void setWordCount(SPIRVWord TheWordCount) override {
     SPIRVEntry::setWordCount(TheWordCount);
