@@ -478,7 +478,8 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
   // Thus we employ read-lock of graph.
 
   std::vector<Command *> ToCleanUp;
-  auto &CmdEvent = Cmd->getEvent();
+  auto CmdEvent = Cmd->getEvent();
+  auto QueueImpl = Cmd->getQueue();
   {
     ReadLockT Lock = acquireReadLock();
 
@@ -495,7 +496,7 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
     }
     Scheduler::enqueueUnblockedCommands(Cmd->MBlockedUsers, Lock, ToCleanUp);
   }
-  Cmd->getQueue()->revisitNotEnqueuedCommandsState(CmdEvent);
+  QueueImpl->revisitNotEnqueuedCommandsState(CmdEvent);
 
   cleanupCommands(ToCleanUp);
 }

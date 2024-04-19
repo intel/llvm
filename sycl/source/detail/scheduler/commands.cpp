@@ -269,7 +269,7 @@ std::vector<sycl::detail::pi::PiEvent> Command::getPiEventsBlocking(
       continue;
     // In this path nullptr native event means that the command has not been
     // enqueued. It may happen if async enqueue in a host task is involved.
-    if (EventImpl->getHandleRef() == nullptr) {
+    if (!EventImpl->isEnqueued()) {
       if (!EventImpl->getCommand() ||
           !static_cast<Command *>(EventImpl->getCommand())->producesPiEvent())
         continue;
