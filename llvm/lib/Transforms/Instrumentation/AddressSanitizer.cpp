@@ -2911,12 +2911,6 @@ bool ModuleAddressSanitizer::instrumentModule(Module &M) {
     }
   }
 
-  // SPIR kernel needn't AsanCtorFunction & AsanDtorFunction
-  if (TargetTriple.isSPIR()) {
-    AsanCtorFunction = nullptr;
-    AsanDtorFunction = nullptr;
-  }
-
   const uint64_t Priority = GetCtorAndDtorPriority(TargetTriple);
 
   // Put the constructor and destructor in comdat if both
