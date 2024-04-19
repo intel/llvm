@@ -215,6 +215,11 @@ ze_structure_type_t
 getZeStructureType<ze_relaxed_allocation_limits_exp_desc_t>() {
   return ZE_STRUCTURE_TYPE_RELAXED_ALLOCATION_LIMITS_EXP_DESC;
 }
+template <>
+ze_structure_type_t
+getZeStructureType<ze_kernel_max_group_size_properties_ext_t>() {
+  return ZE_STRUCTURE_TYPE_KERNEL_MAX_GROUP_SIZE_EXT_PROPERTIES;
+}
 template <> ze_structure_type_t getZeStructureType<ze_host_mem_alloc_desc_t>() {
   return ZE_STRUCTURE_TYPE_HOST_MEM_ALLOC_DESC;
 }
