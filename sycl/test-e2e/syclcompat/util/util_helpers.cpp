@@ -51,11 +51,14 @@ void test_default_queue_from_int_as_queue_ptr() {
   // Check that int_as_queue_ptr with x < 2 maps to the default queue.
   // Queue addresses may not be equal, but the queues should have the same
   // device.
-  syclcompat::device_ext &device = syclcompat::get_current_device();
-  assert(device.get_info<sycl::info::device::name>() ==
-         syclcompat::int_as_queue_ptr(1)
-             ->get_device()
-             .get_info<sycl::info::device::name>());
+  auto default_name = syclcompat::get_default_queue()
+                          .get_device()
+                          .get_info<sycl::info::device::name>();
+  auto int_as_queue_name = syclcompat::int_as_queue_ptr(1)
+                               ->get_device()
+                               .get_info<sycl::info::device::name>();
+
+  assert(default_name == int_as_queue_name);
 }
 
 void foo(sycl::float2 *x, int n, sycl::nd_item<3> item_ct1, float f = .1) {}
@@ -80,9 +83,6 @@ void test_args_selector() {
   auto &a_ref = selector.get<0>();
   auto &n_ref = selector.get<1>();
   auto &f_ref = selector.get<2>();
-  std::cout << a_ref[0][0] << " " << std::endl;
-  std::cout << n_ref << " " << std::endl;
-  std::cout << f_ref << " " << std::endl;
 
   assert(a_ref[0][0] == 1.0);
   assert(a_ref[0][1] == 2.0);
