@@ -1635,8 +1635,9 @@ ur_result_t ur_queue_handle_t_::synchronize() {
     // event.
     if (isInOrderQueue() && !LastCommandEvent->IsDiscarded) {
       if (UrL0QueueSyncNonBlocking) {
+        auto SyncZeEvent = LastCommandEvent->ZeEvent;
         this->Mutex.unlock();
-        ZE2UR_CALL(zeHostSynchronize, (LastCommandEvent->ZeEvent));
+        ZE2UR_CALL(zeHostSynchronize, (SyncZeEvent));
         this->Mutex.lock();
       } else {
         ZE2UR_CALL(zeHostSynchronize, (LastCommandEvent->ZeEvent));
