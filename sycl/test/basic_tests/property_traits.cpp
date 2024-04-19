@@ -63,6 +63,10 @@ int main() {
   CHECK_IS_PROPERTY(property::buffer::mem_channel);
   CHECK_IS_PROPERTY(ext::oneapi::property::buffer::use_pinned_host_memory);
 
+  // Context is_property
+  CHECK_IS_PROPERTY(property::context::cuda::use_primary_context);
+  CHECK_IS_PROPERTY(ext::oneapi::cuda::property::context::use_primary_context);
+
   // Image is_property
   CHECK_IS_PROPERTY(property::image::use_host_ptr);
   CHECK_IS_PROPERTY(property::image::use_mutex);
@@ -115,6 +119,11 @@ int main() {
   CHECK_IS_PROPERTY_OF(ext::oneapi::property::buffer::use_pinned_host_memory,
                        buffer<unsigned int, 2>);
 
+  // Context is_property_of
+  CHECK_IS_PROPERTY_OF(property::context::cuda::use_primary_context, context);
+  CHECK_IS_PROPERTY_OF(
+      ext::oneapi::cuda::property::context::use_primary_context, context);
+
   // Image is_property_of
   CHECK_IS_PROPERTY_OF(property::image::use_host_ptr, image<1>);
   CHECK_IS_PROPERTY_OF(property::image::use_mutex, image<2>);
@@ -145,6 +154,11 @@ int main() {
   CHECK_IS_NOT_PROPERTY_OF(property::buffer::mem_channel, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF(
       ext::oneapi::property::buffer::use_pinned_host_memory, NotASYCLObject);
+  CHECK_IS_NOT_PROPERTY_OF(property::context::cuda::use_primary_context,
+                           NotASYCLObject);
+  CHECK_IS_NOT_PROPERTY_OF(
+      ext::oneapi::cuda::property::context::use_primary_context,
+      NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF(property::image::use_host_ptr, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF(property::image::use_mutex, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF(property::image::context_bound, NotASYCLObject);
@@ -182,6 +196,11 @@ int main() {
   CHECK_IS_PROPERTY_V(property::buffer::context_bound);
   CHECK_IS_PROPERTY_V(property::buffer::mem_channel);
   CHECK_IS_PROPERTY_V(ext::oneapi::property::buffer::use_pinned_host_memory);
+
+  // Context is_property_v
+  CHECK_IS_PROPERTY_V(property::context::cuda::use_primary_context);
+  CHECK_IS_PROPERTY_V(
+      ext::oneapi::cuda::property::context::use_primary_context);
 
   // Image is_property_v
   CHECK_IS_PROPERTY_V(property::image::use_host_ptr);
@@ -244,6 +263,11 @@ int main() {
   CHECK_IS_PROPERTY_OF_V(ext::oneapi::property::buffer::use_pinned_host_memory,
                          buffer<unsigned int, 2>);
 
+  // Context is_property_of_v
+  CHECK_IS_PROPERTY_OF_V(property::context::cuda::use_primary_context, context);
+  CHECK_IS_PROPERTY_OF_V(
+      ext::oneapi::cuda::property::context::use_primary_context, context);
+
   // Image (SYCL 1.2.1) is_property_of_v
   CHECK_IS_PROPERTY_OF_V(property::image::use_host_ptr, image<1>);
   CHECK_IS_PROPERTY_OF_V(property::image::use_mutex, image<2>);
@@ -285,6 +309,11 @@ int main() {
   CHECK_IS_NOT_PROPERTY_OF_V(property::buffer::mem_channel, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF_V(
       ext::oneapi::property::buffer::use_pinned_host_memory, NotASYCLObject);
+  CHECK_IS_NOT_PROPERTY_OF_V(property::context::cuda::use_primary_context,
+                             NotASYCLObject);
+  CHECK_IS_NOT_PROPERTY_OF_V(
+      ext::oneapi::cuda::property::context::use_primary_context,
+      NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF_V(property::image::use_host_ptr, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF_V(property::image::use_mutex, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF_V(property::image::context_bound, NotASYCLObject);
