@@ -53,6 +53,9 @@ private:
 
 extern "C" {
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wreturn-type-c-linkage"
+#endif // __clang__
 FusionResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
                          const char *FusedKernelName,
                          View<ParameterIdentity> Identities,
