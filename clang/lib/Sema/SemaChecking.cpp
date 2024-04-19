@@ -3015,7 +3015,9 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
   case Builtin::BI__builtin_intel_sycl_alloca_with_align:
     if (!Context.getLangOpts().SYCLIsDevice) {
       Diag(TheCall->getBeginLoc(), diag::err_builtin_requires_language)
-          << "__builtin_intel_sycl_alloca"
+          << (BuiltinID == Builtin::BI__builtin_intel_sycl_alloca
+                  ? "__builtin_intel_sycl_alloca"
+                  : "__builtin_intel_sycl_alloca_with_align")
           << "SYCL device";
       return ExprError();
     }
