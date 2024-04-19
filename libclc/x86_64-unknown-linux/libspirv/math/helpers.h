@@ -1,4 +1,5 @@
 #include "func.h"
+#include "types.h"
 
 #pragma OPENCL EXTENSION cl_khr_fp16: enable                                    
 
