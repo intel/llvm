@@ -600,6 +600,7 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
                                                           this->Mutex);
 
   if (!HostVisibleEvent) {
+    this->IsCreatingHostProxyEvent = true;
     if (UrQueue->ZeEventsScope != OnDemandHostVisibleProxy)
       die("getOrCreateHostVisibleEvent: missing host-visible event");
 
@@ -628,6 +629,7 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
                (CommandList->first, HostVisibleEvent->ZeEvent));
 
     UR_CALL(UrQueue->executeCommandList(CommandList, false, OkToBatch))
+    this->IsCreatingHostProxyEvent = false;
   }
 
   ZeHostVisibleEvent = HostVisibleEvent->ZeEvent;
@@ -938,7 +940,12 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
   std::list<ur_event_handle_t> EventsToBeReleased;
   ur_queue_handle_t AssociatedQueue = nullptr;
   {
-    std::scoped_lock<ur_shared_mutex> EventLock(Event->Mutex);
+    // If the Event is already locked, then continue with the cleanup, otherwise
+    // block on locking the event.
+    std::unique_lock<ur_shared_mutex> EventLock(Event->Mutex, std::try_to_lock);
+    if (!EventLock.owns_lock() && !Event->IsCreatingHostProxyEvent) {
+      EventLock.lock();
+    }
     if (SetEventCompleted)
       Event->Completed = true;
     // Exit early of event was already cleanedup.

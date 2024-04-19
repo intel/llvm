@@ -196,7 +196,11 @@ struct ur_event_handle_t_ : _ur_object {
   // performance
   bool IsMultiDevice = {false};
 
+  // Indicates inner batched event which was not used as a signal event.
   bool IsInnerBatchedEvent = {false};
+
+  // Indicates within creation of proxy event.
+  bool IsCreatingHostProxyEvent = {false};
 
   // Besides each PI object keeping a total reference count in
   // _ur_object::RefCount we keep special track of the event *external*
