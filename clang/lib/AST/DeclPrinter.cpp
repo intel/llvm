@@ -1103,7 +1103,7 @@ void DeclPrinter::VisitCXXRecordDecl(CXXRecordDecl *D) {
 
   prettyPrintAttributes(D, AttrPosAsWritten::Right);
 
-  if (D->isCompleteDefinition()) {
+  if (D->isCompleteDefinition() && !Policy.SuppressDefinition) {
     Out << ' ';
     // Print the base classes
     if (D->getNumBases()) {
