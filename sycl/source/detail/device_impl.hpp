@@ -201,6 +201,12 @@ public:
   /// \return device info of type described in Table 4.20.
   template <typename Param> typename Param::return_type get_info() const;
 
+  /// Queries SYCL queue for SYCL backend-specific information.
+  ///
+  /// The return type depends on information being queried.
+  template <typename Param>
+  typename Param::return_type get_backend_info() const;
+
   /// Check if affinity partitioning by specified domain is supported by
   /// device
   ///
@@ -250,6 +256,8 @@ public:
              getDeviceArch() <= CategoryMaxArch;
     return false;
   }
+
+  bool extOneapiCanCompile(ext::oneapi::experimental::source_language Language);
 
   /// Gets the current device timestamp
   /// @throw sycl::feature_not_supported if feature is not supported on device

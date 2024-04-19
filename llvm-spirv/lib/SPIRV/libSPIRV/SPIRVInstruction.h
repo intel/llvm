@@ -381,14 +381,14 @@ public:
 class SPIRVMemoryAccess {
 public:
   SPIRVMemoryAccess(const std::vector<SPIRVWord> &TheMemoryAccess)
-      : TheMemoryAccessMask(0), Alignment(0), AliasScopeInstID(0),
-        NoAliasInstID(0) {
+      : TheMemoryAccessMask(0), Alignment(0), SrcAlignment(0),
+        AliasScopeInstID(0), NoAliasInstID(0) {
     memoryAccessUpdate(TheMemoryAccess);
   }
 
   SPIRVMemoryAccess()
-      : TheMemoryAccessMask(0), Alignment(0), AliasScopeInstID(0),
-        NoAliasInstID(0) {}
+      : TheMemoryAccessMask(0), Alignment(0), SrcAlignment(0),
+        AliasScopeInstID(0), NoAliasInstID(0) {}
 
   void memoryAccessUpdate(const std::vector<SPIRVWord> &MemoryAccess) {
     if (!MemoryAccess.size())
@@ -409,7 +409,18 @@ public:
     if (MemoryAccess[0] & MemoryAccessNoAliasINTELMaskMask) {
       assert(MemoryAccess.size() > MemAccessNumParam &&
           "Aliasing operand is missing");
-      NoAliasInstID = MemoryAccess[MemAccessNumParam];
+      NoAliasInstID = MemoryAccess[MemAccessNumParam++];
+    }
+
+    // Exit if there is no second memory operand mask
+    if (MemoryAccess.size() == MemAccessNumParam)
+      return;
+
+    size_t SecondMaskId = MemAccessNumParam++;
+    if (MemoryAccess[SecondMaskId] & MemoryAccessAlignedMask) {
+      assert(MemoryAccess.size() > MemAccessNumParam &&
+             "Alignment operand is missing");
+      SrcAlignment = MemoryAccess[MemAccessNumParam];
     }
   }
   SPIRVWord isVolatile() const {
@@ -426,12 +437,14 @@ public:
   }
   SPIRVWord getMemoryAccessMask() const { return TheMemoryAccessMask; }
   SPIRVWord getAlignment() const { return Alignment; }
+  SPIRVWord getSrcAlignment() const { return SrcAlignment; }
   SPIRVWord getAliasScopeInstID() const { return AliasScopeInstID; }
   SPIRVWord getNoAliasInstID() const { return NoAliasInstID; }
 
 protected:
   SPIRVWord TheMemoryAccessMask;
   SPIRVWord Alignment;
+  SPIRVWord SrcAlignment;
   SPIRVId AliasScopeInstID;
   SPIRVId NoAliasInstID;
 };
@@ -443,8 +456,8 @@ public:
                 const std::string &TheName,
                 SPIRVStorageClassKind TheStorageClass, SPIRVBasicBlock *TheBB,
                 SPIRVModule *TheM)
-      : SPIRVInstruction(TheInitializer ? 5 : 4, OpVariable, TheType, TheId,
-                         TheBB, TheM),
+      : SPIRVInstruction(TheInitializer && !TheInitializer->isUndef() ? 5 : 4,
+                         OpVariable, TheType, TheId, TheBB, TheM),
         StorageClass(TheStorageClass) {
     if (TheInitializer && !TheInitializer->isUndef())
       Initializer.push_back(TheInitializer->getId());
@@ -2091,6 +2104,7 @@ public:
         Size(TheSize->getId()) {
     validate();
     assert(TheBB && "Invalid BB");
+    updateModuleVersion();
   }
   // Incomplete constructor
   SPIRVCopyMemorySized()
@@ -2098,6 +2112,13 @@ public:
         Source(SPIRVID_INVALID), Size(0) {
     setHasNoId();
     setHasNoType();
+    updateModuleVersion();
+  }
+
+  VersionNumber getRequiredSPIRVVersion() const override {
+    if (getSrcAlignment())
+      return VersionNumber::SPIRV_1_4;
+    return VersionNumber::SPIRV_1_0;
   }
 
   SPIRVValue *getSource() { return getValue(Source); }
@@ -2213,15 +2234,11 @@ public:
 protected:
   void validate() const override {
     SPIRVInstruction::validate();
-    SPIRVId Vector1 = Ops[0];
-    SPIRVId Vector2 = Ops[1];
+    [[maybe_unused]] SPIRVId Vector1 = Ops[0];
     assert(OpCode == OpVectorShuffle);
     assert(Type->isTypeVector());
     assert(Type->getVectorComponentType() ==
            getValueType(Vector1)->getVectorComponentType());
-    if (getValue(Vector1)->isForward() || getValue(Vector2)->isForward())
-      return;
-    assert(getValueType(Vector1) == getValueType(Vector2));
     assert(Ops.size() - 2 == Type->getVectorComponentCount());
   }
 };
@@ -3904,21 +3921,21 @@ protected:
         ClusterMode >= -1 && ClusterMode <= 1, SPIRVEC_InvalidInstruction,
         InstName + "\nClusterMode valid values are -1, 0, 1.\n");
 
-    const uint32_t GetCapacity =
+    const int GetCapacity =
         static_cast<SPIRVConstant *>(
             const_cast<SPIRVTaskSequenceCreateINTELInst *>(this)->getOperand(3))
             ->getZExtIntValue();
     SPVErrLog.checkError(
-        GetCapacity, SPIRVEC_InvalidInstruction,
-        InstName + "\nGetCapacity must be unsigned 32 bit integer.\n");
+        GetCapacity >= 0, SPIRVEC_InvalidInstruction,
+        InstName + "\nGetCapacity must be an unsigned 32-bit integer.\n");
 
-    const uint32_t AsyncCapacity =
+    const int AsyncCapacity =
         static_cast<SPIRVConstant *>(
             const_cast<SPIRVTaskSequenceCreateINTELInst *>(this)->getOperand(4))
             ->getZExtIntValue();
     SPVErrLog.checkError(
-        AsyncCapacity, SPIRVEC_InvalidInstruction,
-        InstName + "\nAsyncCapacity must be unsigned 32 bit integer.\n");
+        AsyncCapacity >= 0, SPIRVEC_InvalidInstruction,
+        InstName + "\nAsyncCapacity must be an unsigned 32-bit integer.\n");
   }
 };
 

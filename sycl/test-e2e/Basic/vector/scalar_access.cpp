@@ -13,7 +13,11 @@
 // vector by reference
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/stream.hpp>
+#include <sycl/types.hpp>
 
 typedef float float4_t __attribute__((ext_vector_type(4)));
 

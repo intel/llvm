@@ -313,8 +313,38 @@
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_is_component__ 0
 #endif
 
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_graph__
+// __SYCL_ASPECT(ext_oneapi_graph, 61)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_graph__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_intel_fpga_task_sequence__
+// __SYCL_ASPECT(ext_intel_fpga_task_sequence, 62)
+#define __SYCL_ALL_DEVICES_HAVE_ext_intel_fpga_task_sequence__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_limited_graph__
+// __SYCL_ASPECT(ext_oneapi_limited_graph, 63)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_limited_graph__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_private_alloca__
+// __SYCL_ASPECT(ext_oneapi_private_alloca, 64)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_private_alloca__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_cubemap__
+// __SYCL_ASPECT(ext_oneapi_cubemap, 65)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_cubemap__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_cubemap_seamless_filtering__
+// __SYCL_ASPECT(ext_oneapi_cubemap_seamless_filtering, 66)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_cubemap_seamless_filtering__ 0
+#endif
+
 #ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_virtual_mem__
-// __SYCL_ASPECT(ext_oneapi_virtual_mem, 61)
+// __SYCL_ASPECT(ext_oneapi_virtual_mem, 67)
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_virtual_mem__ 0
 #endif
 
@@ -623,7 +653,37 @@
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_is_component__ 0
 #endif
 
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_graph__
+// __SYCL_ASPECT(ext_oneapi_graph, 61)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_graph__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_fpga_task_sequence__
+// __SYCL_ASPECT(ext_intel_fpga_task_sequence__, 62)
+#define __SYCL_ANY_DEVICE_HAS_ext_intel_fpga_task_sequence__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_limited_graph__
+// __SYCL_ASPECT(ext_oneapi_limited_graph, 63)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_limited_graph__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_private_alloca__
+// __SYCL_ASPECT(ext_oneapi_private_alloca, 64)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_private_alloca__ 1
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_cubemap__
+// __SYCL_ASPECT(ext_oneapi_cubemap, 65)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_cubemap__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_cubemap_seamless_filtering__
+// __SYCL_ASPECT(ext_oneapi_cubemap_seamless_filtering, 66)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_cubemap_seamless_filtering__ 0
+#endif
+
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_virtual_mem__
-// __SYCL_ASPECT(ext_oneapi_virtual_mem, 61)
+// __SYCL_ASPECT(ext_oneapi_virtual_mem, 67)
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_virtual_mem__ 0
 #endif

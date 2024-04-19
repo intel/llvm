@@ -1565,22 +1565,23 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
       // parameter. To work around this limitation we create a dummy temp
       // alloca, use it to create llvm.dbg.declare, and then remove the alloca.
       auto *AI = new AllocaInst(Type::getInt8Ty(M->getContext()), 0, "tmp", BB);
-      auto *DbgDeclare = getDIBuilder(DebugInst).insertDeclare(
+      DbgInstPtr DbgDeclare = getDIBuilder(DebugInst).insertDeclare(
           AI, LocalVar.first, GetExpression(Ops[ExpressionIdx]),
           LocalVar.second, BB);
       AI->eraseFromParent();
-      return DbgDeclare;
+      return DbgDeclare.get<Instruction *>();
     }
-    return getDIBuilder(DebugInst).insertDeclare(
-        GetValue(Ops[VariableIdx]), LocalVar.first,
-        GetExpression(Ops[ExpressionIdx]), LocalVar.second, BB);
+    return getDIBuilder(DebugInst)
+        .insertDeclare(GetValue(Ops[VariableIdx]), LocalVar.first,
+                       GetExpression(Ops[ExpressionIdx]), LocalVar.second, BB)
+        .get<Instruction *>();
   }
   case SPIRVDebug::Value: {
     using namespace SPIRVDebug::Operand::DebugValue;
     auto LocalVar = GetLocalVar(Ops[DebugLocalVarIdx]);
     Value *Val = GetValue(Ops[ValueIdx]);
     DIExpression *Expr = GetExpression(Ops[ExpressionIdx]);
-    auto *DbgValIntr = getDIBuilder(DebugInst).insertDbgValueIntrinsic(
+    DbgInstPtr DbgValIntr = getDIBuilder(DebugInst).insertDbgValueIntrinsic(
         Val, LocalVar.first, Expr, LocalVar.second, BB);
 
     std::vector<ValueAsMetadata *> MDs;
@@ -1589,9 +1590,10 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
     }
     if (!MDs.empty()) {
       DIArgList *AL = DIArgList::get(M->getContext(), MDs);
-      cast<DbgVariableIntrinsic>(DbgValIntr)->setRawLocation(AL);
+      cast<DbgVariableIntrinsic>(DbgValIntr.get<Instruction *>())
+          ->setRawLocation(AL);
     }
-    return DbgValIntr;
+    return DbgValIntr.get<Instruction *>();
   }
   default:
     llvm_unreachable("Unknown debug intrinsic!");

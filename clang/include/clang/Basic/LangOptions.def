@@ -161,6 +161,8 @@ LANGOPT(DllExportInlines  , 1, 1, "dllexported classes dllexport inline methods"
 LANGOPT(RelaxedTemplateTemplateArgs, 1, 0, "C++17 relaxed matching of template template arguments")
 LANGOPT(ExperimentalLibrary, 1, 0, "enable unstable and experimental library features")
 
+LANGOPT(PointerAuthIntrinsics, 1, 0, "pointer authentication intrinsics")
+
 LANGOPT(DoubleSquareBracketAttributes, 1, 0, "'[[]]' attributes extension for all language standard modes")
 
 COMPATIBLE_LANGOPT(RecoveryAST, 1, 1, "Preserve expressions in AST when encountering errors")
@@ -298,7 +300,10 @@ LANGOPT(
     "SYCL compiler assumes value fits within MAX_INT for member function of "
     "get/operator[], get_id/operator[] and get_global_id/get_global_linear_id "
     "in SYCL class id, iterm and nd_iterm")
-LANGOPT(SYCLDisableRangeRounding, 1, 0, "Disable parallel for range rounding")
+ENUM_LANGOPT(SYCLRangeRounding, SYCLRangeRoundingPreference, 2,
+    SYCLRangeRoundingPreference::On,
+    "Preference for SYCL parallel_for range rounding")
+LANGOPT(SYCLExperimentalRangeRounding, 1, 0, "Use experimental parallel for range rounding")
 LANGOPT(SYCLEnableIntHeaderDiags, 1, 0, "Enable diagnostics that require the "
         "SYCL integration header")
 LANGOPT(SYCLAllowVirtualFunctions, 1, 0,
@@ -472,6 +477,8 @@ LANGOPT(RegisterStaticDestructors, 1, 1, "Register C++ static destructors")
 LANGOPT(RegCall4, 1, 0, "Set __regcall4 as a default calling convention to respect __regcall ABI v.4")
 
 LANGOPT(MatrixTypes, 1, 0, "Enable or disable the builtin matrix type")
+
+LANGOPT(CXXAssumptions, 1, 1, "Enable or disable codegen and compile-time checks for C++23's [[assume]] attribute")
 
 ENUM_LANGOPT(StrictFlexArraysLevel, StrictFlexArraysLevelKind, 2,
              StrictFlexArraysLevelKind::Default,

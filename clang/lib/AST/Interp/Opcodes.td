@@ -59,6 +59,7 @@ def ArgCastKind : ArgType { let Name = "CastKind"; }
 def ArgCallExpr : ArgType { let Name = "const CallExpr *"; }
 def ArgOffsetOfExpr : ArgType { let Name = "const OffsetOfExpr *"; }
 def ArgDeclRef : ArgType { let Name = "const DeclRefExpr *"; }
+def ArgDesc : ArgType { let Name = "const Descriptor *"; }
 def ArgCCI : ArgType { let Name = "const ComparisonCategoryInfo *"; }
 
 //===----------------------------------------------------------------------===//
@@ -272,6 +273,7 @@ def ZeroIntAPS : Opcode {
 // [] -> [Pointer]
 def Null : Opcode {
   let Types = [PtrTypeClass];
+  let Args = [ArgDesc];
   let HasGroup = 1;
 }
 
@@ -367,6 +369,14 @@ def ArrayElemPop : Opcode {
   let Types = [AllTypeClass];
   let HasGroup = 1;
 }
+
+def ArrayElem : Opcode {
+  let Args = [ArgUint32];
+  let Types = [AllTypeClass];
+  let HasGroup = 1;
+}
+
+
 
 //===----------------------------------------------------------------------===//
 // Direct field accessors
@@ -522,6 +532,11 @@ def GetFnPtr : Opcode {
   let Args = [ArgFunction];
 }
 
+def GetIntPtr : Opcode {
+  let Types = [AluTypeClass];
+  let Args = [ArgDesc];
+  let HasGroup = 1;
+}
 
 //===----------------------------------------------------------------------===//
 // Binary operators.
@@ -563,10 +578,10 @@ def Inv: Opcode {
 }
 
 // Increment and decrement.
-def Inc: IntegerOpcode;
-def IncPop : IntegerOpcode;
-def Dec: IntegerOpcode;
-def DecPop: IntegerOpcode;
+def Inc: AluOpcode;
+def IncPop : AluOpcode;
+def Dec: AluOpcode;
+def DecPop: AluOpcode;
 
 // Float increment and decrement.
 def Incf: FloatOpcode;
@@ -654,6 +669,11 @@ def CastPointerIntegral : Opcode {
   let HasGroup = 1;
 }
 
+def DecayPtr : Opcode {
+  let Types = [PtrTypeClass, PtrTypeClass];
+  let HasGroup = 1;
+}
+
 //===----------------------------------------------------------------------===//
 // Comparison opcodes.
 //===----------------------------------------------------------------------===//
@@ -698,6 +718,7 @@ def Dup : Opcode {
 
 // [] -> []
 def Invalid : Opcode {}
+def Error : Opcode {}
 def InvalidCast : Opcode {
   let Args = [ArgCastKind];
 }
@@ -712,3 +733,10 @@ def CheckNonNullArg : Opcode {
   let Types = [PtrTypeClass];
   let HasGroup = 1;
 }
+
+def Memcpy : Opcode;
+
+//===----------------------------------------------------------------------===//
+// Debugging.
+//===----------------------------------------------------------------------===//
+def Dump : Opcode;

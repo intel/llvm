@@ -123,7 +123,8 @@
 // RUN: %clangxx -fsycl %s -fno-sycl-device-lib=libc,all,libm-fp64,libm-fp32 --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_UNBUNDLE_NO_DEVICE_LIB
 // SYCL_DEVICE_LIB_UNBUNDLE_NO_DEVICE_LIB: {{.*}}clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"
-// SYCL_DEVICE_LIB_UNBUNDLE_NO_DEVICE_LIB-NEXT: {{.*}}llvm-link{{.*}} {{.*}} "--suppress-warnings"
+// SYCL_DEVICE_LIB_UNBUNDLE_NO_DEVICE_LIB-NOT: libsycl-cmath
+// SYCL_DEVICE_LIB_UNBUNDLE_NO_DEVICE_LIB: {{.*}}llvm-link{{.*}} {{.*}} "--suppress-warnings"
 
 /// ###########################################################################
 
@@ -250,6 +251,6 @@
 // SYCL_DEVICE_LIB_SANITIZER-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-sanitizer.o" "-output={{.*}}libsycl-sanitizer-{{.*}}.o" "-unbundle"
 // SYCL_DEVICE_ASAN_MACRO: "-cc1"
 // SYCL_DEVICE_ASAN_MACRO-SAME: "USE_SYCL_DEVICE_ASAN"
-// SYCL_DEVICE_ASAN_MACRO-NEXT: llvm-link{{.*}}
+// SYCL_DEVICE_ASAN_MACRO: llvm-link{{.*}}
 // SYCL_DEVICE_ASAN_MACRO:  clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-sanitizer.o" "-output={{.*}}libsycl-sanitizer-{{.*}}.o" "-unbundle"
 // SYCL_DEVICE_ASAN_MACRO: llvm-link{{.*}} "-only-needed" "{{.*}}" "-o" "{{.*}}.bc" "--suppress-warnings"

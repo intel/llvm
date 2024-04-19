@@ -54,9 +54,9 @@
 #include "SPIRVLowerBitCastToNonStandardType.h"
 #include "SPIRVLowerBool.h"
 #include "SPIRVLowerConstExpr.h"
+#include "SPIRVLowerLLVMIntrinsic.h"
 #include "SPIRVLowerMemmove.h"
 #include "SPIRVLowerOCLBlocks.h"
-#include "SPIRVLowerSaddWithOverflow.h"
 #include "SPIRVMDWalker.h"
 #include "SPIRVMemAliasingINTEL.h"
 #include "SPIRVModule.h"
@@ -1148,11 +1148,11 @@ void LLVMToSPIRVBase::transFunctionMetadataAsExecutionMode(SPIRVFunction *BF,
     auto *RegisterAllocMode = RegisterAllocModeMDs[I]->getOperand(0).get();
     if (isa<MDString>(RegisterAllocMode)) {
       StringRef Str = getMDOperandAsString(RegisterAllocModeMDs[I], 0);
-      internal::InternalNamedMaximumNumberOfRegisters NamedValue =
+      NamedMaximumNumberOfRegisters NamedValue =
           SPIRVNamedMaximumNumberOfRegistersNameMap::rmap(Str.str());
       BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
-          OpExecutionMode, BF,
-          internal::ExecutionModeNamedMaximumRegistersINTEL, NamedValue)));
+          OpExecutionMode, BF, ExecutionModeNamedMaximumRegistersINTEL,
+          NamedValue)));
     } else if (isa<MDNode>(RegisterAllocMode)) {
       auto *RegisterAllocNodeMDOp =
           getMDOperandAsMDNode(RegisterAllocModeMDs[I], 0);
@@ -1160,12 +1160,12 @@ void LLVMToSPIRVBase::transFunctionMetadataAsExecutionMode(SPIRVFunction *BF,
       auto *Const =
           BM->addConstant(transType(Type::getInt32Ty(F->getContext())), Num);
       BF->addExecutionMode(BM->add(new SPIRVExecutionModeId(
-          BF, internal::ExecutionModeMaximumRegistersIdINTEL, Const->getId())));
+          BF, ExecutionModeMaximumRegistersIdINTEL, Const->getId())));
     } else {
       int64_t RegisterAllocVal =
           mdconst::dyn_extract<ConstantInt>(RegisterAllocMode)->getZExtValue();
       BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
-          OpExecutionMode, BF, internal::ExecutionModeMaximumRegistersINTEL,
+          OpExecutionMode, BF, ExecutionModeMaximumRegistersINTEL,
           RegisterAllocVal)));
     }
   }
@@ -1421,6 +1421,15 @@ SPIRVValue *LLVMToSPIRVBase::transConstant(Value *V) {
   }
 
   if (auto *ConstUE = dyn_cast<ConstantExpr>(V)) {
+    if (auto *GEP = dyn_cast<GEPOperator>(ConstUE)) {
+      std::vector<SPIRVValue *> Indices;
+      for (unsigned I = 0, E = GEP->getNumIndices(); I != E; ++I)
+        Indices.push_back(transValue(GEP->getOperand(I + 1), nullptr));
+      auto *TransPointerOperand = transValue(GEP->getPointerOperand(), nullptr);
+      SPIRVType *TranslatedTy = transScavengedType(GEP);
+      return BM->addPtrAccessChainInst(TranslatedTy, TransPointerOperand,
+                                       Indices, nullptr, GEP->isInBounds());
+    }
     auto *Inst = ConstUE->getAsInstruction();
     SPIRVDBG(dbgs() << "ConstantExpr: " << *ConstUE << '\n';
              dbgs() << "Instruction: " << *Inst << '\n';)
@@ -2271,6 +2280,29 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
   if (AllocaInst *Alc = dyn_cast<AllocaInst>(V)) {
     SPIRVType *TranslatedTy = transScavengedType(V);
     if (Alc->isArrayAllocation()) {
+      SPIRVValue *Length = transValue(Alc->getArraySize(), BB);
+      assert(Length && "Couldn't translate array size!");
+
+      if (isSpecConstantOpCode(Length->getOpCode())) {
+        // SPIR-V arrays length can be expressed using a specialization
+        // constant.
+        //
+        // Spec Constant Length Arrays need special treatment, as the allocation
+        // type will be 'OpTypePointer(Function, OpTypeArray(ElementType,
+        // Length))', we need to bitcast the obtained pointer to the expected
+        // type: 'OpTypePointer(Function, ElementType).
+        SPIRVType *AllocationType = BM->addPointerType(
+            StorageClassFunction,
+            BM->addArrayType(transType(Alc->getAllocatedType()), Length));
+        SPIRVValue *Arr = BM->addVariable(
+            AllocationType, false, spv::internal::LinkageTypeInternal, nullptr,
+            Alc->getName().str() + "_alloca", StorageClassFunction, BB);
+        // Manually set alignment. OpBitcast created below will be decorated as
+        // that's the SPIR-V value mapped to the original LLVM one.
+        transAlign(Alc, Arr);
+        return mapValue(V, BM->addUnaryInst(OpBitcast, TranslatedTy, Arr, BB));
+      }
+
       if (!BM->checkExtension(ExtensionID::SPV_INTEL_variable_length_array,
                               SPIRVEC_InvalidInstruction,
                               toString(Alc) +
@@ -2278,8 +2310,6 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                                   "SPV_INTEL_variable_length_array extension."))
         return nullptr;
 
-      SPIRVValue *Length = transValue(Alc->getArraySize(), BB);
-      assert(Length && "Couldn't translate array size!");
       return mapValue(V,
                       BM->addInstTemplate(OpVariableLengthArrayINTEL,
                                           {Length->getId()}, BB, TranslatedTy));
@@ -3982,19 +4012,30 @@ bool allowDecorateWithLatencyControlINTEL(IntrinsicInst *II) {
 
 SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
                                                 SPIRVBasicBlock *BB) {
-  auto GetMemoryAccess = [](MemIntrinsic *MI) -> std::vector<SPIRVWord> {
+  auto GetMemoryAccess =
+      [](MemIntrinsic *MI,
+         bool AllowTwoMemAccessMasks) -> std::vector<SPIRVWord> {
     std::vector<SPIRVWord> MemoryAccess(1, MemoryAccessMaskNone);
     MaybeAlign DestAlignVal = MI->getDestAlign();
     if (DestAlignVal) {
       Align AlignVal = *DestAlignVal;
       MemoryAccess[0] |= MemoryAccessAlignedMask;
-      if (auto *MTI = dyn_cast<MemTransferInst>(MI)) {
+      if (auto *MTI = dyn_cast<MemCpyInst>(MI)) {
         MaybeAlign SourceAlignVal = MTI->getSourceAlign();
         assert(SourceAlignVal && "Missed Source alignment!");
 
         // In a case when alignment of source differs from dest one
-        // least value is guaranteed anyway.
-        AlignVal = std::min(*DestAlignVal, *SourceAlignVal);
+        // we either preserve both (allowed since SPIR-V 1.4), or the least
+        // value is guaranteed anyway.
+        if (AllowTwoMemAccessMasks) {
+          if (*DestAlignVal != *SourceAlignVal) {
+            MemoryAccess.push_back(DestAlignVal.valueOrOne().value());
+            MemoryAccess.push_back(MemoryAccessAlignedMask);
+            AlignVal = *SourceAlignVal;
+          }
+        } else {
+          AlignVal = std::min(*DestAlignVal, *SourceAlignVal);
+        }
       }
       MemoryAccess.push_back(AlignVal.value());
     }
@@ -4489,14 +4530,19 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
         transPointerType(Val->getType(), SPIRV::SPIRAS_Constant);
     SPIRVValue *Source = BM->addUnaryInst(OpBitcast, SourceTy, Var, BB);
     SPIRVValue *Target = transValue(MSI->getRawDest(), BB);
-    return BM->addCopyMemorySizedInst(Target, Source, CompositeTy->getLength(),
-                                      GetMemoryAccess(MSI), BB);
+    return BM->addCopyMemorySizedInst(
+        Target, Source, CompositeTy->getLength(),
+        GetMemoryAccess(MSI,
+                        BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4)),
+        BB);
   } break;
   case Intrinsic::memcpy:
     return BM->addCopyMemorySizedInst(
         transValue(II->getOperand(0), BB), transValue(II->getOperand(1), BB),
         transValue(II->getOperand(2), BB),
-        GetMemoryAccess(cast<MemIntrinsic>(II)), BB);
+        GetMemoryAccess(cast<MemIntrinsic>(II),
+                        BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4)),
+        BB);
   case Intrinsic::lifetime_start:
   case Intrinsic::lifetime_end: {
     Op OC = (II->getIntrinsicID() == Intrinsic::lifetime_start)
@@ -5441,7 +5487,7 @@ LLVMToSPIRVBase::collectEntryPointInterfaces(SPIRVFunction *SF, Function *F) {
 }
 
 void LLVMToSPIRVBase::mutateFuncArgType(
-    const std::map<unsigned, Type *> &ChangedType, Function *F) {
+    const std::unordered_map<unsigned, Type *> &ChangedType, Function *F) {
   for (auto &I : ChangedType) {
     for (auto UI = F->user_begin(), UE = F->user_end(); UI != UE; ++UI) {
       auto *Call = dyn_cast<CallInst>(*UI);
@@ -5676,7 +5722,7 @@ bool LLVMToSPIRVBase::translate() {
 
   for (auto &F : *M) {
     auto *FT = F.getFunctionType();
-    std::map<unsigned, Type *> ChangedType;
+    std::unordered_map<unsigned, Type *> ChangedType;
     oclGetMutatedArgumentTypesByBuiltin(FT, ChangedType, &F);
     mutateFuncArgType(ChangedType, &F);
   }
@@ -5716,7 +5762,7 @@ llvm::IntegerType *LLVMToSPIRVBase::getSizetType(unsigned AS) {
 }
 
 void LLVMToSPIRVBase::oclGetMutatedArgumentTypesByBuiltin(
-    llvm::FunctionType *FT, std::map<unsigned, Type *> &ChangedType,
+    llvm::FunctionType *FT, std::unordered_map<unsigned, Type *> &ChangedType,
     Function *F) {
   StringRef Demangled;
   if (!oclIsBuiltin(F->getName(), Demangled))
@@ -6116,7 +6162,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     OC = OpAtomicCompareExchange;
   if (isGroupOpCode(OC))
     BM->addCapability(CapabilityGroups);
-  switch (OC) {
+  switch (static_cast<size_t>(OC)) {
   case OpControlBarrier: {
     auto BArgs = transValue(getArguments(CI), BB);
     return BM->addControlBarrierInst(BArgs[0], BArgs[1], BArgs[2], BB);
@@ -6421,6 +6467,25 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), APIntInst, {},
                             BB);
   }
+  case internal::OpTaskSequenceGetINTEL: {
+    Type *ResTy = nullptr;
+    auto OpItr = CI->value_op_begin();
+
+    if (CI->hasStructRetAttr()) {
+      assert(CI->getType()->isVoidTy() && "Return type is not void");
+      ResTy = CI->getParamStructRetType(0);
+      OpItr++;
+    }
+
+    SPIRVType *RetTy = ResTy ? transType(ResTy) : transScavengedType(CI);
+    auto *TaskSeqGet =
+        BM->addTaskSequenceGetINTELInst(RetTy, transValue(*OpItr++, BB), BB);
+
+    if (!CI->hasStructRetAttr())
+      return TaskSeqGet;
+    return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), TaskSeqGet,
+                            {}, BB);
+  }
   case OpLoad: {
     std::vector<SPIRVWord> MemoryAccess;
     assert(CI->arg_size() > 0 && "Expected at least 1 operand for OpLoad call");
@@ -6446,6 +6511,22 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
         transValue(CI->getArgOperand(0), BB)->getId()};
     return BM->addCompositeConstructInst(transType(CI->getType()), Operands,
                                          BB);
+  }
+  case OpIAddCarry: {
+    Function *F = CI->getCalledFunction();
+    StructType *St = cast<StructType>(F->getParamStructRetType(0));
+    SPIRVValue *V = BM->addBinaryInst(OpIAddCarry, transType(St),
+                                      transValue(CI->getArgOperand(1), BB),
+                                      transValue(CI->getArgOperand(2), BB), BB);
+    return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), V, {}, BB);
+  }
+  case OpISubBorrow: {
+    Function *F = CI->getCalledFunction();
+    StructType *St = cast<StructType>(F->getParamStructRetType(0));
+    SPIRVValue *V = BM->addBinaryInst(OpISubBorrow, transType(St),
+                                      transValue(CI->getArgOperand(1), BB),
+                                      transValue(CI->getArgOperand(2), BB), BB);
+    return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), V, {}, BB);
   }
   case OpGroupNonUniformShuffleDown: {
     Function *F = CI->getCalledFunction();
@@ -6612,7 +6693,7 @@ void addPassesForSPIRV(ModulePassManager &PassMgr,
   PassMgr.addPass(SPIRVLowerConstExprPass());
   PassMgr.addPass(SPIRVLowerBoolPass());
   PassMgr.addPass(SPIRVLowerMemmovePass());
-  PassMgr.addPass(SPIRVLowerSaddWithOverflowPass());
+  PassMgr.addPass(SPIRVLowerLLVMIntrinsicPass(Opts));
   PassMgr.addPass(createModuleToFunctionPassAdaptor(
       SPIRVLowerBitCastToNonStandardTypePass(Opts)));
 }

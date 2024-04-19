@@ -39,6 +39,7 @@
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Frontend/OpenMP/OMPIRBuilder.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Utils/SanitizerStats.h"
@@ -352,6 +353,25 @@ public:
     return isCoroutine() && CurCoro.InSuspendBlock;
   }
 
+  // Holds FramePtr for await_suspend wrapper generation,
+  // so that __builtin_coro_frame call can be lowered
+  // directly to value of its second argument
+  struct AwaitSuspendWrapperInfo {
+    llvm::Value *FramePtr = nullptr;
+  };
+  AwaitSuspendWrapperInfo CurAwaitSuspendWrapper;
+
+  // Generates wrapper function for `llvm.coro.await.suspend.*` intrinisics.
+  // It encapsulates SuspendExpr in a function, to separate it's body
+  // from the main coroutine to avoid miscompilations. Intrinisic
+  // is lowered to this function call in CoroSplit pass
+  // Function signature is:
+  // <type> __await_suspend_wrapper_<name>(ptr %awaiter, ptr %hdl)
+  // where type is one of (void, i1, ptr)
+  llvm::Function *generateAwaitSuspendWrapper(Twine const &CoroName,
+                                              Twine const &SuspendPointName,
+                                              CoroutineSuspendExpr const &S);
+
   /// CurGD - The GlobalDecl for the current function being compiled.
   GlobalDecl CurGD;
 
@@ -629,6 +649,51 @@ public:
 
   EHScopeStack EHStack;
   llvm::SmallVector<char, 256> LifetimeExtendedCleanupStack;
+
+  // A stack of cleanups which were added to EHStack but have to be deactivated
+  // later before being popped or emitted. These are usually deactivated on
+  // exiting a `CleanupDeactivationScope` scope. For instance, after a
+  // full-expr.
+  //
+  // These are specially useful for correctly emitting cleanups while
+  // encountering branches out of expression (through stmt-expr or coroutine
+  // suspensions).
+  struct DeferredDeactivateCleanup {
+    EHScopeStack::stable_iterator Cleanup;
+    llvm::Instruction *DominatingIP;
+  };
+  llvm::SmallVector<DeferredDeactivateCleanup> DeferredDeactivationCleanupStack;
+
+  // Enters a new scope for capturing cleanups which are deferred to be
+  // deactivated, all of which will be deactivated once the scope is exited.
+  struct CleanupDeactivationScope {
+    CodeGenFunction &CGF;
+    size_t OldDeactivateCleanupStackSize;
+    bool Deactivated;
+    CleanupDeactivationScope(CodeGenFunction &CGF)
+        : CGF(CGF), OldDeactivateCleanupStackSize(
+                        CGF.DeferredDeactivationCleanupStack.size()),
+          Deactivated(false) {}
+
+    void ForceDeactivate() {
+      assert(!Deactivated && "Deactivating already deactivated scope");
+      auto &Stack = CGF.DeferredDeactivationCleanupStack;
+      for (size_t I = Stack.size(); I > OldDeactivateCleanupStackSize; I--) {
+        CGF.DeactivateCleanupBlock(Stack[I - 1].Cleanup,
+                                   Stack[I - 1].DominatingIP);
+        Stack[I - 1].DominatingIP->eraseFromParent();
+      }
+      Stack.resize(OldDeactivateCleanupStackSize);
+      Deactivated = true;
+    }
+
+    ~CleanupDeactivationScope() {
+      if (Deactivated)
+        return;
+      ForceDeactivate();
+    }
+  };
+
   llvm::SmallVector<const JumpDest *, 2> SEHTryEpilogueStack;
 
   llvm::Instruction *CurrentFuncletPad = nullptr;
@@ -834,6 +899,19 @@ public:
       new (Buffer + sizeof(Header) + sizeof(T)) Address(ActiveFlag);
   }
 
+  // Push a cleanup onto EHStack and deactivate it later. It is usually
+  // deactivated when exiting a `CleanupDeactivationScope` (for example: after a
+  // full expression).
+  template <class T, class... As>
+  void pushCleanupAndDeferDeactivation(CleanupKind Kind, As... A) {
+    // Placeholder dominating IP for this cleanup.
+    llvm::Instruction *DominatingIP =
+        Builder.CreateFlagLoad(llvm::Constant::getNullValue(Int8PtrTy));
+    EHStack.pushCleanup<T>(Kind, A...);
+    DeferredDeactivationCleanupStack.push_back(
+        {EHStack.stable_begin(), DominatingIP});
+  }
+
   /// Set up the last cleanup that was pushed as a conditional
   /// full-expression cleanup.
   void initFullExprCleanup() {
@@ -885,6 +963,7 @@ public:
   class RunCleanupsScope {
     EHScopeStack::stable_iterator CleanupStackDepth, OldCleanupScopeDepth;
     size_t LifetimeExtendedCleanupStackSize;
+    CleanupDeactivationScope DeactivateCleanups;
     bool OldDidCallStackSave;
   protected:
     bool PerformCleanup;
@@ -899,8 +978,7 @@ public:
   public:
     /// Enter a new cleanup scope.
     explicit RunCleanupsScope(CodeGenFunction &CGF)
-      : PerformCleanup(true), CGF(CGF)
-    {
+        : DeactivateCleanups(CGF), PerformCleanup(true), CGF(CGF) {
       CleanupStackDepth = CGF.EHStack.stable_begin();
       LifetimeExtendedCleanupStackSize =
           CGF.LifetimeExtendedCleanupStack.size();
@@ -930,6 +1008,7 @@ public:
     void ForceCleanup(std::initializer_list<llvm::Value**> ValuesToReload = {}) {
       assert(PerformCleanup && "Already forced cleanup");
       CGF.DidCallStackSave = OldDidCallStackSave;
+      DeactivateCleanups.ForceDeactivate();
       CGF.PopCleanupBlocks(CleanupStackDepth, LifetimeExtendedCleanupStackSize,
                            ValuesToReload);
       PerformCleanup = false;
@@ -2139,6 +2218,11 @@ public:
                      Address addr, QualType type);
   void pushDestroy(CleanupKind kind, Address addr, QualType type,
                    Destroyer *destroyer, bool useEHCleanupForArray);
+  void pushDestroyAndDeferDeactivation(QualType::DestructionKind dtorKind,
+                                       Address addr, QualType type);
+  void pushDestroyAndDeferDeactivation(CleanupKind cleanupKind, Address addr,
+                                       QualType type, Destroyer *destroyer,
+                                       bool useEHCleanupForArray);
   void pushLifetimeExtendedDestroy(CleanupKind kind, Address addr,
                                    QualType type, Destroyer *destroyer,
                                    bool useEHCleanupForArray);
@@ -2630,6 +2714,33 @@ public:
                             TBAAAccessInfo *TBAAInfo = nullptr);
   LValue EmitLoadOfPointerLValue(Address Ptr, const PointerType *PtrTy);
 
+private:
+  struct AllocaTracker {
+    void Add(llvm::AllocaInst *I) { Allocas.push_back(I); }
+    llvm::SmallVector<llvm::AllocaInst *> Take() { return std::move(Allocas); }
+
+  private:
+    llvm::SmallVector<llvm::AllocaInst *> Allocas;
+  };
+  AllocaTracker *Allocas = nullptr;
+
+public:
+  // Captures all the allocas created during the scope of its RAII object.
+  struct AllocaTrackerRAII {
+    AllocaTrackerRAII(CodeGenFunction &CGF)
+        : CGF(CGF), OldTracker(CGF.Allocas) {
+      CGF.Allocas = &Tracker;
+    }
+    ~AllocaTrackerRAII() { CGF.Allocas = OldTracker; }
+
+    llvm::SmallVector<llvm::AllocaInst *> Take() { return Tracker.Take(); }
+
+  private:
+    CodeGenFunction &CGF;
+    AllocaTracker *OldTracker;
+    AllocaTracker Tracker;
+  };
+
   /// CreateTempAlloca - This creates an alloca and inserts it into the entry
   /// block if \p ArraySize is nullptr, otherwise inserts it at the current
   /// insertion point of the builder. The caller is responsible for setting an
@@ -2718,6 +2829,21 @@ public:
   /// EvaluateExprAsBool - Perform the usual unary conversions on the specified
   /// expression and compare the result against zero, returning an Int1Ty value.
   llvm::Value *EvaluateExprAsBool(const Expr *E);
+
+  /// Retrieve the implicit cast expression of the rhs in a binary operator
+  /// expression by passing pointers to Value and QualType
+  /// This is used for implicit bitfield conversion checks, which
+  /// must compare with the value before potential truncation.
+  llvm::Value *EmitWithOriginalRHSBitfieldAssignment(const BinaryOperator *E,
+                                                     llvm::Value **Previous,
+                                                     QualType *SrcType);
+
+  /// Emit a check that an [implicit] conversion of a bitfield. It is not UB,
+  /// so we use the value after conversion.
+  void EmitBitfieldConversionCheck(llvm::Value *Src, QualType SrcType,
+                                   llvm::Value *Dst, QualType DstType,
+                                   const CGBitFieldInfo &Info,
+                                   SourceLocation Loc);
 
   /// EmitIgnoredExpr - Emit an expression in a context which ignores the result.
   void EmitIgnoredExpr(const Expr *E);
@@ -3834,6 +3960,8 @@ private:
     Expr *NextLB = nullptr;
     /// Update of UB after a whole chunk has been executed
     Expr *NextUB = nullptr;
+    /// Distinguish between the for distribute and sections
+    OpenMPDirectiveKind DKind = llvm::omp::OMPD_unknown;
     OMPLoopArguments() = default;
     OMPLoopArguments(Address LB, Address UB, Address ST, Address IL,
                      llvm::Value *Chunk = nullptr, Expr *EUB = nullptr,
@@ -4446,6 +4574,8 @@ public:
   RValue EmitIntelFPGAMemBuiltin(const CallExpr *E);
 
   RValue EmitIntelSYCLPtrAnnotationBuiltin(const CallExpr *E);
+  RValue EmitIntelSYCLAllocaBuiltin(const CallExpr *E,
+                                    ReturnValueSlot ReturnValue);
 
   llvm::CallInst *
   MaybeEmitFPBuiltinofFD(llvm::FunctionType *IRFuncTy,
@@ -4905,6 +5035,25 @@ public:
   llvm::Value *emitBoolVecConversion(llvm::Value *SrcVec,
                                      unsigned NumElementsDst,
                                      const llvm::Twine &Name = "");
+  // Adds a convergence_ctrl token to |Input| and emits the required parent
+  // convergence instructions.
+  llvm::CallBase *addControlledConvergenceToken(llvm::CallBase *Input);
+
+private:
+  // Emits a convergence_loop instruction for the given |BB|, with |ParentToken|
+  // as it's parent convergence instr.
+  llvm::IntrinsicInst *emitConvergenceLoopToken(llvm::BasicBlock *BB,
+                                                llvm::Value *ParentToken);
+  // Adds a convergence_ctrl token with |ParentToken| as parent convergence
+  // instr to the call |Input|.
+  llvm::CallBase *addConvergenceControlToken(llvm::CallBase *Input,
+                                             llvm::Value *ParentToken);
+  // Find the convergence_entry instruction |F|, or emits ones if none exists.
+  // Returns the convergence instruction.
+  llvm::IntrinsicInst *getOrEmitConvergenceEntryToken(llvm::Function *F);
+  // Find the convergence_loop instruction for the loop defined by |LI|, or
+  // emits one if none exists. Returns the convergence instruction.
+  llvm::IntrinsicInst *getOrEmitConvergenceLoopToken(const LoopInfo *LI);
 
 private:
   llvm::MDNode *getRangeForLoadFromType(QualType Ty);

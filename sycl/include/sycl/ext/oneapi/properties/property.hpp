@@ -192,8 +192,12 @@ enum PropKind : uint32_t {
   BuildOptions = 51,
   BuildLog = 52,
   FloatingPointControls = 53,
+  FPGACluster = 54,
+  Balanced = 55,
+  InvocationCapacity = 56,
+  ResponseCapacity = 57,
   // PropKindSize must always be the last value.
-  PropKindSize = 54,
+  PropKindSize = 58,
 };
 
 struct property_key_base_tag {};

@@ -8,7 +8,7 @@
 // with the embedded UR_L0_LEAKS_DEBUG=1 testing capability.
 //
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main(int argc, char **argv) {
   sycl::queue Q;

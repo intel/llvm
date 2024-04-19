@@ -43,12 +43,17 @@ Specifically, this library depends on the following SYCL extensions:
 * [sycl_ext_oneapi_complex](
     ../extensions/experimental/sycl_ext_oneapi_complex.asciidoc)
 * [sycl_ext_oneapi_free_function_queries](
-    ../extensions/experimental/sycl_ext_oneapi_free_function_queries.asciidoc)
+    ../extensions/supported/sycl_ext_oneapi_free_function_queries.asciidoc)
 * [sycl_ext_oneapi_assert](
     ../extensions/supported/sycl_ext_oneapi_assert.asciidoc)
 * [sycl_ext_oneapi_enqueue_barrier](
     ../extensions/supported/sycl_ext_oneapi_enqueue_barrier.asciidoc)
 * [sycl_ext_oneapi_usm_device_read_only](../extensions/supported/sycl_ext_oneapi_usm_device_read_only.asciidoc)
+
+If available, the following extensions extend SYCLcompat functionality:
+
+* [sycl_ext_intel_device_info](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_intel_device_info.md) \[Optional\]
+* [sycl_ext_oneapi_bfloat16_math_functions](../extensions/experimental/sycl_ext_oneapi_bfloat16_math_functions.asciidoc) \[Optional\]
 
 ## Usage
 
@@ -78,9 +83,9 @@ namespace syclcompat {
 class dim3 {
 public:
   const size_t x, y, z;
-  constexpr dim3(const sycl::range<3> &r);
-  constexpr dim3(const sycl::range<2> &r);
-  constexpr dim3(const sycl::range<1> &r);
+  dim3(const sycl::range<3> &r);
+  dim3(const sycl::range<2> &r);
+  dim3(const sycl::range<1> &r);
   constexpr dim3(size_t x, size_t y = 1, size_t z = 1);
 
   constexpr size_t size();
@@ -91,9 +96,9 @@ public:
 };
 
 // Element-wise operators
-dim3 operator*(const dim3 &a, const dim3 &b);
-dim3 operator+(const dim3 &a, const dim3 &b);
-dim3 operator-(const dim3 &a, const dim3 &b);
+inline dim3 operator*(const dim3 &a, const dim3 &b);
+inline dim3 operator+(const dim3 &a, const dim3 &b);
+inline dim3 operator-(const dim3 &a, const dim3 &b);
 
 } // syclcompat
 ```
@@ -109,39 +114,39 @@ addition to the global range, the following helper functions are also provided:
 namespace syclcompat {
 
 namespace local_id {
-size_t x();
-size_t y();
-size_t z();
+inline size_t x();
+inline size_t y();
+inline size_t z();
 } // namespace local_id
 
 namespace local_range {
-size_t x();
-size_t y();
-size_t z();
+inline size_t x();
+inline size_t y();
+inline size_t z();
 } // namespace local_range
 
 namespace work_group_id {
-size_t x();
-size_t y();
-size_t z();
+inline size_t x();
+inline size_t y();
+inline size_t z();
 } // namespace work_group_id
 
 namespace work_group_range {
-size_t x();
-size_t y();
-size_t z();
+inline size_t x();
+inline size_t y();
+inline size_t z();
 } // namespace work_group_range
 
 namespace global_range {
-size_t x();
-size_t y();
-size_t z();
+inline size_t x();
+inline size_t y();
+inline size_t z();
 } // namespace global_range
 
 namespace global_id {
-size_t x();
-size_t y();
-size_t z();
+inline size_t x();
+inline size_t y();
+inline size_t z();
 } // namespace global_id
 
 } // syclcompat
@@ -304,12 +309,13 @@ group size in each dimension.
 ```c++
 namespace syclcompat {
 
-void wg_barrier();
+inline void wg_barrier();
 
 template <int Dim>
-sycl::nd_range<Dim> compute_nd_range(sycl::range<Dim> global_size_in,
-                                     sycl::range<Dim> work_group_size);
-sycl::nd_range<1> compute_nd_range(int global_size_in, int work_group_size);
+inline sycl::nd_range<Dim> compute_nd_range(sycl::range<Dim> global_size_in,
+                                            sycl::range<Dim> work_group_size);
+inline sycl::nd_range<1> compute_nd_range(int global_size_in, 
+                                          int work_group_size);
 
 } // syclcompat
 ```
@@ -326,8 +332,8 @@ out-of-order queue, either created manually or retrieved via a call to
 ```c++
 namespace syclcompat {
 
-sycl::queue create_queue(bool print_on_async_exceptions = false,
-                         bool in_order = true);
+inline sycl::queue create_queue(bool print_on_async_exceptions = false,
+                                bool in_order = true);
 
 } // syclcompat
 ```
@@ -676,17 +682,18 @@ class device_info {
 public:
   const char *get_name();
   char *get_name();
-  template <typename WorkItemSizesTy = sycl::id<3>,
+  template <typename WorkItemSizesTy = sycl::range<3>,
             std::enable_if_t<std::is_same_v<WorkItemSizesTy, sycl::id<3>> ||
                                  std::is_same_v<WorkItemSizesTy, int *>,
                              int> = 0>
   auto get_max_work_item_sizes() const;
 
-  template <typename WorkItemSizesTy = sycl::id<3>,
+  template <typename WorkItemSizesTy = sycl::range<3>,
           std::enable_if_t<std::is_same_v<WorkItemSizesTy, sycl::id<3>> ||
                                 std::is_same_v<WorkItemSizesTy, int *>,
                             int> = 0>
   auto get_max_work_item_sizes() const;
+  bool get_host_unified_memory() const;
   int get_major_version() const;
   int get_minor_version() const;
   int get_integrated() const;
@@ -695,6 +702,7 @@ public:
   int get_max_work_group_size() const;
   int get_max_sub_group_size() const;
   int get_max_work_items_per_compute_unit() const;
+  int get_max_register_size_per_work_group() const;
   template <typename NDRangeSizeTy = size_t *,
             std::enable_if_t<std::is_same_v<NDRangeSizeTy, size_t *> ||
                                  std::is_same_v<NDRangeSizeTy, int *>,
@@ -708,8 +716,17 @@ public:
   size_t get_global_mem_size() const;
   size_t get_local_mem_size() const;
 
-void set_name(const char *name);
-  void set_max_work_item_sizes(const sycl::id<3> max_work_item_sizes);
+  unsigned int get_memory_clock_rate() const;
+  unsigned int get_memory_bus_width() const;
+  uint32_t get_device_id() const;
+  std::array<unsigned char, 16> get_uuid() const;
+  unsigned int get_global_mem_cache_size() const;
+
+  void set_name(const char *name);
+  void set_max_work_item_sizes(const sycl::range<3> max_work_item_sizes);
+  [[deprecated]] void
+  set_max_work_item_sizes(const sycl::id<3> max_work_item_sizes);
+  void set_host_unified_memory(bool host_unified_memory);
   void set_major_version(int major);
   void set_minor_version(int minor);
   void set_integrated(int integrated);
@@ -722,6 +739,13 @@ void set_name(const char *name);
   void
   set_max_work_items_per_compute_unit(int max_work_items_per_compute_unit);
   void set_max_nd_range_size(int max_nd_range_size[]);
+  void set_memory_clock_rate(unsigned int memory_clock_rate);
+  void set_memory_bus_width(unsigned int memory_bus_width);
+  void 
+  set_max_register_size_per_work_group(int max_register_size_per_work_group);
+  void set_device_id(uint32_t device_id);
+  void set_uuid(std::array<unsigned char, 16> uuid);
+  void set_global_mem_cache_size(unsigned int global_mem_cache_size);
 };
 ```
 
@@ -735,12 +759,12 @@ follows:
 namespace syclcompat {
 
 // Util function to create a new queue for the current device
-sycl::queue create_queue(bool print_on_async_exceptions = false,
-                         bool in_order = true);
+static inline sycl::queue create_queue(bool print_on_async_exceptions = false,
+                                       bool in_order = true);
 
 // Util function to get the default queue of current device in
 // device manager.
-sycl::queue get_default_queue();
+static inline sycl::queue get_default_queue();
 
 // Util function to set the default queue of the current device in the
 // device manager.
@@ -748,33 +772,33 @@ sycl::queue get_default_queue();
 // the previous saved queue will be overwritten as well.
 // This function will be blocking if there are submitted kernels in the
 // previous default queue.
-void set_default_queue(const sycl::queue &q);
+static inline void set_default_queue(const sycl::queue &q);
 
 // Util function to wait for the queued kernels.
-void wait(sycl::queue q = get_default_queue());
+static inline void wait(sycl::queue q = get_default_queue());
 
 // Util function to wait for the queued kernels and throw unhandled errors.
-void wait_and_throw(sycl::queue q = get_default_queue());
+static inline void wait_and_throw(sycl::queue q = get_default_queue());
 
 // Util function to get the id of current device in
 // device manager.
-unsigned int get_current_device_id();
+static inline unsigned int get_current_device_id();
 
 // Util function to get the current device.
-device_ext &get_current_device();
+static inline device_ext &get_current_device();
 
 // Util function to get a device by id.
-device_ext &get_device(unsigned int id);
+static inline device_ext &get_device(unsigned int id);
 
 // Util function to get the context of the default queue of current
 // device in device manager.
-sycl::context get_default_context();
+static inline sycl::context get_default_context();
 
 // Util function to get a CPU device.
-device_ext &cpu_device();
+static inline device_ext &cpu_device();
 
 // Util function to select a device by its id
-unsigned int select_device(unsigned int id);
+static inline unsigned int select_device(unsigned int id);
 
 } // syclcompat
 ```
@@ -792,6 +816,9 @@ destructor waits on a set of `sycl::event` which can be added to via
 `add_event`. This is used, for example, to implement `syclcompat::free_async` to
 schedule release of memory after a kernel or `mempcy`. SYCL device properties
 can be queried through `device_ext` as well.
+`device_ext` also provides the `has_capability_or_fail` member function, which
+throws a `sycl::exception` if the device does not have the specified list of
+`sycl::aspect`.
 
 Users can manage queues through the `syclcompat::set_default_queue(sycl::queue q)`
 free function, and the `device_ext` `set_saved_queue`, `set_default_queue`,
@@ -811,19 +838,26 @@ namespace syclcompat {
 
 class device_ext : public sycl::device {
   device_ext();
-  device_ext(const sycl::device &base);
+  device_ext(const sycl::device &base, bool print_on_async_exceptions = false,
+             bool in_order = true);
   ~device_ext();
 
   bool is_native_host_atomic_supported();
-  int get_major_version();
-  int get_minor_version();
-  int get_max_compute_units();
-  int get_max_clock_frequency();
-  int get_integrated();
-  void get_device_info(device_info &out);
+  int get_major_version() const;
+  int get_minor_version() const;
+  int get_max_compute_units() const;
+  int get_max_clock_frequency() const;
+  int get_integrated() const;
+  int get_max_sub_group_size() const;
+  int get_max_register_size_per_work_group() const;
+  int get_max_work_group_size() const;
+  int get_mem_base_addr_align() const;
+  size_t get_global_mem_size() const;
+  void get_memory_info(size_t &free_memory, size_t &total_memory) const;
 
-  device_info get_device_info();
-  void reset();
+  void get_device_info(device_info &out) const;
+  device_info get_device_info() const;
+  void reset(bool print_on_async_exceptions = false, bool in_order = true);
 
   sycl::queue *default_queue();
   void set_default_queue(const sycl::queue &q);
@@ -834,6 +868,9 @@ class device_ext : public sycl::device {
   void set_saved_queue(sycl::queue *q);
   sycl::queue *get_saved_queue();
   sycl::context get_context();
+
+  void
+  has_capability_or_fail(const std::initializer_list<sycl::aspect> &props) const;
 };
 
 } // syclcompat
@@ -1068,16 +1105,6 @@ Functionality is provided to represent a pair of integers as a `double`.
 in the high & low 32-bits respectively. `cast_double_to_int` casts the high or
 low 32-bits back into an integer.
 
-`syclcompat::fast_length` provides a wrapper to SYCL's
-`fast_length(sycl::vec<float,N>)` that accepts arguments for a C++ array and a
-length.
-
-`vectorized_max` and `vectorized_min` are binary operations returning the
-max/min of two arguments, where each argument is treated as a `sycl::vec` type.
-`vectorized_isgreater` performs elementwise `isgreater`, treating each argument
-as a vector of elements, and returning `0` for vector components for which
-`isgreater` is false, and `-1` when true.
-
 `reverse_bits` reverses the bits of a 32-bit unsigned integer, `ffs` returns the
 position of the first least significant set bit in an integer.
 `byte_level_permute` returns a byte-permutation of two input unsigned integers,
@@ -1093,8 +1120,9 @@ functionality to `sycl::select_from_group`, `sycl::shift_group_left`,
 However, they provide an optional argument to represent the `logical_group` size
 (default 32).
 
-The functions `cmul`,`cdiv`,`cabs`, and `conj` define complex math operations
-which accept `sycl::vec<T,2>` arguments representing complex values.
+Experimental support for masked versions of `select_from_sub_group`,
+`shift_sub_group_left`, `shift_sub_group_right` and `permute_sub_group_by_xor` is
+provided only for SPIRV or cuda devices.
 
 ```c++
 namespace syclcompat {
@@ -1103,57 +1131,54 @@ inline int cast_double_to_int(double d, bool use_high32 = true);
 
 inline double cast_ints_to_double(int high32, int low32);
 
-inline float fast_length(const float *a, int len);
-
-template <typename S, typename T> inline T vectorized_max(T a, T b);
-
-template <typename S, typename T> inline T vectorized_min(T a, T b);
-
-template <typename S, typename T> inline T vectorized_isgreater(T a, T b);
-
-template <>
-inline unsigned vectorized_isgreater<sycl::ushort2, unsigned>(unsigned a,
-                                                              unsigned b);
-
-template <typename T> inline T reverse_bits(T a);
-
 inline unsigned int byte_level_permute(unsigned int a, unsigned int b,
                                        unsigned int s);
 
-template <typename T> inline int ffs(T a);
+template <typename ValueT> inline int ffs(ValueT a);
 
-template <typename T>
-T select_from_sub_group(sycl::sub_group g, T x, int remote_local_id,
+template <typename ValueT>
+ValueT select_from_sub_group(sycl::sub_group g, ValueT x, int remote_local_id,
                         int logical_sub_group_size = 32);
 
-template <typename T>
-T shift_sub_group_left(sycl::sub_group g, T x, unsigned int delta,
+template <typename ValueT>
+ValueT shift_sub_group_left(sycl::sub_group g, ValueT x, unsigned int delta,
                        int logical_sub_group_size = 32);
 
-template <typename T>
-T shift_sub_group_right(sycl::sub_group g, T x, unsigned int delta,
+template <typename ValueT>
+ValueT shift_sub_group_right(sycl::sub_group g, ValueT x, unsigned int delta,
                         int logical_sub_group_size = 32);
 
-template <typename T>
-T permute_sub_group_by_xor(sycl::sub_group g, T x, unsigned int mask,
+template <typename ValueT>
+ValueT permute_sub_group_by_xor(sycl::sub_group g, ValueT x, unsigned int mask,
                            int logical_sub_group_size = 32);
 
-template <typename T>
-sycl::vec<T, 2> cmul(sycl::vec<T, 2> x, sycl::vec<T, 2> y);
+namespace experimental {
 
-template <typename T>
-sycl::vec<T, 2> cdiv(sycl::vec<T, 2> x, sycl::vec<T, 2> y);
+template <typename ValueT>
+ValueT select_from_sub_group(unsigned int member_mask, sycl::sub_group g, ValueT x,
+                             int remote_local_id, int logical_sub_group_size = 32);
 
-template <typename T> T cabs(sycl::vec<T, 2> x);
+template <typename ValueT>
+ValueT shift_sub_group_left(unsigned int member_mask, sycl::sub_group g, ValueT x,
+                            unsigned int delta, int logical_sub_group_size = 32);
 
-template <typename T> sycl::vec<T, 2> conj(sycl::vec<T, 2> x);
+template <typename ValueT>
+ValueT shift_sub_group_right(unsigned int member_mask, sycl::sub_group g, ValueT x,
+                             unsigned int delta, int logical_sub_group_size = 32);
 
+template <typename ValueT>
+ValueT permute_sub_group_by_xor(unsigned int member_mask, sycql::sub_group g, ValueT x,
+                                unsigned int mask, int logical_sub_group_size = 32);
+
+} // namespace experimental
 } // namespace syclcompat
 ```
 
 The function `experimental::nd_range_barrier` synchronizes work items from all
 work groups within a SYCL kernel. This is not officially supported by the SYCL
 spec, and so should be used with caution.
+`experimental::calculate_max_active_wg_per_xecore` and
+`experimental::calculate_max_potential_wg` are used for occupancy calculation.
 
 ```c++
 namespace syclcompat {
@@ -1183,6 +1208,18 @@ public:
   uint32_t get_group_linear_range() const;
 };
 
+inline int calculate_max_active_wg_per_xecore(int *num_wg, int wg_size,
+                                              int slm_size = 0,
+                                              int sg_size = 32,
+                                              bool used_barrier = false,
+                                              bool used_large_grf = false);
+
+inline int calculate_max_potential_wg(int *num_wg, int *wg_size,
+                                      int max_wg_size_for_device_code,
+                                      int slm_size = 0, int sg_size = 32,
+                                      bool used_barrier = false,
+                                      bool used_large_grf = false);
+
 } // namespace experimental
 } // namespace syclcompat
 ```
@@ -1195,23 +1232,54 @@ kernel names during machine translation.
 `get_sycl_language_version` returns an integer representing the version of the
 SYCL spec supported by the current SYCL compiler.
 
+The `SYCLCOMPAT_CHECK_ERROR` macro encapsulates an error-handling mechanism for
+expressions that might throw `sycl::exception` and `std::runtime_error`.
+If no exceptions are thrown, it returns `syclcompat::error_code::SUCCESS`.
+If a `sycl::exception` is caught, it returns `syclcompat::error_code::BACKEND_ERROR`.
+If a `std::runtime_error` exception is caught,
+`syclcompat::error_code::DEFAULT_ERROR` is returned instead. For both cases, it
+prints the error message to the standard error stream.
+
 ``` c++
 namespace syclcompat {
 
-#define __sycl_compat_align__(n) __attribute__((aligned(n)))
-#define __sycl_compat_inline__ __inline__ __attribute__((always_inline))
+template <class... Args> class syclcompat_kernel_name;
+template <int Arg> class syclcompat_kernel_scalar;
 
-#define __sycl_compat_noinline__ __attribute__((noinline))
+#if defined(_MSC_VER)
+#define __syclcompat_align__(n) __declspec(align(n))
+#define __syclcompat_inline__ __forceinline
+#else
+#define __syclcompat_align__(n) __attribute__((aligned(n)))
+#define __syclcompat_inline__ __inline__ __attribute__((always_inline))
+#endif
 
-template <class... Args> class sycl_compat_kernel_name;
-template <int Arg> class sycl_compat_kernel_scalar;
+#if defined(_MSC_VER)
+#define __syclcompat_noinline__ __declspec(noinline)
+#else
+#define __syclcompat_noinline__ __attribute__((noinline))
+#endif
+
+#define SYCLCOMPAT_COMPATIBILITY_TEMP (600)
+
+#ifdef _WIN32
+#define SYCLCOMPAT_EXPORT __declspec(dllexport)
+#else
+#define SYCLCOMPAT_EXPORT
+#endif
+
+namespace syclcompat {
+enum error_code { SUCCESS = 0, BACKEND_ERROR = 1, DEFAULT_ERROR = 999 };
+}
+
+#define SYCLCOMPAT_CHECK_ERROR(expr)
 
 int get_sycl_language_version();
 
 } // namespace syclcompat
 ```
 
-#### Kernel Helper Functions
+### Kernel Helper Functions
 
 Kernel helper functions provide a structure `kernel_function_info` to keep SYCL
 kernel information, and provide a utility function `get_kernel_function_info()`
@@ -1230,6 +1298,253 @@ static void get_kernel_function_info(kernel_function_info *kernel_info,
                                      const void *function);
 static kernel_function_info get_kernel_function_info(const void *function);
 } // namespace syclcompat
+```
+
+### Math Functions
+
+`syclcompat::fast_length` provides a wrapper to SYCL's
+`fast_length(sycl::vec<float,N>)` that accepts arguments for a C++ array and a
+length. `syclcompat::length` provides a templated version that wraps over
+`sycl::length`.
+
+`compare`, `unordered_compare`, `compare_both`, `unordered_compare_both`,
+`compare_mask`, and `unordered_compare_mask`, handle both ordered and unordered
+comparisons.
+
+`vectorized_max` and `vectorized_min` are binary operations returning the
+max/min of two arguments, where each argument is treated as a `sycl::vec` type.
+`vectorized_isgreater` performs elementwise `isgreater`, treating each argument
+as a vector of elements, and returning `0` for vector components for which
+`isgreater` is false, and `-1` when true.
+`vectorized_sum_abs_diff` calculates the absolute difference for two values
+without modulo overflow for vector types.
+
+The functions `cmul`,`cdiv`,`cabs`, `cmul_add`, and `conj` define complex math operations
+which accept `sycl::vec<T,2>` arguments representing complex values.
+
+```cpp
+inline float fast_length(const float *a, int len);
+
+template <typename ValueT>
+inline ValueT length(const ValueT *a, const int len);
+
+// The following definition is enabled when BinaryOperation(ValueT, ValueT) returns bool
+// std::enable_if_t<std::is_same_v<std::invoke_result_t<BinaryOperation, ValueT, ValueT>, bool>, bool>
+template <typename ValueT, class BinaryOperation>
+inline bool 
+compare(const ValueT a, const ValueT b, const BinaryOperation binary_op);
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<ValueT::size() == 2, ValueT>
+compare(const ValueT a, const ValueT b, const BinaryOperation binary_op);
+
+// The following definition is enabled when BinaryOperation(ValueT, ValueT) returns bool
+// std::enable_if_t<std::is_same_v<std::invoke_result_t<BinaryOperation, ValueT, ValueT>, bool>, bool>
+template <typename ValueT, class BinaryOperation>
+inline bool
+unordered_compare(const ValueT a, const ValueT b,
+                  const BinaryOperation binary_op);
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<ValueT::size() == 2, ValueT>
+unordered_compare(const ValueT a, const ValueT b,
+                  const BinaryOperation binary_op);
+
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<ValueT::size() == 2, bool>
+compare_both(const ValueT a, const ValueT b, const BinaryOperation binary_op);
+template <typename ValueT, class BinaryOperation>
+
+inline std::enable_if_t<ValueT::size() == 2, bool>
+unordered_compare_both(const ValueT a, const ValueT b,
+                       const BinaryOperation binary_op);
+
+template <typename ValueT, class BinaryOperation>
+inline unsigned compare_mask(const sycl::vec<ValueT, 2> a,
+                             const sycl::vec<ValueT, 2> b,
+                             const BinaryOperation binary_op);
+
+template <typename ValueT, class BinaryOperation>
+inline unsigned unordered_compare_mask(const sycl::vec<ValueT, 2> a,
+                                       const sycl::vec<ValueT, 2> b,
+                                       const BinaryOperation binary_op);
+
+template <typename S, typename T> inline T vectorized_max(T a, T b);
+
+template <typename S, typename T> inline T vectorized_min(T a, T b);
+
+template <typename S, typename T> inline T vectorized_isgreater(T a, T b);
+
+template <>
+inline unsigned vectorized_isgreater<sycl::ushort2, unsigned>(unsigned a,
+                                                              unsigned b);
+
+template <typename VecT>
+inline unsigned vectorized_sum_abs_diff(unsigned a, unsigned b);
+
+template <typename T>
+sycl::vec<T, 2> cmul(sycl::vec<T, 2> x, sycl::vec<T, 2> y);
+
+template <typename T>
+sycl::vec<T, 2> cdiv(sycl::vec<T, 2> x, sycl::vec<T, 2> y);
+
+template <typename T> T cabs(sycl::vec<T, 2> x);
+
+template <typename ValueT>
+inline sycl::vec<ValueT, 2> cmul_add(const sycl::vec<ValueT, 2> a,
+                                     const sycl::vec<ValueT, 2> b,
+                                     const sycl::vec<ValueT, 2> c);
+
+template <typename ValueT>
+inline sycl::marray<ValueT, 2> cmul_add(const sycl::marray<ValueT, 2> a,
+                                        const sycl::marray<ValueT, 2> b,
+                                        const sycl::marray<ValueT, 2> c);
+
+template <typename T> sycl::vec<T, 2> conj(sycl::vec<T, 2> x);
+
+template <typename ValueT> inline ValueT reverse_bits(ValueT a);
+```
+
+`vectorized_binary` computes the `BinaryOperation` for two operands,
+with each value treated as a vector type. `vectorized_unary` offers the same
+interface for operations with a single operand.
+The implemented `BinaryOperation`s are `abs_diff`, `add_sat`, `rhadd`, `hadd`,
+`maximum`, `minimum`, and `sub_sat`.
+
+```cpp
+namespace syclcompat {
+  
+template <typename VecT, class UnaryOperation>
+inline unsigned vectorized_unary(unsigned a, const UnaryOperation unary_op);
+
+// A sycl::abs wrapper functor.
+struct abs {
+  template <typename ValueT> auto operator()(const ValueT x) const;
+};
+
+template <typename VecT, class BinaryOperation>
+inline unsigned vectorized_binary(unsigned a, unsigned b,
+                                  const BinaryOperation binary_op);
+
+// A sycl::abs_diff wrapper functor.
+struct abs_diff {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::add_sat wrapper functor.
+struct add_sat {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::rhadd wrapper functor.
+struct rhadd {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::hadd wrapper functor.
+struct hadd {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::max wrapper functor.
+struct maximum {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::min wrapper functor.
+struct minimum {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::sub_sat wrapper functor.
+struct sub_sat {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+
+} // namespace syclcompat
+```
+
+Finally, the math header provides a set of functions to extend 32-bit operations
+to 33 bit, and handle sign extension internally. There is support for `add`,
+`sub`, `absdiff`, `min` and `max` operations. Each operation provides overloads
+to include a second, separate, `BinaryOperation` after the first, and include
+the `_sat` variation, determines if the returning value is saturated or not.
+
+```cpp
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_add(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_add(AT a, BT b, CT c, BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_add_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_add_sat(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_sub(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_sub(AT a, BT b, CT c, BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_sub_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_sub_sat(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_absdiff(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_absdiff(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_absdiff_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_absdiff_sat(AT a, BT b, CT c,
+                                         BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_min(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_min(AT a, BT b, CT c, BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_min_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_min_sat(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_max(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_max(AT a, BT b, CT c, BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_max_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_max_sat(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
 ```
 
 ## Sample Code
@@ -1331,7 +1646,7 @@ int main(int argc, char **argv) {
 
   // Check output
   for (size_t i = 0; i < n_points; i++) {
-    assert(h_Y[i] - h_expected[i] < 1e6);
+    assert(h_Y[i] - h_expected[i] < 1e-6);
   }
 
   // Clean up memory

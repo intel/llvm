@@ -14,9 +14,9 @@ if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
 
-    # Date:   Dec 14, 2023
-    # Add support for XeHPCVG platform
-    set(LLVMGenXIntrinsics_GIT_TAG da892e1982b6c25b9a133f85b4ac97142d8a3def)
+    # Date: 15 Apr 2024
+    # Suppress various deprecation warnings on LLVM 17+
+    set(LLVMGenXIntrinsics_GIT_TAG cbf0b5d315d2a69fbdf32888e13ae4556890cda9)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
@@ -66,6 +66,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ModuleSplitter.cpp
   MutatePrintfAddrspace.cpp
   SYCLAddOptLevelAttribute.cpp
+  SYCLDeviceRequirements.cpp
   SYCLPropagateAspectsUsage.cpp
   SYCLPropagateJointMatrixUsage.cpp
   SYCLUtils.cpp

@@ -78,7 +78,7 @@ enum InternalOp {
   IOpCooperativeMatrixStoreCheckedINTEL = 6194,
   IOpCooperativeMatrixConstructCheckedINTEL = 6195,
   IOpJointMatrixWorkItemLengthINTEL = 6410,
-  IOpTypeTaskSequenceINTEL = 6411,
+  IOpTypeTaskSequenceINTEL = 6199,
   IOpComplexFMulINTEL = 6415,
   IOpComplexFDivINTEL = 6416,
   IOpRoundFToTF32INTEL = 6426,
@@ -125,7 +125,6 @@ enum InternalCapability {
   ICapabilityJointMatrixPackedInt4ComponentTypeINTEL = 6439,
   ICapabilityCacheControlsINTEL = 6441,
   ICapabilitySubgroupRequirementsINTEL = 6445,
-  ICapRegisterLimitsINTEL = 6460
 };
 
 enum InternalFunctionControlMask { IFunctionControlOptNoneINTELMask = 0x10000 };
@@ -133,9 +132,6 @@ enum InternalFunctionControlMask { IFunctionControlOptNoneINTELMask = 0x10000 };
 enum InternalExecutionMode {
   IExecModeFastCompositeKernelINTEL = 6088,
   IExecModeNamedSubgroupSizeINTEL = 6446,
-  IExecModeMaximumRegistersINTEL = 6461,
-  IExecModeMaximumRegistersIdINTEL = 6462,
-  IExecModeNamedMaximumRegistersINTEL = 6463
 };
 
 constexpr LinkageType LinkageTypeInternal =
@@ -161,10 +157,6 @@ enum InternalJointMatrixCTI {
 enum InternalBuiltIn {
   IBuiltInSubDeviceIDINTEL = 6135,
   IBuiltInGlobalHWThreadIDINTEL = 6136,
-};
-
-enum InternalNamedMaximumNumberOfRegisters {
-  NamedMaximumNumberOfRegistersAutoINTEL = 0,
 };
 
 #define _SPIRV_OP(x, y) constexpr x x##y = static_cast<x>(I##x##y);
@@ -300,20 +292,12 @@ constexpr Capability CapabilityBfloat16ConversionINTEL =
     static_cast<Capability>(ICapBfloat16ConversionINTEL);
 constexpr Capability CapabilityGlobalVariableDecorationsINTEL =
     static_cast<Capability>(ICapGlobalVariableDecorationsINTEL);
-constexpr Capability CapabilityRegisterLimitsINTEL =
-    static_cast<Capability>(ICapRegisterLimitsINTEL);
 
 constexpr FunctionControlMask FunctionControlOptNoneINTELMask =
     static_cast<FunctionControlMask>(IFunctionControlOptNoneINTELMask);
 
 constexpr ExecutionMode ExecutionModeFastCompositeKernelINTEL =
     static_cast<ExecutionMode>(IExecModeFastCompositeKernelINTEL);
-constexpr ExecutionMode ExecutionModeMaximumRegistersINTEL =
-    static_cast<ExecutionMode>(IExecModeMaximumRegistersINTEL);
-constexpr ExecutionMode ExecutionModeMaximumRegistersIdINTEL =
-    static_cast<ExecutionMode>(IExecModeMaximumRegistersIdINTEL);
-constexpr ExecutionMode ExecutionModeNamedMaximumRegistersINTEL =
-    static_cast<ExecutionMode>(IExecModeNamedMaximumRegistersINTEL);
 
 constexpr ExecutionMode ExecutionModeNamedSubgroupSizeINTEL =
     static_cast<ExecutionMode>(IExecModeNamedSubgroupSizeINTEL);

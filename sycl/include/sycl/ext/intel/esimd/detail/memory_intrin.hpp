@@ -831,33 +831,6 @@ __esimd_lsc_load_merge_stateless(
     __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> pass_thru = 0)
     __ESIMD_INTRIN_END;
 
-/// USM pointer gather.
-/// Supported platforms: DG2, PVC
-///
-/// Collects elements located at specified address and returns them
-/// as a single \ref simd object.
-///
-/// @tparam Ty is element type.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L2H is L2 cache hint.
-/// @tparam AddressScale is the address scale.
-/// @tparam ImmOffset is the immediate offset added to each address.
-/// @tparam DS is the data size.
-/// @tparam VS is the number of elements to load per address.
-/// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access)
-/// @param pred is predicates.
-/// @param addrs is the load addresses.
-/// @return is a vector of type T and N * to_int<VS>()
-template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
-          uint16_t AddressScale, int ImmOffset, __ESIMD_DNS::lsc_data_size DS,
-          __ESIMD_DNS::lsc_vector_size VS,
-          __ESIMD_DNS::lsc_data_order Transposed, int N>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
-__esimd_lsc_load_stateless(__ESIMD_DNS::simd_mask_storage_t<N> pred,
-                           __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs)
-    __ESIMD_INTRIN_END;
-
 /// USM pointer scatter.
 /// Supported platforms: DG2, PVC
 ///
@@ -1047,5 +1020,114 @@ __ESIMD_INTRIN void __esimd_raw_send2_noresult(
     __ESIMD_DNS::simd_mask_storage_t<N> pred, uint8_t numSrc0, uint8_t sfid,
     uint32_t exDesc, uint32_t msgDesc,
     __ESIMD_DNS::vector_type_t<Ty1, N1> msgSrc0) __ESIMD_INTRIN_END;
+
+/// 2D USM pointer block load.
+/// Supported platforms: PVC
+///
+/// Collects elements located at specified address and returns them
+/// as a single \ref simd object.
+///
+/// @tparam Ty is element type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam DS is the data size.
+/// @tparam Transposed is the transposed version or not.
+/// @tparam NBlocks is the number of blocks.
+/// @tparam BlockWidth is the block width in number of elements.
+/// @tparam BlockHeight is the block height in number of elements.
+/// @tparam Transformed is apply VNNI transform or not.
+/// @tparam N is the data size
+/// @param Pred is predicates.
+/// @param Ptr is the surface base address for this operation.
+/// @param SurfaceWidth is the surface width minus 1 in bytes
+/// @param SurfaceHeight is the surface height minus 1 in rows
+/// @param SurfacePitch is the surface pitch minus 1 in bytes
+/// @param X is zero based X-coordinate of the left upper rectangle corner in
+/// number of elements.
+/// @param Y is zero based Y-coordinate of the left upper rectangle corner in
+/// rows.
+/// @return is a vector of type T and size N, where N is
+///  BlockWidth * BlockHeight * NBlocks, if transformed;
+///  otherwise,
+///  N = roundUpNextMultiple(BlockHeight, 4 / sizeof(T)) *
+///   getNextPowerOf2(BlockWidth) * NBlocks
+template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
+          __ESIMD_DNS::lsc_data_size DS, __ESIMD_DNS::lsc_data_order Transposed,
+          uint8_t NBlocks, int BlockWidth, int BlockHeight, bool Transformed,
+          int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
+__esimd_lsc_load2d_stateless(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
+                             uintptr_t Ptr, int SurfaceWidth, int SurfaceHeight,
+                             int SurfacePitch, int X, int Y) __ESIMD_INTRIN_END;
+
+/// 2D USM pointer block prefetch.
+/// Supported platforms: PVC
+///
+/// Prefetches elements located at specified address.
+///
+/// @tparam Ty is element type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam DS is the data size.
+/// @tparam Transposed is the transposed version or not.
+/// @tparam NBlocks is the number of blocks.
+/// @tparam BlockWidth is the block width in number of elements.
+/// @tparam BlockHeight is the block height in number of elements.
+/// @tparam Transformed is apply VNNI transform or not.
+/// @tparam N is the data size
+/// @param Pred is predicates.
+/// @param Ptr is the surface base address for this operation.
+/// @param SurfaceWidth is the surface width minus 1 in bytes
+/// @param SurfaceHeight is the surface height minus 1 in rows
+/// @param SurfacePitch is the surface pitch minus 1 in bytes
+/// @param X is zero based X-coordinate of the left upper rectangle corner in
+/// number of elements.
+/// @param Y is zero based Y-coordinate of the left upper rectangle corner in
+/// rows.
+template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
+          __ESIMD_DNS::lsc_data_size DS, __ESIMD_DNS::lsc_data_order Transposed,
+          uint8_t NBlocks, int BlockWidth, int BlockHeight, bool Transformed,
+          int N>
+__ESIMD_INTRIN void __esimd_lsc_prefetch2d_stateless(
+    __ESIMD_DNS::simd_mask_storage_t<N> Pred, uintptr_t Ptr, int SurfaceWidth,
+    int SurfaceHeight, int SurfacePitch, int X, int Y) __ESIMD_INTRIN_END;
+
+/// 2D USM pointer block store.
+/// Supported platforms: PVC
+///
+/// Stores elements at specified address.
+///
+/// @tparam Ty is element type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam DS is the data size.
+/// @tparam Transposed is the transposed version or not.
+/// @tparam NBlocks is the number of blocks.
+/// @tparam BlockWidth is the block width in number of elements.
+/// @tparam BlockHeight is the block height in number of elements.
+/// @tparam Transformed is apply VNNI transform or not.
+/// @tparam N is the data size
+/// @param Pred is predicates.
+/// @param Ptr is the surface base address for this operation.
+/// @param SurfaceWidth is the surface width minus 1 in bytes
+/// @param SurfaceHeight is the surface height minus 1 in rows
+/// @param SurfacePitch is the surface pitch minus 1 in bytes
+/// @param X is zero based X-coordinate of the left upper rectangle corner in
+/// number of elements.
+/// @param Y is zero based Y-coordinate of the left upper rectangle corner in
+/// rows.
+/// @param Vals is a vector to store of type T and size N, where N is
+///  BlockWidth * BlockHeight * NBlocks, if transformed;
+///  otherwise,
+///  N = roundUpNextMultiple(BlockHeight, 4 / sizeof(T)) *
+///   getNextPowerOf2(BlockWidth) * NBlocks
+template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
+          __ESIMD_DNS::lsc_data_size DS, __ESIMD_DNS::lsc_data_order Transposed,
+          uint8_t NBlocks, int BlockWidth, int BlockHeight, bool Transformed,
+          int N>
+__ESIMD_INTRIN void __esimd_lsc_store2d_stateless(
+    __ESIMD_DNS::simd_mask_storage_t<N> Pred, uintptr_t Ptr, int SurfaceWidth,
+    int SurfaceHeight, int SurfacePitch, int X, int Y,
+    __ESIMD_DNS::vector_type_t<Ty, N> vals) __ESIMD_INTRIN_END;
 
 /// @endcond ESIMD_DETAIL

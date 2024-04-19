@@ -15,7 +15,6 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/common_info.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/device.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -26,6 +25,8 @@
 #include <cstring>
 #include <memory>
 #include <vector>
+
+#include "split_string.hpp"
 
 namespace sycl {
 inline namespace _V1 {
@@ -360,13 +361,33 @@ public:
     assert(MState == bundle_state::ext_oneapi_source &&
            "bundle_state::ext_oneapi_source required");
 
+    using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
+    ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
+    const PluginPtr &Plugin = ContextImpl->getPlugin();
+
+    std::vector<pi::PiDevice> DeviceVec;
+    DeviceVec.reserve(Devices.size());
+    for (const auto &SyclDev : Devices) {
+      pi::PiDevice Dev = getSyclObjImpl(SyclDev)->getHandleRef();
+      DeviceVec.push_back(Dev);
+    }
+
     const auto spirv = [&]() -> std::vector<uint8_t> {
       if (Language == syclex::source_language::opencl) {
         // if successful, the log is empty. if failed, throws an error with the
         // compilation log.
         const auto &SourceStr = std::get<std::string>(this->Source);
-        return syclex::detail::OpenCLC_to_SPIRV(SourceStr, BuildOptions,
-                                                LogPtr);
+        std::vector<uint32_t> IPVersionVec(Devices.size());
+        std::transform(DeviceVec.begin(), DeviceVec.end(), IPVersionVec.begin(),
+                       [&](pi::PiDevice d) {
+                         uint32_t ipVersion = 0;
+                         Plugin->call<PiApiKind::piDeviceGetInfo>(
+                             d, PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION,
+                             sizeof(uint32_t), &ipVersion, nullptr);
+                         return ipVersion;
+                       });
+        return syclex::detail::OpenCLC_to_SPIRV(SourceStr, IPVersionVec,
+                                                BuildOptions, LogPtr);
       }
       if (Language == syclex::source_language::spirv) {
         const auto &SourceBytes =
@@ -381,21 +402,11 @@ public:
           "OpenCL C and SPIR-V are the only supported languages at this time");
     }();
 
-    // see also program_manager.cpp::createSpirvProgram()
-    using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
     sycl::detail::pi::PiProgram PiProgram = nullptr;
-    ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
-    const PluginPtr &Plugin = ContextImpl->getPlugin();
     Plugin->call<PiApiKind::piProgramCreate>(
         ContextImpl->getHandleRef(), spirv.data(), spirv.size(), &PiProgram);
     // program created by piProgramCreate is implicitly retained.
 
-    std::vector<pi::PiDevice> DeviceVec;
-    DeviceVec.reserve(Devices.size());
-    for (const auto &SyclDev : Devices) {
-      pi::PiDevice Dev = getSyclObjImpl(SyclDev)->getHandleRef();
-      DeviceVec.push_back(Dev);
-    }
     Plugin->call<errc::build, PiApiKind::piProgramBuild>(
         PiProgram, DeviceVec.size(), DeviceVec.data(), nullptr, nullptr,
         nullptr);
@@ -553,9 +564,9 @@ public:
             MContext, KernelID.get_name(), /*PropList=*/{},
             SelectedImage->get_program_ref());
 
-    std::shared_ptr<kernel_impl> KernelImpl =
-        std::make_shared<kernel_impl>(Kernel, detail::getSyclObjImpl(MContext),
-                                      SelectedImage, Self, ArgMask, CacheMutex);
+    std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
+        Kernel, detail::getSyclObjImpl(MContext), SelectedImage, Self, ArgMask,
+        SelectedImage->get_program_ref(), CacheMutex);
 
     return detail::createSyclObjFromImpl<kernel>(KernelImpl);
   }

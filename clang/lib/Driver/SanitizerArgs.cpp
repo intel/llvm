@@ -487,6 +487,14 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
         Add &= ~NotAllowedWithExecuteOnly;
       if (CfiCrossDso)
         Add &= ~SanitizerKind::CFIMFCall;
+      // -fsanitize=undefined does not expand to signed-integer-overflow in
+      // -fwrapv (implied by -fno-strict-overflow) mode.
+      if (Add & SanitizerKind::UndefinedGroup) {
+        bool S = Args.hasFlagNoClaim(options::OPT_fno_strict_overflow,
+                                     options::OPT_fstrict_overflow, false);
+        if (Args.hasFlagNoClaim(options::OPT_fwrapv, options::OPT_fno_wrapv, S))
+          Add &= ~SanitizerKind::SignedIntegerOverflow;
+      }
       Add &= Supported;
 
       if (Add & SanitizerKind::Fuzzer)
@@ -1131,8 +1139,9 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       return;
     GPUSanitize = true;
   }
-  // SPIR sanitizer support is experimental and will pass a fixed set of flags
-  if (TC.getTriple().isSPIR()) {
+  // SPIR/SPIRV sanitizer support is experimental and will pass a fixed set of
+  // flags
+  if (TC.getTriple().isSPIROrSPIRV()) {
     if (Sanitizers.has(SanitizerKind::Address)) {
       CmdArgs.push_back("-fsanitize=address");
       CmdArgs.push_back("-fsanitize-address-use-after-return=never");
@@ -1141,6 +1150,10 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       // -fsanitize-address-outline-instrumentation
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-asan-instrumentation-with-call-threshold=0");
+
+      // asan initialization is done in unified runtime rather than in ctor.
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-asan-constructor-kind=none");
 
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-asan-stack=0");

@@ -13,21 +13,16 @@ int main() {
   using myparams = matrix_params<architecture::amd_gpu_gfx90a, int8_t, int8_t,
                                  int32_t, int32_t, 32, 32, 8>;
 
-  size_t dmsize = myparams::M;
-  size_t dnsize = myparams::N;
-  size_t dksize = myparams::K;
-  std::cout
-      << "sizes of AMD gpu gfx90a matrix_params chosen by the user are: M "
-      << dmsize << " N " << dnsize << " K " << dksize << std::endl;
+  static_assert(myparams::M == 32);
+  static_assert(myparams::N == 32);
+  static_assert(myparams::K == 8);
 
   // Sizes-only compile-time query: types are given, generate default sizes
   using myparams2 = matrix_params<architecture::amd_gpu_gfx90a, int8_t, int8_t,
                                   int32_t, int32_t>;
-  myparams2 p;
-  dmsize = myparams2::M;
-  dnsize = myparams2::N;
-  dksize = myparams2::K;
-  std::cout << "default AMD gpu gfx90a sizes matrix_params  are: M " << dmsize
-            << " N " << dnsize << " K " << dksize << std::endl;
+  static_assert(myparams2::M == 16);
+  static_assert(myparams2::N == 16);
+  static_assert(myparams2::K == 4);
+
   return 0;
 };

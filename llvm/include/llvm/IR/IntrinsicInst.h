@@ -1454,7 +1454,35 @@ public:
 
 /// A base class for all instrprof intrinsics.
 class InstrProfInstBase : public IntrinsicInst {
+protected:
+  static bool isCounterBase(const IntrinsicInst &I) {
+    switch (I.getIntrinsicID()) {
+    case Intrinsic::instrprof_cover:
+    case Intrinsic::instrprof_increment:
+    case Intrinsic::instrprof_increment_step:
+    case Intrinsic::instrprof_timestamp:
+    case Intrinsic::instrprof_value_profile:
+      return true;
+    }
+    return false;
+  }
+  static bool isMCDCBitmapBase(const IntrinsicInst &I) {
+    switch (I.getIntrinsicID()) {
+    case Intrinsic::instrprof_mcdc_parameters:
+    case Intrinsic::instrprof_mcdc_tvbitmap_update:
+      return true;
+    }
+    return false;
+  }
+
 public:
+  static bool classof(const Value *V) {
+    if (const auto *Instr = dyn_cast<IntrinsicInst>(V))
+      return isCounterBase(*Instr) || isMCDCBitmapBase(*Instr) ||
+             Instr->getIntrinsicID() ==
+                 Intrinsic::instrprof_mcdc_condbitmap_update;
+    return false;
+  }
   // The name of the instrumented function.
   GlobalVariable *getName() const {
     return cast<GlobalVariable>(
@@ -1469,6 +1497,12 @@ public:
 /// A base class for all instrprof counter intrinsics.
 class InstrProfCntrInstBase : public InstrProfInstBase {
 public:
+  static bool classof(const Value *V) {
+    if (const auto *Instr = dyn_cast<IntrinsicInst>(V))
+      return InstrProfInstBase::isCounterBase(*Instr);
+    return false;
+  }
+
   // The number of counters for the instrumented function.
   ConstantInt *getNumCounters() const;
   // The index of the counter that this instruction acts on.
@@ -1549,8 +1583,7 @@ public:
 class InstrProfMCDCBitmapInstBase : public InstrProfInstBase {
 public:
   static bool classof(const IntrinsicInst *I) {
-    return I->getIntrinsicID() == Intrinsic::instrprof_mcdc_parameters ||
-           I->getIntrinsicID() == Intrinsic::instrprof_mcdc_tvbitmap_update;
+    return InstrProfInstBase::isMCDCBitmapBase(*I);
   }
   static bool classof(const Value *V) {
     return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
@@ -1774,6 +1807,38 @@ public:
   static bool classof(const Value *V) {
     return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
   }
+
+  // Returns the convergence intrinsic referenced by |I|'s convergencectrl
+  // attribute if any.
+  static IntrinsicInst *getParentConvergenceToken(Instruction *I) {
+    auto *CI = dyn_cast<llvm::CallInst>(I);
+    if (!CI)
+      return nullptr;
+
+    auto Bundle = CI->getOperandBundle(llvm::LLVMContext::OB_convergencectrl);
+    assert(Bundle->Inputs.size() == 1 &&
+           Bundle->Inputs[0]->getType()->isTokenTy());
+    return dyn_cast<llvm::IntrinsicInst>(Bundle->Inputs[0].get());
+  }
+};
+
+/// This represents the llvm.sycl.alloca intrinsic.
+class SYCLAllocaInst : public IntrinsicInst {
+public:
+  static bool classof(const IntrinsicInst *I) {
+    return I->getIntrinsicID() == Intrinsic::sycl_alloca;
+  }
+
+  static bool classof(const Value *V) {
+    return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
+  }
+
+  unsigned getAddressSpace() const;
+  Value *getSizeSymbolicID() const;
+  Value *getSizeDefaultValue() const;
+  Value *getRTBuffer() const;
+  Type *getAllocatedType() const;
+  Align getAlign() const;
 };
 
 } // end namespace llvm

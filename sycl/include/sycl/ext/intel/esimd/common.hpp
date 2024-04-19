@@ -545,50 +545,12 @@ public:
   }
 };
 
-constexpr bool are_both(cache_hint First, cache_hint Second, cache_hint Val) {
+template <cache_hint Val>
+constexpr bool are_all(cache_hint First, cache_hint Second) {
   return First == Val && Second == Val;
 }
 
 enum class cache_action { prefetch, load, store, atomic };
-
-template <cache_action Action, cache_hint L1Hint, cache_hint L2Hint>
-void check_cache_hint() {
-  constexpr auto L1H = cache_hint_wrap<L1Hint>{};
-  constexpr auto L2H = cache_hint_wrap<L2Hint>{};
-  if constexpr (Action == cache_action::prefetch) {
-    static_assert(
-        L1H.template is_one_of<cache_hint::cached, cache_hint::uncached,
-                               cache_hint::streaming>() &&
-            L2H.template is_one_of<cache_hint::cached,
-                                   cache_hint::uncached>() &&
-            !are_both(L1H, L2H, cache_hint::uncached),
-        "unsupported cache hint");
-  } else if constexpr (Action == cache_action::load) {
-    static_assert(
-        are_both(L1H, L2H, cache_hint::none) ||
-            (L1H.template is_one_of<cache_hint::uncached, cache_hint::cached,
-                                    cache_hint::streaming>() &&
-             L2H.template is_one_of<cache_hint::uncached,
-                                    cache_hint::cached>()) ||
-            (L1H == cache_hint::read_invalidate && L2H == cache_hint::cached),
-        "unsupported cache hint");
-  } else if constexpr (Action == cache_action::store) {
-    static_assert(are_both(L1H, L2H, cache_hint::none) ||
-                      are_both(L1H, L2H, cache_hint::write_back) ||
-                      (L1H.template is_one_of<cache_hint::uncached,
-                                              cache_hint::write_through,
-                                              cache_hint::streaming>() &&
-                       L2H.template is_one_of<cache_hint::uncached,
-                                              cache_hint::write_back>()),
-                  "unsupported cache hint");
-  } else if constexpr (Action == cache_action::atomic) {
-    static_assert(are_both(L1H, L2H, cache_hint::none) ||
-                      (L1H == cache_hint::uncached &&
-                       L2H.template is_one_of<cache_hint::uncached,
-                                              cache_hint::write_back>()),
-                  "unsupported cache hint");
-  }
-}
 
 template <typename PropertyListT> constexpr bool has_cache_hints() {
   constexpr cache_hint L1H =
@@ -598,16 +560,49 @@ template <typename PropertyListT> constexpr bool has_cache_hints() {
   return L1H != cache_hint::none || L2H != cache_hint::none;
 }
 
-// Currently, this is just a wrapper around 'check_cache_hint' function.
-// It accepts the compile-time properties that may include cache-hints
-// to be verified.
+// Verifies cache-hint properties from 'PropertyListT`. The parameter 'Action'
+// specifies the usage context.
 template <cache_action Action, typename PropertyListT>
 void check_cache_hints() {
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
-  check_cache_hint<Action, L1H, L2H>();
+  constexpr auto L1H =
+      cache_hint_wrap<getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::none)>{};
+  constexpr auto L2H =
+      cache_hint_wrap<getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::none)>{};
+  if constexpr (Action == cache_action::prefetch) {
+    static_assert(
+        L1H.template is_one_of<cache_hint::cached, cache_hint::uncached,
+                               cache_hint::streaming>() &&
+            L2H.template is_one_of<cache_hint::cached,
+                                   cache_hint::uncached>() &&
+            !are_all<cache_hint::uncached>(L1H, L2H),
+        "unsupported cache hint");
+  } else if constexpr (Action == cache_action::load) {
+    static_assert(
+        are_all<cache_hint::none>(L1H, L2H) ||
+            (L1H.template is_one_of<cache_hint::uncached, cache_hint::cached,
+                                    cache_hint::streaming>() &&
+             L2H.template is_one_of<cache_hint::uncached,
+                                    cache_hint::cached>()) ||
+            (L1H == cache_hint::read_invalidate && L2H == cache_hint::cached),
+        "unsupported cache hint");
+  } else if constexpr (Action == cache_action::store) {
+    static_assert(are_all<cache_hint::none>(L1H, L2H) ||
+                      are_all<cache_hint::write_back>(L1H, L2H) ||
+                      (L1H.template is_one_of<cache_hint::uncached,
+                                              cache_hint::write_through,
+                                              cache_hint::streaming>() &&
+                       L2H.template is_one_of<cache_hint::uncached,
+                                              cache_hint::write_back>()),
+                  "unsupported cache hint");
+  } else if constexpr (Action == cache_action::atomic) {
+    static_assert(are_all<cache_hint::none>(L1H, L2H) ||
+                      (L1H == cache_hint::uncached &&
+                       L2H.template is_one_of<cache_hint::uncached,
+                                              cache_hint::write_back>()),
+                  "unsupported cache hint");
+  }
 }
 
 constexpr lsc_data_size expand_data_size(lsc_data_size DS) {

@@ -120,29 +120,29 @@ using the `private_alloca` API defined in the following sections.
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
-template <typename ElementType, auto &SpecName,
+template <typename ElementType, auto &SizeSpecName,
           access::decorated DecorateAddress>
 private_ptr<ElementType, DecorateAddress>
 private_alloca(kernel_handler &kh);
 
-template <typename ElementType, std::size_t Alignment, auto &SpecName,
+template <typename ElementType, std::size_t Alignment, auto &SizeSpecName,
           access::decorated DecorateAddress>
 private_ptr<ElementType, DecorateAddress>
 aligned_private_alloca(kernel_handler &kh);
 } // namespace sycl::ext::oneapi::experimental
 ----
 
-_Mandates_: `ElementType` must be a cv-unqualified trivial type and `SpecName`
-must be a reference to a specialization constant of integral `value_type`. In
-the case of `aligned_private_alloca`, `Alignment` must be an alignment value and
-must be a positive multiple of `alignof(ElementType)`. If `Alignment` is an
-extended alignment, it must be supported by the implementation.
+_Mandates_: `ElementType` must be a cv-unqualified trivial type and
+`SizeSpecName` must be a reference to a specialization constant of integral
+type. In the case of `aligned_private_alloca`, `Alignment` must be an alignment
+value and must be a positive multiple of `alignof(ElementType)`. If `Alignment`
+is an extended alignment, it must be supported by the implementation.
 
-_Effects_: `h.get_specialization_constant<size>()` elements of type
+_Effects_: `kh.get_specialization_constant<SizeSpecName>()` elements of type
 `ElementType` are allocated and default initialized in private memory.
 
 _Returns_: A pointer to a default initialized region of private memory of
-`h.get_specialization_constant<size>()` elements of type
+`kh.get_specialization_constant<SizeSpecName>()` elements of type
 `ElementType`. `DecorateAddress` defines whether the returned `multi_ptr` is
 decorated. In the case of `private_alloca`, the pointer is suitably aligned for
 an object of type `ElementType`. In the case of `aligned_private_alloca`, the
@@ -151,7 +151,7 @@ pointer is aligned to the specified `Alignment`.
 _Remarks_: In case of private memory exhaustion, the implementation must report
 an error in the same fashion as if the allocation size were static. In case of a
 successful call, allocated memory has automatic storage duration. Additionally,
-`SpecName` must have a default value of at least 1 and not be set to a value
+`SizeSpecName` must have a default value of at least 1 and not be set to a value
 less than 1 during program execution. Violation of these conditions results in
 undefined behaviour.
 
@@ -209,6 +209,35 @@ void run(queue q, const float *in, float *out, size_t n) {
       }
       // Memory allocated by 'private_alloca' has been deallocated.
       // Dereferencing 'ptr' at this program point is undefined behaviour.
+    });
+  });
+----
+
+=== Usage with `sycl::span`
+
+In this section, we show an example of how users could use this extension with
+`sycl::span` as a `std::array` replacement:
+
+[source,c++]
+----
+constexpr specialization_id<std::size_t> size(1);
+
+class Kernel;
+
+// Counterpart to 'impl' in the first example using 'sycl::span'
+SYCL_EXTERNAL void impl(const float *in, float *out,
+                        sycl::span<float> ptr);
+
+void run(queue q, const float *in, float *out, size_t n) {
+  q.submit([&](handler &h) {
+    h.set_specialization_constant<size>(n);
+    h.parallel_for<Kernel>(n, [=](id<1> i, kernel_handler kh) {
+      // Create sycl::span with the returned pointer and the specialization
+      // constant used as size.
+      sycl::span<float> tmp{
+          private_alloca<float, size, access::decorated::no>(kh).get_raw(),
+          kh.get_specialization_constant<size>()};
+      impl(in, out, tmp);
     });
   });
 ----

@@ -88,6 +88,17 @@ defm set_section_type
          "Set the type of section <section> to the integer <type>">,
       MetaVarName<"section=type">;
 
+defm set_symbol_visibility
+    : Eq<"set-symbol-visibility",
+         "Change the visibility of a symbol to the specified value">,
+      MetaVarName<"symbol=visibility">;
+defm set_symbols_visibility
+    : Eq<"set-symbols-visibility",
+         "Read a list of symbols from <filename> and change their "
+         "visibility to the specified value. Visibility values: default, "
+         "internal, hidden, protected">,
+      MetaVarName<"filename=visibility">;
+
 def S : Flag<["-"], "S">,
         Alias<strip_all>,
         HelpText<"Alias for --strip-all">;
@@ -190,6 +201,20 @@ defm keep_symbols
     : Eq<"keep-symbols",
          "Read a list of symbols from <filename> and run as if "
          "--keep-symbol=<symbol> is set for each one. <filename> "
+         "contains one symbol per line and may contain comments beginning with "
+         "'#'. Leading and trailing whitespace is stripped from each line. May "
+         "be repeated to read symbols from many files">,
+      MetaVarName<"filename">;
+
+defm skip_symbol : Eq<"skip-symbol", "Do not change parameters of symbol <symbol> "
+                        "when executing other options that can change the symbol's "
+                        "name, binding or visibility">,
+                     MetaVarName<"symbol">;
+
+defm skip_symbols
+    : Eq<"skip-symbols",
+         "Read a list of symbols from <filename> and run as if "
+         "--skip-symbol=<symbol> is set for each one. <filename> "
          "contains one symbol per line and may contain comments beginning with "
          "'#'. Leading and trailing whitespace is stripped from each line. May "
          "be repeated to read symbols from many files">,

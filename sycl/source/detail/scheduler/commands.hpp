@@ -25,6 +25,11 @@
 
 namespace sycl {
 inline namespace _V1 {
+
+namespace ext::oneapi::experimental::detail {
+class exec_graph_impl;
+class node_impl;
+} // namespace ext::oneapi::experimental::detail
 namespace detail {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -114,6 +119,7 @@ public:
     HOST_TASK,
     FUSION,
     EXEC_CMD_BUFFER,
+    UPDATE_CMD_BUFFER
   };
 
   Command(CommandType Type, QueueImplPtr Queue,
@@ -755,6 +761,26 @@ private:
   FusionStatus MStatus;
 };
 
+class UpdateCommandBufferCommand : public Command {
+public:
+  explicit UpdateCommandBufferCommand(
+      QueueImplPtr Queue,
+      ext::oneapi::experimental::detail::exec_graph_impl *Graph,
+      std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
+          Nodes);
+
+  void printDot(std::ostream &Stream) const final;
+  void emitInstrumentationData() final;
+  bool producesPiEvent() const final;
+
+private:
+  pi_int32 enqueueImp() final;
+
+  ext::oneapi::experimental::detail::exec_graph_impl *MGraph;
+  std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
+      MNodes;
+};
+
 // Enqueues a given kernel to a PiExtCommandBuffer
 pi_int32 enqueueImpCommandBufferKernel(
     context Ctx, DeviceImplPtr DeviceImpl,
@@ -762,6 +788,7 @@ pi_int32 enqueueImpCommandBufferKernel(
     const CGExecKernel &CommandGroup,
     std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints,
     sycl::detail::pi::PiExtSyncPoint *OutSyncPoint,
+    sycl::detail::pi::PiExtCommandBufferCommand *OutCommand,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc);
 
 // Sets arguments for a given kernel and device based on the argument type.

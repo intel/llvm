@@ -12,7 +12,6 @@
 #include <detail/platform_util.hpp>
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
-#include <sycl/detail/common_info.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
@@ -26,6 +25,8 @@
 
 #include <chrono>
 #include <thread>
+
+#include "split_string.hpp"
 
 namespace sycl {
 inline namespace _V1 {
@@ -740,9 +741,26 @@ struct get_device_info_impl<
     using namespace ext::oneapi::experimental::matrix;
     using namespace ext::oneapi::experimental;
     backend CurrentBackend = Dev->getBackend();
-    architecture DeviceArch = get_device_info_impl<
-        ext::oneapi::experimental::architecture,
-        ext::oneapi::experimental::info::device::architecture>::get(Dev);
+    auto get_current_architecture = [&Dev]() -> std::optional<architecture> {
+      // this helper lambda ignores all runtime-related exceptions from
+      // quering the device architecture. For instance, if device architecture
+      // on user's machine is not supported by
+      // sycl_ext_oneapi_device_architecture, the runtime exception is omitted,
+      // and std::nullopt is returned.
+      try {
+        return get_device_info_impl<
+            architecture,
+            ext::oneapi::experimental::info::device::architecture>::get(Dev);
+      } catch (sycl::exception &e) {
+        if (e.code() != errc::runtime)
+          std::rethrow_exception(std::make_exception_ptr(e));
+      }
+      return std::nullopt;
+    };
+    std::optional<architecture> DeviceArchOpt = get_current_architecture();
+    if (!DeviceArchOpt.has_value())
+      return {};
+    architecture DeviceArch = DeviceArchOpt.value();
     if (architecture::intel_cpu_spr == DeviceArch)
       return {
           {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::uint8,
@@ -850,10 +868,7 @@ struct get_device_info_impl<
         for (const auto &Item : NvidiaArchNumbs)
           if (Item.second == arch)
             return Item.first;
-        throw sycl::exception(
-            make_error_code(errc::runtime),
-            "The current device architecture is not supported by "
-            "sycl_ext_oneapi_matrix.");
+        return 0.f;
       };
       float ComputeCapability = GetArchNum(DeviceArch);
       std::vector<combination> sm_70_combinations = {
@@ -1168,34 +1183,6 @@ struct get_device_info_impl<
                        max_registers_per_work_group>::value,
         sizeof(maxRegsPerWG), &maxRegsPerWG, nullptr);
     return maxRegsPerWG;
-  }
-};
-
-// Specialization for graph extension support
-template <>
-struct get_device_info_impl<
-    ext::oneapi::experimental::graph_support_level,
-    ext::oneapi::experimental::info::device::graph_support> {
-  static ext::oneapi::experimental::graph_support_level
-  get(const DeviceImplPtr &Dev) {
-    size_t ResultSize = 0;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PI_DEVICE_INFO_EXTENSIONS, 0, nullptr,
-        &ResultSize);
-    if (ResultSize == 0)
-      return ext::oneapi::experimental::graph_support_level::unsupported;
-
-    std::unique_ptr<char[]> Result(new char[ResultSize]);
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PI_DEVICE_INFO_EXTENSIONS, ResultSize,
-        Result.get(), nullptr);
-
-    std::string_view ExtensionsString(Result.get());
-    bool CmdBufferSupport =
-        ExtensionsString.find("ur_exp_command_buffer") != std::string::npos;
-    return CmdBufferSupport
-               ? ext::oneapi::experimental::graph_support_level::native
-               : ext::oneapi::experimental::graph_support_level::unsupported;
   }
 };
 
@@ -2159,13 +2146,6 @@ inline uint32_t get_device_info_host<
   throw runtime_error("Obtaining the maximum number of available registers per "
                       "work-group is not supported on HOST device",
                       PI_ERROR_INVALID_DEVICE);
-}
-
-template <>
-inline ext::oneapi::experimental::graph_support_level
-get_device_info_host<ext::oneapi::experimental::info::device::graph_support>() {
-  // No support for graphs on the host device.
-  return ext::oneapi::experimental::graph_support_level::unsupported;
 }
 
 template <>

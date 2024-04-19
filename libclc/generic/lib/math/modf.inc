@@ -28,14 +28,14 @@
 #define ZERO 0.0h
 #endif
 
-_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE modf(__CLC_GENTYPE x, __CLC_GENTYPE *iptr) {
+_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE modf(__CLC_GENTYPE x, private __CLC_GENTYPE *iptr) {
   *iptr = trunc(x);
   return copysign(isinf(x) ? ZERO : x - *iptr, x);
 }
 
 #define MODF_DEF(addrspace) \
   _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE modf(__CLC_GENTYPE x, addrspace __CLC_GENTYPE *iptr) { \
-    __CLC_GENTYPE private_iptr; \
+    private __CLC_GENTYPE private_iptr; \
     __CLC_GENTYPE ret = modf(x, &private_iptr); \
     *iptr = private_iptr; \
     return ret; \
@@ -43,5 +43,10 @@ _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE modf(__CLC_GENTYPE x, __CLC_GENTYPE *iptr) 
 
 MODF_DEF(local);
 MODF_DEF(global);
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+MODF_DEF(generic);
+#endif
 
 #undef ZERO

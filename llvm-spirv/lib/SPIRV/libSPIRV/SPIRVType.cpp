@@ -56,7 +56,7 @@ uint64_t SPIRVType::getArrayLength() const {
   const SPIRVTypeArray *AsArray = static_cast<const SPIRVTypeArray *>(this);
   assert(AsArray->getLength()->getOpCode() == OpConstant &&
          "getArrayLength can only be called with constant array lengths");
-  return AsArray->getLength()->getZExtIntValue();
+  return static_cast<SPIRVConstant *>(AsArray->getLength())->getZExtIntValue();
 }
 
 SPIRVWord SPIRVType::getBitWidth() const {
@@ -263,7 +263,7 @@ void SPIRVTypeStruct::setPacked(bool Packed) {
 }
 
 SPIRVTypeArray::SPIRVTypeArray(SPIRVModule *M, SPIRVId TheId,
-                               SPIRVType *TheElemType, SPIRVConstant *TheLength)
+                               SPIRVType *TheElemType, SPIRVValue *TheLength)
     : SPIRVType(M, 4, OpTypeArray, TheId), ElemType(TheElemType),
       Length(TheLength->getId()) {
   validate();
@@ -273,11 +273,10 @@ void SPIRVTypeArray::validate() const {
   SPIRVEntry::validate();
   ElemType->validate();
   assert(getValue(Length)->getType()->isTypeInt());
+  assert(isConstantOpCode(getValue(Length)->getOpCode()));
 }
 
-SPIRVConstant *SPIRVTypeArray::getLength() const {
-  return get<SPIRVConstant>(Length);
-}
+SPIRVValue *SPIRVTypeArray::getLength() const { return getValue(Length); }
 
 _SPIRV_IMP_ENCDEC3(SPIRVTypeArray, Id, ElemType, Length)
 

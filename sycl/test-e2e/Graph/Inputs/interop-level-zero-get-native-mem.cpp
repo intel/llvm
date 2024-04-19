@@ -33,10 +33,6 @@ int main() {
     context Context1{Dev1};
     queue Queue{Context1, Dev1};
 
-    if (!are_graphs_supported(Queue)) {
-      return 0;
-    }
-
     auto Context = Queue.get_context();
     auto Device = Queue.get_info<info::queue::device>();
 

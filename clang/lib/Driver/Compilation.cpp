@@ -99,7 +99,7 @@ static void HandleXarchArgs(DerivedArgList *OffloadArgList, const Driver &D,
               OffloadArgList->MakeArgStringRef(XarchVecs[Index]));
       }
     } else
-      XarchValueRefs.push_back(StringRef(XarchV));
+      XarchValueRefs.push_back(OffloadArgList->MakeArgString(XarchV));
   }
 
   if (NeedHandle) {

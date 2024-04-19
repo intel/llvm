@@ -6,8 +6,8 @@
 // Actually, only sycl-post-link gets an additional flag in this case.
 // RUN: %clang -### -fsycl %s 2>&1 | FileCheck -check-prefix=CHECK-DEFAULT %s
 // CHECK-DEFAULT-NOT: clang{{.*}} "sycl-esimd-force-stateless-mem"
-// CHECK-DEFAULT-NOT: sycl-post-link{{.*}} "-lower-esimd-force-stateless-mem"
 // CHECK-DEFAULT-NOT: clang{{.*}} "-fsycl-is-host" {{.*}}"sycl-esimd-force-stateless-mem"
+// CHECK-DEFAULT-NOT: sycl-post-link{{.*}} "-lower-esimd-force-stateless-mem"
 
 // Case2: Check that -fno-sycl-esimd-force-stateless-mem is handled correctly -
 // i.e. sycl-post-link gets nothing and clang gets corresponding -fno... option.

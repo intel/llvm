@@ -230,6 +230,38 @@ template <typename PropertyListT, size_t Alignment>
 using add_alignment_property_t =
     typename add_alignment_property<PropertyListT, Alignment>::type;
 
+// Removes the 'alignment' property from 'PropertyListT' if it is there.
+// Otherwise, keeps the 'PropertyListT' without changes.
+template <typename PropertyListT> struct remove_alignment_property {
+  using type = PropertyListT;
+};
+template <size_t Alignment, typename... LastTs>
+struct remove_alignment_property<
+    properties<std::tuple<alignment_key::value_t<Alignment>, LastTs...>>> {
+  using type = properties<std::tuple<LastTs...>>;
+};
+template <typename FirstT, size_t Alignment, typename... LastTs>
+struct remove_alignment_property<properties<
+    std::tuple<FirstT, alignment_key::value_t<Alignment>, LastTs...>>> {
+  using type = properties<std::tuple<FirstT, LastTs...>>;
+};
+template <typename PropertyListT>
+using remove_alignment_property_t =
+    typename remove_alignment_property<PropertyListT>::type;
+
+// Creates and adds a compile-time property 'alignment<Alignment>' to the given
+// property list 'PropertyListT'. If 'alignment' property was already in
+// 'PropertyListT', then it is replaced with a new one - `alignment<Alignment>`.
+template <typename PropertyListT, size_t Alignment>
+struct add_or_replace_alignment_property {
+  using type =
+      add_alignment_property_t<remove_alignment_property_t<PropertyListT>,
+                               Alignment>;
+};
+template <typename PropertyListT, size_t Alignment>
+using add_or_replace_alignment_property_t =
+    typename add_or_replace_alignment_property<PropertyListT, Alignment>::type;
+
 // Creates the type for the list of L1, L2, and alignment properties.
 template <cache_hint L1H, cache_hint L2H, size_t Alignment>
 struct make_L1_L2_alignment_properties {
@@ -240,6 +272,14 @@ struct make_L1_L2_alignment_properties {
 template <cache_hint L1H, cache_hint L2H, size_t Alignment>
 using make_L1_L2_alignment_properties_t =
     typename make_L1_L2_alignment_properties<L1H, L2H, Alignment>::type;
+
+// Creates the type for the list of L1 and L2 properties.
+template <cache_hint L1H, cache_hint L2H> struct make_L1_L2_properties {
+  using type = ext::oneapi::experimental::detail::properties_t<
+      cache_hint_L1_key::value_t<L1H>, cache_hint_L2_key::value_t<L2H>>;
+};
+template <cache_hint L1H, cache_hint L2H>
+using make_L1_L2_properties_t = typename make_L1_L2_properties<L1H, L2H>::type;
 
 } // namespace detail
 } // namespace ext::intel::esimd

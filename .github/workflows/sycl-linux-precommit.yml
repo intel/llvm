@@ -29,6 +29,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions: read-all
+
 jobs:
   detect_changes:
     uses: ./.github/workflows/sycl-detect-changes.yml
@@ -43,8 +45,6 @@ jobs:
       build_cache_root: "/__w/"
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
-      # FIXME: UR can't find /opt/rocm/hsa with rocm-6.0.0. Previous rocm-5.7.0 had it.
-      build_image: "ghcr.io/intel/llvm/ubuntu2204_build:7ed894ab0acc8ff09262113fdb08940d22654a30"
       changes: ${{ needs.detect_changes.outputs.filters }}
 
   determine_arc_tests:
@@ -73,8 +73,7 @@ jobs:
         include:
           - name: AMD/HIP
             runner: '["Linux", "amdgpu"]'
-            # FIXME: Keep in sync with the above hack.
-            image: ghcr.io/intel/llvm/ubuntu2204_build:7ed894ab0acc8ff09262113fdb08940d22654a30
+            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: ext_oneapi_hip:gpu
           - name: Intel

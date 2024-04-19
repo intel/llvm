@@ -80,7 +80,7 @@ SPIRVEntry *SPIRVEntry::create(Op OpCode) {
 #undef _SPIRV_OP
   };
 
-  typedef std::map<Op, SPIRVFactoryTy> OpToFactoryMapTy;
+  typedef std::unordered_map<Op, SPIRVFactoryTy> OpToFactoryMapTy;
   static const OpToFactoryMapTy OpToFactoryMap(std::begin(Table),
                                                std::end(Table));
 
@@ -592,8 +592,7 @@ void SPIRVEntry::updateModuleVersion() const {
   if (!Module)
     return;
 
-  Module->setMinSPIRVVersion(
-      static_cast<VersionNumber>(getRequiredSPIRVVersion()));
+  Module->setMinSPIRVVersion(getRequiredSPIRVVersion());
 }
 
 spv_ostream &operator<<(spv_ostream &O, const SPIRVEntry &E) {
@@ -661,9 +660,9 @@ void SPIRVExecutionMode::decode(std::istream &I) {
   case ExecutionModeRegisterMapInterfaceINTEL:
   case ExecutionModeStreamingInterfaceINTEL:
   case spv::internal::ExecutionModeNamedSubgroupSizeINTEL:
-  case internal::ExecutionModeMaximumRegistersINTEL:
-  case internal::ExecutionModeMaximumRegistersIdINTEL:
-  case internal::ExecutionModeNamedMaximumRegistersINTEL:
+  case ExecutionModeMaximumRegistersINTEL:
+  case ExecutionModeMaximumRegistersIdINTEL:
+  case ExecutionModeNamedMaximumRegistersINTEL:
     WordLiterals.resize(1);
     break;
   default:
