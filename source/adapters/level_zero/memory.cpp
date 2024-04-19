@@ -1240,8 +1240,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
   UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_USM_PREFETCH,
                                        CommandList, IsInternal, false));
-  UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
-                         NumEventsInWaitList, EventWaitList));
+  ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
 
   const auto &WaitList = (*Event)->WaitList;
@@ -1297,7 +1296,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
   UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_USM_ADVISE,
                                        CommandList, IsInternal, false));
-  UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event, 0, nullptr));
+  ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
 
   const auto &ZeCommandList = CommandList->first;
