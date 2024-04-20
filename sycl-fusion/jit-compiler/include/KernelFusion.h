@@ -51,28 +51,25 @@ private:
   DynString ErrorMessage;
 };
 
-class KernelFusion {
+extern "C" {
 
-public:
-  static FusionResult
-  fuseKernels(View<SYCLKernelInfo> KernelInformation,
-              const char *FusedKernelName, View<ParameterIdentity> Identities,
-              BarrierFlags BarriersFlags,
-              View<ParameterInternalization> Internalization,
-              View<jit_compiler::JITConstant> JITConstants);
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wreturn-type-c-linkage"
+#endif // __clang__
+FusionResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
+                         const char *FusedKernelName,
+                         View<ParameterIdentity> Identities,
+                         BarrierFlags BarriersFlags,
+                         View<ParameterInternalization> Internalization,
+                         View<jit_compiler::JITConstant> JITConstants);
 
-  /// Clear all previously set options.
-  static void resetConfiguration();
+/// Clear all previously set options.
+void resetJITConfiguration();
 
-  /// Set \p Opt to the value built in-place by \p As.
-  template <typename Opt, typename... Args> static void set(Args &&...As) {
-    set(new Opt{std::forward<Args>(As)...});
-  }
+/// Add an option to the configuration.
+void addToJITConfiguration(OptionStorage &&Opt);
 
-private:
-  /// Take ownership of \p Option and include it in the current configuration.
-  static void set(OptionPtrBase *Option);
-};
+} // end of extern "C"
 
 } // namespace jit_compiler
 
