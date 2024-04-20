@@ -93,7 +93,8 @@ jobs:
           --cmake-opt="-DCMAKE_CXX_COMPILER_LAUNCHER=sccache" ^
           --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=sccache" ^
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" ^
-          --cmake-opt="-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV"
+          --cmake-opt="-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV" ^
+          --cmake-opt="-DCMAKE_PREFIX_PATH='C:\hwloc-win64-build-2.10.0'"
     - name: Build
       id: build
       shell: bash
