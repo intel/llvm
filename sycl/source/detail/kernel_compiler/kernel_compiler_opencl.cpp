@@ -255,9 +255,9 @@ std::string InvokeOclocQuery(uint32_t IPVersion, const char *identifier) {
   // Gather the results.
   for (uint32_t i = 0; i < NumOutputs; i++) {
     if (!strcmp(OutputNames[i], "stdout.log")) {
-      const char *LogText = reinterpret_cast<const char *>(Outputs[i]);
-      if (LogText != nullptr && LogText[0] != '\0') {
-        QueryLog.append(LogText);
+      if (OutputLengths[i] > 0) {
+        const char *LogText = reinterpret_cast<const char *>(Outputs[i]);
+        QueryLog.append(LogText, OutputLengths[i]);
       }
     }
   }
@@ -308,7 +308,7 @@ bool OpenCLC_Supports_Version(
   // "OpenCL C":1.0.0 "OpenCL C":1.1.0 "OpenCL C":1.2.0 "OpenCL C":3.0.0
   std::stringstream ss;
   ss << Version.major << "." << Version.minor << "." << Version.patch;
-  return VersionLog.find(ss.str());
+  return VersionLog.find(ss.str()) != std::string::npos;
 }
 
 bool OpenCLC_Supports_Extension(
