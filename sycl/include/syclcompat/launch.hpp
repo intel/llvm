@@ -60,24 +60,31 @@ struct KernelParams {
       : global_range(grid_dim * block_dim), local_range(block_dim) {}
 };
 
-
 template <auto F, typename... Args>
-std::enable_if_t<std::is_invocable_v<decltype(F), Args...>, sycl::event>
-launch(const KernelParams &&kernel_params, size_t local_memory_size,
+sycl::event launch(const KernelParams &&kernel_params, size_t local_memory_size,
        sycl::queue q, Args... args) {
-  static_assert(detail::getArgumentCount(F) == sizeof...(args),
-                "Wrong number of arguments to SYCL kernel");
-  static_assert(
-      std::is_same<std::invoke_result_t<decltype(F), Args...>, void>::value,
-      "SYCL kernels should return void");
+  using f_t = decltype(F);
+  if constexpr (getArgumentCount(F) == sizeof...(args)) {
+      using f_return_t = typename std::invoke_result_t<f_t, Args...>;
+      static_assert(std::is_same_v<f_return_t, void>, "SYCL kernels should return void");
+      static_assert(std::is_invocable_v<decltype(F), Args...>, "Kernel Functor needs to invocable");
+  } else if constexpr(getArgumentCount(F) == sizeof...(args) + 1){
+    using f_return_t = typename std::invoke_result_t<f_t, Args..., char*>;
+    static_assert(std::is_same_v<f_return_t, void>, "SYCL kernels should return void");
+    static_assert(std::is_invocable_v<decltype(F), Args..., char*>, "Kernel Functor needs to invocable");
+  }
+
   return q.submit([&](sycl::handler &cgh) {
     auto local_acc = sycl::local_accessor<char, 1>(local_memory_size, cgh);
-    cgh.parallel_for(sycl::nd_range<3>(kernel_params.global_range, kernel_params.local_range),
+    cgh.parallel_for(sycl::nd_range<3>(kernel_params.global_range,
+                                       kernel_params.local_range),
                      [=](sycl::nd_item<3>) {
-                       if (local_memory_size == 0) {
+                       if constexpr (detail::getArgumentCount(F) ==
+                                     sizeof...(args)) {
                          [[clang::always_inline]] F(args...);
-                       } else {
-                         auto local_mem = local_acc.get_pointer();
+                       } else if constexpr (detail::getArgumentCount(F) ==
+                                            sizeof...(args) + 1) {
+                          auto local_mem = local_acc.get_pointer();
                          [[clang::always_inline]] F(args..., local_mem);
                        }
                      });
@@ -87,26 +94,32 @@ launch(const KernelParams &&kernel_params, size_t local_memory_size,
 template <auto F, int SubgroupSize, typename... Args>
 sycl::event launch(const KernelParams &&kernel_params, size_t local_memory_size,
                    sycl::queue q, Args... args) {
-  static_assert(detail::getArgumentCount(F) == sizeof...(args) + 1,
-                "Wrong number of arguments to SYCL kernel");
 
-  using F_t = decltype(F);
-  using f_return_t = typename std::invoke_result_t<F_t, Args..., char *>;
-  static_assert(std::is_same<f_return_t, void>::value,
-                "SYCL kernels should return void");
+  using f_t = decltype(F);
+  if constexpr (getArgumentCount(F) == sizeof...(args)) {
+      using f_return_t = typename std::invoke_result_t<f_t, Args...>;
+      static_assert(std::is_same_v<f_return_t, void>, "SYCL kernels should return void");
+      static_assert(std::is_invocable_v<decltype(F), Args...>, "Kernel Functor needs to invocable");
+  } else if constexpr(getArgumentCount(F) == sizeof...(args) + 1){
+    using f_return_t = typename std::invoke_result_t<f_t, Args..., char*>;
+    static_assert(std::is_same_v<f_return_t, void>, "SYCL kernels should return void");
+    static_assert(std::is_invocable_v<decltype(F), Args..., char*>, "Kernel Functor needs to invocable");
+  }
 
   return q.submit([&](sycl::handler &cgh) {
     auto local_acc = sycl::local_accessor<char, 1>(local_memory_size, cgh);
-    cgh.parallel_for(sycl::nd_range<3>({kernel_params.global_range, kernel_params.local_range}),
-                     [=](sycl::nd_item<3>)
-                         [[sycl::reqd_sub_group_size(SubgroupSize)]] {
-                           if (local_memory_size == 0) {
-                             [[clang::always_inline]] F(args...);
-                           } else {
-                             auto local_mem = local_acc.get_pointer();
-                             [[clang::always_inline]] F(args..., local_mem);
-                           }
-                         });
+    cgh.parallel_for(
+        sycl::nd_range<3>(
+            {kernel_params.global_range, kernel_params.local_range}),
+        [=](sycl::nd_item<3>) [[sycl::reqd_sub_group_size(SubgroupSize)]] {
+          if constexpr (detail::getArgumentCount(F) == sizeof...(args)) {
+            [[clang::always_inline]] F(args...);
+          } else if constexpr (detail::getArgumentCount(F) ==
+                               sizeof...(args) + 1) {
+            auto local_mem = local_acc.get_pointer();
+            [[clang::always_inline]] F(args..., local_mem);
+          }
+        });
   });
 }
 } // namespace detail
