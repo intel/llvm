@@ -13,6 +13,7 @@
 #pragma once
 
 #include "asan_allocator.hpp"
+#include "asan_buffer.hpp"
 #include "asan_libdevice.hpp"
 #include "common.hpp"
 #include "ur_sanitizer_layer.hpp"
@@ -75,6 +76,24 @@ struct QueueInfo {
     ~QueueInfo() {
         [[maybe_unused]] auto Result =
             context.urDdiTable.Queue.pfnRelease(Handle);
+        assert(Result == UR_RESULT_SUCCESS);
+    }
+};
+
+struct KernelInfo {
+    ur_kernel_handle_t Handle;
+    ur_shared_mutex Mutex;
+    std::unordered_map<uint32_t, std::shared_ptr<MemBuffer>> BufferArgs;
+
+    explicit KernelInfo(ur_kernel_handle_t Kernel) : Handle(Kernel) {
+        [[maybe_unused]] auto Result =
+            context.urDdiTable.Kernel.pfnRetain(Kernel);
+        assert(Result == UR_RESULT_SUCCESS);
+    }
+
+    ~KernelInfo() {
+        [[maybe_unused]] auto Result =
+            context.urDdiTable.Kernel.pfnRelease(Handle);
         assert(Result == UR_RESULT_SUCCESS);
     }
 };
@@ -173,12 +192,25 @@ class SanitizerInterceptor {
                              std::shared_ptr<DeviceInfo> &CI);
     ur_result_t eraseDevice(ur_device_handle_t Device);
 
+    ur_result_t insertKernel(ur_kernel_handle_t Kernel);
+    ur_result_t eraseKernel(ur_kernel_handle_t Kernel);
+
+    ur_result_t insertMemBuffer(std::shared_ptr<MemBuffer> MemBuffer);
+    ur_result_t eraseMemBuffer(ur_mem_handle_t MemHandle);
+    std::shared_ptr<MemBuffer> getMemBuffer(ur_mem_handle_t MemHandle);
+
     std::optional<AllocationIterator> findAllocInfoByAddress(uptr Address);
 
     std::shared_ptr<ContextInfo> getContextInfo(ur_context_handle_t Context) {
         std::shared_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
         assert(m_ContextMap.find(Context) != m_ContextMap.end());
         return m_ContextMap[Context];
+    }
+
+    std::shared_ptr<KernelInfo> getKernelInfo(ur_kernel_handle_t Kernel) {
+        std::shared_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
+        assert(m_KernelMap.find(Kernel) != m_KernelMap.end());
+        return m_KernelMap[Kernel];
     }
 
   private:
@@ -210,10 +242,17 @@ class SanitizerInterceptor {
     std::unordered_map<ur_context_handle_t, std::shared_ptr<ContextInfo>>
         m_ContextMap;
     ur_shared_mutex m_ContextMapMutex;
-
     std::unordered_map<ur_device_handle_t, std::shared_ptr<DeviceInfo>>
         m_DeviceMap;
     ur_shared_mutex m_DeviceMapMutex;
+
+    std::unordered_map<ur_kernel_handle_t, std::shared_ptr<KernelInfo>>
+        m_KernelMap;
+    ur_shared_mutex m_KernelMapMutex;
+
+    std::unordered_map<ur_mem_handle_t, std::shared_ptr<MemBuffer>>
+        m_MemBufferMap;
+    ur_shared_mutex m_MemBufferMapMutex;
 
     /// Assumption: all USM chunks are allocated in one VA
     AllocationMap m_AllocationMap;
