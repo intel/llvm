@@ -6,7 +6,7 @@ breathe==4.33.1
 bs4==0.0.1
 certifi==2024.07.04
 chardet==3.0.4
-clang-format==15.0.7
+clang-format==18.1.7
 colorama==0.4.1
 docutils==0.15.2
 exhale==0.3.0

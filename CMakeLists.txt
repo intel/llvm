@@ -236,13 +236,13 @@ endif()
 
 # Check if clang-format (in correct version) is available for Cpp code formatting.
 if(UR_FORMAT_CPP_STYLE)
-    find_program(CLANG_FORMAT NAMES clang-format-15 clang-format-15.0 clang-format)
+    find_program(CLANG_FORMAT NAMES clang-format-18 clang-format-18.1 clang-format)
 
     if(CLANG_FORMAT)
         get_program_version_major_minor(${CLANG_FORMAT} CLANG_FORMAT_VERSION)
         message(STATUS "Found clang-format: ${CLANG_FORMAT} (version: ${CLANG_FORMAT_VERSION})")
 
-        set(CLANG_FORMAT_REQUIRED "15.0")
+        set(CLANG_FORMAT_REQUIRED "18.1")
         if(NOT (CLANG_FORMAT_VERSION VERSION_EQUAL CLANG_FORMAT_REQUIRED))
             message(FATAL_ERROR "required clang-format version is ${CLANG_FORMAT_REQUIRED}")
         endif()
