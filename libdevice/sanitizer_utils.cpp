@@ -206,7 +206,7 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
                       ((wg_lid * SLM_SIZE) >> ASAN_SHADOW_SCALE) +
                       ((addr & (SLM_SIZE - 1)) >> 3);
 
-    if (shadow_ptr > __AsanShadowMemoryLocalEnd) {
+    if (shadow_ptr > shadow_offset_end) {
       if (__asan_report_out_of_shadow_bounds() && __AsanDebug) {
         __spirv_ocl_printf(__local_shadow_out_of_bound, addr, shadow_ptr,
                            wg_lid, (uptr)shadow_offset);
