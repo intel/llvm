@@ -1269,7 +1269,7 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
 
 } // end anonymous namespace
 
-// Append a new argument "launch_data" to user's spir_kernel & spir_func
+// Append a new argument "launch_data" to user's spir_kernels
 static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
   SmallVector<Function *> SpirFixupFuncs;
   for (Function &F : M) {
@@ -1356,20 +1356,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
   for (auto [F, NewF] : SpirFuncs) {
     SmallVector<User *, 16> Users(F->users());
     for (User *U : Users) {
-      if (auto *GA = dyn_cast<GlobalAlias>(U)) {
-        auto OriginalName = GA->getName();
-        GA->setName(OriginalName + "_del");
-        GlobalAlias *NewGA = GlobalAlias::create(OriginalName, NewF);
-        NewGA->setUnnamedAddr(GA->getUnnamedAddr());
-        NewGA->setVisibility(GA->getVisibility());
-        GA->replaceAllUsesWith(NewGA);
-        GA->eraseFromParent();
-      } else if (auto *CE = dyn_cast<ConstantExpr>(U)) {
-        if (CE->getOpcode() == Instruction::AddrSpaceCast) {
-          auto *NewCE = ConstantExpr::getAddrSpaceCast(NewF, CE->getType());
-          CE->replaceAllUsesWith(NewCE);
-        }
-      } else if (auto *CI = dyn_cast<CallInst>(U)) {
+      if (auto *CI = dyn_cast<CallInst>(U)) {
         if (CI->getCalledOperand() == F) {
           // Append "launch_info" into arguments of call instruction
           SmallVector<Value *, 16> Args;
@@ -1381,10 +1368,8 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
 
           CallInst *NewCI = CallInst::Create(NewF, Args, CI->getName(), CI);
           NewCI->setCallingConv(CI->getCallingConv());
-          NewCI->setAttributes(NewF->getAttributes());
-          if (CI->hasMetadata()) {
-            NewCI->setDebugLoc(CI->getDebugLoc());
-          }
+          NewCI->setAttributes(CI->getAttributes());
+          NewCI->setDebugLoc(CI->getDebugLoc());
           CI->replaceAllUsesWith(NewCI);
           CI->eraseFromParent();
         }
