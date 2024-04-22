@@ -24,6 +24,7 @@
 #include <sycl/device.hpp>
 #include <sycl/device_aspect_traits.hpp>
 #include <sycl/device_selector.hpp>
+#include <sycl/errc.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/experimental/group_sort.hpp>

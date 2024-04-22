@@ -101,6 +101,7 @@ protected:
     detail::throw_exception(errc::invalid, "The property is not found");
     // The above will throw an exception, but compilers complain about no return
     // value. So, create an unreachable dummy throw to make it silent.
+    // We can replace this with std::unreachable() when we switch to C++23.
     throw "dummy";
   }
 
