@@ -54,28 +54,22 @@
 // CHK-PHASES-NO-CC: 8: backend, {7}, assembler, (host-sycl)
 // CHK-PHASES-NO-CC: 9: assembler, {8}, object, (host-sycl)
 // CHK-PHASES-NO-CC: 10: linker, {5}, ir, (device-sycl, sm_50)
-// CHK-PHASES-NO-CC: 11: input, "{{.*}}libsycl-itt-user-wrappers.o", object
-// CHK-PHASES-NO-CC: 12: clang-offload-unbundler, {11}, object
-// CHK-PHASES-NO-CC: 13: offload, " (nvptx64-nvidia-cuda)" {12}, object
-// CHK-PHASES-NO-CC: 14: input, "{{.*}}libsycl-itt-compiler-wrappers.o", object
-// CHK-PHASES-NO-CC: 15: clang-offload-unbundler, {14}, object
-// CHK-PHASES-NO-CC: 16: offload, " (nvptx64-nvidia-cuda)" {15}, object
-// CHK-PHASES-NO-CC: 17: input, "{{.*}}libsycl-itt-stubs.o", object
-// CHK-PHASES-NO-CC: 18: clang-offload-unbundler, {17}, object
-// CHK-PHASES-NO-CC: 19: offload, " (nvptx64-nvidia-cuda)" {18}, object
-// CHK-PHASES-NO-CC: 20: input, "{{.*}}nvidiacl{{.*}}", ir, (device-sycl, sm_50)
-// CHK-PHASES-NO-CC: 21: input, "{{.*}}libdevice{{.*}}", ir, (device-sycl, sm_50)
-// CHK-PHASES-NO-CC: 22: linker, {10, 13, 16, 19, 20, 21}, ir, (device-sycl, sm_50)
-// CHK-PHASES-NO-CC: 23: sycl-post-link, {22}, ir, (device-sycl, sm_50)
-// CHK-PHASES-NO-CC: 24: file-table-tform, {23}, ir, (device-sycl, sm_50)
-// CHK-PHASES-NO-CC: 25: backend, {24}, assembler, (device-sycl, sm_50)
-// CHK-PHASES-NO-CC: 26: assembler, {25}, object, (device-sycl, sm_50)
-// CHK-PHASES-NO-CC: 27: linker, {25, 26}, cuda-fatbin, (device-sycl, sm_50)
-// CHK-PHASES-NO-CC: 28: foreach, {24, 27}, cuda-fatbin, (device-sycl, sm_50)
-// CHK-PHASES-NO-CC: 29: file-table-tform, {23, 28}, tempfiletable, (device-sycl, sm_50)
-// CHK-PHASES-NO-CC: 30: clang-offload-wrapper, {29}, object, (device-sycl, sm_50)
-// CHK-PHASES-NO-CC: 31: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {30}, object
-// CHK-PHASES-NO-CC: 32: linker, {9, 31}, image, (host-sycl)
+// CHK-PHASES-NO-CC: 11: input, "{{.*}}libsycl-itt-user-wrappers.bc", ir, (device-sycl, sm_50)
+// CHK-PHASES-NO-CC: 12: input, "{{.*}}libsycl-itt-compiler-wrappers.bc", ir, (device-sycl, sm_50)
+// CHK-PHASES-NO-CC: 13: input, "{{.*}}libsycl-itt-stubs.bc", ir, (device-sycl, sm_50)
+// CHK-PHASES-NO-CC: 14: input, "{{.*}}nvidiacl{{.*}}", ir, (device-sycl, sm_50)
+// CHK-PHASES-NO-CC: 15: input, "{{.*}}libdevice{{.*}}", ir, (device-sycl, sm_50)
+// CHK-PHASES-NO-CC: 16: linker, {10, 11, 12, 13, 14, 15}, ir, (device-sycl, sm_50)
+// CHK-PHASES-NO-CC: 17: sycl-post-link, {16}, ir, (device-sycl, sm_50)
+// CHK-PHASES-NO-CC: 18: file-table-tform, {17}, ir, (device-sycl, sm_50)
+// CHK-PHASES-NO-CC: 19: backend, {18}, assembler, (device-sycl, sm_50)
+// CHK-PHASES-NO-CC: 20: assembler, {19}, object, (device-sycl, sm_50)
+// CHK-PHASES-NO-CC: 21: linker, {19, 20}, cuda-fatbin, (device-sycl, sm_50)
+// CHK-PHASES-NO-CC: 22: foreach, {18, 21}, cuda-fatbin, (device-sycl, sm_50)
+// CHK-PHASES-NO-CC: 23: file-table-tform, {17, 22}, tempfiletable, (device-sycl, sm_50)
+// CHK-PHASES-NO-CC: 24: clang-offload-wrapper, {23}, object, (device-sycl, sm_50)
+// CHK-PHASES-NO-CC: 25: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {24}, object
+// CHK-PHASES-NO-CC: 26: linker, {9, 25}, image, (host-sycl)
 //
 /// Check phases specifying a compute capability.
 // RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL -std=c++11 \
@@ -99,28 +93,22 @@
 // CHK-PHASES: 8: backend, {7}, assembler, (host-sycl)
 // CHK-PHASES: 9: assembler, {8}, object, (host-sycl)
 // CHK-PHASES: 10: linker, {5}, ir, (device-sycl, sm_35)
-// CHK-PHASES: 11: input, "{{.*}}libsycl-itt-user-wrappers.o", object
-// CHK-PHASES: 12: clang-offload-unbundler, {11}, object
-// CHK-PHASES: 13: offload, " (nvptx64-nvidia-cuda)" {12}, object
-// CHK-PHASES: 14: input, "{{.*}}libsycl-itt-compiler-wrappers.o", object
-// CHK-PHASES: 15: clang-offload-unbundler, {14}, object
-// CHK-PHASES: 16: offload, " (nvptx64-nvidia-cuda)" {15}, object
-// CHK-PHASES: 17: input, "{{.*}}libsycl-itt-stubs.o", object
-// CHK-PHASES: 18: clang-offload-unbundler, {17}, object
-// CHK-PHASES: 19: offload, " (nvptx64-nvidia-cuda)" {18}, object
-// CHK-PHASES: 20: input, "{{.*}}nvidiacl{{.*}}", ir, (device-sycl, sm_35)
-// CHK-PHASES: 21: input, "{{.*}}libdevice{{.*}}", ir, (device-sycl, sm_35)
-// CHK-PHASES: 22: linker, {10, 13, 16, 19, 20, 21}, ir, (device-sycl, sm_35)
-// CHK-PHASES: 23: sycl-post-link, {22}, ir, (device-sycl, sm_35)
-// CHK-PHASES: 24: file-table-tform, {23}, ir, (device-sycl, sm_35)
-// CHK-PHASES: 25: backend, {24}, assembler, (device-sycl, sm_35)
-// CHK-PHASES: 26: assembler, {25}, object, (device-sycl, sm_35)
-// CHK-PHASES: 27: linker, {25, 26}, cuda-fatbin, (device-sycl, sm_35)
-// CHK-PHASES: 28: foreach, {24, 27}, cuda-fatbin, (device-sycl, sm_35)
-// CHK-PHASES: 29: file-table-tform, {23, 28}, tempfiletable, (device-sycl, sm_35)
-// CHK-PHASES: 30: clang-offload-wrapper, {29}, object, (device-sycl, sm_35)
-// CHK-PHASES: 31: offload, "device-sycl (nvptx64-nvidia-cuda:sm_35)" {30}, object
-// CHK-PHASES: 32: linker, {9, 31}, image, (host-sycl)
+// CHK-PHASES: 11: input, "{{.*}}libsycl-itt-user-wrappers.bc", ir, (device-sycl, sm_35)
+// CHK-PHASES: 12: input, "{{.*}}libsycl-itt-compiler-wrappers.bc", ir, (device-sycl, sm_35)
+// CHK-PHASES: 13: input, "{{.*}}libsycl-itt-stubs.bc", ir, (device-sycl, sm_35)
+// CHK-PHASES: 14: input, "{{.*}}nvidiacl{{.*}}", ir, (device-sycl, sm_35)
+// CHK-PHASES: 15: input, "{{.*}}libdevice{{.*}}", ir, (device-sycl, sm_35)
+// CHK-PHASES: 16: linker, {10, 11, 12, 13, 14, 15}, ir, (device-sycl, sm_35)
+// CHK-PHASES: 17: sycl-post-link, {16}, ir, (device-sycl, sm_35)
+// CHK-PHASES: 18: file-table-tform, {17}, ir, (device-sycl, sm_35)
+// CHK-PHASES: 19: backend, {18}, assembler, (device-sycl, sm_35)
+// CHK-PHASES: 20: assembler, {19}, object, (device-sycl, sm_35)
+// CHK-PHASES: 21: linker, {19, 20}, cuda-fatbin, (device-sycl, sm_35)
+// CHK-PHASES: 22: foreach, {18, 21}, cuda-fatbin, (device-sycl, sm_35)
+// CHK-PHASES: 23: file-table-tform, {17, 22}, tempfiletable, (device-sycl, sm_35)
+// CHK-PHASES: 24: clang-offload-wrapper, {23}, object, (device-sycl, sm_35)
+// CHK-PHASES: 25: offload, "device-sycl (nvptx64-nvidia-cuda:sm_35)" {24}, object
+// CHK-PHASES: 26: linker, {9, 25}, image, (host-sycl)
 
 /// Check calling preprocessor only
 // RUN: %clangxx -E -fsycl -fsycl-targets=nvptx64-nvidia-cuda -ccc-print-phases %s 2>&1 \

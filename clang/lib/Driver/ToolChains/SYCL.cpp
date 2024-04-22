@@ -251,9 +251,6 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       }
     }
   }
-  StringRef LibSuffix =
-      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() ? ".obj"
-                                                                     : ".o";
   using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
 
   const SYCLDeviceLibsList SYCLDeviceWrapperLibs = {
@@ -300,7 +297,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       if (!DeviceLibLinkInfo[Lib.DeviceLibOption])
         continue;
       SmallString<128> LibName(Lib.DeviceLibName);
-      llvm::sys::path::replace_extension(LibName, LibSuffix);
+      llvm::sys::path::replace_extension(LibName, ".bc");
       LibraryList.push_back(Args.MakeArgString(LibName));
     }
   };
@@ -374,7 +371,7 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList {
 #else
       "sanitizer",
 #endif
-      "imf", "imf-fp64", "itt-compiler-wrappers", "itt-stubs",
+      "imf", "imf-fp64", "imf-bf16", "itt-compiler-wrappers", "itt-stubs",
       "itt-user-wrappers", "fallback-cassert", "fallback-cstring",
       "fallback-cmath", "fallback-cmath-fp64", "fallback-complex",
       "fallback-complex-fp64", "fallback-imf", "fallback-imf-fp64",
@@ -414,13 +411,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       return &II == &InputFiles[1];
     };
     auto isSYCLDeviceLib = [&](const InputInfo &II) {
-      const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-      StringRef LibPostfix = ".o";
-      if (isNoRDCDeviceCodeLink(II))
-        LibPostfix = ".bc";
-      else if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
-               C.getDriver().IsCLMode())
-        LibPostfix = ".obj";
+      StringRef LibPostfix = ".bc";
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
       const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
@@ -434,8 +425,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       }
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
-          !InputFilename.ends_with(LibPostfix) ||
-          (InputFilename.count('-') < 2))
+          !InputFilename.ends_with(LibPostfix))
         return false;
       // Skip the prefix "libsycl-"
       std::string PureLibName =
@@ -452,7 +442,9 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
             PureLibName.substr(0, FinalDashPos) + PureLibName.substr(DotPos);
       }
       for (const auto &L : SYCLDeviceLibList) {
-        if (StringRef(PureLibName).starts_with(L))
+        std::string DeviceLibName(L);
+        DeviceLibName.append(LibPostfix);
+        if (StringRef(PureLibName).equals(DeviceLibName))
           return true;
       }
       return false;
@@ -463,11 +455,11 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     for (size_t Idx = 1; Idx < InputFileNum; ++Idx)
       LinkSYCLDeviceLibs =
           LinkSYCLDeviceLibs && isSYCLDeviceLib(InputFiles[Idx]);
-    // Go through the Inputs to the link.  When a listfile is encountered, we
-    // know it is an unbundled generated list.
     if (LinkSYCLDeviceLibs) {
       Opts.push_back("-only-needed");
     }
+    // Go through the Inputs to the link.  When a listfile is encountered, we
+    // know it is an unbundled generated list.
     for (const auto &II : InputFiles) {
       std::string FileName = getToolChain().getInputFilename(II);
       if (II.getType() == types::TY_Tempfilelist) {
