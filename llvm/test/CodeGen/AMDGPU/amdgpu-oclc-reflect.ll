@@ -14,4 +14,3 @@ define i32 @foo() {
   %call = tail call i32 @__oclc_amdgpu_reflect(ptr addrspace(4) noundef @.str)
   ret i32 %call
 }
-
