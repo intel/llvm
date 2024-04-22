@@ -364,7 +364,9 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   }
 #endif
 
-  if (driver::isSYCLNativeCPU(Args))
+  if (driver::isSYCLNativeCPU(Args) &&
+      driver::isSYCLNativeCPU(C.getDefaultToolChain().getTriple(),
+                              TargetTriple))
     addLibraries(SYCLNativeCpuDeviceLibs);
 
   return LibraryList;

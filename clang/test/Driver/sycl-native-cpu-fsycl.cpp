@@ -2,6 +2,7 @@
 //RUN: %clang -fsycl -fsycl-targets=native_cpu -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -ccc-print-bindings %s 2>&1 | FileCheck %s --check-prefix=CHECK_BINDINGS
 //RUN: %clang -fsycl -fsycl-targets=native_cpu -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | FileCheck %s --check-prefix=CHECK_INVO
 //RUN: %clang -fsycl -fsycl-targets=native_cpu -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -target aarch64-unknown-linux-gnu -ccc-print-phases %s 2>&1 | FileCheck %s --check-prefix=CHECK_ACTIONS-AARCH64
+//RUN: %clang -fsycl -fsycl-targets=nvptx64-nvidia-cuda,native_cpu -ccc-print-bindings %s 2>&1 | FileCheck %s --check-prefix=CHECK_BINDINGS_MULTI_SYCLTARGETS
 
 //Link together multiple TUs.
 //RUN: touch %t_1.o 
@@ -70,4 +71,8 @@
 //CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "SYCL post link", inputs: ["[[LINK2]].bc"], output: "[[POSTL:.*]].table"
 //CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "offload wrapper", inputs: ["[[POSTL]].table"], output: "[[WRAP:.*]].o"
 //CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "{{.*}}::Linker", inputs: ["[[FILE1HOST]].o", "[[FILE2HOST]].o", "[[KERNELO]].o", "[[WRAP]].o"], output: "{{.*}}"
+
+// check that no native cpu things accidentally end up in invocations for other targets
+//CHECK_BINDINGS_MULTI_SYCLTARGETS-NOT:# "nvptx64-nvidia-cuda" - "offload bundler", inputs: ["{{.*}}nativecpu_utils.{{.*}}"]
+//CHECK_BINDINGS_MULTI_SYCLTARGETS:# "{{.*}}" - "offload bundler", inputs: ["{{.*}}nativecpu_utils.{{.*}}"], outputs:
 
