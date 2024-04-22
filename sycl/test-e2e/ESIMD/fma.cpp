@@ -35,22 +35,22 @@ template <typename T> bool test(queue q) {
     buffer<T, 1> bufa(A, range<1>(Size));
     buffer<T, 1> bufb(B, range<1>(Size));
     buffer<T, 1> bufc(C, range<1>(Size));
- 
+
     auto e = q.submit([&](handler &cgh) {
       auto PA = bufa.template get_access<access::mode::read>(cgh);
       auto PB = bufb.template get_access<access::mode::read>(cgh);
       auto PC = bufc.template get_access<access::mode::write>(cgh);
       cgh.single_task([=]() SYCL_ESIMD_KERNEL {
-            using namespace sycl::ext::intel::esimd;
-            unsigned int offset = 0;
-            simd<T, VL> va;
-            va.copy_from(PA, offset);
-            simd<T, VL> vb;
-            vb.copy_from(PB, offset);
-            simd<T, VL> vc = 5.0f;
-            simd<T, VL> vd = ext::intel::experimental::esimd::fma(va, vb, vc);
-            vd.copy_to(PC, offset);
-          });
+        using namespace sycl::ext::intel::esimd;
+        unsigned int offset = 0;
+        simd<T, VL> va;
+        va.copy_from(PA, offset);
+        simd<T, VL> vb;
+        vb.copy_from(PB, offset);
+        simd<T, VL> vc = 5.0f;
+        simd<T, VL> vd = ext::intel::experimental::esimd::fma(va, vb, vc);
+        vd.copy_to(PC, offset);
+      });
     });
     e.wait();
   } catch (sycl::exception const &e) {
