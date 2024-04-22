@@ -138,7 +138,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
     GIT_REPOSITORY    "https://github.com/AllanZyne/unified-runtime.git"
-    GIT_TAG           "local_accessor"
+    GIT_TAG           "review/yang/local_accessor"
   )
 
   FetchContent_GetProperties(unified-runtime)
