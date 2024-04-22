@@ -227,6 +227,7 @@ unavailable.
  * **gpu-intel-dg1** - Intel GPU DG1 availability;
  * **gpu-intel-dg2** - Intel GPU DG2 availability;
  * **gpu-intel-pvc** - Intel GPU PVC availability;
+ * **gpu-intel-pvc-vg** - Intel GPU PVC-VG availability;
  * **dump_ir**: - compiler can / cannot dump IR;
  * **llvm-spirv** - llvm-spirv tool availability;
  * **llvm-link** - llvm-link tool availability;

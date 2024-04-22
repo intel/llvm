@@ -39,6 +39,10 @@
 #include <syclcompat/math.hpp>
 #include <syclcompat/memory.hpp>
 
+#if defined(__NVPTX__)
+#include <sycl/ext/oneapi/experimental/cuda/masked_shuffles.hpp>
+#endif
+
 // TODO: Remove these function definitions once they exist in the DPC++ compiler
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__INTEL_LLVM_COMPILER)
 template <typename T>
@@ -313,13 +317,13 @@ T select_from_sub_group(unsigned int member_mask, sycl::sub_group g, T x,
 #if defined(__SPIR__)
   return __spirv_GroupNonUniformShuffle(__spv::Scope::Subgroup, x,
                                         logical_remote_id);
+#elif defined(__NVPTX__)
+  int cVal = ((32 - logical_sub_group_size) << 8) | 31;
+  return cuda_shfl_sync_idx_i32(member_mask, x, remote_local_id, cVal);
 #else
-  // TODO: Check
-  // https://github.com/intel/llvm/pull/12972#issuecomment-2034218881 for the
-  // __NVPTX__ implementation
   throw sycl::exception(sycl::errc::runtime,
                         "[SYCLcompat] Masked version of select_from_sub_group "
-                        "only supports SPIR-V backends.");
+                        "only supports SPIR-V or cuda backends.");
 #endif // __SPIR__
 #else
   (void)g;
@@ -330,7 +334,7 @@ T select_from_sub_group(unsigned int member_mask, sycl::sub_group g, T x,
   throw sycl::exception(
       sycl::errc::runtime,
       "[SYCLcompat] Masked version of select_from_sub_group not "
-      "supported on host device and none intel compiler.");
+      "supported on host device and non intel compiler.");
 #endif // __SYCL_DEVICE_ONLY__ && __INTEL_LLVM_COMPILER
 }
 
@@ -361,13 +365,13 @@ T shift_sub_group_left(unsigned int member_mask, sycl::sub_group g, T x,
     result = x;
   }
   return result;
+#elif defined(__NVPTX__)
+  int cVal = ((32 - logical_sub_group_size) << 8) | 31;
+  return cuda_shfl_sync_down_i32(member_mask, x, delta, cVal);
 #else
-  // TODO: Check
-  // https://github.com/intel/llvm/pull/12972#issuecomment-2034218881 for the
-  // __NVPTX__ implementation
   throw sycl::exception(sycl::errc::runtime,
                         "[SYCLcompat] Masked version of shift_sub_group_left "
-                        "only supports SPIR-V backends.");
+                        "only supports SPIR-V or cuda backends.");
 #endif // __SPIR__
 #else
   (void)g;
@@ -377,8 +381,8 @@ T shift_sub_group_left(unsigned int member_mask, sycl::sub_group g, T x,
   (void)member_mask;
   throw sycl::exception(
       sycl::errc::runtime,
-      "[SYCLcompat] Masked version of select_from_sub_group not "
-      "supported on host device and none intel compiler.");
+      "[SYCLcompat] Masked version of shift_sub_group_left not "
+      "supported on host device and non intel compiler.");
 #endif // __SYCL_DEVICE_ONLY__ && __INTEL_LLVM_COMPILER
 }
 
@@ -408,13 +412,13 @@ T shift_sub_group_right(unsigned int member_mask, sycl::sub_group g, T x,
     result = x;
   }
   return result;
+#elif defined(__NVPTX__)
+  int cVal = ((32 - logical_sub_group_size) << 8);
+  return cuda_shfl_sync_up_i32(member_mask, x, delta, cVal);
 #else
-  // TODO: Check
-  // https://github.com/intel/llvm/pull/12972#issuecomment-2034218881 for the
-  // __NVPTX__ implementation
   throw sycl::exception(sycl::errc::runtime,
                         "Masked version of shift_sub_group_right "
-                        "only supports SPIR-V backends.");
+                        "only supports SPIR-V or cuda backends.");
 #endif // __SPIR__
 #else
   (void)g;
@@ -423,8 +427,8 @@ T shift_sub_group_right(unsigned int member_mask, sycl::sub_group g, T x,
   (void)logical_sub_group_size;
   (void)member_mask;
   throw sycl::exception(sycl::errc::runtime,
-                        "Masked version of select_from_sub_group not "
-                        "supported on host device and none intel compiler.");
+                        "Masked version of shift_sub_group_right not "
+                        "supported on host device and non intel compiler.");
 #endif // __SYCL_DEVICE_ONLY && __INTEL_LLVM_COMPILER
 }
 
@@ -455,14 +459,14 @@ T permute_sub_group_by_xor(unsigned int member_mask, sycl::sub_group g, T x,
 #if defined(__SPIR__)
   return __spirv_GroupNonUniformShuffle(__spv::Scope::Subgroup, x,
                                         logical_remote_id);
+#elif defined(__NVPTX__)
+  int cVal = ((32 - logical_sub_group_size) << 8) | 31;
+  return cuda_shfl_sync_bfly_i32(member_mask, x, mask, cVal);
 #else
-  // TODO: Check
-  // https://github.com/intel/llvm/pull/12972#issuecomment-2034218881 for the
-  // __NVPTX__ implementation
   throw sycl::exception(
       sycl::errc::runtime,
       "[SYCLcompat] Masked version of permute_sub_group_by_xor "
-      "only supports SPIR-V backends.");
+      "only supports SPIR-V or cuda backends.");
 #endif // __SPIR__
 #else
   (void)g;
@@ -472,8 +476,8 @@ T permute_sub_group_by_xor(unsigned int member_mask, sycl::sub_group g, T x,
   (void)member_mask;
   throw sycl::exception(
       sycl::errc::runtime,
-      "[SYCLcompat]Masked version of select_from_sub_group not "
-      "supported on host device and none intel compiler.");
+      "[SYCLcompat]Masked version of permute_sub_group_by_xor not "
+      "supported on host device and non intel compiler.");
 #endif // __SYCL_DEVICE_ONLY__ && __INTEL_LLVM_COMPILER
 }
 } // namespace experimental
