@@ -120,8 +120,8 @@ ur_result_t MemBuffer::free() {
 }
 
 size_t MemBuffer::getAlignment() {
-    // Choose an alignment that is at most 64 and is the next power of 2
-    // for sizes less than 64.
+    // Choose an alignment that is at most 128 and is the next power of 2
+    // for sizes less than 128.
     // TODO: If we don't set the alignment size explicitly, the device will
     // usually choose a very large size (more than 1k). Then sanitizer will
     // allocate extra unnessary memory. Not sure if this will impact
