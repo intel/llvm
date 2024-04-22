@@ -49,15 +49,30 @@ kernel::get_kernel_bundle() const {
 }
 
 template <typename Param>
-typename detail::is_kernel_info_desc<Param>::return_type
-kernel::get_info() const {
-  return impl->get_info<Param>();
+detail::ABINeutralT_t<typename detail::is_kernel_info_desc<Param>::return_type>
+kernel::get_info_impl() const {
+  return detail::convert_to_abi_neutral(impl->template get_info<Param>());
 }
 
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template __SYCL_EXPORT ReturnT kernel::get_info<info::kernel::Desc>() const;
+  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
+  kernel::get_info_impl<info::kernel::Desc>() const;
 
 #include <sycl/info/kernel_traits.def>
+
+#undef __SYCL_PARAM_TRAITS_SPEC
+
+template <typename Param>
+typename detail::is_backend_info_desc<Param>::return_type
+kernel::get_backend_info() const {
+  return impl->get_backend_info<Param>();
+}
+
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
+  template __SYCL_EXPORT ReturnT                                               \
+  kernel::get_backend_info<info::DescType::Desc>() const;
+
+#include <sycl/info/sycl_backend_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 

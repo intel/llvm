@@ -16,10 +16,6 @@ void CreateGraphWithCyclesTest(bool DisableCycleChecks) {
 
   queue Queue;
 
-  if (!are_graphs_supported(Queue)) {
-    return;
-  }
-
   property_list Props;
 
   if (DisableCycleChecks) {
@@ -80,14 +76,6 @@ void CreateGraphWithCyclesTest(bool DisableCycleChecks) {
 }
 
 int main() {
-  {
-    queue Queue;
-
-    if (!are_graphs_supported(Queue)) {
-      return 0;
-    }
-  }
-
   // Test with cycle checks
   CreateGraphWithCyclesTest(false);
   // Test without cycle checks

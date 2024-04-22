@@ -5,6 +5,7 @@
 // Extra run to check for immediate-command-list in Level Zero
 // RUN: %if level_zero && linux %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 //
+//UNSUPPORTED: gpu-intel-dg2
 
 // Tests obtaining a finalized, executable graph from a graph which is
 // currently being recorded to without end_recording() being called.
@@ -13,10 +14,6 @@
 
 int main() {
   queue Queue;
-
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
   {

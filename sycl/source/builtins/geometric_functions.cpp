@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/builtins_preview.hpp>
+#include <sycl/detail/builtins/builtins.hpp>
 
 #include "host_helper_macros.hpp"
 
@@ -36,11 +36,22 @@ static inline auto dot_host_impl(T0 x, T1 y) {
 }
 EXPORT_SCALAR_AND_VEC_2_4(TWO_ARGS, dot, FP_TYPES)
 
+#if defined(__GNUC__) && !defined(__clang__)
+// GCC miscompiles if using dot (instead of dot_host_impl) *or* if
+// optimizations aren't disabled here. Not sure if a bug in GCC or some UB in
+// sycl::vec/sycl::half (like ansi-alias violations).
+#pragma GCC push_options
+#pragma GCC optimize("O0")
+#endif
 template <typename T> static inline auto length_host_impl(T x) {
-  auto d = dot(x, x);
+  auto d = dot_host_impl(x, x);
   return static_cast<decltype(d)>(std::sqrt(d));
 }
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC pop_options
+#endif
 EXPORT_SCALAR_AND_VEC_2_4(ONE_ARG, length, FP_TYPES)
+
 // fast_length on host is the same as just length.
 template <typename T> static inline auto fast_length_host_impl(T x) {
   return length_host_impl(x);

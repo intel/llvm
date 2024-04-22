@@ -13,9 +13,6 @@
 int main() {
   using namespace sycl;
 
-  queue deviceQueue;
-  device dev = deviceQueue.get_device();
-
   marray<float, 2> ma1{1.0f, 2.0f};
   marray<float, 2> ma2{1.0f, 2.0f};
   marray<float, 2> ma3{3.0f, 2.0f};
@@ -53,7 +50,7 @@ int main() {
   test(has_fp64, F(min), marray<double, 2>{1.0, 1.5}, ma4, 1.5);
   // mix
   test(F(mix), marray<float, 2>{1.6f, 2.0f}, ma1, ma3, ma8);
-  test(F(mix), marray<float, 2>{1.4f, 2.0f}, ma1, ma3, 0.2);
+  test(F(mix), marray<float, 2>{1.4f, 2.0f}, ma1, ma3, 0.2f);
   test(has_fp64, F(mix), marray<double, 2>{3.0, 5.0}, ma4, ma9, 0.5);
   // radians
   test(F(radians), marray<float, 3>{M_PI, M_PI, M_PI}, ma10);

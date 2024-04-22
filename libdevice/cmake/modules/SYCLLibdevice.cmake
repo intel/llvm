@@ -22,6 +22,15 @@ string(CONCAT sycl_targets_opt
   "spir64_fpga-unknown-unknown,"
   "spir64-unknown-unknown")
 
+if (NOT WIN32)
+  # Don't build for spirv64 on Windows due to
+  # some type size difference issues.
+  # Build on Windows once internal tracker is fixed.
+  string(APPEND
+    sycl_targets_opt
+    ",spirv64-unknown-unknown")
+endif()
+
 set(compile_opts
   # suppress an error about SYCL_EXTERNAL being used for
   # a function with a raw pointer parameter.

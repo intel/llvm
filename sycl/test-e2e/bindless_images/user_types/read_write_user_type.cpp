@@ -9,7 +9,9 @@
 
 #include "user_types_common.hpp"
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 template <typename MyType, int NElems, typename OutType,
           sycl::image_channel_order ChannelOrder,

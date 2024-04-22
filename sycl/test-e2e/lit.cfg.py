@@ -5,9 +5,8 @@ import platform
 import copy
 import re
 import subprocess
-import tempfile
 import textwrap
-from distutils.spawn import find_executable
+import shutil
 
 import lit.formats
 import lit.util
@@ -79,12 +78,6 @@ llvm_config.with_system_environment(
 )
 
 llvm_config.with_environment("PATH", config.lit_tools_dir, append_path=True)
-
-if "cuda:gpu" in config.sycl_devices:
-    llvm_config.with_system_environment("CUDA_PATH")
-
-if "hip:gpu" in config.sycl_devices:
-    llvm_config.with_system_environment("ROCM_PATH")
 
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
 if platform.system() == "Linux":
@@ -163,7 +156,14 @@ if lit_config.params.get("gpu-intel-pvc", False):
     config.available_features.add(
         "matrix-tf32"
     )  # PVC implies the support of TF32 matrix
-
+if lit_config.params.get("gpu-intel-pvc-vg", False):
+    config.available_features.add("gpu-intel-pvc-vg")
+    config.available_features.add(
+        "matrix-fp16"
+    )  # PVC-VG implies the support of FP16 matrix
+    config.available_features.add(
+        "matrix-tf32"
+    )  # PVC-VG implies the support of TF32 matrix    
 if lit_config.params.get("matrix", False):
     config.available_features.add("matrix")
 
@@ -339,7 +339,7 @@ if cl_options:
         (
             "%sycl_options",
             " "
-            + os.path.normpath(os.path.join(config.sycl_libs_dir + "/../lib/sycl7.lib"))
+            + os.path.normpath(os.path.join(config.sycl_libs_dir + "/../lib/sycl8.lib"))
             + " /I"
             + config.sycl_include
             + " /I"
@@ -355,7 +355,7 @@ else:
     config.substitutions.append(
         (
             "%sycl_options",
-            (" -lsycl7" if platform.system() == "Windows" else " -lsycl")
+            (" -lsycl8" if platform.system() == "Windows" else " -lsycl")
             + " -I"
             + config.sycl_include
             + " -I"
@@ -456,8 +456,17 @@ if config.hip_platform not in supported_hip_platforms:
         + ", ".join(supported_hip_platforms)
     )
 
+if "cuda:gpu" in config.sycl_devices:
+    llvm_config.with_system_environment("CUDA_PATH")
+
 # FIXME: This needs to be made per-device as well, possibly with a helper.
 if "hip:gpu" in config.sycl_devices and config.hip_platform == "AMD":
+    if not config.amd_arch:
+        lit_config.error(
+            "Cannot run tests for HIP without an offload-arch. Please "
+            + "specify one via the 'amd_arch' parameter or 'AMD_ARCH' CMake "
+            + "variable."
+        )
     llvm_config.with_system_environment("ROCM_PATH")
     config.available_features.add("hip_amd")
     arch_flag = (
@@ -548,7 +557,7 @@ for tool in feature_tools:
     else:
         lit_config.warning("Can't find " + tool.key)
 
-if find_executable("cmc"):
+if shutil.which("cmc") is not None:
     config.available_features.add("cm-compiler")
 
 # Device AOT compilation tools aren't part of the SYCL project,
@@ -556,7 +565,7 @@ if find_executable("cmc"):
 aot_tools = ["ocloc", "opencl-aot"]
 
 for aot_tool in aot_tools:
-    if find_executable(aot_tool) is not None:
+    if shutil.which(aot_tool) is not None:
         lit_config.note("Found pre-installed AOT device compiler " + aot_tool)
         config.available_features.add(aot_tool)
     else:
@@ -692,7 +701,3 @@ try:
     lit_config.maxIndividualTestTime = 600
 except ImportError:
     pass
-
-config.substitutions.append(
-    ("%device_sanitizer_flags", "-Xsycl-target-frontend -fsanitize=address")
-)

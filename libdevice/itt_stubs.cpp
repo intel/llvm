@@ -8,7 +8,7 @@
 
 #include "device_itt.h"
 
-#ifdef __SPIR__
+#if defined(__SPIR__) || defined(__SPIRV__)
 
 SYCL_EXTERNAL EXTERN_C ITT_STUB_ATTRIBUTES void
 __itt_offload_wi_start_stub(size_t *group_id, size_t wi_id, uint32_t wg_size) {}
@@ -35,4 +35,4 @@ SYCL_EXTERNAL EXTERN_C ITT_STUB_ATTRIBUTES void
 __itt_offload_atomic_op_finish_stub(void *object, __itt_atomic_mem_op_t op_type,
                                     __itt_atomic_mem_order_t mem_order) {}
 
-#endif // __SPIR__
+#endif // __SPIR__ || __SPIRV__

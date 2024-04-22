@@ -106,7 +106,6 @@ template <int Dim> int testXD(queue &Q, nd_range<Dim> NDR) {
       sycl::malloc_shared<range<Dim>>(GlobalRange, Dev, Context);
 
   Q.submit([&](sycl::handler &CGH) {
-     namespace seoe = sycl::ext::oneapi::experimental;
      CGH.parallel_for(NDR, [=](sycl::nd_item<Dim> NdId) SYCL_ESIMD_KERNEL {
        size_t I = NdId.get_global_linear_id();
        id<Dim> Id = NdId.get_global_id();
@@ -117,9 +116,10 @@ template <int Dim> int testXD(queue &Q, nd_range<Dim> NDR) {
        LocalId[I] = NdId.get_local_id();
        LocalSize[I] = NdId.get_local_range();
 
-       SubGroupLocalId[I] = seoe::this_sub_group().get_local_id();
-       SubGroupSize[I] = seoe::this_sub_group().get_local_range()[0];
-       SubGroupMaxSize[I] = seoe::this_sub_group().get_max_local_range()[0];
+       auto sg = sycl::ext::oneapi::this_work_item::get_sub_group();
+       SubGroupLocalId[I] = sg.get_local_id();
+       SubGroupSize[I] = sg.get_local_range()[0];
+       SubGroupMaxSize[I] = sg.get_max_local_range()[0];
 
        GroupId[I] = NdId.get_group().get_group_id();
        NumGroups[I] = NdId.get_group_range();

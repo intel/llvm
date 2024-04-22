@@ -15,10 +15,11 @@
 #include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
 #include <sycl/detail/pi.h>                // for pi_native_handle
 #include <sycl/detail/pi.hpp>              // for cast
-#include <sycl/device.hpp>                 // for device
-#include <sycl/kernel.hpp>                 // for kernel, kernel_bundle
-#include <sycl/kernel_bundle_enums.hpp>    // for bundle_state
-#include <sycl/property_list.hpp>          // for property_list
+#include <sycl/detail/string_view.hpp>
+#include <sycl/device.hpp>              // for device
+#include <sycl/kernel.hpp>              // for kernel, kernel_bundle
+#include <sycl/kernel_bundle_enums.hpp> // for bundle_state
+#include <sycl/property_list.hpp>       // for property_list
 
 #include <sycl/ext/oneapi/properties/properties.hpp>     // PropertyT
 #include <sycl/ext/oneapi/properties/property.hpp>       // build_options
@@ -449,7 +450,7 @@ kernel_bundle(kernel_bundle<State> &&) -> kernel_bundle<State>;
 namespace detail {
 // Internal non-template versions of get_kernel_id API which is used by public
 // onces
-__SYCL_EXPORT kernel_id get_kernel_id_impl(std::string KernelName);
+__SYCL_EXPORT kernel_id get_kernel_id_impl(string_view KernelName);
 } // namespace detail
 
 /// \returns the kernel_id associated with the KernelName
@@ -457,7 +458,7 @@ template <typename KernelName> kernel_id get_kernel_id() {
   // FIXME: This must fail at link-time if KernelName not in any available
   // translation units.
   using KI = sycl::detail::KernelInfo<KernelName>;
-  return detail::get_kernel_id_impl(KI::getName());
+  return detail::get_kernel_id_impl(detail::string_view{KI::getName()});
 }
 
 /// \returns a vector with all kernel_id's defined in the application

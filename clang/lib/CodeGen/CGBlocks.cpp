@@ -961,7 +961,7 @@ llvm::Value *CodeGenFunction::EmitBlockLiteral(const CGBlockInfo &blockInfo) {
       }
 
     // If it's a reference variable, copy the reference into the block field.
-    } else if (type->isReferenceType()) {
+    } else if (type->getAs<ReferenceType>()) {
       Builder.CreateStore(src.getPointer(), blockField);
 
     // If type is const-qualified, copy the value into the block field.
@@ -1541,7 +1541,10 @@ llvm::Function *CodeGenFunction::GenerateBlockFunction(
   llvm::BasicBlock *resume = Builder.GetInsertBlock();
 
   // Go back to the entry.
-  ++entry_ptr;
+  if (entry_ptr->getNextNonDebugInstruction())
+    entry_ptr = entry_ptr->getNextNonDebugInstruction()->getIterator();
+  else
+    entry_ptr = entry->end();
   Builder.SetInsertPoint(entry, entry_ptr);
 
   // Emit debug information for all the DeclRefExprs.

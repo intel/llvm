@@ -7,10 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "Interp.h"
-#include <limits>
-#include <vector>
 #include "Function.h"
 #include "InterpFrame.h"
+#include "InterpShared.h"
 #include "InterpStack.h"
 #include "Opcode.h"
 #include "PrimType.h"
@@ -22,6 +21,10 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "llvm/ADT/APSInt.h"
+#include <limits>
+#include <vector>
+
+using namespace clang;
 
 using namespace clang;
 using namespace clang::interp;
@@ -251,10 +254,10 @@ bool CheckConstant(InterpState &S, CodePtr OpPC, const Descriptor *Desc) {
     if (VD->isConstexpr())
       return true;
 
-    if (S.getLangOpts().CPlusPlus && !S.getLangOpts().CPlusPlus11)
-      return false;
-
     QualType T = VD->getType();
+    if (S.getLangOpts().CPlusPlus && !S.getLangOpts().CPlusPlus11)
+      return T->isSignedIntegerOrEnumerationType() || T->isUnsignedIntegerOrEnumerationType();
+
     if (T.isConstQualified())
       return true;
 
@@ -279,11 +282,9 @@ bool CheckConstant(InterpState &S, CodePtr OpPC, const Descriptor *Desc) {
 }
 
 static bool CheckConstant(InterpState &S, CodePtr OpPC, const Pointer &Ptr) {
+  if (Ptr.isIntegralPointer())
+    return true;
   return CheckConstant(S, OpPC, Ptr.getDeclDesc());
-}
-
-bool CheckDummy(InterpState &S, CodePtr OpPC, const Pointer &Ptr) {
-  return !Ptr.isDummy();
 }
 
 bool CheckNull(InterpState &S, CodePtr OpPC, const Pointer &Ptr,
@@ -335,6 +336,9 @@ bool CheckConst(InterpState &S, CodePtr OpPC, const Pointer &Ptr) {
       Ptr.block() == S.Current->getThis().block()) {
     return true;
   }
+
+  if (!Ptr.isBlockPointer())
+    return false;
 
   const QualType Ty = Ptr.getType();
   const SourceInfo &Loc = S.Current->getSource(OpPC);
@@ -462,6 +466,10 @@ bool CheckCallable(InterpState &S, CodePtr OpPC, const Function *F) {
     if (S.getLangOpts().CPlusPlus11) {
       const FunctionDecl *DiagDecl = F->getDecl();
 
+      // Invalid decls have been diagnosed before.
+      if (DiagDecl->isInvalidDecl())
+        return false;
+
       // If this function is not constexpr because it is an inherited
       // non-constexpr constructor, diagnose that directly.
       const auto *CD = dyn_cast<CXXConstructorDecl>(DiagDecl);
@@ -482,7 +490,9 @@ bool CheckCallable(InterpState &S, CodePtr OpPC, const Function *F) {
         // Don't emit anything if the function isn't defined and we're checking
         // for a constant expression. It might be defined at the point we're
         // actually calling it.
-        if (!DiagDecl->isDefined() && S.checkingPotentialConstantExpression())
+        bool IsExtern = DiagDecl->getStorageClass() == SC_Extern;
+        if (!DiagDecl->isDefined() && !IsExtern &&
+            S.checkingPotentialConstantExpression())
           return false;
 
         // If the declaration is defined _and_ declared 'constexpr', the below
@@ -588,10 +598,8 @@ bool CheckFloatResult(InterpState &S, CodePtr OpPC, const Floating &Result,
   return true;
 }
 
-/// We aleady know the given DeclRefExpr is invalid for some reason,
-/// now figure out why and print appropriate diagnostics.
-bool CheckDeclRef(InterpState &S, CodePtr OpPC, const DeclRefExpr *DR) {
-  const ValueDecl *D = DR->getDecl();
+static bool diagnoseUnknownDecl(InterpState &S, CodePtr OpPC,
+                                const ValueDecl *D) {
   const SourceInfo &E = S.Current->getSource(OpPC);
 
   if (isa<ParmVarDecl>(D)) {
@@ -614,8 +622,48 @@ bool CheckDeclRef(InterpState &S, CodePtr OpPC, const DeclRefExpr *DR) {
       return false;
     }
   }
-
   return false;
+}
+
+/// We aleady know the given DeclRefExpr is invalid for some reason,
+/// now figure out why and print appropriate diagnostics.
+bool CheckDeclRef(InterpState &S, CodePtr OpPC, const DeclRefExpr *DR) {
+  const ValueDecl *D = DR->getDecl();
+  return diagnoseUnknownDecl(S, OpPC, D);
+}
+
+bool CheckDummy(InterpState &S, CodePtr OpPC, const Pointer &Ptr) {
+  if (!Ptr.isDummy())
+    return true;
+
+  const Descriptor *Desc = Ptr.getDeclDesc();
+  const ValueDecl *D = Desc->asValueDecl();
+  if (!D)
+    return false;
+
+  return diagnoseUnknownDecl(S, OpPC, D);
+}
+
+bool CheckNonNullArgs(InterpState &S, CodePtr OpPC, const Function *F,
+                      const CallExpr *CE, unsigned ArgSize) {
+  auto Args = llvm::ArrayRef(CE->getArgs(), CE->getNumArgs());
+  auto NonNullArgs = collectNonNullArgs(F->getDecl(), Args);
+  unsigned Offset = 0;
+  unsigned Index = 0;
+  for (const Expr *Arg : Args) {
+    if (NonNullArgs[Index] && Arg->getType()->isPointerType()) {
+      const Pointer &ArgPtr = S.Stk.peek<Pointer>(ArgSize - Offset);
+      if (ArgPtr.isZero()) {
+        const SourceLocation &Loc = S.Current->getLocation(OpPC);
+        S.CCEDiag(Loc, diag::note_non_null_attribute_failed);
+        return false;
+      }
+    }
+
+    Offset += align(primSize(S.Ctx.classify(Arg).value_or(PT_Ptr)));
+    ++Index;
+  }
+  return true;
 }
 
 bool Interpret(InterpState &S, APValue &Result) {

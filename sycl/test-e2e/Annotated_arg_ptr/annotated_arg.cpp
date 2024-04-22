@@ -2,7 +2,11 @@
 // RUN: %{run} %t.out
 // REQUIRES: aspect-usm_shared_allocations
 
-#include "common.hpp"
+#include <sycl/sycl.hpp>
+
+using namespace sycl;
+using namespace sycl::ext::oneapi::experimental;
+using namespace sycl::ext::intel::experimental;
 
 struct test {
   int a;

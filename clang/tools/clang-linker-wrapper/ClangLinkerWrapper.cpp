@@ -14,12 +14,12 @@
 //
 //===---------------------------------------------------------------------===//
 
-#include "SYCLOffloadWrapper.h"
 #include "clang/Basic/Version.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/CodeGen/CommandFlags.h"
 #include "llvm/Frontend/Offloading/OffloadWrapper.h"
+#include "llvm/Frontend/Offloading/SYCLOffloadWrapper.h"
 #include "llvm/Frontend/Offloading/Utility.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DiagnosticPrinter.h"
@@ -408,12 +408,22 @@ fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
   CmdArgs.push_back("-type=o");
   CmdArgs.push_back("-bundle-align=4096");
 
+  if (Args.hasArg(OPT_compress))
+    CmdArgs.push_back("-compress");
+  if (auto *Arg = Args.getLastArg(OPT_compression_level_eq))
+    CmdArgs.push_back(
+        Args.MakeArgString(Twine("-compression-level=") + Arg->getValue()));
+
   SmallVector<StringRef> Targets = {"-targets=host-x86_64-unknown-linux"};
   for (const auto &[File, Arch] : InputFiles)
     Targets.push_back(Saver.save("hipv4-amdgcn-amd-amdhsa--" + Arch));
   CmdArgs.push_back(Saver.save(llvm::join(Targets, ",")));
 
+#ifdef _WIN32
+  CmdArgs.push_back("-input=NUL");
+#else
   CmdArgs.push_back("-input=/dev/null");
+#endif
   for (const auto &[File, Arch] : InputFiles)
     CmdArgs.push_back(Saver.save("-input=" + File));
 
@@ -704,16 +714,6 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef InputTable,
   return *Output;
 }
 
-Expected<std::vector<char>> readBinaryFile(StringRef File) {
-  auto MBOrErr = MemoryBuffer::getFile(File, /*IsText*/ false,
-                                       /*RequiresNullTerminator */ false);
-  if (!MBOrErr)
-    return createFileError(File, MBOrErr.getError());
-
-  auto &MB = *MBOrErr;
-  return std::vector<char>(MB->getBufferStart(), MB->getBufferEnd());
-}
-
 Expected<std::string> readTextFile(StringRef File) {
   auto MBOrErr = MemoryBuffer::getFile(File, /*IsText*/ true,
                                        /*RequiresNullTerminator */ true);
@@ -741,8 +741,8 @@ readPropertyRegistryFromFile(StringRef File) {
 // a_n.bin|a_n.prop|a_n.sym
 //
 // .bin extension might be a bc, spv or other native extension.
-Expected<SmallVector<SYCLImage>> readSYCLImagesFromTable(StringRef TableFile,
-                                                         const ArgList &Args) {
+Expected<SmallVector<offloading::SYCLImage>>
+readSYCLImagesFromTable(StringRef TableFile, const ArgList &Args) {
   auto TableOrErr = util::SimpleTable::read(TableFile);
   if (!TableOrErr)
     return TableOrErr.takeError();
@@ -756,11 +756,12 @@ Expected<SmallVector<SYCLImage>> readSYCLImagesFromTable(StringRef TableFile,
         inconvertibleErrorCode(),
         "expected columns in the table: Code, Properties and Symbols");
 
-  SmallVector<SYCLImage> Images;
+  SmallVector<offloading::SYCLImage> Images;
   for (const util::SimpleTable::Row &row : Table->rows()) {
-    auto ImageOrErr = readBinaryFile(row.getCell("Code"));
+    auto ImagePath = row.getCell("Code");
+    auto ImageOrErr = MemoryBuffer::getFile(ImagePath);
     if (!ImageOrErr)
-      return ImageOrErr.takeError();
+      return createFileError(ImagePath, ImageOrErr.getError());
 
     auto PropertiesOrErr =
         readPropertyRegistryFromFile(row.getCell("Properties"));
@@ -771,14 +772,14 @@ Expected<SmallVector<SYCLImage>> readSYCLImagesFromTable(StringRef TableFile,
     if (!SymbolsOrErr)
       return SymbolsOrErr.takeError();
 
-    SYCLImage Image;
+    offloading::SYCLImage Image;
     Image.Image = std::move(*ImageOrErr);
     Image.PropertyRegistry = std::move(**PropertiesOrErr);
     Image.Entries = std::move(*SymbolsOrErr);
     Images.push_back(std::move(Image));
   }
 
-  return Images;
+  return std::move(Images);
 }
 
 /// Reads device images from the given \p InputFile and wraps them
@@ -811,7 +812,7 @@ Expected<StringRef> wrapSYCLBinariesFromFile(StringRef InputFile,
         inconvertibleErrorCode(),
         "can't wrap SYCL image. -triple argument is missed.");
 
-  for (SYCLImage &Image : Images)
+  for (offloading::SYCLImage &Image : Images)
     Image.Target = Target;
 
   LLVMContext C;
@@ -822,10 +823,10 @@ Expected<StringRef> wrapSYCLBinariesFromFile(StringRef InputFile,
   StringRef CompileOptions =
       Args.getLastArgValue(OPT_sycl_backend_compile_options_EQ);
   StringRef LinkOptions = Args.getLastArgValue(OPT_sycl_target_link_options_EQ);
-  SYCLWrappingOptions WrappingOptions;
+  offloading::SYCLWrappingOptions WrappingOptions;
   WrappingOptions.CompileOptions = CompileOptions;
   WrappingOptions.LinkOptions = LinkOptions;
-  if (Error E = wrapSYCLBinaries(M, Images, WrappingOptions))
+  if (Error E = offloading::wrapSYCLBinaries(M, Images, WrappingOptions))
     return E;
 
   if (Args.hasArg(OPT_print_wrapped_module))
@@ -1016,14 +1017,17 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
   StringRef OptLevel = Args.getLastArgValue(OPT_opt_level, "O2");
   SmallVector<StringRef, 16> CmdArgs{
       *ClangPath,
+      "--no-default-config",
       "-o",
       *TempFileOrErr,
       Args.MakeArgString("--target=" + Triple.getTriple()),
       Triple.isAMDGPU() ? Args.MakeArgString("-mcpu=" + Arch)
                         : Args.MakeArgString("-march=" + Arch),
       Args.MakeArgString("-" + OptLevel),
-      "-Wl,--no-undefined",
   };
+
+  if (!Triple.isNVPTX())
+    CmdArgs.push_back("-Wl,--no-undefined");
 
   for (StringRef InputFile : InputFiles)
     CmdArgs.push_back(InputFile);
@@ -1118,6 +1122,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   case Triple::aarch64_be:
   case Triple::ppc64:
   case Triple::ppc64le:
+  case Triple::systemz:
     return generic::clang(InputFiles, Args);
   case Triple::spirv32:
   case Triple::spirv64:
@@ -1796,6 +1801,7 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
       // separate path inside 'linkDevice' call seen above.
       // This will eventually be refactored to use the 'common' wrapping logic
       // that is used for other offload kinds.
+      std::scoped_lock Guard(ImageMtx);
       WrappedOutput.push_back(*SYCLOutputOrErr);
     }
 

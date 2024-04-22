@@ -65,14 +65,6 @@
 #define _KERNELFUNCPARAM(a) const KernelType &a
 #endif
 
-// Helper macro to identify if fallback assert is needed
-// FIXME remove __NVPTX__ condition once devicelib supports CUDA
-#if defined(SYCL_FALLBACK_ASSERT)
-#define __SYCL_USE_FALLBACK_ASSERT SYCL_FALLBACK_ASSERT
-#else
-#define __SYCL_USE_FALLBACK_ASSERT 0
-#endif
-
 namespace sycl {
 inline namespace _V1 {
 
@@ -330,6 +322,13 @@ public:
   /// The return type depends on information being queried.
   template <typename Param>
   typename detail::is_queue_info_desc<Param>::return_type get_info() const;
+
+  /// Queries SYCL queue for SYCL backend-specific information.
+  ///
+  /// The return type depends on information being queried.
+  template <typename Param>
+  typename detail::is_backend_info_desc<Param>::return_type
+  get_backend_info() const;
 
 private:
   // A shorthand for `get_device().has()' which is expected to be a bit quicker
@@ -849,15 +848,7 @@ public:
   event ext_oneapi_memcpy2d(
       void *Dest, size_t DestPitch, const void *Src, size_t SrcPitch,
       size_t Width, size_t Height, event DepEvent,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit(
-        [=](handler &CGH) {
-          CGH.depends_on(DepEvent);
-          CGH.ext_oneapi_memcpy2d<T>(Dest, DestPitch, Src, SrcPitch, Width,
-                                     Height);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Copies data from one 2D memory region to another, both pointed by
   /// USM pointers.
@@ -884,15 +875,7 @@ public:
   event ext_oneapi_memcpy2d(
       void *Dest, size_t DestPitch, const void *Src, size_t SrcPitch,
       size_t Width, size_t Height, const std::vector<event> &DepEvents,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit(
-        [=](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.ext_oneapi_memcpy2d<T>(Dest, DestPitch, Src, SrcPitch, Width,
-                                     Height);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Copies data from one 2D memory region to another, both pointed by
   /// USM pointers.
@@ -913,14 +896,7 @@ public:
   event ext_oneapi_copy2d(
       const T *Src, size_t SrcPitch, T *Dest, size_t DestPitch, size_t Width,
       size_t Height,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit(
-        [=](handler &CGH) {
-          CGH.ext_oneapi_copy2d<T>(Src, SrcPitch, Dest, DestPitch, Width,
-                                   Height);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Copies data from one 2D memory region to another, both pointed by
   /// USM pointers.
@@ -942,15 +918,7 @@ public:
   event ext_oneapi_copy2d(
       const T *Src, size_t SrcPitch, T *Dest, size_t DestPitch, size_t Width,
       size_t Height, event DepEvent,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit(
-        [=](handler &CGH) {
-          CGH.depends_on(DepEvent);
-          CGH.ext_oneapi_copy2d<T>(Src, SrcPitch, Dest, DestPitch, Width,
-                                   Height);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Copies data from one 2D memory region to another, both pointed by
   /// USM pointers.
@@ -973,15 +941,7 @@ public:
   event ext_oneapi_copy2d(
       const T *Src, size_t SrcPitch, T *Dest, size_t DestPitch, size_t Width,
       size_t Height, const std::vector<event> &DepEvents,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit(
-        [=](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.ext_oneapi_copy2d<T>(Src, SrcPitch, Dest, DestPitch, Width,
-                                   Height);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Fills the memory pointed by a USM pointer with the value specified.
   /// No operations is done if \param Width or \param Height is zero. An
@@ -1003,13 +963,7 @@ public:
             typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
   event ext_oneapi_memset2d(
       void *Dest, size_t DestPitch, int Value, size_t Width, size_t Height,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit(
-        [=](handler &CGH) {
-          CGH.ext_oneapi_memset2d<T>(Dest, DestPitch, Value, Width, Height);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Fills the memory pointed by a USM pointer with the value specified.
   /// No operations is done if \param Width or \param Height is zero. An
@@ -1033,14 +987,7 @@ public:
   event ext_oneapi_memset2d(
       void *Dest, size_t DestPitch, int Value, size_t Width, size_t Height,
       event DepEvent,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit(
-        [=](handler &CGH) {
-          CGH.depends_on(DepEvent);
-          CGH.ext_oneapi_memset2d<T>(Dest, DestPitch, Value, Width, Height);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Fills the memory pointed by a USM pointer with the value specified.
   /// No operations is done if \param Width or \param Height is zero. An
@@ -1065,14 +1012,7 @@ public:
   event ext_oneapi_memset2d(
       void *Dest, size_t DestPitch, int Value, size_t Width, size_t Height,
       const std::vector<event> &DepEvents,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit(
-        [=](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.ext_oneapi_memset2d<T>(Dest, DestPitch, Value, Width, Height);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Fills the memory pointed by a USM pointer with the value specified.
   /// No operations is done if \param Width or \param Height is zero. An
@@ -1091,13 +1031,7 @@ public:
   event ext_oneapi_fill2d(
       void *Dest, size_t DestPitch, const T &Pattern, size_t Width,
       size_t Height,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit(
-        [=](handler &CGH) {
-          CGH.ext_oneapi_fill2d<T>(Dest, DestPitch, Pattern, Width, Height);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Fills the memory pointed by a USM pointer with the value specified.
   /// No operations is done if \param Width or \param Height is zero. An
@@ -1117,14 +1051,7 @@ public:
   event ext_oneapi_fill2d(
       void *Dest, size_t DestPitch, const T &Pattern, size_t Width,
       size_t Height, event DepEvent,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit(
-        [=](handler &CGH) {
-          CGH.depends_on(DepEvent);
-          CGH.ext_oneapi_fill2d<T>(Dest, DestPitch, Pattern, Width, Height);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Fills the memory pointed by a USM pointer with the value specified.
   /// No operations is done if \param Width or \param Height is zero. An
@@ -1145,14 +1072,7 @@ public:
   event ext_oneapi_fill2d(
       void *Dest, size_t DestPitch, const T &Pattern, size_t Width,
       size_t Height, const std::vector<event> &DepEvents,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit(
-        [=](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.ext_oneapi_fill2d<T>(Dest, DestPitch, Pattern, Width, Height);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Copies data from a USM memory region to a device_global.
   /// Throws an exception if the copy operation intends to write outside the
@@ -2965,10 +2885,6 @@ private:
         Rest...);
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  buffer<detail::AssertHappened, 1> &getAssertHappenedBuffer();
-#endif
-
   event memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
                              bool IsDeviceImageScope, size_t NumBytes,
                              size_t Offset,
@@ -3086,5 +3002,3 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
 } // namespace _V1
 } // namespace sycl
 #endif // __SYCL_USE_FALLBACK_ASSERT
-
-#undef __SYCL_USE_FALLBACK_ASSERT

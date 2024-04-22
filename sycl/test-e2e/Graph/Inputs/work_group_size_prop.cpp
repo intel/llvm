@@ -190,10 +190,6 @@ template <size_t... Is> int test(queue &Queue) {
 int main() {
   queue Queue{};
 
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
-
   int Res = 0;
   Res += test<4>(Queue);
   Res += test<4, 4>(Queue);

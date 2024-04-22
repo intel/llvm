@@ -11,6 +11,7 @@
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
+#include <cerrno>
 #include <cstdio>
 #include <fstream>
 #include <optional>
@@ -38,7 +39,10 @@ LockCacheItem::LockCacheItem(const std::string &Path)
     close(fd);
     Owned = true;
   } else {
-    PersistentDeviceCodeCache::trace("Failed to aquire lock file: " + FileName);
+    PersistentDeviceCodeCache::trace("Failed to acquire lock file: " +
+                                     FileName + " " + std::strerror(errno));
+    PersistentDeviceCodeCache::trace("Failed to acquire lock file: " +
+                                     FileName + " " + std::strerror(errno));
   }
 }
 
@@ -100,12 +104,6 @@ void PersistentDeviceCodeCache::putItemToDisc(
 
   auto Plugin = detail::getSyclObjImpl(Device)->getPlugin();
 
-  size_t i = 0;
-  std::string FileName;
-  do {
-    FileName = DirName + "/" + std::to_string(i++);
-  } while (OSUtil::isPathPresent(FileName + ".bin"));
-
   unsigned int DeviceNum = 0;
 
   Plugin->call<PiApiKind::piProgramGetInfo>(
@@ -127,6 +125,12 @@ void PersistentDeviceCodeCache::putItemToDisc(
   Plugin->call<PiApiKind::piProgramGetInfo>(NativePrg, PI_PROGRAM_INFO_BINARIES,
                                             sizeof(char *) * Pointers.size(),
                                             Pointers.data(), nullptr);
+  size_t i = 0;
+  std::string FileName;
+  do {
+    FileName = DirName + "/" + std::to_string(i++);
+  } while (OSUtil::isPathPresent(FileName + ".bin") ||
+           OSUtil::isPathPresent(FileName + ".lock"));
 
   try {
     OSUtil::makeDir(DirName.c_str());
@@ -137,9 +141,17 @@ void PersistentDeviceCodeCache::putItemToDisc(
       trace("device binary has been cached: " + FullFileName);
       writeSourceItem(FileName + ".src", Device, Img, SpecConsts,
                       BuildOptionsString);
+    } else {
+      PersistentDeviceCodeCache::trace("cache lock not owned " + FileName);
     }
+  } catch (std::exception &e) {
+    PersistentDeviceCodeCache::trace(
+        std::string("exception encountered making persistent cache: ") +
+        e.what());
   } catch (...) {
-    // If a problem happens on storing cache item, do nothing
+    PersistentDeviceCodeCache::trace(
+        std::string("error outputting persistent cache: ") +
+        std::strerror(errno));
   }
 }
 

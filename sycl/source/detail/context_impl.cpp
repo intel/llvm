@@ -48,6 +48,18 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
   MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   std::vector<sycl::detail::pi::PiDevice> DeviceIds;
   for (const auto &D : MDevices) {
+    if (D.has(aspect::ext_oneapi_is_composite)) {
+      // Component devices are considered to be descendent devices from a
+      // composite device and therefore context created for a composite
+      // device should also work for a component device.
+      // In order to achieve that, we implicitly add all component devices to
+      // the list if a composite device was passed by user to us.
+      std::vector<device> ComponentDevices = D.get_info<
+          ext::oneapi::experimental::info::device::component_devices>();
+      for (const auto &CD : ComponentDevices)
+        DeviceIds.push_back(getSyclObjImpl(CD)->getHandleRef());
+    }
+
     DeviceIds.push_back(getSyclObjImpl(D)->getHandleRef());
   }
 
@@ -240,6 +252,51 @@ context_impl::get_info<info::context::atomic_fence_scope_capabilities>() const {
       MDevices, CapabilityList);
 
   return CapabilityList;
+}
+
+template <>
+typename info::platform::version::return_type
+context_impl::get_backend_info<info::platform::version>() const {
+  if (getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::platform::version info descriptor can "
+                          "only be queried with an OpenCL backend");
+  }
+  return MDevices[0].get_platform().get_info<info::platform::version>();
+}
+
+device select_device(DSelectorInvocableType DeviceSelectorInvocable,
+                     std::vector<device> &Devices);
+
+template <>
+typename info::device::version::return_type
+context_impl::get_backend_info<info::device::version>() const {
+  if (getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::version info descriptor can only "
+                          "be queried with an OpenCL backend");
+  }
+  auto Devices = get_info<info::context::devices>();
+  if (Devices.empty()) {
+    return "No available device";
+  }
+  // Use default selector to pick a device.
+  return select_device(default_selector_v, Devices)
+      .get_info<info::device::version>();
+}
+
+template <>
+typename info::device::backend_version::return_type
+context_impl::get_backend_info<info::device::backend_version>() const {
+  if (getBackend() != backend::ext_oneapi_level_zero) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::backend_version info descriptor "
+                          "can only be queried with a Level Zero backend");
+  }
+  return "";
+  // Currently The Level Zero backend does not define the value of this
+  // information descriptor and implementations are encouraged to return the
+  // empty string as per specification.
 }
 
 sycl::detail::pi::PiContext &context_impl::getHandleRef() { return MContext; }
