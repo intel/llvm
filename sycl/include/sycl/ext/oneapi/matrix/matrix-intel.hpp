@@ -147,7 +147,6 @@ public:
                             spv_matrix_use_traits<Use>::value,
                             spv_scope_traits<Group>::value>(&M.spvm, idx);
     storage_element_type elem = *ExtractP;
-//    storage_element_type elem = __spirv_Load<T>(ExtractP);
 #endif // USE_COOP_MATRIX
     return elem;
 #else
@@ -171,7 +170,6 @@ public:
                             spv_matrix_use_traits<Use>::value,
                             spv_scope_traits<Group>::value>(&M.spvm, idx);
     return *ExtractP != static_cast<storage_element_type>(0);
-//    return __spirv_Load<T>(ExtractP) != static_cast<storage_element_type>(0);
 #endif // USE_COOP_MATRIX
 #else
     throw runtime_error("joint matrix is not supported on host device.",
@@ -187,7 +185,6 @@ public:
 #else
     T2 *InsertP = __spirv_AccessChain(&M.spvm, idx);
     *InsertP = static_cast<storage_element_type>(rhs);
-//    __spirv_Store(InsertP, static_cast<storage_element_type>(rhs));
 #endif // USE_COOP_MATRIX
     return *this;
 #else
@@ -215,11 +212,6 @@ public:
         &rhs.M.spvm, rhs.idx);
     T *InsertP = __spirv_AccessChain(&M.spvm, idx);
     *InsertP = *ExtractP;
-/*
-    T RhsVal = __spirv_Load(ExtractP);
-    T *InsertP = __spirv_AccessChain(&M.spvm, idx);
-    __spirv_Store(InsertP, RhsVal);
-    */
 #endif // USE_COOP_MATRIX
     return *this;
 #else
@@ -344,7 +336,6 @@ public:
                             spv_matrix_use_traits<Use>::value,
                             spv_scope_traits<Group>::value>(&M.spvm, idx);
     sycl::ext::oneapi::bfloat16 Elem = *ExtractP;
-//        __spirv_Load<sycl::ext::oneapi::bfloat16>(ExtractP);
     return sycl::fabs(static_cast<float>(Elem)) >=
            std::numeric_limits<float>::epsilon();
 #endif // USE_COOP_MATRIX
@@ -360,7 +351,7 @@ public:
     M.spvm = __spirv_VectorInsertDynamic(M.spvm, rhs, idx);
 #else
     sycl::ext::oneapi::bfloat16 *InsertP = __spirv_AccessChain(&M.spvm, idx);
-    __spirv_Store<sycl::ext::oneapi::bfloat16>(InsertP, rhs);
+    *InsertP = rhs;
 #endif // USE_COOP_MATRIX
     return *this;
 #else
@@ -391,9 +382,6 @@ public:
                                                             rhs.idx);
     sycl::ext::oneapi::bfloat16 *InsertP = __spirv_AccessChain(&M.spvm, idx);
     *InsertP = *ExtractP;
-/*    sycl::ext::oneapi::bfloat16 RhsVal = __spirv_Load(ExtractP);
-    sycl::ext::oneapi::bfloat16 *InsertP = __spirv_AccessChain(&M.spvm, idx);
-    __spirv_Store(InsertP, RhsVal);*/
 #endif // USE_COOP_MATRIX
     return *this;
 #else

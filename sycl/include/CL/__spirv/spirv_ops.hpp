@@ -18,6 +18,7 @@
 // Convergent attribute
 #ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_CONVERGENT__ __attribute__((convergent))
+//#define USE_COOP_MATRIX
 #else
 #define __SYCL_CONVERGENT__
 #endif
