@@ -641,6 +641,11 @@ constexpr std::pair<const int, oneapi_exp_arch> IntelGPUArchitectures[] = {
     {0x030e4000, oneapi_exp_arch::intel_gpu_acm_g12},
     {0x030f0007, oneapi_exp_arch::intel_gpu_pvc},
     {0x030f4007, oneapi_exp_arch::intel_gpu_pvc_vg},
+    {0x03118004, oneapi_exp_arch::intel_gpu_mtl_u},
+    {0x0311c004, oneapi_exp_arch::intel_gpu_mtl_h},
+    {0x03128004, oneapi_exp_arch::intel_gpu_arl_h},
+    {0x05004004, oneapi_exp_arch::intel_gpu_bmg_g21},
+    {0x05010004, oneapi_exp_arch::intel_gpu_lnl_m},
 };
 
 // Only for Intel CPU architectures
