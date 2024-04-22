@@ -39,6 +39,7 @@ int main() {
       // Execute the kernel
       cgh.parallel_for<class vector_addition>(
           sycl::range<1>(N), [=](sycl::id<1> idx) {
+            srand(idx[0] + 1);
             for (size_t jdx = 0; jdx < 4; ++jdx)
               accessC[idx][jdx] = rand();
           });

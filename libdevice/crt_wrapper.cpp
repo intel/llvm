@@ -58,14 +58,29 @@ int rand() {
                        __spirv_BuiltInGlobalSize.z;
   size_t gid1 =
       (global_size > RAND_NEXT_LEN) ? (gid & (RAND_NEXT_LEN - 1)) : gid;
-  if (RAND_NEXT_ACC[gid] == 0)
-    RAND_NEXT_ACC[gid] = gid + 1;
-  uint64_t x = RAND_NEXT_ACC[gid];
+  if (RAND_NEXT_ACC[gid1] == 0)
+    RAND_NEXT_ACC[gid1] = 1;
+  uint64_t x = RAND_NEXT_ACC[gid1];
   x ^= x >> 12;
   x ^= x << 25;
   x ^= x >> 27;
-  RAND_NEXT_ACC[gid] = x;
+  RAND_NEXT_ACC[gid1] = x;
   return static_cast<int>((x * 0x2545F4914F6CDD1Dul) >> 32) & RAND_MAX;
+}
+
+DEVICE_EXTERN_C_INLINE
+void srand(unsigned int seed) {
+  size_t gid =
+      (__spirv_BuiltInGlobalInvocationId.x * __spirv_BuiltInGlobalSize.y *
+       __spirv_BuiltInGlobalSize.z) +
+      (__spirv_BuiltInGlobalInvocationId.y * __spirv_BuiltInGlobalSize.z) +
+      __spirv_BuiltInGlobalInvocationId.z;
+  size_t global_size = __spirv_BuiltInGlobalSize.x *
+                       __spirv_BuiltInGlobalSize.y *
+                       __spirv_BuiltInGlobalSize.z;
+  size_t gid1 =
+      (global_size > RAND_NEXT_LEN) ? (gid & (RAND_NEXT_LEN - 1)) : gid;
+  RAND_NEXT_ACC[gid1] = seed;
 }
 
 #endif
