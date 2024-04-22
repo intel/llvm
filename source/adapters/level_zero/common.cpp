@@ -215,6 +215,11 @@ ze_structure_type_t
 getZeStructureType<ze_relaxed_allocation_limits_exp_desc_t>() {
   return ZE_STRUCTURE_TYPE_RELAXED_ALLOCATION_LIMITS_EXP_DESC;
 }
+template <>
+ze_structure_type_t
+getZeStructureType<ze_kernel_max_group_size_properties_ext_t>() {
+  return ZE_STRUCTURE_TYPE_KERNEL_MAX_GROUP_SIZE_EXT_PROPERTIES;
+}
 template <> ze_structure_type_t getZeStructureType<ze_host_mem_alloc_desc_t>() {
   return ZE_STRUCTURE_TYPE_HOST_MEM_ALLOC_DESC;
 }
@@ -252,6 +257,10 @@ template <> ze_structure_type_t getZeStructureType<ze_driver_properties_t>() {
 }
 template <> ze_structure_type_t getZeStructureType<ze_device_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+}
+template <>
+ze_structure_type_t getZeStructureType<ze_device_p2p_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_P2P_PROPERTIES;
 }
 template <>
 ze_structure_type_t getZeStructureType<ze_device_compute_properties_t>() {

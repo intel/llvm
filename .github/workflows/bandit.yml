@@ -11,10 +11,13 @@ permissions:
   contents: read
 
 jobs:
-  linux:
+  bandit:
     name: Bandit
-    runs-on: ubuntu-latest
-  
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{matrix.os}}
+
     steps:
       - name: Clone the git repo
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
@@ -22,7 +25,6 @@ jobs:
       - name: Install pip packages
         run: pip install -r third_party/requirements.txt
 
-      # Scan is run only for the 'tools' folder.
+      # Scan all files, except for dev. scripts
       - name: Run Bandit
-        run: |
-          bandit -r tools
+        run: bandit -r . -x ./scripts/

@@ -3,19 +3,22 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "helpers.h"
 #include <cstring>
 #include <uur/fixtures.h>
 
-struct urUSMHostAllocTest : uur::urQueueTestWithParam<uur::BoolTestParam> {
+struct urUSMHostAllocTest
+    : uur::urQueueTestWithParam<uur::USMDeviceAllocParams> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(
-            uur::urQueueTestWithParam<uur::BoolTestParam>::SetUp());
+            uur::urQueueTestWithParam<uur::USMDeviceAllocParams>::SetUp());
         ur_device_usm_access_capability_flags_t hostUSMSupport = 0;
         ASSERT_SUCCESS(uur::GetDeviceUSMHostSupport(device, hostUSMSupport));
         if (!hostUSMSupport) {
             GTEST_SKIP() << "Device USM is not supported.";
         }
-        if (getParam().value) {
+
+        if (usePool) {
             ur_usm_pool_desc_t pool_desc = {};
             ASSERT_SUCCESS(urUSMPoolCreate(context, &pool_desc, &pool));
         }
@@ -26,16 +29,22 @@ struct urUSMHostAllocTest : uur::urQueueTestWithParam<uur::BoolTestParam> {
             ASSERT_SUCCESS(urUSMPoolRelease(pool));
         }
         UUR_RETURN_ON_FATAL_FAILURE(
-            uur::urQueueTestWithParam<uur::BoolTestParam>::TearDown());
+            uur::urQueueTestWithParam<uur::USMDeviceAllocParams>::TearDown());
     }
 
     ur_usm_pool_handle_t pool = nullptr;
+    bool usePool = std::get<0>(getParam()).value;
 };
 
+// The 0 value parameters are not relevant for urUSMHostAllocTest tests, they
+// are used below in urUSMHostAllocAlignmentTest for allocation size and
+// alignment values
 UUR_TEST_SUITE_P(
     urUSMHostAllocTest,
-    testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UsePool")),
-    uur::deviceTestWithParamPrinter<uur::BoolTestParam>);
+    testing::Combine(
+        testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UsePool")),
+        testing::Values(0), testing::Values(0)),
+    uur::printUSMAllocTestString<urUSMHostAllocTest>);
 
 TEST_P(urUSMHostAllocTest, Success) {
     ur_device_usm_access_capability_flags_t hostUSMSupport = 0;
@@ -77,7 +86,6 @@ TEST_P(urUSMHostAllocTest, Success) {
 }
 
 TEST_P(urUSMHostAllocTest, SuccessWithDescriptors) {
-
     ur_usm_host_desc_t usm_host_desc{UR_STRUCTURE_TYPE_USM_HOST_DESC, nullptr,
                                      /* host flags */ 0};
 
@@ -88,6 +96,7 @@ TEST_P(urUSMHostAllocTest, SuccessWithDescriptors) {
     size_t allocation_size = sizeof(int);
     ASSERT_SUCCESS(
         urUSMHostAlloc(context, &usm_desc, pool, allocation_size, &ptr));
+    ASSERT_NE(ptr, nullptr);
 
     ur_event_handle_t event = nullptr;
     uint8_t pattern = 0;
@@ -124,4 +133,39 @@ TEST_P(urUSMHostAllocTest, InvalidValueAlignPowerOfTwo) {
     desc.align = 5;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE,
                      urUSMHostAlloc(context, &desc, pool, sizeof(int), &ptr));
+}
+
+using urUSMHostAllocAlignmentTest = urUSMHostAllocTest;
+
+UUR_TEST_SUITE_P(
+    urUSMHostAllocAlignmentTest,
+    testing::Combine(
+        testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UsePool")),
+        testing::Values(4, 8, 16, 32, 64), testing::Values(8, 512, 2048)),
+    uur::printUSMAllocTestString<urUSMHostAllocAlignmentTest>);
+
+TEST_P(urUSMHostAllocAlignmentTest, SuccessAlignedAllocations) {
+    uint32_t alignment = std::get<1>(getParam());
+    size_t allocation_size = std::get<2>(getParam());
+
+    ur_usm_host_desc_t usm_host_desc{UR_STRUCTURE_TYPE_USM_HOST_DESC, nullptr,
+                                     /* host flags */ 0};
+
+    ur_usm_desc_t usm_desc{UR_STRUCTURE_TYPE_USM_DESC, &usm_host_desc,
+                           /* mem advice flags */ UR_USM_ADVICE_FLAG_DEFAULT,
+                           alignment};
+
+    void *ptr = nullptr;
+    ASSERT_SUCCESS(
+        urUSMHostAlloc(context, &usm_desc, pool, allocation_size, &ptr));
+    ASSERT_NE(ptr, nullptr);
+
+    ur_event_handle_t event = nullptr;
+    uint8_t pattern = 0;
+    ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
+                                    allocation_size, 0, nullptr, &event));
+    ASSERT_SUCCESS(urEventWait(1, &event));
+
+    ASSERT_SUCCESS(urUSMFree(context, ptr));
+    EXPECT_SUCCESS(urEventRelease(event));
 }

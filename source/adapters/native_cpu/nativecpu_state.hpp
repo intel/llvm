@@ -19,6 +19,7 @@ struct state {
   size_t MLocal_id[3];
   size_t MNumGroups[3];
   size_t MGlobalOffset[3];
+  uint32_t NumSubGroups, SubGroup_id, SubGroup_local_id, SubGroup_size;
   state(size_t globalR0, size_t globalR1, size_t globalR2, size_t localR0,
         size_t localR1, size_t localR2, size_t globalO0, size_t globalO1,
         size_t globalO2)
@@ -36,6 +37,10 @@ struct state {
     MLocal_id[0] = 0;
     MLocal_id[1] = 0;
     MLocal_id[2] = 0;
+    NumSubGroups = 32;
+    SubGroup_id = 0;
+    SubGroup_local_id = 0;
+    SubGroup_size = 1;
   }
 
   void update(size_t group0, size_t group1, size_t group2, size_t local0,

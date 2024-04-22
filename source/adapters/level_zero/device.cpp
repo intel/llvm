@@ -718,7 +718,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
         }
       }
     }
-    return ReturnValue(std::min(GlobalMemSize, FreeMemory));
+    if (MemCount > 0) {
+      return ReturnValue(std::min(GlobalMemSize, FreeMemory));
+    } else {
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
   }
   case UR_DEVICE_INFO_MEMORY_CLOCK_RATE: {
     // If there are not any memory modules then return 0.

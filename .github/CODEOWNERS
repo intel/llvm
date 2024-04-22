@@ -14,9 +14,10 @@ source/adapters/opencl          @oneapi-src/unified-runtime-opencl-write
 source/adapters/native_cpu          @oneapi-src/unified-runtime-native-cpu-write
 
 # Command-buffer experimental feature
-source/adapters/**/command_buffer.*  @oneapi-src/unified-runtime-command-buffer-write
-scripts/core/EXP-COMMAND-BUFFER.rst  @oneapi-src/unified-runtime-command-buffer-write
-scripts/core/exp-command-buffer.yml  @oneapi-src/unified-runtime-command-buffer-write
+source/adapters/**/command_buffer.*     @oneapi-src/unified-runtime-command-buffer-write
+scripts/core/EXP-COMMAND-BUFFER.rst     @oneapi-src/unified-runtime-command-buffer-write
+scripts/core/exp-command-buffer.yml     @oneapi-src/unified-runtime-command-buffer-write
+test/conformance/exp_command_buffer**   @oneapi-src/unified-runtime-command-buffer-write
 
 # Bindless Images experimental feature
 scripts/core/EXP-BINDLESS-IMAGES.rst @oneapi-src/unified-runtime-bindless-images-write

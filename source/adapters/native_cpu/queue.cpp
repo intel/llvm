@@ -35,10 +35,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
   std::ignore = hDevice;
   std::ignore = pProperties;
 
-  auto Queue = new ur_queue_handle_t_();
+  auto Queue = new ur_queue_handle_t_(hDevice);
   *phQueue = Queue;
 
-  CONTINUE_NO_IMPLEMENTATION;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {

@@ -50,6 +50,7 @@ Runtime:
   * Sampled images
   * Unsampled images
   * Mipmaps
+  * Cubemaps
   * USM backed images
 
 * Interoperability support
@@ -69,6 +70,7 @@ Enums
     ${X}_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR
     ${X}_STRUCTURE_TYPE_EXP_WIN32_HANDLE
     ${X}_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES
+    ${X}_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES
 
 * ${x}_device_info_t
     * ${X}_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP
@@ -87,6 +89,8 @@ Enums
     * ${X}_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP
     * ${X}_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP
     * ${X}_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP
+    * ${X}_DEVICE_INFO_CUBEMAP_SUPPORT_EXP
+    * ${X}_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP
 
 * ${x}_command_t
     * ${X}_COMMAND_INTEROP_SEMAPHORE_WAIT_EXP
@@ -96,6 +100,10 @@ Enums
     * ${X}_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE
     * ${X}_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST
     * ${X}_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE
+
+* ${x}_exp_sampler_cubemap_filter_mode_t
+    * ${X}_EXP_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS
+    * ${X}_EXP_SAMPLER_CUBEMAP_FILTER_MODE_DISJOINTED
 
 * ${x}_function_t
     * ${X}_FUNCTION_USM_PITCHED_ALLOC_EXP
@@ -117,6 +125,9 @@ Enums
     * ${X}_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP
 
+* ${x}_mem_type_t
+    * ${X}_MEM_TYPE_IMAGE_CUBEMAP_EXP
+
 Types
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 * ${x}_exp_sampler_mip_properties_t
@@ -129,6 +140,7 @@ Types
 * ${x}_exp_file_descriptor_t
 * ${x}_exp_win32_handle_t
 * ${x}_exp_sampler_addr_modes_t
+* ${x}_exp_sampler_cubemap_properties_t
 
 Functions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -184,6 +196,9 @@ Changelog
 +------------------------------------------------------------------------+
 | 9.0      | Remove layered image properties struct.                     |
 +------------------------------------------------------------------------+
+| 10.0     | Added cubemap image type, sampling properties, and device   |
+|          | queries.                                                    |
++----------+-------------------------------------------------------------+
 
 Contributors
 --------------------------------------------------------------------------------
