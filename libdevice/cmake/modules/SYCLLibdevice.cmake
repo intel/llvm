@@ -2,12 +2,16 @@ set(obj_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 if (MSVC)
   set(lib-suffix obj)
   set(spv_binary_dir "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+  set(bc_binary_dir "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
   set(install_dest_spv bin)
+  set(install_dest_bc bin)
   set(devicelib_host_static sycl-devicelib-host.lib)
 else()
   set(lib-suffix o)
   set(spv_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+  set(bc_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
   set(install_dest_spv lib${LLVM_LIBDIR_SUFFIX})
+  set(install_dest_bc lib${LLVM_LIBDIR_SUFFIX})
   set(devicelib_host_static libsycl-devicelib-host.a)
 endif()
 set(install_dest_lib lib${LLVM_LIBDIR_SUFFIX})
@@ -62,10 +66,12 @@ endif()
 
 add_custom_target(libsycldevice-obj)
 add_custom_target(libsycldevice-spv)
+add_custom_target(libsycldevice-bc)
 
 add_custom_target(libsycldevice DEPENDS
   libsycldevice-obj
-  libsycldevice-spv)
+  libsycldevice-spv
+  libsycldevice-bc)
 
 function(add_devicelib_obj obj_filename)
   cmake_parse_arguments(OBJ  "" "" "SRC;DEP;EXTRA_ARGS" ${ARGN})
@@ -105,10 +111,31 @@ function(add_devicelib_spv spv_filename)
           COMPONENT libsycldevice)
 endfunction()
 
-function(add_fallback_devicelib fallback_filename)
-  cmake_parse_arguments(FB "" "" "SRC;DEP;EXTRA_ARGS" ${ARGN})
-  add_devicelib_spv(${fallback_filename} SRC ${FB_SRC} DEP ${FB_DEP} EXTRA_ARGS ${FB_EXTRA_ARGS})
-  add_devicelib_obj(${fallback_filename} SRC ${FB_SRC} DEP ${FB_DEP} EXTRA_ARGS ${FB_EXTRA_ARGS})
+function(add_devicelib_bc bc_filename)
+  cmake_parse_arguments(BC  "" "" "SRC;DEP;EXTRA_ARGS" ${ARGN})
+  set(devicelib-bc-file ${bc_binary_dir}/${bc_filename}.bc)
+  add_custom_command(OUTPUT ${devicelib-bc-file}
+                     COMMAND ${clang} -fsycl-device-only
+                             -fsycl-device-obj=llvmir ${compile_opts}
+                             ${BC_EXTRA_ARGS}
+                             ${CMAKE_CURRENT_SOURCE_DIR}/${BC_SRC}
+                             -o ${devicelib-bc-file}
+                     MAIN_DEPENDENCY ${BC_SRC}
+                     DEPENDS ${BC_DEP}
+                     VERBATIM)
+  set(devicelib-bc-target ${bc_filename}-bc)
+  add_custom_target(${devicelib-bc-target} DEPENDS ${devicelib-bc-file})
+  add_dependencies(libsycldevice-bc ${devicelib-bc-target})
+  install(FILES ${devicelib-bc-file}
+          DESTINATION ${install_dest_bc}
+          COMPONENT libsycldevice)
+endfunction()
+
+function(add_devicelib filename)
+  cmake_parse_arguments(DL "" "" "SRC;DEP;EXTRA_ARGS" ${ARGN})
+  add_devicelib_spv(${filename} SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
+  add_devicelib_bc(${filename} SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
+  add_devicelib_obj(${filename} SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
 endfunction()
 
 set(crt_obj_deps wrapper.h device.h spirv_vars.h sycl-compiler)
@@ -121,33 +148,33 @@ if (NOT MSVC)
   set(sanitizer_obj_deps device.h atomic.hpp spirv_vars.h include/sanitizer_device_utils.hpp include/spir_global_var.hpp sycl-compiler)
 endif()
 
-add_devicelib_obj(libsycl-itt-stubs SRC itt_stubs.cpp DEP ${itt_obj_deps})
-add_devicelib_obj(libsycl-itt-compiler-wrappers SRC itt_compiler_wrappers.cpp DEP ${itt_obj_deps})
-add_devicelib_obj(libsycl-itt-user-wrappers SRC itt_user_wrappers.cpp DEP ${itt_obj_deps})
+add_devicelib(libsycl-itt-stubs SRC itt_stubs.cpp DEP ${itt_obj_deps})
+add_devicelib(libsycl-itt-compiler-wrappers SRC itt_compiler_wrappers.cpp DEP ${itt_obj_deps})
+add_devicelib(libsycl-itt-user-wrappers SRC itt_user_wrappers.cpp DEP ${itt_obj_deps})
 
-add_devicelib_obj(libsycl-crt SRC crt_wrapper.cpp DEP ${crt_obj_deps})
-add_devicelib_obj(libsycl-complex SRC complex_wrapper.cpp DEP ${complex_obj_deps})
-add_devicelib_obj(libsycl-complex-fp64 SRC complex_wrapper_fp64.cpp DEP ${complex_obj_deps} )
-add_devicelib_obj(libsycl-cmath SRC cmath_wrapper.cpp DEP ${cmath_obj_deps})
-add_devicelib_obj(libsycl-cmath-fp64 SRC cmath_wrapper_fp64.cpp DEP ${cmath_obj_deps} )
-add_devicelib_obj(libsycl-imf SRC imf_wrapper.cpp DEP ${imf_obj_deps})
-add_devicelib_obj(libsycl-imf-fp64 SRC imf_wrapper_fp64.cpp DEP ${imf_obj_deps})
-add_devicelib_obj(libsycl-imf-bf16 SRC imf_wrapper_bf16.cpp DEP ${imf_obj_deps})
-add_devicelib_obj(libsycl-bfloat16 SRC bfloat16_wrapper.cpp DEP ${cmath_obj_deps} )
+add_devicelib(libsycl-crt SRC crt_wrapper.cpp DEP ${crt_obj_deps})
+add_devicelib(libsycl-complex SRC complex_wrapper.cpp DEP ${complex_obj_deps})
+add_devicelib(libsycl-complex-fp64 SRC complex_wrapper_fp64.cpp DEP ${complex_obj_deps} )
+add_devicelib(libsycl-cmath SRC cmath_wrapper.cpp DEP ${cmath_obj_deps})
+add_devicelib(libsycl-cmath-fp64 SRC cmath_wrapper_fp64.cpp DEP ${cmath_obj_deps} )
+add_devicelib(libsycl-imf SRC imf_wrapper.cpp DEP ${imf_obj_deps})
+add_devicelib(libsycl-imf-fp64 SRC imf_wrapper_fp64.cpp DEP ${imf_obj_deps})
+add_devicelib(libsycl-imf-bf16 SRC imf_wrapper_bf16.cpp DEP ${imf_obj_deps})
+add_devicelib(libsycl-bfloat16 SRC bfloat16_wrapper.cpp DEP ${cmath_obj_deps} )
 if(MSVC)
-  add_devicelib_obj(libsycl-msvc-math SRC msvc_math.cpp DEP ${cmath_obj_deps})
+  add_devicelib(libsycl-msvc-math SRC msvc_math.cpp DEP ${cmath_obj_deps})
 else()
-  add_devicelib_obj(libsycl-sanitizer SRC sanitizer_utils.cpp DEP ${sanitizer_obj_deps} EXTRA_ARGS -fno-sycl-instrument-device-code)
+  add_devicelib(libsycl-sanitizer SRC sanitizer_utils.cpp DEP ${sanitizer_obj_deps} EXTRA_ARGS -fno-sycl-instrument-device-code)
 endif()
 
-add_fallback_devicelib(libsycl-fallback-cassert SRC fallback-cassert.cpp DEP ${crt_obj_deps} EXTRA_ARGS -fno-sycl-instrument-device-code)
-add_fallback_devicelib(libsycl-fallback-cstring SRC fallback-cstring.cpp DEP ${crt_obj_deps})
-add_fallback_devicelib(libsycl-fallback-complex SRC fallback-complex.cpp DEP ${complex_obj_deps})
-add_fallback_devicelib(libsycl-fallback-complex-fp64 SRC fallback-complex-fp64.cpp DEP ${complex_obj_deps} )
-add_fallback_devicelib(libsycl-fallback-cmath SRC fallback-cmath.cpp DEP ${cmath_obj_deps})
-add_fallback_devicelib(libsycl-fallback-cmath-fp64 SRC fallback-cmath-fp64.cpp DEP ${cmath_obj_deps})
-add_fallback_devicelib(libsycl-fallback-bfloat16 SRC fallback-bfloat16.cpp DEP ${bfloat16_obj_deps})
-add_fallback_devicelib(libsycl-native-bfloat16 SRC bfloat16_wrapper.cpp DEP ${bfloat16_obj_deps})
+add_devicelib(libsycl-fallback-cassert SRC fallback-cassert.cpp DEP ${crt_obj_deps} EXTRA_ARGS -fno-sycl-instrument-device-code)
+add_devicelib(libsycl-fallback-cstring SRC fallback-cstring.cpp DEP ${crt_obj_deps})
+add_devicelib(libsycl-fallback-complex SRC fallback-complex.cpp DEP ${complex_obj_deps})
+add_devicelib(libsycl-fallback-complex-fp64 SRC fallback-complex-fp64.cpp DEP ${complex_obj_deps} )
+add_devicelib(libsycl-fallback-cmath SRC fallback-cmath.cpp DEP ${cmath_obj_deps})
+add_devicelib(libsycl-fallback-cmath-fp64 SRC fallback-cmath-fp64.cpp DEP ${cmath_obj_deps})
+add_devicelib(libsycl-fallback-bfloat16 SRC fallback-bfloat16.cpp DEP ${bfloat16_obj_deps})
+add_devicelib(libsycl-native-bfloat16 SRC bfloat16_wrapper.cpp DEP ${bfloat16_obj_deps})
 
 file(MAKE_DIRECTORY ${obj_binary_dir}/libdevice)
 set(imf_fallback_src_dir ${obj_binary_dir}/libdevice)
@@ -206,6 +233,15 @@ add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-imf.spv
                    DEPENDS ${imf_fallback_fp32_deps} get_imf_fallback_fp32 sycl-compiler
                    VERBATIM)
 
+add_custom_command(OUTPUT ${bc_binary_dir}/libsycl-fallback-imf.bc
+                   COMMAND ${clang} -fsycl-device-only -fsycl-device-obj=llvmir
+                           ${compile_opts} -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
+                           ${imf_fp32_fallback_src}
+                           -o ${bc_binary_dir}/libsycl-fallback-imf.bc
+                   DEPENDS ${imf_fallback_fp32_deps} get_imf_fallback_fp32
+                           sycl-compiler
+                   VERBATIM)
+
 add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-imf.${lib-suffix}
                    COMMAND ${clang} -fsycl -c
                            ${compile_opts} ${sycl_targets_opt}
@@ -229,6 +265,15 @@ add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-imf-fp64.spv
                            ${imf_fp64_fallback_src}
                            -o ${spv_binary_dir}/libsycl-fallback-imf-fp64.spv
                    DEPENDS ${imf_fallback_fp64_deps} get_imf_fallback_fp64 sycl-compiler
+                   VERBATIM)
+
+add_custom_command(OUTPUT ${bc_binary_dir}/libsycl-fallback-imf-fp64.bc
+                   COMMAND ${clang} -fsycl-device-only -fsycl-device-obj=llvmir
+                           ${compile_opts} -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
+                           ${imf_fp64_fallback_src}
+                           -o ${bc_binary_dir}/libsycl-fallback-imf-fp64.bc
+                   DEPENDS ${imf_fallback_fp64_deps} get_imf_fallback_fp64
+                           sycl-compiler
                    VERBATIM)
 
 add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-imf-fp64.${lib-suffix}
@@ -256,6 +301,15 @@ add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-imf-bf16.spv
                    DEPENDS ${imf_fallback_bf16_deps} get_imf_fallback_bf16 sycl-compiler
                    VERBATIM)
 
+add_custom_command(OUTPUT ${bc_binary_dir}/libsycl-fallback-imf-bf16.bc
+                   COMMAND ${clang} -fsycl-device-only -fsycl-device-obj=llvmir
+                           ${compile_opts} -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
+                           ${imf_bf16_fallback_src}
+                           -o ${bc_binary_dir}/libsycl-fallback-imf-bf16.bc
+                   DEPENDS ${imf_fallback_bf16_deps} get_imf_fallback_bf16
+                           sycl-compiler
+                   VERBATIM)
+
 add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-imf-bf16.${lib-suffix}
                    COMMAND ${clang} -fsycl -c -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
                            ${compile_opts} ${sycl_targets_opt}
@@ -273,21 +327,27 @@ add_custom_command(OUTPUT ${obj_binary_dir}/fallback-imf-bf16-host.${lib-suffix}
                    VERBATIM)
 
 add_custom_target(imf_fallback_fp32_spv DEPENDS ${spv_binary_dir}/libsycl-fallback-imf.spv)
+add_custom_target(imf_fallback_fp32_bc DEPENDS ${bc_binary_dir}/libsycl-fallback-imf.bc)
 add_custom_target(imf_fallback_fp32_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf.${lib-suffix})
 add_custom_target(imf_fallback_fp32_host_obj DEPENDS ${obj_binary_dir}/fallback-imf-fp32-host.${lib-suffix})
 add_dependencies(libsycldevice-spv imf_fallback_fp32_spv)
+add_dependencies(libsycldevice-bc imf_fallback_fp32_bc)
 add_dependencies(libsycldevice-obj imf_fallback_fp32_obj)
 
 add_custom_target(imf_fallback_fp64_spv DEPENDS ${spv_binary_dir}/libsycl-fallback-imf-fp64.spv)
+add_custom_target(imf_fallback_fp64_bc DEPENDS ${bc_binary_dir}/libsycl-fallback-imf-fp64.bc)
 add_custom_target(imf_fallback_fp64_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf-fp64.${lib-suffix})
 add_custom_target(imf_fallback_fp64_host_obj DEPENDS ${obj_binary_dir}/fallback-imf-fp64-host.${lib-suffix})
 add_dependencies(libsycldevice-spv imf_fallback_fp64_spv)
+add_dependencies(libsycldevice-bc imf_fallback_fp64_bc)
 add_dependencies(libsycldevice-obj imf_fallback_fp64_obj)
 
 add_custom_target(imf_fallback_bf16_spv DEPENDS ${spv_binary_dir}/libsycl-fallback-imf-bf16.spv)
+add_custom_target(imf_fallback_bf16_bc DEPENDS ${bc_binary_dir}/libsycl-fallback-imf-bf16.bc)
 add_custom_target(imf_fallback_bf16_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf-bf16.${lib-suffix})
 add_custom_target(imf_fallback_bf16_host_obj DEPENDS ${obj_binary_dir}/fallback-imf-bf16-host.${lib-suffix})
 add_dependencies(libsycldevice-spv imf_fallback_bf16_spv)
+add_dependencies(libsycldevice-bc imf_fallback_bf16_bc)
 add_dependencies(libsycldevice-obj imf_fallback_bf16_obj)
 
 add_custom_command(OUTPUT ${obj_binary_dir}/imf-fp32-host.${lib-suffix}
@@ -337,6 +397,12 @@ install(FILES ${spv_binary_dir}/libsycl-fallback-imf.spv
               ${spv_binary_dir}/libsycl-fallback-imf-fp64.spv
               ${spv_binary_dir}/libsycl-fallback-imf-bf16.spv
         DESTINATION ${install_dest_spv}
+        COMPONENT libsycldevice)
+
+install(FILES ${bc_binary_dir}/libsycl-fallback-imf.bc
+              ${bc_binary_dir}/libsycl-fallback-imf-fp64.bc
+              ${bc_binary_dir}/libsycl-fallback-imf-bf16.bc
+        DESTINATION ${install_dest_bc}
         COMPONENT libsycldevice)
 
 install(FILES ${obj_binary_dir}/libsycl-fallback-imf.${lib-suffix}
