@@ -409,7 +409,7 @@ bool testBlockLoadPrefetchUSM(queue Q, uint32_t Groups, uint32_t Threads,
   sycl::range<1> LocalRange{Threads};
   sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
 
-  constexpr size_t Alignment = getAlignment<T, N, true>(LoadProperties);
+  constexpr size_t Alignment = getAlignment(LoadProperties, sizeof(T));
   T *In = sycl::aligned_alloc_shared<T>(Alignment, Size, Q);
   T *Out = sycl::aligned_alloc_shared<T>(Alignment, Size, Q);
   for (int i = 0; i < Size; i++) {
@@ -449,7 +449,8 @@ bool testBlockLoadPrefetchUSM(queue Q, uint32_t Groups, uint32_t Threads,
   return Passed;
 }
 
-template <typename T> bool testBlockLoadPrefetchUSM(queue Q) {
+template <typename T, TestFeatures Features>
+bool testBlockLoadPrefetchUSM(queue Q) {
 
   bool Passed = true;
 
@@ -459,21 +460,28 @@ template <typename T> bool testBlockLoadPrefetchUSM(queue Q) {
   // c) the alignment of USM ptr + offset to be 4 or 8-bytes(for 8-byte
   // element vectors).
 
-  constexpr size_t RequiredAlignment = sizeof(T) <= 4 ? 4 : 8;
-  properties DG2OrPVCProps{cache_hint_L1<cache_hint::streaming>,
-                           cache_hint_L2<cache_hint::cached>,
-                           alignment<RequiredAlignment>};
+  constexpr size_t RequiredAlignment = Features == TestFeatures::PVC ? 8
+                                       : sizeof(T) <= 4              ? 4
+                                                                     : 8;
+
+  properties Props{cache_hint_L1<cache_hint::streaming>,
+                   cache_hint_L2<cache_hint::cached>,
+                   alignment<RequiredAlignment>};
 
   // Only d/q-words are supported now.
   // Thus we use this I32Factor for testing purposes and convenience.
   constexpr int I32Factor =
       std::max(static_cast<int>(sizeof(int) / sizeof(T)), 1);
-  Passed &= testBlockLoadPrefetchUSM<T, 1 * I32Factor>(Q, 2, 4, DG2OrPVCProps);
-  Passed &= testBlockLoadPrefetchUSM<T, 2 * I32Factor>(Q, 5, 5, DG2OrPVCProps);
-  Passed &= testBlockLoadPrefetchUSM<T, 4 * I32Factor>(Q, 5, 5, DG2OrPVCProps);
-  Passed &= testBlockLoadPrefetchUSM<T, 8 * I32Factor>(Q, 5, 5, DG2OrPVCProps);
-  Passed &= testBlockLoadPrefetchUSM<T, 16 * I32Factor>(Q, 5, 5, DG2OrPVCProps);
-  Passed &= testBlockLoadPrefetchUSM<T, 32 * I32Factor>(Q, 2, 4, DG2OrPVCProps);
+  Passed &= testBlockLoadPrefetchUSM<T, 1 * I32Factor>(Q, 2, 4, Props);
+  Passed &= testBlockLoadPrefetchUSM<T, 2 * I32Factor>(Q, 5, 5, Props);
+  Passed &= testBlockLoadPrefetchUSM<T, 4 * I32Factor>(Q, 5, 5, Props);
+  Passed &= testBlockLoadPrefetchUSM<T, 8 * I32Factor>(Q, 5, 5, Props);
+  Passed &= testBlockLoadPrefetchUSM<T, 16 * I32Factor>(Q, 5, 5, Props);
+  Passed &= testBlockLoadPrefetchUSM<T, 32 * I32Factor>(Q, 2, 4, Props);
+  Passed &= testBlockLoadPrefetchUSM<T, 64 * I32Factor>(Q, 2, 4, Props);
+  if constexpr (sizeof(T) * 128 * I32Factor <= 512 &&
+                Features == TestFeatures::PVC)
+    Passed &= testBlockLoadPrefetchUSM<T, 128 * I32Factor>(Q, 2, 4, Props);
 
   return Passed;
 }
@@ -493,7 +501,7 @@ bool testBlockLoadPrefetchACC(queue Q, uint32_t Groups, uint32_t Threads,
   sycl::range<1> LocalRange{Threads};
   sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
 
-  constexpr size_t Alignment = getAlignment<T, N, true>(LoadProperties);
+  constexpr size_t Alignment = getAlignment(LoadProperties, sizeof(T));
   host_vector In(Size, host_allocator{Q});
   shared_vector Out(Size, shared_allocator{Q});
   for (int i = 0; i < Size; i++) {
@@ -531,8 +539,15 @@ bool testBlockLoadPrefetchACC(queue Q, uint32_t Groups, uint32_t Threads,
   return Passed;
 }
 
-template <typename T> bool testBlockLoadPrefetchACC(queue Q) {
-  constexpr size_t RequiredAlignment = sizeof(T) <= 4 ? 4 : 8;
+template <typename T, TestFeatures Features>
+bool testBlockLoadPrefetchACC(queue Q) {
+  constexpr size_t RequiredAlignment = Features == TestFeatures::PVC ? 8
+                                       : sizeof(T) <= 4              ? 4
+                                                                     : 8;
+
+  properties Props{cache_hint_L1<cache_hint::streaming>,
+                   cache_hint_L2<cache_hint::cached>,
+                   alignment<RequiredAlignment>};
   bool Passed = true;
 
   // Using mask or cache hints adds the requirement to run tests on DG2/PVC.
@@ -541,19 +556,20 @@ template <typename T> bool testBlockLoadPrefetchACC(queue Q) {
 
   constexpr int I32Factor =
       std::max(static_cast<int>(sizeof(int) / sizeof(T)), 1);
-  properties DG2OrPVCProps{cache_hint_L1<cache_hint::streaming>,
-                           cache_hint_L2<cache_hint::cached>,
-                           alignment<RequiredAlignment>};
 
   // Test block_load() that is available on DG2/PVC:
   // 1, 2, 3, 4, 8, ... N elements (up to 512-bytes).
-  Passed &= testBlockLoadPrefetchACC<T, 1 * I32Factor>(Q, 2, 4, DG2OrPVCProps);
-  Passed &= testBlockLoadPrefetchACC<T, 2 * I32Factor>(Q, 1, 4, DG2OrPVCProps);
-  Passed &= testBlockLoadPrefetchACC<T, 3 * I32Factor>(Q, 2, 8, DG2OrPVCProps);
-  Passed &= testBlockLoadPrefetchACC<T, 4 * I32Factor>(Q, 2, 4, DG2OrPVCProps);
-  Passed &= testBlockLoadPrefetchACC<T, 8 * I32Factor>(Q, 2, 4, DG2OrPVCProps);
-  Passed &= testBlockLoadPrefetchACC<T, 16 * I32Factor>(Q, 2, 4, DG2OrPVCProps);
-  Passed &= testBlockLoadPrefetchACC<T, 32 * I32Factor>(Q, 2, 4, DG2OrPVCProps);
+  Passed &= testBlockLoadPrefetchACC<T, 1 * I32Factor>(Q, 2, 4, Props);
+  Passed &= testBlockLoadPrefetchACC<T, 2 * I32Factor>(Q, 1, 4, Props);
+  Passed &= testBlockLoadPrefetchACC<T, 3 * I32Factor>(Q, 2, 8, Props);
+  Passed &= testBlockLoadPrefetchACC<T, 4 * I32Factor>(Q, 2, 4, Props);
+  Passed &= testBlockLoadPrefetchACC<T, 8 * I32Factor>(Q, 2, 4, Props);
+  Passed &= testBlockLoadPrefetchACC<T, 16 * I32Factor>(Q, 2, 4, Props);
+  Passed &= testBlockLoadPrefetchACC<T, 32 * I32Factor>(Q, 2, 4, Props);
+  Passed &= testBlockLoadPrefetchACC<T, 64 * I32Factor>(Q, 2, 4, Props);
+  if constexpr (sizeof(T) * 128 * I32Factor <= 512 &&
+                Features == TestFeatures::PVC)
+    Passed &= testBlockLoadPrefetchACC<T, 128 * I32Factor>(Q, 2, 4, Props);
 
   return Passed;
 }

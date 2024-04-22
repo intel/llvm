@@ -2758,6 +2758,10 @@ prefetch_impl(const T *p, Toffset offset, simd_mask<1> pred) {
 
   constexpr size_t Alignment =
       detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(T));
+  static_assert(
+      (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
+          (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
+      "Incorrect alignment for the data type");
 
   constexpr int SmallIntFactor64Bit = sizeof(uint64_t) / sizeof(T);
   constexpr int SmallIntFactor32Bit =
@@ -2765,7 +2769,7 @@ prefetch_impl(const T *p, Toffset offset, simd_mask<1> pred) {
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed load");
 
-  // If alignment >= 8 and (NElts * sizeof(T)) % 8 == 0) we can load QWORDs.
+  // If alignment >= 8 and (NElts * sizeof(T)) % 8 == 0) we can prefetch QWORDs.
   // Don't do it for 4-byte vectors (unless it is greater than 256-bytes),
   // because it would require a bit-cast, which is supposed to be NO-OP, but
   // might confuse GPU BE sometimes. 1- and 2-byte vectors are casted anyways.
@@ -8933,14 +8937,14 @@ prefetch(const T *p, OffsetSimdViewT byte_offsets, PropertyListT props = {}) {
 /// Prefetches elements of the type 'T' from continuous memory location
 /// addressed by the base pointer \p p, and offset \p byte_offset and the length
 /// \p VS elements into the cache.
-/// The maximum size of prefetched block is 512 bytes for PVC and 256 bytes for
-/// ACM (DG2). When sizeof(T) equal to 8 the address must be 8-byte aligned.
-/// Also, 8-bytes alignment is required when the function has to load more than
-/// 256-bytes. In all other cases 4-byte alignment is required. When T is 1- or
-/// 2-byte type the data is treated as 4-byte data. Allowed \c VS values for
-/// 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64. Allowed \c VS values for 32
-/// bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128. Allowed \c VS values for 16
-/// bit data are 2, 4, 8, 16, 32, 64, 128, 256. Allowed \c VS values for 8
+/// The maximum size of a prefetched block is 512 bytes for PVC and 256 bytes
+/// for ACM (DG2). When sizeof(T) is equal to 8 the address must be 8-byte
+/// aligned. Also, 8-byte alignment is required when the function has to load
+/// more than 256-bytes. In all other cases 4-byte alignment is required. When T
+/// is 1- or 2-byte type the data is treated as 4-byte data. Allowed \c VS
+/// values for 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64. Allowed \c VS values
+/// for 32 bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128. Allowed \c VS values for
+/// 16 bit data are 2, 4, 8, 16, 32, 64, 128, 256. Allowed \c VS values for 8
 /// bit data are 4, 8, 12, 16, 32, 64, 128, 256, 512.
 
 /// @tparam T Element type.

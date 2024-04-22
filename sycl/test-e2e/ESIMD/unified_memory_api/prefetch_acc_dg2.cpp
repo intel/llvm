@@ -1,4 +1,4 @@
-//==------- prefetch_acc_dg2_pvc.cpp - DPC++ ESIMD on-device test -------==//
+//==------- prefetch_acc_dg2.cpp - DPC++ ESIMD on-device test -------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,4 +11,4 @@
 // The test verifies esimd::prefetch() functions accepting accessor
 // and optional compile-time esimd::properties.
 // The prefetch() calls in this test require DG2 or PVC to run.
-#include "prefetch_acc_stateful_dg2_pvc.cpp"
+#include "prefetch_acc_stateful_dg2.cpp"
