@@ -9,10 +9,12 @@
 // This pass searches for occurences of the AMDGPU_OCLC_REFLECT function, and
 // replaces the calls with some val dependent on the operand of the func. This
 // can be used to reflect across different implementations of functions at
-// compile time based on a compiler flag or some other means. The first use case
-// is to choose a safe or unsafe version of atomic_xor at compile time, which
-// can be chosen at compile time by setting the flag
-// --amdgpu-oclc-unsafe-int-atomics=true.
+// compile time based on a compiler flag or some other means. This pass
+// currently supports use cases:
+//
+// 1. Choose a safe or unsafe version of atomic_xor at compile time, which can
+//    be chosen at compile time by setting the flag
+//    --amdgpu-oclc-unsafe-int-atomics=true.
 //
 // This pass is similar to the NVPTX pass NVVMReflect.
 //
