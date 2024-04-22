@@ -232,6 +232,9 @@ ur_result_t SanitizerInterceptor::allocateMemory(
     } else if (Type == AllocType::SHARED_USM) {
         UR_CALL(context.urDdiTable.USM.pfnSharedAlloc(
             Context, Device, Properties, Pool, NeededSize, &Allocated));
+    } else if (Type == AllocType::MEM_BUFFER) {
+        UR_CALL(context.urDdiTable.USM.pfnDeviceAlloc(
+            Context, Device, Properties, Pool, NeededSize, &Allocated));
     } else {
         context.logger.error("Unsupport memory type");
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
@@ -627,6 +630,48 @@ ur_result_t SanitizerInterceptor::eraseDevice(ur_device_handle_t Device) {
     return UR_RESULT_SUCCESS;
 }
 
+ur_result_t SanitizerInterceptor::insertKernel(ur_kernel_handle_t Kernel) {
+    std::scoped_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
+    if (m_KernelMap.find(Kernel) != m_KernelMap.end()) {
+        return UR_RESULT_SUCCESS;
+    }
+    m_KernelMap.emplace(Kernel, std::make_shared<KernelInfo>(Kernel));
+    return UR_RESULT_SUCCESS;
+}
+
+ur_result_t SanitizerInterceptor::eraseKernel(ur_kernel_handle_t Kernel) {
+    std::scoped_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
+    assert(m_KernelMap.find(Kernel) != m_KernelMap.end());
+    m_KernelMap.erase(Kernel);
+    return UR_RESULT_SUCCESS;
+}
+
+ur_result_t
+SanitizerInterceptor::insertMemBuffer(std::shared_ptr<MemBuffer> MemBuffer) {
+    std::scoped_lock<ur_shared_mutex> Guard(m_MemBufferMapMutex);
+    assert(m_MemBufferMap.find(ur_cast<ur_mem_handle_t>(MemBuffer.get())) ==
+           m_MemBufferMap.end());
+    m_MemBufferMap.emplace(reinterpret_cast<ur_mem_handle_t>(MemBuffer.get()),
+                           MemBuffer);
+    return UR_RESULT_SUCCESS;
+}
+
+ur_result_t SanitizerInterceptor::eraseMemBuffer(ur_mem_handle_t MemHandle) {
+    std::scoped_lock<ur_shared_mutex> Guard(m_MemBufferMapMutex);
+    assert(m_MemBufferMap.find(MemHandle) != m_MemBufferMap.end());
+    m_MemBufferMap.erase(MemHandle);
+    return UR_RESULT_SUCCESS;
+}
+
+std::shared_ptr<MemBuffer>
+SanitizerInterceptor::getMemBuffer(ur_mem_handle_t MemHandle) {
+    std::shared_lock<ur_shared_mutex> Guard(m_MemBufferMapMutex);
+    if (m_MemBufferMap.find(MemHandle) != m_MemBufferMap.end()) {
+        return m_MemBufferMap[MemHandle];
+    }
+    return nullptr;
+}
+
 ur_result_t SanitizerInterceptor::prepareLaunch(
     ur_context_handle_t Context, std::shared_ptr<DeviceInfo> &DeviceInfo,
     ur_queue_handle_t Queue, ur_kernel_handle_t Kernel,
@@ -634,6 +679,22 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
     auto Program = GetProgram(Kernel);
 
     do {
+        // Set membuffer arguments
+        auto KernelInfo = getKernelInfo(Kernel);
+        for (const auto &[ArgIndex, MemBuffer] : KernelInfo->BufferArgs) {
+            char *ArgPointer = nullptr;
+            UR_CALL(MemBuffer->getHandle(DeviceInfo->Handle, ArgPointer));
+            ur_result_t URes = context.urDdiTable.Kernel.pfnSetArgPointer(
+                Kernel, ArgIndex, nullptr, &ArgPointer);
+            if (URes != UR_RESULT_SUCCESS) {
+                context.logger.error(
+                    "Failed to set buffer {} as the {} arg to kernel {}: {}",
+                    ur_cast<ur_mem_handle_t>(MemBuffer.get()), ArgIndex, Kernel,
+                    URes);
+                return URes;
+            }
+        }
+
         // Write global variable to program
         auto EnqueueWriteGlobal = [Queue, Program](const char *Name,
                                                    const void *Value,
