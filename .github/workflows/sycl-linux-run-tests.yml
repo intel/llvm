@@ -300,23 +300,53 @@ jobs:
       if: inputs.tests_selector == 'cts'
       env:
         CMAKE_EXTRA_ARGS: ${{ inputs.extra_cmake_args }}
+      # Continue execution if some category fails to build.
+      shell: bash {0}
+      # Compile each binary individually; if a failure occurs during the
+      # 'test_all' build, the entire build will be affected.
       run: |
         cmake -GNinja -B./build-cts -S./khronos_sycl_cts -DCMAKE_CXX_COMPILER=$(which clang++) \
         -DSYCL_IMPLEMENTATION=DPCPP \
         -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="$PWD/devops/cts_exclude_filter" \
         -DSYCL_CTS_ENABLE_OPENCL_INTEROP_TESTS=OFF \
         -DSYCL_CTS_MEASURE_BUILD_TIMES=ON \
-        -DDPCPP_INSTALL_DIR="$$(dirname (which clang++))/.." \
-        $CMAKE_EXTRA_ARGS
-        ninja -C build-cts
+        -DDPCPP_INSTALL_DIR="$(dirname $(which clang++))/.." \
+        $CMAKE_EXTRA_ARGS | tee "cmake_output.txt"
+
+        # Get names of all added test-categories:
+        categories=$(grep -o '^-- Adding test: test_[a-zA-Z0-9_]*' "./cmake_output.txt" | sed 's/^-- Adding test: //')
+
+        number_of_test_categories=$(echo $categories | wc -w)
+        iteration=1
+        failed_to_build=""
+
+        for i in $categories; do
+          echo "::group::Building $i ($iteration of $number_of_test_categories)"
+          ninja -C build-cts $i
+          [ $? -ne 0 ] && failed_to_build+=$i'\n'
+          echo "::endgroup::"
+          ((iteration++))
+        done
+
+        if [ -n "$failed_to_build" ]; then
+          echo -e "Failed to build:\n$failed_to_build"
+          echo -e "Failed to build:\n$failed_to_build" >> $GITHUB_STEP_SUMMARY
+          exit 1
+        fi
+
+        exit 0
 
     - name: SYCL CTS List devices
-      if: inputs.tests_selector == 'cts'
+      # Proceed with execution even if the 'build' step did not succeed.
+      if: inputs.tests_selector == 'cts' && (success() || failure())
+      env:
+        ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
       run: |
-        ./build-cts/bin/test_all --list-devices
+        ./build-cts/bin/* --list-devices
 
     - name: Run SYCL CTS tests
-      if: inputs.tests_selector == 'cts'
+      # Proceed with execution even if the previous two steps did not succeed.
+      if: inputs.tests_selector == 'cts' && (success() || failure())
       env:
         ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
       # This job takes ~100min usually. But sometimes some test isn't
@@ -329,33 +359,20 @@ jobs:
       # the default behavior.
       # https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#custom-shell
       shell: bash {0}
-      # FIXME: For some reason the "sub_group api" test-case is failing with
-      # SIGSEGV while running test_all, so running each binary separately.
-      # BTW test_all requires a lot of resources to build it, so probably it'll
-      # be better to build each binary also separately.
-      # run: |
-      #   ./build-cts/bin/test_all $CTS_TEST_ARGS
       run: |
-        status=""
         failed_suites=""
+
         for i in `ls -1 ./build-cts/bin`; do
-          if [ "$i" != "test_all" ]; then
-            echo "::group::Running $i"
-            build-cts/bin/$i
-            if [ $? -ne 0 ]; then
-              status=1
-              if [$failed_suites == ""]; then
-                failed_suites=$i
-              else
-                failed_suites="$failed_suites, $i"
-              fi
-            fi
-            echo "::endgroup::"
-          fi
+          echo "::group::Running $i"
+          build-cts/bin/$i
+          [ $? -ne 0 ] && failed_suites+=$i'\n'
+          echo "::endgroup::"
         done
-        if [ -n "$status" ]; then
-          echo "Failed suite(s): $failed_suites"
-          echo "Failed suite(s): $failed_suites" >> $GITHUB_STEP_SUMMARY
+
+        if [ -n "$failed_suites" ]; then
+          echo -e "Failed suite(s): $failed_suites"
+          echo -e "Failed suite(s): $failed_suites" >> $GITHUB_STEP_SUMMARY
           exit 1
         fi
+
         exit 0
