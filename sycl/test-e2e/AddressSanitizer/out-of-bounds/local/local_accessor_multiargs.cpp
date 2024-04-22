@@ -1,9 +1,9 @@
 // REQUIRES: linux
-// RUN: %{build} %device_sanitizer_flags -g -O0 -o %t.out
+// RUN: %{build} %device_asan_flags -g -O0 -o %t.out
 // RUN: env SYCL_PREFER_UR=1 %{run} not %t.out 2>&1 | FileCheck %s
-// RUN: %{build} %device_sanitizer_flags -g -O1 -o %t.out
+// RUN: %{build} %device_asan_flags -g -O1 -o %t.out
 // RUN: env SYCL_PREFER_UR=1 %{run} not %t.out 2>&1 | FileCheck %s
-// RUN: %{build} %device_sanitizer_flags -g -O2 -o %t.out
+// RUN: %{build} %device_asan_flags -g -O2 -o %t.out
 // RUN: env SYCL_PREFER_UR=1 %{run} not %t.out 2>&1 | FileCheck %s
 #include <sycl/sycl.hpp>
 #include <vector>
