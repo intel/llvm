@@ -38,6 +38,7 @@ static llvm::StringRef ExtractStringFromMDNodeOperand(const MDNode *N,
 SYCLDeviceRequirements
 llvm::computeDeviceRequirements(const module_split::ModuleDesc &MD) {
   SYCLDeviceRequirements Reqs;
+  bool MultipleReqdWGSize = false;
   // Process all functions in the module
   for (const Function &F : MD.getModule()) {
     if (auto *MDN = F.getMetadata("sycl_used_aspects")) {
@@ -64,6 +65,8 @@ llvm::computeDeviceRequirements(const module_split::ModuleDesc &MD) {
             ExtractUnsignedIntegerFromMDNodeOperand(MDN, I));
       if (!Reqs.ReqdWorkGroupSize.has_value())
         Reqs.ReqdWorkGroupSize = NewReqdWorkGroupSize;
+      else
+        MultipleReqdWGSize = true;
     }
 
     if (auto *MDN = F.getMetadata("sycl_joint_matrix")) {
@@ -99,6 +102,9 @@ llvm::computeDeviceRequirements(const module_split::ModuleDesc &MD) {
         assert(*Reqs.SubGroupSize == static_cast<uint32_t>(MDValue));
     }
   }
+
+  if (MultipleReqdWGSize)
+    Reqs.ReqdWorkGroupSize.reset();
   return Reqs;
 }
 
