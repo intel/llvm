@@ -82,6 +82,7 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUInsertSingleUseVDST.cpp
   AMDGPUMarkLastScratchLoad.cpp
   AMDGPUMIRFormatter.cpp
+  AMDGPUOclcReflect.cpp
   AMDGPUOpenCLEnqueuedBlockLowering.cpp
   AMDGPUPerfHintAnalysis.cpp
   AMDGPUPostLegalizerCombiner.cpp
@@ -89,7 +90,6 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUPrintfRuntimeBinding.cpp
   AMDGPUPromoteAlloca.cpp
   AMDGPUPromoteKernelArguments.cpp
-  AMDGPUOclcReflect.cpp
   AMDGPURegBankCombiner.cpp
   AMDGPURegBankSelect.cpp
   AMDGPURegisterBankInfo.cpp
