@@ -1,9 +1,7 @@
 //===--------------- kernel.hpp - Native CPU Adapter ----------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
-//
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -42,50 +40,52 @@ struct ur_kernel_handle_t_ : RefCounted {
   ur_kernel_handle_t_(const char *name, nativecpu_task_t subhandler)
       : _name{name}, _subhandler{std::move(subhandler)} {}
 
+  ur_kernel_handle_t_(const ur_kernel_handle_t_ &other)
+      : _name(other._name), _subhandler(other._subhandler), _args(other._args),
+        _localArgInfo(other._localArgInfo), _localMemPool(other._localMemPool),
+        _localMemPoolSize(other._localMemPoolSize) {
+    incrementReferenceCount();
+  }
+
+  ~ur_kernel_handle_t_() {
+    if (decrementReferenceCount() == 0) {
+      free(_localMemPool);
+    }
+  }
+
   const char *_name;
   nativecpu_task_t _subhandler;
   std::vector<native_cpu::NativeCPUArgDesc> _args;
   std::vector<local_arg_info_t> _localArgInfo;
 
-  // To be called before enqueing the kernel.
-  void handleLocalArgs() {
-    updateMemPool();
-    size_t offset = 0;
-    for (auto &entry : _localArgInfo) {
-      _args[entry.argIndex].MPtr =
-          reinterpret_cast<char *>(_localMemPool) + offset;
-      // update offset in the memory pool
-      // Todo: update this offset computation when we have work-group
-      // level parallelism.
-      offset += entry.argSize;
-    }
-  }
-
-  ~ur_kernel_handle_t_() {
-    if (_localMemPool) {
-      free(_localMemPool);
-    }
-  }
-
-private:
-  void updateMemPool() {
+  // To be called before enqueueing the kernel.
+  void updateMemPool(size_t numParallelThreads) {
     // compute requested size.
-    // Todo: currently we execute only one work-group at a time, so for each
-    // local arg we can allocate just 1 * argSize local arg. When we implement
-    // work-group level parallelism we should allocate N * argSize where N is
-    // the number of work groups being executed in parallel (e.g. number of
-    // threads in the thread pool).
     size_t reqSize = 0;
     for (auto &entry : _localArgInfo) {
-      reqSize += entry.argSize;
+      reqSize += entry.argSize * numParallelThreads;
     }
     if (reqSize == 0 || reqSize == _localMemPoolSize) {
       return;
     }
     // realloc handles nullptr case
-    _localMemPool = realloc(_localMemPool, reqSize);
+    _localMemPool = (char *)realloc(_localMemPool, reqSize);
     _localMemPoolSize = reqSize;
   }
-  void *_localMemPool = nullptr;
+
+  // To be called before executing a work group
+  void handleLocalArgs(size_t numParallelThread, size_t threadId) {
+    // For each local argument we have size*numthreads
+    size_t offset = 0;
+    for (auto &entry : _localArgInfo) {
+      _args[entry.argIndex].MPtr =
+          _localMemPool + offset + (entry.argSize * threadId);
+      // update offset in the memory pool
+      offset += entry.argSize * numParallelThread;
+    }
+  }
+
+private:
+  char *_localMemPool = nullptr;
   size_t _localMemPoolSize = 0;
 };

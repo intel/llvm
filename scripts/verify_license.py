@@ -12,7 +12,7 @@ import argparse
 
 def verify_file_has_license(file):
     with open(file, 'r') as in_file:
-        contents = in_file.read(300)
+        contents = in_file.read(400)
         if "SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception" not in contents:
             raise Exception(f"{file} does not contain a license!")
 

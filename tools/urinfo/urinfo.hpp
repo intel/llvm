@@ -378,5 +378,10 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
     std::cout << prefix;
     printDeviceInfo<ur_bool_t>(
         hDevice, UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP);
+    std::cout << prefix;
+    printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP);
+    std::cout << prefix;
+    printDeviceInfo<ur_bool_t>(
+        hDevice, UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP);
 }
 } // namespace urinfo

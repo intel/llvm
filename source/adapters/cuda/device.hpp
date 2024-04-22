@@ -68,17 +68,11 @@ public:
     }
 
     // Max size of memory object allocation in bytes.
-    // The minimum value is max(min(1024 × 1024 ×
-    // 1024, 1/4th of CL_DEVICE_GLOBAL_MEM_SIZE),
-    // 32 × 1024 × 1024) for devices that are not of type
-    // CL_DEVICE_TYPE_CUSTOM.
-    size_t Global = 0;
-    UR_CHECK_ERROR(cuDeviceTotalMem(&Global, cuDevice));
-
-    auto QuarterGlobal = static_cast<uint32_t>(Global / 4u);
-
-    MaxAllocSize = std::max(std::min(1024u * 1024u * 1024u, QuarterGlobal),
-                            32u * 1024u * 1024u);
+    // The minimum value is max (1/4th of info::device::global_mem_size,
+    // 128*1024*1024) if this SYCL device is not device_type::custom.
+    // CUDA doesn't really have this concept, and could allow almost 100% of
+    // global memory in one allocation, but is dependent on device usage.
+    UR_CHECK_ERROR(cuDeviceTotalMem(&MaxAllocSize, cuDevice));
   }
 
   ~ur_device_handle_t_() { cuDevicePrimaryCtxRelease(CuDevice); }

@@ -106,18 +106,31 @@ if(UR_ENABLE_SANITIZER)
     target_sources(ur_loader
         PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/../ur/ur.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_allocator.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_allocator.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_interceptor.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_interceptor.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_libdevice.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_quarantine.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_quarantine.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_report.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_report.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_shadow_setup.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_shadow_setup.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/common.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/device_sanitizer_report.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/stacktrace.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/stacktrace.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanddi.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanitizer_layer.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanitizer_layer.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanddi.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanitizer_utils.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanitizer_utils.hpp
     )
 
     target_sources(ur_loader
         PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/linux/san_utils.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/linux/backtrace.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/linux/sanitizer_utils.cpp
     )
 
     target_include_directories(ur_loader PRIVATE
