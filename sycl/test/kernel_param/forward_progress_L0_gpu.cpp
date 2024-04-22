@@ -11,6 +11,7 @@
 // all guarantees, then we verify that an exception is thrown as written in the
 // spec of the forward progress extension.
 
+#include <cassert>
 #include <sycl/sycl.hpp>
 
 using namespace sycl::ext::oneapi::experimental;
@@ -35,7 +36,7 @@ void check_props<forward_progress_guarantee::parallel>(sycl::queue &q) {
     q.single_task(
         properties{work_item_progress<guarantee, execution_scope::root_group>},
         [=]() {});
-    static_assert(false, "Expected exception not seen!");
+    assert(false && "Expected exception not seen!");
   } catch (sycl::exception &ex) {
   }
 
@@ -47,7 +48,7 @@ void check_props<forward_progress_guarantee::parallel>(sycl::queue &q) {
     q.single_task(
         properties{work_item_progress<guarantee, execution_scope::work_group>},
         [=]() {});
-    static_assert(false, "Expected exception not seen!");
+    assert(false && "Expected exception not seen!");
   } catch (sycl::exception &ex) {
   }
 
@@ -103,7 +104,7 @@ void check_props<forward_progress_guarantee::concurrent>(sycl::queue &q) {
     q.single_task(
         properties{work_item_progress<guarantee, execution_scope::root_group>},
         [=]() {});
-    static_assert(false, "Expected exception not seen!");
+    assert(false && "Expected exception not seen!");
   } catch (sycl::exception &ex) {
   }
 
@@ -115,7 +116,7 @@ void check_props<forward_progress_guarantee::concurrent>(sycl::queue &q) {
     q.single_task(
         properties{work_item_progress<guarantee, execution_scope::work_group>},
         [=]() {});
-    static_assert(false, "Expected exception not seen!");
+    assert(false && "Expected exception not seen!");
   } catch (sycl::exception &ex) {
   }
 
@@ -124,6 +125,7 @@ void check_props<forward_progress_guarantee::concurrent>(sycl::queue &q) {
     q.single_task(
         properties{work_item_progress<guarantee, execution_scope::sub_group>},
         [=]() {});
+    assert(false && "Expected exception not seen!");
   } catch (sycl::exception &ex) {
   }
 }
