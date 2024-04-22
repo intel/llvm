@@ -318,6 +318,9 @@ public:
   SPIRVInstruction *addPtrAccessChainInst(SPIRVType *, SPIRVValue *,
                                           std::vector<SPIRVValue *>,
                                           SPIRVBasicBlock *, bool) override;
+  SPIRVInstruction *addAccessChainInst(SPIRVType *, SPIRVValue *,
+                                       std::vector<SPIRVValue *>,
+                                       SPIRVBasicBlock *, bool) override;
   SPIRVInstruction *addAsyncGroupCopy(SPIRVValue *Scope, SPIRVValue *Dest,
                                       SPIRVValue *Src, SPIRVValue *NumElems,
                                       SPIRVValue *Stride, SPIRVValue *Event,
@@ -1699,6 +1702,17 @@ SPIRVModuleImpl::addPtrAccessChainInst(SPIRVType *Type, SPIRVValue *Base,
   return addInstruction(
       SPIRVInstTemplateBase::create(
           IsInBounds ? OpInBoundsPtrAccessChain : OpPtrAccessChain, Type,
+          getId(), getVec(Base->getId(), Base->getIds(Indices)), BB, this),
+      BB);
+}
+
+SPIRVInstruction *
+SPIRVModuleImpl::addAccessChainInst(SPIRVType *Type, SPIRVValue *Base,
+                                    std::vector<SPIRVValue *> Indices,
+                                    SPIRVBasicBlock *BB, bool IsInBounds) {
+  return addInstruction(
+      SPIRVInstTemplateBase::create(
+          IsInBounds ? OpInBoundsAccessChain : OpAccessChain, Type,
           getId(), getVec(Base->getId(), Base->getIds(Indices)), BB, this),
       BB);
 }

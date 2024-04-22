@@ -6506,6 +6506,48 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
                             transValue(CI->getArgOperand(1), BB), MemoryAccess,
                             BB);
   }
+/*  case OpAccessChain: {
+    Instruction *Ptr = dyn_cast<Instruction>(CI->getArgOperand(0)->stripPointerCasts());
+//    auto Class = transType(
+//        CI->getArgOperand(0)->getType())->getPointerStorageClass();
+    auto Class = StorageClassFunction;
+    SPIRVValue *Base = ValueMap[Ptr];
+    SPIRVType *SPVMatTy = Base->getType()->getPointerElementType();
+    if (!SPVMatTy->isTypeCooperativeMatrixKHR()) {
+    Type *MatrixTy = nullptr;
+    for (User *PtrU : Ptr->users()) {
+      auto *Inst = dyn_cast<Instruction>(PtrU);
+      Inst = dyn_cast<Instruction>(Inst->stripPointerCasts());
+      if (isa<StoreInst>(Inst)) {
+        MatrixTy = cast<StoreInst>(Inst)->getValueOperand()->getType();
+        break;
+      }
+      if (isa<LoadInst>(Inst)) {
+        MatrixTy = cast<LoadInst>(Inst)->getType();
+        break;
+      }
+    }
+      Type *MatrixTy = cast<StructType>(cast<AllocaInst>(Ptr)->getAllocatedType())->getElementType(0);
+      assert(MatrixTy && "not a matrix type");
+      SPVMatTy = transType(MatrixTy);
+      SPIRVType *PtrToMatrixType = BM->addPointerType(Class, SPVMatTy);
+      auto *EntryBB = BB->getParent()->getBasicBlock(0);
+      Base = BM->addVariable(
+          PtrToMatrixType, false, spv::internal::LinkageTypeInternal, nullptr,
+          Ptr->getName().str() + "_matrix", Class, EntryBB);
+      ValueMap[Ptr] = Base;
+//    auto *Base = BM->addUnaryInst(OpBitcast, PtrToMatrixType,
+//                                  transValue(CI->getArgOperand(0), BB), BB);
+    }
+    std::vector<SPIRVValue *> Indices;
+    for (size_t I = 1; I < CI->arg_size(); ++I) {
+      Indices.emplace_back(transValue(CI->getArgOperand(I), BB));
+    }
+    SPIRVType *ElemTy =
+        static_cast<SPIRVTypeCooperativeMatrixKHR *>(SPVMatTy)->getCompType();
+    SPIRVType *ElemPtrTy = BM->addPointerType(Class, ElemTy);
+    return BM->addAccessChainInst(ElemPtrTy, Base, Indices, BB, false);
+  }*/
   case OpCompositeConstruct: {
     std::vector<SPIRVId> Operands = {
         transValue(CI->getArgOperand(0), BB)->getId()};

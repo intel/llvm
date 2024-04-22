@@ -321,6 +321,34 @@ void SPIRVRegularizeLLVMBase::expandSYCLTypeUsing(Module *M) {
     expandVIDWithSYCLTypeByValComp(F);
 }
 
+void SPIRVRegularizeLLVMBase::finishSROACooperativeMatrix(Module *M) {
+  for (auto &F : *M) {
+    if (!F.getName().starts_with("_Z19__spirv_AccessChain"))
+      continue;
+    for (auto I = F.user_begin(), E = F.user_end(); I != E;) {
+      if (auto *CI = dyn_cast<CallInst>(*I++)) {
+        Instruction *Ptr =
+            dyn_cast<Instruction>(CI->getArgOperand(0)->stripPointerCasts());
+        StructType *WrapperMatrixTy =
+            dyn_cast<StructType>(cast<AllocaInst>(Ptr)->getAllocatedType());
+        if (!WrapperMatrixTy)
+          continue;
+        Type *MatrixTy = WrapperMatrixTy->getElementType(0);
+        AllocaInst *Alloca = nullptr;
+        {
+          IRBuilder Builder(CI);
+          IRBuilderBase::InsertPointGuard IG(Builder);
+          Builder.SetInsertPointPastAllocas(CI->getParent()->getParent());
+          Alloca = Builder.CreateAlloca(MatrixTy);
+        }
+        Ptr->replaceAllUsesWith(Alloca);
+        Ptr->dropAllReferences();
+        Ptr->eraseFromParent();
+      }
+    }
+  }
+}
+
 bool SPIRVRegularizeLLVMBase::runRegularizeLLVM(Module &Module) {
   M = &Module;
   Ctx = &M->getContext();
@@ -464,6 +492,7 @@ void regularizeWithOverflowInstrinsics(StringRef MangledName, CallInst *Call,
 bool SPIRVRegularizeLLVMBase::regularize() {
   eraseUselessFunctions(M);
   expandSYCLTypeUsing(M);
+  finishSROACooperativeMatrix(M);
 
   for (auto &GV : M->globals()) {
     SPIRVBuiltinVariableKind Kind;

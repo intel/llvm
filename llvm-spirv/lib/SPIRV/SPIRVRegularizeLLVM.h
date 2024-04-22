@@ -90,6 +90,7 @@ public:
   void expandSYCLTypeUsing(llvm::Module *M);
   void expandVEDWithSYCLTypeSRetArg(llvm::Function *F);
   void expandVIDWithSYCLTypeByValComp(llvm::Function *F);
+  void finishSROACooperativeMatrix(llvm::Module *M);
 
   // According to the specification, the operands of a shift instruction must be
   // a scalar/vector of integer. When LLVM-IR contains a shift instruction with
