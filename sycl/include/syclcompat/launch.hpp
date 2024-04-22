@@ -41,69 +41,51 @@ constexpr size_t getArgumentCount(R (*f)(Types...)) {
   return sizeof...(Types);
 }
 
-template <int Dim>
-sycl::nd_range<3> transform_nd_range(const sycl::nd_range<Dim> &range) {
-  sycl::range<Dim> global_range = range.get_global_range();
-  sycl::range<Dim> local_range = range.get_local_range();
-  if constexpr (Dim == 3) {
-    return range;
-  } else if constexpr (Dim == 2) {
-    return sycl::nd_range<3>{{1, global_range[0], global_range[1]},
-                             {1, local_range[0], local_range[1]}};
-  }
-  return sycl::nd_range<3>{{1, 1, global_range[0]}, {1, 1, local_range[0]}};
-}
+struct KernelParams {
+  sycl::range<3> global_range;
+  sycl::range<3> local_range;
+
+  inline KernelParams(const sycl::range<1> &global_range,
+                      const sycl::range<1> &local_range)
+      : global_range({1, 1, global_range[0]}),
+        local_range({1, 1, local_range[0]}) {}
+  inline KernelParams(const sycl::range<2> &global_range,
+                      const sycl::range<2> &local_range)
+      : global_range({1, global_range[0], global_range[1]}),
+        local_range({1, local_range[0], local_range[1]}) {}
+  inline KernelParams(const sycl::range<3> &global_range,
+                      const sycl::range<3> &local_range)
+      : global_range(global_range), local_range(local_range) {}
+  inline KernelParams(const dim3 &grid_dim, const dim3 &block_dim)
+      : global_range(grid_dim * block_dim), local_range(block_dim) {}
+};
+
 
 template <auto F, typename... Args>
 std::enable_if_t<std::is_invocable_v<decltype(F), Args...>, sycl::event>
-launch(const sycl::nd_range<3> &range, sycl::queue q, Args... args) {
+launch(const KernelParams &&kernel_params, size_t local_memory_size,
+       sycl::queue q, Args... args) {
   static_assert(detail::getArgumentCount(F) == sizeof...(args),
                 "Wrong number of arguments to SYCL kernel");
   static_assert(
       std::is_same<std::invoke_result_t<decltype(F), Args...>, void>::value,
       "SYCL kernels should return void");
-
-  return q.parallel_for(
-      range, [=](sycl::nd_item<3>) { [[clang::always_inline]] F(args...); });
-}
-
-template <auto F, typename... Args>
-sycl::event launch(const sycl::nd_range<3> &range, size_t mem_size,
-                   sycl::queue q, Args... args) {
-  static_assert(detail::getArgumentCount(F) == sizeof...(args) + 1,
-                "Wrong number of arguments to SYCL kernel");
-
-  using F_t = decltype(F);
-  using f_return_t = typename std::invoke_result_t<F_t, Args..., char *>;
-  static_assert(std::is_same<f_return_t, void>::value,
-                "SYCL kernels should return void");
-
   return q.submit([&](sycl::handler &cgh) {
-    auto local_acc = sycl::local_accessor<char, 1>(mem_size, cgh);
-    cgh.parallel_for(range, [=](sycl::nd_item<3>) {
-      auto local_mem = local_acc.get_pointer();
-      [[clang::always_inline]] F(args..., local_mem);
-    });
+    auto local_acc = sycl::local_accessor<char, 1>(local_memory_size, cgh);
+    cgh.parallel_for(sycl::nd_range<3>(kernel_params.global_range, kernel_params.local_range),
+                     [=](sycl::nd_item<3>) {
+                       if (local_memory_size == 0) {
+                         [[clang::always_inline]] F(args...);
+                       } else {
+                         auto local_mem = local_acc.get_pointer();
+                         [[clang::always_inline]] F(args..., local_mem);
+                       }
+                     });
   });
 }
 
-template <int SubgroupSize, auto F, typename... Args>
-std::enable_if_t<std::is_invocable_v<decltype(F), Args...>, sycl::event>
-launch(const sycl::nd_range<3> &range, sycl::queue q, Args... args) {
-  static_assert(detail::getArgumentCount(F) == sizeof...(args),
-                "Wrong number of arguments to SYCL kernel");
-  static_assert(
-      std::is_same<std::invoke_result_t<decltype(F), Args...>, void>::value,
-      "SYCL kernels should return void");
-
-  return q.parallel_for(range, [=](sycl::nd_item<3>)
-                                   [[sycl::reqd_sub_group_size(SubgroupSize)]] {
-                                     [[clang::always_inline]] F(args...);
-                                   });
-}
-
-template <int SubgroupSize, auto F, typename... Args>
-sycl::event launch(const sycl::nd_range<3> &range, size_t mem_size,
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(const KernelParams &&kernel_params, size_t local_memory_size,
                    sycl::queue q, Args... args) {
   static_assert(detail::getArgumentCount(F) == sizeof...(args) + 1,
                 "Wrong number of arguments to SYCL kernel");
@@ -114,16 +96,19 @@ sycl::event launch(const sycl::nd_range<3> &range, size_t mem_size,
                 "SYCL kernels should return void");
 
   return q.submit([&](sycl::handler &cgh) {
-    auto local_acc = sycl::local_accessor<char, 1>(mem_size, cgh);
-    cgh.parallel_for(range,
+    auto local_acc = sycl::local_accessor<char, 1>(local_memory_size, cgh);
+    cgh.parallel_for(sycl::nd_range<3>({kernel_params.global_range, kernel_params.local_range}),
                      [=](sycl::nd_item<3>)
                          [[sycl::reqd_sub_group_size(SubgroupSize)]] {
-                           auto local_mem = local_acc.get_pointer();
-                           [[clang::always_inline]] F(args..., local_mem);
+                           if (local_memory_size == 0) {
+                             [[clang::always_inline]] F(args...);
+                           } else {
+                             auto local_mem = local_acc.get_pointer();
+                             [[clang::always_inline]] F(args..., local_mem);
+                           }
                          });
   });
 }
-
 } // namespace detail
 
 template <int Dim>
@@ -149,10 +134,11 @@ inline sycl::nd_range<1> compute_nd_range(int global_size_in,
   return compute_nd_range<1>(global_size_in, work_group_size);
 }
 
+
 template <auto F, int Dim, typename... Args>
 std::enable_if_t<std::is_invocable_v<decltype(F), Args...>, sycl::event>
 launch(const sycl::nd_range<Dim> &range, sycl::queue q, Args... args) {
-  return detail::launch<F>(detail::transform_nd_range<Dim>(range), q, args...);
+  return detail::launch<F>({range.get_global_range(), range.get_local_range()}, 0, q, args...);
 }
 
 template <auto F, int Dim, typename... Args>
@@ -177,8 +163,7 @@ launch(const dim3 &grid, const dim3 &threads, Args... args) {
 template <int SubgroupSize, auto F, int Dim, typename... Args>
 std::enable_if_t<std::is_invocable_v<decltype(F), Args...>, sycl::event>
 launch(const sycl::nd_range<Dim> &range, sycl::queue q, Args... args) {
-  return detail::launch<SubgroupSize, F>(detail::transform_nd_range<Dim>(range),
-                                         q, args...);
+  return detail::launch<F, SubgroupSize>({range.get_global_range(), range.get_local_range()}, 0, q, args...);
 }
 
 template <int SubgroupSize, auto F, int Dim, typename... Args>
@@ -218,7 +203,7 @@ launch(const dim3 &grid, const dim3 &threads, Args... args) {
 template <auto F, int Dim, typename... Args>
 sycl::event launch(const sycl::nd_range<Dim> &range, size_t mem_size,
                    sycl::queue q, Args... args) {
-  return detail::launch<F>(detail::transform_nd_range<Dim>(range), mem_size, q,
+  return detail::launch<F>({range.get_global_range(), range.get_local_range()}, mem_size, q,
                            args...);
 }
 
@@ -304,8 +289,9 @@ sycl::event launch(const dim3 &grid, const dim3 &threads, size_t mem_size,
 template <int SubgroupSize, auto F, int Dim, typename... Args>
 sycl::event launch(const sycl::nd_range<Dim> &range, size_t mem_size,
                    sycl::queue q, Args... args) {
-  return detail::launch<SubgroupSize, F>(detail::transform_nd_range<Dim>(range),
-                                         mem_size, q, args...);
+  return detail::launch<F, SubgroupSize>(
+      {range.get_global_range(), range.get_local_range()}, mem_size, q,
+      args...);
 }
 
 /// Launches a kernel with the requested sub group size SubgroupSize, templated
