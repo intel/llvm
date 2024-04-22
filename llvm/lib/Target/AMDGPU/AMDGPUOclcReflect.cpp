@@ -61,11 +61,14 @@ PreservedAnalyses AMDGPUOclcReflectPass::run(Function &F,
         !Callee || Callee->getName() != AMDGPU_OCLC_REFLECT)
       continue;
 
-    assert(Call->getNumOperands() == 2 &&
+    assert(Call->arg_size() == 1 &&
            "Wrong number of operands to __oclc_amdgpu_reflect function");
 
     ToRemove.push_back(Call);
   }
+
+  if (!ToRemove.size())
+    return PreservedAnalyses::all();
 
   for (Instruction *I : ToRemove) {
     CallInst *Call = dyn_cast<CallInst>(I);
@@ -82,9 +85,6 @@ PreservedAnalyses AMDGPUOclcReflectPass::run(Function &F,
     }
     I->eraseFromParent();
   }
-
-  if (!ToRemove.size())
-    return PreservedAnalyses::all();
 
   PreservedAnalyses PA;
   PA.preserveSet<CFGAnalyses>();
