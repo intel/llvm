@@ -4067,6 +4067,7 @@
 ?ext_intel_read_host_pipe@handler@_V1@sycl@@AEAAXVstring_view@detail@23@PEAX_K_N@Z
 ?ext_intel_write_host_pipe@handler@_V1@sycl@@AEAAXAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAX_K_N@Z
 ?ext_intel_write_host_pipe@handler@_V1@sycl@@AEAAXVstring_view@detail@23@PEAX_K_N@Z
+?verifyDeviceHasProgressGuarantee@handler@_V1@sycl@@AEBAXW4forward_progress_guarantee@experimental@oneapi@ext@23@W4execution_scope@56723@1@Z
 ?ext_oneapi_advise_usm_cmd_buffer@MemoryManager@detail@_V1@sycl@@SAXV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@PEAU_pi_ext_command_buffer@@PEBX_KW4_pi_mem_advice@@V?$vector@IV?$allocator@I@std@@@6@PEAI@Z
 ?ext_oneapi_architecture_is@device@_V1@sycl@@QEAA_NW4arch_category@experimental@oneapi@ext@23@@Z
 ?ext_oneapi_architecture_is@device@_V1@sycl@@QEAA_NW4architecture@experimental@oneapi@ext@23@@Z
