@@ -24,6 +24,16 @@ void ff_2(int *ptr, int start, int end, struct Simple S) {
 // CHECK-NEXT: ParmVarDecl {{.*}} _arg_start 'int'
 // CHECK-NEXT: ParmVarDecl {{.*}} _arg_end 'int'
 // CHECK-NEXT: ParmVarDecl {{.*}} _arg_S 'struct Simple':'Simple'
+// CHECK-NEXT: CompoundStmt
+// CHECK-NEXT: CallExpr {{.*}} 'void'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'void (*)(int *, int, int, struct Simple)' <FunctionToPointerDecay>
+// CHECK-NEXT: DeclRefExpr {{.*}} 'void (int *, int, int, struct Simple)' Function {{.*}} 'ff_2' 'void (int *, int, int, struct Simple)'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *'
+// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_ptr' '__global int *'
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' ParmVar {{.*}} '_arg_start' 'int'
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' ParmVar {{.*}} '_arg_end' 'int'
+// CHECK-NEXT: DeclRefExpr {{.*}} 'struct Simple':'Simple' ParmVar {{.*}} '_arg_S' 'struct Simple':'Simple'
 
 
 // Templated free function definition.
@@ -43,3 +53,13 @@ template void ff_3(int* ptr, int start, int end, struct Simple S);
 // CHECK-NEXT: ParmVarDecl {{.*}} _arg_start 'int'
 // CHECK-NEXT: ParmVarDecl {{.*}} _arg_end 'int'
 // CHECK-NEXT: ParmVarDecl {{.*}} _arg_S 'struct Simple':'Simple'
+// CHECK-NEXT: CompoundStmt
+// CHECK-NEXT: CallExpr {{.*}} 'void'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'void (*)(int *, int, int, struct Simple)' <FunctionToPointerDecay>
+// CHECK-NEXT: DeclRefExpr {{.*}} 'void (int *, int, int, struct Simple)' Function {{.*}} 'ff_3' 'void (int *, int, int, struct Simple)'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *'
+// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_ptr' '__global int *'
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' ParmVar {{.*}} '_arg_start' 'int'
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' ParmVar {{.*}} '_arg_end' 'int'
+// CHECK-NEXT: DeclRefExpr {{.*}} 'struct Simple':'Simple' ParmVar {{.*}} '_arg_S' 'struct Simple':'Simple'
