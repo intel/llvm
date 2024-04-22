@@ -25,7 +25,6 @@ DeviceGlobal<uptr> __AsanShadowMemoryGlobalStart;
 DeviceGlobal<uptr> __AsanShadowMemoryGlobalEnd;
 DeviceGlobal<DeviceType> __DeviceType;
 DeviceGlobal<uint64_t> __AsanDebug;
-
 // Save the pointer to LaunchInfo
 __SYCL_GLOBAL__ uptr *__SYCL_LOCAL__ __AsanLaunchInfo;
 
@@ -192,26 +191,26 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
         __spirv_BuiltInWorkgroupId.z;
 
     auto launch_info = (__SYCL_GLOBAL__ const LaunchInfo *)__AsanLaunchInfo;
-    const auto __AsanShadowMemoryLocalStart = launch_info->LocalShadowOffset;
-    const auto __AsanShadowMemoryLocalEnd = launch_info->LocalShadowOffsetEnd;
+    const auto shadow_offset = launch_info->LocalShadowOffset;
+    const auto shadow_offset_end = launch_info->LocalShadowOffsetEnd;
 
-    if (__AsanShadowMemoryLocalStart == 0) {
+    if (shadow_offset == 0) {
       return 0;
     }
 
     if (__AsanDebug)
-      __spirv_ocl_printf(__mem_launch_info, __AsanShadowMemoryLocalStart,
-                         __AsanShadowMemoryLocalEnd, launch_info->NumLocalArgs,
+      __spirv_ocl_printf(__mem_launch_info, shadow_offset,
+                         shadow_offset_end, launch_info->NumLocalArgs,
                          launch_info->LocalArgs);
 
-    uptr shadow_ptr = __AsanShadowMemoryLocalStart +
+    uptr shadow_ptr = shadow_offset +
                       ((wg_lid * SLM_SIZE) >> ASAN_SHADOW_SCALE) +
                       ((addr & (SLM_SIZE - 1)) >> 3);
 
     if (shadow_ptr > __AsanShadowMemoryLocalEnd) {
       if (__asan_report_out_of_shadow_bounds() && __AsanDebug) {
         __spirv_ocl_printf(__local_shadow_out_of_bound, addr, shadow_ptr,
-                           wg_lid, (uptr)__AsanShadowMemoryLocalStart);
+                           wg_lid, (uptr)shadow_offset);
       }
       return 0;
     }

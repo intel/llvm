@@ -3124,11 +3124,7 @@ bool ModuleAddressSanitizer::instrumentModule(Module &M) {
     }
   }
 
-  // SPIR kernel needn't AsanCtorFunction & AsanDtorFunction
   if (TargetTriple.isSPIR()) {
-    AsanCtorFunction = nullptr;
-    AsanDtorFunction = nullptr;
-
     // Add module metadata "device.sanitizer" for sycl-post-link
     LLVMContext &Ctx = M.getContext();
     auto *MD = M.getOrInsertNamedMetadata("device.sanitizer");

@@ -701,7 +701,3 @@ try:
     lit_config.maxIndividualTestTime = 600
 except ImportError:
     pass
-
-config.substitutions.append(
-    ("%device_sanitizer_flags", "-Xarch_device -fsanitize=address")
-)
