@@ -34,6 +34,13 @@ int memcmp(const void *s1, const void *s2, size_t n) {
 
 #ifndef __NVPTX__
 
+// This simple rand is for ease of use only, the implementation aligns with
+// LLVM libc rand which is based on xorshift64star pseudo random number
+// generator. If work item number < 1024, each work item has its own internal
+// state stored in RandNext, no data race happens and the sequence of the value
+// generated can be reproduced from run to run. If work item number > 1024,
+// multiple work item may share same 'RandNext' value, data race happens and
+// the value generated can't be reproduced from run to run.
 #define RAND_MAX 0x7fffffff
 #ifdef __SYCL_DEVICE_ONLY__
 #define RAND_NEXT_ACC RandNext.get()
@@ -52,7 +59,7 @@ int rand() {
   size_t gid1 =
       (global_size > RAND_NEXT_LEN) ? (gid & (RAND_NEXT_LEN - 1)) : gid;
   if (RAND_NEXT_ACC[gid] == 0)
-    RAND_NEXT_ACC[gid] = 1 + gid;
+    RAND_NEXT_ACC[gid] = gid + 1;
   uint64_t x = RAND_NEXT_ACC[gid];
   x ^= x >> 12;
   x ^= x << 25;
