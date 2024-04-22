@@ -35,17 +35,17 @@ void run(sycl::queue q, const float *in, float *out, size_t n) {
 In this use-case, every work-item allocates a private memory region capable of
 hosting `kh.get_specialization_constant<size>()` elements of type `float`. This
 might be used for performance improvements in some algorithms, e.g., needing
-more than one iteration on a sub-sequence of the input. However, as the length of
-this sub-sequence is an input argument, this can only be achieved via
+more than one iteration on a sub-sequence of the input. However, as the length
+of this sub-sequence is an input argument, this can only be achieved via
 `sycl_ext_oneapi_private_alloca`. Combining
-`sycl::handler::set_specialization_constant<scla_size>` and calling
-`private_alloca`, we can get a dynamically sized memory allocation. Note `size`
-is guaranteed to be constant during kernel execution.
+`sycl::handler::set_specialization_constant<size>` and calling `private_alloca`,
+we can get a dynamically sized memory allocation. Note `size` is guaranteed to
+be constant during kernel execution.
 
 ## Design
 
-SCLA is currently only supported on targets with native spec constants support
-when AOT compilation is not used.
+`sycl_ext_oneapi_private_alloca` is currently only supported on targets with
+native spec constants support when AOT compilation is not used.
 
 For non-SPIR-V targets, aspect checking is used to check
 `sycl_ext_oneapi_private_alloca` support. In case of AOT compilation, a
