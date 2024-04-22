@@ -1546,7 +1546,7 @@ typedef enum ur_device_info_t {
                                                                     ///< shared memory access
     UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT = 87,                  ///< [::ur_device_usm_access_capability_flags_t] support USM system wide
                                                                     ///< shared memory access
-    UR_DEVICE_INFO_UUID = 88,                                       ///< [char[]] return device UUID
+    UR_DEVICE_INFO_UUID = 88,                                       ///< [uint8_t[]] return device UUID
     UR_DEVICE_INFO_PCI_ADDRESS = 89,                                ///< [char[]] return device PCI address
     UR_DEVICE_INFO_GPU_EU_COUNT = 90,                               ///< [uint32_t] return Intel GPU EU count
     UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH = 91,                          ///< [uint32_t] return Intel GPU EU SIMD width
