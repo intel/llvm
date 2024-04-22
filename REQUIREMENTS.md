@@ -3,9 +3,9 @@
 ## API and Library Requirements
 
 ### API Namespace
-* API’s will clearly define the functionality
-* API’s will use a consistent style within the library
-* APIs’ will not allow namespace collision when multiple libraries are linked in the same user application
+* APIs will clearly define the functionality
+* APIs will use a consistent style within the library
+* APIs will not allow namespace collision when multiple libraries are linked in the same user application
 * API will be consistent across libraries included in the product
 * Will not allow namespace collision when multiple libraries are linked in the same user application
 * Exceptions:
