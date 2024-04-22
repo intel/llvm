@@ -1,4 +1,3 @@
-// RUN: %clang_cc1 -fsycl-is-device -sycl-std=2017 -fsyntax-only -DKERNEL= -verify=sycl-2017 %s
 // RUN: %clang_cc1 -fsycl-is-device -sycl-std=2020 -fsyntax-only -DKERNEL= -verify=sycl-2020 %s
 // RUN: %clang_cc1 -fsyntax-only -DKERNEL=kernel -verify=opencl -x cl %s
 
