@@ -961,6 +961,12 @@ static ParamDesc makeParamDesc(ASTContext &Ctx, StringRef Name, QualType Ty) {
                          Ctx.getTrivialTypeSourceInfo(Ty));
 }
 
+static void unsupportedFreeFunctionParamType() {
+  llvm::report_fatal_error(
+      "Only scalars, pointers and bit-wise copyable structs are permitted as "
+      "free function parameters");
+}
+
 class MarkWIScopeFnVisitor : public RecursiveASTVisitor<MarkWIScopeFnVisitor> {
 public:
   MarkWIScopeFnVisitor(ASTContext &Ctx) : Ctx(Ctx) {}
@@ -1061,20 +1067,13 @@ static target getAccessTarget(QualType FieldTy,
 }
 
 static bool IsFreeFunction(Sema &SemaRef, const FunctionDecl *FD) {
-  if (FD->hasAttr<SYCLAddIRAttributesFunctionAttr>()) {
-    const auto &Attrs = FD->getAttrs();
-    for (unsigned i = 0, e = Attrs.size(); i < e; i++) {
-      const SYCLAddIRAttributesFunctionAttr *AnAttr =
-          dyn_cast<SYCLAddIRAttributesFunctionAttr>(Attrs[i]);
-      if (AnAttr) {
-        SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
-            AnAttr->getAttributeNameValuePairs(SemaRef.Context);
-        for (const auto &NameValuePair : NameValuePairs) {
-          if (NameValuePair.first == "sycl-nd-range-kernel" ||
-              NameValuePair.first == "sycl-single-task-kernel")
-            return true;
-        }
-      }
+  for (auto *IRAttr : FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
+    SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+        IRAttr->getAttributeNameValuePairs(SemaRef.Context);
+    for (const auto &NameValuePair : NameValuePairs) {
+      if (NameValuePair.first == "sycl-nd-range-kernel" ||
+          NameValuePair.first == "sycl-single-task-kernel")
+        return true;
     }
   }
   return false;
@@ -1926,6 +1925,7 @@ public:
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -1936,6 +1936,7 @@ public:
 
   bool handleArrayType(ParmVarDecl *PD, QualType ParamTy) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -1987,11 +1988,13 @@ public:
 
   bool enterStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -2057,6 +2060,7 @@ public:
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -2097,6 +2101,7 @@ public:
 
   bool handleSyclSpecialType(ParmVarDecl *, QualType) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -2107,6 +2112,7 @@ public:
 
   bool handlePointerType(ParmVarDecl *, QualType) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -2118,6 +2124,7 @@ public:
 
   bool enterStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -2146,6 +2153,7 @@ public:
   bool leaveStruct(const CXXRecordDecl *RD, ParmVarDecl *PD,
                    QualType ParamTy) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -2187,6 +2195,7 @@ public:
 
   bool enterArray(ParmVarDecl *, QualType ArrayTy, QualType ElementTy) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -2215,6 +2224,7 @@ public:
 
   bool leaveArray(ParmVarDecl *PD, QualType ArrayTy, QualType ElementTy) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 };
@@ -2330,6 +2340,7 @@ public:
   bool enterStruct(const CXXRecordDecl *, ParmVarDecl *,
                    QualType ParamTy) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -2350,6 +2361,7 @@ public:
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *PD,
                    QualType ParamTy) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -2395,6 +2407,7 @@ public:
 
   bool leaveArray(ParmVarDecl *PD, QualType ArrayTy, QualType ET) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -2411,6 +2424,7 @@ public:
 
   bool handlePointerType(ParmVarDecl *PD, QualType ParamTy) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -2421,6 +2435,7 @@ public:
 
   bool handleScalarType(ParmVarDecl *PD, QualType ParamTy) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -2430,6 +2445,7 @@ public:
 
   bool handleUnionType(ParmVarDecl *PD, QualType ParamTy) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -2442,6 +2458,7 @@ public:
   bool handleNonDecompStruct(const CXXRecordDecl *, ParmVarDecl *PD,
                              QualType ParamTy) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -2722,15 +2739,9 @@ public:
                                           IsSIMDKernel)),
         FuncContext(SemaRef, KernelDecl) {
     S.addSyclOpenCLKernel(SYCLKernel, KernelDecl);
-    if (SYCLKernel->hasAttr<SYCLAddIRAttributesFunctionAttr>()) {
-      const auto &Attrs = SYCLKernel->getAttrs();
-      for (unsigned i = 0, e = Attrs.size(); i < e; i++) {
-        const SYCLAddIRAttributesFunctionAttr *AnAttr =
-            dyn_cast<SYCLAddIRAttributesFunctionAttr>(Attrs[i]);
-        if (AnAttr) {
-          KernelDecl->addAttr(AnAttr->clone(SemaRef.getASTContext()));
-        }
-      }
+    for (auto *IRAttr :
+         SYCLKernel->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
+      KernelDecl->addAttr(IRAttr->clone(SemaRef.getASTContext()));
     }
   }
 
@@ -2764,6 +2775,7 @@ public:
 
   bool enterStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -2774,6 +2786,7 @@ public:
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -2825,6 +2838,7 @@ public:
 
   bool handleSyclSpecialType(ParmVarDecl *, QualType) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -4040,15 +4054,15 @@ public:
     removeFieldMemberExpr(FD, ArrayType);
     return true;
   }
-  using SyclKernelFieldHandler::handleSyclSpecialType;
-  using SyclKernelFieldHandler::handlePointerType;
-  using SyclKernelFieldHandler::handleNonDecompStruct;
-  using SyclKernelFieldHandler::handleScalarType;
-  using SyclKernelFieldHandler::handleUnionType;
-  using SyclKernelFieldHandler::enterStruct;
-  using SyclKernelFieldHandler::leaveStruct;
   using SyclKernelFieldHandler::enterArray;
+  using SyclKernelFieldHandler::enterStruct;
+  using SyclKernelFieldHandler::handleNonDecompStruct;
+  using SyclKernelFieldHandler::handlePointerType;
+  using SyclKernelFieldHandler::handleScalarType;
+  using SyclKernelFieldHandler::handleSyclSpecialType;
+  using SyclKernelFieldHandler::handleUnionType;
   using SyclKernelFieldHandler::leaveArray;
+  using SyclKernelFieldHandler::leaveStruct;
 };
 
 class FreeFunctionKernelBodyCreator : public SyclKernelFieldHandler {
@@ -4056,7 +4070,7 @@ class FreeFunctionKernelBodyCreator : public SyclKernelFieldHandler {
   llvm::SmallVector<Stmt *, 16> BodyStmts;
   FunctionDecl *FreeFunc;
   SourceLocation KernelCallerSrcLoc; // KernelCallerFunc source location.
-  llvm::SmallVector<Expr*, 8> ArgExprs;
+  llvm::SmallVector<Expr *, 8> ArgExprs;
 
   // Creates a DeclRefExpr to the ParmVar that represents the current field.
   Expr *createParamReferenceExpr() {
@@ -4093,7 +4107,7 @@ class FreeFunctionKernelBodyCreator : public SyclKernelFieldHandler {
 
   // For a free function such as:
   // void f(int i, int* p, struct Simple S) { … }
-  // 
+  //
   // Keep the function as-is for the version callable from device code.
   // void f(int i, int *p, struct Simple S) { … }
   //
@@ -4136,22 +4150,26 @@ public:
 
   bool handleSyclSpecialType(FieldDecl *FD, QualType Ty) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
   bool handleSyclSpecialType(ParmVarDecl *, QualType) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
   bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                              QualType Ty) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -4163,12 +4181,14 @@ public:
 
   bool handleSimpleArrayType(FieldDecl *FD, QualType FieldTy) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
   bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
                              QualType Ty) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -4182,11 +4202,13 @@ public:
   bool handleNonDecompStruct(const CXXRecordDecl *RD,
                              const CXXBaseSpecifier &BS, QualType Ty) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -4198,6 +4220,7 @@ public:
 
   bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -4209,57 +4232,67 @@ public:
 
   bool enterStruct(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
   bool enterStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
   bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
   bool enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
                    QualType) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
   bool leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
                    QualType) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
   bool enterArray(FieldDecl *FD, QualType ArrayType,
                   QualType ElementType) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
   bool enterArray(ParmVarDecl *PD, QualType ArrayType,
                   QualType ElementType) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
   bool leaveArray(FieldDecl *FD, QualType ArrayType,
                   QualType ElementType) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
   bool leaveArray(ParmVarDecl *PD, QualType ArrayType,
                   QualType ElementType) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 };
@@ -4404,6 +4437,7 @@ public:
 
   bool handleSyclSpecialType(ParmVarDecl *, QualType) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -4484,6 +4518,7 @@ public:
 
   bool enterStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -4495,6 +4530,7 @@ public:
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -4517,6 +4553,7 @@ public:
 
   bool enterArray(ParmVarDecl *PD, QualType ArrayTy, QualType) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -4534,6 +4571,7 @@ public:
 
   bool leaveArray(ParmVarDecl *PD, QualType ArrayTy, QualType) final {
     // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
