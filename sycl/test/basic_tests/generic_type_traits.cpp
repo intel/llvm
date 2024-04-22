@@ -119,15 +119,6 @@ int main() {
   is_genfloatptr
 
   unsing_integeral_to_float_point
-  */
-  // is_nan_type
-  static_assert(d::is_nan_type_v<unsigned long long int> == true, "");
-  static_assert(d::is_nan_type_v<long long> == false, "");
-  static_assert(d::is_nan_type_v<unsigned long long> == true, "");
-  static_assert(d::is_nan_type_v<unsigned long> == true, "");
-  static_assert(d::is_nan_type_v<long> == false, "");
-  static_assert(d::is_nan_type_v<unsigned long> == true, "");
-  /*
   float_point_to_sign_integeral
 
   make_unsigned

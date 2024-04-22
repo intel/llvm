@@ -4,7 +4,7 @@
 // RUN: %{build} -O0 -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 [[sycl::device_has(sycl::aspect::cpu)]] void foo(){};
 [[sycl::device_has(sycl::aspect::gpu)]] void bar(){};

@@ -4,7 +4,9 @@
 // RUN:          -fsycl-dead-args-optimization
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t.out | FileCheck %s
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/specialization_id.hpp>
 
 const static sycl::specialization_id<int> SpecConst{42};
 

@@ -35,6 +35,13 @@ XPTI_CALLBACK_API void testCallback(uint16_t TraceType,
   if (GAnalyzedTraceTypes.find(TraceType) == GAnalyzedTraceTypes.end())
     return;
 
+  // Since "queue_id" is no longer a metadata item, we have to retrieve it from
+  // TLS using new XPTI API
+  char *Key = 0;
+  uint64_t Value;
+  bool HaveKeyValue =
+      (xptiGetStashedTuple(&Key, Value) == xpti::result_t::XPTI_RESULT_SUCCESS);
+
   if (TraceType == xpti::trace_diagnostics) {
     std::string AggregatedData;
     if (Event && Event->reserved.payload && Event->reserved.payload->name &&
@@ -111,30 +118,22 @@ XPTI_CALLBACK_API void testCallback(uint16_t TraceType,
   } else if (TraceType == xpti::trace_task_begin) {
     if (Event) {
       std::string Message;
-      xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
-      for (const auto &Item : *Metadata) {
-        std::string_view Key{xptiLookupString(Item.first)};
-        if (Key == "queue_id") {
-          Message.append(
-              std::string("task_begin:") + Key.data() + std::string(":") +
-              std::to_string(
-                  xpti::getMetadata<unsigned long long>(Item).second));
-        }
+      // Since we have changed we send the "queue_id" information, we no longer
+      // have to check the metadata for the instance ID
+      if (HaveKeyValue) {
+        Message.append(std::string("task_begin:") + Key + std::string(":") +
+                       std::to_string(Value));
       }
       GReceivedNotifications.push_back(std::make_pair(TraceType, Message));
     }
   } else if (TraceType == xpti::trace_task_end) {
     if (Event) {
       std::string Message;
-      xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
-      for (const auto &Item : *Metadata) {
-        std::string_view Key{xptiLookupString(Item.first)};
-        if (Key == "queue_id") {
-          Message.append(
-              std::string("task_end:") + Key.data() + std::string(":") +
-              std::to_string(
-                  xpti::getMetadata<unsigned long long>(Item).second));
-        }
+      // Since we have changed we send the "queue_id" information, we no longer
+      // have to check the metadata for the instance ID
+      if (HaveKeyValue) {
+        Message.append(std::string("task_end:") + Key + std::string(":") +
+                       std::to_string(Value));
       }
       GReceivedNotifications.push_back(std::make_pair(TraceType, Message));
     }

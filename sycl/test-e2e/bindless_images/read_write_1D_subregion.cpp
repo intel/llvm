@@ -5,7 +5,9 @@
 // RUN: %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -119,7 +121,7 @@ int main() {
     if (mismatch) {
 #ifdef VERBOSE_PRINT
       std::cout << "Result mismatch! Expected: " << expected[i]
-                << ", Actual: " << out[i][0] << std::endl;
+                << ", Actual: " << out[i] << std::endl;
 #else
       break;
 #endif

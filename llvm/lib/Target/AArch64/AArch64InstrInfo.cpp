@@ -2675,7 +2675,7 @@ bool AArch64InstrInfo::isCandidateToMergeOrPair(const MachineInstr &MI) const {
 
 bool AArch64InstrInfo::getMemOperandsWithOffsetWidth(
     const MachineInstr &LdSt, SmallVectorImpl<const MachineOperand *> &BaseOps,
-    int64_t &Offset, bool &OffsetIsScalable, unsigned &Width,
+    int64_t &Offset, bool &OffsetIsScalable, LocationSize &Width,
     const TargetRegisterInfo *TRI) const {
   if (!LdSt.mayLoadOrStore())
     return false;
@@ -2687,10 +2687,7 @@ bool AArch64InstrInfo::getMemOperandsWithOffsetWidth(
     return false;
   // The maximum vscale is 16 under AArch64, return the maximal extent for the
   // vector.
-  Width = WidthN.isScalable()
-              ? WidthN.getKnownMinValue() * AArch64::SVEMaxBitsPerVector /
-                    AArch64::SVEBitsPerBlock
-              : WidthN.getKnownMinValue();
+  Width = LocationSize::precise(WidthN);
   BaseOps.push_back(BaseOp);
   return true;
 }
@@ -2996,7 +2993,7 @@ bool AArch64InstrInfo::canFoldIntoAddrMode(const MachineInstr &MemI,
       return false;
     Shift = AArch64_AM::getShiftValue(Shift);
     if (!OptSize) {
-      if ((Shift != 2 && Shift != 3) || !Subtarget.hasAddrLSLFast())
+      if (Shift != 2 && Shift != 3 && Subtarget.hasAddrLSLSlow14())
         return false;
       if (avoidSlowSTRQ(MemI))
         return false;
@@ -4810,29 +4807,20 @@ void AArch64InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
     if (AArch64::FPR8RegClass.hasSubClassEq(RC))
       Opc = AArch64::STRBui;
     break;
-  case 2:
+  case 2: {
+    bool IsPNR = AArch64::PNRRegClass.hasSubClassEq(RC);
     if (AArch64::FPR16RegClass.hasSubClassEq(RC))
       Opc = AArch64::STRHui;
-    else if (AArch64::PPRRegClass.hasSubClassEq(RC)) {
+    else if (IsPNR || AArch64::PPRRegClass.hasSubClassEq(RC)) {
       assert(Subtarget.hasSVEorSME() &&
              "Unexpected register store without SVE store instructions");
-      Opc = AArch64::STR_PXI;
-      StackID = TargetStackID::ScalableVector;
-    } else if (AArch64::PNRRegClass.hasSubClassEq(RC)) {
-      assert((Subtarget.hasSVE2p1() || Subtarget.hasSME2()) &&
+      assert((!IsPNR || Subtarget.hasSVE2p1() || Subtarget.hasSME2()) &&
              "Unexpected register store without SVE2p1 or SME2");
-      if (SrcReg.isVirtual()) {
-        auto NewSrcReg =
-            MF.getRegInfo().createVirtualRegister(&AArch64::PPRRegClass);
-        BuildMI(MBB, MBBI, DebugLoc(), get(TargetOpcode::COPY), NewSrcReg)
-            .addReg(SrcReg);
-        SrcReg = NewSrcReg;
-      } else
-        SrcReg = (SrcReg - AArch64::PN0) + AArch64::P0;
       Opc = AArch64::STR_PXI;
       StackID = TargetStackID::ScalableVector;
     }
     break;
+  }
   case 4:
     if (AArch64::GPR32allRegClass.hasSubClassEq(RC)) {
       Opc = AArch64::STRWui;
@@ -4993,26 +4981,22 @@ void AArch64InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
     if (AArch64::FPR8RegClass.hasSubClassEq(RC))
       Opc = AArch64::LDRBui;
     break;
-  case 2:
+  case 2: {
+    bool IsPNR = AArch64::PNRRegClass.hasSubClassEq(RC);
     if (AArch64::FPR16RegClass.hasSubClassEq(RC))
       Opc = AArch64::LDRHui;
-    else if (AArch64::PPRRegClass.hasSubClassEq(RC)) {
+    else if (IsPNR || AArch64::PPRRegClass.hasSubClassEq(RC)) {
       assert(Subtarget.hasSVEorSME() &&
              "Unexpected register load without SVE load instructions");
-      Opc = AArch64::LDR_PXI;
-      StackID = TargetStackID::ScalableVector;
-    } else if (AArch64::PNRRegClass.hasSubClassEq(RC)) {
-      assert((Subtarget.hasSVE2p1() || Subtarget.hasSME2()) &&
+      assert((!IsPNR || Subtarget.hasSVE2p1() || Subtarget.hasSME2()) &&
              "Unexpected register load without SVE2p1 or SME2");
-      PNRReg = DestReg;
-      if (DestReg.isVirtual())
-        DestReg = MF.getRegInfo().createVirtualRegister(&AArch64::PPRRegClass);
-      else
-        DestReg = (DestReg - AArch64::PN0) + AArch64::P0;
+      if (IsPNR)
+        PNRReg = DestReg;
       Opc = AArch64::LDR_PXI;
       StackID = TargetStackID::ScalableVector;
     }
     break;
+  }
   case 4:
     if (AArch64::GPR32allRegClass.hasSubClassEq(RC)) {
       Opc = AArch64::LDRWui;
@@ -6110,12 +6094,12 @@ static bool getMaddPatterns(MachineInstr &Root,
     setFound(AArch64::MADDXrrr, 2, AArch64::XZR, MCP::MULADDX_OP2);
     break;
   case AArch64::SUBWrr:
-    setFound(AArch64::MADDWrrr, 1, AArch64::WZR, MCP::MULSUBW_OP1);
     setFound(AArch64::MADDWrrr, 2, AArch64::WZR, MCP::MULSUBW_OP2);
+    setFound(AArch64::MADDWrrr, 1, AArch64::WZR, MCP::MULSUBW_OP1);
     break;
   case AArch64::SUBXrr:
-    setFound(AArch64::MADDXrrr, 1, AArch64::XZR, MCP::MULSUBX_OP1);
     setFound(AArch64::MADDXrrr, 2, AArch64::XZR, MCP::MULSUBX_OP2);
+    setFound(AArch64::MADDXrrr, 1, AArch64::XZR, MCP::MULSUBX_OP1);
     break;
   case AArch64::ADDWri:
     setFound(AArch64::MADDWrrr, 1, AArch64::WZR, MCP::MULADDWI_OP1);

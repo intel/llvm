@@ -1,4 +1,4 @@
-// REQUIRES: opencl, level-zero, gpu, ocloc
+// REQUIRES: (opencl || level_zero) && gpu && ocloc
 
 // Check the case when -fsycl-add-default-spec-consts-image option is used which
 // results in generation of two types of images: where specialization constants
@@ -42,7 +42,10 @@
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-DEFAULT-BACK-TO-DEFAULT %s
 // clang-format on
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/specialization_id.hpp>
+#include <sycl/usm.hpp>
 
 constexpr sycl::specialization_id<int> int_id(3);
 
@@ -70,7 +73,7 @@ int main() {
   // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
   // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
   // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-NEXT:	<unknown> : 0x{{[0-9,a-f]+}}
+  // CHECK-DEFAULT-NEXT:	<unknown> : {{(0x)?[0-9,a-f,A-F]+}}
   // CHECK-DEFAULT-NEXT: ) ---> 	pi_result : PI_SUCCESS
   // CHECK-DEFAULT: Default value of specialization constant was used.
 
@@ -79,7 +82,7 @@ int main() {
   // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
   // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
   // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-NEXT:	<unknown> : 0x{{[0-9,a-f]+}}
+  // CHECK-DEFAULT-NEXT:	<unknown> : {{(0x)?[0-9,a-f,A-F]+}}
   // CHECK-DEFAULT-NEXT: ) ---> 	pi_result : PI_SUCCESS
   // CHECK-DEFAULT: New specialization constant value was set.
 
@@ -88,7 +91,7 @@ int main() {
   // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
   // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
   // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-NEXT:	<unknown> : 0x{{[0-9,a-f]+}}
+  // CHECK-DEFAULT-NEXT:	<unknown> : {{(0x)?[0-9,a-f,A-F]+}}
   // CHECK-DEFAULT-NEXT: ) ---> 	pi_result : PI_SUCCESS
   // CHECK-DEFAULT: Default value of specialization constant was used.
 
@@ -97,7 +100,7 @@ int main() {
   // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
   // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
   // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-NEXT:	<unknown> : 0x{{[0-9,a-f]+}}
+  // CHECK-DEFAULT-NEXT:	<unknown> : {{(0x)?[0-9,a-f,A-F]+}}
   // CHECK-DEFAULT-NEXT: ) ---> 	pi_result : PI_SUCCESS
   // CHECK-DEFAULT: New specialization constant value was set.
 
@@ -106,7 +109,7 @@ int main() {
   // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
   // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
   // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
-  // CHECK-ENABLED-NEXT:	<unknown> : 0
+  // CHECK-ENABLED-NEXT:	<unknown> : {{0+}}
   // CHECK-ENABLED-NEXT: ) ---> 	pi_result : PI_SUCCESS
   // CHECK-ENABLED: Default value of specialization constant was used.
 
@@ -115,7 +118,7 @@ int main() {
   // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
   // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
   // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
-  // CHECK-ENABLED-NEXT:	<unknown> : 0x{{[0-9,a-f]+}}
+  // CHECK-ENABLED-NEXT:	<unknown> : {{(0x)?[0-9,a-f,A-F]+}}
   // CHECK-ENABLED-NEXT: ) ---> 	pi_result : PI_SUCCESS
   // CHECK-ENABLED: New specialization constant value was set.
 
@@ -124,7 +127,7 @@ int main() {
   // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
   // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
   // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
-  // CHECK-ENABLED-NEXT:	<unknown> : 0
+  // CHECK-ENABLED-NEXT:	<unknown> : {{0+}}
   // CHECK-ENABLED-NEXT: ) ---> 	pi_result : PI_SUCCESS
   // CHECK-ENABLED: Default value of specialization constant was used.
 
@@ -133,7 +136,7 @@ int main() {
   // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
   // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
   // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
-  // CHECK-ENABLED-NEXT:	<unknown> : 0x{{[0-9,a-f]+}}
+  // CHECK-ENABLED-NEXT:	<unknown> : {{(0x)?[0-9,a-f,A-F]+}}
   // CHECK-ENABLED-NEXT: ) ---> 	pi_result : PI_SUCCESS
   // CHECK-ENABLED: New specialization constant value was set.
 
@@ -178,7 +181,7 @@ int main() {
   // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
   // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
   // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-NEXT:	<unknown> : 0x{{[0-9,a-f]+}}
+  // CHECK-DEFAULT-NEXT:	<unknown> : {{(0x)?[0-9,a-f,A-F]+}}
   // CHECK-DEFAULT-NEXT: ) ---> 	pi_result : PI_SUCCESS
   // CHECK-DEFAULT: Default value of specialization constant was used.
 
@@ -187,7 +190,7 @@ int main() {
   // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
   // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
   // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
-  // CHECK-ENABLED-NEXT:	<unknown> : 0
+  // CHECK-ENABLED-NEXT:	<unknown> : {{0+}}
   // CHECK-ENABLED-NEXT: ) ---> 	pi_result : PI_SUCCESS
   // CHECK-ENABLED: Default value of specialization constant was used.
 
@@ -220,7 +223,7 @@ int main() {
   // CHECK-DEFAULT-EXPLICIT-SET-NEXT:	<unknown> : {{.*}}
   // CHECK-DEFAULT-EXPLICIT-SET-NEXT:	<unknown> : {{.*}}
   // CHECK-DEFAULT-EXPLICIT-SET-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-EXPLICIT-SET-NEXT:	<unknown> : 0
+  // CHECK-DEFAULT-EXPLICIT-SET-NEXT:	<unknown> : {{0+}}
   // CHECK-DEFAULT-EXPLICIT-SET-NEXT: ) ---> 	pi_result : PI_SUCCESS
   // CHECK-DEFAULT-EXPLICIT-SET: Default value of specialization constant was used.
   std::cout << "Default value was explicitly set" << std::endl;
@@ -248,7 +251,7 @@ int main() {
   // CHECK-DEFAULT-BACK-TO-DEFAULT-NEXT:	<unknown> : {{.*}}
   // CHECK-DEFAULT-BACK-TO-DEFAULT-NEXT:	<unknown> : {{.*}}
   // CHECK-DEFAULT-BACK-TO-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-BACK-TO-DEFAULT-NEXT:	<unknown> : 0
+  // CHECK-DEFAULT-BACK-TO-DEFAULT-NEXT:	<unknown> : {{0+}}
   // CHECK-DEFAULT-BACK-TO-DEFAULT-NEXT: ) ---> 	pi_result : PI_SUCCESS
   // CHECK-DEFAULT-BACK-TO-DEFAULT: Default value of specialization constant was used.
   std::cout << "Changed to new value and then default value was explicitly set"

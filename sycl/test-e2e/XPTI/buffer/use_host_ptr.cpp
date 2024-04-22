@@ -10,7 +10,7 @@
 #else
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 int main() {
   bool MismatchFound = false;
   sycl::queue Queue{};

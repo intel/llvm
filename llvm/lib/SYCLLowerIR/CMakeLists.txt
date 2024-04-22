@@ -14,9 +14,9 @@ if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
 
-    # Date: 13 Feb 2024
-    # Add an intrinsic for named barrier arrive/signal operation
-    set(LLVMGenXIntrinsics_GIT_TAG f9c34404d0ea9abad83875a10bd48d88cea90ebd)
+    # Date: 15 Apr 2024
+    # Suppress various deprecation warnings on LLVM 17+
+    set(LLVMGenXIntrinsics_GIT_TAG cbf0b5d315d2a69fbdf32888e13ae4556890cda9)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
@@ -66,6 +66,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ModuleSplitter.cpp
   MutatePrintfAddrspace.cpp
   SYCLAddOptLevelAttribute.cpp
+  SYCLDeviceRequirements.cpp
   SYCLPropagateAspectsUsage.cpp
   SYCLPropagateJointMatrixUsage.cpp
   SYCLUtils.cpp

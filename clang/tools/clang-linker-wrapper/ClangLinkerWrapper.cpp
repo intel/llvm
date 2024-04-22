@@ -408,12 +408,22 @@ fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
   CmdArgs.push_back("-type=o");
   CmdArgs.push_back("-bundle-align=4096");
 
+  if (Args.hasArg(OPT_compress))
+    CmdArgs.push_back("-compress");
+  if (auto *Arg = Args.getLastArg(OPT_compression_level_eq))
+    CmdArgs.push_back(
+        Args.MakeArgString(Twine("-compression-level=") + Arg->getValue()));
+
   SmallVector<StringRef> Targets = {"-targets=host-x86_64-unknown-linux"};
   for (const auto &[File, Arch] : InputFiles)
     Targets.push_back(Saver.save("hipv4-amdgcn-amd-amdhsa--" + Arch));
   CmdArgs.push_back(Saver.save(llvm::join(Targets, ",")));
 
+#ifdef _WIN32
+  CmdArgs.push_back("-input=NUL");
+#else
   CmdArgs.push_back("-input=/dev/null");
+#endif
   for (const auto &[File, Arch] : InputFiles)
     CmdArgs.push_back(Saver.save("-input=" + File));
 
@@ -704,16 +714,6 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef InputTable,
   return *Output;
 }
 
-Expected<std::vector<char>> readBinaryFile(StringRef File) {
-  auto MBOrErr = MemoryBuffer::getFile(File, /*IsText*/ false,
-                                       /*RequiresNullTerminator */ false);
-  if (!MBOrErr)
-    return createFileError(File, MBOrErr.getError());
-
-  auto &MB = *MBOrErr;
-  return std::vector<char>(MB->getBufferStart(), MB->getBufferEnd());
-}
-
 Expected<std::string> readTextFile(StringRef File) {
   auto MBOrErr = MemoryBuffer::getFile(File, /*IsText*/ true,
                                        /*RequiresNullTerminator */ true);
@@ -758,9 +758,10 @@ readSYCLImagesFromTable(StringRef TableFile, const ArgList &Args) {
 
   SmallVector<offloading::SYCLImage> Images;
   for (const util::SimpleTable::Row &row : Table->rows()) {
-    auto ImageOrErr = readBinaryFile(row.getCell("Code"));
+    auto ImagePath = row.getCell("Code");
+    auto ImageOrErr = MemoryBuffer::getFile(ImagePath);
     if (!ImageOrErr)
-      return ImageOrErr.takeError();
+      return createFileError(ImagePath, ImageOrErr.getError());
 
     auto PropertiesOrErr =
         readPropertyRegistryFromFile(row.getCell("Properties"));
@@ -778,7 +779,7 @@ readSYCLImagesFromTable(StringRef TableFile, const ArgList &Args) {
     Images.push_back(std::move(Image));
   }
 
-  return Images;
+  return std::move(Images);
 }
 
 /// Reads device images from the given \p InputFile and wraps them
@@ -1016,6 +1017,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
   StringRef OptLevel = Args.getLastArgValue(OPT_opt_level, "O2");
   SmallVector<StringRef, 16> CmdArgs{
       *ClangPath,
+      "--no-default-config",
       "-o",
       *TempFileOrErr,
       Args.MakeArgString("--target=" + Triple.getTriple()),
@@ -1120,6 +1122,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   case Triple::aarch64_be:
   case Triple::ppc64:
   case Triple::ppc64le:
+  case Triple::systemz:
     return generic::clang(InputFiles, Args);
   case Triple::spirv32:
   case Triple::spirv64:

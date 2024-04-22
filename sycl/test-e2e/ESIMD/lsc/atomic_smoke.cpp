@@ -212,8 +212,8 @@ bool test(queue q, const Config &cfg) {
   try {
     auto e = q.submit([&](handler &cgh) {
       cgh.parallel_for<TestID<T, N, ImplF>>(
-          rng, [=](id<1> ii) SYCL_ESIMD_KERNEL {
-            int i = ii;
+          rng, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+            int i = ndi.get_global_id(0);
 #ifndef USE_SCALAR_OFFSET
             simd<Toffset, N> offsets(cfg.start_ind * sizeof(T),
                                      cfg.stride * sizeof(T));
@@ -332,8 +332,8 @@ bool test(queue q, const Config &cfg) {
     auto e = q.submit([&](handler &cgh) {
       auto accessor = buf.template get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<TestID<T, N, ImplF>>(
-          rng, [=](id<1> ii) SYCL_ESIMD_KERNEL {
-            int i = ii;
+          rng, [=](nd_item<1> gid) SYCL_ESIMD_KERNEL {
+            int i = gid.get_global_id(0);
 #ifndef USE_SCALAR_OFFSET
             simd<Toffset, N> offsets(start * sizeof(T), stride * sizeof(T));
 #else

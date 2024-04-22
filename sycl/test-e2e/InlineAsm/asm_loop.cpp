@@ -6,7 +6,7 @@
 #include "include/asmhelper.h"
 #include <cmath>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <vector>
 
 using DataType = sycl::opencl::cl_int;

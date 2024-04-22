@@ -4,7 +4,9 @@
 // Test to check that it is possible to get profiling info from the event
 // returned by barrier which turns into NOP.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/properties/all_properties.hpp>
 
 int main() {
   sycl::event start;
@@ -19,7 +21,7 @@ int main() {
       sycl::nd_range<3>(sycl::range<3>(1, 1, 16) * sycl::range<3>(1, 1, 16),
                         sycl::range<3>(1, 1, 16)),
       [=](sycl::nd_item<3> item_ct1) {
-        double d = 123;
+        int d = 123;
         for (int i = 0; i < 10000; i++) {
           d = d * i;
         }

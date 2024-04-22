@@ -608,6 +608,29 @@ static void instantiateDependentAMDGPUWavesPerEUAttr(
   S.addAMDGPUWavesPerEUAttr(New, Attr, MinExpr, MaxExpr);
 }
 
+static void instantiateDependentAMDGPUMaxNumWorkGroupsAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const AMDGPUMaxNumWorkGroupsAttr &Attr, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+
+  ExprResult ResultX = S.SubstExpr(Attr.getMaxNumWorkGroupsX(), TemplateArgs);
+  if (!ResultX.isUsable())
+    return;
+  ExprResult ResultY = S.SubstExpr(Attr.getMaxNumWorkGroupsY(), TemplateArgs);
+  if (!ResultY.isUsable())
+    return;
+  ExprResult ResultZ = S.SubstExpr(Attr.getMaxNumWorkGroupsZ(), TemplateArgs);
+  if (!ResultZ.isUsable())
+    return;
+
+  Expr *XExpr = ResultX.getAs<Expr>();
+  Expr *YExpr = ResultY.getAs<Expr>();
+  Expr *ZExpr = ResultZ.getAs<Expr>();
+
+  S.addAMDGPUMaxNumWorkGroupsAttr(New, Attr, XExpr, YExpr, ZExpr);
+}
+
 static void instantiateSYCLIntelForcePow2DepthAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const SYCLIntelForcePow2DepthAttr *Attr, Decl *New) {
@@ -779,7 +802,7 @@ static void instantiateSYCLIntelMaxConcurrencyAttr(
     const SYCLIntelMaxConcurrencyAttr *A, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(A->getNThreadsExpr(), TemplateArgs);
+  ExprResult Result = S.SubstExpr(A->getNExpr(), TemplateArgs);
   if (!Result.isInvalid())
     S.AddSYCLIntelMaxConcurrencyAttr(New, *A, Result.getAs<Expr>());
 }
@@ -809,7 +832,7 @@ static void instantiateSYCLIntelInitiationIntervalAttr(
     const SYCLIntelInitiationIntervalAttr *A, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(A->getIntervalExpr(), TemplateArgs);
+  ExprResult Result = S.SubstExpr(A->getNExpr(), TemplateArgs);
   if (!Result.isInvalid())
     S.AddSYCLIntelInitiationIntervalAttr(New, *A, Result.getAs<Expr>());
 }
@@ -1262,6 +1285,13 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
       instantiateSYCLUsesAspectsAttr(*this, TemplateArgs, A, New);
       continue;
     }
+
+    if (const auto *AMDGPUMaxNumWorkGroups =
+            dyn_cast<AMDGPUMaxNumWorkGroupsAttr>(TmplAttr)) {
+      instantiateDependentAMDGPUMaxNumWorkGroupsAttr(
+          *this, TemplateArgs, *AMDGPUMaxNumWorkGroups, New);
+    }
+
     if (const auto *ParamAttr = dyn_cast<HLSLParamModifierAttr>(TmplAttr)) {
       instantiateDependentHLSLParamModifierAttr(*this, TemplateArgs, ParamAttr,
                                                 New);
@@ -1552,6 +1582,15 @@ TemplateDeclInstantiator::VisitTypeAliasTemplateDecl(TypeAliasTemplateDecl *D) {
     return nullptr;
 
   TypeAliasDecl *Pattern = D->getTemplatedDecl();
+  Sema::InstantiatingTemplate InstTemplate(
+      SemaRef, D->getBeginLoc(), D,
+      D->getTemplateDepth() >= TemplateArgs.getNumLevels()
+          ? ArrayRef<TemplateArgument>()
+          : (TemplateArgs.begin() + TemplateArgs.getNumLevels() - 1 -
+             D->getTemplateDepth())
+                ->Args);
+  if (InstTemplate.isInvalid())
+    return nullptr;
 
   TypeAliasTemplateDecl *PrevAliasTemplate = nullptr;
   if (getPreviousDeclForInstantiation<TypedefNameDecl>(Pattern)) {
@@ -2215,6 +2254,7 @@ Decl *TemplateDeclInstantiator::VisitClassTemplateDecl(ClassTemplateDecl *D) {
     assert(!Owner->isDependentContext());
     Inst->setLexicalDeclContext(Owner);
     RecordInst->setLexicalDeclContext(Owner);
+    Inst->setObjectOfFriendDecl();
 
     if (PrevClassTemplate) {
       Inst->setCommonPtr(PrevClassTemplate->getCommonPtr());
@@ -2736,7 +2776,9 @@ Decl *TemplateDeclInstantiator::VisitFunctionDecl(
       FunctionTemplate->setInstantiatedFromMemberTemplate(
                                            D->getDescribedFunctionTemplate());
     }
-  } else if (FunctionTemplate) {
+  } else if (FunctionTemplate &&
+             SemaRef.CodeSynthesisContexts.back().Kind !=
+                 Sema::CodeSynthesisContext::BuildingDeductionGuides) {
     // Record this function template specialization.
     ArrayRef<TemplateArgument> Innermost = TemplateArgs.getInnermost();
     Function->setFunctionTemplateSpecialization(FunctionTemplate,
@@ -5370,16 +5412,13 @@ bool TemplateDeclInstantiator::SubstDefaultedFunction(FunctionDecl *New,
 ///
 /// Usually this should not be used, and template argument deduction should be
 /// used in its place.
-FunctionDecl *
-Sema::InstantiateFunctionDeclaration(FunctionTemplateDecl *FTD,
-                                     const TemplateArgumentList *Args,
-                                     SourceLocation Loc) {
+FunctionDecl *Sema::InstantiateFunctionDeclaration(
+    FunctionTemplateDecl *FTD, const TemplateArgumentList *Args,
+    SourceLocation Loc, CodeSynthesisContext::SynthesisKind CSC) {
   FunctionDecl *FD = FTD->getTemplatedDecl();
 
   sema::TemplateDeductionInfo Info(Loc);
-  InstantiatingTemplate Inst(
-      *this, Loc, FTD, Args->asArray(),
-      CodeSynthesisContext::ExplicitTemplateArgumentSubstitution, Info);
+  InstantiatingTemplate Inst(*this, Loc, FTD, Args->asArray(), CSC, Info);
   if (Inst.isInvalid())
     return nullptr;
 
@@ -5571,6 +5610,14 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
 
   EnterExpressionEvaluationContext EvalContext(
       *this, Sema::ExpressionEvaluationContext::PotentiallyEvaluated);
+
+  Qualifiers ThisTypeQuals;
+  CXXRecordDecl *ThisContext = nullptr;
+  if (CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(Function)) {
+    ThisContext = Method->getParent();
+    ThisTypeQuals = Method->getMethodQualifiers();
+  }
+  CXXThisScopeRAII ThisScope(*this, ThisContext, ThisTypeQuals);
 
   // Introduce a new scope where local variable instantiations will be
   // recorded, unless we're actually a member function within a local
@@ -6815,8 +6862,18 @@ NamedDecl *Sema::FindInstantiatedDecl(SourceLocation Loc, NamedDecl *D,
           QualType T = CheckTemplateIdType(TemplateName(TD), Loc, Args);
           if (T.isNull())
             return nullptr;
-          auto *SubstRecord = T->getAsCXXRecordDecl();
-          assert(SubstRecord && "class template id not a class type?");
+          CXXRecordDecl *SubstRecord = T->getAsCXXRecordDecl();
+
+          if (!SubstRecord) {
+            // T can be a dependent TemplateSpecializationType when performing a
+            // substitution for building a deduction guide.
+            assert(CodeSynthesisContexts.back().Kind ==
+                   CodeSynthesisContext::BuildingDeductionGuides);
+            // Return a nullptr as a sentinel value, we handle it properly in
+            // the TemplateInstantiator::TransformInjectedClassNameType
+            // override, which we transform it to a TemplateSpecializationType.
+            return nullptr;
+          }
           // Check that this template-id names the primary template and not a
           // partial or explicit specialization. (In the latter cases, it's
           // meaningless to attempt to find an instantiation of D within the
