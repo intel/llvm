@@ -214,8 +214,9 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
     context.logger.debug("==== urEnqueueKernelLaunch");
 
-    LaunchInfo LaunchInfo(GetContext(hQueue), pGlobalWorkSize, pLocalWorkSize,
-                          pGlobalWorkOffset, workDim);
+    USMLaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue),
+                             pGlobalWorkSize, pLocalWorkSize, pGlobalWorkOffset,
+                             workDim);
 
     UR_CALL(context.interceptor->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
@@ -225,8 +226,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
         pLocalWorkSize, numEventsInWaitList, phEventWaitList, &hEvent);
 
     if (result == UR_RESULT_SUCCESS) {
-        UR_CALL(context.interceptor->postLaunchKernel(hKernel, hQueue, hEvent,
-                                                      LaunchInfo));
+        UR_CALL(
+            context.interceptor->postLaunchKernel(hKernel, hQueue, LaunchInfo));
     }
 
     if (phEvent) {
