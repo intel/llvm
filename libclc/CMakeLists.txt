@@ -314,9 +314,10 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
              -march=sm_86 -mllvm --nvvm-reflect-enable=false)
       elseif( ARCH  STREQUAL x86_64)
         # TODO: This is used by SYCL Native Cpu, we should define an option to set this flags
-        list( APPEND flags -Xclang -target-feature -Xclang +avx
+        list( APPEND flags 
             -Xclang -fsycl-is-native-cpu
-            -Xclang -target-feature -Xclang +avx512f)
+            -march=native
+            )
       endif()
     endif()
 
