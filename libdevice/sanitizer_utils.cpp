@@ -199,9 +199,8 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
     }
 
     if (__AsanDebug)
-      __spirv_ocl_printf(__mem_launch_info, shadow_offset,
-                         shadow_offset_end, launch_info->NumLocalArgs,
-                         launch_info->LocalArgs);
+      __spirv_ocl_printf(__mem_launch_info, shadow_offset, shadow_offset_end,
+                         launch_info->NumLocalArgs, launch_info->LocalArgs);
 
     uptr shadow_ptr = shadow_offset +
                       ((wg_lid * SLM_SIZE) >> ASAN_SHADOW_SCALE) +
