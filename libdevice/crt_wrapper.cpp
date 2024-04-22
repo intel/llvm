@@ -6,7 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "atomic.hpp"
+#include "include/spir_global_var.hpp"
+#include "spirv_vars.h"
 #include "wrapper.h"
+
+#ifndef __NVPTX__
+#define RAND_NEXT_LEN 1024
+DeviceGlobal<uint64_t[RAND_NEXT_LEN]> RandNext;
+#endif
 
 #if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__)
 DEVICE_EXTERN_C_INLINE
@@ -23,6 +31,37 @@ DEVICE_EXTERN_C_INLINE
 int memcmp(const void *s1, const void *s2, size_t n) {
   return __devicelib_memcmp(s1, s2, n);
 }
+
+#ifndef __NVPTX__
+
+#define RAND_MAX 0x7fffffff
+#ifdef __SYCL_DEVICE_ONLY__
+#define RAND_NEXT_ACC RandNext.get()
+#endif
+
+DEVICE_EXTERN_C_INLINE
+int rand() {
+  size_t gid =
+      (__spirv_BuiltInGlobalInvocationId.x * __spirv_BuiltInGlobalSize.y *
+       __spirv_BuiltInGlobalSize.z) +
+      (__spirv_BuiltInGlobalInvocationId.y * __spirv_BuiltInGlobalSize.z) +
+      __spirv_BuiltInGlobalInvocationId.z;
+  size_t global_size = __spirv_BuiltInGlobalSize.x *
+                       __spirv_BuiltInGlobalSize.y *
+                       __spirv_BuiltInGlobalSize.z;
+  size_t gid1 =
+      (global_size > RAND_NEXT_LEN) ? (gid & (RAND_NEXT_LEN - 1)) : gid;
+  if (RAND_NEXT_ACC[gid] == 0)
+    RAND_NEXT_ACC[gid] = 1 + gid;
+  uint64_t x = RAND_NEXT_ACC[gid];
+  x ^= x >> 12;
+  x ^= x << 25;
+  x ^= x >> 27;
+  RAND_NEXT_ACC[gid] = x;
+  return static_cast<int>((x * 0x2545F4914F6CDD1Dul) >> 32) & RAND_MAX;
+}
+
+#endif
 
 #if defined(_WIN32)
 // Truncates a wide (16 or 32 bit) string (wstr) into an ASCII string (str).
