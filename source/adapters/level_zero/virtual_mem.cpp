@@ -11,6 +11,7 @@
 #include "common.hpp"
 #include "context.hpp"
 #include "device.hpp"
+#include "logger/ur_logger.hpp"
 #include "physical_mem.hpp"
 #include "ur_level_zero.hpp"
 
@@ -31,8 +32,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     return ReturnValue(PageSize);
   }
   default:
-    urPrint("Unsupported propName in urQueueGetInfo: propName=%d(0x%x)\n",
-            propName, propName);
+    logger::error("Unsupported propName in urQueueGetInfo: propName={}({})",
+                  propName, propName);
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
   return UR_RESULT_SUCCESS;
@@ -111,8 +112,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGetInfo(
     return ReturnValue(RetFlags);
   }
   default:
-    urPrint("Unsupported propName in urQueueGetInfo: propName=%d(0x%x)\n",
-            propName, propName);
+    logger::error("Unsupported propName in urQueueGetInfo: propName={}({})",
+                  propName, propName);
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
