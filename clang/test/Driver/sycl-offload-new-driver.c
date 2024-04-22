@@ -45,7 +45,7 @@
 // RUN:          -Xspirv-translator -translator-opt -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_TRANSLATOR %s
 // WRAPPER_OPTIONS_TRANSLATOR: clang-linker-wrapper{{.*}} "--triple=spir64"
-// WRAPPER_OPTIONS_TRANSLATOR-SAME: "--llvm-spirv-options=-translator-opt"
+// WRAPPER_OPTIONS_TRANSLATOR-SAME: "--llvm-spirv-options={{.*}}-translator-opt{{.*}}"
 
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
 // RUN:          -Xdevice-post-link -post-link-opt -### %s 2>&1 \

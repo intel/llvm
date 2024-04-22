@@ -899,7 +899,7 @@ public:
   void addEventForNode(std::shared_ptr<graph_impl> GraphImpl,
                        std::shared_ptr<sycl::detail::event_impl> EventImpl,
                        std::shared_ptr<node_impl> NodeImpl) {
-    if (!(EventImpl->getCommandGraph()))
+    if (EventImpl && !(EventImpl->getCommandGraph()))
       EventImpl->setCommandGraph(GraphImpl);
     MEventsMap[EventImpl] = NodeImpl;
   }
@@ -1281,6 +1281,10 @@ public:
   void createCommandBuffers(sycl::device Device,
                             std::shared_ptr<partition> &Partition);
 
+  /// Query for the device tied to this graph.
+  /// @return Device associated with graph.
+  sycl::device getDevice() const { return MDevice; }
+
   /// Query for the context tied to this graph.
   /// @return Context associated with graph.
   sycl::context getContext() const { return MContext; }
@@ -1320,6 +1324,7 @@ public:
     return MRequirements;
   }
 
+  void update(std::shared_ptr<graph_impl> GraphImpl);
   void update(std::shared_ptr<node_impl> Node);
   void update(const std::vector<std::shared_ptr<node_impl>> Nodes);
 
@@ -1408,6 +1413,8 @@ private:
   /// Map of nodes in the exec graph to the partition number to which they
   /// belong.
   std::unordered_map<std::shared_ptr<node_impl>, int> MPartitionNodes;
+  /// Device associated with this executable graph.
+  sycl::device MDevice;
   /// Context associated with this executable graph.
   sycl::context MContext;
   /// List of requirements for enqueueing this command graph, accumulated from

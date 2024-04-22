@@ -30,8 +30,7 @@
 //===---------------------------------------------------------------===//
 
 // REQUIRES: aspect-fp64
-// REQUIRES: usm_shared_allocations
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
 #include <complex>
@@ -72,18 +71,20 @@ template <auto F> class ComplexLauncher {
 protected:
   int *result_;
   int cpu_result_{0};
+  int h_result_;
 
 public:
   ComplexLauncher() {
-    result_ = (int *)syclcompat::malloc_shared(sizeof(int));
-    *result_ = 0;
+    result_ = (int *)syclcompat::malloc(sizeof(int));
+    syclcompat::memset(result_, 0, sizeof(int));
   };
   ~ComplexLauncher() { syclcompat::free(result_); }
   void launch() {
     F(&cpu_result_);                      // Run on host
     syclcompat::launch<F>(1, 1, result_); // Run on device
     syclcompat::wait();
-    assert(*result_ == 1);
+    syclcompat::memcpy<int>(&h_result_, result_, 1);
+    assert(h_result_ == 1);
     assert(cpu_result_ == 1);
   }
 };
@@ -174,6 +175,46 @@ void kernel_mul(int *result) {
   *result = r;
 }
 
+void kernel_mul_add(int *result) {
+  sycl::double2 d1, d2, d3;
+  sycl::float2 f1, f2, f3;
+  sycl::marray<double, 2> m_d1, m_d2, m_d3;
+  sycl::marray<float, 2> m_f1, m_f2, m_f3;
+
+  d1 = sycl::double2(5.4, -6.3);
+  d2 = sycl::double2(-7.2, 8.1);
+  d3 = sycl::double2(1.0, -1.0);
+
+  f1 = sycl::float2(1.8, -2.7);
+  f2 = sycl::float2(-3.6, 4.5);
+  f3 = sycl::float2(1.0, -1.0);
+
+  bool r = true;
+  float expect[4] = {13.150000, 88.100000, 6.670001, 16.820000};
+
+  auto a1 = syclcompat::cmul_add(d1, d2, d3);
+  r = r && check(a1, expect);
+
+  auto a2 = syclcompat::cmul_add(f1, f2, f3);
+  r = r && check(a2, expect + 2);
+
+  m_d1 = sycl::marray<double, 2>(5.4, -6.3);
+  m_d2 = sycl::marray<double, 2>(-7.2, 8.1);
+  m_d3 = sycl::marray<double, 2>(1.0, -1.0);
+
+  m_f1 = sycl::marray<float, 2>(1.8, -2.7);
+  m_f2 = sycl::marray<float, 2>(-3.6, 4.5);
+  m_f3 = sycl::marray<float, 2>(1.0, -1.0);
+
+  auto a3 = syclcompat::cmul_add(d1, d2, d3);
+  r = r && check(a3, expect);
+
+  auto a4 = syclcompat::cmul_add(f1, f2, f3);
+  r = r && check(a4, expect + 2);
+
+  *result = r;
+}
+
 void test_abs() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   ComplexLauncher<kernel_abs>().launch();
@@ -191,11 +232,17 @@ void test_conj() {
   ComplexLauncher<kernel_conj>().launch();
 }
 
+void test_mul_add() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  ComplexLauncher<kernel_mul_add>().launch();
+}
+
 int main() {
   test_abs();
   test_mul();
   test_div();
   test_conj();
+  test_mul_add();
 
   return 0;
 }
