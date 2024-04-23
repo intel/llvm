@@ -3599,8 +3599,17 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
     } break;
     case UR_DEVICE_INFO_UUID: {
 
-        const char *tptr = (const char *)ptr;
-        printPtr(os, tptr);
+        const uint8_t *tptr = (const uint8_t *)ptr;
+        os << "{";
+        size_t nelems = size / sizeof(uint8_t);
+        for (size_t i = 0; i < nelems; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
+
+            os << tptr[i];
+        }
+        os << "}";
     } break;
     case UR_DEVICE_INFO_PCI_ADDRESS: {
 

@@ -11,22 +11,24 @@
 #include <algorithm>
 #include <climits>
 #include <mutex>
+#include <optional>
 #include <string.h>
 
 #include "command_buffer.hpp"
 #include "common.hpp"
 #include "event.hpp"
+#include "logger/ur_logger.hpp"
 #include "ur_level_zero.hpp"
 
 void printZeEventList(const _ur_ze_event_list_t &UrZeEventList) {
   if (UrL0Debug & UR_L0_DEBUG_BASIC) {
-    urPrint("  NumEventsInWaitList %d:", UrZeEventList.Length);
+    std::stringstream ss;
+    ss << "  NumEventsInWaitList " << UrZeEventList.Length << ":";
 
     for (uint32_t I = 0; I < UrZeEventList.Length; I++) {
-      urPrint(" %#llx", ur_cast<std::uintptr_t>(UrZeEventList.ZeEventList[I]));
+      ss << " " << ur_cast<std::uintptr_t>(UrZeEventList.ZeEventList[I]);
     }
-
-    urPrint("\n");
+    logger::debug(ss.str().c_str());
   }
 }
 
@@ -445,8 +447,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(
     return ReturnValue(Event->RefCount.load());
   }
   default:
-    urPrint("Unsupported ParamName in urEventGetInfo: ParamName=%d(%x)\n",
-            PropName, PropName);
+    logger::error(
+        "Unsupported ParamName in urEventGetInfo: ParamName=ParamName={}(0x{})",
+        PropName, logger::toHex(PropName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -537,7 +540,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
         return ReturnValue(ContextEndTime);
       }
       default:
-        urPrint("urEventGetProfilingInfo: not supported ParamName\n");
+        logger::error("urEventGetProfilingInfo: not supported ParamName");
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
     } else {
@@ -580,7 +583,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
     //
     return ReturnValue(uint64_t{0});
   default:
-    urPrint("urEventGetProfilingInfo: not supported ParamName\n");
+    logger::error("urEventGetProfilingInfo: not supported ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -677,7 +680,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventWait(
             die("The host-visible proxy event missing");
 
           ze_event_handle_t ZeEvent = HostVisibleEvent->ZeEvent;
-          urPrint("ZeEvent = %#llx\n", ur_cast<std::uintptr_t>(ZeEvent));
+          logger::debug("ZeEvent = {}", ur_cast<std::uintptr_t>(ZeEvent));
           ZE2UR_CALL(zeHostSynchronize, (ZeEvent));
           Event->Completed = true;
         }
@@ -827,7 +830,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(
   std::ignore = ExecStatus;
   std::ignore = Notify;
   std::ignore = UserData;
-  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
+  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -1129,6 +1133,7 @@ ur_result_t ur_event_handle_t_::reset() {
   RefCountExternal = 0;
   RefCount.reset();
   CommandList = std::nullopt;
+  completionBatch = std::nullopt;
 
   if (!isHostVisible())
     HostVisibleEvent = nullptr;
