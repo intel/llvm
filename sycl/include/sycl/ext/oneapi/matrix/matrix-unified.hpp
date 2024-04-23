@@ -553,7 +553,7 @@ joint_matrix_mad(
   } else if constexpr (std::is_signed<Ta>::value && std::is_signed<Tb>::value) {
     constexpr uint32_t MatrixOperand =
         static_cast<uint32_t>(
-            __spv::MatrixOperands::MatrixASignedComponentsKHR) &
+            __spv::MatrixOperands::MatrixASignedComponentsKHR) +
         static_cast<uint32_t>(
             __spv::MatrixOperands::MatrixBSignedComponentsKHR);
     D.spvm = __spirv_CooperativeMatrixMulAddKHR(A.spvm, B.spvm, C.spvm,
