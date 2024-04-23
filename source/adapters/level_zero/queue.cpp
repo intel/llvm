@@ -1323,6 +1323,7 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
     // in the command list is not empty, otherwise we are going to just create
     // and remove proxy event right away and dereference deleted object
     // afterwards.
+    bool AppendBarrierNeeded = true;
     if (ZeEventsScope == LastCommandInBatchHostVisible &&
         !CommandList->second.EventList.empty()) {
       // If there are only internal events in the command list then we don't
@@ -1391,6 +1392,7 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
           ZE2UR_CALL(zeCommandListAppendSignalEvent,
                      (CommandList->first, HostVisibleEvent->ZeEvent));
         } else {
+          AppendBarrierNeeded = false;
           ZE2UR_CALL(
               zeCommandListAppendBarrier,
               (CommandList->first, HostVisibleEvent->ZeEvent, 0, nullptr));
@@ -1404,6 +1406,10 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
       this->signalEventFromCmdListIfLastEventDiscarded(CommandList);
     }
     // Append Signalling of the inner events at the end of the batch
+    if (CommandList->second.EventList.size() > 0 && AppendBarrierNeeded) {
+      ZE2UR_CALL(zeCommandListAppendBarrier,
+                 (CommandList->first, nullptr, 0, nullptr));
+    }
     for (auto &Event : CommandList->second.EventList) {
       if (Event->IsInnerBatchedEvent) {
         ZE2UR_CALL(zeCommandListAppendSignalEvent,
