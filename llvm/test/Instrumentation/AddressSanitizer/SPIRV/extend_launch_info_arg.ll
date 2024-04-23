@@ -1,4 +1,4 @@
-; RUN: opt < %s -passes=asan -asan-instrumentation-with-call-threshold=0 -asan-stack=0 -asan-globals=0 -S | FileCheck %s
+; RUN: opt < %s -passes=asan -asan-instrumentation-with-call-threshold=0 -asan-stack=0 -asan-globals=0 -asan-constructor-kind=none -S | FileCheck %s
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
@@ -6,16 +6,16 @@ target triple = "spir64-unknown-unknown"
 ; CHECK: @__AsanLaunchInfo = external addrspace(3) global ptr addrspace(1)
 
 define spir_kernel void @sycl_kernel1() #0 {
-; CHECK: define spir_kernel void @sycl_kernel1(ptr addrspace(1) %__asan_launch)
+; CHECK-LABEL: define spir_kernel void @sycl_kernel1(ptr addrspace(1) %__asan_launch)
 entry:
   ; store ptr addrspace(1) %__asan_launch, ptr addrspace(3) @__AsanLaunchInfo, align 8
   ret void
 }
 
 define spir_kernel void @sycl_kernel2() #0 {
-; CHECK: define spir_kernel void @sycl_kernel2(ptr addrspace(1) %__asan_launch)
+; CHECK-LABEL: define spir_kernel void @sycl_kernel2(ptr addrspace(1) %__asan_launch)
 entry:
-  ; store ptr addrspace(1) %__asan_launch, ptr addrspace(3) @__AsanLaunchInfo, align 8
+  ; CHECK: store ptr addrspace(1) %__asan_launch, ptr addrspace(3) @__AsanLaunchInfo, align 8
   call void @sycl_kernel1()
   ; CHECK: call void @sycl_kernel1(ptr addrspace(1) %__asan_launch)
   ret void
