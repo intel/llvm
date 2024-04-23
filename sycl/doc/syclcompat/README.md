@@ -53,6 +53,7 @@ Specifically, this library depends on the following SYCL extensions:
 If available, the following extensions extend SYCLcompat functionality:
 
 * [sycl_ext_intel_device_info](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_intel_device_info.md) \[Optional\]
+* [sycl_ext_oneapi_bfloat16_math_functions](../extensions/experimental/sycl_ext_oneapi_bfloat16_math_functions.asciidoc) \[Optional\]
 
 ## Usage
 
@@ -1121,7 +1122,7 @@ However, they provide an optional argument to represent the `logical_group` size
 
 Experimental support for masked versions of `select_from_sub_group`,
 `shift_sub_group_left`, `shift_sub_group_right` and `permute_sub_group_by_xor` is
-provided only for SPIRV devices.
+provided only for SPIRV or cuda devices.
 
 ```c++
 namespace syclcompat {
@@ -1231,16 +1232,47 @@ kernel names during machine translation.
 `get_sycl_language_version` returns an integer representing the version of the
 SYCL spec supported by the current SYCL compiler.
 
+The `SYCLCOMPAT_CHECK_ERROR` macro encapsulates an error-handling mechanism for
+expressions that might throw `sycl::exception` and `std::runtime_error`.
+If no exceptions are thrown, it returns `syclcompat::error_code::SUCCESS`.
+If a `sycl::exception` is caught, it returns `syclcompat::error_code::BACKEND_ERROR`.
+If a `std::runtime_error` exception is caught,
+`syclcompat::error_code::DEFAULT_ERROR` is returned instead. For both cases, it
+prints the error message to the standard error stream.
+
 ``` c++
 namespace syclcompat {
 
-#define __sycl_compat_align__(n) __attribute__((aligned(n)))
-#define __sycl_compat_inline__ __inline__ __attribute__((always_inline))
+template <class... Args> class syclcompat_kernel_name;
+template <int Arg> class syclcompat_kernel_scalar;
 
-#define __sycl_compat_noinline__ __attribute__((noinline))
+#if defined(_MSC_VER)
+#define __syclcompat_align__(n) __declspec(align(n))
+#define __syclcompat_inline__ __forceinline
+#else
+#define __syclcompat_align__(n) __attribute__((aligned(n)))
+#define __syclcompat_inline__ __inline__ __attribute__((always_inline))
+#endif
 
-template <class... Args> class sycl_compat_kernel_name;
-template <int Arg> class sycl_compat_kernel_scalar;
+#if defined(_MSC_VER)
+#define __syclcompat_noinline__ __declspec(noinline)
+#else
+#define __syclcompat_noinline__ __attribute__((noinline))
+#endif
+
+#define SYCLCOMPAT_COMPATIBILITY_TEMP (600)
+
+#ifdef _WIN32
+#define SYCLCOMPAT_EXPORT __declspec(dllexport)
+#else
+#define SYCLCOMPAT_EXPORT
+#endif
+
+namespace syclcompat {
+enum error_code { SUCCESS = 0, BACKEND_ERROR = 1, DEFAULT_ERROR = 999 };
+}
+
+#define SYCLCOMPAT_CHECK_ERROR(expr)
 
 int get_sycl_language_version();
 
@@ -1273,7 +1305,13 @@ static kernel_function_info get_kernel_function_info(const void *function);
 `syclcompat::fast_length` provides a wrapper to SYCL's
 `fast_length(sycl::vec<float,N>)` that accepts arguments for a C++ array and a
 length. `syclcompat::length` provides a templated version that wraps over
-`sycl::length`.
+`sycl::length`. There are wrappers for `clamp`, `isnan`, `cbrt`, `min`, `max`,
+`fmax_nan`, `fmin_nan`, and `pow`, as well as an implementation of `relu`
+saturation is also provided.
+
+`compare`, `unordered_compare`, `compare_both`, `unordered_compare_both`,
+`compare_mask`, and `unordered_compare_mask`, handle both ordered and unordered
+comparisons.
 
 `vectorized_max` and `vectorized_min` are binary operations returning the
 max/min of two arguments, where each argument is treated as a `sycl::vec` type.
@@ -1291,6 +1329,135 @@ inline float fast_length(const float *a, int len);
 
 template <typename ValueT>
 inline ValueT length(const ValueT *a, const int len);
+
+inline ValueT clamp(ValueT val, ValueT min_val, ValueT max_val);
+
+// Determine whether 2 element value is NaN.
+template <typename ValueT>
+inline std::enable_if_t<ValueT::size() == 2, ValueT> isnan(const ValueT a);
+
+// cbrt function wrapper.
+template <typename ValueT>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        ValueT>
+cbrt(ValueT val) {
+  return sycl::cbrt(static_cast<ValueT>(val));
+}
+
+// For floating-point types, `float` or `double` arguments are acceptable.
+// For integer types, `std::uint32_t`, `std::int32_t`, `std::uint64_t` or
+// `std::int64_t` type arguments are acceptable.
+// sycl::half supported as well.
+template <typename T1, typename T2>
+std::enable_if_t<std::is_integral_v<T1> && std::is_integral_v<T2>,
+                 std::common_type_t<T1, T2>>
+min(T1 a, T2 b);
+template <typename T1, typename T2>
+std::enable_if_t<std::is_floating_point_v<T1> && std::is_floating_point_v<T2>,
+                 std::common_type_t<T1, T2>>
+min(T1 a, T2 b);
+
+sycl::half min(sycl::half a, sycl::half b);
+
+template <typename T1, typename T2>
+std::enable_if_t<std::is_integral_v<T1> && std::is_integral_v<T2>,
+                 std::common_type_t<T1, T2>>
+max(T1 a, T2 b);
+template <typename T1, typename T2>
+std::enable_if_t<std::is_floating_point_v<T1> && std::is_floating_point_v<T2>,
+                 std::common_type_t<T1, T2>>
+max(T1 a, T2 b);
+
+sycl::half max(sycl::half a, sycl::half b);
+
+// Performs 2 elements comparison and returns the bigger one. If either of
+// inputs is NaN, then return NaN.
+template <typename ValueT, typename ValueU>
+inline std::common_type_t<ValueT, ValueU> fmax_nan(const ValueT a,
+                                                   const ValueU b);
+
+template <typename ValueT, typename ValueU>
+inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
+fmax_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b);
+
+// Performs 2 elements comparison and returns the smaller one. If either of
+// inputs is NaN, then return NaN.
+template <typename ValueT, typename ValueU>
+inline std::common_type_t<ValueT, ValueU> fmin_nan(const ValueT a,
+                                                   const ValueU b);
+template <typename ValueT, typename ValueU>
+inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
+fmin_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b);
+
+inline float pow(const float a, const int b) { return sycl::pown(a, b); }
+inline double pow(const double a, const int b) { return sycl::pown(a, b); }
+
+template <typename ValueT, typename ValueU>
+inline typename std::enable_if_t<std::is_floating_point_v<ValueT>, ValueT>
+pow(const ValueT a, const ValueU b);
+
+// Requires aspect::fp64, as it casts to double internally.
+template <typename ValueT, typename ValueU>
+inline typename std::enable_if_t<!std::is_floating_point_v<ValueT>, double>
+pow(const ValueT a, const ValueU b);
+
+template <typename ValueT>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        ValueT>
+relu(const ValueT a);
+
+template <class ValueT>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        sycl::vec<ValueT, 2>>
+relu(const sycl::vec<ValueT, 2> a);
+
+template <class ValueT>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        sycl::marray<ValueT, 2>>
+relu(const sycl::marray<ValueT, 2> a);
+
+// The following definition is enabled when BinaryOperation(ValueT, ValueT) returns bool
+// std::enable_if_t<std::is_same_v<std::invoke_result_t<BinaryOperation, ValueT, ValueT>, bool>, bool>
+template <typename ValueT, class BinaryOperation>
+inline bool 
+compare(const ValueT a, const ValueT b, const BinaryOperation binary_op);
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<ValueT::size() == 2, ValueT>
+compare(const ValueT a, const ValueT b, const BinaryOperation binary_op);
+
+// The following definition is enabled when BinaryOperation(ValueT, ValueT) returns bool
+// std::enable_if_t<std::is_same_v<std::invoke_result_t<BinaryOperation, ValueT, ValueT>, bool>, bool>
+template <typename ValueT, class BinaryOperation>
+inline bool
+unordered_compare(const ValueT a, const ValueT b,
+                  const BinaryOperation binary_op);
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<ValueT::size() == 2, ValueT>
+unordered_compare(const ValueT a, const ValueT b,
+                  const BinaryOperation binary_op);
+
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<ValueT::size() == 2, bool>
+compare_both(const ValueT a, const ValueT b, const BinaryOperation binary_op);
+template <typename ValueT, class BinaryOperation>
+
+inline std::enable_if_t<ValueT::size() == 2, bool>
+unordered_compare_both(const ValueT a, const ValueT b,
+                       const BinaryOperation binary_op);
+
+template <typename ValueT, class BinaryOperation>
+inline unsigned compare_mask(const sycl::vec<ValueT, 2> a,
+                             const sycl::vec<ValueT, 2> b,
+                             const BinaryOperation binary_op);
+
+template <typename ValueT, class BinaryOperation>
+inline unsigned unordered_compare_mask(const sycl::vec<ValueT, 2> a,
+                                       const sycl::vec<ValueT, 2> b,
+                                       const BinaryOperation binary_op);
 
 template <typename S, typename T> inline T vectorized_max(T a, T b);
 
@@ -1386,6 +1553,90 @@ struct sub_sat {
 };
 
 } // namespace syclcompat
+```
+
+Finally, the math header provides a set of functions to extend 32-bit operations
+to 33 bit, and handle sign extension internally. There is support for `add`,
+`sub`, `absdiff`, `min` and `max` operations. Each operation provides overloads
+to include a second, separate, `BinaryOperation` after the first, and include
+the `_sat` variation, determines if the returning value is saturated or not.
+
+```cpp
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_add(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_add(AT a, BT b, CT c, BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_add_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_add_sat(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_sub(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_sub(AT a, BT b, CT c, BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_sub_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_sub_sat(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_absdiff(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_absdiff(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_absdiff_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_absdiff_sat(AT a, BT b, CT c,
+                                         BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_min(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_min(AT a, BT b, CT c, BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_min_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_min_sat(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_max(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_max(AT a, BT b, CT c, BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_max_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_max_sat(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
 ```
 
 ## Sample Code

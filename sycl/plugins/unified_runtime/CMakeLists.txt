@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit e00a764f8dafd1319b636aa99c15601ec0d4d7fc
-  # Merge: 85b75590 92b60b77
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Apr 10 10:21:22 2024 +0100
-  #    Merge pull request #1455 from GeorgeWeb/georgi/fix-hip-usm-copy2d
-  #    [HIP] Fix memory type detection in allocation info queries and USM copy2D
-  set(UNIFIED_RUNTIME_TAG e00a764f8dafd1319b636aa99c15601ec0d4d7fc)
+  # commit 31d0fe153733601fe4864fffb9148d554fe9a7ca
+  # Merge: 2eea85f2 6a602134
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Mon Apr 22 14:38:18 2024 +0100
+  #     Merge pull request #1243 from kbenzie/benie/fix-urinfo-device-uuid-printing
+  #     [urinfo] Fix printing of device UUID
+  set(UNIFIED_RUNTIME_TAG 31d0fe153733601fe4864fffb9148d554fe9a7ca)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -110,46 +110,22 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(opencl
     ${UNIFIED_RUNTIME_REPO}
-    # commit 0d2a972c71ba4dd5935478c7b7124a372a1eeca0
-    # Merge: ac89abfe 44aef877
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Apr 11 10:24:19 2024 +0100
-    #     Merge pull request #1440 from fabiomestre/fabio/opencl_remove_queued_hack
-    #     [OPENCL] Remove EVENT_STATUS_QUEUED workaround
-    0d2a972c71ba4dd5935478c7b7124a372a1eeca0
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit 6e76c98a1f5cd3c4f5e99011e92bd55b3a46cc4c
-    # Merge: 08b3e8fe 834e6435
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Apr 10 16:26:17 2024 +0100
-    #     Merge pull request #1220 from fabiomestre/fabio/cuda_multimap
-    #     [CUDA] Add support for multiple active mappings
-    6e76c98a1f5cd3c4f5e99011e92bd55b3a46cc4c
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 08b3e8fe6c5ad0aed125823c335eb44343845f6c
-    # Merge: 758c6149 db47fc0a
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Apr 10 16:22:00 2024 +0100
-    #     Merge pull request #1359 from lplewa/hip_log
-    #     Refactor hip adapter to new logger
-    08b3e8fe6c5ad0aed125823c335eb44343845f6c
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    # commit 38e9478b8a7a01fcf37f55b50c735ca1de29c76d
-    # Merge: b582fb80 c594cdc0
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Apr 11 11:39:02 2024 +0100
-    #     Merge pull request #1478 from PietroGhg/pietro/vecz_threadpool
-    #     [NATIVECPU] Initial threadpool implementation for Native CPU
-    38e9478b8a7a01fcf37f55b50c735ca1de29c76d
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)

@@ -2484,6 +2484,12 @@ void Driver::PrintVersion(const Compilation &C, raw_ostream &OS) const {
   // Print out the install directory.
   OS << "InstalledDir: " << Dir << '\n';
 
+  // Print the build config if it's non-default.
+  // Intended to help LLVM developers understand the configs of compilers
+  // they're investigating.
+  if (!llvm::cl::getCompilerBuildConfig().empty())
+    llvm::cl::printBuildConfig(OS);
+
   // If configuration files were used, print their paths.
   for (auto ConfigFile : ConfigFiles)
     OS << "Configuration file: " << ConfigFile << '\n';
@@ -5849,7 +5855,7 @@ class OffloadingActionBuilder final {
         LibraryPaths.emplace_back(WithInstallPath.c_str());
 
         // Select libclc variant based on target triple
-        std::string LibSpirvTargetName = "builtins.link.libspirv-";
+        std::string LibSpirvTargetName = "libspirv-";
         LibSpirvTargetName.append(TC->getTripleString() + ".bc");
 
         for (StringRef LibraryPath : LibraryPaths) {

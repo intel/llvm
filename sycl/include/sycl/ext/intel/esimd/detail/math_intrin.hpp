@@ -193,6 +193,8 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T1, N)
     __esimd_ssdp4a_sat(__ESIMD_raw_vec_t(T2, N) src0,
                        __ESIMD_raw_vec_t(T3, N) src1,
                        __ESIMD_raw_vec_t(T4, N) src2) __ESIMD_INTRIN_END;
+__ESIMD_INTRIN __ESIMD_raw_vec_t(uint32_t, 4)
+    __esimd_timestamp() __ESIMD_INTRIN_END;
 
 #ifdef __SYCL_DEVICE_ONLY__
 
