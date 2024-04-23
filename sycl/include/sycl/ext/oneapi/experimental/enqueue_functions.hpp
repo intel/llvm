@@ -10,12 +10,12 @@
 
 #include <utility> // for std::forward
 
-#include <sycl/event.hpp>                            // for event
-#include <sycl/ext/oneapi/properties/properties.hpp> // for properties
-#include <sycl/handler.hpp>                          // for handler
-#include <sycl/nd_range.hpp>                         // for nd_range
-#include <sycl/queue.hpp>                            // for queue
-#include <sycl/range.hpp>                            // for range
+#include <sycl/event.hpp>
+#include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/handler.hpp>
+#include <sycl/nd_range.hpp>
+#include <sycl/queue.hpp>
+#include <sycl/range.hpp>
 
 namespace sycl {
 inline namespace _V1 {
