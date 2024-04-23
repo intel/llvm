@@ -307,9 +307,11 @@ macro(add_libclc_builtin_set arch_suffix)
 
   # Generate remangled variants if requested
   if( LIBCLC_GENERATE_REMANGLED_VARIANTS )
+    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/lib/clc)
     set(dummy_in "${CMAKE_BINARY_DIR}/lib/clc/libclc_dummy_in.cc")
     add_custom_command( OUTPUT ${dummy_in}
-      COMMAND ${CMAKE_COMMAND} -E touch ${dummy_in} )
+      COMMAND ${CMAKE_COMMAND} -E touch ${dummy_in}
+    )
     set(long_widths l32 l64)
     set(char_signedness signed unsigned)
     if( ${obj_suffix} STREQUAL "libspirv-nvptx64--nvidiacl.bc")
