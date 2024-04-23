@@ -743,7 +743,8 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         // Write shadow memory offset for local memory
         if (cl_DetectLocals) {
             // CPU needn't this
-            if (DeviceInfo->Type == DeviceType::GPU_PVC) {
+            if (DeviceInfo->Type == DeviceType::GPU_PVC ||
+                DeviceInfo->Type == DeviceType::GPU_DG2) {
                 size_t LocalMemorySize = GetLocalMemorySize(DeviceInfo->Handle);
                 size_t LocalShadowMemorySize =
                     (NumWG * LocalMemorySize) >> ASAN_SHADOW_SCALE;
@@ -762,6 +763,14 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
                 context.logger.info("ShadowMemory(Local, {} - {})",
                                     (void *)LaunchInfo.LocalShadowOffset,
                                     (void *)LaunchInfo.LocalShadowOffsetEnd);
+
+                // Write shadow memory offset for local memory
+                EnqueueWriteGlobal(kSPIR_AsanShadowMemoryLocalStart,
+                                   &LaunchInfo.LocalShadowOffset,
+                                   sizeof(LaunchInfo.LocalShadowOffset));
+                EnqueueWriteGlobal(kSPIR_AsanShadowMemoryLocalEnd,
+                                   &LaunchInfo.LocalShadowOffsetEnd,
+                                   sizeof(LaunchInfo.LocalShadowOffsetEnd));
             }
         }
     } while (false);
