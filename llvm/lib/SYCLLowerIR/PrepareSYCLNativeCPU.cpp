@@ -240,7 +240,7 @@ static inline bool IsNativeCPUKernel(const Function *F) {
 static constexpr StringRef STATE_TLS_NAME = "_ZL28nativecpu_thread_local_state";
 
 } // namespace
-static llvm::Constant *CurrentStatePointerTLS;
+
 PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
                                                 ModuleAnalysisManager &MAM) {
   bool ModuleChanged = false;
@@ -258,7 +258,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     return PreservedAnalyses::all();
   Type *StatePtrType = PointerType::get(StateType, NativeCPUGlobalAS);
 
-  CurrentStatePointerTLS = nullptr;
+  llvm::Constant *CurrentStatePointerTLS = nullptr;
 
   // check if any of the kernels is called by some other function.
   // This can happen e.g. with OCK, where wrapper functions are
