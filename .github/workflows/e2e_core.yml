@@ -115,6 +115,7 @@ jobs:
       run: >
         cmake
         -B build
+        -GNinja
         -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
         -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
         -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
