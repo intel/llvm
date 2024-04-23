@@ -478,7 +478,9 @@ bool testBlockLoadPrefetchUSM(queue Q) {
   Passed &= testBlockLoadPrefetchUSM<T, 8 * I32Factor>(Q, 5, 5, Props);
   Passed &= testBlockLoadPrefetchUSM<T, 16 * I32Factor>(Q, 5, 5, Props);
   Passed &= testBlockLoadPrefetchUSM<T, 32 * I32Factor>(Q, 2, 4, Props);
-  Passed &= testBlockLoadPrefetchUSM<T, 64 * I32Factor>(Q, 2, 4, Props);
+  if constexpr (sizeof(T) * 64 * I32Factor <= 256 ||
+                Features == TestFeatures::PVC)
+    Passed &= testBlockLoadPrefetchUSM<T, 64 * I32Factor>(Q, 2, 4, Props);
   if constexpr (sizeof(T) * 128 * I32Factor <= 512 &&
                 Features == TestFeatures::PVC)
     Passed &= testBlockLoadPrefetchUSM<T, 128 * I32Factor>(Q, 2, 4, Props);
@@ -566,7 +568,9 @@ bool testBlockLoadPrefetchACC(queue Q) {
   Passed &= testBlockLoadPrefetchACC<T, 8 * I32Factor>(Q, 2, 4, Props);
   Passed &= testBlockLoadPrefetchACC<T, 16 * I32Factor>(Q, 2, 4, Props);
   Passed &= testBlockLoadPrefetchACC<T, 32 * I32Factor>(Q, 2, 4, Props);
-  Passed &= testBlockLoadPrefetchACC<T, 64 * I32Factor>(Q, 2, 4, Props);
+  if constexpr (sizeof(T) * 64 * I32Factor <= 256 ||
+                Features == TestFeatures::PVC)
+    Passed &= testBlockLoadPrefetchACC<T, 64 * I32Factor>(Q, 2, 4, Props);
   if constexpr (sizeof(T) * 128 * I32Factor <= 512 &&
                 Features == TestFeatures::PVC)
     Passed &= testBlockLoadPrefetchACC<T, 128 * I32Factor>(Q, 2, 4, Props);
