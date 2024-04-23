@@ -174,10 +174,10 @@ static auto getUrResultString = [](ur_result_t Result) {
 #define UR_CALL(Call)                                                          \
   {                                                                            \
     if (PrintTrace)                                                            \
-      fprintf(stderr, "UR ---> %s\n", #Call);                                  \
+      logger::always("UR ---> {}", #Call);                                     \
     ur_result_t Result = (Call);                                               \
     if (PrintTrace)                                                            \
-      fprintf(stderr, "UR <--- %s(%s)\n", #Call, getUrResultString(Result));   \
+      logger::always("UR <--- {}({})", #Call, getUrResultString(Result));      \
     if (Result != UR_RESULT_SUCCESS)                                           \
       return Result;                                                           \
   }
@@ -268,9 +268,6 @@ public:
 // setting environment variables.
 bool setEnvVar(const char *name, const char *value);
 
-// Prints to stderr if UR_L0_DEBUG allows it
-void urPrint(const char *Format, ...);
-
 // Helper for one-liner validation
 #define UR_ASSERT(condition, error)                                            \
   if (!(condition))                                                            \
@@ -300,9 +297,6 @@ template <class T> struct ZesStruct : public T {
 // This function will ensure compatibility with both Linux and Windows for
 // setting environment variables.
 bool setEnvVar(const char *name, const char *value);
-
-// Prints to stderr if UR_L0_DEBUG allows it
-void urPrint(const char *Format, ...);
 
 // Helper for one-liner validation
 #define UR_ASSERT(condition, error)                                            \

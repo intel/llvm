@@ -12,6 +12,7 @@
 #include "common.hpp"
 #include "context.hpp"
 #include "event.hpp"
+#include "logger/ur_logger.hpp"
 #include "sampler.hpp"
 #include "ur_level_zero.hpp"
 
@@ -68,8 +69,9 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
     ZeImageFormatTypeSize = 32;
     break;
   default:
-    urPrint("ze2urImageFormat: unsupported image format layout: layout = %d\n",
-            ZeImageFormat.layout);
+    logger::error(
+        "ze2urImageFormat: unsupported image format layout: layout = {}",
+        ZeImageFormat.layout);
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -86,8 +88,9 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
       ChannelOrder = UR_IMAGE_CHANNEL_ORDER_A;
       break;
     default:
-      urPrint("ze2urImageFormat: unexpected image format channel x: x = %d\n",
-              ZeImageFormat.x);
+      logger::error(
+          "ze2urImageFormat: unexpected image format channel x: x = {}",
+          ZeImageFormat.x);
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
@@ -95,8 +98,9 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
   case ZE_IMAGE_FORMAT_LAYOUT_16_16:
   case ZE_IMAGE_FORMAT_LAYOUT_32_32:
     if (ZeImageFormat.x != ZE_IMAGE_FORMAT_SWIZZLE_R) {
-      urPrint("ze2urImageFormat: unexpected image format channel x: x = %d\n",
-              ZeImageFormat.x);
+      logger::error(
+          "ze2urImageFormat: unexpected image format channel x: x = {}",
+          ZeImageFormat.x);
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     switch (ZeImageFormat.y) {
@@ -110,8 +114,9 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
       ChannelOrder = UR_IMAGE_CHANNEL_ORDER_RX;
       break;
     default:
-      urPrint("ze2urImageFormat: unexpected image format channel y: y = %d\n",
-              ZeImageFormat.x);
+      logger::error(
+          "ze2urImageFormat: unexpected image format channel y: y = {}\n",
+          ZeImageFormat.x);
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
@@ -129,8 +134,9 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
         ChannelOrder = UR_IMAGE_CHANNEL_ORDER_RGBA;
         break;
       default:
-        urPrint("ze2urImageFormat: unexpected image format channel w: w = %d\n",
-                ZeImageFormat.x);
+        logger::error("ze2urImageFormat: unexpected image format channel w: w "
+                      "= {}",
+                      ZeImageFormat.x);
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
     } else if (ZeImageFormat.x == ZE_IMAGE_FORMAT_SWIZZLE_A &&
@@ -144,13 +150,14 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
                ZeImageFormat.w == ZE_IMAGE_FORMAT_SWIZZLE_A) {
       ChannelOrder = UR_IMAGE_CHANNEL_ORDER_BGRA;
     } else {
-      urPrint("ze2urImageFormat: unexpected image format channel\n");
+      logger::error("ze2urImageFormat: unexpected image format channel");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
   default:
-    urPrint("ze2urImageFormat: unsupported image format layout: layout = %d\n",
-            ZeImageFormat.layout);
+    logger::error(
+        "ze2urImageFormat: unsupported image format layout: layout = {}",
+        ZeImageFormat.layout);
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -168,9 +175,9 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
       ChannelType = UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32;
       break;
     default:
-      urPrint(
-          "ze2urImageFormat: unexpected image format type size: size = %zu\n",
-          ZeImageFormatTypeSize);
+      logger::error("ze2urImageFormat: unexpected image format type size: size "
+                    "= {}",
+                    ZeImageFormatTypeSize);
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
@@ -186,9 +193,9 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
       ChannelType = UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32;
       break;
     default:
-      urPrint(
-          "ze2urImageFormat: unexpected image format type size: size = %zu\n",
-          ZeImageFormatTypeSize);
+      logger::error("ze2urImageFormat: unexpected image format type size: size "
+                    "= {}",
+                    ZeImageFormatTypeSize);
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
@@ -201,9 +208,9 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
       ChannelType = UR_IMAGE_CHANNEL_TYPE_UNORM_INT16;
       break;
     default:
-      urPrint(
-          "ze2urImageFormat: unexpected image format type size: size = %zu\n",
-          ZeImageFormatTypeSize);
+      logger::error("ze2urImageFormat: unexpected image format type size: size "
+                    "= {}",
+                    ZeImageFormatTypeSize);
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
@@ -216,9 +223,9 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
       ChannelType = UR_IMAGE_CHANNEL_TYPE_SNORM_INT16;
       break;
     default:
-      urPrint(
-          "ze2urImageFormat: unexpected image format type size: size = %zu\n",
-          ZeImageFormatTypeSize);
+      logger::error("ze2urImageFormat: unexpected image format type size: size "
+                    "= {}",
+                    ZeImageFormatTypeSize);
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
@@ -231,15 +238,15 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
       ChannelType = UR_IMAGE_CHANNEL_TYPE_FLOAT;
       break;
     default:
-      urPrint(
-          "ze2urImageFormat: unexpected image format type size: size = %zu\n",
-          ZeImageFormatTypeSize);
+      logger::error("ze2urImageFormat: unexpected image format type size: size "
+                    "= {}",
+                    ZeImageFormatTypeSize);
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
   default:
-    urPrint("ze2urImageFormat: unsupported image format type: type = %d\n",
-            ZeImageFormat.type);
+    logger::error("ze2urImageFormat: unsupported image format type: type = {}",
+                  ZeImageFormat.type);
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -270,7 +277,7 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
       ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32;
       break;
     default:
-      urPrint("ur2zeImageDesc: unexpected data type size\n");
+      logger::error("ur2zeImageDesc: unexpected data type size");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
@@ -289,7 +296,7 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
       ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32_32;
       break;
     default:
-      urPrint("ur2zeImageDesc: unexpected data type size\n");
+      logger::error("ur2zeImageDesc: unexpected data type size");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
@@ -309,13 +316,13 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
       ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32_32_32_32;
       break;
     default:
-      urPrint("ur2zeImageDesc: unexpected data type size\n");
+      logger::error("ur2zeImageDesc: unexpected data type size");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
   }
   default:
-    urPrint("format channel order = %d\n", ImageFormat->channelOrder);
+    logger::error("format channel order = {}", ImageFormat->channelOrder);
     die("ur2zeImageDesc: unsupported image channel order\n");
     break;
   }
@@ -344,7 +351,7 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
     ZeImageType = ZE_IMAGE_TYPE_2DARRAY;
     break;
   default:
-    urPrint("ur2zeImageDesc: unsupported image type\n");
+    logger::error("ur2zeImageDesc: unsupported image type");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -540,8 +547,9 @@ getImageFormatTypeAndSize(const ur_image_format_t *ImageFormat) {
     break;
   }
   default:
-    urPrint("urMemImageCreate: unsupported image data type: data type = %d\n",
-            ImageFormat->channelType);
+    logger::error(
+        "urMemImageCreate: unsupported image data type: data type = {}",
+        ImageFormat->channelType);
     ur::unreachable();
   }
   return {ZeImageFormatType, ZeImageFormatTypeSize};
@@ -565,9 +573,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
         DriverHandle, "zeMemGetPitchFor2dImage",
         (void **)&zeMemGetPitchFor2dImageFunctionPtr);
     if (Result != ZE_RESULT_SUCCESS)
-      urPrint("zeDriverGetExtensionFunctionAddress zeMemGetPitchFor2dImage "
-              "failed, err = %d\n",
-              Result);
+      logger::error(
+          "zeDriverGetExtensionFunctionAddress zeMemGetPitchFor2dImage "
+          "failed, err = {}",
+          Result);
   });
   if (!zeMemGetPitchFor2dImageFunctionPtr)
     return UR_RESULT_ERROR_INVALID_OPERATION;
@@ -714,9 +723,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
         DriverHandle, "zeImageGetDeviceOffsetExp",
         (void **)&zeImageGetDeviceOffsetExpFunctionPtr);
     if (Result != ZE_RESULT_SUCCESS)
-      urPrint("zeDriverGetExtensionFunctionAddress zeImageGetDeviceOffsetExp "
-              "failed, err = %d\n",
-              Result);
+      logger::error("zeDriverGetExtensionFunctionAddress "
+                    "zeImageGetDeviceOffsetExpv failed, err = {}",
+                    Result);
   });
   if (!zeImageGetDeviceOffsetExpFunctionPtr)
     return UR_RESULT_ERROR_INVALID_OPERATION;
@@ -856,7 +865,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
                   WaitList.Length, WaitList.ZeEventList));
     }
   } else {
-    urPrint("urBindlessImagesImageCopyExp: unexpected imageCopyFlags\n");
+    logger::error("urBindlessImagesImageCopyExp: unexpected imageCopyFlags");
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
@@ -924,7 +933,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
   std::ignore = hImageMem;
   std::ignore = mipmapLevel;
   std::ignore = phImageMem;
-  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
+  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -943,7 +953,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
   std::ignore = size;
   std::ignore = pInteropMemDesc;
   std::ignore = phInteropMem;
-  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
+  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -958,7 +969,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
   std::ignore = pImageDesc;
   std::ignore = hInteropMem;
   std::ignore = phImageMem;
-  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
+  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -968,7 +980,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
   std::ignore = hContext;
   std::ignore = hDevice;
   std::ignore = hInteropMem;
-  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
+  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -981,7 +994,8 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
   std::ignore = hDevice;
   std::ignore = pInteropSemaphoreDesc;
   std::ignore = phInteropSemaphoreHandle;
-  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
+  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -991,7 +1005,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
   std::ignore = hContext;
   std::ignore = hDevice;
   std::ignore = hInteropSemaphore;
-  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
+  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -1004,7 +1019,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
-  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
+  logger::error(logger::LegacyMessage("[UR][L0] "),
+                " {} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -1017,6 +1033,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
-  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
+  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
