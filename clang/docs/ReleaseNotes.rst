@@ -88,6 +88,7 @@ sections with improvements to Clang's support for those languages.
 
 C++ Language Changes
 --------------------
+- Implemented ``_BitInt`` literal suffixes ``__wb`` or ``__WB`` as a Clang extension with ``unsigned`` modifiers also allowed. (#GH85223).
 
 C++20 Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
@@ -657,6 +658,12 @@ CUDA Support
 
 AIX Support
 ^^^^^^^^^^^
+
+- Introduced the ``-maix-small-local-dynamic-tls`` option to produce a faster
+  access sequence for local-dynamic TLS variables where the offset from the TLS
+  base is encoded as an immediate operand.
+  This access sequence is not used for TLS variables larger than 32KB, and is
+  currently only supported on 64-bit mode.
 
 WebAssembly Support
 ^^^^^^^^^^^^^^^^^^^
