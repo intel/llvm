@@ -7790,6 +7790,21 @@ bool Sema::CheckIntelSYCLPtrAnnotationBuiltinFunctionCall(unsigned BuiltinID,
   return false;
 }
 
+static llvm::APSInt getSYCLAllocaDefaultSize(const ASTContext &Ctx,
+                                             const VarDecl *VD) {
+  assert(VD && "Expecting valid declaration");
+  APValue *SpecializationId = VD->evaluateValue();
+  assert(SpecializationId && "Expecting a non-null SpecializationId");
+  assert(SpecializationId->getKind() == APValue::ValueKind::Struct &&
+         "Expecting SpecializationId to be of kind Struct");
+  assert(SpecializationId->getStructNumFields() == 1 &&
+         "Expecting SpecializationId to have a single field for the default "
+         "value");
+  APValue Default = SpecializationId->getStructField(0);
+  assert(Default.isInt() && "Expecting the default value to be an integer");
+  return Default.getInt();
+}
+
 bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
   assert(getLangOpts().SYCLIsDevice &&
          "Builtin can only be used in SYCL device code");
@@ -7854,7 +7869,7 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
   }
 
   // Check size is passed as a specialization constant
-  constexpr auto CheckSize = [](const ASTContext &Ctx,
+  const auto CheckSize = [this](const ASTContext &Ctx, SourceLocation Loc,
                                 const TemplateArgumentList *CST) {
     QualType Ty = CST->get(1).getNonTypeTemplateArgumentType();
     if (Ty.isNull() || !Ty->isReferenceType())
@@ -7865,10 +7880,17 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
     const TemplateArgumentList &TAL =
         cast<ClassTemplateSpecializationDecl>(Ty->getAsCXXRecordDecl())
             ->getTemplateArgs();
-    return !TAL.get(0).getAsType()->isIntegralType(Ctx);
+    if (!TAL.get(0).getAsType()->isIntegralType(Ctx))
+      return true;
+    llvm::APSInt DefaultSize =
+        getSYCLAllocaDefaultSize(Ctx, cast<VarDecl>(CST->get(1).getAsDecl()));
+    if (DefaultSize < 1)
+      Diag(Loc, diag::warn_intel_sycl_alloca_bad_default_value)
+          << DefaultSize.getSExtValue();
+    return false;
   };
   const TemplateArgumentList *CST = FD->getTemplateSpecializationArgs();
-  if (CheckSize(getASTContext(), CST)) {
+  if (CheckSize(getASTContext(), Loc, CST)) {
     TemplateArgument TA = CST->get(1);
     QualType Ty = TA.getNonTypeTemplateArgumentType();
     if (Ty.isNull())
