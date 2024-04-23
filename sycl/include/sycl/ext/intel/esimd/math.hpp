@@ -1175,143 +1175,99 @@ bfn(T src0, T src1, T src2) {
 
 /// @} sycl_esimd_logical
 
-/// Performs add with carry of 2 unsigned integral vectors.
-/// @tparam N size of the vectors
-/// @param carry vector that is going to hold resulting carry flag
-/// @param src0 first term
-/// @param src1 second term
-/// @return sum of 2 terms, carry flag is returned through \c carry parameter
-template <int N, typename T>
-__ESIMD_API std::enable_if_t<!std::is_signed_v<T> && std::is_integral_v<T>,
-                             __ESIMD_NS::simd<T, N>>
-addc(__ESIMD_NS::simd<T, N> &carry, __ESIMD_NS::simd<T, N> src0,
-     __ESIMD_NS::simd<T, N> src1) {
-#ifdef __SYCL_DEVICE_ONLY__
-  std::pair<__ESIMD_DNS::vector_type_t<T, N>, __ESIMD_DNS::vector_type_t<T, N>>
-      Result = __spirv_IAddCarry<T, N>(src0.data(), src1.data());
-
-  carry = Result.second;
+#if defined(__SYCL_DEVICE_ONLY__)
+#define __ESIMD_ADDC_IMPL(T)                                                   \
+  std::pair<__ESIMD_DNS::vector_type_t<T, N>,                                  \
+            __ESIMD_DNS::vector_type_t<T, N>>                                  \
+      Result = __spirv_IAddCarry<T, N>(src0.data(), src1.data());              \
+  carry = Result.second;                                                       \
   return Result.first;
 #else
-  return 0;
+#define __ESIMD_ADDC_IMPL(T) return 0;
 #endif // __SYCL_DEVICE_ONLY__
-}
 
-/// Performs add with carry of a unsigned integral vector and scalar.
-/// @tparam N size of the vectors
-/// @param carry vector that is going to hold resulting carry flag
-/// @param src0 first term
-/// @param src1 second term
-/// @return sum of 2 terms, carry flag is returned through \c carry parameter
-template <int N, typename T>
-__ESIMD_API std::enable_if_t<!std::is_signed_v<T> && std::is_integral_v<T>,
-                             __ESIMD_NS::simd<T, N>>
-addc(__ESIMD_NS::simd<T, N> &carry, __ESIMD_NS::simd<T, N> src0, T src1) {
-  __ESIMD_NS::simd<T, N> Src1V = src1;
-  return addc(carry, src0, Src1V);
-}
+#define __ESIMD_ADDC(T)                                                        \
+  template <int N>                                                             \
+  __ESIMD_API __ESIMD_NS::simd<T, N> addc(__ESIMD_NS::simd<T, N> &carry,       \
+                                          __ESIMD_NS::simd<T, N> src0,         \
+                                          __ESIMD_NS::simd<T, N> src1) {       \
+    __ESIMD_ADDC_IMPL(T)                                                       \
+  }                                                                            \
+  template <int N>                                                             \
+  __ESIMD_API __ESIMD_NS::simd<T, N> addc(                                     \
+      __ESIMD_NS::simd<T, N> &carry, __ESIMD_NS::simd<T, N> src0, T src1) {    \
+    __ESIMD_NS::simd<T, N> Src1V = src1;                                       \
+    return addc(carry, src0, Src1V);                                           \
+  }                                                                            \
+  template <int N>                                                             \
+  __ESIMD_API __ESIMD_NS::simd<T, N> addc(                                     \
+      __ESIMD_NS::simd<T, N> &carry, T src0, __ESIMD_NS::simd<T, N> src1) {    \
+    __ESIMD_NS::simd<T, N> Src0V = src0;                                       \
+    return addc(carry, Src0V, src1);                                           \
+  }                                                                            \
+  __ESIMD_API T addc(T &carry, T src0, T src1) {                               \
+    __ESIMD_NS::simd<T, 1> CarryV = carry;                                     \
+    __ESIMD_NS::simd<T, 1> Src0V = src0;                                       \
+    __ESIMD_NS::simd<T, 1> Src1V = src1;                                       \
+    __ESIMD_NS::simd<T, 1> Res = addc(CarryV, Src0V, Src1V);                   \
+    carry = CarryV[0];                                                         \
+    return Res[0];                                                             \
+  }
 
-/// Performs add with carry of a unsigned integral scalar and vector.
-/// @tparam N size of the vectors
-/// @param carry vector that is going to hold resulting carry flag
-/// @param src0 first term
-/// @param src1 second term
-/// @return sum of 2 terms, carry flag is returned through \c carry parameter
-template <int N, typename T>
-__ESIMD_API std::enable_if_t<!std::is_signed_v<T> && std::is_integral_v<T>,
-                             __ESIMD_NS::simd<T, N>>
-addc(__ESIMD_NS::simd<T, N> &carry, T src0, __ESIMD_NS::simd<T, N> src1) {
-  __ESIMD_NS::simd<T, N> Src0V = src0;
-  return addc(carry, Src0V, src1);
-}
+__ESIMD_ADDC(uint8_t)
+__ESIMD_ADDC(uint16_t)
+__ESIMD_ADDC(uint32_t)
+__ESIMD_ADDC(uint64_t)
 
-/// Performs add with carry of a unsigned integral scalars.
-/// @tparam N size of the vectors
-/// @param carry scalar that is going to hold resulting carry flag
-/// @param src0 first term
-/// @param src1 second term
-/// @return sum of 2 terms, carry flag is returned through \c carry parameter
-template <typename T>
-__ESIMD_API std::enable_if_t<!std::is_signed_v<T> && std::is_integral_v<T>, T>
-addc(T &carry, T src0, T src1) {
-  __ESIMD_NS::simd<T, 1> CarryV = carry;
-  __ESIMD_NS::simd<T, 1> Src0V = src0;
-  __ESIMD_NS::simd<T, 1> Src1V = src1;
-  __ESIMD_NS::simd<T, 1> Res = addc(CarryV, Src0V, Src1V);
-  carry = CarryV[0];
-  return Res[0];
-}
+#undef __ESIMD_ADDC
+#undef __ESIMD_ADDC_IMPL
 
-/// Performs substraction with borrow of 2 unsigned integral vectors.
-/// @tparam N size of the vectors
-/// @param borrow vector that is going to hold resulting borrow flag
-/// @param src0 first term
-/// @param src1 second term
-/// @return difference of 2 terms, borrow flag is returned through \c borrow
-/// parameter
-template <int N, typename T>
-__ESIMD_API std::enable_if_t<!std::is_signed_v<T> && std::is_integral_v<T>,
-                             __ESIMD_NS::simd<T, N>>
-subb(__ESIMD_NS::simd<T, N> &borrow, __ESIMD_NS::simd<T, N> src0,
-     __ESIMD_NS::simd<T, N> src1) {
-#ifdef __SYCL_DEVICE_ONLY__
-  std::pair<__ESIMD_DNS::vector_type_t<T, N>, __ESIMD_DNS::vector_type_t<T, N>>
-      Result = __spirv_ISubBorrow<T, N>(src0.data(), src1.data());
-
-  borrow = Result.second;
+#if defined(__SYCL_DEVICE_ONLY__)
+#define __ESIMD_SUBB_IMPL(T)                                                   \
+  std::pair<__ESIMD_DNS::vector_type_t<T, N>,                                  \
+            __ESIMD_DNS::vector_type_t<T, N>>                                  \
+      Result = __spirv_ISubBorrow<T, N>(src0.data(), src1.data());             \
+  borrow = Result.second;                                                      \
   return Result.first;
 #else
-  return 0;
+#define __ESIMD_SUBB_IMPL(T) return 0;
 #endif // __SYCL_DEVICE_ONLY__
-}
 
-/// Performs substraction with borrow of unsigned integral vector and scalar.
-/// @tparam N size of the vectors
-/// @param borrow vector that is going to hold resulting borrow flag
-/// @param src0 first term
-/// @param src1 second term
-/// @return difference of 2 terms, borrow flag is returned through \c borrow
-/// parameter
-template <int N, typename T>
-__ESIMD_API std::enable_if_t<!std::is_signed_v<T> && std::is_integral_v<T>,
-                             __ESIMD_NS::simd<T, N>>
-subb(__ESIMD_NS::simd<T, N> &borrow, __ESIMD_NS::simd<T, N> src0, T src1) {
-  __ESIMD_NS::simd<T, N> Src1V = src1;
-  return subb(borrow, src0, Src1V);
-}
+#define __ESIMD_SUBB(T)                                                        \
+  template <int N>                                                             \
+  __ESIMD_API __ESIMD_NS::simd<T, N> subb(__ESIMD_NS::simd<T, N> &borrow,      \
+                                          __ESIMD_NS::simd<T, N> src0,         \
+                                          __ESIMD_NS::simd<T, N> src1) {       \
+    __ESIMD_SUBB_IMPL(T)                                                       \
+  }                                                                            \
+  template <int N>                                                             \
+  __ESIMD_API __ESIMD_NS::simd<T, N> subb(                                     \
+      __ESIMD_NS::simd<T, N> &borrow, __ESIMD_NS::simd<T, N> src0, T src1) {   \
+    __ESIMD_NS::simd<T, N> Src1V = src1;                                       \
+    return subb(borrow, src0, Src1V);                                          \
+  }                                                                            \
+  template <int N>                                                             \
+  __ESIMD_API __ESIMD_NS::simd<T, N> subb(                                     \
+      __ESIMD_NS::simd<T, N> &borrow, T src0, __ESIMD_NS::simd<T, N> src1) {   \
+    __ESIMD_NS::simd<T, N> Src0V = src0;                                       \
+    return subb(borrow, Src0V, src1);                                          \
+  }                                                                            \
+  __ESIMD_API T subb(T &borrow, T src0, T src1) {                              \
+    __ESIMD_NS::simd<T, 1> BorrowV = borrow;                                   \
+    __ESIMD_NS::simd<T, 1> Src0V = src0;                                       \
+    __ESIMD_NS::simd<T, 1> Src1V = src1;                                       \
+    __ESIMD_NS::simd<T, 1> Res = subb(BorrowV, Src0V, Src1V);                  \
+    borrow = BorrowV[0];                                                       \
+    return Res[0];                                                             \
+  } // namespace ext::intel::esimd
 
-/// Performs substraction with borrow of unsigned integral scalar and vector.
-/// @tparam N size of the vectors
-/// @param borrow vector that is going to hold resulting borrow flag
-/// @param src0 first term
-/// @param src1 second term
-/// @return difference of 2 terms, borrow flag is returned through \c borrow
-/// parameter
-template <int N, typename T>
-__ESIMD_API std::enable_if_t<!std::is_signed_v<T> && std::is_integral_v<T>,
-                             __ESIMD_NS::simd<T, N>>
-subb(__ESIMD_NS::simd<T, N> &borrow, T src0, __ESIMD_NS::simd<T, N> src1) {
-  __ESIMD_NS::simd<T, N> Src0V = src0;
-  return subb(borrow, Src0V, src1);
-}
+__ESIMD_SUBB(uint8_t)
+__ESIMD_SUBB(uint16_t)
+__ESIMD_SUBB(uint32_t)
+__ESIMD_SUBB(uint64_t)
 
-/// Performs substraction with borrow of 2 unsigned integral scalars.
-/// @tparam N size of the vectors
-/// @param borrow scalar that is going to hold resulting borrow flag
-/// @param src0 first term
-/// @param src1 second term
-/// @return difference of 2 terms, borrow flag is returned through \c borrow
-/// parameter
-template <typename T>
-__ESIMD_API std::enable_if_t<!std::is_signed_v<T> && std::is_integral_v<T>, T>
-subb(T &borrow, T src0, T src1) {
-  __ESIMD_NS::simd<T, 1> BorrowV = borrow;
-  __ESIMD_NS::simd<T, 1> Src0V = src0;
-  __ESIMD_NS::simd<T, 1> Src1V = src1;
-  __ESIMD_NS::simd<T, 1> Res = subb(BorrowV, Src0V, Src1V);
-  borrow = BorrowV[0];
-  return Res[0];
-}
+#undef __ESIMD_SUBB
+#undef __ESIMD_SUBB_IMPL
 
 /// @} sycl_esimd_math
 
