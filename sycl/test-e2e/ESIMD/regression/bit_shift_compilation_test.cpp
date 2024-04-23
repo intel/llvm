@@ -1,5 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// RUN: %{build} -o %t1.out -DEXP
+// RUN: %{run} %t1.out
 //==- bit_shift_compilation_test.cpp - Test for compilation of bit shift
 // functions -==//
 //
@@ -20,6 +22,12 @@ using namespace sycl::ext::intel::experimental::esimd;
 #define SIMD 16
 #define THREAD_NUM 512
 #define TEST_VALUE 0x55555555
+
+#ifdef EXP
+#define NS sycl::ext::intel::experimental::esimd
+#else
+#define NS sycl::ext::intel::esimd
+#endif
 
 template <typename DataT>
 using shared_allocator = sycl::usm_allocator<DataT, sycl::usm::alloc::shared>;
@@ -70,23 +78,23 @@ int test(sycl::queue q, TArg1 arg1, TArg2 arg2, TRes expected_shl,
       __ESIMD_NS::simd<TRes, 1> scalar_result;
       __ESIMD_NS::simd<TRes, SIMD> result;
 
-      result = shl<TArg1>(input_vec, arg2, sat);
-      scalar_result = shl<TArg1>(arg1, arg2, sat);
+      result = NS::shl<TArg1>(input_vec, arg2, sat);
+      scalar_result = NS::shl<TArg1>(arg1, arg2, sat);
       result.copy_to(shl_ptr + it.get_global_id(0) * SIMD);
       scalar_result.copy_to(scalar_shl_ptr);
 
-      result = shr<TArg1>(input_vec, arg2, sat);
-      scalar_result = shr<TArg1>(arg1, arg2, sat);
+      result = NS::shr<TArg1>(input_vec, arg2, sat);
+      scalar_result = NS::shr<TArg1>(arg1, arg2, sat);
       result.copy_to(shr_ptr + it.get_global_id(0) * SIMD);
       scalar_result.copy_to(scalar_shr_ptr);
 
-      result = lsr<TArg1>(input_vec, arg2, sat);
-      scalar_result = lsr<TArg1>(arg1, arg2, sat);
+      result = NS::lsr<TArg1>(input_vec, arg2, sat);
+      scalar_result = NS::lsr<TArg1>(arg1, arg2, sat);
       result.copy_to(lsr_ptr + it.get_global_id(0) * SIMD);
       scalar_result.copy_to(scalar_lsr_ptr);
 
-      result = asr<TArg1>(input_vec, arg2, sat);
-      scalar_result = asr<TArg1>(arg1, arg2, sat);
+      result = NS::asr<TArg1>(input_vec, arg2, sat);
+      scalar_result = NS::asr<TArg1>(arg1, arg2, sat);
       result.copy_to(asr_ptr + it.get_global_id(0) * SIMD);
       scalar_result.copy_to(scalar_asr_ptr);
     });
@@ -153,7 +161,36 @@ int main(int argc, char *argv[]) {
                                                    0x1000, 0x1000);
   test_result |= test<uint16_t, uint16_t, int32_t>(q, 0x7FFF, 2, 0xFFFC, 0x1FFF,
                                                    0x1FFF, 0x1FFF);
+#ifdef TEST_INT64
+  test_result |= test<uint64_t, uint64_t, int64_t>(
+      q, 0x5555555555555555, 1, 0xAAAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA,
+      0x2AAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA);
+  test_result |= test<uint64_t, int64_t, int64_t>(
+      q, 0x5555555555555555, 1, 0xAAAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA,
+      0x2AAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA);
+  test_result |= test<int64_t, uint64_t, int64_t>(
+      q, 0x5555555555555555, 1, 0xAAAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA,
+      0x2AAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA);
+  test_result |= test<int64_t, int64_t, int64_t>(
+      q, 0x5555555555555555, 1, 0xAAAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA,
+      0x2AAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA);
 
+  test_result |=
+      test<uint64_t, uint64_t, int64_t, __ESIMD_NS::saturation_on_tag>(
+          q, 0x5555555555555555, 1, 0xAAAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA,
+          0x2AAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA);
+  test_result |=
+      test<uint64_t, int64_t, int64_t, __ESIMD_NS::saturation_on_tag>(
+          q, 0x5555555555555555, 1, 0x7FFFFFFFFFFFFFFF, 0x2AAAAAAAAAAAAAAA,
+          0x2AAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA);
+  test_result |=
+      test<int64_t, uint64_t, int64_t, __ESIMD_NS::saturation_on_tag>(
+          q, 0x5555555555555555, 1, 0xAAAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA,
+          0x2AAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA);
+  test_result |= test<int64_t, int64_t, int64_t, __ESIMD_NS::saturation_on_tag>(
+      q, 0x5555555555555555, 1, 0x7FFFFFFFFFFFFFFF, 0x2AAAAAAAAAAAAAAA,
+      0x2AAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA);
+#endif
   if (!test_result) {
     std::cout << "Pass" << std::endl;
   }
