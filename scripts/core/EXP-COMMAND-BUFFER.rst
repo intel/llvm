@@ -256,7 +256,6 @@ Enums
     * ${X}_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_MEMOBJ_ARG_DESC
     * ${X}_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_POINTER_ARG_DESC
     * ${X}_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC
-    * ${X}_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_EXEC_INFO_DESC
 * ${x}_command_t
     * ${X}_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP
 * ${x}_function_t
@@ -290,7 +289,6 @@ Types
 * ${x}_exp_command_buffer_update_memobj_arg_desc_t
 * ${x}_exp_command_buffer_update_pointer_arg_desc_t
 * ${x}_exp_command_buffer_update_value_arg_desc_t
-* ${x}_exp_command_buffer_update_exec_info_desc_t
 * ${x}_exp_command_buffer_sync_point_t
 * ${x}_exp_command_buffer_handle_t
 * ${x}_exp_command_buffer_command_handle_t

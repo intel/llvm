@@ -81,8 +81,10 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
 ur_exp_command_buffer_command_handle_t_::
     ur_exp_command_buffer_command_handle_t_(
         ur_exp_command_buffer_handle_t CommandBuffer, uint64_t CommandId,
+        uint32_t WorkDim, bool UserDefinedLocalSize,
         ur_kernel_handle_t Kernel = nullptr)
-    : CommandBuffer(CommandBuffer), CommandId(CommandId), Kernel(Kernel) {
+    : CommandBuffer(CommandBuffer), CommandId(CommandId), WorkDim(WorkDim),
+      UserDefinedLocalSize(UserDefinedLocalSize), Kernel(Kernel) {
   urCommandBufferRetainExp(CommandBuffer);
   if (Kernel)
     urKernelRetain(Kernel);
@@ -591,8 +593,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   }
   try {
     if (Command)
-      *Command = new ur_exp_command_buffer_command_handle_t_(CommandBuffer,
-                                                             CommandId, Kernel);
+      *Command = new ur_exp_command_buffer_command_handle_t_(
+          CommandBuffer, CommandId, WorkDim, LocalWorkSize != nullptr, Kernel);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -1039,8 +1041,30 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   UR_ASSERT(Command->CommandBuffer->IsFinalized,
             UR_RESULT_ERROR_INVALID_OPERATION);
 
-  auto CommandBuffer = Command->CommandBuffer;
   uint32_t Dim = CommandDesc->newWorkDim;
+  if (Dim != 0) {
+    // Error if work dim changes
+    if (Dim != Command->WorkDim) {
+      return UR_RESULT_ERROR_INVALID_OPERATION;
+    }
+
+    // Error If Local size and not global size
+    if ((CommandDesc->pNewLocalWorkSize != nullptr) &&
+        (CommandDesc->pNewGlobalWorkSize == nullptr)) {
+      return UR_RESULT_ERROR_INVALID_OPERATION;
+    }
+
+    // Error if local size non-nullptr and created with null
+    // or if local size nullptr and created with non-null
+    const bool IsNewLocalSizeNull = CommandDesc->pNewLocalWorkSize == nullptr;
+    const bool IsOriginalLocalSizeNull = !Command->UserDefinedLocalSize;
+
+    if (IsNewLocalSizeNull ^ IsOriginalLocalSizeNull) {
+      return UR_RESULT_ERROR_INVALID_OPERATION;
+    }
+  }
+
+  auto CommandBuffer = Command->CommandBuffer;
   const void *NextDesc = nullptr;
   auto SupportedFeatures =
       Command->CommandBuffer->Device->ZeDeviceMutableCmdListsProperties
@@ -1229,56 +1253,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     ZeMutableArgDesc->pArgValue = ArgValuePtr;
     NextDesc = ZeMutableArgDesc.get();
     ArgDescs.push_back(std::move(ZeMutableArgDesc));
-  }
-
-  // Check if there are new exec info flags provided.
-  for (uint32_t NewExecInfoNum = CommandDesc->numNewExecInfos;
-       NewExecInfoNum-- > 0;) {
-    ur_exp_command_buffer_update_exec_info_desc_t NewExecInfoDesc =
-        CommandDesc->pNewExecInfoList[NewExecInfoNum];
-    ur_kernel_exec_info_t PropName = NewExecInfoDesc.propName;
-    const void *PropValue = NewExecInfoDesc.pNewExecInfo;
-    if (PropName == UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS) {
-      // The whole point for users really was to not need to know anything
-      // about the types of allocations kernel uses. So in DPC++ we always
-      // just set all 3 modes for each kernel.
-      if (*(static_cast<const ur_bool_t *>(PropValue)) == true) {
-        ze_kernel_indirect_access_flags_t IndirectFlags =
-            ZE_KERNEL_INDIRECT_ACCESS_FLAG_HOST |
-            ZE_KERNEL_INDIRECT_ACCESS_FLAG_DEVICE |
-            ZE_KERNEL_INDIRECT_ACCESS_FLAG_SHARED;
-        ZE2UR_CALL(zeKernelSetIndirectAccess,
-                   (Command->Kernel->ZeKernel, IndirectFlags));
-      }
-    } else if (PropName == UR_KERNEL_EXEC_INFO_CACHE_CONFIG) {
-      ze_cache_config_flag_t ZeCacheConfig{};
-      auto CacheConfig =
-          *(static_cast<const ur_kernel_cache_config_t *>(PropValue));
-      switch (CacheConfig) {
-      case UR_KERNEL_CACHE_CONFIG_LARGE_SLM:
-        ZeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_SLM;
-        break;
-      case UR_KERNEL_CACHE_CONFIG_LARGE_DATA:
-        ZeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_DATA;
-        break;
-      case UR_KERNEL_CACHE_CONFIG_DEFAULT:
-        ZeCacheConfig = static_cast<ze_cache_config_flag_t>(0);
-        break;
-      default:
-        // Unexpected cache configuration value.
-        return UR_RESULT_ERROR_INVALID_VALUE;
-      }
-      ZE2UR_CALL(zeKernelSetCacheConfig,
-                 (Command->Kernel->ZeKernel, ZeCacheConfig););
-    } else if (PropName == UR_KERNEL_EXEC_INFO_USM_PTRS) {
-      // Ignore this property as such kernel property is not supported by Level
-      // Zero.
-      continue;
-    } else {
-      logger::error("urCommandBufferUpdateKernelLaunchExp: unsupported name of "
-                    "execution attribute.");
-      return UR_RESULT_ERROR_INVALID_VALUE;
-    }
   }
 
   ZeStruct<ze_mutable_commands_exp_desc_t> MutableCommandDesc;
