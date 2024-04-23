@@ -1133,6 +1133,16 @@ static bool translateVStore(CallInst &CI, SmallPtrSetImpl<Type *> &GVTS) {
   return true;
 }
 
+static bool translateFMADD(CallInst &CI) {
+  IRBuilder<> Builder(&CI);
+  Instruction *FMAI = Builder.CreateIntrinsic(
+      CI.getType(), Intrinsic::fma,
+      {CI.getArgOperand(0), CI.getArgOperand(1), CI.getArgOperand(2)});
+  FMAI->setDebugLoc(CI.getDebugLoc());
+  CI.replaceAllUsesWith(FMAI);
+  return true;
+}
+
 // Newly created GenX intrinsic might have different return type than expected.
 // This helper function creates cast operation from GenX intrinsic return type
 // to currently expected. Returns pointer to created cast instruction if it
@@ -1156,6 +1166,7 @@ static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI,
 // To
 //   %mul = fmul <type> %a, <type> %b
 //   %res = fadd <type> %mul, <type> %c
+// TODO: Remove when newer GPU driver is used in CI.
 void translateFmuladd(CallInst *CI) {
   assert(CI->getIntrinsicID() == Intrinsic::fmuladd);
   IRBuilder<> Bld(CI);
@@ -1512,12 +1523,6 @@ void generateKernelMetadata(Module &M) {
 
   LLVMContext &Ctx = M.getContext();
   Type *I32Ty = Type::getInt32Ty(Ctx);
-
-  std::string TargetTriple = M.getTargetTriple();
-  llvm::Triple T(TargetTriple);
-  T.setArchName("genx64");
-  TargetTriple = T.str();
-  M.setTargetTriple(TargetTriple);
 
   enum { AK_NORMAL, AK_SAMPLER, AK_SURFACE, AK_VME };
   enum { IK_NORMAL, IK_INPUT, IK_OUTPUT, IK_INPUT_OUTPUT };
@@ -2142,6 +2147,13 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       }
       if (Name.starts_with("__esimd_vstore")) {
         if (translateVStore(*CI, GVTS)) {
+          ToErase.push_back(CI);
+          continue;
+        }
+      }
+
+      if (Name.starts_with("__esimd_fmadd")) {
+        if (translateFMADD(*CI)) {
           ToErase.push_back(CI);
           continue;
         }
