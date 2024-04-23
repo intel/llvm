@@ -41,9 +41,7 @@ _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_modf(__CLC_GENTYPE x,
 MODF_DEF(local);
 MODF_DEF(global);
 
-#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
-    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
-     defined(__opencl_c_generic_address_space))
+#if _CLC_GENERIC_AS_SUPPORTED
 MODF_DEF(generic);
 #endif
 

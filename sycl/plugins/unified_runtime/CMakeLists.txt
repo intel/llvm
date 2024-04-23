@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 717791bfc636a1cd69f95f09fea15fcd70a9fb23
-  # Merge: 601062ba f8c4facd
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Fri Apr 19 10:35:14 2024 +0100
-  #    Merge pull request #1517 from nrspruit/fix_l0_coverity_sync
-  #    [L0] Store LastCommandEvent before unlock during queue sync
-  set(UNIFIED_RUNTIME_TAG 717791bfc636a1cd69f95f09fea15fcd70a9fb23)
+  # commit 31d0fe153733601fe4864fffb9148d554fe9a7ca
+  # Merge: 2eea85f2 6a602134
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Mon Apr 22 14:38:18 2024 +0100
+  #     Merge pull request #1243 from kbenzie/benie/fix-urinfo-device-uuid-printing
+  #     [urinfo] Fix printing of device UUID
+  set(UNIFIED_RUNTIME_TAG 31d0fe153733601fe4864fffb9148d554fe9a7ca)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
