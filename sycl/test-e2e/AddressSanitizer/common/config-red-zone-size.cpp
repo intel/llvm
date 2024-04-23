@@ -1,5 +1,5 @@
-// REQUIRES: linux
-// RUN: %{build} %device_sanitizer_flags -O0 -g -o %t
+// REQUIRES: linux, cpu
+// RUN: %{build} %device_asan_flags -O0 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 UR_LAYER_ASAN_OPTIONS=redzone:64 %{run} not %t 2>&1 | FileCheck %s
 // RUN: env SYCL_PREFER_UR=1 UR_LOG_SANITIZER=level:debug UR_LAYER_ASAN_OPTIONS=redzone:8 %{run} %t 2>&1 | FileCheck --check-prefixes CHECK-MIN %s
 // RUN: env SYCL_PREFER_UR=1 UR_LOG_SANITIZER=level:debug UR_LAYER_ASAN_OPTIONS=max_redzone:4096 %{run} %t 2>&1 | FileCheck --check-prefixes CHECK-MAX %s
