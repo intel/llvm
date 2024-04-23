@@ -48,8 +48,7 @@ TYPE __clc__atomic_##PREFIX##store_##AS##_##BYTE_SIZE##_##MEM_ORDER(volatile AS 
 
 #define IMPL_AS(TYPE, TYPE_MANGLED, PREFIX, BYTE_SIZE)                         \
   IMPL(TYPE, TYPE_MANGLED, global, U3AS1, 1, PREFIX, BYTE_SIZE)                \
-  IMPL(TYPE, TYPE_MANGLED, local, U3AS3, 1, PREFIX, BYTE_SIZE)                 \
-  IMPL(TYPE, TYPE_MANGLED, , , 0, PREFIX, BYTE_SIZE)
+  IMPL(TYPE, TYPE_MANGLED, local, U3AS3, 1, PREFIX, BYTE_SIZE)
 
 IMPL_AS(int, i, , 4)
 IMPL_AS(unsigned int, j, u, 4)
@@ -58,6 +57,21 @@ IMPL_AS(unsigned int, j, u, 4)
 IMPL_AS(long, l, , 8)
 IMPL_AS(unsigned long, m, u, 8)
 #endif
+
+#ifdef _CLC_GENERIC_AS_SUPPORTED
+
+#define IMPL_GENERIC(TYPE, TYPE_MANGLED, PREFIX, BYTE_SIZE)                    \
+  IMPL(TYPE, TYPE_MANGLED, , , 0, PREFIX, BYTE_SIZE)
+
+IMPL_GENERIC(int, i, , 4)
+IMPL_GENERIC(unsigned int, j, u, 4)
+
+#ifdef cl_khr_int64_base_atomics
+IMPL_GENERIC(long, l, , 8)
+IMPL_GENERIC(unsigned long, m, u, 8)
+#endif
+
+#endif //_CLC_GENERIC_AS_SUPPORTED
 
 #undef FDECL
 #undef IMPL_AS
