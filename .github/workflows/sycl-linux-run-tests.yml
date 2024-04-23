@@ -336,19 +336,21 @@ jobs:
       # https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#custom-shell
       shell: bash {0}
       run: |
-        failed_suites=""
+        # Run each test category separately so that
+        #  - crash on one would not affect others
+        #  - multiple tests could be run in parallel
+        # test_all contains all categories, so skip it
+        mkdir logs
+        find build-cts/bin/ ! -name 'test_all' -print | \
+          xargs -t -I % -P 8 sh -c 'log=logs/$(basename %).log ; echo % >$log ; /usr/bin/time -p timeout 10s % >>$log 2>&1 ; ret=$? ; echo "exit code: $ret" >>$log ; exit $ret'
+        ret=$?
 
-        for i in `ls -1 ./build-cts/bin`; do
-          echo "::group::Running $i"
-          build-cts/bin/$i
-          [ $? -ne 0 ] && failed_suites+=$i'\n'
+        for f in logs/* ; do
+          echo "::group::$f"
+          cat $f
           echo "::endgroup::"
         done
 
-        if [ -n "$failed_suites" ]; then
-          echo -e "Failed suite(s): $failed_suites"
-          echo -e "Failed suite(s): $failed_suites" >> $GITHUB_STEP_SUMMARY
-          exit 1
-        fi
+        grep 'exit code: [^0]' -r logs >> $GITHUB_STEP_SUMMARY
 
-        exit 0
+        exit $ret
