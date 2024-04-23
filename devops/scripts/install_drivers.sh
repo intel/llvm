@@ -8,14 +8,17 @@ if [ -f "$1" ]; then
     CONFIG_FILE=$1
     CR_TAG=$(jq -r '.linux.compute_runtime.github_tag' $CONFIG_FILE)
     IGC_TAG=$(jq -r '.linux.igc.github_tag' $CONFIG_FILE)
-    IGC_DEV_TAG=$(jq -r '.linux.igc_dev.github_tag' $CONFIG_FILE)
-    IGC_DEV_VER=$(jq -r '.linux.igc_dev.version' $CONFIG_FILE)
-    IGC_DEV_URL=$(jq -r '.linux.igc_dev.url' $CONFIG_FILE)
     CM_TAG=$(jq -r '.linux.cm.github_tag' $CONFIG_FILE)
     L0_TAG=$(jq -r '.linux.level_zero.github_tag' $CONFIG_FILE)
     TBB_TAG=$(jq -r '.linux.tbb.github_tag' $CONFIG_FILE)
     FPGA_TAG=$(jq -r '.linux.fpgaemu.github_tag' $CONFIG_FILE)
     CPU_TAG=$(jq -r '.linux.oclcpu.github_tag' $CONFIG_FILE)
+    if [[ "$*" == *"--use-dev-igc"* ]]; then
+       CONFIG_FILE_IGC_DEV=$2
+       IGC_DEV_TAG=$(jq -r '.linux.igc_dev.github_tag' $CONFIG_FILE_IGC_DEV)
+       IGC_DEV_VER=$(jq -r '.linux.igc_dev.version' $CONFIG_FILE_IGC_DEV)
+       IGC_DEV_URL=$(jq -r '.linux.igc_dev.url' $CONFIG_FILE_IGC_DEV)
+    fi
 elif [[ "$*" == *"--use-latest"* ]]; then
     CR_TAG=latest
     IGC_TAG=latest
