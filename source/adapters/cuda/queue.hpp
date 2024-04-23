@@ -97,6 +97,7 @@ struct ur_queue_handle_t_ {
                                    uint32_t *StreamToken = nullptr);
   native_type getNextTransferStream();
   native_type get() { return getNextComputeStream(); };
+  ur_device_handle_t getDevice() const noexcept { return Device; };
 
   bool hasBeenSynchronized(uint32_t StreamToken) {
     // stream token not associated with one of the compute streams
