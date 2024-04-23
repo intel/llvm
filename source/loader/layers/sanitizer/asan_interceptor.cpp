@@ -401,9 +401,11 @@ ur_result_t SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
     auto Program = GetProgram(Kernel);
     ur_event_handle_t ReadEvent{};
 
+    // FIXME: We must use urQueueFinish, until we support urEventSetCallback
+    context.urDdiTable.Queue.pfnFinish(Queue);
+
     // If kernel has defined SPIR_DeviceSanitizerReportMem, then we try to read it
     // to host, but it's okay that it isn't defined
-    // FIXME: We must use block operation here, until we support urEventSetCallback
     auto Result = context.urDdiTable.Enqueue.pfnDeviceGlobalVariableRead(
         Queue, Program, kSPIR_DeviceSanitizerReportMem, true,
         sizeof(LaunchInfo.SPIR_DeviceSanitizerReportMem), 0,
