@@ -623,8 +623,13 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
         /* IsInternal */ false, /* IsMultiDevice */ false,
         /* HostVisible */ true));
 
-    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-               (CommandList->first, 1, &ZeEvent));
+    if (this->IsInnerBatchedEvent) {
+      ZE2UR_CALL(zeCommandListAppendBarrier,
+                 (CommandList->first, ZeEvent, 0, nullptr));
+    } else {
+      ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+                 (CommandList->first, 1, &ZeEvent));
+    }
     ZE2UR_CALL(zeCommandListAppendSignalEvent,
                (CommandList->first, HostVisibleEvent->ZeEvent));
 
