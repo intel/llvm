@@ -346,6 +346,13 @@ public:
   /// descriptor.
   void addParamDesc(kernel_param_kind_t Kind, int Info, unsigned Offset);
 
+  /// Adds a kernel parameter type to current kernel invocation
+  /// descriptor.
+  void addParamType(QualType Type);
+
+  /// Saves the return type used in the traits shim.
+  void setAddressOfCast(QualType Type);
+
   /// Signals that addition of parameter descriptors to current kernel
   /// invocation descriptor has finished.
   void endKernel();
@@ -417,12 +424,18 @@ private:
     /// Descriptor of kernel actual parameters.
     SmallVector<KernelParamDesc, 8> Params;
 
+    /// List of kernel actual parameter types.
+    SmallVector<QualType, 8> ParamTypes;
+
     // If we are in unnamed kernel/lambda mode AND this is one that the user
     // hasn't provided an explicit name for.
     bool IsUnnamedKernel;
 
     // Whether this is a free function kernel.
     bool IsFreeFunctionKernel;
+    
+    // The type used for casting the free function address in the traits shim.
+    QualType AddressOfCast;
 
     /// Size of the kernel object.
     int64_t ObjSize = 0;
