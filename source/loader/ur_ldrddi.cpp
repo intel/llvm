@@ -54,6 +54,9 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
     size_t adapterIndex = 0;
     if (nullptr != phAdapters && NumEntries != 0) {
         for (auto &platform : context->platforms) {
+            if (platform.initStatus != UR_RESULT_SUCCESS) {
+                continue;
+            }
             platform.dditable.ur.Global.pfnAdapterGet(
                 1, &phAdapters[adapterIndex], nullptr);
             try {

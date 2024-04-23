@@ -62,7 +62,11 @@ inline void printPlatformInfos(${x}_platform_handle_t hPlatform, std::string_vie
 inline void printDeviceInfos(${x}_device_handle_t hDevice, std::string_view prefix = "      ") {
 %for etor in obj['etors']:
     std::cout << prefix;
+%if etor['name'] == '$X_DEVICE_INFO_UUID':
+    printDeviceUUID(hDevice, ${etor['name'].replace('$X', X)});
+%else:
     printDeviceInfo<${etor['desc'][1:etor['desc'].find(' ')-1].replace('$x', x)}>(hDevice, ${etor['name'].replace('$X', X)});
+%endif
 %endfor
 }
 %endif

@@ -10,13 +10,214 @@
 
 #include <algorithm>
 #include <climits>
+#include <cstdint>
 #include <optional>
 #include <string.h>
+#include <vector>
 
 #include "adapter.hpp"
+#include "adapters/level_zero/event.hpp"
 #include "common.hpp"
 #include "queue.hpp"
+#include "ur_api.h"
 #include "ur_level_zero.hpp"
+#include "ur_util.hpp"
+#include "ze_api.h"
+
+// Hard limit for the event completion batches.
+static const uint64_t CompletionBatchesMax = [] {
+  // Default value chosen empirically to maximize the number of asynchronous
+  // in-flight operations and avoid excessive synchronous waits.
+
+  return getenv_to_unsigned("UR_L0_IMMEDIATE_COMMANDLISTS_BATCH_MAX")
+      .value_or(10);
+}();
+
+static const uint64_t CompletionEventsPerBatch = [] {
+  // The number of events to accumulate in each batch prior to waiting for
+  // completion.
+  return getenv_to_unsigned("UR_L0_IMMEDIATE_COMMANDLISTS_EVENTS_PER_BATCH")
+      .value_or(256);
+}();
+
+ur_completion_batch::ur_completion_batch()
+    : barrierEvent(nullptr), st(EMPTY), numEvents(0) {}
+
+ur_completion_batch::~ur_completion_batch() {
+  if (barrierEvent)
+    urEventReleaseInternal(barrierEvent);
+}
+
+bool ur_completion_batch::isFull() {
+  assert(st == ACCUMULATING);
+
+  return numEvents >= CompletionEventsPerBatch;
+}
+
+void ur_completion_batch::append() {
+  assert(st == ACCUMULATING);
+  numEvents++;
+}
+
+ur_result_t ur_completion_batch::reset() {
+  st = EMPTY;
+  numEvents = 0;
+
+  // we reuse the UR event handle but reset the internal level-zero one
+  if (barrierEvent)
+    ZE2UR_CALL(zeEventHostReset, (barrierEvent->ZeEvent));
+
+  return UR_RESULT_SUCCESS;
+}
+
+void ur_completion_batch::use() {
+  assert(st == EMPTY);
+  st = ACCUMULATING;
+}
+
+ur_completion_batch::state ur_completion_batch::getState() { return st; }
+
+ur_completion_batch::state ur_completion_batch::queryState() {
+  if (st == SEALED) {
+    checkComplete();
+  }
+
+  return st;
+}
+
+bool ur_completion_batch::checkComplete() {
+  assert(st == COMPLETED || st == SEALED);
+
+  if (st == COMPLETED)
+    return true;
+
+  auto zeResult = ZE_CALL_NOCHECK(zeEventQueryStatus, (barrierEvent->ZeEvent));
+  if (zeResult == ZE_RESULT_SUCCESS) {
+    st = COMPLETED;
+  }
+
+  return st == COMPLETED;
+}
+
+ur_result_t ur_completion_batch::seal(ur_queue_handle_t queue,
+                                      ze_command_list_handle_t cmdlist) {
+  assert(st == ACCUMULATING);
+
+  if (!barrierEvent) {
+    UR_CALL(EventCreate(queue->Context, queue, false, true, &barrierEvent));
+  }
+
+  // Instead of collecting all the batched events, we simply issue a global
+  // barrier for all prior events on the command list. This is simpler and
+  // showed to be faster in practice.
+  ZE2UR_CALL(zeCommandListAppendBarrier,
+             (cmdlist, barrierEvent->ZeEvent, 0, nullptr));
+
+  st = SEALED;
+
+  return UR_RESULT_SUCCESS;
+}
+
+void ur_completion_batches::append(ur_event_handle_t event) {
+  active->append();
+  event->completionBatch = active;
+}
+
+void ur_completion_batches::moveCompletedEvents(
+    ur_completion_batch_it it, std::vector<ur_event_handle_t> &events,
+    std::vector<ur_event_handle_t> &EventListToCleanup) {
+  // This works by tagging all events belonging to a batch, and then removing
+  // all events in a vector with the tag (iterator) of the active batch.
+  // This could be optimized to remove a specific range of entries if we had a
+  // guarantee that all the appended events in the vector remain there in the
+  // same order. Unfortunately that is not simple to enforce.
+  // TODO: An even better approach would be to split the EventList vector into
+  // smaller batch-sized ones, but that would require a significant refactor.
+
+  auto end = std::remove_if(events.begin(), events.end(), [&](auto &event) {
+    if (event->completionBatch == it) {
+      EventListToCleanup.push_back(event);
+      return true;
+    } else {
+      return false;
+    }
+  });
+  events.erase(end, events.end());
+}
+
+ur_result_t ur_completion_batches::cleanup(
+    std::vector<ur_event_handle_t> &events,
+    std::vector<ur_event_handle_t> &EventListToCleanup) {
+  bool cleaned = false;
+  while (!sealed.empty()) {
+    auto oldest_sealed = sealed.front();
+    if (oldest_sealed->queryState() == ur_completion_batch::COMPLETED) {
+      sealed.pop();
+      moveCompletedEvents(oldest_sealed, events, EventListToCleanup);
+      UR_CALL(oldest_sealed->reset());
+      cleaned = true;
+    } else {
+      break;
+    }
+  }
+
+  return cleaned ? UR_RESULT_SUCCESS : UR_RESULT_ERROR_OUT_OF_RESOURCES;
+}
+
+std::optional<ur_completion_batch_it>
+ur_completion_batches::findFirstEmptyBatchOrCreate() {
+  for (auto it = batches.begin(); it != batches.end(); ++it) {
+    if (it->getState() == ur_completion_batch::EMPTY) {
+      return it;
+    }
+  }
+
+  // try creating a new batch if allowed by the limit.
+  if (batches.size() < CompletionBatchesMax) {
+    return batches.emplace(batches.end());
+  }
+
+  return std::nullopt;
+}
+
+ur_completion_batches::ur_completion_batches() {
+  // Batches are created lazily on-demand. Start with just one.
+  active = batches.emplace(batches.begin());
+  active->use();
+}
+
+ur_result_t ur_completion_batches::tryCleanup(
+    ur_queue_handle_t queue, ze_command_list_handle_t cmdlist,
+    std::vector<ur_event_handle_t> &events,
+    std::vector<ur_event_handle_t> &EventListToCleanup) {
+  cleanup(events, EventListToCleanup);
+
+  if (active->isFull()) {
+    auto next_batch = findFirstEmptyBatchOrCreate();
+    if (!next_batch) {
+      return UR_RESULT_ERROR_OUT_OF_RESOURCES; // EWOULDBLOCK
+    }
+
+    UR_CALL(active->seal(queue, cmdlist));
+    sealed.push(active);
+    active = *next_batch;
+    active->use();
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+void ur_completion_batches::forceReset() {
+  for (auto &b : batches) {
+    b.reset();
+  }
+  while (!sealed.empty()) {
+    sealed.pop();
+  }
+
+  active = batches.begin();
+  active->use();
+}
 
 /// @brief Cleanup events in the immediate lists of the queue.
 /// @param Queue Queue where events need to be cleaned up.
@@ -250,8 +451,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(
     return ReturnValue(true);
   }
   default:
-    urPrint("Unsupported ParamName in urQueueGetInfo: ParamName=%d(0x%x)\n",
-            ParamName, ParamName);
+    logger::error(
+        "Unsupported ParamName in urQueueGetInfo: ParamName=ParamName={}(0x{})",
+        ParamName, logger::toHex(ParamName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -424,6 +626,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(
       // If the fence is a nullptr we are using immediate commandlists,
       // otherwise regular commandlists which use a fence.
       if (it->second.ZeFence == nullptr || it->second.ZeFenceInUse) {
+        // Destroy completions batches if they are being used. This needs
+        // to happen prior to resetCommandList so that all events are
+        // checked.
+        it->second.completions.reset();
         Queue->resetCommandList(it, true, EventListToCleanup);
       }
       // TODO: remove "if" when the problem is fixed in the level zero
@@ -520,16 +726,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetNativeHandle(
 }
 
 void ur_queue_handle_t_::ur_queue_group_t::setImmCmdList(
-    ze_command_list_handle_t ZeCommandList) {
+    ur_queue_handle_t queue, ze_command_list_handle_t ZeCommandList) {
   // An immediate command list was given to us but we don't have the queue
   // descriptor information. Create a dummy and note that it is not recycleable.
   ZeStruct<ze_command_queue_desc_t> ZeQueueDesc;
+
   ImmCmdLists = std::vector<ur_command_list_ptr_t>(
       1,
       Queue->CommandListMap
           .insert(std::pair<ze_command_list_handle_t, ur_command_list_info_t>{
               ZeCommandList,
-              {nullptr, true, false, nullptr, ZeQueueDesc, false}})
+              ur_command_list_info_t(nullptr, true, false, nullptr, ZeQueueDesc,
+                                     queue->useCompletionBatching(), false)})
           .first);
 }
 
@@ -597,7 +805,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
       return UR_RESULT_ERROR_UNKNOWN;
     }
     auto &InitialGroup = (*RetQueue)->ComputeQueueGroupsByTID.begin()->second;
-    InitialGroup.setImmCmdList(ur_cast<ze_command_list_handle_t>(NativeQueue));
+    InitialGroup.setImmCmdList(*RetQueue,
+                               ur_cast<ze_command_list_handle_t>(NativeQueue));
   } else {
     auto ZeQueue = ur_cast<ze_command_queue_handle_t>(NativeQueue);
     // Assume this is the "0" index queue in the compute command-group.
@@ -773,9 +982,9 @@ static const zeCommandListBatchConfig ZeCommandListBatchConfig(bool IsCopy) {
           Val = std::stoi(BatchConfig.substr(Pos));
         } catch (...) {
           if (IsCopy)
-            urPrint("UR_L0_COPY_BATCH_SIZE: failed to parse value\n");
+            logger::error("UR_L0_COPY_BATCH_SIZE: failed to parse value");
           else
-            urPrint("UR_L0_BATCH_SIZE: failed to parse value\n");
+            logger::error("UR_L0_BATCH_SIZE: failed to parse value");
           break;
         }
         switch (Ord) {
@@ -798,20 +1007,20 @@ static const zeCommandListBatchConfig ZeCommandListBatchConfig(bool IsCopy) {
           die("Unexpected batch config");
         }
         if (IsCopy)
-          urPrint("UR_L0_COPY_BATCH_SIZE: dynamic batch param "
-                  "#%d: %d\n",
-                  (int)Ord, (int)Val);
+          logger::error("UR_L0_COPY_BATCH_SIZE: dynamic batch param "
+                        "#{}: {}",
+                        (int)Ord, (int)Val);
         else
-          urPrint("UR_L0_BATCH_SIZE: dynamic batch param #%d: %d\n", (int)Ord,
-                  (int)Val);
+          logger::error("UR_L0_BATCH_SIZE: dynamic batch param #{}: {}",
+                        (int)Ord, (int)Val);
       };
 
     } else {
       // Negative batch sizes are silently ignored.
       if (IsCopy)
-        urPrint("UR_L0_COPY_BATCH_SIZE: ignored negative value\n");
+        logger::warning("UR_L0_COPY_BATCH_SIZE: ignored negative value");
       else
-        urPrint("UR_L0_BATCH_SIZE: ignored negative value\n");
+        logger::warning("UR_L0_BATCH_SIZE: ignored negative value");
     }
   }
   return Config;
@@ -980,7 +1189,7 @@ void ur_queue_handle_t_::adjustBatchSizeForFullBatch(bool IsCopy) {
           ZeCommandListBatchConfig.NumTimesClosedFullThreshold) {
     if (QueueBatchSize < ZeCommandListBatchConfig.DynamicSizeMax) {
       QueueBatchSize += ZeCommandListBatchConfig.DynamicSizeStep;
-      urPrint("Raising QueueBatchSize to %d\n", QueueBatchSize);
+      logger::debug("Raising QueueBatchSize to {}", QueueBatchSize);
     }
     CommandBatch.NumTimesClosedEarly = 0;
     CommandBatch.NumTimesClosedFull = 0;
@@ -1007,7 +1216,7 @@ void ur_queue_handle_t_::adjustBatchSizeForPartialBatch(bool IsCopy) {
     QueueBatchSize = CommandBatch.OpenCommandList->second.size() - 1;
     if (QueueBatchSize < 1)
       QueueBatchSize = 1;
-    urPrint("Lowering QueueBatchSize to %d\n", QueueBatchSize);
+    logger::debug("Lowering QueueBatchSize to {}", QueueBatchSize);
     CommandBatch.NumTimesClosedEarly = 0;
     CommandBatch.NumTimesClosedFull = 0;
   }
@@ -1323,14 +1532,14 @@ ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
           }
   }
 
-  urPrint("urQueueRelease(compute) NumTimesClosedFull %d, "
-          "NumTimesClosedEarly %d\n",
-          UrQueue->ComputeCommandBatch.NumTimesClosedFull,
-          UrQueue->ComputeCommandBatch.NumTimesClosedEarly);
-  urPrint("urQueueRelease(copy) NumTimesClosedFull %d, NumTimesClosedEarly "
-          "%d\n",
-          UrQueue->CopyCommandBatch.NumTimesClosedFull,
-          UrQueue->CopyCommandBatch.NumTimesClosedEarly);
+  logger::debug("urQueueRelease(compute) NumTimesClosedFull {}, "
+                "NumTimesClosedEarly {}",
+                UrQueue->ComputeCommandBatch.NumTimesClosedFull,
+                UrQueue->ComputeCommandBatch.NumTimesClosedEarly);
+  logger::debug(
+      "urQueueRelease(copy) NumTimesClosedFull {}, NumTimesClosedEarly {}",
+      UrQueue->CopyCommandBatch.NumTimesClosedFull,
+      UrQueue->CopyCommandBatch.NumTimesClosedEarly);
 
   delete UrQueue;
 
@@ -1403,11 +1612,20 @@ ur_result_t ur_queue_handle_t_::synchronize() {
       return UR_RESULT_SUCCESS;
 
     // wait for all commands previously submitted to this immediate command list
-    ZE2UR_CALL(zeCommandListHostSynchronize, (ImmCmdList->first, UINT64_MAX));
+    if (UrL0QueueSyncNonBlocking) {
+      Queue->Mutex.unlock();
+      ZE2UR_CALL(zeCommandListHostSynchronize, (ImmCmdList->first, UINT64_MAX));
+      Queue->Mutex.lock();
+    } else {
+      ZE2UR_CALL(zeCommandListHostSynchronize, (ImmCmdList->first, UINT64_MAX));
+    }
 
     // Cleanup all events from the synced command list.
     CleanupEventListFromResetCmdList(ImmCmdList->second.EventList, true);
     ImmCmdList->second.EventList.clear();
+    if (auto &completions = ImmCmdList->second.completions; completions) {
+      completions->forceReset();
+    }
     return UR_RESULT_SUCCESS;
   };
 
@@ -1417,7 +1635,14 @@ ur_result_t ur_queue_handle_t_::synchronize() {
     // zero handle can have device scope, so we can't synchronize the last
     // event.
     if (isInOrderQueue() && !LastCommandEvent->IsDiscarded) {
-      ZE2UR_CALL(zeHostSynchronize, (LastCommandEvent->ZeEvent));
+      if (UrL0QueueSyncNonBlocking) {
+        auto SyncZeEvent = LastCommandEvent->ZeEvent;
+        this->Mutex.unlock();
+        ZE2UR_CALL(zeHostSynchronize, (SyncZeEvent));
+        this->Mutex.lock();
+      } else {
+        ZE2UR_CALL(zeHostSynchronize, (LastCommandEvent->ZeEvent));
+      }
 
       // clean up all events known to have been completed as well,
       // so they can be reused later
@@ -1444,8 +1669,15 @@ ur_result_t ur_queue_handle_t_::synchronize() {
               UR_CALL(syncImmCmdList(this, ImmCmdList));
           } else {
             for (auto &ZeQueue : QueueGroup.second.ZeQueues)
-              if (ZeQueue)
-                ZE2UR_CALL(zeHostSynchronize, (ZeQueue));
+              if (ZeQueue) {
+                if (UrL0QueueSyncNonBlocking) {
+                  this->Mutex.unlock();
+                  ZE2UR_CALL(zeHostSynchronize, (ZeQueue));
+                  this->Mutex.lock();
+                } else {
+                  ZE2UR_CALL(zeHostSynchronize, (ZeQueue));
+                }
+              }
           }
         }
       }
@@ -1687,6 +1919,14 @@ ur_result_t ur_queue_handle_t_::resetCommandList(
       }
       return UR_RESULT_SUCCESS;
     }
+
+    if (auto &completions = CommandList->second.completions; completions) {
+      if (completions->tryCleanup(this, CommandList->first, EventList,
+                                  EventListToCleanup) == UR_RESULT_SUCCESS) {
+        return UR_RESULT_SUCCESS;
+      }
+    }
+
     // For immediate commandlist reset only those events that have signalled.
     for (auto it = EventList.begin(); it != EventList.end();) {
       // Break early as soon as we found first incomplete event because next
@@ -1726,6 +1966,13 @@ bool ur_command_list_info_t::isCopy(ur_queue_handle_t Queue) const {
              ->QueueGroup
                  [ur_device_handle_t_::queue_group_info_t::type::Compute]
              .ZeOrdinal;
+}
+
+void ur_command_list_info_t::append(ur_event_handle_t Event) {
+  if (completions) {
+    completions->append(Event);
+  }
+  EventList.push_back(Event);
 }
 
 ur_command_list_ptr_t
@@ -1826,10 +2073,10 @@ ur_queue_handle_t_::ur_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
     ZeCommandQueueDesc.flags = ZE_COMMAND_QUEUE_FLAG_EXPLICIT_ONLY;
   }
 
-  urPrint("[getZeQueue]: create queue ordinal = %d, index = %d "
-          "(round robin in [%d, %d]) priority = %s\n",
-          ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
-          UpperIndex, Priority);
+  logger::debug("[getZeQueue]: create queue ordinal = {}, index = {} "
+                "(round robin in [{}, {}]) priority = {}",
+                ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index,
+                LowerIndex, UpperIndex, Priority);
 
   auto ZeResult = ZE_CALL_NOCHECK(
       zeCommandQueueCreate, (Queue->Context->ZeContext, Queue->Device->ZeDevice,
@@ -1851,6 +2098,12 @@ int32_t ur_queue_handle_t_::ur_queue_group_t::getCmdQueueOrdinal(
                     ? queue_type::MainCopy
                     : queue_type::LinkCopy;
   return Queue->Device->QueueGroup[QueueType].ZeOrdinal;
+}
+
+bool ur_queue_handle_t_::useCompletionBatching() {
+  static bool enabled = getenv_tobool(
+      "UR_L0_IMMEDIATE_COMMANDLISTS_BATCH_EVENT_COMPLETIONS", false);
+  return enabled && !isInOrderQueue() && UsingImmCmdLists;
 }
 
 // Helper function to create a new command-list to this queue and associated
@@ -1887,10 +2140,12 @@ ur_result_t ur_queue_handle_t_::createCommandList(
   ZE2UR_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
   ZeStruct<ze_command_queue_desc_t> ZeQueueDesc;
   ZeQueueDesc.ordinal = QueueGroupOrdinal;
+
   std::tie(CommandList, std::ignore) = CommandListMap.insert(
       std::pair<ze_command_list_handle_t, ur_command_list_info_t>(
-          ZeCommandList,
-          {ZeFence, false, false, ZeCommandQueue, ZeQueueDesc, IsInOrderList}));
+          ZeCommandList, ur_command_list_info_t(
+                             ZeFence, false, false, ZeCommandQueue, ZeQueueDesc,
+                             useCompletionBatching(), true, IsInOrderList)));
 
   UR_CALL(insertStartBarrierIfDiscardEventsMode(CommandList));
   UR_CALL(insertActiveBarriers(CommandList, UseCopyEngine));
@@ -2033,21 +2288,52 @@ ur_command_list_ptr_t &ur_queue_handle_t_::ur_queue_group_t::getImmCmdList() {
 
   // If cache didn't contain a command list, create one.
   if (!ZeCommandList) {
-    urPrint("[getZeQueue]: create queue ordinal = %d, index = %d "
-            "(round robin in [%d, %d]) priority = %s\n",
-            ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
-            UpperIndex, Priority);
+    logger::debug("[getZeQueue]: create queue ordinal = {}, index = {} "
+                  "(round robin in [{}, {}]) priority = {}",
+                  ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index,
+                  LowerIndex, UpperIndex, Priority);
 
     ZE_CALL_NOCHECK(zeCommandListCreateImmediate,
                     (Queue->Context->ZeContext, Queue->Device->ZeDevice,
                      &ZeCommandQueueDesc, &ZeCommandList));
   }
+
   ImmCmdLists[Index] =
       Queue->CommandListMap
           .insert(std::pair<ze_command_list_handle_t, ur_command_list_info_t>{
               ZeCommandList,
-              {nullptr, true, false, nullptr, ZeCommandQueueDesc}})
+              ur_command_list_info_t(nullptr, true, false, nullptr,
+                                     ZeCommandQueueDesc,
+                                     Queue->useCompletionBatching())})
           .first;
 
   return ImmCmdLists[Index];
+}
+
+// Get value of the threshold for number of events in immediate command lists.
+// If number of events in the immediate command list exceeds this threshold then
+// cleanup process for those events is executed.
+static const size_t ImmCmdListsEventCleanupThreshold = [] {
+  const char *UrRet =
+      std::getenv("UR_L0_IMMEDIATE_COMMANDLISTS_EVENT_CLEANUP_THRESHOLD");
+  const char *PiRet = std::getenv(
+      "SYCL_PI_LEVEL_ZERO_IMMEDIATE_COMMANDLISTS_EVENT_CLEANUP_THRESHOLD");
+  const char *ImmCmdListsEventCleanupThresholdStr =
+      UrRet ? UrRet : (PiRet ? PiRet : nullptr);
+  static constexpr int Default = 1000;
+  if (!ImmCmdListsEventCleanupThresholdStr)
+    return Default;
+
+  int Threshold = std::atoi(ImmCmdListsEventCleanupThresholdStr);
+
+  // Basically disable threshold if negative value is provided.
+  if (Threshold < 0)
+    return INT_MAX;
+
+  return Threshold;
+}();
+
+size_t ur_queue_handle_t_::getImmdCmmdListsEventCleanupThreshold() {
+  return useCompletionBatching() ? CompletionEventsPerBatch
+                                 : ImmCmdListsEventCleanupThreshold;
 }
