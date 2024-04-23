@@ -35,7 +35,6 @@
 #include <array>
 #include <functional>
 #include <initializer_list>
-#include <iostream>
 
 using namespace clang;
 using namespace std::placeholders;
@@ -1987,14 +1986,14 @@ public:
   }
 
   bool enterStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
+    // Define this function to prevent diagnostic about hidden overloaded
+    // virtual function.
     return true;
   }
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
+    // Define this function to prevent diagnostic about hidden overloaded
+    // virtual function.
     return true;
   }
 
