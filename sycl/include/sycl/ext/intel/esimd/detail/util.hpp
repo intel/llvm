@@ -209,6 +209,13 @@ auto accessorToPointer(AccessorTy Acc, OffsetTy Offset = 0) {
 }
 #endif // __ESIMD_FORCE_STATELESS_MEM
 
+/// @brief Checks parameters for read region intrinsic API. The checks were
+/// refactored from simd_obj API.
+/// @tparam N the input vector size.
+/// @tparam M the return vector size.
+/// @tparam VStride the vertical stride in elements between rows.
+/// @tparam Width the size or each row, non-zero and even divides `M`.
+/// @tparam Stride horizontal stride in elements within each row.
 template <int N, int M, int VStride, int Width, int Stride>
 constexpr void check_rdregion_params() {
   static_assert(Width > 0 && M % Width == 0, "Malformed RHS region.");
@@ -218,6 +225,13 @@ constexpr void check_rdregion_params() {
                 "horizontal stride.");
 }
 
+/// @brief Checks parameters for write region intrinsic API. The checks were
+/// refactored from simd_obj API.
+/// @tparam N the input vector size.
+/// @tparam M the return vector size.
+/// @tparam VStride the vertical stride in elements between rows.
+/// @tparam Width the size or each row, non-zero and even divides `M`.
+/// @tparam Stride horizontal stride in elements within each row.
 template <int N, int M, int VStride, int Width, int Stride>
 constexpr void check_wrregion_params() {
   static_assert(M <= N, "Attempt to access beyond viewed area: The "
