@@ -76,12 +76,12 @@ template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
 template <typename CommandGroupFunc>
 void submit(queue Q, CommandGroupFunc &&CGF) {
   // TODO: Use new submit without Events.
-  Q.submit(CGF);
+  Q.submit(std::forward<CommandGroupFunc>(CGF));
 }
 
 template <typename CommandGroupFunc>
 event submit_with_event(queue Q, CommandGroupFunc &&CGF) {
-  return Q.submit(CGF);
+  return Q.submit(std::forward<CommandGroupFunc>(CGF));
 }
 
 template <typename KernelName = sycl::detail::auto_name, typename KernelType>
