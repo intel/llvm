@@ -94,7 +94,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
   case UR_PLATFORM_INFO_BACKEND:
     return ReturnValue(UR_PLATFORM_BACKEND_LEVEL_ZERO);
   default:
-    urPrint("urPlatformGetInfo: unrecognized ParamName\n");
+    logger::debug("urPlatformGetInfo: unrecognized ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
