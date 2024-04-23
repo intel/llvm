@@ -65,7 +65,7 @@ llvm::computeDeviceRequirements(const module_split::ModuleDesc &MD) {
             ExtractUnsignedIntegerFromMDNodeOperand(MDN, I));
       if (!Reqs.ReqdWorkGroupSize.has_value())
         Reqs.ReqdWorkGroupSize = NewReqdWorkGroupSize;
-      else
+      if (Reqs.ReqdWorkGroupSize != NewReqdWorkGroupSize)
         MultipleReqdWGSize = true;
     }
 
