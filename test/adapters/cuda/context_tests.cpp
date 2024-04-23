@@ -21,7 +21,9 @@ TEST_P(cudaUrContextCreateTest, CreateWithChildThread) {
 
     // Retrieve the CUDA context to check information is correct
     auto checkValue = [=] {
-        CUcontext cudaContext = context.handle->get();
+        // Just testing the first device in context
+        CUcontext cudaContext =
+            context.handle->getDevices()[0]->getNativeContext();
         unsigned int version = 0;
         EXPECT_SUCCESS_CUDA(cuCtxGetApiVersion(cudaContext, &version));
         EXPECT_EQ(version, known_cuda_api_version);
@@ -102,7 +104,8 @@ TEST_P(cudaUrContextCreateTest, ContextLifetimeExisting) {
 
     // check that context is now the active cuda context
     ASSERT_SUCCESS_CUDA(cuCtxGetCurrent(&current));
-    ASSERT_EQ(current, context->get());
+    // Just testing the first device in context
+    ASSERT_EQ(current, context->getDevices()[0]->getNativeContext());
 }
 
 TEST_P(cudaUrContextCreateTest, ThreadedContext) {
@@ -173,7 +176,8 @@ TEST_P(cudaUrContextCreateTest, ThreadedContext) {
 
             // check that the 2nd context is now tha active cuda context
             ASSERT_SUCCESS_CUDA(cuCtxGetCurrent(&current));
-            ASSERT_EQ(current, context2->get());
+            // Just checking for first device in context
+            ASSERT_EQ(current, context2->getDevices()[0]->getNativeContext());
         }
     });
 

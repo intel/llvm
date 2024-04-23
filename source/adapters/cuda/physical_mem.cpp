@@ -23,7 +23,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPhysicalMemCreate(
   CUmemAllocationProp AllocProps = {};
   AllocProps.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
   AllocProps.type = CU_MEM_ALLOCATION_TYPE_PINNED;
-  UR_CHECK_ERROR(GetDeviceOrdinal(hDevice, AllocProps.location.id));
+  AllocProps.location.id = hDevice->getIndex();
 
   CUmemGenericAllocationHandle ResHandle;
   switch (auto Result = cuMemCreate(&ResHandle, size, &AllocProps, 0)) {
@@ -32,7 +32,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPhysicalMemCreate(
   default:
     UR_CHECK_ERROR(Result);
   }
-  *phPhysicalMem = new ur_physical_mem_handle_t_(ResHandle, hContext);
+  *phPhysicalMem = new ur_physical_mem_handle_t_(ResHandle, hContext, hDevice);
 
   return UR_RESULT_SUCCESS;
 }
@@ -51,7 +51,7 @@ urPhysicalMemRelease(ur_physical_mem_handle_t hPhysicalMem) {
   try {
     std::unique_ptr<ur_physical_mem_handle_t_> PhysicalMemGuard(hPhysicalMem);
 
-    ScopedContext Active(hPhysicalMem->getContext());
+    ScopedContext Active(hPhysicalMem->getDevice());
     UR_CHECK_ERROR(cuMemRelease(hPhysicalMem->get()));
     return UR_RESULT_SUCCESS;
   } catch (ur_result_t err) {
