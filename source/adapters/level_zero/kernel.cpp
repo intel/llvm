@@ -32,7 +32,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   UR_CALL(getSuggestedLocalWorkSize(hQueue, ZeKernel, GlobalWorkSize3D,
                                     LocalWorkSize));
 
-  UR_ASSERT(pSuggestedLocalWorkSize != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
   std::copy(LocalWorkSize, LocalWorkSize + workDim, pSuggestedLocalWorkSize);
   return UR_RESULT_SUCCESS;
 }
@@ -87,14 +86,14 @@ ur_result_t getSuggestedLocalWorkSize(ur_queue_handle_t hQueue,
         --GroupSize[I];
       }
       if (GlobalWorkSize3D[I] / GroupSize[I] > UINT32_MAX) {
-        logger::error("urEnqueueKernelLaunch: can't find a WG size "
+        logger::error("getSuggestedLocalWorkSize: can't find a WG size "
                       "suitable for global work size > UINT32_MAX");
         return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
       }
       WG[I] = GroupSize[I];
     }
     logger::debug(
-        "urEnqueueKernelLaunch: using computed WG size = {{{}, {}, {}}}", WG[0],
+        "getSuggestedLocalWorkSize: using computed WG size = {{{}, {}, {}}}", WG[0],
         WG[1], WG[2]);
   }
 
