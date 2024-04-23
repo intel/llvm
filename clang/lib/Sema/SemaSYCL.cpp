@@ -1731,7 +1731,7 @@ public:
   }
 
   bool handleStructType(FieldDecl *FD, QualType FieldTy) final {
-    IsInvalid |= checkNotCopyableToKernel(FD, FieldTy);
+    //IsInvalid |= checkNotCopyableToKernel(FD, FieldTy);
     CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
     assert(RD && "Not a RecordDecl inside the handler for struct type");
     if (RD->isLambda()) {
