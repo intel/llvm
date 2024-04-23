@@ -20,24 +20,20 @@ int main() {
 
   Q.submit([&](sycl::handler &cgh) {
     auto acc1 = sycl::local_accessor<int>(group_size, cgh);
-    auto buf1 = buf.get_access<sycl::access::mode::read_write>(cgh);
     auto acc2 = sycl::local_accessor<int>(group_size, cgh);
-    auto buf2 = buf.get_access<sycl::access::mode::read_write>(cgh);
     auto acc3 = sycl::local_accessor<int>(group_size, cgh);
-    auto buf3 = buf.get_access<sycl::access::mode::read_write>(cgh);
     cgh.parallel_for<class MyKernel>(
         sycl::nd_range<1>(N, group_size), [=](sycl::nd_item<1> item) {
-          data1[item.get_global_id()] =
-              acc1[item.get_local_id()] + acc2[item.get_local_id()] +
-              acc3[item.get_local_id()] + buf1[item.get_global_id()];
-          data2[item.get_global_id()] =
-              acc1[item.get_local_id()] + acc2[item.get_local_id() + 1] +
-              acc3[item.get_local_id()] + buf1[item.get_local_id()] +
-              buf3[item.get_local_id()];
+          data1[item.get_global_id()] = acc1[item.get_local_id()] +
+                                        acc2[item.get_local_id()] +
+                                        acc3[item.get_local_id()];
+          data2[item.get_global_id()] = acc1[item.get_local_id()] +
+                                        acc2[item.get_local_id() + 1] +
+                                        acc3[item.get_local_id()];
         });
     // CHECK: ERROR: DeviceSanitizer: out-of-bounds-access on Local Memory
     // CHECK: READ of size 4 at kernel {{<.*MyKernel>}} LID(3, 0, 0) GID({{.*}}, 0, 0)
-    // CHECK:   #0 {{.*}} {{.*local_accessor_multiargs.cpp}}:[[@LINE-6]]
+    // CHECK:   #0 {{.*}} {{.*local_accessor_multiargs.cpp}}:[[@LINE-5]]
   });
 
   Q.wait();
