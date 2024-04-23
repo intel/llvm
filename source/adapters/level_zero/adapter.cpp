@@ -10,6 +10,7 @@
 
 #include "adapter.hpp"
 #include "ur_level_zero.hpp"
+#include <iomanip>
 
 // Due to multiple DLLMain definitions with SYCL, Global Adapter is init at
 // variable creation.
