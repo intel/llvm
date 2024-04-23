@@ -133,7 +133,7 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
       __spirv_ocl_printf(__generic_to, old, addr, as);
   }
 
-  if (as == ADDRESS_SPACE_GLOBAL) { // global
+  if (as == ADDRESS_SPACE_GLOBAL) {     // global
     if (addr & 0xFFFF000000000000ULL) { // Device USM
       return __AsanShadowMemoryGlobalStart + 0x100000000000ULL +
              ((addr & 0x7FFFFFFFFFFFULL) >> 3);
