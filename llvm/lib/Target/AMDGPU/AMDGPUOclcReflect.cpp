@@ -51,7 +51,7 @@ PreservedAnalyses AMDGPUOclcReflectPass::run(Function &F,
     return PreservedAnalyses::all();
   }
 
-  SmallVector<Instruction *, 4> ToRemove;
+  SmallVector<CallInst *, 4> ToRemove;
 
   for (Instruction &I : instructions(F)) {
     CallInst *Call = dyn_cast<CallInst>(&I);
@@ -70,8 +70,7 @@ PreservedAnalyses AMDGPUOclcReflectPass::run(Function &F,
   if (!ToRemove.size())
     return PreservedAnalyses::all();
 
-  for (Instruction *I : ToRemove) {
-    CallInst *Call = dyn_cast<CallInst>(I);
+  for (CallInst *Call : ToRemove) {
     const Value *Str = Call->getArgOperand(0);
     const Value *Operand = cast<Constant>(Str)->getOperand(0);
     StringRef ReflectArg = cast<ConstantDataSequential>(Operand)->getAsString();
@@ -81,9 +80,9 @@ PreservedAnalyses AMDGPUOclcReflectPass::run(Function &F,
       int ReflectVal = AMDGPUUnsafeIntAtomicsEnable ? 1 : 0;
       Call->replaceAllUsesWith(ConstantInt::get(Call->getType(), ReflectVal));
     } else {
-      assert(false && "Invalid arg passed to __oclc_amdgpu_reflect");
+      report_fatal_error("Invalid arg passed to __oclc_amdgpu_reflect");
     }
-    I->eraseFromParent();
+    Call->eraseFromParent();
   }
 
   PreservedAnalyses PA;
