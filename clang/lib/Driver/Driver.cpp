@@ -5938,7 +5938,7 @@ class OffloadingActionBuilder final {
               isNativeCPU ?
                 // libclc name will likely change when nativecpu supports
                 // other targets (and Windows)
-                "builtins.link.libspirv-" + TC->getTripleString() + ".bc":
+                "libspirv-" + TC->getTripleString() + ".bc":
 
               (TC->getAuxTriple()->isOSWindows())
                   ? "remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda."
