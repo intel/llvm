@@ -8,6 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "logger/ur_logger.hpp"
 #include <atomic>
 #include <mutex>
 #include <optional>
@@ -16,6 +17,8 @@
 
 using PlatformVec = std::vector<std::unique_ptr<ur_platform_handle_t_>>;
 
+class ur_legacy_sink;
+
 struct ur_adapter_handle_t_ {
   ur_adapter_handle_t_();
   std::atomic<uint32_t> RefCount = 0;
@@ -23,6 +26,7 @@ struct ur_adapter_handle_t_ {
 
   std::optional<ze_result_t> ZeResult;
   ZeCache<Result<PlatformVec>> PlatformCache;
+  logger::Logger &logger;
 };
 
 extern ur_adapter_handle_t_ *GlobalAdapter;
