@@ -98,13 +98,17 @@ function(link_bc)
     # Turn it into a space-separate list of input files
     list( JOIN ARG_INPUTS " " RSP_INPUT )
     file( WRITE ${RSP_FILE} ${RSP_INPUT} )
+    # Ensure that if this file is removed, we re-run CMake
+    set_property( DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+      ${RSP_FILE}
+    )
     set( LINK_INPUT_ARG "@${RSP_FILE}" )
   endif()
 
   add_custom_command(
     OUTPUT ${ARG_TARGET}.bc
     COMMAND libclc::llvm-link -o ${ARG_TARGET}.bc ${LINK_INPUT_ARG}
-    DEPENDS libclc::llvm-link ${ARG_INPUTS}
+    DEPENDS libclc::llvm-link ${ARG_INPUTS} ${RSP_FILE}
   )
 
   add_custom_target( ${ARG_TARGET} ALL DEPENDS ${ARG_TARGET}.bc )
