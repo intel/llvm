@@ -65,11 +65,16 @@ public:
   exception(int, const std::error_category &, const char *);
   exception(int, const std::error_category &);
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   exception(context Ctx, std::error_code Ec, const std::string &WhatArg)
       : exception(Ec, std::make_shared<context>(Ctx), WhatArg.c_str()) {}
   exception(context Ctx, int EV, const std::error_category &ECat,
             const std::string &WhatArg)
       : exception(Ctx, {EV, ECat}, WhatArg) {}
+#else
+  exception(context, std::error_code, const std::string &);
+  exception(context, int, const std::error_category &, const std::string &);
+#endif
   exception(context, std::error_code, const char *);
   exception(context, std::error_code);
   exception(context, int, const std::error_category &, const char *);
