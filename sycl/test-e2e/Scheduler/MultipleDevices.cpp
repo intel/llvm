@@ -101,7 +101,7 @@ int main() {
     queue MyQueue1(CPUSelector);
     queue MyQueue2(CPUSelector);
     Result &= multidevice_test(MyQueue1, MyQueue2);
-  } catch (sycl::runtime_error &) {
+  } catch (sycl::exception &) {
     std::cout << "Skipping CPU and CPU" << std::endl;
   }
 
@@ -109,7 +109,7 @@ int main() {
     queue MyQueue1(CPUSelector);
     queue MyQueue2(GPUSelector);
     Result &= multidevice_test(MyQueue1, MyQueue2);
-  } catch (sycl::runtime_error &) {
+  } catch (sycl::exception &) {
     std::cout << "Skipping CPU and GPU" << std::endl;
   } catch (sycl::compile_program_error &) {
     std::cout << "Skipping CPU and GPU" << std::endl;
@@ -119,7 +119,7 @@ int main() {
     queue MyQueue1(GPUSelector);
     queue MyQueue2(GPUSelector);
     Result &= multidevice_test(MyQueue1, MyQueue2);
-  } catch (sycl::runtime_error &) {
+  } catch (sycl::exception &) {
     std::cout << "Skipping GPU and GPU" << std::endl;
   } catch (sycl::compile_program_error &) {
     std::cout << "Skipping CPU and GPU" << std::endl;

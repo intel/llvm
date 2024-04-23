@@ -11,7 +11,7 @@
 #include <sycl/aspects.hpp>
 #include <sycl/detail/pi.h>            // for PI_ERROR_INVALID_DEVICE
 #include <sycl/detail/type_traits.hpp> // for is_fixed_size_group, is_group
-#include <sycl/exception.hpp>          // for runtime_error
+#include <sycl/exception.hpp>          // for exception
 #include <sycl/ext/oneapi/sub_group_mask.hpp> // for sub_group_mask
 #include <sycl/id.hpp>                        // for id
 #include <sycl/memory_enums.hpp>              // for memory_scope
@@ -48,8 +48,9 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_SubgroupLocalInvocationId() / PartitionSize;
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(
+        sycl::errc::runtime,
+        "Non-uniform groups are not supported on host device.");
 #endif
   }
 
@@ -57,8 +58,9 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_SubgroupLocalInvocationId() % PartitionSize;
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(
+        sycl::errc::runtime,
+        "Non-uniform groups are not supported on host device.");
 #endif
   }
 
@@ -66,8 +68,9 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_SubgroupSize() / PartitionSize;
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(
+        sycl::errc::runtime,
+        "Non-uniform groups are not supported on host device.");
 #endif
   }
 
@@ -75,8 +78,9 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return PartitionSize;
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(
+        sycl::errc::runtime,
+        "Non-uniform groups are not supported on host device.");
 #endif
   }
 
@@ -84,8 +88,9 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_group_id()[0]);
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(
+        sycl::errc::runtime,
+        "Non-uniform groups are not supported on host device.");
 #endif
   }
 
@@ -93,8 +98,9 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_local_id()[0]);
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(
+        sycl::errc::runtime,
+        "Non-uniform groups are not supported on host device.");
 #endif
   }
 
@@ -102,8 +108,9 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_group_range()[0]);
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(
+        sycl::errc::runtime,
+        "Non-uniform groups are not supported on host device.");
 #endif
   }
 
@@ -111,8 +118,9 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_local_range()[0]);
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(
+        sycl::errc::runtime,
+        "Non-uniform groups are not supported on host device.");
 #endif
   }
 
@@ -120,8 +128,9 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return get_local_linear_id() == 0;
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(
+        sycl::errc::runtime,
+        "Non-uniform groups are not supported on host device.");
 #endif
   }
 
@@ -166,8 +175,8 @@ get_fixed_size_group(Group group) {
   return fixed_size_group<PartitionSize, sycl::sub_group>();
 #endif
 #else
-  throw runtime_error("Non-uniform groups are not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(sycl::errc::runtime,
+                        "Non-uniform groups are not supported on host device.");
 #endif
 }
 

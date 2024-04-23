@@ -21,7 +21,7 @@ Backend:DeviceType:RelativeDeviceNumber
 
 Every element of the triple is optional, but a filter must contain at least one component. 
 
-`Backend` specifies the desired backend for the wanted devices. `DeviceType` specifies the type of the desired device.  `RelativeDeviceNumber` refers to the number of device that matches any other requirements, starting from `0`, which means "the first device that matches the requirements".  Incorrect input will result in an a `runtime_error` being thrown.
+`Backend` specifies the desired backend for the wanted devices. `DeviceType` specifies the type of the desired device.  `RelativeDeviceNumber` refers to the number of device that matches any other requirements, starting from `0`, which means "the first device that matches the requirements".  Incorrect input will result in an exception with errc::runtime error code being thrown.
 
 .Supported Backends
 [width=25%]

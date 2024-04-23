@@ -36,8 +36,8 @@ T reduce_over_group_impl(GroupHelper group_helper, T x, size_t num_elements,
   std::ignore = x;
   std::ignore = num_elements;
   std::ignore = binary_op;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(sycl::errc::runtime,
+                        "Group algorithms are not supported on host.");
 #endif
 }
 } // namespace detail
@@ -54,8 +54,8 @@ reduce_over_group(GroupHelper group_helper, T x, BinaryOperation binary_op) {
       group_helper, x, group_helper.get_group().get_local_linear_range(),
       binary_op);
 #else
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(sycl::errc::runtime,
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -73,8 +73,8 @@ reduce_over_group(GroupHelper group_helper, V x, T init,
   return binary_op(init, reduce_over_group(group_helper, x, binary_op));
 #else
   std::ignore = group_helper;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(sycl::errc::runtime,
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -110,8 +110,8 @@ joint_reduce(GroupHelper group_helper, Ptr first, Ptr last,
   std::ignore = first;
   std::ignore = last;
   std::ignore = binary_op;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(sycl::errc::runtime,
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -130,8 +130,8 @@ joint_reduce(GroupHelper group_helper, Ptr first, Ptr last, T init,
 #else
   std::ignore = group_helper;
   std::ignore = last;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(sycl::errc::runtime,
+                        "Group algorithms are not supported on host.");
 #endif
 }
 } // namespace ext::oneapi::experimental
