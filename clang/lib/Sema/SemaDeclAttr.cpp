@@ -335,28 +335,11 @@ void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
     return;
   }
 
-  // Diagnose SYCL 2017 spellings.
-  // All attributes in the cl vendor namespace are deprecated in favor of a
-  // name in the sycl namespace as of SYCL 2020.
-  if (A.hasScope() && A.getScopeName()->isStr("cl")) {
-    DiagnoseDeprecatedAttribute(A, "sycl", NewName);
-    return;
-  }
-
-  // All GNU-style spellings are deprecated in favor of a C++-style spelling.
-  if (A.getSyntax() == ParsedAttr::AS_GNU) {
-    // Note: we cannot suggest an automatic fix-it because GNU-style
-    // spellings can appear in locations that are not valid for a C++-style
-    // spelling, and the attribute could be part of an attribute list within
-    // a single __attribute__ specifier. Just tell the user it's deprecated
-    // manually.
-    //
-    // This currently assumes that the GNU-style spelling is the same as the
-    // SYCL 2020 spelling (sans the vendor namespace).
-    Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated)
+  // Throw an "unknown attribute" warning for SYCL 2017 or GNU-style spellings.
+  if ((A.hasScope() && A.getScopeName()->isStr("cl")) ||
+      (A.getSyntax() == ParsedAttr::AS_GNU)) {
+    Diag(A.getLoc(), diag::warn_unknown_attribute_ignored)
         << "'" + A.getNormalizedFullName() + "'";
-    Diag(A.getLoc(), diag::note_spelling_suggestion)
-        << "'[[sycl::" + A.getNormalizedFullName() + "]]'";
     return;
   }
 }
