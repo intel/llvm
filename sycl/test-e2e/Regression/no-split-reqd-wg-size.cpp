@@ -1,39 +1,26 @@
-// This test checks that with -fsycl-device-code-split=off, two kernels
+// This test checks that with -fsycl-device-code-split=off, kernels
 // with different reqd_work_group_size dimensions can be launched.
+
 // RUN: %{build} -fsycl -fsycl-device-code-split=off -o %t.out
 // RUN: %{run} %t.out
-#include <sycl/sycl.hpp>
 
-constexpr int WGSIZE = 4;
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
-void kernel_launch_2(queue &q) {
-  range<1> globalRange(WGSIZE);
-  range<1> localRange(WGSIZE);
-  nd_range<1> NDRange(globalRange, localRange);
-  q.submit([&](handler &cgh) {
-     cgh.parallel_for<class testNDRange2>(
-         NDRange, [=](nd_item<1> it) [[sycl::reqd_work_group_size(WGSIZE)]] {});
-   }).wait();
-}
-
-void kernel_launch(queue &q) {
-  range<2> globalRange(WGSIZE, WGSIZE);
-  range<2> localRange(WGSIZE, WGSIZE);
-  nd_range<2> NDRange(globalRange, localRange);
-  q.submit([&](handler &cgh) {
-     cgh.parallel_for<class testNDRange>(
-         NDRange,
-         [=](nd_item<2> it) [[sycl::reqd_work_group_size(WGSIZE, WGSIZE)]] {});
-   }).wait();
-}
+#define TEST(...)                                                              \
+  {                                                                            \
+    range globalRange(__VA_ARGS__);                                            \
+    range localRange(__VA_ARGS__);                                             \
+    nd_range NDRange(globalRange, localRange);                                 \
+    q.parallel_for(NDRange,                                                    \
+                   [=](auto) [[sycl::reqd_work_group_size(__VA_ARGS__)]] {});  \
+  }
 
 int main(int argc, char **argv) {
   queue q;
-
-  kernel_launch_2(q);
-  kernel_launch(q);
-
+  TEST(4);
+  TEST(4, 5);
+  TEST(4, 5, 6);
   return 0;
 }
