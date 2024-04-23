@@ -7887,10 +7887,12 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned BuiltinID,
   }
 
   // Check size is passed as a specialization constant
-      const auto CheckSize = [this, ElementTypeIndex,
-                          SpecNameIndex](const ASTContext &Ctx, SourceLocation Loc,
+  const auto CheckSize = [this, IsAlignedAlloca, ElementTypeIndex,
+                          SpecNameIndex](const ASTContext &Ctx,
+                                         SourceLocation Loc,
                                          const TemplateArgumentList *CST) {
-    QualType Ty = CST->get(SpecNameIndex).getNonTypeTemplateArgumentType();
+    TemplateArgument TA = CST->get(SpecNameIndex);
+    QualType Ty = TA.getNonTypeTemplateArgumentType();
     if (Ty.isNull() || !Ty->isReferenceType())
       return true;
     Ty = Ty->getPointeeType();
@@ -7899,17 +7901,15 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned BuiltinID,
     const TemplateArgumentList &TAL =
         cast<ClassTemplateSpecializationDecl>(Ty->getAsCXXRecordDecl())
             ->getTemplateArgs();
-    if (!TAL.get(ElementTypeIndex).getAsType()->isIntegralType(Ctx))
+    if (!TAL.get(0).getAsType()->isIntegralType(Ctx))
       return true;
     llvm::APSInt DefaultSize =
-        getSYCLAllocaDefaultSize(Ctx, cast<VarDecl>(CST->get(1).getAsDecl()));
+        getSYCLAllocaDefaultSize(Ctx, cast<VarDecl>(TA.getAsDecl()));
     if (DefaultSize < 1)
       Diag(Loc, diag::warn_intel_sycl_alloca_bad_default_value)
-        << IsAlignedAlloca
-          << DefaultSize.getSExtValue();
+          << IsAlignedAlloca << DefaultSize.getSExtValue();
     return false;
   };
-  const TemplateArgumentList *CST = FD->getTemplateSpecializationArgs();
   if (CheckSize(getASTContext(), Loc, CST)) {
     TemplateArgument TA = CST->get(SpecNameIndex);
     QualType Ty = TA.getNonTypeTemplateArgumentType();
