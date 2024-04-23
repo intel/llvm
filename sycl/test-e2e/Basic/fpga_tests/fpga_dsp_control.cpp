@@ -11,8 +11,8 @@
 // RUN: %{run} %t.out
 
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/fpga_extensions.hpp>
-#include <sycl/sycl.hpp>
 
 int test_dsp_control(sycl::queue Queue) {
   std::vector<float> input_data = {1.23f, 2.34f};

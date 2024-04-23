@@ -284,22 +284,22 @@ appendCompileOptionsForGRFSizeProperties(std::string &CompileOpts,
   // The mutual exclusivity of these properties should have been checked in
   // sycl-post-link.
   assert(!RegAllocModeProp || !GRFSizeProp);
-  bool IsLargeGRF = false;
+  bool Is256GRF = false;
   bool IsAutoGRF = false;
   if (RegAllocModeProp) {
     uint32_t RegAllocModePropVal =
         DeviceBinaryProperty(RegAllocModeProp).asUint32();
-    IsLargeGRF = RegAllocModePropVal ==
-                 static_cast<uint32_t>(register_alloc_mode_enum::large);
+    Is256GRF = RegAllocModePropVal ==
+               static_cast<uint32_t>(register_alloc_mode_enum::large);
     IsAutoGRF = RegAllocModePropVal ==
                 static_cast<uint32_t>(register_alloc_mode_enum::automatic);
   } else {
     assert(GRFSizeProp);
     uint32_t GRFSizePropVal = DeviceBinaryProperty(GRFSizeProp).asUint32();
-    IsLargeGRF = GRFSizePropVal == 256;
+    Is256GRF = GRFSizePropVal == 256;
     IsAutoGRF = GRFSizePropVal == 0;
   }
-  if (IsLargeGRF) {
+  if (Is256GRF) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
     // This option works for both LO AND OCL backends.

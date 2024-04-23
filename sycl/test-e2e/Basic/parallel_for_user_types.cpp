@@ -5,7 +5,7 @@
 // implicitly converted from sycl::item/sycl::nd_item in parallel_for.
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 template <int Dimensions> class item_wrapper {
 public:

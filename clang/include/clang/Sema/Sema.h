@@ -33,7 +33,6 @@
 #include "clang/AST/NSAPI.h"
 #include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/StmtCXX.h"
-#include "clang/AST/StmtOpenACC.h"
 #include "clang/AST/StmtOpenMP.h"
 #include "clang/AST/TypeLoc.h"
 #include "clang/AST/TypeOrdering.h"
@@ -43,7 +42,6 @@
 #include "clang/Basic/DiagnosticSema.h"
 #include "clang/Basic/ExpressionTraits.h"
 #include "clang/Basic/Module.h"
-#include "clang/Basic/OpenACCKinds.h"
 #include "clang/Basic/OpenCLOptions.h"
 #include "clang/Basic/OpenMPKinds.h"
 #include "clang/Basic/PragmaKinds.h"
@@ -58,6 +56,7 @@
 #include "clang/Sema/ObjCMethodList.h"
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/Scope.h"
+#include "clang/Sema/SemaBase.h"
 #include "clang/Sema/SemaConcept.h"
 #include "clang/Sema/TypoCorrection.h"
 #include "clang/Sema/Weak.h"
@@ -184,6 +183,8 @@ class Preprocessor;
 class PseudoDestructorTypeStorage;
 class PseudoObjectExpr;
 class QualType;
+class SemaHLSL;
+class SemaOpenACC;
 class StandardConversionSequence;
 class Stmt;
 class StringLiteral;
@@ -611,7 +612,7 @@ enum class TemplateDeductionResult {
 
 /// Sema - This implements semantic analysis and AST building for C.
 /// \nosubgrouping
-class Sema final {
+class Sema final : public SemaBase {
   // Table of Contents
   // -----------------
   // 1. Semantic Analysis (Sema.cpp)
@@ -653,10 +654,8 @@ class Sema final {
   // 36. FixIt Helpers (SemaFixItUtils.cpp)
   // 37. Name Lookup for RISC-V Vector Intrinsic (SemaRISCVVectorLookup.cpp)
   // 38. CUDA (SemaCUDA.cpp)
-  // 39. HLSL Constructs (SemaHLSL.cpp)
-  // 40. OpenACC Constructs (SemaOpenACC.cpp)
-  // 41. OpenMP Directives and Clauses (SemaOpenMP.cpp)
-  // 42. SYCL Constructs (SemaSYCL.cpp)
+  // 39. OpenMP Directives and Clauses (SemaOpenMP.cpp)
+  // 40. SYCL Constructs (SemaSYCL.cpp)
 
   /// \name Semantic Analysis
   /// Implementations are in Sema.cpp
@@ -702,252 +701,6 @@ public:
   ///
   void addExternalSource(ExternalSemaSource *E);
 
-  /// Helper class that creates diagnostics with optional
-  /// template instantiation stacks.
-  ///
-  /// This class provides a wrapper around the basic DiagnosticBuilder
-  /// class that emits diagnostics. ImmediateDiagBuilder is
-  /// responsible for emitting the diagnostic (as DiagnosticBuilder
-  /// does) and, if the diagnostic comes from inside a template
-  /// instantiation, printing the template instantiation stack as
-  /// well.
-  class ImmediateDiagBuilder : public DiagnosticBuilder {
-    Sema &SemaRef;
-    unsigned DiagID;
-
-  public:
-    ImmediateDiagBuilder(DiagnosticBuilder &DB, Sema &SemaRef, unsigned DiagID)
-        : DiagnosticBuilder(DB), SemaRef(SemaRef), DiagID(DiagID) {}
-    ImmediateDiagBuilder(DiagnosticBuilder &&DB, Sema &SemaRef, unsigned DiagID)
-        : DiagnosticBuilder(DB), SemaRef(SemaRef), DiagID(DiagID) {}
-
-    // This is a cunning lie. DiagnosticBuilder actually performs move
-    // construction in its copy constructor (but due to varied uses, it's not
-    // possible to conveniently express this as actual move construction). So
-    // the default copy ctor here is fine, because the base class disables the
-    // source anyway, so the user-defined ~ImmediateDiagBuilder is a safe no-op
-    // in that case anwyay.
-    ImmediateDiagBuilder(const ImmediateDiagBuilder &) = default;
-
-    ~ImmediateDiagBuilder() {
-      // If we aren't active, there is nothing to do.
-      if (!isActive())
-        return;
-
-      // Otherwise, we need to emit the diagnostic. First clear the diagnostic
-      // builder itself so it won't emit the diagnostic in its own destructor.
-      //
-      // This seems wasteful, in that as written the DiagnosticBuilder dtor will
-      // do its own needless checks to see if the diagnostic needs to be
-      // emitted. However, because we take care to ensure that the builder
-      // objects never escape, a sufficiently smart compiler will be able to
-      // eliminate that code.
-      Clear();
-
-      // Dispatch to Sema to emit the diagnostic.
-      SemaRef.EmitCurrentDiagnostic(DiagID);
-    }
-
-    /// Teach operator<< to produce an object of the correct type.
-    template <typename T>
-    friend const ImmediateDiagBuilder &
-    operator<<(const ImmediateDiagBuilder &Diag, const T &Value) {
-      const DiagnosticBuilder &BaseDiag = Diag;
-      BaseDiag << Value;
-      return Diag;
-    }
-
-    // It is necessary to limit this to rvalue reference to avoid calling this
-    // function with a bitfield lvalue argument since non-const reference to
-    // bitfield is not allowed.
-    template <typename T,
-              typename = std::enable_if_t<!std::is_lvalue_reference<T>::value>>
-    const ImmediateDiagBuilder &operator<<(T &&V) const {
-      const DiagnosticBuilder &BaseDiag = *this;
-      BaseDiag << std::move(V);
-      return *this;
-    }
-  };
-
-  /// Bitmask to contain the list of reasons a single diagnostic should be
-  /// emitted, based on its language.  This permits multiple offload systems
-  /// to coexist in the same translation unit.
-  enum class DeviceDiagnosticReason {
-    /// Diagnostic doesn't apply to anything. Included for completeness, but
-    /// should make this a no-op.
-    None = 0,
-    /// OpenMP specific diagnostic.
-    OmpDevice = 1 << 0,
-    OmpHost = 1 << 1,
-    OmpAll = OmpDevice | OmpHost,
-    /// CUDA specific diagnostics.
-    CudaDevice = 1 << 2,
-    CudaHost = 1 << 3,
-    CudaAll = CudaDevice | CudaHost,
-    /// SYCL specific diagnostic.
-    Sycl = 1 << 4,
-    /// ESIMD specific diagnostic.
-    Esimd = 1 << 5,
-    /// A flag representing 'all'.  This can be used to avoid the check
-    /// all-together and make this behave as it did before the
-    /// DiagnosticReason was added (that is, unconditionally emit).
-    /// Note: This needs to be updated if any flags above are added.
-    All = OmpAll | CudaAll | Sycl | Esimd,
-
-    LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/All)
-  };
-
-private:
-  // A collection of a pair of undefined functions and their callers known
-  // to be reachable from a routine on the device (kernel or device function).
-  typedef std::pair<const FunctionDecl *, const FunctionDecl *> CallPair;
-  llvm::SmallVector<CallPair> UndefinedReachableFromSyclDevice;
-
-public:
-  // Helper routine to add a pair of Callee-Caller pair of FunctionDecl *
-  // to UndefinedReachableFromSyclDevice.
-  void addFDToReachableFromSyclDevice(const FunctionDecl *Callee,
-                                      const FunctionDecl *Caller) {
-    UndefinedReachableFromSyclDevice.push_back(std::make_pair(Callee, Caller));
-  }
-  // Helper routine to check if a pair of Callee-Caller FunctionDecl *
-  // is in UndefinedReachableFromSyclDevice.
-  bool isFDReachableFromSyclDevice(const FunctionDecl *Callee,
-                                   const FunctionDecl *Caller) {
-    return llvm::any_of(UndefinedReachableFromSyclDevice,
-                        [Callee, Caller](const CallPair &P) {
-                          return P.first == Callee && P.second == Caller;
-                        });
-  }
-
-  /// A generic diagnostic builder for errors which may or may not be deferred.
-  ///
-  /// In CUDA, there exist constructs (e.g. variable-length arrays, try/catch)
-  /// which are not allowed to appear inside __device__ functions and are
-  /// allowed to appear in __host__ __device__ functions only if the host+device
-  /// function is never codegen'ed.
-  ///
-  /// To handle this, we use the notion of "deferred diagnostics", where we
-  /// attach a diagnostic to a FunctionDecl that's emitted iff it's codegen'ed.
-  ///
-  /// This class lets you emit either a regular diagnostic, a deferred
-  /// diagnostic, or no diagnostic at all, according to an argument you pass to
-  /// its constructor, thus simplifying the process of creating these "maybe
-  /// deferred" diagnostics.
-  class SemaDiagnosticBuilder {
-  public:
-    enum Kind {
-      /// Emit no diagnostics.
-      K_Nop,
-      /// Emit the diagnostic immediately (i.e., behave like Sema::Diag()).
-      K_Immediate,
-      /// Emit the diagnostic immediately, and, if it's a warning or error, also
-      /// emit a call stack showing how this function can be reached by an a
-      /// priori known-emitted function.
-      K_ImmediateWithCallStack,
-      /// Create a deferred diagnostic, which is emitted only if the function
-      /// it's attached to is codegen'ed.  Also emit a call stack as with
-      /// K_ImmediateWithCallStack.
-      K_Deferred
-    };
-
-    SemaDiagnosticBuilder(Kind K, SourceLocation Loc, unsigned DiagID,
-                          const FunctionDecl *Fn, Sema &S, DeviceDiagnosticReason R);
-    SemaDiagnosticBuilder(SemaDiagnosticBuilder &&D);
-    SemaDiagnosticBuilder(const SemaDiagnosticBuilder &) = default;
-
-    // The copy and move assignment operator is defined as deleted pending
-    // further motivation.
-    SemaDiagnosticBuilder &operator=(const SemaDiagnosticBuilder &) = delete;
-    SemaDiagnosticBuilder &operator=(SemaDiagnosticBuilder &&) = delete;
-
-    ~SemaDiagnosticBuilder();
-
-    bool isImmediate() const { return ImmediateDiag.has_value(); }
-
-    /// Convertible to bool: True if we immediately emitted an error, false if
-    /// we didn't emit an error or we created a deferred error.
-    ///
-    /// Example usage:
-    ///
-    ///   if (SemaDiagnosticBuilder(...) << foo << bar)
-    ///     return ExprError();
-    ///
-    /// But see CUDADiagIfDeviceCode() and CUDADiagIfHostCode() -- you probably
-    /// want to use these instead of creating a SemaDiagnosticBuilder yourself.
-    operator bool() const { return isImmediate(); }
-
-    template <typename T>
-    friend const SemaDiagnosticBuilder &
-    operator<<(const SemaDiagnosticBuilder &Diag, const T &Value) {
-      if (Diag.ImmediateDiag)
-        *Diag.ImmediateDiag << Value;
-      else if (Diag.PartialDiagId)
-        Diag.S.DeviceDeferredDiags[Diag.Fn][*Diag.PartialDiagId]
-                .getDiag()
-                .second
-            << Value;
-      return Diag;
-    }
-
-    // It is necessary to limit this to rvalue reference to avoid calling this
-    // function with a bitfield lvalue argument since non-const reference to
-    // bitfield is not allowed.
-    template <typename T,
-              typename = std::enable_if_t<!std::is_lvalue_reference<T>::value>>
-    const SemaDiagnosticBuilder &operator<<(T &&V) const {
-      if (ImmediateDiag)
-        *ImmediateDiag << std::move(V);
-      else if (PartialDiagId)
-        S.DeviceDeferredDiags[Fn][*PartialDiagId].getDiag().second
-            << std::move(V);
-      return *this;
-    }
-
-    friend const SemaDiagnosticBuilder &
-    operator<<(const SemaDiagnosticBuilder &Diag, const PartialDiagnostic &PD) {
-      if (Diag.ImmediateDiag)
-        PD.Emit(*Diag.ImmediateDiag);
-      else if (Diag.PartialDiagId)
-        Diag.S.DeviceDeferredDiags[Diag.Fn][*Diag.PartialDiagId]
-            .getDiag()
-            .second = PD;
-      return Diag;
-    }
-
-    void AddFixItHint(const FixItHint &Hint) const {
-      if (ImmediateDiag)
-        ImmediateDiag->AddFixItHint(Hint);
-      else if (PartialDiagId)
-        S.DeviceDeferredDiags[Fn][*PartialDiagId].getDiag().second.AddFixItHint(
-            Hint);
-    }
-
-    friend ExprResult ExprError(const SemaDiagnosticBuilder &) {
-      return ExprError();
-    }
-    friend StmtResult StmtError(const SemaDiagnosticBuilder &) {
-      return StmtError();
-    }
-    operator ExprResult() const { return ExprError(); }
-    operator StmtResult() const { return StmtError(); }
-    operator TypeResult() const { return TypeError(); }
-    operator DeclResult() const { return DeclResult(true); }
-    operator MemInitResult() const { return MemInitResult(true); }
-
-  private:
-    Sema &S;
-    SourceLocation Loc;
-    unsigned DiagID;
-    const FunctionDecl *Fn;
-    bool ShowCallStack;
-
-    // Invariant: At most one of these Optionals has a value.
-    // FIXME: Switch these to a Variant once that exists.
-    std::optional<ImmediateDiagBuilder> ImmediateDiag;
-    std::optional<unsigned> PartialDiagId;
-  };
-
   void PrintStats() const;
 
   /// Warn that the stack is nearly exhausted.
@@ -988,14 +741,6 @@ public:
   void EmitCurrentDiagnostic(unsigned DiagID);
 
   void addImplicitTypedef(StringRef Name, QualType T);
-
-  /// Emit a diagnostic.
-  SemaDiagnosticBuilder Diag(SourceLocation Loc, unsigned DiagID,
-                             bool DeferHint = false);
-
-  /// Emit a partial diagnostic.
-  SemaDiagnosticBuilder Diag(SourceLocation Loc, const PartialDiagnostic &PD,
-                             bool DeferHint = false);
 
   /// Whether uncompilable error has occurred. This includes error happens
   /// in deferred diagnostics.
@@ -1407,6 +1152,16 @@ public:
   /// CurContext - This is the current declaration context of parsing.
   DeclContext *CurContext;
 
+  SemaHLSL &HLSL() {
+    assert(HLSLPtr);
+    return *HLSLPtr;
+  }
+
+  SemaOpenACC &OpenACC() {
+    assert(OpenACCPtr);
+    return *OpenACCPtr;
+  }
+
 protected:
   friend class Parser;
   friend class InitializationSequence;
@@ -1436,6 +1191,9 @@ private:
   Scope *CurScope;
 
   mutable IdentifierInfo *Ident_super;
+
+  std::unique_ptr<SemaHLSL> HLSLPtr;
+  std::unique_ptr<SemaOpenACC> OpenACCPtr;
 
   ///@}
 
@@ -1900,6 +1658,9 @@ public:
   /// Add [[gsl::Pointer]] attributes for std:: types.
   void inferGslPointerAttribute(TypedefNameDecl *TD);
 
+  /// Add _Nullable attributes for std:: types.
+  void inferNullableClassAttribute(CXXRecordDecl *CRD);
+
   enum PragmaOptionsAlignKind {
     POAK_Native,  // #pragma options align=native
     POAK_Natural, // #pragma options align=natural
@@ -2167,32 +1928,6 @@ public:
   //
   //
 
-  SYCLIntelIVDepAttr *
-  BuildSYCLIntelIVDepAttr(const AttributeCommonInfo &CI, Expr *Expr1,
-                          Expr *Expr2);
-  LoopUnrollHintAttr *BuildLoopUnrollHintAttr(const AttributeCommonInfo &A,
-                                              Expr *E);
-  OpenCLUnrollHintAttr *
-  BuildOpenCLLoopUnrollHintAttr(const AttributeCommonInfo &A, Expr *E);
-
-  SYCLIntelLoopCountAttr *
-  BuildSYCLIntelLoopCountAttr(const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelInitiationIntervalAttr *
-  BuildSYCLIntelInitiationIntervalAttr(const AttributeCommonInfo &CI,
-                                       Expr *E);
-  SYCLIntelMaxConcurrencyAttr *
-  BuildSYCLIntelMaxConcurrencyAttr(const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelMaxInterleavingAttr *
-  BuildSYCLIntelMaxInterleavingAttr(const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelSpeculatedIterationsAttr *
-  BuildSYCLIntelSpeculatedIterationsAttr(const AttributeCommonInfo &CI,
-                                         Expr *E);
-  SYCLIntelLoopCoalesceAttr *
-  BuildSYCLIntelLoopCoalesceAttr(const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelMaxReinvocationDelayAttr *
-  BuildSYCLIntelMaxReinvocationDelayAttr(const AttributeCommonInfo &CI,
-                                         Expr *E);
-
   /// \name Casts
   /// Implementations are in SemaCast.cpp
   ///@{
@@ -2290,10 +2025,10 @@ public:
                                   bool IsVariadic, FormatStringInfo *FSI);
 
   // Used by C++ template instantiation.
-  ExprResult SemaBuiltinShuffleVector(CallExpr *TheCall);
-  ExprResult SemaConvertVectorExpr(Expr *E, TypeSourceInfo *TInfo,
-                                   SourceLocation BuiltinLoc,
-                                   SourceLocation RParenLoc);
+  ExprResult BuiltinShuffleVector(CallExpr *TheCall);
+  ExprResult ConvertVectorExpr(Expr *E, TypeSourceInfo *TInfo,
+                               SourceLocation BuiltinLoc,
+                               SourceLocation RParenLoc);
 
   enum FormatStringType {
     FST_Scanf,
@@ -2422,25 +2157,14 @@ public:
   };
 
   bool IsLayoutCompatible(QualType T1, QualType T2) const;
-  template <typename AttrTy>
-  static bool isTypeDecoratedWithDeclAttribute(QualType Ty) {
-    const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
-    if (!RecTy)
-      return false;
-
-    if (RecTy->hasAttr<AttrTy>())
-      return true;
-
-    if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RecTy)) {
-      ClassTemplateDecl *Template = CTSD->getSpecializedTemplate();
-      if (CXXRecordDecl *RD = Template->getTemplatedDecl())
-        return RD->hasAttr<AttrTy>();
-    }
-    return false;
-  }
 
   bool CheckFunctionCall(FunctionDecl *FDecl, CallExpr *TheCall,
                          const FunctionProtoType *Proto);
+
+  bool BuiltinVectorMath(CallExpr *TheCall, QualType &Res);
+  bool BuiltinVectorToScalarMath(CallExpr *TheCall);
+
+  bool CheckHLSLBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall);
 
 private:
   void CheckArrayAccess(const Expr *BaseExpr, const Expr *IndexExpr,
@@ -2521,7 +2245,8 @@ private:
   bool CheckRISCVLMUL(CallExpr *TheCall, unsigned ArgNum);
   bool CheckRISCVBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
                                      CallExpr *TheCall);
-  void checkRVVTypeSupport(QualType Ty, SourceLocation Loc, Decl *D);
+  void checkRVVTypeSupport(QualType Ty, SourceLocation Loc, Decl *D,
+                           const llvm::StringMap<bool> &FeatureMap);
   bool CheckLoongArchBuiltinFunctionCall(const TargetInfo &TI,
                                          unsigned BuiltinID, CallExpr *TheCall);
   bool CheckWebAssemblyBuiltinFunctionCall(const TargetInfo &TI,
@@ -2530,62 +2255,59 @@ private:
   bool CheckNVPTXBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
                                      CallExpr *TheCall);
 
-  bool SemaBuiltinVAStart(unsigned BuiltinID, CallExpr *TheCall);
-  bool SemaBuiltinVAStartARMMicrosoft(CallExpr *Call);
-  bool SemaBuiltinUnorderedCompare(CallExpr *TheCall, unsigned BuiltinID);
-  bool SemaBuiltinFPClassification(CallExpr *TheCall, unsigned NumArgs,
-                                   unsigned BuiltinID);
-  bool SemaBuiltinComplex(CallExpr *TheCall);
-  bool SemaBuiltinVSX(CallExpr *TheCall);
-  bool SemaBuiltinOSLogFormat(CallExpr *TheCall);
-  bool SemaValueIsRunOfOnes(CallExpr *TheCall, unsigned ArgNum);
+  bool BuiltinVAStart(unsigned BuiltinID, CallExpr *TheCall);
+  bool BuiltinVAStartARMMicrosoft(CallExpr *Call);
+  bool BuiltinUnorderedCompare(CallExpr *TheCall, unsigned BuiltinID);
+  bool BuiltinFPClassification(CallExpr *TheCall, unsigned NumArgs,
+                               unsigned BuiltinID);
+  bool BuiltinComplex(CallExpr *TheCall);
+  bool BuiltinVSX(CallExpr *TheCall);
+  bool BuiltinOSLogFormat(CallExpr *TheCall);
+  bool ValueIsRunOfOnes(CallExpr *TheCall, unsigned ArgNum);
 
-  bool SemaBuiltinPrefetch(CallExpr *TheCall);
-  bool SemaBuiltinAllocaWithAlign(CallExpr *TheCall);
-  bool SemaBuiltinArithmeticFence(CallExpr *TheCall);
-  bool SemaBuiltinAssume(CallExpr *TheCall);
-  bool SemaBuiltinAssumeAligned(CallExpr *TheCall);
-  bool SemaBuiltinLongjmp(CallExpr *TheCall);
-  bool SemaBuiltinSetjmp(CallExpr *TheCall);
-  ExprResult SemaBuiltinAtomicOverloaded(ExprResult TheCallResult);
-  ExprResult SemaBuiltinNontemporalOverloaded(ExprResult TheCallResult);
-  ExprResult SemaAtomicOpsOverloaded(ExprResult TheCallResult,
-                                     AtomicExpr::AtomicOp Op);
-  bool SemaBuiltinConstantArg(CallExpr *TheCall, int ArgNum,
-                              llvm::APSInt &Result);
-  bool SemaBuiltinConstantArgRange(CallExpr *TheCall, int ArgNum, int Low,
-                                   int High, bool RangeIsError = true);
-  bool SemaBuiltinConstantArgMultiple(CallExpr *TheCall, int ArgNum,
-                                      unsigned Multiple);
-  bool SemaBuiltinConstantArgPower2(CallExpr *TheCall, int ArgNum);
-  bool SemaBuiltinConstantArgShiftedByte(CallExpr *TheCall, int ArgNum,
-                                         unsigned ArgBits);
-  bool SemaBuiltinConstantArgShiftedByteOrXXFF(CallExpr *TheCall, int ArgNum,
-                                               unsigned ArgBits);
-  bool SemaBuiltinARMSpecialReg(unsigned BuiltinID, CallExpr *TheCall,
-                                int ArgNum, unsigned ExpectedFieldNum,
-                                bool AllowName);
-  bool SemaBuiltinARMMemoryTaggingCall(unsigned BuiltinID, CallExpr *TheCall);
-  bool SemaBuiltinPPCMMACall(CallExpr *TheCall, unsigned BuiltinID,
-                             const char *TypeDesc);
+  bool BuiltinPrefetch(CallExpr *TheCall);
+  bool BuiltinAllocaWithAlign(CallExpr *TheCall);
+  bool BuiltinArithmeticFence(CallExpr *TheCall);
+  bool BuiltinAssume(CallExpr *TheCall);
+  bool BuiltinAssumeAligned(CallExpr *TheCall);
+  bool BuiltinLongjmp(CallExpr *TheCall);
+  bool BuiltinSetjmp(CallExpr *TheCall);
+  ExprResult BuiltinAtomicOverloaded(ExprResult TheCallResult);
+  ExprResult BuiltinNontemporalOverloaded(ExprResult TheCallResult);
+  ExprResult AtomicOpsOverloaded(ExprResult TheCallResult,
+                                 AtomicExpr::AtomicOp Op);
+  bool BuiltinConstantArg(CallExpr *TheCall, int ArgNum, llvm::APSInt &Result);
+  bool BuiltinConstantArgRange(CallExpr *TheCall, int ArgNum, int Low, int High,
+                               bool RangeIsError = true);
+  bool BuiltinConstantArgMultiple(CallExpr *TheCall, int ArgNum,
+                                  unsigned Multiple);
+  bool BuiltinConstantArgPower2(CallExpr *TheCall, int ArgNum);
+  bool BuiltinConstantArgShiftedByte(CallExpr *TheCall, int ArgNum,
+                                     unsigned ArgBits);
+  bool BuiltinConstantArgShiftedByteOrXXFF(CallExpr *TheCall, int ArgNum,
+                                           unsigned ArgBits);
+  bool BuiltinARMSpecialReg(unsigned BuiltinID, CallExpr *TheCall, int ArgNum,
+                            unsigned ExpectedFieldNum, bool AllowName);
+  bool BuiltinARMMemoryTaggingCall(unsigned BuiltinID, CallExpr *TheCall);
+  bool BuiltinPPCMMACall(CallExpr *TheCall, unsigned BuiltinID,
+                         const char *TypeDesc);
 
   bool CheckPPCMMAType(QualType Type, SourceLocation TypeLoc);
 
-  bool SemaBuiltinElementwiseMath(CallExpr *TheCall);
-  bool SemaBuiltinElementwiseTernaryMath(CallExpr *TheCall,
-                                         bool CheckForFloatArgs = true);
+  bool BuiltinElementwiseMath(CallExpr *TheCall);
+  bool BuiltinElementwiseTernaryMath(CallExpr *TheCall,
+                                     bool CheckForFloatArgs = true);
   bool PrepareBuiltinElementwiseMathOneArgCall(CallExpr *TheCall);
   bool PrepareBuiltinReduceMathOneArgCall(CallExpr *TheCall);
 
-  bool SemaBuiltinNonDeterministicValue(CallExpr *TheCall);
+  bool BuiltinNonDeterministicValue(CallExpr *TheCall);
 
   // Matrix builtin handling.
-  ExprResult SemaBuiltinMatrixTranspose(CallExpr *TheCall,
-                                        ExprResult CallResult);
-  ExprResult SemaBuiltinMatrixColumnMajorLoad(CallExpr *TheCall,
-                                              ExprResult CallResult);
-  ExprResult SemaBuiltinMatrixColumnMajorStore(CallExpr *TheCall,
-                                               ExprResult CallResult);
+  ExprResult BuiltinMatrixTranspose(CallExpr *TheCall, ExprResult CallResult);
+  ExprResult BuiltinMatrixColumnMajorLoad(CallExpr *TheCall,
+                                          ExprResult CallResult);
+  ExprResult BuiltinMatrixColumnMajorStore(CallExpr *TheCall,
+                                           ExprResult CallResult);
 
   // WebAssembly builtin handling.
   bool BuiltinWasmRefNullExtern(CallExpr *TheCall);
@@ -2687,6 +2409,13 @@ private:
   /// Adds an expression to the set of gathered misaligned members.
   void AddPotentialMisalignedMembers(Expr *E, RecordDecl *RD, ValueDecl *MD,
                                      CharUnits Alignment);
+
+  bool CheckIntelFPGARegBuiltinFunctionCall(unsigned BuiltinID, CallExpr *Call);
+  bool CheckIntelFPGAMemBuiltinFunctionCall(CallExpr *Call);
+  bool CheckIntelSYCLPtrAnnotationBuiltinFunctionCall(unsigned BuiltinID,
+                                                      CallExpr *Call);
+  bool CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned BuiltinID,
+                                               CallExpr *Call);
   ///@}
 
   //
@@ -3347,6 +3076,8 @@ public:
                                     TemplateIdAnnotation *TemplateId,
                                     bool IsMemberSpecialization);
 
+  bool checkConstantPointerAuthKey(Expr *keyExpr, unsigned &key);
+
   void DiagnoseFunctionSpecifiers(const DeclSpec &DS);
   NamedDecl *getShadowedDeclaration(const TypedefNameDecl *D,
                                     const LookupResult &R);
@@ -3943,6 +3674,8 @@ public:
   // Whether the callee should be ignored in CUDA/HIP/OpenMP host/device check.
   bool shouldIgnoreInHostDeviceCheck(FunctionDecl *Callee);
 
+  DeviceDiagnosticReason getEmissionReason(const FunctionDecl *Decl);
+
 private:
   /// Function or variable declarations to be checked for whether the deferred
   /// diagnostics should be emitted.
@@ -4209,20 +3942,6 @@ public:
   void addAMDGPUMaxNumWorkGroupsAttr(Decl *D, const AttributeCommonInfo &CI,
                                      Expr *XExpr, Expr *YExpr, Expr *ZExpr);
 
-  /// addSYCLIntelPipeIOAttr - Adds a pipe I/O attribute to a particular
-  /// declaration.
-  void addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &CI, Expr *ID);
-  SYCLIntelPipeIOAttr *MergeSYCLIntelPipeIOAttr(Decl *D,
-                                                const SYCLIntelPipeIOAttr &A);
-
-  /// AddSYCLIntelMaxConcurrencyAttr - Adds a max_concurrency attribute to a
-  /// particular declaration.
-  void AddSYCLIntelMaxConcurrencyAttr(Decl *D,
-                                      const AttributeCommonInfo &CI,
-                                      Expr *E);
-
-  bool checkAllowedSYCLInitializer(VarDecl *VD);
-  //===--------------------------------------------------------------------===//
   DLLImportAttr *mergeDLLImportAttr(Decl *D, const AttributeCommonInfo &CI);
   DLLExportAttr *mergeDLLExportAttr(Decl *D, const AttributeCommonInfo &CI);
   MSInheritanceAttr *mergeMSInheritanceAttr(Decl *D,
@@ -4230,19 +3949,9 @@ public:
                                             bool BestCase,
                                             MSInheritanceModel Model);
 
-  bool CheckCountedByAttr(Scope *Scope, const FieldDecl *FD);
-
   EnforceTCBAttr *mergeEnforceTCBAttr(Decl *D, const EnforceTCBAttr &AL);
   EnforceTCBLeafAttr *mergeEnforceTCBLeafAttr(Decl *D,
                                               const EnforceTCBLeafAttr &AL);
-
-public:
-
-  DeviceDiagnosticReason getEmissionReason(const FunctionDecl *Decl);
-
-  //@}
-
-  // More parsing and symbol table subroutines.
 
   // Helper for delayed processing of attributes.
   void ProcessDeclAttributeDelayed(Decl *D,
@@ -4300,8 +4009,173 @@ public:
 
   void redelayDiagnostics(sema::DelayedDiagnosticPool &pool);
 
+  void AddSYCLIntelBankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
+                                Expr **Exprs, unsigned Size);
+  bool AnyWorkGroupSizesDiffer(const Expr *LHSXDim, const Expr *LHSYDim,
+                               const Expr *LHSZDim, const Expr *RHSXDim,
+                               const Expr *RHSYDim, const Expr *RHSZDim);
+  bool AllWorkGroupSizesSame(const Expr *LHSXDim, const Expr *LHSYDim,
+                             const Expr *LHSZDim, const Expr *RHSXDim,
+                             const Expr *RHSYDim, const Expr *RHSZDim);
+  void AddSYCLWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
+                                    Expr *XDim, Expr *YDim, Expr *ZDim);
+  SYCLWorkGroupSizeHintAttr *
+  MergeSYCLWorkGroupSizeHintAttr(Decl *D, const SYCLWorkGroupSizeHintAttr &A);
+  void AddIntelReqdSubGroupSize(Decl *D, const AttributeCommonInfo &CI,
+                                Expr *E);
+  IntelReqdSubGroupSizeAttr *
+  MergeIntelReqdSubGroupSizeAttr(Decl *D, const IntelReqdSubGroupSizeAttr &A);
+  IntelNamedSubGroupSizeAttr *
+  MergeIntelNamedSubGroupSizeAttr(Decl *D, const IntelNamedSubGroupSizeAttr &A);
+  void AddSYCLIntelNumSimdWorkItemsAttr(Decl *D, const AttributeCommonInfo &CI,
+                                        Expr *E);
+  SYCLIntelNumSimdWorkItemsAttr *
+  MergeSYCLIntelNumSimdWorkItemsAttr(Decl *D,
+                                     const SYCLIntelNumSimdWorkItemsAttr &A);
+  void AddSYCLIntelESimdVectorizeAttr(Decl *D, const AttributeCommonInfo &CI,
+                                      Expr *E);
+  SYCLIntelESimdVectorizeAttr *
+  MergeSYCLIntelESimdVectorizeAttr(Decl *D,
+                                   const SYCLIntelESimdVectorizeAttr &A);
+  void AddSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
+                                              const AttributeCommonInfo &CI,
+                                              Expr *E);
+  SYCLIntelSchedulerTargetFmaxMhzAttr *MergeSYCLIntelSchedulerTargetFmaxMhzAttr(
+      Decl *D, const SYCLIntelSchedulerTargetFmaxMhzAttr &A);
+  void AddSYCLIntelNoGlobalWorkOffsetAttr(Decl *D,
+                                          const AttributeCommonInfo &CI,
+                                          Expr *E);
+  SYCLIntelNoGlobalWorkOffsetAttr *MergeSYCLIntelNoGlobalWorkOffsetAttr(
+      Decl *D, const SYCLIntelNoGlobalWorkOffsetAttr &A);
+  void AddSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
+                                Expr *E);
+  SYCLIntelLoopFuseAttr *
+  MergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &A);
+  void AddSYCLIntelPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
+                                     Expr *E);
+  void AddSYCLIntelMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
+                                     Expr *E);
+  SYCLIntelMaxReplicatesAttr *
+  MergeSYCLIntelMaxReplicatesAttr(Decl *D, const SYCLIntelMaxReplicatesAttr &A);
+  void AddSYCLIntelForcePow2DepthAttr(Decl *D, const AttributeCommonInfo &CI,
+                                      Expr *E);
+  SYCLIntelForcePow2DepthAttr *
+  MergeSYCLIntelForcePow2DepthAttr(Decl *D,
+                                   const SYCLIntelForcePow2DepthAttr &A);
+  void AddSYCLIntelInitiationIntervalAttr(Decl *D,
+                                          const AttributeCommonInfo &CI,
+                                          Expr *E);
+  SYCLIntelInitiationIntervalAttr *MergeSYCLIntelInitiationIntervalAttr(
+      Decl *D, const SYCLIntelInitiationIntervalAttr &A);
+
+  SYCLIntelMaxConcurrencyAttr *
+  MergeSYCLIntelMaxConcurrencyAttr(Decl *D,
+                                   const SYCLIntelMaxConcurrencyAttr &A);
+  void AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D, const AttributeCommonInfo &CI,
+                                        Expr *E);
+  SYCLIntelMaxGlobalWorkDimAttr *
+  MergeSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
+                                     const SYCLIntelMaxGlobalWorkDimAttr &A);
+  void AddSYCLIntelMinWorkGroupsPerComputeUnitAttr(
+      Decl *D, const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelMinWorkGroupsPerComputeUnitAttr *
+  MergeSYCLIntelMinWorkGroupsPerComputeUnitAttr(
+      Decl *D, const SYCLIntelMinWorkGroupsPerComputeUnitAttr &A);
+  void AddSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
+      Decl *D, const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelMaxWorkGroupsPerMultiprocessorAttr *
+  MergeSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
+      Decl *D, const SYCLIntelMaxWorkGroupsPerMultiprocessorAttr &A);
+  void AddSYCLIntelBankWidthAttr(Decl *D, const AttributeCommonInfo &CI,
+                                 Expr *E);
+  SYCLIntelBankWidthAttr *
+  MergeSYCLIntelBankWidthAttr(Decl *D, const SYCLIntelBankWidthAttr &A);
+  void AddSYCLIntelNumBanksAttr(Decl *D, const AttributeCommonInfo &CI,
+                                Expr *E);
+  SYCLIntelNumBanksAttr *
+  MergeSYCLIntelNumBanksAttr(Decl *D, const SYCLIntelNumBanksAttr &A);
+  SYCLDeviceHasAttr *MergeSYCLDeviceHasAttr(Decl *D,
+                                            const SYCLDeviceHasAttr &A);
+  void AddSYCLDeviceHasAttr(Decl *D, const AttributeCommonInfo &CI,
+                            Expr **Exprs, unsigned Size);
+  SYCLUsesAspectsAttr *MergeSYCLUsesAspectsAttr(Decl *D,
+                                                const SYCLUsesAspectsAttr &A);
+  void AddSYCLUsesAspectsAttr(Decl *D, const AttributeCommonInfo &CI,
+                              Expr **Exprs, unsigned Size);
+  bool CheckMaxAllowedWorkGroupSize(const Expr *RWGSXDim, const Expr *RWGSYDim,
+                                    const Expr *RWGSZDim, const Expr *MWGSXDim,
+                                    const Expr *MWGSYDim, const Expr *MWGSZDim);
+  void AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
+                                        Expr *XDim, Expr *YDim, Expr *ZDim);
+  SYCLIntelMaxWorkGroupSizeAttr *
+  MergeSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
+                                     const SYCLIntelMaxWorkGroupSizeAttr &A);
+  void CheckSYCLAddIRAttributesFunctionAttrConflicts(Decl *D);
+  SYCLAddIRAttributesFunctionAttr *MergeSYCLAddIRAttributesFunctionAttr(
+      Decl *D, const SYCLAddIRAttributesFunctionAttr &A);
+  void AddSYCLAddIRAttributesFunctionAttr(Decl *D,
+                                          const AttributeCommonInfo &CI,
+                                          MutableArrayRef<Expr *> Args);
+  SYCLAddIRAttributesKernelParameterAttr *
+  MergeSYCLAddIRAttributesKernelParameterAttr(
+      Decl *D, const SYCLAddIRAttributesKernelParameterAttr &A);
+  void AddSYCLAddIRAttributesKernelParameterAttr(Decl *D,
+                                                 const AttributeCommonInfo &CI,
+                                                 MutableArrayRef<Expr *> Args);
+  SYCLAddIRAttributesGlobalVariableAttr *
+  MergeSYCLAddIRAttributesGlobalVariableAttr(
+      Decl *D, const SYCLAddIRAttributesGlobalVariableAttr &A);
+  void AddSYCLAddIRAttributesGlobalVariableAttr(Decl *D,
+                                                const AttributeCommonInfo &CI,
+                                                MutableArrayRef<Expr *> Args);
+  SYCLAddIRAnnotationsMemberAttr *
+  MergeSYCLAddIRAnnotationsMemberAttr(Decl *D,
+                                      const SYCLAddIRAnnotationsMemberAttr &A);
+  void AddSYCLAddIRAnnotationsMemberAttr(Decl *D, const AttributeCommonInfo &CI,
+                                         MutableArrayRef<Expr *> Args);
+  void AddSYCLReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
+                                    Expr *XDim, Expr *YDim, Expr *ZDim);
+  SYCLReqdWorkGroupSizeAttr *
+  MergeSYCLReqdWorkGroupSizeAttr(Decl *D, const SYCLReqdWorkGroupSizeAttr &A);
+
+  SYCLTypeAttr *MergeSYCLTypeAttr(Decl *D, const AttributeCommonInfo &CI,
+                                  SYCLTypeAttr::SYCLType TypeName);
+
+  /// Emit a diagnostic about the given attribute having a deprecated name, and
+  /// also emit a fixit hint to generate the new attribute name.
+  void DiagnoseDeprecatedAttribute(const ParsedAttr &A, StringRef NewScope,
+                                   StringRef NewName);
+
+  /// Diagnoses an attribute in the 'intelfpga' namespace and suggests using
+  /// the attribute in the 'intel' namespace instead.
+  void CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
+                                            StringRef NewName = "");
+
+  /// addSYCLIntelPipeIOAttr - Adds a pipe I/O attribute to a particular
+  /// declaration.
+  void addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &CI, Expr *ID);
+  SYCLIntelPipeIOAttr *MergeSYCLIntelPipeIOAttr(Decl *D,
+                                                const SYCLIntelPipeIOAttr &A);
+
+  /// AddSYCLIntelMaxConcurrencyAttr - Adds a max_concurrency attribute to a
+  /// particular declaration.
+  void AddSYCLIntelMaxConcurrencyAttr(Decl *D, const AttributeCommonInfo &CI,
+                                      Expr *E);
+
+  bool CheckCountedByAttr(Scope *Scope, const FieldDecl *FD);
+
   ///@}
+
   //
+  //
+  // -------------------------------------------------------------------------
+  //
+  //
+
+  /// \name C++ Declarations
+  /// Implementations are in SemaDeclCXX.cpp
+  ///@{
+
 public:
   void CheckDelegatingCtorCycles();
 
@@ -5546,6 +5420,7 @@ public:
     enum ExpressionKind {
       EK_Decltype,
       EK_TemplateArgument,
+      EK_BoundsAttrArgument,
       EK_Other
     } ExprContext;
 
@@ -5662,6 +5537,12 @@ public:
            "Must be in an expression evaluation context");
     return ExprEvalContexts.back();
   };
+
+  bool isBoundsAttrContext() const {
+    return ExprEvalContexts.back().ExprContext ==
+           ExpressionEvaluationContextRecord::ExpressionKind::
+               EK_BoundsAttrArgument;
+  }
 
   /// Increment when we find a reference; decrement when we find an ignored
   /// assignment.  Ultimately the value is 0 if every reference is an ignored
@@ -5914,7 +5795,8 @@ public:
 
   ExprResult BuildDeclarationNameExpr(const CXXScopeSpec &SS, LookupResult &R,
                                       bool NeedsADL,
-                                      bool AcceptInvalidDecl = false);
+                                      bool AcceptInvalidDecl = false,
+                                      bool NeedUnresolved = false);
   ExprResult BuildDeclarationNameExpr(
       const CXXScopeSpec &SS, const DeclarationNameInfo &NameInfo, NamedDecl *D,
       NamedDecl *FoundD = nullptr,
@@ -5938,13 +5820,6 @@ public:
                                            SourceLocation LParen,
                                            SourceLocation RParen,
                                            ParsedType ParsedTy);
-
-  ExprResult BuildSYCLUniqueStableIdExpr(SourceLocation OpLoc,
-                                         SourceLocation LParen,
-                                         SourceLocation RParen, Expr *E);
-  ExprResult ActOnSYCLUniqueStableIdExpr(SourceLocation OpLoc,
-                                         SourceLocation LParen,
-                                         SourceLocation RParen, Expr *E);
 
   bool CheckLoopHintExpr(Expr *E, SourceLocation Loc);
 
@@ -6997,6 +6872,14 @@ private:
   void CheckSubscriptAccessOfNoDeref(const ArraySubscriptExpr *E);
   void CheckAddressOfNoDeref(const Expr *E);
 
+public:
+  ExprResult BuildSYCLUniqueStableIdExpr(SourceLocation OpLoc,
+                                         SourceLocation LParen,
+                                         SourceLocation RParen, Expr *E);
+  ExprResult ActOnSYCLUniqueStableIdExpr(SourceLocation OpLoc,
+                                         SourceLocation LParen,
+                                         SourceLocation RParen, Expr *E);
+
   ///@}
 
   //
@@ -7073,7 +6956,10 @@ public:
                             SourceLocation RParenLoc);
 
   //// ActOnCXXThis -  Parse 'this' pointer.
-  ExprResult ActOnCXXThis(SourceLocation loc);
+  ExprResult ActOnCXXThis(SourceLocation Loc);
+
+  /// Check whether the type of 'this' is valid in the current context.
+  bool CheckCXXThisType(SourceLocation Loc, QualType Type);
 
   /// Build a CXXThisExpr and mark it referenced in the current context.
   Expr *BuildCXXThisExpr(SourceLocation Loc, QualType Type, bool IsImplicit);
@@ -7476,8 +7362,8 @@ public:
                                SourceLocation ClosingBraceLoc);
 
 private:
-  ExprResult SemaBuiltinOperatorNewDeleteOverloaded(ExprResult TheCallResult,
-                                                    bool IsDelete);
+  ExprResult BuiltinOperatorNewDeleteOverloaded(ExprResult TheCallResult,
+                                                bool IsDelete);
 
   void AnalyzeDeleteExprMismatch(const CXXDeleteExpr *DE);
   void AnalyzeDeleteExprMismatch(FieldDecl *Field, SourceLocation DeleteLoc,
@@ -9330,6 +9216,30 @@ public:
                                 const IdentifierInfo *AttrName,
                                 SourceRange Range);
 
+  SYCLIntelIVDepAttr *BuildSYCLIntelIVDepAttr(const AttributeCommonInfo &CI,
+                                              Expr *Expr1, Expr *Expr2);
+  LoopUnrollHintAttr *BuildLoopUnrollHintAttr(const AttributeCommonInfo &A,
+                                              Expr *E);
+  OpenCLUnrollHintAttr *
+  BuildOpenCLLoopUnrollHintAttr(const AttributeCommonInfo &A, Expr *E);
+
+  SYCLIntelLoopCountAttr *
+  BuildSYCLIntelLoopCountAttr(const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelInitiationIntervalAttr *
+  BuildSYCLIntelInitiationIntervalAttr(const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelMaxConcurrencyAttr *
+  BuildSYCLIntelMaxConcurrencyAttr(const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelMaxInterleavingAttr *
+  BuildSYCLIntelMaxInterleavingAttr(const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelSpeculatedIterationsAttr *
+  BuildSYCLIntelSpeculatedIterationsAttr(const AttributeCommonInfo &CI,
+                                         Expr *E);
+  SYCLIntelLoopCoalesceAttr *
+  BuildSYCLIntelLoopCoalesceAttr(const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelMaxReinvocationDelayAttr *
+  BuildSYCLIntelMaxReinvocationDelayAttr(const AttributeCommonInfo &CI,
+                                         Expr *E);
+
   ///@}
 
   //
@@ -9525,7 +9435,7 @@ public:
 
   bool AttachTypeConstraint(NestedNameSpecifierLoc NS,
                             DeclarationNameInfo NameInfo,
-                            ConceptDecl *NamedConcept,
+                            ConceptDecl *NamedConcept, NamedDecl *FoundDecl,
                             const TemplateArgumentListInfo *TemplateArgs,
                             TemplateTypeParmDecl *ConstrainedParameter,
                             SourceLocation EllipsisLoc);
@@ -10007,7 +9917,8 @@ public:
   /// not already done so.
   void DeclareImplicitDeductionGuides(TemplateDecl *Template,
                                       SourceLocation Loc);
-  FunctionTemplateDecl *DeclareImplicitDeductionGuideFromInitList(
+
+  FunctionTemplateDecl *DeclareAggregateDeductionGuideFromInitList(
       TemplateDecl *Template, MutableArrayRef<QualType> ParamTypes,
       SourceLocation Loc);
 
@@ -10464,6 +10375,9 @@ public:
 
       /// We are building deduction guides for a class.
       BuildingDeductionGuides,
+
+      /// We are instantiating a type alias template declaration.
+      TypeAliasTemplateInstantiation,
     } Kind;
 
     /// Was the enclosing context a non-instantiation SFINAE context?
@@ -10551,6 +10465,12 @@ public:
     /// of a function template.
     InstantiatingTemplate(Sema &SemaRef, SourceLocation PointOfInstantiation,
                           FunctionDecl *Entity, ExceptionSpecification,
+                          SourceRange InstantiationRange = SourceRange());
+
+    /// Note that we are instantiating a type alias template declaration.
+    InstantiatingTemplate(Sema &SemaRef, SourceLocation PointOfInstantiation,
+                          TypeAliasTemplateDecl *Entity,
+                          ArrayRef<TemplateArgument> TemplateArgs,
                           SourceRange InstantiationRange = SourceRange());
 
     /// Note that we are instantiating a default argument in a
@@ -12055,6 +11975,8 @@ public:
   QualType BuildMatrixType(QualType T, Expr *NumRows, Expr *NumColumns,
                            SourceLocation AttrLoc);
 
+  QualType BuildCountAttributedArrayType(QualType WrappedTy, Expr *CountExpr);
+
   QualType BuildAddressSpaceAttr(QualType &T, LangAS ASIdx, Expr *AddrSpace,
                                  SourceLocation AttrLoc);
 
@@ -12700,138 +12622,6 @@ public:
   void AddFactoryMethodToGlobalPool(ObjCMethodDecl *Method, bool impl = false) {
     AddMethodToGlobalPool(Method, impl, /*instance*/ false);
   }
-
-  void AddSYCLIntelBankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
-                                Expr **Exprs, unsigned Size);
-  bool AnyWorkGroupSizesDiffer(const Expr *LHSXDim, const Expr *LHSYDim,
-                               const Expr *LHSZDim, const Expr *RHSXDim,
-                               const Expr *RHSYDim, const Expr *RHSZDim);
-  bool AllWorkGroupSizesSame(const Expr *LHSXDim, const Expr *LHSYDim,
-                             const Expr *LHSZDim, const Expr *RHSXDim,
-                             const Expr *RHSYDim, const Expr *RHSZDim);
-  void AddSYCLWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
-                                    Expr *XDim, Expr *YDim, Expr *ZDim);
-  SYCLWorkGroupSizeHintAttr *
-  MergeSYCLWorkGroupSizeHintAttr(Decl *D, const SYCLWorkGroupSizeHintAttr &A);
-  void AddIntelReqdSubGroupSize(Decl *D, const AttributeCommonInfo &CI,
-                                Expr *E);
-  IntelReqdSubGroupSizeAttr *
-  MergeIntelReqdSubGroupSizeAttr(Decl *D, const IntelReqdSubGroupSizeAttr &A);
-  IntelNamedSubGroupSizeAttr *
-  MergeIntelNamedSubGroupSizeAttr(Decl *D, const IntelNamedSubGroupSizeAttr &A);
-  void AddSYCLIntelNumSimdWorkItemsAttr(Decl *D, const AttributeCommonInfo &CI,
-                                        Expr *E);
-  SYCLIntelNumSimdWorkItemsAttr *
-  MergeSYCLIntelNumSimdWorkItemsAttr(Decl *D,
-                                     const SYCLIntelNumSimdWorkItemsAttr &A);
-  void AddSYCLIntelESimdVectorizeAttr(Decl *D, const AttributeCommonInfo &CI,
-                                      Expr *E);
-  SYCLIntelESimdVectorizeAttr *
-  MergeSYCLIntelESimdVectorizeAttr(Decl *D,
-                                   const SYCLIntelESimdVectorizeAttr &A);
-  void AddSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
-                                              const AttributeCommonInfo &CI,
-                                              Expr *E);
-  SYCLIntelSchedulerTargetFmaxMhzAttr *MergeSYCLIntelSchedulerTargetFmaxMhzAttr(
-      Decl *D, const SYCLIntelSchedulerTargetFmaxMhzAttr &A);
-  void AddSYCLIntelNoGlobalWorkOffsetAttr(Decl *D,
-                                          const AttributeCommonInfo &CI,
-                                          Expr *E);
-  SYCLIntelNoGlobalWorkOffsetAttr *MergeSYCLIntelNoGlobalWorkOffsetAttr(
-      Decl *D, const SYCLIntelNoGlobalWorkOffsetAttr &A);
-  void AddSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
-                                Expr *E);
-  SYCLIntelLoopFuseAttr *
-  MergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &A);
-  void AddSYCLIntelPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
-                                     Expr *E);
-  void AddSYCLIntelMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
-                                     Expr *E);
-  SYCLIntelMaxReplicatesAttr *
-  MergeSYCLIntelMaxReplicatesAttr(Decl *D, const SYCLIntelMaxReplicatesAttr &A);
-  void AddSYCLIntelForcePow2DepthAttr(Decl *D, const AttributeCommonInfo &CI,
-                                      Expr *E);
-  SYCLIntelForcePow2DepthAttr *
-  MergeSYCLIntelForcePow2DepthAttr(Decl *D,
-                                   const SYCLIntelForcePow2DepthAttr &A);
-  void AddSYCLIntelInitiationIntervalAttr(Decl *D,
-                                          const AttributeCommonInfo &CI,
-                                          Expr *E);
-  SYCLIntelInitiationIntervalAttr *MergeSYCLIntelInitiationIntervalAttr(
-      Decl *D, const SYCLIntelInitiationIntervalAttr &A);
-
-  SYCLIntelMaxConcurrencyAttr *MergeSYCLIntelMaxConcurrencyAttr(
-      Decl *D, const SYCLIntelMaxConcurrencyAttr &A);
-  void AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D, const AttributeCommonInfo &CI,
-                                        Expr *E);
-  SYCLIntelMaxGlobalWorkDimAttr *
-  MergeSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
-                                     const SYCLIntelMaxGlobalWorkDimAttr &A);
-  void AddSYCLIntelMinWorkGroupsPerComputeUnitAttr(
-      Decl *D, const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelMinWorkGroupsPerComputeUnitAttr *
-  MergeSYCLIntelMinWorkGroupsPerComputeUnitAttr(
-      Decl *D, const SYCLIntelMinWorkGroupsPerComputeUnitAttr &A);
-  void AddSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
-      Decl *D, const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelMaxWorkGroupsPerMultiprocessorAttr *
-  MergeSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
-      Decl *D, const SYCLIntelMaxWorkGroupsPerMultiprocessorAttr &A);
-  void AddSYCLIntelBankWidthAttr(Decl *D, const AttributeCommonInfo &CI,
-                                 Expr *E);
-  SYCLIntelBankWidthAttr *
-  MergeSYCLIntelBankWidthAttr(Decl *D, const SYCLIntelBankWidthAttr &A);
-  void AddSYCLIntelNumBanksAttr(Decl *D, const AttributeCommonInfo &CI,
-                                Expr *E);
-  SYCLIntelNumBanksAttr *
-  MergeSYCLIntelNumBanksAttr(Decl *D, const SYCLIntelNumBanksAttr &A);
-  SYCLDeviceHasAttr *MergeSYCLDeviceHasAttr(Decl *D,
-                                            const SYCLDeviceHasAttr &A);
-  void AddSYCLDeviceHasAttr(Decl *D, const AttributeCommonInfo &CI,
-                            Expr **Exprs, unsigned Size);
-  SYCLUsesAspectsAttr *MergeSYCLUsesAspectsAttr(Decl *D,
-                                                const SYCLUsesAspectsAttr &A);
-  void AddSYCLUsesAspectsAttr(Decl *D, const AttributeCommonInfo &CI,
-                              Expr **Exprs, unsigned Size);
-  bool CheckMaxAllowedWorkGroupSize(const Expr *RWGSXDim, const Expr *RWGSYDim,
-                                    const Expr *RWGSZDim, const Expr *MWGSXDim,
-                                    const Expr *MWGSYDim, const Expr *MWGSZDim);
-  void AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
-                                        Expr *XDim, Expr *YDim, Expr *ZDim);
-  SYCLIntelMaxWorkGroupSizeAttr *
-  MergeSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
-                                     const SYCLIntelMaxWorkGroupSizeAttr &A);
-  void CheckSYCLAddIRAttributesFunctionAttrConflicts(Decl *D);
-  SYCLAddIRAttributesFunctionAttr *MergeSYCLAddIRAttributesFunctionAttr(
-      Decl *D, const SYCLAddIRAttributesFunctionAttr &A);
-  void AddSYCLAddIRAttributesFunctionAttr(Decl *D,
-                                          const AttributeCommonInfo &CI,
-                                          MutableArrayRef<Expr *> Args);
-  SYCLAddIRAttributesKernelParameterAttr *
-  MergeSYCLAddIRAttributesKernelParameterAttr(
-      Decl *D, const SYCLAddIRAttributesKernelParameterAttr &A);
-  void AddSYCLAddIRAttributesKernelParameterAttr(Decl *D,
-                                                 const AttributeCommonInfo &CI,
-                                                 MutableArrayRef<Expr *> Args);
-  SYCLAddIRAttributesGlobalVariableAttr *
-  MergeSYCLAddIRAttributesGlobalVariableAttr(
-      Decl *D, const SYCLAddIRAttributesGlobalVariableAttr &A);
-  void AddSYCLAddIRAttributesGlobalVariableAttr(Decl *D,
-                                                const AttributeCommonInfo &CI,
-                                                MutableArrayRef<Expr *> Args);
-  SYCLAddIRAnnotationsMemberAttr *
-  MergeSYCLAddIRAnnotationsMemberAttr(Decl *D,
-                                      const SYCLAddIRAnnotationsMemberAttr &A);
-  void AddSYCLAddIRAnnotationsMemberAttr(Decl *D, const AttributeCommonInfo &CI,
-                                         MutableArrayRef<Expr *> Args);
-  void AddSYCLReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
-                                    Expr *XDim, Expr *YDim, Expr *ZDim);
-  SYCLReqdWorkGroupSizeAttr *
-  MergeSYCLReqdWorkGroupSizeAttr(Decl *D, const SYCLReqdWorkGroupSizeAttr &A);
-
-  SYCLTypeAttr *MergeSYCLTypeAttr(Decl *D, const AttributeCommonInfo &CI,
-                                  SYCLTypeAttr::SYCLType TypeName);
-
 
 private:
   /// AddMethodToGlobalPool - Add an instance or factory method to the global
@@ -13525,25 +13315,11 @@ public:
   ExprResult ActOnCUDAExecConfigExpr(Scope *S, SourceLocation LLLLoc,
                                      MultiExprArg ExecConfig,
                                      SourceLocation GGGLoc);
-  class DeviceDeferredDiagnostic {
-  public:
-    DeviceDeferredDiagnostic(SourceLocation SL, const PartialDiagnostic &PD,
-                             DeviceDiagnosticReason R)
-        : Diagnostic(SL, PD), Reason(R) {}
 
-    PartialDiagnosticAt &getDiag() { return Diagnostic; }
-    DeviceDiagnosticReason getReason() const { return Reason; }
-
-  private:
-    PartialDiagnosticAt Diagnostic;
-    DeviceDiagnosticReason Reason;
-  };
   /// Diagnostics that are emitted only if we discover that the given function
   /// must be codegen'ed.  Because handling these correctly adds overhead to
   /// compilation, this is currently only enabled for CUDA compilations.
-  llvm::DenseMap<CanonicalDeclPtr<const FunctionDecl>,
-                 std::vector<DeviceDeferredDiagnostic>>
-      DeviceDeferredDiags;
+  SemaDiagnosticBuilder::DeferredDiagnosticsType DeviceDeferredDiags;
 
   /// A pair of a canonical FunctionDecl and a SourceLocation.  When used as the
   /// key in a hashtable, both the FD and location are hashed.
@@ -13763,79 +13539,6 @@ public:
 
 private:
   unsigned ForceCUDAHostDeviceDepth = 0;
-
-  ///@}
-
-  //
-  //
-  // -------------------------------------------------------------------------
-  //
-  //
-
-  /// \name HLSL Constructs
-  /// Implementations are in SemaHLSL.cpp
-  ///@{
-
-public:
-  Decl *ActOnStartHLSLBuffer(Scope *BufferScope, bool CBuffer,
-                             SourceLocation KwLoc, IdentifierInfo *Ident,
-                             SourceLocation IdentLoc, SourceLocation LBrace);
-  void ActOnFinishHLSLBuffer(Decl *Dcl, SourceLocation RBrace);
-
-  bool CheckHLSLBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall);
-
-  bool SemaBuiltinVectorMath(CallExpr *TheCall, QualType &Res);
-  bool SemaBuiltinVectorToScalarMath(CallExpr *TheCall);
-
-  ///@}
-
-  //
-  //
-  // -------------------------------------------------------------------------
-  //
-  //
-
-  /// \name OpenACC Constructs
-  /// Implementations are in SemaOpenACC.cpp
-  ///@{
-
-public:
-  /// Called after parsing an OpenACC Clause so that it can be checked.
-  bool ActOnOpenACCClause(OpenACCClauseKind ClauseKind,
-                          SourceLocation StartLoc);
-
-  /// Called after the construct has been parsed, but clauses haven't been
-  /// parsed.  This allows us to diagnose not-implemented, as well as set up any
-  /// state required for parsing the clauses.
-  void ActOnOpenACCConstruct(OpenACCDirectiveKind K, SourceLocation StartLoc);
-
-  /// Called after the directive, including its clauses, have been parsed and
-  /// parsing has consumed the 'annot_pragma_openacc_end' token. This DOES
-  /// happen before any associated declarations or statements have been parsed.
-  /// This function is only called when we are parsing a 'statement' context.
-  bool ActOnStartOpenACCStmtDirective(OpenACCDirectiveKind K,
-                                      SourceLocation StartLoc);
-
-  /// Called after the directive, including its clauses, have been parsed and
-  /// parsing has consumed the 'annot_pragma_openacc_end' token. This DOES
-  /// happen before any associated declarations or statements have been parsed.
-  /// This function is only called when we are parsing a 'Decl' context.
-  bool ActOnStartOpenACCDeclDirective(OpenACCDirectiveKind K,
-                                      SourceLocation StartLoc);
-  /// Called when we encounter an associated statement for our construct, this
-  /// should check legality of the statement as it appertains to this Construct.
-  StmtResult ActOnOpenACCAssociatedStmt(OpenACCDirectiveKind K,
-                                        StmtResult AssocStmt);
-
-  /// Called after the directive has been completely parsed, including the
-  /// declaration group or associated statement.
-  StmtResult ActOnEndOpenACCStmtDirective(OpenACCDirectiveKind K,
-                                          SourceLocation StartLoc,
-                                          SourceLocation EndLoc,
-                                          StmtResult AssocStmt);
-  /// Called after the directive has been completely parsed, including the
-  /// declaration group or associated statement.
-  DeclGroupRef ActOnEndOpenACCDeclDirective();
 
   ///@}
 
@@ -15220,16 +14923,6 @@ private:
   void CheckSYCLKernelCall(FunctionDecl *CallerFunc,
                            ArrayRef<const Expr *> Args);
 
-
-  bool CheckIntelFPGARegBuiltinFunctionCall(unsigned BuiltinID, CallExpr *Call);
-  bool CheckIntelFPGAMemBuiltinFunctionCall(CallExpr *Call);
-
-  bool CheckIntelSYCLPtrAnnotationBuiltinFunctionCall(unsigned BuiltinID,
-                                                      CallExpr *Call);
-  bool CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned BuiltinID,
-                                               CallExpr *Call);
-
-private:
   // We store SYCL Kernels here and handle separately -- which is a hack.
   // FIXME: It would be best to refactor this.
   llvm::SetVector<Decl *> SyclDeviceDecls;
@@ -15321,15 +15014,7 @@ public:
   ExprResult BuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc, QualType SourceTy,
                                           Expr *Idx);
 
-  /// Emit a diagnostic about the given attribute having a deprecated name, and
-  /// also emit a fixit hint to generate the new attribute name.
-  void DiagnoseDeprecatedAttribute(const ParsedAttr &A, StringRef NewScope,
-                                   StringRef NewName);
-
-  /// Diagnoses an attribute in the 'intelfpga' namespace and suggests using
-  /// the attribute in the 'intel' namespace instead.
-  void CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
-                                            StringRef NewName = "");
+  bool checkAllowedSYCLInitializer(VarDecl *VD);
 
   /// Creates a SemaDiagnosticBuilder that emits the diagnostic if the current
   /// context is "used as device code".
@@ -15373,8 +15058,27 @@ public:
            (VDecl->getType().getAddressSpace() == LangAS::sycl_private);
   }
 
+  template <typename AttrTy>
+  static bool isTypeDecoratedWithDeclAttribute(QualType Ty) {
+    const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
+    if (!RecTy)
+      return false;
+
+    if (RecTy->hasAttr<AttrTy>())
+      return true;
+
+    if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RecTy)) {
+      ClassTemplateDecl *Template = CTSD->getSpecializedTemplate();
+      if (CXXRecordDecl *RD = Template->getTemplatedDecl())
+        return RD->hasAttr<AttrTy>();
+    }
+    return false;
+  }
+
   /// Check whether \p Ty corresponds to a SYCL type of name \p TypeName.
   static bool isSyclType(QualType Ty, SYCLTypeAttr::SYCLType TypeName);
+
+  ///@}
 };
 
 DeductionFailureInfo

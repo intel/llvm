@@ -1269,6 +1269,13 @@ __ESIMD_SUBB(uint64_t)
 #undef __ESIMD_SUBB
 #undef __ESIMD_SUBB_IMPL
 
+/// rdtsc - get the value of timestamp counter.
+/// @return the current value of timestamp counter
+__ESIMD_API uint64_t rdtsc() {
+  __ESIMD_NS::simd<uint32_t, 4> retv = __esimd_timestamp();
+  return retv.template bit_cast_view<uint64_t>()[0];
+}
+
 /// @} sycl_esimd_math
 
 } // namespace ext::intel::esimd

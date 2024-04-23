@@ -69,6 +69,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Instrumentation.h"
@@ -1320,15 +1321,18 @@ static bool isUnsupportedAMDGPUAddrspace(Value *Addr) {
 }
 
 static bool isUnsupportedSPIRAccess(Value *Addr, Function *Func) {
+  std::ignore = Func;
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
   // Private address space: skip kernel arguments
   if (PtrTy->getPointerAddressSpace() == 0) {
-    return Func->getCallingConv() == CallingConv::SPIR_KERNEL &&
-           isa<Argument>(Addr);
+    // FIXME: Currently we don't suppport all private variables
+    // return Func->getCallingConv() == CallingConv::SPIR_KERNEL &&
+    //        isa<Argument>(Addr);
+    return true;
   }
 
   // All the rest address spaces: skip SPIR-V built-in varibles
-  auto *OrigValue = Addr->stripPointerCasts();
+  auto *OrigValue = Addr->stripInBoundsOffsets();
   return OrigValue->getName().starts_with("__spirv_BuiltIn");
 }
 
@@ -1366,9 +1370,10 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
 
   // File & Line
   if (Loc) {
-    StringRef FileName = Loc->getFilename();
+    llvm::SmallString<128> Source = Loc->getDirectory();
+    sys::path::append(Source, Loc->getFilename());
     auto *FileNameGV =
-        GetOrCreateGlobalString(*M, "__asan_file", FileName, ConstantAS);
+        GetOrCreateGlobalString(*M, "__asan_file", Source, ConstantAS);
     Args.push_back(ConstantExpr::getPointerCast(FileNameGV, ConstASPtrTy));
     Args.push_back(ConstantInt::get(Type::getInt32Ty(C), Loc.getLine()));
   } else {
@@ -2911,10 +2916,12 @@ bool ModuleAddressSanitizer::instrumentModule(Module &M) {
     }
   }
 
-  // SPIR kernel needn't AsanCtorFunction & AsanDtorFunction
   if (TargetTriple.isSPIR()) {
-    AsanCtorFunction = nullptr;
-    AsanDtorFunction = nullptr;
+    // Add module metadata "device.sanitizer" for sycl-post-link
+    LLVMContext &Ctx = M.getContext();
+    auto *MD = M.getOrInsertNamedMetadata("device.sanitizer");
+    Metadata *MDVals[] = {MDString::get(Ctx, "asan")};
+    MD->addOperand(MDNode::get(Ctx, MDVals));
   }
 
   const uint64_t Priority = GetCtorAndDtorPriority(TargetTriple);
@@ -2965,8 +2972,13 @@ void AddressSanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo *T
         }
       }
 
-      // Extend __asan_load/store arguments: unsigned int address_space, char*
-      // file, unsigned int line, char* func
+      // __asan_loadX/__asan_storeX(
+      //   ...
+      //   int32_t as, // Address Space
+      //   char* file,
+      //   unsigned int line,
+      //   char* func
+      // )
       if (TargetTriple.isSPIR()) {
         constexpr unsigned ConstantAS = 2;
         auto *Int8PtrTy = Type::getInt8Ty(*C)->getPointerTo(ConstantAS);

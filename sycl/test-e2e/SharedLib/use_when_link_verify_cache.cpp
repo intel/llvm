@@ -8,7 +8,7 @@
 // RUN: %{build} -L%T -o %t.out -l%basename_t -Wl,-rpath=%T
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-LAST,CHECK --implicit-check-not=piProgramBuild
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <iostream>
 

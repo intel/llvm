@@ -245,7 +245,7 @@ public:
 
   // Type creation functions
   template <class T> T *addType(T *Ty);
-  SPIRVTypeArray *addArrayType(SPIRVType *, SPIRVConstant *) override;
+  SPIRVTypeArray *addArrayType(SPIRVType *, SPIRVValue *) override;
   SPIRVTypeBool *addBoolType() override;
   SPIRVTypeFloat *addFloatType(unsigned BitWidth) override;
   SPIRVTypeFunction *addFunctionType(SPIRVType *,
@@ -269,6 +269,8 @@ public:
   SPIRVTypeCooperativeMatrixKHR *
   addCooperativeMatrixKHRType(SPIRVType *, std::vector<SPIRVValue *>) override;
   SPIRVTypeTaskSequenceINTEL *addTaskSequenceINTELType() override;
+  SPIRVInstruction *addTaskSequenceGetINTELInst(SPIRVType *, SPIRVValue *,
+                                                SPIRVBasicBlock *) override;
   SPIRVType *addOpaqueGenericType(Op) override;
   SPIRVTypeDeviceEvent *addDeviceEventType() override;
   SPIRVTypeQueue *addQueueType() override;
@@ -968,7 +970,7 @@ SPIRVTypeVoid *SPIRVModuleImpl::addVoidType() {
 }
 
 SPIRVTypeArray *SPIRVModuleImpl::addArrayType(SPIRVType *ElementType,
-                                              SPIRVConstant *Length) {
+                                              SPIRVValue *Length) {
   return addType(new SPIRVTypeArray(this, getId(), ElementType, Length));
 }
 
@@ -1051,6 +1053,14 @@ SPIRVModuleImpl::addCooperativeMatrixKHRType(SPIRVType *CompType,
 
 SPIRVTypeTaskSequenceINTEL *SPIRVModuleImpl::addTaskSequenceINTELType() {
   return addType(new SPIRVTypeTaskSequenceINTEL(this, getId()));
+}
+
+SPIRVInstruction *SPIRVModuleImpl::addTaskSequenceGetINTELInst(
+    SPIRVType *RetTy, SPIRVValue *ObjPtr, SPIRVBasicBlock *BB) {
+  return addInstruction(
+      SPIRVInstTemplateBase::create(internal::OpTaskSequenceGetINTEL, RetTy,
+                                    getId(), getVec(ObjPtr->getId()), BB, this),
+      BB);
 }
 
 SPIRVType *SPIRVModuleImpl::addOpaqueGenericType(Op TheOpCode) {
@@ -1828,7 +1838,7 @@ SPIRVInstruction *SPIRVModuleImpl::addVariable(
   SPIRVVariable *Variable = new SPIRVVariable(Type, getId(), Initializer, Name,
                                               StorageClass, BB, this);
   if (BB)
-    return addInstruction(Variable, BB);
+    return addInstruction(Variable, BB, BB->getVariableInsertionPoint());
 
   add(Variable);
   if (LinkageTy != internal::LinkageTypeInternal)

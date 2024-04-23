@@ -140,7 +140,7 @@ namespace this_kernel {
 
 inline opportunistic_group get_opportunistic_group() {
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__SPIR__)
+#if defined(__SPIR__) || defined(__SPIRV__)
   // TODO: It may be wiser to call the intrinsic than rely on this_group()
   sycl::sub_group sg = sycl::ext::oneapi::experimental::this_sub_group();
   sub_group_mask mask = sycl::ext::oneapi::group_ballot(sg, true);

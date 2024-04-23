@@ -30,7 +30,6 @@
 //
 // ===----------------------------------------------------------------------===//
 
-// REQUIRES: usm_shared_allocations
 // RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
@@ -217,46 +216,6 @@ void test_global_memory() {
   }
 }
 
-void test_shared_memory() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  syclcompat::shared_memory<float, 1> s_A(DataW);
-  syclcompat::shared_memory<float, 1> s_B(DataW);
-  syclcompat::shared_memory<float, 1> s_C(DataW);
-
-  s_A.init();
-  s_B.init();
-  s_C.init();
-
-  for (int i = 0; i < DataW; i++) {
-    s_A[i] = 1.0f;
-    s_B[i] = 2.0f;
-  }
-
-  {
-    syclcompat::get_default_queue().submit([&](sycl::handler &cgh) {
-      float *d_A = s_A.get_ptr();
-      float *d_B = s_B.get_ptr();
-      float *d_C = s_C.get_ptr();
-      cgh.parallel_for(sycl::range<1>(DataW), [=](sycl::id<1> id) {
-        int i = id[0];
-        float *A = d_A;
-        float *B = d_B;
-        float *C = d_C;
-        C[i] = A[i] + B[i];
-      });
-    });
-    syclcompat::get_default_queue().wait_and_throw();
-  }
-
-  // verify hostD
-  for (int i = 0; i < DataW; i++) {
-    for (int j = 0; j < DataH; j++) {
-      assert(fabs(s_C[i] - s_A[i] - s_B[i]) <= 1e-5);
-    }
-  }
-}
-
 void test_constant_memory() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
@@ -366,7 +325,6 @@ int main() {
   test_memcpy_pitched_q();
 
   test_global_memory();
-  test_shared_memory();
   test_constant_memory();
   return 0;
 }

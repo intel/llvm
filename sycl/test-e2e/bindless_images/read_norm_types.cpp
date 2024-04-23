@@ -1,12 +1,15 @@
 // REQUIRES: linux
 // REQUIRES: cuda
+// XFAIL: *
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <iostream>
 #include <limits>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT

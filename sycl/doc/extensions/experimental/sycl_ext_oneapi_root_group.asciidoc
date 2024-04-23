@@ -471,18 +471,15 @@ class nd_item {
    sycl::ext::oneapi::experimental::root_group<Dimensions> ext_oneapi_get_root_group() const;
 };
 
-namespace ext {
-namespace oneapi {
-namespace experimental {
-namespace this_kernel {
+namespace ext::oneapi::experimental {
+namespace this_work_item {
 
 template <int Dimensions>
 root_group<Dimensions> get_root_group();
 
-} // namespace this_kernel
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+}
+
+} // namespace ext::oneapi::experimental
 } // namespace sycl
 ----
 
@@ -505,6 +502,31 @@ a `sycl::nd_range` argument.
 _Returns_: A `root_group` instance representing the root-group to which the
 calling work-item belongs.
 
+=== Deprecated functionality
+
+The functionality in this section was previously part of this extension, but is
+now deprecated.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+namespace this_kernel {
+
+template <int Dimensions>
+root_group<Dimensions> get_root_group();
+
+} // namespace this_kernel
+
+}
+----
+
+[source,c++]
+----
+template <int Dimensions>
+root_group<Dimensions> get_root_group();
+----
+_Effects_: Equivalent to `return this_work_item::get_root_group()`.
 
 == Implementation notes
 

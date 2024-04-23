@@ -142,7 +142,7 @@ inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
 get_tangle_group(Group group) {
   (void)group;
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__SPIR__)
+#if defined(__SPIR__) || defined(__SPIRV__)
   // All SPIR-V devices that we currently target execute in SIMD fashion,
   // and so the group of work-items in converged control flow is implicit.
   // We store the mask here because it is required to calculate IDs, not
