@@ -170,7 +170,7 @@ generating  only standard  SPIR-V  operations.  SPIR-V array  types  can have  a
 specialization constant length,  so the running example is  translated to SPIR-V
 as follows:
 
-```spirv
+```
                  Decorate %size SpecId 0
        %sizety = OpTypeInt 64 0
       %floatty = OpTypeFloat 32
