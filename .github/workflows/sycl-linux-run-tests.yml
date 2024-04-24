@@ -351,6 +351,10 @@ jobs:
           echo "::endgroup::"
         done
 
+        echo "::group::Fails:"
+        grep 'exit code: [^0]' -r logs
+        echo "::endgroup::"
+
         grep 'exit code: [^0]' -r logs >> $GITHUB_STEP_SUMMARY
 
         exit $ret
