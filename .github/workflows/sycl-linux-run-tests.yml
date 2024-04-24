@@ -118,7 +118,7 @@ on:
           Suggested variables: for E2E tests - LIT_FILTER, LIT_FILTER_OUT.
           LIT_OPTS won't work as we redefine it as part of this workflow.
 
-          For SYCL CTS - CTS_TEST_ARGS that will be passed as an argument to the
+          For SYCL CTS - CTS_TESTS_TO_BUILD that will be passed as an argument to the
           test_all executable.
 
           Format: '{"VAR1":"VAL1","VAR2":"VAL2",...}'
@@ -310,7 +310,7 @@ jobs:
         $CMAKE_EXTRA_ARGS
         # Ignore errors so that if one category build fails others still have a
         # chance to finish and be executed at the run stage.
-        ninja -C build-cts -k0
+        ninja -C build-cts -k0 $( [[ -n "$CTS_TESTS_TO_BUILD" ]] && echo "$CTS_TESTS_TO_BUILD" || echo "test_conformance")
 
     - name: SYCL CTS List devices
       # Proceed with execution even if the 'build' step did not succeed.
@@ -340,9 +340,10 @@ jobs:
         #  - crash on one would not affect others
         #  - multiple tests could be run in parallel
         # test_all contains all categories, so skip it
+        which time timeout
         mkdir logs
-        find build-cts/bin/ ! -name 'test_all' -print | \
-          xargs -t -I % -P 8 sh -c 'log=logs/$(basename %).log ; echo % >$log ; /usr/bin/time -p timeout 10s % >>$log 2>&1 ; ret=$? ; echo "exit code: $ret" >>$log ; exit $ret'
+        find build-cts/bin/ -print | \
+          xargs -t -I % -P 8 sh -c 'log=logs/$(basename %).log ; echo % >$log ; % >>$log 2>&1 ; ret=$? ; echo "exit code: $ret" >>$log ; exit $ret'
         ret=$?
 
         for f in logs/* ; do
