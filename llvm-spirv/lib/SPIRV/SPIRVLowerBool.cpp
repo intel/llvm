@@ -68,7 +68,8 @@ void SPIRVLowerBoolBase::visitTruncInst(TruncInst &I) {
   if (isBoolType(I.getType())) {
     auto *Op = I.getOperand(0);
     auto *And = BinaryOperator::CreateAnd(
-        Op, getScalarOrVectorConstantInt(Op->getType(), 1, false), "", &I);
+        Op, getScalarOrVectorConstantInt(Op->getType(), 1, false), "",
+        I.getIterator());
     And->setDebugLoc(I.getDebugLoc());
     auto *Zero = getScalarOrVectorConstantInt(Op->getType(), 0, false);
     auto *Cmp = new ICmpInst(&I, CmpInst::ICMP_NE, And, Zero);
@@ -85,7 +86,7 @@ void SPIRVLowerBoolBase::handleExtInstructions(Instruction &I) {
     auto *One = getScalarOrVectorConstantInt(
         Ty, (Opcode == Instruction::SExt) ? ~0 : 1, false);
     assert(Zero && One && "Couldn't create constant int");
-    auto *Sel = SelectInst::Create(Op, One, Zero, "", &I);
+    auto *Sel = SelectInst::Create(Op, One, Zero, "", I.getIterator());
     replace(&I, Sel);
   }
 }
@@ -100,7 +101,7 @@ void SPIRVLowerBoolBase::handleCastInstructions(Instruction &I) {
     auto *Zero = getScalarOrVectorConstantInt(Ty, 0, false);
     auto *One = getScalarOrVectorConstantInt(Ty, 1, false);
     assert(Zero && One && "Couldn't create constant int");
-    auto *Sel = SelectInst::Create(Op, One, Zero, "", &I);
+    auto *Sel = SelectInst::Create(Op, One, Zero, "", I.getIterator());
     Sel->setDebugLoc(I.getDebugLoc());
     I.setOperand(0, Sel);
   }

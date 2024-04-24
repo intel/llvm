@@ -58,9 +58,7 @@
            *)(&mem[16 * offset])) = vec;                                       \
   }
 
-#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
-    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
-     defined(__opencl_c_generic_address_space))
+#if _CLC_GENERIC_AS_SUPPORTED
 #define VSTORE_VECTORIZE_GENERIC VSTORE_VECTORIZE
 #else
 // The generic address space isn't available, so make the macro do nothing
@@ -107,9 +105,7 @@ VSTORE_ADDR_SPACES(half)
 DECLARE_HELPER(float, __private, __builtin_store_halff);
 DECLARE_HELPER(float, __global, __builtin_store_halff);
 DECLARE_HELPER(float, __local, __builtin_store_halff);
-#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
-    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
-     defined(__opencl_c_generic_address_space))
+#if _CLC_GENERIC_AS_SUPPORTED
 DECLARE_HELPER(float, __generic, __builtin_store_halff);
 #endif
 
@@ -117,9 +113,7 @@ DECLARE_HELPER(float, __generic, __builtin_store_halff);
 DECLARE_HELPER(double, __private, __builtin_store_half);
 DECLARE_HELPER(double, __global, __builtin_store_half);
 DECLARE_HELPER(double, __local, __builtin_store_half);
-#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
-    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
-     defined(__opencl_c_generic_address_space))
+#if _CLC_GENERIC_AS_SUPPORTED
 DECLARE_HELPER(double, __generic, __builtin_store_half);
 #endif
 #endif

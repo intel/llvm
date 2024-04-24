@@ -12,9 +12,7 @@
   FUNC(__CLC_VECSIZE, __CLC_VECSIZE, __CLC_OFFSET, __CLC_GENTYPE, __local);
   FUNC(__CLC_VECSIZE, __CLC_VECSIZE, __CLC_OFFSET, __CLC_GENTYPE, __global);
   FUNC(__CLC_VECSIZE, __CLC_VECSIZE, __CLC_OFFSET, __CLC_GENTYPE, __constant);
-#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
-    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
-     defined(__opencl_c_generic_address_space))
+#if _CLC_GENERIC_AS_SUPPORTED
   FUNC(__CLC_VECSIZE, __CLC_VECSIZE, __CLC_OFFSET, __CLC_GENTYPE, __generic);
 #endif
 
@@ -24,9 +22,7 @@
   FUNC(, 1, 1, __CLC_GENTYPE, __local);
   FUNC(, 1, 1, __CLC_GENTYPE, __global);
   FUNC(, 1, 1, __CLC_GENTYPE, __constant);
-#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
-    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
-     defined(__opencl_c_generic_address_space))
+#if _CLC_GENERIC_AS_SUPPORTED
   FUNC(, 1, 1, __CLC_GENTYPE, __generic);
 #endif
 #endif
