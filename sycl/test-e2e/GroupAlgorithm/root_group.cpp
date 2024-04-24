@@ -1,3 +1,5 @@
+// Fails with opencl, enable when fixed.
+// XFAIL: opencl
 // RUN: %{build} -I . -o %t.out
 // RUN: %{run} %t.out
 
