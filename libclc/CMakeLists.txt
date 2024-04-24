@@ -42,6 +42,9 @@ set( LIBCLC_TARGETS_TO_BUILD "all"
 
 option( ENABLE_RUNTIME_SUBNORMAL "Enable runtime linking of subnormal support." OFF )
 
+set( LIBCLC_NATIVECPU_FLAGS ""
+  CACHE STRING "Semicolon-separated list on compiler flags for Native CPU's libclc version.")
+
 if( LIBCLC_STANDALONE_BUILD OR CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   # Out-of-tree configuration
   set( LIBCLC_STANDALONE_BUILD TRUE )
@@ -313,11 +316,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
         list( APPEND flags -Xclang -target-feature -Xclang +ptx72
              -march=sm_86 -mllvm --nvvm-reflect-enable=false)
       elseif( ARCH  STREQUAL x86_64)
-        # TODO: This is used by SYCL Native Cpu, we should define an option to set this flags
-        list( APPEND flags 
-            -Xclang -fsycl-is-native-cpu
-            -march=native
-            )
+        list( APPEND flags -Xclang -fsycl-is-native-cpu)
+        list( APPEND flags ${LIBCLC_NATIVECPU_FLAGS})
       endif()
     endif()
 
