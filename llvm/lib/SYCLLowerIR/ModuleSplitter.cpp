@@ -1002,7 +1002,6 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
 
       return Result;
     });
-    // Categorizer.registerListOfIntegersInMetadataSortedRule("sycl_used_aspects");
     Categorizer.registerListOfIntegersInMetadataRule("reqd_work_group_size");
     Categorizer.registerListOfIntegersInMetadataRule(
         "intel_reqd_sub_group_size");
