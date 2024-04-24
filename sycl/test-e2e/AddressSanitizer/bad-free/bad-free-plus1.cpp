@@ -1,4 +1,4 @@
-// REQUIRES: linux, cpu, aspect-usm_device_allocations
+// REQUIRES: linux, cpu
 // RUN: %{build} %device_asan_flags -O0 -g -o %t
 // RUN: %force_device_asan_rt %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-DEVICE %s
 // RUN: %{build} %device_asan_flags -DMALLOC_HOST -O0 -g -o %t
