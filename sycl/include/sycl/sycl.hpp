@@ -113,7 +113,7 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-inline void throw_exception(errc Ec, const char *Msg) {
+__SYCL_EXPORT inline void throw_exception(errc Ec, const char *Msg) {
   throw sycl::exception(make_error_code(Ec), Msg);
 }
 } // namespace detail
