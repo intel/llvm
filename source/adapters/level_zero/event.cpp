@@ -533,7 +533,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
       return ReturnValue(ContextEndTime);
     }
     default:
-      urPrint("urEventGetProfilingInfo: not supported ParamName\n");
+      logger::error("urEventGetProfilingInfo: not supported ParamName");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }
