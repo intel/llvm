@@ -1184,7 +1184,8 @@ begin_recording(const std::vector<queue>& recordingQueues,
 ----
 
 |Synchronously changes the state of each queue in `recordingQueues` to the
-`queue_state::recording` state. This operation is a no-op for any queue in `recordingQueues` that is already in the `queue_state::recording` state.
+`queue_state::recording` state. This operation is a no-op for any queue in
+`recordingQueues` that is already in the `queue_state::recording` state.
 
 Parameters:
 
@@ -1241,7 +1242,8 @@ void end_recording(const std::vector<queue>& recordingQueues)
 ----
 
 |Synchronously changes the state of each queue in `recordingQueues` to the
-`queue_state::executing` state. This operation is a no-op for any queue in `recordingQueues` that is already in the `queue_state::executing` state.
+`queue_state::executing` state. This operation is a no-op for any queue in
+`recordingQueues` that is already in the `queue_state::executing` state.
 
 Parameters:
 
