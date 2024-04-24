@@ -21,12 +21,8 @@ int main() {
   auto *array = sycl::malloc_host<short>(N, Q);
 #elif defined(MALLOC_SHARED)
   auto *array = sycl::malloc_shared<short>(N, Q);
-#elif defined(MALLOC_DEVICE)
+#else // defined(MALLOC_DEVICE)
   auto *array = sycl::malloc_device<short>(N, Q);
-#elif defined(MALLOC_SYSTEM)
-  auto *array = new short[N];
-#else
-#error "Must provide malloc type to run the test"
 #endif
 
   Q.submit([&](sycl::handler &h) {
@@ -41,5 +37,6 @@ int main() {
   // CHECK: {{READ of size 2 at kernel <.*MyKernelR_4> LID\(0, 0, 0\) GID\(123456789, 0, 0\)}}
   // CHECK: {{  #0 .* .*parallel_for_short.cpp:}}[[@LINE-7]]
 
+  sycl::free(array, Q);
   return 0;
 }
