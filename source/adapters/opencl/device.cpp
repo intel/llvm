@@ -1000,7 +1000,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                        std::string::npos);
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP: {
-    return ReturnValue(false);
+    cl_device_id Dev = cl_adapter::cast<cl_device_id>(hDevice);
+    bool Supported = false;
+    CL_RETURN_ON_FAILURE(
+        deviceSupportsURCommandBufferKernelUpdate(Dev, Supported));
+    return ReturnValue(Supported);
   }
   default: {
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
