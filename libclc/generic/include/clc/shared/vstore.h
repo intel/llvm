@@ -9,9 +9,7 @@
   _CLC_VSTORE_DECL(SUFFIX, MEM_TYPE, PRIM_TYPE##8, 8, ADDR_SPACE, RND)         \
   _CLC_VSTORE_DECL(SUFFIX, MEM_TYPE, PRIM_TYPE##16, 16, ADDR_SPACE, RND)
 
-#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
-    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
-     defined(__opencl_c_generic_address_space))
+#if _CLC_GENERIC_AS_SUPPORTED
 #define _CLC_VSTORE_GENERIC_DECL _CLC_VSTORE_DECL
 #define _CLC_VECTOR_VSTORE_GENERIC_DECL _CLC_VECTOR_VSTORE_DECL
 #else
