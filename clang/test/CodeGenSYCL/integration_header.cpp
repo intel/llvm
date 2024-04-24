@@ -12,7 +12,7 @@
 // CHECK-NEXT: template <int DimX> struct namespaced_arg;
 // CHECK-NEXT: }
 // CHECK-NEXT: template <typename ...Ts> class fourth_kernel;
-// CHECK: class FinalClass;
+// CHECK: class FinalClass final;
 //
 // CHECK: static constexpr
 // CHECK-NEXT: const char* const kernel_names[] = {
