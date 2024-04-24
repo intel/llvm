@@ -1,4 +1,4 @@
-// REQUIRES: linux, cpu
+// REQUIRES: linux, cpu, aspect-usm_device_allocations
 // RUN: %{build} %device_asan_flags -O2 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 UR_LAYER_ASAN_OPTIONS=debug:1 %{run} %t 2>&1 | FileCheck --check-prefixes CHECK-DEBUG %s
 // RUN: env SYCL_PREFER_UR=1 UR_LAYER_ASAN_OPTIONS=debug:0 %{run} %t 2>&1 | FileCheck %s
