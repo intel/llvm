@@ -78,18 +78,17 @@ TEST_P(urKernelGetSuggestedLocalWorkSizeTest, InvalidNullHandleQueue) {
 
 TEST_P(urKernelGetSuggestedLocalWorkSizeTest, InvalidWorkDimension) {
     uint32_t max_work_item_dimensions = 0;
-    auto result = urDeviceGetInfo(
+    ASSERT_SUCCESS(urDeviceGetInfo(
         device, UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS,
-        sizeof(max_work_item_dimensions), &max_work_item_dimensions, nullptr);
+        sizeof(max_work_item_dimensions), &max_work_item_dimensions, nullptr));
+    auto result = urKernelGetSuggestedLocalWorkSize(
+        kernel, queue, max_work_item_dimensions + 1, &global_offset,
+        &global_size, &suggested_local_work_size);
+    ASSERT_SUCCESS(result);
     if (result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
         GTEST_SKIP();
     }
-    ASSERT_SUCCESS(result);
-    ASSERT_EQ_RESULT(urKernelGetSuggestedLocalWorkSize(
-                         kernel, queue, max_work_item_dimensions + 1,
-                         &global_offset, &global_size,
-                         &suggested_local_work_size),
-                     UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+    ASSERT_EQ_RESULT(result, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 }
 
 TEST_P(urKernelGetSuggestedLocalWorkSizeTest, InvalidGlobalOffset) {
