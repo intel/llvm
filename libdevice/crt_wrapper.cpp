@@ -37,7 +37,7 @@ int memcmp(const void *s1, const void *s2, size_t n) {
 
 // This simple rand is for ease of use only, the implementation aligns with
 // LLVM libc rand which is based on xorshift64star pseudo random number
-// generator. If work item number < 1024, each work item has its own internal
+// generator. If work item number <= 1024, each work item has its own internal
 // state stored in RandNext, no data race happens and the sequence of the value
 // generated can be reproduced from run to run. If work item number > 1024,
 // multiple work item may share same 'RandNext' value, data race happens and
