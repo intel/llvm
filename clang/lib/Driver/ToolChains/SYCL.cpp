@@ -291,13 +291,17 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   const SYCLDeviceLibsList SYCLDeviceSanitizerLibs = {
       {"libsycl-sanitizer", "internal"}};
 #endif
-
+  StringRef LibSuffix = ".bc";
+  if (TargetTriple.isNVPTX())
+    // For NVidia, we are unbundling objects.
+    LibSuffix = C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment()
+        ? ".obj" : ".o";
   auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
     for (const DeviceLibOptInfo &Lib : LibsList) {
       if (!DeviceLibLinkInfo[Lib.DeviceLibOption])
         continue;
       SmallString<128> LibName(Lib.DeviceLibName);
-      llvm::sys::path::replace_extension(LibName, ".bc");
+      llvm::sys::path::replace_extension(LibName, LibSuffix);
       LibraryList.push_back(Args.MakeArgString(LibName));
     }
   };
@@ -427,10 +431,17 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       return &II == &InputFiles[1];
     };
     auto isSYCLDeviceLib = [&](const InputInfo &II) {
+      const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+      const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
       StringRef LibPostfix = ".bc";
+      if (IsNVPTX) {
+        LibPostfix = ".o";
+        if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
+                 C.getDriver().IsCLMode())
+          LibPostfix = ".obj";
+      }
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
-      const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
       if (IsNVPTX || IsSYCLNativeCPU) {
         // Linking SYCL Device libs requires libclc as well as libdevice
         if ((InputFilename.find("libspirv") != InputFilename.npos ||
@@ -460,7 +471,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       for (const auto &L : SYCLDeviceLibList) {
         std::string DeviceLibName(L);
         DeviceLibName.append(LibPostfix);
-        if (StringRef(PureLibName).equals(DeviceLibName))
+        if (StringRef(PureLibName).equals(DeviceLibName) ||
+            (IsNVPTX && StringRef(PureLibName).starts_with(L)))
           return true;
       }
       return false;
