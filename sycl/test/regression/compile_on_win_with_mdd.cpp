@@ -1,6 +1,6 @@
 // REQUIRES: windows
 
-// RUN: %clang_cl -fsycl /EHsc /MDd -QMT %t.out /Fo%t.obj -c %s
+// RUN: %clang_cl -fsycl /EHsc /MDd -QMT %t.obj /Fo%t.obj -c %s
 // RUN: %clang_cl -fsycl %t.obj -o %t.out
 // RUN: %t.out
 
