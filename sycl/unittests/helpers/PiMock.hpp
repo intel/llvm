@@ -237,6 +237,7 @@ public:
       return;
 
     MPiPluginMockPtr->PiFunctionTable = *OrigFuncTable;
+    detail::GlobalHandler::instance().prepareSchedulerToRelease(true);
     detail::GlobalHandler::instance().releaseDefaultContexts();
   }
 

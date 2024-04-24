@@ -36,6 +36,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "LLVMToSPIRVDbgTran.h"
+#include "SPIRV.debug.h"
 #include "SPIRVWriter.h"
 
 #include "llvm/IR/DebugInfo.h"
@@ -1052,20 +1053,32 @@ LLVMToSPIRVDbgTran::transDbgMemberTypeNonSemantic(const DIDerivedType *MT) {
 
 SPIRVEntry *LLVMToSPIRVDbgTran::transDbgInheritance(const DIDerivedType *DT) {
   using namespace SPIRVDebug::Operand::TypeInheritance;
-  const SPIRVWord Offset = isNonSemanticDebugInfo() ? 1 : 0;
-  SPIRVWordVec Ops(OperandCount - Offset);
-  // There is no Child operand in NonSemantic debug spec
-  if (!isNonSemanticDebugInfo())
-    Ops[ChildIdx] = transDbgEntry(DT->getScope())->getId();
-  Ops[ParentIdx - Offset] = transDbgEntry(DT->getBaseType())->getId();
+  unsigned ParentIdx, OffsetIdx, SizeIdx, FlagsIdx, OperandCount;
+  if (isNonSemanticDebugInfo()) {
+    ParentIdx = NonSemantic::ParentIdx;
+    OffsetIdx = NonSemantic::OffsetIdx;
+    SizeIdx = NonSemantic::SizeIdx;
+    FlagsIdx = NonSemantic::FlagsIdx;
+    OperandCount = NonSemantic::OperandCount;
+  } else {
+    ParentIdx = OpenCL::ParentIdx;
+    OffsetIdx = OpenCL::OffsetIdx;
+    SizeIdx = OpenCL::SizeIdx;
+    FlagsIdx = OpenCL::FlagsIdx;
+    OperandCount = OpenCL::OperandCount;
+  }
+  SPIRVWordVec Ops(OperandCount);
+  Ops[ParentIdx] = transDbgEntry(DT->getBaseType())->getId();
   ConstantInt *OffsetInBits = getUInt(M, DT->getOffsetInBits());
-  Ops[OffsetIdx - Offset] =
-      SPIRVWriter->transValue(OffsetInBits, nullptr)->getId();
+  Ops[OffsetIdx] = SPIRVWriter->transValue(OffsetInBits, nullptr)->getId();
   ConstantInt *Size = getUInt(M, DT->getSizeInBits());
-  Ops[SizeIdx - Offset] = SPIRVWriter->transValue(Size, nullptr)->getId();
-  Ops[FlagsIdx - Offset] = transDebugFlags(DT);
-  if (isNonSemanticDebugInfo())
-    transformToConstant(Ops, {FlagsIdx - Offset});
+  Ops[SizeIdx] = SPIRVWriter->transValue(Size, nullptr)->getId();
+  Ops[FlagsIdx] = transDebugFlags(DT);
+  if (isNonSemanticDebugInfo()) {
+    transformToConstant(Ops, {FlagsIdx});
+  } else {
+    Ops[OpenCL::ChildIdx] = transDbgEntry(DT->getScope())->getId();
+  }
   return BM->addDebugInfo(SPIRVDebug::TypeInheritance, getVoidTy(), Ops);
 }
 

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsyntax-only -fsycl-is-device -triple spir64-unknown-unknown -verify -Wpedantic                  %s
+// RUN: %clang_cc1 -fsyntax-only -fsycl-is-device -triple spir64-unknown-unknown -verify -Wpedantic %s
 
 // Test verification of __builtin_intel_sycl_alloca when used in different valid ways.
 
@@ -15,7 +15,7 @@ struct myStruct {
 };
 
 constexpr sycl::specialization_id<size_t> size(1);
-constexpr sycl::specialization_id<int> intSize(-1);
+constexpr sycl::specialization_id<int> intSize(1);
 constexpr sycl::specialization_id<unsigned short> shortSize(1);
 
 void basic_test(sycl::kernel_handler &kh) {

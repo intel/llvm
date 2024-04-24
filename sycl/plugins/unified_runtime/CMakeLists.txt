@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 6ccaf38708cfa614ab7f9b34c351826cd74028f2
-  # Merge: 0eab26c7 0497923a
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Fri Apr 12 10:22:00 2024 +0100
-  #    Merge pull request #1498 from wenju-he/ZeImageDesc-urMemImageCreateWithNativeHandle
-  #    [L0][Image] Set ZeImageDesc member of _ur_image in release build for legacy image
-  set(UNIFIED_RUNTIME_TAG 6ccaf38708cfa614ab7f9b34c351826cd74028f2)
+  # commit 31d0fe153733601fe4864fffb9148d554fe9a7ca
+  # Merge: 2eea85f2 6a602134
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Mon Apr 22 14:38:18 2024 +0100
+  #     Merge pull request #1243 from kbenzie/benie/fix-urinfo-device-uuid-printing
+  #     [urinfo] Fix printing of device UUID
+  set(UNIFIED_RUNTIME_TAG 31d0fe153733601fe4864fffb9148d554fe9a7ca)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -110,46 +110,22 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(opencl
     ${UNIFIED_RUNTIME_REPO}
-    # commit 0d2a972c71ba4dd5935478c7b7124a372a1eeca0
-    # Merge: ac89abfe 44aef877
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Apr 11 10:24:19 2024 +0100
-    #     Merge pull request #1440 from fabiomestre/fabio/opencl_remove_queued_hack
-    #     [OPENCL] Remove EVENT_STATUS_QUEUED workaround
-    0d2a972c71ba4dd5935478c7b7124a372a1eeca0
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit 68e525a448a5f8fe52bda48d6b9709230f53f029
-    # Merge: 1473ed8a 1d159312
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri Apr 12 14:29:50 2024 +0100
-    #     Merge pull request #1317 from JackAKirk/usm-p2p-cuda-return
-    #     [CUDA] Return caught UR error directly.
-    68e525a448a5f8fe52bda48d6b9709230f53f029
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 1473ed8a81ca86e67321dfc90c79e951ead212ac
-    # Merge: 6ccaf387 f2774226
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri Apr 12 10:43:00 2024 +0100
-    #     Merge pull request #1395 from konradkusiak97/improvedQueueFill
-    #     [HIP] Implement workaround for hipMemset2D
-    1473ed8a81ca86e67321dfc90c79e951ead212ac
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    # commit 15233fd2521f9e9b35e3a24037be99ceef334a8e
-    # Merge: 68e525a4 a04b062e
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri Apr 12 15:46:49 2024 +0100
-    #     Merge pull request #1489 from konradkusiak97/nativeCPUqueueFill
-    #     [NATIVECPU] Extended usm fill to bigger patterns than 1 byte
-    15233fd2521f9e9b35e3a24037be99ceef334a8e
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)

@@ -255,9 +255,9 @@ std::string InvokeOclocQuery(uint32_t IPVersion, const char *identifier) {
   // Gather the results.
   for (uint32_t i = 0; i < NumOutputs; i++) {
     if (!strcmp(OutputNames[i], "stdout.log")) {
-      const char *LogText = reinterpret_cast<const char *>(Outputs[i]);
-      if (LogText != nullptr && LogText[0] != '\0') {
-        QueryLog.append(LogText);
+      if (OutputLengths[i] > 0) {
+        const char *LogText = reinterpret_cast<const char *>(Outputs[i]);
+        QueryLog.append(LogText, OutputLengths[i]);
       }
     }
   }
