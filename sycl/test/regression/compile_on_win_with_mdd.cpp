@@ -1,13 +1,14 @@
 // REQUIRES: windows
 
-// RUN: %clang_cl -fsycl /EHsc /MDd -QMT %t.obj /Fo%t.obj -c %s
+// RUN: %clang_cl -fsycl /MDd -c %s -o %t.obj
 // RUN: %clang_cl -fsycl %t.obj -o %t.out
 // RUN: %t.out
 
-// The test aims to prevent regressions similar to one which caused by
+// The test aims to prevent regressions similar to the one which caused by
 // https://github.com/intel/llvm/pull/12793.
-// If regression appears, the test should fail with abort() message during
-// application run.
+// The failure happens if perform separate compile and link, and pass /MDd to
+// the compile line. In that case, user application will crash during launching
+// with abort() message.
 
 #include <sycl/sycl.hpp>
 
