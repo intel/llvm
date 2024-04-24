@@ -3455,17 +3455,17 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel
     ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
     uint32_t
-        workDim, ///< [in] number of dimensions, from 1 to 3, to specify the global
-                 ///< and work-group work-items
+        numWorkDim, ///< [in] number of dimensions, from 1 to 3, to specify the global
+                    ///< and work-group work-items
     const size_t *
-        pGlobalWorkOffset, ///< [in] pointer to an array of workDim unsigned values that specify
+        pGlobalWorkOffset, ///< [in] pointer to an array of numWorkDim unsigned values that specify
     ///< the offset used to calculate the global ID of a work-item
     const size_t *
-        pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify
+        pGlobalWorkSize, ///< [in] pointer to an array of numWorkDim unsigned values that specify
     ///< the number of global work-items in workDim that will execute the
     ///< kernel function
     size_t *
-        pSuggestedLocalWorkSize ///< [out] pointer to an array of workDim unsigned values that specify
+        pSuggestedLocalWorkSize ///< [out] pointer to an array of numWorkDim unsigned values that specify
     ///< suggested local work size that will contain the result of the query
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -3485,7 +3485,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
 
     // forward to device-platform
-    result = pfnGetSuggestedLocalWorkSize(hKernel, hQueue, workDim,
+    result = pfnGetSuggestedLocalWorkSize(hKernel, hQueue, numWorkDim,
                                           pGlobalWorkOffset, pGlobalWorkSize,
                                           pSuggestedLocalWorkSize);
 

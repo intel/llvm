@@ -11339,9 +11339,9 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
                           *(params->phQueue));
 
     os << ", ";
-    os << ".workDim = ";
+    os << ".numWorkDim = ";
 
-    os << *(params->pworkDim);
+    os << *(params->pnumWorkDim);
 
     os << ", ";
     os << ".pGlobalWorkOffset = ";

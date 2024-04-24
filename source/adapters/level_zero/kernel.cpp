@@ -93,8 +93,8 @@ ur_result_t getSuggestedLocalWorkSize(ur_queue_handle_t hQueue,
       WG[I] = GroupSize[I];
     }
     logger::debug(
-        "getSuggestedLocalWorkSize: using computed WG size = {{{}, {}, {}}}", WG[0],
-        WG[1], WG[2]);
+        "getSuggestedLocalWorkSize: using computed WG size = {{{}, {}, {}}}",
+        WG[0], WG[1], WG[2]);
   }
 
   return UR_RESULT_SUCCESS;
