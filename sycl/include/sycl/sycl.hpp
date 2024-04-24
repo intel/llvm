@@ -108,3 +108,13 @@
 #include <sycl/ext/oneapi/sub_group.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
 #include <sycl/ext/oneapi/weak_object.hpp>
+
+namespace sycl {
+inline namespace _V1 {
+namespace detail {
+inline void throw_exception(errc Ec, const char *Msg) {
+  throw sycl::exception(make_error_code(Ec), Msg);
+}
+} // namespace detail
+} // namespace _V1
+} // namespace sycl

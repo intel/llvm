@@ -205,7 +205,6 @@ set(SYCL_COMMON_SOURCES
     "detail/device_impl.cpp"
     "detail/error_handling/error_handling.cpp"
     "detail/event_impl.cpp"
-    "detail/exception_helper.cpp"
     "detail/filter_selector_impl.cpp"
     "detail/fusion/fusion_wrapper.cpp"
     "detail/fusion/fusion_wrapper_impl.cpp"

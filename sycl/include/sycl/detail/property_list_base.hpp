@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <sycl/detail/exception_helper.hpp>
 #include <sycl/detail/pi.h>                // for PI_ERROR_INVALID_VALUE
 #include <sycl/detail/property_helper.hpp> // for DataLessPropKind, Propert...
+#include <sycl/errc.hpp>
 
 #include <algorithm>   // for iter_swap
 #include <bitset>      // for bitset
@@ -22,6 +22,8 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+void throw_exception(errc Ec, const char *Msg);
+
 class PropertyListBase {
 protected:
   explicit PropertyListBase(

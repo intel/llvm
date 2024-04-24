@@ -9,8 +9,8 @@
 #pragma once
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
-#include <sycl/detail/exception_helper.hpp>
-#include <sycl/detail/pi.h> // for PI_ERROR_INVALID_VALUE
+#include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_VALUE
+#include <sycl/errc.hpp>
 
 #include <stddef.h>    // for size_t
 #include <type_traits> // for enable_if_t
@@ -20,6 +20,7 @@ inline namespace _V1 {
 template <int dimensions> class id;
 template <int dimensions> class range;
 namespace detail {
+void throw_exception(errc Ec, const char *Msg);
 
 template <int dimensions = 1> class array {
   static_assert(dimensions >= 1, "Array cannot be 0-dimensional.");

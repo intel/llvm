@@ -21,6 +21,7 @@
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/sycl.hpp>
 
 #include <algorithm>
 #include <memory>

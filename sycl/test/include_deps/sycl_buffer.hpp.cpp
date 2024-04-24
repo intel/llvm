@@ -32,7 +32,6 @@
 // CHECK-NEXT: detail/info_desc_helpers.hpp
 // CHECK-NEXT: id.hpp
 // CHECK-NEXT: detail/array.hpp
-// CHECK-NEXT: detail/exception_helper.hpp
 // CHECK-NEXT: errc.hpp
 // CHECK-NEXT: range.hpp
 // CHECK-NEXT: info/info_desc.hpp
@@ -105,16 +104,10 @@
 // CHECK-NEXT: CL/cl_version.h
 // CHECK-NEXT: CL/cl_platform.h
 // CHECK-NEXT: CL/cl_ext.h
+// CHECK-NEXT: detail/is_device_copyable.hpp
 // CHECK-NEXT: detail/stl_type_traits.hpp
 // CHECK-NEXT: detail/sycl_mem_obj_allocator.hpp
 // CHECK-NEXT: detail/aligned_allocator.hpp
 // CHECK-NEXT: event.hpp
 // CHECK-NEXT: ext/oneapi/accessor_property_list.hpp
-// CHECK-NEXT: types.hpp
-// CHECK-NEXT: detail/generic_type_traits.hpp
-// CHECK-NEXT: multi_ptr.hpp
-// CHECK-NEXT: detail/memcpy.hpp
-// CHECK-NEXT: detail/vector_convert.hpp
-// CHECK-NEXT: marray.hpp
-// CHECK-NEXT: swizzles.def
 // CHECK-EMPTY:
