@@ -309,7 +309,8 @@ jobs:
         -DDPCPP_INSTALL_DIR="$(dirname $(which clang++))/.." \
         $CMAKE_EXTRA_ARGS
         # Ignore errors so that if one category build fails others still have a
-        # chance to finish and be executed at the run stage.
+        # chance to finish and be executed at the run stage. Note that
+        # "test_conformance" target skips building "test_all" executable.
         ninja -C build-cts -k0 $( [ -n "$CTS_TESTS_TO_BUILD" ] && echo "$CTS_TESTS_TO_BUILD" || echo "test_conformance")
 
     - name: SYCL CTS List devices
@@ -339,11 +340,9 @@ jobs:
         # Run each test category separately so that
         #  - crash on one would not affect others
         #  - multiple tests could be run in parallel
-        # test_all contains all categories, so skip it
-        which time timeout
         mkdir logs
         find build-cts/bin/ -type f -print | \
-          xargs -t -I % -P 8 sh -c 'log=logs/$(basename %).log ; echo % >$log ; % >>$log 2>&1 ; ret=$? ; echo "exit code: $ret" >>$log ; exit $ret'
+          xargs -t -I % -P 8 sh -c 'log=logs/$(basename %).log ; echo % >$log ; date >>$log ; timeout 60m % >>$log 2>&1 ; ret=$? ; echo "exit code: $ret" >>$log ; date >>$log  ; exit $ret'
         ret=$?
 
         for f in logs/* ; do
