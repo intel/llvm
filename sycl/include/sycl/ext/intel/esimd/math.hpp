@@ -101,10 +101,10 @@ __esimd_abs_common_internal(simd<TArg, SZ> src0) {
 }
 
 template <typename TRes, typename TArg>
-ESIMD_NODEBUG ESIMD_INLINE
-    std::enable_if_t<detail::is_esimd_scalar<TRes>::value &&
-                         detail::is_esimd_scalar<TArg>::value,
-                     TRes>
+ESIMD_NODEBUG
+    ESIMD_INLINE std::enable_if_t<detail::is_esimd_scalar<TRes>::value &&
+                                      detail::is_esimd_scalar<TArg>::value,
+                                  TRes>
     __esimd_abs_common_internal(TArg src0) {
   simd<TArg, 1> Src0 = src0;
   simd<TArg, 1> Result = __esimd_abs_common_internal<TArg>(Src0);
@@ -341,26 +341,39 @@ std::enable_if_t<detail::is_esimd_scalar<T>::value, T>(min)(T src0, T src1,
 /// @addtogroup sycl_esimd_math_ext
 /// @{
 
+#if defined(__SYCL_DEVICE_ONLY__)
+#define __ESIMD_VEC_IMPL(T, iname)                                             \
+  __ESIMD_DNS::vector_type_t<__ESIMD_DNS::__raw_t<T>, N> res =                 \
+      __spirv_ocl_native_##iname<__ESIMD_DNS::__raw_t<T>, N>(src.data());      \
+  if constexpr (std::is_same_v<Sat, saturation_off_tag>)                       \
+    return res;                                                                \
+  else                                                                         \
+    return esimd::saturate<T>(simd<T, N>(res));
+#define __ESIMD_SC_IMPL(T, iname)                                              \
+  __ESIMD_DNS::__raw_t<T> res =                                                \
+      __spirv_ocl_native_##iname<__ESIMD_DNS::__raw_t<T>>(src);                \
+  if constexpr (std::is_same_v<Sat, saturation_off_tag>)                       \
+    return res;                                                                \
+  else                                                                         \
+    return esimd::saturate<T>(simd<T, 1>(res))[0];
+#else
+#define __ESIMD_VEC_IMPL(T, iname) return 0;
+#define __ESIMD_SC_IMPL(T, iname) return 0;
+#endif // __SYCL_DEVICE_ONLY__
+
 #define __ESIMD_UNARY_INTRINSIC_DEF(COND, name, iname)                         \
   /** Vector version.                                                       */ \
   template <class T, int N, class Sat = saturation_off_tag,                    \
             class = std::enable_if_t<COND>>                                    \
   __ESIMD_API simd<T, N> name(simd<T, N> src, Sat sat = {}) {                  \
-    __ESIMD_DNS::vector_type_t<__ESIMD_DNS::__raw_t<T>, N> res =               \
-        __esimd_##iname<T, N>(src.data());                                     \
-    if constexpr (std::is_same_v<Sat, saturation_off_tag>)                     \
-      return res;                                                              \
-    else                                                                       \
-      return esimd::saturate<T>(simd<T, N>(res));                              \
+    __ESIMD_VEC_IMPL(T, iname)                                                 \
   }                                                                            \
                                                                                \
   /** Scalar version.                                                       */ \
   template <typename T, class Sat = saturation_off_tag,                        \
             class = std::enable_if_t<COND>>                                    \
   __ESIMD_API T name(T src, Sat sat = {}) {                                    \
-    simd<T, 1> src_vec = src;                                                  \
-    simd<T, 1> res = name<T, 1>(src_vec, sat);                                 \
-    return res[0];                                                             \
+    __ESIMD_SC_IMPL(T, iname)                                                  \
   }
 
 #define __ESIMD_EMATH_COND                                                     \
@@ -369,41 +382,64 @@ std::enable_if_t<detail::is_esimd_scalar<T>::value, T>(min)(T src0, T src1,
 #define __ESIMD_EMATH_IEEE_COND                                                \
   detail::is_generic_floating_point_v<T> && (sizeof(T) >= 4)
 
+#define __ESIMD_EMATH_SPIRV_COND                                               \
+  std::is_same_v<T, float> || std::is_same_v<T, sycl::half>
+
 /// Inversion - calculates (1/x). Supports \c half and \c float.
 /// Precision: 1 ULP.
-__ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, inv, inv)
+__ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_SPIRV_COND, inv, recip)
 
 /// Logarithm base 2. Supports \c half and \c float.
 /// Precision depending on argument range:
 /// - [0.5..2]: absolute error is <code>2^-21</code> or less
 /// - (0..0.5) or (2..+INF]: relative error is  <code>2^-21</code> or less
-__ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, log2, log)
+__ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_SPIRV_COND, log2, log2)
 
 /// Exponent base 2. Supports \c half and \c float.
 /// Precision: 4 ULP.
-__ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, exp2, exp)
+__ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_SPIRV_COND, exp2, exp2)
 
 /// Square root. Is not IEEE754-compatible.  Supports \c half and \c float.
 /// Precision: 4 ULP.
-__ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, sqrt, sqrt)
+__ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_SPIRV_COND, sqrt, sqrt)
 
 /// IEEE754-compliant square root. Supports \c float and \c double.
-__ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_IEEE_COND, sqrt_ieee, ieee_sqrt)
+template <class T, int N, class Sat = saturation_off_tag,
+          class = std::enable_if_t<__ESIMD_EMATH_IEEE_COND>>
+__ESIMD_API simd<T, N> sqrt_ieee(simd<T, N> src, Sat sat = {}) {
+  __ESIMD_DNS::vector_type_t<__ESIMD_DNS::__raw_t<T>, N> res =
+      __esimd_ieee_sqrt<T, N>(src.data());
+  if constexpr (std::is_same_v<Sat, saturation_off_tag>)
+    return res;
+  else
+    return esimd::saturate<T>(simd<T, N>(res));
+}
+
+/** Scalar version.                                                       */
+template <typename T, class Sat = saturation_off_tag,
+          class = std::enable_if_t<__ESIMD_EMATH_IEEE_COND>>
+__ESIMD_API T sqrt_ieee(T src, Sat sat = {}) {
+  simd<T, 1> src_vec = src;
+  simd<T, 1> res = sqrt_ieee<T, 1>(src_vec, sat);
+  return res[0];
+}
 
 /// Square root reciprocal - calculates <code>1/sqrt(x)</code>.
 /// Supports \c half and \c float.
 /// Precision: 4 ULP.
-__ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, rsqrt, rsqrt)
+__ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_SPIRV_COND, rsqrt, rsqrt)
 
 /// Sine. Supports \c half and \c float.
 /// Absolute error: \c 0.0008 or less for the range [-32767*pi, 32767*pi].
-__ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, sin, sin)
+__ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_SPIRV_COND, sin, sin)
 
 /// Cosine. Supports \c half and \c float.
 /// Absolute error: \c 0.0008 or less for the range [-32767*pi, 32767*pi].
-__ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, cos, cos)
+__ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_SPIRV_COND, cos, cos)
 
 #undef __ESIMD_UNARY_INTRINSIC_DEF
+#undef __ESIMD_VEC_IMPL
+#undef __ESIMD_SC_IMPL
 
 #define __ESIMD_BINARY_INTRINSIC_DEF(COND, name, iname)                        \
   /** (vector, vector) version.                                             */ \
@@ -437,8 +473,47 @@ __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, cos, cos)
 
 /// Power - calculates \c src0 in power of \c src1. Note available in DG2, PVC.
 ///  Supports \c half and \c float.
-/// TODO document accuracy etc.
-__ESIMD_BINARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, pow, pow)
+template <class T, int N, class U, class Sat = saturation_off_tag,
+          class = std::enable_if_t<__ESIMD_EMATH_SPIRV_COND>>
+__ESIMD_API simd<T, N> pow(simd<T, N> src0, simd<U, N> src1, Sat sat = {}) {
+#if defined(__SYCL_DEVICE_ONLY__)
+  using RawVecT = __ESIMD_DNS::vector_type_t<__ESIMD_DNS::__raw_t<T>, N>;
+  RawVecT src1_raw_conv = detail::convert_vector<T, U, N>(src1.data());
+  RawVecT res_raw = __spirv_ocl_native_powr<__ESIMD_DNS::__raw_t<T>, N>(
+      src0.data(), src1_raw_conv);
+  if constexpr (std::is_same_v<Sat, saturation_off_tag>)
+    return res_raw;
+  else
+    return esimd::saturate<T>(simd<T, N>(res_raw));
+#else
+  return 0;
+#endif // __SYCL_DEVICE_ONLY__
+}
+
+/** (vector, scalar) version.                                             */
+template <class T, int N, class U, class Sat = saturation_off_tag,
+          class = std::enable_if_t<__ESIMD_EMATH_SPIRV_COND>>
+__ESIMD_API simd<T, N> pow(simd<T, N> src0, U src1, Sat sat = {}) {
+  return pow<T, N, U>(src0, simd<U, N>(src1), sat);
+}
+
+/** (scalar, scalar) version.                                             */
+template <class T, class U, class Sat = saturation_off_tag,
+          class = std::enable_if_t<__ESIMD_EMATH_SPIRV_COND>>
+__ESIMD_API T pow(T src0, U src1, Sat sat = {}) {
+#if defined(__SYCL_DEVICE_ONLY__)
+  using ResT = __ESIMD_DNS::__raw_t<T>;
+  ResT src1_raw_conv = detail::convert_scalar<T, U>(src1);
+  ResT res_raw =
+      __spirv_ocl_native_powr<__ESIMD_DNS::__raw_t<T>>(src0, src1_raw_conv);
+  if constexpr (std::is_same_v<Sat, saturation_off_tag>)
+    return res_raw;
+  else
+    return esimd::saturate<T>(simd<T, 1>(res_raw))[0];
+#else
+  return 0;
+#endif // __SYCL_DEVICE_ONLY__
+}
 
 /// IEEE754-compliant floating-point division. Supports \c float and \c double.
 __ESIMD_BINARY_INTRINSIC_DEF(__ESIMD_EMATH_IEEE_COND, div_ieee, ieee_div)
@@ -446,6 +521,7 @@ __ESIMD_BINARY_INTRINSIC_DEF(__ESIMD_EMATH_IEEE_COND, div_ieee, ieee_div)
 #undef __ESIMD_BINARY_INTRINSIC_DEF
 #undef __ESIMD_EMATH_COND
 #undef __ESIMD_EMATH_IEEE_COND
+#undef __ESIMD_EMATH_SPIRV_COND
 
 /// @} sycl_esimd_math_ext
 
@@ -641,8 +717,8 @@ __ESIMD_API RT trunc(float src0, Sat sat = {}) {
 /// @param src0 The input mask.
 /// @return The packed mask as an <code>unsgined int</code> 32-bit value.
 template <int N>
-ESIMD_NODEBUG ESIMD_INLINE
-    std::enable_if_t<(N == 8 || N == 16 || N == 32), uint>
+ESIMD_NODEBUG
+    ESIMD_INLINE std::enable_if_t<(N == 8 || N == 16 || N == 32), uint>
     pack_mask(simd_mask<N> src0) {
   return __esimd_pack_mask<N>(src0.data());
 }
@@ -655,8 +731,8 @@ ESIMD_NODEBUG ESIMD_INLINE
 /// @param src0 The input packed mask.
 /// @return The unpacked mask as a simd_mask object.
 template <int N>
-ESIMD_NODEBUG ESIMD_INLINE
-    std::enable_if_t<(N == 8 || N == 16 || N == 32), simd_mask<N>>
+ESIMD_NODEBUG
+    ESIMD_INLINE std::enable_if_t<(N == 8 || N == 16 || N == 32), simd_mask<N>>
     unpack_mask(uint src0) {
   return __esimd_unpack_mask<N>(src0);
 }
@@ -698,10 +774,9 @@ ballot(simd<T, N> mask) {
 /// @return a vector of \c uint32_t, where each element is set to bit count of
 ///     the corresponding element of the source operand.
 template <typename T, int N>
-ESIMD_NODEBUG ESIMD_INLINE
-    std::enable_if_t<std::is_integral<T>::value && (sizeof(T) <= 4),
-                     simd<uint32_t, N>>
-    cbit(simd<T, N> src) {
+ESIMD_NODEBUG ESIMD_INLINE std::enable_if_t<
+    std::is_integral<T>::value && (sizeof(T) <= 4), simd<uint32_t, N>>
+cbit(simd<T, N> src) {
   return __esimd_cbit<T, N>(src.data());
 }
 

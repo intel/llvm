@@ -1264,6 +1264,49 @@ __CLC_BF16_SCAL_VEC(uint32_t)
 extern __DPCPP_SYCL_EXTERNAL int32_t __spirv_BuiltInGlobalHWThreadIDINTEL();
 extern __DPCPP_SYCL_EXTERNAL int32_t __spirv_BuiltInSubDeviceIDINTEL();
 
+template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_exp2(T);
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<T, N>
+    __spirv_ocl_native_exp2(__ocl_vec_t<T, N>);
+
+template <typename T>
+extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_recip(T);
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<T, N>
+    __spirv_ocl_native_recip(__ocl_vec_t<T, N>);
+
+template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_cos(T);
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<T, N>
+    __spirv_ocl_native_cos(__ocl_vec_t<T, N>);
+
+template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_log2(T);
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<T, N>
+    __spirv_ocl_native_log2(__ocl_vec_t<T, N>);
+
+template <typename T>
+extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_rsqrt(T);
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<T, N>
+    __spirv_ocl_native_rsqrt(__ocl_vec_t<T, N>);
+
+template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_sin(T);
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<T, N>
+    __spirv_ocl_native_sin(__ocl_vec_t<T, N>);
+
+template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_sqrt(T);
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<T, N>
+    __spirv_ocl_native_sqrt(__ocl_vec_t<T, N>);
+
+template <typename T>
+extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_powr(T, T);
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<T, N>
+    __spirv_ocl_native_powr(__ocl_vec_t<T, N>, __ocl_vec_t<T, N>);
+
 template <typename from, typename to>
 extern __DPCPP_SYCL_EXTERNAL
     std::enable_if_t<std::is_integral_v<to> && std::is_unsigned_v<to>, to>

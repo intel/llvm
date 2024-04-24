@@ -103,26 +103,9 @@ template <typename T0, int SZ>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(uint32_t, SZ)
     __esimd_ufbh(__ESIMD_raw_vec_t(T0, SZ) src0) __ESIMD_INTRIN_END;
 
-#define __ESIMD_UNARY_EXT_MATH_INTRIN(name)                                    \
-  template <class T, int SZ>                                                   \
-  __ESIMD_INTRIN __ESIMD_raw_vec_t(T, SZ)                                      \
-      __esimd_##name(__ESIMD_raw_vec_t(T, SZ) src) __ESIMD_INTRIN_END
-
-__ESIMD_UNARY_EXT_MATH_INTRIN(inv);
-__ESIMD_UNARY_EXT_MATH_INTRIN(log);
-__ESIMD_UNARY_EXT_MATH_INTRIN(exp);
-__ESIMD_UNARY_EXT_MATH_INTRIN(sqrt);
-__ESIMD_UNARY_EXT_MATH_INTRIN(ieee_sqrt);
-__ESIMD_UNARY_EXT_MATH_INTRIN(rsqrt);
-__ESIMD_UNARY_EXT_MATH_INTRIN(sin);
-__ESIMD_UNARY_EXT_MATH_INTRIN(cos);
-
-#undef __ESIMD_UNARY_EXT_MATH_INTRIN
-
 template <class T, int SZ>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T, SZ)
-    __esimd_pow(__ESIMD_raw_vec_t(T, SZ) src0,
-                __ESIMD_raw_vec_t(T, SZ) src1) __ESIMD_INTRIN_END;
+    __esimd_ieee_sqrt(__ESIMD_raw_vec_t(T, SZ) src) __ESIMD_INTRIN_END;
 
 template <class T, int SZ>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T, SZ)
