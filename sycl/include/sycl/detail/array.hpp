@@ -20,7 +20,7 @@ inline namespace _V1 {
 template <int dimensions> class id;
 template <int dimensions> class range;
 namespace detail {
-void throw_exception(errc Ec, const char *Msg);
+__SYCL_EXPORT void throw_exception(errc Ec, const char *Msg);
 
 template <int dimensions = 1> class array {
   static_assert(dimensions >= 1, "Array cannot be 0-dimensional.");

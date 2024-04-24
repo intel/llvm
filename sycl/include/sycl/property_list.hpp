@@ -26,7 +26,7 @@ namespace ext::oneapi {
 template <typename... PropsT> class accessor_property_list;
 } // namespace ext::oneapi
 namespace detail {
-void throw_exception(errc Ec, const char *Msg);
+__SYCL_EXPORT void throw_exception(errc Ec, const char *Msg);
 } // namespace detail
 /// Objects of the property_list class are containers for the SYCL properties
 ///

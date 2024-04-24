@@ -22,7 +22,7 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-void throw_exception(errc Ec, const char *Msg);
+__SYCL_EXPORT void throw_exception(errc Ec, const char *Msg);
 
 class PropertyListBase {
 protected:
