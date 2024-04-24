@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 717791bfc636a1cd69f95f09fea15fcd70a9fb23
-  # Merge: 601062ba f8c4facd
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Fri Apr 19 10:35:14 2024 +0100
-  #    Merge pull request #1517 from nrspruit/fix_l0_coverity_sync
-  #    [L0] Store LastCommandEvent before unlock during queue sync
-  set(UNIFIED_RUNTIME_TAG 717791bfc636a1cd69f95f09fea15fcd70a9fb23)
+  # commit b37fa2c4b09a49839a83228f687c811595fce3fd
+  # Merge: c7fade0d f61e81e9
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Tue Apr 23 16:17:41 2024 +0100
+  #    Merge pull request #1544 from kbenzie/benie/l0-fix-rhel-error
+  #    [L0] Add missing <iomanip> include
+  set(UNIFIED_RUNTIME_TAG b37fa2c4b09a49839a83228f687c811595fce3fd)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
