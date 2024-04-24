@@ -118,8 +118,8 @@ on:
           Suggested variables: for E2E tests - LIT_FILTER, LIT_FILTER_OUT.
           LIT_OPTS won't work as we redefine it as part of this workflow.
 
-          For SYCL CTS - CTS_TESTS_TO_BUILD that will be passed as an argument to the
-          test_all executable.
+          For SYCL CTS - CTS_TESTS_TO_BUILD to specify which categories to
+          build.
 
           Format: '{"VAR1":"VAL1","VAR2":"VAL2",...}'
         default: '{}'
