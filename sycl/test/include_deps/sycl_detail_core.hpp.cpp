@@ -11,15 +11,15 @@
 // CHECK-NEXT: CL/__spirv/spirv_ops.hpp
 // CHECK-NEXT: CL/__spirv/spirv_types.hpp
 // CHECK-NEXT: detail/defines.hpp
+// CHECK-NEXT: detail/export.hpp
+// CHECK-NEXT: aliases.hpp
 // CHECK-NEXT: half_type.hpp
 // CHECK-NEXT: bit_cast.hpp
-// CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: detail/iostream_proxy.hpp
 // CHECK-NEXT: detail/vector_traits.hpp
 // CHECK-NEXT: aspects.hpp
 // CHECK-NEXT: info/aspects.def
 // CHECK-NEXT: info/aspects_deprecated.def
-// CHECK-NEXT: aliases.hpp
 // CHECK-NEXT: atomic.hpp
 // CHECK-NEXT: detail/helpers.hpp
 // CHECK-NEXT: detail/pi.hpp
@@ -61,7 +61,6 @@
 // CHECK-NEXT: detail/boost/mp11/detail/mp_map_find.hpp
 // CHECK-NEXT: detail/boost/mp11/detail/mp_with_index.hpp
 // CHECK-NEXT: detail/boost/mp11/integer_sequence.hpp
-// CHECK-NEXT: ext/oneapi/bfloat16.hpp
 // CHECK-NEXT: buffer.hpp
 // CHECK-NEXT: context.hpp
 // CHECK-NEXT: async_handler.hpp
@@ -79,6 +78,7 @@
 // CHECK-NEXT: info/info_desc.hpp
 // CHECK-NEXT: ext/oneapi/experimental/device_architecture.hpp
 // CHECK-NEXT: ext/oneapi/matrix/query-types.hpp
+// CHECK-NEXT: ext/oneapi/bfloat16.hpp
 // CHECK-NEXT: ext/oneapi/matrix/matrix-unified-utils.hpp
 // CHECK-NEXT: info/platform_traits.def
 // CHECK-NEXT: info/context_traits.def
