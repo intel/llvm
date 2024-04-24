@@ -700,7 +700,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         }
 
         if (LaunchInfo.LocalWorkSize.empty()) {
-            LaunchInfo.LocalWorkSize.reserve(3);
+            LaunchInfo.LocalWorkSize.resize(3);
             // FIXME: This is W/A until urKernelSuggestGroupSize is added
             LaunchInfo.LocalWorkSize[0] = 1;
             LaunchInfo.LocalWorkSize[1] = 1;
