@@ -334,7 +334,6 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_command_buffer_update_memobj_arg_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_command_buffer_update_pointer_arg_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_command_buffer_update_value_arg_desc_t params);
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_command_buffer_update_exec_info_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_command_buffer_update_kernel_launch_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_peer_info_t value);
 
@@ -1052,9 +1051,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_structure_type_t value
     case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC:
         os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC";
         break;
-    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_EXEC_INFO_DESC:
-        os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_EXEC_INFO_DESC";
-        break;
     case UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES";
         break;
@@ -1290,11 +1286,6 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
 
     case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC: {
         const ur_exp_command_buffer_update_value_arg_desc_t *pstruct = (const ur_exp_command_buffer_update_value_arg_desc_t *)ptr;
-        printPtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_EXEC_INFO_DESC: {
-        const ur_exp_command_buffer_update_exec_info_desc_t *pstruct = (const ur_exp_command_buffer_update_exec_info_desc_t *)ptr;
         printPtr(os, pstruct);
     } break;
 
@@ -9623,46 +9614,6 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_command_bu
     return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_exp_command_buffer_update_exec_info_desc_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_command_buffer_update_exec_info_desc_t params) {
-    os << "(struct ur_exp_command_buffer_update_exec_info_desc_t){";
-
-    os << ".stype = ";
-
-    os << (params.stype);
-
-    os << ", ";
-    os << ".pNext = ";
-
-    ur::details::printStruct(os,
-                             (params.pNext));
-
-    os << ", ";
-    os << ".propName = ";
-
-    os << (params.propName);
-
-    os << ", ";
-    os << ".propSize = ";
-
-    os << (params.propSize);
-
-    os << ", ";
-    os << ".pProperties = ";
-
-    os << (params.pProperties);
-
-    os << ", ";
-    os << ".pNewExecInfo = ";
-
-    os << (params.pNewExecInfo);
-
-    os << "}";
-    return os;
-}
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_command_buffer_update_kernel_launch_desc_t type
 /// @returns
 ///     std::ostream &
@@ -9693,11 +9644,6 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_command_bu
     os << ".numNewValueArgs = ";
 
     os << (params.numNewValueArgs);
-
-    os << ", ";
-    os << ".numNewExecInfos = ";
-
-    os << (params.numNewExecInfos);
 
     os << ", ";
     os << ".newWorkDim = ";
@@ -9734,17 +9680,6 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_command_bu
         }
 
         os << ((params.pNewValueArgList))[i];
-    }
-    os << "}";
-
-    os << ", ";
-    os << ".pNewExecInfoList = {";
-    for (size_t i = 0; (params.pNewExecInfoList) != NULL && i < params.numNewExecInfos; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
-
-        os << ((params.pNewExecInfoList))[i];
     }
     os << "}";
 
