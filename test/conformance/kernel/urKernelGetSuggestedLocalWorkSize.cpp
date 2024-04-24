@@ -84,7 +84,6 @@ TEST_P(urKernelGetSuggestedLocalWorkSizeTest, InvalidWorkDimension) {
     auto result = urKernelGetSuggestedLocalWorkSize(
         kernel, queue, max_work_item_dimensions + 1, &global_offset,
         &global_size, &suggested_local_work_size);
-    ASSERT_SUCCESS(result);
     if (result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
         GTEST_SKIP();
     }
