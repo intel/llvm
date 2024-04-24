@@ -138,12 +138,10 @@ TEST_P(USMSaxpyKernelTest, UpdateParameters) {
         0,               // numNewMemObjArgs
         2,               // numNewPointerArgs
         1,               // numNewValueArgs
-        0,               // numNewExecInfos
         0,               // newWorkDim
         nullptr,         // pNewMemObjArgList
         new_input_descs, // pNewPointerArgList
         &new_A_desc,     // pNewValueArgList
-        nullptr,         // pNewExecInfoList
         nullptr,         // pNewGlobalWorkOffset
         nullptr,         // pNewGlobalWorkSize
         nullptr,         // pNewLocalWorkSize

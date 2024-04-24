@@ -13,7 +13,9 @@
 #include <mutex>
 #include <string.h>
 
+#include "adapters/level_zero/queue.hpp"
 #include "context.hpp"
+#include "logger/ur_logger.hpp"
 #include "ur_level_zero.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
@@ -174,7 +176,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
   std::ignore = Context;
   std::ignore = Deleter;
   std::ignore = UserData;
-  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
+  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -510,7 +513,8 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
       ZeEventPoolDesc.flags |= ZE_EVENT_POOL_FLAG_HOST_VISIBLE;
     if (ProfilingEnabled)
       ZeEventPoolDesc.flags |= ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
-    urPrint("ze_event_pool_desc_t flags set to: %d\n", ZeEventPoolDesc.flags);
+    logger::debug("ze_event_pool_desc_t flags set to: {}",
+                  ZeEventPoolDesc.flags);
 
     std::vector<ze_device_handle_t> ZeDevices;
     if (ZeDevice) {
@@ -596,29 +600,6 @@ ur_context_handle_t_::decrementUnreleasedEventsInPool(ur_event_handle_t Event) {
   return UR_RESULT_SUCCESS;
 }
 
-// Get value of the threshold for number of events in immediate command lists.
-// If number of events in the immediate command list exceeds this threshold then
-// cleanup process for those events is executed.
-static const size_t ImmCmdListsEventCleanupThreshold = [] {
-  const char *UrRet =
-      std::getenv("UR_L0_IMMEDIATE_COMMANDLISTS_EVENT_CLEANUP_THRESHOLD");
-  const char *PiRet = std::getenv(
-      "SYCL_PI_LEVEL_ZERO_IMMEDIATE_COMMANDLISTS_EVENT_CLEANUP_THRESHOLD");
-  const char *ImmCmdListsEventCleanupThresholdStr =
-      UrRet ? UrRet : (PiRet ? PiRet : nullptr);
-  static constexpr int Default = 1000;
-  if (!ImmCmdListsEventCleanupThresholdStr)
-    return Default;
-
-  int Threshold = std::atoi(ImmCmdListsEventCleanupThresholdStr);
-
-  // Basically disable threshold if negative value is provided.
-  if (Threshold < 0)
-    return INT_MAX;
-
-  return Threshold;
-}();
-
 // Get value of the threshold for number of active command lists allowed before
 // we start heuristically cleaning them up.
 static const size_t CmdListsCleanupThreshold = [] {
@@ -648,8 +629,8 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
   // Immediate commandlists have been pre-allocated and are always available.
   if (Queue->UsingImmCmdLists) {
     CommandList = Queue->getQueueGroup(UseCopyEngine).getImmCmdList();
-    if (CommandList->second.EventList.size() >
-        ImmCmdListsEventCleanupThreshold) {
+    if (CommandList->second.EventList.size() >=
+        Queue->getImmdCmmdListsEventCleanupThreshold()) {
       std::vector<ur_event_handle_t> EventListToCleanup;
       Queue->resetCommandList(CommandList, false, EventListToCleanup);
       CleanupEventListFromResetCmdList(EventListToCleanup, true);
@@ -743,11 +724,13 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
         ZE2UR_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
         ZeStruct<ze_command_queue_desc_t> ZeQueueDesc;
         ZeQueueDesc.ordinal = QueueGroupOrdinal;
+
         CommandList =
             Queue->CommandListMap
                 .emplace(ZeCommandList,
-                         ur_command_list_info_t{ZeFence, true, false,
-                                                ZeCommandQueue, ZeQueueDesc})
+                         ur_command_list_info_t(ZeFence, true, false,
+                                                ZeCommandQueue, ZeQueueDesc,
+                                                Queue->useCompletionBatching()))
                 .first;
       }
       ZeCommandListCache.erase(ZeCommandListIt);

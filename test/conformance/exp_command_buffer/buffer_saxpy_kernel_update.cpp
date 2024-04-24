@@ -186,12 +186,10 @@ TEST_P(BufferSaxpyKernelTest, UpdateParameters) {
         2,               // numNewMemObjArgs
         0,               // numNewPointerArgs
         1,               // numNewValueArgs
-        0,               // numNewExecInfos
         0,               // newWorkDim
         new_input_descs, // pNewMemObjArgList
         nullptr,         // pNewPointerArgList
         &new_A_desc,     // pNewValueArgList
-        nullptr,         // pNewExecInfoList
         nullptr,         // pNewGlobalWorkOffset
         nullptr,         // pNewGlobalWorkSize
         nullptr,         // pNewLocalWorkSize

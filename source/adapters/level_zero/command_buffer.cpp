@@ -8,6 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "command_buffer.hpp"
+#include "logger/ur_logger.hpp"
 #include "ur_level_zero.hpp"
 
 /* L0 Command-buffer Extension Doc see:
@@ -80,8 +81,10 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
 ur_exp_command_buffer_command_handle_t_::
     ur_exp_command_buffer_command_handle_t_(
         ur_exp_command_buffer_handle_t CommandBuffer, uint64_t CommandId,
+        uint32_t WorkDim, bool UserDefinedLocalSize,
         ur_kernel_handle_t Kernel = nullptr)
-    : CommandBuffer(CommandBuffer), CommandId(CommandId), Kernel(Kernel) {
+    : CommandBuffer(CommandBuffer), CommandId(CommandId), WorkDim(WorkDim),
+      UserDefinedLocalSize(UserDefinedLocalSize), Kernel(Kernel) {
   urCommandBufferRetainExp(CommandBuffer);
   if (Kernel)
     urKernelRetain(Kernel);
@@ -140,16 +143,16 @@ ur_result_t calculateKernelWorkDimensions(
         while (GlobalWorkSize3D[I] % GroupSize[I]) {
           --GroupSize[I];
         }
-        if (GlobalWorkSize3D[I] / GroupSize[I] > UINT32_MAX) {
-          urPrint("calculateKernelWorkDimensions: can't find a WG size "
-                  "suitable for global work size > UINT32_MAX\n");
+        if (GlobalWorkSize[I] / GroupSize[I] > UINT32_MAX) {
+          logger::debug("calculateKernelWorkDimensions: can't find a WG size "
+                        "suitable for global work size > UINT32_MAX");
           return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
         }
         WG[I] = GroupSize[I];
       }
-      urPrint("calculateKernelWorkDimensions: using computed WG size = {%d, "
-              "%d, %d}\n",
-              WG[0], WG[1], WG[2]);
+      logger::debug("calculateKernelWorkDimensions: using computed WG "
+                    "size = {{{}, {}, {}}}",
+                    WG[0], WG[1], WG[2]);
     }
   }
 
@@ -177,30 +180,27 @@ ur_result_t calculateKernelWorkDimensions(
     break;
 
   default:
-    urPrint("calculateKernelWorkDimensions: unsupported work_dim\n");
+    logger::error("calculateKernelWorkDimensions: unsupported work_dim");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
   // Error handling for non-uniform group size case
   if (GlobalWorkSize3D[0] !=
       size_t(ZeThreadGroupDimensions.groupCountX) * WG[0]) {
-    urPrint("calculateKernelWorkDimensions: invalid work_dim. The range "
-            "is not a "
-            "multiple of the group size in the 1st dimension\n");
+    logger::error("calculateKernelWorkDimensions: invalid work_dim. The range "
+                  "is not a multiple of the group size in the 1st dimension");
     return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
   }
   if (GlobalWorkSize3D[1] !=
       size_t(ZeThreadGroupDimensions.groupCountY) * WG[1]) {
-    urPrint("calculateKernelWorkDimensions: invalid work_dim. The range "
-            "is not a "
-            "multiple of the group size in the 2nd dimension\n");
+    logger::error("calculateKernelWorkDimensions: invalid work_dim. The range "
+                  "is not a multiple of the group size in the 2nd dimension");
     return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
   }
   if (GlobalWorkSize3D[2] !=
       size_t(ZeThreadGroupDimensions.groupCountZ) * WG[2]) {
-    urPrint("calculateKernelWorkDimensions: invalid work_dim. The range "
-            "is not a "
-            "multiple of the group size in the 3rd dimension\n");
+    logger::error("calculateKernelWorkDimensions: invalid work_dim. The range "
+                  "is not a multiple of the group size in the 3rd dimension");
     return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
   }
 
@@ -268,9 +268,9 @@ static ur_result_t enqueueCommandBufferMemCopyHelper(
              (CommandBuffer->ZeCommandList, Dst, Src, Size,
               LaunchEvent->ZeEvent, ZeEventList.size(), ZeEventList.data()));
 
-  urPrint("calling zeCommandListAppendMemoryCopy() with"
-          "  ZeEvent %#" PRIxPTR "\n",
-          ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
+  logger::debug("calling zeCommandListAppendMemoryCopy() with"
+                "  ZeEvent {}",
+                ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
 
   return UR_RESULT_SUCCESS;
 }
@@ -335,9 +335,9 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
               DstSlicePitch, Src, &ZeSrcRegion, SrcPitch, SrcSlicePitch,
               LaunchEvent->ZeEvent, ZeEventList.size(), ZeEventList.data()));
 
-  urPrint("calling zeCommandListAppendMemoryCopyRegion() with"
-          "  ZeEvent %#" PRIxPTR "\n",
-          ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
+  logger::debug("calling zeCommandListAppendMemoryCopyRegion() with"
+                "  ZeEvent {}",
+                ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
 
   return UR_RESULT_SUCCESS;
 }
@@ -378,9 +378,9 @@ static ur_result_t enqueueCommandBufferFillHelper(
              (CommandBuffer->ZeCommandList, Ptr, Pattern, PatternSize, Size,
               LaunchEvent->ZeEvent, ZeEventList.size(), ZeEventList.data()));
 
-  urPrint("calling zeCommandListAppendMemoryFill() with"
-          "  ZeEvent %#lx\n",
-          ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
+  logger::debug("calling zeCommandListAppendMemoryFill() with"
+                "  ZeEvent {}",
+                ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
 
   return UR_RESULT_SUCCESS;
 }
@@ -519,7 +519,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   if (GlobalWorkOffset != NULL) {
     if (!CommandBuffer->Context->getPlatform()
              ->ZeDriverGlobalOffsetExtensionFound) {
-      urPrint("No global offset extension found on this driver\n");
+      logger::debug("No global offset extension found on this driver");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
 
@@ -593,8 +593,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   }
   try {
     if (Command)
-      *Command = new ur_exp_command_buffer_command_handle_t_(CommandBuffer,
-                                                             CommandId, Kernel);
+      *Command = new ur_exp_command_buffer_command_handle_t_(
+          CommandBuffer, CommandId, WorkDim, LocalWorkSize != nullptr, Kernel);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -606,9 +606,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
               &ZeThreadGroupDimensions, LaunchEvent->ZeEvent,
               ZeEventList.size(), ZeEventList.data()));
 
-  urPrint("calling zeCommandListAppendLaunchKernel() with"
-          "  ZeEvent %#" PRIxPTR "\n",
-          ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
+  logger::debug("calling zeCommandListAppendLaunchKernel() with"
+                "  ZeEvent {}",
+                ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
 
   return UR_RESULT_SUCCESS;
 }
@@ -1041,8 +1041,30 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   UR_ASSERT(Command->CommandBuffer->IsFinalized,
             UR_RESULT_ERROR_INVALID_OPERATION);
 
-  auto CommandBuffer = Command->CommandBuffer;
   uint32_t Dim = CommandDesc->newWorkDim;
+  if (Dim != 0) {
+    // Error if work dim changes
+    if (Dim != Command->WorkDim) {
+      return UR_RESULT_ERROR_INVALID_OPERATION;
+    }
+
+    // Error If Local size and not global size
+    if ((CommandDesc->pNewLocalWorkSize != nullptr) &&
+        (CommandDesc->pNewGlobalWorkSize == nullptr)) {
+      return UR_RESULT_ERROR_INVALID_OPERATION;
+    }
+
+    // Error if local size non-nullptr and created with null
+    // or if local size nullptr and created with non-null
+    const bool IsNewLocalSizeNull = CommandDesc->pNewLocalWorkSize == nullptr;
+    const bool IsOriginalLocalSizeNull = !Command->UserDefinedLocalSize;
+
+    if (IsNewLocalSizeNull ^ IsOriginalLocalSizeNull) {
+      return UR_RESULT_ERROR_INVALID_OPERATION;
+    }
+  }
+
+  auto CommandBuffer = Command->CommandBuffer;
   const void *NextDesc = nullptr;
   auto SupportedFeatures =
       Command->CommandBuffer->Device->ZeDeviceMutableCmdListsProperties
@@ -1068,7 +1090,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   if (NewGlobalWorkOffset && Dim > 0) {
     if (!CommandBuffer->Context->getPlatform()
              ->ZeDriverGlobalOffsetExtensionFound) {
-      urPrint("No global offset extension found on this driver\n");
+      logger::error("No global offset extension found on this driver");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     auto MutableGroupOffestDesc =
@@ -1231,56 +1253,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     ZeMutableArgDesc->pArgValue = ArgValuePtr;
     NextDesc = ZeMutableArgDesc.get();
     ArgDescs.push_back(std::move(ZeMutableArgDesc));
-  }
-
-  // Check if there are new exec info flags provided.
-  for (uint32_t NewExecInfoNum = CommandDesc->numNewExecInfos;
-       NewExecInfoNum-- > 0;) {
-    ur_exp_command_buffer_update_exec_info_desc_t NewExecInfoDesc =
-        CommandDesc->pNewExecInfoList[NewExecInfoNum];
-    ur_kernel_exec_info_t PropName = NewExecInfoDesc.propName;
-    const void *PropValue = NewExecInfoDesc.pNewExecInfo;
-    if (PropName == UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS) {
-      // The whole point for users really was to not need to know anything
-      // about the types of allocations kernel uses. So in DPC++ we always
-      // just set all 3 modes for each kernel.
-      if (*(static_cast<const ur_bool_t *>(PropValue)) == true) {
-        ze_kernel_indirect_access_flags_t IndirectFlags =
-            ZE_KERNEL_INDIRECT_ACCESS_FLAG_HOST |
-            ZE_KERNEL_INDIRECT_ACCESS_FLAG_DEVICE |
-            ZE_KERNEL_INDIRECT_ACCESS_FLAG_SHARED;
-        ZE2UR_CALL(zeKernelSetIndirectAccess,
-                   (Command->Kernel->ZeKernel, IndirectFlags));
-      }
-    } else if (PropName == UR_KERNEL_EXEC_INFO_CACHE_CONFIG) {
-      ze_cache_config_flag_t ZeCacheConfig{};
-      auto CacheConfig =
-          *(static_cast<const ur_kernel_cache_config_t *>(PropValue));
-      switch (CacheConfig) {
-      case UR_KERNEL_CACHE_CONFIG_LARGE_SLM:
-        ZeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_SLM;
-        break;
-      case UR_KERNEL_CACHE_CONFIG_LARGE_DATA:
-        ZeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_DATA;
-        break;
-      case UR_KERNEL_CACHE_CONFIG_DEFAULT:
-        ZeCacheConfig = static_cast<ze_cache_config_flag_t>(0);
-        break;
-      default:
-        // Unexpected cache configuration value.
-        return UR_RESULT_ERROR_INVALID_VALUE;
-      }
-      ZE2UR_CALL(zeKernelSetCacheConfig,
-                 (Command->Kernel->ZeKernel, ZeCacheConfig););
-    } else if (PropName == UR_KERNEL_EXEC_INFO_USM_PTRS) {
-      // Ignore this property as such kernel property is not supported by Level
-      // Zero.
-      continue;
-    } else {
-      urPrint("urCommandBufferUpdateKernelLaunchExp: unsupported name of "
-              "execution attribute.\n");
-      return UR_RESULT_ERROR_INVALID_VALUE;
-    }
   }
 
   ZeStruct<ze_mutable_commands_exp_desc_t> MutableCommandDesc;
