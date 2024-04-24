@@ -310,7 +310,7 @@ jobs:
         $CMAKE_EXTRA_ARGS
         # Ignore errors so that if one category build fails others still have a
         # chance to finish and be executed at the run stage.
-        ninja -C build-cts -k0 $( [[ -n "$CTS_TESTS_TO_BUILD" ]] && echo "$CTS_TESTS_TO_BUILD" || echo "test_conformance")
+        ninja -C build-cts -k0 $( [ -n "$CTS_TESTS_TO_BUILD" ] && echo "$CTS_TESTS_TO_BUILD" || echo "test_conformance")
 
     - name: SYCL CTS List devices
       # Proceed with execution even if the 'build' step did not succeed.
