@@ -216,7 +216,7 @@ auto accessorToPointer(AccessorTy Acc, OffsetTy Offset = 0) {
 /// @tparam VStride the vertical stride in elements between rows.
 /// @tparam Width the size or each row, non-zero and even divides `M`.
 /// @tparam Stride horizontal stride in elements within each row.
-// The rdregion intrinsics computes using following algorithm:
+// The rdregion intrinsics computes a result vector using following algorithm:
 //
 // \code{.cpp}
 // uint16_t EltOffset = Offset / sizeof(T);
@@ -233,7 +233,7 @@ auto accessorToPointer(AccessorTy Acc, OffsetTy Offset = 0) {
 //   }
 // }
 // \endcode
-// Hence the checks are to prevent reading beyond the input array.
+// Hence the checks are to prevent reading beyond the input vectoe.
 template <int N, int M, int VStride, int Width, int Stride>
 constexpr void check_rdregion_params() {
   static_assert(Width > 0 && M % Width == 0, "Malformed RHS region.");
@@ -250,6 +250,27 @@ constexpr void check_rdregion_params() {
 /// @tparam VStride the vertical stride in elements between rows.
 /// @tparam Width the size or each row, non-zero and even divides `M`.
 /// @tparam Stride horizontal stride in elements within each row.
+// The wrregion intrinsics computes a result vector using following algorithm:
+//
+// \code{.cpp}
+// uint16_t EltOffset = Offset / sizeof(T);
+// assert(Offset % sizeof(T) == 0);
+//
+// int NumRows = M / Width;
+// assert(M % Width == 0);
+//
+// Result = OldValue;
+// int Index = 0;
+// for (int i = 0; i < NumRows; ++i) {
+//   for (int j = 0; j < Width; ++j) {
+//       if (Mask[Index])
+//           Result[i * VStride +  j * Stride + EltOffset] = NewVal[Index];
+//       ++Index;
+//   }
+// }
+// \endcode
+// Hence the checks are to prevent reading beyond the input array and prevent
+// writing beyond destination vector.
 template <int N, int M, int VStride, int Width, int Stride>
 constexpr void check_wrregion_params() {
   static_assert(M <= N, "Attempt to access beyond viewed area: The "
