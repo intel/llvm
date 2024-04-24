@@ -4237,7 +4237,6 @@
 ?getOffset@AccessorBaseHost@detail@_V1@sycl@@QEBAAEBV?$id@$02@34@XZ
 ?getOrCreateSampler@sampler_impl@detail@_V1@sycl@@QEAAPEAU_pi_sampler@@AEBVcontext@34@@Z
 ?getOrInsertHandlerKernelBundle@handler@_V1@sycl@@AEBA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@_N@Z
-?getOrWaitEvents@detail@_V1@sycl@@YA?AV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@std@@V?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@5@V?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@5@@Z
 ?getPitch@SampledImageAccessorBaseHost@detail@_V1@sycl@@QEBA?AV?$id@$02@34@XZ
 ?getPitch@UnsampledImageAccessorBaseHost@detail@_V1@sycl@@QEBA?AV?$id@$02@34@XZ
 ?getPixelCoordLinearFiltMode@detail@_V1@sycl@@YA?AV?$vec@H$07@23@V?$vec@M$03@23@W4addressing_mode@23@V?$range@$02@23@AEAV523@@Z
