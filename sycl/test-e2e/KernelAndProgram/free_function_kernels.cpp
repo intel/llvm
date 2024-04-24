@@ -9,7 +9,7 @@
 
 using namespace sycl;
 
-// Kernel finder
+// Kernel finder.
 class KernelFinder {
   queue &Queue;
   std::vector<kernel_id> AllKernelIDs;
@@ -219,7 +219,7 @@ SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((
   ptr2D[GId.get(0)][GId.get(1)] = LId.get(0) + LId.get(1) + start;
 }
 
-// Explicit instantiation with “int*”
+// Explicit instantiation with “int*”.
 template void ff_3(int *ptr, int start);
 
 bool test_3(queue Queue, KernelFinder &KF) {
