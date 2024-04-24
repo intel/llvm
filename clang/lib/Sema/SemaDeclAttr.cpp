@@ -335,12 +335,15 @@ void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
     return;
   }
 
-  // Throw an "unknown attribute" warning for SYCL 2017 or GNU-style spellings.
-  if ((A.hasScope() && A.getScopeName()->isStr("cl")) ||
-      (A.getSyntax() == ParsedAttr::AS_GNU)) {
-    Diag(A.getLoc(), diag::warn_unknown_attribute_ignored)
-        << "'" + A.getNormalizedFullName() + "'";
-    return;
+  // If in SYCL mode, throw an "unknown attribute" warning for SYCL 2017 or
+  // GNU-style spellings.
+  if (LangOpts.getSYCLVersion() > LangOptions::SYCL_None) {
+    if ((A.hasScope() && A.getScopeName()->isStr("cl")) ||
+        (A.getSyntax() == ParsedAttr::AS_GNU)) {
+      Diag(A.getLoc(), diag::warn_unknown_attribute_ignored)
+          << "'" + A.getNormalizedFullName() + "'";
+      return;
+    }
   }
 }
 
@@ -4729,8 +4732,35 @@ static void handleSYCLIntelLoopFuseAttr(Sema &S, Decl *D, const ParsedAttr &A) {
 static void handleVecTypeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
   // This attribute is deprecated without replacement in SYCL 2020 mode.
   // Ignore the attribute in SYCL 2020.
-  S.Diag(AL.getLoc(), diag::warn_attribute_deprecated_ignored) << AL;
-  return;
+  if (S.LangOpts.getSYCLVersion() >= LangOptions::SYCL_2020) {
+    S.Diag(AL.getLoc(), diag::warn_attribute_deprecated_ignored) << AL;
+    return;
+  }
+
+  if (!AL.hasParsedType()) {
+    S.Diag(AL.getLoc(), diag::err_attribute_wrong_number_arguments) << AL << 1;
+    return;
+  }
+
+  TypeSourceInfo *ParmTSI = nullptr;
+  QualType ParmType = S.GetTypeFromParser(AL.getTypeArg(), &ParmTSI);
+  assert(ParmTSI && "no type source info for attribute argument");
+
+  if (!ParmType->isExtVectorType() && !ParmType->isFloatingType() &&
+      (ParmType->isBooleanType() ||
+       !ParmType->isIntegralType(S.getASTContext()))) {
+    S.Diag(AL.getLoc(), diag::err_attribute_invalid_argument) << 2 << AL;
+    return;
+  }
+
+  if (VecTypeHintAttr *A = D->getAttr<VecTypeHintAttr>()) {
+    if (!S.Context.hasSameType(A->getTypeHint(), ParmType)) {
+      S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
+      return;
+    }
+  }
+
+  D->addAttr(::new (S.Context) VecTypeHintAttr(S.Context, AL, ParmTSI));
 }
 
 SectionAttr *Sema::mergeSectionAttr(Decl *D, const AttributeCommonInfo &CI,

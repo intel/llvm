@@ -81,7 +81,7 @@ __global__ void reqd_work_group_size_32_64_64() {}
 __attribute__((work_group_size_hint(2, 2, 2)))
 __global__ void work_group_size_hint_2_2_2() {}
 
-// expected-warning@+1{{attribute 'vec_type_hint' is deprecated; attribute ignored}}
+// expected-error@+2{{attribute 'vec_type_hint' can only be applied to an OpenCL kernel function}}
 __attribute__((vec_type_hint(int)))
 __global__ void vec_type_hint_int() {}
 
