@@ -7925,20 +7925,18 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned BuiltinID,
 
   if (IsAlignedAlloca) {
     TemplateArgument AlignmentArg = CST->get(AlignmentIndex);
-    CharUnits RequestedAlign =
-        CharUnits::fromQuantity(AlignmentArg.getAsIntegral().getZExtValue());
-    if (!RequestedAlign.isPowerOfTwo())
+    llvm::APSInt RequestedAlign = AlignmentArg.getAsIntegral();
+    if (!RequestedAlign.isPowerOf2())
       return Diag(Loc, diag::err_alignment_not_power_of_two);
-    CharUnits MaxAllowedAlign =
-        CharUnits::fromQuantity(std::numeric_limits<int32_t>::max() / 8);
+    constexpr int32_t MaxAllowedAlign = std::numeric_limits<int32_t>::max() / 8;
     if (RequestedAlign > MaxAllowedAlign)
-      return Diag(Loc, diag::err_alignment_too_big)
-             << MaxAllowedAlign.getQuantity();
+      return Diag(Loc, diag::err_alignment_too_big) << MaxAllowedAlign;
     QualType AllocaType = CST->get(ElementTypeIndex).getAsType();
-    CharUnits AllocaRequiredAlignment = Context.getTypeAlignInChars(AllocaType);
+    int64_t AllocaRequiredAlignment =
+        Context.getTypeAlignInChars(AllocaType).getQuantity();
     if (RequestedAlign < AllocaRequiredAlignment)
       return Diag(Loc, diag::err_alignas_underaligned)
-             << AllocaType << AllocaRequiredAlignment.getQuantity();
+             << AllocaType << AllocaRequiredAlignment;
   }
 
   return false;
