@@ -388,6 +388,10 @@ public:
   template <typename Param>
   typename Param::return_type get_backend_info() const;
 
+  /// Begin to execute previously issued commands on this queue
+  /// if they have not been executed yet. Overrides normal batching behaviour.
+  void flush() { getPlugin()->call<PiApiKind::piQueueFlush>(MQueues[0]); }
+
   using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
 
   /// Submits a command group function object to the queue, in order to be
