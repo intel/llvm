@@ -103,6 +103,11 @@ llvm::computeDeviceRequirements(const module_split::ModuleDesc &MD) {
     }
   }
 
+  // Usually, we would only expect one ReqdWGSize, as the module passed to
+  // this function would be split according to that. However, when splitting
+  // is disabled, this cannot be guaranteed. In this case, we reset the value,
+  // which makes so that no value is reqd_work_group_size data is attached in
+  // in the device image.
   if (MultipleReqdWGSize)
     Reqs.ReqdWorkGroupSize.reset();
   return Reqs;
