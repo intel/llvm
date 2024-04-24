@@ -5216,7 +5216,6 @@ urKernelCreateWithNativeHandle(
 ///       each dimension.
 ///     - The application may call this function from simultaneous threads for
 ///       the same context.
-///     - The implementation of this function should be thread-safe.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -5235,14 +5234,14 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelGetSuggestedLocalWorkSize(
     ur_kernel_handle_t hKernel,      ///< [in] handle of the kernel
     ur_queue_handle_t hQueue,        ///< [in] handle of the queue object
-    uint32_t workDim,                ///< [in] number of dimensions, from 1 to 3, to specify the global
+    uint32_t numWorkDim,             ///< [in] number of dimensions, from 1 to 3, to specify the global
                                      ///< and work-group work-items
-    const size_t *pGlobalWorkOffset, ///< [in] pointer to an array of workDim unsigned values that specify
+    const size_t *pGlobalWorkOffset, ///< [in] pointer to an array of numWorkDim unsigned values that specify
                                      ///< the offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkSize,   ///< [in] pointer to an array of workDim unsigned values that specify
+    const size_t *pGlobalWorkSize,   ///< [in] pointer to an array of numWorkDim unsigned values that specify
                                      ///< the number of global work-items in workDim that will execute the
                                      ///< kernel function
-    size_t *pSuggestedLocalWorkSize  ///< [out] pointer to an array of workDim unsigned values that specify
+    size_t *pSuggestedLocalWorkSize  ///< [out] pointer to an array of numWorkDim unsigned values that specify
                                      ///< suggested local work size that will contain the result of the query
 );
 
@@ -9793,7 +9792,7 @@ typedef struct ur_kernel_create_with_native_handle_params_t {
 typedef struct ur_kernel_get_suggested_local_work_size_params_t {
     ur_kernel_handle_t *phKernel;
     ur_queue_handle_t *phQueue;
-    uint32_t *pworkDim;
+    uint32_t *pnumWorkDim;
     const size_t **ppGlobalWorkOffset;
     const size_t **ppGlobalWorkSize;
     size_t **ppSuggestedLocalWorkSize;

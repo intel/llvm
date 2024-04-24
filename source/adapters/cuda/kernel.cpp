@@ -397,17 +397,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   ur_result_t Result = UR_RESULT_SUCCESS;
   size_t ThreadsPerBlock[3] = {};
 
-  try {
-    // Set the active context here as guessLocalWorkSize needs an active context
-    ScopedContext Active(Context);
+  // Set the active context here as guessLocalWorkSize needs an active context
+  ScopedContext Active(Context);
 
-    guessLocalWorkSize(Device, ThreadsPerBlock, pGlobalWorkSize, workDim,
-                       hKernel);
+  guessLocalWorkSize(Device, ThreadsPerBlock, pGlobalWorkSize, workDim,
+                     hKernel);
 
-    std::copy(ThreadsPerBlock, ThreadsPerBlock + workDim,
-              pSuggestedLocalWorkSize);
-  } catch (ur_result_t Err) {
-    Result = Err;
-  }
+  std::copy(ThreadsPerBlock, ThreadsPerBlock + workDim,
+            pSuggestedLocalWorkSize);
   return Result;
 }

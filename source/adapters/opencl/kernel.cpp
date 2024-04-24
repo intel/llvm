@@ -429,16 +429,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
 
   CL_RETURN_ON_FAILURE(clGetCommandQueueInfo(
       cl_adapter::cast<cl_command_queue>(hQueue), CL_QUEUE_DEVICE,
-      sizeof(cl_device_id), &Device, NULL));
+      sizeof(cl_device_id), &Device, nullptr));
 
   CL_RETURN_ON_FAILURE(clGetDeviceInfo(
-      Device, CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &Platform, NULL));
+      Device, CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &Platform, nullptr));
 
   auto GetKernelSuggestedLocalWorkSizeFuncPtr =
       (clGetKernelSuggestedLocalWorkSizeKHR_fn)
           clGetExtensionFunctionAddressForPlatform(
               Platform, "clGetKernelSuggestedLocalWorkSizeKHR");
-  if (GetKernelSuggestedLocalWorkSizeFuncPtr == nullptr)
+  if (!GetKernelSuggestedLocalWorkSizeFuncPtr)
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
   CL_RETURN_ON_FAILURE(GetKernelSuggestedLocalWorkSizeFuncPtr(
