@@ -54,6 +54,9 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
     size_t adapterIndex = 0;
     if (nullptr != phAdapters && NumEntries != 0) {
         for (auto &platform : context->platforms) {
+            if (platform.initStatus != UR_RESULT_SUCCESS) {
+                continue;
+            }
             platform.dditable.ur.Global.pfnAdapterGet(
                 1, &phAdapters[adapterIndex], nullptr);
             try {
@@ -6703,8 +6706,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
         *pGlobalWorkOffset, ///< [in] Offset to use when executing kernel.
     const size_t *
         pGlobalWorkSize, ///< [in] Global work size to use when executing kernel.
-    const size_t
-        *pLocalWorkSize, ///< [in] Local work size to use when executing kernel.
+    const size_t *
+        pLocalWorkSize, ///< [in][optional] Local work size to use when executing kernel.
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
