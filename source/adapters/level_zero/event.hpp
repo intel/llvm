@@ -199,6 +199,9 @@ struct ur_event_handle_t_ : _ur_object {
   // Indicates inner batched event which was not used as a signal event.
   bool IsInnerBatchedEvent = {false};
 
+  // Queue where the batched command was executed.
+  ze_command_queue_handle_t ZeBatchedQueue = {nullptr};
+
   // Indicates within creation of proxy event.
   bool IsCreatingHostProxyEvent = {false};
 

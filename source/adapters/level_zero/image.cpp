@@ -802,7 +802,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
                                        CommandList, IsInternal,
                                        /*IsMultiDevice*/ false));
   UR_CALL(setSignalEvent(hQueue, UseCopyEngine, &ZeEvent, Event,
-                         numEventsInWaitList, phEventWaitList));
+                         numEventsInWaitList, phEventWaitList,
+                         CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
 
   const auto &ZeCommandList = CommandList->first;
