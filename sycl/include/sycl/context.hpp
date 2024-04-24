@@ -260,6 +260,33 @@ private:
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 
+// context.hpp depends on exception.hpp but we can't define these ctors in
+// exception.hpp while context is still an incomplete type.
+inline exception::exception(context Ctx, std::error_code EC,
+                            const std::string &WhatArg)
+    : exception(EC, std::make_shared<context>(Ctx), WhatArg) {}
+
+inline exception::exception(context Ctx, std::error_code EC,
+                            const char *WhatArg)
+    : exception(Ctx, EC, std::string(WhatArg)) {}
+
+inline exception::exception(context Ctx, std::error_code EC)
+    : exception(Ctx, EC, "") {}
+
+inline exception::exception(context Ctx, int EV,
+                            const std::error_category &ECat,
+                            const char *WhatArg)
+    : exception(Ctx, {EV, ECat}, std::string(WhatArg)) {}
+
+inline exception::exception(context Ctx, int EV,
+                            const std::error_category &ECat,
+                            const std::string &WhatArg)
+    : exception(Ctx, {EV, ECat}, WhatArg) {}
+
+inline exception::exception(context Ctx, int EV,
+                            const std::error_category &ECat)
+    : exception(Ctx, EV, ECat, "") {}
+
 } // namespace _V1
 } // namespace sycl
 
