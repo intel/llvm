@@ -356,9 +356,9 @@ public:
     DoubleAlign = LongLongAlign = 64;
     IntMaxType = SignedLongLong;
     Int64Type = SignedLongLong;
-    SizeType = UnsignedLongLong;
-    PtrDiffType = SignedLongLong;
-    IntPtrType = SignedLongLong;
+    SizeType = UnsignedLong;
+    PtrDiffType = SignedLong;
+    IntPtrType = SignedLong;
     WCharType = UnsignedShort;
   }
 
