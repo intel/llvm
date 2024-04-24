@@ -295,7 +295,8 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   if (TargetTriple.isNVPTX())
     // For NVidia, we are unbundling objects.
     LibSuffix = C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment()
-        ? ".obj" : ".o";
+                    ? ".obj"
+                    : ".o";
   auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
     for (const DeviceLibOptInfo &Lib : LibsList) {
       if (!DeviceLibLinkInfo[Lib.DeviceLibOption])
@@ -437,7 +438,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       if (IsNVPTX) {
         LibPostfix = ".o";
         if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
-                 C.getDriver().IsCLMode())
+            C.getDriver().IsCLMode())
           LibPostfix = ".obj";
       }
       std::string FileName = this->getToolChain().getInputFilename(II);
