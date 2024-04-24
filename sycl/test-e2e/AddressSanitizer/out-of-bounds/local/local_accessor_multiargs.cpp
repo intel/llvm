@@ -6,7 +6,6 @@
 // RUN: %{build} %device_asan_flags -g -O2 -o %t.out
 // RUN: env SYCL_PREFER_UR=1 %{run} not %t.out 2>&1 | FileCheck %s
 #include <sycl/sycl.hpp>
-#include <vector>
 
 constexpr std::size_t N = 8;
 constexpr std::size_t group_size = 4;
@@ -15,8 +14,6 @@ int main() {
   sycl::queue Q;
   auto data1 = sycl::malloc_device<int>(N, Q);
   auto data2 = sycl::malloc_device<int>(N, Q);
-  auto vec = std::vector<int>(N);
-  auto buf = sycl::buffer<int>(vec.data(), N);
 
   Q.submit([&](sycl::handler &cgh) {
     auto acc1 = sycl::local_accessor<int>(group_size, cgh);
@@ -37,5 +34,7 @@ int main() {
   });
 
   Q.wait();
+  sycl::free(data1, Q);
+  sycl::free(data2, Q);
   return 0;
 }

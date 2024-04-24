@@ -26,5 +26,6 @@ int main() {
   });
 
   Q.wait();
+  sycl::free(data, Q);
   return 0;
 }
