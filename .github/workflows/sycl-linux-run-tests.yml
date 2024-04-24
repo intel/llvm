@@ -342,7 +342,7 @@ jobs:
         # test_all contains all categories, so skip it
         which time timeout
         mkdir logs
-        find build-cts/bin/ -print | \
+        find build-cts/bin/ -type f -print | \
           xargs -t -I % -P 8 sh -c 'log=logs/$(basename %).log ; echo % >$log ; % >>$log 2>&1 ; ret=$? ; echo "exit code: $ret" >>$log ; exit $ret'
         ret=$?
 
