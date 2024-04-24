@@ -559,9 +559,18 @@ adapter where there is matching support for each function in the list.
 |  | clGetCommandBufferInfoKHR | No |
 |  | clCommandSVMMemcpyKHR | No |
 |  | clCommandSVMMemFillKHR | No |
+| urCommandBufferUpdateKernelLaunchExp | clUpdateMutableCommandsKHR | Yes[1] |
 
 We are looking to address these gaps in the future so that SYCL-Graph can be
 fully supported on a `cl_khr_command_buffer` backend.
+
+[1] Support for `urCommandBufferUpdateKernelLaunchExp` used to update the
+configuration of kernel commands requires an OpenCL implementation with the
+[cl_khr_command_buffer_mutable_dispatch](https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_Ext.html#cl_khr_command_buffer_mutable_dispatch)
+extension. The optional capabilities that are reported by this extension must
+include all of of `CL_MUTABLE_DISPATCH_GLOBAL_OFFSET_KHR`,
+`CL_MUTABLE_DISPATCH_GLOBAL_SIZE_KHR`, `CL_MUTABLE_DISPATCH_LOCAL_SIZE_KHR`,
+`CL_MUTABLE_DISPATCH_ARGUMENTS_KHR`, and `CL_MUTABLE_DISPATCH_EXEC_INFO_KHR`.
 
 #### UR Command-Buffer Implementation
 

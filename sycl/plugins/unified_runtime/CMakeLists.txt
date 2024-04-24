@@ -101,7 +101,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Tue Apr 16 10:10:10 2024 +0100
   #    Merge pull request #1507 from nrspruit/fix_p2p_properties_init
   #    [L0] Fix to p2p properties init for pNext and stype
-  set(UNIFIED_RUNTIME_TAG 2c56c47b75420a6677ea08f8bfb9cc080106fc9e)
+  set(UNIFIED_RUNTIME_TAG 3f85f3058eab63fa9bd28b0b98194fa2c21ce7ce)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -110,46 +110,22 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(opencl
     ${UNIFIED_RUNTIME_REPO}
-    # commit 0d2a972c71ba4dd5935478c7b7124a372a1eeca0
-    # Merge: ac89abfe 44aef877
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Apr 11 10:24:19 2024 +0100
-    #     Merge pull request #1440 from fabiomestre/fabio/opencl_remove_queued_hack
-    #     [OPENCL] Remove EVENT_STATUS_QUEUED workaround
-    0d2a972c71ba4dd5935478c7b7124a372a1eeca0
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit 1333d4a0fe84f1e2b3ab8196c7fd746825ee7b94
-    # Merge: 55cf3ba8 281e3aaf
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Mon Apr 15 09:54:18 2024 +0100
-    #     Merge pull request #1342 from lplewa/cuda_log
-    #     Refactor cuda adapter to new logger
-    1333d4a0fe84f1e2b3ab8196c7fd746825ee7b94
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 55cf3ba8139f8ffea9cf5cf42ea1f79c049b3520
-    # Merge: 15233fd2 35a6899d
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Mon Apr 15 09:50:52 2024 +0100
-    #     Merge pull request #1437 from hdelan/event-wait-with-good-context
-    #     [HIP] Use context to get active device
-    55cf3ba8139f8ffea9cf5cf42ea1f79c049b3520
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    # commit 15233fd2521f9e9b35e3a24037be99ceef334a8e
-    # Merge: 68e525a4 a04b062e
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri Apr 12 15:46:49 2024 +0100
-    #     Merge pull request #1489 from konradkusiak97/nativeCPUqueueFill
-    #     [NATIVECPU] Extended usm fill to bigger patterns than 1 byte
-    15233fd2521f9e9b35e3a24037be99ceef334a8e
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
