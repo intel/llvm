@@ -1,4 +1,4 @@
-// REQUIRES: hip_be
+// REQUIRES: hip
 // RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx906 %s -S -emit-llvm -o - | FileCheck %s --check-prefixes=CHECK,CHECK-SAFE
 // RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx906 %s -mllvm --amdgpu-oclc-unsafe-int-atomics=true -S -emit-llvm -o - | FileCheck %s --check-prefixes=CHECK,CHECK-UNSAFE
 

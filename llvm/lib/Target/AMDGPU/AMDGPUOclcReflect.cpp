@@ -54,7 +54,7 @@ PreservedAnalyses AMDGPUOclcReflectPass::run(Function &F,
   SmallVector<CallInst *, 4> ToRemove;
 
   for (Instruction &I : instructions(F)) {
-    CallInst *Call = dyn_cast<CallInst>(&I);
+    auto *Call = dyn_cast<CallInst>(&I);
     if (!Call)
       continue;
     if (Function *Callee = Call->getCalledFunction();
@@ -74,7 +74,7 @@ PreservedAnalyses AMDGPUOclcReflectPass::run(Function &F,
     const Value *Str = Call->getArgOperand(0);
     const Value *Operand = cast<Constant>(Str)->getOperand(0);
     StringRef ReflectArg = cast<ConstantDataSequential>(Operand)->getAsString();
-    ReflectArg = ReflectArg.substr(0, ReflectArg.size() - 1);
+    ReflectArg = ReflectArg.drop_back(1);
 
     if (ReflectArg == "AMDGPU_OCLC_UNSAFE_INT_ATOMICS") {
       int ReflectVal = AMDGPUUnsafeIntAtomicsEnable ? 1 : 0;
