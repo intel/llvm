@@ -1768,7 +1768,8 @@ bool eventCanBeBatched(ur_queue_handle_t Queue, bool UseCopyEngine,
 ur_result_t setSignalEvent(ur_queue_handle_t Queue, bool UseCopyEngine,
                            ze_event_handle_t *ZeEvent, ur_event_handle_t *Event,
                            uint32_t NumEventsInWaitList,
-                           const ur_event_handle_t *EventWaitList) {
+                           const ur_event_handle_t *EventWaitList,
+                           ze_command_queue_handle_t ZeQueue) {
   if (Queue->Device->isIntegrated() &&
       eventCanBeBatched(Queue, UseCopyEngine, NumEventsInWaitList,
                         EventWaitList) &&
@@ -1776,6 +1777,7 @@ ur_result_t setSignalEvent(ur_queue_handle_t Queue, bool UseCopyEngine,
       !UrL0OutOfOrderIntegratedSignalEvent) {
     ZeEvent = nullptr;
     (*Event)->IsInnerBatchedEvent = true;
+    (*Event)->ZeBatchedQueue = ZeQueue;
   } else {
     (*ZeEvent) = (*Event)->ZeEvent;
   }

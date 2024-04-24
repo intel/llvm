@@ -704,7 +704,8 @@ bool eventCanBeBatched(ur_queue_handle_t Queue, bool UseCopyEngine,
 ur_result_t setSignalEvent(ur_queue_handle_t Queue, bool UseCopyEngine,
                            ze_event_handle_t *ZeEvent, ur_event_handle_t *Event,
                            uint32_t NumEventsInWaitList,
-                           const ur_event_handle_t *EventWaitList);
+                           const ur_event_handle_t *EventWaitList,
+                           ze_command_queue_handle_t ZeQueue);
 
 // Helper function to perform the necessary cleanup of the events from reset cmd
 // list.

@@ -212,7 +212,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_KERNEL_LAUNCH,
                                        CommandList, IsInternal, false));
   UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
-                         NumEventsInWaitList, EventWaitList));
+                         NumEventsInWaitList, EventWaitList,
+                         CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
 
   // Save the kernel in the event, so that when the event is signalled

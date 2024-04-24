@@ -72,7 +72,8 @@ ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
   UR_CALL(createEventAndAssociateQueue(Queue, Event, CommandType, CommandList,
                                        IsInternal, false));
   UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
-                         NumEventsInWaitList, EventWaitList));
+                         NumEventsInWaitList, EventWaitList,
+                         CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
 
   const auto &ZeCommandList = CommandList->first;
@@ -124,7 +125,8 @@ ur_result_t enqueueMemCopyRectHelper(
   UR_CALL(createEventAndAssociateQueue(Queue, Event, CommandType, CommandList,
                                        IsInternal, false));
   UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
-                         NumEventsInWaitList, EventWaitList));
+                         NumEventsInWaitList, EventWaitList,
+                         CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
 
   const auto &ZeCommandList = CommandList->first;
@@ -235,7 +237,8 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
   UR_CALL(createEventAndAssociateQueue(Queue, Event, CommandType, CommandList,
                                        IsInternal, false));
   UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
-                         NumEventsInWaitList, EventWaitList));
+                         NumEventsInWaitList, EventWaitList,
+                         CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
 
   const auto &ZeCommandList = CommandList->first;
@@ -327,7 +330,8 @@ static ur_result_t enqueueMemImageCommandHelper(
   UR_CALL(createEventAndAssociateQueue(Queue, Event, CommandType, CommandList,
                                        IsInternal, false));
   UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
-                         NumEventsInWaitList, EventWaitList));
+                         NumEventsInWaitList, EventWaitList,
+                         CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
 
   const auto &ZeCommandList = CommandList->first;
@@ -988,7 +992,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
     UR_CALL(Buffer->getZeHandle(ZeHandleSrc, AccessMode, Queue->Device));
 
     UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
-                           NumEventsInWaitList, EventWaitList));
+                           NumEventsInWaitList, EventWaitList,
+                           CommandList->second.ZeQueue));
 
     ZE2UR_CALL(zeCommandListAppendMemoryCopy,
                (ZeCommandList, *RetMap, ZeHandleSrc + Offset, Size, ZeEvent,
@@ -1118,7 +1123,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
                               Queue->Device));
 
   UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
-                         NumEventsInWaitList, EventWaitList));
+                         NumEventsInWaitList, EventWaitList,
+                         CommandList->second.ZeQueue));
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopy,
              (ZeCommandList, ZeHandleDst + MapInfo.Offset, MappedPtr,
