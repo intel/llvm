@@ -961,9 +961,8 @@ static ParamDesc makeParamDesc(ASTContext &Ctx, StringRef Name, QualType Ty) {
 }
 
 static void unsupportedFreeFunctionParamType() {
-  llvm::report_fatal_error(
-      "Only scalars, pointers and bit-wise copyable structs are permitted as "
-      "free function parameters");
+  llvm::report_fatal_error("Only scalars and pointers are permitted as "
+                           "free function parameters");
 }
 
 class MarkWIScopeFnVisitor : public RecursiveASTVisitor<MarkWIScopeFnVisitor> {
@@ -1755,21 +1754,6 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
     return false;
   }
 
-  bool checkNotCopyableToKernel(const ParmVarDecl *PD, QualType ParamTy) {
-    if (ParamTy->isArrayType()) {
-      if (const auto *CAT =
-              SemaRef.getASTContext().getAsConstantArrayType(ParamTy)) {
-        QualType ET = CAT->getElementType();
-        return checkNotCopyableToKernel(PD, ET);
-      }
-      return Diag.Report(PD->getLocation(),
-                         diag::err_sycl_non_constant_array_type)
-             << ParamTy;
-    }
-
-    return false;
-  }
-
   bool checkPropertyListType(TemplateArgument PropList, SourceLocation Loc) {
     if (PropList.getKind() != TemplateArgument::ArgKind::Type)
       return SemaRef.Diag(
@@ -1898,16 +1882,8 @@ public:
   }
 
   bool handleStructType(ParmVarDecl *PD, QualType ParamTy) final {
-    IsInvalid |= checkNotCopyableToKernel(PD, ParamTy);
-    CXXRecordDecl *RD = ParamTy->getAsCXXRecordDecl();
-    assert(RD && "Not a RecordDecl inside the handler for struct type");
-    if (RD->isLambda()) {
-      for (const LambdaCapture &LC : RD->captures())
-        if (LC.capturesThis() && LC.isImplicit()) {
-          SemaRef.Diag(LC.getLocation(), diag::err_implicit_this_capture);
-          IsInvalid = true;
-        }
-    }
+    Diag.Report(PD->getLocation(), diag::err_bad_kernel_param_type) << ParamTy;
+    IsInvalid = true;
     return isValid();
   }
 
@@ -1923,9 +1899,9 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
-    return true;
+    Diag.Report(PD->getLocation(), diag::err_bad_kernel_param_type) << ParamTy;
+    IsInvalid = true;
+    return isValid();
   }
 
   bool handleArrayType(FieldDecl *FD, QualType FieldTy) final {
@@ -1934,9 +1910,9 @@ public:
   }
 
   bool handleArrayType(ParmVarDecl *PD, QualType ParamTy) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
-    return true;
+    Diag.Report(PD->getLocation(), diag::err_bad_kernel_param_type) << ParamTy;
+    IsInvalid = true;
+    return isValid();
   }
 
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
@@ -2039,7 +2015,8 @@ public:
   }
 
   bool enterUnion(const CXXRecordDecl *, ParmVarDecl *) override {
-    ++UnionCount;
+    // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -2049,7 +2026,8 @@ public:
   }
 
   bool leaveUnion(const CXXRecordDecl *, ParmVarDecl *) override {
-    --UnionCount;
+    // TODO
+    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -2518,6 +2496,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
         makeParamDesc(SemaRef.getASTContext(), Name, ParamTy);
     addParam(newParamDesc, ParamTy);
   }
+
   // Add a parameter with specified name and type
   void addParam(StringRef Name, QualType ParamTy) {
     ParamDesc newParamDesc =

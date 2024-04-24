@@ -43,12 +43,6 @@ public:
   }
 };
 
-struct Simple {
-  int x;
-  char c[100];
-  float f;
-};
-
 void printUSM(int *usmPtr, int size) {
   std::cout << "usmPtr[] = {";
   for (int i = 0; i < size; i++) {
@@ -137,9 +131,6 @@ bool test_1(queue Queue, KernelFinder &KF) {
   constexpr int Range = 10;
   int *usmPtr = malloc_shared<int>(Range, Queue);
   int start = 3;
-  struct Simple S {
-    66, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, 7.1
-  };
   int Result[Range] = {13, 14, 15, 16, 17, 18, 19, 20, 21, 22};
   nd_range<1> R1{{Range}, {1}};
 
@@ -173,24 +164,20 @@ bool test_1(queue Queue, KernelFinder &KF) {
 SYCL_EXTERNAL
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::nd_range_kernel<2>))
-void ff_2(int *ptr, int start, struct Simple S) {
+void ff_2(int *ptr, int start) {
   int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(ptr);
   nd_item<2> Item = ext::oneapi::this_work_item::get_nd_item<2>();
   id<2> GId = Item.get_global_id();
   id<2> LId = Item.get_local_id();
-  ptr2D[GId.get(0)][GId.get(1)] =
-      LId.get(0) + LId.get(1) + start + S.x + S.f + S.c[2];
+  ptr2D[GId.get(0)][GId.get(1)] = LId.get(0) + LId.get(1) + start;
 }
 
 bool test_2(queue Queue, KernelFinder &KF) {
   constexpr int Range = 16;
   int *usmPtr = malloc_shared<int>(Range, Queue);
   int value = 55;
-  struct Simple S {
-    66, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, 7.1
-  };
-  int Result[Range] = {130, 131, 130, 131, 131, 132, 131, 132,
-                       130, 131, 130, 131, 131, 132, 131, 132};
+  int Result[Range] = {55, 56, 55, 56, 56, 57, 56, 57,
+                       55, 56, 55, 56, 56, 57, 56, 57};
   nd_range<2> R2{range<2>{4, 4}, range<2>{2, 2}};
 
   memset(usmPtr, 0, Range * sizeof(int));
@@ -199,8 +186,7 @@ bool test_2(queue Queue, KernelFinder &KF) {
       int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(usmPtr);
       id<2> GId = Item.get_global_id();
       id<2> LId = Item.get_local_id();
-      ptr2D[GId.get(0)][GId.get(1)] =
-          LId.get(0) + LId.get(1) + value + S.x + S.f + S.c[2];
+      ptr2D[GId.get(0)][GId.get(1)] = LId.get(0) + LId.get(1) + value;
     });
   });
   Queue.wait();
@@ -212,7 +198,6 @@ bool test_2(queue Queue, KernelFinder &KF) {
   Queue.submit([&](handler &Handler) {
     Handler.set_arg(0, usmPtr);
     Handler.set_arg(1, value);
-    Handler.set_arg(2, S);
     Handler.parallel_for(R2, Kernel);
   });
   Queue.wait();
@@ -226,28 +211,23 @@ bool test_2(queue Queue, KernelFinder &KF) {
 // Templated free function definition.
 template <typename T>
 SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((
-    ext::oneapi::experimental::nd_range_kernel<2>)) void ff_3(T *ptr, T start,
-                                                              struct Simple S) {
+    ext::oneapi::experimental::nd_range_kernel<2>)) void ff_3(T *ptr, T start) {
   int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(ptr);
   nd_item<2> Item = ext::oneapi::this_work_item::get_nd_item<2>();
   id<2> GId = Item.get_global_id();
   id<2> LId = Item.get_local_id();
-  ptr2D[GId.get(0)][GId.get(1)] =
-      LId.get(0) + LId.get(1) + start + S.x + S.f + S.c[2];
+  ptr2D[GId.get(0)][GId.get(1)] = LId.get(0) + LId.get(1) + start;
 }
 
 // Explicit instantiation with “int*”
-template void ff_3(int *ptr, int start, struct Simple S);
+template void ff_3(int *ptr, int start);
 
 bool test_3(queue Queue, KernelFinder &KF) {
   constexpr int Range = 16;
   int *usmPtr = malloc_shared<int>(Range, Queue);
   int value = 55;
-  struct Simple S {
-    66, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, 7.1
-  };
-  int Result[Range] = {130, 131, 130, 131, 131, 132, 131, 132,
-                       130, 131, 130, 131, 131, 132, 131, 132};
+  int Result[Range] = {55, 56, 55, 56, 56, 57, 56, 57,
+                       55, 56, 55, 56, 56, 57, 56, 57};
   nd_range<2> R2{range<2>{4, 4}, range<2>{2, 2}};
 
   memset(usmPtr, 0, Range * sizeof(int));
@@ -256,20 +236,18 @@ bool test_3(queue Queue, KernelFinder &KF) {
       int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(usmPtr);
       id<2> GId = Item.get_global_id();
       id<2> LId = Item.get_local_id();
-      ptr2D[GId.get(0)][GId.get(1)] =
-          LId.get(0) + LId.get(1) + value + S.x + S.f + S.c[2];
+      ptr2D[GId.get(0)][GId.get(1)] = LId.get(0) + LId.get(1) + value;
     });
   });
   Queue.wait();
   bool PassA = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 3a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
-  kernel Kernel = KF.get_kernel("__free_function_Z4ff_3IiEvPT_S0_6Simple");
+  kernel Kernel = KF.get_kernel("__free_function_Z4ff_3IiEvPT_S0_");
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
     Handler.set_arg(0, usmPtr);
     Handler.set_arg(1, value);
-    Handler.set_arg(2, S);
     Handler.parallel_for(R2, Kernel);
   });
   Queue.wait();
