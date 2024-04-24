@@ -16,6 +16,7 @@
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/pi.h>                   // for pi_int32
+#include <sycl/detail/string.hpp>
 
 #include <exception>    // for exception
 #include <memory>       // for allocator, shared_ptr, make...
@@ -106,7 +107,7 @@ public:
 private:
   // Exceptions must be noexcept copy constructible, so cannot use std::string
   // directly.
-  std::shared_ptr<std::string> MMsg;
+  std::shared_ptr<detail::string> MMsg;
   pi_int32 MPIErr = 0;
   std::shared_ptr<context> MContext;
   std::error_code MErrC = make_error_code(sycl::errc::invalid);
@@ -124,7 +125,7 @@ protected:
   }
 
   exception(const std::string &Msg)
-      : MMsg(std::make_shared<std::string>(Msg)), MContext(nullptr) {}
+      : MMsg(std::make_shared<detail::string>(Msg)), MContext(nullptr) {}
 
   // base constructor for all SYCL 2020 constructors
   // exception(context *ctxPtr, std::error_code Ec, const std::string
