@@ -120,9 +120,10 @@
 // CHECK-NEXT: detail/backend_traits.hpp
 // CHECK-NEXT: sampler.hpp
 // CHECK-NEXT: types.hpp
+// CHECK-NEXT: marray.hpp
+// CHECK-NEXT: vector.hpp
 // CHECK-NEXT: detail/memcpy.hpp
 // CHECK-NEXT: detail/vector_convert.hpp
-// CHECK-NEXT: marray.hpp
 // CHECK-NEXT: swizzles.def
 // CHECK-NEXT: pointers.hpp
 // CHECK-NEXT: properties/accessor_properties.hpp
