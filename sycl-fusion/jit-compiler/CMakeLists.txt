@@ -9,6 +9,8 @@ add_llvm_library(sycl-fusion
    lib/fusion/ModuleHelper.cpp
    lib/helper/ConfigHelper.cpp
 
+   SHARED
+
    DEPENDS
    intrinsics_gen
 
@@ -66,13 +68,11 @@ if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
   target_compile_definitions(sycl-fusion PRIVATE FUSION_JIT_SUPPORT_AMDGCN)
 endif()
 
-if (BUILD_SHARED_LIBS)
-  if(NOT MSVC AND NOT APPLE)
-    # Manage symbol visibility through the linker to make sure no LLVM symbols
-    # are exported and confuse the drivers.
-    set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
-    target_link_libraries(
-      sycl-fusion PRIVATE "-Wl,--version-script=${linker_script}")
-    set_target_properties(sycl-fusion PROPERTIES LINK_DEPENDS ${linker_script})
-  endif()
+if(NOT MSVC AND NOT APPLE)
+  # Manage symbol visibility through the linker to make sure no LLVM symbols
+  # are exported and confuse the drivers.
+  set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
+  target_link_libraries(
+    sycl-fusion PRIVATE "-Wl,--version-script=${linker_script}")
+  set_target_properties(sycl-fusion PROPERTIES LINK_DEPENDS ${linker_script})
 endif()
