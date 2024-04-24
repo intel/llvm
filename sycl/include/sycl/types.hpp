@@ -27,7 +27,7 @@
 #include <sycl/vector.hpp>                     // for sycl::vec and swizzles
 #endif
 
-#include <sycl/ext/oneapi/bfloat16.hpp>        // bfloat16
+#include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
 
 namespace sycl {
 inline namespace _V1 {

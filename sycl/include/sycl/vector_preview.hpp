@@ -89,7 +89,7 @@ using select_apply_cl_t = std::conditional_t<
     sizeof(_IN) == 1, T8,
     std::conditional_t<sizeof(_IN) == 2, T16,
                        std::conditional_t<sizeof(_IN) == 4, T32, T64>>>;
-
+    
 // Helper function to bit_cast one type to another.
 template <typename FromType, typename ToType>
 static constexpr ToType BitCast(const FromType &Value) {
@@ -571,6 +571,7 @@ public:
 
 #ifdef __SYCL_DEVICE_ONLY__
   explicit constexpr vec(const DataT &arg)
+
       : vec{detail::RepeatValue<NumElements>(
                 static_cast<vec_data_t<DataT>>(arg)),
             std::make_index_sequence<NumElements>()} {}

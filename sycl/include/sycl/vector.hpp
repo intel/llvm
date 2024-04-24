@@ -213,7 +213,7 @@ template <typename T, int N> struct VecStorageImpl {
                                 std::array<T, Num>>::type;
   using VectorDataType = T __attribute__((ext_vector_type(N)));
 };
-#else // __SYCL_DEVICE_ONLY__
+#else  // __SYCL_DEVICE_ONLY__
 template <typename T, int N> struct VecStorageImpl {
   using DataType = std::array<T, (N == 3) ? 4 : N>;
 };
@@ -1321,7 +1321,7 @@ private:
   constexpr DataT getValue(EnableIfHostHalf<Ty> Index, int) const {
     return vec_data<DataT>::get(m_Data.s[Index]);
   }
-#else // __SYCL_USE_EXT_VECTOR_TYPE__
+#else  // __SYCL_USE_EXT_VECTOR_TYPE__
   template <int Num = NumElements,
             typename = typename std::enable_if_t<1 != Num>>
   constexpr void setValue(int Index, const DataT &Value, int) {
