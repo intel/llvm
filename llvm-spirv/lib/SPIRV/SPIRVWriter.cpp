@@ -1470,7 +1470,12 @@ SPIRVValue *LLVMToSPIRVBase::transValue(Value *V, SPIRVBasicBlock *BB,
          "Invalid SPIRV BB");
 
   auto *BV = transValueWithoutDecoration(V, BB, CreateForward, FuncTrans);
-  if (!BV || !transDecoration(V, BV))
+  if (!BV)
+    return nullptr;
+  // Only translate decorations for non-forward instructions.  Forward
+  // instructions will have their decorations translated when the actual
+  // instruction is seen and rewritten to a real SPIR-V instruction.
+  if (!BV->isForward() && !transDecoration(V, BV))
     return nullptr;
   StringRef Name = V->getName();
   if (!Name.empty()) // Don't erase the name, which BM might already have
