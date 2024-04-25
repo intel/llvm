@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -Wno-sycl-2020-compat -ast-dump %s | FileCheck %s
 
 // The test checks AST of [[intel::reqd_sub_group_size()]] attribute.
 
@@ -55,14 +55,6 @@ int main() {
     // CHECK-NEXT: IntegerLiteral{{.*}}16{{$}}
     Functor16 f16;
     h.single_task<class kernel_name1>(f16);
-
-    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name2
-    // CHECK: IntelReqdSubGroupSizeAttr {{.*}} reqd_sub_group_size
-    // CHECK-NEXT: ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT: value: Int 4
-    // CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
-    Functor f;
-    h.single_task<class kernel_name2>(f);
 
     // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name3
     // CHECK: IntelReqdSubGroupSizeAttr {{.*}} reqd_sub_group_size

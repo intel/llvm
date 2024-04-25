@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -sycl-std=2017 -Wno-sycl-2017-compat -verify -pedantic %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -sycl-std=2020 -Wno-sycl-2020-compat -verify -pedantic %s
 
 // The test checks functionality of [[intel::reqd_sub_group_size()]] attribute on SYCL kernel.
 
@@ -7,13 +7,12 @@
 using namespace sycl;
 queue q;
 
-[[intel::reqd_sub_group_size(4)]] void foo() {} // expected-note {{conflicting attribute is here}}
-// expected-note@-1 {{conflicting attribute is here}}
-[[intel::reqd_sub_group_size(32)]] void baz() {} // expected-note {{conflicting attribute is here}}
+[[intel::reqd_sub_group_size(4)]] void foo() {} 
+[[intel::reqd_sub_group_size(32)]] void baz() {} 
 
-class Functor8 { // expected-error {{conflicting attributes applied to a SYCL kernel}}
+class Functor8 {
 public:
-  [[intel::reqd_sub_group_size(8)]] void operator()() const { // expected-note {{conflicting attribute is here}}
+  [[intel::reqd_sub_group_size(8)]] void operator()() const { 
     foo();
   }
 };
@@ -23,7 +22,7 @@ int main() {
     Functor8 f8;
     h.single_task<class kernel_name1>(f8);
 
-    h.single_task<class kernel_name2>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
+    h.single_task<class kernel_name2>([]() {
       foo();
       baz();
     });

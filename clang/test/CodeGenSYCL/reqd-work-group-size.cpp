@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -sycl-std=2017 -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s
 
 #include "sycl.hpp"
 
@@ -17,15 +17,10 @@ class Functor32x16x16 {
 public:
   [[sycl::reqd_work_group_size(32, 16, 16)]] void operator()() const {}
 };
-class CLFunctor32x16x16 {
-public:
-  [[cl::reqd_work_group_size(32, 16, 16)]] void operator()() const {}
-};
 
 [[sycl::reqd_work_group_size(8)]] void f8() {}
 [[sycl::reqd_work_group_size(8, 1)]] void f8x1() {}
 [[sycl::reqd_work_group_size(8, 1, 1)]] void f8x1x1() {}
-[[cl::reqd_work_group_size(8, 1, 1)]] void clf8x1x1() {}
 
 class Functor1D {
 public:
@@ -45,12 +40,6 @@ public:
     f8x1x1();
   }
 };
-class CLFunctor3D {
-public:
-  void operator()() const {
-    clf8x1x1();
-  }
-};
 
 template <int SIZE>
 class FunctorTemp1D {
@@ -67,11 +56,6 @@ class FunctorTemp3D {
 public:
   [[sycl::reqd_work_group_size(SIZE, SIZE1, SIZE2)]] void operator()() const {}
 };
-template <int SIZE, int SIZE1, int SIZE2>
-class CLFunctorTemp3D {
-public:
-  [[cl::reqd_work_group_size(SIZE, SIZE1, SIZE2)]] void operator()() const {}
-};
 
 template <int N>
 [[sycl::reqd_work_group_size(N)]] void func1D() {}
@@ -79,30 +63,9 @@ template <int N, int N1>
 [[sycl::reqd_work_group_size(N, N1)]] void func2D() {}
 template <int N, int N1, int N2>
 [[sycl::reqd_work_group_size(N, N1, N2)]] void func3D() {}
-template <int N, int N1, int N2>
-[[cl::reqd_work_group_size(N, N1, N2)]] void clfunc3D() {}
 
 int main() {
   q.submit([&](handler &h) {
-    CLFunctor32x16x16 clf32x16x16;
-    h.single_task<class kernel_name1>(clf32x16x16);
-
-    CLFunctor3D clf3d;
-    h.single_task<class kernel_name2>(clf3d);
-
-    h.single_task<class kernel_name3>(
-        []() [[cl::reqd_work_group_size(8, 8, 8)]]{});
-
-    CLFunctorTemp3D<2, 2, 2> clft3d;
-    h.single_task<class kernel_name4>(clft3d);
-
-    h.single_task<class kernel_name5>([]() {
-      clfunc3D<8, 4, 4>();
-    });
-
-    h.single_task<class kernel_name6>(
-        []() [[cl::reqd_work_group_size(1, 8, 2)]]{});
-
     Functor32x16x16 f32x16x16;
     h.single_task<class kernel_name7>(f32x16x16);
 
@@ -163,41 +126,25 @@ int main() {
   return 0;
 }
 
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name1() #0 {{.*}} !reqd_work_group_size ![[WGSIZE3D32:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name2() #0 {{.*}} !reqd_work_group_size ![[WGSIZE3D8:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name3() #0 {{.*}} !reqd_work_group_size ![[WGSIZE3D88:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name4() #0 {{.*}} !reqd_work_group_size ![[WGSIZE3D22:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name5() #0 {{.*}} !reqd_work_group_size ![[WGSIZE3D44:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name6() #0 {{.*}} !reqd_work_group_size ![[WGSIZE3D2:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name7() #0 {{.*}} !reqd_work_group_size ![[WGSIZE3D32]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name8() #0 {{.*}} !reqd_work_group_size ![[WGSIZE3D8]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name9() #0 {{.*}} !reqd_work_group_size ![[WGSIZE3D88]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name10() #0 {{.*}} !reqd_work_group_size ![[WGSIZE3D22]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name11() #0 {{.*}} !reqd_work_group_size ![[WGSIZE3D44]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name12() #0 {{.*}} !reqd_work_group_size ![[WGSIZE3D2]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name7() #0 {{.*}} !reqd_work_group_size ![[WGSIZE3D32:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name9() #0 {{.*}} !reqd_work_group_size ![[WGSIZE3D88:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name10() #0 {{.*}} !reqd_work_group_size ![[WGSIZE3D22:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name12() #0 {{.*}} !reqd_work_group_size ![[WGSIZE3D2:[0-9]+]]
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name13() #0 {{.*}} !reqd_work_group_size ![[WGSIZE2D32:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name14() #0 {{.*}} !reqd_work_group_size ![[WGSIZE2D8:[0-9]+]]
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name15() #0 {{.*}} !reqd_work_group_size ![[WGSIZE2D88:[0-9]+]]
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name16() #0 {{.*}} !reqd_work_group_size ![[WGSIZE2D22:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name17() #0 {{.*}} !reqd_work_group_size ![[WGSIZE2D44:[0-9]+]]
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name18() #0 {{.*}} !reqd_work_group_size ![[WGSIZE2D2:[0-9]+]]
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name19() #0 {{.*}} !reqd_work_group_size ![[WGSIZE1D32:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name20() #0 {{.*}} !reqd_work_group_size ![[WGSIZE1D8:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name21() #0 {{.*}} !reqd_work_group_size ![[WGSIZE1D8]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name21() #0 {{.*}} !reqd_work_group_size ![[WGSIZE1D8:[0-9]+]]
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name22() #0 {{.*}} !reqd_work_group_size ![[WGSIZE1D22:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name23() #0 {{.*}} !reqd_work_group_size ![[WGSIZE1D8]]
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name24() #0 {{.*}} !reqd_work_group_size ![[WGSIZE1D2:[0-9]+]]
 // CHECK: ![[WGSIZE3D32]] = !{i32 16, i32 16, i32 32}
-// CHECK: ![[WGSIZE3D8]] = !{i32 1, i32 1, i32 8}
 // CHECK: ![[WGSIZE3D88]] = !{i32 8, i32 8, i32 8}
 // CHECK: ![[WGSIZE3D22]] = !{i32 2, i32 2, i32 2}
-// CHECK: ![[WGSIZE3D44]] = !{i32 4, i32 4, i32 8}
 // CHECK: ![[WGSIZE3D2]] = !{i32 2, i32 8, i32 1}
 // CHECK: ![[WGSIZE2D32]] = !{i32 16, i32 32}
-// CHECK: ![[WGSIZE2D8]] = !{i32 1, i32 8}
 // CHECK: ![[WGSIZE2D88]] = !{i32 8, i32 8}
 // CHECK: ![[WGSIZE2D22]] = !{i32 2, i32 2}
-// CHECK: ![[WGSIZE2D44]] = !{i32 4, i32 8}
 // CHECK: ![[WGSIZE2D2]] = !{i32 8, i32 1}
 // CHECK: ![[WGSIZE1D32]] = !{i32 32}
 // CHECK: ![[WGSIZE1D8]] = !{i32 8}
