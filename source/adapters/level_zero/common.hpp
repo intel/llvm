@@ -241,10 +241,12 @@ static const uint32_t UrL0QueueSyncNonBlocking = [] {
   return L0QueueSyncLockingModeValue;
 }();
 
+// Controls whether the L0 Adapter creates signal events for commands on
+// integrated gpu devices.
 static const uint32_t UrL0OutOfOrderIntegratedSignalEvent = [] {
   const char *UrL0OutOfOrderIntegratedSignalEventEnv =
       std::getenv("UR_L0_OOQ_INTEGRATED_SIGNAL_EVENT");
-  uint32_t UrL0OutOfOrderIntegratedSignalEventValue = 0;
+  uint32_t UrL0OutOfOrderIntegratedSignalEventValue = 1;
   if (UrL0OutOfOrderIntegratedSignalEventEnv) {
     UrL0OutOfOrderIntegratedSignalEventValue =
         std::atoi(UrL0OutOfOrderIntegratedSignalEventEnv);
