@@ -114,9 +114,10 @@
 // CHECK-NEXT: detail/accessor_iterator.hpp
 // CHECK-NEXT: detail/generic_type_traits.hpp
 // CHECK-NEXT: detail/handler_proxy.hpp
-// CHECK-NEXT: detail/image_accessor_util.hpp
 // CHECK-NEXT: device.hpp
 // CHECK-NEXT: kernel_bundle_enums.hpp
+// CHECK-NEXT: pointers.hpp
+// CHECK-NEXT: properties/accessor_properties.hpp
 // CHECK-NEXT: image.hpp
 // CHECK-NEXT: detail/backend_traits.hpp
 // CHECK-NEXT: sampler.hpp
@@ -126,10 +127,7 @@
 // CHECK-NEXT: detail/memcpy.hpp
 // CHECK-NEXT: detail/vector_convert.hpp
 // CHECK-NEXT: swizzles.def
-// CHECK-NEXT: pointers.hpp
-// CHECK-NEXT: properties/accessor_properties.hpp
 // CHECK-NEXT: properties/buffer_properties.hpp
-// CHECK-NEXT: detail/image_ocl_types.hpp
 // CHECK-NEXT: queue.hpp
 // CHECK-NEXT: detail/assert_happened.hpp
 // CHECK-NEXT: detail/cg_types.hpp
