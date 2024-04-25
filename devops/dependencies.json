@@ -71,7 +71,7 @@
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclfpgaemu"
     },
     "fpga": {
-      "root": "{ARCHIVE_ROOT}/comp/oclfpga/win"
+      "root": "{ARCHIVE_ROOT}/comp/oclfpga/win" 
     }
   }
 }
