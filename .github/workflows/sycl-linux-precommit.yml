@@ -62,7 +62,7 @@ jobs:
           if [ "${{ contains(needs.detect_changes.outputs.filters, 'esimd') }}" == "true" ]; then
             echo 'arc_tests="(ESIMD|InvokeSimd|Matrix)/"' >> "$GITHUB_OUTPUT"
           else
-            echo 'arc_tests="Matrix/"' >> "$GITHUB_OUTPUT"
+            echo 'arc_tests="Graph/"' >> "$GITHUB_OUTPUT"
           fi
   test:
     needs: [build, detect_changes, determine_arc_tests]
