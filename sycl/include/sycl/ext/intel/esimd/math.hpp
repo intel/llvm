@@ -1214,8 +1214,6 @@ bfn(T src0, T src1, T src2) {
     return Res[0];                                                             \
   }
 
-__ESIMD_ADDC(uint8_t)
-__ESIMD_ADDC(uint16_t)
 __ESIMD_ADDC(uint32_t)
 __ESIMD_ADDC(uint64_t)
 
@@ -1261,8 +1259,6 @@ __ESIMD_ADDC(uint64_t)
     return Res[0];                                                             \
   } // namespace ext::intel::esimd
 
-__ESIMD_SUBB(uint8_t)
-__ESIMD_SUBB(uint16_t)
 __ESIMD_SUBB(uint32_t)
 __ESIMD_SUBB(uint64_t)
 
