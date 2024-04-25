@@ -24,8 +24,9 @@ RUN wget https://repo.radeon.com/rocm/rocm.gpg.key -O - | \
     echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.1 jammy main" \
     | tee --append /etc/apt/sources.list.d/rocm.list && \
     apt update && \
-    apt autoremove rocm && \
-    apt autoremove rocm-core && \
+    apt autoremove rocm-cmake && \
+    apt autoremove rocm-device-libs && \
+    apt autoremove rocm-utils && \
     apt install -fyqq rocm-dev && \
 # Cleanup
     apt-get clean && \
