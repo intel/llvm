@@ -291,12 +291,17 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   const SYCLDeviceLibsList SYCLDeviceSanitizerLibs = {
       {"libsycl-sanitizer", "internal"}};
 #endif
+  bool IsWindowsMSVCEnv =
+      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
+  bool IsNewOffload = Args.hasFlag(options::OPT_offload_new_driver,
+                                   options::OPT_no_offload_new_driver, false);
   StringRef LibSuffix = ".bc";
   if (TargetTriple.isNVPTX())
     // For NVidia, we are unbundling objects.
-    LibSuffix = C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment()
-                    ? ".obj"
-                    : ".o";
+    LibSuffix = IsWindowsMSVCEnv ? ".obj" : ".o";
+  if (IsNewOffload)
+    // For new offload model, we use packaged .bc files.
+    LibSuffix = IsWindowsMSVCEnv ? ".new.obj" : ".new.o";
   auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
     for (const DeviceLibOptInfo &Lib : LibsList) {
       if (!DeviceLibLinkInfo[Lib.DeviceLibOption])
@@ -434,13 +439,11 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     auto isSYCLDeviceLib = [&](const InputInfo &II) {
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
+      bool IsWindowsMSVCEnv = HostTC->getTriple().isWindowsMSVCEnvironment();
       StringRef LibPostfix = ".bc";
-      if (IsNVPTX) {
-        LibPostfix = ".o";
-        if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
-            C.getDriver().IsCLMode())
-          LibPostfix = ".obj";
-      }
+      if (IsNVPTX)
+        LibPostfix = (IsWindowsMSVCEnv && C.getDriver().IsCLMode()) ? ".obj" : ".o";
+      StringRef NewLibPostfix = (IsWindowsMSVCEnv && C.getDriver().IsCLMode()) ? ".new.obj" : ".new.o";
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
       if (IsNVPTX || IsSYCLNativeCPU) {
@@ -448,12 +451,15 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
         if ((InputFilename.find("libspirv") != InputFilename.npos ||
              InputFilename.find("libdevice") != InputFilename.npos))
           return true;
-        if (IsNVPTX)
+        if (IsNVPTX) {
           LibPostfix = ".cubin";
+          NewLibPostfix = ".new.cubin";
+        }
       }
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
-          !InputFilename.ends_with(LibPostfix))
+          !InputFilename.ends_with(LibPostfix) ||
+          InputFilename.ends_with(NewLibPostfix))
         return false;
       // Skip the prefix "libsycl-"
       std::string PureLibName =
