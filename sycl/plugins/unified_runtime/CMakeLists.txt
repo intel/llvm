@@ -124,8 +124,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(native_cpu
-    https://github.com/PietroGhg/unified-runtime.git
-    pietro/coverity
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 37242e39480d8bb73cb8cc3a54152edab43fd85b
+    # Merge: 48facdd6 56ffd291
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu Apr 25 10:23:31 2024 +0100
+    #     Merge pull request #1518 from PietroGhg/pietro/coverity
+    #     [NATIVECPU] Address coverity warnings in threadpool implementation
+    37242e39480d8bb73cb8cc3a54152edab43fd85b
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
