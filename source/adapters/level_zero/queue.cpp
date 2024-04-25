@@ -16,8 +16,8 @@
 #include <vector>
 
 #include "adapter.hpp"
-#include "adapters/level_zero/event.hpp"
 #include "common.hpp"
+#include "event.hpp"
 #include "queue.hpp"
 #include "ur_api.h"
 #include "ur_level_zero.hpp"
