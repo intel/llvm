@@ -114,8 +114,15 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(cuda
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    "https://github.com/oneapi-src/unified-runtime.git"
+    # commit 7fcfe3ad8882fee23d83fa0fc4c4c944262a9ea3
+    # Merge: b37fa2c4 f9fb1167
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Apr 24 10:38:00 2024 +0100
+    #     Merge pull request #1265 from cppchedy/chedy/device-to-device-copy
+    #
+    #     [Bindless][Exp] Add support for device to device copies between CuArrays
+    7fcfe3ad8882fee23d83fa0fc4c4c944262a9ea3
   )
 
   fetch_adapter_source(hip
