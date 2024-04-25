@@ -69,6 +69,7 @@
 // CHECK-NEXT: detail/boost/mp11/detail/mp_with_index.hpp
 // CHECK-NEXT: detail/boost/mp11/integer_sequence.hpp
 // CHECK-NEXT: ext/oneapi/experimental/device_architecture.hpp
+// CHECK-NEXT: ext/oneapi/experimental/forward_progress.hpp
 // CHECK-NEXT: ext/oneapi/matrix/query-types.hpp
 // CHECK-NEXT: ext/oneapi/bfloat16.hpp
 // CHECK-NEXT: aliases.hpp
