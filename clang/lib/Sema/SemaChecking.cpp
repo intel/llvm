@@ -3556,11 +3556,15 @@ bool Sema::ParseSVEImmChecks(
 static ArmStreamingType getArmStreamingFnType(const FunctionDecl *FD) {
   if (FD->hasAttr<ArmLocallyStreamingAttr>())
     return ArmStreaming;
-  if (const auto *T = FD->getType()->getAs<FunctionProtoType>()) {
-    if (T->getAArch64SMEAttributes() & FunctionType::SME_PStateSMEnabledMask)
-      return ArmStreaming;
-    if (T->getAArch64SMEAttributes() & FunctionType::SME_PStateSMCompatibleMask)
-      return ArmStreamingCompatible;
+  if (const Type *Ty = FD->getType().getTypePtrOrNull()) {
+    if (const auto *FPT = Ty->getAs<FunctionProtoType>()) {
+      if (FPT->getAArch64SMEAttributes() &
+          FunctionType::SME_PStateSMEnabledMask)
+        return ArmStreaming;
+      if (FPT->getAArch64SMEAttributes() &
+          FunctionType::SME_PStateSMCompatibleMask)
+        return ArmStreamingCompatible;
+    }
   }
   return ArmNonStreaming;
 }
@@ -7802,6 +7806,21 @@ bool Sema::CheckIntelSYCLPtrAnnotationBuiltinFunctionCall(unsigned BuiltinID,
   return false;
 }
 
+static llvm::APSInt getSYCLAllocaDefaultSize(const ASTContext &Ctx,
+                                             const VarDecl *VD) {
+  assert(VD && "Expecting valid declaration");
+  APValue *SpecializationId = VD->evaluateValue();
+  assert(SpecializationId && "Expecting a non-null SpecializationId");
+  assert(SpecializationId->getKind() == APValue::ValueKind::Struct &&
+         "Expecting SpecializationId to be of kind Struct");
+  assert(SpecializationId->getStructNumFields() == 1 &&
+         "Expecting SpecializationId to have a single field for the default "
+         "value");
+  APValue Default = SpecializationId->getStructField(0);
+  assert(Default.isInt() && "Expecting the default value to be an integer");
+  return Default.getInt();
+}
+
 bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
   assert(getLangOpts().SYCLIsDevice &&
          "Builtin can only be used in SYCL device code");
@@ -7866,7 +7885,7 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
   }
 
   // Check size is passed as a specialization constant
-  constexpr auto CheckSize = [](const ASTContext &Ctx,
+  const auto CheckSize = [this](const ASTContext &Ctx, SourceLocation Loc,
                                 const TemplateArgumentList *CST) {
     QualType Ty = CST->get(1).getNonTypeTemplateArgumentType();
     if (Ty.isNull() || !Ty->isReferenceType())
@@ -7877,10 +7896,17 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
     const TemplateArgumentList &TAL =
         cast<ClassTemplateSpecializationDecl>(Ty->getAsCXXRecordDecl())
             ->getTemplateArgs();
-    return !TAL.get(0).getAsType()->isIntegralType(Ctx);
+    if (!TAL.get(0).getAsType()->isIntegralType(Ctx))
+      return true;
+    llvm::APSInt DefaultSize =
+        getSYCLAllocaDefaultSize(Ctx, cast<VarDecl>(CST->get(1).getAsDecl()));
+    if (DefaultSize < 1)
+      Diag(Loc, diag::warn_intel_sycl_alloca_bad_default_value)
+          << DefaultSize.getSExtValue();
+    return false;
   };
   const TemplateArgumentList *CST = FD->getTemplateSpecializationArgs();
-  if (CheckSize(getASTContext(), CST)) {
+  if (CheckSize(getASTContext(), Loc, CST)) {
     TemplateArgument TA = CST->get(1);
     QualType Ty = TA.getNonTypeTemplateArgumentType();
     if (Ty.isNull())
@@ -8257,6 +8283,7 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
     // For variadic functions, we may have more args than parameters.
     // For some K&R functions, we may have less args than parameters.
     const auto N = std::min<unsigned>(Proto->getNumParams(), Args.size());
+    bool AnyScalableArgsOrRet = Proto->getReturnType()->isSizelessVectorType();
     for (unsigned ArgIdx = 0; ArgIdx < N; ++ArgIdx) {
       // Args[ArgIdx] can be null in malformed code.
       if (const Expr *Arg = Args[ArgIdx]) {
@@ -8270,6 +8297,8 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
           checkAIXMemberAlignment((Arg->getExprLoc()), Arg);
 
         QualType ParamTy = Proto->getParamType(ArgIdx);
+        if (ParamTy->isSizelessVectorType())
+          AnyScalableArgsOrRet = true;
         QualType ArgTy = Arg->getType();
         CheckArgAlignment(Arg->getExprLoc(), FDecl, std::to_string(ArgIdx + 1),
                           ArgTy, ParamTy);
@@ -8290,6 +8319,23 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
       }
     }
 
+    // If the call requires a streaming-mode change and has scalable vector
+    // arguments or return values, then warn the user that the streaming and
+    // non-streaming vector lengths may be different.
+    const auto *CallerFD = dyn_cast<FunctionDecl>(CurContext);
+    if (CallerFD && (!FD || !FD->getBuiltinID()) && AnyScalableArgsOrRet) {
+      bool IsCalleeStreaming =
+          ExtInfo.AArch64SMEAttributes & FunctionType::SME_PStateSMEnabledMask;
+      bool IsCalleeStreamingCompatible =
+          ExtInfo.AArch64SMEAttributes &
+          FunctionType::SME_PStateSMCompatibleMask;
+      ArmStreamingType CallerFnType = getArmStreamingFnType(CallerFD);
+      if (!IsCalleeStreamingCompatible &&
+          (CallerFnType == ArmStreamingCompatible ||
+           ((CallerFnType == ArmStreaming) ^ IsCalleeStreaming)))
+        Diag(Loc, diag::warn_sme_streaming_pass_return_vl_to_non_streaming);
+    }
+
     FunctionType::ArmStateValue CalleeArmZAState =
         FunctionType::getArmZAState(ExtInfo.AArch64SMEAttributes);
     FunctionType::ArmStateValue CalleeArmZT0State =
@@ -8298,7 +8344,7 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
         CalleeArmZT0State != FunctionType::ARM_None) {
       bool CallerHasZAState = false;
       bool CallerHasZT0State = false;
-      if (const auto *CallerFD = dyn_cast<FunctionDecl>(CurContext)) {
+      if (CallerFD) {
         auto *Attr = CallerFD->getAttr<ArmNewAttr>();
         if (Attr && Attr->isNewZA())
           CallerHasZAState = true;
@@ -13062,10 +13108,15 @@ CheckPrintfHandler::checkFormatExpr(const analyze_printf::PrintfSpecifier &FS,
         // In this case, the expression could be printed using a different
         // specifier, but we've decided that the specifier is probably correct
         // and we should cast instead. Just use the normal warning message.
+
+        unsigned Diag =
+            IsScopedEnum
+                ? diag::warn_format_conversion_argument_type_mismatch_pedantic
+                : diag::warn_format_conversion_argument_type_mismatch;
+
         EmitFormatDiagnostic(
-            S.PDiag(diag::warn_format_conversion_argument_type_mismatch)
-                << AT.getRepresentativeTypeName(S.Context) << ExprTy << IsEnum
-                << E->getSourceRange(),
+            S.PDiag(Diag) << AT.getRepresentativeTypeName(S.Context) << ExprTy
+                          << IsEnum << E->getSourceRange(),
             E->getBeginLoc(), /*IsStringLocation*/ false, SpecRange, Hints);
       }
     }

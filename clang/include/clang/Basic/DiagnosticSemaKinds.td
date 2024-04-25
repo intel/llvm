@@ -87,9 +87,9 @@ def err_expr_not_cce : Error<
   "call to 'size()'|call to 'data()'}0 is not a constant expression">;
 def ext_cce_narrowing : ExtWarn<
   "%select{case value|enumerator value|non-type template argument|"
-  "array size|explicit specifier argument|noexcept specifier argument}0 "
-  "%select{cannot be narrowed from type %2 to %3|"
-  "evaluates to %2, which cannot be narrowed to type %3}1">,
+  "array size|explicit specifier argument|noexcept specifier argument|"
+  "call to 'size()'|call to 'data()'}0 %select{cannot be narrowed from "
+  "type %2 to %3|evaluates to %2, which cannot be narrowed to type %3}1">,
   InGroup<CXX11Narrowing>, DefaultError, SFINAEFailure;
 def err_ice_not_integral : Error<
   "%select{integer|integral}1 constant expression must have "
@@ -198,6 +198,10 @@ def err_intel_sycl_alloca_wrong_size
 def err_intel_sycl_alloca_no_size
     : Error<"__builtin_intel_sycl_alloca must be passed a specialization "
             "constant of integral value type as a template argument. Got %0">;
+def warn_intel_sycl_alloca_bad_default_value : Warning<
+    "__builtin_intel_sycl_alloca expects a specialization constant with a "
+    "default value of at least one as an argument. Got %0">,
+    InGroup<SyclPrivateAllocaPositiveSize>;
 
 // C99 variable-length arrays
 def ext_vla : Extension<"variable length arrays are a C99 feature">,
@@ -3834,6 +3838,16 @@ def err_sme_definition_using_za_in_non_sme_target : Error<
   "function using ZA state requires 'sme'">;
 def err_sme_definition_using_zt0_in_non_sme2_target : Error<
   "function using ZT0 state requires 'sme2'">;
+def warn_sme_streaming_pass_return_vl_to_non_streaming : Warning<
+  "passing a VL-dependent argument to/from a function that has a different"
+  " streaming-mode. The streaming and non-streaming vector lengths may be"
+  " different">,
+  InGroup<AArch64SMEAttributes>, DefaultIgnore;
+def warn_sme_locally_streaming_has_vl_args_returns : Warning<
+  "passing/returning a VL-dependent argument to/from a __arm_locally_streaming"
+  " function. The streaming and non-streaming vector"
+  " lengths may be different">,
+  InGroup<AArch64SMEAttributes>, DefaultIgnore;
 def err_conflicting_attributes_arm_state : Error<
   "conflicting attributes for state '%0'">;
 def err_sme_streaming_cannot_be_multiversioned : Error<
@@ -12557,4 +12571,21 @@ def warn_acc_if_self_conflict
     : Warning<"OpenACC construct 'self' has no effect when an 'if' clause "
               "evaluates to true">,
       InGroup<DiagGroup<"openacc-self-if-potential-conflict">>;
+def err_acc_int_expr_requires_integer
+    : Error<"OpenACC %select{clause|directive}0 '%1' requires expression of "
+            "integer type (%2 invalid)">;
+def err_acc_int_expr_incomplete_class_type
+    : Error<"OpenACC integer expression has incomplete class type %0">;
+def err_acc_int_expr_explicit_conversion
+    : Error<"OpenACC integer expression type %0 requires explicit conversion "
+            "to %1">;
+def note_acc_int_expr_conversion
+    : Note<"conversion to %select{integral|enumeration}0 type %1">;
+def err_acc_int_expr_multiple_conversions
+    : Error<"multiple conversions from expression type %0 to an integral type">;
+def err_acc_num_gangs_num_args
+    : Error<"%select{no|too many}0 integer expression arguments provided to "
+            "OpenACC 'num_gangs' "
+            "%select{|clause: '%1' directive expects maximum of %2, %3 were "
+            "provided}0">;
 } // end of sema component.
