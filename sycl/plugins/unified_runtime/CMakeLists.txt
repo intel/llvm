@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 003d4da84fd6eda5240c9b90217f8901559a28a4
-  # Merge: e38e79e6 7a5c1ad1
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Apr 17 17:52:21 2024 +0100
-  #    Merge pull request #1402 from AllanZyne/user-after-free
-  #    [DeviceSanitizer] Checking "sycl::free" related errors
-  set(UNIFIED_RUNTIME_TAG 003d4da84fd6eda5240c9b90217f8901559a28a4)
+  # commit b37fa2c4b09a49839a83228f687c811595fce3fd
+  # Merge: c7fade0d f61e81e9
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Tue Apr 23 16:17:41 2024 +0100
+  #    Merge pull request #1544 from kbenzie/benie/l0-fix-rhel-error
+  #    [L0] Add missing <iomanip> include
+  set(UNIFIED_RUNTIME_TAG b37fa2c4b09a49839a83228f687c811595fce3fd)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -114,8 +114,15 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(cuda
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    "https://github.com/oneapi-src/unified-runtime.git"
+    # commit 7fcfe3ad8882fee23d83fa0fc4c4c944262a9ea3
+    # Merge: b37fa2c4 f9fb1167
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Apr 24 10:38:00 2024 +0100
+    #     Merge pull request #1265 from cppchedy/chedy/device-to-device-copy
+    #
+    #     [Bindless][Exp] Add support for device to device copies between CuArrays
+    7fcfe3ad8882fee23d83fa0fc4c4c944262a9ea3
   )
 
   fetch_adapter_source(hip

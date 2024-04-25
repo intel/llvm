@@ -11,6 +11,7 @@
 #pragma once
 
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/sycl_span.hpp>
 
 namespace sycl {
 inline namespace _V1 {
