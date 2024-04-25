@@ -10,10 +10,13 @@
 
 #pragma once
 
+#include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/intel/esimd/common.hpp>
 #include <sycl/ext/intel/esimd/memory.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/memory_intrin.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/util.hpp>
+
+#include <type_traits>
 
 namespace sycl {
 inline namespace _V1 {
@@ -783,7 +786,10 @@ __ESIMD_API
                __ESIMD_NS::simd_mask<N> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_gather<T, NElts, DS, L1H, L2H>(
-      reinterpret_cast<T *>(acc.get_pointer().get()), offsets, pred);
+      reinterpret_cast<std::add_pointer_t<sycl::detail::copy_cv_qualifiers_t<
+          typename AccessorTy::value_type, T>>>(
+          acc.template get_multi_ptr<access::decorated::legacy>().get()),
+      offsets, pred);
 #else
   __ESIMD_NS::simd<T, N * NElts> PassThru; // Intentionally uninitialized.
   using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;
