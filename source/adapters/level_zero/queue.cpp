@@ -16,8 +16,8 @@
 #include <vector>
 
 #include "adapter.hpp"
-#include "adapters/level_zero/event.hpp"
 #include "common.hpp"
+#include "event.hpp"
 #include "queue.hpp"
 #include "ur_api.h"
 #include "ur_level_zero.hpp"
@@ -1414,10 +1414,6 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
         (ZeCommandQueue, 1, &ZeCommandList, CommandList->second.ZeFence));
     if (ZeResult != ZE_RESULT_SUCCESS) {
       this->Healthy = false;
-      if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
-        // Turn into a more informative end-user error.
-        return UR_RESULT_ERROR_UNKNOWN;
-      }
       // Reset Command List and erase the Fence forcing the user to resubmit
       // their commands.
       std::vector<ur_event_handle_t> EventListToCleanup;
