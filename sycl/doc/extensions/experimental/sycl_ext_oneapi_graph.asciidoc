@@ -57,6 +57,7 @@ Maxime France-Pillois, Codeplay +
 Jack Kirk, Codeplay +
 Ronan Keryell, AMD +
 Andrey Alekseenko, KTH Royal Institute of Technology +
+Fábio Mestre, Codeplay +
 
 == Dependencies
 
