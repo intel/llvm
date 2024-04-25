@@ -14,23 +14,9 @@ RUN /install.sh
 
 RUN apt install -yqq libnuma-dev wget gnupg2
 RUN mkdir --parents --mode=0755 /etc/apt/keyrings
-# Download the key, convert the signing-key to a full
-# keyring required by apt and store in the keyring directory
-RUN wget https://repo.radeon.com/rocm/rocm.gpg.key -O - | \
-    gpg --dearmor | tee /etc/apt/keyrings/rocm.gpg > /dev/null && \
-    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/amdgpu/6.1/ubuntu jammy main" \
-    | tee /etc/apt/sources.list.d/amdgpu.list && \
-# Add rocm repo
-    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.1 jammy main" \
-    | tee --append /etc/apt/sources.list.d/rocm.list && \
-    apt update && \
-    apt autoremove rocm-cmake && \
-    apt autoremove rocm-device-libs && \
-    apt autoremove rocm-utils && \
-    apt install -fyqq rocm-dev && \
-# Cleanup
-    apt-get clean && \
-  rm -rf /var/lib/apt/lists/*
+RUN wget https://repo.radeon.com/amdgpu-install/6.1/ubuntu/jammy/amdgpu-install_6.1.60100-1_all.deb
+RUN apt install ./amdgpu-install_6.1.60100-1_all.deb
+RUN amdgpu-install --usecase=rocmdev
 
 # By default Ubuntu sets an arbitrary UID value, that is different from host
 # system. When CI passes default UID value of 1001, some of LLVM tools fail to
