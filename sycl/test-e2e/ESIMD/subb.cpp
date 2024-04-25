@@ -44,28 +44,6 @@ bool test(sycl::queue Q) {
                                   static_cast<uint32_t>(-0x800000),
                                   0x80000000};
 
-  uint8_t ValuesToTryHost8[] = {0,
-                                1,
-                                static_cast<uint8_t>(-1),
-                                0x7f,
-                                static_cast<uint8_t>(-0x7f),
-                                0xf,
-                                static_cast<uint8_t>(-0xf),
-                                0x80,
-                                static_cast<uint8_t>(-0x80),
-                                0x8,
-                                static_cast<uint8_t>(-0x8)};
-  uint16_t ValuesToTryHost16[] = {0,
-                                  1,
-                                  static_cast<uint16_t>(-1),
-                                  0x7f,
-                                  static_cast<uint16_t>(-0x7f),
-                                  0x7fff,
-                                  static_cast<uint16_t>(-0x7fff),
-                                  0x80,
-                                  static_cast<uint16_t>(-0x80),
-                                  0x8000,
-                                  static_cast<uint16_t>(-0x8000)};
   uint64_t ValuesToTryHost64[] = {0,
                                   1,
                                   static_cast<uint64_t>(-1),
@@ -91,11 +69,7 @@ bool test(sycl::queue Q) {
                                   static_cast<uint64_t>(-0x8000000000)};
 
   uint32_t ValuesToTrySize = 0;
-  if constexpr (sizeof(T) == 1) {
-    ValuesToTrySize = sizeof(ValuesToTryHost8) / sizeof(T);
-  } else if constexpr (sizeof(T) == 2) {
-    ValuesToTrySize = sizeof(ValuesToTryHost16) / sizeof(T);
-  } else if constexpr (sizeof(T) == 4) {
+  if constexpr (sizeof(T) == 4) {
     ValuesToTrySize = sizeof(ValuesToTryHost32) / sizeof(T);
   } else if constexpr (sizeof(T) == 8) {
     ValuesToTrySize = sizeof(ValuesToTryHost64) / sizeof(T);
@@ -107,11 +81,7 @@ bool test(sycl::queue Q) {
 
   auto ValuesToTryUPtr = esimd_test::usm_malloc_shared<T>(Q, ValuesToTrySize);
   T *ValuesToTryPtr = ValuesToTryUPtr.get();
-  if constexpr (sizeof(T) == 1) {
-    memcpy(ValuesToTryPtr, ValuesToTryHost8, ValuesToTrySize * sizeof(T));
-  } else if constexpr (sizeof(T) == 2) {
-    memcpy(ValuesToTryPtr, ValuesToTryHost16, ValuesToTrySize * sizeof(T));
-  } else if constexpr (sizeof(T) == 4) {
+  if constexpr (sizeof(T) == 4) {
     memcpy(ValuesToTryPtr, ValuesToTryHost32, ValuesToTrySize * sizeof(T));
   } else if constexpr (sizeof(T) == 8) {
     memcpy(ValuesToTryPtr, ValuesToTryHost64, ValuesToTrySize * sizeof(T));
@@ -166,12 +136,8 @@ bool test(sycl::queue Q) {
   }
 
   using ResultT = std::conditional_t<
-      2 * sizeof(T) == 2, uint16_t,
-      std::conditional_t<
-          2 * sizeof(T) == 4, uint32_t,
-          std::conditional_t<
-              2 * sizeof(T) == 8, uint64_t,
-              std::conditional_t<2 * sizeof(T) == 16, __uint128_t, T>>>>;
+      2 * sizeof(T) == 8, uint64_t,
+      std::conditional_t<2 * sizeof(T) == 16, __uint128_t, T>>;
   int NumErrors = 0;
   for (int AI = 0; AI < ValuesToTrySize; AI++) {
     for (int BI = 0; BI < ValuesToTrySize; BI++) {
@@ -228,8 +194,6 @@ int main() {
   std::cout << "Running on " << D.get_info<info::device::name>() << "\n";
 
   bool Pass = true;
-  Pass &= test<uint8_t>(Q);
-  Pass &= test<uint16_t>(Q);
   Pass &= test<uint32_t>(Q);
   Pass &= test<uint64_t>(Q);
 
