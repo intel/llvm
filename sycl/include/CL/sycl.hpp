@@ -8,6 +8,8 @@
 
 #pragma once
 
+#warning "CL/sycl.hpp is deprecated, use sycl/sycl.hpp"
+
 #include <sycl/sycl.hpp>
 
 namespace cl {
