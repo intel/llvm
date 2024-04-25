@@ -13,9 +13,9 @@
 #include <mutex>
 #include <string.h>
 
-#include "adapters/level_zero/queue.hpp"
 #include "context.hpp"
 #include "logger/ur_logger.hpp"
+#include "queue.hpp"
 #include "ur_level_zero.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
