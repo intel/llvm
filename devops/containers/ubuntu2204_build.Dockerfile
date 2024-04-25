@@ -15,7 +15,7 @@ RUN /install.sh
 RUN apt install -yqq libnuma-dev wget gnupg2
 RUN mkdir --parents --mode=0755 /etc/apt/keyrings
 RUN wget https://repo.radeon.com/amdgpu-install/6.1/ubuntu/jammy/amdgpu-install_6.1.60100-1_all.deb
-RUN apt install ./amdgpu-install_6.1.60100-1_all.deb
+RUN apt install -yqq ./amdgpu-install_6.1.60100-1_all.deb
 RUN amdgpu-install --usecase=rocmdev
 
 # By default Ubuntu sets an arbitrary UID value, that is different from host
