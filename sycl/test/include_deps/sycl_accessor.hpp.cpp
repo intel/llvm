@@ -73,7 +73,6 @@
 // CHECK-NEXT: CL/cl_platform.h
 // CHECK-NEXT: CL/cl_ext.h
 // CHECK-NEXT: detail/common.hpp
-// CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: range.hpp
 // CHECK-NEXT: info/info_desc.hpp
 // CHECK-NEXT: ext/oneapi/experimental/device_architecture.hpp
@@ -97,6 +96,7 @@
 // CHECK-NEXT: detail/impl_utils.hpp
 // CHECK-NEXT: ext/oneapi/weak_object_base.hpp
 // CHECK-NEXT: platform.hpp
+// CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: detail/string_view.hpp
 // CHECK-NEXT: detail/util.hpp
 // CHECK-NEXT: device_selector.hpp
