@@ -2689,7 +2689,7 @@ public:
   /// Provides a hint to the  runtime that previously issued commands to this
   /// queue should begin executing once their prerequisites have been satisfied.
   ///
-  void ext_oneapi_prod() { impl->flush(); }
+  void ext_oneapi_prod();
 
   /// Returns whether the queue is in order or OoO
   ///
