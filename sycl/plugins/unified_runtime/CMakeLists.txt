@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit fe9a05e528992cd1db7b05e2857fb17879442e86
-  # Merge: ee2feb22 9222315f
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Tue Apr 16 10:10:10 2024 +0100
-  #    Merge pull request #1507 from nrspruit/fix_p2p_properties_init
-  #    [L0] Fix to p2p properties init for pNext and stype
-  set(UNIFIED_RUNTIME_TAG fe9a05e528992cd1db7b05e2857fb17879442e86)
+  # commit b37fa2c4b09a49839a83228f687c811595fce3fd
+  # Merge: c7fade0d f61e81e9
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Tue Apr 23 16:17:41 2024 +0100
+  #    Merge pull request #1544 from kbenzie/benie/l0-fix-rhel-error
+  #    [L0] Add missing <iomanip> include
+  set(UNIFIED_RUNTIME_TAG b37fa2c4b09a49839a83228f687c811595fce3fd)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -110,46 +110,29 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(opencl
     ${UNIFIED_RUNTIME_REPO}
-    # commit 0d2a972c71ba4dd5935478c7b7124a372a1eeca0
-    # Merge: ac89abfe 44aef877
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Apr 11 10:24:19 2024 +0100
-    #     Merge pull request #1440 from fabiomestre/fabio/opencl_remove_queued_hack
-    #     [OPENCL] Remove EVENT_STATUS_QUEUED workaround
-    0d2a972c71ba4dd5935478c7b7124a372a1eeca0
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(cuda
-    ${UNIFIED_RUNTIME_REPO}
-    # commit 3f5f5688471a23a8d49ad6f47333df92e9f2e5c6
-    # Merge: fe9a05e5 6027c6bc
+    "https://github.com/oneapi-src/unified-runtime.git"
+    # commit 7fcfe3ad8882fee23d83fa0fc4c4c944262a9ea3
+    # Merge: b37fa2c4 f9fb1167
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Tue Apr 16 13:59:32 2024 +0100
-    #     Merge pull request #1510 from kbenzie/benie/cuda-fix-wrapper-escape
-    #     Fix Coverity wrapper escape issue
-    3f5f5688471a23a8d49ad6f47333df92e9f2e5c6
+    # Date:   Wed Apr 24 10:38:00 2024 +0100
+    #     Merge pull request #1265 from cppchedy/chedy/device-to-device-copy
+    #
+    #     [Bindless][Exp] Add support for device to device copies between CuArrays
+    7fcfe3ad8882fee23d83fa0fc4c4c944262a9ea3
   )
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 55cf3ba8139f8ffea9cf5cf42ea1f79c049b3520
-    # Merge: 15233fd2 35a6899d
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Mon Apr 15 09:50:52 2024 +0100
-    #     Merge pull request #1437 from hdelan/event-wait-with-good-context
-    #     [HIP] Use context to get active device
-    55cf3ba8139f8ffea9cf5cf42ea1f79c049b3520
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    # commit 15233fd2521f9e9b35e3a24037be99ceef334a8e
-    # Merge: 68e525a4 a04b062e
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri Apr 12 15:46:49 2024 +0100
-    #     Merge pull request #1489 from konradkusiak97/nativeCPUqueueFill
-    #     [NATIVECPU] Extended usm fill to bigger patterns than 1 byte
-    15233fd2521f9e9b35e3a24037be99ceef334a8e
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)

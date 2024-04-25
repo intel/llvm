@@ -1303,6 +1303,13 @@ __ESIMD_API uint32_t subb(uint32_t &borrow, uint32_t src0, uint32_t src1) {
   return Res[0];
 }
 
+/// rdtsc - get the value of timestamp counter.
+/// @return the current value of timestamp counter
+__ESIMD_API uint64_t rdtsc() {
+  __ESIMD_NS::simd<uint32_t, 4> retv = __esimd_timestamp();
+  return retv.template bit_cast_view<uint64_t>()[0];
+}
+
 /// @} sycl_esimd_math
 
 } // namespace ext::intel::esimd
