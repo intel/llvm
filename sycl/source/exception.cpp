@@ -53,7 +53,11 @@ exception::exception(context Ctx, int EV, const std::error_category &ECat)
 // protected base constructor for all SYCL 2020 constructors
 exception::exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
                      const char *WhatArg)
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     : MMsg(std::make_shared<detail::string>(WhatArg)),
+#else
+    : MMsg(std::make_shared<std::string>(WhatArg)),
+#endif
       MPIErr(PI_ERROR_INVALID_VALUE), MContext(SharedPtrCtx), MErrC(EC) {
   detail::GlobalHandler::instance().TraceEventXPTI(MMsg->c_str());
 }
