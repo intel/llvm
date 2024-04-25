@@ -163,25 +163,29 @@ prefetch(multi_ptr<T, AddressSpace, IsDecorated> ptr, size_t count,
 
 template <typename DataT, int Dimensions, access_mode AccessMode,
           access::placeholder IsPlaceholder,
-          typename Properties = empty_properties_t>
+          typename Properties = empty_properties_t,
+          typename AccessorProperties = empty_properties_t>
 std::enable_if_t<detail::check_prefetch_acc_mode<AccessMode> &&
                  (Dimensions > 0) &&
                  is_property_list_v<std::decay_t<Properties>>>
-prefetch(
-    accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
-    id<Dimensions> offset, Properties properties = {}) {
+prefetch(accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder,
+                  AccessorProperties>
+             acc,
+         id<Dimensions> offset, Properties properties = {}) {
   detail::prefetch_impl(&acc[offset], sizeof(DataT), properties);
 }
 
 template <typename DataT, int Dimensions, access_mode AccessMode,
           access::placeholder IsPlaceholder,
-          typename Properties = empty_properties_t>
+          typename Properties = empty_properties_t,
+          typename AccessorProperties = empty_properties_t>
 std::enable_if_t<detail::check_prefetch_acc_mode<AccessMode> &&
                  (Dimensions > 0) &&
                  is_property_list_v<std::decay_t<Properties>>>
-prefetch(
-    accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
-    size_t offset, size_t count, Properties properties = {}) {
+prefetch(accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder,
+                  AccessorProperties>
+             acc,
+         size_t offset, size_t count, Properties properties = {}) {
   detail::prefetch_impl(&acc[offset], count * sizeof(DataT), properties);
 }
 
@@ -259,27 +263,31 @@ joint_prefetch(Group g, multi_ptr<T, AddressSpace, IsDecorated> ptr,
 
 template <typename Group, typename DataT, int Dimensions,
           access_mode AccessMode, access::placeholder IsPlaceholder,
-          typename Properties = empty_properties_t>
+          typename Properties = empty_properties_t,
+          typename AccessorProperties = empty_properties_t>
 std::enable_if_t<detail::check_prefetch_acc_mode<AccessMode> &&
                  (Dimensions > 0) && sycl::is_group_v<std::decay_t<Group>> &&
                  is_property_list_v<std::decay_t<Properties>>>
-joint_prefetch(
-    Group g,
-    accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
-    size_t offset, Properties properties = {}) {
+joint_prefetch(Group g,
+               accessor<DataT, Dimensions, AccessMode, target::device,
+                        IsPlaceholder, AccessorProperties>
+                   acc,
+               size_t offset, Properties properties = {}) {
   detail::joint_prefetch_impl(g, &acc[offset], sizeof(DataT), properties);
 }
 
 template <typename Group, typename DataT, int Dimensions,
           access_mode AccessMode, access::placeholder IsPlaceholder,
-          typename Properties = empty_properties_t>
+          typename Properties = empty_properties_t,
+          typename AccessorProperties = empty_properties_t>
 std::enable_if_t<detail::check_prefetch_acc_mode<AccessMode> &&
                  (Dimensions > 0) && sycl::is_group_v<std::decay_t<Group>> &&
                  is_property_list_v<std::decay_t<Properties>>>
-joint_prefetch(
-    Group g,
-    accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
-    size_t offset, size_t count, Properties properties = {}) {
+joint_prefetch(Group g,
+               accessor<DataT, Dimensions, AccessMode, target::device,
+                        IsPlaceholder, AccessorProperties>
+                   acc,
+               size_t offset, size_t count, Properties properties = {}) {
   detail::joint_prefetch_impl(g, &acc[offset], count * sizeof(DataT),
                               properties);
 }
