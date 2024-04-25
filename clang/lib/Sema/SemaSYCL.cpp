@@ -955,13 +955,13 @@ private:
 /// \return     the constructed descriptor
 static ParamDesc makeParamDesc(const FieldDecl *Src, QualType Ty) {
   ASTContext &Ctx = Src->getASTContext();
-  std::string Name = (Twine("_arg_") + Src->getName()).str();
+  std::string Name = (Twine("__arg_") + Src->getName()).str();
   return std::make_tuple(Ty, &Ctx.Idents.get(Name),
                          Ctx.getTrivialTypeSourceInfo(Ty));
 }
 static ParamDesc makeParamDesc(const ParmVarDecl *Src, QualType Ty) {
   ASTContext &Ctx = Src->getASTContext();
-  std::string Name = (Twine("_arg_") + Src->getName()).str();
+  std::string Name = (Twine("__arg_") + Src->getName()).str();
   return std::make_tuple(Ty, &Ctx.Idents.get(Name),
                          Ctx.getTrivialTypeSourceInfo(Ty));
 }
@@ -3422,7 +3422,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
       addScopeAttrToLocalVars(*CallOperator);
     }
   }
-
+  
   // Creates a DeclRefExpr to the ParmVar that represents the current field.
   Expr *createParamReferenceExpr() {
     ParmVarDecl *KernelParameter =
@@ -4088,8 +4088,9 @@ class FreeFunctionKernelBodyCreator : public SyclKernelFieldHandler {
 
     QualType FreeFunctionParamType = FreeFunctionParameter->getOriginalType();
     Expr *DRE = SemaSYCLRef.SemaRef.BuildDeclRefExpr(
-        FreeFunctionParameter, FreeFunctionParamType, VK_PRValue,
+        FreeFunctionParameter, FreeFunctionParamType, VK_LValue,
         FreeFunctionSrcLoc);
+    DRE = SemaSYCLRef.SemaRef.DefaultLvalueConversion(DRE).get();
     return DRE;
   }
 
@@ -4103,16 +4104,13 @@ class FreeFunctionKernelBodyCreator : public SyclKernelFieldHandler {
     Expr *DRE = SemaSYCLRef.SemaRef.BuildDeclRefExpr(
         FreeFunctionParameter, FreeFunctionParamType, VK_LValue,
         FreeFunctionSrcLoc);
-    DRE = ImplicitCastExpr::Create(
-        SemaSYCLRef.getASTContext(), FreeFunctionParamType, CK_LValueToRValue,
-        DRE, /*BasePath=*/nullptr, VK_PRValue, FPOptionsOverride());
+    DRE = SemaSYCLRef.SemaRef.DefaultLvalueConversion(DRE).get();
 
     if (PointerTy->getPointeeType().getAddressSpace() !=
         FreeFunctionParamType->getPointeeType().getAddressSpace())
       DRE = ImplicitCastExpr::Create(SemaSYCLRef.getASTContext(), PointerTy,
                                      CK_AddressSpaceConversion, DRE, nullptr,
                                      VK_PRValue, FPOptionsOverride());
-
     return DRE;
   }
 
