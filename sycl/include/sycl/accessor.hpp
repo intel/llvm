@@ -2402,9 +2402,9 @@ public:
       typename = std::enable_if_t<(AccessTarget_ == access::target::device)>>
   __SYCL2020_DEPRECATED(
       "accessor::get_pointer() is deprecated, please use get_multi_ptr()")
-  global_ptr<DataT> get_pointer() const noexcept {
-    return global_ptr<DataT>(
-        const_cast<typename detail::DecoratedType<DataT, AS>::type *>(
+  global_ptr<value_type> get_pointer() const noexcept {
+    return global_ptr<value_type>(
+        const_cast<typename detail::DecoratedType<value_type, AS>::type *>(
             getPointerAdjusted()));
   }
 
@@ -2415,7 +2415,18 @@ public:
     return constant_ptr<DataT>(getPointerAdjusted());
   }
 
-  template <access::decorated IsDecorated>
+  template <access::decorated IsDecorated,
+            access::target AccessTarget_ = AccessTarget,
+            std::enable_if_t<AccessTarget_ == access::target::device, int> = 0>
+  accessor_ptr<IsDecorated> get_multi_ptr() const noexcept {
+    return accessor_ptr<IsDecorated>(getPointerAdjusted());
+  }
+
+  template <access::decorated IsDecorated,
+            access::target AccessTarget_ = AccessTarget,
+            std::enable_if_t<AccessTarget_ != access::target::device, int> = 0>
+  __SYCL_DEPRECATED(
+      "accessor::get_multi_ptr() is deprecated for non-device accessors")
   accessor_ptr<IsDecorated> get_multi_ptr() const noexcept {
     return accessor_ptr<IsDecorated>(getPointerAdjusted());
   }
