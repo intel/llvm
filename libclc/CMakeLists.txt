@@ -38,7 +38,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
 set( LIBCLC_MIN_LLVM 3.9.0 )
 
 set( LIBCLC_TARGETS_TO_BUILD "all"
-    CACHE STRING "Semicolon-separated list of targets to build, or 'all'." )
+    CACHE STRING "Semicolon-separated list of libclc targets to build, or 'all'." )
 
 option( ENABLE_RUNTIME_SUBNORMAL "Enable runtime linking of subnormal support." OFF )
 
@@ -56,8 +56,8 @@ if( LIBCLC_STANDALONE_BUILD OR CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DI
   endif()
 
   # Import required tools as targets
-  if ( NOT EXISTS LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR )
-    foreach( tool clang llvm-as llvm-link opt )
+  if( NOT EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
+    foreach( tool IN ITEMS clang llvm-as llvm-link opt )
       find_program( LLVM_TOOL_${tool} ${tool} PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
       add_executable( libclc::${tool} IMPORTED GLOBAL )
       set_target_properties( libclc::${tool} PROPERTIES IMPORTED_LOCATION ${LLVM_TOOL_${tool}} )
@@ -76,20 +76,27 @@ else()
     message(FATAL_ERROR "Clang is not enabled, but is required to build libclc in-tree")
   endif()
 
-  if ( NOT EXISTS LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR )
-    foreach( tool clang llvm-as llvm-link opt )
+  if( NOT EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
+    foreach( tool IN ITEMS clang llvm-as llvm-link opt )
       add_executable(libclc::${tool} ALIAS ${tool})
     endforeach()
   endif()
 endif()
 
-if ( EXISTS LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR )
+if( EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
   message( WARNING "Using custom LLVM tools to build libclc: "
     "${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR}, "
     " ensure the tools are up to date." )
-  foreach( tool clang llvm-as llvm-link opt llvm-spirv libclc-remangler )
-    find_program( LLVM_TOOL_${tool} ${tool}
+  # Note - use a differently named variable than LLVM_TOOL_${tool} as above, as
+  # the variable name is used to cache the result of find_program. If we used
+  # the same name, a user wouldn't be able to switch a build between default
+  # and custom tools.
+  foreach( tool IN ITEMS clang llvm-as llvm-link opt )
+    find_program( LLVM_CUSTOM_TOOL_${tool} ${tool}
       PATHS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+    add_executable( libclc::${tool} IMPORTED GLOBAL )
+    set_target_properties( libclc::${tool} PROPERTIES
+      IMPORTED_LOCATION ${LLVM_CUSTOM_TOOL_${tool}} )
   endforeach()
 
   # If we've requested a custom binary directory, there are some otherwise
@@ -99,9 +106,18 @@ if ( EXISTS LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR )
   endif()
 endif()
 
-if( NOT TARGET libclc::clang OR NOT TARGET libclc::opt
-    OR NOT TARGET libclc::llvm-as OR NOT TARGET libclc::llvm-link )
-  message( FATAL_ERROR "libclc toolchain incomplete!" )
+foreach( tool IN ITEMS clang opt llvm-as llvm-link )
+  if( NOT TARGET libclc::${tool} )
+    message( FATAL_ERROR "libclc toolchain incomplete - missing tool ${tool}!" )
+  endif()
+endforeach()
+
+# llvm-spirv is an optional dependency, used to build spirv-* targets.
+find_program( LLVM_SPIRV llvm-spirv PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+
+if( LLVM_SPIRV )
+  add_executable( libclc::llvm-spirv IMPORTED GLOBAL )
+  set_target_properties( libclc::llvm-spirv PROPERTIES IMPORTED_LOCATION ${LLVM_SPIRV} )
 endif()
 
 # List of all targets. Note that some are added dynamically below.
@@ -312,6 +328,10 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
         # Disables NVVM reflection to defer to after linking
         list( APPEND flags -Xclang -target-feature -Xclang +ptx72
              -march=sm_86 -mllvm --nvvm-reflect-enable=false)
+      elseif( ARCH STREQUAL amdgcn )
+        # AMDGCN needs libclc to be compiled to high bc version since all atomic
+        # clang builtins need to be accessible
+        list( APPEND flags -mcpu=gfx940 -mllvm --amdgpu-oclc-reflect-enable=false )
       elseif( ARCH  STREQUAL x86_64)
         # TODO: This is used by SYCL Native Cpu, we should define an option to set this flags
         list( APPEND flags -Xclang -target-feature -Xclang +avx
@@ -342,6 +362,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       # simultaneously, we choose declare the builtins using the private space,
       # which will also work for the generic address space.
       set( supports_generic_addrspace FALSE )
+    elseif( ARCH STREQUAL amdgcn )
+      set( opt_flags -O3 --amdgpu-oclc-reflect-enable=false )
     elseif( ARCH STREQUAL x86_64)
       set( opt_flags )
       set( supports_generic_addrspace FALSE )
