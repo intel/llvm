@@ -233,7 +233,7 @@ auto accessorToPointer(AccessorTy Acc, OffsetTy Offset = 0) {
 //   }
 // }
 // \endcode
-// Hence the checks are to prevent reading beyond the input vectoe.
+// Hence the checks are to prevent reading beyond the input vector.
 template <int N, int M, int VStride, int Width, int Stride>
 constexpr void check_rdregion_params() {
   static_assert(Width > 0 && M % Width == 0, "Malformed RHS region.");
