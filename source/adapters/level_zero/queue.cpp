@@ -1406,12 +1406,13 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
       this->signalEventFromCmdListIfLastEventDiscarded(CommandList);
     }
     // Append Signalling of the inner events at the end of the batch
-    if (CommandList->second.EventList.size() > 0 && AppendBarrierNeeded) {
-      ZE2UR_CALL(zeCommandListAppendBarrier,
-                 (CommandList->first, nullptr, 0, nullptr));
-    }
     for (auto &Event : CommandList->second.EventList) {
       if (Event->IsInnerBatchedEvent) {
+        if (AppendBarrierNeeded) {
+          ZE2UR_CALL(zeCommandListAppendBarrier,
+                     (CommandList->first, nullptr, 0, nullptr));
+          AppendBarrierNeeded = false;
+        }
         ZE2UR_CALL(zeCommandListAppendSignalEvent,
                    (CommandList->first, Event->ZeEvent));
       }
