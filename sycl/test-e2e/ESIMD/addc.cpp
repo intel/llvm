@@ -159,8 +159,7 @@ bool test(sycl::queue Q) {
           std::cout << "Error for (" << AI << "," << BI << "): " << A << " + "
                     << B << " is Computed(" << ComputedCarry << ","
                     << ComputedRes << ") != Expected (" << ExpectedCarry << ","
-                    << ExpectedRes << ")"
-                    << "\n";
+                    << ExpectedRes << ")" << "\n";
           NumErrors++;
         }
       }
