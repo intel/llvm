@@ -65,7 +65,7 @@ class SYCLHeadersTest(lit.formats.TestFormat):
         try:
             out, err, exitCode = lit.util.executeCommand(
                 command,
-                # cwd=???,
+                # TODO: do we need to pass some non-default cwd argument here?
                 env=test.config.environment,
                 timeout=litConfig.maxIndividualTestTime,
             )
