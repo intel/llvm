@@ -197,6 +197,7 @@ function(add_libclc_alias alias target)
 
   add_custom_command(
       OUTPUT ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${alias_suffix}
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
       COMMAND ${CMAKE_COMMAND} -E
         ${LIBCLC_LINK_OR_COPY} ${target}.bc
         ${alias_suffix}
@@ -307,6 +308,7 @@ macro(add_libclc_builtin_set arch_suffix)
   # Add prepare target
   set( obj_suffix ${arch_suffix}.bc )
   add_custom_command( OUTPUT ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
     COMMAND prepare_builtins -o ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
       ${builtins_opt_lib}
     DEPENDS ${builtins_opt_lib} prepare_builtins )
@@ -326,9 +328,11 @@ macro(add_libclc_builtin_set arch_suffix)
 
   # Generate remangled variants if requested
   if( LIBCLC_GENERATE_REMANGLED_VARIANTS )
-    set(dummy_in "${CMAKE_BINARY_DIR}/lib/clc/libclc_dummy_in.cc")
+    set( dummy_in ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/libclc_dummy_in.cc )
     add_custom_command( OUTPUT ${dummy_in}
-      COMMAND ${CMAKE_COMMAND} -E touch ${dummy_in} )
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
+      COMMAND ${CMAKE_COMMAND} -E touch ${dummy_in}
+    )
     set(long_widths l32 l64)
     set(char_signedness signed unsigned)
     if( ${obj_suffix} STREQUAL "libspirv-nvptx64--nvidiacl.bc")
@@ -345,6 +349,7 @@ macro(add_libclc_builtin_set arch_suffix)
         set( builtins_remangle_path
             "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}" )
         add_custom_command( OUTPUT "${builtins_remangle_path}"
+          COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
           COMMAND libclc::libclc-remangler
           -o "${builtins_remangle_path}"
           --long-width=${long_width}
