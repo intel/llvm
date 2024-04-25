@@ -104,8 +104,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   set(UNIFIED_RUNTIME_TAG b37fa2c4b09a49839a83228f687c811595fce3fd)
 
   fetch_adapter_source(level_zero
-    https://github.com/nrspruit/unified-runtime.git
-    49046ecb2d1f7e51e53e0bd2510124a9c6cb4b0a
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 48facdd63f8566b9b04b6ab27ceb3ec9b1cf8c66
+    # Merge: 7fcfe3ad 49046ecb
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu Apr 25 10:21:20 2024 +0100
+    #     Merge pull request #1539 from nrspruit/fix_error_unknown_out_of_memory
+    #     [L0] reset and clean the command list on error unknown
+    48facdd63f8566b9b04b6ab27ceb3ec9b1cf8c66
   )
 
   fetch_adapter_source(opencl
