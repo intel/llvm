@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -Wno-sycl-2020-compat -ast-dump %s | FileCheck %s
 
-// Test for AST of work_group_size_hint kernel attribute in SYCL 1.2.1.
+// Test for AST of work_group_size_hint kernel attribute in SYCL 2020.
 
 #include "sycl.hpp"
 
@@ -106,14 +106,6 @@ int main() {
     Functor16 f16;
     h.single_task<class kernel_name1>(f16);
 
-    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name2
-    // CHECK: SYCLWorkGroupSizeHintAttr
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 4
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    Functor f;
-    h.single_task<class kernel_name2>(f);
-
     // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name3
     // CHECK: SYCLWorkGroupSizeHintAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
@@ -156,34 +148,6 @@ int main() {
     h.single_task<class kernel_name5>([]() [[sycl::work_group_size_hint(8, 16, 32)]] {
       f8x16x32();
     });
-
-    // CHECK:  FunctionDecl {{.*}} {{.*}}kernel_name6
-    // CHECK:  SYCLIntelNoGlobalWorkOffsetAttr
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK: SYCLIntelMaxWorkGroupSizeAttr {{.*}} Inherited
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 4
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 2
-    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 6
-    // CHECK-NEXT:  IntegerLiteral{{.*}}6{{$}}
-    // CHECK: SYCLWorkGroupSizeHintAttr
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 2
-    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 3
-    // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
-    h.single_task<class kernel_name6>(
-        []() { func1(); });
   });
   return 0;
 }

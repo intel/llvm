@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -triple spir64 | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -triple spir64 | FileCheck %s
 
 // The test checks support and functionality of [[intel:::max_work_group_size()]] attribute.
 #include "sycl.hpp"
@@ -95,20 +95,6 @@ int main() {
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
     h.single_task<class test_kernel2>(
         []() [[intel::max_work_group_size(8, 8, 8)]] {});
-
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
-    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 2
-    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 2
-    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 2
-    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
-    h.single_task<class test_kernel3>(
-        []() { func_do_not_ignore(); });
 
     // Ignore duplicate attribute.
     h.single_task<class test_kernel10>(

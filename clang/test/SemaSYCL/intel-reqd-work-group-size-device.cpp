@@ -1,26 +1,25 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -Wno-sycl-2017-compat -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -Wno-sycl-2020-compat -fsyntax-only -verify %s
 
-// The test checks support and functionality of reqd_work_group_size kernel attribute in SYCL 2017.
+// The test checks support and functionality of reqd_work_group_size kernel attribute in SYCL 2020.
 
 #include "sycl.hpp"
 
 using namespace sycl;
 queue q;
 
-[[sycl::reqd_work_group_size(4)]] void f4() {} // expected-note {{conflicting attribute is here}}
-// expected-note@-1 {{conflicting attribute is here}}
-[[sycl::reqd_work_group_size(32)]] void f32() {} // expected-note {{conflicting attribute is here}}
-[[sycl::reqd_work_group_size(16)]] void f16() {}      // expected-note {{conflicting attribute is here}}
-[[sycl::reqd_work_group_size(16, 16)]] void f16x16() {} // expected-note {{conflicting attribute is here}}
+[[sycl::reqd_work_group_size(4)]] void f4() {}
+[[sycl::reqd_work_group_size(32)]] void f32() {}
+[[sycl::reqd_work_group_size(16)]] void f16() {}
+[[sycl::reqd_work_group_size(16, 16)]] void f16x16() {}
 
-[[sycl::reqd_work_group_size(32, 32)]] void f32x32() {}      // expected-note {{conflicting attribute is here}}
-[[sycl::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {} // expected-note {{conflicting attribute is here}}
+[[sycl::reqd_work_group_size(32, 32)]] void f32x32() {}
+[[sycl::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {}
 
 [[intel::reqd_work_group_size(4, 2, 9)]] void unknown() {} // expected-warning{{unknown attribute 'reqd_work_group_size' ignored}}
 
-class Functor8 { // expected-error {{conflicting attributes applied to a SYCL kernel}}
+class Functor8 {
 public:
-  [[sycl::reqd_work_group_size(8)]] void operator()() const { // expected-note {{conflicting attribute is here}}
+  [[sycl::reqd_work_group_size(8)]] void operator()() const {
     f4();
   }
 };
@@ -37,17 +36,17 @@ int main() {
     Functor8 f8;
     h.single_task<class kernel_name1>(f8);
 
-    h.single_task<class kernel_name2>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
+    h.single_task<class kernel_name2>([]() {
       f4();
       f32();
     });
 
-    h.single_task<class kernel_name3>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
+    h.single_task<class kernel_name3>([]() {
       f16();
       f16x16();
     });
 
-    h.single_task<class kernel_name4>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
+    h.single_task<class kernel_name4>([]() {
       f32x32x32();
       f32x32();
     });

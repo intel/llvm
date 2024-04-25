@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -sycl-std=2017 -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s
 
 #include "sycl.hpp"
 
@@ -49,9 +49,7 @@ int main() {
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name2() #0 {{.*}} !max_work_group_size ![[NUM8:[0-9]+]]
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name3() #0 {{.*}} !max_work_group_size ![[NUM6:[0-9]+]]
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name4() #0 {{.*}} !max_work_group_size ![[NUM2:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name5() #0 {{.*}} !max_work_group_size ![[NUM4:[0-9]+]]
 // CHECK: ![[NUM1]] = !{i32 1, i32 1, i32 1}
 // CHECK: ![[NUM8]] = !{i32 8, i32 8, i32 8}
 // CHECK: ![[NUM6]] = !{i32 6, i32 3, i32 1}
 // CHECK: ![[NUM2]] = !{i32 2, i32 2, i32 2}
-// CHECK: ![[NUM4]] = !{i32 4, i32 4, i32 4}
