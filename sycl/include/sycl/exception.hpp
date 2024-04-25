@@ -136,10 +136,10 @@ protected:
   }
 #endif
 
-  // base constructor for all SYCL 2020 constructors
-  // exception(context *ctxPtr, std::error_code Ec, const std::string
-  // &what_arg);
-  exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
+        // base constructor for all SYCL 2020 constructors
+        // exception(context *ctxPtr, std::error_code Ec, const std::string
+        // &what_arg);
+        exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
                   const std::string &what_arg)
       : exception(Ec, SharedPtrCtx, what_arg.c_str()) {
   }
