@@ -1415,24 +1415,49 @@ checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
 void handler::verifyDeviceHasProgressGuarantee(
     sycl::ext::oneapi::experimental::forward_progress_guarantee Guarantee,
     sycl::ext::oneapi::experimental::execution_scope threadScope,
-    sycl::ext::oneapi::experimental::execution_scope CoordinationScope) const {
+    sycl::ext::oneapi::experimental::execution_scope CoordinationScope) {
   using execution_scope = sycl::ext::oneapi::experimental::execution_scope;
-  if (!MQueue->getDeviceImplPtr()->supportsForwardProgress(
-          Guarantee, threadScope, CoordinationScope)) {
-    if (threadScope == execution_scope::work_group) {
+  using forward_progress =
+      sycl::ext::oneapi::experimental::forward_progress_guarantee;
+  auto deviceImplPtr = MQueue->getDeviceImplPtr();
+  const bool supported = deviceImplPtr->supportsForwardProgress(
+      Guarantee, threadScope, CoordinationScope);
+  if (threadScope == execution_scope::work_group) {
+    if (!supported) {
       throw sycl::exception(
           sycl::errc::feature_not_supported,
           "Required progress guarantee for work groups is not "
-          "supported by your device!");
-    } else if (threadScope == execution_scope::sub_group) {
+          "supported by this device.");
+    }
+    // If we are here, the device supports the guarantee required but there is a
+    // caveat in that if the guarantee required is a concurrent guarantee and
+    // the backend is level_zero, then we most likely also need to enable
+    // cooperative launch of the kernel. That is, although the device supports
+    // the required guarantee, some setup work is needed to truly make the
+    // device provide that guarantee at runtime. Otherwise, we will get the
+    // default guarantee which is weaker than concurrent. Same reasoning applies
+    // for sub_group but not for work_item.
+    // TODO: Further design work is probably needed to reflect this behavior in
+    // Unified Runtime.
+    if (Guarantee == forward_progress::concurrent &&
+        deviceImplPtr->getBackend() == backend::ext_oneapi_level_zero)
+      setKernelIsCooperative(true);
+  } else if (threadScope == execution_scope::sub_group) {
+    if (!supported) {
       throw sycl::exception(sycl::errc::feature_not_supported,
                             "Required progress guarantee for sub groups is not "
-                            "supported by your device!");
-
-    } else {
+                            "supported by this device.");
+    }
+    // Same reasoning as above.
+    if (Guarantee == forward_progress::concurrent &&
+        deviceImplPtr->getBackend() == backend::ext_oneapi_level_zero)
+      setKernelIsCooperative(true);
+  } else { // threadScope is execution_scope::work_item otherwise undefined
+           // behavior
+    if (!supported) {
       throw sycl::exception(sycl::errc::feature_not_supported,
                             "Required progress guarantee for work items is not "
-                            "supported by your device!");
+                            "supported by this device.");
     }
   }
 }

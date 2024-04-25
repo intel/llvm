@@ -939,15 +939,14 @@ private:
   void verifyDeviceHasProgressGuarantee(
       sycl::ext::oneapi::experimental::forward_progress_guarantee Guarantee,
       sycl::ext::oneapi::experimental::execution_scope threadScope,
-      sycl::ext::oneapi::experimental::execution_scope CoordinationScope) const;
+      sycl::ext::oneapi::experimental::execution_scope CoordinationScope);
 
   template <
       typename PropertyT,
       sycl::ext::oneapi::experimental::forward_progress_guarantee Guarantee,
       sycl::ext::oneapi::experimental::execution_scope CoordinationScope>
   void extractForwardProgressPropArgsAndVerify(
-      typename PropertyT::template value_t<Guarantee, CoordinationScope>)
-      const {
+      typename PropertyT::template value_t<Guarantee, CoordinationScope>) {
     using execution_scope = ext::oneapi::experimental::execution_scope;
     if constexpr (std::is_same_v<PropertyT, sycl::ext::oneapi::experimental::
                                                 work_group_progress_key>) {
