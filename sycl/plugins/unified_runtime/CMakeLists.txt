@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 31d0fe153733601fe4864fffb9148d554fe9a7ca
-  # Merge: 2eea85f2 6a602134
+  # commit b37fa2c4b09a49839a83228f687c811595fce3fd
+  # Merge: c7fade0d f61e81e9
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Apr 22 14:38:18 2024 +0100
-  #     Merge pull request #1243 from kbenzie/benie/fix-urinfo-device-uuid-printing
-  #     [urinfo] Fix printing of device UUID
-  set(UNIFIED_RUNTIME_TAG 31d0fe153733601fe4864fffb9148d554fe9a7ca)
+  # Date:   Tue Apr 23 16:17:41 2024 +0100
+  #    Merge pull request #1544 from kbenzie/benie/l0-fix-rhel-error
+  #    [L0] Add missing <iomanip> include
+  set(UNIFIED_RUNTIME_TAG b37fa2c4b09a49839a83228f687c811595fce3fd)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

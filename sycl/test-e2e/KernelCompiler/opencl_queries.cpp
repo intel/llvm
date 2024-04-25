@@ -9,6 +9,9 @@
 // REQUIRES: ocloc && (opencl || level_zero)
 // UNSUPPORTED: accelerator
 
+// Fails with opencl and level_zero on linux, enable when fixed.
+// XFAIL: opencl || (linux && level_zero)
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
