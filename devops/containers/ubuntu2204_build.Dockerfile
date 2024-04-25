@@ -23,8 +23,6 @@ RUN wget https://repo.radeon.com/rocm/rocm.gpg.key -O - | \
 # Add rocm repo
     echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.1 jammy main" \
     | tee --append /etc/apt/sources.list.d/rocm.list && \
-    echo -e 'Package: *\nPin: release o=repo.radeon.com\nPin-Priority: 600' \
-    | tee /etc/apt/preferences.d/rocm-pin-600 && \
     apt update && \
     apt install -fyqq rocm-dev && \
 # Cleanup
