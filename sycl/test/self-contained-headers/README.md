@@ -36,8 +36,12 @@ which headers you would like to see checked (only those that match the passed
 regexp will be used to generate tests).
 
 ```
-llvm-lit sycl/test -DSYCL_HEADERS_FILTER="ext/*"
+LIT_FILTER='self-contained-headers' llvm-lit sycl/test -DSYCL_HEADERS_FILTER="ext/.*"
 ```
+
+Note: `LIT_FILTER` env variable is used here to limit LIT tests discovery to
+`self-contained-headers` subfolders. Without this env variable, all other LIT
+tests will be launched as well.
 
 Documentation for Python's regexp can be found [here][python-3-re].
 
@@ -50,7 +54,7 @@ list of files which should be treated as expected to fail.
 
 ## Known issues and quirks
 
-### Launching this suite directly doesn't seem to work
+### To launch the suite directly, use `LIT_FILTER` env variable
 
 The following command:
 
@@ -59,6 +63,12 @@ llvm-lit sycl/test/self-contained-headers
 ```
 
 Will results in LIT saying that no tests were discovered.
+
+Instead, the following approach should be used:
+
+```
+LIT_FILTER='self-contained-headers' llvm-lit sycl/test
+```
 
 ### Old legacy files in build/ area are still checked
 

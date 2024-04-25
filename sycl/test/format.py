@@ -27,7 +27,7 @@ class SYCLHeadersTest(lit.formats.TestFormat):
 
                 if headers_filter is not None:
                     # Skip headers that doesn't match passed regexp
-                    if re.match(headers_filter, filepath) is None:
+                    if re.search(headers_filter, filepath) is None:
                         continue
                 for t in self.getTestsForPath(
                     testSuite,
