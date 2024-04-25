@@ -797,8 +797,13 @@ Driver::OpenMPRuntimeKind Driver::getOpenMPRuntime(const ArgList &Args) const {
 
 static bool isValidSYCLTriple(llvm::Triple T) {
   // NVPTX is valid for SYCL.
-  if (T.isNVPTX())
+  if (T.isNVPTX()) {
+    // NVidia GPU target triple does not have 'Environment'
+    // component set in its configuration name.
+    if (T.hasEnvironment())
+      return false;
     return true;
+  }
 
   // AMDGCN is valid for SYCL
   if (T.isAMDGCN())

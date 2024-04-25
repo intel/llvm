@@ -838,14 +838,7 @@ public:
 
   /// Tests whether the target is NVPTX (32- or 64-bit).
   bool isNVPTX() const {
-    // NVidia GPU target triple does not have 'Environment'
-    // component set in its configuration name.
-    if (hasEnvironment())
-      return false;
-    // Check if NVidia GPU triple is valid : nvptx(64)-nvidia-cuda
-    if ((getArch() == Triple::nvptx || getArch() == Triple::nvptx64) &&
-        getOSName() == "cuda" && getVendorName() == "nvidia")
-      return true;
+    return getArch() == Triple::nvptx || getArch() == Triple::nvptx64;
   }
 
   /// Tests whether the target is AMDGCN
