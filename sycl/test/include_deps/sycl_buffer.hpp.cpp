@@ -92,13 +92,11 @@
 // CHECK-NEXT: detail/owner_less_base.hpp
 // CHECK-NEXT: detail/impl_utils.hpp
 // CHECK-NEXT: ext/oneapi/weak_object_base.hpp
-// CHECK-NEXT: device.hpp
+// CHECK-NEXT: platform.hpp
 // CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: detail/string_view.hpp
 // CHECK-NEXT: detail/util.hpp
 // CHECK-NEXT: device_selector.hpp
-// CHECK-NEXT: kernel_bundle_enums.hpp
-// CHECK-NEXT: platform.hpp
 // CHECK-NEXT: property_list.hpp
 // CHECK-NEXT: detail/property_helper.hpp
 // CHECK-NEXT: detail/property_list_base.hpp
