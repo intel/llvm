@@ -2099,7 +2099,7 @@ const FieldDecl *CastExpr::getTargetFieldForToUnionCast(const RecordDecl *RD,
   for (Field = RD->field_begin(), FieldEnd = RD->field_end();
        Field != FieldEnd; ++Field) {
     if (Ctx.hasSameUnqualifiedType(Field->getType(), OpType) &&
-        !Field->isUnnamedBitfield()) {
+        !Field->isUnnamedBitField()) {
       return *Field;
     }
   }
@@ -3445,7 +3445,7 @@ bool Expr::isConstantInitializer(ASTContext &Ctx, bool IsForRef,
           continue;
 
         // Don't emit anonymous bitfields, they just affect layout.
-        if (Field->isUnnamedBitfield())
+        if (Field->isUnnamedBitField())
           continue;
 
         if (ElementNo < ILE->getNumInits()) {
