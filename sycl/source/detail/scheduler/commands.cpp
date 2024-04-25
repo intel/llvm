@@ -1988,8 +1988,8 @@ void instrumentationAddExtraKernelMetadata(
   auto FilterArgs = [&Args](detail::ArgDesc &Arg, int NextTrueIndex) {
     Args.push_back({Arg.MType, Arg.MPtr, Arg.MSize, NextTrueIndex});
   };
-  sycl::detail::pi::PiProgram Program = nullptr;
-  sycl::detail::pi::PiKernel Kernel = nullptr;
+  ur_program_handle_t Program = nullptr;
+  ur_kernel_handle_t Kernel = nullptr;
   std::mutex *KernelMutex = nullptr;
   const KernelArgMask *EliminatedArgMask = nullptr;
 
@@ -2010,9 +2010,9 @@ void instrumentationAddExtraKernelMetadata(
         detail::getSyclObjImpl(SyclKernel);
 
     EliminatedArgMask = KernelImpl->getKernelArgMask();
-    Program = KernelImpl->getDeviceImage()->get_program_ref();
+    Program = KernelImpl->getDeviceImage()->get_ur_program_ref();
   } else if (nullptr != SyclKernel) {
-    Program = SyclKernel->getProgramRef();
+    Program = SyclKernel->getUrProgramRef();
     if (!SyclKernel->isCreatedFromSource())
       EliminatedArgMask = SyclKernel->getKernelArgMask();
   } else {
@@ -2513,9 +2513,14 @@ pi_int32 enqueueImpCommandBufferKernel(
     PiProgram = Kernel->getProgramRef();
     EliminatedArgMask = Kernel->getKernelArgMask();
   } else {
-    std::tie(PiKernel, std::ignore, EliminatedArgMask, PiProgram) =
+    // TODO(pi2ur)
+    ur_program_handle_t UrProgram;
+    ur_kernel_handle_t UrKernel;
+    std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
             ContextImpl, DeviceImpl, CommandGroup.MKernelName);
+    PiProgram = (pi_program)UrProgram;
+    PiKernel = (pi_kernel)UrKernel;
   }
 
   auto SetFunc = [&Plugin, &PiKernel, &DeviceImageImpl, &Ctx,
@@ -2634,9 +2639,14 @@ pi_int32 enqueueImpKernel(
     KernelMutex = &MSyclKernel->getNoncacheableEnqueueMutex();
     EliminatedArgMask = MSyclKernel->getKernelArgMask();
   } else {
-    std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
+    // TODO(pi2ur)
+    ur_kernel_handle_t UrKernel;
+    ur_program_handle_t UrProgram;
+    std::tie(UrKernel, KernelMutex, EliminatedArgMask, UrProgram) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             ContextImpl, DeviceImpl, KernelName, NDRDesc);
+    Kernel = (pi_kernel)UrKernel;
+    Program = (pi_program)UrProgram;
   }
 
   // We may need more events for the launch, so we make another reference.
@@ -2710,10 +2720,10 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
   sycl::detail::pi::PiProgram Program = nullptr;
   device Device = Queue->get_device();
   ContextImplPtr ContextImpl = Queue->getContextImplPtr();
-  std::optional<sycl::detail::pi::PiProgram> CachedProgram =
+  std::optional<ur_program_handle_t> CachedProgram =
       ContextImpl->getProgramForHostPipe(Device, hostPipeEntry);
   if (CachedProgram)
-    Program = *CachedProgram;
+    Program = (pi_program)*CachedProgram; // TODO(pi2ur)
   else {
     // If there was no cached program, build one.
     device_image_plain devImgPlain =

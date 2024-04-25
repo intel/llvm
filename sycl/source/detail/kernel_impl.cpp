@@ -20,6 +20,13 @@ namespace detail {
 kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
                          ContextImplPtr Context,
                          KernelBundleImplPtr KernelBundleImpl,
+                         const KernelArgMask *ArgMask) {
+  kernel_impl(reinterpret_cast<ur_kernel_handle_t>(Kernel), Context,
+              KernelBundleImpl, ArgMask);
+}
+
+kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr Context,
+                         KernelBundleImplPtr KernelBundleImpl,
                          const KernelArgMask *ArgMask)
     : kernel_impl(Kernel, Context,
                   std::make_shared<program_impl>(Context, Kernel),
@@ -28,29 +35,29 @@ kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
   // Some PI Plugins (like OpenCL) require this call to enable USM
   // For others, PI will turn this into a NOP.
   if (Context->getPlatformImpl()->supports_usm())
-    getPlugin()->call<PiApiKind::piKernelSetExecInfo>(
-        MKernel, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
+    getUrPlugin()->call(urKernelSetExecInfo, MURKernel,
+                        UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS,
+                        sizeof(ur_bool_t), nullptr, &PI_TRUE);
 
   // This constructor is only called in the interoperability kernel constructor.
   MIsInterop = true;
 }
 
-kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
-                         ContextImplPtr ContextImpl, ProgramImplPtr ProgramImpl,
-                         bool IsCreatedFromSource,
+kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
+                         ProgramImplPtr ProgramImpl, bool IsCreatedFromSource,
                          KernelBundleImplPtr KernelBundleImpl,
                          const KernelArgMask *ArgMask)
-    : MKernel(Kernel), MContext(ContextImpl),
-      MProgram(ProgramImpl->getHandleRef()),
+    : MURKernel(Kernel), MContext(ContextImpl),
+      MURProgram(ProgramImpl->getUrHandleRef()),
       MCreatedFromSource(IsCreatedFromSource),
-      MKernelBundleImpl(std::move(KernelBundleImpl)),
-      MKernelArgMaskPtr{ArgMask} {
+      MKernelBundleImpl(std::move(KernelBundleImpl)), MKernelArgMaskPtr{
+                                                          ArgMask} {
 
-  sycl::detail::pi::PiContext Context = nullptr;
+  ur_context_handle_t Context = nullptr;
   // Using the plugin from the passed ContextImpl
-  getPlugin()->call<PiApiKind::piKernelGetInfo>(
-      MKernel, PI_KERNEL_INFO_CONTEXT, sizeof(Context), &Context, nullptr);
-  if (ContextImpl->getHandleRef() != Context)
+  getUrPlugin()->call(urKernelGetInfo, MURKernel, UR_KERNEL_INFO_CONTEXT,
+                      sizeof(Context), &Context, nullptr);
+  if (ContextImpl->getUrHandleRef() != Context)
     throw sycl::invalid_parameter_error(
         "Input context must be the same as the context of cl_kernel",
         PI_ERROR_INVALID_CONTEXT);
@@ -58,14 +65,14 @@ kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
   MIsInterop = ProgramImpl->isInterop();
 }
 
-kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
-                         ContextImplPtr ContextImpl,
+kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
                          DeviceImageImplPtr DeviceImageImpl,
                          KernelBundleImplPtr KernelBundleImpl,
-                         const KernelArgMask *ArgMask, PiProgram ProgramPI,
-                         std::mutex *CacheMutex)
-    : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgram(ProgramPI),
-      MCreatedFromSource(false), MDeviceImageImpl(std::move(DeviceImageImpl)),
+                         const KernelArgMask *ArgMask,
+                         ur_program_handle_t ProgramUR, std::mutex *CacheMutex)
+    : MURKernel(Kernel), MContext(std::move(ContextImpl)),
+      MURProgram(ProgramUR), MCreatedFromSource(false),
+      MDeviceImageImpl(std::move(DeviceImageImpl)),
       MKernelBundleImpl(std::move(KernelBundleImpl)),
       MKernelArgMaskPtr{ArgMask}, MCacheMutex{CacheMutex} {
   MIsInterop = MKernelBundleImpl->isInterop();
@@ -77,7 +84,7 @@ kernel_impl::kernel_impl(ContextImplPtr Context, ProgramImplPtr ProgramImpl)
 kernel_impl::~kernel_impl() {
   // TODO catch an exception and put it to list of asynchronous exceptions
   if (!is_host()) {
-    getPlugin()->call<PiApiKind::piKernelRelease>(MKernel);
+    getUrPlugin()->call(urKernelRelease, MURKernel);
   }
 }
 

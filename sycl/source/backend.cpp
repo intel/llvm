@@ -259,7 +259,8 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
   // symbols (e.g. when kernel_bundle is supposed to be joined with another).
   auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
   auto DevImgImpl = std::make_shared<device_image_impl>(
-      nullptr, TargetContext, Devices, State, KernelIDs, PiProgram);
+      nullptr, TargetContext, Devices, State, KernelIDs,
+      reinterpret_cast<ur_program_handle_t>(PiProgram)); // TODO(pi2ur)
   device_image_plain DevImg{DevImgImpl};
 
   return std::make_shared<kernel_bundle_impl>(TargetContext, Devices, DevImg);

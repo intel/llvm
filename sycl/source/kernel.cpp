@@ -16,6 +16,7 @@
 namespace sycl {
 inline namespace _V1 {
 
+// TODO(pi2ur): Interop needs fixed!!
 kernel::kernel(cl_kernel ClKernel, const context &SyclContext)
     : impl(std::make_shared<detail::kernel_impl>(
           detail::pi::cast<sycl::detail::pi::PiKernel>(ClKernel),

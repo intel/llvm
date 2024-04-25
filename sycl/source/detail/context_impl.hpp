@@ -187,8 +187,8 @@ public:
   const std::vector<device> &getDevices() const { return MDevices; }
 
   using CachedLibProgramsT =
-      std::map<std::pair<DeviceLibExt, sycl::detail::pi::PiDevice>,
-               sycl::detail::pi::PiProgram>;
+      std::map<std::pair<DeviceLibExt, ur_device_handle_t>,
+               ur_program_handle_t>;
 
   /// In contrast to user programs, which are compiled from user code, library
   /// programs come from the SYCL runtime. They are identified by the
@@ -269,13 +269,13 @@ public:
   void addAssociatedDeviceGlobal(const void *DeviceGlobalPtr);
 
   /// Adds a device global initializer.
-  void addDeviceGlobalInitializer(sycl::detail::pi::PiProgram Program,
+  void addDeviceGlobalInitializer(ur_program_handle_t Program,
                                   const std::vector<device> &Devs,
                                   const RTDeviceBinaryImage *BinImage);
 
   /// Initializes device globals for a program on the associated queue.
   std::vector<ur_event_handle_t>
-  initializeDeviceGlobals(pi::PiProgram NativePrg,
+  initializeDeviceGlobals(ur_program_handle_t NativePrg,
                           const std::shared_ptr<queue_impl> &QueueImpl);
 
   void memcpyToHostOnlyDeviceGlobal(
@@ -290,15 +290,15 @@ public:
                                  size_t Offset);
 
   /// Gets a program associated with a device global from the cache.
-  std::optional<sycl::detail::pi::PiProgram>
+  std::optional<ur_program_handle_t>
   getProgramForDeviceGlobal(const device &Device,
                             DeviceGlobalMapEntry *DeviceGlobalEntry);
   /// Gets a program associated with a HostPipe Entry from the cache.
-  std::optional<sycl::detail::pi::PiProgram>
+  std::optional<ur_program_handle_t>
   getProgramForHostPipe(const device &Device, HostPipeMapEntry *HostPipeEntry);
 
   /// Gets a program associated with Dev / Images pairs.
-  std::optional<sycl::detail::pi::PiProgram>
+  std::optional<ur_program_handle_t>
   getProgramForDevImgs(const device &Device,
                        const std::set<std::uintptr_t> &ImgIdentifiers,
                        const std::string &ObjectTypeName);
@@ -356,7 +356,7 @@ private:
     std::vector<ur_event_handle_t> MDeviceGlobalInitEvents;
   };
 
-  std::map<std::pair<sycl::detail::pi::PiProgram, sycl::detail::pi::PiDevice>,
+  std::map<std::pair<ur_program_handle_t, ur_device_handle_t>,
            DeviceGlobalInitializer>
       MDeviceGlobalInitializers;
   std::mutex MDeviceGlobalInitializersMutex;
@@ -366,7 +366,7 @@ private:
   // associated writes.
   // The key to this map is a combination of a the pointer to the device_global
   // and optionally a device if the device_global has device image scope.
-  std::map<std::pair<const void *, std::optional<sycl::detail::pi::PiDevice>>,
+  std::map<std::pair<const void *, std::optional<ur_device_handle_t>>,
            std::unique_ptr<std::byte[]>>
       MDeviceGlobalUnregisteredData;
   std::mutex MDeviceGlobalUnregisteredDataMutex;

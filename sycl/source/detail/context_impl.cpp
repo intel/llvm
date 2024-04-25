@@ -144,7 +144,7 @@ context_impl::~context_impl() {
   }
   for (auto LibProg : MCachedLibPrograms) {
     assert(LibProg.second && "Null program must not be kept in the cache");
-    getPlugin()->call<PiApiKind::piProgramRelease>(LibProg.second);
+    getUrPlugin()->call(urProgramRelease, LibProg.second);
   }
   if (!MHostContext) {
     // TODO catch an exception and put it to list of asynchronous exceptions
@@ -355,22 +355,23 @@ void context_impl::addAssociatedDeviceGlobal(const void *DeviceGlobalPtr) {
 }
 
 void context_impl::addDeviceGlobalInitializer(
-    sycl::detail::pi::PiProgram Program, const std::vector<device> &Devs,
+    ur_program_handle_t Program, const std::vector<device> &Devs,
     const RTDeviceBinaryImage *BinImage) {
   std::lock_guard<std::mutex> Lock(MDeviceGlobalInitializersMutex);
   for (const device &Dev : Devs) {
-    auto Key = std::make_pair(Program, getSyclObjImpl(Dev)->getHandleRef());
+    auto Key = std::make_pair(Program, getSyclObjImpl(Dev)->getUrHandleRef());
     MDeviceGlobalInitializers.emplace(Key, BinImage);
   }
 }
 
 std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
-    pi::PiProgram NativePrg, const std::shared_ptr<queue_impl> &QueueImpl) {
+    ur_program_handle_t NativePrg,
+    const std::shared_ptr<queue_impl> &QueueImpl) {
   const UrPluginPtr &Plugin = getUrPlugin();
   const DeviceImplPtr &DeviceImpl = QueueImpl->getDeviceImplPtr();
   std::lock_guard<std::mutex> NativeProgramLock(MDeviceGlobalInitializersMutex);
   auto ImgIt = MDeviceGlobalInitializers.find(
-      std::make_pair(NativePrg, DeviceImpl->getHandleRef()));
+      std::make_pair(NativePrg, DeviceImpl->getUrHandleRef()));
   if (ImgIt == MDeviceGlobalInitializers.end() ||
       ImgIt->second.MDeviceGlobalsFullyInitialized)
     return {};
@@ -477,9 +478,9 @@ void context_impl::memcpyToHostOnlyDeviceGlobal(
     const std::shared_ptr<device_impl> &DeviceImpl, const void *DeviceGlobalPtr,
     const void *Src, size_t DeviceGlobalTSize, bool IsDeviceImageScoped,
     size_t NumBytes, size_t Offset) {
-  std::optional<sycl::detail::pi::PiDevice> KeyDevice = std::nullopt;
+  std::optional<ur_device_handle_t> KeyDevice = std::nullopt;
   if (IsDeviceImageScoped)
-    KeyDevice = DeviceImpl->getHandleRef();
+    KeyDevice = DeviceImpl->getUrHandleRef();
   auto Key = std::make_pair(DeviceGlobalPtr, KeyDevice);
 
   std::lock_guard<std::mutex> InitLock(MDeviceGlobalUnregisteredDataMutex);
@@ -500,9 +501,9 @@ void context_impl::memcpyFromHostOnlyDeviceGlobal(
     const void *DeviceGlobalPtr, bool IsDeviceImageScoped, size_t NumBytes,
     size_t Offset) {
 
-  std::optional<sycl::detail::pi::PiDevice> KeyDevice = std::nullopt;
+  std::optional<ur_device_handle_t> KeyDevice = std::nullopt;
   if (IsDeviceImageScoped)
-    KeyDevice = DeviceImpl->getHandleRef();
+    KeyDevice = DeviceImpl->getUrHandleRef();
   auto Key = std::make_pair(DeviceGlobalPtr, KeyDevice);
 
   std::lock_guard<std::mutex> InitLock(MDeviceGlobalUnregisteredDataMutex);
@@ -519,7 +520,7 @@ void context_impl::memcpyFromHostOnlyDeviceGlobal(
   std::memcpy(Dest, ValuePtr + Offset, NumBytes);
 }
 
-std::optional<sycl::detail::pi::PiProgram> context_impl::getProgramForDevImgs(
+std::optional<ur_program_handle_t> context_impl::getProgramForDevImgs(
     const device &Device, const std::set<std::uintptr_t> &ImgIdentifiers,
     const std::string &ObjectTypeName) {
 
@@ -528,8 +529,7 @@ std::optional<sycl::detail::pi::PiProgram> context_impl::getProgramForDevImgs(
     auto LockedCache = MKernelProgramCache.acquireCachedPrograms();
     auto &KeyMap = LockedCache.get().KeyMap;
     auto &Cache = LockedCache.get().Cache;
-    sycl::detail::pi::PiDevice &DevHandle =
-        getSyclObjImpl(Device)->getHandleRef();
+    ur_device_handle_t &DevHandle = getSyclObjImpl(Device)->getUrHandleRef();
     for (std::uintptr_t ImageIDs : ImgIdentifiers) {
       auto OuterKey = std::make_pair(ImageIDs, DevHandle);
       size_t NProgs = KeyMap.count(OuterKey);
@@ -561,14 +561,13 @@ std::optional<sycl::detail::pi::PiProgram> context_impl::getProgramForDevImgs(
   return BuildRes->Val;
 }
 
-std::optional<sycl::detail::pi::PiProgram>
-context_impl::getProgramForDeviceGlobal(
+std::optional<ur_program_handle_t> context_impl::getProgramForDeviceGlobal(
     const device &Device, DeviceGlobalMapEntry *DeviceGlobalEntry) {
   return getProgramForDevImgs(Device, DeviceGlobalEntry->MImageIdentifiers,
                               "device_global");
 }
 /// Gets a program associated with a HostPipe Entry from the cache.
-std::optional<sycl::detail::pi::PiProgram>
+std::optional<ur_program_handle_t>
 context_impl::getProgramForHostPipe(const device &Device,
                                     HostPipeMapEntry *HostPipeEntry) {
   // One HostPipe entry belongs to one Img

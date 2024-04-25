@@ -55,13 +55,13 @@ static constexpr char UseSpvEnv[]("SYCL_USE_KERNEL_SPV");
 
 /// This function enables ITT annotations in SPIR-V module by setting
 /// a specialization constant if INTEL_LIBITTNOTIFY64 env variable is set.
-static void
-enableITTAnnotationsIfNeeded(const sycl::detail::pi::PiProgram &Prog,
-                             const PluginPtr &Plugin) {
+static void enableITTAnnotationsIfNeeded(const ur_program_handle_t &Prog,
+                                         const UrPluginPtr &Plugin) {
   if (SYCLConfig<INTEL_ENABLE_OFFLOAD_ANNOTATIONS>::get() != nullptr) {
     constexpr char SpecValue = 1;
-    Plugin->call<PiApiKind::piextProgramSetSpecializationConstant>(
-        Prog, ITTSpecConstId, sizeof(char), &SpecValue);
+    ur_specialization_constant_info_t SpecConstInfo = {
+        ITTSpecConstId, sizeof(char), &SpecValue};
+    Plugin->call(urProgramSetSpecializationConstants, Prog, 1, &SpecConstInfo);
   }
 }
 
@@ -69,43 +69,45 @@ ProgramManager &ProgramManager::getInstance() {
   return GlobalHandler::instance().getProgramManager();
 }
 
-static sycl::detail::pi::PiProgram
+static ur_program_handle_t
 createBinaryProgram(const ContextImplPtr Context, const device &Device,
                     const unsigned char *Data, size_t DataLen,
-                    const std::vector<pi_device_binary_property> Metadata) {
-  const PluginPtr &Plugin = Context->getPlugin();
+                    const std::vector<ur_program_metadata_t> &Metadata) {
+  const UrPluginPtr &Plugin = Context->getUrPlugin();
 #ifndef _NDEBUG
   pi_uint32 NumDevices = 0;
-  Plugin->call<PiApiKind::piContextGetInfo>(Context->getHandleRef(),
-                                            PI_CONTEXT_INFO_NUM_DEVICES,
-                                            sizeof(NumDevices), &NumDevices,
-                                            /*param_value_size_ret=*/nullptr);
+  Plugin->call(urContextGetInfo, Context->getUrHandleRef(),
+               UR_CONTEXT_INFO_NUM_DEVICES, sizeof(NumDevices), &NumDevices,
+               /*param_value_size_ret=*/nullptr);
   assert(NumDevices > 0 &&
          "Only a single device is supported for AOT compilation");
 #endif
 
-  sycl::detail::pi::PiProgram Program;
-  const sycl::detail::pi::PiDevice PiDevice =
-      getSyclObjImpl(Device)->getHandleRef();
-  pi_int32 BinaryStatus = CL_SUCCESS;
-  Plugin->call<PiApiKind::piProgramCreateWithBinary>(
-      Context->getHandleRef(), 1 /*one binary*/, &PiDevice, &DataLen, &Data,
-      Metadata.size(), Metadata.data(), &BinaryStatus, &Program);
+  ur_program_handle_t Program;
+  ur_device_handle_t UrDevice = getSyclObjImpl(Device)->getUrHandleRef();
+  ur_result_t BinaryStatus = UR_RESULT_SUCCESS;
+  ur_program_properties_t Properties = {};
+  Properties.stype = UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES;
+  Properties.pNext = nullptr;
+  Properties.count = Metadata.size();
+  Properties.pMetadatas = Metadata.data();
+  Plugin->call(urProgramCreateWithBinary, Context->getUrHandleRef(), UrDevice,
+               DataLen, Data, &Properties, &Program);
 
-  if (BinaryStatus != CL_SUCCESS) {
+  if (BinaryStatus != UR_RESULT_SUCCESS) {
     throw runtime_error("Creating program with binary failed.", BinaryStatus);
   }
 
   return Program;
 }
 
-static sycl::detail::pi::PiProgram
-createSpirvProgram(const ContextImplPtr Context, const unsigned char *Data,
-                   size_t DataLen) {
-  sycl::detail::pi::PiProgram Program = nullptr;
-  const PluginPtr &Plugin = Context->getPlugin();
-  Plugin->call<PiApiKind::piProgramCreate>(Context->getHandleRef(), Data,
-                                           DataLen, &Program);
+static ur_program_handle_t createSpirvProgram(const ContextImplPtr Context,
+                                              const unsigned char *Data,
+                                              size_t DataLen) {
+  ur_program_handle_t Program = nullptr;
+  const UrPluginPtr &Plugin = Context->getUrPlugin();
+  Plugin->call(urProgramCreateWithIL, Context->getUrHandleRef(), Data, DataLen,
+               nullptr, &Program);
   return Program;
 }
 
@@ -169,8 +171,8 @@ static const char *getFormatStr(sycl::detail::pi::PiDeviceBinaryType Format) {
   return "unknown";
 }
 
-sycl::detail::pi::PiProgram
-ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
+ur_program_handle_t
+ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
                                 const context &Context, const device &Device) {
   if (DbgProgMgr > 0)
     std::cerr << ">>> ProgramManager::createPIProgram(" << &Img << ", "
@@ -208,17 +210,17 @@ ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
         "SPIR-V online compilation is not supported in this context");
 
   // Get program metadata from properties
-  auto ProgMetadata = Img.getProgramMetadata();
-  std::vector<pi_device_binary_property> ProgMetadataVector{
-      ProgMetadata.begin(), ProgMetadata.end()};
+  auto ProgMetadata = Img.getProgramMetadataUR();
+  // std::vector<ur_program_metadata_t> ProgMetadataVector{ProgMetadata.begin(),
+  //                                                       ProgMetadata.end()};
 
   // Load the image
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
-  sycl::detail::pi::PiProgram Res =
+  ur_program_handle_t Res =
       Format == PI_DEVICE_BINARY_TYPE_SPIRV
           ? createSpirvProgram(Ctx, RawImg.BinaryStart, ImgSize)
           : createBinaryProgram(Ctx, Device, RawImg.BinaryStart, ImgSize,
-                                ProgMetadataVector);
+                                ProgMetadata);
 
   {
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
@@ -316,7 +318,7 @@ appendCompileOptionsForGRFSizeProperties(std::string &CompileOpts,
 static void appendCompileOptionsFromImage(std::string &CompileOpts,
                                           const RTDeviceBinaryImage &Img,
                                           const std::vector<device> &Devs,
-                                          const PluginPtr &) {
+                                          const UrPluginPtr &) {
   // Build options are overridden if environment variables are present.
   // Environment variables are not changed during program lifecycle so it
   // is reasonable to use static here to read them only once.
@@ -450,7 +452,7 @@ static void applyOptionsFromImage(std::string &CompileOpts,
                                   std::string &LinkOpts,
                                   const RTDeviceBinaryImage &Img,
                                   const std::vector<device> &Devices,
-                                  const PluginPtr &Plugin) {
+                                  const UrPluginPtr &Plugin) {
   appendCompileOptionsFromImage(CompileOpts, Img, Devices, Plugin);
   appendLinkOptionsFromImage(LinkOpts, Img);
 }
@@ -481,35 +483,31 @@ static void applyOptionsFromEnvironment(std::string &CompileOpts,
   applyLinkOptionsFromEnvironment(LinkOpts);
 }
 
-std::pair<sycl::detail::pi::PiProgram, bool>
-ProgramManager::getOrCreatePIProgram(const RTDeviceBinaryImage &Img,
-                                     const context &Context,
-                                     const device &Device,
-                                     const std::string &CompileAndLinkOptions,
-                                     SerializedObj SpecConsts) {
-  sycl::detail::pi::PiProgram NativePrg;
+std::pair<ur_program_handle_t, bool> ProgramManager::getOrCreateURProgram(
+    const RTDeviceBinaryImage &Img, const context &Context,
+    const device &Device, const std::string &CompileAndLinkOptions,
+    SerializedObj SpecConsts) {
+  ur_program_handle_t NativePrg; // TODO: Or native?
 
   auto BinProg = PersistentDeviceCodeCache::getItemFromDisc(
       Device, Img, SpecConsts, CompileAndLinkOptions);
   if (BinProg.size()) {
     // Get program metadata from properties
-    auto ProgMetadata = Img.getProgramMetadata();
-    std::vector<pi_device_binary_property> ProgMetadataVector{
-        ProgMetadata.begin(), ProgMetadata.end()};
+    auto ProgMetadata = Img.getProgramMetadataUR();
 
     // TODO: Build for multiple devices once supported by program manager
     NativePrg = createBinaryProgram(getSyclObjImpl(Context), Device,
                                     (const unsigned char *)BinProg[0].data(),
-                                    BinProg[0].size(), ProgMetadataVector);
+                                    BinProg[0].size(), ProgMetadata);
   } else {
-    NativePrg = createPIProgram(Img, Context, Device);
+    NativePrg = createURProgram(Img, Context, Device);
   }
   return {NativePrg, BinProg.size()};
 }
 
 /// Emits information about built programs if the appropriate contitions are
 /// met, namely when SYCL_RT_WARNING_LEVEL is greater than or equal to 2.
-static void emitBuiltProgramInfo(const pi_program &Prog,
+static void emitBuiltProgramInfo(const ur_program_handle_t &Prog,
                                  const ContextImplPtr &Context) {
   if (SYCLConfig<SYCL_RT_WARNING_LEVEL>::get() >= 2) {
     std::string ProgramBuildLog =
@@ -520,7 +518,7 @@ static void emitBuiltProgramInfo(const pi_program &Prog,
 
 // When caching is enabled, the returned PiProgram will already have
 // its ref count incremented.
-sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
+ur_program_handle_t ProgramManager::getBuiltURProgram(
     const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
     const std::string &KernelName, const NDRDescT &NDRDesc,
     bool JITCompilationIsRequired) {
@@ -545,10 +543,11 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     RootDevImpl = ParentDev;
   }
 
-  pi_bool MustBuildOnSubdevice = PI_TRUE;
-  ContextImpl->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-      RootDevImpl->getHandleRef(), PI_DEVICE_INFO_BUILD_ON_SUBDEVICE,
-      sizeof(pi_bool), &MustBuildOnSubdevice, nullptr);
+  ur_bool_t MustBuildOnSubdevice = true;
+  ContextImpl->getUrPlugin()->call(
+      urDeviceGetInfo, RootDevImpl->getUrHandleRef(),
+      UR_DEVICE_INFO_BUILD_ON_SUBDEVICE, sizeof(ur_bool_t),
+      &MustBuildOnSubdevice, nullptr);
 
   DeviceImplPtr Dev =
       (MustBuildOnSubdevice == PI_TRUE) ? DeviceImpl : RootDevImpl;
@@ -563,12 +562,12 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
 
   auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, &CompileOpts,
                  &LinkOpts, SpecConsts] {
-    const PluginPtr &Plugin = ContextImpl->getPlugin();
+    const UrPluginPtr &Plugin = ContextImpl->getUrPlugin();
     applyOptionsFromImage(CompileOpts, LinkOpts, Img, {Device}, Plugin);
     // Should always come last!
     appendCompileEnvironmentVariablesThatAppend(CompileOpts);
     appendLinkEnvironmentVariablesThatAppend(LinkOpts);
-    auto [NativePrg, DeviceCodeWasInCache] = getOrCreatePIProgram(
+    auto [NativePrg, DeviceCodeWasInCache] = getOrCreateURProgram(
         Img, Context, Device, CompileOpts + LinkOpts, SpecConsts);
 
     if (!DeviceCodeWasInCache) {
@@ -577,7 +576,8 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     }
 
     ProgramPtr ProgramManaged(
-        NativePrg, Plugin->getPiPlugin().PiFunctionTable.piProgramRelease);
+        NativePrg,
+        urProgramRelease); // Plugin->getPiPlugin().PiFunctionTable.piProgramRelease);
 
     // Link a fallback implementation of device libraries if they are not
     // supported by a device compiler.
@@ -593,7 +593,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
 
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
-              getRawSyclObjImpl(Device)->getHandleRef(), DeviceLibReqMask);
+              getRawSyclObjImpl(Device)->getUrHandleRef(), DeviceLibReqMask);
 
     emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
 
@@ -612,9 +612,9 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   };
 
   uint32_t ImgId = Img.getImageID();
-  const sycl::detail::pi::PiDevice PiDevice = Dev->getHandleRef();
+  const ur_device_handle_t UrDevice = Dev->getUrHandleRef();
   auto CacheKey =
-      std::make_pair(std::make_pair(std::move(SpecConsts), ImgId), PiDevice);
+      std::make_pair(std::make_pair(std::move(SpecConsts), ImgId), UrDevice);
 
   auto GetCachedBuildF = [&Cache, &CacheKey]() {
     return Cache.getOrInsertProgram(CacheKey);
@@ -632,14 +632,14 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   // stored in the cache, and one handle is returned to the
   // caller. In that case, we need to increase the ref count of the
   // program.
-  ContextImpl->getPlugin()->call<PiApiKind::piProgramRetain>(BuildResult->Val);
+  ContextImpl->getUrPlugin()->call(urProgramRetain, BuildResult->Val);
   return BuildResult->Val;
 }
 
 // When caching is enabled, the returned PiProgram and PiKernel will
 // already have their ref count incremented.
-std::tuple<sycl::detail::pi::PiKernel, std::mutex *, const KernelArgMask *,
-           sycl::detail::pi::PiProgram>
+std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
+           ur_program_handle_t>
 ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
                                   const DeviceImplPtr &DeviceImpl,
                                   const std::string &KernelName,
@@ -659,9 +659,9 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
   // Should always come last!
   appendCompileEnvironmentVariablesThatAppend(CompileOpts);
   appendLinkEnvironmentVariablesThatAppend(LinkOpts);
-  const sycl::detail::pi::PiDevice PiDevice = DeviceImpl->getHandleRef();
+  ur_device_handle_t UrDevice = DeviceImpl->getUrHandleRef();
 
-  auto key = std::make_tuple(std::move(SpecConsts), PiDevice,
+  auto key = std::make_tuple(std::move(SpecConsts), UrDevice,
                              CompileOpts + LinkOpts, KernelName);
   if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
     auto ret_tuple = Cache.tryToGetKernelFast(key);
@@ -670,30 +670,32 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
     if (std::get<Kernel>(ret_tuple)) {
       // Pulling a copy of a kernel and program from the cache,
       // so we need to retain those resources.
-      ContextImpl->getPlugin()->call<PiApiKind::piKernelRetain>(
-          std::get<Kernel>(ret_tuple));
-      ContextImpl->getPlugin()->call<PiApiKind::piProgramRetain>(
-          std::get<Program>(ret_tuple));
+      ContextImpl->getUrPlugin()->call(urKernelRetain,
+                                       std::get<Kernel>(ret_tuple));
+      ContextImpl->getUrPlugin()->call(urProgramRetain,
+                                       std::get<Program>(ret_tuple));
       return ret_tuple;
     }
   }
 
-  sycl::detail::pi::PiProgram Program =
-      getBuiltPIProgram(ContextImpl, DeviceImpl, KernelName, NDRDesc);
+  ur_program_handle_t Program =
+      getBuiltURProgram(ContextImpl, DeviceImpl, KernelName, NDRDesc);
 
   auto BuildF = [this, &Program, &KernelName, &ContextImpl] {
-    sycl::detail::pi::PiKernel Kernel = nullptr;
+    ur_kernel_handle_t Kernel = nullptr;
 
-    const PluginPtr &Plugin = ContextImpl->getPlugin();
-    Plugin->call<errc::kernel_not_supported, PiApiKind::piKernelCreate>(
-        Program, KernelName.c_str(), &Kernel);
+    const UrPluginPtr &Plugin = ContextImpl->getUrPlugin();
+    Plugin->call<errc::kernel_not_supported>(urKernelCreate, Program,
+                                             KernelName.c_str(), &Kernel);
 
     // Only set PI_USM_INDIRECT_ACCESS if the platform can handle it.
     if (ContextImpl->getPlatformImpl()->supports_usm()) {
       // Some PI Plugins (like OpenCL) require this call to enable USM
       // For others, PI will turn this into a NOP.
-      Plugin->call<PiApiKind::piKernelSetExecInfo>(
-          Kernel, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
+      const ur_bool_t UrTrue = true;
+      Plugin->call(urKernelSetExecInfo, Kernel,
+                   UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS, sizeof(ur_bool_t),
+                   nullptr, &UrTrue);
     }
 
     const KernelArgMask *ArgMask = nullptr;
@@ -726,60 +728,56 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
   // stored in the cache, and one handle is returned to the
   // caller. In that case, we need to increase the ref count of the
   // kernel.
-  ContextImpl->getPlugin()->call<PiApiKind::piKernelRetain>(
-      KernelArgMaskPair.first);
+  ContextImpl->getUrPlugin()->call(urKernelRetain, KernelArgMaskPair.first);
   Cache.saveKernel(key, ret_val);
   return ret_val;
 }
 
-sycl::detail::pi::PiProgram
-ProgramManager::getPiProgramFromPiKernel(sycl::detail::pi::PiKernel Kernel,
+ur_program_handle_t
+ProgramManager::getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
                                          const ContextImplPtr Context) {
-  sycl::detail::pi::PiProgram Program;
-  const PluginPtr &Plugin = Context->getPlugin();
-  Plugin->call<PiApiKind::piKernelGetInfo>(Kernel, PI_KERNEL_INFO_PROGRAM,
-                                           sizeof(sycl::detail::pi::PiProgram),
-                                           &Program, nullptr);
+  ur_program_handle_t Program;
+  const UrPluginPtr &Plugin = Context->getUrPlugin();
+  Plugin->call(urKernelGetInfo, Kernel, UR_KERNEL_INFO_PROGRAM,
+               sizeof(ur_program_handle_t), &Program, nullptr);
   return Program;
 }
 
 std::string
-ProgramManager::getProgramBuildLog(const sycl::detail::pi::PiProgram &Program,
+ProgramManager::getProgramBuildLog(const ur_program_handle_t &Program,
                                    const ContextImplPtr Context) {
-  size_t PIDevicesSize = 0;
-  const PluginPtr &Plugin = Context->getPlugin();
-  Plugin->call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_DEVICES, 0,
-                                            nullptr, &PIDevicesSize);
-  std::vector<sycl::detail::pi::PiDevice> PIDevices(
-      PIDevicesSize / sizeof(sycl::detail::pi::PiDevice));
-  Plugin->call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_DEVICES,
-                                            PIDevicesSize, PIDevices.data(),
-                                            nullptr);
+  size_t URDevicesSize = 0;
+  const UrPluginPtr &Plugin = Context->getUrPlugin();
+  Plugin->call(urProgramGetInfo, Program, UR_PROGRAM_INFO_DEVICES, 0, nullptr,
+               &URDevicesSize);
+  std::vector<ur_device_handle_t> URDevices(URDevicesSize /
+                                            sizeof(ur_device_handle_t));
+  Plugin->call(urProgramGetInfo, Program, UR_PROGRAM_INFO_DEVICES,
+               URDevicesSize, URDevices.data(), nullptr);
   std::string Log = "The program was built for " +
-                    std::to_string(PIDevices.size()) + " devices";
-  for (sycl::detail::pi::PiDevice &Device : PIDevices) {
+                    std::to_string(URDevices.size()) + " devices";
+  for (ur_device_handle_t &Device : URDevices) {
     std::string DeviceBuildInfoString;
     size_t DeviceBuildInfoStrSize = 0;
-    Plugin->call<PiApiKind::piProgramGetBuildInfo>(
-        Program, Device, PI_PROGRAM_BUILD_INFO_LOG, 0, nullptr,
-        &DeviceBuildInfoStrSize);
+    Plugin->call(urProgramGetBuildInfo, Program, Device,
+                 UR_PROGRAM_BUILD_INFO_LOG, 0, nullptr,
+                 &DeviceBuildInfoStrSize);
     if (DeviceBuildInfoStrSize > 0) {
       std::vector<char> DeviceBuildInfo(DeviceBuildInfoStrSize);
-      Plugin->call<PiApiKind::piProgramGetBuildInfo>(
-          Program, Device, PI_PROGRAM_BUILD_INFO_LOG, DeviceBuildInfoStrSize,
-          DeviceBuildInfo.data(), nullptr);
+      Plugin->call(urProgramGetBuildInfo, Program, Device,
+                   UR_PROGRAM_BUILD_INFO_LOG, DeviceBuildInfoStrSize,
+                   DeviceBuildInfo.data(), nullptr);
       DeviceBuildInfoString = std::string(DeviceBuildInfo.data());
     }
 
     std::string DeviceNameString;
     size_t DeviceNameStrSize = 0;
-    Plugin->call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_NAME, 0,
-                                             nullptr, &DeviceNameStrSize);
+    Plugin->call(urDeviceGetInfo, Device, UR_DEVICE_INFO_NAME, 0, nullptr,
+                 &DeviceNameStrSize);
     if (DeviceNameStrSize > 0) {
       std::vector<char> DeviceName(DeviceNameStrSize);
-      Plugin->call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_NAME,
-                                               DeviceNameStrSize,
-                                               DeviceName.data(), nullptr);
+      Plugin->call(urDeviceGetInfo, Device, UR_DEVICE_INFO_NAME,
+                   DeviceNameStrSize, DeviceName.data(), nullptr);
       DeviceNameString = std::string(DeviceName.data());
     }
     Log += "\nBuild program log for '" + DeviceNameString + "':\n" +
@@ -792,7 +790,7 @@ ProgramManager::getProgramBuildLog(const sycl::detail::pi::PiProgram &Program,
 // To support that they need to be delivered in a different container - so that
 // pi_device_binary_struct can be created for each of them.
 static bool loadDeviceLib(const ContextImplPtr Context, const char *Name,
-                          sycl::detail::pi::PiProgram &Prog) {
+                          ur_program_handle_t &Prog) {
   std::string LibSyclDir = OSUtil::getCurrentDSODir();
   std::ifstream File(LibSyclDir + OSUtil::DirSep + Name,
                      std::ifstream::in | std::ifstream::binary);
@@ -874,10 +872,24 @@ static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
   return Ext->second;
 }
 
-static sycl::detail::pi::PiProgram
-loadDeviceLibFallback(const ContextImplPtr Context, DeviceLibExt Extension,
-                      const sycl::detail::pi::PiDevice &Device,
-                      bool UseNativeLib) {
+static ur_result_t doCompile(const UrPluginPtr &Plugin,
+                             ur_program_handle_t Program, uint32_t NumDevs,
+                             ur_device_handle_t *Devs, ur_context_handle_t Ctx,
+                             const char *Opts) {
+  // Try to compile with given devices, fall back to compiling with the program
+  // context if unsupported by the adapter
+  auto Result =
+      Plugin->call_nocheck(urProgramCompileExp, Program, NumDevs, Devs, Opts);
+  if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    return Plugin->call_nocheck(urProgramCompile, Ctx, Program, Opts);
+  }
+  return Result;
+}
+
+static ur_program_handle_t loadDeviceLibFallback(const ContextImplPtr Context,
+                                                 DeviceLibExt Extension,
+                                                 ur_device_handle_t Device,
+                                                 bool UseNativeLib) {
 
   auto LibFileName = getDeviceLibFilename(Extension, UseNativeLib);
 
@@ -887,7 +899,7 @@ loadDeviceLibFallback(const ContextImplPtr Context, DeviceLibExt Extension,
       std::make_pair(std::make_pair(Extension, Device), nullptr));
   bool Cached = !CacheResult.second;
   auto LibProgIt = CacheResult.first;
-  sycl::detail::pi::PiProgram &LibProg = LibProgIt->second;
+  ur_program_handle_t &LibProg = LibProgIt->second;
 
   if (Cached)
     return LibProg;
@@ -898,18 +910,14 @@ loadDeviceLibFallback(const ContextImplPtr Context, DeviceLibExt Extension,
                                 PI_ERROR_INVALID_VALUE);
   }
 
-  const PluginPtr &Plugin = Context->getPlugin();
+  const UrPluginPtr &Plugin = Context->getUrPlugin();
   // TODO no spec constants are used in the std libraries, support in the future
-  sycl::detail::pi::PiResult Error =
-      Plugin->call_nocheck<PiApiKind::piProgramCompile>(
-          LibProg,
-          /*num devices = */ 1, &Device,
-          // Do not use compile options for library programs: it is not clear
-          // if user options (image options) are supposed to be applied to
-          // library program as well, and what actually happens to a SPIR-V
-          // program if we apply them.
-          "", 0, nullptr, nullptr, nullptr, nullptr);
-  if (Error != PI_SUCCESS) {
+  // Do not use compile options for library programs: it is not clear if user
+  // options (image options) are supposed to be applied to library program as
+  // well, and what actually happens to a SPIR-V program if we apply them.
+  ur_result_t Error =
+      doCompile(Plugin, LibProg, 1, &Device, Context->getUrHandleRef(), "");
+  if (Error != UR_RESULT_SUCCESS) {
     CachedLibPrograms.erase(LibProgIt);
     throw compile_program_error(
         ProgramManager::getProgramBuildLog(LibProg, Context), Error);
@@ -986,14 +994,55 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
   for (unsigned I = 0; It != ItEnd; ++It, ++I)
     RawImgs[I] = const_cast<pi_device_binary>(&It->second->getRawData());
 
+  std::vector<ur_device_binary_t> UrBinaries(RawImgs.size());
+  for (uint32_t BinaryCount = 0; BinaryCount < RawImgs.size(); BinaryCount++) {
+    if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
+               __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_UNKNOWN;
+    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_SPIRV32;
+    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_SPIRV64;
+    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
+    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_SPIRV64_GEN;
+    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
+    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_NVPTX64;
+    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_AMDGCN;
+    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          "native_cpu"; // todo: define UR_DEVICE_BINARY_TARGET_NATIVE_CPU;
+    else
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_UNKNOWN;
+  }
+
   pi_uint32 ImgInd = 0;
   // Ask the native runtime under the given context to choose the device image
   // it prefers.
-  getSyclObjImpl(Context)
-      ->getPlugin()
-      ->call<PiApiKind::piextDeviceSelectBinary>(
-          getSyclObjImpl(Device)->getHandleRef(), RawImgs.data(),
-          (pi_uint32)RawImgs.size(), &ImgInd);
+  getSyclObjImpl(Context)->getUrPlugin()->call(
+      urDeviceSelectBinary, getSyclObjImpl(Device)->getUrHandleRef(),
+      UrBinaries.data(), UrBinaries.size(), &ImgInd);
   std::advance(ItBegin, ImgInd);
   return ItBegin->second;
 }
@@ -1069,11 +1118,53 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(
   pi_uint32 ImgInd = 0;
   // Ask the native runtime under the given context to choose the device image
   // it prefers.
-  getSyclObjImpl(Context)
-      ->getPlugin()
-      ->call<PiApiKind::piextDeviceSelectBinary>(
-          getSyclObjImpl(Device)->getHandleRef(), RawImgs.data(),
-          (pi_uint32)RawImgs.size(), &ImgInd);
+
+  std::vector<ur_device_binary_t> UrBinaries(RawImgs.size());
+  for (uint32_t BinaryCount = 0; BinaryCount < RawImgs.size(); BinaryCount++) {
+    if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
+               __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_UNKNOWN;
+    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_SPIRV32;
+    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_SPIRV64;
+    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
+    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_SPIRV64_GEN;
+    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
+    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_NVPTX64;
+    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_AMDGCN;
+    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          "native_cpu"; // todo: define UR_DEVICE_BINARY_TARGET_NATIVE_CPU;
+    else
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_UNKNOWN;
+  }
+
+  getSyclObjImpl(Context)->getUrPlugin()->call(
+      urDeviceSelectBinary, getSyclObjImpl(Device)->getUrHandleRef(),
+      UrBinaries.data(), UrBinaries.size(), &ImgInd);
 
   ImageIterator = ImageSet.begin();
   std::advance(ImageIterator, ImgInd);
@@ -1095,11 +1186,11 @@ static bool isDeviceLibRequired(DeviceLibExt Ext, uint32_t DeviceLibReqMask) {
   return ((DeviceLibReqMask & Mask) == Mask);
 }
 
-static std::vector<sycl::detail::pi::PiProgram>
+static std::vector<ur_program_handle_t>
 getDeviceLibPrograms(const ContextImplPtr Context,
-                     const sycl::detail::pi::PiDevice &Device,
+                     const ur_device_handle_t &Device,
                      uint32_t DeviceLibReqMask) {
-  std::vector<sycl::detail::pi::PiProgram> Programs;
+  std::vector<ur_program_handle_t> Programs;
 
   std::pair<DeviceLibExt, bool> RequiredDeviceLibExt[] = {
       {DeviceLibExt::cl_intel_devicelib_assert,
@@ -1166,10 +1257,11 @@ getDeviceLibPrograms(const ContextImplPtr Context,
   return Programs;
 }
 
-ProgramManager::ProgramPtr ProgramManager::build(
-    ProgramPtr Program, const ContextImplPtr Context,
-    const std::string &CompileOptions, const std::string &LinkOptions,
-    const sycl::detail::pi::PiDevice &Device, uint32_t DeviceLibReqMask) {
+ProgramManager::ProgramPtr
+ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
+                      const std::string &CompileOptions,
+                      const std::string &LinkOptions, ur_device_handle_t Device,
+                      uint32_t DeviceLibReqMask) {
 
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::build(" << Program.get() << ", "
@@ -1186,7 +1278,7 @@ ProgramManager::ProgramPtr ProgramManager::build(
       CompileOptions.find(std::string("-vc-codegen")) != std::string::npos)
     LinkDeviceLibs = false;
 
-  std::vector<sycl::detail::pi::PiProgram> LinkPrograms;
+  std::vector<ur_program_handle_t> LinkPrograms;
   if (LinkDeviceLibs) {
     LinkPrograms = getDeviceLibPrograms(Context, Device, DeviceLibReqMask);
   }
@@ -1194,37 +1286,46 @@ ProgramManager::ProgramPtr ProgramManager::build(
   static const char *ForceLinkEnv = std::getenv("SYCL_FORCE_LINK");
   static bool ForceLink = ForceLinkEnv && (*ForceLinkEnv == '1');
 
-  const PluginPtr &Plugin = Context->getPlugin();
+  const UrPluginPtr &Plugin = Context->getUrPlugin();
   if (LinkPrograms.empty() && !ForceLink) {
     const std::string &Options = LinkOptions.empty()
                                      ? CompileOptions
                                      : (CompileOptions + " " + LinkOptions);
-    sycl::detail::pi::PiResult Error =
-        Plugin->call_nocheck<PiApiKind::piProgramBuild>(
-            Program.get(), /*num devices =*/1, &Device, Options.c_str(),
-            nullptr, nullptr);
-    if (Error != PI_SUCCESS)
+    ur_result_t Error =
+        Plugin->call_nocheck(urProgramBuildExp, Program.get(),
+                             /*num devices =*/1, &Device, Options.c_str());
+    if (Error == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+      Error = Plugin->call_nocheck(urProgramBuild, Context->getUrHandleRef(),
+                                   Program.get(), Options.c_str());
+    }
+    if (Error != UR_RESULT_SUCCESS)
       throw compile_program_error(getProgramBuildLog(Program.get(), Context),
                                   Error);
     return Program;
   }
 
   // Include the main program and compile/link everything together
-  Plugin->call<PiApiKind::piProgramCompile>(Program.get(), /*num devices =*/1,
-                                            &Device, CompileOptions.c_str(), 0,
-                                            nullptr, nullptr, nullptr, nullptr);
+  auto Res = doCompile(Plugin, Program.get(), /*num devices =*/1, &Device,
+                       Context->getUrHandleRef(), CompileOptions.c_str());
+  Plugin->checkUrResult(Res);
   LinkPrograms.push_back(Program.get());
 
-  sycl::detail::pi::PiProgram LinkedProg = nullptr;
+  ur_program_handle_t LinkedProg = nullptr;
   auto doLink = [&] {
-    return Plugin->call_nocheck<PiApiKind::piProgramLink>(
-        Context->getHandleRef(), /*num devices =*/1, &Device,
-        LinkOptions.c_str(), LinkPrograms.size(), LinkPrograms.data(), nullptr,
-        nullptr, &LinkedProg);
+    auto Res = Plugin->call_nocheck(urProgramLinkExp, Context->getUrHandleRef(),
+                                    /*num devices =*/1, &Device,
+                                    LinkPrograms.size(), LinkPrograms.data(),
+                                    LinkOptions.c_str(), &LinkedProg);
+    if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+      Res = Plugin->call_nocheck(urProgramLink, Context->getUrHandleRef(),
+                                 LinkPrograms.size(), LinkPrograms.data(),
+                                 LinkOptions.c_str(), &LinkedProg);
+    }
+    return Res;
   };
-  sycl::detail::pi::PiResult Error = doLink();
-  if (Error == PI_ERROR_OUT_OF_RESOURCES ||
-      Error == PI_ERROR_OUT_OF_HOST_MEMORY) {
+  ur_result_t Error = doLink();
+  if (Error == UR_RESULT_ERROR_OUT_OF_RESOURCES ||
+      Error == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY) {
     Context->getKernelProgramCache().reset();
     Error = doLink();
   }
@@ -1232,14 +1333,14 @@ ProgramManager::ProgramPtr ProgramManager::build(
   // Link program call returns a new program object if all parameters are valid,
   // or NULL otherwise. Release the original (user) program.
   Program.reset(LinkedProg);
-  if (Error != PI_SUCCESS) {
+  if (Error != UR_RESULT_SUCCESS) {
     if (LinkedProg) {
       // A non-trivial error occurred during linkage: get a build log, release
       // an incomplete (but valid) LinkedProg, and throw.
       throw compile_program_error(getProgramBuildLog(LinkedProg, Context),
                                   Error);
     }
-    Plugin->checkPiResult(Error);
+    Plugin->checkUrResult(Error);
   }
   return Program;
 }
@@ -1453,7 +1554,7 @@ void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
 }
 
 void ProgramManager::flushSpecConstants(const program_impl &Prg,
-                                        sycl::detail::pi::PiProgram NativePrg,
+                                        ur_program_handle_t NativePrg,
                                         const RTDeviceBinaryImage *Img) {
   if (DbgProgMgr > 2) {
     std::cerr << ">>> ProgramManager::flushSpecConstants(" << Prg.get()
@@ -1461,7 +1562,7 @@ void ProgramManager::flushSpecConstants(const program_impl &Prg,
   }
   if (!Prg.hasSetSpecConstants())
     return; // nothing to do
-  pi::PiProgram PrgHandle = Prg.getHandleRef();
+  ur_program_handle_t PrgHandle = Prg.getUrHandleRef();
   // program_impl can't correspond to two different native programs
   assert(!NativePrg || !PrgHandle || (NativePrg == PrgHandle));
   NativePrg = NativePrg ? NativePrg : PrgHandle;
@@ -1501,7 +1602,7 @@ uint32_t ProgramManager::getDeviceLibReqMask(const RTDeviceBinaryImage &Img) {
 }
 
 const KernelArgMask *
-ProgramManager::getEliminatedKernelArgMask(pi::PiProgram NativePrg,
+ProgramManager::getEliminatedKernelArgMask(ur_program_handle_t NativePrg,
                                            const std::string &KernelName) {
   // Bail out if there are no eliminated kernel arg masks in our images
   if (m_EliminatedKernelArgMasks.empty())
@@ -1553,9 +1654,9 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
                                  const device &Dev) {
   const std::shared_ptr<detail::device_impl> &DeviceImpl =
       detail::getSyclObjImpl(Dev);
-  auto &Plugin = DeviceImpl->getPlugin();
+  auto &Plugin = DeviceImpl->getUrPlugin();
 
-  const sycl::detail::pi::PiDevice &PIDeviceHandle = DeviceImpl->getHandleRef();
+  const ur_device_handle_t &URDeviceHandle = DeviceImpl->getUrHandleRef();
 
   // Call piextDeviceSelectBinary with only one image to check if an image is
   // compatible with implementation. The function returns invalid index if no
@@ -1563,11 +1664,43 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   pi_uint32 SuitableImageID = std::numeric_limits<pi_uint32>::max();
   pi_device_binary DevBin =
       const_cast<pi_device_binary>(&BinImage->getRawData());
-  sycl::detail::pi::PiResult Error =
-      Plugin->call_nocheck<PiApiKind::piextDeviceSelectBinary>(
-          PIDeviceHandle, &DevBin,
-          /*num bin images = */ (pi_uint32)1, &SuitableImageID);
-  if (Error != PI_SUCCESS && Error != PI_ERROR_INVALID_BINARY)
+
+  ur_device_binary_t UrBinary{};
+  if (strcmp(DevBin->DeviceTargetSpec,
+             __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN) == 0)
+    UrBinary.pDeviceTargetSpec = UR_DEVICE_BINARY_TARGET_UNKNOWN;
+  else if (strcmp(DevBin->DeviceTargetSpec,
+                  __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32) == 0)
+    UrBinary.pDeviceTargetSpec = UR_DEVICE_BINARY_TARGET_SPIRV32;
+  else if (strcmp(DevBin->DeviceTargetSpec,
+                  __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0)
+    UrBinary.pDeviceTargetSpec = UR_DEVICE_BINARY_TARGET_SPIRV64;
+  else if (strcmp(DevBin->DeviceTargetSpec,
+                  __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0)
+    UrBinary.pDeviceTargetSpec = UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
+  else if (strcmp(DevBin->DeviceTargetSpec,
+                  __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0)
+    UrBinary.pDeviceTargetSpec = UR_DEVICE_BINARY_TARGET_SPIRV64_GEN;
+  else if (strcmp(DevBin->DeviceTargetSpec,
+                  __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)
+    UrBinary.pDeviceTargetSpec = UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
+  else if (strcmp(DevBin->DeviceTargetSpec,
+                  __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64) == 0)
+    UrBinary.pDeviceTargetSpec = UR_DEVICE_BINARY_TARGET_NVPTX64;
+  else if (strcmp(DevBin->DeviceTargetSpec,
+                  __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN) == 0)
+    UrBinary.pDeviceTargetSpec = UR_DEVICE_BINARY_TARGET_AMDGCN;
+  else if (strcmp(DevBin->DeviceTargetSpec,
+                  __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0)
+    UrBinary.pDeviceTargetSpec =
+        "native_cpu"; // todo: define UR_DEVICE_BINARY_TARGET_NATIVE_CPU;
+  else
+    UrBinary.pDeviceTargetSpec = UR_DEVICE_BINARY_TARGET_UNKNOWN;
+
+  ur_result_t Error = Plugin->call_nocheck(
+      urDeviceSelectBinary, URDeviceHandle, &UrBinary,
+      /*num bin images = */ (pi_uint32)1, &SuitableImageID);
+  if (Error != UR_RESULT_SUCCESS && Error != UR_RESULT_ERROR_INVALID_BINARY)
     throw runtime_error("Invalid binary image or device",
                         PI_ERROR_INVALID_VALUE);
 
@@ -1992,8 +2125,8 @@ std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
 
 static void
 setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
-                           sycl::detail::pi::PiProgram Prog,
-                           const PluginPtr &Plugin) {
+                           ur_program_handle_t Prog,
+                           const UrPluginPtr &Plugin) {
   // Set ITT annotation specialization constant if needed.
   enableITTAnnotationsIfNeeded(Prog, Plugin);
 
@@ -2007,9 +2140,10 @@ setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
     std::ignore = SpecConstNames;
     for (const device_image_impl::SpecConstDescT &SpecIDDesc : SpecConstDescs) {
       if (SpecIDDesc.IsSet) {
-        Plugin->call<PiApiKind::piextProgramSetSpecializationConstant>(
-            Prog, SpecIDDesc.ID, SpecIDDesc.Size,
-            SpecConsts.data() + SpecIDDesc.BlobOffset);
+        ur_specialization_constant_info_t SpecConst{
+            SpecIDDesc.ID, SpecIDDesc.Size,
+            SpecConsts.data() + SpecIDDesc.BlobOffset};
+        Plugin->call(urProgramSetSpecializationConstants, Prog, 1, &SpecConst);
       }
     }
   }
@@ -2027,8 +2161,8 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   const std::shared_ptr<device_image_impl> &InputImpl =
       getSyclObjImpl(DeviceImage);
 
-  const PluginPtr &Plugin =
-      getSyclObjImpl(InputImpl->get_context())->getPlugin();
+  const UrPluginPtr &Plugin =
+      getSyclObjImpl(InputImpl->get_context())->getUrPlugin();
 
   // TODO: Add support for creating non-SPIRV programs from multiple devices.
   if (InputImpl->get_bin_image_ref()->getFormat() !=
@@ -2041,8 +2175,8 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
 
   // Device is not used when creating program from SPIRV, so passing only one
   // device is OK.
-  sycl::detail::pi::PiProgram Prog = createPIProgram(
-      *InputImpl->get_bin_image_ref(), InputImpl->get_context(), Devs[0]);
+  ur_program_handle_t Prog = createURProgram(*InputImpl->get_bin_image_ref(),
+                                             InputImpl->get_context(), Devs[0]);
 
   if (InputImpl->get_bin_image_ref()->supportsSpecConstants())
     setSpecializationConstants(InputImpl, Prog, Plugin);
@@ -2053,10 +2187,10 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
       InputImpl->get_spec_const_data_ref(),
       InputImpl->get_spec_const_blob_ref());
 
-  std::vector<pi_device> PIDevices;
-  PIDevices.reserve(Devs.size());
+  std::vector<ur_device_handle_t> URDevices;
+  URDevices.reserve(Devs.size());
   for (const device &Dev : Devs)
-    PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
+    URDevices.push_back(getSyclObjImpl(Dev)->getUrHandleRef());
 
   // TODO: Handle zero sized Device list.
   std::string CompileOptions;
@@ -2065,17 +2199,14 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
       CompileOptions, *(InputImpl->get_bin_image_ref()), Devs, Plugin);
   // Should always come last!
   appendCompileEnvironmentVariablesThatAppend(CompileOptions);
-  sycl::detail::pi::PiResult Error =
-      Plugin->call_nocheck<PiApiKind::piProgramCompile>(
-          ObjectImpl->get_program_ref(), /*num devices=*/Devs.size(),
-          PIDevices.data(), CompileOptions.c_str(),
-          /*num_input_headers=*/0, /*input_headers=*/nullptr,
-          /*header_include_names=*/nullptr,
-          /*pfn_notify=*/nullptr, /*user_data*/ nullptr);
-  if (Error != PI_SUCCESS)
+  ur_result_t Error = doCompile(
+      Plugin, ObjectImpl->get_ur_program_ref(), Devs.size(), URDevices.data(),
+      getRawSyclObjImpl(InputImpl->get_context())->getUrHandleRef(),
+      CompileOptions.c_str());
+  if (Error != UR_RESULT_SUCCESS)
     throw sycl::exception(
         make_error_code(errc::build),
-        getProgramBuildLog(ObjectImpl->get_program_ref(),
+        getProgramBuildLog(ObjectImpl->get_ur_program_ref(),
                            getSyclObjImpl(ObjectImpl->get_context())));
 
   return createSyclObjFromImpl<device_image_plain>(ObjectImpl);
@@ -2087,13 +2218,13 @@ ProgramManager::link(const device_image_plain &DeviceImage,
                      const property_list &PropList) {
   (void)PropList;
 
-  std::vector<pi_program> PIPrograms;
-  PIPrograms.push_back(getSyclObjImpl(DeviceImage)->get_program_ref());
+  std::vector<ur_program_handle_t> URPrograms;
+  URPrograms.push_back(getSyclObjImpl(DeviceImage)->get_ur_program_ref());
 
-  std::vector<pi_device> PIDevices;
-  PIDevices.reserve(Devs.size());
+  std::vector<ur_device_handle_t> URDevices;
+  URDevices.reserve(Devs.size());
   for (const device &Dev : Devs)
-    PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
+    URDevices.push_back(getSyclObjImpl(Dev)->getUrHandleRef());
 
   std::string LinkOptionsStr;
   applyLinkOptionsFromEnvironment(LinkOptionsStr);
@@ -2107,30 +2238,34 @@ ProgramManager::link(const device_image_plain &DeviceImage,
   appendLinkEnvironmentVariablesThatAppend(LinkOptionsStr);
   const context &Context = getSyclObjImpl(DeviceImage)->get_context();
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
-  const PluginPtr &Plugin = ContextImpl->getPlugin();
+  const UrPluginPtr &Plugin = ContextImpl->getUrPlugin();
 
-  sycl::detail::pi::PiProgram LinkedProg = nullptr;
+  ur_program_handle_t LinkedProg = nullptr;
   auto doLink = [&] {
-    return Plugin->call_nocheck<PiApiKind::piProgramLink>(
-        ContextImpl->getHandleRef(), PIDevices.size(), PIDevices.data(),
-        /*options=*/LinkOptionsStr.c_str(), PIPrograms.size(),
-        PIPrograms.data(),
-        /*pfn_notify=*/nullptr,
-        /*user_data=*/nullptr, &LinkedProg);
+    auto Res = Plugin->call_nocheck(
+        urProgramLinkExp, ContextImpl->getUrHandleRef(), URDevices.size(),
+        URDevices.data(), URPrograms.size(), URPrograms.data(),
+        LinkOptionsStr.c_str(), &LinkedProg);
+    if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+      Res = Plugin->call_nocheck(urProgramLink, ContextImpl->getUrHandleRef(),
+                                 URPrograms.size(), URPrograms.data(),
+                                 LinkOptionsStr.c_str(), &LinkedProg);
+    }
+    return Res;
   };
-  sycl::detail::pi::PiResult Error = doLink();
-  if (Error == PI_ERROR_OUT_OF_RESOURCES ||
-      Error == PI_ERROR_OUT_OF_HOST_MEMORY) {
+  ur_result_t Error = doLink();
+  if (Error == UR_RESULT_ERROR_OUT_OF_RESOURCES ||
+      Error == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY) {
     ContextImpl->getKernelProgramCache().reset();
     Error = doLink();
   }
 
-  if (Error != PI_SUCCESS) {
+  if (Error != UR_RESULT_SUCCESS) {
     if (LinkedProg) {
       const std::string ErrorMsg = getProgramBuildLog(LinkedProg, ContextImpl);
       throw sycl::exception(make_error_code(errc::build), ErrorMsg);
     }
-    Plugin->reportPiError(Error, "link()");
+    Plugin->reportUrError(Error, "link()");
   }
 
   std::shared_ptr<std::vector<kernel_id>> KernelIDs{new std::vector<kernel_id>};
@@ -2220,7 +2355,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   auto BuildF = [this, &Context, &Img, &Devs, &CompileOpts, &LinkOpts,
                  &InputImpl, SpecConsts] {
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
-    const PluginPtr &Plugin = ContextImpl->getPlugin();
+    const UrPluginPtr &Plugin = ContextImpl->getUrPlugin();
     applyOptionsFromImage(CompileOpts, LinkOpts, Img, Devs, Plugin);
     // Should always come last!
     appendCompileEnvironmentVariablesThatAppend(CompileOpts);
@@ -2236,15 +2371,15 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
     // Device is not used when creating program from SPIRV, so passing only one
     // device is OK.
-    auto [NativePrg, DeviceCodeWasInCache] = getOrCreatePIProgram(
+    auto [NativePrg, DeviceCodeWasInCache] = getOrCreateURProgram(
         Img, Context, Devs[0], CompileOpts + LinkOpts, SpecConsts);
 
     if (!DeviceCodeWasInCache &&
         InputImpl->get_bin_image_ref()->supportsSpecConstants())
       setSpecializationConstants(InputImpl, NativePrg, Plugin);
 
-    ProgramPtr ProgramManaged(
-        NativePrg, Plugin->getPiPlugin().PiFunctionTable.piProgramRelease);
+    // TODO(pi2ur): Get adapter's DDI function table?
+    ProgramPtr ProgramManaged(NativePrg, urProgramRelease);
 
     // Link a fallback implementation of device libraries if they are not
     // supported by a device compiler.
@@ -2258,7 +2393,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
-              getRawSyclObjImpl(Devs[0])->getHandleRef(), DeviceLibReqMask);
+              getRawSyclObjImpl(Devs[0])->getUrHandleRef(), DeviceLibReqMask);
 
     emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
 
@@ -2289,10 +2424,9 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   }
 
   uint32_t ImgId = Img.getImageID();
-  const sycl::detail::pi::PiDevice PiDevice =
-      getRawSyclObjImpl(Devs[0])->getHandleRef();
+  ur_device_handle_t UrDevice = getRawSyclObjImpl(Devs[0])->getUrHandleRef();
   auto CacheKey =
-      std::make_pair(std::make_pair(std::move(SpecConsts), ImgId), PiDevice);
+      std::make_pair(std::make_pair(std::move(SpecConsts), ImgId), UrDevice);
 
   // CacheKey is captured by reference so when we overwrite it later we can
   // reuse this function.
@@ -2306,25 +2440,25 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
 
-  sycl::detail::pi::PiProgram ResProgram = BuildResult->Val;
+  ur_program_handle_t ResProgram = BuildResult->Val;
 
   // Cache supports key with once device only, but here we have multiple
   // devices a program is built for, so add the program to the cache for all
   // other devices.
-  const PluginPtr &Plugin = ContextImpl->getPlugin();
+  const UrPluginPtr &Plugin = ContextImpl->getUrPlugin();
   auto CacheOtherDevices = [ResProgram, &Plugin]() {
-    Plugin->call<PiApiKind::piProgramRetain>(ResProgram);
+    Plugin->call(urProgramRetain, ResProgram);
     return ResProgram;
   };
 
   // The program for device "0" is already added to the cache during the first
   // call to getOrBuild, so starting with "1"
   for (size_t Idx = 1; Idx < Devs.size(); ++Idx) {
-    const sycl::detail::pi::PiDevice PiDeviceAdd =
-        getRawSyclObjImpl(Devs[Idx])->getHandleRef();
+    const ur_device_handle_t UrDeviceAdd =
+        getRawSyclObjImpl(Devs[Idx])->getUrHandleRef();
 
     // Change device in the cache key to reduce copying of spec const data.
-    CacheKey.second = PiDeviceAdd;
+    CacheKey.second = UrDeviceAdd;
     Cache.getOrBuild<compile_program_error>(GetCachedBuildF, CacheOtherDevices);
     // getOrBuild is not supposed to return nullptr
     assert(BuildResult != nullptr && "Invalid build result");
@@ -2333,7 +2467,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   // devive_image_impl shares ownership of PIProgram with, at least, program
   // cache. The ref counter will be descremented in the destructor of
   // device_image_impl
-  Plugin->call<PiApiKind::piProgramRetain>(ResProgram);
+  Plugin->call(urProgramRetain, ResProgram);
 
   DeviceImageImplPtr ExecImpl = std::make_shared<detail::device_image_impl>(
       InputImpl->get_bin_image_ref(), Context, Devs, bundle_state::executable,
@@ -2346,11 +2480,11 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
 // When caching is enabled, the returned PiKernel will already have
 // its ref count incremented.
-std::tuple<sycl::detail::pi::PiKernel, std::mutex *, const KernelArgMask *>
+std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *>
 ProgramManager::getOrCreateKernel(const context &Context,
                                   const std::string &KernelName,
                                   const property_list &PropList,
-                                  sycl::detail::pi::PiProgram Program) {
+                                  ur_program_handle_t Program) {
 
   (void)PropList;
 
@@ -2359,16 +2493,16 @@ ProgramManager::getOrCreateKernel(const context &Context,
   KernelProgramCache &Cache = Ctx->getKernelProgramCache();
 
   auto BuildF = [this, &Program, &KernelName, &Ctx] {
-    sycl::detail::pi::PiKernel Kernel = nullptr;
+    ur_kernel_handle_t Kernel = nullptr;
 
-    const PluginPtr &Plugin = Ctx->getPlugin();
-    Plugin->call<PiApiKind::piKernelCreate>(Program, KernelName.c_str(),
-                                            &Kernel);
+    const UrPluginPtr &Plugin = Ctx->getUrPlugin();
+    Plugin->call(urKernelCreate, Program, KernelName.c_str(), &Kernel);
 
     // Only set PI_USM_INDIRECT_ACCESS if the platform can handle it.
     if (Ctx->getPlatformImpl()->supports_usm())
-      Plugin->call<PiApiKind::piKernelSetExecInfo>(
-          Kernel, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
+      Plugin->call(urKernelSetExecInfo, Kernel,
+                   UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS, sizeof(ur_bool_t),
+                   nullptr, &PI_TRUE);
 
     // Ignore possible m_UseSpvFile for now.
     // TODO consider making m_UseSpvFile interact with kernel bundles as well.
@@ -2398,7 +2532,7 @@ ProgramManager::getOrCreateKernel(const context &Context,
   // stored in the cache, and one handle is returned to the
   // caller. In that case, we need to increase the ref count of the
   // kernel.
-  Ctx->getPlugin()->call<PiApiKind::piKernelRetain>(BuildResult->Val.first);
+  Ctx->getUrPlugin()->call(urKernelRetain, BuildResult->Val.first);
   return std::make_tuple(BuildResult->Val.first,
                          &(BuildResult->MBuildResultMutex),
                          BuildResult->Val.second);

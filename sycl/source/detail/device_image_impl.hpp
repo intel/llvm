@@ -60,9 +60,9 @@ public:
   device_image_impl(const RTDeviceBinaryImage *BinImage, context Context,
                     std::vector<device> Devices, bundle_state State,
                     std::shared_ptr<std::vector<kernel_id>> KernelIDs,
-                    sycl::detail::pi::PiProgram Program)
+                    ur_program_handle_t Program)
       : MBinImage(BinImage), MContext(std::move(Context)),
-        MDevices(std::move(Devices)), MState(State), MProgram(Program),
+        MDevices(std::move(Devices)), MState(State), MURProgram(Program),
         MKernelIDs(std::move(KernelIDs)),
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()) {
     updateSpecConstSymMap();
@@ -71,11 +71,11 @@ public:
   device_image_impl(const RTDeviceBinaryImage *BinImage, context Context,
                     std::vector<device> Devices, bundle_state State,
                     std::shared_ptr<std::vector<kernel_id>> KernelIDs,
-                    sycl::detail::pi::PiProgram Program,
+                    ur_program_handle_t Program,
                     const SpecConstMapT &SpecConstMap,
                     const std::vector<unsigned char> &SpecConstsBlob)
       : MBinImage(BinImage), MContext(std::move(Context)),
-        MDevices(std::move(Devices)), MState(State), MProgram(Program),
+        MDevices(std::move(Devices)), MState(State), MURProgram(Program),
         MKernelIDs(std::move(KernelIDs)), MSpecConstsBlob(SpecConstsBlob),
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
         MSpecConstSymMap(SpecConstMap) {}
@@ -247,6 +247,10 @@ public:
     return MProgram;
   }
 
+  const ur_program_handle_t &get_ur_program_ref() const noexcept {
+    return MURProgram;
+  }
+
   const RTDeviceBinaryImage *&get_bin_image_ref() noexcept { return MBinImage; }
 
   const context &get_context() const noexcept { return MContext; }
@@ -393,6 +397,8 @@ private:
   bundle_state MState;
   // Native program handler which this device image represents
   sycl::detail::pi::PiProgram MProgram = nullptr;
+  ur_program_handle_t MURProgram = nullptr;
+
   // List of kernel ids available in this image, elements should be sorted
   // according to LessByNameComp
   std::shared_ptr<std::vector<kernel_id>> MKernelIDs;

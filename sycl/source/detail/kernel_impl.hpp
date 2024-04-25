@@ -44,6 +44,10 @@ public:
   /// \param Kernel is a valid PiKernel instance
   /// \param Context is a valid SYCL context
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
+  kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr Context,
+              KernelBundleImplPtr KernelBundleImpl,
+              const KernelArgMask *ArgMask = nullptr);
+
   kernel_impl(sycl::detail::pi::PiKernel Kernel, ContextImplPtr Context,
               KernelBundleImplPtr KernelBundleImpl,
               const KernelArgMask *ArgMask = nullptr);
@@ -61,7 +65,7 @@ public:
   /// \param IsCreatedFromSource is a flag that indicates whether program
   /// is created from source code
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
-  kernel_impl(sycl::detail::pi::PiKernel Kernel, ContextImplPtr ContextImpl,
+  kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
               ProgramImplPtr ProgramImpl, bool IsCreatedFromSource,
               KernelBundleImplPtr KernelBundleImpl,
               const KernelArgMask *ArgMask);
@@ -72,10 +76,10 @@ public:
   /// \param Kernel is a valid PiKernel instance
   /// \param ContextImpl is a valid SYCL context
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
-  kernel_impl(sycl::detail::pi::PiKernel Kernel, ContextImplPtr ContextImpl,
+  kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
               DeviceImageImplPtr DeviceImageImpl,
               KernelBundleImplPtr KernelBundleImpl,
-              const KernelArgMask *ArgMask, PiProgram ProgramPI,
+              const KernelArgMask *ArgMask, ur_program_handle_t ProgramUR,
               std::mutex *CacheMutex);
 
   /// Constructs a SYCL kernel for host device
@@ -118,6 +122,8 @@ public:
   bool is_host() const { return MContext->is_host(); }
 
   const PluginPtr &getPlugin() const { return MContext->getPlugin(); }
+
+  const UrPluginPtr &getUrPlugin() const { return MContext->getUrPlugin(); }
 
   /// Query information from the kernel object using the info::kernel_info
   /// descriptor.
@@ -163,6 +169,8 @@ public:
   /// kernel object.
   const sycl::detail::pi::PiKernel &getHandleRef() const { return MKernel; }
 
+  const ur_kernel_handle_t &getUrHandleRef() const { return MURKernel; }
+
   /// Check if kernel was created from a program that had been created from
   /// source.
   ///
@@ -188,6 +196,7 @@ public:
   bool isInterop() const { return MIsInterop; }
 
   PiProgram getProgramRef() const { return MProgram; }
+  ur_program_handle_t getUrProgramRef() const { return MURProgram; }
   ContextImplPtr getContextImplPtr() const { return MContext; }
 
   std::mutex &getNoncacheableEnqueueMutex() {
@@ -199,8 +208,10 @@ public:
 
 private:
   sycl::detail::pi::PiKernel MKernel;
+  ur_kernel_handle_t MURKernel = nullptr;
   const ContextImplPtr MContext;
   const PiProgram MProgram = nullptr;
+  const ur_program_handle_t MURProgram = nullptr;
   bool MCreatedFromSource = true;
   const DeviceImageImplPtr MDeviceImageImpl;
   const KernelBundleImplPtr MKernelBundleImpl;

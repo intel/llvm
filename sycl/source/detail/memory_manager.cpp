@@ -1335,10 +1335,10 @@ getOrBuildProgramForDeviceGlobal(QueueImplPtr Queue,
   // Look for cached programs with the device_global.
   device Device = Queue->get_device();
   ContextImplPtr ContextImpl = Queue->getContextImplPtr();
-  std::optional<sycl::detail::pi::PiProgram> CachedProgram =
+  std::optional<ur_program_handle_t> CachedProgram =
       ContextImpl->getProgramForDeviceGlobal(Device, DeviceGlobalEntry);
   if (CachedProgram)
-    return *CachedProgram;
+    return (pi_program)(*CachedProgram);
 
   // If there was no cached program, build one.
   auto Context = createSyclObjFromImpl<context>(ContextImpl);
@@ -1348,7 +1348,7 @@ getOrBuildProgramForDeviceGlobal(QueueImplPtr Queue,
   device_image_plain DeviceImage =
       PM.getDeviceImageFromBinaryImage(&Img, Context, Device);
   device_image_plain BuiltImage = PM.build(DeviceImage, {Device}, {});
-  return getSyclObjImpl(BuiltImage)->get_program_ref();
+  return (pi_program)getSyclObjImpl(BuiltImage)->get_ur_program_ref();
 }
 
 static void memcpyToDeviceGlobalDirect(

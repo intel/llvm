@@ -16,6 +16,10 @@ namespace detail {
 const PluginPtr &KernelProgramCache::getPlugin() {
   return MParentContext->getPlugin();
 }
+
+const UrPluginPtr &KernelProgramCache::getUrPlugin() {
+  return MParentContext->getUrPlugin();
+}
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
