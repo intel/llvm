@@ -45,8 +45,8 @@ Documentation for Python's regexp can be found [here][python-3-re].
 
 Since there are no dedicated files for each test, `XFAIL`ing them using regular
 method is impossible, but it is still supported. To do so, open
-[the test format file](/sycl/test/format.py) and modify list of files which
-should be treated as expected to fail (you can find it within `execute` method).
+[the local config](/sycl/test/self-contained-headers/lit.local.cfg) and modify
+list of files which should be treated as expected to fail.
 
 ## Known issues and quirks
 

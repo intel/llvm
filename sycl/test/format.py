@@ -43,18 +43,6 @@ class SYCLHeadersTest(lit.formats.TestFormat):
                     yield t
 
     def execute(self, test, litConfig):
-        # List of files that are not expected to compile cleanly when used
-        # standalone. `os.path.join` is required here so the filtering works
-        # cross-platform
-        xfail = [
-            os.path.join(
-                "sycl", "ext", "oneapi", "experimental", "backend", "cuda.hpp"
-            ),
-            os.path.join(
-                "sycl", "ext", "intel", "esimd", "detail", "types_elementary.hpp"
-            ),
-        ]
-
         command = [
             test.config.clang,
             "-fsycl",
@@ -69,7 +57,7 @@ class SYCLHeadersTest(lit.formats.TestFormat):
         ]
 
         is_xfail = False
-        for path in xfail:
+        for path in test.config.sycl_headers_xfail:
             if test.file_path.endswith(path):
                 is_xfail = True
                 break
