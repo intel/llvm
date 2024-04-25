@@ -390,7 +390,16 @@ public:
 
   /// Begin to execute previously issued commands on this queue
   /// if they have not been executed yet. Overrides normal batching behaviour.
-  void flush() { getPlugin()->call<PiApiKind::piQueueFlush>(MQueues[0]); }
+  void flush() {
+    if (MGraph.lock()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "flush cannot be called for a queue which is "
+                            "recording to a command graph.");
+    }
+    if (!MQueues.empty()) {
+      getPlugin()->call<PiApiKind::piQueueFlush>(MQueues[0]);
+    }
+  }
 
   using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
 
