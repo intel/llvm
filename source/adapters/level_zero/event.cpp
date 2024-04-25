@@ -691,7 +691,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventWait(
 
           ze_event_handle_t ZeEvent = HostVisibleEvent->ZeEvent;
           logger::debug("ZeEvent = {}", ur_cast<std::uintptr_t>(ZeEvent));
-          // If this event was an inner batched event, then lock and sync with
+          // If this event was an inner batched event, then sync with
           // the Queue instead of waiting on the event.
           if (HostVisibleEvent->IsInnerBatchedEvent && Event->ZeBatchedQueue) {
             ZE2UR_CALL(zeHostSynchronize, (Event->ZeBatchedQueue));
