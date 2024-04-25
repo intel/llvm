@@ -84,6 +84,10 @@ public:
   exception(int, const std::error_category &, const char *);
   exception(int, const std::error_category &);
 
+  // context.hpp depends on exception.hpp but we can't define these ctors in
+  // exception.hpp while context is still an incomplete type.
+  // So, definition of ctors that require a context parameter are moved to
+  // context.hpp.
   exception(context, std::error_code, const std::string &);
   exception(context, std::error_code, const char *);
   exception(context, std::error_code);
