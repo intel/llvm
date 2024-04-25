@@ -955,7 +955,7 @@ private:
 /// \return     the constructed descriptor
 static ParamDesc makeParamDesc(const FieldDecl *Src, QualType Ty) {
   ASTContext &Ctx = Src->getASTContext();
-  std::string Name = (Twine("__arg_") + Src->getName()).str();
+  std::string Name = (Twine("_arg_") + Src->getName()).str();
   return std::make_tuple(Ty, &Ctx.Idents.get(Name),
                          Ctx.getTrivialTypeSourceInfo(Ty));
 }
