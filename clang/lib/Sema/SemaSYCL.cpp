@@ -3422,7 +3422,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
       addScopeAttrToLocalVars(*CallOperator);
     }
   }
-  
+ 
   // Creates a DeclRefExpr to the ParmVar that represents the current field.
   Expr *createParamReferenceExpr() {
     ParmVarDecl *KernelParameter =
