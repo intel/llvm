@@ -29,6 +29,29 @@ exception::exception(int EV, const std::error_category &ECat,
 exception::exception(int EV, const std::error_category &ECat)
     : exception({EV, ECat}, nullptr, "") {}
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+exception::exception(context Ctx, std::error_code EC,
+                     const std::string &WhatArg)
+    : exception(EC, std::make_shared<context>(Ctx), WhatArg) {}
+
+exception::exception(context Ctx, std::error_code EC, const char *WhatArg)
+    : exception(Ctx, EC, std::string(WhatArg)) {}
+
+exception::exception(context Ctx, std::error_code EC)
+    : exception(Ctx, EC, "") {}
+
+exception::exception(context Ctx, int EV, const std::error_category &ECat,
+                     const char *WhatArg)
+    : exception(Ctx, {EV, ECat}, std::string(WhatArg)) {}
+
+exception::exception(context Ctx, int EV, const std::error_category &ECat,
+                     const std::string &WhatArg)
+    : exception(Ctx, {EV, ECat}, WhatArg) {}
+
+exception::exception(context Ctx, int EV, const std::error_category &ECat)
+    : exception(Ctx, EV, ECat, "") {}
+#endif
+
 // protected base constructor for all SYCL 2020 constructors
 exception::exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
                      const char *WhatArg)
