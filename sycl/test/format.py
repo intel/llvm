@@ -78,18 +78,19 @@ class SYCLHeadersTest(lit.formats.TestFormat):
             out, err, exitCode, timeoutInfo = e.out, e.err, e.exitCode, e.msg
             status = lit.Test.TIMEOUT
 
-        output = """Running command: %s\n""" % (" ".join(command),)
+        commandStr = " ".join(command)
+        output = f"Running command: {commandStr}\n"
         output += f"Exit Code: {exitCode}\n"
         if timeoutInfo is not None:
-            output += """Timeout: %s\n""" % (timeoutInfo,)
+            output += f"Timeout: {timeoutInfo}\n"
         if is_xfail:
             output += "This test is marked as XFAIL in sycl/test/format.py\n"
         output += "\n"
 
         # Append the outputs, if present.
         if out:
-            output += """Command Output (stdout):\n--\n%s\n--\n""" % (out,)
+            output += f"Command Output (stdout):\n--\n{err}\n--\n"
         if err:
-            output += """Command Output (stderr):\n--\n%s\n--\n""" % (err,)
+            output += f"Command Output (stderr):\n--\n{err}\n--\n"
 
         return lit.Test.Result(status, output)
