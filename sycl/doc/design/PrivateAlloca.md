@@ -49,13 +49,13 @@ native spec constants support when AOT compilation is not used.
 
 For non-SPIR-V targets, aspect checking is used to check
 `sycl_ext_oneapi_private_alloca` support. In case of AOT compilation, a
-compile-time error is produced this kind of checks cannot be performed at
+compile-time error is produced as this kind of checks cannot be performed at
 runtime via aspects.
 
 ### Usage in SYCL host code
 
 Calling either of the functions defined in this extension in host code results
-in a `feature_not_supported` exception being thrown:
+in a synchronous exception with the `errc::feature_not_supported` error code.
 
 ```c++
 #ifdef __SYCL_DEVICE_ONLY__
@@ -64,16 +64,15 @@ in a `feature_not_supported` exception being thrown:
 template <typename ElementType, auto &SizeSpecName,
           access::decorated DecorateAddress>
 private_ptr<ElementType, DecorateAddress> private_alloca(kernel_handler &kh) {
-  throw feature_not_supported("sycl::ext::oneapi::experimental::private_alloca "
-                              "is not supported on host",
-                              PI_ERROR_INVALID_OPERATION);
+  throw sycl::exception(sycl::errc::feature_not_supported,
+                        "Images are not supported by this device.");
 }
 #endif
 ```
 
 ### New `__builtin_intel_sycl_alloca` and `__builtin_intel_sycl_alloca_with_align` builtins
 
-`private_alloca` and `aligned_private_alloca` calls are defined as builtin
+`private_alloca` and `aligned_private_alloca` APIs are defined as builtin
 aliases of `__builtin_intel_sycl_alloca` and
 `__builtin_intel_sycl_alloca_with_align` respectively using the
 `clang::builtin_alias` attribute. This way, calls to these functions are handled
@@ -94,13 +93,20 @@ __SYCL_BUILTIN_ALIAS(__builtin_intel_sycl_alloca_with_align)
     ElementType, DecorateAddress> aligned_private_alloca(kernel_handler &kh);
 ```
 
-
-As builtins cannot be passed template arguments, the original function
-declaration is used both in Sema and CodeGen. See the original source for
-documentation of each of these template parameters.
+As builtins cannot be passed template arguments,
+`Sema::CheckIntelSYCLAllocaBuiltinFunctionCall` and
+`CodeGenFunction::EmitIntelSYCLAllocaBuiltin` do not use the builtin for
+checking or code generation. Instead, the original function declaration is
+queried and used.
 
 Following `__builtin_alloca_with_align`, `Alignment` must be lower than
 `std::numeric_limits<int32_t>::max() / 8`.
+
+Note using `clang::builtin_alias` required modification to code checking this
+attribute to add SYCL to the list of contexts in which you can use
+it. Implementation of this extension upstream would need to port these changes
+upstream or modify code generation and sema of `private_alloca` and
+`aligned_private_alloca` APIs.
 
 ### `llvm.sycl.alloca.*` intrinsic
 
@@ -109,7 +115,11 @@ The builtins mentioned in the previous section are represented via the new
 arguments encoding the specialization constant used as array length,
 corresponding to the arguments received by builtins implementing SYCL 2020
 specialization constants; a type hint argument encoding the allocation element
-type, and the required alignment, which must be an immediate argument.
+type, and the required alignment, which must be an immediate argument. Note
+`sycl-post-link` usage of `__spirv_SpecConstant` to represent specialization
+constant queries is preserved, as we can reuse most of the handling of
+specialization constant builtins defined in [the corresponding design
+document](./SYCL2020-SpecializationConstants.md).
 
 ```llvm
 declare ptr @llvm.sycl.alloca.p0.p4.p4.p4.f32(ptr addrspace(4), ptr addrspace(4), ptr addrspace(4), float, i64)
