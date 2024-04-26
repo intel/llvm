@@ -67,7 +67,7 @@ public:
 /// \ingroup sycl_api
 class __SYCL_EXPORT exception : public virtual std::exception {
 public:
-  __SYCL_DEPRECATED("The version of an exception constructor which takes "
+  __SYCL_DEPRECATED("The version of the exception constructor that takes "
                     "no arguments is deprecated.")
   exception() = default;
   virtual ~exception();
