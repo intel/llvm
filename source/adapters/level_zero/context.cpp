@@ -658,8 +658,8 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
   if (Queue->hasOpenCommandList(UseCopyEngine)) {
     if (AllowBatching) {
       bool batchingAllowed = true;
-      if (Queue->Device->isIntegrated() &&
-          !UrL0OutOfOrderIntegratedSignalEvent) {
+      if (!UrL0OutOfOrderIntegratedSignalEvent &&
+          Queue->Device->isIntegrated()) {
         batchingAllowed = eventCanBeBatched(Queue, UseCopyEngine,
                                             NumEventsInWaitList, EventWaitList);
       }
