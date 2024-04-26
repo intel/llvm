@@ -20,6 +20,14 @@
     }                                                                          \
     (void)0
 
+#define UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(ret)                                 \
+    auto status = ret;                                                         \
+    if (status == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {                       \
+        GTEST_SKIP();                                                          \
+    } else {                                                                   \
+        ASSERT_EQ(status, UR_RESULT_SUCCESS);                                  \
+    }
+
 namespace uur {
 
 struct urPlatformTest : ::testing::Test {
