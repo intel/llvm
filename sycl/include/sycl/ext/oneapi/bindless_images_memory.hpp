@@ -12,8 +12,9 @@
 #include <sycl/detail/export.hpp>                         // for __SYCL_EXPORT
 #include <sycl/device.hpp>                                // for device
 #include <sycl/ext/oneapi/bindless_images_descriptor.hpp> // for image_desc...
-#include <sycl/image.hpp>                                 // for image_chan...
-#include <sycl/range.hpp>                                 // for range
+#include <sycl/ext/oneapi/bindless_images_mem_handle.hpp>
+#include <sycl/image.hpp> // for image_chan...
+#include <sycl/range.hpp> // for range
 
 #include <cstddef> // for size_t
 #include <memory>  // for shared_ptr
@@ -26,12 +27,6 @@ inline namespace _V1 {
 class queue;
 
 namespace ext::oneapi::experimental {
-
-/// Opaque image memory handle type
-struct image_mem_handle {
-  using handle_type = void *;
-  handle_type raw_handle;
-};
 
 namespace detail {
 
