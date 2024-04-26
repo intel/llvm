@@ -57,6 +57,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Metadata.h"
+#include "llvm/IR/Operator.h"
 #include "llvm/IR/TypedPointerType.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -805,8 +806,11 @@ bool getParameterTypes(Function *F, SmallVectorImpl<Type *> &ArgTys,
       HasSret = true;
       unsigned AS = Arg.getType()->getPointerAddressSpace();
       if (auto *STy = dyn_cast<StructType>(Ty))
-        ArgTys.push_back(
-            TypedPointerType::get(GetStructType(STy->getName()), AS));
+        if (STy->hasName())
+          ArgTys.push_back(
+              TypedPointerType::get(GetStructType(STy->getName()), AS));
+        else
+          ArgTys.push_back(TypedPointerType::get(STy, AS));
       else
         ArgTys.push_back(TypedPointerType::get(Ty, AS));
     } else {
@@ -1980,13 +1984,14 @@ static void replaceUsesOfBuiltinVar(Value *V, const APInt &AccumulatedOffset,
     if (auto *Cast = dyn_cast<CastInst>(U)) {
       replaceUsesOfBuiltinVar(Cast, AccumulatedOffset, ReplacementFunc, GV);
       InstsToRemove.push_back(Cast);
-    } else if (auto *GEP = dyn_cast<GetElementPtrInst>(U)) {
+    } else if (auto *GEP = dyn_cast<GEPOperator>(U)) {
       APInt NewOffset = AccumulatedOffset.sextOrTrunc(
           DL.getIndexSizeInBits(GEP->getPointerAddressSpace()));
       if (!GEP->accumulateConstantOffset(DL, NewOffset))
         llvm_unreachable("Illegal GEP of a SPIR-V builtin variable");
       replaceUsesOfBuiltinVar(GEP, NewOffset, ReplacementFunc, GV);
-      InstsToRemove.push_back(GEP);
+      if (auto *AsInst = dyn_cast<Instruction>(U))
+        InstsToRemove.push_back(AsInst);
     } else if (auto *Load = dyn_cast<LoadInst>(U)) {
       // Figure out which index the accumulated offset corresponds to. If we
       // have a weird offset (e.g., trying to load byte 7), bail out.
@@ -2166,13 +2171,13 @@ bool lowerBuiltinCallsToVariables(Module *M) {
       auto *CI = dyn_cast<CallInst>(U);
       assert(CI && "invalid instruction");
       const DebugLoc &DLoc = CI->getDebugLoc();
-      Instruction *NewValue = new LoadInst(GVType, BV, "", CI);
+      Instruction *NewValue = new LoadInst(GVType, BV, "", CI->getIterator());
       if (DLoc)
         NewValue->setDebugLoc(DLoc);
       LLVM_DEBUG(dbgs() << "Transform: " << *CI << " => " << *NewValue << '\n');
       if (IsVec) {
-        NewValue =
-            ExtractElementInst::Create(NewValue, CI->getArgOperand(0), "", CI);
+        NewValue = ExtractElementInst::Create(NewValue, CI->getArgOperand(0),
+                                              "", CI->getIterator());
         if (DLoc)
           NewValue->setDebugLoc(DLoc);
         LLVM_DEBUG(dbgs() << *NewValue << '\n');
@@ -2270,11 +2275,12 @@ bool postProcessBuiltinWithArrayArguments(Function *F,
           if (!T->isArrayTy())
             continue;
           auto *Alloca = new AllocaInst(T, 0, "", &(*FBegin));
-          new StoreInst(I, Alloca, false, CI);
+          new StoreInst(I, Alloca, false, CI->getIterator());
           auto *Zero =
               ConstantInt::getNullValue(Type::getInt32Ty(T->getContext()));
           Value *Index[] = {Zero, Zero};
-          I = GetElementPtrInst::CreateInBounds(T, Alloca, Index, "", CI);
+          I = GetElementPtrInst::CreateInBounds(T, Alloca, Index, "",
+                                                CI->getIterator());
         }
         return Name.str();
       },

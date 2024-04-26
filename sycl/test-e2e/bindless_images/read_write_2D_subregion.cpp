@@ -138,7 +138,7 @@ int main() {
     if (mismatch) {
 #ifdef VERBOSE_PRINT
       std::cout << "Result mismatch! Expected: " << expected[i]
-                << ", Actual: " << out[i][0] << std::endl;
+                << ", Actual: " << out[i] << std::endl;
 #else
       break;
 #endif

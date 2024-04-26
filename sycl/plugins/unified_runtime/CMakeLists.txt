@@ -95,61 +95,56 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit e00a764f8dafd1319b636aa99c15601ec0d4d7fc
-  # Merge: 85b75590 92b60b77
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Apr 10 10:21:22 2024 +0100
-  #    Merge pull request #1455 from GeorgeWeb/georgi/fix-hip-usm-copy2d
-  #    [HIP] Fix memory type detection in allocation info queries and USM copy2D
-  set(UNIFIED_RUNTIME_TAG e00a764f8dafd1319b636aa99c15601ec0d4d7fc)
+  # commit b37fa2c4b09a49839a83228f687c811595fce3fd
+  # Merge: c7fade0d f61e81e9
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Tue Apr 23 16:17:41 2024 +0100
+  #    Merge pull request #1544 from kbenzie/benie/l0-fix-rhel-error
+  #    [L0] Add missing <iomanip> include
+  set(UNIFIED_RUNTIME_TAG b37fa2c4b09a49839a83228f687c811595fce3fd)
 
   fetch_adapter_source(level_zero
-    https://github.com/winstonzhang-intel/unified-runtime.git
-    cfde409fbf17cfb933413795afe7d52173aa97d9
+    ${UNIFIED_RUNTIME_REPO}
+    # commit f4a94976f880de64d0c144abb1080a8262c158f3
+    # Merge: ee075703 39fcb2be
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Fri Apr 26 11:50:56 2024 +0100
+    #     Merge pull request #1370 from winstonzhang-intel/counter-based-events
+    #     [L0] Support for counter-based events using L0 driver
+    f4a94976f880de64d0c144abb1080a8262c158f3
   )
 
   fetch_adapter_source(opencl
     ${UNIFIED_RUNTIME_REPO}
-    # commit 85b7559033e329389452cb87615ad42fbb644d59 (HEAD -> main, origin/main, origin/HEAD)
-    # Merge: a7c202b4 5c300799
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Tue Apr 9 14:06:49 2024 +0100
-    #     Merge pull request #1496 from steffenlarsen/steffen/revert_memory_lookup_error
-    #     [OpenCL] Revert urMemBufferCreate extension function lookup error
-    85b7559033e329389452cb87615ad42fbb644d59
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(cuda
-    ${UNIFIED_RUNTIME_REPO}
-    # commit 6e76c98a1f5cd3c4f5e99011e92bd55b3a46cc4c
-    # Merge: 08b3e8fe 834e6435
+    "https://github.com/oneapi-src/unified-runtime.git"
+    # commit 7fcfe3ad8882fee23d83fa0fc4c4c944262a9ea3
+    # Merge: b37fa2c4 f9fb1167
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Apr 10 16:26:17 2024 +0100
-    #     Merge pull request #1220 from fabiomestre/fabio/cuda_multimap
-    #     [CUDA] Add support for multiple active mappings
-    6e76c98a1f5cd3c4f5e99011e92bd55b3a46cc4c
+    # Date:   Wed Apr 24 10:38:00 2024 +0100
+    #     Merge pull request #1265 from cppchedy/chedy/device-to-device-copy
+    #
+    #     [Bindless][Exp] Add support for device to device copies between CuArrays
+    7fcfe3ad8882fee23d83fa0fc4c4c944262a9ea3
   )
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 08b3e8fe6c5ad0aed125823c335eb44343845f6c
-    # Merge: 758c6149 db47fc0a
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Apr 10 16:22:00 2024 +0100
-    #     Merge pull request #1359 from lplewa/hip_log
-    #     Refactor hip adapter to new logger
-    08b3e8fe6c5ad0aed125823c335eb44343845f6c
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    # commit e2b5b7fafa8721bfcd46426623adc2b586bacf56
-    # Merge: cda0cd94 d05476f4
+    # commit 37242e39480d8bb73cb8cc3a54152edab43fd85b
+    # Merge: 48facdd6 56ffd291
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Apr 10 14:22:28 2024 +0100
-    #     Merge pull request #1345 from lplewa/native_cpu_log
-    #     Refactor native cpu adapter to new logger
-    e2b5b7fafa8721bfcd46426623adc2b586bacf56
+    # Date:   Thu Apr 25 10:23:31 2024 +0100
+    #     Merge pull request #1518 from PietroGhg/pietro/coverity
+    #     [NATIVECPU] Address coverity warnings in threadpool implementation
+    37242e39480d8bb73cb8cc3a54152edab43fd85b
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
