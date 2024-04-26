@@ -981,6 +981,33 @@ void CheckJITCompilationForImage(const RTDeviceBinaryImage *const &Image,
   }
 }
 
+static const char *getURDeviceTarget(const char *PIDeviceTarget) {
+  if (strcmp(PIDeviceTarget, __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN) == 0)
+    return UR_DEVICE_BINARY_TARGET_UNKNOWN;
+  else if (strcmp(PIDeviceTarget, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32) == 0)
+    return UR_DEVICE_BINARY_TARGET_SPIRV32;
+  else if (strcmp(PIDeviceTarget, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0)
+    return UR_DEVICE_BINARY_TARGET_SPIRV64;
+  else if (strcmp(PIDeviceTarget,
+                  __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0)
+    return UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
+  else if (strcmp(PIDeviceTarget, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) ==
+           0)
+    return UR_DEVICE_BINARY_TARGET_SPIRV64_GEN;
+  else if (strcmp(PIDeviceTarget,
+                  __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)
+    return UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
+  else if (strcmp(PIDeviceTarget, __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64) == 0)
+    return UR_DEVICE_BINARY_TARGET_NVPTX64;
+  else if (strcmp(PIDeviceTarget, __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN) == 0)
+    return UR_DEVICE_BINARY_TARGET_AMDGCN;
+  else if (strcmp(PIDeviceTarget, __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU) ==
+           0)
+    return "native_cpu"; // todo: define UR_DEVICE_BINARY_TARGET_NATIVE_CPU;
+
+  return UR_DEVICE_BINARY_TARGET_UNKNOWN;
+}
+
 template <typename StorageKey>
 RTDeviceBinaryImage *getBinImageFromMultiMap(
     const std::unordered_multimap<StorageKey, RTDeviceBinaryImage *> &ImagesSet,
@@ -996,45 +1023,8 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
 
   std::vector<ur_device_binary_t> UrBinaries(RawImgs.size());
   for (uint32_t BinaryCount = 0; BinaryCount < RawImgs.size(); BinaryCount++) {
-    if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
-               __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN) == 0)
-      UrBinaries[BinaryCount].pDeviceTargetSpec =
-          UR_DEVICE_BINARY_TARGET_UNKNOWN;
-    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32) == 0)
-      UrBinaries[BinaryCount].pDeviceTargetSpec =
-          UR_DEVICE_BINARY_TARGET_SPIRV32;
-    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0)
-      UrBinaries[BinaryCount].pDeviceTargetSpec =
-          UR_DEVICE_BINARY_TARGET_SPIRV64;
-    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0)
-      UrBinaries[BinaryCount].pDeviceTargetSpec =
-          UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
-    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0)
-      UrBinaries[BinaryCount].pDeviceTargetSpec =
-          UR_DEVICE_BINARY_TARGET_SPIRV64_GEN;
-    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)
-      UrBinaries[BinaryCount].pDeviceTargetSpec =
-          UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
-    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64) == 0)
-      UrBinaries[BinaryCount].pDeviceTargetSpec =
-          UR_DEVICE_BINARY_TARGET_NVPTX64;
-    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN) == 0)
-      UrBinaries[BinaryCount].pDeviceTargetSpec =
-          UR_DEVICE_BINARY_TARGET_AMDGCN;
-    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0)
-      UrBinaries[BinaryCount].pDeviceTargetSpec =
-          "native_cpu"; // todo: define UR_DEVICE_BINARY_TARGET_NATIVE_CPU;
-    else
-      UrBinaries[BinaryCount].pDeviceTargetSpec =
-          UR_DEVICE_BINARY_TARGET_UNKNOWN;
+    UrBinaries[BinaryCount].pDeviceTargetSpec =
+        getURDeviceTarget(RawImgs[BinaryCount]->DeviceTargetSpec);
   }
 
   pi_uint32 ImgInd = 0;
@@ -1121,45 +1111,8 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(
 
   std::vector<ur_device_binary_t> UrBinaries(RawImgs.size());
   for (uint32_t BinaryCount = 0; BinaryCount < RawImgs.size(); BinaryCount++) {
-    if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
-               __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN) == 0)
-      UrBinaries[BinaryCount].pDeviceTargetSpec =
-          UR_DEVICE_BINARY_TARGET_UNKNOWN;
-    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32) == 0)
-      UrBinaries[BinaryCount].pDeviceTargetSpec =
-          UR_DEVICE_BINARY_TARGET_SPIRV32;
-    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0)
-      UrBinaries[BinaryCount].pDeviceTargetSpec =
-          UR_DEVICE_BINARY_TARGET_SPIRV64;
-    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0)
-      UrBinaries[BinaryCount].pDeviceTargetSpec =
-          UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
-    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0)
-      UrBinaries[BinaryCount].pDeviceTargetSpec =
-          UR_DEVICE_BINARY_TARGET_SPIRV64_GEN;
-    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)
-      UrBinaries[BinaryCount].pDeviceTargetSpec =
-          UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
-    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64) == 0)
-      UrBinaries[BinaryCount].pDeviceTargetSpec =
-          UR_DEVICE_BINARY_TARGET_NVPTX64;
-    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN) == 0)
-      UrBinaries[BinaryCount].pDeviceTargetSpec =
-          UR_DEVICE_BINARY_TARGET_AMDGCN;
-    else if (strcmp(RawImgs[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0)
-      UrBinaries[BinaryCount].pDeviceTargetSpec =
-          "native_cpu"; // todo: define UR_DEVICE_BINARY_TARGET_NATIVE_CPU;
-    else
-      UrBinaries[BinaryCount].pDeviceTargetSpec =
-          UR_DEVICE_BINARY_TARGET_UNKNOWN;
+    UrBinaries[BinaryCount].pDeviceTargetSpec =
+        getURDeviceTarget(RawImgs[BinaryCount]->DeviceTargetSpec);
   }
 
   getSyclObjImpl(Context)->getUrPlugin()->call(
@@ -1666,36 +1619,7 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
       const_cast<pi_device_binary>(&BinImage->getRawData());
 
   ur_device_binary_t UrBinary{};
-  if (strcmp(DevBin->DeviceTargetSpec,
-             __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN) == 0)
-    UrBinary.pDeviceTargetSpec = UR_DEVICE_BINARY_TARGET_UNKNOWN;
-  else if (strcmp(DevBin->DeviceTargetSpec,
-                  __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32) == 0)
-    UrBinary.pDeviceTargetSpec = UR_DEVICE_BINARY_TARGET_SPIRV32;
-  else if (strcmp(DevBin->DeviceTargetSpec,
-                  __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0)
-    UrBinary.pDeviceTargetSpec = UR_DEVICE_BINARY_TARGET_SPIRV64;
-  else if (strcmp(DevBin->DeviceTargetSpec,
-                  __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0)
-    UrBinary.pDeviceTargetSpec = UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
-  else if (strcmp(DevBin->DeviceTargetSpec,
-                  __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0)
-    UrBinary.pDeviceTargetSpec = UR_DEVICE_BINARY_TARGET_SPIRV64_GEN;
-  else if (strcmp(DevBin->DeviceTargetSpec,
-                  __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)
-    UrBinary.pDeviceTargetSpec = UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
-  else if (strcmp(DevBin->DeviceTargetSpec,
-                  __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64) == 0)
-    UrBinary.pDeviceTargetSpec = UR_DEVICE_BINARY_TARGET_NVPTX64;
-  else if (strcmp(DevBin->DeviceTargetSpec,
-                  __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN) == 0)
-    UrBinary.pDeviceTargetSpec = UR_DEVICE_BINARY_TARGET_AMDGCN;
-  else if (strcmp(DevBin->DeviceTargetSpec,
-                  __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0)
-    UrBinary.pDeviceTargetSpec =
-        "native_cpu"; // todo: define UR_DEVICE_BINARY_TARGET_NATIVE_CPU;
-  else
-    UrBinary.pDeviceTargetSpec = UR_DEVICE_BINARY_TARGET_UNKNOWN;
+  UrBinary.pDeviceTargetSpec = getURDeviceTarget(DevBin->DeviceTargetSpec);
 
   ur_result_t Error = Plugin->call_nocheck(
       urDeviceSelectBinary, URDeviceHandle, &UrBinary,
