@@ -668,7 +668,7 @@ bool CXXRecordDecl::hasSubobjectAtOffsetZeroOfEmptyBaseType(
     for (auto *FD : X->fields()) {
       // FIXME: Should we really care about the type of the first non-static
       // data member of a non-union if there are preceding unnamed bit-fields?
-      if (FD->isUnnamedBitfield())
+      if (FD->isUnnamedBitField())
         continue;
 
       if (!IsFirstField && !FD->isZeroSize(Ctx))
@@ -947,7 +947,7 @@ void CXXRecordDecl::addedMember(Decl *D) {
     //   A declaration for a bit-field that omits the identifier declares an
     //   unnamed bit-field. Unnamed bit-fields are not members and cannot be
     //   initialized.
-    if (Field->isUnnamedBitfield()) {
+    if (Field->isUnnamedBitField()) {
       // C++ [meta.unary.prop]p4: [LWG2358]
       //   T is a class type [...] with [...] no unnamed bit-fields of non-zero
       //   length
@@ -1567,10 +1567,9 @@ bool CXXRecordDecl::isGenericLambda() const {
 
 #ifndef NDEBUG
 static bool allLookupResultsAreTheSame(const DeclContext::lookup_result &R) {
-  for (auto *D : R)
-    if (!declaresSameEntity(D, R.front()))
-      return false;
-  return true;
+  return llvm::all_of(R, [&](NamedDecl *D) {
+    return D->isInvalidDecl() || declaresSameEntity(D, R.front());
+  });
 }
 #endif
 
@@ -3470,7 +3469,8 @@ static bool isValidStructGUID(ASTContext &Ctx, QualType T) {
           return false;
       auto MatcherIt = Fields.begin();
       for (const FieldDecl *FD : RD->fields()) {
-        if (FD->isUnnamedBitfield()) continue;
+        if (FD->isUnnamedBitField())
+          continue;
         if (FD->isBitField() || MatcherIt == Fields.end() ||
             !(*MatcherIt)(FD->getType()))
           return false;

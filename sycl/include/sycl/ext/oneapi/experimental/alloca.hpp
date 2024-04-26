@@ -8,9 +8,13 @@
 
 #pragma once
 
-#include "sycl/exception.hpp"
-#include "sycl/kernel_handler.hpp"
-#include "sycl/multi_ptr.hpp"
+#include <sycl/exception.hpp>
+#include <sycl/kernel_handler.hpp>
+#include <sycl/pointers.hpp>
+
+#ifdef __SYCL_DEVICE_ONLY__
+#include "sycl/aspects.hpp"
+#endif
 
 namespace sycl {
 inline namespace _V1 {
@@ -31,7 +35,8 @@ namespace ext::oneapi::experimental {
 template <typename ElementType, auto &SizeSpecName,
           access::decorated DecorateAddress>
 __SYCL_BUILTIN_ALIAS(__builtin_intel_sycl_alloca)
-private_ptr<ElementType, DecorateAddress> private_alloca(kernel_handler &kh);
+[[__sycl_detail__::__uses_aspects__(aspect::ext_oneapi_private_alloca)]] private_ptr<
+    ElementType, DecorateAddress> private_alloca(kernel_handler &kh);
 
 #else
 

@@ -64,8 +64,9 @@ enum class VersionNumber : uint32_t {
   SPIRV_1_3 = 0x00010300,
   SPIRV_1_4 = 0x00010400,
   SPIRV_1_5 = 0x00010500,
+  SPIRV_1_6 = 0x00010600,
   MinimumVersion = SPIRV_1_0,
-  MaximumVersion = SPIRV_1_5
+  MaximumVersion = SPIRV_1_6
 };
 
 inline constexpr std::string_view formatVersionNumber(uint32_t Version) {
@@ -82,6 +83,8 @@ inline constexpr std::string_view formatVersionNumber(uint32_t Version) {
     return "1.4";
   case static_cast<uint32_t>(VersionNumber::SPIRV_1_5):
     return "1.5";
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_6):
+    return "1.6";
   }
   return "unknown";
 }
@@ -162,11 +165,7 @@ public:
     GenKernelArgNameMD = ArgNameMD;
   }
 
-  void enableAllExtensions() {
-#define EXT(X) ExtStatusMap[ExtensionID::X] = true;
-#include "LLVMSPIRVExtensions.inc"
-#undef EXT
-  }
+  void enableAllExtensions();
 
   void enableGenArgNameMD() { GenKernelArgNameMD = true; }
 

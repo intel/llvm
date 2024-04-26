@@ -2,7 +2,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/matrix/matrix.hpp>
 
 using namespace sycl::ext::oneapi::experimental::matrix;
 
@@ -29,6 +30,8 @@ int main() {
       {8, 0, 0, 0, 16, 16, matrix_type::bf16, matrix_type::bf16,
        matrix_type::fp32, matrix_type::fp32},
       {0, 0, 0, 16, 16, 16, matrix_type::bf16, matrix_type::bf16,
+       matrix_type::fp32, matrix_type::fp32},
+      {0, 0, 0, 1, 64, 16, matrix_type::bf16, matrix_type::bf16,
        matrix_type::fp32, matrix_type::fp32},
       {0, 0, 0, 32, 64, 16, matrix_type::bf16, matrix_type::bf16,
        matrix_type::fp32, matrix_type::fp32},

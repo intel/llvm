@@ -24,7 +24,7 @@ static Command *getCommand(const EventImplPtr &Event) {
 void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event,
                                              ReadLockT &GraphReadLock,
                                              std::vector<Command *> &ToCleanUp,
-                                             bool LockTheLock) {
+                                             bool LockTheLock, bool *Success) {
   Command *Cmd = getCommand(Event);
   // Command can be nullptr if user creates sycl::event explicitly or the
   // event has been waited on by another thread
@@ -41,7 +41,7 @@ void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event,
   assert(Cmd->getEvent() == Event);
 
   GraphReadLock.unlock();
-  Event->waitInternal();
+  Event->waitInternal(Success);
 
   if (LockTheLock)
     GraphReadLock.lock();

@@ -29,6 +29,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions: read-all
+
 jobs:
   detect_changes:
     uses: ./.github/workflows/sycl-detect-changes.yml
@@ -43,8 +45,6 @@ jobs:
       build_cache_root: "/__w/"
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
-      # FIXME: UR can't find /opt/rocm/hsa with rocm-6.0.0. Previous rocm-5.7.0 had it.
-      build_image: "ghcr.io/intel/llvm/ubuntu2204_build:7ed894ab0acc8ff09262113fdb08940d22654a30"
       changes: ${{ needs.detect_changes.outputs.filters }}
 
   determine_arc_tests:
@@ -59,7 +59,9 @@ jobs:
       - name: Determine Arc tests
         id: arc_tests
         run: |
-          if [ "${{ contains(needs.detect_changes.outputs.filters, 'esimd') }}" == "true" ]; then
+          if [ "${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}" == "true" ]; then
+             echo 'arc_tests=""' >> "$GITHUB_OUTPUT"
+          elif [ "${{ contains(needs.detect_changes.outputs.filters, 'esimd') }}" == "true" ]; then
             echo 'arc_tests="(ESIMD|InvokeSimd|Matrix)/"' >> "$GITHUB_OUTPUT"
           else
             echo 'arc_tests="Matrix/"' >> "$GITHUB_OUTPUT"
@@ -73,8 +75,7 @@ jobs:
         include:
           - name: AMD/HIP
             runner: '["Linux", "amdgpu"]'
-            # FIXME: Keep in sync with the above hack.
-            image: ghcr.io/intel/llvm/ubuntu2204_build:7ed894ab0acc8ff09262113fdb08940d22654a30
+            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: ext_oneapi_hip:gpu
           - name: Intel
@@ -91,7 +92,10 @@ jobs:
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
             reset_gpu: true
-            install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
+            install_drivers: >-
+              ${{ contains(needs.detect_changes.outputs.filters, 'drivers') ||
+              contains(needs.detect_changes.outputs.filters, 'devigccfg') }}
+            use_dev_igc: ${{ contains(needs.detect_changes.outputs.filters, 'devigccfg') }}
             extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
             env: '{"LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
     uses: ./.github/workflows/sycl-linux-run-tests.yml
@@ -103,7 +107,7 @@ jobs:
       target_devices: ${{ matrix.target_devices }}
       reset_gpu: ${{ matrix.reset_gpu }}
       install_drivers: ${{ matrix.install_drivers }}
-
+      use_dev_igc: ${{ matrix.use_dev_igc }}
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
       env: ${{ matrix.env || '{}' }}
 

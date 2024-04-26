@@ -14,11 +14,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "SYCLDeviceLibReqMask.h"
-#include "SYCLDeviceRequirements.h"
 #include "SYCLKernelParamOptInfo.h"
 #include "SpecConstants.h"
 #include "Support.h"
 
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
@@ -34,12 +34,14 @@
 #include "llvm/Linker/Linker.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
+#include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
+#include "llvm/SYCLLowerIR/SYCLDeviceRequirements.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLLowerIR/SanitizeDeviceGlobal.h"
 #include "llvm/Support/CommandLine.h"
@@ -105,9 +107,32 @@ cl::opt<std::string> OutputDir{
         "Directory where files listed in the result file table will be output"),
     cl::value_desc("dirname"), cl::cat(PostLinkCat)};
 
-cl::opt<std::string> OutputFilename{"o", cl::desc("Output filename"),
-                                    cl::value_desc("filename"), cl::init("-"),
-                                    cl::cat(PostLinkCat)};
+struct TargetFilenamePair {
+  std::optional<std::string> Target;
+  std::string Filename;
+};
+
+struct TargetFilenamePairParser : public cl::basic_parser<TargetFilenamePair> {
+  using cl::basic_parser<TargetFilenamePair>::basic_parser;
+  bool parse(cl::Option &O, StringRef ArgName, StringRef &ArgValue,
+             TargetFilenamePair &Val) const {
+    auto [Target, Filename] = ArgValue.split(",");
+    if (Filename == "")
+      std::swap(Target, Filename);
+    Val = {Target.str(), Filename.str()};
+    return false;
+  }
+};
+
+cl::list<TargetFilenamePair, bool, TargetFilenamePairParser> OutputFiles{
+    "o",
+    cl::desc(
+        "Specifies an output file. Multiple output files can be "
+        "specified. Additionally, a target may be specified alongside an "
+        "output file, which has the effect that when module splitting is "
+        "performed, the modules that are in that output table are filtered "
+        "so those modules are compatible with the target."),
+    cl::value_desc("target filename pair"), cl::cat(PostLinkCat)};
 
 cl::opt<bool> Force{"f", cl::desc("Enable binary output on terminals"),
                     cl::cat(PostLinkCat)};
@@ -314,7 +339,12 @@ std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
 }
 
 bool isModuleUsingAsan(const Module &M) {
-  return nullptr != M.getNamedGlobal("__DeviceSanitizerReportMem");
+  NamedMDNode *MD = M.getNamedMetadata("device.sanitizer");
+  if (MD == nullptr)
+    return false;
+  assert(MD->getNumOperands() != 0);
+  auto *MDVal = cast<MDString>(MD->getOperand(0)->getOperand(0));
+  return MDVal->getString() == "asan";
 }
 
 // Gets reqd_work_group_size information for function Func.
@@ -337,13 +367,14 @@ std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
 std::string makeResultFileName(Twine Ext, int I, StringRef Suffix) {
   const StringRef Dir0 = OutputDir.getNumOccurrences() > 0
                              ? OutputDir
-                             : sys::path::parent_path(OutputFilename);
+                             : sys::path::parent_path(OutputFiles[0].Filename);
   const StringRef Sep = sys::path::get_separator();
   std::string Dir = Dir0.str();
   if (!Dir0.empty() && !Dir0.ends_with(Sep))
     Dir += Sep.str();
-  return Dir + sys::path::stem(OutputFilename).str() + Suffix.str() + "_" +
-         std::to_string(I) + Ext.str();
+  return (Dir + sys::path::stem(OutputFiles[0].Filename) + Suffix + "_" +
+          Twine(I) + Ext)
+      .str();
 }
 
 void saveModuleIR(Module &M, StringRef OutFilename) {
@@ -382,9 +413,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     PropSet.add(PropSetRegTy::SYCL_DEVICELIB_REQ_MASK, RMEntry);
   }
   {
-    std::map<StringRef, llvm::util::PropertyValue> Requirements;
-    getSYCLDeviceRequirements(MD, Requirements);
-    PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS, Requirements);
+    PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS,
+                MD.getOrComputeDeviceRequirements().asMap());
   }
   if (MD.Props.SpecConstsMet) {
     // extract spec constant maps per each module
@@ -644,6 +674,7 @@ bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
     MainFPM.addPass(InstCombinePass{});
     MainFPM.addPass(DCEPass{});
   }
+  MPM.addPass(ESIMDLowerSLMReservationCalls{});
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(MainFPM)));
   MPM.addPass(GenXSPIRVWriterAdaptor(/*RewriteTypes=*/true,
                                      /*RewriteSingleElementVectorsIn*/ false));
@@ -937,7 +968,80 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
   return Result;
 }
 
-std::unique_ptr<util::SimpleTable>
+// Checks if the given target and module are compatible.
+// A target and module are compatible if all the optional kernel features
+// the module uses are supported by that target (i.e. that module can be
+// compiled for that target and then be executed on that target). This
+// information comes from the device config file (DeviceConfigFile.td).
+// For example, the intel_gpu_tgllp target does not support fp64 - therefore,
+// a module using fp64 would *not* be compatible with intel_gpu_tgllp.
+bool isTargetCompatibleWithModule(const std::optional<std::string> &Target,
+                                  module_split::ModuleDesc &IrMD) {
+  // When the user does not specify a target,
+  // (e.g. -o out.table compared to -o intel_gpu_pvc,out-pvc.table)
+  // Target will have no value and we will not want to perform any filtering, so
+  // we return true here.
+  if (!Target.has_value())
+    return true;
+
+  // TODO: If a target not found in the device config file is passed,
+  // to sycl-post-link, then we should probably throw an error. However,
+  // since not all the information for all the targets is filled out
+  // right now, we return true, having the affect that unrecognized
+  // targets have no filtering applied to them.
+  if (!is_contained(DeviceConfigFile::TargetTable, *Target))
+    return true;
+
+  const DeviceConfigFile::TargetInfo &TargetInfo =
+      DeviceConfigFile::TargetTable[*Target];
+  const SYCLDeviceRequirements &ModuleReqs =
+      IrMD.getOrComputeDeviceRequirements();
+  // The device config file data stores the target's supported
+  // aspects as a vector of the strings, so we need to translate
+  // the values to a common format.
+  const NamedMDNode *Node = IrMD.getModule().getNamedMetadata("sycl_aspects");
+  if (Node) {
+    SmallMapVector<StringRef, int, 32> AspectNameToValue;
+    for (const MDNode *N : Node->operands()) {
+      assert(N->getNumOperands() == 2 &&
+             "Each operand of sycl_aspects must be a pair.");
+
+      // The aspect's name is the first operand.
+      const auto *AspectName = cast<MDString>(N->getOperand(0));
+
+      // The aspect's integral value is the second operand.
+      const auto *AspectCAM = cast<ConstantAsMetadata>(N->getOperand(1));
+      const Constant *AspectC = AspectCAM->getValue();
+
+      AspectNameToValue[AspectName->getString()] =
+          cast<ConstantInt>(AspectC)->getSExtValue();
+    }
+
+    // Make the set of aspects values the target supports.
+    SmallSet<int64_t, 32> TargetAspectValueSet;
+    for (auto Aspect : TargetInfo.aspects) {
+      auto It = AspectNameToValue.find(Aspect);
+      assert(It != AspectNameToValue.end() && "Aspect value mapping unknown!");
+      TargetAspectValueSet.insert(It->second);
+    }
+
+    // Now check to see if all the requirements of the input module
+    // are compatbile with the target.
+    for (auto Aspect : ModuleReqs.Aspects) {
+      if (!TargetAspectValueSet.contains(Aspect))
+        return false;
+    }
+  }
+
+  // Check if module sub group size is compatible with the target.
+  if (ModuleReqs.SubGroupSize.has_value() &&
+      !is_contained(TargetInfo.subGroupSizes, *ModuleReqs.SubGroupSize))
+    return false;
+
+  return true;
+}
+
+std::vector<std::unique_ptr<util::SimpleTable>>
 processInputModule(std::unique_ptr<Module> M) {
   // Construct the resulting table which will accumulate all the outputs.
   SmallVector<StringRef, MAX_COLUMNS_IN_FILE_TABLE> ColumnTitles{
@@ -949,7 +1053,14 @@ processInputModule(std::unique_ptr<Module> M) {
   Expected<std::unique_ptr<util::SimpleTable>> TableE =
       util::SimpleTable::create(ColumnTitles);
   CHECK_AND_EXIT(TableE.takeError());
-  std::unique_ptr<util::SimpleTable> Table = std::move(TableE.get());
+  std::vector<std::unique_ptr<util::SimpleTable>> Tables;
+  for (auto OutputFile : OutputFiles) {
+    std::ignore = OutputFile;
+    Expected<std::unique_ptr<util::SimpleTable>> TableE =
+        util::SimpleTable::create(ColumnTitles);
+    CHECK_AND_EXIT(TableE.takeError());
+    Tables.push_back(std::move(TableE.get()));
+  }
 
   // Used in output filenames generation.
   int ID = 0;
@@ -1049,14 +1160,14 @@ processInputModule(std::unique_ptr<Module> M) {
               "' can't be used");
       }
       MMs.front().cleanup();
-      saveModuleIR(MMs.front().getModule(), OutputFilename);
-      return Table;
+      saveModuleIR(MMs.front().getModule(), OutputFiles[0].Filename);
+      return Tables;
     }
     // Empty IR file name directs saveModule to generate one and save IR to
     // it:
     std::string OutIRFileName = "";
 
-    if (!Modified && (OutputFilename.getNumOccurrences() == 0)) {
+    if (!Modified && (OutputFiles.getNumOccurrences() == 0)) {
       assert(!SplitOccurred);
       OutIRFileName = InputFilename; // ... non-empty means "skip IR writing"
       errs() << "sycl-post-link NOTE: no modifications to the input LLVM IR "
@@ -1064,7 +1175,9 @@ processInputModule(std::unique_ptr<Module> M) {
     }
     for (module_split::ModuleDesc &IrMD : MMs) {
       IrPropSymFilenameTriple T = saveModule(IrMD, ID, OutIRFileName);
-      addTableRow(*Table, T);
+      for (const auto &[Table, OutputFile] : zip_equal(Tables, OutputFiles))
+        if (isTargetCompatibleWithModule(OutputFile.Target, IrMD))
+          addTableRow(*Table, T);
     }
 
     ++ID;
@@ -1073,13 +1186,15 @@ processInputModule(std::unique_ptr<Module> M) {
       for (size_t i = 0; i != MMsWithDefaultSpecConsts.size(); ++i) {
         module_split::ModuleDesc &IrMD = MMsWithDefaultSpecConsts[i];
         IrPropSymFilenameTriple T = saveModule(IrMD, ID, OutIRFileName);
-        addTableRow(*Table, T);
+        for (const auto &[Table, OutputFile] : zip_equal(Tables, OutputFiles))
+          if (isTargetCompatibleWithModule(OutputFile.Target, IrMD))
+            addTableRow(*Table, T);
       }
 
       ++ID;
     }
   }
-  return Table;
+  return Tables;
 }
 
 } // namespace
@@ -1203,23 +1318,26 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  if (OutputFilename.getNumOccurrences() == 0) {
-    std::string S =
+  if (OutputFiles.getNumOccurrences() == 0) {
+    StringRef S =
         IROutputOnly ? (OutputAssembly ? ".out.ll" : "out.bc") : ".files";
-    OutputFilename = (Twine(sys::path::stem(InputFilename)) + S).str();
+    OutputFiles.push_back({{}, (sys::path::stem(InputFilename) + S).str()});
   }
 
-  std::unique_ptr<util::SimpleTable> Table = processInputModule(std::move(M));
+  std::vector<std::unique_ptr<util::SimpleTable>> Tables =
+      processInputModule(std::move(M));
 
   // Input module was processed and a single output file was requested.
   if (IROutputOnly)
     return 0;
 
-  // Emit the resulting table
-  std::error_code EC;
-  raw_fd_ostream Out{OutputFilename, EC, sys::fs::OF_None};
-  checkError(EC, "error opening file '" + OutputFilename + "'");
-  Table->write(Out);
+  // Emit the resulting tables
+  for (const auto &[Table, OutputFile] : zip_equal(Tables, OutputFiles)) {
+    std::error_code EC;
+    raw_fd_ostream Out{OutputFile.Filename, EC, sys::fs::OF_None};
+    checkError(EC, "error opening file '" + OutputFile.Filename + "'");
+    Table->write(Out);
+  }
 
   return 0;
 }

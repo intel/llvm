@@ -1196,10 +1196,12 @@ SPIRVToLLVM::expandOCLBuiltinWithScalarArg(CallInst *CI,
       else {
         NewVec = ConstantVector::getSplat(
             VecElemCount, Constant::getNullValue(Arg->getType()));
-        NewVec = InsertElementInst::Create(NewVec, Arg, getInt32(M, 0), "", CI);
+        NewVec = InsertElementInst::Create(NewVec, Arg, getInt32(M, 0), "",
+                                           CI->getIterator());
         NewVec = new ShuffleVectorInst(
             NewVec, NewVec,
-            ConstantVector::getSplat(VecElemCount, getInt32(M, 0)), "", CI);
+            ConstantVector::getSplat(VecElemCount, getInt32(M, 0)), "",
+            CI->getIterator());
       }
       NewVec->takeName(Arg);
       return NewVec;
@@ -1778,13 +1780,15 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     CallInst *CI = nullptr;
     llvm::Value *Dst = transValue(BC->getTarget(), F, BB);
     MaybeAlign Align(BC->getAlignment());
+    MaybeAlign SrcAlign =
+        BC->getSrcAlignment() ? MaybeAlign(BC->getSrcAlignment()) : Align;
     llvm::Value *Size = transValue(BC->getSize(), F, BB);
     bool IsVolatile = BC->SPIRVMemoryAccess::isVolatile();
     IRBuilder<> Builder(BB);
 
     if (!CI) {
       llvm::Value *Src = transValue(BC->getSource(), F, BB);
-      CI = Builder.CreateMemCpy(Dst, Align, Src, Align, Size, IsVolatile);
+      CI = Builder.CreateMemCpy(Dst, Align, Src, SrcAlign, Size, IsVolatile);
     }
     if (isFuncNoUnwind())
       CI->getFunction()->addFnAttr(Attribute::NoUnwind);
@@ -2101,6 +2105,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     LoadInst *LI = new LoadInst(Ty, AI, "", BB);
     return mapValue(BV, LI);
   }
+  case OpCopyLogical: {
+    SPIRVCopyLogical *CL = static_cast<SPIRVCopyLogical *>(BV);
+    return mapValue(BV, transSPIRVBuiltinFromInst(CL, BB));
+  }
 
   case OpAccessChain:
   case OpInBoundsAccessChain:
@@ -2154,6 +2162,28 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       auto *CT = cast<Constant>(Base);
       V = ConstantExpr::getGetElementPtr(BaseTy, CT, Index, IsInbound);
     }
+    return mapValue(BV, V);
+  }
+
+  case OpPtrEqual:
+  case OpPtrNotEqual: {
+    auto *BC = static_cast<SPIRVBinary *>(BV);
+    auto Ops = transValue(BC->getOperands(), F, BB);
+
+    IRBuilder<> Builder(BB);
+    Value *Op1 = Builder.CreatePtrToInt(Ops[0], Type::getInt64Ty(*Context));
+    Value *Op2 = Builder.CreatePtrToInt(Ops[1], Type::getInt64Ty(*Context));
+    CmpInst::Predicate P =
+        OC == OpPtrEqual ? ICmpInst::ICMP_EQ : ICmpInst::ICMP_NE;
+    Value *V = Builder.CreateICmp(P, Op1, Op2);
+    return mapValue(BV, V);
+  }
+
+  case OpPtrDiff: {
+    auto *BC = static_cast<SPIRVBinary *>(BV);
+    auto Ops = transValue(BC->getOperands(), F, BB);
+    IRBuilder<> Builder(BB);
+    Value *V = Builder.CreatePtrDiff(transType(BC->getType()), Ops[0], Ops[1]);
     return mapValue(BV, V);
   }
 
@@ -3205,8 +3235,9 @@ Instruction *SPIRVToLLVM::transBuiltinFromInst(const std::string &FuncName,
     if (isFuncNoUnwind())
       Func->addFnAttr(Attribute::NoUnwind);
     auto OC = BI->getOpCode();
-    if (isGroupOpCode(OC) || isIntelSubgroupOpCode(OC) ||
-        isSplitBarrierINTELOpCode(OC) || OC == OpControlBarrier)
+    if (isGroupOpCode(OC) || isGroupNonUniformOpcode(OC) ||
+        isIntelSubgroupOpCode(OC) || isSplitBarrierINTELOpCode(OC) ||
+        OC == OpControlBarrier)
       Func->addFnAttr(Attribute::Convergent);
   }
   auto *Call =
@@ -4184,8 +4215,8 @@ bool SPIRVToLLVM::transMetadata() {
                      ->getLiterals()[0] == 0 &&
              "Invalid named sub group size");
       // On the LLVM IR side, this is represented as the metadata
-      // intel_reqd_sub_group_size with value 0.
-      auto *SizeMD = ConstantAsMetadata::get(getUInt32(M, 0));
+      // intel_reqd_sub_group_size with value -1.
+      auto *SizeMD = ConstantAsMetadata::get(getInt32(M, -1));
       F->setMetadata(kSPIR2MD::SubgroupSize, MDNode::get(*Context, SizeMD));
     }
     // Generate metadata for max_work_group_size

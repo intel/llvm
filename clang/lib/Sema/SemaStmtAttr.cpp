@@ -821,8 +821,8 @@ static void CheckForDuplicateLoopAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
           << *FirstItr;
       S.Diag((*FirstItr)->getLocation(), diag::note_previous_attribute);
     }
-    return;
   }
+  return;
 }
 
 static Attr *handleMSConstexprAttr(Sema &S, Stmt *St, const ParsedAttr &A,
@@ -980,8 +980,8 @@ CheckForDuplicationSYCLLoopAttribute(Sema &S,
 // Diagnose non-identical duplicates as a 'conflicting' loop attributes
 // and suppress duplicate errors in cases where the two match for
 // FPGA attributes: 'SYCLIntelMaxInterleavingAttr',
-// 'SYCLIntelSpeculatedIterationsAttr', and
-// 'SYCLIntelMaxReinvocationDelayAttr'.
+// 'SYCLIntelSpeculatedIterationsAttr', 'SYCLIntelMaxReinvocationDelayAttr',
+// 'SYCLIntelInitiationIntervalAttr', and 'SYCLIntelMaxConcurrencyAttr'
 template <typename LoopAttrT>
 static void CheckForDuplicateAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
   auto FindFunc = [](const Attr *A) { return isa<const LoopAttrT>(A); };
@@ -1023,10 +1023,8 @@ static void CheckForDuplicateAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
 
 static void CheckForIncompatibleSYCLLoopAttributes(
     Sema &S, const SmallVectorImpl<const Attr *> &Attrs) {
-  CheckForDuplicationSYCLLoopAttribute<SYCLIntelInitiationIntervalAttr>(
-      S, Attrs);
-  CheckForDuplicationSYCLLoopAttribute<SYCLIntelMaxConcurrencyAttr>(S,
-                                                                        Attrs);
+  CheckForDuplicateAttrs<SYCLIntelInitiationIntervalAttr>(S, Attrs);
+  CheckForDuplicateAttrs<SYCLIntelMaxConcurrencyAttr>(S, Attrs);
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelLoopCoalesceAttr>(S, Attrs);
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelDisableLoopPipeliningAttr>(
       S, Attrs);
@@ -1224,6 +1222,8 @@ bool Sema::CheckRebuiltAttributedStmtAttributes(ArrayRef<const Attr *> Attrs) {
   CheckForDuplicateAttrs<SYCLIntelSpeculatedIterationsAttr>(*this, Attrs);
   CheckForDuplicateAttrs<SYCLIntelMaxInterleavingAttr>(*this, Attrs);
   CheckForDuplicateAttrs<SYCLIntelMaxReinvocationDelayAttr>(*this, Attrs);
+  CheckForDuplicateAttrs<SYCLIntelInitiationIntervalAttr>(*this, Attrs);
+  CheckForDuplicateAttrs<SYCLIntelMaxConcurrencyAttr>(*this, Attrs);
   return false;
 }
 

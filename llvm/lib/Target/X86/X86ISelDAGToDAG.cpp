@@ -2927,11 +2927,10 @@ bool X86DAGToDAGISel::selectAddr(SDNode *Parent, SDValue N, SDValue &Base,
 }
 
 bool X86DAGToDAGISel::selectMOV64Imm32(SDValue N, SDValue &Imm) {
-  // Cannot use 32 bit constants to reference objects in kernel code model.
-  // Cannot use 32 bit constants to reference objects in large PIC mode since
-  // GOTOFF is 64 bits.
+  // Cannot use 32 bit constants to reference objects in kernel/large code
+  // model.
   if (TM.getCodeModel() == CodeModel::Kernel ||
-      (TM.getCodeModel() == CodeModel::Large && TM.isPositionIndependent()))
+      TM.getCodeModel() == CodeModel::Large)
     return false;
 
   // In static codegen with small code model, we can get the address of a label
@@ -3090,13 +3089,19 @@ bool X86DAGToDAGISel::selectLEAAddr(SDValue N,
 bool X86DAGToDAGISel::selectTLSADDRAddr(SDValue N, SDValue &Base,
                                         SDValue &Scale, SDValue &Index,
                                         SDValue &Disp, SDValue &Segment) {
-  assert(N.getOpcode() == ISD::TargetGlobalTLSAddress);
-  auto *GA = cast<GlobalAddressSDNode>(N);
+  assert(N.getOpcode() == ISD::TargetGlobalTLSAddress ||
+         N.getOpcode() == ISD::TargetExternalSymbol);
 
   X86ISelAddressMode AM;
-  AM.GV = GA->getGlobal();
-  AM.Disp += GA->getOffset();
-  AM.SymbolFlags = GA->getTargetFlags();
+  if (auto *GA = dyn_cast<GlobalAddressSDNode>(N)) {
+    AM.GV = GA->getGlobal();
+    AM.Disp += GA->getOffset();
+    AM.SymbolFlags = GA->getTargetFlags();
+  } else {
+    auto *SA = cast<ExternalSymbolSDNode>(N);
+    AM.ES = SA->getSymbol();
+    AM.SymbolFlags = SA->getTargetFlags();
+  }
 
   if (Subtarget->is32Bit()) {
     AM.Scale = 1;

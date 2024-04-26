@@ -12,22 +12,22 @@
 // CHECK-SAME: [style=bold, label="ID = 0x[[#NODE2]]\nTYPE = CGExecKernel \nNAME = _ZTSZZ11run_kernelsItEN4sycl3_V15eventENS1_5queueEmNS1_6bufferIT_Li1ENS1_6detail17aligned_allocatorINSt12remove_constIS5_E4typeEEEvEESC_SC_ENKUlRNS1_7handlerEE0_clESE_EUlNS1_4itemILi1ELb1EEEE_\n"];
 // CHECK-NEXT: "0x[[#NODE1]]" -> "0x[[#NODE2]]"
 // CHECK-NEXT: "0x[[#%x,NODE3:]]"
-// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE3]]\nTYPE = CGExecKernel \nNAME = _ZTSZZ11run_kernelsItEN4sycl3_V15eventENS1_5queueEmNS1_6bufferIT_Li1ENS1_6detail17aligned_allocatorINSt12remove_constIS5_E4typeEEEvEESC_SC_ENKUlRNS1_7handlerEE1_clESE_EUlNS1_4itemILi1ELb1EEEE_\n"];
-// CHECK-NEXT: "0x[[#NODE2]]" -> "0x[[#NODE3]]"
+// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE3]]\nTYPE = CGExecKernel \nNAME = _ZTSZZ11run_kernelsItEN4sycl3_V15eventENS1_5queueEmNS1_6bufferIT_Li1ENS1_6detail17aligned_allocatorINSt12remove_constIS5_E4typeEEEvEESC_SC_ENKUlRNS1_7handlerEE2_clESE_EUlNS1_4itemILi1ELb1EEEE_\n"];
+// CHECK-DAG: "0x[[#NODE2]]" -> "0x[[#NODE3]]"
+// CHECK-DAG: "0x[[#%x,NODE7:]]" -> "0x[[#NODE3]]"
 // CHECK-NEXT: "0x[[#%x,NODE4:]]"
-// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE4]]\nTYPE = CGExecKernel \nNAME = _ZTSZZ11run_kernelsItEN4sycl3_V15eventENS1_5queueEmNS1_6bufferIT_Li1ENS1_6detail17aligned_allocatorINSt12remove_constIS5_E4typeEEEvEESC_SC_ENKUlRNS1_7handlerEE2_clESE_EUlNS1_4itemILi1ELb1EEEE_\n"];
+// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE4]]\nTYPE = CGCopy Device-to-Device \n"];
 // CHECK-DAG: "0x[[#NODE3]]" -> "0x[[#NODE4]]"
-// CHECK-DAG: "0x[[#NODE2]]" -> "0x[[#NODE4]]"
+// CHECK-DAG: "0x[[#NODE1]]" -> "0x[[#NODE4]]"
 // CHECK-NEXT: "0x[[#%x,NODE5:]]"
-// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE5]]\nTYPE = CGCopy Device-to-Device \n"];
+// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE5]]\nTYPE = CGCopy Device-to-Host \n"];
 // CHECK-DAG: "0x[[#NODE3]]" -> "0x[[#NODE5]]"
-// CHECK-DAG: "0x[[#NODE4]]" -> "0x[[#NODE5]]
 // CHECK-NEXT: "0x[[#%x,NODE6:]]"
-// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE6]]\nTYPE = CGCopy Device-to-Host \n"];
-// CHECK-DAG: "0x[[#NODE4]]" -> "0x[[#NODE6]]"
-// CHECK-NEXT: "0x[[#%x,NODE7:]]"
-// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE7]]\nTYPE = None \n"];
-// CHECK-DAG: "0x[[#NODE6]]" -> "0x[[#NODE7]]"
+// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE6]]\nTYPE = None \n"];
+// CHECK-DAG: "0x[[#NODE5]]" -> "0x[[#NODE6]]"
+// CHECK-NEXT: "0x[[#NODE7]]"
+// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE7]]\nTYPE = CGExecKernel \nNAME = _ZTSZZ11run_kernelsItEN4sycl3_V15eventENS1_5queueEmNS1_6bufferIT_Li1ENS1_6detail17aligned_allocatorINSt12remove_constIS5_E4typeEEEvEESC_SC_ENKUlRNS1_7handlerEE1_clESE_EUlNS1_4itemILi1ELb1EEEE_\n"];
+// CHECK-DAG: "0x[[#NODE1]]" -> "0x[[#NODE7]]"
 
 #define GRAPH_E2E_RECORD_REPLAY
 

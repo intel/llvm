@@ -714,16 +714,6 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef InputTable,
   return *Output;
 }
 
-Expected<std::vector<char>> readBinaryFile(StringRef File) {
-  auto MBOrErr = MemoryBuffer::getFile(File, /*IsText*/ false,
-                                       /*RequiresNullTerminator */ false);
-  if (!MBOrErr)
-    return createFileError(File, MBOrErr.getError());
-
-  auto &MB = *MBOrErr;
-  return std::vector<char>(MB->getBufferStart(), MB->getBufferEnd());
-}
-
 Expected<std::string> readTextFile(StringRef File) {
   auto MBOrErr = MemoryBuffer::getFile(File, /*IsText*/ true,
                                        /*RequiresNullTerminator */ true);
@@ -768,9 +758,10 @@ readSYCLImagesFromTable(StringRef TableFile, const ArgList &Args) {
 
   SmallVector<offloading::SYCLImage> Images;
   for (const util::SimpleTable::Row &row : Table->rows()) {
-    auto ImageOrErr = readBinaryFile(row.getCell("Code"));
+    auto ImagePath = row.getCell("Code");
+    auto ImageOrErr = MemoryBuffer::getFile(ImagePath);
     if (!ImageOrErr)
-      return ImageOrErr.takeError();
+      return createFileError(ImagePath, ImageOrErr.getError());
 
     auto PropertiesOrErr =
         readPropertyRegistryFromFile(row.getCell("Properties"));
@@ -788,7 +779,7 @@ readSYCLImagesFromTable(StringRef TableFile, const ArgList &Args) {
     Images.push_back(std::move(Image));
   }
 
-  return Images;
+  return std::move(Images);
 }
 
 /// Reads device images from the given \p InputFile and wraps them
@@ -1026,6 +1017,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
   StringRef OptLevel = Args.getLastArgValue(OPT_opt_level, "O2");
   SmallVector<StringRef, 16> CmdArgs{
       *ClangPath,
+      "--no-default-config",
       "-o",
       *TempFileOrErr,
       Args.MakeArgString("--target=" + Triple.getTriple()),
@@ -1130,6 +1122,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   case Triple::aarch64_be:
   case Triple::ppc64:
   case Triple::ppc64le:
+  case Triple::systemz:
     return generic::clang(InputFiles, Args);
   case Triple::spirv32:
   case Triple::spirv64:
@@ -2070,9 +2063,9 @@ getDeviceInput(const ArgList &Args) {
   StringSaver Saver(Alloc);
 
   // Try to extract device code from the linker input files.
-  DenseMap<OffloadFile::TargetID, SmallVector<OffloadFile>> InputFiles;
-  DenseMap<OffloadFile::TargetID, DenseMap<StringRef, Symbol>> Syms;
   bool WholeArchive = Args.hasArg(OPT_wholearchive_flag) ? true : false;
+  SmallVector<OffloadFile> ObjectFilesToExtract;
+  SmallVector<OffloadFile> ArchiveFilesToExtract;
   for (const opt::Arg *Arg : Args.filtered(
            OPT_INPUT, OPT_library, OPT_whole_archive, OPT_no_whole_archive)) {
     if (Arg->getOption().matches(OPT_whole_archive) ||
@@ -2120,50 +2113,87 @@ getDeviceInput(const ArgList &Args) {
     if (Error Err = extractOffloadBinaries(Buffer, Binaries))
       return std::move(Err);
 
-    // We only extract archive members that are needed.
-    bool IsArchive = identify_magic(Buffer.getBuffer()) == file_magic::archive;
-    bool Extracted = true;
-    while (Extracted) {
-      Extracted = false;
-      for (OffloadFile &Binary : Binaries) {
-        // If the binary was previously extracted it will be set to null.
-        if (!Binary.getBinary())
+    for (auto &OffloadFile : Binaries) {
+      if (identify_magic(Buffer.getBuffer()) == file_magic::archive &&
+          !WholeArchive)
+        ArchiveFilesToExtract.emplace_back(std::move(OffloadFile));
+      else
+        ObjectFilesToExtract.emplace_back(std::move(OffloadFile));
+    }
+  }
+
+  // Link all standard input files and update the list of symbols.
+  DenseMap<OffloadFile::TargetID, SmallVector<OffloadFile>> InputFiles;
+  DenseMap<OffloadFile::TargetID, DenseMap<StringRef, Symbol>> Syms;
+  for (OffloadFile &Binary : ObjectFilesToExtract) {
+    if (!Binary.getBinary())
+      continue;
+
+    SmallVector<OffloadFile::TargetID> CompatibleTargets = {Binary};
+    for (const auto &[ID, Input] : InputFiles)
+      if (object::areTargetsCompatible(Binary, ID))
+        CompatibleTargets.emplace_back(ID);
+
+    for (const auto &[Index, ID] : llvm::enumerate(CompatibleTargets)) {
+      Expected<bool> ExtractOrErr = getSymbols(
+          Binary.getBinary()->getImage(), Binary.getBinary()->getOffloadKind(),
+          /*IsArchive=*/false, Saver, Syms[ID]);
+      if (!ExtractOrErr)
+        return ExtractOrErr.takeError();
+
+      // If another target needs this binary it must be copied instead.
+      if (Index == CompatibleTargets.size() - 1)
+        InputFiles[ID].emplace_back(std::move(Binary));
+      else
+        InputFiles[ID].emplace_back(Binary.copy());
+    }
+  }
+
+  // Archive members only extract if they define needed symbols. We do this
+  // after every regular input file so that libraries may be included out of
+  // order. This follows 'ld.lld' semantics which are more lenient.
+  bool Extracted = true;
+  while (Extracted) {
+    Extracted = false;
+    for (OffloadFile &Binary : ArchiveFilesToExtract) {
+      // If the binary was previously extracted it will be set to null.
+      if (!Binary.getBinary())
+        continue;
+
+      SmallVector<OffloadFile::TargetID> CompatibleTargets = {Binary};
+      for (const auto &[ID, Input] : InputFiles)
+        if (object::areTargetsCompatible(Binary, ID))
+          CompatibleTargets.emplace_back(ID);
+
+      for (const auto &[Index, ID] : llvm::enumerate(CompatibleTargets)) {
+        // Only extract an if we have an an object matching this target.
+        if (!InputFiles.count(ID))
           continue;
 
-        SmallVector<OffloadFile::TargetID> CompatibleTargets = {Binary};
-        for (const auto &[ID, Input] : InputFiles)
-          if (object::areTargetsCompatible(Binary, ID))
-            CompatibleTargets.emplace_back(ID);
+        Expected<bool> ExtractOrErr =
+            getSymbols(Binary.getBinary()->getImage(),
+                       Binary.getBinary()->getOffloadKind(), /*IsArchive=*/true,
+                       Saver, Syms[ID]);
+        if (!ExtractOrErr)
+          return ExtractOrErr.takeError();
 
-        for (const auto &[Index, ID] : llvm::enumerate(CompatibleTargets)) {
-          // Only extract an if we have an an object matching this target.
-          if (IsArchive && !WholeArchive && !InputFiles.count(ID))
-            continue;
+        Extracted = *ExtractOrErr;
 
-          Expected<bool> ExtractOrErr = getSymbols(
-              Binary.getBinary()->getImage(),
-              Binary.getBinary()->getOffloadKind(), IsArchive, Saver, Syms[ID]);
-          if (!ExtractOrErr)
-            return ExtractOrErr.takeError();
+        // Skip including the file if it is an archive that does not resolve
+        // any symbols.
+        if (!Extracted)
+          continue;
 
-          Extracted = !WholeArchive && *ExtractOrErr;
-
-          // Skip including the file if it is an archive that does not resolve
-          // any symbols.
-          if (IsArchive && !WholeArchive && !Extracted)
-            continue;
-
-          // If another target needs this binary it must be copied instead.
-          if (Index == CompatibleTargets.size() - 1)
-            InputFiles[ID].emplace_back(std::move(Binary));
-          else
-            InputFiles[ID].emplace_back(Binary.copy());
-        }
-
-        // If we extracted any files we need to check all the symbols again.
-        if (Extracted)
-          break;
+        // If another target needs this binary it must be copied instead.
+        if (Index == CompatibleTargets.size() - 1)
+          InputFiles[ID].emplace_back(std::move(Binary));
+        else
+          InputFiles[ID].emplace_back(Binary.copy());
       }
+
+      // If we extracted any files we need to check all the symbols again.
+      if (Extracted)
+        break;
     }
   }
 

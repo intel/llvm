@@ -60,12 +60,25 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # fetch for a UR adapter, this allows development of adapters to be decoupled
   # from each other.
   #
+  # A separate content fetch will not be performed if:
+  # * The adapter name is not present in the SYCL_ENABLE_PLUGINS variable.
+  # * The repo and tag provided match the values of the
+  #   UNIFIED_RUNTIME_REPO/UNIFIED_RUNTIME_TAG variables
+  #
   # Args:
   #   * name - Must be the directory name of the adapter
   #   * repo - A valid Git URL of a Unified Runtime repo
   #   * tag - A valid Git branch/tag/commit in the Unified Runtime repo
   function(fetch_adapter_source name repo tag)
-    message(STATUS "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
+    if(NOT ${name} IN_LIST SYCL_ENABLE_PLUGINS)
+      return()
+    endif()
+    if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
+        tag STREQUAL UNIFIED_RUNTIME_TAG)
+      return()
+    endif()
+    message(STATUS
+      "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
     set(fetch-name unified-runtime-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
@@ -81,14 +94,58 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 29ee45c4451a682f744146cc9dbeb2617ecdd6b3
-  # Merge: db4b0c14 4f5d005a
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit b37fa2c4b09a49839a83228f687c811595fce3fd
+  # Merge: c7fade0d f61e81e9
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Mar 18 12:14:26 2024 +0000
-  #     Merge pull request #1291 from JackAKirk/cuda-seq-cst-b
-  #     [CUDA] Report that devices with cc >= sm_70 support seq_cst
-  set(UNIFIED_RUNTIME_TAG 29ee45c4451a682f744146cc9dbeb2617ecdd6b3)
+  # Date:   Tue Apr 23 16:17:41 2024 +0100
+  #    Merge pull request #1544 from kbenzie/benie/l0-fix-rhel-error
+  #    [L0] Add missing <iomanip> include
+  set(UNIFIED_RUNTIME_TAG b37fa2c4b09a49839a83228f687c811595fce3fd)
+
+  fetch_adapter_source(level_zero
+    ${UNIFIED_RUNTIME_REPO}
+    # commit f4a94976f880de64d0c144abb1080a8262c158f3
+    # Merge: ee075703 39fcb2be
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Fri Apr 26 11:50:56 2024 +0100
+    #     Merge pull request #1370 from winstonzhang-intel/counter-based-events
+    #     [L0] Support for counter-based events using L0 driver
+    f4a94976f880de64d0c144abb1080a8262c158f3
+  )
+
+  fetch_adapter_source(opencl
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(cuda
+    "https://github.com/oneapi-src/unified-runtime.git"
+    # commit 7fcfe3ad8882fee23d83fa0fc4c4c944262a9ea3
+    # Merge: b37fa2c4 f9fb1167
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Apr 24 10:38:00 2024 +0100
+    #     Merge pull request #1265 from cppchedy/chedy/device-to-device-copy
+    #
+    #     [Bindless][Exp] Add support for device to device copies between CuArrays
+    7fcfe3ad8882fee23d83fa0fc4c4c944262a9ea3
+  )
+
+  fetch_adapter_source(hip
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(native_cpu
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 37242e39480d8bb73cb8cc3a54152edab43fd85b
+    # Merge: 48facdd6 56ffd291
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu Apr 25 10:23:31 2024 +0100
+    #     Merge pull request #1518 from PietroGhg/pietro/coverity
+    #     [NATIVECPU] Address coverity warnings in threadpool implementation
+    37242e39480d8bb73cb8cc3a54152edab43fd85b
+  )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

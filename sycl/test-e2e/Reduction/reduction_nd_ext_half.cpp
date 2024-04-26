@@ -7,9 +7,6 @@
 // work group size not bigger than 1`.
 // XFAIL: hip_nvidia
 
-// Incorrect result on AMD.
-// XFAIL: hip_amd
-
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
 

@@ -97,7 +97,6 @@ int main() {
 #endif
   static_assert(sycl::is_device_copyable_v<const volatile sycl::span<int>>);
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   // Extra checks
   static_assert(sycl::is_device_copyable_v<sycl::vec<int, 4>>);
   static_assert(sycl::is_device_copyable_v<sycl::vec<sycl::half, 4>>);
@@ -108,7 +107,6 @@ int main() {
     sycl::vec<int, 4> v;
   };
   static_assert(sycl::is_device_copyable_v<S>);
-#endif
 
   return 0;
 }

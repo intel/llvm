@@ -30,6 +30,9 @@
 #include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Scope.h"
+#include "clang/Sema/SemaCUDA.h"
+#include "clang/Sema/SemaOpenMP.h"
+#include "clang/Sema/SemaSYCL.h"
 #include "clang/Sema/TypoCorrection.h"
 #include "llvm/ADT/SmallVector.h"
 #include <optional>
@@ -1835,7 +1838,7 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
     }
     goto ExpectedExpression;
   case tok::l_square:
-    if (getLangOpts().CPlusPlus11) {
+    if (getLangOpts().CPlusPlus) {
       if (getLangOpts().ObjC) {
         // C++11 lambda expressions and Objective-C message sends both start with a
         // square bracket.  There are three possibilities here:
@@ -1949,8 +1952,8 @@ ExprResult Parser::ParseSYCLBuiltinNum() {
   T.consumeClose();
 
   if (IsNumFields)
-    return Actions.ActOnSYCLBuiltinNumFieldsExpr(TR.get());
-  return Actions.ActOnSYCLBuiltinNumBasesExpr(TR.get());
+    return Actions.SYCL().ActOnSYCLBuiltinNumFieldsExpr(TR.get());
+  return Actions.SYCL().ActOnSYCLBuiltinNumBasesExpr(TR.get());
 }
 
 /// __builtin_field_type '(' type-id ',' integer-constant ')' or
@@ -1981,8 +1984,8 @@ ExprResult Parser::ParseSYCLBuiltinType() {
   T.consumeClose();
 
   if (IsFieldType)
-    return Actions.ActOnSYCLBuiltinFieldTypeExpr(TR.get(), IdxRes.get());
-  return Actions.ActOnSYCLBuiltinBaseTypeExpr(TR.get(), IdxRes.get());
+    return Actions.SYCL().ActOnSYCLBuiltinFieldTypeExpr(TR.get(), IdxRes.get());
+  return Actions.SYCL().ActOnSYCLBuiltinBaseTypeExpr(TR.get(), IdxRes.get());
 }
 
 /// Once the leading part of a postfix-expression is parsed, this
@@ -2142,7 +2145,7 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
           // replace this call to ActOnOpenACCArraySectionExpr in the future.
           // Eventually we'll genericize the OPenMPArraySectionExpr type as
           // well.
-          LHS = Actions.ActOnOMPArraySectionExpr(
+          LHS = Actions.OpenMP().ActOnOMPArraySectionExpr(
               LHS.get(), Loc, ArgExprs.empty() ? nullptr : ArgExprs[0],
               ColonLocFirst, ColonLocSecond, Length.get(), Stride.get(), RLoc);
         } else {
@@ -2197,10 +2200,8 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
         }
 
         if (!LHS.isInvalid()) {
-          ExprResult ECResult = Actions.ActOnCUDAExecConfigExpr(getCurScope(),
-                                    OpenLoc,
-                                    ExecConfigExprs,
-                                    CloseLoc);
+          ExprResult ECResult = Actions.CUDA().ActOnExecConfigExpr(
+              getCurScope(), OpenLoc, ExecConfigExprs, CloseLoc);
           if (ECResult.isInvalid())
             LHS = ExprError();
           else
@@ -2559,8 +2560,8 @@ ExprResult Parser::ParseSYCLUniqueStableNameExpression() {
   if (T.consumeClose())
     return ExprError();
 
-  return Actions.ActOnSYCLUniqueStableNameExpr(OpLoc, T.getOpenLocation(),
-                                               T.getCloseLocation(), Ty.get());
+  return Actions.SYCL().ActOnUniqueStableNameExpr(
+      OpLoc, T.getOpenLocation(), T.getCloseLocation(), Ty.get());
 }
 
 // Parse a __builtin_sycl_unique_stable_id expression. Accepts an expression,
@@ -2590,7 +2591,7 @@ ExprResult Parser::ParseSYCLUniqueStableIdExpression() {
   if (T.consumeClose())
     return ExprError();
 
-  return Actions.ActOnSYCLUniqueStableIdExpr(
+  return Actions.SYCL().ActOnUniqueStableIdExpr(
       OpLoc, T.getOpenLocation(), T.getCloseLocation(), VarExpr.get());
 }
 
@@ -3377,7 +3378,7 @@ Parser::ParseParenExpression(ParenParseOption &ExprType, bool stopIfCastExpr,
     if (ErrorFound) {
       Result = ExprError();
     } else if (!Result.isInvalid()) {
-      Result = Actions.ActOnOMPArrayShapingExpr(
+      Result = Actions.OpenMP().ActOnOMPArrayShapingExpr(
           Result.get(), OpenLoc, RParenLoc, OMPDimensions, OMPBracketsRanges);
     }
     return Result;

@@ -836,6 +836,8 @@ public:
     return getArch() == Triple::spirv;
   }
 
+  bool isSPIROrSPIRV() const { return isSPIR() || isSPIRV(); }
+
   /// Tests whether the target is NVPTX (32- or 64-bit).
   bool isNVPTX() const {
     return getArch() == Triple::nvptx || getArch() == Triple::nvptx64;

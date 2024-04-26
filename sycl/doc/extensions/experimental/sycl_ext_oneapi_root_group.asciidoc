@@ -20,7 +20,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2022-2023 Intel Corporation.  All rights reserved.
+Copyright (C) 2022-2024 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -407,36 +407,7 @@ _Returns_: The number of work-groups or work-items of `Scope` hierarchy level wi
 
 `root_group` provides an alternative representation of the work-items executing
 an ND-range kernel and exposes equivalent functionality to `sycl::nd_item` for
-querying a work-item's position in the global range. In order to provide access
-to information pertaining to a work-item's position in the work-group or
-sub-group local range, `root_group` needs to provide a new mechanism to access
-instances of the `sycl::group` and `sycl::sub_group` classes. The
-`get_child_group` function provides a general form of this mechanism, allowing
-developers to move down the hierarchy of fixed topology groups.
-
-[source,c++]
-----
-template <typename Group>
-/* type of child group */ get_child_group(Group g);
-----
-_Constraints_: `Group` must be one of `root_group` or `sycl::group`.
-
-_Returns_: An instance of another fixed topology group type, representing the
-child of group _g_ to which the calling work-item belongs. If `Group` is
-`root_group`, the child group type is `sycl::group` with the same
-dimensionality. If `Group` is `sycl::group`, the child group type is
-`sycl::sub_group`.
-
-NOTE: Although `sycl::sub_group` is a fixed topology group, it is currently
-the lowest level of the hierarchy and cannot be passed to `get_child_group`.
-
-NOTE: This extension does not provide a `get_parent_group` function because it
-would be easy to use incorrectly. It is good practice for a function accepting
-a group _g_ to only use the work-items in that group, to assist developers in
-reasoning about requirements of the call context (e.g. converged control flow).
-Dividing a group into its children is consistent with this practice, whereas
-accessing the parent group is not. Developers seeking this functionality should
-use the free function queries instead.
+querying a work-item's position in the global range.
 
 
 === Synchronizing a `root_group`
@@ -471,18 +442,15 @@ class nd_item {
    sycl::ext::oneapi::experimental::root_group<Dimensions> ext_oneapi_get_root_group() const;
 };
 
-namespace ext {
-namespace oneapi {
-namespace experimental {
-namespace this_kernel {
+namespace ext::oneapi::experimental {
+namespace this_work_item {
 
 template <int Dimensions>
 root_group<Dimensions> get_root_group();
 
-} // namespace this_kernel
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+}
+
+} // namespace ext::oneapi::experimental
 } // namespace sycl
 ----
 
@@ -505,6 +473,31 @@ a `sycl::nd_range` argument.
 _Returns_: A `root_group` instance representing the root-group to which the
 calling work-item belongs.
 
+=== Deprecated functionality
+
+The functionality in this section was previously part of this extension, but is
+now deprecated.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+namespace this_kernel {
+
+template <int Dimensions>
+root_group<Dimensions> get_root_group();
+
+} // namespace this_kernel
+
+}
+----
+
+[source,c++]
+----
+template <int Dimensions>
+root_group<Dimensions> get_root_group();
+----
+_Effects_: Equivalent to `return this_work_item::get_root_group()`.
 
 == Implementation notes
 

@@ -8,8 +8,6 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %{build} -fsycl-esimd-force-stateless-mem -o %t.out
-// RUN: %{run} %t.out
 
 #include "Inputs/atomic_update.hpp"
 

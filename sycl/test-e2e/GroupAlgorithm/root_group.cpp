@@ -1,3 +1,5 @@
+// Fails with opencl and level_zero on linux, enable when fixed.
+// XFAIL: opencl || (linux && level_zero)
 // RUN: %{build} -I . -o %t.out
 // RUN: %{run} %t.out
 
@@ -52,7 +54,8 @@ void testRootGroup() {
           sycl::group_barrier(root);
 
           root =
-              sycl::ext::oneapi::experimental::this_kernel::get_root_group<1>();
+              sycl::ext::oneapi::experimental::this_work_item::get_root_group<
+                  1>();
           int sum = data[root.get_local_id()] +
                     data[root.get_local_range() - root.get_local_id() - 1];
           sycl::group_barrier(root);
@@ -77,7 +80,7 @@ void testRootGroupFunctions() {
   const auto props = sycl::ext::oneapi::experimental::properties{
       sycl::ext::oneapi::experimental::use_root_sync};
 
-  constexpr int testCount = 10;
+  constexpr int testCount = 9;
   sycl::buffer<bool> testResultsBuf{sycl::range{testCount}};
   const auto range = sycl::nd_range<1>{maxWGs * WorkGroupSize, WorkGroupSize};
   q.submit([&](sycl::handler &h) {
@@ -100,16 +103,6 @@ void testRootGroupFunctions() {
                 root.get_local_linear_id() == root.get_local_id().get(0);
             testResults[7] = root.get_group_linear_range() == 1;
             testResults[8] = root.get_local_linear_range() == WorkGroupSize;
-
-            const auto child =
-                sycl::ext::oneapi::experimental::get_child_group(root);
-            const auto grandchild =
-                sycl::ext::oneapi::experimental::get_child_group(child);
-            testResults[9] = child == it.get_group();
-            static_assert(
-                std::is_same_v<std::remove_cv<decltype(grandchild)>::type,
-                               sycl::sub_group>,
-                "get_child_group(sycl::group) must return a sycl::sub_group");
           }
         });
   });

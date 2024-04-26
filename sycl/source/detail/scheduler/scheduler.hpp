@@ -173,6 +173,10 @@ class MockScheduler;
 
 namespace sycl {
 inline namespace _V1 {
+namespace ext::oneapi::experimental::detail {
+class exec_graph_impl;
+class node_impl;
+} // namespace ext::oneapi::experimental::detail
 namespace detail {
 class queue_impl;
 class event_impl;
@@ -392,7 +396,12 @@ public:
   /// corresponding function of device API.
   ///
   /// \param Event is a pointer to event to wait on.
-  void waitForEvent(const EventImplPtr &Event);
+  /// \param Success is an optional parameter that, when set to a non-null
+  ///        pointer, indicates that failure is a valid outcome for this wait
+  ///        (e.g., in case of a non-blocking read from a pipe), and the value
+  ///        it's pointing to is then set according to the outcome.
+
+  void waitForEvent(const EventImplPtr &Event, bool *Success = nullptr);
 
   /// Removes buffer from the graph.
   ///
@@ -467,6 +476,27 @@ public:
   void enqueueCommandForCG(EventImplPtr NewEvent,
                            std::vector<Command *> &AuxilaryCmds,
                            BlockingT Blocking = NON_BLOCKING);
+
+  /// Adds a command buffer update operation to the execution graph. This is
+  /// required when buffers/accessors are updated to ensure that the memory has
+  /// been allocated when updating.
+  /// \param Graph The executable graph to be updated.
+  /// \param Nodes The list of Nodes which are to be updated in the graph.
+  /// \param Requirements List of accessor requirements for this update.
+  /// \param Events List of events that this update operation depends on
+  EventImplPtr addCommandGraphUpdate(
+      ext::oneapi::experimental::detail::exec_graph_impl *Graph,
+      std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
+          Nodes,
+      const QueueImplPtr &Queue, std::vector<Requirement *> Requirements,
+      std::vector<detail::EventImplPtr> &Events);
+
+  static bool
+  areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
+                                  ContextImplPtr Context);
+  static bool
+  areEventsSafeForSchedulerBypass(const std::vector<EventImplPtr> &DepEvents,
+                                  ContextImplPtr Context);
 
 protected:
   using RWLockT = std::shared_timed_mutex;
@@ -668,6 +698,23 @@ protected:
 
     bool isInFusionMode(QueueIdT queue);
 
+    /// Adds a command buffer update operation to the execution graph. This is
+    /// required when buffers/accessors are updated to ensure that the memory
+    /// has been allocated when updating.
+    /// \param Graph The executable graph to be updated.
+    /// \param Nodes The list of Nodes which are to be updated in the graph.
+    /// \param Requirements List of accessor requirements for this update.
+    /// \param Events List of events that this operation depends on.
+    /// \param ToEnqueue List of commands which need to be enqueued.
+    Command *addCommandGraphUpdate(
+        ext::oneapi::experimental::detail::exec_graph_impl *Graph,
+        std::vector<
+            std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
+            Nodes,
+        const QueueImplPtr &Queue, std::vector<Requirement *> Requirements,
+        std::vector<detail::EventImplPtr> &Events,
+        std::vector<Command *> &ToEnqueue);
+
     std::vector<SYCLMemObjI *> MMemObjs;
 
   private:
@@ -851,13 +898,17 @@ protected:
     /// \param GraphReadLock read-lock which is already acquired for reading
     /// \param ToCleanUp container for commands that can be cleaned up.
     /// \param LockTheLock selects if graph lock should be locked upon return
+    /// \param Success is an optional parameter that, when set to a non-null
+    ///        pointer, indicates that failure is a valid outcome for this wait
+    ///        (e.g., in case of a non-blocking read from a pipe), and the value
+    ///        it's pointing to is then set according to the outcome.
     ///
     /// The function may unlock and lock GraphReadLock as needed. Upon return
     /// the lock is left in locked state if and only if LockTheLock is true.
     static void waitForEvent(const EventImplPtr &Event,
                              ReadLockT &GraphReadLock,
                              std::vector<Command *> &ToCleanUp,
-                             bool LockTheLock = true);
+                             bool LockTheLock = true, bool *Success = nullptr);
 
     /// Enqueues the command and all its dependencies.
     ///

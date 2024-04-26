@@ -154,9 +154,20 @@
 // 15.44 Add coarse-grain memory advice flag for HIP.
 // 15.45 Added piextKernelSuggestMaxCooperativeGroupCount and
 //       piextEnqueueCooperativeKernelLaunch.
+// 15.46 Add piextGetGlobalVariablePointer
+// 15.47 Added PI_ERROR_FEATURE_UNSUPPORTED.
+// 15.48 Add CommandBuffer update definitions
+// 15.49 Added cubemap support:
+//        - Added cubemap image type, PI_MEM_TYPE_IMAGE_CUBEMAP, to _pi_mem_type
+//        - Added cubemap sampling capabilities
+//          - _pi_sampler_cubemap_filter_mode
+//          - PI_SAMPLER_PROPERTIES_CUBEMAP_FILTER_MODE
+//        - Added device queries for cubemap support
+//          - PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SUPPORT
+//          - PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT
 
 #define _PI_H_VERSION_MAJOR 15
-#define _PI_H_VERSION_MINOR 45
+#define _PI_H_VERSION_MINOR 48
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -443,6 +454,14 @@ typedef enum {
   // Composite device
   PI_EXT_ONEAPI_DEVICE_INFO_COMPONENT_DEVICES = 0x20111,
   PI_EXT_ONEAPI_DEVICE_INFO_COMPOSITE_DEVICE = 0x20112,
+
+  // Command Buffers
+  PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_SUPPORT = 0x20113,
+  PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT = 0x20114,
+
+  // Bindless images cubemaps
+  PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SUPPORT = 0x20115,
+  PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT = 0x20116,
 } _pi_device_info;
 
 typedef enum {
@@ -573,7 +592,8 @@ typedef enum {
   PI_MEM_TYPE_IMAGE2D_ARRAY = 0x10F3,
   PI_MEM_TYPE_IMAGE1D = 0x10F4,
   PI_MEM_TYPE_IMAGE1D_ARRAY = 0x10F5,
-  PI_MEM_TYPE_IMAGE1D_BUFFER = 0x10F6
+  PI_MEM_TYPE_IMAGE1D_BUFFER = 0x10F6,
+  PI_MEM_TYPE_IMAGE_CUBEMAP = 0x10F7,
 } _pi_mem_type;
 
 typedef enum {
@@ -688,6 +708,11 @@ typedef enum {
   PI_SAMPLER_FILTER_MODE_LINEAR = 0x1141,
 } _pi_sampler_filter_mode;
 
+typedef enum {
+  PI_SAMPLER_CUBEMAP_FILTER_MODE_DISJOINTED = 0x1142,
+  PI_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS = 0x1143,
+} _pi_sampler_cubemap_filter_mode;
+
 using pi_context_properties = intptr_t;
 
 using pi_device_exec_capabilities = pi_bitfield;
@@ -702,6 +727,8 @@ constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_NORMALIZED_COORDS =
 constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_ADDRESSING_MODE = 0x1153;
 constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_FILTER_MODE = 0x1154;
 constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_MIP_FILTER_MODE = 0x1155;
+constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_CUBEMAP_FILTER_MODE =
+    0x1156;
 
 using pi_memory_order_capabilities = pi_bitfield;
 constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_RELAXED = 0x01;
@@ -810,6 +837,7 @@ using pi_image_channel_type = _pi_image_channel_type;
 using pi_buffer_create_type = _pi_buffer_create_type;
 using pi_sampler_addressing_mode = _pi_sampler_addressing_mode;
 using pi_sampler_filter_mode = _pi_sampler_filter_mode;
+using pi_sampler_cubemap_filter_mode = _pi_sampler_cubemap_filter_mode;
 using pi_sampler_info = _pi_sampler_info;
 using pi_event_status = _pi_event_status;
 using pi_program_build_info = _pi_program_build_info;
@@ -950,8 +978,7 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 /// Extension to denote native support of assert feature by an arbitrary device
 /// piDeviceGetInfo call should return this extension when the device supports
 /// native asserts if supported extensions' names are requested
-#define PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT                              \
-  "pi_ext_intel_devicelib_assert"
+#define PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT "cl_intel_devicelib_assert"
 
 /// Device binary image property set names recognized by the SYCL runtime.
 /// Name must be consistent with
@@ -1286,6 +1313,10 @@ __SYCL_EXPORT pi_result piextDeviceSelectBinary(pi_device device,
 __SYCL_EXPORT pi_result piextGetDeviceFunctionPointer(
     pi_device device, pi_program program, const char *function_name,
     pi_uint64 *function_pointer_ret);
+
+__SYCL_EXPORT pi_result piextGetGlobalVariablePointer(
+    pi_device Device, pi_program Program, const char *GlobalVariableName,
+    size_t *GlobalVariableSize, void **GlobalVariablePointerRet);
 
 //
 // Context
@@ -2314,7 +2345,10 @@ __SYCL_EXPORT pi_result piGetDeviceAndHostTimer(pi_device Device,
 /// Command buffer extension
 struct _pi_ext_command_buffer;
 struct _pi_ext_sync_point;
+struct _pi_ext_command_buffer_command;
+
 using pi_ext_command_buffer = _pi_ext_command_buffer *;
+using pi_ext_command_buffer_command = _pi_ext_command_buffer_command *;
 using pi_ext_sync_point = pi_uint32;
 
 typedef enum {
@@ -2324,7 +2358,40 @@ typedef enum {
 struct pi_ext_command_buffer_desc final {
   pi_ext_structure_type stype;
   const void *pNext;
-  pi_queue_properties *properties;
+  pi_bool is_updatable;
+};
+
+// Command Buffer Update types
+struct pi_ext_command_buffer_update_memobj_arg_desc_t final {
+  uint32_t arg_index;
+  const pi_mem_obj_property *properties;
+  pi_mem new_mem_obj;
+};
+
+struct pi_ext_command_buffer_update_pointer_arg_desc_t final {
+  uint32_t arg_index;
+  void *new_ptr;
+};
+
+struct pi_ext_command_buffer_update_value_arg_desc_t final {
+  uint32_t arg_index;
+  uint32_t arg_size;
+  void *new_value;
+};
+
+struct pi_ext_command_buffer_update_kernel_launch_desc final {
+  uint32_t num_mem_obj_args;
+  uint32_t num_ptr_args;
+  uint32_t num_value_args;
+  uint32_t num_work_dim;
+
+  pi_ext_command_buffer_update_memobj_arg_desc_t *mem_obj_arg_list;
+  pi_ext_command_buffer_update_pointer_arg_desc_t *ptr_arg_list;
+  pi_ext_command_buffer_update_value_arg_desc_t *value_arg_list;
+
+  size_t *global_work_offset;
+  size_t *global_work_size;
+  size_t *local_work_size;
 };
 
 /// API to create a command-buffer.
@@ -2368,12 +2435,14 @@ piextCommandBufferFinalize(pi_ext_command_buffer command_buffer);
 /// \param sync_point_wait_list A list of sync points that this command must
 /// wait on.
 /// \param sync_point The sync_point associated with this kernel execution.
+/// \param command Return pointer to the command representing this kernel
+/// execution.
 __SYCL_EXPORT pi_result piextCommandBufferNDRangeKernel(
     pi_ext_command_buffer command_buffer, pi_kernel kernel, pi_uint32 work_dim,
     const size_t *global_work_offset, const size_t *global_work_size,
     const size_t *local_work_size, pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
-    pi_ext_sync_point *sync_point);
+    pi_ext_sync_point *sync_point, pi_ext_command_buffer_command *command);
 
 /// API to append a USM memcpy command to the command-buffer.
 /// \param command_buffer The command-buffer to append onto.
@@ -2600,6 +2669,25 @@ __SYCL_EXPORT pi_result
 piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer, pi_queue queue,
                           pi_uint32 num_events_in_wait_list,
                           const pi_event *event_wait_list, pi_event *event);
+
+/// API to update a kernel launch command inside of a command-buffer.
+/// @param command The command to be updated.
+/// @param desc Descriptor which describes the updated parameters of the kernel
+/// launch.
+__SYCL_EXPORT pi_result piextCommandBufferUpdateKernelLaunch(
+    pi_ext_command_buffer_command command,
+    pi_ext_command_buffer_update_kernel_launch_desc *desc);
+
+/// API to increment the reference count of a command-buffer command.
+/// \param command The command to release.
+__SYCL_EXPORT pi_result
+piextCommandBufferRetainCommand(pi_ext_command_buffer_command command);
+
+/// API to decrement the reference count of a command-buffer command. After the
+/// command reference count becomes zero, the command is deleted.
+/// \param command The command to release.
+__SYCL_EXPORT pi_result
+piextCommandBufferReleaseCommand(pi_ext_command_buffer_command command);
 
 /// API to destroy bindless unsampled image handles.
 ///

@@ -191,13 +191,17 @@ def err_intel_sycl_alloca_wrong_arg
             "'sycl::kernel_handler &'. Got %0">;
 def err_intel_sycl_alloca_wrong_type
     : Error<"__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' "
-            "to a cv-unqualified object type. Got %0">;
+            "to a cv-unqualified trivial type. Got %0">;
 def err_intel_sycl_alloca_wrong_size
     : Error<"__builtin_intel_sycl_alloca must be passed a specialization "
             "constant of integral value type as a template argument. Got %1 (%0)">;
 def err_intel_sycl_alloca_no_size
     : Error<"__builtin_intel_sycl_alloca must be passed a specialization "
             "constant of integral value type as a template argument. Got %0">;
+def warn_intel_sycl_alloca_bad_default_value : Warning<
+    "__builtin_intel_sycl_alloca expects a specialization constant with a "
+    "default value of at least one as an argument. Got %0">,
+    InGroup<SyclPrivateAllocaPositiveSize>;
 
 // C99 variable-length arrays
 def ext_vla : Extension<"variable length arrays are a C99 feature">,
@@ -230,7 +234,7 @@ def ext_vla_folded_to_constant : ExtWarn<
   "variable length array folded to constant array as an extension">,
   InGroup<GNUFoldingConstant>;
 def err_vla_unsupported : Error<
-  "variable length arrays are not supported for %select{the current target|'%1'}0">;
+  "variable length arrays are not supported %select{for the current target|in '%1'}0">;
 def err_vla_in_coroutine_unsupported : Error<
   "variable length arrays in a coroutine are not supported">;
 def note_vla_unsupported : Note<
@@ -975,6 +979,22 @@ def warn_fortify_scanf_overflow : Warning<
 
 def err_function_start_invalid_type: Error<
   "argument must be a function">;
+
+def err_ptrauth_disabled :
+  Error<"this target does not support pointer authentication">;
+def err_ptrauth_invalid_key :
+  Error<"%0 does not identify a valid pointer authentication key for "
+        "the current target">;
+def err_ptrauth_value_bad_type :
+  Error<"%select{signed value|extra discriminator|blended pointer|blended "
+        "integer}0 must have %select{pointer|integer|pointer or integer}1 "
+        "type; type here is %2">;
+def warn_ptrauth_sign_null_pointer :
+  Warning<"signing a null pointer will yield a non-null pointer">,
+  InGroup<PtrAuthNullPointers>;
+def warn_ptrauth_auth_null_pointer :
+  Warning<"authenticating a null pointer will almost certainly trap">,
+  InGroup<PtrAuthNullPointers>;
 
 /// main()
 // static main() is not an error in C, just in C++.
@@ -1797,8 +1817,8 @@ def err_type_defined_in_condition : Error<
 def err_type_defined_in_enum : Error<
   "%0 cannot be defined in an enumeration">;
 def ext_type_defined_in_offsetof : Extension<
-  "defining a type within '%select{__builtin_offsetof|offsetof}0' is a Clang "
-  "extension">, InGroup<GNUOffsetofExtensions>;
+  "defining a type within '%select{__builtin_offsetof|offsetof}0' is a C23 "
+  "extension">, InGroup<C23>;
 
 def note_pure_virtual_function : Note<
   "unimplemented pure virtual method %0 in %1">;
@@ -2450,10 +2470,6 @@ def err_selected_explicit_constructor : Error<
   "chosen constructor is explicit in copy-initialization">;
 def note_explicit_ctor_deduction_guide_here : Note<
   "explicit %select{constructor|deduction guide}0 declared here">;
-
-// C++11 decltype
-def err_decltype_in_declarator : Error<
-    "'decltype' cannot be used to name a declaration">;
 
 // C++11 auto
 def warn_cxx98_compat_auto_type_specifier : Warning<
@@ -3735,6 +3751,9 @@ def warn_attribute_dllexport_explicit_instantiation_decl : Warning<
 def warn_attribute_dllexport_explicit_instantiation_def : Warning<
   "'dllexport' attribute ignored on explicit instantiation definition">,
   InGroup<IgnoredAttributes>;
+def warn_attribute_exclude_from_explicit_instantiation_local_class : Warning<
+  "%0 attribute ignored on local class%select{| member}1">,
+  InGroup<IgnoredAttributes>;
 def warn_invalid_initializer_from_system_header : Warning<
   "invalid constructor from class in system header, should not be explicit">,
   InGroup<DiagGroup<"invalid-initializer-from-system-header">>;
@@ -4743,11 +4762,10 @@ def err_ovl_no_viable_member_function_in_call : Error<
   "no matching member function for call to %0">;
 def err_ovl_ambiguous_call : Error<
   "call to %0 is ambiguous">;
-def err_ovl_deleted_call : Error<"call to deleted function %0">;
+def err_ovl_deleted_call : Error<"call to deleted"
+  "%select{| member}0 function %1%select{|: %3}2">;
 def err_ovl_ambiguous_member_call : Error<
   "call to member function %0 is ambiguous">;
-def err_ovl_deleted_member_call : Error<
-  "call to deleted member function %0">;
 def note_ovl_too_many_candidates : Note<
     "remaining %0 candidate%s0 omitted; "
     "pass -fshow-overloads=all to show them">;
@@ -4975,12 +4993,12 @@ def err_ovl_ambiguous_conversion_in_cast : Error<
   "dynamic_cast|C-style cast|functional-style cast|}0 from %1 to %2">;
 def err_ovl_deleted_conversion_in_cast : Error<
   "%select{|static_cast|reinterpret_cast|dynamic_cast|C-style cast|"
-  "functional-style cast|}0 from %1 to %2 uses deleted function">;
+  "functional-style cast|}0 from %1 to %2 uses deleted function%select{|: %4}3">;
 def err_ovl_ambiguous_init : Error<"call to constructor of %0 is ambiguous">;
 def err_ref_init_ambiguous : Error<
   "reference initialization of type %0 with initializer of type %1 is ambiguous">;
 def err_ovl_deleted_init : Error<
-  "call to deleted constructor of %0">;
+  "call to deleted constructor of %0%select{|: %2}1">;
 def err_ovl_deleted_special_init : Error<
   "call to implicitly-deleted %select{default constructor|copy constructor|"
   "move constructor|copy assignment operator|move assignment operator|"
@@ -5006,7 +5024,7 @@ def note_ovl_ambiguous_oper_binary_reversed_candidate : Note<
 def err_ovl_no_viable_oper : Error<"no viable overloaded '%0'">;
 def note_assign_lhs_incomplete : Note<"type %0 is incomplete">;
 def err_ovl_deleted_oper : Error<
-  "overload resolution selected deleted operator '%0'">;
+  "overload resolution selected deleted operator '%0'%select{|: %2}1">;
 def err_ovl_deleted_special_oper : Error<
   "object of type %0 cannot be %select{constructed|copied|moved|assigned|"
   "assigned|destroyed}1 because its %sub{select_special_member_kind}1 is "
@@ -5043,7 +5061,7 @@ def err_ovl_ambiguous_object_call : Error<
 def err_ovl_ambiguous_subscript_call : Error<
   "call to subscript operator of type %0 is ambiguous">;
 def err_ovl_deleted_object_call : Error<
-  "call to deleted function call operator in type %0">;
+  "call to deleted function call operator in type %0%select{|: %2}1">;
 def note_ovl_surrogate_cand : Note<"conversion candidate of type %0">;
 def err_member_call_without_object : Error<
   "call to %select{non-static|explicit}0 member function without an object argument">;
@@ -6530,9 +6548,6 @@ def ext_c99_flexible_array_member : Extension<
 def err_flexible_array_virtual_base : Error<
   "flexible array member %0 not allowed in "
   "%select{struct|interface|union|class|enum}1 which has a virtual base class">;
-def err_flexible_array_empty_aggregate : Error<
-  "flexible array member %0 not allowed in otherwise empty "
-  "%select{struct|interface|union|class|enum}1">;
 def err_flexible_array_has_nontrivial_dtor : Error<
   "flexible array member %0 of type %1 with non-trivial destruction">;
 def ext_flexible_array_in_struct : Extension<
@@ -6547,8 +6562,6 @@ def ext_flexible_array_empty_aggregate_ms : Extension<
   "flexible array member %0 in otherwise empty "
   "%select{struct|interface|union|class|enum}1 is a Microsoft extension">,
   InGroup<MicrosoftFlexibleArray>;
-def err_flexible_array_union : Error<
-  "flexible array member %0 in a union is not allowed">;
 def ext_flexible_array_union_ms : Extension<
   "flexible array member %0 in a union is a Microsoft extension">,
   InGroup<MicrosoftFlexibleArray>;
@@ -6585,12 +6598,18 @@ def err_flexible_array_count_not_in_same_struct : Error<
   "'counted_by' field %0 isn't within the same struct as the flexible array">;
 def err_counted_by_attr_not_on_flexible_array_member : Error<
   "'counted_by' only applies to C99 flexible array members">;
-def err_counted_by_attr_refers_to_flexible_array : Error<
-  "'counted_by' cannot refer to the flexible array %0">;
+def err_counted_by_attr_refer_to_itself : Error<
+  "'counted_by' cannot refer to the flexible array member %0">;
 def err_counted_by_must_be_in_structure : Error<
   "field %0 in 'counted_by' not inside structure">;
-def err_flexible_array_counted_by_attr_field_not_integer : Error<
-  "field %0 in 'counted_by' must be a non-boolean integer type">;
+def err_counted_by_attr_argument_not_integer : Error<
+  "'counted_by' requires a non-boolean integer type argument">;
+def err_counted_by_attr_only_support_simple_decl_reference : Error<
+  "'counted_by' argument must be a simple declaration reference">;
+def err_counted_by_attr_in_union : Error<
+  "'counted_by' cannot be applied to a union member">;
+def err_counted_by_attr_refer_to_union : Error<
+  "'counted_by' argument cannot refer to a union member">;
 def note_flexible_array_counted_by_attr_field : Note<
   "field %0 declared here">;
 
@@ -7211,7 +7230,8 @@ def ext_typecheck_decl_incomplete_type : ExtWarn<
 def err_tentative_def_incomplete_type : Error<
   "tentative definition has type %0 that is never completed">;
 def warn_tentative_incomplete_array : Warning<
-  "tentative array definition assumed to have one element">;
+  "tentative array definition assumed to have one element">,
+  InGroup<DiagGroup<"tentative-definition-array">>;
 def err_typecheck_incomplete_array_needs_initializer : Error<
   "definition of variable with array type needs an explicit size "
   "or an initializer">;
@@ -7657,8 +7677,8 @@ def ext_gnu_ptr_func_arith : Extension<
   InGroup<GNUPointerArith>;
 def err_readonly_message_assignment : Error<
   "assigning to 'readonly' return result of an Objective-C message not allowed">;
-def ext_integer_increment_complex : Extension<
-  "ISO C does not support '++'/'--' on complex integer type %0">;
+def ext_increment_complex : Extension<
+  "'%select{--|++}0' on an object of complex type is a Clang extension">;
 def ext_integer_complement_complex : Extension<
   "ISO C does not support '~' for complex conjugation of %0">;
 def err_nosetter_property_assignment : Error<
@@ -8357,7 +8377,7 @@ def err_typecheck_nonviable_condition_incomplete : Error<
   "no viable conversion%diff{ from $ to incomplete type $|}0,1">;
 def err_typecheck_deleted_function : Error<
   "conversion function %diff{from $ to $|between types}0,1 "
-  "invokes a deleted function">;
+  "invokes a deleted function%select{|: %3}2">;
 
 def err_expected_class_or_namespace : Error<"%0 is not a class"
   "%select{ or namespace|, namespace, or enumeration}1">;
@@ -8382,6 +8402,9 @@ def ext_template_after_declarative_nns : ExtWarn<
 def ext_alias_template_in_declarative_nns : ExtWarn<
   "a declarative nested name specifier cannot name an alias template">,
   InGroup<DiagGroup<"alias-template-in-declaration-name">>;
+def err_computed_type_in_declarative_nns  : Error<
+  "a %select{pack indexing|'decltype'}0 specifier cannot be used in "
+  "a declarative nested name specifier">;
 
 def err_no_typeid_with_fno_rtti : Error<
   "use of typeid requires -frtti">;
@@ -8954,7 +8977,7 @@ def err_nontemporal_builtin_must_be_pointer_intfltptr_or_vector : Error<
   "address argument to nontemporal builtin must be a pointer to integer, float, "
   "pointer, or a vector of such types (%0 invalid)">;
 
-def err_deleted_function_use : Error<"attempt to use a deleted function">;
+def err_deleted_function_use : Error<"attempt to use a deleted function%select{|: %1}0">;
 def err_deleted_inherited_ctor_use : Error<
   "constructor inherited by %0 from base class %1 is implicitly deleted">;
 
@@ -9133,7 +9156,7 @@ def warn_bad_function_cast : Warning<
   InGroup<BadFunctionCast>, DefaultIgnore;
 def warn_cast_function_type : Warning<
   "cast %diff{from $ to $ |}0,1converts to incompatible function type">,
-  InGroup<CastFunctionType>, DefaultIgnore;
+  InGroup<CastFunctionTypeMismatch>, DefaultIgnore;
 def warn_cast_function_type_strict : Warning<warn_cast_function_type.Summary>,
   InGroup<CastFunctionTypeStrict>, DefaultIgnore;
 def err_cast_pointer_to_non_pointer_int : Error<
@@ -9901,6 +9924,9 @@ def warn_format_conversion_argument_type_mismatch : Warning<
 def warn_format_conversion_argument_type_mismatch_pedantic : Extension<
   warn_format_conversion_argument_type_mismatch.Summary>,
   InGroup<FormatPedantic>;
+def warn_format_conversion_argument_type_mismatch_signedness : Warning<
+  warn_format_conversion_argument_type_mismatch.Summary>,
+  InGroup<FormatSignedness>, DefaultIgnore;
 def warn_format_conversion_argument_type_mismatch_confusion : Warning<
   warn_format_conversion_argument_type_mismatch.Summary>,
   InGroup<FormatTypeConfusion>, DefaultIgnore;
@@ -12102,13 +12128,14 @@ def err_builtin_launder_invalid_arg : Error<
   "'__builtin_launder' is not allowed">;
 
 def err_builtin_invalid_arg_type: Error <
-  "%ordinal0 argument must be a "
-  "%select{vector, integer or floating point type|matrix|"
-  "pointer to a valid matrix element type|"
-  "signed integer or floating point type|vector type|"
-  "floating point type|"
-  "vector of integers|"
-  "type of unsigned integer}1 (was %2)">;
+  "%ordinal0 argument must be "
+  "%select{a vector, integer or floating point type|a matrix|"
+  "a pointer to a valid matrix element type|"
+  "a signed integer or floating point type|a vector type|"
+  "a floating point type|"
+  "a vector of integers|"
+  "an unsigned integer|"
+  "an 'int'}1 (was %2)">;
 
 def err_builtin_matrix_disabled: Error<
   "matrix types extension is disabled. Pass -fenable-matrix to enable it">;
@@ -12517,6 +12544,12 @@ def warn_acc_clause_unimplemented
 def err_acc_construct_appertainment
     : Error<"OpenACC construct '%0' cannot be used here; it can only "
             "be used in a statement context">;
+def err_acc_clause_appertainment
+    : Error<"OpenACC '%1' clause is not valid on '%0' directive">;
+def err_acc_duplicate_clause_disallowed
+    : Error<"OpenACC '%1' clause cannot appear more than once on a '%0' "
+            "directive">;
+def note_acc_previous_clause_here : Note<"previous clause is here">;
 def err_acc_branch_in_out_compute_construct
     : Error<"invalid %select{branch|return|throw}0 %select{out of|into}1 "
             "OpenACC Compute Construct">;
@@ -12524,4 +12557,8 @@ def note_acc_branch_into_compute_construct
     : Note<"invalid branch into OpenACC Compute Construct">;
 def note_acc_branch_out_of_compute_construct
     : Note<"invalid branch out of OpenACC Compute Construct">;
+def warn_acc_if_self_conflict
+    : Warning<"OpenACC construct 'self' has no effect when an 'if' clause "
+              "evaluates to true">,
+      InGroup<DiagGroup<"openacc-self-if-potential-conflict">>;
 } // end of sema component.

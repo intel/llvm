@@ -99,6 +99,7 @@ public:
   bool VisitCXXBindTemporaryExpr(const CXXBindTemporaryExpr *E);
   bool VisitCompoundLiteralExpr(const CompoundLiteralExpr *E);
   bool VisitTypeTraitExpr(const TypeTraitExpr *E);
+  bool VisitArrayTypeTraitExpr(const ArrayTypeTraitExpr *E);
   bool VisitLambdaExpr(const LambdaExpr *E);
   bool VisitPredefinedExpr(const PredefinedExpr *E);
   bool VisitCXXThrowExpr(const CXXThrowExpr *E);
@@ -119,6 +120,7 @@ public:
   bool VisitConceptSpecializationExpr(const ConceptSpecializationExpr *E);
   bool VisitCXXRewrittenBinaryOperator(const CXXRewrittenBinaryOperator *E);
   bool VisitPseudoObjectExpr(const PseudoObjectExpr *E);
+  bool VisitPackIndexingExpr(const PackIndexingExpr *E);
 
 protected:
   bool visitExpr(const Expr *E) override;
@@ -146,13 +148,20 @@ protected:
     return Ctx.classify(Ty);
   }
 
-  /// Classifies a known primitive type
+  /// Classifies a known primitive type.
   PrimType classifyPrim(QualType Ty) const {
     if (auto T = classify(Ty)) {
       return *T;
     }
     llvm_unreachable("not a primitive type");
   }
+  /// Classifies a known primitive expression.
+  PrimType classifyPrim(const Expr *E) const {
+    if (auto T = classify(E))
+      return *T;
+    llvm_unreachable("not a primitive type");
+  }
+
   /// Evaluates an expression and places the result on the stack. If the
   /// expression is of composite type, a local variable will be created
   /// and a pointer to said variable will be placed on the stack.

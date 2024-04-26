@@ -14,7 +14,7 @@
 // RUN: %{run} %t_off.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

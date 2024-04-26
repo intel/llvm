@@ -37,6 +37,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "SPIRVToLLVMDbgTran.h"
+#include "SPIRV.debug.h"
 #include "SPIRVEntry.h"
 #include "SPIRVFunction.h"
 #include "SPIRVInstruction.h"
@@ -1214,24 +1215,32 @@ DINode *SPIRVToLLVMDbgTran::transTypedef(const SPIRVExtInst *DebugInst) {
 
 DINode *SPIRVToLLVMDbgTran::transTypeInheritance(const SPIRVExtInst *DebugInst,
                                                  DIType *ChildClass) {
-  if (isNonSemanticDebugInfo(DebugInst->getExtSetKind()) && !ChildClass) {
-    // Will be translated later when processing TypeMember's parent
-    return nullptr;
-  }
   using namespace SPIRVDebug::Operand::TypeInheritance;
+  // The value is used when assertions are enabled
+  [[maybe_unused]] unsigned OperandCount;
+  unsigned ParentIdx, OffsetIdx, FlagsIdx;
+  if (isNonSemanticDebugInfo(DebugInst->getExtSetKind())) {
+    if (!ChildClass) {
+      // Will be translated later when processing TypeMember's parent
+      return nullptr;
+    }
+    OperandCount = NonSemantic::OperandCount;
+    ParentIdx = NonSemantic::ParentIdx;
+    OffsetIdx = NonSemantic::OffsetIdx;
+    FlagsIdx = NonSemantic::FlagsIdx;
+  } else {
+    OperandCount = NonSemantic::OperandCount;
+    ParentIdx = OpenCL::ParentIdx;
+    OffsetIdx = OpenCL::OffsetIdx;
+    FlagsIdx = OpenCL::FlagsIdx;
+  }
   const SPIRVWordVec &Ops = DebugInst->getArguments();
-  assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
-  // No Child operand for NonSemantic debug spec
-  SPIRVWord Offset = isNonSemanticDebugInfo(DebugInst->getExtSetKind()) ? 1 : 0;
+  assert(Ops.size() >= OperandCount && "Invalid number of operands");
   DIType *Parent =
-      transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[ParentIdx - Offset]));
-  DIType *Child =
-      isNonSemanticDebugInfo(DebugInst->getExtSetKind())
-          ? ChildClass
-          : transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[ChildIdx]));
+      transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[ParentIdx]));
   DINode::DIFlags Flags = DINode::FlagZero;
-  SPIRVWord SPIRVFlags = getConstantValueOrLiteral(Ops, FlagsIdx - Offset,
-                                                   DebugInst->getExtSetKind());
+  SPIRVWord SPIRVFlags =
+      getConstantValueOrLiteral(Ops, FlagsIdx, DebugInst->getExtSetKind());
   if ((SPIRVFlags & SPIRVDebug::FlagAccess) == SPIRVDebug::FlagIsPublic)
     Flags |= llvm::DINode::FlagPublic;
   if ((SPIRVFlags & SPIRVDebug::FlagAccess) == SPIRVDebug::FlagIsProtected)
@@ -1239,7 +1248,14 @@ DINode *SPIRVToLLVMDbgTran::transTypeInheritance(const SPIRVExtInst *DebugInst,
   if ((SPIRVFlags & SPIRVDebug::FlagAccess) == SPIRVDebug::FlagIsPrivate)
     Flags |= llvm::DINode::FlagPrivate;
   uint64_t OffsetVal =
-      BM->get<SPIRVConstant>(Ops[OffsetIdx - Offset])->getZExtIntValue();
+      BM->get<SPIRVConstant>(Ops[OffsetIdx])->getZExtIntValue();
+  DIType *Child;
+  if (isNonSemanticDebugInfo(DebugInst->getExtSetKind())) {
+    Child = ChildClass;
+  } else {
+    Child =
+        transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[OpenCL::ChildIdx]));
+  }
   return getDIBuilder(DebugInst).createInheritance(Child, Parent, OffsetVal, 0,
                                                    Flags);
 }
@@ -1569,11 +1585,12 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
           AI, LocalVar.first, GetExpression(Ops[ExpressionIdx]),
           LocalVar.second, BB);
       AI->eraseFromParent();
-      return cast<Instruction *>(DbgDeclare);
+      return DbgDeclare.get<Instruction *>();
     }
-    return cast<Instruction *>(getDIBuilder(DebugInst).insertDeclare(
-        GetValue(Ops[VariableIdx]), LocalVar.first,
-        GetExpression(Ops[ExpressionIdx]), LocalVar.second, BB));
+    return getDIBuilder(DebugInst)
+        .insertDeclare(GetValue(Ops[VariableIdx]), LocalVar.first,
+                       GetExpression(Ops[ExpressionIdx]), LocalVar.second, BB)
+        .get<Instruction *>();
   }
   case SPIRVDebug::Value: {
     using namespace SPIRVDebug::Operand::DebugValue;
@@ -1589,10 +1606,10 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
     }
     if (!MDs.empty()) {
       DIArgList *AL = DIArgList::get(M->getContext(), MDs);
-      cast<DbgVariableIntrinsic>(cast<Instruction *>(DbgValIntr))
-                                               ->setRawLocation(AL);
+      cast<DbgVariableIntrinsic>(DbgValIntr.get<Instruction *>())
+          ->setRawLocation(AL);
     }
-    return cast<Instruction *>(DbgValIntr);
+    return DbgValIntr.get<Instruction *>();
   }
   default:
     llvm_unreachable("Unknown debug intrinsic!");

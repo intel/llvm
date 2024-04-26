@@ -7,7 +7,7 @@
 #include <sycl/sycl.hpp>
 #include <type_traits>
 
-#if defined(__SPIR__)
+#if defined(__SPIR__) || defined(__SPIRV__)
 typedef _Float16 _iml_half_internal;
 #else
 typedef uint16_t _iml_half_internal;
@@ -213,7 +213,7 @@ void test3(sycl::queue &q, std::initializer_list<InputTy1> Input1,
 #define F3(Name) [](auto x, auto y, auto z) { return (Name)(x, y, z); }
 #define F3T(T, Name)                                                           \
   [](auto x, auto y, auto z) { return __builtin_bit_cast(T, (Name)(x, y, z)); }
-#if defined(__SPIR__)
+#if defined(__SPIR__) || defined(__SPIRV__)
 #define F_Half1(Name)                                                          \
   [](uint16_t x) { return (Name)(__builtin_bit_cast(_Float16, x)); }
 #define F_Half2(Name)                                                          \

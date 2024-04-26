@@ -126,5 +126,35 @@ inline unsigned getPointerAddressSpace(const Type *T) {
              : cast<TypedPointerType>(SubT)->getAddressSpace();
 }
 
+// Return true if the Argument is decorated with a pointee type
+inline bool hasPointeeTypeAttr(Argument *Arg) {
+  return Arg->hasByValAttr() || Arg->hasByRefAttr() || Arg->hasStructRetAttr();
+}
+
+// Return the pointee type of the argument or nullptr otherwise
+inline Type *getPointeeTypeByAttr(Argument *Arg) {
+  if (Arg->hasByValAttr())
+    return Arg->getParamByValType();
+  if (Arg->hasStructRetAttr())
+    return Arg->getParamStructRetType();
+  if (Arg->hasByRefAttr())
+    return Arg->getParamByRefType();
+  return nullptr;
+}
+
+inline Type *reconstructFunctionType(Function *F) {
+  SmallVector<Type *> ArgTys;
+  for (unsigned i = 0; i < F->arg_size(); ++i)
+    ArgTys.push_back(F->getArg(i)->getType());
+  return FunctionType::get(F->getReturnType(), ArgTys, F->isVarArg());
+}
+
+inline Type *toTypedPointer(Type *Ty, LLVMContext &Ctx) {
+  return isUntypedPointerTy(Ty)
+             ? TypedPointerType::get(IntegerType::getInt8Ty(Ctx),
+                                     getPointerAddressSpace(Ty))
+             : Ty;
+}
+
 } // namespace llvm
 #endif // LLVM_LIB_TARGET_SPIRV_SPIRVUTILS_H

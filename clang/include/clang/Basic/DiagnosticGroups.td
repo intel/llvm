@@ -578,7 +578,10 @@ def SelTypeCast : DiagGroup<"cast-of-sel-type">;
 def FunctionDefInObjCContainer : DiagGroup<"function-def-in-objc-container">;
 def BadFunctionCast : DiagGroup<"bad-function-cast">;
 def CastFunctionTypeStrict : DiagGroup<"cast-function-type-strict">;
-def CastFunctionType : DiagGroup<"cast-function-type", [CastFunctionTypeStrict]>;
+def CastFunctionTypeMismatch : DiagGroup<"cast-function-type-mismatch">;
+def CastFunctionType : DiagGroup<"cast-function-type",
+                                 [CastFunctionTypeStrict,
+                                  CastFunctionTypeMismatch]>;
 def ObjCPropertyImpl : DiagGroup<"objc-property-implementation">;
 def ObjCPropertyNoAttribute : DiagGroup<"objc-property-no-attribute">;
 def ObjCPropertyAssignOnObjectType : DiagGroup<"objc-property-assign-on-object-type">;
@@ -886,6 +889,7 @@ def ZeroLengthArray : DiagGroup<"zero-length-array">;
 def GNUZeroLineDirective : DiagGroup<"gnu-zero-line-directive">;
 def GNUZeroVariadicMacroArguments : DiagGroup<"gnu-zero-variadic-macro-arguments">;
 def MisleadingIndentation : DiagGroup<"misleading-indentation">;
+def PtrAuthNullPointers : DiagGroup<"ptrauth-null-pointers">;
 
 // This covers both the deprecated case (in C++98)
 // and the extension case (in C++11 onwards).
@@ -992,6 +996,7 @@ def FormatSecurity : DiagGroup<"format-security">;
 def FormatNonStandard : DiagGroup<"format-non-iso">;
 def FormatY2K : DiagGroup<"format-y2k">;
 def FormatPedantic : DiagGroup<"format-pedantic">;
+def FormatSignedness : DiagGroup<"format-signedness">;
 def FormatTypeConfusion : DiagGroup<"format-type-confusion">;
 
 def FormatOverflowNonKprintf: DiagGroup<"format-overflow-non-kprintf">;
@@ -1048,6 +1053,7 @@ def Extra : DiagGroup<"extra", [
     EmptyInitStatement,
     StringConcatation,
     FUseLdPath,
+    CastFunctionTypeMismatch,
   ]>;
 
 def Most : DiagGroup<"most", [
@@ -1354,6 +1360,7 @@ def SyclTarget : DiagGroup<"sycl-target">;
 def SyclFPGAMismatch : DiagGroup<"sycl-fpga-mismatch">;
 def SyclAspectMismatch : DiagGroup<"sycl-aspect-mismatch">;
 def SyclNativeCPUTargets: DiagGroup<"sycl-native-cpu-targets">;
+def SyclPrivateAllocaPositiveSize : DiagGroup<"sycl-private-alloca-positive-size">;
 
 // OpenACC warnings.
 def SourceUsesOpenACC : DiagGroup<"source-uses-openacc">;
@@ -1533,3 +1540,9 @@ def ReadOnlyPlacementChecks : DiagGroup<"read-only-types">;
 // Warnings and fixes to support the "safe buffers" programming model.
 def UnsafeBufferUsageInContainer : DiagGroup<"unsafe-buffer-usage-in-container">;
 def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage", [UnsafeBufferUsageInContainer]>;
+
+// Warnings and notes InstallAPI verification.
+def InstallAPIViolation : DiagGroup<"installapi-violation">;
+
+// Warnings about misuse of ExtractAPI options.
+def ExtractAPIMisuse : DiagGroup<"extractapi-misuse">;
