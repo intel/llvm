@@ -60,7 +60,8 @@ void verify_op_ab(const T l, const T r, const float ref, OP op) {
                NUM_COLS * VF);
          }); // parallel for
    }).wait();
-  assert_ops_ref<T, NUM_ROWS, NUM_COLS>(bufMat.get_host_access(read_only), ref);
+  assert_ops_ref<T, NUM_ROWS / VF, NUM_COLS * VF>(
+      bufMat.get_host_access(read_only), ref);
 }
 
 template <typename T, size_t NUM_ROWS, size_t NUM_COLS, size_t SUB_ROWS,
@@ -107,7 +108,8 @@ void verify_op_c(const T l, const T r, const float ref, OP op) {
 // Avoid same kernel name for different types
 template <typename T, size_t SROWS, size_t SCOLS, use Use, class name>
 class ewops_ab {};
-template <typename T, size_t SROWS, size_t SCOLS, use Use, layout Layout, size_t VF>
+template <typename T, size_t SROWS, size_t SCOLS, use Use, layout Layout,
+          size_t VF>
 void test_ewops_ab() {
   if constexpr (Use == use::a)
     std::cout << "Test A ";
