@@ -365,11 +365,13 @@ gather(const T *p, simd<OffsetT, N / VS> byte_offsets, simd_mask<N / VS> mask,
       auto Ret = __esimd_svm_gather<MsgT, N, detail::ElemsPerAddrEncoding<4>(),
                                     detail::ElemsPerAddrEncoding<1>()>(
           Addrs.data(), mask.data());
+      detail::check_rdregion_params<N * 4, N, /*VS*/ 0, N, 4>();
       return __esimd_rdregion<MsgT, N * 4, N, /*VS*/ 0, N, 4>(Ret, 0);
     } else if constexpr (sizeof(T) == 2) {
       auto Ret = __esimd_svm_gather<MsgT, N, detail::ElemsPerAddrEncoding<2>(),
                                     detail::ElemsPerAddrEncoding<2>()>(
           Addrs.data(), mask.data());
+      detail::check_rdregion_params<N * 2, N, /*VS*/ 0, N, 2>();
       return __esimd_rdregion<MsgT, N * 2, N, /*VS*/ 0, N, 2>(Ret, 0);
     } else {
       return __esimd_svm_gather<MsgT, N, detail::ElemsPerAddrEncoding<1>(),
@@ -703,12 +705,14 @@ scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
     simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
     addrs = addrs + byte_offsets_i;
     if constexpr (sizeof(T) == 1) {
+      detail::check_wrregion_params<N * 4, N, /*VS*/ 0, N, 4>();
       simd<T, N * 4> D = __esimd_wrregion<Tx, N * 4, N, /*VS*/ 0, N, 4>(
           D.data(), vals.data(), 0);
       __esimd_svm_scatter<Tx, N, detail::ElemsPerAddrEncoding<4>(),
                           detail::ElemsPerAddrEncoding<1>()>(
           addrs.data(), D.data(), mask.data());
     } else if constexpr (sizeof(T) == 2) {
+      detail::check_wrregion_params<N * 2, N, /*VS*/ 0, N, 2>();
       simd<Tx, N * 2> D = __esimd_wrregion<Tx, N * 2, N, /*VS*/ 0, N, 2>(
           D.data(), vals.data(), 0);
       __esimd_svm_scatter<Tx, N, detail::ElemsPerAddrEncoding<2>(),
