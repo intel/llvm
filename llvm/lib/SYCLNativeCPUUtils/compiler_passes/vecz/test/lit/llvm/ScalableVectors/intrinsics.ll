@@ -166,18 +166,18 @@ declare <2 x i8> @llvm.usub.sat.v2i8(<2 x i8>, <2 x i8>)
 declare i64 @__mux_get_global_id(i32)
 
 ; CTPOP: void @__vecz_nxv2_ctpop
-; CTPOP: = call <vscale x 2 x i32> @llvm.ctpop.nxv2i32(<vscale x 2 x i32> %{{.*}})
-; CTPOP: = call <vscale x 4 x i8> @llvm.ctpop.nxv4i8(<vscale x 4 x i8> %{{.*}})
+; CTPOP: = call {{.*}}<vscale x 2 x i32> @llvm.ctpop.nxv2i32(<vscale x 2 x i32> %{{.*}})
+; CTPOP: = call {{.*}}<vscale x 4 x i8> @llvm.ctpop.nxv4i8(<vscale x 4 x i8> %{{.*}})
 
 ; CTLZ: void @__vecz_nxv4_ctlz
 ; ... but it does widen ctlz
-; CTLZ: = call <vscale x 4 x i32> @llvm.ctlz.nxv4i32(<vscale x 4 x i32> %{{.*}}, i1 false)
-; CTLZ: = call <vscale x 8 x i8> @llvm.ctlz.nxv8i8(<vscale x 8 x i8> %{{.*}}, i1 false)
+; CTLZ: = call {{.*}}<vscale x 4 x i32> @llvm.ctlz.nxv4i32(<vscale x 4 x i32> %{{.*}}, i1 false)
+; CTLZ: = call {{.*}}<vscale x 8 x i8> @llvm.ctlz.nxv8i8(<vscale x 8 x i8> %{{.*}}, i1 false)
 
 ; CTTZ: void @__vecz_nxv8_cttz
 ; ... and cttz
-; CTTZ: = call <vscale x 8 x i32> @llvm.cttz.nxv8i32(<vscale x 8 x i32> %{{.*}}, i1 false)
-; CTTZ: = call <vscale x 16 x i8> @llvm.cttz.nxv16i8(<vscale x 16 x i8> %{{.*}}, i1 false)
+; CTTZ: = call {{.*}}<vscale x 8 x i32> @llvm.cttz.nxv8i32(<vscale x 8 x i32> %{{.*}}, i1 false)
+; CTTZ: = call {{.*}}<vscale x 16 x i8> @llvm.cttz.nxv16i8(<vscale x 16 x i8> %{{.*}}, i1 false)
 
 ; SADD_SAT: void @__vecz_nxv2_sadd_sat
 ; SADD_SAT: = call <vscale x 2 x i32> @llvm.sadd.sat.nxv2i32(
