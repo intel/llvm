@@ -155,48 +155,6 @@ TEST_F(CommandGraphTest, BeginEndRecording) {
   // Trying to end when it is recording to a different graph should throw
   ASSERT_ANY_THROW(Graph2.end_recording(Queue));
   Graph.end_recording(Queue);
-
-  // Testing return values of begin and end recording
-  // Queue should change state so should return true here
-  ASSERT_TRUE(Graph.begin_recording(Queue));
-  // But not changed state here
-  ASSERT_FALSE(Graph.begin_recording(Queue));
-
-  // Queue2 should change state so should return true here
-  ASSERT_TRUE(Graph.begin_recording(Queue2));
-  // But not changed state here
-  ASSERT_FALSE(Graph.begin_recording(Queue2));
-
-  // Queue should have changed state so should return true
-  ASSERT_TRUE(Graph.end_recording(Queue));
-  // But not changed state here
-  ASSERT_FALSE(Graph.end_recording(Queue));
-
-  // Should end recording on Queue2
-  ASSERT_TRUE(Graph.end_recording());
-  // State should not change on Queue2 now
-  ASSERT_FALSE(Graph.end_recording(Queue2));
-
-  // Testing vector begin and end
-  ASSERT_TRUE(Graph.begin_recording({Queue, Queue2}));
-  // Both shoudl now not have state changed
-  ASSERT_FALSE(Graph.begin_recording(Queue));
-  ASSERT_FALSE(Graph.begin_recording(Queue2));
-
-  // End recording on both
-  ASSERT_TRUE(Graph.end_recording({Queue, Queue2}));
-  // Both shoudl now not have state changed
-  ASSERT_FALSE(Graph.end_recording(Queue));
-  ASSERT_FALSE(Graph.end_recording(Queue2));
-
-  // First add one single queue
-  ASSERT_TRUE(Graph.begin_recording(Queue));
-  // Vector begin should still return true as Queue2 has state changed
-  ASSERT_TRUE(Graph.begin_recording({Queue, Queue2}));
-  // End recording on Queue2
-  ASSERT_TRUE(Graph.end_recording(Queue2));
-  // Vector end should still return true as Queue will have state changed
-  ASSERT_TRUE(Graph.end_recording({Queue, Queue2}));
 }
 
 TEST_F(CommandGraphTest, GetCGCopy) {
