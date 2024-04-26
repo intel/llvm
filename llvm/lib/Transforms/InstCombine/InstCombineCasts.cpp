@@ -2064,9 +2064,9 @@ Instruction *InstCombinerImpl::visitPtrToInt(PtrToIntInst &CI) {
     // the GEP otherwise.
     if (GEP->hasOneUse() &&
         isa<ConstantPointerNull>(GEP->getPointerOperand())) {
-      return replaceInstUsesWith(CI,
-                                 Builder.CreateIntCast(EmitGEPOffset(GEP), Ty,
-                                                       /*isSigned=*/false));
+      return replaceInstUsesWith(
+          CI, Builder.CreateIntCast(EmitGEPOffset(cast<GEPOperator>(GEP)), Ty,
+                                    /*isSigned=*/false));
     }
   }
 
