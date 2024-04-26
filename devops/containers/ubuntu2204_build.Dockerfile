@@ -12,11 +12,12 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
 COPY scripts/install_build_tools.sh /install.sh
 RUN /install.sh
 
-RUN apt install -yqq libnuma-dev wget gnupg2
-RUN mkdir --parents --mode=0755 /etc/apt/keyrings
-RUN wget https://repo.radeon.com/amdgpu-install/6.1/ubuntu/jammy/amdgpu-install_6.1.60100-1_all.deb
-RUN apt install -yqq ./amdgpu-install_6.1.60100-1_all.deb
-RUN yes | amdgpu-install --usecase=rocmdev
+RUN apt install -yqq libnuma-dev wget gnupg2 && \
+  wget https://repo.radeon.com/amdgpu-install/6.1/ubuntu/jammy/amdgpu-install_6.1.60100-1_all.deb && \
+  apt install -yqq ./amdgpu-install_6.1.60100-1_all.deb && \
+  yes | amdgpu-install --usecase=rocmdev && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/*
 
 # By default Ubuntu sets an arbitrary UID value, that is different from host
 # system. When CI passes default UID value of 1001, some of LLVM tools fail to
@@ -30,3 +31,4 @@ RUN usermod -aG irc sycl
 COPY scripts/docker_entrypoint.sh /docker_entrypoint.sh
 
 ENTRYPOINT ["/docker_entrypoint.sh"]
+
