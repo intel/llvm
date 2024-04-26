@@ -8,11 +8,6 @@ using namespace sycl;
 queue q;
 
 [[sycl::reqd_work_group_size(4)]] void f4() {}
-[[sycl::reqd_work_group_size(32)]] void f32() {}
-[[sycl::reqd_work_group_size(16)]] void f16() {}
-[[sycl::reqd_work_group_size(16, 16)]] void f16x16() {}
-
-[[sycl::reqd_work_group_size(32, 32)]] void f32x32() {}
 [[sycl::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {}
 
 [[intel::reqd_work_group_size(4, 2, 9)]] void unknown() {} // expected-warning{{unknown attribute 'reqd_work_group_size' ignored}}
@@ -36,30 +31,15 @@ int main() {
     Functor8 f8;
     h.single_task<class kernel_name1>(f8);
 
-    h.single_task<class kernel_name2>([]() {
-      f4();
-      f32();
-    });
-
-    h.single_task<class kernel_name3>([]() {
-      f16();
-      f16x16();
-    });
-
-    h.single_task<class kernel_name4>([]() {
-      f32x32x32();
-      f32x32();
-    });
-
     // expected-error@+1 {{expected variable name or 'this' in lambda capture list}}
-    h.single_task<class kernel_name5>([[sycl::reqd_work_group_size(32, 32, 32)]][]() {
+    h.single_task<class kernel_name2>([[sycl::reqd_work_group_size(32, 32, 32)]][]() {
       f32x32x32();
     });
 
-    h.single_task<class kernel_name6>(
+    h.single_task<class kernel_name3>(
         []() { func2(); });
 
-    h.single_task<class kernel_name7>(
+    h.single_task<class kernel_name4>(
         []() { func3(); });
   });
   return 0;

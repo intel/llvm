@@ -8,12 +8,6 @@ using namespace sycl;
 queue q;
 
 [[sycl::reqd_work_group_size(4, 1, 1)]] void f4x1x1() {}
-[[sycl::reqd_work_group_size(32, 1, 1)]] void f32x1x1() {}
-
-[[sycl::reqd_work_group_size(16, 1, 1)]] void f16x1x1() {}
-[[sycl::reqd_work_group_size(16, 16, 1)]] void f16x16x1() {}
-
-[[sycl::reqd_work_group_size(32, 32, 1)]] void f32x32x1() {}
 [[sycl::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {}
 
 // No diagnostic because the attributes are synonyms with identical behavior.
@@ -61,13 +55,6 @@ public:
   [[sycl::reqd_work_group_size(16, 16, 16)]] void operator()() const {}
 };
 
-class Functor8 {
-public:
-  [[sycl::reqd_work_group_size(1, 1, 8)]] void operator()() const {
-    f4x1x1();
-  }
-};
-
 class Functor {
 public:
   void operator()() const {
@@ -86,40 +73,22 @@ int main() {
     Functor16x16x16 f16x16x16;
     h.single_task<class kernel_name3>(f16x16x16);
 
-    h.single_task<class kernel_name5>([]() [[sycl::reqd_work_group_size(32, 32, 32), sycl::reqd_work_group_size(32, 32, 32)]] {
+    h.single_task<class kernel_name4>([]() [[sycl::reqd_work_group_size(32, 32, 32), sycl::reqd_work_group_size(32, 32, 32)]] {
       f32x32x32();
     });
 
 #ifdef TRIGGER_ERROR
-    Functor8 f8;
-    h.single_task<class kernel_name6>(f8);
-
     Functor32 f32;
     h.single_task<class kernel_name1>(f32);
 
-    h.single_task<class kernel_name7>([]() {
-      f4x1x1();
-      f32x1x1();
-    });
-
-    h.single_task<class kernel_name8>([]() {
-      f16x1x1();
-      f16x16x1();
-    });
-
-    h.single_task<class kernel_name9>([]() {
-      f32x32x32();
-      f32x32x1();
-    });
-
     // expected-error@+1 {{expected variable name or 'this' in lambda capture list}}
-    h.single_task<class kernel_name10>([[sycl::reqd_work_group_size(32, 32, 32)]][]() {
+    h.single_task<class kernel_name5>([[sycl::reqd_work_group_size(32, 32, 32)]][]() {
       f32x32x32();
     });
 
 #endif
     // Ignore duplicate attribute.
-    h.single_task<class test_kernel11>(
+    h.single_task<class kernel_name6>(
         []() [[sycl::reqd_work_group_size(2, 2, 2),
                sycl::reqd_work_group_size(2, 2, 2)]] {});
   });
@@ -148,7 +117,7 @@ int main() {
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 16
 // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
-// CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
+// CHECK: FunctionDecl {{.*}} {{.*}}kernel_name4
 // CHECK: SYCLReqdWorkGroupSizeAttr {{.*}}
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 32
@@ -160,7 +129,7 @@ int main() {
 // CHECK-NEXT:  value: Int 32
 // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
 //
-// CHECK: FunctionDecl {{.*}}test_kernel11
+// CHECK: FunctionDecl {{.*}}kernel_name6
 // CHECK: SYCLReqdWorkGroupSizeAttr
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 2

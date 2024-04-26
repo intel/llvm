@@ -21,9 +21,6 @@ public:
   [[intel::max_work_group_size(SIZE, SIZE1, SIZE2)]] void operator()() const {}
 };
 
-template <int N, int N1, int N2>
-[[intel::max_work_group_size(N, N1, N2)]] void func() {}
-
 int main() {
   q.submit([&](handler &h) {
     Foo boo;
@@ -37,10 +34,6 @@ int main() {
 
     Functor<2, 2, 2> f;
     h.single_task<class kernel_name4>(f);
-
-    h.single_task<class kernel_name5>([]() {
-      func<4, 4, 4>();
-    });
   });
   return 0;
 }

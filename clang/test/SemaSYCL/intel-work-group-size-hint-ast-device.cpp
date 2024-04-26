@@ -65,8 +65,6 @@ int check() {
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
 
-[[sycl::work_group_size_hint(4)]] void f4() {}
-
 class Functor16 {
 public:
   [[sycl::work_group_size_hint(16)]] void operator()() const {}
@@ -75,13 +73,6 @@ public:
 class Functor32x16x8 {
 public:
   [[sycl::work_group_size_hint(32, 16, 8)]] void operator()() const {}
-};
-
-class Functor {
-public:
-  void operator()() const {
-    f4();
-  }
 };
 
 class FunctorAttr {
@@ -106,7 +97,7 @@ int main() {
     Functor16 f16;
     h.single_task<class kernel_name1>(f16);
 
-    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name3
+    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name2
     // CHECK: SYCLWorkGroupSizeHintAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 32
@@ -118,9 +109,9 @@ int main() {
     // CHECK-NEXT:  value: Int 8
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
     Functor32x16x8 f32x16x8;
-    h.single_task<class kernel_name3>(f32x16x8);
+    h.single_task<class kernel_name2>(f32x16x8);
 
-    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name4
+    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name3
     // CHECK: SYCLWorkGroupSizeHintAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 128
@@ -132,9 +123,9 @@ int main() {
     // CHECK-NEXT:  value: Int 512
     // CHECK-NEXT:  IntegerLiteral{{.*}}512{{$}}
     FunctorAttr fattr;
-    h.single_task<class kernel_name4>(fattr);
+    h.single_task<class kernel_name3>(fattr);
 
-    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
+    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name4
     // CHECK: SYCLWorkGroupSizeHintAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 8
@@ -145,7 +136,7 @@ int main() {
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 32
     // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
-    h.single_task<class kernel_name5>([]() [[sycl::work_group_size_hint(8, 16, 32)]] {
+    h.single_task<class kernel_name4>([]() [[sycl::work_group_size_hint(8, 16, 32)]] {
       f8x16x32();
     });
   });

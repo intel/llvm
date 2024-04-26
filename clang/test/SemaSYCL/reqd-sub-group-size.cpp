@@ -5,30 +5,12 @@
 #include "sycl.hpp"
 
 using namespace sycl;
-queue q;
-
-[[intel::reqd_sub_group_size(4)]] void foo() {} 
-[[intel::reqd_sub_group_size(32)]] void baz() {} 
-
-class Functor8 {
-public:
-  [[intel::reqd_sub_group_size(8)]] void operator()() const { 
-    foo();
-  }
-};
 
 int main() {
-  q.submit([&](handler &h) {
-    Functor8 f8;
-    h.single_task<class kernel_name1>(f8);
-
-    h.single_task<class kernel_name2>([]() {
-      foo();
-      baz();
-    });
-  });
   return 0;
 }
+
+
 [[intel::reqd_sub_group_size(16)]] SYCL_EXTERNAL void B();
 [[intel::reqd_sub_group_size(16)]] void A() {
 }
