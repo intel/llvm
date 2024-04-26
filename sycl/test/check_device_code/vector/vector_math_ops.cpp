@@ -1,157 +1,103 @@
-// RUN: %clangxx -fsycl-device-only -S -O3 -Xclang -emit-llvm -o - %s | FileCheck %s
+// RUN: %clangxx -I %sycl_include -S -emit-llvm -fno-sycl-instrument-device-code -fsycl-device-only %s -o - | FileCheck %s
 
 // This test checks the device code for various math operations on sycl::vec.
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
 
-template <typename T>
-using rel_t = std::conditional_t<
-    sizeof(T) == 1, int8_t,
-    std::conditional_t<
-        sizeof(T) == 2, int16_t,
-        std::conditional_t<sizeof(T) == 4, int32_t,
-                           std::conditional_t<sizeof(T) == 8, int64_t, void>>>>;
-
-// For testing binary operations
-#define CHECKBINOP(Q, T, N, IS_RELOP, OP, SUFFIX)                              \
-  {                                                                            \
-    using VecT = sycl::vec<T, N>;                                              \
-    using ResT = sycl::vec<std::conditional_t<IS_RELOP, rel_t<T>, T>, N>;      \
-    VecT In##SUFFIX##VecA{static_cast<T>(5)};                                  \
-    VecT In##SUFFIX##VecB{static_cast<T>(6)};                                  \
-    {                                                                          \
-      VecT OutVecsDevice[1];                                                   \
-      sycl::buffer<VecT, 1> OutVecsBuff{OutVecsDevice, 1};                     \
-      Q.submit([&](sycl::handler &CGH) {                                       \
-        sycl::accessor OutVecsAcc{OutVecsBuff, CGH, sycl::read_write};         \
-        CGH.single_task([=]() {                                                \
-          auto OutVec1 = In##SUFFIX##VecA OP In##SUFFIX##VecB;                 \
-          static_assert(std::is_same_v<decltype(OutVec1), ResT>);              \
-          OutVecsAcc[0] = OutVec1;                                             \
-        });                                                                    \
-      });                                                                      \
-    }                                                                          \
+// For testing binary operations.
+#define CHECKBINOP(T, SUFFIX, OP)                                              \
+  SYCL_EXTERNAL auto CheckDevCodeBINOP##SUFFIX(T Ref1 = (T)5, T Ref2 = (T)6) { \
+    vec<T, 2> InVec##SUFFIX##2A {Ref1, Ref2};                                  \
+    vec<T, 2> InVec##SUFFIX##2B {Ref2, Ref1};                                  \
+    return InVec##SUFFIX##2A OP InVec##SUFFIX##2B;                             \
   }
 
-// For testing unary operators
-#define CHECKUOP(Q, T, N, IS_RELOP, OP, SUFFIX, REF)                           \
-  {                                                                            \
-    using VecT = sycl::vec<T, N>;                                              \
-    using ResT = sycl::vec<std::conditional_t<IS_RELOP, rel_t<T>, T>, N>;      \
-    VecT In##SUFFIX##VecA{static_cast<T>(REF)};                                \
-    {                                                                          \
-      VecT OutVecsDevice[1];                                                   \
-      sycl::buffer<VecT, 1> OutVecsBuff{OutVecsDevice, 1};                     \
-      Q.submit([&](sycl::handler &CGH) {                                       \
-        sycl::accessor OutVecsAcc{OutVecsBuff, CGH, sycl::read_write};         \
-        CGH.single_task([=]() {                                                \
-          auto OutVec1 = OP In##SUFFIX##VecA;                                  \
-          static_assert(std::is_same_v<decltype(OutVec1), ResT>);              \
-          OutVecsAcc[0] = OutVec1;                                             \
-        });                                                                    \
-      });                                                                      \
-    }                                                                          \
+// For testing unary operators.
+#define CHECKUOP(T, SUFFIX, OP, REF)                                           \
+  SYCL_EXTERNAL auto CheckDevCodeUOP##SUFFIX(int Ref1 = REF) {                 \
+    vec<T, 2> InVec##SUFFIX##2 {static_cast<T>(Ref1),                          \
+                                static_cast<T>(Ref1 + 1)};                     \
+    return OP InVec##SUFFIX##2;                                                \
   }
 
-int main() {
+/********************** Binary Ops **********************/
 
-  queue Q;
+// CHECK: {{.*}} add <2 x i32> %{{.*}}
+CHECKBINOP(int, INTA, +)
 
-  // Check device code for binary arithmetic operations.
-  // int, char, and float are handled in the same manner.
-  {
-    // CHECK: %add{{.*}} = add <2 x i32> %{{.*}}
-    CHECKBINOP(Q, int, 2, false, +, INT)
+// CHECK: {{.*}} add <2 x i8> %{{.*}}
+CHECKBINOP(std::byte, BYTEA, +)
 
-    // CHECK: %add{{.*}} = add <2 x i8> %{{.*}}
-    CHECKBINOP(Q, std::byte, 2, false, +, BYTE)
+// CHECK: {{.*}} add nuw nsw <2 x i8> {{.*}}
+// CHECK: for.body{{.*}}
+// CHECK: {{.*}} = icmp ne i8 %{{.*}}, 0
+CHECKBINOP(bool, BOOLA, +)
 
-    // CHECK: %add{{.*}} = add <2 x i8> %{{.*}}
-    // CHECK: for.body{{.*}}
-    // CHECK: {{.*}} = icmp ne i8 %{{.*}}, 0
-    CHECKBINOP(Q, bool, 2, false, +, BOOL)
+// CHECK: {{.*}} fadd <2 x half> %{{.*}}
+CHECKBINOP(sycl::half, HALFA, +)
 
-    // CHECK: %add{{.*}} = fadd <2 x half> %{{.*}}
-    CHECKBINOP(Q, sycl::half, 2, false, +, HALF)
+// CHECK: for.body{{.*}}
+// CHECK: {{.*}}ConvertBF16ToFINTEL{{.*}}
+// CHECK: {{.*}}ConvertBF16ToFINTEL{{.*}}
+// CHECK: %add{{.*}} = fadd float %{{.*}}, %{{.*}}
+// CHECK: {{.*}}ConvertFToBF16INTEL{{.*}}
+CHECKBINOP(ext::oneapi::bfloat16, BFA, +)
 
-    // CHECK: for.body{{.*}}
-    // CHECK: {{.*}}ConvertBF16ToFINTEL{{.*}}
-    // CHECK: {{.*}}ConvertBF16ToFINTEL{{.*}}
-    // CHECK: %add{{.*}} = fadd float %{{.*}}, %{{.*}}
-    // CHECK: {{.*}}ConvertFToBF16INTEL{{.*}}
-    CHECKBINOP(Q, ext::oneapi::bfloat16, 2, false, +, BF)
-  }
+// CHECK: icmp sgt <2 x i32> %{{.*}}
+// CHECK: sext <2 x i1> %{{.*}} to <2 x i32>
+CHECKBINOP(int, INTL, >)
 
-  // Check device code for binary logical operations.
-  {
-    // CHECK: icmp sgt <2 x i32> %{{.*}}
-    // CHECK: sext <2 x i1> %{{.*}} to <2 x i32>
-    CHECKBINOP(Q, int, 2, true, >, INT)
+// CHECK: {{.*}} icmp sgt <2 x i8> %{{.*}}
+// CHECK: {{.*}} sext <2 x i1> %{{.*}} to <2 x i8>
+CHECKBINOP(std::byte, BYTEL, >)
 
-    // TODO: std::byte and bool implementation for logical ops
-    // can be optimized. For some reason, we have an
-    // extra vector "%ref.tmp.i = alloca {{.*}}:vec.3"
-    // that serves no purpose.
-    // CHECK: {{.*}} icmp sgt <2 x i8> %{{.*}}
-    // CHECK: {{.*}} sext <2 x i1> %{{.*}} to <2 x i8>
-    CHECKBINOP(Q, std::byte, 2, true, >, BYTE)
+// CHECK: {{.*}} icmp ugt <2 x i8> %{{.*}}
+// CHECK: {{.*}} sext <2 x i1> %{{.*}} to <2 x i8>
+CHECKBINOP(bool, BOOLL, >)
 
-    // CHECK: {{.*}} icmp sgt <2 x i8> %{{.*}}
-    // CHECK: {{.*}} sext <2 x i1> %{{.*}} to <2 x i8>
-    CHECKBINOP(Q, bool, 2, true, >, BOOL)
+// CHECK: {{.*}} fcmp ogt <2 x half> {{.*}}
+// CHECK: {{.*}} sext <2 x i1> {{.*}} to <2 x i16>
+CHECKBINOP(sycl::half, HALFL, >)
 
-    // CHECK: {{.*}} fcmp ogt <2 x half> {{.*}}
-    // CHECK: {{.*}} sext <2 x i1> {{.*}} to <2 x i16>
-    CHECKBINOP(Q, sycl::half, 2, true, >, HALF)
+// FIXME: Why do we treat BF16 as i16 when doing logical ops
+// but convert to float for arithmetic ops?
+// CHECK: {{.*}} icmp ugt <2 x i16> {{.*}}
+// CHECK: {{.*}} sext <2 x i1> {{.*}} to <2 x i16>
+CHECKBINOP(ext::oneapi::bfloat16, BFL, >)
 
-    // FIXME: Why do we treat BF16 as i16 when doing logical ops
-    // but convert to float for arithmetic ops?
-    // CHECK: {{.*}} load <2 x i16>, ptr %_arg_InBFVecA {{.*}}
-    // CHECK: {{.*}} icmp ugt <2 x i16> {{.*}}
-    // CHECK: {{.*}} sext <2 x i1> {{.*}} to <2 x i16>
-    CHECKBINOP(Q, ext::oneapi::bfloat16, 2, true, >, BF)
-  }
+/********************** Unary Ops **********************/
 
-  // Check device code for unary operators
-  {
-    // CHECK: {{.*}} icmp eq <2 x i32> %{{.*}}, zeroinitializer
-    // CHECK: {{.*}} sext <2 x i1> %{{.*}} to <2 x i32>
-    CHECKUOP(Q, int, 2, true, !, INTUOP, 1)
+// CHECK: {{.*}} icmp eq <2 x i32> %{{.*}}, zeroinitializer
+// CHECK: {{.*}} sext <2 x i1> %{{.*}} to <2 x i32>
+CHECKUOP(int, INTNEG, !, 1)
 
-    // CHECK: {{.*}} sub <2 x i32> zeroinitializer, %{{.*}}
-    CHECKUOP(Q, int, 2, false, -, INTUOP, 1)
+// CHECK: {{.*}} sub <2 x i32> zeroinitializer, %{{.*}}
+CHECKUOP(int, INTSUB, -, 1)
 
-    // CHECK: %{{.*}} = icmp eq <2 x i8> %{{.*}}, zeroinitializer
-    // CHECK: %{{.*}} = sext <2 x i1> %{{.*}} to <2 x i8>
-    CHECKUOP(Q, std::byte, 2, true, !, BYTEUOP, 1)
+// CHECK: %{{.*}} = icmp eq <2 x i8> %{{.*}}, zeroinitializer
+// CHECK: %{{.*}} = sext <2 x i1> %{{.*}} to <2 x i8>
+CHECKUOP(std::byte, BYTENEG, !, 1)
 
-    // FIXME: Why is this getting optimized out?
-    //CHECKUOP(Q, std::byte, 2, false, +, BYTEUOP, -1)
+// CHECK: {{.*}} sub <2 x i8> zeroinitializer, %{{.*}}
+CHECKUOP(std::byte, BYTESUB, -, -1)
 
-    // CHECK: {{.*}} icmp eq <2 x i8> {{.*}}, zeroinitializer
-    // CHECK: %{{.*}} sext <2 x i1> %{{.*}} to <2 x i8>
-    CHECKUOP(Q, bool, 2, true, !, BOOLUOP, 1)
+// CHECK: {{.*}} icmp eq <2 x i8> {{.*}}, zeroinitializer
+// CHECK: %{{.*}} sext <2 x i1> %{{.*}} to <2 x i8>
+CHECKUOP(bool, BOOLNEG, !, 1)
 
-    // CHECK: {{.*}} sub <2 x i8> zeroinitializer, %{{.*}}
-    CHECKUOP(Q, bool, 2, false, -, BOOLUOP, 1)
+// CHECK: {{.*}} fcmp oeq <2 x half> %{{.*}}, zeroinitializer
+// CHECK: {{.*}} sext <2 x i1> %{{.*}} to <2 x i16>
+CHECKUOP(sycl::half, HALFNEG, !, 1)
 
-    // CHECK: {{.*}} fcmp oeq <2 x half> %{{.*}}, zeroinitializer
-    // CHECK: {{.*}} sext <2 x i1> %{{.*}} to <2 x i16>
-    CHECKUOP(Q, sycl::half, 2, true, !, HALFUOP, 1)
+// CHECK: {{.*}} fneg <2 x half> %{{.*}}
+CHECKUOP(sycl::half, HALFSUB, -, 1)
 
-    // CHECK: {{.*}} fneg <2 x half> %{{.*}}
-    CHECKUOP(Q, sycl::half, 2, false, -, HALFUOP, 1)
+// CHECK: for.cond{{.*}}
+// CHECK: {{.*}} fcmp oeq float %{{.*}}, 0.000000e+00
+// CHECK: {{.*}} uitofp i1 %{{.*}} to float
+CHECKUOP(ext::oneapi::bfloat16, BFNEG, !, 1)
 
-    // CHECK: for.cond{{.*}}
-    // CHECK: {{.*}} fcmp oeq float %{{.*}}, 0.000000e+00
-    // CHECK: {{.*}} uitofp i1 %{{.*}} to float
-    CHECKUOP(Q, ext::oneapi::bfloat16, 2, true, !, BFUOP, 1)
-
-    // CHECK: for.cond{{.*}}
-    // CHECK: {{.*}} fneg float %{{.*}}
-    CHECKUOP(Q, ext::oneapi::bfloat16, 2, false, -, BFUOP, 1)
-  }
-
-  return 0;
-};
+// CHECK: for{{.*}}
+// CHECK: {{.*}} fneg float %{{.*}}
+CHECKUOP(ext::oneapi::bfloat16, BFSUB, -, 1)
