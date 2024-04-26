@@ -7979,6 +7979,9 @@ typedef struct ur_exp_command_buffer_desc_t {
                                ///< ::UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC
     const void *pNext;         ///< [in][optional] pointer to extension-specific structure
     ur_bool_t isUpdatable;     ///< [in] Commands in a finalized command-buffer can be updated.
+    ur_bool_t isInOrder;       ///< [in] Commands in a command-buffer may be executed in-order without
+                               ///< explicit dependencies.
+    ur_bool_t enableProfiling; ///< [in] Command-buffer profiling is enabled.
 
 } ur_exp_command_buffer_desc_t;
 
@@ -8183,7 +8186,8 @@ urCommandBufferAppendKernelLaunchExp(
     const size_t *pGlobalWorkSize,                                ///< [in] Global work size to use when executing kernel.
     const size_t *pLocalWorkSize,                                 ///< [in][optional] Local work size to use when executing kernel.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,               ///< [out][optional] Sync point associated with this command.
     ur_exp_command_buffer_command_handle_t *phCommand             ///< [out][optional] Handle to this command.
 );
@@ -8219,7 +8223,8 @@ urCommandBufferAppendUSMMemcpyExp(
     const void *pSrc,                                             ///< [in] The data to be copied.
     size_t size,                                                  ///< [in] The number of bytes to copy.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
 );
 
@@ -8258,7 +8263,8 @@ urCommandBufferAppendUSMFillExp(
     size_t patternSize,                                           ///< [in] size in bytes of the pattern.
     size_t size,                                                  ///< [in] fill size in bytes, must be a multiple of patternSize.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command.
 );
 
@@ -8291,7 +8297,8 @@ urCommandBufferAppendMemBufferCopyExp(
     size_t dstOffset,                                             ///< [in] Offset into the destination memory
     size_t size,                                                  ///< [in] The number of bytes to be copied.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
 );
 
@@ -8324,7 +8331,8 @@ urCommandBufferAppendMemBufferWriteExp(
     size_t size,                                                  ///< [in] Size in bytes of data being written.
     const void *pSrc,                                             ///< [in] Pointer to host memory where data is to be written from.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
 );
 
@@ -8357,7 +8365,8 @@ urCommandBufferAppendMemBufferReadExp(
     size_t size,                                                  ///< [in] Size in bytes of data being written.
     void *pDst,                                                   ///< [in] Pointer to host memory where data is to be written to.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
 );
 
@@ -8394,7 +8403,8 @@ urCommandBufferAppendMemBufferCopyRectExp(
     size_t dstRowPitch,                                           ///< [in] Row pitch of the destination memory.
     size_t dstSlicePitch,                                         ///< [in] Slice pitch of the destination memory.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
 );
 
@@ -8435,7 +8445,8 @@ urCommandBufferAppendMemBufferWriteRectExp(
                                                                   ///< pointed to by pSrc.
     void *pSrc,                                                   ///< [in] Pointer to host memory where data is to be written from.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
 );
 
@@ -8475,7 +8486,8 @@ urCommandBufferAppendMemBufferReadRectExp(
                                                                   ///< pointed to by pDst.
     void *pDst,                                                   ///< [in] Pointer to host memory where data is to be read into.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
 );
 
@@ -8511,7 +8523,8 @@ urCommandBufferAppendMemBufferFillExp(
     size_t offset,                                                ///< [in] offset into the buffer.
     size_t size,                                                  ///< [in] fill size in bytes, must be a multiple of patternSize.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command.
 );
 
@@ -8552,7 +8565,8 @@ urCommandBufferAppendUSMPrefetchExp(
     size_t size,                                                  ///< [in] size in bytes to be fetched.
     ur_usm_migration_flags_t flags,                               ///< [in] USM prefetch flags
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command.
 );
 
@@ -8593,7 +8607,8 @@ urCommandBufferAppendUSMAdviseExp(
     size_t size,                                                  ///< [in] size in bytes to be advised.
     ur_usm_advice_flags_t advice,                                 ///< [in] USM memory advice
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command.
 );
 
