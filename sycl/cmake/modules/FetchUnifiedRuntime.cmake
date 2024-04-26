@@ -65,13 +65,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 758c61490442456933e3957aac568e13287429eb
-  # Merge: e2b5b7fa e2e44728
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Apr 10 16:15:45 2024 +0100
-  #    Merge pull request #1483 from nrspruit/fix_inorder_lists_reuse
-  #    [L0] Fix regular in order command list reuse given inorder queue
-  set(UNIFIED_RUNTIME_TAG 758c61490442456933e3957aac568e13287429eb)
+  # commit b37fa2c4b09a49839a83228f687c811595fce3fd
+  # Merge: c7fade0d f61e81e9
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Tue Apr 23 16:17:41 2024 +0100
+  #    Merge pull request #1544 from kbenzie/benie/l0-fix-rhel-error
+  #    [L0] Add missing <iomanip> include
+  set(UNIFIED_RUNTIME_TAG b37fa2c4b09a49839a83228f687c811595fce3fd)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
