@@ -20,7 +20,7 @@
 
 extern size_t imageElementByteSize(hipArray_Format ArrayFormat);
 
-ur_result_t enqueueEventsWait(ur_queue_handle_t, hipStream_t Stream,
+ur_result_t enqueueEventsWait(ur_queue_handle_t Queue, hipStream_t Stream,
                               uint32_t NumEventsInWaitList,
                               const ur_event_handle_t *EventWaitList) {
   if (!EventWaitList) {
@@ -29,8 +29,8 @@ ur_result_t enqueueEventsWait(ur_queue_handle_t, hipStream_t Stream,
   try {
     auto Result = forLatestEvents(
         EventWaitList, NumEventsInWaitList,
-        [Stream](ur_event_handle_t Event) -> ur_result_t {
-          ScopedContext Active(Event->getDevice());
+        [Stream, Queue](ur_event_handle_t Event) -> ur_result_t {
+          ScopedContext Active(Queue->getDevice());
           if (Event->isCompleted() || Event->getStream() == Stream) {
             return UR_RESULT_SUCCESS;
           } else {
@@ -218,8 +218,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
     // last queue to write to the MemBuffer, meaning we must perform the copy
     // from a different device
     if (hBuffer->LastEventWritingToMemObj &&
-        hBuffer->LastEventWritingToMemObj->getDevice() != hQueue->getDevice()) {
-      Device = hBuffer->LastEventWritingToMemObj->getDevice();
+        hBuffer->LastDeviceWritingToMemObj != hQueue->getDevice()) {
+      Device = hBuffer->LastDeviceWritingToMemObj;
       ScopedContext Active(Device);
       HIPStream = hipStream_t{0}; // Default stream for different device
       // We may have to wait for an event on another queue if it is the last
@@ -367,7 +367,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         // if it has been written to
         if (phEvent && (MemArg.AccessFlags &
                         (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_WRITE_ONLY))) {
-          MemArg.Mem->setLastEventWritingToMemObj(RetImplEvent.get());
+          MemArg.Mem->setLastEventWritingToMemObj(RetImplEvent.get(),
+                                                  hQueue->getDevice());
         }
       }
       // We can release the MemoryMigrationMutexes now
@@ -584,8 +585,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     // last queue to write to the MemBuffer, meaning we must perform the copy
     // from a different device
     if (hBuffer->LastEventWritingToMemObj &&
-        hBuffer->LastEventWritingToMemObj->getDevice() != hQueue->getDevice()) {
-      Device = hBuffer->LastEventWritingToMemObj->getDevice();
+        hBuffer->LastDeviceWritingToMemObj != hQueue->getDevice()) {
+      Device = hBuffer->LastDeviceWritingToMemObj;
       ScopedContext Active(Device);
       HIPStream = hipStream_t{0}; // Default stream for different device
       // We may have to wait for an event on another queue if it is the last
@@ -1017,8 +1018,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     // last queue to write to the MemBuffer, meaning we must perform the copy
     // from a different device
     if (hImage->LastEventWritingToMemObj &&
-        hImage->LastEventWritingToMemObj->getDevice() != hQueue->getDevice()) {
-      Device = hImage->LastEventWritingToMemObj->getDevice();
+        hImage->LastDeviceWritingToMemObj != hQueue->getDevice()) {
+      Device = hImage->LastDeviceWritingToMemObj;
       ScopedContext Active(Device);
       HIPStream = hipStream_t{0}; // Default stream for different device
       // We may have to wait for an event on another queue if it is the last
