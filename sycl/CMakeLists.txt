@@ -343,7 +343,7 @@ add_custom_target( sycl-runtime-libraries
   DEPENDS ${SYCL_RT_LIBS}
 )
 
-add_custom_target( sycl-toolchain
+add_custom_target( sycl-toolchain ALL
   DEPENDS sycl-runtime-libraries
           sycl-compiler
           sycl-ls

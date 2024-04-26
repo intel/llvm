@@ -8,6 +8,7 @@
 
 #pragma once
 #include <detail/device_impl.hpp>
+#include <detail/jit_compiler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_util.hpp>
 #include <detail/plugin.hpp>
@@ -805,6 +806,8 @@ struct get_device_info_impl<
            matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 16, 16, 16, matrix_type::bf16, matrix_type::bf16,
            matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 1, 64, 16, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 32, 64, 16, matrix_type::bf16, matrix_type::bf16,
            matrix_type::fp32, matrix_type::fp32},
           {8, 0, 0, 0, 16, 8, matrix_type::tf32, matrix_type::tf32,
@@ -1152,6 +1155,11 @@ struct get_device_info_impl<
     bool, ext::codeplay::experimental::info::device::supports_fusion> {
   static bool get(const DeviceImplPtr &Dev) {
 #if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+    // If the JIT library can't be loaded or entry points in the JIT library
+    // can't be resolved, fusion is not available.
+    if (!jit_compiler::get_instance().isAvailable()) {
+      return false;
+    }
     // Currently fusion is only supported for SPIR-V based backends,
     // CUDA and HIP.
     if (Dev->getBackend() == backend::opencl) {

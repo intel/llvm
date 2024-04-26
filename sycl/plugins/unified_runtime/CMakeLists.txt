@@ -105,7 +105,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 196f62f34e70dd79f3f683abe103cc33d3c49a92
+    # Merge: 37242e39 275c753a
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu Apr 25 15:03:51 2024 +0100
+    #     Merge pull request #1548 from kbenzie/benie/l0-fix-decoupled-use-case
+    #     [L0] Use relative includes for adapter internals
+    196f62f34e70dd79f3f683abe103cc33d3c49a92
   )
 
   fetch_adapter_source(opencl

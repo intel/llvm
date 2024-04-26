@@ -14,6 +14,7 @@
 /// @cond ESIMD_DETAIL
 
 #include <sycl/accessor.hpp>
+#include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
 
 namespace sycl {
 inline namespace _V1 {

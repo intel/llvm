@@ -16,7 +16,7 @@ struct myStruct {
 };
 
 constexpr sycl::specialization_id<size_t> size(1);
-constexpr sycl::specialization_id<int> intSize(-1);
+constexpr sycl::specialization_id<int> intSize(1);
 
 // For each call, we should generate a chain of: 'call @llvm.sycl.alloca.<ty>' + ('addrspacecast') + 'store'.
 // The 'addrspacecast' will only appear when the pointer is not decorated, i.e., `DecorateAddress == sycl::access::decorated::no`.

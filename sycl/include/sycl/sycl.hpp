@@ -10,6 +10,7 @@
 
 #include <sycl/detail/core.hpp>
 
+#include <sycl/accessor_image.hpp>
 #include <sycl/aspects.hpp>
 #include <sycl/atomic.hpp>
 #include <sycl/atomic_fence.hpp>
@@ -88,7 +89,9 @@
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
 #include <sycl/ext/oneapi/experimental/composite_device.hpp>
 #include <sycl/ext/oneapi/experimental/cuda/barrier.hpp>
+#include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/ext/oneapi/experimental/fixed_size_group.hpp>
+#include <sycl/ext/oneapi/experimental/group_load_store.hpp>
 #include <sycl/ext/oneapi/experimental/opportunistic_group.hpp>
 #include <sycl/ext/oneapi/experimental/prefetch.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>

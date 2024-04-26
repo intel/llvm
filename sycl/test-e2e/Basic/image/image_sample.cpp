@@ -4,6 +4,7 @@
 // Temporarily disable test on Windows due to regressions in GPU driver.
 // UNSUPPORTED: hip, windows
 
+#include <sycl/accessor_image.hpp>
 #include <sycl/detail/core.hpp>
 
 #include <iostream>

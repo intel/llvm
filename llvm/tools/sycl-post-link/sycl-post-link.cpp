@@ -339,7 +339,12 @@ std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
 }
 
 bool isModuleUsingAsan(const Module &M) {
-  return nullptr != M.getNamedGlobal("__DeviceSanitizerReportMem");
+  NamedMDNode *MD = M.getNamedMetadata("device.sanitizer");
+  if (MD == nullptr)
+    return false;
+  assert(MD->getNumOperands() != 0);
+  auto *MDVal = cast<MDString>(MD->getOperand(0)->getOperand(0));
+  return MDVal->getString() == "asan";
 }
 
 // Gets reqd_work_group_size information for function Func.

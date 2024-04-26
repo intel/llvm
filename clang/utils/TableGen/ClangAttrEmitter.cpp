@@ -1612,7 +1612,7 @@ writePrettyPrintFunction(const Record &R,
       Prefix = "[";
       Suffix = "]";
     } else if (Variety == "Keyword") {
-      Prefix = " ";
+      Prefix = "";
       Suffix = "";
     } else if (Variety == "Pragma") {
       Prefix = "#pragma ";
