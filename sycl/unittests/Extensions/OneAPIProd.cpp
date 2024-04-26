@@ -27,7 +27,7 @@ TEST(OneAPIProdTest, PiQueueFlush) {
   sycl::platform Plt = Mock.getPlatform();
   Mock.redefine<detail::PiApiKind::piQueueFlush>(redefinedQueueFlush);
   context Ctx{Plt};
-  queue Queue{Ctx};
+  queue Queue{Ctx, default_selector_v};
   Queue.ext_oneapi_prod();
   EXPECT_TRUE(QueueFlushed);
 }
