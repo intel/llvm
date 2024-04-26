@@ -131,8 +131,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(hip
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    https://github.com/hdelan/unified-runtime.git
+    get-device-from-queue
   )
 
   fetch_adapter_source(native_cpu
