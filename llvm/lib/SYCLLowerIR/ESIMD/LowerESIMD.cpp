@@ -632,15 +632,15 @@ public:
         {"fbl", {"fbl", {a(0)}}},
         {"sfbh", {"sfbh", {a(0)}}},
         {"ufbh", {"ufbh", {a(0)}}},
-        {"inv", {"inv", {a(0)}}},
-        {"log", {"log", {a(0)}}},
-        {"exp", {"exp", {a(0)}}},
-        {"sqrt", {"sqrt", {a(0)}}},
+        {"inv", {"__spirv_ocl_native_recip", {a(0)}}},
+        {"log", {"__spirv_ocl_native_log2", {a(0)}}},
+        {"exp", {"__spirv_ocl_native_exp2", {a(0)}}},
+        {"sqrt", {"__spirv_ocl_native_sqrt", {a(0)}}},
         {"ieee_sqrt", {"ieee.sqrt", {a(0)}}},
-        {"rsqrt", {"rsqrt", {a(0)}}},
-        {"sin", {"sin", {a(0)}}},
-        {"cos", {"cos", {a(0)}}},
-        {"pow", {"pow", {a(0), a(1)}}},
+        {"rsqrt", {"__spirv_ocl_native_rsqrt", {a(0)}}},
+        {"sin", {"__spirv_ocl_native_sin", {a(0)}}},
+        {"cos", {"__spirv_ocl_native_cos", {a(0)}}},
+        {"pow", {"__spirv_ocl_native_powr", {a(0), a(1)}}},
         {"ieee_div", {"ieee.div", {a(0), a(1)}}},
         {"uudp4a", {"uudp4a", {a(0), a(1), a(2)}}},
         {"usdp4a", {"usdp4a", {a(0), a(1), a(2)}}},
@@ -1332,6 +1332,18 @@ createDeviceLibESIMDDeclaration(const ESIMDIntrinDesc &Desc,
   return F;
 }
 
+static Function *createSPIRESIMDDeclaration(const ESIMDIntrinDesc &Desc,
+                                            SmallVector<Value *, 16> &GenXArgs,
+                                            CallInst &CI) {
+  SmallVector<Type *, 16> ArgTypes;
+  for (unsigned i = 0; i < GenXArgs.size(); ++i)
+    ArgTypes.push_back(GenXArgs[i]->getType());
+  auto *FType = FunctionType::get(CI.getType(), ArgTypes, false);
+
+  return Function::Create(FType, GlobalVariable::ExternalLinkage,
+                          Desc.GenXSpelling, CI.getModule());
+}
+
 // Create a simple function declaration
 // This is used for testing purposes, when it is impossible to query
 // vc-intrinsics
@@ -1439,8 +1451,11 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   Function *NewFDecl = nullptr;
   bool DoesFunctionReturnStructure =
       isStructureReturningFunction(Desc.GenXSpelling);
+
   if (isDevicelibFunction(F->getName())) {
     NewFDecl = createDeviceLibESIMDDeclaration(Desc, GenXArgs, CI);
+  } else if (Desc.GenXSpelling.rfind("__spirv_ocl_native_", 0) == 0) {
+    NewFDecl = createSPIRESIMDDeclaration(Desc, GenXArgs, CI);
   } else if (Desc.GenXSpelling.rfind("test.src.", 0) == 0) {
     // Special case for testing purposes
     NewFDecl = createTestESIMDDeclaration(Desc, GenXArgs, CI);
