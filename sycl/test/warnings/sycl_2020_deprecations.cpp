@@ -112,7 +112,7 @@ int main() {
   sycl::profiling_error pre;
   // expected-warning@+1 {{'feature_not_supported' is deprecated: use sycl::exception with sycl::errc::feature_not_supported instead.}}
   sycl::feature_not_supported fns;
-  // expected-warning@+1{{'exception' is deprecated: The version of an exception constructor which takes no arguments is deprecated.}}
+  // expected-warning@+1{{'exception' is deprecated: The version of the exception constructor that takes no arguments is deprecated.}}
   sycl::exception ex;
   // expected-warning@+1{{'get_cl_code' is deprecated: use sycl::exception.code() instead.}}
   ex.get_cl_code();
