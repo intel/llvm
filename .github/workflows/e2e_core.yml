@@ -138,7 +138,7 @@ jobs:
       # Remove after fixing SYCL test :: abi/layout_handler.cpp
       # This issue does not affect further execution of e2e with UR.
       continue-on-error: true
-      run: cmake --build ${{github.workspace}}/sycl_build --target check-sycl
+      run: cmake --build ${{github.workspace}}/sycl_build --target check-sycl -j6
 
     - name: Set additional env. vars
       run: |
