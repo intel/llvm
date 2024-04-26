@@ -9,7 +9,9 @@
 #pragma once
 
 #include <numeric>
+#include <sycl/ext/intel/experimental/usm_properties.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp>
+#include <sycl/property_list.hpp>
 
 namespace sycl {
 inline namespace _V1 {
