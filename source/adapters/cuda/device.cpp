@@ -691,8 +691,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         // respect to other CPUs and GPUs in the system
         Value = UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS |
                 UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_ACCESS |
-                UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS |
-                UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS;
+                UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS;
       } else {
         // on GPU architectures with compute capability lower than 6.x, atomic
         // operations from the GPU to CPU memory will not be atomic with respect
