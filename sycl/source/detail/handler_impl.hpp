@@ -112,9 +112,9 @@ public:
   bool MKernelIsCooperative = false;
 
   // Extra information for bindless image copy
-  sycl::detail::pi::PiMemImageDesc MImageDesc;
-  sycl::detail::pi::PiMemImageFormat MImageFormat;
-  sycl::detail::pi::PiImageCopyFlags MImageCopyFlags;
+  ur_image_desc_t MImageDesc;
+  ur_image_format_t MImageFormat;
+  ur_exp_image_copy_flags_t MImageCopyFlags;
 
   sycl::detail::pi::PiImageOffset MSrcOffset;
   sycl::detail::pi::PiImageOffset MDestOffset;

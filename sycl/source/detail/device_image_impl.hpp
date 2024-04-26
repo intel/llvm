@@ -266,17 +266,20 @@ public:
   sycl::detail::pi::PiMem &get_spec_const_buffer_ref() noexcept {
     std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
     if (nullptr == MSpecConstsBuffer && !MSpecConstsBlob.empty()) {
-      const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
-      // Uses PI_MEM_FLAGS_HOST_PTR_COPY instead of PI_MEM_FLAGS_HOST_PTR_USE
-      // since post-enqueue cleanup might trigger destruction of
-      // device_image_impl and, as a result, destruction of MSpecConstsBlob
-      // while MSpecConstsBuffer is still in use.
-      // TODO consider changing the lifetime of device_image_impl instead
-      memBufferCreateHelper(Plugin,
-                            detail::getSyclObjImpl(MContext)->getHandleRef(),
-                            PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_COPY,
-                            MSpecConstsBlob.size(), MSpecConstsBlob.data(),
-                            &MSpecConstsBuffer, nullptr);
+      // const UrPluginPtr &Plugin = getSyclObjImpl(MContext)->getUrPlugin();
+      //  Uses PI_MEM_FLAGS_HOST_PTR_COPY instead of PI_MEM_FLAGS_HOST_PTR_USE
+      //  since post-enqueue cleanup might trigger destruction of
+      //  device_image_impl and, as a result, destruction of MSpecConstsBlob
+      //  while MSpecConstsBuffer is still in use.
+      //  TODO consider changing the lifetime of device_image_impl instead
+      /* FIXME: port device image and surrounding stuff
+      ur_buffer_properties_t Properties = {UR_STRUCTURE_TYPE_BUFFER_PROPERTIES,
+      nullptr, MSpecConstsBlob.data()}; memBufferCreateHelper(Plugin,
+                            detail::getSyclObjImpl(MContext)->getUrHandleRef(),
+                            UR_MEM_FLAG_READ_WRITE |
+      UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER, MSpecConstsBlob.size(),
+                            &MSpecConstsBuffer, &Properties);
+                            */
     }
     return MSpecConstsBuffer;
   }
@@ -312,7 +315,8 @@ public:
     if (MSpecConstsBuffer) {
       std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
       const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
-      memReleaseHelper(Plugin, MSpecConstsBuffer);
+      /* FIXME: needs porting
+      memReleaseHelper(Plugin, MSpecConstsBuffer);*/
     }
   }
 

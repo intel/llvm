@@ -20,9 +20,11 @@
 // CHECK-NEXT: detail/pi.h
 // CHECK-NEXT: detail/pi_error.def
 // CHECK-NEXT: detail/pi.def
+// CHECK-NEXT: detail/ur.def
 // CHECK-NEXT: memory_enums.hpp
 // CHECK-NEXT: CL/__spirv/spirv_vars.hpp
 // CHECK-NEXT: detail/info_desc_helpers.hpp
+// CHECK-NEXT: ur_api.h
 // CHECK-NEXT: aspects.hpp
 // CHECK-NEXT: info/aspects.def
 // CHECK-NEXT: info/aspects_deprecated.def

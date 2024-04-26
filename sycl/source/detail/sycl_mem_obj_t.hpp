@@ -65,31 +65,30 @@ public:
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
       : SYCLMemObjT(/*SizeInBytes*/ 0, Props, std::move(Allocator)) {}
 
-  SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
+  SYCLMemObjT(ur_native_handle_t MemObject, const context &SyclContext,
               const size_t SizeInBytes, event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator);
 
   SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
               event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
-      : SYCLMemObjT(pi::cast<pi_native_handle>(MemObject), SyclContext,
+      : SYCLMemObjT(pi::cast<ur_native_handle_t>(MemObject), SyclContext,
                     /*SizeInBytes*/ (size_t)0, AvailableEvent,
                     std::move(Allocator)) {}
 
-  SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
+  SYCLMemObjT(ur_native_handle_t MemObject, const context &SyclContext,
               bool OwnNativeHandle, event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator);
 
-  SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
+  SYCLMemObjT(ur_native_handle_t MemObject, const context &SyclContext,
               bool OwnNativeHandle, event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
-              sycl::detail::pi::PiMemImageChannelOrder Order,
-              sycl::detail::pi::PiMemImageChannelType Type,
-              range<3> Range3WithOnes, unsigned Dimensions, size_t ElementSize);
+              ur_image_format_t Format, range<3> Range3WithOnes,
+              unsigned Dimensions, size_t ElementSize);
 
   virtual ~SYCLMemObjT() = default;
 
-  const PluginPtr &getPlugin() const;
+  const UrPluginPtr &getPlugin() const;
 
   size_t getSizeInBytes() const noexcept override { return MSizeInBytes; }
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
@@ -266,18 +265,17 @@ public:
   }
 
   static size_t getBufSizeForContext(const ContextImplPtr &Context,
-                                     pi_native_handle MemObject);
+                                     ur_native_handle_t MemObject);
 
   void handleWriteAccessorCreation();
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    void *HostPtr,
-                    sycl::detail::pi::PiEvent &InteropEvent) override {
+                    void *HostPtr, ur_event_handle_t &InteropEvent) override {
     (void)Context;
     (void)InitFromUserData;
     (void)HostPtr;
     (void)InteropEvent;
-    throw runtime_error("Not implemented", PI_ERROR_INVALID_OPERATION);
+    throw runtime_error("Not implemented", UR_RESULT_ERROR_INVALID_OPERATION);
   }
 
   MemObjType getType() const override { return MemObjType::Undefined; }
@@ -341,7 +339,7 @@ protected:
   ContextImplPtr MInteropContext;
   // Native backend memory object handle passed by user to interoperability
   // constructor.
-  sycl::detail::pi::PiMem MInteropMemObject;
+  ur_mem_handle_t MInteropMemObject;
   // Indicates whether memory object is created using interoperability
   // constructor or not.
   bool MOpenCLInterop;

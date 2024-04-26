@@ -511,10 +511,11 @@ event handler::finalize() {
     }
   } break;
   case detail::CG::CopyImage:
+    /* FIXME: CG needs porting before this can work
     CommandGroup.reset(new detail::CGCopyImage(
         MSrcPtr, MDstPtr, MImpl->MImageDesc, MImpl->MImageFormat,
         MImpl->MImageCopyFlags, MImpl->MSrcOffset, MImpl->MDestOffset,
-        MImpl->MHostExtent, MImpl->MCopyExtent, std::move(CGData), MCodeLoc));
+        MImpl->MHostExtent, MImpl->MCopyExtent, std::move(CGData), MCodeLoc));*/
     break;
   case detail::CG::SemaphoreWait:
     CommandGroup.reset(new detail::CGSemaphoreWait(
@@ -1035,33 +1036,32 @@ void handler::ext_oneapi_copy(
   MSrcPtr = Src;
   MDstPtr = Dest.raw_handle;
 
-  sycl::detail::pi::PiMemImageDesc PiDesc = {};
-  PiDesc.image_width = Desc.width;
-  PiDesc.image_height = Desc.height;
-  PiDesc.image_depth = Desc.depth;
-  PiDesc.image_array_size = Desc.array_size;
+  ur_image_desc_t UrDesc = {};
+  UrDesc.width = Desc.width;
+  UrDesc.height = Desc.height;
+  UrDesc.depth = Desc.depth;
+  UrDesc.arraySize = Desc.array_size;
 
   if (Desc.array_size > 1) {
     // Image Array.
-    PiDesc.image_type =
-        Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+    UrDesc.type =
+        Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY : UR_MEM_TYPE_IMAGE1D_ARRAY;
 
     // Cubemap.
-    PiDesc.image_type =
+    UrDesc.type =
         Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
-            ? PI_MEM_TYPE_IMAGE_CUBEMAP
-            : PiDesc.image_type;
+            ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
+            : UrDesc.type;
   } else {
-    PiDesc.image_type =
-        Desc.depth > 0
-            ? PI_MEM_TYPE_IMAGE3D
-            : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D : PI_MEM_TYPE_IMAGE1D);
+    UrDesc.type = Desc.depth > 0 ? UR_MEM_TYPE_IMAGE3D
+                                 : (Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D
+                                                    : UR_MEM_TYPE_IMAGE1D);
   }
 
-  sycl::detail::pi::PiMemImageFormat PiFormat;
-  PiFormat.image_channel_data_type =
+  ur_image_format_t UrFormat;
+  UrFormat.channelType =
       sycl::_V1::detail::convertChannelType(Desc.channel_type);
-  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
       sycl::_V1::ext::oneapi::experimental::detail::
           get_image_default_channel_order(Desc.num_channels));
 
@@ -1069,8 +1069,8 @@ void handler::ext_oneapi_copy(
   MImpl->MDestOffset = {0, 0, 0};
   MImpl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
   MImpl->MHostExtent = {Desc.width, Desc.height, Desc.depth};
-  MImpl->MImageDesc = PiDesc;
-  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageDesc = UrDesc;
+  MImpl->MImageFormat = UrFormat;
   MImpl->MImageCopyFlags =
       sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_HOST_TO_DEVICE;
   setType(detail::CG::CopyImage);
@@ -1089,33 +1089,33 @@ void handler::ext_oneapi_copy(
   MSrcPtr = Src;
   MDstPtr = Dest.raw_handle;
 
-  sycl::detail::pi::PiMemImageDesc PiDesc = {};
-  PiDesc.image_width = DestImgDesc.width;
-  PiDesc.image_height = DestImgDesc.height;
-  PiDesc.image_depth = DestImgDesc.depth;
-  PiDesc.image_array_size = DestImgDesc.array_size;
+  ur_image_desc_t UrDesc = {};
+  UrDesc.width = DestImgDesc.width;
+  UrDesc.height = DestImgDesc.height;
+  UrDesc.depth = DestImgDesc.depth;
+  UrDesc.arraySize = DestImgDesc.array_size;
 
   if (DestImgDesc.array_size > 1) {
     // Image Array.
-    PiDesc.image_type = DestImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
-                                               : PI_MEM_TYPE_IMAGE1D_ARRAY;
+    UrDesc.type = DestImgDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY
+                                         : UR_MEM_TYPE_IMAGE1D_ARRAY;
 
     // Cubemap.
-    PiDesc.image_type =
+    UrDesc.type =
         DestImgDesc.type == sycl::ext::oneapi::experimental::image_type::cubemap
-            ? PI_MEM_TYPE_IMAGE_CUBEMAP
-            : PiDesc.image_type;
+            ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
+            : UrDesc.type;
   } else {
-    PiDesc.image_type = DestImgDesc.depth > 0
-                            ? PI_MEM_TYPE_IMAGE3D
-                            : (DestImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
-                                                      : PI_MEM_TYPE_IMAGE1D);
+    UrDesc.type = DestImgDesc.depth > 0
+                      ? UR_MEM_TYPE_IMAGE3D
+                      : (DestImgDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D
+                                                : UR_MEM_TYPE_IMAGE1D);
   }
 
-  sycl::detail::pi::PiMemImageFormat PiFormat;
-  PiFormat.image_channel_data_type =
+  ur_image_format_t UrFormat;
+  UrFormat.channelType =
       sycl::_V1::detail::convertChannelType(DestImgDesc.channel_type);
-  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
       sycl::_V1::ext::oneapi::experimental::detail::
           get_image_default_channel_order(DestImgDesc.num_channels));
 
@@ -1123,8 +1123,8 @@ void handler::ext_oneapi_copy(
   MImpl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
   MImpl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
   MImpl->MHostExtent = {SrcExtent[0], SrcExtent[1], SrcExtent[2]};
-  MImpl->MImageDesc = PiDesc;
-  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageDesc = UrDesc;
+  MImpl->MImageFormat = UrFormat;
   MImpl->MImageCopyFlags =
       sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_HOST_TO_DEVICE;
   setType(detail::CG::CopyImage);
@@ -1141,33 +1141,32 @@ void handler::ext_oneapi_copy(
   MSrcPtr = Src.raw_handle;
   MDstPtr = Dest;
 
-  sycl::detail::pi::PiMemImageDesc PiDesc = {};
-  PiDesc.image_width = Desc.width;
-  PiDesc.image_height = Desc.height;
-  PiDesc.image_depth = Desc.depth;
-  PiDesc.image_array_size = Desc.array_size;
+  ur_image_desc_t UrDesc = {};
+  UrDesc.width = Desc.width;
+  UrDesc.height = Desc.height;
+  UrDesc.depth = Desc.depth;
+  UrDesc.arraySize = Desc.array_size;
 
   if (Desc.array_size > 1) {
     // Image Array.
-    PiDesc.image_type =
-        Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+    UrDesc.type =
+        Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY : UR_MEM_TYPE_IMAGE1D_ARRAY;
 
     // Cubemap.
-    PiDesc.image_type =
+    UrDesc.type =
         Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
-            ? PI_MEM_TYPE_IMAGE_CUBEMAP
-            : PiDesc.image_type;
+            ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
+            : UrDesc.type;
   } else {
-    PiDesc.image_type =
-        Desc.depth > 0
-            ? PI_MEM_TYPE_IMAGE3D
-            : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D : PI_MEM_TYPE_IMAGE1D);
+    UrDesc.type = Desc.depth > 0 ? UR_MEM_TYPE_IMAGE3D
+                                 : (Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D
+                                                    : UR_MEM_TYPE_IMAGE1D);
   }
 
-  sycl::detail::pi::PiMemImageFormat PiFormat;
-  PiFormat.image_channel_data_type =
+  ur_image_format_t UrFormat;
+  UrFormat.channelType =
       sycl::_V1::detail::convertChannelType(Desc.channel_type);
-  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
       sycl::_V1::ext::oneapi::experimental::detail::
           get_image_default_channel_order(Desc.num_channels));
 
@@ -1175,8 +1174,8 @@ void handler::ext_oneapi_copy(
   MImpl->MDestOffset = {0, 0, 0};
   MImpl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
   MImpl->MHostExtent = {Desc.width, Desc.height, Desc.depth};
-  MImpl->MImageDesc = PiDesc;
-  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageDesc = UrDesc;
+  MImpl->MImageFormat = UrFormat;
   MImpl->MImageCopyFlags =
       sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_HOST;
   setType(detail::CG::CopyImage);
@@ -1194,32 +1193,32 @@ void handler::ext_oneapi_copy(
   MSrcPtr = Src.raw_handle;
   MDstPtr = Dest.raw_handle;
 
-  sycl::detail::pi::PiMemImageDesc PiDesc = {};
-  PiDesc.image_width = ImageDesc.width;
-  PiDesc.image_height = ImageDesc.height;
-  PiDesc.image_depth = ImageDesc.depth;
-  PiDesc.image_array_size = ImageDesc.array_size;
+  ur_image_desc_t UrDesc = {};
+  UrDesc.width = ImageDesc.width;
+  UrDesc.height = ImageDesc.height;
+  UrDesc.depth = ImageDesc.depth;
+  UrDesc.arraySize = ImageDesc.array_size;
   if (ImageDesc.array_size > 1) {
     // Image Array.
-    PiDesc.image_type = ImageDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
-                                             : PI_MEM_TYPE_IMAGE1D_ARRAY;
+    UrDesc.type = ImageDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY
+                                       : UR_MEM_TYPE_IMAGE1D_ARRAY;
 
     // Cubemap.
-    PiDesc.image_type =
+    UrDesc.type =
         ImageDesc.type == sycl::ext::oneapi::experimental::image_type::cubemap
-            ? PI_MEM_TYPE_IMAGE_CUBEMAP
-            : PiDesc.image_type;
+            ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
+            : UrDesc.type;
   } else {
-    PiDesc.image_type = ImageDesc.depth > 0
-                            ? PI_MEM_TYPE_IMAGE3D
-                            : (ImageDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
-                                                    : PI_MEM_TYPE_IMAGE1D);
+    UrDesc.type = ImageDesc.depth > 0
+                      ? UR_MEM_TYPE_IMAGE3D
+                      : (ImageDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D
+                                              : UR_MEM_TYPE_IMAGE1D);
   }
 
-  sycl::detail::pi::PiMemImageFormat PiFormat;
-  PiFormat.image_channel_data_type =
+  ur_image_format_t UrFormat;
+  UrFormat.channelType =
       sycl::_V1::detail::convertChannelType(ImageDesc.channel_type);
-  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
       sycl::_V1::ext::oneapi::experimental::detail::
           get_image_default_channel_order(ImageDesc.num_channels));
 
@@ -1227,8 +1226,8 @@ void handler::ext_oneapi_copy(
   MImpl->MDestOffset = {0, 0, 0};
   MImpl->MCopyExtent = {ImageDesc.width, ImageDesc.height, ImageDesc.depth};
   MImpl->MHostExtent = {ImageDesc.width, ImageDesc.height, ImageDesc.depth};
-  MImpl->MImageDesc = PiDesc;
-  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageDesc = UrDesc;
+  MImpl->MImageFormat = UrFormat;
   MImpl->MImageCopyFlags =
       sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_DEVICE;
   setType(detail::CG::CopyImage);
@@ -1247,33 +1246,33 @@ void handler::ext_oneapi_copy(
   MSrcPtr = Src.raw_handle;
   MDstPtr = Dest;
 
-  sycl::detail::pi::PiMemImageDesc PiDesc = {};
-  PiDesc.image_width = SrcImgDesc.width;
-  PiDesc.image_height = SrcImgDesc.height;
-  PiDesc.image_depth = SrcImgDesc.depth;
-  PiDesc.image_array_size = SrcImgDesc.array_size;
+  ur_image_desc_t UrDesc = {};
+  UrDesc.width = SrcImgDesc.width;
+  UrDesc.height = SrcImgDesc.height;
+  UrDesc.depth = SrcImgDesc.depth;
+  UrDesc.arraySize = SrcImgDesc.array_size;
 
   if (SrcImgDesc.array_size > 1) {
     // Image Array.
-    PiDesc.image_type = SrcImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
-                                              : PI_MEM_TYPE_IMAGE1D_ARRAY;
+    UrDesc.type = SrcImgDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY
+                                        : UR_MEM_TYPE_IMAGE1D_ARRAY;
 
     // Cubemap.
-    PiDesc.image_type =
+    UrDesc.type =
         SrcImgDesc.type == sycl::ext::oneapi::experimental::image_type::cubemap
-            ? PI_MEM_TYPE_IMAGE_CUBEMAP
-            : PiDesc.image_type;
+            ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
+            : UrDesc.type;
   } else {
-    PiDesc.image_type = SrcImgDesc.depth > 0
-                            ? PI_MEM_TYPE_IMAGE3D
-                            : (SrcImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
-                                                     : PI_MEM_TYPE_IMAGE1D);
+    UrDesc.type = SrcImgDesc.depth > 0
+                      ? UR_MEM_TYPE_IMAGE3D
+                      : (SrcImgDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D
+                                               : UR_MEM_TYPE_IMAGE1D);
   }
 
-  sycl::detail::pi::PiMemImageFormat PiFormat;
-  PiFormat.image_channel_data_type =
+  ur_image_format_t UrFormat;
+  UrFormat.channelType =
       sycl::_V1::detail::convertChannelType(SrcImgDesc.channel_type);
-  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
       sycl::_V1::ext::oneapi::experimental::detail::
           get_image_default_channel_order(SrcImgDesc.num_channels));
 
@@ -1281,8 +1280,8 @@ void handler::ext_oneapi_copy(
   MImpl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
   MImpl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
   MImpl->MHostExtent = {DestExtent[0], DestExtent[1], DestExtent[2]};
-  MImpl->MImageDesc = PiDesc;
-  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageDesc = UrDesc;
+  MImpl->MImageFormat = UrFormat;
   MImpl->MImageCopyFlags =
       sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_HOST;
   setType(detail::CG::CopyImage);
@@ -1299,33 +1298,32 @@ void handler::ext_oneapi_copy(
   MSrcPtr = Src;
   MDstPtr = Dest;
 
-  sycl::detail::pi::PiMemImageDesc PiDesc = {};
-  PiDesc.image_width = Desc.width;
-  PiDesc.image_height = Desc.height;
-  PiDesc.image_depth = Desc.depth;
-  PiDesc.image_array_size = Desc.array_size;
+  ur_image_desc_t UrDesc = {};
+  UrDesc.width = Desc.width;
+  UrDesc.height = Desc.height;
+  UrDesc.depth = Desc.depth;
+  UrDesc.arraySize = Desc.array_size;
 
   if (Desc.array_size > 1) {
     // Image Array.
-    PiDesc.image_type =
-        Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+    UrDesc.type =
+        Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY : UR_MEM_TYPE_IMAGE1D_ARRAY;
 
     // Cubemap.
-    PiDesc.image_type =
+    UrDesc.type =
         Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
-            ? PI_MEM_TYPE_IMAGE_CUBEMAP
-            : PiDesc.image_type;
+            ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
+            : UrDesc.type;
   } else {
-    PiDesc.image_type =
-        Desc.depth > 0
-            ? PI_MEM_TYPE_IMAGE3D
-            : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D : PI_MEM_TYPE_IMAGE1D);
+    UrDesc.type = Desc.depth > 0 ? UR_MEM_TYPE_IMAGE3D
+                                 : (Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D
+                                                    : UR_MEM_TYPE_IMAGE1D);
   }
 
-  sycl::detail::pi::PiMemImageFormat PiFormat;
-  PiFormat.image_channel_data_type =
+  ur_image_format_t UrFormat;
+  UrFormat.channelType =
       sycl::_V1::detail::convertChannelType(Desc.channel_type);
-  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
       sycl::_V1::ext::oneapi::experimental::detail::
           get_image_default_channel_order(Desc.num_channels));
 
@@ -1333,9 +1331,9 @@ void handler::ext_oneapi_copy(
   MImpl->MDestOffset = {0, 0, 0};
   MImpl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
   MImpl->MHostExtent = {Desc.width, Desc.height, Desc.depth};
-  MImpl->MImageDesc = PiDesc;
-  MImpl->MImageDesc.image_row_pitch = Pitch;
-  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageDesc = UrDesc;
+  MImpl->MImageDesc.rowPitch = Pitch;
+  MImpl->MImageFormat = UrFormat;
   MImpl->MImageCopyFlags = detail::getPiImageCopyFlags(
       get_pointer_type(Src, MQueue->get_context()),
       get_pointer_type(Dest, MQueue->get_context()));
@@ -1355,34 +1353,33 @@ void handler::ext_oneapi_copy(
   MSrcPtr = Src;
   MDstPtr = Dest;
 
-  sycl::detail::pi::PiMemImageDesc PiDesc = {};
-  PiDesc.image_width = DeviceImgDesc.width;
-  PiDesc.image_height = DeviceImgDesc.height;
-  PiDesc.image_depth = DeviceImgDesc.depth;
-  PiDesc.image_array_size = DeviceImgDesc.array_size;
+  ur_image_desc_t UrDesc = {};
+  UrDesc.width = DeviceImgDesc.width;
+  UrDesc.height = DeviceImgDesc.height;
+  UrDesc.depth = DeviceImgDesc.depth;
+  UrDesc.arraySize = DeviceImgDesc.array_size;
 
   if (DeviceImgDesc.array_size > 1) {
     // Image Array.
-    PiDesc.image_type = DeviceImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
-                                                 : PI_MEM_TYPE_IMAGE1D_ARRAY;
+    UrDesc.type = DeviceImgDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY
+                                           : UR_MEM_TYPE_IMAGE1D_ARRAY;
 
     // Cubemap.
-    PiDesc.image_type =
-        DeviceImgDesc.type ==
-                sycl::ext::oneapi::experimental::image_type::cubemap
-            ? PI_MEM_TYPE_IMAGE_CUBEMAP
-            : PiDesc.image_type;
+    UrDesc.type = DeviceImgDesc.type ==
+                          sycl::ext::oneapi::experimental::image_type::cubemap
+                      ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
+                      : UrDesc.type;
   } else {
-    PiDesc.image_type = DeviceImgDesc.depth > 0
-                            ? PI_MEM_TYPE_IMAGE3D
-                            : (DeviceImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
-                                                        : PI_MEM_TYPE_IMAGE1D);
+    UrDesc.type = DeviceImgDesc.depth > 0
+                      ? UR_MEM_TYPE_IMAGE3D
+                      : (DeviceImgDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D
+                                                  : UR_MEM_TYPE_IMAGE1D);
   }
 
-  sycl::detail::pi::PiMemImageFormat PiFormat;
-  PiFormat.image_channel_data_type =
+  ur_image_format_t UrFormat;
+  UrFormat.channelType =
       sycl::_V1::detail::convertChannelType(DeviceImgDesc.channel_type);
-  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
       sycl::_V1::ext::oneapi::experimental::detail::
           get_image_default_channel_order(DeviceImgDesc.num_channels));
 
@@ -1390,9 +1387,9 @@ void handler::ext_oneapi_copy(
   MImpl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
   MImpl->MHostExtent = {HostExtent[0], HostExtent[1], HostExtent[2]};
   MImpl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
-  MImpl->MImageDesc = PiDesc;
-  MImpl->MImageDesc.image_row_pitch = DeviceRowPitch;
-  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageDesc = UrDesc;
+  MImpl->MImageDesc.rowPitch = DeviceRowPitch;
+  MImpl->MImageFormat = UrFormat;
   MImpl->MImageCopyFlags = detail::getPiImageCopyFlags(
       get_pointer_type(Src, MQueue->get_context()),
       get_pointer_type(Dest, MQueue->get_context()));

@@ -1070,11 +1070,9 @@ pi_int32 AllocaCommand::enqueueImp() {
   }
   // TODO: Check if it is correct to use std::move on stack variable and
   // delete it RawEvents below.
-  /* FIXME: port memory manager and re-enable
-  MMemAllocation = MemoryManager::allocate(
-      MQueue->getContextImplPtr(), getSYCLMemObj(), MInitFromUserData, HostPtr,
-      std::move(EventImpls), Event);*/
-  pi::die("memory manager not ported");
+  MemoryManager::allocate(MQueue->getContextImplPtr(), getSYCLMemObj(),
+                          MInitFromUserData, HostPtr, std::move(EventImpls),
+                          Event);
 
   return UR_RESULT_SUCCESS;
 }
@@ -2812,6 +2810,9 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
     MEvent->setCommandBufferCommand(OutCommand);*/
     return result;
   }
+  /* FIXME: command group needs porting for these to work with newly ported
+  memory
+   * manager helpers
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
     MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
@@ -2849,65 +2850,66 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
         AllocaCmd->getMemAllocation(), Req->MDims, Req->MMemoryRange,
         Req->MAccessRange, Req->MOffset, Req->MElemSize, (char *)Copy->getDst(),
         Req->MDims, Req->MAccessRange,
-        /*DstOffset=*/{0, 0, 0}, Req->MElemSize, std::move(MSyncPointDeps),
-        &OutSyncPoint);
-    MEvent->setSyncPoint(OutSyncPoint);
-    return PI_SUCCESS;
-  }
-  case CG::CGTYPE::CopyPtrToAcc: {
-    CGCopy *Copy = (CGCopy *)MCommandGroup.get();
-    Requirement *Req = (Requirement *)(Copy->getDst());
-    AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+       */
+  /*DstOffset=*/ /*{0, 0, 0}, Req->MElemSize, std::move(MSyncPointDeps),
+ &OutSyncPoint);
+MEvent->setSyncPoint(OutSyncPoint);
+return PI_SUCCESS;
+}
+case CG::CGTYPE::CopyPtrToAcc: {
+CGCopy *Copy = (CGCopy *)MCommandGroup.get();
+Requirement *Req = (Requirement *)(Copy->getDst());
+AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+ 
+MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
+ MQueue->getContextImplPtr(), MCommandBuffer, AllocaCmd->getSYCLMemObj(),
+ (char *)Copy->getSrc(), Req->MDims, Req->MAccessRange,
+*/ /*SrcOffset*/ /* {0, 0, 0}, Req->MElemSize, AllocaCmd->getMemAllocation(),
+  Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
+  Req->MElemSize, std::move(MSyncPointDeps), &OutSyncPoint);
+MEvent->setSyncPoint(OutSyncPoint);
+return PI_SUCCESS;
+}
+case CG::CGTYPE::Fill: {
+CGFill *Fill = (CGFill *)MCommandGroup.get();
+Requirement *Req = (Requirement *)(Fill->getReqToFill());
+AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
 
-    MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
-        MQueue->getContextImplPtr(), MCommandBuffer, AllocaCmd->getSYCLMemObj(),
-        (char *)Copy->getSrc(), Req->MDims, Req->MAccessRange,
-        /*SrcOffset*/ {0, 0, 0}, Req->MElemSize, AllocaCmd->getMemAllocation(),
-        Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
-        Req->MElemSize, std::move(MSyncPointDeps), &OutSyncPoint);
-    MEvent->setSyncPoint(OutSyncPoint);
-    return PI_SUCCESS;
-  }
-  case CG::CGTYPE::Fill: {
-    CGFill *Fill = (CGFill *)MCommandGroup.get();
-    Requirement *Req = (Requirement *)(Fill->getReqToFill());
-    AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
-
-    MemoryManager::ext_oneapi_fill_cmd_buffer(
-        MQueue->getContextImplPtr(), MCommandBuffer, AllocaCmd->getSYCLMemObj(),
-        AllocaCmd->getMemAllocation(), Fill->MPattern.size(),
-        Fill->MPattern.data(), Req->MDims, Req->MMemoryRange, Req->MAccessRange,
-        Req->MOffset, Req->MElemSize, std::move(MSyncPointDeps), &OutSyncPoint);
-    MEvent->setSyncPoint(OutSyncPoint);
-    return PI_SUCCESS;
-  }
-  case CG::CGTYPE::FillUSM: {
-    CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
-    MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
-        MQueue->getContextImplPtr(), MCommandBuffer, Fill->getDst(),
-        Fill->getLength(), Fill->getFill(), std::move(MSyncPointDeps),
-        &OutSyncPoint);
-    MEvent->setSyncPoint(OutSyncPoint);
-    return PI_SUCCESS;
-  }
-  case CG::CGTYPE::PrefetchUSM: {
-    CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
-    MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(
-        MQueue->getContextImplPtr(), MCommandBuffer, Prefetch->getDst(),
-        Prefetch->getLength(), std::move(MSyncPointDeps), &OutSyncPoint);
-    MEvent->setSyncPoint(OutSyncPoint);
-    return PI_SUCCESS;
-  }
-  case CG::CGTYPE::AdviseUSM: {
-    CGAdviseUSM *Advise = (CGAdviseUSM *)MCommandGroup.get();
-    MemoryManager::ext_oneapi_advise_usm_cmd_buffer(
-        MQueue->getContextImplPtr(), MCommandBuffer, Advise->getDst(),
-        Advise->getLength(), Advise->getAdvice(), std::move(MSyncPointDeps),
-        &OutSyncPoint);
-    MEvent->setSyncPoint(OutSyncPoint);
-    return PI_SUCCESS;
-  }
-
+MemoryManager::ext_oneapi_fill_cmd_buffer(
+  MQueue->getContextImplPtr(), MCommandBuffer, AllocaCmd->getSYCLMemObj(),
+  AllocaCmd->getMemAllocation(), Fill->MPattern.size(),
+  Fill->MPattern.data(), Req->MDims, Req->MMemoryRange, Req->MAccessRange,
+  Req->MOffset, Req->MElemSize, std::move(MSyncPointDeps), &OutSyncPoint);
+MEvent->setSyncPoint(OutSyncPoint);
+return PI_SUCCESS;
+}
+case CG::CGTYPE::FillUSM: {
+CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
+MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
+  MQueue->getContextImplPtr(), MCommandBuffer, Fill->getDst(),
+  Fill->getLength(), Fill->getFill(), std::move(MSyncPointDeps),
+  &OutSyncPoint);
+MEvent->setSyncPoint(OutSyncPoint);
+return PI_SUCCESS;
+}
+case CG::CGTYPE::PrefetchUSM: {
+CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
+MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(
+  MQueue->getContextImplPtr(), MCommandBuffer, Prefetch->getDst(),
+  Prefetch->getLength(), std::move(MSyncPointDeps), &OutSyncPoint);
+MEvent->setSyncPoint(OutSyncPoint);
+return PI_SUCCESS;
+}
+case CG::CGTYPE::AdviseUSM: {
+CGAdviseUSM *Advise = (CGAdviseUSM *)MCommandGroup.get();
+MemoryManager::ext_oneapi_advise_usm_cmd_buffer(
+  MQueue->getContextImplPtr(), MCommandBuffer, Advise->getDst(),
+  Advise->getLength(), Advise->getAdvice(), std::move(MSyncPointDeps),
+  &OutSyncPoint);
+MEvent->setSyncPoint(OutSyncPoint);
+return PI_SUCCESS;
+}
+*/
   default:
     throw runtime_error("CG type not implemented for command buffers.",
                         PI_ERROR_INVALID_OPERATION);

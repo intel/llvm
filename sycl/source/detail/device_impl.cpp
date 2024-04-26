@@ -175,7 +175,7 @@ platform device_impl::get_platform() const {
 template <typename Param>
 typename Param::return_type device_impl::get_info() const {
   if (is_host()) {
-    // return get_device_info_host<Param>();
+    return get_device_info_host<Param>();
   }
   return get_device_info<Param>(
       MPlatform->getOrMakeDeviceImpl(MUrDevice, MPlatform));

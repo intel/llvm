@@ -171,14 +171,11 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   // Emit a begin/end scope for this call
   PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
 #endif
-  /*
-    return submitMemOpHelper(
-        Self, DepEvents, [&](handler &CGH) { CGH.memset(Ptr, Value, Count); },
-        [](const auto &...Args) { MemoryManager::fill_usm(Args...); }, Ptr,
-    Self, Count, Value);*/
 
-  pi::die("memory manager not ported yet");
-  return event();
+  return submitMemOpHelper(
+      Self, DepEvents, [&](handler &CGH) { CGH.memset(Ptr, Value, Count); },
+      [](const auto &...Args) { MemoryManager::fill_usm(Args...); }, Ptr, Self,
+      Count, Value);
 }
 
 void report(const code_location &CodeLoc) {
@@ -226,66 +223,59 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     report(CodeLoc);
     throw runtime_error("NULL pointer argument in memory copy operation.",
                         PI_ERROR_INVALID_VALUE);
-  } /*
-   return submitMemOpHelper(
-       Self, DepEvents, [&](handler &CGH) { CGH.memcpy(Dest, Src, Count); },
-       [](const auto &...Args) { MemoryManager::copy_usm(Args...); }, Src, Self,
-       Count, Dest);*/
-
-  pi::die("memory manager not ported yet");
-  return event();
+  }
+  return submitMemOpHelper(
+      Self, DepEvents, [&](handler &CGH) { CGH.memcpy(Dest, Src, Count); },
+      [](const auto &...Args) { MemoryManager::copy_usm(Args...); }, Src, Self,
+      Count, Dest);
 }
 
 event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
                              pi_mem_advice Advice,
                              const std::vector<event> &DepEvents) {
-  /*
   return submitMemOpHelper(
       Self, DepEvents,
       [&](handler &CGH) { CGH.mem_advise(Ptr, Length, Advice); },
       [](const auto &...Args) { MemoryManager::advise_usm(Args...); }, Ptr,
-      Self, Length, Advice);*/
+      Self, Length, Advice);
 
-  pi::die("memory manager not ported yet");
   return event();
 }
 
 event queue_impl::memcpyToDeviceGlobal(
     const std::shared_ptr<detail::queue_impl> &Self, void *DeviceGlobalPtr,
     const void *Src, bool IsDeviceImageScope, size_t NumBytes, size_t Offset,
-    const std::vector<event> &DepEvents) { /*
-   return submitMemOpHelper(
-       Self, DepEvents,
-       [&](handler &CGH) {
-         CGH.memcpyToDeviceGlobal(DeviceGlobalPtr, Src, IsDeviceImageScope,
-                                  NumBytes, Offset);
-       },
-       [](const auto &...Args) {
-         MemoryManager::copy_to_device_global(Args...);
-       },
-       DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src);*/
+    const std::vector<event> &DepEvents) {
+  return submitMemOpHelper(
+      Self, DepEvents,
+      [&](handler &CGH) {
+        CGH.memcpyToDeviceGlobal(DeviceGlobalPtr, Src, IsDeviceImageScope,
+                                 NumBytes, Offset);
+      },
+      [](const auto &...Args) {
+        MemoryManager::copy_to_device_global(Args...);
+      },
+      DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src);
 
-  pi::die("memory manager not ported yet");
   return event();
 }
 
 event queue_impl::memcpyFromDeviceGlobal(
     const std::shared_ptr<detail::queue_impl> &Self, void *Dest,
     const void *DeviceGlobalPtr, bool IsDeviceImageScope, size_t NumBytes,
-    size_t Offset, const std::vector<event> &DepEvents) { /*
-   return submitMemOpHelper(
-       Self, DepEvents,
-       [&](handler &CGH) {
-         CGH.memcpyFromDeviceGlobal(Dest, DeviceGlobalPtr, IsDeviceImageScope,
-                                    NumBytes, Offset);
-       },
-       [](const auto &...Args) {
-         MemoryManager::copy_from_device_global(Args...);
-       },
-       DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest);*/
+    size_t Offset, const std::vector<event> &DepEvents) {
+  return submitMemOpHelper(
+      Self, DepEvents,
+      [&](handler &CGH) {
+        CGH.memcpyFromDeviceGlobal(Dest, DeviceGlobalPtr, IsDeviceImageScope,
+                                   NumBytes, Offset);
+      },
+      [](const auto &...Args) {
+        MemoryManager::copy_from_device_global(Args...);
+      },
+      DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest);
 
-  pi::die("memory manager not ported yet");
   return event();
 }
 
