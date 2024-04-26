@@ -1405,16 +1405,25 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
       // If we don't have host visible proxy then signal event if needed.
       this->signalEventFromCmdListIfLastEventDiscarded(CommandList);
     }
-    // Append Signalling of the inner events at the end of the batch
-    for (auto &Event : CommandList->second.EventList) {
-      if (Event->IsInnerBatchedEvent) {
-        if (AppendBarrierNeeded) {
-          ZE2UR_CALL(zeCommandListAppendBarrier,
-                     (CommandList->first, nullptr, 0, nullptr));
-          AppendBarrierNeeded = false;
+    // Append Signalling of the inner events at the end of the batch if this is
+    // an integrated gpu and out of order signal events are not allowed.
+    if (!UrL0OutOfOrderIntegratedSignalEvent && this->Device->isIntegrated()) {
+      for (auto &Event : CommandList->second.EventList) {
+        // If the events scope does not apply a barrier already above, then we
+        // need to apply a barrier to wait on all the previous commands without
+        // signal events to complete before we can signal the batched events as
+        // completed. This functionality is only used if this command list is
+        // out of order and there are events created that were not used as
+        // signal events.
+        if (Event->IsInnerBatchedEvent) {
+          if (AppendBarrierNeeded) {
+            ZE2UR_CALL(zeCommandListAppendBarrier,
+                       (CommandList->first, nullptr, 0, nullptr));
+            AppendBarrierNeeded = false;
+          }
+          ZE2UR_CALL(zeCommandListAppendSignalEvent,
+                     (CommandList->first, Event->ZeEvent));
         }
-        ZE2UR_CALL(zeCommandListAppendSignalEvent,
-                   (CommandList->first, Event->ZeEvent));
       }
     }
 
@@ -1771,11 +1780,10 @@ ur_result_t setSignalEvent(ur_queue_handle_t Queue, bool UseCopyEngine,
                            uint32_t NumEventsInWaitList,
                            const ur_event_handle_t *EventWaitList,
                            ze_command_queue_handle_t ZeQueue) {
-  if (Queue->Device->isIntegrated() &&
+  if (!UrL0OutOfOrderIntegratedSignalEvent && Queue->Device->isIntegrated() &&
       eventCanBeBatched(Queue, UseCopyEngine, NumEventsInWaitList,
                         EventWaitList) &&
-      !Queue->isInOrderQueue() && !Queue->UsingImmCmdLists &&
-      !UrL0OutOfOrderIntegratedSignalEvent) {
+      !Queue->isInOrderQueue() && !Queue->UsingImmCmdLists) {
     ZeEvent = nullptr;
     (*Event)->IsInnerBatchedEvent = true;
     (*Event)->ZeBatchedQueue = ZeQueue;
