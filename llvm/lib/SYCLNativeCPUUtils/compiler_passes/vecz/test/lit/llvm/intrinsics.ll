@@ -172,16 +172,16 @@ declare <2 x i8> @llvm.usub.sat.v2i8(<2 x i8>, <2 x i8>)
 declare i64 @__mux_get_global_id(i32)
 
 ; CTPOP: void @__vecz_v2_ctpop
-; CTPOP: = call <2 x i32> @llvm.ctpop.v2i32(<2 x i32> %{{.*}})
-; CTPOP: = call <4 x i8> @llvm.ctpop.v4i8(<4 x i8> %{{.*}})
+; CTPOP: = call {{.*}}<2 x i32> @llvm.ctpop.v2i32(<2 x i32> %{{.*}})
+; CTPOP: = call {{.*}}<4 x i8> @llvm.ctpop.v4i8(<4 x i8> %{{.*}})
 
 ; CTLZ: void @__vecz_v4_ctlz
-; CTLZ: = call <4 x i32> @llvm.ctlz.v4i32(<4 x i32> %{{.*}}, i1 false)
-; CTLZ: = call <8 x i8> @llvm.ctlz.v8i8(<8 x i8> %{{.*}}, i1 false)
+; CTLZ: = call {{.*}}<4 x i32> @llvm.ctlz.v4i32(<4 x i32> %{{.*}}, i1 false)
+; CTLZ: = call {{.*}}<8 x i8> @llvm.ctlz.v8i8(<8 x i8> %{{.*}}, i1 false)
 
 ; CTTZ: void @__vecz_v8_cttz
-; CTTZ: = call <8 x i32> @llvm.cttz.v8i32(<8 x i32> %{{.*}}, i1 false)
-; CTTZ: = call <16 x i8> @llvm.cttz.v16i8(<16 x i8> %{{.*}}, i1 false)
+; CTTZ: = call {{.*}}<8 x i32> @llvm.cttz.v8i32(<8 x i32> %{{.*}}, i1 false)
+; CTTZ: = call {{.*}}<16 x i8> @llvm.cttz.v16i8(<16 x i8> %{{.*}}, i1 false)
 
 ; SADD_SAT: void @__vecz_v2_sadd_sat
 ; SADD_SAT: = call <2 x i32> @llvm.sadd.sat.v2i32(
