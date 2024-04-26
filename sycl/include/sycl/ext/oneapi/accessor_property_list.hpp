@@ -234,6 +234,13 @@ private:
                                   PropsT...>::value;
   }
 };
+
+namespace detail {
+template <typename T> struct is_accessor_property_list : std::false_type {};
+template <typename... Props>
+struct is_accessor_property_list<accessor_property_list<Props...>>
+    : std::true_type {};
+} // namespace detail
 } // namespace ext::oneapi
 
 } // namespace _V1
