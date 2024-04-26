@@ -14,6 +14,7 @@
 
 #include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
 #include <sycl/ext/intel/esimd/detail/memory_intrin.hpp>
+#include <sycl/ext/intel/experimental/esimd/common.hpp>
 
 // generic work-group split barrier
 __ESIMD_INTRIN void
