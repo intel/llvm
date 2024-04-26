@@ -23,11 +23,19 @@ static pi_result redefinedQueueFlush(pi_queue Queue) {
 }
 
 TEST(OneAPIProdTest, PiQueueFlush) {
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::PiMock Mock(backend::ext_oneapi_level_zero);
   sycl::platform Plt = Mock.getPlatform();
   Mock.redefine<detail::PiApiKind::piQueueFlush>(redefinedQueueFlush);
   context Ctx{Plt};
   queue Queue{Ctx, default_selector_v};
   Queue.ext_oneapi_prod();
   EXPECT_TRUE(QueueFlushed);
+  sycl::ext::oneapi::experimental::command_graph Graph(Ctx, Queue.get_device());
+  Graph.begin_recording(Queue);
+  try {
+    Queue.ext_oneapi_prod(); // flushing while graph is recording is not allowed
+    EXPECT_TRUE(false);
+  } catch (exception &) {
+  }
+  Graph.end_recording(Queue);
 }
