@@ -7,7 +7,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/sycl.hpp>
+
 #include <helpers/PiMock.hpp>
+
+#include <gtest/gtest.h>
 
 using namespace sycl;
 
