@@ -24,6 +24,6 @@ TEST(OneAPIProdTest, PiQueueFlush) {
   Mock.redefine<detail::PiApiKind::piQueueFlush>(redefinedQueueFlush);
   context Ctx{Plt};
   queue Queue{Ctx};
-  queue.ext_oneapi_prod();
+  Queue.ext_oneapi_prod();
   EXPECT_TRUE(QueueFlushed);
 }
