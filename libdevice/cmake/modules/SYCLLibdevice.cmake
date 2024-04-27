@@ -59,7 +59,8 @@ if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   list(APPEND compile_opts
     "-fno-sycl-libspirv"
     "-fno-bundle-offload-arch"
-    "-nocudalib")
+    "-nocudalib"
+    "--no-offload-new-driver")
 endif()
 
 if (WIN32)
