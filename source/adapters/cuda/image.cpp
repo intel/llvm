@@ -244,7 +244,8 @@ ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
     /// Sampler property layout:
     /// |     <bits>     | <usage>
     /// -----------------------------------
-    /// |  31 30 ... 12  | N/A
+    /// |  31 30 ... 13  | N/A
+    /// |       12       | cubemap filter mode
     /// |       11       | mip filter mode
     /// |    10 9 8      | addressing mode 3
     /// |     7 6 5      | addressing mode 2
@@ -305,6 +306,13 @@ ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
     // CUDA default promotes 8-bit and 16-bit integers to float between [0,1]
     // This flag prevents this behaviour.
     ImageTexDesc.flags |= CU_TRSF_READ_AS_INTEGER;
+
+    // Cubemap attributes
+    ur_exp_sampler_cubemap_filter_mode_t CubemapFilterModeProp =
+        hSampler->getCubemapFilterMode();
+    if (CubemapFilterModeProp == UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS) {
+      ImageTexDesc.flags |= CU_TRSF_SEAMLESS_CUBEMAP;
+    }
 
     CUtexObject Texture;
     UR_CHECK_ERROR(
@@ -417,6 +425,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     array_desc.Height = pImageDesc->height;
     array_desc.Depth = pImageDesc->arraySize;
     array_desc.Flags |= CUDA_ARRAY3D_LAYERED;
+    break;
+  case UR_MEM_TYPE_IMAGE_CUBEMAP_EXP:
+    array_desc.Height = pImageDesc->height;
+    array_desc.Depth = pImageDesc->arraySize; // Should be 6 ONLY
+    array_desc.Flags |= CUDA_ARRAY3D_CUBEMAP;
     break;
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -677,12 +690,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         }
       } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
         CUDA_MEMCPY2D cpy_desc = {};
-        cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
-        cpy_desc.srcHost = pSrc;
         cpy_desc.srcXInBytes = srcOffset.x * PixelSizeBytes;
         cpy_desc.srcY = srcOffset.y;
         cpy_desc.dstXInBytes = dstOffset.x * PixelSizeBytes;
         cpy_desc.dstY = dstOffset.y;
+        cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
+        cpy_desc.srcHost = pSrc;
         cpy_desc.srcPitch = hostExtent.width * PixelSizeBytes;
         if (pImageDesc->rowPitch == 0) {
           cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
@@ -715,7 +728,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.Depth = copyExtent.depth;
         UR_CHECK_ERROR(cuMemcpy3DAsync(&cpy_desc, Stream));
       } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE1D_ARRAY ||
-                 pImageDesc->type == UR_MEM_TYPE_IMAGE2D_ARRAY) {
+                 pImageDesc->type == UR_MEM_TYPE_IMAGE2D_ARRAY ||
+                 pImageDesc->type == UR_MEM_TYPE_IMAGE_CUBEMAP_EXP) {
         CUDA_MEMCPY3D cpy_desc = {};
         cpy_desc.srcXInBytes = srcOffset.x * PixelSizeBytes;
         cpy_desc.srcY = srcOffset.y;
@@ -767,8 +781,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.srcY = srcOffset.y;
         cpy_desc.dstXInBytes = dstOffset.x;
         cpy_desc.dstY = dstOffset.y;
-        cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
-        cpy_desc.dstHost = pDst;
         if (pImageDesc->rowPitch == 0) {
           cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
           cpy_desc.srcArray = (CUarray)pSrc;
@@ -778,6 +790,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
           cpy_desc.srcPitch = pImageDesc->rowPitch;
           cpy_desc.srcDevice = (CUdeviceptr)pSrc;
         }
+        cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
+        cpy_desc.dstHost = pDst;
         cpy_desc.WidthInBytes = PixelSizeBytes * copyExtent.width;
         cpy_desc.Height = copyExtent.height;
         UR_CHECK_ERROR(cuMemcpy2DAsync(&cpy_desc, Stream));
@@ -798,7 +812,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.Depth = copyExtent.depth;
         UR_CHECK_ERROR(cuMemcpy3DAsync(&cpy_desc, Stream));
       } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE1D_ARRAY ||
-                 pImageDesc->type == UR_MEM_TYPE_IMAGE2D_ARRAY) {
+                 pImageDesc->type == UR_MEM_TYPE_IMAGE2D_ARRAY ||
+                 pImageDesc->type == UR_MEM_TYPE_IMAGE_CUBEMAP_EXP) {
         CUDA_MEMCPY3D cpy_desc = {};
         cpy_desc.srcXInBytes = srcOffset.x;
         cpy_desc.srcY = srcOffset.y;
@@ -816,10 +831,79 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         UR_CHECK_ERROR(cuMemcpy3DAsync(&cpy_desc, Stream));
       }
     } else {
-      /// imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE
-      /// TODO: implemet device to device copy
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+      // imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE
+
+      // All the following async copy function calls should be treated as
+      // synchronous because of the explicit call to cuStreamSynchronize at
+      // the end
+      if (pImageDesc->type == UR_MEM_TYPE_IMAGE1D) {
+        CUDA_MEMCPY2D cpy_desc = {};
+        cpy_desc.srcXInBytes = srcOffset.x;
+        cpy_desc.srcY = 0;
+        cpy_desc.dstXInBytes = dstOffset.x;
+        cpy_desc.dstY = 0;
+        cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
+        cpy_desc.srcArray = (CUarray)pSrc;
+        cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
+        cpy_desc.dstArray = (CUarray)pDst;
+        cpy_desc.WidthInBytes = PixelSizeBytes * copyExtent.width;
+        cpy_desc.Height = 1;
+        UR_CHECK_ERROR(cuMemcpy2DAsync(&cpy_desc, Stream));
+      } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
+        CUDA_MEMCPY2D cpy_desc = {};
+        cpy_desc.srcXInBytes = srcOffset.x;
+        cpy_desc.srcY = srcOffset.y;
+        cpy_desc.dstXInBytes = dstOffset.x;
+        cpy_desc.dstY = dstOffset.y;
+        cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
+        cpy_desc.srcArray = (CUarray)pSrc;
+        cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
+        cpy_desc.dstArray = (CUarray)pDst;
+        cpy_desc.WidthInBytes = PixelSizeBytes * copyExtent.width;
+        cpy_desc.Height = copyExtent.height;
+        UR_CHECK_ERROR(cuMemcpy2DAsync(&cpy_desc, Stream));
+      } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE3D) {
+        CUDA_MEMCPY3D cpy_desc = {};
+        cpy_desc.srcXInBytes = srcOffset.x;
+        cpy_desc.srcY = srcOffset.y;
+        cpy_desc.srcZ = srcOffset.z;
+        cpy_desc.dstXInBytes = dstOffset.x;
+        cpy_desc.dstY = dstOffset.y;
+        cpy_desc.dstZ = dstOffset.z;
+        cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
+        cpy_desc.srcArray = (CUarray)pSrc;
+        cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
+        cpy_desc.dstArray = (CUarray)pDst;
+        cpy_desc.WidthInBytes = PixelSizeBytes * copyExtent.width;
+        cpy_desc.Height = copyExtent.height;
+        cpy_desc.Depth = copyExtent.depth;
+        UR_CHECK_ERROR(cuMemcpy3DAsync(&cpy_desc, Stream));
+      } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE1D_ARRAY ||
+                 pImageDesc->type == UR_MEM_TYPE_IMAGE2D_ARRAY ||
+                 pImageDesc->type == UR_MEM_TYPE_IMAGE_CUBEMAP_EXP) {
+        CUDA_MEMCPY3D cpy_desc = {};
+        cpy_desc.srcXInBytes = srcOffset.x;
+        cpy_desc.srcY = srcOffset.y;
+        cpy_desc.srcZ = srcOffset.z;
+        cpy_desc.dstXInBytes = dstOffset.x;
+        cpy_desc.dstY = dstOffset.y;
+        cpy_desc.dstZ = dstOffset.z;
+        cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
+        cpy_desc.srcArray = (CUarray)pSrc;
+        cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
+        cpy_desc.dstArray = (CUarray)pDst;
+        cpy_desc.WidthInBytes = PixelSizeBytes * copyExtent.width;
+        cpy_desc.Height = std::max(uint64_t{1}, copyExtent.height);
+        cpy_desc.Depth = pImageDesc->arraySize;
+        UR_CHECK_ERROR(cuMemcpy3DAsync(&cpy_desc, Stream));
+      }
+      // Synchronization is required here to handle the case of copying data
+      // from host to device, then device to device and finally device to host.
+      // Without it, there is a risk of the copies not being executed in the
+      // intended order.
+      cuStreamSynchronize(Stream);
     }
+
     if (phEvent) {
       auto NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_COPY,
                                                      hQueue, Stream);

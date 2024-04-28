@@ -68,14 +68,6 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   case UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE: {
     size_t GlobalWorkSize[3] = {0, 0, 0};
 
-    int MaxBlockDimX{0}, MaxBlockDimY{0}, MaxBlockDimZ{0};
-    UR_CHECK_ERROR(cuDeviceGetAttribute(
-        &MaxBlockDimX, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X, hDevice->get()));
-    UR_CHECK_ERROR(cuDeviceGetAttribute(
-        &MaxBlockDimY, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y, hDevice->get()));
-    UR_CHECK_ERROR(cuDeviceGetAttribute(
-        &MaxBlockDimZ, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z, hDevice->get()));
-
     int MaxGridDimX{0}, MaxGridDimY{0}, MaxGridDimZ{0};
     UR_CHECK_ERROR(cuDeviceGetAttribute(
         &MaxGridDimX, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X, hDevice->get()));
@@ -84,9 +76,10 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     UR_CHECK_ERROR(cuDeviceGetAttribute(
         &MaxGridDimZ, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z, hDevice->get()));
 
-    GlobalWorkSize[0] = MaxBlockDimX * MaxGridDimX;
-    GlobalWorkSize[1] = MaxBlockDimY * MaxGridDimY;
-    GlobalWorkSize[2] = MaxBlockDimZ * MaxGridDimZ;
+    GlobalWorkSize[0] = hDevice->getMaxWorkItemSizes(0) * MaxGridDimX;
+    GlobalWorkSize[1] = hDevice->getMaxWorkItemSizes(1) * MaxGridDimY;
+    GlobalWorkSize[2] = hDevice->getMaxWorkItemSizes(2) * MaxGridDimZ;
+
     return ReturnValue(GlobalWorkSize, 3);
   }
   case UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {

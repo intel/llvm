@@ -27,8 +27,6 @@ private:
   size_t MaxWorkItemSizes[MaxWorkItemDimensions];
   size_t MaxWorkGroupSize{0};
   size_t MaxAllocSize{0};
-  int MaxBlockDimY{0};
-  int MaxBlockDimZ{0};
   int MaxRegsPerBlock{0};
   int MaxCapacityLocalMem{0};
   int MaxChosenLocalMem{0};
@@ -41,15 +39,19 @@ public:
         Platform(platform) {
 
     UR_CHECK_ERROR(cuDeviceGetAttribute(
-        &MaxBlockDimY, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y, cuDevice));
-    UR_CHECK_ERROR(cuDeviceGetAttribute(
-        &MaxBlockDimZ, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z, cuDevice));
-    UR_CHECK_ERROR(cuDeviceGetAttribute(
         &MaxRegsPerBlock, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
         cuDevice));
     UR_CHECK_ERROR(cuDeviceGetAttribute(
         &MaxCapacityLocalMem,
         CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK_OPTIN, cuDevice));
+
+    UR_CHECK_ERROR(urDeviceGetInfo(this, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
+                                   sizeof(MaxWorkItemSizes), MaxWorkItemSizes,
+                                   nullptr));
+
+    UR_CHECK_ERROR(urDeviceGetInfo(this, UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
+                                   sizeof(MaxWorkGroupSize), &MaxWorkGroupSize,
+                                   nullptr));
 
     // Set local mem max size if env var is present
     static const char *LocalMemSizePtrUR =
@@ -66,17 +68,11 @@ public:
     }
 
     // Max size of memory object allocation in bytes.
-    // The minimum value is max(min(1024 × 1024 ×
-    // 1024, 1/4th of CL_DEVICE_GLOBAL_MEM_SIZE),
-    // 32 × 1024 × 1024) for devices that are not of type
-    // CL_DEVICE_TYPE_CUSTOM.
-    size_t Global = 0;
-    UR_CHECK_ERROR(cuDeviceTotalMem(&Global, cuDevice));
-
-    auto QuarterGlobal = static_cast<uint32_t>(Global / 4u);
-
-    MaxAllocSize = std::max(std::min(1024u * 1024u * 1024u, QuarterGlobal),
-                            32u * 1024u * 1024u);
+    // The minimum value is max (1/4th of info::device::global_mem_size,
+    // 128*1024*1024) if this SYCL device is not device_type::custom.
+    // CUDA doesn't really have this concept, and could allow almost 100% of
+    // global memory in one allocation, but is dependent on device usage.
+    UR_CHECK_ERROR(cuDeviceTotalMem(&MaxAllocSize, cuDevice));
   }
 
   ~ur_device_handle_t_() { cuDevicePrimaryCtxRelease(CuDevice); }
@@ -91,23 +87,11 @@ public:
 
   uint64_t getElapsedTime(CUevent) const;
 
-  void saveMaxWorkItemSizes(size_t Size,
-                            size_t *SaveMaxWorkItemSizes) noexcept {
-    memcpy(MaxWorkItemSizes, SaveMaxWorkItemSizes, Size);
-  };
-
-  void saveMaxWorkGroupSize(int Value) noexcept { MaxWorkGroupSize = Value; };
-
-  void getMaxWorkItemSizes(size_t RetSize,
-                           size_t *RetMaxWorkItemSizes) const noexcept {
-    memcpy(RetMaxWorkItemSizes, MaxWorkItemSizes, RetSize);
-  };
+  size_t getMaxWorkItemSizes(int index) const noexcept {
+    return MaxWorkItemSizes[index];
+  }
 
   size_t getMaxWorkGroupSize() const noexcept { return MaxWorkGroupSize; };
-
-  size_t getMaxBlockDimY() const noexcept { return MaxBlockDimY; };
-
-  size_t getMaxBlockDimZ() const noexcept { return MaxBlockDimZ; };
 
   size_t getMaxRegsPerBlock() const noexcept { return MaxRegsPerBlock; };
 

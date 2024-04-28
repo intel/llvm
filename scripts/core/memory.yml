@@ -319,7 +319,8 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
-    - $X_RESULT_ERROR_INVALID_BUFFER_SIZE
+    - $X_RESULT_ERROR_INVALID_BUFFER_SIZE:
+      - "`size == 0`"
     - $X_RESULT_ERROR_INVALID_HOST_PTR:
       - "`pProperties == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0`"
       - "`pProperties != NULL && pProperties->pHost == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0`"
@@ -411,7 +412,9 @@ returns:
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE
     - $X_RESULT_ERROR_INVALID_VALUE
-    - $X_RESULT_ERROR_INVALID_BUFFER_SIZE
+    - $X_RESULT_ERROR_INVALID_BUFFER_SIZE:
+      - "`pRegion && pRegion->size == 0`"
+      - "hBuffer allocation size < (pRegion->origin + pRegion->size)"
     - $X_RESULT_ERROR_INVALID_HOST_PTR
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES

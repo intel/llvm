@@ -217,6 +217,7 @@ CONSTFIX char CommandCopyBufferRectName[] = "clCommandCopyBufferRectKHR";
 CONSTFIX char CommandFillBufferName[] = "clCommandFillBufferKHR";
 CONSTFIX char EnqueueCommandBufferName[] = "clEnqueueCommandBufferKHR";
 CONSTFIX char GetCommandBufferInfoName[] = "clGetCommandBufferInfoKHR";
+CONSTFIX char UpdateMutableCommandsName[] = "clUpdateMutableCommandsKHR";
 
 #undef CONSTFIX
 
@@ -311,6 +312,10 @@ using clGetCommandBufferInfoKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
     cl_command_buffer_khr command_buffer, cl_command_buffer_info_khr param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret);
 
+using clUpdateMutableCommandsKHR_fn = CL_API_ENTRY
+cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer,
+                      const cl_mutable_base_config_khr *mutable_config);
+
 template <typename T> struct FuncPtrCache {
   std::map<cl_context, T> Map;
   std::mutex Mutex;
@@ -352,6 +357,7 @@ struct ExtFuncPtrCacheT {
   FuncPtrCache<clCommandFillBufferKHR_fn> clCommandFillBufferKHRCache;
   FuncPtrCache<clEnqueueCommandBufferKHR_fn> clEnqueueCommandBufferKHRCache;
   FuncPtrCache<clGetCommandBufferInfoKHR_fn> clGetCommandBufferInfoKHRCache;
+  FuncPtrCache<clUpdateMutableCommandsKHR_fn> clUpdateMutableCommandsKHRCache;
 };
 // A raw pointer is used here since the lifetime of this map has to be tied to
 // piTeardown to avoid issues with static destruction order (a user application
@@ -373,9 +379,9 @@ static ur_result_t getExtFuncFromContext(cl_context Context,
   if (It != FPtrMap.end()) {
     auto F = It->second;
     // if cached that extension is not available return nullptr and
-    // UR_RESULT_ERROR_INVALID_VALUE
+    // UR_RESULT_ERROR_UNSUPPORTED_FEATURE
     *Fptr = F;
-    return F ? UR_RESULT_SUCCESS : UR_RESULT_ERROR_INVALID_VALUE;
+    return F ? UR_RESULT_SUCCESS : UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
   cl_uint DeviceCount;
@@ -409,7 +415,7 @@ static ur_result_t getExtFuncFromContext(cl_context Context,
   if (!FuncPtr) {
     // Cache that the extension is not available
     FPtrMap[Context] = nullptr;
-    return UR_RESULT_ERROR_INVALID_VALUE;
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
   *Fptr = FuncPtr;
@@ -422,3 +428,6 @@ static ur_result_t getExtFuncFromContext(cl_context Context,
 ur_result_t mapCLErrorToUR(cl_int Result);
 
 ur_result_t getNativeHandle(void *URObj, ur_native_handle_t *NativeHandle);
+
+cl_int deviceSupportsURCommandBufferKernelUpdate(cl_device_id Dev,
+                                                 bool &Result);

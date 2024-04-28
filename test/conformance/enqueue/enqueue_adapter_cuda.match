@@ -2,7 +2,6 @@
 {{OPT}}urEnqueueMemBufferCopyRectTest.InvalidSize/NVIDIA_CUDA_BACKEND___{{.*}}_
 {{OPT}}urEnqueueMemBufferFillTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___size__256__patternSize__256
 {{OPT}}urEnqueueMemBufferFillTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___size__1024__patternSize__256
-{{OPT}}urEnqueueMemBufferMapTest.SuccessMultiMaps/NVIDIA_CUDA_BACKEND___{{.*}}_
 {{OPT}}urEnqueueMemBufferReadRectTest.InvalidSize/NVIDIA_CUDA_BACKEND___{{.*}}_
 {{OPT}}urEnqueueMemBufferWriteRectTest.InvalidSize/NVIDIA_CUDA_BACKEND___{{.*}}_
 {{OPT}}urEnqueueMemImageCopyTest.InvalidSize/NVIDIA_CUDA_BACKEND___{{.*}}___1D

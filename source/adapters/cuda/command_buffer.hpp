@@ -12,6 +12,7 @@
 #include <ur_api.h>
 
 #include "context.hpp"
+#include "logger/ur_logger.hpp"
 #include <cuda.h>
 #include <memory>
 
@@ -169,10 +170,10 @@ static inline const char *getUrResultString(ur_result_t Result) {
 #define UR_CALL(Call, Result)                                                  \
   {                                                                            \
     if (PrintTrace)                                                            \
-      fprintf(stderr, "UR ---> %s\n", #Call);                                  \
+      logger::always("UR ---> {}", #Call);                                     \
     Result = (Call);                                                           \
     if (PrintTrace)                                                            \
-      fprintf(stderr, "UR <--- %s(%s)\n", #Call, getUrResultString(Result));   \
+      logger::always("UR <--- {}({})", #Call, getUrResultString(Result));      \
   }
 
 // Handle to a kernel command.
@@ -212,6 +213,11 @@ struct ur_exp_command_buffer_command_handle_t_ {
       const size_t ZeroSize = sizeof(size_t) * (3 - WorkDim);
       std::memset(LocalWorkSize + WorkDim, 0, ZeroSize);
     }
+  }
+
+  bool isNullLocalSize() const noexcept {
+    const size_t Zeros[3] = {0, 0, 0};
+    return 0 == std::memcmp(LocalWorkSize, Zeros, sizeof(LocalWorkSize));
   }
 
   uint32_t incrementInternalReferenceCount() noexcept {

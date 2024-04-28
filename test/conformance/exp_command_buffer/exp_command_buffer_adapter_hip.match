@@ -5,7 +5,6 @@
 {{OPT}}BufferFillCommandTest.OverrideUpdate/AMD_HIP_BACKEND{{.*}}
 {{OPT}}BufferFillCommandTest.OverrideArgList/AMD_HIP_BACKEND{{.*}}
 {{OPT}}USMFillCommandTest.UpdateParameters/AMD_HIP_BACKEND{{.*}}
-{{OPT}}USMFillCommandTest.UpdateExecInfo/AMD_HIP_BACKEND{{.*}}
 {{OPT}}USMMultipleFillCommandTest.UpdateAllKernels/AMD_HIP_BACKEND{{.*}}
 {{OPT}}BufferSaxpyKernelTest.UpdateParameters/AMD_HIP_BACKEND{{.*}}
 {{OPT}}USMSaxpyKernelTest.UpdateParameters/AMD_HIP_BACKEND{{.*}}

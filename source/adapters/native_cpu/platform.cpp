@@ -28,9 +28,7 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
 
   if (NumEntries == 0) {
     if (phPlatforms != nullptr) {
-      if (PrintTrace) {
-        std::cerr << "Invalid argument combination for urPlatformsGet\n";
-      }
+      logger::error("Invalid argument combination for urPlatformsGet");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     return UR_RESULT_SUCCESS;

@@ -347,12 +347,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
     return mapCLErrorToUR(Res);
 
   cl_ext::clEnqueueWriteGlobalVariable_fn F = nullptr;
-  Res = cl_ext::getExtFuncFromContext<decltype(F)>(
+  UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<decltype(F)>(
       Ctx, cl_ext::ExtFuncPtrCache->clEnqueueWriteGlobalVariableCache,
-      cl_ext::EnqueueWriteGlobalVariableName, &F);
-
-  if (!F || Res != CL_SUCCESS)
-    return UR_RESULT_ERROR_INVALID_OPERATION;
+      cl_ext::EnqueueWriteGlobalVariableName, &F));
 
   Res = F(cl_adapter::cast<cl_command_queue>(hQueue),
           cl_adapter::cast<cl_program>(hProgram), name, blockingWrite, count,
@@ -378,12 +375,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     return mapCLErrorToUR(Res);
 
   cl_ext::clEnqueueReadGlobalVariable_fn F = nullptr;
-  Res = cl_ext::getExtFuncFromContext<decltype(F)>(
+  UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<decltype(F)>(
       Ctx, cl_ext::ExtFuncPtrCache->clEnqueueReadGlobalVariableCache,
-      cl_ext::EnqueueReadGlobalVariableName, &F);
-
-  if (!F || Res != CL_SUCCESS)
-    return UR_RESULT_ERROR_INVALID_OPERATION;
+      cl_ext::EnqueueReadGlobalVariableName, &F));
 
   Res = F(cl_adapter::cast<cl_command_queue>(hQueue),
           cl_adapter::cast<cl_program>(hProgram), name, blockingRead, count,
@@ -409,13 +403,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueReadHostPipe(
   }
 
   cl_ext::clEnqueueReadHostPipeINTEL_fn FuncPtr = nullptr;
-  ur_result_t RetVal =
+  UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<cl_ext::clEnqueueReadHostPipeINTEL_fn>(
           CLContext, cl_ext::ExtFuncPtrCache->clEnqueueReadHostPipeINTELCache,
-          cl_ext::EnqueueReadHostPipeName, &FuncPtr);
+          cl_ext::EnqueueReadHostPipeName, &FuncPtr));
 
   if (FuncPtr) {
-    RetVal = mapCLErrorToUR(
+    CL_RETURN_ON_FAILURE(
         FuncPtr(cl_adapter::cast<cl_command_queue>(hQueue),
                 cl_adapter::cast<cl_program>(hProgram), pipe_symbol, blocking,
                 pDst, size, numEventsInWaitList,
@@ -423,7 +417,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueReadHostPipe(
                 cl_adapter::cast<cl_event *>(phEvent)));
   }
 
-  return RetVal;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
@@ -441,13 +435,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
   }
 
   cl_ext::clEnqueueWriteHostPipeINTEL_fn FuncPtr = nullptr;
-  ur_result_t RetVal =
+  UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<cl_ext::clEnqueueWriteHostPipeINTEL_fn>(
           CLContext, cl_ext::ExtFuncPtrCache->clEnqueueWriteHostPipeINTELCache,
-          cl_ext::EnqueueWriteHostPipeName, &FuncPtr);
+          cl_ext::EnqueueWriteHostPipeName, &FuncPtr));
 
   if (FuncPtr) {
-    RetVal = mapCLErrorToUR(
+    CL_RETURN_ON_FAILURE(
         FuncPtr(cl_adapter::cast<cl_command_queue>(hQueue),
                 cl_adapter::cast<cl_program>(hProgram), pipe_symbol, blocking,
                 pSrc, size, numEventsInWaitList,
@@ -455,5 +449,5 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
                 cl_adapter::cast<cl_event *>(phEvent)));
   }
 
-  return RetVal;
+  return UR_RESULT_SUCCESS;
 }

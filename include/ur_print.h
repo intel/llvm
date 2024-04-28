@@ -883,6 +883,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmMigrationFlags(enum ur_usm_migrati
 UR_APIEXPORT ur_result_t UR_APICALL urPrintExpImageCopyFlags(enum ur_exp_image_copy_flag_t value, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_sampler_cubemap_filter_mode_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintExpSamplerCubemapFilterMode(enum ur_exp_sampler_cubemap_filter_mode_t value, char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_exp_file_descriptor_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -913,6 +921,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintExpSamplerMipProperties(const struct 
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintExpSamplerAddrModes(const struct ur_exp_sampler_addr_modes_t params, char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_sampler_cubemap_properties_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintExpSamplerCubemapProperties(const struct ur_exp_sampler_cubemap_properties_t params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_exp_interop_mem_desc_t struct
@@ -977,14 +993,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintExpCommandBufferUpdatePointerArgDesc(
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintExpCommandBufferUpdateValueArgDesc(const struct ur_exp_command_buffer_update_value_arg_desc_t params, char *buffer, const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_exp_command_buffer_update_exec_info_desc_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintExpCommandBufferUpdateExecInfoDesc(const struct ur_exp_command_buffer_update_exec_info_desc_t params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_exp_command_buffer_update_kernel_launch_desc_t struct

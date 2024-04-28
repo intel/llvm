@@ -18,89 +18,107 @@
 
 // Handler for plain, pointer-based CUDA allocations
 struct BufferMem {
-  using native_type = CUdeviceptr;
 
-  // If this allocation is a sub-buffer (i.e., a view on an existing
-  // allocation), this is the pointer to the parent handler structure
-  ur_mem_handle_t Parent;
-  // CUDA handler for the pointer
-  native_type Ptr;
+  struct BufferMap {
+    /// Size of the active mapped region.
+    size_t MapSize;
+    /// Offset of the active mapped region.
+    size_t MapOffset;
+    /// Original flags for the mapped region
+    ur_map_flags_t MapFlags;
+    /// Allocated host memory used exclusively for this map.
+    std::unique_ptr<unsigned char[]> MapMem;
 
-  /// Pointer associated with this device on the host
-  void *HostPtr;
-  /// Size of the allocation in bytes
-  size_t Size;
-  /// Size of the active mapped region.
-  size_t MapSize;
-  /// Offset of the active mapped region.
-  size_t MapOffset;
-  /// Pointer to the active mapped region, if any
-  void *MapPtr;
-  /// Original flags for the mapped region
-  ur_map_flags_t MapFlags;
+    BufferMap(size_t MapSize, size_t MapOffset, ur_map_flags_t MapFlags)
+        : MapSize(MapSize), MapOffset(MapOffset), MapFlags(MapFlags),
+          MapMem(nullptr) {}
+
+    BufferMap(size_t MapSize, size_t MapOffset, ur_map_flags_t MapFlags,
+              std::unique_ptr<unsigned char[]> &&MapMem)
+        : MapSize(MapSize), MapOffset(MapOffset), MapFlags(MapFlags),
+          MapMem(std::move(MapMem)) {}
+
+    size_t getMapSize() const noexcept { return MapSize; }
+
+    size_t getMapOffset() const noexcept { return MapOffset; }
+
+    ur_map_flags_t getMapFlags() const noexcept { return MapFlags; }
+  };
 
   /** AllocMode
    * classic: Just a normal buffer allocated on the device via cuda malloc
    * use_host_ptr: Use an address on the host for the device
-   * copy_in: The data for the device comes from the host but the host
-   pointer is not available later for re-use
-   * alloc_host_ptr: Uses pinned-memory allocation
-  */
+   * copy_in: The data for the device comes from the host but the host pointer
+   * is not available later for re-use alloc_host_ptr: Uses pinned-memory
+   * allocation
+   */
   enum class AllocMode {
     Classic,
     UseHostPtr,
     CopyIn,
     AllocHostPtr,
-  } MemAllocMode;
+  };
+
+  using native_type = CUdeviceptr;
+
+  /// If this allocation is a sub-buffer (i.e., a view on an existing
+  /// allocation), this is the pointer to the parent handler structure
+  ur_mem_handle_t Parent;
+  /// CUDA handler for the pointer
+  native_type Ptr;
+  /// Pointer associated with this device on the host
+  void *HostPtr;
+  /// Size of the allocation in bytes
+  size_t Size;
+  /// A map that contains all the active mappings for this buffer.
+  std::unordered_map<void *, BufferMap> PtrToBufferMap;
+
+  AllocMode MemAllocMode;
 
   BufferMem(ur_mem_handle_t Parent, BufferMem::AllocMode Mode, CUdeviceptr Ptr,
             void *HostPtr, size_t Size)
-      : Parent{Parent}, Ptr{Ptr}, HostPtr{HostPtr}, Size{Size}, MapSize{0},
-        MapOffset{0}, MapPtr{nullptr}, MapFlags{UR_MAP_FLAG_WRITE},
-        MemAllocMode{Mode} {};
+      : Parent{Parent}, Ptr{Ptr}, HostPtr{HostPtr}, Size{Size},
+        PtrToBufferMap{}, MemAllocMode{Mode} {};
 
   native_type get() const noexcept { return Ptr; }
 
   size_t getSize() const noexcept { return Size; }
 
-  void *getMapPtr() const noexcept { return MapPtr; }
-
-  size_t getMapSize() const noexcept { return MapSize; }
-
-  size_t getMapOffset() const noexcept { return MapOffset; }
+  BufferMap *getMapDetails(void *Map) {
+    auto details = PtrToBufferMap.find(Map);
+    if (details != PtrToBufferMap.end()) {
+      return &details->second;
+    }
+    return nullptr;
+  }
 
   /// Returns a pointer to data visible on the host that contains
   /// the data on the device associated with this allocation.
   /// The offset is used to index into the CUDA allocation.
-  void *mapToPtr(size_t Size, size_t Offset, ur_map_flags_t Flags) noexcept {
-    assert(MapPtr == nullptr);
-    MapSize = Size;
-    MapOffset = Offset;
-    MapFlags = Flags;
-    if (HostPtr) {
-      MapPtr = static_cast<char *>(HostPtr) + Offset;
+  void *mapToPtr(size_t MapSize, size_t MapOffset,
+                 ur_map_flags_t MapFlags) noexcept {
+
+    void *MapPtr = nullptr;
+    if (HostPtr == nullptr) {
+      /// If HostPtr is invalid, we need to create a Mapping that owns its own
+      /// memory on the host.
+      auto MapMem = std::make_unique<unsigned char[]>(MapSize);
+      MapPtr = MapMem.get();
+      PtrToBufferMap.insert(
+          {MapPtr, BufferMap(MapSize, MapOffset, MapFlags, std::move(MapMem))});
     } else {
-      // TODO: Allocate only what is needed based on the offset
-      MapPtr = static_cast<void *>(malloc(this->getSize()));
+      /// However, if HostPtr already has valid memory (e.g. pinned allocation),
+      /// we can just use that memory for the mapping.
+      MapPtr = static_cast<char *>(HostPtr) + MapOffset;
+      PtrToBufferMap.insert({MapPtr, BufferMap(MapSize, MapOffset, MapFlags)});
     }
     return MapPtr;
   }
 
   /// Detach the allocation from the host memory.
-  void unmap(void *) noexcept {
+  void unmap(void *MapPtr) noexcept {
     assert(MapPtr != nullptr);
-
-    if (MapPtr != HostPtr) {
-      free(MapPtr);
-    }
-    MapPtr = nullptr;
-    MapSize = 0;
-    MapOffset = 0;
-  }
-
-  ur_map_flags_t getMapFlags() const noexcept {
-    assert(MapPtr != nullptr);
-    return MapFlags;
+    PtrToBufferMap.erase(MapPtr);
   }
 };
 

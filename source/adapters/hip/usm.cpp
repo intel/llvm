@@ -160,7 +160,6 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
   try {
     switch (propName) {
     case UR_USM_ALLOC_INFO_TYPE: {
-      unsigned int Value;
       // do not throw if hipPointerGetAttribute returns hipErrorInvalidValue
       hipError_t Ret = hipPointerGetAttributes(&hipPointerAttributeType, pMem);
       if (Ret == hipErrorInvalidValue) {
@@ -170,19 +169,27 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
       // Direct usage of the function, instead of UR_CHECK_ERROR, so we can get
       // the line offset.
       checkErrorUR(Ret, __func__, __LINE__ - 5, __FILE__);
-      Value = hipPointerAttributeType.isManaged;
-      if (Value) {
-        // pointer to managed memory
-        return ReturnValue(UR_USM_TYPE_SHARED);
+      // ROCm 6.0.0 introduces hipMemoryTypeUnregistered in the hipMemoryType
+      // enum to mark unregistered allocations (i.e., via system allocators).
+#if HIP_VERSION_MAJOR >= 6
+      if (hipPointerAttributeType.type == hipMemoryTypeUnregistered) {
+        // pointer not known to the HIP subsystem
+        return ReturnValue(UR_USM_TYPE_UNKNOWN);
       }
-      UR_CHECK_ERROR(hipPointerGetAttributes(&hipPointerAttributeType, pMem));
+#endif
+      unsigned int Value;
 #if HIP_VERSION >= 50600000
       Value = hipPointerAttributeType.type;
 #else
       Value = hipPointerAttributeType.memoryType;
 #endif
-      UR_ASSERT(Value == hipMemoryTypeDevice || Value == hipMemoryTypeHost,
+      UR_ASSERT(Value == hipMemoryTypeDevice || Value == hipMemoryTypeHost ||
+                    Value == hipMemoryTypeManaged,
                 UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+      if (hipPointerAttributeType.isManaged || Value == hipMemoryTypeManaged) {
+        // pointer to managed memory
+        return ReturnValue(UR_USM_TYPE_SHARED);
+      }
       if (Value == hipMemoryTypeDevice) {
         // pointer to device memory
         return ReturnValue(UR_USM_TYPE_DEVICE);

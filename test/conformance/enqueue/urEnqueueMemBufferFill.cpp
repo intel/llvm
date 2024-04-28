@@ -2,25 +2,13 @@
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#include "helpers.h"
 #include <uur/fixtures.h>
 
 struct testParametersFill {
     size_t size;
     size_t pattern_size;
 };
-
-template <typename T>
-inline std::string
-printFillTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
-    const auto device_handle = std::get<0>(info.param);
-    const auto platform_device_name =
-        uur::GetPlatformAndDeviceName(device_handle);
-    std::stringstream test_name;
-    test_name << platform_device_name << "__size__"
-              << std::get<1>(info.param).size << "__patternSize__"
-              << std::get<1>(info.param).pattern_size;
-    return test_name.str();
-}
 
 struct urEnqueueMemBufferFillTest
     : uur::urQueueTestWithParam<testParametersFill> {
@@ -76,7 +64,7 @@ static std::vector<testParametersFill> test_cases{
     {256, 32}};
 
 UUR_TEST_SUITE_P(urEnqueueMemBufferFillTest, testing::ValuesIn(test_cases),
-                 printFillTestString<urEnqueueMemBufferFillTest>);
+                 uur::printFillTestString<urEnqueueMemBufferFillTest>);
 
 TEST_P(urEnqueueMemBufferFillTest, Success) {
     ASSERT_SUCCESS(urEnqueueMemBufferFill(queue, buffer, pattern.data(),

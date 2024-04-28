@@ -17,11 +17,6 @@ ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue,
                               hipStream_t Stream, uint32_t NumEventsInWaitList,
                               const ur_event_handle_t *EventWaitList);
 
-void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
-                        const size_t *GlobalWorkSize, const uint32_t WorkDim,
-                        const size_t MaxThreadsPerBlock[3],
-                        ur_kernel_handle_t Kernel, uint32_t LocalSize);
-
 ur_result_t
 setKernelParams(const ur_device_handle_t Device, const uint32_t WorkDim,
                 const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,

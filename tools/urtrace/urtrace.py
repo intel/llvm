@@ -63,7 +63,7 @@ args = parser.parse_args()
 config = vars(args)
 if args.debug:
     print(config)
-env = dict()
+env = os.environ.copy()
 
 collector_args = ""
 if args.print_begin:

@@ -403,13 +403,8 @@ ur_device_partition_property_t makePartitionEquallyDesc(uint32_t cu_per_device);
 ur_device_partition_property_t
 makePartitionByAffinityDomain(ur_device_affinity_domain_flags_t aff_domain);
 
-enum class USMKind {
-    Device,
-    Host,
-    Shared,
-};
-
-ur_result_t MakeUSMAllocationByType(USMKind kind, ur_context_handle_t hContext,
+ur_result_t MakeUSMAllocationByType(ur_usm_type_t type,
+                                    ur_context_handle_t hContext,
                                     ur_device_handle_t hDevice,
                                     const ur_usm_desc_t *pUSMDesc,
                                     ur_usm_pool_handle_t hPool, size_t size,
