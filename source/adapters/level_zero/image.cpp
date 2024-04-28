@@ -357,7 +357,6 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
 
   ZeImageDesc.stype = ZE_STRUCTURE_TYPE_IMAGE_DESC;
   ZeImageDesc.pNext = ImageDesc->pNext;
-  ZeImageDesc.arraylevels = ZeImageDesc.flags = 0;
   ZeImageDesc.type = ZeImageType;
   ZeImageDesc.format = ZeFormatDesc;
   ZeImageDesc.width = ur_cast<uint64_t>(ImageDesc->width);
@@ -416,9 +415,9 @@ uint32_t getPixelSizeBytes(const ur_image_format_t *Format) {
   case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16:
   case UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565:
   case UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555:
+  case UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT:
     ChannelTypeSizeInBytes = 2;
     break;
-  case UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT:
   case UR_IMAGE_CHANNEL_TYPE_INT_101010:
   case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32:
   case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32:
@@ -441,11 +440,12 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
   UR_ASSERT(Origin, UR_RESULT_ERROR_INVALID_VALUE);
   UR_ASSERT(Region, UR_RESULT_ERROR_INVALID_VALUE);
 
-  if (ZeImageDesc.type == ZE_IMAGE_TYPE_1D) {
+  if (ZeImageDesc.type == ZE_IMAGE_TYPE_1D ||
+      ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY) {
     Region->height = 1;
     Region->depth = 1;
   } else if (ZeImageDesc.type == ZE_IMAGE_TYPE_2D ||
-             ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY) {
+             ZeImageDesc.type == ZE_IMAGE_TYPE_2DARRAY) {
     Region->depth = 1;
   }
 
@@ -454,6 +454,7 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
              Origin->z == 0) ||
                 (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Origin->z == 0) ||
                 (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Origin->z == 0) ||
+                (ZeImageDesc.type == ZE_IMAGE_TYPE_2DARRAY) ||
                 (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
             UR_RESULT_ERROR_INVALID_VALUE);
 
@@ -464,6 +465,7 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
        Region->depth == 1) ||
           (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Region->depth == 1) ||
           (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Region->depth == 1) ||
+          (ZeImageDesc.type == ZE_IMAGE_TYPE_2DARRAY) ||
           (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
       UR_RESULT_ERROR_INVALID_VALUE);
 #endif // !NDEBUG
@@ -473,8 +475,12 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
   uint32_t OriginZ = ur_cast<uint32_t>(Origin->z);
 
   uint32_t Width = ur_cast<uint32_t>(Region->width);
-  uint32_t Height = ur_cast<uint32_t>(Region->height);
-  uint32_t Depth = ur_cast<uint32_t>(Region->depth);
+  uint32_t Height = (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY)
+                        ? ZeImageDesc.arraylevels
+                        : ur_cast<uint32_t>(Region->height);
+  uint32_t Depth = (ZeImageDesc.type == ZE_IMAGE_TYPE_2DARRAY)
+                       ? ZeImageDesc.arraylevels
+                       : ur_cast<uint32_t>(Region->depth);
 
   ZeRegion = {OriginX, OriginY, OriginZ, Width, Height, Depth};
 
@@ -693,7 +699,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
       ZeImage = UrImage->ZeImage;
       *phMem = nullptr;
     }
-  } else if (MemAllocProperties.type == ZE_MEMORY_TYPE_DEVICE) {
+  } else if (MemAllocProperties.type == ZE_MEMORY_TYPE_DEVICE ||
+             MemAllocProperties.type == ZE_MEMORY_TYPE_SHARED) {
     ze_image_pitched_exp_desc_t PitchedDesc;
     PitchedDesc.stype = ZE_STRUCTURE_TYPE_PITCHED_IMAGE_EXP_DESC;
     PitchedDesc.pNext = nullptr;
