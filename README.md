@@ -122,6 +122,7 @@ List of options provided by CMake:
 | UR_BUILD_TOOLS | Build tools | ON/OFF | ON |
 | UR_FORMAT_CPP_STYLE | Format code style | ON/OFF | OFF |
 | UR_DEVELOPER_MODE | Treat warnings as errors and enables additional checks | ON/OFF | OFF |
+| UR_ENABLE_FAST_SPEC_MODE | Enable fast specification generation mode | ON/OFF | OFF |
 | UR_USE_ASAN | Enable AddressSanitizer | ON/OFF | OFF |
 | UR_USE_TSAN | Enable ThreadSanitizer | ON/OFF | OFF |
 | UR_USE_UBSAN | Enable UndefinedBehavior Sanitizer | ON/OFF | OFF |
