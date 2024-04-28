@@ -179,17 +179,6 @@ void unloadCUDATracingLibrary(cuda_tracing_context_t_ *Ctx) {
 #endif // XPTI_ENABLE_INSTRUMENTATION
 }
 
-void enableCUDATracing() {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
-    return;
-  static cuda_tracing_context_t_ *Ctx = nullptr;
-  if (!Ctx)
-    Ctx = createCUDATracingContext();
-  enableCUDATracing(Ctx);
-#endif
-}
-
 void enableCUDATracing(cuda_tracing_context_t_ *Ctx) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!Ctx || !xptiTraceEnabled())

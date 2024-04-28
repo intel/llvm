@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "common.hpp"
+#include "logger/ur_logger.hpp"
 
 #include <cuda.h>
 
@@ -41,22 +42,18 @@ void checkErrorUR(CUresult Result, const char *Function, int Line,
     return;
   }
 
-  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr &&
-      std::getenv("UR_SUPPRESS_ERROR_MESSAGE") == nullptr) {
-    const char *ErrorString = nullptr;
-    const char *ErrorName = nullptr;
-    cuGetErrorName(Result, &ErrorName);
-    cuGetErrorString(Result, &ErrorString);
-    std::stringstream SS;
-    SS << "\nUR CUDA ERROR:"
-       << "\n\tValue:           " << Result
-       << "\n\tName:            " << ErrorName
-       << "\n\tDescription:     " << ErrorString
-       << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
-       << ":" << Line << "\n"
-       << std::endl;
-    std::cerr << SS.str();
-  }
+  const char *ErrorString = nullptr;
+  const char *ErrorName = nullptr;
+  cuGetErrorName(Result, &ErrorName);
+  cuGetErrorString(Result, &ErrorString);
+  std::stringstream SS;
+  SS << "\nUR CUDA ERROR:"
+     << "\n\tValue:           " << Result
+     << "\n\tName:            " << ErrorName
+     << "\n\tDescription:     " << ErrorString
+     << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
+     << ":" << Line << "\n";
+  logger::error("{}", SS.str());
 
   if (std::getenv("PI_CUDA_ABORT") != nullptr ||
       std::getenv("UR_CUDA_ABORT") != nullptr) {
@@ -72,16 +69,11 @@ void checkErrorUR(ur_result_t Result, const char *Function, int Line,
     return;
   }
 
-  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr &&
-      std::getenv("UR_SUPPRESS_ERROR_MESSAGE") == nullptr) {
-    std::stringstream SS;
-    SS << "\nUR ERROR:"
-       << "\n\tValue:           " << Result
-       << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
-       << ":" << Line << "\n"
-       << std::endl;
-    std::cerr << SS.str();
-  }
+  std::stringstream SS;
+  SS << "\nUR ERROR:"
+     << "\n\tValue:           " << Result << "\n\tFunction:        " << Function
+     << "\n\tSource Location: " << File << ":" << Line << "\n";
+  logger::error("{}", SS.str());
 
   if (std::getenv("PI_CUDA_ABORT") != nullptr) {
     std::abort();
@@ -101,17 +93,13 @@ std::string getCudaVersionString() {
 }
 
 void detail::ur::die(const char *Message) {
-  std::cerr << "ur_die: " << Message << std::endl;
+  logger::always("ur_die:{}", Message);
   std::terminate();
 }
 
 void detail::ur::assertion(bool Condition, const char *Message) {
   if (!Condition)
     die(Message);
-}
-
-void detail::ur::cuPrint(const char *Message) {
-  std::cerr << "ur_print: " << Message << std::endl;
 }
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR

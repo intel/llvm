@@ -86,6 +86,12 @@ etors:
     - name: INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP
       value: "0x200F"
       desc: "[$x_bool_t] returns true if the device supports exporting internal event resources"
+    - name: CUBEMAP_SUPPORT_EXP
+      value: "0x2010"
+      desc: "[$x_bool_t] returns true if the device supports allocating and accessing cubemap resources"
+    - name: CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP
+      value: "0x2011"
+      desc: "[$x_bool_t] returns true if the device supports sampling cubemapped images across face boundaries"
 --- #--------------------------------------------------------------------------
 type: enum
 extend: true
@@ -110,6 +116,9 @@ etors:
     - name: EXP_SAMPLER_ADDR_MODES
       desc: $x_exp_sampler_addr_modes_t
       value: "0x2005"
+    - name: EXP_SAMPLER_CUBEMAP_PROPERTIES
+      desc: $x_exp_sampler_cubemap_properties_t
+      value: "0x2006"
 --- #--------------------------------------------------------------------------
 type: enum
 extend: true
@@ -134,6 +143,25 @@ etors:
     desc: "Device to host"
   - name: DEVICE_TO_DEVICE
     desc: "Device to device"
+--- #--------------------------------------------------------------------------
+type: enum
+extend: True
+desc: "Memory types"
+name: $x_mem_type_t
+etors:
+    - name: IMAGE_CUBEMAP_EXP
+      value: "0x2000"
+      desc: "Experimental cubemap image object"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Sampler cubemap seamless filtering mode."
+class: $xBindlessImages
+name: $x_exp_sampler_cubemap_filter_mode_t
+etors:
+  - name: DISJOINTED
+    desc: "Disable seamless filtering"
+  - name: SEAMLESS
+    desc: "Enable Seamless filtering"
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "File descriptor"
@@ -187,6 +215,19 @@ members:
     - type: $x_sampler_addressing_mode_t[3]
       name: addrModes
       desc: "[in] Specify the address mode of the sampler per dimension"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Describes cubemap sampler properties"
+details:
+    - Specify these properties in $xSamplerCreate via $x_sampler_desc_t as part
+      of a `pNext` chain.
+class: $xBindlessImages
+name: $x_exp_sampler_cubemap_properties_t
+base: $x_base_properties_t
+members:
+    - type: $x_exp_sampler_cubemap_filter_mode_t
+      name: cubemapFilterMode
+      desc: "[in] enables or disables seamless cubemap filtering between cubemap faces"
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Describes an interop memory resource descriptor"

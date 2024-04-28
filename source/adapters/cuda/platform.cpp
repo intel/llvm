@@ -95,22 +95,6 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
 
               Platforms[i].Devices.emplace_back(new ur_device_handle_t_{
                   Device, Context, EvBase, &Platforms[i]});
-              {
-                const auto &Dev = Platforms[i].Devices.back().get();
-                size_t MaxWorkGroupSize = 0u;
-                size_t MaxThreadsPerBlock[3] = {};
-                UR_CHECK_ERROR(urDeviceGetInfo(
-                    Dev, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
-                    sizeof(MaxThreadsPerBlock), MaxThreadsPerBlock, nullptr));
-
-                UR_CHECK_ERROR(urDeviceGetInfo(
-                    Dev, UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
-                    sizeof(MaxWorkGroupSize), &MaxWorkGroupSize, nullptr));
-
-                Dev->saveMaxWorkItemSizes(sizeof(MaxThreadsPerBlock),
-                                          MaxThreadsPerBlock);
-                Dev->saveMaxWorkGroupSize(MaxWorkGroupSize);
-              }
             }
           } catch (const std::bad_alloc &) {
             // Signal out-of-memory situation

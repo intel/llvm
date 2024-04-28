@@ -2,18 +2,24 @@
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#include "helpers.h"
 #include <uur/fixtures.h>
 
-using urEnqueueMemBufferWriteTest = uur::urMemBufferQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueMemBufferWriteTest);
+using urEnqueueMemBufferWriteTestWithParam =
+    uur::urMemBufferQueueTestWithParam<uur::mem_buffer_test_parameters_t>;
 
-TEST_P(urEnqueueMemBufferWriteTest, Success) {
+UUR_TEST_SUITE_P(
+    urEnqueueMemBufferWriteTestWithParam,
+    ::testing::ValuesIn(uur::mem_buffer_test_parameters),
+    uur::printMemBufferTestString<urEnqueueMemBufferWriteTestWithParam>);
+
+TEST_P(urEnqueueMemBufferWriteTestWithParam, Success) {
     std::vector<uint32_t> input(count, 42);
     ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, buffer, true, 0, size,
                                            input.data(), 0, nullptr, nullptr));
 }
 
-TEST_P(urEnqueueMemBufferWriteTest, SuccessWriteRead) {
+TEST_P(urEnqueueMemBufferWriteTestWithParam, SuccessWriteRead) {
     std::vector<uint32_t> input(count, 42);
     ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, buffer, true, 0, size,
                                            input.data(), 0, nullptr, nullptr));
@@ -25,7 +31,7 @@ TEST_P(urEnqueueMemBufferWriteTest, SuccessWriteRead) {
     }
 }
 
-TEST_P(urEnqueueMemBufferWriteTest, InvalidNullHandleQueue) {
+TEST_P(urEnqueueMemBufferWriteTestWithParam, InvalidNullHandleQueue) {
     std::vector<uint32_t> input(count, 42);
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urEnqueueMemBufferWrite(nullptr, buffer, true, 0, size,
@@ -33,7 +39,7 @@ TEST_P(urEnqueueMemBufferWriteTest, InvalidNullHandleQueue) {
                                              nullptr));
 }
 
-TEST_P(urEnqueueMemBufferWriteTest, InvalidNullHandleBuffer) {
+TEST_P(urEnqueueMemBufferWriteTestWithParam, InvalidNullHandleBuffer) {
     std::vector<uint32_t> input(count, 42);
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urEnqueueMemBufferWrite(queue, nullptr, true, 0, size,
@@ -41,14 +47,14 @@ TEST_P(urEnqueueMemBufferWriteTest, InvalidNullHandleBuffer) {
                                              nullptr));
 }
 
-TEST_P(urEnqueueMemBufferWriteTest, InvalidNullPointerSrc) {
+TEST_P(urEnqueueMemBufferWriteTestWithParam, InvalidNullPointerSrc) {
     std::vector<uint32_t> input(count, 42);
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                      urEnqueueMemBufferWrite(queue, buffer, true, 0, size,
                                              nullptr, 0, nullptr, nullptr));
 }
 
-TEST_P(urEnqueueMemBufferWriteTest, InvalidNullPtrEventWaitList) {
+TEST_P(urEnqueueMemBufferWriteTestWithParam, InvalidNullPtrEventWaitList) {
     std::vector<uint32_t> input(count, 42);
     ASSERT_EQ_RESULT(urEnqueueMemBufferWrite(queue, buffer, true, 0, size,
                                              input.data(), 1, nullptr, nullptr),
@@ -71,7 +77,7 @@ TEST_P(urEnqueueMemBufferWriteTest, InvalidNullPtrEventWaitList) {
     ASSERT_SUCCESS(urEventRelease(validEvent));
 }
 
-TEST_P(urEnqueueMemBufferWriteTest, InvalidSize) {
+TEST_P(urEnqueueMemBufferWriteTestWithParam, InvalidSize) {
     std::vector<uint32_t> output(count, 42);
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
                      urEnqueueMemBufferWrite(queue, buffer, true, 1, size,

@@ -17,11 +17,6 @@ ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue, CUstream Stream,
                               uint32_t NumEventsInWaitList,
                               const ur_event_handle_t *EventWaitList);
 
-void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
-                        const size_t *GlobalWorkSize, const uint32_t WorkDim,
-                        const size_t MaxThreadsPerBlock[3],
-                        ur_kernel_handle_t Kernel, uint32_t LocalSize);
-
 bool hasExceededMaxRegistersPerBlock(ur_device_handle_t Device,
                                      ur_kernel_handle_t Kernel,
                                      size_t BlockSize);

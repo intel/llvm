@@ -914,6 +914,29 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     return UR_RESULT_ERROR_INVALID_OPERATION;
   }
 
+  if (auto NewWorkDim = pUpdateKernelLaunch->newWorkDim) {
+    // Error if work dim changes
+    if (NewWorkDim != hCommand->WorkDim) {
+      return UR_RESULT_ERROR_INVALID_OPERATION;
+    }
+
+    // Error If Local size and not global size
+    if ((pUpdateKernelLaunch->pNewLocalWorkSize != nullptr) &&
+        (pUpdateKernelLaunch->pNewGlobalWorkSize == nullptr)) {
+      return UR_RESULT_ERROR_INVALID_OPERATION;
+    }
+
+    // Error if local size non-nullptr and created with null
+    // or if local size nullptr and created with non-null
+    const bool IsNewLocalSizeNull =
+        pUpdateKernelLaunch->pNewLocalWorkSize == nullptr;
+    const bool IsOriginalLocalSizeNull = hCommand->isNullLocalSize();
+
+    if (IsNewLocalSizeNull ^ IsOriginalLocalSizeNull) {
+      return UR_RESULT_ERROR_INVALID_OPERATION;
+    }
+  }
+
   // Kernel corresponding to the command to update
   ur_kernel_handle_t Kernel = hCommand->Kernel;
 
@@ -1001,11 +1024,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   size_t *GlobalWorkOffset = hCommand->GlobalWorkOffset;
   size_t *GlobalWorkSize = hCommand->GlobalWorkSize;
 
-  const bool ProvidedLocalSize = hCommand->LocalWorkSize[0] != 0 ||
-                                 hCommand->LocalWorkSize[1] != 0 ||
-                                 hCommand->LocalWorkSize[2] != 0;
   // If no worksize is provided make sure we pass nullptr to setKernelParams so
   // it can guess the local work size.
+  const bool ProvidedLocalSize = !hCommand->isNullLocalSize();
   size_t *LocalWorkSize = ProvidedLocalSize ? hCommand->LocalWorkSize : nullptr;
   uint32_t WorkDim = hCommand->WorkDim;
 

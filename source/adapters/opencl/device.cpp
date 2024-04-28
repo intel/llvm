@@ -10,6 +10,7 @@
 #include "common.hpp"
 #include "platform.hpp"
 
+#include <array>
 #include <cassert>
 
 ur_result_t cl_adapter::getDeviceVersion(cl_device_id Dev,
@@ -569,6 +570,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(
         static_cast<ur_memory_order_capability_flags_t>(URCapabilities));
   }
+
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
     /* Initialize result to minimum mandated capabilities according to
      * SYCL2020 4.6.3.2. Because scopes are hierarchical, wider scopes support
@@ -624,6 +626,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(
         static_cast<ur_memory_scope_capability_flags_t>(URCapabilities));
   }
+
   case UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
     /* Initialize result to minimum mandated capabilities according to
      * SYCL2020 4.6.3.2 */
@@ -671,6 +674,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(
         static_cast<ur_memory_order_capability_flags_t>(URCapabilities));
   }
+
   case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
     /* Initialize result to minimum mandated capabilities according to
      * SYCL2020 4.6.3.2. Because scopes are hierarchical, wider scopes support
@@ -686,38 +690,53 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     CL_RETURN_ON_FAILURE(cl_adapter::getDeviceVersion(
         cl_adapter::cast<cl_device_id>(hDevice), DevVer));
 
-    cl_device_atomic_capabilities CLCapabilities;
+    auto convertCapabilities =
+        [](cl_device_atomic_capabilities CLCapabilities) {
+          ur_memory_scope_capability_flags_t URCapabilities = 0;
+          /* Because scopes are hierarchical, wider scopes support all narrower
+           * scopes. At a minimum, each device must support WORK_ITEM,
+           * SUB_GROUP and WORK_GROUP.
+           * (https://github.com/KhronosGroup/SYCL-Docs/pull/382). We already
+           * initialized to these minimum mandated capabilities. Just check
+           * wider scopes. */
+          if (CLCapabilities & CL_DEVICE_ATOMIC_SCOPE_DEVICE) {
+            URCapabilities |= UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE;
+          }
+
+          if (CLCapabilities & CL_DEVICE_ATOMIC_SCOPE_ALL_DEVICES) {
+            URCapabilities |= UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
+          }
+          return URCapabilities;
+        };
+
     if (DevVer >= oclv::V3_0) {
+      cl_device_atomic_capabilities CLCapabilities;
       CL_RETURN_ON_FAILURE(clGetDeviceInfo(
           cl_adapter::cast<cl_device_id>(hDevice),
           CL_DEVICE_ATOMIC_FENCE_CAPABILITIES,
           sizeof(cl_device_atomic_capabilities), &CLCapabilities, nullptr));
-
       assert((CLCapabilities & CL_DEVICE_ATOMIC_SCOPE_WORK_GROUP) &&
              "Violates minimum mandated guarantee");
+      URCapabilities |= convertCapabilities(CLCapabilities);
+    } else if (DevVer >= oclv::V2_0) {
+      /* OpenCL 2.x minimum mandated capabilities are WORK_GROUP | DEVICE |
+         ALL_DEVICES */
+      URCapabilities |= UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE |
+                        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
 
-      /* Because scopes are hierarchical, wider scopes support all narrower
-       * scopes. At a minimum, each device must support WORK_ITEM, SUB_GROUP and
-       * WORK_GROUP. (https://github.com/KhronosGroup/SYCL-Docs/pull/382). We
-       * already initialized to these minimum mandated capabilities. Just check
-       * wider scopes. */
-      if (CLCapabilities & CL_DEVICE_ATOMIC_SCOPE_DEVICE) {
-        URCapabilities |= UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE;
-      }
-
-      if (CLCapabilities & CL_DEVICE_ATOMIC_SCOPE_ALL_DEVICES) {
-        URCapabilities |= UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
-      }
     } else {
-      /* This info is only available in OpenCL version >= 3.0. Just return
-       * minimum mandated capabilities for older versions. OpenCL 1.x minimum
-       * mandated capabilities are WORK_GROUP, we already initialized using it.
-       */
-      if (DevVer >= oclv::V2_0) {
-        /* OpenCL 2.x minimum mandated capabilities are WORK_GROUP | DEVICE |
-         * ALL_DEVICES */
-        URCapabilities |= UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE |
-                          UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
+      // FIXME: Special case for Intel FPGA driver which is currently an
+      // OpenCL 1.2 device but is more capable than the default. This is a
+      // temporary work around until the Intel FPGA driver is updated to
+      // OpenCL 3.0. If the query is successful, then use the result but do
+      // not return an error if the query is unsuccessful as this is expected
+      // of an OpenCL 1.2 driver.
+      cl_device_atomic_capabilities CLCapabilities;
+      if (CL_SUCCESS == clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                                        CL_DEVICE_ATOMIC_FENCE_CAPABILITIES,
+                                        sizeof(cl_device_atomic_capabilities),
+                                        &CLCapabilities, nullptr)) {
+        URCapabilities |= convertCapabilities(CLCapabilities);
       }
     }
 
@@ -923,6 +942,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     }
     return ReturnValue(SupportedExtensions.c_str());
   }
+
+  case UR_DEVICE_INFO_UUID: {
+    // Use the cl_khr_device_uuid extension, if available.
+    bool isKhrDeviceUuidSupported = false;
+    if (cl_adapter::checkDeviceExtensions(
+            cl_adapter::cast<cl_device_id>(hDevice), {"cl_khr_device_uuid"},
+            isKhrDeviceUuidSupported) != UR_RESULT_SUCCESS ||
+        !isKhrDeviceUuidSupported) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+    static_assert(CL_UUID_SIZE_KHR == 16);
+    std::array<uint8_t, CL_UUID_SIZE_KHR> UUID{};
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_UUID_KHR, UUID.size(), UUID.data(), nullptr));
+    return ReturnValue(UUID);
+  }
+
   case UR_DEVICE_INFO_COMPONENT_DEVICES:
   case UR_DEVICE_INFO_COMPOSITE_DEVICE:
     // These two are exclusive of L0.
@@ -939,10 +976,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
-  /* TODO: Check if device UUID extension is enabled in OpenCL. For details
-   * about Intel UUID extension, see
-   * sycl/doc/extensions/supported/sycl_ext_intel_device_info.md */
-  case UR_DEVICE_INFO_UUID:
   /* This enums have no equivalent in OpenCL */
   case UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP:
   case UR_DEVICE_INFO_GLOBAL_MEM_FREE:
@@ -967,7 +1000,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                        std::string::npos);
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP: {
-    return ReturnValue(false);
+    cl_device_id Dev = cl_adapter::cast<cl_device_id>(hDevice);
+    bool Supported = false;
+    CL_RETURN_ON_FAILURE(
+        deviceSupportsURCommandBufferKernelUpdate(Dev, Supported));
+    return ReturnValue(Supported);
   }
   default: {
     return UR_RESULT_ERROR_INVALID_ENUMERATION;

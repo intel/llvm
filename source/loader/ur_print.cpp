@@ -887,6 +887,14 @@ ur_result_t urPrintExpImageCopyFlags(enum ur_exp_image_copy_flag_t value,
     return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintExpSamplerCubemapFilterMode(
+    enum ur_exp_sampler_cubemap_filter_mode_t value, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << value;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t
 urPrintExpFileDescriptor(const struct ur_exp_file_descriptor_t params,
                          char *buffer, const size_t buff_size,
@@ -916,6 +924,14 @@ ur_result_t
 urPrintExpSamplerAddrModes(const struct ur_exp_sampler_addr_modes_t params,
                            char *buffer, const size_t buff_size,
                            size_t *out_size) {
+    std::stringstream ss;
+    ss << params;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintExpSamplerCubemapProperties(
+    const struct ur_exp_sampler_cubemap_properties_t params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
     std::stringstream ss;
     ss << params;
     return str_copy(&ss, buffer, buff_size, out_size);
@@ -981,14 +997,6 @@ ur_result_t urPrintExpCommandBufferUpdatePointerArgDesc(
 
 ur_result_t urPrintExpCommandBufferUpdateValueArgDesc(
     const struct ur_exp_command_buffer_update_value_arg_desc_t params,
-    char *buffer, const size_t buff_size, size_t *out_size) {
-    std::stringstream ss;
-    ss << params;
-    return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintExpCommandBufferUpdateExecInfoDesc(
-    const struct ur_exp_command_buffer_update_exec_info_desc_t params,
     char *buffer, const size_t buff_size, size_t *out_size) {
     std::stringstream ss;
     ss << params;

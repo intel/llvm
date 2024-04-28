@@ -736,7 +736,7 @@ ur_result_t UR_APICALL urDeviceGetSelected(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP < propName`
+///         + `::UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -1331,6 +1331,7 @@ ur_result_t UR_APICALL urMemImageCreate(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_BUFFER_SIZE
+///         + `size == 0`
 ///     - ::UR_RESULT_ERROR_INVALID_HOST_PTR
 ///         + `pProperties == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0`
 ///         + `pProperties != NULL && pProperties->pHost == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0`
@@ -1427,6 +1428,8 @@ ur_result_t UR_APICALL urMemRelease(
 ///     - ::UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_BUFFER_SIZE
+///         + `pRegion && pRegion->size == 0`
+///         + hBuffer allocation size < (pRegion->origin + pRegion->size)
 ///     - ::UR_RESULT_ERROR_INVALID_HOST_PTR
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -3832,6 +3835,8 @@ ur_result_t UR_APICALL urEventGetProfilingInfo(
 ///         + `NULL == phEventWaitList`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///         + `numEvents == 0`
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
@@ -4024,6 +4029,8 @@ ur_result_t UR_APICALL urEventSetCallback(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -4088,6 +4095,8 @@ ur_result_t UR_APICALL urEnqueueKernelLaunch(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -4136,6 +4145,8 @@ ur_result_t UR_APICALL urEnqueueEventsWait(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -4183,6 +4194,8 @@ ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + If `offset + size` results in an out-of-bounds access.
@@ -4237,6 +4250,8 @@ ur_result_t UR_APICALL urEnqueueMemBufferRead(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + If `offset + size` results in an out-of-bounds access.
@@ -4296,6 +4311,8 @@ ur_result_t UR_APICALL urEnqueueMemBufferWrite(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `region.width == 0 || region.height == 0 || region.width == 0`
@@ -4372,6 +4389,8 @@ ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `region.width == 0 || region.height == 0 || region.width == 0`
@@ -4443,6 +4462,8 @@ ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + If `srcOffset + size` results in an out-of-bounds access.
@@ -4495,6 +4516,8 @@ ur_result_t UR_APICALL urEnqueueMemBufferCopy(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `region.width == 0 || region.height == 0 || region.depth == 0`
@@ -4564,6 +4587,8 @@ ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `patternSize == 0 || size == 0`
@@ -4624,6 +4649,8 @@ ur_result_t UR_APICALL urEnqueueMemBufferFill(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `region.width == 0 || region.height == 0 || region.depth == 0`
@@ -4684,6 +4711,8 @@ ur_result_t UR_APICALL urEnqueueMemImageRead(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `region.width == 0 || region.height == 0 || region.depth == 0`
@@ -4739,6 +4768,8 @@ ur_result_t UR_APICALL urEnqueueMemImageWrite(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `region.width == 0 || region.height == 0 || region.depth == 0`
@@ -4806,6 +4837,8 @@ ur_result_t UR_APICALL urEnqueueMemImageCopy(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + If `offset + size` results in an out-of-bounds access.
@@ -4859,6 +4892,8 @@ ur_result_t UR_APICALL urEnqueueMemBufferMap(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -4906,6 +4941,8 @@ ur_result_t UR_APICALL urEnqueueMemUnmap(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -4955,6 +4992,8 @@ ur_result_t UR_APICALL urEnqueueUSMFill(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -5008,6 +5047,8 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -5099,6 +5140,8 @@ ur_result_t UR_APICALL urEnqueueUSMAdvise(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -5157,6 +5200,8 @@ ur_result_t UR_APICALL urEnqueueUSMFill2D(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -5208,6 +5253,8 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue to submit to.
     ur_program_handle_t
@@ -5252,6 +5299,8 @@ ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue to submit to.
     ur_program_handle_t
@@ -5295,6 +5344,8 @@ ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ur_result_t UR_APICALL urEnqueueReadHostPipe(
     ur_queue_handle_t
         hQueue, ///< [in] a valid host command-queue in which the read command
@@ -5342,6 +5393,8 @@ ur_result_t UR_APICALL urEnqueueReadHostPipe(
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     ur_queue_handle_t
         hQueue, ///< [in] a valid host command-queue in which the write command
@@ -6053,6 +6106,8 @@ ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
 ///         + `NULL == phCommandBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///         + If `pCommandBufferDesc->isUpdatable` is true and `hDevice` does not support UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urCommandBufferCreateExp(
@@ -6146,7 +6201,6 @@ ur_result_t UR_APICALL urCommandBufferFinalizeExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pGlobalWorkOffset`
 ///         + `NULL == pGlobalWorkSize`
-///         + `NULL == pLocalWorkSize`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
@@ -6167,12 +6221,13 @@ ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
         *pGlobalWorkOffset, ///< [in] Offset to use when executing kernel.
     const size_t *
         pGlobalWorkSize, ///< [in] Global work size to use when executing kernel.
-    const size_t
-        *pLocalWorkSize, ///< [in] Local work size to use when executing kernel.
+    const size_t *
+        pLocalWorkSize, ///< [in][optional] Local work size to use when executing kernel.
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint, ///< [out][optional] Sync point associated with this command.
     ur_exp_command_buffer_command_handle_t
@@ -6215,7 +6270,8 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
@@ -6261,7 +6317,8 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] sync point associated with this command.
 ) {
@@ -6300,7 +6357,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
@@ -6340,7 +6398,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
@@ -6379,7 +6438,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
@@ -6425,7 +6485,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
@@ -6478,7 +6539,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
@@ -6529,7 +6591,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
@@ -6572,7 +6635,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] sync point associated with this command.
 ) {
@@ -6619,7 +6683,8 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] sync point associated with this command.
 ) {
@@ -6666,7 +6731,8 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] sync point associated with this command.
 ) {
@@ -6772,6 +6838,10 @@ ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///         + If ::ur_exp_command_buffer_desc_t::isUpdatable was not set to true on creation of the command buffer `hCommand` belongs to.
 ///         + If the command-buffer `hCommand` belongs to has not been finalized.
+///         + If `pUpdateKernellaunch->newWorkDim` is non-zero and different from the work-dim used on creation of `hCommand`.
+///         + If `pUpdateKernellaunch->newWorkDim` is non-zero and `pUpdateKernelLaunch->pNewLocalWorkSize` is set to a non-NULL value and `pUpdateKernelLaunch->pNewGlobalWorkSize` is NULL.
+///         + If `pUpdateKernellaunch->newWorkDim` is non-zero and `pUpdateKernelLaunch->pNewLocalWorkSize` is set to a non-NULL value when `hCommand` was created with a NULL local work size.
+///         + If `pUpdateKernellaunch->newWorkDim` is non-zero and `pUpdateKernelLaunch->pNewLocalWorkSize` is set to a NULL value when `hCommand` was created with a non-NULL local work size.
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX

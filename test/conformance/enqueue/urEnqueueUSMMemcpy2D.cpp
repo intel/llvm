@@ -7,7 +7,7 @@
 #include <uur/fixtures.h>
 
 using TestParametersMemcpy2D =
-    std::tuple<uur::TestParameters2D, uur::USMKind, uur::USMKind>;
+    std::tuple<uur::TestParameters2D, ur_usm_type_t, ur_usm_type_t>;
 
 struct urEnqueueUSMMemcpy2DTestWithParam
     : uur::urQueueTestWithParam<TestParametersMemcpy2D> {
@@ -22,8 +22,8 @@ struct urEnqueueUSMMemcpy2DTestWithParam
 
         ur_device_usm_access_capability_flags_t device_usm = 0;
         ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, device_usm));
-        if (!device_usm && (src_kind == uur::USMKind::Device ||
-                            dst_kind == uur::USMKind::Device)) {
+        if (!device_usm && (src_kind == ur_usm_type_t::UR_USM_TYPE_DEVICE ||
+                            dst_kind == ur_usm_type_t::UR_USM_TYPE_DEVICE)) {
             GTEST_SKIP() << "Device USM is not supported";
         }
 
@@ -66,7 +66,7 @@ struct urEnqueueUSMMemcpy2DTestWithParam
     void verifyMemcpySucceeded() {
         std::vector<uint8_t> host_mem(pitch * height);
         const uint8_t *host_ptr = nullptr;
-        if (dst_kind == uur::USMKind::Device) {
+        if (dst_kind == ur_usm_type_t::UR_USM_TYPE_DEVICE) {
             ASSERT_SUCCESS(urEnqueueUSMMemcpy2D(queue, true, host_mem.data(),
                                                 pitch, pDst, pitch, width,
                                                 height, 0, nullptr, nullptr));
@@ -88,8 +88,8 @@ struct urEnqueueUSMMemcpy2DTestWithParam
     size_t pitch = 0;
     size_t width = 0;
     size_t height = 0;
-    uur::USMKind src_kind;
-    uur::USMKind dst_kind;
+    ur_usm_type_t src_kind;
+    ur_usm_type_t dst_kind;
 };
 
 static std::vector<uur::TestParameters2D> test_sizes{
@@ -106,15 +106,16 @@ static std::vector<uur::TestParameters2D> test_sizes{
     /* Height == 1 && Pitch == width + 1 */
     {234, 233, 1}};
 
-UUR_TEST_SUITE_P(urEnqueueUSMMemcpy2DTestWithParam,
-                 ::testing::Combine(::testing::ValuesIn(test_sizes),
-                                    ::testing::Values(uur::USMKind::Device,
-                                                      uur::USMKind::Host,
-                                                      uur::USMKind::Shared),
-                                    ::testing::Values(uur::USMKind::Device,
-                                                      uur::USMKind::Host,
-                                                      uur::USMKind::Shared)),
-                 uur::print2DTestString<urEnqueueUSMMemcpy2DTestWithParam>);
+UUR_TEST_SUITE_P(
+    urEnqueueUSMMemcpy2DTestWithParam,
+    ::testing::Combine(::testing::ValuesIn(test_sizes),
+                       ::testing::Values(ur_usm_type_t::UR_USM_TYPE_DEVICE,
+                                         ur_usm_type_t::UR_USM_TYPE_HOST,
+                                         ur_usm_type_t::UR_USM_TYPE_SHARED),
+                       ::testing::Values(ur_usm_type_t::UR_USM_TYPE_DEVICE,
+                                         ur_usm_type_t::UR_USM_TYPE_HOST,
+                                         ur_usm_type_t::UR_USM_TYPE_SHARED)),
+    uur::print2DTestString<urEnqueueUSMMemcpy2DTestWithParam>);
 
 TEST_P(urEnqueueUSMMemcpy2DTestWithParam, SuccessBlocking) {
     ASSERT_SUCCESS(urEnqueueUSMMemcpy2D(queue, true, pDst, pitch, pSrc, pitch,
@@ -141,7 +142,9 @@ TEST_P(urEnqueueUSMMemcpy2DTestWithParam, SuccessNonBlocking) {
 using urEnqueueUSMMemcpy2DNegativeTest = urEnqueueUSMMemcpy2DTestWithParam;
 UUR_TEST_SUITE_P(urEnqueueUSMMemcpy2DNegativeTest,
                  ::testing::Values(TestParametersMemcpy2D{
-                     {1, 1, 1}, uur::USMKind::Device, uur::USMKind::Device}),
+                     {1, 1, 1},
+                     ur_usm_type_t::UR_USM_TYPE_DEVICE,
+                     ur_usm_type_t::UR_USM_TYPE_DEVICE}),
                  uur::print2DTestString<urEnqueueUSMMemcpy2DTestWithParam>);
 
 TEST_P(urEnqueueUSMMemcpy2DNegativeTest, InvalidNullHandleQueue) {

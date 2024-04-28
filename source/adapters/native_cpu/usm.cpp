@@ -86,7 +86,16 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
   std::ignore = pPropValue;
   std::ignore = pPropSizeRet;
 
-  DIE_NO_IMPLEMENTATION;
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+
+  switch (propName) {
+  case UR_USM_ALLOC_INFO_TYPE:
+    // Todo implement this in context
+    return ReturnValue(UR_USM_TYPE_DEVICE);
+  default:
+    DIE_NO_IMPLEMENTATION;
+  }
+  return UR_RESULT_ERROR_INVALID_VALUE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL

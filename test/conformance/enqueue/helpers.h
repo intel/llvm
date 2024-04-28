@@ -66,18 +66,6 @@ struct TestParameters2D {
     size_t height;
 };
 
-inline std::string USMKindToString(USMKind kind) {
-    switch (kind) {
-    case USMKind::Device:
-        return "Device";
-    case USMKind::Host:
-        return "Host";
-    case USMKind::Shared:
-    default:
-        return "Shared";
-    }
-}
-
 template <typename T>
 inline std::string
 print2DTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
@@ -85,14 +73,84 @@ print2DTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
     const auto platform_device_name =
         uur::GetPlatformAndDeviceName(device_handle);
     std::stringstream test_name;
-    auto src_kind = std::get<1>(std::get<1>(info.param));
-    auto dst_kind = std::get<2>(std::get<1>(info.param));
+    const auto src_kind = std::get<1>(std::get<1>(info.param));
+    const auto dst_kind = std::get<2>(std::get<1>(info.param));
     test_name << platform_device_name << "__pitch__"
               << std::get<0>(std::get<1>(info.param)).pitch << "__width__"
               << std::get<0>(std::get<1>(info.param)).width << "__height__"
               << std::get<0>(std::get<1>(info.param)).height << "__src__"
-              << USMKindToString(src_kind) << "__dst__"
-              << USMKindToString(dst_kind);
+              << src_kind << "__dst__" << dst_kind;
+    return test_name.str();
+}
+
+struct mem_buffer_test_parameters_t {
+    size_t count;
+    ur_mem_flag_t mem_flag;
+};
+
+static std::vector<mem_buffer_test_parameters_t> mem_buffer_test_parameters{
+    {1024, UR_MEM_FLAG_READ_WRITE},
+    {2500, UR_MEM_FLAG_READ_WRITE},
+    {4096, UR_MEM_FLAG_READ_WRITE},
+    {6000, UR_MEM_FLAG_READ_WRITE},
+    {1024, UR_MEM_FLAG_WRITE_ONLY},
+    {2500, UR_MEM_FLAG_WRITE_ONLY},
+    {4096, UR_MEM_FLAG_WRITE_ONLY},
+    {6000, UR_MEM_FLAG_WRITE_ONLY},
+    {1024, UR_MEM_FLAG_READ_ONLY},
+    {2500, UR_MEM_FLAG_READ_ONLY},
+    {4096, UR_MEM_FLAG_READ_ONLY},
+    {6000, UR_MEM_FLAG_READ_ONLY},
+    {1024, UR_MEM_FLAG_ALLOC_HOST_POINTER},
+    {2500, UR_MEM_FLAG_ALLOC_HOST_POINTER},
+    {4096, UR_MEM_FLAG_ALLOC_HOST_POINTER},
+    {6000, UR_MEM_FLAG_ALLOC_HOST_POINTER},
+};
+
+struct mem_buffer_map_write_test_parameters_t {
+    size_t count;
+    ur_mem_flag_t mem_flag;
+    ur_map_flag_t map_flag;
+};
+
+template <typename T>
+inline std::string printMemBufferTestString(
+    const testing::TestParamInfo<typename T::ParamType> &info) {
+    // ParamType will be std::tuple<ur_device_handle_t, mem_buffer_test_parameters_t>
+    const auto device_handle = std::get<0>(info.param);
+    const auto platform_device_name = GetPlatformAndDeviceName(device_handle);
+
+    std::stringstream ss;
+    ss << std::get<1>(info.param).count;
+    ss << "_";
+    ss << std::get<1>(info.param).mem_flag;
+
+    return platform_device_name + "__" + ss.str();
+}
+
+template <typename T>
+inline std::string printMemBufferMapWriteTestString(
+    const testing::TestParamInfo<typename T::ParamType> &info) {
+    // ParamType will be std::tuple<ur_device_handle_t, mem_buffer_map_write_test_parameters_t>
+    const auto device_handle = std::get<0>(info.param);
+    const auto platform_device_name = GetPlatformAndDeviceName(device_handle);
+
+    std::stringstream ss;
+    ss << std::get<1>(info.param).map_flag;
+
+    return platform_device_name + "__" + ss.str();
+}
+
+template <typename T>
+inline std::string
+printFillTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
+    const auto device_handle = std::get<0>(info.param);
+    const auto platform_device_name =
+        uur::GetPlatformAndDeviceName(device_handle);
+    std::stringstream test_name;
+    test_name << platform_device_name << "__size__"
+              << std::get<1>(info.param).size << "__patternSize__"
+              << std::get<1>(info.param).pattern_size;
     return test_name.str();
 }
 

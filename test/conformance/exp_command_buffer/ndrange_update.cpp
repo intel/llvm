@@ -128,20 +128,19 @@ TEST_P(NDRangeUpdateTest, Update3D) {
     // Set local size and global offset to update to
     std::array<size_t, 3> new_local_size = {4, 2, 2};
     std::array<size_t, 3> new_global_offset = {3, 2, 1};
+    std::array<size_t, 3> new_global_size = global_size;
     ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
         nullptr,                                                        // pNext
         0,                        // numNewMemObjArgs
         0,                        // numNewPointerArgs
         0,                        // numNewValueArgs
-        0,                        // numNewExecInfos
         3,                        // newWorkDim
         nullptr,                  // pNewMemObjArgList
         nullptr,                  // pNewPointerArgList
         nullptr,                  // pNewValueArgList
-        nullptr,                  // pNewExecInfoList
         new_global_offset.data(), // pNewGlobalWorkOffset
-        nullptr,                  // pNewGlobalWorkSize
+        new_global_size.data(),   // pNewGlobalWorkSize
         new_local_size.data(),    // pNewLocalWorkSize
     };
 
@@ -153,11 +152,11 @@ TEST_P(NDRangeUpdateTest, Update3D) {
     ASSERT_SUCCESS(urQueueFinish(queue));
 
     // Verify that update occurred correctly
-    Validate(global_size, new_local_size, new_global_offset);
+    Validate(new_global_size, new_local_size, new_global_offset);
 }
 
-// Update the kernel work dimensions to 2, and update global size, local size,
-// and global offset to new values.
+// Update the kernel work dimensions to use 1 in the Z dimension,
+// and update global size, local size, and global offset to new values.
 TEST_P(NDRangeUpdateTest, Update2D) {
     // Run command-buffer prior to update an verify output
     ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
@@ -180,12 +179,10 @@ TEST_P(NDRangeUpdateTest, Update2D) {
         0,                        // numNewMemObjArgs
         0,                        // numNewPointerArgs
         0,                        // numNewValueArgs
-        0,                        // numNewExecInfos
-        2,                        // newWorkDim
+        3,                        // newWorkDim
         nullptr,                  // pNewMemObjArgList
         nullptr,                  // pNewPointerArgList
         nullptr,                  // pNewValueArgList
-        nullptr,                  // pNewExecInfoList
         new_global_offset.data(), // pNewGlobalWorkOffset
         new_global_size.data(),   // pNewGlobalWorkSize
         new_local_size.data(),    // pNewLocalWorkSize
@@ -206,8 +203,9 @@ TEST_P(NDRangeUpdateTest, Update2D) {
     Validate(new_global_size, new_local_size, new_global_offset);
 }
 
-// Update the kernel work dimensions to 1, and check that previously
-// set global size, local size, and global offset update accordingly.
+// Update the kernel work dimensions to be 1 in Y & Z dimensions, and check
+// that the previously set global size, local size, and global offset update
+// accordingly.
 TEST_P(NDRangeUpdateTest, Update1D) {
     // Run command-buffer prior to update an verify output
     ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
@@ -216,21 +214,22 @@ TEST_P(NDRangeUpdateTest, Update1D) {
     Validate(global_size, local_size, global_offset);
 
     // Set dimensions to 1
+    std::array<size_t, 3> new_global_size = {9, 1, 1};
+    std::array<size_t, 3> new_local_size = {3, 1, 1};
+    std::array<size_t, 3> new_global_offset = {0, 0, 0};
     ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
         nullptr,                                                        // pNext
-        0,       // numNewMemObjArgs
-        0,       // numNewPointerArgs
-        0,       // numNewValueArgs
-        0,       // numNewExecInfos
-        1,       // newWorkDim
-        nullptr, // pNewMemObjArgList
-        nullptr, // pNewPointerArgList
-        nullptr, // pNewValueArgList
-        nullptr, // pNewExecInfoList
-        nullptr, // pNewGlobalWorkOffset
-        nullptr, // pNewGlobalWorkSize
-        nullptr, // pNewLocalWorkSize
+        0,                        // numNewMemObjArgs
+        0,                        // numNewPointerArgs
+        0,                        // numNewValueArgs
+        3,                        // newWorkDim
+        nullptr,                  // pNewMemObjArgList
+        nullptr,                  // pNewPointerArgList
+        nullptr,                  // pNewValueArgList
+        new_global_offset.data(), // pNewGlobalWorkOffset
+        new_global_size.data(),   // pNewGlobalWorkSize
+        new_local_size.data(),    // pNewLocalWorkSize
     };
 
     // Reset output to remove old values which will no longer have a
@@ -245,8 +244,29 @@ TEST_P(NDRangeUpdateTest, Update1D) {
     ASSERT_SUCCESS(urQueueFinish(queue));
 
     // Verify that update occurred correctly
-    std::array<size_t, 3> new_global_size = {global_size[0], 1, 1};
-    std::array<size_t, 3> new_local_size = {local_size[0], 1, 1};
-    std::array<size_t, 3> new_global_offset = {global_offset[0], 0, 0};
     Validate(new_global_size, new_local_size, new_global_offset);
+}
+
+// Test error code is returned if work dimension parameter changes
+TEST_P(NDRangeUpdateTest, Invalid) {
+    const size_t new_work_dim = n_dimensions - 1;
+    ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
+        nullptr,                                                        // pNext
+        0,            // numNewMemObjArgs
+        0,            // numNewPointerArgs
+        0,            // numNewValueArgs
+        new_work_dim, // newWorkDim
+        nullptr,      // pNewMemObjArgList
+        nullptr,      // pNewPointerArgList
+        nullptr,      // pNewValueArgList
+        nullptr,      // pNewGlobalWorkOffset
+        nullptr,      // pNewGlobalWorkSize
+        nullptr,      // pNewLocalWorkSize
+    };
+
+    // Update command to command-buffer to use different work dim
+    ur_result_t result =
+        urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc);
+    ASSERT_EQ(UR_RESULT_ERROR_INVALID_OPERATION, result);
 }

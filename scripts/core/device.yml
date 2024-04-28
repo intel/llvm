@@ -377,7 +377,7 @@ etors:
     - name: USM_SYSTEM_SHARED_SUPPORT
       desc: "[$x_device_usm_access_capability_flags_t] support USM system wide shared memory access"
     - name: UUID
-      desc: "[char[]] return device UUID"
+      desc: "[uint8_t[]] return device UUID"
     - name: PCI_ADDRESS
       desc: "[char[]] return device PCI address"
     - name: GPU_EU_COUNT

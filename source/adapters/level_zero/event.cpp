@@ -11,22 +11,24 @@
 #include <algorithm>
 #include <climits>
 #include <mutex>
+#include <optional>
 #include <string.h>
 
 #include "command_buffer.hpp"
 #include "common.hpp"
 #include "event.hpp"
+#include "logger/ur_logger.hpp"
 #include "ur_level_zero.hpp"
 
 void printZeEventList(const _ur_ze_event_list_t &UrZeEventList) {
   if (UrL0Debug & UR_L0_DEBUG_BASIC) {
-    urPrint("  NumEventsInWaitList %d:", UrZeEventList.Length);
+    std::stringstream ss;
+    ss << "  NumEventsInWaitList " << UrZeEventList.Length << ":";
 
     for (uint32_t I = 0; I < UrZeEventList.Length; I++) {
-      urPrint(" %#llx", ur_cast<std::uintptr_t>(UrZeEventList.ZeEventList[I]));
+      ss << " " << ur_cast<std::uintptr_t>(UrZeEventList.ZeEventList[I]);
     }
-
-    urPrint("\n");
+    logger::debug(ss.str().c_str());
   }
 }
 
@@ -128,7 +130,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
     if (OutEvent) {
       Queue->LastCommandEvent = reinterpret_cast<ur_event_handle_t>(*OutEvent);
 
-      ZE2UR_CALL(zeEventHostSignal, ((*OutEvent)->ZeEvent));
+      if (!(*OutEvent)->CounterBasedEventsEnabled)
+        ZE2UR_CALL(zeEventHostSignal, ((*OutEvent)->ZeEvent));
       (*OutEvent)->Completed = true;
     }
   }
@@ -445,8 +448,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(
     return ReturnValue(Event->RefCount.load());
   }
   default:
-    urPrint("Unsupported ParamName in urEventGetInfo: ParamName=%d(%x)\n",
-            PropName, PropName);
+    logger::error(
+        "Unsupported ParamName in urEventGetInfo: ParamName=ParamName={}(0x{})",
+        PropName, logger::toHex(PropName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -537,7 +541,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
         return ReturnValue(ContextEndTime);
       }
       default:
-        urPrint("urEventGetProfilingInfo: not supported ParamName\n");
+        logger::error("urEventGetProfilingInfo: not supported ParamName");
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
     } else {
@@ -580,7 +584,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
     //
     return ReturnValue(uint64_t{0});
   default:
-    urPrint("urEventGetProfilingInfo: not supported ParamName\n");
+    logger::error("urEventGetProfilingInfo: not supported ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -677,7 +681,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventWait(
             die("The host-visible proxy event missing");
 
           ze_event_handle_t ZeEvent = HostVisibleEvent->ZeEvent;
-          urPrint("ZeEvent = %#llx\n", ur_cast<std::uintptr_t>(ZeEvent));
+          logger::debug("ZeEvent = {}", ur_cast<std::uintptr_t>(ZeEvent));
           ZE2UR_CALL(zeHostSynchronize, (ZeEvent));
           Event->Completed = true;
         }
@@ -763,7 +767,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urExtEventCreate(
   UR_CALL(EventCreate(Context, nullptr, false, true, Event));
 
   (*Event)->RefCountExternal++;
-  ZE2UR_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
+  if (!(*Event)->CounterBasedEventsEnabled)
+    ZE2UR_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
   return UR_RESULT_SUCCESS;
 }
 
@@ -781,7 +786,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     UR_CALL(EventCreate(Context, nullptr, false, true, Event));
 
     (*Event)->RefCountExternal++;
-    ZE2UR_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
+    if (!(*Event)->CounterBasedEventsEnabled)
+      ZE2UR_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
     return UR_RESULT_SUCCESS;
   }
 
@@ -827,7 +833,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(
   std::ignore = ExecStatus;
   std::ignore = Notify;
   std::ignore = UserData;
-  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
+  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -1057,9 +1064,12 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
 //
 ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
                         bool IsMultiDevice, bool HostVisible,
-                        ur_event_handle_t *RetEvent) {
-
-  bool ProfilingEnabled = !Queue || Queue->isProfilingEnabled();
+                        ur_event_handle_t *RetEvent,
+                        bool CounterBasedEventEnabled,
+                        bool ForceDisableProfiling) {
+  bool ProfilingEnabled =
+      ForceDisableProfiling ? false : (!Queue || Queue->isProfilingEnabled());
+  bool UsingImmediateCommandlists = !Queue || Queue->UsingImmCmdLists;
 
   ur_device_handle_t Device = nullptr;
 
@@ -1068,7 +1078,7 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
   }
 
   if (auto CachedEvent = Context->getEventFromContextCache(
-          HostVisible, ProfilingEnabled, Device)) {
+          HostVisible, ProfilingEnabled, Device, CounterBasedEventEnabled)) {
     *RetEvent = CachedEvent;
     return UR_RESULT_SUCCESS;
   }
@@ -1079,14 +1089,15 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
   size_t Index = 0;
 
   if (auto Res = Context->getFreeSlotInExistingOrNewPool(
-          ZeEventPool, Index, HostVisible, ProfilingEnabled, Device))
+          ZeEventPool, Index, HostVisible, ProfilingEnabled, Device,
+          CounterBasedEventEnabled, UsingImmediateCommandlists))
     return Res;
 
   ZeStruct<ze_event_desc_t> ZeEventDesc;
   ZeEventDesc.index = Index;
   ZeEventDesc.wait = 0;
 
-  if (HostVisible) {
+  if (HostVisible || CounterBasedEventEnabled) {
     ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
   } else {
     //
@@ -1111,7 +1122,7 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
-
+  (*RetEvent)->CounterBasedEventsEnabled = CounterBasedEventEnabled;
   if (HostVisible)
     (*RetEvent)->HostVisibleEvent =
         reinterpret_cast<ur_event_handle_t>(*RetEvent);
@@ -1129,11 +1140,12 @@ ur_result_t ur_event_handle_t_::reset() {
   RefCountExternal = 0;
   RefCount.reset();
   CommandList = std::nullopt;
+  completionBatch = std::nullopt;
 
   if (!isHostVisible())
     HostVisibleEvent = nullptr;
-
-  ZE2UR_CALL(zeEventHostReset, (ZeEvent));
+  if (!CounterBasedEventsEnabled)
+    ZE2UR_CALL(zeEventHostReset, (ZeEvent));
   return UR_RESULT_SUCCESS;
 }
 
@@ -1307,6 +1319,15 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
           }
         }
 
+        ur_command_list_ptr_t CommandList;
+        if (Queue && Queue->Device != CurQueue->Device) {
+          // Get a command list prior to acquiring an event lock.
+          // This prevents a potential deadlock with recursive
+          // event locks.
+          UR_CALL(Queue->Context->getAvailableCommandList(Queue, CommandList,
+                                                          false, true));
+        }
+
         std::shared_lock<ur_shared_mutex> Lock(EventList[I]->Mutex);
 
         if (Queue && Queue->Device != CurQueue->Device &&
@@ -1315,10 +1336,6 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
           ur_event_handle_t MultiDeviceEvent;
           bool IsInternal = true;
           bool IsMultiDevice = true;
-
-          ur_command_list_ptr_t CommandList{};
-          UR_CALL(Queue->Context->getAvailableCommandList(Queue, CommandList,
-                                                          false, true));
 
           UR_CALL(createEventAndAssociateQueue(
               Queue, &MultiDeviceEvent, EventList[I]->CommandType, CommandList,
@@ -1329,7 +1346,8 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
 
           zeCommandListAppendWaitOnEvents(ZeCommandList, 1u,
                                           &EventList[I]->ZeEvent);
-          zeEventHostSignal(MultiDeviceZeEvent);
+          if (!MultiDeviceEvent->CounterBasedEventsEnabled)
+            zeEventHostSignal(MultiDeviceZeEvent);
 
           UR_CALL(Queue->executeCommandList(CommandList, /* IsBlocking */ false,
                                             /* OkToBatchCommand */ true));

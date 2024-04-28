@@ -14,6 +14,8 @@
 #include <string.h>
 
 #include "context.hpp"
+#include "logger/ur_logger.hpp"
+#include "queue.hpp"
 #include "ur_level_zero.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
@@ -174,7 +176,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
   std::ignore = Context;
   std::ignore = Deleter;
   std::ignore = UserData;
-  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
+  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -468,7 +471,8 @@ static const uint32_t MaxNumEventsPerPool = [] {
 
 ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
     ze_event_pool_handle_t &Pool, size_t &Index, bool HostVisible,
-    bool ProfilingEnabled, ur_device_handle_t Device) {
+    bool ProfilingEnabled, ur_device_handle_t Device,
+    bool CounterBasedEventEnabled, bool UsingImmCmdList) {
   // Lock while updating event pool machinery.
   std::scoped_lock<ur_mutex> Lock(ZeEventPoolCacheMutex);
 
@@ -478,7 +482,8 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
     ZeDevice = Device->ZeDevice;
   }
   std::list<ze_event_pool_handle_t> *ZePoolCache =
-      getZeEventPoolCache(HostVisible, ProfilingEnabled, ZeDevice);
+      getZeEventPoolCache(HostVisible, ProfilingEnabled,
+                          CounterBasedEventEnabled, UsingImmCmdList, ZeDevice);
 
   if (!ZePoolCache->empty()) {
     if (NumEventsAvailableInEventPool[ZePoolCache->front()] == 0) {
@@ -503,14 +508,27 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
   Index = 0;
   // Create one event ZePool per MaxNumEventsPerPool events
   if (*ZePool == nullptr) {
+    ze_event_pool_counter_based_exp_desc_t counterBasedExt = {
+        ZE_STRUCTURE_TYPE_COUNTER_BASED_EVENT_POOL_EXP_DESC};
     ZeStruct<ze_event_pool_desc_t> ZeEventPoolDesc;
     ZeEventPoolDesc.count = MaxNumEventsPerPool;
     ZeEventPoolDesc.flags = 0;
+    ZeEventPoolDesc.pNext = nullptr;
     if (HostVisible)
       ZeEventPoolDesc.flags |= ZE_EVENT_POOL_FLAG_HOST_VISIBLE;
     if (ProfilingEnabled)
       ZeEventPoolDesc.flags |= ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
-    urPrint("ze_event_pool_desc_t flags set to: %d\n", ZeEventPoolDesc.flags);
+    logger::debug("ze_event_pool_desc_t flags set to: {}",
+                  ZeEventPoolDesc.flags);
+    if (CounterBasedEventEnabled) {
+      if (UsingImmCmdList) {
+        counterBasedExt.flags = ZE_EVENT_POOL_COUNTER_BASED_EXP_FLAG_IMMEDIATE;
+      } else {
+        counterBasedExt.flags =
+            ZE_EVENT_POOL_COUNTER_BASED_EXP_FLAG_NON_IMMEDIATE;
+      }
+      ZeEventPoolDesc.pNext = &counterBasedExt;
+    }
 
     std::vector<ze_device_handle_t> ZeDevices;
     if (ZeDevice) {
@@ -536,7 +554,8 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
 }
 
 ur_event_handle_t ur_context_handle_t_::getEventFromContextCache(
-    bool HostVisible, bool WithProfiling, ur_device_handle_t Device) {
+    bool HostVisible, bool WithProfiling, ur_device_handle_t Device,
+    bool CounterBasedEventEnabled) {
   std::scoped_lock<ur_mutex> Lock(EventCacheMutex);
   auto Cache = getEventCache(HostVisible, WithProfiling, Device);
   if (Cache->empty())
@@ -544,6 +563,9 @@ ur_event_handle_t ur_context_handle_t_::getEventFromContextCache(
 
   auto It = Cache->begin();
   ur_event_handle_t Event = *It;
+  if (Event->CounterBasedEventsEnabled != CounterBasedEventEnabled) {
+    return nullptr;
+  }
   Cache->erase(It);
   // We have to reset event before using it.
   Event->reset();
@@ -575,13 +597,16 @@ ur_context_handle_t_::decrementUnreleasedEventsInPool(ur_event_handle_t Event) {
   }
 
   ze_device_handle_t ZeDevice = nullptr;
+  bool UsingImmediateCommandlists =
+      !Event->UrQueue || Event->UrQueue->UsingImmCmdLists;
 
   if (!Event->IsMultiDevice && Event->UrQueue) {
     ZeDevice = Event->UrQueue->Device->ZeDevice;
   }
 
   std::list<ze_event_pool_handle_t> *ZePoolCache = getZeEventPoolCache(
-      Event->isHostVisible(), Event->isProfilingEnabled(), ZeDevice);
+      Event->isHostVisible(), Event->isProfilingEnabled(),
+      Event->CounterBasedEventsEnabled, UsingImmediateCommandlists, ZeDevice);
 
   // Put the empty pool to the cache of the pools.
   if (NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0)
@@ -595,29 +620,6 @@ ur_context_handle_t_::decrementUnreleasedEventsInPool(ur_event_handle_t Event) {
 
   return UR_RESULT_SUCCESS;
 }
-
-// Get value of the threshold for number of events in immediate command lists.
-// If number of events in the immediate command list exceeds this threshold then
-// cleanup process for those events is executed.
-static const size_t ImmCmdListsEventCleanupThreshold = [] {
-  const char *UrRet =
-      std::getenv("UR_L0_IMMEDIATE_COMMANDLISTS_EVENT_CLEANUP_THRESHOLD");
-  const char *PiRet = std::getenv(
-      "SYCL_PI_LEVEL_ZERO_IMMEDIATE_COMMANDLISTS_EVENT_CLEANUP_THRESHOLD");
-  const char *ImmCmdListsEventCleanupThresholdStr =
-      UrRet ? UrRet : (PiRet ? PiRet : nullptr);
-  static constexpr int Default = 1000;
-  if (!ImmCmdListsEventCleanupThresholdStr)
-    return Default;
-
-  int Threshold = std::atoi(ImmCmdListsEventCleanupThresholdStr);
-
-  // Basically disable threshold if negative value is provided.
-  if (Threshold < 0)
-    return INT_MAX;
-
-  return Threshold;
-}();
 
 // Get value of the threshold for number of active command lists allowed before
 // we start heuristically cleaning them up.
@@ -648,8 +650,8 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
   // Immediate commandlists have been pre-allocated and are always available.
   if (Queue->UsingImmCmdLists) {
     CommandList = Queue->getQueueGroup(UseCopyEngine).getImmCmdList();
-    if (CommandList->second.EventList.size() >
-        ImmCmdListsEventCleanupThreshold) {
+    if (CommandList->second.EventList.size() >=
+        Queue->getImmdCmmdListsEventCleanupThreshold()) {
       std::vector<ur_event_handle_t> EventListToCleanup;
       Queue->resetCommandList(CommandList, false, EventListToCleanup);
       CleanupEventListFromResetCmdList(EventListToCleanup, true);
@@ -702,8 +704,8 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
     // Make sure to acquire the lock before checking the size, or there
     // will be a race condition.
     std::scoped_lock<ur_mutex> Lock(Queue->Context->ZeCommandListCacheMutex);
-    // Under mutex since operator[] does insertion on the first usage for every
-    // unique ZeDevice.
+    // Under mutex since operator[] does insertion on the first usage for
+    // every unique ZeDevice.
     auto &ZeCommandListCache =
         UseCopyEngine
             ? Queue->Context->ZeCopyCommandListCache[Queue->Device->ZeDevice]
@@ -712,6 +714,11 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
 
     for (auto ZeCommandListIt = ZeCommandListCache.begin();
          ZeCommandListIt != ZeCommandListCache.end(); ++ZeCommandListIt) {
+      // If this is an InOrder Queue, then only allow lists which are in order.
+      if (Queue->Device->useDriverInOrderLists() && Queue->isInOrderQueue() &&
+          !(ZeCommandListIt->second.InOrderList)) {
+        continue;
+      }
       auto &ZeCommandList = ZeCommandListIt->first;
       auto it = Queue->CommandListMap.find(ZeCommandList);
       if (it != Queue->CommandListMap.end()) {
@@ -738,11 +745,13 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
         ZE2UR_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
         ZeStruct<ze_command_queue_desc_t> ZeQueueDesc;
         ZeQueueDesc.ordinal = QueueGroupOrdinal;
+
         CommandList =
             Queue->CommandListMap
                 .emplace(ZeCommandList,
-                         ur_command_list_info_t{ZeFence, true, false,
-                                                ZeCommandQueue, ZeQueueDesc})
+                         ur_command_list_info_t(ZeFence, true, false,
+                                                ZeCommandQueue, ZeQueueDesc,
+                                                Queue->useCompletionBatching()))
                 .first;
       }
       ZeCommandListCache.erase(ZeCommandListIt);
@@ -765,6 +774,12 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
     // Make sure this is the command list type needed.
     if (UseCopyEngine != it->second.isCopy(Queue))
       continue;
+
+    // If this is an InOrder Queue, then only allow lists which are in order.
+    if (Queue->Device->useDriverInOrderLists() && Queue->isInOrderQueue() &&
+        !(it->second.IsInOrderList)) {
+      continue;
+    }
 
     ze_result_t ZeResult =
         ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
