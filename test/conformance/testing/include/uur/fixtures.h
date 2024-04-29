@@ -267,7 +267,7 @@ template <class T> struct urMemBufferTestWithParam : urContextTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
         ASSERT_SUCCESS(urMemBufferCreate(this->context, UR_MEM_FLAG_READ_WRITE,
-                                         4096, nullptr, &buffer));
+                                         allocation_size, nullptr, &buffer));
         ASSERT_NE(nullptr, buffer);
     }
 
@@ -278,6 +278,7 @@ template <class T> struct urMemBufferTestWithParam : urContextTestWithParam<T> {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::TearDown());
     }
     ur_mem_handle_t buffer = nullptr;
+    size_t allocation_size = 4096;
 };
 
 template <class T> struct urMemImageTestWithParam : urContextTestWithParam<T> {
