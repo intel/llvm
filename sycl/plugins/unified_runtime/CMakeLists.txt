@@ -94,8 +94,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/omarahmed1111/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG cbd581fbe4182ac443aa17edf2214cd05369a110)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit a6cdcf4591779a925c5f017a19c26ea171797edf
+  # Merge: 54829f00 cbd581fb
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Mon Apr 29 10:39:11 2024 +0100
+  #     Merge pull request #1346 from omarahmed1111/ensure-getinfo-cts-tests-report-same-dependency-creation-object
+  #     Add output validation checks for getInfo tests and a small USM spec fix
+  set(UNIFIED_RUNTIME_TAG a6cdcf4591779a925c5f017a19c26ea171797edf)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
