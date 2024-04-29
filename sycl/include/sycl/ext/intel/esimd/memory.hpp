@@ -365,11 +365,13 @@ gather(const T *p, simd<OffsetT, N / VS> byte_offsets, simd_mask<N / VS> mask,
       auto Ret = __esimd_svm_gather<MsgT, N, detail::ElemsPerAddrEncoding<4>(),
                                     detail::ElemsPerAddrEncoding<1>()>(
           Addrs.data(), mask.data());
+      detail::check_rdregion_params<N * 4, N, /*VS*/ 0, N, 4>();
       return __esimd_rdregion<MsgT, N * 4, N, /*VS*/ 0, N, 4>(Ret, 0);
     } else if constexpr (sizeof(T) == 2) {
       auto Ret = __esimd_svm_gather<MsgT, N, detail::ElemsPerAddrEncoding<2>(),
                                     detail::ElemsPerAddrEncoding<2>()>(
           Addrs.data(), mask.data());
+      detail::check_rdregion_params<N * 2, N, /*VS*/ 0, N, 2>();
       return __esimd_rdregion<MsgT, N * 2, N, /*VS*/ 0, N, 2>(Ret, 0);
     } else {
       return __esimd_svm_gather<MsgT, N, detail::ElemsPerAddrEncoding<1>(),
@@ -703,12 +705,14 @@ scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
     simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
     addrs = addrs + byte_offsets_i;
     if constexpr (sizeof(T) == 1) {
+      detail::check_wrregion_params<N * 4, N, /*VS*/ 0, N, 4>();
       simd<T, N * 4> D = __esimd_wrregion<Tx, N * 4, N, /*VS*/ 0, N, 4>(
           D.data(), vals.data(), 0);
       __esimd_svm_scatter<Tx, N, detail::ElemsPerAddrEncoding<4>(),
                           detail::ElemsPerAddrEncoding<1>()>(
           addrs.data(), D.data(), mask.data());
     } else if constexpr (sizeof(T) == 2) {
+      detail::check_wrregion_params<N * 2, N, /*VS*/ 0, N, 2>();
       simd<Tx, N * 2> D = __esimd_wrregion<Tx, N * 2, N, /*VS*/ 0, N, 2>(
           D.data(), vals.data(), 0);
       __esimd_svm_scatter<Tx, N, detail::ElemsPerAddrEncoding<2>(),
@@ -2753,26 +2757,57 @@ template <typename T, int NElts, lsc_data_size DS, typename PropertyListT,
           typename Toffset>
 __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>>
 prefetch_impl(const T *p, Toffset offset, simd_mask<1> pred) {
-  check_lsc_vector_size<NElts>();
   check_lsc_data_size<T, DS>();
   check_cache_hints<cache_action::prefetch, PropertyListT>();
+
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(T));
+  static_assert(
+      (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
+          (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
+      "Incorrect alignment for the data type");
+
+  constexpr int SmallIntFactor64Bit = sizeof(uint64_t) / sizeof(T);
+  constexpr int SmallIntFactor32Bit =
+      sizeof(uint32_t) / sizeof(T) > 1 ? sizeof(uint32_t) / sizeof(T) : 1;
+  static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
+                "Number of elements is not supported by Transposed load");
+
+  // If alignment >= 8 and (NElts * sizeof(T)) % 8 == 0) we can prefetch QWORDs.
+  // Don't do it for 4-byte vectors (unless it is greater than 256-bytes),
+  // because it would require a bit-cast, which is supposed to be NO-OP, but
+  // might confuse GPU BE sometimes. 1- and 2-byte vectors are casted anyways.
+  constexpr bool Use64BitData =
+      Alignment >= __ESIMD_DNS::OperandSize::QWORD &&
+      (NElts * sizeof(T)) % sizeof(uint64_t) == 0 &&
+      (sizeof(T) != sizeof(uint32_t) || NElts * sizeof(T) > 256);
+  constexpr int SmallIntFactor =
+      Use64BitData ? SmallIntFactor64Bit : SmallIntFactor32Bit;
+  constexpr int FactoredNElts = NElts / SmallIntFactor;
+  check_lsc_vector_size<FactoredNElts>();
+
+  // Prepare template arguments for the call of intrinsic.
+  using LoadElemT = __ESIMD_DNS::__raw_t<
+      std::conditional_t<SmallIntFactor == 1, T,
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
+
   constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
   constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
-  constexpr lsc_data_size EDS = finalize_data_size<T, DS>();
+  constexpr lsc_data_size EDS = finalize_data_size<LoadElemT, DS>();
 
   static_assert(
       EDS == lsc_data_size::u32 || EDS == lsc_data_size::u64,
       "Transposed prefetch is supported only for data size u32 or u64");
-  constexpr lsc_vector_size LSCVS = to_lsc_vector_size<NElts>();
+  constexpr lsc_vector_size LSCVS = to_lsc_vector_size<FactoredNElts>();
   constexpr lsc_data_order Transposed = lsc_data_order::transpose;
   constexpr int N = 1;
 
   simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p) + offset;
-  __esimd_lsc_prefetch_stateless<T, L1H, L2H, AddressScale, ImmOffset, EDS,
-                                 LSCVS, Transposed, N>(pred.data(),
-                                                       addrs.data());
+  __esimd_lsc_prefetch_stateless<LoadElemT, L1H, L2H, AddressScale, ImmOffset,
+                                 EDS, LSCVS, Transposed, N>(pred.data(),
+                                                            addrs.data());
 }
 
 #ifndef __ESIMD_FORCE_STATELESS_MEM
@@ -2851,24 +2886,54 @@ prefetch_impl(AccessorTy acc, OffsetT byte_offset, simd_mask<1> pred) {
                 "Implicit truncation of 64-bit byte_offset to 32-bit is "
                 "disabled. Use -fsycl-esimd-force-stateless-mem or explicitly "
                 "convert offsets to a 32-bit vector");
-  check_lsc_vector_size<NElts>();
   check_lsc_data_size<T, DS>();
   check_cache_hints<cache_action::prefetch, PropertyListT>();
+
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(T));
+
+  constexpr int SmallIntFactor64Bit = sizeof(uint64_t) / sizeof(T);
+  constexpr int SmallIntFactor32Bit =
+      sizeof(uint32_t) / sizeof(T) > 1 ? sizeof(uint32_t) / sizeof(T) : 1;
+  static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
+                "Number of elements is not supported by Transposed load");
+
+  // If alignment >= 8 and (NElts * sizeof(T)) % 8 == 0) we can load QWORDs.
+  // Don't do it for 4-byte vectors (unless it is greater than 256-bytes),
+  // because it would require a bit-cast, which is supposed to be NO-OP, but
+  // might confuse GPU BE sometimes. 1- and 2-byte vectors are casted anyways.
+  constexpr bool Use64BitData =
+      Alignment >= __ESIMD_DNS::OperandSize::QWORD &&
+      (NElts * sizeof(T)) % sizeof(uint64_t) == 0 &&
+      (sizeof(T) != sizeof(uint32_t) || NElts * sizeof(T) > 256);
+  constexpr int SmallIntFactor =
+      Use64BitData ? SmallIntFactor64Bit : SmallIntFactor32Bit;
+  constexpr int FactoredNElts = NElts / SmallIntFactor;
+  check_lsc_vector_size<FactoredNElts>();
+
+  // Prepare template arguments for the call of intrinsic.
+  using LoadElemT = __ESIMD_DNS::__raw_t<
+      std::conditional_t<SmallIntFactor == 1, T,
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
+
   constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
   constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
-  constexpr lsc_data_size EDS = finalize_data_size<T, DS>();
+  constexpr lsc_data_size EDS = finalize_data_size<LoadElemT, DS>();
+
   static_assert(
       EDS == lsc_data_size::u32 || EDS == lsc_data_size::u64,
       "Transposed prefetch is supported only for data size u32 or u64");
-  constexpr lsc_vector_size LSCVS = to_lsc_vector_size<NElts>();
+  constexpr lsc_vector_size LSCVS = to_lsc_vector_size<FactoredNElts>();
   constexpr lsc_data_order Transposed = lsc_data_order::transpose;
   constexpr int N = 1;
+
   simd<uint32_t, N> offsets = byte_offset;
   auto SI = get_surface_index(acc);
-  __esimd_lsc_prefetch_bti<T, L1H, L2H, AddressScale, ImmOffset, EDS, LSCVS,
-                           Transposed, N>(pred.data(), offsets.data(), SI);
+  __esimd_lsc_prefetch_bti<LoadElemT, L1H, L2H, AddressScale, ImmOffset, EDS,
+                           LSCVS, Transposed, N>(pred.data(), offsets.data(),
+                                                 SI);
 }
 #endif // __ESIMD_FORCE_STATELESS_MEM
 
@@ -8876,6 +8941,16 @@ prefetch(const T *p, OffsetSimdViewT byte_offsets, PropertyListT props = {}) {
 /// Prefetches elements of the type 'T' from continuous memory location
 /// addressed by the base pointer \p p, and offset \p byte_offset and the length
 /// \p VS elements into the cache.
+/// The maximum size of a prefetched block is 512 bytes for PVC and 256 bytes
+/// for ACM (DG2). When sizeof(T) is equal to 8 the address must be 8-byte
+/// aligned. Also, 8-byte alignment is required when the function has to load
+/// more than 256-bytes. In all other cases 4-byte alignment is required. When T
+/// is 1- or 2-byte type the data is treated as 4-byte data. Allowed \c VS
+/// values for 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64. Allowed \c VS values
+/// for 32 bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128. Allowed \c VS values for
+/// 16 bit data are 2, 4, 8, 16, 32, 64, 128, 256. Allowed \c VS values for 8
+/// bit data are 4, 8, 12, 16, 32, 64, 128, 256, 512.
+
 /// @tparam T Element type.
 /// @tparam VS Vector size. It specifies the number of consequent elements to
 /// prefetch.
@@ -8883,8 +8958,7 @@ prefetch(const T *p, OffsetSimdViewT byte_offsets, PropertyListT props = {}) {
 /// @param byte_offset offset from the base address.
 /// @param mask The access mask. If it is set to 0, then the prefetch is
 /// omitted.
-/// @param props The optional compile-time properties. Only cache hint
-/// properties are used.
+/// @param props The optional compile-time properties.
 template <typename T, int VS = 1, typename OffsetT,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
@@ -9219,6 +9293,15 @@ prefetch(AccessorT acc, OffsetSimdViewT byte_offsets,
 /// Prefetches elements of the type 'T' from continuous memory location
 /// addressed by the accessor \p acc, and offset \p byte_offset and the length
 /// \p VS elements into the cache.
+/// The maximum size of prefetched block is 512 bytes for PVC and 256 bytes for
+/// ACM (DG2). When sizeof(T) equal to 8 the address must be 8-byte aligned.
+/// Also, 8-bytes alignment is required when the function has to load more than
+/// 256-bytes. In all other cases 4-byte alignment is required. When T is 1- or
+/// 2-byte type the data is treated as 4-byte data. Allowed \c VS values for
+/// 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64. Allowed \c VS values for 32
+/// bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128. Allowed \c VS values for 16
+/// bit data are 2, 4, 8, 16, 32, 64, 128, 256. Allowed \c VS values for 8
+/// bit data are 4, 8, 12, 16, 32, 64, 128, 256, 512.
 /// @tparam T Element type.
 /// @tparam VS Vector size. It specifies the number of consequent elements to
 /// prefetch.
@@ -9226,8 +9309,7 @@ prefetch(AccessorT acc, OffsetSimdViewT byte_offsets,
 /// @param byte_offset offset from the base address.
 /// @param mask The access mask. If it is set to 0, then the prefetch is
 /// omitted.
-/// @param props The optional compile-time properties. Only cache hint
-/// properties are used.
+/// @param props The optional compile-time properties.
 template <typename T, int VS = 1, typename AccessorT, typename OffsetT,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>

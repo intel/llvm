@@ -276,9 +276,9 @@ void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
     // The width of integer type returning by OpImageQuerySize[Lod] may
     // differ from i32
     if (CI->getType()->getScalarType() != Int32Ty) {
-      GetImageSize = CastInst::CreateIntegerCast(GetImageSize,
-                                                 CI->getType()->getScalarType(),
-                                                 false, CI->getName(), CI);
+      GetImageSize = CastInst::CreateIntegerCast(
+          GetImageSize, CI->getType()->getScalarType(), false, CI->getName(),
+          CI->getIterator());
     }
   } else {
     assert((ImgDim == 2 || ImgDim == 3) && "invalid image type");
@@ -298,7 +298,7 @@ void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
           FixedVectorType::get(
               CI->getType()->getScalarType(),
               cast<FixedVectorType>(GetImageSize->getType())->getNumElements()),
-          false, CI->getName(), CI);
+          false, CI->getName(), CI->getIterator());
     }
   }
 
@@ -313,7 +313,7 @@ void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
              "OpImageQuerySize[Lod] must return <2 x iN> vector type");
       GetImageSize = InsertElementInst::Create(
           UndefValue::get(VecTy), GetImageSize, ConstantInt::get(Int32Ty, 0),
-          CI->getName(), CI);
+          CI->getName(), CI->getIterator());
     } else {
       // get_image_dim and OpImageQuerySize returns different vector
       // types for arrayed and 3d images.
@@ -324,7 +324,7 @@ void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
 
       GetImageSize = new ShuffleVectorInst(
           GetImageSize, UndefValue::get(GetImageSize->getType()), Mask,
-          CI->getName(), CI);
+          CI->getName(), CI->getIterator());
     }
   }
 
@@ -341,12 +341,13 @@ void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
     // differ from size_t which is returned by get_image_array_size
     if (GetImageArraySize->getType() != VecTy->getElementType()) {
       GetImageArraySize = CastInst::CreateIntegerCast(
-          GetImageArraySize, VecTy->getElementType(), false, CI->getName(), CI);
+          GetImageArraySize, VecTy->getElementType(), false, CI->getName(),
+          CI->getIterator());
     }
     GetImageSize = InsertElementInst::Create(
         GetImageSize, GetImageArraySize,
         ConstantInt::get(Int32Ty, VecTy->getNumElements() - 1), CI->getName(),
-        CI);
+        CI->getIterator());
   }
 
   assert(GetImageSize && "must not be null");

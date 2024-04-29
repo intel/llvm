@@ -1164,6 +1164,12 @@ def Unreachable : Builtin {
   let Prototype = "void()";
 }
 
+def AllowRuntimeCheck : Builtin {
+  let Spellings = ["__builtin_allow_runtime_check"];
+  let Attributes = [NoThrow, Pure, Const];
+  let Prototype = "bool(char const*)";
+}
+
 def ShuffleVector : Builtin {
   let Spellings = ["__builtin_shufflevector"];
   let Attributes = [NoThrow, Const, CustomTypeChecking];
@@ -4712,6 +4718,12 @@ def IntelSYCLPtrAnnotation : Builtin {
 
 def IntelSYCLAlloca : Builtin {
   let Spellings = ["__builtin_intel_sycl_alloca"];
+  let Attributes = [NoThrow, CustomTypeChecking];
+  let Prototype = "void *(void &)";
+}
+
+def IntelSYCLAllocaWithAlign : Builtin {
+  let Spellings = ["__builtin_intel_sycl_alloca_with_align"];
   let Attributes = [NoThrow, CustomTypeChecking];
   let Prototype = "void *(void &)";
 }
