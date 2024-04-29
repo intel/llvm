@@ -7,9 +7,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
 #include "device.hpp"
 #include "adapter.hpp"
+#include "logger/ur_logger.hpp"
 #include "ur_level_zero.hpp"
 #include "ur_util.hpp"
 #include <algorithm>
@@ -96,7 +96,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
       break;
     default:
       Matched = false;
-      urPrint("Unknown device type");
+      logger::warning("Unknown device type");
       break;
     }
 
@@ -169,7 +169,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     case ZE_DEVICE_TYPE_FPGA:
       return ReturnValue(UR_DEVICE_TYPE_FPGA);
     default:
-      urPrint("This device type is not supported\n");
+      logger::error("This device type is not supported");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }
@@ -323,8 +323,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(
         uint64_t{Device->ZeDeviceComputeProperties->maxSharedLocalMemory});
   case UR_DEVICE_INFO_IMAGE_SUPPORTED:
-    return ReturnValue(static_cast<uint32_t>(
-        Device->ZeDeviceImageProperties->maxImageDims1D > 0));
+    return ReturnValue(Device->ZeDeviceImageProperties->maxImageDims1D > 0);
   case UR_DEVICE_INFO_HOST_UNIFIED_MEMORY:
     return ReturnValue(
         static_cast<uint32_t>((Device->ZeDeviceProperties->flags &
@@ -949,8 +948,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP:
-    urPrint("Unsupported ParamName in urGetDeviceInfo\n");
-    urPrint("ParamName=%d(0x%x)\n", ParamName, ParamName);
+    logger::error("Unsupported ParamName in urGetDeviceInfo");
+    logger::error("ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   case UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP:
     return ReturnValue(true);
@@ -963,8 +962,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP:
   case UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP:
   default:
-    urPrint("Unsupported ParamName in urGetDeviceInfo\n");
-    urPrint("ParamName=%d(0x%x)\n", ParamName, ParamName);
+    logger::error("Unsupported ParamName in urGetDeviceInfo");
+    logger::error("ParamNameParamName={}(0x{})", ParamName,
+                  logger::toHex(ParamName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -1006,8 +1006,8 @@ getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
   int UpperCopyEngineIndex = std::stoi(CopyEngineRange.substr(pos + 1));
   if ((LowerCopyEngineIndex > UpperCopyEngineIndex) ||
       (LowerCopyEngineIndex < -1) || (UpperCopyEngineIndex < -1)) {
-    urPrint("UR_L0_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
-            "default set.\n");
+    logger::error("UR_L0_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
+                  "default set.");
     LowerCopyEngineIndex = 0;
     UpperCopyEngineIndex = INT_MAX;
   }
@@ -1177,7 +1177,8 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
   if (numQueueGroups == 0) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
-  urPrint("NOTE: Number of queue groups = %d\n", numQueueGroups);
+  logger::info(logger::LegacyMessage("NOTE: Number of queue groups = {}"),
+               "Number of queue groups = {}", numQueueGroups);
   std::vector<ZeStruct<ze_command_queue_group_properties_t>>
       QueueGroupProperties(numQueueGroups);
   ZE2UR_CALL(zeDeviceGetCommandQueueGroupProperties,
@@ -1230,14 +1231,22 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         }
       }
       if (QueueGroup[queue_group_info_t::MainCopy].ZeOrdinal < 0)
-        urPrint("NOTE: main blitter/copy engine is not available\n");
+        logger::info(logger::LegacyMessage(
+                         "NOTE: main blitter/copy engine is not available"),
+                     "main blitter/copy engine is not available");
       else
-        urPrint("NOTE: main blitter/copy engine is available\n");
+        logger::info(logger::LegacyMessage(
+                         "NOTE: main blitter/copy engine is available"),
+                     "main blitter/copy engine is available");
 
       if (QueueGroup[queue_group_info_t::LinkCopy].ZeOrdinal < 0)
-        urPrint("NOTE: link blitter/copy engines are not available\n");
+        logger::info(logger::LegacyMessage(
+                         "NOTE: link blitter/copy engines are not available"),
+                     "link blitter/copy engines are not available");
       else
-        urPrint("NOTE: link blitter/copy engines are available\n");
+        logger::info(logger::LegacyMessage(
+                         "NOTE: link blitter/copy engines are available"),
+                     "link blitter/copy engines are available");
     }
   }
 

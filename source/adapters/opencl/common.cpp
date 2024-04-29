@@ -105,3 +105,35 @@ ur_result_t getNativeHandle(void *URObj, ur_native_handle_t *NativeHandle) {
   *NativeHandle = reinterpret_cast<ur_native_handle_t>(URObj);
   return UR_RESULT_SUCCESS;
 }
+
+cl_int deviceSupportsURCommandBufferKernelUpdate(cl_device_id Dev,
+                                                 bool &Result) {
+  size_t ExtSize = 0;
+  CL_RETURN_ON_FAILURE(
+      clGetDeviceInfo(Dev, CL_DEVICE_EXTENSIONS, 0, nullptr, &ExtSize));
+
+  std::string ExtStr(ExtSize, '\0');
+  CL_RETURN_ON_FAILURE(clGetDeviceInfo(Dev, CL_DEVICE_EXTENSIONS, ExtSize,
+                                       ExtStr.data(), nullptr));
+
+  std::string SupportedExtensions(ExtStr.c_str());
+  if (ExtStr.find("cl_khr_command_buffer_mutable_dispatch") ==
+      std::string::npos) {
+    Result = false;
+    return CL_SUCCESS;
+  }
+
+  // All the CL_DEVICE_MUTABLE_DISPATCH_CAPABILITIES_KHR capabilities must
+  // be supported by a device for UR update.
+  cl_mutable_dispatch_fields_khr mutable_capabilities;
+  CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+      Dev, CL_DEVICE_MUTABLE_DISPATCH_CAPABILITIES_KHR,
+      sizeof(mutable_capabilities), &mutable_capabilities, nullptr));
+  const cl_mutable_dispatch_fields_khr required_caps =
+      CL_MUTABLE_DISPATCH_ARGUMENTS_KHR |
+      CL_MUTABLE_DISPATCH_GLOBAL_OFFSET_KHR |
+      CL_MUTABLE_DISPATCH_GLOBAL_SIZE_KHR | CL_MUTABLE_DISPATCH_LOCAL_SIZE_KHR |
+      CL_MUTABLE_DISPATCH_EXEC_INFO_KHR;
+  Result = (mutable_capabilities & required_caps) == required_caps;
+  return CL_SUCCESS;
+}

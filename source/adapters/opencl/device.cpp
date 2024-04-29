@@ -10,6 +10,7 @@
 #include "common.hpp"
 #include "platform.hpp"
 
+#include <array>
 #include <cassert>
 
 ur_result_t cl_adapter::getDeviceVersion(cl_device_id Dev,
@@ -941,6 +942,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     }
     return ReturnValue(SupportedExtensions.c_str());
   }
+
+  case UR_DEVICE_INFO_UUID: {
+    // Use the cl_khr_device_uuid extension, if available.
+    bool isKhrDeviceUuidSupported = false;
+    if (cl_adapter::checkDeviceExtensions(
+            cl_adapter::cast<cl_device_id>(hDevice), {"cl_khr_device_uuid"},
+            isKhrDeviceUuidSupported) != UR_RESULT_SUCCESS ||
+        !isKhrDeviceUuidSupported) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+    static_assert(CL_UUID_SIZE_KHR == 16);
+    std::array<uint8_t, CL_UUID_SIZE_KHR> UUID{};
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_UUID_KHR, UUID.size(), UUID.data(), nullptr));
+    return ReturnValue(UUID);
+  }
+
   case UR_DEVICE_INFO_COMPONENT_DEVICES:
   case UR_DEVICE_INFO_COMPOSITE_DEVICE:
     // These two are exclusive of L0.
@@ -957,10 +976,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
-  /* TODO: Check if device UUID extension is enabled in OpenCL. For details
-   * about Intel UUID extension, see
-   * sycl/doc/extensions/supported/sycl_ext_intel_device_info.md */
-  case UR_DEVICE_INFO_UUID:
   /* This enums have no equivalent in OpenCL */
   case UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP:
   case UR_DEVICE_INFO_GLOBAL_MEM_FREE:
@@ -985,7 +1000,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                        std::string::npos);
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP: {
-    return ReturnValue(false);
+    cl_device_id Dev = cl_adapter::cast<cl_device_id>(hDevice);
+    bool Supported = false;
+    CL_RETURN_ON_FAILURE(
+        deviceSupportsURCommandBufferKernelUpdate(Dev, Supported));
+    return ReturnValue(Supported);
   }
   default: {
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
