@@ -263,9 +263,9 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
                   WaitList.Length, WaitList.ZeEventList));
     }
 
-    urPrint("calling zeCommandListAppendMemoryCopy() with\n"
-            "  ZeEvent %#" PRIxPTR "\n",
-            ur_cast<std::uintptr_t>(ZeEvent));
+    logger::debug("calling zeCommandListAppendMemoryCopy() with"
+                  "  ZeEvent {}",
+                  ur_cast<uint64_t>(ZeEvent));
     printZeEventList(WaitList);
 
     // Execute command list synchronously.
