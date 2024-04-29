@@ -188,13 +188,6 @@ void exec_graph_impl::makePartitions() {
     if (Node->MCGType == sycl::detail::CG::CodeplayHostTask) {
       HostTaskList.push_back(Node);
     }
-    // Next line is supposed to be temporary.
-    // Nodes are not profiled individually, but the profiling of the whole graph
-    // is enabled if at least one node has profiling enabled. This should be
-    // changed once the PR https://github.com/intel/llvm/pull/12592 on node
-    // profiling is merged. This also will involve updating all the UR enqueue
-    // cmd functions to add a new parameter containing the profiling status.
-    MEnableProfiling |= Node->MProfilingEnabled;
   }
 
   // Annotate nodes
@@ -770,7 +763,9 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
     : MSchedule(), MGraphImpl(GraphImpl), MPiSyncPoints(),
       MDevice(GraphImpl->getDevice()), MContext(Context), MRequirements(),
       MExecutionEvents(),
-      MIsUpdatable(PropList.has_property<property::graph::updatable>()) {
+      MIsUpdatable(PropList.has_property<property::graph::updatable>()),
+      MEnableProfiling(
+          PropList.has_property<property::graph::enable_profiling>()) {
 
   // If the graph has been marked as updatable then check if the backend
   // actually supports that. Devices supporting aspect::ext_oneapi_graph must
@@ -1469,8 +1464,7 @@ modifiable_command_graph::modifiable_command_graph(
     : impl(std::make_shared<detail::graph_impl>(
           SyclQueue.get_context(), SyclQueue.get_device(), PropList)) {}
 
-node modifiable_command_graph::addImpl(const std::vector<node> &Deps,
-                                       const bool EnableProfiling) {
+node modifiable_command_graph::addImpl(const std::vector<node> &Deps) {
   impl->throwIfGraphRecordingQueue("Explicit API \"Add()\" function");
   std::vector<std::shared_ptr<detail::node_impl>> DepImpls;
   for (auto &D : Deps) {
@@ -1479,13 +1473,11 @@ node modifiable_command_graph::addImpl(const std::vector<node> &Deps,
 
   graph_impl::WriteLock Lock(impl->MMutex);
   std::shared_ptr<detail::node_impl> NodeImpl = impl->add(impl, DepImpls);
-  NodeImpl->MProfilingEnabled = EnableProfiling;
   return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
 }
 
 node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
-                                       const std::vector<node> &Deps,
-                                       const bool EnableProfiling) {
+                                       const std::vector<node> &Deps) {
   impl->throwIfGraphRecordingQueue("Explicit API \"Add()\" function");
   std::vector<std::shared_ptr<detail::node_impl>> DepImpls;
   for (auto &D : Deps) {
@@ -1495,7 +1487,6 @@ node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
   graph_impl::WriteLock Lock(impl->MMutex);
   std::shared_ptr<detail::node_impl> NodeImpl =
       impl->add(impl, CGF, {}, DepImpls);
-  NodeImpl->MProfilingEnabled = EnableProfiling;
   return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
 }
 

@@ -99,9 +99,6 @@ public:
   /// Used for tracking visited status during cycle checks.
   bool MVisited = false;
 
-  /// If true, the graph profiling is enabled for this node.
-  bool MProfilingEnabled = false;
-
   /// Partition number needed to assign a Node to a a partition.
   /// Note : This number is only used during the partitionning process and
   /// cannot be used to find out the partion of a node outside of this process.
@@ -163,8 +160,7 @@ public:
   node_impl(node_impl &Other)
       : MSuccessors(Other.MSuccessors), MPredecessors(Other.MPredecessors),
         MCGType(Other.MCGType), MNodeType(Other.MNodeType),
-        MCommandGroup(Other.getCGCopy()), MSubGraphImpl(Other.MSubGraphImpl),
-        MProfilingEnabled(Other.MProfilingEnabled) {}
+        MCommandGroup(Other.getCGCopy()), MSubGraphImpl(Other.MSubGraphImpl) {}
 
   /// Copy-assignment operator. This will perform a deep-copy of the
   /// command group object associated with this node.
@@ -773,9 +769,6 @@ private:
     default:
       Stream << "Other \\n";
       break;
-    }
-    if (MProfilingEnabled) {
-      Stream << "Profiling Enabled \\n";
     }
     Stream << "\"];" << std::endl;
   }
@@ -1475,14 +1468,14 @@ private:
   std::vector<std::shared_ptr<partition>> MPartitions;
   /// Storage for copies of nodes from the original modifiable graph.
   std::vector<std::shared_ptr<node_impl>> MNodeStorage;
-  /// If true, the graph profiling is enabled.
-  bool MEnableProfiling = false;
   /// Map of nodes to their associated PI command handles.
   std::unordered_map<std::shared_ptr<node_impl>,
                      sycl::detail::pi::PiExtCommandBufferCommand>
       MCommandMap;
   /// True if this graph can be updated (set with property::updatable)
   bool MIsUpdatable;
+  /// If true, the graph profiling is enabled.
+  bool MEnableProfiling;
 
   // Stores a cache of node ids from modifiable graph nodes to the companion
   // node(s) in this graph. Used for quick access when updating this graph.

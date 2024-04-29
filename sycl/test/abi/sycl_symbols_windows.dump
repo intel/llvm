@@ -3924,8 +3924,8 @@
 ?addHostAccessorAndWait@detail@_V1@sycl@@YAXPEAVAccessorImplHost@123@@Z
 ?addHostSampledImageAccessorAndWait@detail@_V1@sycl@@YAXPEAVSampledImageAccessorImplHost@123@@Z
 ?addHostUnsampledImageAccessorAndWait@detail@_V1@sycl@@YAXPEAVUnsampledImageAccessorImplHost@123@@Z
-?addImpl@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@IEAA?AVnode@34567@AEBV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@_N@Z
-?addImpl@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@IEAA?AVnode@34567@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@_N@Z
+?addImpl@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@IEAA?AVnode@34567@AEBV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@@Z
+?addImpl@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@IEAA?AVnode@34567@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@@Z
 ?addInteropObject@buffer_impl@detail@_V1@sycl@@QEBAXAEAV?$vector@_KV?$allocator@_K@std@@@std@@@Z
 ?addOrReplaceAccessorProperties@SYCLMemObjT@detail@_V1@sycl@@QEAAXAEBVproperty_list@34@@Z
 ?addOrReplaceAccessorProperties@buffer_plain@detail@_V1@sycl@@IEAAXAEBVproperty_list@34@@Z
