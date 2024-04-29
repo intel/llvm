@@ -571,8 +571,6 @@
 ??0gpu_selector@_V1@sycl@@QEAA@$$QEAV012@@Z
 ??0gpu_selector@_V1@sycl@@QEAA@AEBV012@@Z
 ??0gpu_selector@_V1@sycl@@QEAA@XZ
-??0half@host_half_impl@detail@_V1@sycl@@QEAA@AEBM@Z
-??0half@host_half_impl@detail@_V1@sycl@@QEAA@G@Z
 ??0handler@_V1@sycl@@AEAA@V?$shared_ptr@Vgraph_impl@detail@experimental@oneapi@ext@_V1@sycl@@@std@@@Z
 ??0handler@_V1@sycl@@AEAA@V?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@00_N@Z
 ??0handler@_V1@sycl@@AEAA@V?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_N@Z
@@ -782,7 +780,6 @@
 ??4fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEAAAEAV012345@AEBV012345@@Z
 ??4gpu_selector@_V1@sycl@@QEAAAEAV012@$$QEAV012@@Z
 ??4gpu_selector@_V1@sycl@@QEAAAEAV012@AEBV012@@Z
-??4half@host_half_impl@detail@_V1@sycl@@QEAAAEAV01234@AEBV01234@@Z
 ??4host_selector@_V1@sycl@@QEAAAEAV012@$$QEAV012@@Z
 ??4host_selector@_V1@sycl@@QEAAAEAV012@AEBV012@@Z
 ??4image_mem@experimental@oneapi@ext@_V1@sycl@@QEAAAEAV012345@$$QEAV012345@@Z
@@ -834,12 +831,6 @@
 ??9queue@_V1@sycl@@QEBA_NAEBV012@@Z
 ??9sampler@_V1@sycl@@QEBA_NAEBV012@@Z
 ??9stream@_V1@sycl@@QEBA_NAEBV012@@Z
-??Bhalf@host_half_impl@detail@_V1@sycl@@QEBAMXZ
-??Ehalf@host_half_impl@detail@_V1@sycl@@QEAA?AV01234@H@Z
-??Ehalf@host_half_impl@detail@_V1@sycl@@QEAAAEAV01234@XZ
-??Fhalf@host_half_impl@detail@_V1@sycl@@QEAA?AV01234@H@Z
-??Fhalf@host_half_impl@detail@_V1@sycl@@QEAAAEAV01234@XZ
-??Ghalf@host_half_impl@detail@_V1@sycl@@QEAAAEAV01234@XZ
 ??R?$hash@Vqueue@_V1@sycl@@@std@@QEBA_KAEBVqueue@_V1@sycl@@@Z
 ??Raccelerator_selector@_V1@sycl@@UEBAHAEBVdevice@12@@Z
 ??Rcpu_selector@_V1@sycl@@UEBAHAEBVdevice@12@@Z
@@ -848,10 +839,6 @@
 ??Rfilter_selector@oneapi@ext@_V1@sycl@@UEBAHAEBVdevice@34@@Z
 ??Rgpu_selector@_V1@sycl@@UEBAHAEBVdevice@12@@Z
 ??Rhost_selector@_V1@sycl@@UEBAHAEBVdevice@12@@Z
-??Xhalf@host_half_impl@detail@_V1@sycl@@QEAAAEAV01234@AEBV01234@@Z
-??Yhalf@host_half_impl@detail@_V1@sycl@@QEAAAEAV01234@AEBV01234@@Z
-??Zhalf@host_half_impl@detail@_V1@sycl@@QEAAAEAV01234@AEBV01234@@Z
-??_0half@host_half_impl@detail@_V1@sycl@@QEAAAEAV01234@AEBV01234@@Z
 ??_7SYCLCategory@detail@_V1@sycl@@6B@
 ??_7SYCLMemObjT@detail@_V1@sycl@@6B@
 ??_7accelerator_selector@_V1@sycl@@6B@
