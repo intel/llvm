@@ -1097,6 +1097,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     if constexpr (!std::is_same_v<DataT, sycl::ext::oneapi::bfloat16> &&
                   !std::is_same_v<DataT, sycl::detail::half_impl::half> &&
+                  !std::is_same_v<DataT, bool> &&
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
                   !std::is_same_v<DataT, std::byte>)
 #else
