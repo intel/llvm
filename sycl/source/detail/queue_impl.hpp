@@ -388,8 +388,9 @@ public:
   template <typename Param>
   typename Param::return_type get_backend_info() const;
 
-  /// Begin to execute previously issued commands on this queue
-  /// if they have not been executed yet. Overrides normal batching behaviour.
+  /// Provides a hint to the backend to execute previously issued commands on
+  /// this queue. Overrides normal batching behaviour. Note that this is merely
+  /// a hint, there is no guarantee.
   void flush() {
     if (MGraph.lock()) {
       throw sycl::exception(make_error_code(errc::invalid),

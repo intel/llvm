@@ -1,3 +1,6 @@
+// RUN: %{build} -o %t.out
+// RUN: %t.out
+
 #include <stdlib.h>
 #include <sycl/sycl.hpp>
 #include <vector>
