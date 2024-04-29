@@ -94,3 +94,13 @@ TEST_P(urProgramCreateWithBinaryTest, InvalidSizePropertyCount) {
                                                binary.data(), &properties,
                                                &binary_program));
 }
+
+TEST_P(urProgramCreateWithBinaryTest, BuildInvalidProgramBinary) {
+    ur_program_handle_t program = nullptr;
+    uint8_t binary[] = {0, 1, 2, 3, 4};
+    auto result = urProgramCreateWithBinary(context, device, 5, binary, nullptr,
+                                            &program);
+    // The driver is not required to reject the binary
+    ASSERT_TRUE(result == UR_RESULT_ERROR_INVALID_BINARY ||
+                result == UR_RESULT_SUCCESS);
+}

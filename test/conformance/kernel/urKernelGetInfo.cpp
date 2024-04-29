@@ -15,6 +15,9 @@ UUR_TEST_SUITE_P(
                       UR_KERNEL_INFO_NUM_REGS),
     uur::deviceTestWithParamPrinter<ur_kernel_info_t>);
 
+using urKernelGetInfoSingleTest = uur::urKernelExecutionTest;
+UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelGetInfoSingleTest);
+
 TEST_P(urKernelGetInfoTest, Success) {
     auto property_name = getParam();
     size_t property_size = 0;
@@ -87,4 +90,24 @@ TEST_P(urKernelGetInfoTest, InvalidNullPointerPropSizeRet) {
     ASSERT_EQ_RESULT(
         urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS, 0, nullptr, nullptr),
         UR_RESULT_ERROR_INVALID_NULL_POINTER);
+}
+
+TEST_P(urKernelGetInfoSingleTest, KernelNameCorrect) {
+    size_t name_size = 0;
+    std::vector<char> name_data;
+    ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_FUNCTION_NAME, 0,
+                                   nullptr, &name_size));
+    name_data.resize(name_size);
+    ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_FUNCTION_NAME,
+                                   name_size, name_data.data(), nullptr));
+    ASSERT_EQ(name_data[name_size - 1], '\0');
+    ASSERT_STREQ(kernel_name.c_str(), name_data.data());
+}
+
+TEST_P(urKernelGetInfoSingleTest, KernelContextCorrect) {
+    ur_context_handle_t info_context;
+    ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_CONTEXT,
+                                   sizeof(ur_context_handle_t), &info_context,
+                                   nullptr));
+    ASSERT_EQ(context, info_context);
 }

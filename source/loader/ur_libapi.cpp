@@ -2890,6 +2890,8 @@ ur_result_t UR_APICALL urPhysicalMemRelease(
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
+///     - The adapter may (but is not required to) perform validation of the
+///       provided module during this call.
 ///
 /// @remarks
 ///   _Analogues_
@@ -2942,6 +2944,8 @@ ur_result_t UR_APICALL urProgramCreateWithIL(
 ///       ::UR_PROGRAM_BINARY_TYPE_LIBRARY for `hDevice`.
 ///     - The device specified by `hDevice` must be device associated with
 ///       context.
+///     - The adapter may (but is not required to) perform validation of the
+///       provided module during this call.
 ///
 /// @remarks
 ///   _Analogues_
