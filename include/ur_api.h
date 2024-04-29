@@ -3448,7 +3448,7 @@ urUSMHostAlloc(
     ur_context_handle_t hContext,  ///< [in] handle of the context object
     const ur_usm_desc_t *pUSMDesc, ///< [in][optional] USM memory allocation descriptor
     ur_usm_pool_handle_t pool,     ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
-    size_t size,                   ///< [in] size in bytes of the USM memory object to be allocated
+    size_t size,                   ///< [in] minimum size in bytes of the USM memory object to be allocated
     void **ppMem                   ///< [out] pointer to USM host memory object
 );
 
@@ -3496,7 +3496,7 @@ urUSMDeviceAlloc(
     ur_device_handle_t hDevice,    ///< [in] handle of the device object
     const ur_usm_desc_t *pUSMDesc, ///< [in][optional] USM memory allocation descriptor
     ur_usm_pool_handle_t pool,     ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
-    size_t size,                   ///< [in] size in bytes of the USM memory object to be allocated
+    size_t size,                   ///< [in] minimum size in bytes of the USM memory object to be allocated
     void **ppMem                   ///< [out] pointer to USM device memory object
 );
 
@@ -3545,7 +3545,7 @@ urUSMSharedAlloc(
     ur_device_handle_t hDevice,    ///< [in] handle of the device object
     const ur_usm_desc_t *pUSMDesc, ///< [in][optional] Pointer to USM memory allocation descriptor.
     ur_usm_pool_handle_t pool,     ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
-    size_t size,                   ///< [in] size in bytes of the USM memory object to be allocated
+    size_t size,                   ///< [in] minimum size in bytes of the USM memory object to be allocated
     void **ppMem                   ///< [out] pointer to USM shared memory object
 );
 
@@ -4076,6 +4076,8 @@ typedef struct ur_program_properties_t {
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
+///     - The adapter may (but is not required to) perform validation of the
+///       provided module during this call.
 ///
 /// @remarks
 ///   _Analogues_
@@ -4116,6 +4118,10 @@ urProgramCreateWithIL(
 ///     - Following a successful call to this entry point, `phProgram` will
 ///       contain a binary of type ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT or
 ///       ::UR_PROGRAM_BINARY_TYPE_LIBRARY for `hDevice`.
+///     - The device specified by `hDevice` must be device associated with
+///       context.
+///     - The adapter may (but is not required to) perform validation of the
+///       provided module during this call.
 ///
 /// @remarks
 ///   _Analogues_

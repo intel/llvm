@@ -1,3 +1,4 @@
+urProgramBuildTest.BuildFailure/NVIDIA_CUDA_BACKEND___{{.*}}_
 {{OPT}}urProgramCreateWithNativeHandleTest.InvalidNullHandleContext/NVIDIA_CUDA_BACKEND___{{.*}}_
 {{OPT}}urProgramCreateWithNativeHandleTest.InvalidNullPointerProgram/NVIDIA_CUDA_BACKEND___{{.*}}_
 {{OPT}}urProgramGetBuildInfoTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___UR_PROGRAM_BUILD_INFO_BINARY_TYPE
@@ -9,6 +10,7 @@
 {{OPT}}urProgramGetBuildInfoTest.InvalidNullHandleDevice/NVIDIA_CUDA_BACKEND___{{.*}}___UR_PROGRAM_BUILD_INFO_OPTIONS
 {{OPT}}urProgramGetBuildInfoTest.InvalidNullHandleDevice/NVIDIA_CUDA_BACKEND___{{.*}}___UR_PROGRAM_BUILD_INFO_LOG
 {{OPT}}urProgramGetBuildInfoTest.InvalidNullHandleDevice/NVIDIA_CUDA_BACKEND___{{.*}}___UR_PROGRAM_BUILD_INFO_BINARY_TYPE
+{{OPT}}urProgramGetBuildInfoSingleTest.LogIsNullTerminated/NVIDIA_CUDA_BACKEND___{{.*}}_
 {{OPT}}urProgramGetInfoTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___UR_PROGRAM_INFO_NUM_KERNELS
 {{OPT}}urProgramGetInfoTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___UR_PROGRAM_INFO_KERNEL_NAMES
 {{OPT}}urProgramGetInfoTest.InvalidNullHandleProgram/NVIDIA_CUDA_BACKEND___{{.*}}___UR_PROGRAM_INFO_REFERENCE_COUNT
@@ -22,3 +24,6 @@
 {{OPT}}urProgramGetInfoTest.InvalidNullHandleProgram/NVIDIA_CUDA_BACKEND___{{.*}}___UR_PROGRAM_INFO_KERNEL_NAMES
 {{OPT}}urProgramLinkTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}_
 {{OPT}}urProgramSetSpecializationConstantsTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}_
+{{OPT}}urProgramSetSpecializationConstantsTest.UseDefaultValue/NVIDIA_CUDA_BACKEND___{{.*}}_
+urProgramSetMultipleSpecializationConstantsTest.MultipleCalls/NVIDIA_CUDA_BACKEND___{{.*}}_
+urProgramSetMultipleSpecializationConstantsTest.SingleCall/NVIDIA_CUDA_BACKEND___{{.*}}_
