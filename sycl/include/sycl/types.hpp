@@ -22,9 +22,9 @@
 #include <sycl/marray.hpp>                     // for __SYCL_BINOP, __SYCL_...
 #include <sycl/multi_ptr.hpp>                  // for multi_ptr
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-#include <sycl/vector_preview.hpp>             // for sycl::vec and swizzles
+#include <sycl/vector_preview.hpp> // for sycl::vec and swizzles
 #else
-#include <sycl/vector.hpp>                     // for sycl::vec and swizzles
+#include <sycl/vector.hpp> // for sycl::vec and swizzles
 #endif
 
 #include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
