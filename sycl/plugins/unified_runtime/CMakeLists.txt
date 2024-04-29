@@ -95,23 +95,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/DBDuncan/unified-runtime.git")
-  # commit 14fa0fbfa668babbd8a2f7a0a55cf5a3657e3af2
+  # commit 59713d7b2ef5776fe0d9b2c0ee862a44a1899a96
   # Author: Duncan Brawley <duncan.brawley@codeplay.com>
   # Date:   Thu, 21 Mar 2024 16:35:42 +0000
   #    [Bindless][Exp] Remove phMem argument from bindless image creation functions
   #     Remove phMem argument from bindless image creation functions.
   #     It not used outside of UR and is currently causing a minor memory leak.
-  set(UNIFIED_RUNTIME_TAG 14fa0fbfa668babbd8a2f7a0a55cf5a3657e3af2)
+  set(UNIFIED_RUNTIME_TAG 59713d7b2ef5776fe0d9b2c0ee862a44a1899a96)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit 196f62f34e70dd79f3f683abe103cc33d3c49a92
-    # Merge: 37242e39 275c753a
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Apr 25 15:03:51 2024 +0100
-    #     Merge pull request #1548 from kbenzie/benie/l0-fix-decoupled-use-case
-    #     [L0] Use relative includes for adapter internals
-    196f62f34e70dd79f3f683abe103cc33d3c49a92
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
