@@ -36,8 +36,8 @@
 #include <sycl/sycl.hpp>
 #include <syclcompat.hpp>
 
-#define DATA_SIZE 64
-#define SUBGROUP_SIZE 16
+#define DATA_SIZE 128
+#define SUBGROUP_SIZE 32
 
 void test_select_from_sub_group() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
@@ -46,23 +46,37 @@ void test_select_from_sub_group() {
   constexpr syclcompat::dim3 threads{DATA_SIZE};
 
   unsigned int input[DATA_SIZE] = {
-      0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 0, 0, 0, 0, 1, 1,
-      1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2,
-      3, 3, 3, 3, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3};
+      0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, // Subgroup #1
+      4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+      0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, // Subgroup #2
+      4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+      0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, // Subgroup #3
+      4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+      0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, // Subgroup #4
+      4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+  };
   unsigned int output[DATA_SIZE];
   unsigned int *d_input = syclcompat::malloc<unsigned int>(DATA_SIZE);
   unsigned int *d_output = syclcompat::malloc<unsigned int>(DATA_SIZE);
 
   unsigned int member_mask = 0x0FFF;
   unsigned int expected[DATA_SIZE] = {
-      0x000F, 0x000F, 0x000F, 0x000F, 0x00F0, 0x00F0, 0x00F0, 0x00F0,
-      0x0F00, 0x0F00, 0x0F00, 0x0F00, 0,      0,      0,      0,
-      0x000F, 0x000F, 0x000F, 0x000F, 0x00F0, 0x00F0, 0x00F0, 0x00F0,
-      0x0F00, 0x0F00, 0x0F00, 0x0F00, 0,      0,      0,      0,
-      0x000F, 0x000F, 0x000F, 0x000F, 0x00F0, 0x00F0, 0x00F0, 0x00F0,
-      0x0F00, 0x0F00, 0x0F00, 0x0F00, 0,      0,      0,      0,
-      0x000F, 0x000F, 0x000F, 0x000F, 0x00F0, 0x00F0, 0x00F0, 0x00F0,
-      0x0F00, 0x0F00, 0x0F00, 0x0F00, 0,      0,      0,      0,
+      0x000F, 0x000F, 0x000F, 0x000F, 0x00F0, 0x00F0, 0x00F0, 0x00F0, // #1
+      0x0F00, 0x0F00, 0x0F00, 0x0F00, 0,      0,      0,      0,      //
+      0,      0,      0,      0,      0,      0,      0,      0,      //
+      0,      0,      0,      0,      0,      0,      0,      0,      //
+      0x000F, 0x000F, 0x000F, 0x000F, 0x00F0, 0x00F0, 0x00F0, 0x00F0, // #2
+      0x0F00, 0x0F00, 0x0F00, 0x0F00, 0,      0,      0,      0,      //
+      0,      0,      0,      0,      0,      0,      0,      0,      //
+      0,      0,      0,      0,      0,      0,      0,      0,      //
+      0x000F, 0x000F, 0x000F, 0x000F, 0x00F0, 0x00F0, 0x00F0, 0x00F0, // #3
+      0x0F00, 0x0F00, 0x0F00, 0x0F00, 0,      0,      0,      0,      //
+      0,      0,      0,      0,      0,      0,      0,      0,      //
+      0,      0,      0,      0,      0,      0,      0,      0,      //
+      0x000F, 0x000F, 0x000F, 0x000F, 0x00F0, 0x00F0, 0x00F0, 0x00F0, // #4
+      0x0F00, 0x0F00, 0x0F00, 0x0F00, 0,      0,      0,      0,      //
+      0,      0,      0,      0,      0,      0,      0,      0,      //
+      0,      0,      0,      0,      0,      0,      0,      0,      //
   };
 
   syclcompat::memcpy<unsigned int>(d_input, input, DATA_SIZE);

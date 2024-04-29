@@ -37,7 +37,7 @@
 #include <syclcompat.hpp>
 
 constexpr unsigned int NUM_TESTS = 3;
-constexpr unsigned int SUBGROUP_SIZE = 16;
+constexpr unsigned int SUBGROUP_SIZE = 32;
 constexpr unsigned int DATA_SIZE = NUM_TESTS * SUBGROUP_SIZE;
 
 void test_select_from_sub_group() {
@@ -47,9 +47,13 @@ void test_select_from_sub_group() {
   constexpr syclcompat::dim3 threads{SUBGROUP_SIZE};
 
   unsigned int input[DATA_SIZE] = {
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1,  // #1
-      0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1,  // #2
-      0, 0, 0, 0, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1}; // #3
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, // #1
+      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+      0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, // #2
+      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+      0, 0, 0, 0, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, // #3
+      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+  };
   unsigned int output[DATA_SIZE];
   int pred[DATA_SIZE];
   unsigned int *d_input = syclcompat::malloc<unsigned int>(DATA_SIZE);
@@ -58,17 +62,26 @@ void test_select_from_sub_group() {
 
   unsigned int member_mask = 0x00FF;
   unsigned int expected[DATA_SIZE] = {
-      0x00FF, 0x00FF, 0x00FF, 0x00FF, 0x00FF, 0x00FF, 0x00FF, 0x00FF,
-      0,      0,      0,      0,      0,      0,      0,      0, // #1
-      0x00FF, 0x00FF, 0x00FF, 0x00FF, 0x00FF, 0x00FF, 0x00FF, 0x00FF,
-      0,      0,      0,      0,      0,      0,      0,      0, // #2
+      0x00FF, 0x00FF, 0x00FF, 0x00FF, 0x00FF, 0x00FF, 0x00FF, 0x00FF, // #1
+      0,      0,      0,      0,      0,      0,      0,      0,
+      0,      0,      0,      0,      0,      0,      0,      0,
+      0,      0,      0,      0,      0,      0,      0,      0,
+      0x00FF, 0x00FF, 0x00FF, 0x00FF, 0x00FF, 0x00FF, 0x00FF, 0x00FF, // #2
+      0,      0,      0,      0,      0,      0,      0,      0,
+      0,      0,      0,      0,      0,      0,      0,      0,
       0,      0,      0,      0,      0,      0,      0,      0,
       0,      0,      0,      0,      0,      0,      0,      0, // #3
+      0,      0,      0,      0,      0,      0,      0,      0,
+      0,      0,      0,      0,      0,      0,      0,      0,
+      0,      0,      0,      0,      0,      0,      0,      0,
   };
   unsigned int expected_pred[DATA_SIZE] = {
       1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, // #1
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
       1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, // #2
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // #3
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   };
 
   syclcompat::memcpy<unsigned int>(d_input, input, DATA_SIZE);
@@ -89,6 +102,7 @@ void test_select_from_sub_group() {
   syclcompat::memcpy<int>(pred, d_pred, DATA_SIZE);
 
   for (int i = 0; i < DATA_SIZE; ++i) {
+    std::cout << "expected[" << i << "] = " << expected[i] << std::endl;
     assert(output[i] == expected[i]);
     assert(pred[i] == expected_pred[i]);
   }
