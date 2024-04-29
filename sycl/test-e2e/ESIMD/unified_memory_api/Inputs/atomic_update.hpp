@@ -670,7 +670,7 @@ template <int N, template <class, int> class Op, bool UseMask,
           bool UseLSCFeatures, bool UseAcc>
 bool test_fp_types(queue q, const Config &cfg) {
   bool passed = true;
-  // Enable FADD/FSUB on DG2/PVC when the error in GPU driver is resolved.
+  // TODO: Enable FADD/FSUB on DG2/PVC when the error in GPU driver is resolved.
   if constexpr (UseLSCFeatures &&
                 !std::is_same_v<Op<sycl::half, N>, ImplFadd<sycl::half, N>> &&
                 !std::is_same_v<Op<sycl::half, N>, ImplFsub<sycl::half, N>>) {
