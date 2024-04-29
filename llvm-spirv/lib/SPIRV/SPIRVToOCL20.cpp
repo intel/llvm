@@ -263,7 +263,7 @@ void SPIRVToOCL20Base::visitCallSPIRVEnqueueKernel(CallInst *CI, Op OC) {
   auto Mutator = mutateCallInst(CI, FName.str());
   Mutator.mapArg(6, [=](IRBuilder<> &Builder, Value *Invoke) {
     Value *Replace = CastInst::CreatePointerBitCastOrAddrSpaceCast(
-        Invoke, Builder.getPtrTy(SPIRAS_Generic), "", CI);
+        Invoke, Builder.getPtrTy(SPIRAS_Generic), "", CI->getIterator());
     return std::make_pair(
         Replace, TypedPointerType::get(Builder.getInt8Ty(), SPIRAS_Generic));
   });
