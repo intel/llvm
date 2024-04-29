@@ -281,6 +281,8 @@ inline int get_sycl_language_version() {
 
 namespace experimental {
 
+// FIXME(@intel/syclcompat-lib-reviewers): unify once supported in the AMD
+// backend.
 #if defined(__AMDGPU__)
 constexpr sycl::memory_order barrier_memory_order = sycl::memory_order::acq_rel;
 #else
