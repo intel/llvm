@@ -244,4 +244,19 @@ inline void printDeviceInfo<char[]>(ur_device_handle_t device,
     str.pop_back(); // std::string does not need a terminating NULL, remove it here
     std::cout << str << "\n";
 }
+
+inline void printDeviceUUID(ur_device_handle_t device, ur_device_info_t info) {
+    std::cout << getDeviceInfoName(info) << ": ";
+    size_t size;
+    UR_CHECK_WEAK(urDeviceGetInfo(device, info, 0, nullptr, &size));
+    std::vector<uint8_t> values(size / sizeof(uint8_t));
+    UR_CHECK_WEAK(urDeviceGetInfo(device, info, size, values.data(), nullptr));
+    for (size_t i = 0; i < values.size(); i++) {
+        if (i == 4 || i == 6 || i == 8 || i == 10) {
+            std::printf("-");
+        }
+        std::printf("%.2x", (uint32_t)values[i]);
+    }
+    std::printf("\n");
+}
 } // namespace urinfo

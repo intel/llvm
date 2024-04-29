@@ -271,7 +271,6 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_MEMOBJ_ARG_DESC = 0x1002,    ///< ::ur_exp_command_buffer_update_memobj_arg_desc_t
     UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_POINTER_ARG_DESC = 0x1003,   ///< ::ur_exp_command_buffer_update_pointer_arg_desc_t
     UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC = 0x1004,     ///< ::ur_exp_command_buffer_update_value_arg_desc_t
-    UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_EXEC_INFO_DESC = 0x1005,     ///< ::ur_exp_command_buffer_update_exec_info_desc_t
     UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES = 0x2000,                   ///< ::ur_exp_sampler_mip_properties_t
     UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC = 0x2001,                         ///< ::ur_exp_interop_mem_desc_t
     UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC = 0x2002,                   ///< ::ur_exp_interop_semaphore_desc_t
@@ -1546,7 +1545,7 @@ typedef enum ur_device_info_t {
                                                                     ///< shared memory access
     UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT = 87,                  ///< [::ur_device_usm_access_capability_flags_t] support USM system wide
                                                                     ///< shared memory access
-    UR_DEVICE_INFO_UUID = 88,                                       ///< [char[]] return device UUID
+    UR_DEVICE_INFO_UUID = 88,                                       ///< [uint8_t[]] return device UUID
     UR_DEVICE_INFO_PCI_ADDRESS = 89,                                ///< [char[]] return device PCI address
     UR_DEVICE_INFO_GPU_EU_COUNT = 90,                               ///< [uint32_t] return Intel GPU EU count
     UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH = 91,                          ///< [uint32_t] return Intel GPU EU SIMD width
@@ -7980,6 +7979,9 @@ typedef struct ur_exp_command_buffer_desc_t {
                                ///< ::UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC
     const void *pNext;         ///< [in][optional] pointer to extension-specific structure
     ur_bool_t isUpdatable;     ///< [in] Commands in a finalized command-buffer can be updated.
+    ur_bool_t isInOrder;       ///< [in] Commands in a command-buffer may be executed in-order without
+                               ///< explicit dependencies.
+    ur_bool_t enableProfiling; ///< [in] Command-buffer profiling is enabled.
 
 } ur_exp_command_buffer_desc_t;
 
@@ -8023,19 +8025,6 @@ typedef struct ur_exp_command_buffer_update_value_arg_desc_t {
 } ur_exp_command_buffer_update_value_arg_desc_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Descriptor type for updating kernel command execution info.
-typedef struct ur_exp_command_buffer_update_exec_info_desc_t {
-    ur_structure_type_t stype;                           ///< [in] type of this structure, must be
-                                                         ///< ::UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_EXEC_INFO_DESC
-    const void *pNext;                                   ///< [in][optional] pointer to extension-specific structure
-    ur_kernel_exec_info_t propName;                      ///< [in] Name of execution attribute.
-    size_t propSize;                                     ///< [in] Size of execution attribute.
-    const ur_kernel_exec_info_properties_t *pProperties; ///< [in][optional] Pointer to execution info properties.
-    const void *pNewExecInfo;                            ///< [in] Pointer to memory location holding the execution info value.
-
-} ur_exp_command_buffer_update_exec_info_desc_t;
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Descriptor type for updating a kernel launch command.
 typedef struct ur_exp_command_buffer_update_kernel_launch_desc_t {
     ur_structure_type_t stype;                                                 ///< [in] type of this structure, must be
@@ -8044,7 +8033,6 @@ typedef struct ur_exp_command_buffer_update_kernel_launch_desc_t {
     uint32_t numNewMemObjArgs;                                                 ///< [in] Length of pNewMemObjArgList.
     uint32_t numNewPointerArgs;                                                ///< [in] Length of pNewPointerArgList.
     uint32_t numNewValueArgs;                                                  ///< [in] Length of pNewValueArgList.
-    uint32_t numNewExecInfos;                                                  ///< [in] Length of pNewExecInfoList.
     uint32_t newWorkDim;                                                       ///< [in] Number of work dimensions in the kernel ND-range, from 1-3.
     const ur_exp_command_buffer_update_memobj_arg_desc_t *pNewMemObjArgList;   ///< [in][optional][range(0, numNewMemObjArgs)] An array describing the new
                                                                                ///< kernel mem obj arguments for the command.
@@ -8052,16 +8040,16 @@ typedef struct ur_exp_command_buffer_update_kernel_launch_desc_t {
                                                                                ///< new kernel pointer arguments for the command.
     const ur_exp_command_buffer_update_value_arg_desc_t *pNewValueArgList;     ///< [in][optional][range(0, numNewValueArgs)] An array describing the new
                                                                                ///< kernel value arguments for the command.
-    const ur_exp_command_buffer_update_exec_info_desc_t *pNewExecInfoList;     ///< [in][optional][range(0, numNewExecInfos)] An array describing the
-                                                                               ///< execution info objects for the command.
     size_t *pNewGlobalWorkOffset;                                              ///< [in][optional][range(0, newWorkDim)] Array of newWorkDim unsigned
                                                                                ///< values that describe the offset used to calculate the global ID.
     size_t *pNewGlobalWorkSize;                                                ///< [in][optional][range(0, newWorkDim)] Array of newWorkDim unsigned
                                                                                ///< values that describe the number of global work-items.
     size_t *pNewLocalWorkSize;                                                 ///< [in][optional][range(0, newWorkDim)] Array of newWorkDim unsigned
                                                                                ///< values that describe the number of work-items that make up a
-                                                                               ///< work-group. If nullptr, the runtime implementation will choose the
-                                                                               ///< work-group size.
+                                                                               ///< work-group. If newWorkDim is non-zero and pNewLocalWorkSize is
+                                                                               ///< nullptr, then runtime implementation will choose the work-group size.
+                                                                               ///< If newWorkDim is zero and pNewLocalWorkSize is nullptr, then the local
+                                                                               ///< work size is unchanged.
 
 } ur_exp_command_buffer_update_kernel_launch_desc_t;
 
@@ -8096,6 +8084,8 @@ typedef struct ur_exp_command_buffer_command_handle_t_ *ur_exp_command_buffer_co
 ///         + `NULL == phCommandBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///         + If `pCommandBufferDesc->isUpdatable` is true and `hDevice` does not support UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -8176,7 +8166,6 @@ urCommandBufferFinalizeExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pGlobalWorkOffset`
 ///         + `NULL == pGlobalWorkSize`
-///         + `NULL == pLocalWorkSize`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
@@ -8195,9 +8184,10 @@ urCommandBufferAppendKernelLaunchExp(
     uint32_t workDim,                                             ///< [in] Dimension of the kernel execution.
     const size_t *pGlobalWorkOffset,                              ///< [in] Offset to use when executing kernel.
     const size_t *pGlobalWorkSize,                                ///< [in] Global work size to use when executing kernel.
-    const size_t *pLocalWorkSize,                                 ///< [in] Local work size to use when executing kernel.
+    const size_t *pLocalWorkSize,                                 ///< [in][optional] Local work size to use when executing kernel.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,               ///< [out][optional] Sync point associated with this command.
     ur_exp_command_buffer_command_handle_t *phCommand             ///< [out][optional] Handle to this command.
 );
@@ -8233,7 +8223,8 @@ urCommandBufferAppendUSMMemcpyExp(
     const void *pSrc,                                             ///< [in] The data to be copied.
     size_t size,                                                  ///< [in] The number of bytes to copy.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
 );
 
@@ -8272,7 +8263,8 @@ urCommandBufferAppendUSMFillExp(
     size_t patternSize,                                           ///< [in] size in bytes of the pattern.
     size_t size,                                                  ///< [in] fill size in bytes, must be a multiple of patternSize.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command.
 );
 
@@ -8305,7 +8297,8 @@ urCommandBufferAppendMemBufferCopyExp(
     size_t dstOffset,                                             ///< [in] Offset into the destination memory
     size_t size,                                                  ///< [in] The number of bytes to be copied.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
 );
 
@@ -8338,7 +8331,8 @@ urCommandBufferAppendMemBufferWriteExp(
     size_t size,                                                  ///< [in] Size in bytes of data being written.
     const void *pSrc,                                             ///< [in] Pointer to host memory where data is to be written from.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
 );
 
@@ -8371,7 +8365,8 @@ urCommandBufferAppendMemBufferReadExp(
     size_t size,                                                  ///< [in] Size in bytes of data being written.
     void *pDst,                                                   ///< [in] Pointer to host memory where data is to be written to.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
 );
 
@@ -8408,7 +8403,8 @@ urCommandBufferAppendMemBufferCopyRectExp(
     size_t dstRowPitch,                                           ///< [in] Row pitch of the destination memory.
     size_t dstSlicePitch,                                         ///< [in] Slice pitch of the destination memory.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
 );
 
@@ -8449,7 +8445,8 @@ urCommandBufferAppendMemBufferWriteRectExp(
                                                                   ///< pointed to by pSrc.
     void *pSrc,                                                   ///< [in] Pointer to host memory where data is to be written from.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
 );
 
@@ -8489,7 +8486,8 @@ urCommandBufferAppendMemBufferReadRectExp(
                                                                   ///< pointed to by pDst.
     void *pDst,                                                   ///< [in] Pointer to host memory where data is to be read into.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
 );
 
@@ -8525,7 +8523,8 @@ urCommandBufferAppendMemBufferFillExp(
     size_t offset,                                                ///< [in] offset into the buffer.
     size_t size,                                                  ///< [in] fill size in bytes, must be a multiple of patternSize.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command.
 );
 
@@ -8566,7 +8565,8 @@ urCommandBufferAppendUSMPrefetchExp(
     size_t size,                                                  ///< [in] size in bytes to be fetched.
     ur_usm_migration_flags_t flags,                               ///< [in] USM prefetch flags
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command.
 );
 
@@ -8607,7 +8607,8 @@ urCommandBufferAppendUSMAdviseExp(
     size_t size,                                                  ///< [in] size in bytes to be advised.
     ur_usm_advice_flags_t advice,                                 ///< [in] USM memory advice
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                                                                  ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command.
 );
 
@@ -8697,6 +8698,10 @@ urCommandBufferReleaseCommandExp(
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///         + If ::ur_exp_command_buffer_desc_t::isUpdatable was not set to true on creation of the command buffer `hCommand` belongs to.
 ///         + If the command-buffer `hCommand` belongs to has not been finalized.
+///         + If `pUpdateKernellaunch->newWorkDim` is non-zero and different from the work-dim used on creation of `hCommand`.
+///         + If `pUpdateKernellaunch->newWorkDim` is non-zero and `pUpdateKernelLaunch->pNewLocalWorkSize` is set to a non-NULL value and `pUpdateKernelLaunch->pNewGlobalWorkSize` is NULL.
+///         + If `pUpdateKernellaunch->newWorkDim` is non-zero and `pUpdateKernelLaunch->pNewLocalWorkSize` is set to a non-NULL value when `hCommand` was created with a NULL local work size.
+///         + If `pUpdateKernellaunch->newWorkDim` is non-zero and `pUpdateKernelLaunch->pNewLocalWorkSize` is set to a NULL value when `hCommand` was created with a non-NULL local work size.
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
