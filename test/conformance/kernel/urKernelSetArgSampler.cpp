@@ -5,17 +5,63 @@
 
 #include <uur/fixtures.h>
 
+struct urKernelSetArgSamplerTestWithParam
+    : uur::urBaseKernelTestWithParam<uur::SamplerCreateParamT> {
+    void SetUp() {
+        program_name = "image_copy";
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urBaseKernelTestWithParam<uur::SamplerCreateParamT>::SetUp());
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urBaseKernelTestWithParam<uur::SamplerCreateParamT>::Build());
+
+        const auto param = getParam();
+        const auto normalized = std::get<0>(param);
+        const auto addr_mode = std::get<1>(param);
+        const auto filter_mode = std::get<2>(param);
+
+        ur_sampler_desc_t sampler_desc = {
+            UR_STRUCTURE_TYPE_SAMPLER_DESC, /* sType */
+            nullptr,                        /* pNext */
+            normalized,                     /* normalizedCoords */
+            addr_mode,                      /* addressingMode */
+            filter_mode                     /* filterMode */
+        };
+        ASSERT_SUCCESS(urSamplerCreate(context, &sampler_desc, &sampler));
+    }
+
+    void TearDown() {
+        if (sampler) {
+            ASSERT_SUCCESS(urSamplerRelease(sampler));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urBaseKernelTestWithParam<
+                                    uur::SamplerCreateParamT>::TearDown());
+    }
+
+    ur_sampler_handle_t sampler = nullptr;
+};
+
+UUR_TEST_SUITE_P(
+    urKernelSetArgSamplerTestWithParam,
+    ::testing::Combine(
+        ::testing::Values(true, false),
+        ::testing::Values(UR_SAMPLER_ADDRESSING_MODE_NONE,
+                          UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE,
+                          UR_SAMPLER_ADDRESSING_MODE_CLAMP,
+                          UR_SAMPLER_ADDRESSING_MODE_REPEAT,
+                          UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT),
+        ::testing::Values(UR_SAMPLER_FILTER_MODE_NEAREST,
+                          UR_SAMPLER_FILTER_MODE_LINEAR)),
+    uur::deviceTestWithParamPrinter<uur::SamplerCreateParamT>);
+
+TEST_P(urKernelSetArgSamplerTestWithParam, Success) {
+    uint32_t arg_index = 2;
+    ASSERT_SUCCESS(urKernelSetArgSampler(kernel, arg_index, nullptr, sampler));
+}
+
 struct urKernelSetArgSamplerTest : uur::urBaseKernelTest {
     void SetUp() {
         program_name = "image_copy";
         UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTest::SetUp());
-        // Images and samplers are not available on AMD
-        ur_platform_backend_t backend;
-        ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
-                                         sizeof(backend), &backend, nullptr));
-        if (backend == UR_PLATFORM_BACKEND_HIP) {
-            GTEST_SKIP() << "Sampler are not supported on hip.";
-        }
         Build();
         ur_sampler_desc_t sampler_desc = {
             UR_STRUCTURE_TYPE_SAMPLER_DESC,   /* sType */
@@ -36,10 +82,14 @@ struct urKernelSetArgSamplerTest : uur::urBaseKernelTest {
 
     ur_sampler_handle_t sampler = nullptr;
 };
+
 UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelSetArgSamplerTest);
 
-TEST_P(urKernelSetArgSamplerTest, Success) {
-    ASSERT_SUCCESS(urKernelSetArgSampler(kernel, 2, nullptr, sampler));
+TEST_P(urKernelSetArgSamplerTest, SuccessWithProps) {
+    ur_kernel_arg_sampler_properties_t props{
+        UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES, nullptr};
+    size_t arg_index = 2;
+    ASSERT_SUCCESS(urKernelSetArgSampler(kernel, arg_index, &props, sampler));
 }
 
 TEST_P(urKernelSetArgSamplerTest, InvalidNullHandleKernel) {

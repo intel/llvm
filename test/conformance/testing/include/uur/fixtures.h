@@ -1100,9 +1100,26 @@ std::string deviceTestWithParamPrinter<BoolTestParam>(
     const ::testing::TestParamInfo<
         std::tuple<ur_device_handle_t, BoolTestParam>> &info);
 
+using SamplerCreateParamT =
+    std::tuple<bool, ur_sampler_addressing_mode_t, ur_sampler_filter_mode_t>;
+
+template <>
+std::string deviceTestWithParamPrinter<SamplerCreateParamT>(
+    const ::testing::TestParamInfo<
+        std::tuple<ur_device_handle_t, SamplerCreateParamT>> &info);
+
 struct urProgramTest : urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
+
+        ur_platform_backend_t backend;
+        ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                         sizeof(backend), &backend, nullptr));
+        // Images and samplers are not available on AMD
+        if (program_name == "image_copy" &&
+            backend == UR_PLATFORM_BACKEND_HIP) {
+            GTEST_SKIP();
+        }
         UUR_RETURN_ON_FATAL_FAILURE(
             uur::KernelsEnvironment::instance->LoadSource(program_name, 0,
                                                           il_binary));
@@ -1131,6 +1148,17 @@ struct urProgramTest : urQueueTest {
 template <class T> struct urProgramTestWithParam : urContextTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
+
+        ur_platform_backend_t backend;
+        ASSERT_SUCCESS(urPlatformGetInfo(this->platform,
+                                         UR_PLATFORM_INFO_BACKEND,
+                                         sizeof(backend), &backend, nullptr));
+        // Images and samplers are not available on AMD
+        if (program_name == "image_copy" &&
+            backend == UR_PLATFORM_BACKEND_HIP) {
+            GTEST_SKIP();
+        }
+
         UUR_RETURN_ON_FATAL_FAILURE(
             uur::KernelsEnvironment::instance->LoadSource(program_name, 0,
                                                           il_binary));
