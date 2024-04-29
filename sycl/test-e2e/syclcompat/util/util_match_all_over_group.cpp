@@ -40,7 +40,7 @@ constexpr unsigned int NUM_TESTS = 3;
 constexpr unsigned int SUBGROUP_SIZE = 32;
 constexpr unsigned int DATA_SIZE = NUM_TESTS * SUBGROUP_SIZE;
 
-void test_select_from_sub_group() {
+void test_match_all_over_group() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   constexpr syclcompat::dim3 grid{1};
@@ -102,7 +102,6 @@ void test_select_from_sub_group() {
   syclcompat::memcpy<int>(pred, d_pred, DATA_SIZE);
 
   for (int i = 0; i < DATA_SIZE; ++i) {
-    std::cout << "expected[" << i << "] = " << expected[i] << std::endl;
     assert(output[i] == expected[i]);
     assert(pred[i] == expected_pred[i]);
   }
@@ -113,7 +112,7 @@ void test_select_from_sub_group() {
 }
 
 int main() {
-  test_select_from_sub_group();
+  test_match_all_over_group();
 
   return 0;
 }
