@@ -190,8 +190,10 @@ SYCL_EXTERNAL auto TestGreaterThan(VecBOOL2Type a, VecBOOL2Type b) { return a > 
 //
 SYCL_EXTERNAL auto TestGreaterThan(VecHALF2Type a, VecHALF2Type b) { return a > b; }
 
-// FIXME: Why do we interpret BF16 as INT16 to perform logical operations?
-// For arithmetic ops, we convert BF16 to float and then perform the operation.
+// FIXME: We incorrectly interpret BF16 as INT16 to peform logical operation.
+// For example, vec<BF16, 2>{-0.5, 3.333} < vec<BF16, 2>{6.0, 6.666} results into
+// {-1, -1} on host but {0, -1} on device.
+
 // CHECK-LABEL: define dso_local spir_func void @_Z15TestGreaterThanN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi2EEES5_(
 // CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.7") align 4 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.5") align 4 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.5") align 4 [[B:%.*]]) {{.*}}{
 // CHECK-NEXT:  entry:
