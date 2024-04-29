@@ -1237,8 +1237,10 @@ expressions that might throw `sycl::exception` and `std::runtime_error`.
 If no exceptions are thrown, it returns `syclcompat::error_code::SUCCESS`.
 If a `sycl::exception` is caught, it returns `syclcompat::error_code::BACKEND_ERROR`.
 If a `std::runtime_error` exception is caught,
+
 `syclcompat::error_code::DEFAULT_ERROR` is returned instead. For both cases, it
 prints the error message to the standard error stream.
+
 
 ``` c++
 namespace syclcompat {
@@ -1268,6 +1270,7 @@ template <int Arg> class syclcompat_kernel_scalar;
 #define SYCLCOMPAT_EXPORT
 #endif
 
+
 namespace syclcompat {
 enum error_code { SUCCESS = 0, BACKEND_ERROR = 1, DEFAULT_ERROR = 999 };
 }
@@ -1287,6 +1290,15 @@ to get the kernel information. Overloads are provided to allow either returning
 a `kernel_function_info` object, or to return by pointer argument. In the
 current version, `kernel_function_info` describes only maximum work-group size.
 
+SYCLcompat also provides the `kernel_library` and `kernel_function` classes.
+`kernel_library` facilitates the loading and unloading of kernel libraries.
+`kernel_function` represents a specific kernel function within a loaded librariy
+and can be invoked with specified arguments.
+`load_kernel_library`, `load_kernel_library_mem`, and `unload_kernel_library` are
+free functions to handle the loading and unloading of `kernel_library` objects.
+`get_kernel_function`, and `invoke_kernel_function` offer a similar functionality
+for `kernel_function` objects.
+
 ``` c++
 namespace syclcompat {
 
@@ -1297,6 +1309,34 @@ struct kernel_function_info {
 static void get_kernel_function_info(kernel_function_info *kernel_info,
                                      const void *function);
 static kernel_function_info get_kernel_function_info(const void *function);
+
+class kernel_library {
+  kernel_library();
+  kernel_library(void *ptr);
+  operator void *() const;
+};
+
+static kernel_library load_kernel_library(const std::string &name);
+static kernel_library load_kernel_library_mem(char const *const image);
+static void unload_kernel_library(const kernel_library &library);
+
+class kernel_function {
+    kernel_function();
+    kernel_function(kernel_functor ptr);
+    operator void *() const;
+    void operator()(sycl::queue &q, const sycl::nd_range<3> &range,
+                    unsigned int local_mem_size, void **args, void **extra);
+};
+
+static kernel_function get_kernel_function(kernel_library &library,
+                                           const std::string &name);
+static void invoke_kernel_function(kernel_function &function,
+                                   sycl::queue &queue,
+                                   sycl::range<3> group_range,
+                                   sycl::range<3> local_range,
+                                   unsigned int local_mem_size,
+                                   void **kernel_params, void **extra);
+
 } // namespace syclcompat
 ```
 

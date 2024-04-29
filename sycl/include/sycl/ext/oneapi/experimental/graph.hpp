@@ -271,35 +271,29 @@ public:
   /// it.
   /// @param RecordingQueue The queue to change state on and associate this
   /// graph with.
-  /// @return True if the queue had its state changed from executing to
-  /// recording.
-  bool begin_recording(queue &RecordingQueue);
+  /// @param PropList Property list used to pass properties for recording.
+  void begin_recording(queue &RecordingQueue,
+                       const property_list &PropList = {});
 
   /// Change the state of multiple queues to be recording and associate this
   /// graph with each of them.
   /// @param RecordingQueues The queues to change state on and associate this
   /// graph with.
-  /// @return True if any queue had its state changed from executing to
-  /// recording.
-  bool begin_recording(const std::vector<queue> &RecordingQueues);
+  /// @param PropList Property list used to pass properties for recording.
+  void begin_recording(const std::vector<queue> &RecordingQueues,
+                       const property_list &PropList = {});
 
   /// Set all queues currently recording to this graph to the executing state.
-  /// @return True if any queue had its state changed from recording to
-  /// executing.
-  bool end_recording();
+  void end_recording();
 
   /// Set a queue currently recording to this graph to the executing state.
   /// @param RecordingQueue The queue to change state on.
-  /// @return True if the queue had its state changed from recording to
-  /// executing.
-  bool end_recording(queue &RecordingQueue);
+  void end_recording(queue &RecordingQueue);
 
   /// Set multiple queues currently recording to this graph to the executing
   /// state.
   /// @param RecordingQueues The queues to change state on.
-  /// @return True if any queue had its state changed from recording to
-  /// executing.
-  bool end_recording(const std::vector<queue> &RecordingQueues);
+  void end_recording(const std::vector<queue> &RecordingQueues);
 
   /// Synchronous operation that writes a DOT formatted description of the graph
   /// to the provided path. By default, this includes the graph topology, node
