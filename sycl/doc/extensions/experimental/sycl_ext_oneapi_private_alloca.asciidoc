@@ -295,5 +295,5 @@ private_alloca(const specialization_constant<std::size_t> &size);
 |========================================
 |Rev|Date|Authors|Changes
 |1|2024-02-08|Victor Lomüller, Lukas Sommer, Victor Perez, Julian Oppermann, Tadej Ciglaric, Romain Biessy|*Initial draft*
-|1|2024-04-22|Victor Perez|*Add AOT clarification*
+|2|2024-04-22|Victor Lomüller, Lukas Sommer, Victor Perez, Julian Oppermann, Tadej Ciglaric, Romain Biessy|*Add AOT clarification*
 |========================================
