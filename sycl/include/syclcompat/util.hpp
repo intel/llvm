@@ -838,7 +838,7 @@ public:
 };
 } // namespace experimental
 
-/// If x <= 2, then return a pointer to the deafult queue;
+/// If x <= 2, then return a pointer to the default queue;
 /// otherwise, return x reinterpreted as a queue_ptr.
 inline queue_ptr int_as_queue_ptr(uintptr_t x) {
   return x <= 2 ? &get_default_queue() : reinterpret_cast<queue_ptr>(x);
