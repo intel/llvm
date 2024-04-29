@@ -596,15 +596,9 @@ bool test_fp_types(queue q) {
 
   // TODO: Enable 'half' FADD/FSUB on DG2 when the error in GPU driver is fixed.
   if constexpr (Features == TestFeatures::PVC ||
-                std::is_same_v<Op<sycl::half, N>, ImplLoad<sycl::half, N>> ||
-                std::is_same_v<Op<sycl::half, N>, ImplStore<sycl::half, N>> ||
                 (Features == TestFeatures::DG2 &&
-                 (std::is_same_v<Op<sycl::half, N>,
-                                 ImplLSCFmax<sycl::half, N>> ||
-                  std::is_same_v<Op<sycl::half, N>,
-                                 ImplLSCFmin<sycl::half, N>> ||
-                  std::is_same_v<Op<sycl::half, N>,
-                                 ImplLSCFcmpwr<sycl::half, N>>))) {
+                 !std::is_same_v<Op<sycl::half, N>, ImplFadd<sycl::half, N>> &&
+                 !std::is_same_v<Op<sycl::half, N>, ImplFsub<sycl::half, N>>)) {
     if (q.get_device().has(sycl::aspect::fp16)) {
       passed &= run_test<UseAcc, sycl::half, N, Op, UseMask>(q);
     }
