@@ -94,14 +94,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/bensuo/unified-runtime.git")
-  # commit fe9a05e528992cd1db7b05e2857fb17879442e86
-  # Merge: ee2feb22 9222315f
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Tue Apr 16 10:10:10 2024 +0100
-  #    Merge pull request #1507 from nrspruit/fix_p2p_properties_init
-  #    [L0] Fix to p2p properties init for pNext and stype
-  set(UNIFIED_RUNTIME_TAG 3f85f3058eab63fa9bd28b0b98194fa2c21ce7ce)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 7371150b3a525d9c69a0790f9abf59089eb0c46c
+  # Merge: cb44d9ab bb45b7c5
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Fri Apr 26 15:44:19 2024 +0100
+  #    Merge pull request #1442 from Bensuo/ben/optimize-cmdbuffer-submission
+  #    [EXP][Command-Buffer] Optimize L0 command buffer submission
+  set(UNIFIED_RUNTIME_TAG 7371150b3a525d9c69a0790f9abf59089eb0c46c)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
