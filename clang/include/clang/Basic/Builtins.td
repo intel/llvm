@@ -1164,6 +1164,12 @@ def Unreachable : Builtin {
   let Prototype = "void()";
 }
 
+def AllowRuntimeCheck : Builtin {
+  let Spellings = ["__builtin_allow_runtime_check"];
+  let Attributes = [NoThrow, Pure, Const];
+  let Prototype = "bool(char const*)";
+}
+
 def ShuffleVector : Builtin {
   let Spellings = ["__builtin_shufflevector"];
   let Attributes = [NoThrow, Const, CustomTypeChecking];
@@ -4587,6 +4593,12 @@ def GetDeviceSideMangledName : LangBuiltin<"CUDA_LANG"> {
 }
 
 // HLSL
+def HLSLAll : LangBuiltin<"HLSL_LANG"> {
+  let Spellings = ["__builtin_hlsl_elementwise_all"];
+  let Attributes = [NoThrow, Const];
+  let Prototype = "bool(...)";
+}
+
 def HLSLAny : LangBuiltin<"HLSL_LANG"> {
   let Spellings = ["__builtin_hlsl_elementwise_any"];
   let Attributes = [NoThrow, Const];
@@ -4706,6 +4718,12 @@ def IntelSYCLPtrAnnotation : Builtin {
 
 def IntelSYCLAlloca : Builtin {
   let Spellings = ["__builtin_intel_sycl_alloca"];
+  let Attributes = [NoThrow, CustomTypeChecking];
+  let Prototype = "void *(void &)";
+}
+
+def IntelSYCLAllocaWithAlign : Builtin {
+  let Spellings = ["__builtin_intel_sycl_alloca_with_align"];
   let Attributes = [NoThrow, CustomTypeChecking];
   let Prototype = "void *(void &)";
 }
