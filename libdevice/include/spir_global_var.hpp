@@ -23,6 +23,3 @@
 #define SPIR_GLOBAL_VAR
 #endif
 #endif
-
-extern SPIR_GLOBAL_VAR __SYCL_GLOBAL__ uint64_t *__SYCL_LOCAL__
-    __AsanLaunchInfo;
