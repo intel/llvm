@@ -390,7 +390,7 @@ public:
 
   /// Provides a hint to the backend to execute previously issued commands on
   /// this queue. Overrides normal batching behaviour. Note that this is merely
-  /// a hint, there is no guarantee.
+  /// a hint and not a guarantee.
   void flush() {
     if (MGraph.lock()) {
       throw sycl::exception(make_error_code(errc::invalid),
