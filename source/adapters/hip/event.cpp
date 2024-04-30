@@ -90,44 +90,18 @@ bool ur_event_handle_t_::isCompleted() const {
 }
 
 uint64_t ur_event_handle_t_::getQueuedTime() const {
-  float MilliSeconds = 0.0f;
   assert(isStarted());
-
-  // hipEventSynchronize waits till the event is ready for call to
-  // hipEventElapsedTime.
-  UR_CHECK_ERROR(hipEventSynchronize(EvStart));
-  UR_CHECK_ERROR(hipEventSynchronize(EvEnd));
-
-  UR_CHECK_ERROR(hipEventElapsedTime(&MilliSeconds, EvStart, EvEnd));
-  return static_cast<uint64_t>(MilliSeconds * 1.0e6);
+  return Queue->getDevice()->getElapsedTime(EvQueued);
 }
 
 uint64_t ur_event_handle_t_::getStartTime() const {
-  float MiliSeconds = 0.0f;
   assert(isStarted());
-
-  // hipEventSynchronize waits till the event is ready for call to
-  // hipEventElapsedTime.
-  UR_CHECK_ERROR(hipEventSynchronize(ur_platform_handle_t_::EvBase));
-  UR_CHECK_ERROR(hipEventSynchronize(EvStart));
-
-  UR_CHECK_ERROR(hipEventElapsedTime(&MiliSeconds,
-                                     ur_platform_handle_t_::EvBase, EvStart));
-  return static_cast<uint64_t>(MiliSeconds * 1.0e6);
+  return Queue->getDevice()->getElapsedTime(EvStart);
 }
 
 uint64_t ur_event_handle_t_::getEndTime() const {
-  float MiliSeconds = 0.0f;
   assert(isStarted() && isRecorded());
-
-  // hipEventSynchronize waits till the event is ready for call to
-  // hipEventElapsedTime.
-  UR_CHECK_ERROR(hipEventSynchronize(ur_platform_handle_t_::EvBase));
-  UR_CHECK_ERROR(hipEventSynchronize(EvEnd));
-
-  UR_CHECK_ERROR(
-      hipEventElapsedTime(&MiliSeconds, ur_platform_handle_t_::EvBase, EvEnd));
-  return static_cast<uint64_t>(MiliSeconds * 1.0e6);
+  return Queue->getDevice()->getElapsedTime(EvEnd);
 }
 
 ur_result_t ur_event_handle_t_::record() {

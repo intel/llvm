@@ -47,18 +47,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
     // Create a scoped context.
     ContextPtr = std::unique_ptr<ur_context_handle_t_>(
         new ur_context_handle_t_{phDevices, DeviceCount});
-
-    static std::once_flag InitFlag;
-    std::call_once(
-        InitFlag,
-        [](ur_result_t &) {
-          // Use default stream to record base event counter
-          UR_CHECK_ERROR(hipEventCreateWithFlags(&ur_platform_handle_t_::EvBase,
-                                                 hipEventDefault));
-          UR_CHECK_ERROR(hipEventRecord(ur_platform_handle_t_::EvBase, 0));
-        },
-        RetErr);
-
     *phContext = ContextPtr.release();
   } catch (ur_result_t Err) {
     RetErr = Err;
