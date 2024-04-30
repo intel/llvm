@@ -20,8 +20,12 @@ function(add_test_adapter name adapter)
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     )
 
+    set(testEnv
+        UR_ADAPTERS_FORCE_LOAD="$<TARGET_FILE:ur_${adapter}>"
+        GTEST_COLOR=no
+    )
     set_tests_properties(${TEST_NAME} PROPERTIES
-        ENVIRONMENT "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_${adapter}>\""
+        ENVIRONMENT "${testEnv}"
         LABELS "conformance;${adapter}")
 endfunction()
 
