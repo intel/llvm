@@ -367,6 +367,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
                                      IsInternal));
   }
 
+  // When executing command lists, allowing batching simply means storing
+  // the CmdLists as the current open batch. That's not what we want here.
+  // Moreover, the current implementation does not allow calling
+  // executeCommandList after an earlier getAvailableCommandList returned some
+  // other CmdList.
+  OkToBatch = false;
   // Execute each command list so the barriers can be encountered.
   for (ur_command_list_ptr_t &CmdList : CmdLists)
     UR_CALL(Queue->executeCommandList(CmdList, false, OkToBatch));
