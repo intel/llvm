@@ -1481,17 +1481,15 @@ void handler::verifyDeviceHasProgressGuarantee(
           "supported by this device.");
     }
     // If we are here, the device supports the guarantee required but there is a
-    // caveat in that if the guarantee required is a concurrent guarantee and
-    // the backend is level_zero, then we most likely also need to enable
-    // cooperative launch of the kernel. That is, although the device supports
-    // the required guarantee, some setup work is needed to truly make the
-    // device provide that guarantee at runtime. Otherwise, we will get the
-    // default guarantee which is weaker than concurrent. Same reasoning applies
-    // for sub_group but not for work_item.
+    // caveat in that if the guarantee required is a concurrent guarantee, then
+    // we most likely also need to enable cooperative launch of the kernel. That
+    // is, although the device supports the required guarantee, some setup work
+    // is needed to truly make the device provide that guarantee at runtime.
+    // Otherwise, we will get the default guarantee which is weaker than
+    // concurrent. Same reasoning applies for sub_group but not for work_item.
     // TODO: Further design work is probably needed to reflect this behavior in
     // Unified Runtime.
-    if (Guarantee == forward_progress::concurrent &&
-        deviceImplPtr->getBackend() == backend::ext_oneapi_level_zero)
+    if (Guarantee == forward_progress::concurrent)
       setKernelIsCooperative(true);
   } else if (threadScope == execution_scope::sub_group) {
     if (!supported) {
@@ -1500,8 +1498,7 @@ void handler::verifyDeviceHasProgressGuarantee(
                             "supported by this device.");
     }
     // Same reasoning as above.
-    if (Guarantee == forward_progress::concurrent &&
-        deviceImplPtr->getBackend() == backend::ext_oneapi_level_zero)
+    if (Guarantee == forward_progress::concurrent)
       setKernelIsCooperative(true);
   } else { // threadScope is execution_scope::work_item otherwise undefined
            // behavior
