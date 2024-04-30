@@ -5,6 +5,8 @@
 
 // RUN: %clangxx -I %sycl_include -S -emit-llvm -fno-sycl-instrument-device-code -Xclang -disable-lifetime-markers -fsycl-device-only %s -o - | FileCheck %s
 
+// REQUIRES: asserts
+
 // This test checks
 // (1) the storage type of sycl::vec on device for all data types, and
 // (2) the device code for various math operations on sycl::vec.
