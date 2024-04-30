@@ -134,7 +134,7 @@ InstallIGFX () {
     echo "Download IGC dev git hash $IGC_DEV_VER"
     get_pre_release_igfx $IGC_DEV_URL $IGC_DEV_VER
     echo "Install IGC dev git hash $IGC_DEV_VER"
-    dpkg -i *.deb && rm *.deb *.sum
+    dpkg -i *.deb
     echo "Install libopencl-clang"
     cp -d libopencl-clang.so.14*  /usr/local/lib/
     echo "Clean up"
