@@ -2204,7 +2204,7 @@ ur_result_t UR_APICALL urUSMHostAlloc(
     ur_usm_pool_handle_t
         pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t
-        size, ///< [in] size in bytes of the USM memory object to be allocated
+        size, ///< [in] minimum size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM host memory object
     ) try {
     auto pfnHostAlloc = ur_lib::context->urDdiTable.USM.pfnHostAlloc;
@@ -2263,7 +2263,7 @@ ur_result_t UR_APICALL urUSMDeviceAlloc(
     ur_usm_pool_handle_t
         pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t
-        size, ///< [in] size in bytes of the USM memory object to be allocated
+        size, ///< [in] minimum size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM device memory object
     ) try {
     auto pfnDeviceAlloc = ur_lib::context->urDdiTable.USM.pfnDeviceAlloc;
@@ -2323,7 +2323,7 @@ ur_result_t UR_APICALL urUSMSharedAlloc(
     ur_usm_pool_handle_t
         pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t
-        size, ///< [in] size in bytes of the USM memory object to be allocated
+        size, ///< [in] minimum size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM shared memory object
     ) try {
     auto pfnSharedAlloc = ur_lib::context->urDdiTable.USM.pfnSharedAlloc;
@@ -2890,6 +2890,8 @@ ur_result_t UR_APICALL urPhysicalMemRelease(
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
+///     - The adapter may (but is not required to) perform validation of the
+///       provided module during this call.
 ///
 /// @remarks
 ///   _Analogues_
@@ -2940,6 +2942,10 @@ ur_result_t UR_APICALL urProgramCreateWithIL(
 ///     - Following a successful call to this entry point, `phProgram` will
 ///       contain a binary of type ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT or
 ///       ::UR_PROGRAM_BINARY_TYPE_LIBRARY for `hDevice`.
+///     - The device specified by `hDevice` must be device associated with
+///       context.
+///     - The adapter may (but is not required to) perform validation of the
+///       provided module during this call.
 ///
 /// @remarks
 ///   _Analogues_
@@ -7181,6 +7187,8 @@ ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
 ///         + `NULL == phCommandBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///         + If `pCommandBufferDesc->isUpdatable` is true and `hDevice` does not support UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urCommandBufferCreateExp(
@@ -7302,7 +7310,6 @@ ur_result_t UR_APICALL urCommandBufferFinalizeExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pGlobalWorkOffset`
 ///         + `NULL == pGlobalWorkSize`
-///         + `NULL == pLocalWorkSize`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
@@ -7323,12 +7330,13 @@ ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
         *pGlobalWorkOffset, ///< [in] Offset to use when executing kernel.
     const size_t *
         pGlobalWorkSize, ///< [in] Global work size to use when executing kernel.
-    const size_t
-        *pLocalWorkSize, ///< [in] Local work size to use when executing kernel.
+    const size_t *
+        pLocalWorkSize, ///< [in][optional] Local work size to use when executing kernel.
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint, ///< [out][optional] Sync point associated with this command.
     ur_exp_command_buffer_command_handle_t
@@ -7381,7 +7389,8 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] Sync point associated with this command.
     ) try {
@@ -7436,7 +7445,8 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] sync point associated with this command.
     ) try {
@@ -7484,7 +7494,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] Sync point associated with this command.
     ) try {
@@ -7533,7 +7544,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] Sync point associated with this command.
     ) try {
@@ -7581,7 +7593,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] Sync point associated with this command.
     ) try {
@@ -7636,7 +7649,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] Sync point associated with this command.
     ) try {
@@ -7700,7 +7714,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] Sync point associated with this command.
     ) try {
@@ -7762,7 +7777,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] Sync point associated with this command.
     ) try {
@@ -7816,7 +7832,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] sync point associated with this command.
     ) try {
@@ -7872,7 +7889,8 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] sync point associated with this command.
     ) try {
@@ -7928,7 +7946,8 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] sync point associated with this command.
     ) try {
@@ -8065,6 +8084,10 @@ ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///         + If ::ur_exp_command_buffer_desc_t::isUpdatable was not set to true on creation of the command buffer `hCommand` belongs to.
 ///         + If the command-buffer `hCommand` belongs to has not been finalized.
+///         + If `pUpdateKernellaunch->newWorkDim` is non-zero and different from the work-dim used on creation of `hCommand`.
+///         + If `pUpdateKernellaunch->newWorkDim` is non-zero and `pUpdateKernelLaunch->pNewLocalWorkSize` is set to a non-NULL value and `pUpdateKernelLaunch->pNewGlobalWorkSize` is NULL.
+///         + If `pUpdateKernellaunch->newWorkDim` is non-zero and `pUpdateKernelLaunch->pNewLocalWorkSize` is set to a non-NULL value when `hCommand` was created with a NULL local work size.
+///         + If `pUpdateKernellaunch->newWorkDim` is non-zero and `pUpdateKernelLaunch->pNewLocalWorkSize` is set to a NULL value when `hCommand` was created with a non-NULL local work size.
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX

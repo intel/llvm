@@ -1003,14 +1003,6 @@ ur_result_t urPrintExpCommandBufferUpdateValueArgDesc(
     return str_copy(&ss, buffer, buff_size, out_size);
 }
 
-ur_result_t urPrintExpCommandBufferUpdateExecInfoDesc(
-    const struct ur_exp_command_buffer_update_exec_info_desc_t params,
-    char *buffer, const size_t buff_size, size_t *out_size) {
-    std::stringstream ss;
-    ss << params;
-    return str_copy(&ss, buffer, buff_size, out_size);
-}
-
 ur_result_t urPrintExpCommandBufferUpdateKernelLaunchDesc(
     const struct ur_exp_command_buffer_update_kernel_launch_desc_t params,
     char *buffer, const size_t buff_size, size_t *out_size) {
