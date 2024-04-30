@@ -1090,12 +1090,15 @@ static bool isFreeFunction(SemaSYCL &SemaSYCLRef, const FunctionDecl *FD) {
 
 static std::string constructFFKernelName(const FunctionDecl *FD) {
   IdentifierInfo *Id = FD->getIdentifier();
-  std::string NewIdent = (Twine("__free_function_") + Id->getName()).str();
+  std::string NewIdent = (Twine("__sycl_kernel_") + Id->getName()).str();
   return NewIdent;
 }
 
-// Gets a name for the free function kernel function. The suffix allows a normal
-// device function to coexist with the kernel function.
+// Creates a name for the free function kernel function.
+// Non-templated functions get a simple __sycl_kernel_ prefix.
+// For templated functions we add __sycl_kernel_ to the original function name
+// and then use the mangled name as the kernel name. The renaming allows a
+// normal device function to coexist with the kernel function.
 static std::pair<std::string, std::string> constructFreeFunctionKernelName(
     SemaSYCL &SemaSYCLRef, const FunctionDecl *FreeFunc, MangleContext &MC) {
   SmallString<256> Result;
@@ -1104,8 +1107,38 @@ static std::pair<std::string, std::string> constructFreeFunctionKernelName(
   std::string StableName;
 
   if (FreeFunc->getTemplateSpecializationArgs()) {
-    MC.mangleName(FreeFunc, Out);
-    MangledName = (Twine("__free_function") + Out.str()).str();
+    ASTContext &Ctx = SemaSYCLRef.getASTContext();
+    FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
+    QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, {}, Info);
+    std::string FFName =
+        (Twine("__sycl_kernel_") + FreeFunc->getIdentifier()->getName()).str();
+    const IdentifierInfo *FFIdent = &Ctx.Idents.get(FFName);
+    FunctionDecl *NewFD = FunctionDecl::Create(
+        Ctx, Ctx.getTranslationUnitDecl(), {}, {}, DeclarationName(FFIdent),
+        FuncType, Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), SC_None);
+    llvm::SmallVector<ParmVarDecl *, 8> Params;
+    for (ParmVarDecl *Param : FreeFunc->parameters()) {
+      QualType Ty = Param->getType();
+      ParamDesc newParamDesc =
+          std::make_tuple(Ty, &Ctx.Idents.get(Param->getName()),
+                          Ctx.getTrivialTypeSourceInfo(Ty));
+      auto *NewParam = ParmVarDecl::Create(
+          Ctx, NewFD, SourceLocation(), SourceLocation(),
+          std::get<1>(newParamDesc), std::get<0>(newParamDesc),
+          std::get<2>(newParamDesc), SC_None, /*DefArg*/ nullptr);
+      NewParam->setScopeInfo(0, Params.size());
+      NewParam->setIsUsed();
+      Params.push_back(NewParam);
+    }
+    SmallVector<QualType, 8> ArgTys;
+    std::transform(std::begin(Params), std::end(Params),
+                   std::back_inserter(ArgTys),
+                   [](const ParmVarDecl *PVD) { return PVD->getType(); });
+    FuncType = Ctx.getFunctionType(Ctx.VoidTy, ArgTys, Info);
+    NewFD->setType(FuncType);
+    NewFD->setParams(Params);
+    MC.mangleName(NewFD, Out);
+    MangledName = Out.str();
   } else {
     MangledName = constructFFKernelName(FreeFunc);
   }
@@ -4115,13 +4148,13 @@ class FreeFunctionKernelBodyCreator : public SyclKernelFieldHandler {
   }
 
   // For a free function such as:
-  // void f(int i, int* p, struct Simple S) { … }
+  // void f(int i, int* p, struct Simple S) { ... }
   //
   // Keep the function as-is for the version callable from device code.
-  // void f(int i, int *p, struct Simple S) { … }
+  // void f(int i, int *p, struct Simple S) { ... }
   //
   // For the host-callable kernel function generate this:
-  // void __free_function_f(int _arg_i, int* _arg_p, struct Simple _arg_S)
+  // void __sycl_kernel_f(int _arg_i, int* _arg_p, struct Simple _arg_S)
   // {
   //   f(_arg_i, _arg_p, _arg_S);
   // }

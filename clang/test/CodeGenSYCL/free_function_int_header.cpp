@@ -14,12 +14,12 @@ void ff_2(int *ptr, int start, int end) {
     ptr[i] = start + 66;
 }
 // CHECK:      const char* const kernel_names[] = {
-// CHECK-NEXT:   "__free_function_ff_2"
+// CHECK-NEXT:   "__sycl_kernel_ff_2"
 // CHECK-NEXT: };
 
 
 // CHECK:      const kernel_param_desc_t kernel_signatures[] = {
-// CHECK-NEXT:   //--- __free_function_ff_2
+// CHECK-NEXT:   //--- __sycl_kernel_ff_2
 // CHECK-NEXT:   { kernel_param_kind_t::kind_pointer, 8, 0 },
 // CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 8 },
 // CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 12 },
