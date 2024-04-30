@@ -16,8 +16,8 @@
 #include <vector>
 
 #include "adapter.hpp"
-#include "adapters/level_zero/event.hpp"
 #include "common.hpp"
+#include "event.hpp"
 #include "queue.hpp"
 #include "ur_api.h"
 #include "ur_level_zero.hpp"
@@ -1167,6 +1167,20 @@ ur_queue_handle_t_::ur_queue_handle_t_(
   ComputeCommandBatch.QueueBatchSize =
       ZeCommandListBatchComputeConfig.startSize();
   CopyCommandBatch.QueueBatchSize = ZeCommandListBatchCopyConfig.startSize();
+
+  static const bool useDriverCounterBasedEvents = [Device] {
+    const char *UrRet = std::getenv("UR_L0_USE_DRIVER_COUNTER_BASED_EVENTS");
+    if (!UrRet) {
+      if (Device->isPVC())
+        return true;
+      return false;
+    }
+    return std::atoi(UrRet) != 0;
+  }();
+  this->CounterBasedEventsEnabled =
+      UsingImmCmdLists && isInOrderQueue() && Device->useDriverInOrderLists() &&
+      useDriverCounterBasedEvents &&
+      Device->Platform->ZeDriverEventPoolCountingEventsExtensionFound;
 }
 
 void ur_queue_handle_t_::adjustBatchSizeForFullBatch(bool IsCopy) {
@@ -1416,10 +1430,6 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
         (ZeCommandQueue, 1, &ZeCommandList, CommandList->second.ZeFence));
     if (ZeResult != ZE_RESULT_SUCCESS) {
       this->Healthy = false;
-      if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
-        // Turn into a more informative end-user error.
-        return UR_RESULT_ERROR_UNKNOWN;
-      }
       // Reset Command List and erase the Fence forcing the user to resubmit
       // their commands.
       std::vector<ur_event_handle_t> EventListToCleanup;
@@ -1451,8 +1461,10 @@ ur_queue_handle_t_::resetDiscardedEvent(ur_command_list_ptr_t CommandList) {
   if (LastCommandEvent && LastCommandEvent->IsDiscarded) {
     ZE2UR_CALL(zeCommandListAppendBarrier,
                (CommandList->first, nullptr, 1, &(LastCommandEvent->ZeEvent)));
-    ZE2UR_CALL(zeCommandListAppendEventReset,
-               (CommandList->first, LastCommandEvent->ZeEvent));
+    if (!CounterBasedEventsEnabled) {
+      ZE2UR_CALL(zeCommandListAppendEventReset,
+                 (CommandList->first, LastCommandEvent->ZeEvent));
+    }
 
     // Create new ur_event_handle_t but with the same ze_event_handle_t. We are
     // going to use this ur_event_handle_t for the next command with discarded
@@ -1754,7 +1766,8 @@ ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
 
   if (*Event == nullptr)
     UR_CALL(EventCreate(Queue->Context, Queue, IsMultiDevice,
-                        HostVisible.value(), Event));
+                        HostVisible.value(), Event,
+                        Queue->CounterBasedEventsEnabled));
 
   (*Event)->UrQueue = Queue;
   (*Event)->CommandType = CommandType;

@@ -7,6 +7,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#pragma once
 
 #include "logger/ur_logger.hpp"
 #include <atomic>
