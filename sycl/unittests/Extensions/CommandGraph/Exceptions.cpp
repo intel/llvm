@@ -542,7 +542,7 @@ TEST_F(CommandGraphTest, ProfilingExceptionProperty) {
   Graph.end_recording(Queue);
 
   // Checks exception thrown if profiling is requested while profiling has
-  // not be enabled during the graph building.
+  // not been enabled during the graph building.
   auto GraphExecInOrder = Graph.finalize();
   queue QueueProfile{Dev, {sycl::property::queue::enable_profiling()}};
   auto EventInOrder = QueueProfile.submit(
