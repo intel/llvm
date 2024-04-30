@@ -178,30 +178,29 @@ def err_intel_sycl_ptr_annotation_mismatch
             "|a string literal or constexpr const char*}0">;
 
 def err_intel_sycl_alloca_no_alias
-    : Error<"__builtin_intel_sycl_alloca cannot be used in source code. "
-            "Use the private_alloca alias instead">;
-def err_intel_sycl_alloca_wrong_arg_count
-    : Error<"__builtin_intel_sycl_alloca expects to be passed a single "
-            "argument. Got %0">;
+    : Error<"__builtin_intel_sycl_alloca%select{|_with_align}0 cannot be used in "
+            "source code. Use the %select{|aligned_}0private_alloca alias "
+            "instead">;
 def err_intel_sycl_alloca_wrong_template_arg_count
-    : Error<"__builtin_intel_sycl_alloca expects to be passed three template "
-            "arguments. Got %0">;
+    : Error<"__builtin_intel_sycl_alloca%select{|_with_align}0 expects to be "
+            "passed %select{3|4}0 template arguments. Got %1">;
 def err_intel_sycl_alloca_wrong_arg
-    : Error<"__builtin_intel_sycl_alloca expects to be passed an argument of type "
-            "'sycl::kernel_handler &'. Got %0">;
+    : Error<"__builtin_intel_sycl_alloca%select{|_with_align}0 expects to be "
+            "passed an argument of type 'sycl::kernel_handler &'. Got %1">;
 def err_intel_sycl_alloca_wrong_type
-    : Error<"__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' "
-            "to a cv-unqualified trivial type. Got %0">;
+    : Error<"__builtin_intel_sycl_alloca%select{|_with_align}0 can only return "
+            "'sycl::private_ptr' to a cv-unqualified trivial type. Got %1">;
 def err_intel_sycl_alloca_wrong_size
-    : Error<"__builtin_intel_sycl_alloca must be passed a specialization "
-            "constant of integral value type as a template argument. Got %1 (%0)">;
-def err_intel_sycl_alloca_no_size
-    : Error<"__builtin_intel_sycl_alloca must be passed a specialization "
-            "constant of integral value type as a template argument. Got %0">;
+    : Error<"__builtin_intel_sycl_alloca%select{|_with_align}0 must be passed "
+            "a specialization constant of integral value type as a template "
+            "argument. Got %1">;
 def warn_intel_sycl_alloca_bad_default_value : Warning<
-    "__builtin_intel_sycl_alloca expects a specialization constant with a "
-    "default value of at least one as an argument. Got %0">,
+    "__builtin_intel_sycl_alloca%select{|_with_align}0 expects a specialization "
+    "constant with a default value of at least one as an argument. Got %1">,
     InGroup<SyclPrivateAllocaPositiveSize>;
+def note_intel_sycl_alloca_aot
+    : Note<"__builtin_intel_sycl_alloca%select{|_with_align}0 cannot be AOT "
+           "compiled">;
 
 // C99 variable-length arrays
 def ext_vla : Extension<"variable length arrays are a C99 feature">,

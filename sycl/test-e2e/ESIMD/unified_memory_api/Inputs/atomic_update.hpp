@@ -670,16 +670,13 @@ template <int N, template <class, int> class Op, bool UseMask,
           bool UseLSCFeatures, bool UseAcc>
 bool test_fp_types(queue q, const Config &cfg) {
   bool passed = true;
-  if constexpr (UseLSCFeatures) {
-    if constexpr (std::is_same_v<Op<sycl::half, N>, ImplFmin<sycl::half, N>> ||
-                  std::is_same_v<Op<sycl::half, N>, ImplFmax<sycl::half, N>> ||
-                  std::is_same_v<Op<sycl::half, N>,
-                                 ImplFcmpwr<sycl::half, N>>) {
-      auto dev = q.get_device();
-      if (dev.has(sycl::aspect::fp16)) {
-        passed &= run_test<UseAcc, sycl::half, N, Op, UseMask, UseLSCFeatures>(
-            q, cfg);
-      }
+  // TODO: Enable FADD/FSUB on DG2/PVC when the error in GPU driver is resolved.
+  if constexpr (UseLSCFeatures &&
+                !std::is_same_v<Op<sycl::half, N>, ImplFadd<sycl::half, N>> &&
+                !std::is_same_v<Op<sycl::half, N>, ImplFsub<sycl::half, N>>) {
+    if (q.get_device().has(sycl::aspect::fp16)) {
+      passed &=
+          run_test<UseAcc, sycl::half, N, Op, UseMask, UseLSCFeatures>(q, cfg);
     }
   }
   passed &= run_test<UseAcc, float, N, Op, UseMask, UseLSCFeatures>(q, cfg);
@@ -688,7 +685,6 @@ bool test_fp_types(queue q, const Config &cfg) {
       q.get_device().has(sycl::aspect::fp64)) {
     passed &= run_test<UseAcc, double, N, Op, UseMask, UseLSCFeatures>(q, cfg);
   }
-
 #endif // CMPXCHG_TEST
   return passed;
 }
@@ -703,7 +699,6 @@ bool test_int_types_and_sizes(queue q, const Config &cfg) {
       test_int_types<2, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(q, cfg);
   passed &=
       test_int_types<4, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(q, cfg);
-
   passed &=
       test_int_types<8, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(q, cfg);
   passed &=
@@ -715,13 +710,10 @@ bool test_int_types_and_sizes(queue q, const Config &cfg) {
   if constexpr (UseLSCFeatures) {
     passed &= test_int_types<64, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(
         q, cfg);
-    // non power of two values are supported only in newer driver.
-    // TODO: Enable this when the new driver reaches test infrastructure
-    // (v27556).
-#if 0
-    passed &= test_int_types<12, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(q, cfg);
-    passed &= test_int_types<33, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(q, cfg);
-#endif
+    passed &= test_int_types<12, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(
+        q, cfg);
+    passed &= test_int_types<33, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(
+        q, cfg);
   }
 
   return passed;
@@ -734,21 +726,14 @@ bool test_fp_types_and_sizes(queue q, const Config &cfg) {
   passed &= test_fp_types<1, Op, UseMask, UseLSCFeatures, UseAcc>(q, cfg);
   passed &= test_fp_types<2, Op, UseMask, UseLSCFeatures, UseAcc>(q, cfg);
   passed &= test_fp_types<4, Op, UseMask, UseLSCFeatures, UseAcc>(q, cfg);
-
   passed &= test_fp_types<8, Op, UseMask, UseLSCFeatures, UseAcc>(q, cfg);
-  // Supported by LSC atomic:
-  if constexpr (UseLSCFeatures) {
-    passed &= test_fp_types<16, Op, UseMask, UseLSCFeatures, UseAcc>(q, cfg);
-    passed &= test_fp_types<32, Op, UseMask, UseLSCFeatures, UseAcc>(q, cfg);
-    passed &= test_fp_types<64, Op, UseMask, UseLSCFeatures, UseAcc>(q, cfg);
+  passed &= test_fp_types<16, Op, UseMask, UseLSCFeatures, UseAcc>(q, cfg);
+  passed &= test_fp_types<32, Op, UseMask, UseLSCFeatures, UseAcc>(q, cfg);
 
-    // non power of two values are supported only in newer driver.
-    // TODO: Enable this when the new driver reaches test infrastructure
-    // (v27556).
-#if 0
+  if constexpr (UseLSCFeatures) {
+    passed &= test_fp_types<64, Op, UseMask, UseLSCFeatures, UseAcc>(q, cfg);
     passed &= test_fp_types<12, Op, UseMask, UseLSCFeatures, UseAcc>(q, cfg);
     passed &= test_fp_types<35, Op, UseMask, UseLSCFeatures, UseAcc>(q, cfg);
-#endif
   }
   return passed;
 }
