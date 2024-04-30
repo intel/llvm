@@ -813,7 +813,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
         UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
         UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL;
-#if __HIP_PLATFORM_NVIDIA__
+#ifdef __HIP_PLATFORM_NVIDIA__
     // Nvidia introduced fence.sc for seq_cst only since SM 7.0.
     int Major = 0;
     UR_CHECK_ERROR(hipDeviceGetAttribute(
