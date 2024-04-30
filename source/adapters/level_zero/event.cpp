@@ -130,7 +130,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
     if (OutEvent) {
       Queue->LastCommandEvent = reinterpret_cast<ur_event_handle_t>(*OutEvent);
 
-      ZE2UR_CALL(zeEventHostSignal, ((*OutEvent)->ZeEvent));
+      if (!(*OutEvent)->CounterBasedEventsEnabled)
+        ZE2UR_CALL(zeEventHostSignal, ((*OutEvent)->ZeEvent));
       (*OutEvent)->Completed = true;
     }
   }
@@ -766,7 +767,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urExtEventCreate(
   UR_CALL(EventCreate(Context, nullptr, false, true, Event));
 
   (*Event)->RefCountExternal++;
-  ZE2UR_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
+  if (!(*Event)->CounterBasedEventsEnabled)
+    ZE2UR_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
   return UR_RESULT_SUCCESS;
 }
 
@@ -784,7 +786,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     UR_CALL(EventCreate(Context, nullptr, false, true, Event));
 
     (*Event)->RefCountExternal++;
-    ZE2UR_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
+    if (!(*Event)->CounterBasedEventsEnabled)
+      ZE2UR_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
     return UR_RESULT_SUCCESS;
   }
 
@@ -1061,9 +1064,12 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
 //
 ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
                         bool IsMultiDevice, bool HostVisible,
-                        ur_event_handle_t *RetEvent) {
-
-  bool ProfilingEnabled = !Queue || Queue->isProfilingEnabled();
+                        ur_event_handle_t *RetEvent,
+                        bool CounterBasedEventEnabled,
+                        bool ForceDisableProfiling) {
+  bool ProfilingEnabled =
+      ForceDisableProfiling ? false : (!Queue || Queue->isProfilingEnabled());
+  bool UsingImmediateCommandlists = !Queue || Queue->UsingImmCmdLists;
 
   ur_device_handle_t Device = nullptr;
 
@@ -1072,7 +1078,7 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
   }
 
   if (auto CachedEvent = Context->getEventFromContextCache(
-          HostVisible, ProfilingEnabled, Device)) {
+          HostVisible, ProfilingEnabled, Device, CounterBasedEventEnabled)) {
     *RetEvent = CachedEvent;
     return UR_RESULT_SUCCESS;
   }
@@ -1083,14 +1089,15 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
   size_t Index = 0;
 
   if (auto Res = Context->getFreeSlotInExistingOrNewPool(
-          ZeEventPool, Index, HostVisible, ProfilingEnabled, Device))
+          ZeEventPool, Index, HostVisible, ProfilingEnabled, Device,
+          CounterBasedEventEnabled, UsingImmediateCommandlists))
     return Res;
 
   ZeStruct<ze_event_desc_t> ZeEventDesc;
   ZeEventDesc.index = Index;
   ZeEventDesc.wait = 0;
 
-  if (HostVisible) {
+  if (HostVisible || CounterBasedEventEnabled) {
     ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
   } else {
     //
@@ -1115,7 +1122,7 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
-
+  (*RetEvent)->CounterBasedEventsEnabled = CounterBasedEventEnabled;
   if (HostVisible)
     (*RetEvent)->HostVisibleEvent =
         reinterpret_cast<ur_event_handle_t>(*RetEvent);
@@ -1137,8 +1144,8 @@ ur_result_t ur_event_handle_t_::reset() {
 
   if (!isHostVisible())
     HostVisibleEvent = nullptr;
-
-  ZE2UR_CALL(zeEventHostReset, (ZeEvent));
+  if (!CounterBasedEventsEnabled)
+    ZE2UR_CALL(zeEventHostReset, (ZeEvent));
   return UR_RESULT_SUCCESS;
 }
 
@@ -1339,7 +1346,8 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
 
           zeCommandListAppendWaitOnEvents(ZeCommandList, 1u,
                                           &EventList[I]->ZeEvent);
-          zeEventHostSignal(MultiDeviceZeEvent);
+          if (!MultiDeviceEvent->CounterBasedEventsEnabled)
+            zeEventHostSignal(MultiDeviceZeEvent);
 
           UR_CALL(Queue->executeCommandList(CommandList, /* IsBlocking */ false,
                                             /* OkToBatchCommand */ true));
