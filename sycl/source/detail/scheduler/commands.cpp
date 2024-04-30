@@ -81,6 +81,7 @@ struct DemangleHandle {
   char *p;
   DemangleHandle(char *ptr) : p(ptr) {}
 
+  DemangleHandle(const DemangleHandle &) = delete;
   DemangleHandle &operator=(const DemangleHandle &) = delete;
 
   ~DemangleHandle() { std::free(p); }

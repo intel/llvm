@@ -8,6 +8,10 @@
 
 #pragma once
 
+#if defined(__clang__)
+#warning "CL/sycl.hpp is deprecated, use sycl/sycl.hpp"
+#endif
+
 #include <sycl/sycl.hpp>
 
 namespace cl {

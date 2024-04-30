@@ -8,9 +8,7 @@
 __CLC_DECLARE_SINCOS(global, __CLC_GENTYPE)
 __CLC_DECLARE_SINCOS(local, __CLC_GENTYPE)
 __CLC_DECLARE_SINCOS(private, __CLC_GENTYPE)
-#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
-    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
-     defined(__opencl_c_generic_address_space))
+#if _CLC_GENERIC_AS_SUPPORTED
 __CLC_DECLARE_SINCOS(generic, __CLC_GENTYPE)
 #endif
 
