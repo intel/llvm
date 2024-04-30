@@ -2875,13 +2875,11 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   StringRef FPExceptionBehavior = "";
   // -ffp-eval-method options: double, extended, source
   StringRef FPEvalMethod = "";
-  const llvm::DenormalMode DefaultDenormalFPMath =
+  llvm::DenormalMode DenormalFPMath =
       TC.getDefaultDenormalModeForType(Args, JA);
-  const llvm::DenormalMode DefaultDenormalFP32Math =
+  llvm::DenormalMode DenormalFP32Math =
       TC.getDefaultDenormalModeForType(Args, JA, &llvm::APFloat::IEEEsingle());
 
-  llvm::DenormalMode DenormalFPMath = DefaultDenormalFPMath;
-  llvm::DenormalMode DenormalFP32Math = DefaultDenormalFP32Math;
   // CUDA and HIP don't rely on the frontend to pass an ffp-contract option.
   // If one wasn't given by the user, don't pass it here.
   StringRef FPContract;
@@ -3039,11 +3037,6 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       SignedZeros = true;
       // -fno_fast_math restores default denormal and fpcontract handling
       FPContract = "on";
-      DenormalFPMath = llvm::DenormalMode::getIEEE();
-
-      // FIXME: The target may have picked a non-IEEE default mode here based on
-      // -cl-denorms-are-zero. Should the target consider -fp-model interaction?
-      DenormalFP32Math = llvm::DenormalMode::getIEEE();
 
       StringRef Val = A->getValue();
       if (OFastEnabled && !Val.equals("fast")) {
@@ -3267,9 +3260,6 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       TrappingMath = true;
       FPExceptionBehavior = "strict";
 
-      // The target may have opted to flush by default, so force IEEE.
-      DenormalFPMath = llvm::DenormalMode::getIEEE();
-      DenormalFP32Math = llvm::DenormalMode::getIEEE();
       if (!JA.isDeviceOffloading(Action::OFK_Cuda) &&
           !JA.isOffloading(Action::OFK_HIP)) {
         if (LastSeenFfpContractOption != "") {
@@ -3300,9 +3290,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       ReciprocalMath = false;
       ApproxFunc = false;
       SignedZeros = true;
-      // -fno_fast_math restores default denormal and fpcontract handling
-      DenormalFPMath = DefaultDenormalFPMath;
-      DenormalFP32Math = llvm::DenormalMode::getIEEE();
+      // -fno_fast_math restores default fpcontract handling
       if (!JA.isDeviceOffloading(Action::OFK_Cuda) &&
           !JA.isOffloading(Action::OFK_HIP)) {
         if (LastSeenFfpContractOption != "") {
@@ -3317,8 +3305,6 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       // subsequent options conflict then emit warning diagnostic.
       if (HonorINFs && HonorNaNs && !AssociativeMath && !ReciprocalMath &&
           SignedZeros && TrappingMath && RoundingFPMath && !ApproxFunc &&
-          DenormalFPMath == llvm::DenormalMode::getIEEE() &&
-          DenormalFP32Math == llvm::DenormalMode::getIEEE() &&
           FPContract.equals("off"))
         // OK: Current Arg doesn't conflict with -ffp-model=strict
         ;
@@ -8296,6 +8282,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.addOptInFlag(CmdArgs, options::OPT_fsafe_buffer_usage_suggestions,
                     options::OPT_fno_safe_buffer_usage_suggestions);
+
+  Args.addOptInFlag(CmdArgs, options::OPT_fexperimental_late_parse_attributes,
+                    options::OPT_fno_experimental_late_parse_attributes);
 
   // Setup statistics file output.
   SmallString<128> StatsFile = getStatsFileName(Args, Output, Input, D);

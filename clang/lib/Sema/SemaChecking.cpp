@@ -3211,13 +3211,20 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
 
     const Expr *Arg = TheCall->getArg(0);
     const auto *TyA = Arg->getType()->getAs<VectorType>();
-    if (!TyA) {
+
+    QualType ElTy;
+    if (TyA)
+      ElTy = TyA->getElementType();
+    else if (Arg->getType()->isSizelessVectorType())
+      ElTy = Arg->getType()->getSizelessVectorEltType(Context);
+
+    if (ElTy.isNull()) {
       Diag(Arg->getBeginLoc(), diag::err_builtin_invalid_arg_type)
           << 1 << /* vector ty*/ 4 << Arg->getType();
       return ExprError();
     }
 
-    TheCall->setType(TyA->getElementType());
+    TheCall->setType(ElTy);
     break;
   }
 
@@ -3233,12 +3240,20 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
 
     const Expr *Arg = TheCall->getArg(0);
     const auto *TyA = Arg->getType()->getAs<VectorType>();
-    if (!TyA || !TyA->getElementType()->isIntegerType()) {
+
+    QualType ElTy;
+    if (TyA)
+      ElTy = TyA->getElementType();
+    else if (Arg->getType()->isSizelessVectorType())
+      ElTy = Arg->getType()->getSizelessVectorEltType(Context);
+
+    if (ElTy.isNull() || !ElTy->isIntegerType()) {
       Diag(Arg->getBeginLoc(), diag::err_builtin_invalid_arg_type)
           << 1  << /* vector of integers */ 6 << Arg->getType();
       return ExprError();
     }
-    TheCall->setType(TyA->getElementType());
+
+    TheCall->setType(ElTy);
     break;
   }
 
@@ -12908,6 +12923,17 @@ CheckPrintfHandler::checkFormatExpr(const analyze_printf::PrintfSpecifier &FS,
     FS.toString(os);
     EmitFormatDiagnostic(S.PDiag(diag::warn_format_bool_as_character)
                              << FSString,
+                         E->getExprLoc(), false, CSR);
+    return true;
+  }
+
+  // Diagnose attempts to use '%P' with ObjC object types, which will result in
+  // dumping raw class data (like is-a pointer), not actual data.
+  if (FS.getConversionSpecifier().getKind() == ConversionSpecifier::PArg &&
+      ExprTy->isObjCObjectPointerType()) {
+    const CharSourceRange &CSR =
+        getSpecifierRange(StartSpecifier, SpecifierLen);
+    EmitFormatDiagnostic(S.PDiag(diag::warn_format_P_with_objc_pointer),
                          E->getExprLoc(), false, CSR);
     return true;
   }
