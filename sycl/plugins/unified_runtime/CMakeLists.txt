@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 717791bfc636a1cd69f95f09fea15fcd70a9fb23
-  # Merge: 601062ba f8c4facd
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Fri Apr 19 10:35:14 2024 +0100
-  #    Merge pull request #1517 from nrspruit/fix_l0_coverity_sync
-  #    [L0] Store LastCommandEvent before unlock during queue sync
-  set(UNIFIED_RUNTIME_TAG 717791bfc636a1cd69f95f09fea15fcd70a9fb23)
+  # commit 7371150b3a525d9c69a0790f9abf59089eb0c46c
+  # Merge: cb44d9ab bb45b7c5
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Fri Apr 26 15:44:19 2024 +0100
+  #    Merge pull request #1442 from Bensuo/ben/optimize-cmdbuffer-submission
+  #    [EXP][Command-Buffer] Optimize L0 command buffer submission
+  set(UNIFIED_RUNTIME_TAG 7371150b3a525d9c69a0790f9abf59089eb0c46c)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

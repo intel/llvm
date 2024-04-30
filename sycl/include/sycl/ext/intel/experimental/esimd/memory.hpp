@@ -11,6 +11,7 @@
 #pragma once
 
 #include <sycl/ext/intel/esimd/common.hpp>
+#include <sycl/ext/intel/esimd/detail/util.hpp>
 #include <sycl/ext/intel/esimd/memory.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/memory_intrin.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/util.hpp>
@@ -783,7 +784,7 @@ __ESIMD_API
                __ESIMD_NS::simd_mask<N> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_gather<T, NElts, DS, L1H, L2H>(
-      reinterpret_cast<T *>(acc.get_pointer().get()), offsets, pred);
+      __ESIMD_DNS::accessorToPointer<T>(acc), offsets, pred);
 #else
   __ESIMD_NS::simd<T, N * NElts> PassThru; // Intentionally uninitialized.
   using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;
@@ -858,7 +859,8 @@ __ESIMD_API
                __ESIMD_NS::simd<T, N * NElts> pass_thru) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_gather<T, NElts, DS, L1H, L2H>(
-      reinterpret_cast<T *>(acc.get_pointer().get()), offsets, pred, pass_thru);
+      reinterpret_cast<T *>(__ESIMD_DNS::accessorToPointer<T>(acc)), offsets,
+      pred, pass_thru);
 
 #else
   using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;
@@ -1266,21 +1268,36 @@ lsc_prefetch(const T *p, Toffset offset, __ESIMD_NS::simd_mask<N> pred = 1) {
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load.ugm
 ///
-/// Prefetches elements located at specified address.
+/// Prefetches elements located at contiguous block of memory of `NElts * S`
+/// bytes  starting from given address, where S is a byte size of an "element"
+/// defined by the \c DS template parameter. The maximum size of prefetched
+/// block is 512 bytes for PVC and 256 bytes for ACM (DG2). When sizeof(T) equal
+/// to 8 the address must be 8-byte aligned. Also, 8-bytes alignment is required
+/// when the function has to load more than 256-bytes. In all other cases 4-byte
+/// alignment is required. When T is 1- or 2-byte type the data is treated as
+/// 4-byte data. Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16,
+/// 32, 64. Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32,
+/// 64, 128. Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64,
+/// 128, 256. Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64,
+/// 128, 256, 512.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
 /// @tparam DS is the data size.
 /// @tparam L1H is L1 cache hint.
 /// @tparam L2H is L2 cache hint.
+/// @tparam FlagsT is the alignment specifier type tag.
 /// @param p is the base pointer.
 ///
 template <typename T, int NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none>
-__ESIMD_API void lsc_prefetch(const T *p) {
+          cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none,
+          typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
+__ESIMD_API std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>>
+lsc_prefetch(const T *p, FlagsT = {}) {
   __ESIMD_NS::simd_mask<1> Mask = 1;
-  using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;
+  using PropertyListT = __ESIMD_DNS::make_L1_L2_alignment_properties_t<
+      L1H, L2H, FlagsT::template alignment<__ESIMD_NS::simd<T, NElts>>>;
   __ESIMD_DNS::prefetch_impl<T, NElts, DS, PropertyListT>(p, 0, Mask);
 }
 
@@ -1339,13 +1356,25 @@ lsc_prefetch(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load.ugm
 ///
-/// Prefetches elements located at surface.
+/// Prefetches elements located at surface of `NElts * S`
+/// bytes starting from given offset, where S is a byte size of an "element"
+/// defined by the \c DS template parameter. The maximum size of accessed block
+/// is 512 bytes for PVC and 256 bytes for ACM (DG2). When sizeof(T) equal to 8
+/// the address must be 8-byte aligned. Also, 8-bytes alignment is required when
+/// the function has to load more than 256-bytes. In all other cases 4-byte
+/// alignment is required. When T is 1- or 2-byte type the data is treated as
+/// 4-byte data. Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16,
+/// 32, 64. Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32,
+/// 64, 128. Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64,
+/// 128, 256. Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64,
+/// 128, 256, 512.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
 /// @tparam DS is the data size.
 /// @tparam L1H is L1 cache hint.
 /// @tparam L2H is L2 cache hint.
+/// @tparam FlagsT is the alignment specifier type tag.
 /// @tparam AccessorTy is the \ref sycl::accessor type.
 /// @param acc is the SYCL accessor.
 /// @param offset is the zero-based offset in bytes.
@@ -1353,16 +1382,21 @@ lsc_prefetch(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
 template <typename T, int NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none,
+          typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag,
           typename AccessorTy>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_device_accessor_with_v<
-    AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read>>
-lsc_prefetch(AccessorTy acc, __ESIMD_DNS::DeviceAccessorOffsetT offset) {
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::is_device_accessor_with_v<
+        AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read> &&
+    __ESIMD_NS::is_simd_flag_type_v<FlagsT>>
+lsc_prefetch(AccessorTy acc, __ESIMD_DNS::DeviceAccessorOffsetT offset,
+             FlagsT flags = FlagsT{}) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   lsc_prefetch<T, NElts, DS, L1H, L2H>(
-      __ESIMD_DNS::accessorToPointer<T>(acc, offset));
+      __ESIMD_DNS::accessorToPointer<T>(acc, offset), flags);
 #else
   __ESIMD_NS::simd_mask<1> Mask = 1;
-  using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;
+  using PropertyListT = __ESIMD_DNS::make_L1_L2_alignment_properties_t<
+      L1H, L2H, FlagsT::template alignment<__ESIMD_NS::simd<T, NElts>>>;
   __ESIMD_DNS::prefetch_impl<T, NElts, DS, PropertyListT>(acc, offset, Mask);
 #endif
 }

@@ -33,10 +33,14 @@
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/ScopeInfo.h"
+#include "clang/Sema/SemaCUDA.h"
 #include "clang/Sema/SemaInternal.h"
+#include "clang/Sema/SemaOpenMP.h"
+#include "clang/Sema/SemaSYCL.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLForwardCompat.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
@@ -2275,11 +2279,9 @@ Sema::CheckObjCForCollectionOperand(SourceLocation forLoc, Expr *collection) {
     // Otherwise, if we have any useful type information, check that
     // the type declares the appropriate method.
   } else if (iface || !objectType->qual_empty()) {
-    IdentifierInfo *selectorIdents[] = {
-      &Context.Idents.get("countByEnumeratingWithState"),
-      &Context.Idents.get("objects"),
-      &Context.Idents.get("count")
-    };
+    const IdentifierInfo *selectorIdents[] = {
+        &Context.Idents.get("countByEnumeratingWithState"),
+        &Context.Idents.get("objects"), &Context.Idents.get("count")};
     Selector selector = Context.Selectors.getSelector(3, &selectorIdents[0]);
 
     ObjCMethodDecl *method = nullptr;
@@ -3097,7 +3099,7 @@ StmtResult Sema::BuildCXXForRangeStmt(
   // In OpenMP loop region loop control variable must be private. Perform
   // analysis of first part (if any).
   if (getLangOpts().OpenMP >= 50 && BeginDeclStmt.isUsable())
-    ActOnOpenMPLoopInitialization(ForLoc, BeginDeclStmt.get());
+    OpenMP().ActOnOpenMPLoopInitialization(ForLoc, BeginDeclStmt.get());
 
   return new (Context) CXXForRangeStmt(
       InitStmt, RangeDS, cast_or_null<DeclStmt>(BeginDeclStmt.get()),
@@ -4575,13 +4577,13 @@ StmtResult Sema::ActOnCXXTryBlock(SourceLocation TryLoc, Stmt *TryBlock,
 
   // Exceptions aren't allowed in CUDA device code.
   if (getLangOpts().CUDA)
-    CUDADiagIfDeviceCode(TryLoc, diag::err_cuda_device_exceptions)
-        << "try" << CurrentCUDATarget();
+    CUDA().DiagIfDeviceCode(TryLoc, diag::err_cuda_device_exceptions)
+        << "try" << llvm::to_underlying(CUDA().CurrentTarget());
 
   // Exceptions aren't allowed in SYCL device code.
   if (getLangOpts().SYCLIsDevice)
-    SYCLDiagIfDeviceCode(TryLoc, diag::err_sycl_restrict)
-        << KernelUseExceptions;
+    SYCL().DiagIfDeviceCode(TryLoc, diag::err_sycl_restrict)
+        << SemaSYCL::KernelUseExceptions;
 
   if (getCurScope() && getCurScope()->isOpenMPSimdDirectiveScope())
     Diag(TryLoc, diag::err_omp_simd_region_cannot_use_stmt) << "try";
@@ -4693,8 +4695,8 @@ StmtResult Sema::ActOnSEHTryBlock(bool IsCXXTry, SourceLocation TryLoc,
 
   // Exceptions aren't allowed in SYCL device code.
   if (getLangOpts().SYCLIsDevice)
-    SYCLDiagIfDeviceCode(TryLoc, diag::err_sycl_restrict)
-        << KernelUseExceptions;
+    SYCL().DiagIfDeviceCode(TryLoc, diag::err_sycl_restrict)
+        << SemaSYCL::KernelUseExceptions;
 
   FSI->setHasSEHTry(TryLoc);
 
@@ -4712,7 +4714,7 @@ StmtResult Sema::ActOnSEHTryBlock(bool IsCXXTry, SourceLocation TryLoc,
   // Reject __try on unsupported targets.
   if (!Context.getTargetInfo().isSEHTrySupported()) {
     if (getLangOpts().SYCLIsDevice)
-      SYCLDiagIfDeviceCode(TryLoc, diag::err_seh_try_unsupported);
+      SYCL().DiagIfDeviceCode(TryLoc, diag::err_seh_try_unsupported);
     else
       Diag(TryLoc, diag::err_seh_try_unsupported);
   }
@@ -4836,7 +4838,8 @@ buildCapturedStmtCaptureList(Sema &S, CapturedRegionScopeInfo *RSI,
       assert(Cap.isVariableCapture() && "unknown kind of capture");
 
       if (S.getLangOpts().OpenMP && RSI->CapRegionKind == CR_OpenMP)
-        S.setOpenMPCaptureKind(Field, Cap.getVariable(), RSI->OpenMPLevel);
+        S.OpenMP().setOpenMPCaptureKind(Field, Cap.getVariable(),
+                                        RSI->OpenMPLevel);
 
       Captures.push_back(CapturedStmt::Capture(
           Cap.getLocation(),
