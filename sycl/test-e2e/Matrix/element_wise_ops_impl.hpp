@@ -133,6 +133,7 @@ int main() {
       // IGC
       passed &= test<bfloat16, float, 16, 16, 16, 2, class pvc_bf16_16x16x16>();
       passed &= test<bfloat16, float, 32, 64, 16, 2, class pvc_bf16_32x64x16>();
+      passed &= test<bfloat16, float, 32, 64, 32, 2, class pvc_bf16_32x64x32>();
 #endif
       break;
     }
