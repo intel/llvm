@@ -29,6 +29,7 @@ option(UR_BUILD_TESTS "Build unit tests." ON)
 option(UR_BUILD_TOOLS "build ur tools" ON)
 option(UR_FORMAT_CPP_STYLE "format code style of C++ sources" OFF)
 option(UR_DEVELOPER_MODE "enable developer checks, treats warnings as errors" OFF)
+option(UR_ENABLE_FAST_SPEC_MODE "enable fast specification generation mode" OFF)
 option(UR_USE_ASAN "enable AddressSanitizer" OFF)
 option(UR_USE_UBSAN "enable UndefinedBehaviorSanitizer" OFF)
 option(UR_USE_MSAN "enable MemorySanitizer" OFF)
@@ -292,7 +293,10 @@ if(UR_FORMAT_CPP_STYLE)
     # Generate source from the specification
     add_custom_target(generate-code USES_TERMINAL
         WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/scripts
-        COMMAND ${Python3_EXECUTABLE} run.py --api-json ${API_JSON_FILE} --clang-format=${CLANG_FORMAT}
+        COMMAND ${Python3_EXECUTABLE} run.py
+            --api-json ${API_JSON_FILE}
+            --clang-format=${CLANG_FORMAT}
+            $<$<BOOL:${UR_ENABLE_FAST_SPEC_MODE}>:--fast-mode>
         COMMAND ${Python3_EXECUTABLE} json2src.py --api-json ${API_JSON_FILE} ${PROJECT_SOURCE_DIR}
     )
 
