@@ -14,9 +14,6 @@ on:
     types:
       - completed
 
-permissions:
-  contents: read
-
 jobs:
   create-check:
     runs-on: [Linux, build]
