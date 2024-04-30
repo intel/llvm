@@ -297,7 +297,7 @@ jobs:
         fi
         exit $exit_code
     - name: List excluded SYCL CTS categories
-      if: inputs.tests_selector == 'cts'
+      if: inputs.tests_selector == 'cts' && env.CTS_TESTS_TO_BUILD == ''
       run: |
         cat $PWD/devops/cts_exclude_filter
     - name: Build SYCL CTS tests
