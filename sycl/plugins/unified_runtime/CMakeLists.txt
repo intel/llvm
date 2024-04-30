@@ -94,14 +94,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 7371150b3a525d9c69a0790f9abf59089eb0c46c
-  # Merge: cb44d9ab bb45b7c5
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Apr 26 15:44:19 2024 +0100
-  #    Merge pull request #1442 from Bensuo/ben/optimize-cmdbuffer-submission
-  #    [EXP][Command-Buffer] Optimize L0 command buffer submission
-  set(UNIFIED_RUNTIME_TAG 7371150b3a525d9c69a0790f9abf59089eb0c46c)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/pbalcer/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG 6015a3252439477b1557a9fad1348515e86d53e7)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
