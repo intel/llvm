@@ -8022,9 +8022,12 @@ Action *Driver::ConstructPhaseAction(
     if (Args.hasArg(options::OPT_fsycl) && HostPPType != types::TY_INVALID &&
         !Args.hasArg(options::OPT_fno_sycl_use_footer) &&
         TargetDeviceOffloadKind == Action::OFK_None &&
-        Input->getType() != types::TY_CUDA_DEVICE) {
+        Input->getType() != types::TY_CUDA_DEVICE &&
+        Args.hasArg(options::OPT_fsycl_host_compiler_EQ)) {
       // Performing a host compilation with -fsycl.  Append the integration
-      // footer to the source file.
+      // footer to the source file.  We only need to do this when using
+      // an external host compiler.  The clang compiler supports the ability
+      // to pull in the footer via an include-footer option.
       auto *AppendFooter =
           C.MakeAction<AppendFooterJobAction>(Input, Input->getType());
       // FIXME: There are 2 issues with dependency generation in regards to
