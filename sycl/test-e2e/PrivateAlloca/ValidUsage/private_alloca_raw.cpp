@@ -56,4 +56,8 @@ private:
   bool no_less_than_zero;
 };
 
-int main() { test<value_and_sign, size, sycl::access::decorated::no>(); }
+int main() {
+  test<value_and_sign, size, sycl::access::decorated::no>();
+  test<value_and_sign, size, sycl::access::decorated::no,
+       alignof(value_and_sign) * 2>();
+}

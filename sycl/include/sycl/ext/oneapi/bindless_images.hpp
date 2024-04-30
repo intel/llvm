@@ -24,6 +24,10 @@
 #include <stddef.h>    // for size_t
 #include <type_traits> // for is_scalar
 
+#ifdef __SYCL_DEVICE_ONLY__
+#include <sycl/detail/image_ocl_types.hpp> // for __invoke__*
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {

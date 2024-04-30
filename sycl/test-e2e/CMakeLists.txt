@@ -28,7 +28,7 @@ find_package(Vulkan)
 
 if(NOT LLVM_LIT)
   find_program(LLVM_LIT
-               NAMES llvm-lit lit.py lit
+               NAMES llvm-lit.py llvm-lit lit.py lit
                PATHS "${LLVM_MAIN_SRC_DIR}/utils/lit"
                DOC "Path to lit.py")
 endif()

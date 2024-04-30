@@ -14,6 +14,7 @@
 
 #include <stddef.h> // for size_t
 #include <stdint.h> // for uint32_t
+#include <type_traits>
 
 // Convergent attribute
 #ifdef __SYCL_DEVICE_ONLY__
