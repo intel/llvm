@@ -910,14 +910,14 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
       auto res_slm_atomic_0 =
           slm_atomic_update<atomic_op::add, int16_t>(offsets, add);
     }
-    // Expect DWORD for fmin.
+    // Expect LSC for fmin.
     {
       constexpr int VL = 16;
       simd<uint32_t, VL> offsets = simd<uint32_t, VL>(1) * sizeof(float);
       auto pred = simd_mask<VL>(1);
       simd<float, VL> min = simd<float, VL>(1) * sizeof(int);
 
-      // CHECK: call <16 x float> @llvm.genx.dword.atomic.fmin.v16f32.v16i1.v16i32(<16 x i1> {{[^)]+}}, i32 {{[^)]+}}, <16 x i32> {{[^)]+}}, <16 x float> {{[^)]+}}, <16 x float> undef)
+      // CHECK: call <16 x float> @llvm.genx.lsc.xatomic.slm.v16f32.v16i1.v16i32(<16 x i1> {{[^)]+}}, i8 21, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <16 x i32> {{[^)]+}}, <16 x float> {{[^)]+}}, <16 x float> undef, i32 0, <16 x float> undef)
       auto res_slm_atomic_0 =
           slm_atomic_update<atomic_op::fmin, float>(offsets, min, pred);
     }
@@ -1036,6 +1036,19 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
 
       // CHECK: call <16 x i64> @llvm.genx.lsc.xatomic.slm.v16i64.v16i1.v16i32(<16 x i1> {{[^)]+}}, i8 18, i8 0, i8 0, i16 1, i32 0, i8 4, i8 1, i8 1, i8 0, <16 x i32> {{[^)]+}}, <16 x i64> {{[^)]+}}, <16 x i64> {{[^)]+}}, i32 0, <16 x i64> undef)
       auto res_slm_atomic_0 = slm_atomic_update<atomic_op::cmpxchg, int64_t>(
+          offsets, swap, compare, pred);
+    }
+
+    // Expect LSC for FP types.
+    {
+      constexpr int VL = 16;
+      simd<uint32_t, VL> offsets = simd<uint32_t, VL>(1) * sizeof(int64_t);
+      auto compare = simd<float, VL>(VL, 1);
+      auto swap = compare * 2;
+      auto pred = simd_mask<VL>(1);
+
+      // CHECK: call <16 x float> @llvm.genx.lsc.xatomic.slm.v16f32.v16i1.v16i32(<16 x i1> {{[^)]+}} i8 23, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <16 x i32> {{[^)]+}}, <16 x float> {{[^)]+}}, <16 x float> {{[^)]+}}, i32 0, <16 x float> undef)
+      auto res_slm_atomic_0 = slm_atomic_update<atomic_op::fcmpxchg, float>(
           offsets, swap, compare, pred);
     }
   }
