@@ -8,28 +8,27 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>             // for placeholder
-#include <sycl/backend_types.hpp>             // for backend, backe...
-#include <sycl/context.hpp>                   // for context
-#include <sycl/detail/array.hpp>              // for array
-#include <sycl/detail/common.hpp>             // for code_location
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEP...
-#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <sycl/detail/helpers.hpp>            // for buffer_impl
-#include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
+#include <sycl/access/access.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/array.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/detail/is_device_copyable.hpp>
+#include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/pi.h> // for pi_native_handle and PI_ERROR_INVAL
-#include <sycl/detail/property_helper.hpp> // for PropWithDataKind
-#include <sycl/detail/stl_type_traits.hpp> // for iterator_value...
-#include <sycl/detail/stl_type_traits.hpp> // for iterator_to_const_type_t
-#include <sycl/detail/sycl_mem_obj_allocator.hpp>     // for SYCLMemObjAllo...
-#include <sycl/detail/type_traits.hpp>                // for remove_pointer_t
-#include <sycl/event.hpp>                             // for event
-#include <sycl/exception.hpp>                         // for invalid_object...
-#include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_prope...
-#include <sycl/id.hpp>                                // for id
-#include <sycl/property_list.hpp>                     // for property_list
-#include <sycl/range.hpp>                             // for range, rangeTo...
-#include <sycl/types.hpp>                             // for is_device_copyable
+#include <sycl/detail/property_helper.hpp>
+#include <sycl/detail/stl_type_traits.hpp>
+#include <sycl/detail/sycl_mem_obj_allocator.hpp>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/event.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/ext/oneapi/accessor_property_list.hpp>
+#include <sycl/id.hpp>
+#include <sycl/property_list.hpp>
+#include <sycl/range.hpp>
 
 #include <cstddef>     // for size_t, nullptr_t
 #include <functional>  // for function

@@ -62,6 +62,7 @@
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaInternal.h"
+#include "clang/Sema/SemaSYCL.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/APSInt.h"
@@ -625,7 +626,7 @@ struct BuiltinDumpStructGenerator {
     for (auto *D : RD->decls()) {
       auto *IFD = dyn_cast<IndirectFieldDecl>(D);
       auto *FD = IFD ? IFD->getAnonField() : dyn_cast<FieldDecl>(D);
-      if (!FD || FD->isUnnamedBitfield() || FD->isAnonymousStructOrUnion())
+      if (!FD || FD->isUnnamedBitField() || FD->isAnonymousStructOrUnion())
         continue;
 
       llvm::SmallString<20> Format = llvm::StringRef("%s%s %s ");
@@ -3276,6 +3277,17 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     if (BuiltinCountZeroBitsGeneric(*this, TheCall))
       return ExprError();
     break;
+
+  case Builtin::BI__builtin_allow_runtime_check: {
+    Expr *Arg = TheCall->getArg(0);
+    // Check if the argument is a string literal.
+    if (!isa<StringLiteral>(Arg->IgnoreParenImpCasts())) {
+      Diag(TheCall->getBeginLoc(), diag::err_expr_not_string_literal)
+          << Arg->getSourceRange();
+      return ExprError();
+    }
+    break;
+  }
   }
 
   if (getLangOpts().HLSL && CheckHLSLBuiltinFunctionCall(BuiltinID, TheCall))
@@ -3295,8 +3307,8 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
 
       // Detect when host builtins are used in device code only
       if (getLangOpts().SYCLIsDevice)
-        SYCLDiagIfDeviceCode(TheCall->getBeginLoc(),
-                             diag::err_builtin_target_unsupported);
+        SYCL().DiagIfDeviceCode(TheCall->getBeginLoc(),
+                                diag::err_builtin_target_unsupported);
     } else {
       if (CheckTSBuiltinFunctionCall(Context.getTargetInfo(), BuiltinID,
                                      TheCall))
@@ -7838,7 +7850,7 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
       return true;
     Ty = Ty->getPointeeType();
     return !(Ty.getQualifiers().empty() &&
-             isSyclType(Ty, SYCLTypeAttr::kernel_handler));
+             SemaSYCL::isSyclType(Ty, SYCLTypeAttr::kernel_handler));
   };
   if (CheckArg(FD->getParamDecl(0)->getType())) {
     Diag(Loc, diag::err_intel_sycl_alloca_wrong_arg)
@@ -7850,7 +7862,7 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
   // sycl::access::address_space::private_space, DecoratedAddress>`:
   // - `ET`: cv-unqualified trivial type
   constexpr auto CheckType = [](QualType RT, const ASTContext &Ctx) {
-    if (!isSyclType(RT, SYCLTypeAttr::multi_ptr))
+    if (!SemaSYCL::isSyclType(RT, SYCLTypeAttr::multi_ptr))
       return true;
     // Check element type
     const TemplateArgumentList &TAL =
@@ -7875,7 +7887,7 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
     if (Ty.isNull() || !Ty->isReferenceType())
       return true;
     Ty = Ty->getPointeeType();
-    if (!isSyclType(Ty, SYCLTypeAttr::specialization_id))
+    if (!SemaSYCL::isSyclType(Ty, SYCLTypeAttr::specialization_id))
       return true;
     const TemplateArgumentList &TAL =
         cast<ClassTemplateSpecializationDecl>(Ty->getAsCXXRecordDecl())
@@ -7902,7 +7914,6 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
 
   return false;
 }
-
 /// Given a FunctionDecl's FormatAttr, attempts to populate the FomatStringInfo
 /// parameter with the FormatAttr's correct format_idx and firstDataArg.
 /// Returns true when the format fits the function and the FormatStringInfo has
@@ -8268,7 +8279,6 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
     // For variadic functions, we may have more args than parameters.
     // For some K&R functions, we may have less args than parameters.
     const auto N = std::min<unsigned>(Proto->getNumParams(), Args.size());
-    bool AnyScalableArgsOrRet = Proto->getReturnType()->isSizelessVectorType();
     for (unsigned ArgIdx = 0; ArgIdx < N; ++ArgIdx) {
       // Args[ArgIdx] can be null in malformed code.
       if (const Expr *Arg = Args[ArgIdx]) {
@@ -8282,8 +8292,6 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
           checkAIXMemberAlignment((Arg->getExprLoc()), Arg);
 
         QualType ParamTy = Proto->getParamType(ArgIdx);
-        if (ParamTy->isSizelessVectorType())
-          AnyScalableArgsOrRet = true;
         QualType ArgTy = Arg->getType();
         CheckArgAlignment(Arg->getExprLoc(), FDecl, std::to_string(ArgIdx + 1),
                           ArgTy, ParamTy);
@@ -8304,23 +8312,6 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
       }
     }
 
-    // If the call requires a streaming-mode change and has scalable vector
-    // arguments or return values, then warn the user that the streaming and
-    // non-streaming vector lengths may be different.
-    const auto *CallerFD = dyn_cast<FunctionDecl>(CurContext);
-    if (CallerFD && (!FD || !FD->getBuiltinID()) && AnyScalableArgsOrRet) {
-      bool IsCalleeStreaming =
-          ExtInfo.AArch64SMEAttributes & FunctionType::SME_PStateSMEnabledMask;
-      bool IsCalleeStreamingCompatible =
-          ExtInfo.AArch64SMEAttributes &
-          FunctionType::SME_PStateSMCompatibleMask;
-      ArmStreamingType CallerFnType = getArmStreamingFnType(CallerFD);
-      if (!IsCalleeStreamingCompatible &&
-          (CallerFnType == ArmStreamingCompatible ||
-           ((CallerFnType == ArmStreaming) ^ IsCalleeStreaming)))
-        Diag(Loc, diag::warn_sme_streaming_pass_return_vl_to_non_streaming);
-    }
-
     FunctionType::ArmStateValue CalleeArmZAState =
         FunctionType::getArmZAState(ExtInfo.AArch64SMEAttributes);
     FunctionType::ArmStateValue CalleeArmZT0State =
@@ -8329,7 +8320,7 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
         CalleeArmZT0State != FunctionType::ARM_None) {
       bool CallerHasZAState = false;
       bool CallerHasZT0State = false;
-      if (CallerFD) {
+      if (const auto *CallerFD = dyn_cast<FunctionDecl>(CurContext)) {
         auto *Attr = CallerFD->getAttr<ArmNewAttr>();
         if (Attr && Attr->isNewZA())
           CallerHasZAState = true;
@@ -8383,13 +8374,13 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
     diagnoseArgDependentDiagnoseIfAttrs(FD, ThisArg, Args, Loc);
 
   if (FD && FD->hasAttr<SYCLKernelAttr>())
-    CheckSYCLKernelCall(FD, Args);
+    SYCL().CheckSYCLKernelCall(FD, Args);
 
   // Diagnose variadic calls in SYCL.
   if (FD && FD->isVariadic() && getLangOpts().SYCLIsDevice &&
-      !isUnevaluatedContext() && !isDeclAllowedInSYCLDeviceCode(FD))
-    SYCLDiagIfDeviceCode(Loc, diag::err_sycl_restrict)
-        << Sema::KernelCallVariadicFunction;
+      !isUnevaluatedContext() && !SYCL().isDeclAllowedInSYCLDeviceCode(FD))
+    SYCL().DiagIfDeviceCode(Loc, diag::err_sycl_restrict)
+        << SemaSYCL::KernelCallVariadicFunction;
 }
 
 /// CheckConstructorCall - Check a constructor call for correctness and safety
@@ -16594,7 +16585,8 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
                   S.Context.getFloatTypeSemantics(QualType(TargetBT, 0)),
                   S.Context.getFloatTypeSemantics(QualType(SourceBT, 0)))) {
             if (S.getLangOpts().SYCLIsDevice)
-              S.SYCLDiagIfDeviceCode(CC, diag::warn_imp_float_size_conversion);
+              S.SYCL().DiagIfDeviceCode(CC,
+                                        diag::warn_imp_float_size_conversion);
             else
               DiagnoseImpCast(S, E, T, CC,
                               diag::warn_imp_float_size_conversion);
@@ -16610,7 +16602,7 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
         // warning.
         if (S.Diags.isIgnored(diag::warn_impcast_float_precision, CC)) {
           if (S.getLangOpts().SYCLIsDevice)
-            S.SYCLDiagIfDeviceCode(CC, diag::warn_imp_float_size_conversion);
+            S.SYCL().DiagIfDeviceCode(CC, diag::warn_imp_float_size_conversion);
           else
             DiagnoseImpCast(S, E, T, CC, diag::warn_imp_float_size_conversion);
         }
@@ -20053,6 +20045,27 @@ static bool isLayoutCompatible(ASTContext &C, QualType T1, QualType T2) {
 
 bool Sema::IsLayoutCompatible(QualType T1, QualType T2) const {
   return isLayoutCompatible(getASTContext(), T1, T2);
+}
+
+//===-------------- Pointer interconvertibility ----------------------------//
+
+bool Sema::IsPointerInterconvertibleBaseOf(const TypeSourceInfo *Base,
+                                           const TypeSourceInfo *Derived) {
+  QualType BaseT = Base->getType()->getCanonicalTypeUnqualified();
+  QualType DerivedT = Derived->getType()->getCanonicalTypeUnqualified();
+
+  if (BaseT->isStructureOrClassType() && DerivedT->isStructureOrClassType() &&
+      getASTContext().hasSameType(BaseT, DerivedT))
+    return true;
+
+  if (!IsDerivedFrom(Derived->getTypeLoc().getBeginLoc(), DerivedT, BaseT))
+    return false;
+
+  // Per [basic.compound]/4.3, containing object has to be standard-layout.
+  if (DerivedT->getAsCXXRecordDecl()->isStandardLayout())
+    return true;
+
+  return false;
 }
 
 //===--- CHECK: pointer_with_type_tag attribute: datatypes should match ----//
