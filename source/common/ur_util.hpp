@@ -281,6 +281,49 @@ inline ur_result_t exceptionToResult(std::exception_ptr eptr) {
 
 template <class> inline constexpr bool ur_always_false_t = false;
 
+namespace {
+// Compile-time map, mapping a UR list node type, to the enum tag type
+// These are helpers for the `find_stype_node` helper below
+template <ur_structure_type_t val> struct stype_map_impl {
+    static constexpr ur_structure_type_t value = val;
+};
+
+template <typename T> struct stype_map {};
+// contains definitions of the map specializations e.g.
+// template <> struct stype_map<ur_usm_device_desc_t> :
+// stype_map_impl<UR_STRUCTURE_TYPE_USM_DEVICE_DESC> {};
+#include "stype_map_helpers.def"
+
+template <typename T> constexpr int as_stype() { return stype_map<T>::value; };
+
+/// Walk a generic UR linked list looking for a node of the given type. If it's
+/// found, its address is returned, othewise `nullptr`. e.g. to find out whether
+/// a `ur_usm_host_desc_t` exists in the given polymorphic list, `mylist`:
+///
+/// ```cpp
+/// auto *node = find_stype_node<ur_usm_host_desc_t>(mylist);
+/// if (!node)
+///   printf("node of expected type not found!\n");
+/// ```
+template <typename T, typename P>
+typename std::conditional_t<std::is_const_v<std::remove_pointer_t<P>>,
+                            const T *, T *>
+find_stype_node(P list_head) noexcept {
+    auto *list = reinterpret_cast<const T *>(list_head);
+    for (const auto *next = reinterpret_cast<const T *>(list); next;
+         next = reinterpret_cast<const T *>(next->pNext)) {
+        if (next->stype == as_stype<T>()) {
+            if constexpr (!std::is_const_v<P>) {
+                return const_cast<T *>(next);
+            } else {
+                return next;
+            }
+        }
+    }
+    return nullptr;
+}
+} // namespace
+
 namespace ur {
 [[noreturn]] inline void unreachable() {
 #ifdef _MSC_VER
