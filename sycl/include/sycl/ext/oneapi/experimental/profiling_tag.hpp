@@ -8,7 +8,9 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/event.hpp>
+#include <sycl/handler.hpp>
 #include <sycl/properties/queue_properties.hpp>
 #include <sycl/queue.hpp>
 
