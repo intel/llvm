@@ -39,3 +39,7 @@ lit.llvm.initialize(lit_config, config)
 
 # Let the main config do the real work.
 lit_config.load_config(config, "@SYCL_SOURCE_DIR@/test/lit.cfg.py")
+
+
+import site
+site.addsitedir("@CMAKE_CURRENT_SOURCE_DIR@")
