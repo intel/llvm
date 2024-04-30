@@ -365,10 +365,12 @@ template <typename Type, int NumElements> class vec {
   // in the class, so vec<float, 16> should be equal to float16 in memory.
   using DataType = typename detail::VecStorage<DataT, NumElements>::DataType;
 
+#ifdef __SYCL_DEVICE_ONLY__
+  static constexpr bool IsHostHalf = false;
+#else
   static constexpr bool IsHostHalf =
-      std::is_same_v<DataT, sycl::detail::half_impl::half> &&
-      std::is_same_v<sycl::detail::half_impl::StorageT,
-                     sycl::detail::host_half_impl::half>;
+      std::is_same_v<DataT, sycl::detail::half_impl::half>;
+#endif
 
   static constexpr bool IsBfloat16 =
       std::is_same_v<DataT, sycl::ext::oneapi::bfloat16>;
