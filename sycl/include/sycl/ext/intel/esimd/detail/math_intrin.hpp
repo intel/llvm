@@ -26,6 +26,55 @@
 #define __ESIMD_cpp_vec_t(T, SZ)                                               \
   __ESIMD_DNS::vector_type_t<__ESIMD_DNS::__cpp_t<T>, SZ>
 
+template <typename T>
+__ESIMD_INTRIN T __spirv_ocl_native_exp2(T) __ESIMD_INTRIN_END;
+template <typename T, int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_native_exp2(__ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
+
+template <typename T>
+__ESIMD_INTRIN T __spirv_ocl_native_recip(T) __ESIMD_INTRIN_END;
+template <typename T, int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_native_recip(__ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
+
+template <typename T>
+__ESIMD_INTRIN T __spirv_ocl_native_cos(T) __ESIMD_INTRIN_END;
+template <typename T, int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_native_cos(__ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
+
+template <typename T>
+__ESIMD_INTRIN T __spirv_ocl_native_log2(T) __ESIMD_INTRIN_END;
+template <typename T, int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_native_log2(__ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
+
+template <typename T>
+__ESIMD_INTRIN T __spirv_ocl_native_rsqrt(T) __ESIMD_INTRIN_END;
+template <typename T, int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_native_rsqrt(__ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
+
+template <typename T>
+__ESIMD_INTRIN T __spirv_ocl_native_sin(T) __ESIMD_INTRIN_END;
+template <typename T, int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_native_sin(__ESIMD_raw_vec_t(T, N));
+
+template <typename T>
+__ESIMD_INTRIN T __spirv_ocl_native_sqrt(T) __ESIMD_INTRIN_END;
+template <typename T, int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_native_sqrt(__ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
+
+template <typename T>
+__ESIMD_INTRIN T __spirv_ocl_native_powr(T, T) __ESIMD_INTRIN_END;
+template <typename T, int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_native_powr(__ESIMD_raw_vec_t(T, N),
+                            __ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
+
 // saturation intrinsics
 template <typename T0, typename T1, int SZ>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)

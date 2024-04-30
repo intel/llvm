@@ -342,55 +342,29 @@ std::enable_if_t<detail::is_esimd_scalar<T>::value, T>(min)(T src0, T src1,
 /// @addtogroup sycl_esimd_math_ext
 /// @{
 
-#if defined(__SYCL_DEVICE_ONLY__)
-#if !defined(__NVPTX__) && !defined(__AMDGPU__) && !defined(__HIP__) &&        \
-    !defined(__CUDA__)
-#define __ESIMD_VEC_IMPL(T, name, iname)                                       \
-  __ESIMD_DNS::vector_type_t<__ESIMD_DNS::__raw_t<T>, N> res =                 \
-      __spirv_ocl_native_##iname<__ESIMD_DNS::__raw_t<T>, N>(src.data());      \
-  if constexpr (std::is_same_v<Sat, saturation_off_tag>)                       \
-    return res;                                                                \
-  else                                                                         \
-    return esimd::saturate<T>(simd<T, N>(res));
-#define __ESIMD_SC_IMPL(T, name, iname)                                        \
-  __ESIMD_DNS::__raw_t<T> res =                                                \
-      __spirv_ocl_native_##iname<__ESIMD_DNS::__raw_t<T>>(src);                \
-  if constexpr (std::is_same_v<Sat, saturation_off_tag>)                       \
-    return res;                                                                \
-  else                                                                         \
-    return esimd::saturate<T>(simd<T, 1>(res))[0];
-#else // !defined(__NVPTX__) && !defined(__AMDGCN__)
-#define __ESIMD_VEC_IMPL(T, name, iname)                                       \
-  __ESIMD_DNS::vector_type_t<__ESIMD_DNS::__raw_t<T>, N> res =                 \
-      __esimd_##iname<T, N>(src.data());                                       \
-  if constexpr (std::is_same_v<Sat, saturation_off_tag>)                       \
-    return res;                                                                \
-  else                                                                         \
-    return esimd::saturate<T>(simd<T, N>(res));
-#define __ESIMD_SC_IMPL(T, name, iname)                                        \
-  simd<T, 1> src_vec = src;                                                    \
-  simd<T, 1> res = name<T, 1>(src_vec, sat);                                   \
-  return res[0];
-
-#endif // !defined(__NVPTX__) && !defined(__AMDGCN__)
-#else
-#define __ESIMD_VEC_IMPL(T, name, iname) return 0;
-#define __ESIMD_SC_IMPL(T, name, iname) return 0;
-#endif // __SYCL_DEVICE_ONLY__
-
 #define __ESIMD_UNARY_INTRINSIC_DEF(COND, name, iname)                         \
   /** Vector version.                                                       */ \
   template <class T, int N, class Sat = saturation_off_tag,                    \
             class = std::enable_if_t<COND>>                                    \
   __ESIMD_API simd<T, N> name(simd<T, N> src, Sat sat = {}) {                  \
-    __ESIMD_VEC_IMPL(T, name, iname)                                           \
+    __ESIMD_DNS::vector_type_t<__ESIMD_DNS::__raw_t<T>, N> res =               \
+        __spirv_ocl_native_##iname<__ESIMD_DNS::__raw_t<T>, N>(src.data());    \
+    if constexpr (std::is_same_v<Sat, saturation_off_tag>)                     \
+      return res;                                                              \
+    else                                                                       \
+      return esimd::saturate<T>(simd<T, N>(res));                              \
   }                                                                            \
                                                                                \
   /** Scalar version.                                                       */ \
   template <typename T, class Sat = saturation_off_tag,                        \
             class = std::enable_if_t<COND>>                                    \
   __ESIMD_API T name(T src, Sat sat = {}) {                                    \
-    __ESIMD_SC_IMPL(T, name, iname)                                            \
+    __ESIMD_DNS::__raw_t<T> res =                                              \
+        __spirv_ocl_native_##iname<__ESIMD_DNS::__raw_t<T>>(src);              \
+    if constexpr (std::is_same_v<Sat, saturation_off_tag>)                     \
+      return res;                                                              \
+    else                                                                       \
+      return esimd::saturate<T>(simd<T, 1>(res))[0];                           \
   }
 
 #define __ESIMD_EMATH_COND                                                     \
@@ -455,8 +429,6 @@ __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_SPIRV_COND, sin, sin)
 __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_SPIRV_COND, cos, cos)
 
 #undef __ESIMD_UNARY_INTRINSIC_DEF
-#undef __ESIMD_VEC_IMPL
-#undef __ESIMD_SC_IMPL
 
 #define __ESIMD_BINARY_INTRINSIC_DEF(COND, name, iname)                        \
   /** (vector, vector) version.                                             */ \
@@ -493,7 +465,6 @@ __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_SPIRV_COND, cos, cos)
 template <class T, int N, class U, class Sat = saturation_off_tag,
           class = std::enable_if_t<__ESIMD_EMATH_SPIRV_COND>>
 __ESIMD_API simd<T, N> pow(simd<T, N> src0, simd<U, N> src1, Sat sat = {}) {
-#if defined(__SYCL_DEVICE_ONLY__)
   using RawVecT = __ESIMD_DNS::vector_type_t<__ESIMD_DNS::__raw_t<T>, N>;
   RawVecT src1_raw_conv = detail::convert_vector<T, U, N>(src1.data());
   RawVecT res_raw = __spirv_ocl_native_powr<__ESIMD_DNS::__raw_t<T>, N>(
@@ -502,9 +473,6 @@ __ESIMD_API simd<T, N> pow(simd<T, N> src0, simd<U, N> src1, Sat sat = {}) {
     return res_raw;
   else
     return esimd::saturate<T>(simd<T, N>(res_raw));
-#else
-  return 0;
-#endif // __SYCL_DEVICE_ONLY__
 }
 
 /** (vector, scalar) version.                                             */
@@ -518,7 +486,6 @@ __ESIMD_API simd<T, N> pow(simd<T, N> src0, U src1, Sat sat = {}) {
 template <class T, class U, class Sat = saturation_off_tag,
           class = std::enable_if_t<__ESIMD_EMATH_SPIRV_COND>>
 __ESIMD_API T pow(T src0, U src1, Sat sat = {}) {
-#if defined(__SYCL_DEVICE_ONLY__)
   using ResT = __ESIMD_DNS::__raw_t<T>;
   ResT src1_raw_conv = detail::convert_scalar<T, U>(src1);
   ResT res_raw =
@@ -527,9 +494,6 @@ __ESIMD_API T pow(T src0, U src1, Sat sat = {}) {
     return res_raw;
   else
     return esimd::saturate<T>(simd<T, 1>(res_raw))[0];
-#else
-  return 0;
-#endif // __SYCL_DEVICE_ONLY__
 }
 
 /// IEEE754-compliant floating-point division. Supports \c float and \c double.
