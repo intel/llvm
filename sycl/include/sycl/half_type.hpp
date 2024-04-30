@@ -516,9 +516,9 @@ private:
   // it is an integer. Instead, convert it to float. On device we can work with
   // Data as it is already a floating point representation.
 #ifdef __SYCL_DEVICE_ONLY__
-  constexpr StorageT getFPRep() const { return Data; }
+  __SYCL_CONSTEXPR_HALF StorageT getFPRep() const { return Data; }
 #else
-  constexpr float getFPRep() const { return operator float(); }
+  __SYCL_CONSTEXPR_HALF float getFPRep() const { return operator float(); }
 #endif
 
 #ifndef __SYCL_DEVICE_ONLY__
