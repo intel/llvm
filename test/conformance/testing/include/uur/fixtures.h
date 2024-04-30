@@ -180,6 +180,13 @@ struct urMemBufferTest : urContextTest {
 struct urMemImageTest : urContextTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
+        ur_bool_t imageSupported = false;
+        ASSERT_SUCCESS(
+            urDeviceGetInfo(this->device, UR_DEVICE_INFO_IMAGE_SUPPORTED,
+                            sizeof(ur_bool_t), &imageSupported, nullptr));
+        if (!imageSupported) {
+            GTEST_SKIP();
+        }
     }
 
     void TearDown() override {
@@ -260,7 +267,7 @@ template <class T> struct urMemBufferTestWithParam : urContextTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
         ASSERT_SUCCESS(urMemBufferCreate(this->context, UR_MEM_FLAG_READ_WRITE,
-                                         4096, nullptr, &buffer));
+                                         allocation_size, nullptr, &buffer));
         ASSERT_NE(nullptr, buffer);
     }
 
@@ -271,11 +278,19 @@ template <class T> struct urMemBufferTestWithParam : urContextTestWithParam<T> {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::TearDown());
     }
     ur_mem_handle_t buffer = nullptr;
+    size_t allocation_size = 4096;
 };
 
 template <class T> struct urMemImageTestWithParam : urContextTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
+        ur_bool_t imageSupported = false;
+        ASSERT_SUCCESS(
+            urDeviceGetInfo(this->device, UR_DEVICE_INFO_IMAGE_SUPPORTED,
+                            sizeof(ur_bool_t), &imageSupported, nullptr));
+        if (!imageSupported) {
+            GTEST_SKIP();
+        }
         ASSERT_SUCCESS(urMemImageCreate(this->context, UR_MEM_FLAG_READ_WRITE,
                                         &format, &desc, nullptr, &image));
         ASSERT_NE(nullptr, image);
@@ -551,6 +566,13 @@ struct urMemBufferQueueTest : urQueueTest {
 struct urMemImageQueueTest : urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
+        ur_bool_t imageSupported = false;
+        ASSERT_SUCCESS(
+            urDeviceGetInfo(this->device, UR_DEVICE_INFO_IMAGE_SUPPORTED,
+                            sizeof(ur_bool_t), &imageSupported, nullptr));
+        if (!imageSupported) {
+            GTEST_SKIP();
+        }
         ASSERT_SUCCESS(urMemImageCreate(this->context, UR_MEM_FLAG_READ_WRITE,
                                         &format, &desc1D, nullptr, &image1D));
 
@@ -626,6 +648,15 @@ struct urMemImageQueueTest : urQueueTest {
 struct urMultiDeviceMemImageTest : urMultiDeviceContextTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceContextTest::SetUp());
+        for (auto device : DevicesEnvironment::instance->devices) {
+            ur_bool_t imageSupported = false;
+            ASSERT_SUCCESS(
+                urDeviceGetInfo(device, UR_DEVICE_INFO_IMAGE_SUPPORTED,
+                                sizeof(ur_bool_t), &imageSupported, nullptr));
+            if (!imageSupported) {
+                GTEST_SKIP();
+            }
+        }
         ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
                                         &format, &desc1D, nullptr, &image1D));
 
@@ -1069,9 +1100,26 @@ std::string deviceTestWithParamPrinter<BoolTestParam>(
     const ::testing::TestParamInfo<
         std::tuple<ur_device_handle_t, BoolTestParam>> &info);
 
+using SamplerCreateParamT =
+    std::tuple<bool, ur_sampler_addressing_mode_t, ur_sampler_filter_mode_t>;
+
+template <>
+std::string deviceTestWithParamPrinter<SamplerCreateParamT>(
+    const ::testing::TestParamInfo<
+        std::tuple<ur_device_handle_t, SamplerCreateParamT>> &info);
+
 struct urProgramTest : urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
+
+        ur_platform_backend_t backend;
+        ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                         sizeof(backend), &backend, nullptr));
+        // Images and samplers are not available on AMD
+        if (program_name == "image_copy" &&
+            backend == UR_PLATFORM_BACKEND_HIP) {
+            GTEST_SKIP();
+        }
         UUR_RETURN_ON_FATAL_FAILURE(
             uur::KernelsEnvironment::instance->LoadSource(program_name, 0,
                                                           il_binary));
@@ -1100,6 +1148,17 @@ struct urProgramTest : urQueueTest {
 template <class T> struct urProgramTestWithParam : urContextTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
+
+        ur_platform_backend_t backend;
+        ASSERT_SUCCESS(urPlatformGetInfo(this->platform,
+                                         UR_PLATFORM_INFO_BACKEND,
+                                         sizeof(backend), &backend, nullptr));
+        // Images and samplers are not available on AMD
+        if (program_name == "image_copy" &&
+            backend == UR_PLATFORM_BACKEND_HIP) {
+            GTEST_SKIP();
+        }
+
         UUR_RETURN_ON_FATAL_FAILURE(
             uur::KernelsEnvironment::instance->LoadSource(program_name, 0,
                                                           il_binary));

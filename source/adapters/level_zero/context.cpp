@@ -13,9 +13,9 @@
 #include <mutex>
 #include <string.h>
 
-#include "adapters/level_zero/queue.hpp"
 #include "context.hpp"
 #include "logger/ur_logger.hpp"
+#include "queue.hpp"
 #include "ur_level_zero.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
@@ -471,7 +471,8 @@ static const uint32_t MaxNumEventsPerPool = [] {
 
 ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
     ze_event_pool_handle_t &Pool, size_t &Index, bool HostVisible,
-    bool ProfilingEnabled, ur_device_handle_t Device) {
+    bool ProfilingEnabled, ur_device_handle_t Device,
+    bool CounterBasedEventEnabled, bool UsingImmCmdList) {
   // Lock while updating event pool machinery.
   std::scoped_lock<ur_mutex> Lock(ZeEventPoolCacheMutex);
 
@@ -481,7 +482,8 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
     ZeDevice = Device->ZeDevice;
   }
   std::list<ze_event_pool_handle_t> *ZePoolCache =
-      getZeEventPoolCache(HostVisible, ProfilingEnabled, ZeDevice);
+      getZeEventPoolCache(HostVisible, ProfilingEnabled,
+                          CounterBasedEventEnabled, UsingImmCmdList, ZeDevice);
 
   if (!ZePoolCache->empty()) {
     if (NumEventsAvailableInEventPool[ZePoolCache->front()] == 0) {
@@ -506,15 +508,27 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
   Index = 0;
   // Create one event ZePool per MaxNumEventsPerPool events
   if (*ZePool == nullptr) {
+    ze_event_pool_counter_based_exp_desc_t counterBasedExt = {
+        ZE_STRUCTURE_TYPE_COUNTER_BASED_EVENT_POOL_EXP_DESC};
     ZeStruct<ze_event_pool_desc_t> ZeEventPoolDesc;
     ZeEventPoolDesc.count = MaxNumEventsPerPool;
     ZeEventPoolDesc.flags = 0;
+    ZeEventPoolDesc.pNext = nullptr;
     if (HostVisible)
       ZeEventPoolDesc.flags |= ZE_EVENT_POOL_FLAG_HOST_VISIBLE;
     if (ProfilingEnabled)
       ZeEventPoolDesc.flags |= ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
     logger::debug("ze_event_pool_desc_t flags set to: {}",
                   ZeEventPoolDesc.flags);
+    if (CounterBasedEventEnabled) {
+      if (UsingImmCmdList) {
+        counterBasedExt.flags = ZE_EVENT_POOL_COUNTER_BASED_EXP_FLAG_IMMEDIATE;
+      } else {
+        counterBasedExt.flags =
+            ZE_EVENT_POOL_COUNTER_BASED_EXP_FLAG_NON_IMMEDIATE;
+      }
+      ZeEventPoolDesc.pNext = &counterBasedExt;
+    }
 
     std::vector<ze_device_handle_t> ZeDevices;
     if (ZeDevice) {
@@ -540,7 +554,8 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
 }
 
 ur_event_handle_t ur_context_handle_t_::getEventFromContextCache(
-    bool HostVisible, bool WithProfiling, ur_device_handle_t Device) {
+    bool HostVisible, bool WithProfiling, ur_device_handle_t Device,
+    bool CounterBasedEventEnabled) {
   std::scoped_lock<ur_mutex> Lock(EventCacheMutex);
   auto Cache = getEventCache(HostVisible, WithProfiling, Device);
   if (Cache->empty())
@@ -548,6 +563,9 @@ ur_event_handle_t ur_context_handle_t_::getEventFromContextCache(
 
   auto It = Cache->begin();
   ur_event_handle_t Event = *It;
+  if (Event->CounterBasedEventsEnabled != CounterBasedEventEnabled) {
+    return nullptr;
+  }
   Cache->erase(It);
   // We have to reset event before using it.
   Event->reset();
@@ -579,13 +597,16 @@ ur_context_handle_t_::decrementUnreleasedEventsInPool(ur_event_handle_t Event) {
   }
 
   ze_device_handle_t ZeDevice = nullptr;
+  bool UsingImmediateCommandlists =
+      !Event->UrQueue || Event->UrQueue->UsingImmCmdLists;
 
   if (!Event->IsMultiDevice && Event->UrQueue) {
     ZeDevice = Event->UrQueue->Device->ZeDevice;
   }
 
   std::list<ze_event_pool_handle_t> *ZePoolCache = getZeEventPoolCache(
-      Event->isHostVisible(), Event->isProfilingEnabled(), ZeDevice);
+      Event->isHostVisible(), Event->isProfilingEnabled(),
+      Event->CounterBasedEventsEnabled, UsingImmediateCommandlists, ZeDevice);
 
   // Put the empty pool to the cache of the pools.
   if (NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0)
@@ -683,8 +704,8 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
     // Make sure to acquire the lock before checking the size, or there
     // will be a race condition.
     std::scoped_lock<ur_mutex> Lock(Queue->Context->ZeCommandListCacheMutex);
-    // Under mutex since operator[] does insertion on the first usage for every
-    // unique ZeDevice.
+    // Under mutex since operator[] does insertion on the first usage for
+    // every unique ZeDevice.
     auto &ZeCommandListCache =
         UseCopyEngine
             ? Queue->Context->ZeCopyCommandListCache[Queue->Device->ZeDevice]
