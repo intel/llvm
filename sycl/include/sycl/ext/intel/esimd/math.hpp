@@ -343,8 +343,8 @@ std::enable_if_t<detail::is_esimd_scalar<T>::value, T>(min)(T src0, T src1,
 /// @{
 
 #if defined(__SYCL_DEVICE_ONLY__)
-#if !defined(__NVPTX__) && !defined(__AMDGPU__) && !defined(__CUDACC__) &&     \
-    !defined(__CUDA__) && !defined(__CUDA_ARCH__)
+#if !defined(__NVPTX__) && !defined(__AMDGPU__) && !defined(__HIP__) &&        \
+    !defined(__CUDA__)
 #define __ESIMD_VEC_IMPL(T, name, iname)                                       \
   __ESIMD_DNS::vector_type_t<__ESIMD_DNS::__raw_t<T>, N> res =                 \
       __spirv_ocl_native_##iname<__ESIMD_DNS::__raw_t<T>, N>(src.data());      \
