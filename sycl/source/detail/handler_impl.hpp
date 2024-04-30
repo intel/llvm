@@ -79,7 +79,7 @@ public:
 
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
 
-  pi_mem_advice MAdvice;
+  ur_usm_advice_flags_t MAdvice;
 
   // 2D memory operation information.
   size_t MSrcPitch;
@@ -106,8 +106,7 @@ public:
   // If the pipe operation is read or write, 1 for read 0 for write.
   bool HostPipeRead = true;
 
-  sycl::detail::pi::PiKernelCacheConfig MKernelCacheConfig =
-      PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
+  ur_kernel_cache_config_t MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
 
   bool MKernelIsCooperative = false;
 
@@ -116,13 +115,13 @@ public:
   ur_image_format_t MImageFormat;
   ur_exp_image_copy_flags_t MImageCopyFlags;
 
-  sycl::detail::pi::PiImageOffset MSrcOffset;
-  sycl::detail::pi::PiImageOffset MDestOffset;
-  sycl::detail::pi::PiImageRegion MHostExtent;
-  sycl::detail::pi::PiImageRegion MCopyExtent;
+  ur_rect_offset_t MSrcOffset;
+  ur_rect_offset_t MDestOffset;
+  ur_rect_region_t MHostExtent;
+  ur_rect_region_t MCopyExtent;
 
   // Extra information for semaphore interoperability
-  sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+  ur_exp_interop_semaphore_handle_t MInteropSemaphoreHandle;
 
   // The user facing node type, used for operations which are recorded to a
   // graph. Since some operations may actually be a different type than the user

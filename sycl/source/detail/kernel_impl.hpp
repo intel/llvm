@@ -236,7 +236,7 @@ inline typename Param::return_type kernel_impl::get_info() const {
   if constexpr (std::is_same_v<Param, info::kernel::num_args>)
     checkIfValidForNumArgsInfoQuery();
 
-  return get_kernel_info<Param>(this->getHandleRef(), getPlugin());
+  return get_kernel_info<Param>(this->getUrHandleRef(), getUrPlugin());
 }
 
 template <>
@@ -263,8 +263,8 @@ kernel_impl::get_info(const device &Device) const {
     return get_kernel_device_specific_info_host<Param>(Device);
   }
   return get_kernel_device_specific_info<Param>(
-      this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(),
-      getPlugin());
+      this->getUrHandleRef(), getSyclObjImpl(Device)->getUrHandleRef(),
+      getUrPlugin());
 }
 
 template <typename Param>
@@ -276,8 +276,8 @@ kernel_impl::get_info(const device &Device,
                         PI_ERROR_INVALID_DEVICE);
   }
   return get_kernel_device_specific_info_with_input<Param>(
-      this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(), WGSize,
-      getPlugin());
+      this->getUrHandleRef(), getSyclObjImpl(Device)->getUrHandleRef(), WGSize,
+      getUrPlugin());
 }
 
 template <>
@@ -286,13 +286,13 @@ inline typename ext::oneapi::experimental::info::kernel_queue_specific::
     kernel_impl::ext_oneapi_get_info<
         ext::oneapi::experimental::info::kernel_queue_specific::
             max_num_work_group_sync>(const queue &Queue) const {
-  const auto &Plugin = getPlugin();
-  const auto &Handle = getHandleRef();
+  const auto &Plugin = getUrPlugin();
+  const auto &Handle = getUrHandleRef();
   const auto MaxWorkGroupSize =
       Queue.get_device().get_info<info::device::max_work_group_size>();
   pi_uint32 GroupCount = 0;
-  Plugin->call<PiApiKind::piextKernelSuggestMaxCooperativeGroupCount>(
-      Handle, MaxWorkGroupSize, /* DynamicSharedMemorySize */ 0, &GroupCount);
+  Plugin->call(urKernelSuggestMaxCooperativeGroupCountExp, Handle,
+               MaxWorkGroupSize, /* DynamicSharedMemorySize */ 0, &GroupCount);
   return GroupCount;
 }
 

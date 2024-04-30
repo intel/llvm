@@ -379,7 +379,7 @@ public:
   /// \return an event object to wait on for command group completion.
   EventImplPtr
   addCG(std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
-        sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
+        ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
         const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies = {});
 
   /// Registers a command group, that copies most recent memory to the memory
@@ -600,11 +600,12 @@ protected:
     /// \return a command that represents command group execution and a bool
     /// indicating whether this command should be enqueued to the graph
     /// processor right away or not.
-    GraphBuildResult addCG(
-        std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
-        std::vector<Command *> &ToEnqueue,
-        sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
-        const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies = {});
+    GraphBuildResult
+    addCG(std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+          std::vector<Command *> &ToEnqueue,
+          ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
+          const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies =
+              {});
 
     /// Registers a \ref CG "command group" that updates host memory to the
     /// latest state.

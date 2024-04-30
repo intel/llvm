@@ -109,11 +109,11 @@ public:
   /// Get backend option.
   void getBackendOption(const char *frontend_option,
                         const char **backend_option) const {
-    const auto &Plugin = getPlugin();
-    sycl::detail::pi::PiResult Err =
-        Plugin->call_nocheck<PiApiKind::piPluginGetBackendOption>(
-            MPlatform, frontend_option, backend_option);
-    Plugin->checkPiResult(Err);
+    const auto &Plugin = getUrPlugin();
+    ur_result_t Err =
+        Plugin->call_nocheck(urPlatformGetBackendOption, MUrPlatform,
+                             frontend_option, backend_option);
+    Plugin->checkUrResult(Err);
   }
 
   /// \return an instance of OpenCL cl_platform_id.

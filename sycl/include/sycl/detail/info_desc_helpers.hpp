@@ -55,9 +55,9 @@ template <typename T> struct is_backend_info_desc : std::false_type {};
   };
 // #include <sycl/info/context_traits.def>
 // #include <sycl/info/event_traits.def>
-#include <sycl/info/kernel_traits.def>
+// #include <sycl/info/kernel_traits.def>
 // #include <sycl/info/platform_traits.def>
-//#include <sycl/info/queue_traits.def>
+// #include <sycl/info/queue_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
   template <> struct UrInfoCode<info::DescType::Desc> {                        \
@@ -88,7 +88,7 @@ template <typename T> struct is_backend_info_desc : std::false_type {};
   };
 #include <sycl/info/context_traits.def>
 #include <sycl/info/event_traits.def>
-// #include <sycl/info/kernel_traits.def>
+#include <sycl/info/kernel_traits.def>
 #include <sycl/info/platform_traits.def>
 #include <sycl/info/queue_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
@@ -107,12 +107,13 @@ template <>
 struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
     : std::true_type {};
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template <> struct PiInfoCode<info::DescType::Desc> {                        \
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
+  template <> struct UrInfoCode<info::DescType::Desc> {                        \
     static constexpr                                                           \
         typename std::conditional<IsSubGroupInfo<info::DescType::Desc>::value, \
-                                  pi_kernel_sub_group_info,                    \
-                                  pi_kernel_group_info>::type value = PiCode;  \
+                                  ur_kernel_sub_group_info_t,                  \
+                                  ur_kernel_group_info_t>::type value =        \
+            UrCode;                                                            \
   };                                                                           \
   template <>                                                                  \
   struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \

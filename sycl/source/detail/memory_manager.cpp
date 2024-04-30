@@ -352,7 +352,7 @@ MemoryManager::allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
       getMemObjCreationFlags(UserPtr, HostPtrReadOnly);
   if (PropsList.has_property<
           sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
-    CreationFlags |= PI_MEM_FLAGS_HOST_PTR_ALLOC;
+    CreationFlags |= UR_MEM_FLAG_ALLOC_HOST_POINTER;
 
   ur_mem_handle_t NewMem = nullptr;
   const UrPluginPtr &Plugin = TargetContext->getUrPlugin();
@@ -1291,7 +1291,7 @@ static void memcpyFromDeviceGlobalUSM(
                           OutEventImpl);
 }
 
-static sycl::detail::pi::PiProgram
+static ur_program_handle_t
 getOrBuildProgramForDeviceGlobal(QueueImplPtr Queue,
                                  DeviceGlobalMapEntry *DeviceGlobalEntry) {
   assert(DeviceGlobalEntry->MIsDeviceImageScopeDecorated &&
@@ -1313,7 +1313,7 @@ getOrBuildProgramForDeviceGlobal(QueueImplPtr Queue,
   std::optional<ur_program_handle_t> CachedProgram =
       ContextImpl->getProgramForDeviceGlobal(Device, DeviceGlobalEntry);
   if (CachedProgram)
-    return (pi_program)(*CachedProgram);
+    return *CachedProgram;
 
   // If there was no cached program, build one.
   auto Context = createSyclObjFromImpl<context>(ContextImpl);
@@ -1323,7 +1323,7 @@ getOrBuildProgramForDeviceGlobal(QueueImplPtr Queue,
   device_image_plain DeviceImage =
       PM.getDeviceImageFromBinaryImage(&Img, Context, Device);
   device_image_plain BuiltImage = PM.build(DeviceImage, {Device}, {});
-  return (pi_program)getSyclObjImpl(BuiltImage)->get_ur_program_ref();
+  return getSyclObjImpl(BuiltImage)->get_ur_program_ref();
 }
 
 static void
@@ -1332,22 +1332,12 @@ memcpyToDeviceGlobalDirect(QueueImplPtr Queue,
                            size_t NumBytes, size_t Offset, const void *Src,
                            const std::vector<ur_event_handle_t> &DepEvents,
                            ur_event_handle_t *OutEvent) {
-  std::ignore = Queue;
-  std::ignore = Src;
-  std::ignore = OutEvent;
-  std::ignore = DeviceGlobalEntry;
-  std::ignore = NumBytes;
-  std::ignore = Offset;
-  std::ignore = DepEvents;
-  /* FIXME: port program for this to work
-  sycl::detail::pi::PiProgram Program =
+  ur_program_handle_t Program =
       getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry);
   const UrPluginPtr &Plugin = Queue->getUrPlugin();
-  Plugin->call(urextEnqueueDeviceGlobalVariableWrite,
-      Queue->getUrHandleRef(), Program, DeviceGlobalEntry->MUniqueId.c_str(),
-      false, NumBytes, Offset, Src, DepEvents.size(), DepEvents.data(),
-      OutEvent);*/
-  pi::die("Program not yet ported so operation is impossible");
+  Plugin->call(urEnqueueDeviceGlobalVariableWrite, Queue->getUrHandleRef(),
+               Program, DeviceGlobalEntry->MUniqueId.c_str(), false, NumBytes,
+               Offset, Src, DepEvents.size(), DepEvents.data(), OutEvent);
 }
 
 static void
@@ -1356,22 +1346,12 @@ memcpyFromDeviceGlobalDirect(QueueImplPtr Queue,
                              size_t NumBytes, size_t Offset, void *Dest,
                              const std::vector<ur_event_handle_t> &DepEvents,
                              ur_event_handle_t *OutEvent) {
-  std::ignore = Queue;
-  std::ignore = OutEvent;
-  std::ignore = Dest;
-  std::ignore = DeviceGlobalEntry;
-  std::ignore = NumBytes;
-  std::ignore = Offset;
-  std::ignore = DepEvents;
-  /* FIXME: port program for this to work
-  sycl::detail::pi::PiProgram Program =
+  ur_program_handle_t Program =
       getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry);
   const UrPluginPtr &Plugin = Queue->getUrPlugin();
-  Plugin->call(urextEnqueueDeviceGlobalVariableRead,
-      Queue->getUrHandleRef(), Program, DeviceGlobalEntry->MUniqueId.c_str(),
-      false, NumBytes, Offset, Dest, DepEvents.size(), DepEvents.data(),
-      OutEvent);*/
-  pi::die("Program not yet ported so operation is impossible");
+  Plugin->call(urEnqueueDeviceGlobalVariableRead, Queue->getUrHandleRef(),
+               Program, DeviceGlobalEntry->MUniqueId.c_str(), false, NumBytes,
+               Offset, Dest, DepEvents.size(), DepEvents.data(), OutEvent);
 }
 
 void MemoryManager::copy_to_device_global(

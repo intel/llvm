@@ -69,22 +69,20 @@ DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
   // Initialize here and save the event.
   {
     std::lock_guard<std::mutex> Lock(NewAlloc.MInitEventMutex);
-    sycl::detail::pi::PiEvent InitEvent;
+    ur_event_handle_t InitEvent;
     // C++ guarantees members appear in memory in the order they are declared,
     // so since the member variable that contains the initial contents of the
     // device_global is right after the usm_ptr member variable we can do
     // some pointer arithmetic to memcopy over this value to the usm_ptr. This
     // value inside of the device_global will be zero-initialized if it was not
     // given a value on construction.
-    /*
+
     MemoryManager::copy_usm(reinterpret_cast<const void *>(
                                 reinterpret_cast<uintptr_t>(MDeviceGlobalPtr) +
                                 sizeof(MDeviceGlobalPtr)),
                             QueueImpl, MDeviceGlobalTSize, NewAlloc.MPtr,
-                            std::vector<sycl::detail::pi::PiEvent>{},
-                            &InitEvent);
-    NewAlloc.MInitEvent = InitEvent;*/
-    pi::die("memory manager not yet ported");
+                            std::vector<ur_event_handle_t>{}, &InitEvent);
+    NewAlloc.MInitEvent = InitEvent;
   }
 
   CtxImpl->addAssociatedDeviceGlobal(MDeviceGlobalPtr);

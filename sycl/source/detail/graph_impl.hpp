@@ -801,7 +801,7 @@ private:
 class partition {
 public:
   /// Constructor.
-  partition() : MSchedule(), MPiCommandBuffers() {}
+  partition() : MSchedule(), MUrCommandBuffers() {}
 
   /// List of root nodes.
   std::set<std::weak_ptr<node_impl>, std::owner_less<std::weak_ptr<node_impl>>>
@@ -809,8 +809,8 @@ public:
   /// Execution schedule of nodes in the graph.
   std::list<std::shared_ptr<node_impl>> MSchedule;
   /// Map of devices to command buffers.
-  std::unordered_map<sycl::device, sycl::detail::pi::PiExtCommandBuffer>
-      MPiCommandBuffers;
+  std::unordered_map<sycl::device, ur_exp_command_buffer_handle_t>
+      MUrCommandBuffers;
   /// List of predecessors to this partition.
   std::vector<std::shared_ptr<partition>> MPredecessors;
   /// True if the graph of this partition is a single path graph
@@ -1392,10 +1392,10 @@ private:
   /// @param DeviceImpl Device associated with the enqueue.
   /// @param CommandBuffer Command-buffer to add node to as a command.
   /// @param Node The node being enqueued.
-  /// @return PI sync point created for this node in the command-buffer.
-  sycl::detail::pi::PiExtSyncPoint
+  /// @return UR sync point created for this node in the command-buffer.
+  ur_exp_command_buffer_sync_point_t
   enqueueNode(sycl::context Ctx, sycl::detail::DeviceImplPtr DeviceImpl,
-              sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+              ur_exp_command_buffer_handle_t CommandBuffer,
               std::shared_ptr<node_impl> Node);
 
   /// Enqueue a node directly to the command-buffer without going through the
@@ -1405,9 +1405,9 @@ private:
   /// @param CommandBuffer Command-buffer to add node to as a command.
   /// @param Node The node being enqueued.
   /// @return PI sync point created for this node in the command-buffer.
-  sycl::detail::pi::PiExtSyncPoint
+  ur_exp_command_buffer_sync_point_t
   enqueueNodeDirect(sycl::context Ctx, sycl::detail::DeviceImplPtr DeviceImpl,
-                    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+                    ur_exp_command_buffer_handle_t CommandBuffer,
                     std::shared_ptr<node_impl> Node);
 
   /// Iterates back through predecessors to find the real dependency.
@@ -1416,7 +1416,7 @@ private:
   /// @param[in] ReferencePartitionNum Number of the partition containing the
   /// SyncPoint for CurrentNode, otherwise we need to
   /// synchronize on the host with the completion of previous partitions.
-  void findRealDeps(std::vector<sycl::detail::pi::PiExtSyncPoint> &Deps,
+  void findRealDeps(std::vector<ur_exp_command_buffer_sync_point_t> &Deps,
                     std::shared_ptr<node_impl> CurrentNode,
                     int ReferencePartitionNum);
 
@@ -1463,8 +1463,8 @@ private:
   /// Map of nodes in the exec graph to the sync point representing their
   /// execution in the command graph.
   std::unordered_map<std::shared_ptr<node_impl>,
-                     sycl::detail::pi::PiExtSyncPoint>
-      MPiSyncPoints;
+                     ur_exp_command_buffer_sync_point_t>
+      MUrSyncPoints;
   /// Map of nodes in the exec graph to the partition number to which they
   /// belong.
   std::unordered_map<std::shared_ptr<node_impl>, int> MPartitionNodes;
@@ -1486,7 +1486,7 @@ private:
   std::vector<std::shared_ptr<node_impl>> MNodeStorage;
   /// Map of nodes to their associated PI command handles.
   std::unordered_map<std::shared_ptr<node_impl>,
-                     sycl::detail::pi::PiExtCommandBufferCommand>
+                     ur_exp_command_buffer_command_handle_t>
       MCommandMap;
   /// True if this graph can be updated (set with property::updatable)
   bool MIsUpdatable;

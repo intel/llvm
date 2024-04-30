@@ -44,15 +44,15 @@ bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr) {
   return DGEntry && !DGEntry->MImageIdentifiers.empty();
 }
 
-sycl::detail::pi::PiImageCopyFlags
-getPiImageCopyFlags(sycl::usm::alloc SrcPtrType, sycl::usm::alloc DstPtrType) {
+ur_exp_image_copy_flags_t getUrImageCopyFlags(sycl::usm::alloc SrcPtrType,
+                                              sycl::usm::alloc DstPtrType) {
   if (DstPtrType == sycl::usm::alloc::device) {
     // Dest is on device
     if (SrcPtrType == sycl::usm::alloc::device)
-      return sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_DEVICE;
+      return UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE;
     if (SrcPtrType == sycl::usm::alloc::host ||
         SrcPtrType == sycl::usm::alloc::unknown)
-      return sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_HOST_TO_DEVICE;
+      return UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE;
     throw sycl::exception(make_error_code(errc::invalid),
                           "Unknown copy source location");
   }
@@ -60,7 +60,7 @@ getPiImageCopyFlags(sycl::usm::alloc SrcPtrType, sycl::usm::alloc DstPtrType) {
       DstPtrType == sycl::usm::alloc::unknown) {
     // Dest is on host
     if (SrcPtrType == sycl::usm::alloc::device)
-      return sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_HOST;
+      return UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST;
     if (SrcPtrType == sycl::usm::alloc::host ||
         SrcPtrType == sycl::usm::alloc::unknown)
       throw sycl::exception(make_error_code(errc::invalid),
@@ -253,7 +253,7 @@ event handler::finalize() {
       // this faster path is used to submit kernel bypassing scheduler and
       // avoiding CommandGroup, Command objects creation.
 
-      std::vector<sycl::detail::pi::PiEvent> RawEvents;
+      std::vector<ur_event_handle_t> RawEvents;
       detail::EventImplPtr NewEvent;
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -268,7 +268,7 @@ event handler::finalize() {
       auto EnqueueKernel = [&]() {
 #endif
         // 'Result' for single point of return
-        pi_int32 Result = PI_ERROR_INVALID_VALUE;
+        ur_result_t Result = UR_RESULT_ERROR_INVALID_VALUE;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
                                            xpti::trace_task_begin, nullptr);
@@ -277,7 +277,7 @@ event handler::finalize() {
           MHostKernel->call(MNDRDesc, (NewEvent)
                                           ? NewEvent->getHostProfilingInfo()
                                           : nullptr);
-          Result = PI_SUCCESS;
+          Result = UR_RESULT_SUCCESS;
         } else {
           if (MQueue->getDeviceImplPtr()->getBackend() ==
               backend::ext_intel_esimd_emulator) {
@@ -286,18 +286,15 @@ event handler::finalize() {
               NewEvent->setHostEnqueueTime();
             [&](auto... Args) {
               if (MImpl->MKernelIsCooperative) {
-                MQueue->getPlugin()
-                    ->call<
-                        detail::PiApiKind::piextEnqueueCooperativeKernelLaunch>(
-                        Args...);
+                MQueue->getUrPlugin()->call(urEnqueueCooperativeKernelLaunchExp,
+                                            Args...);
               } else {
-                MQueue->getPlugin()
-                    ->call<detail::PiApiKind::piEnqueueKernelLaunch>(Args...);
+                MQueue->getUrPlugin()->call(urEnqueueKernelLaunch, Args...);
               }
             }(/* queue */
               nullptr,
               /* kernel */
-              reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
+              reinterpret_cast<ur_kernel_handle_t>(MHostKernel->getPtr()),
               /* work_dim */
               MNDRDesc.Dims,
               /* global_work_offset */ &MNDRDesc.GlobalOffset[0],
@@ -306,7 +303,7 @@ event handler::finalize() {
               /* num_events_in_wait_list */ 0,
               /* event_wait_list */ nullptr,
               /* event */ nullptr);
-            Result = PI_SUCCESS;
+            Result = UR_RESULT_SUCCESS;
           } else {
             Result = enqueueImpKernel(
                 MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
@@ -338,7 +335,7 @@ event handler::finalize() {
       }
 
       if (DiscardEvent) {
-        if (PI_SUCCESS != EnqueueKernel())
+        if (UR_RESULT_SUCCESS != EnqueueKernel())
           throw runtime_error("Enqueue process failed.",
                               PI_ERROR_INVALID_OPERATION);
       } else {
@@ -348,7 +345,7 @@ event handler::finalize() {
         NewEvent->setStateIncomplete();
         NewEvent->setSubmissionTime();
 
-        if (PI_SUCCESS != EnqueueKernel())
+        if (UR_RESULT_SUCCESS != EnqueueKernel())
           throw runtime_error("Enqueue process failed.",
                               PI_ERROR_INVALID_OPERATION);
         else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
@@ -511,11 +508,10 @@ event handler::finalize() {
     }
   } break;
   case detail::CG::CopyImage:
-    /* FIXME: CG needs porting before this can work
     CommandGroup.reset(new detail::CGCopyImage(
         MSrcPtr, MDstPtr, MImpl->MImageDesc, MImpl->MImageFormat,
         MImpl->MImageCopyFlags, MImpl->MSrcOffset, MImpl->MDestOffset,
-        MImpl->MHostExtent, MImpl->MCopyExtent, std::move(CGData), MCodeLoc));*/
+        MImpl->MHostExtent, MImpl->MCopyExtent, std::move(CGData), MCodeLoc));
     break;
   case detail::CG::SemaphoreWait:
     CommandGroup.reset(new detail::CGSemaphoreWait(
@@ -1071,8 +1067,7 @@ void handler::ext_oneapi_copy(
   MImpl->MHostExtent = {Desc.width, Desc.height, Desc.depth};
   MImpl->MImageDesc = UrDesc;
   MImpl->MImageFormat = UrFormat;
-  MImpl->MImageCopyFlags =
-      sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_HOST_TO_DEVICE;
+  MImpl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE;
   setType(detail::CG::CopyImage);
 }
 
@@ -1125,8 +1120,7 @@ void handler::ext_oneapi_copy(
   MImpl->MHostExtent = {SrcExtent[0], SrcExtent[1], SrcExtent[2]};
   MImpl->MImageDesc = UrDesc;
   MImpl->MImageFormat = UrFormat;
-  MImpl->MImageCopyFlags =
-      sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_HOST_TO_DEVICE;
+  MImpl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE;
   setType(detail::CG::CopyImage);
 }
 
@@ -1176,8 +1170,7 @@ void handler::ext_oneapi_copy(
   MImpl->MHostExtent = {Desc.width, Desc.height, Desc.depth};
   MImpl->MImageDesc = UrDesc;
   MImpl->MImageFormat = UrFormat;
-  MImpl->MImageCopyFlags =
-      sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_HOST;
+  MImpl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST;
   setType(detail::CG::CopyImage);
 }
 
@@ -1228,8 +1221,7 @@ void handler::ext_oneapi_copy(
   MImpl->MHostExtent = {ImageDesc.width, ImageDesc.height, ImageDesc.depth};
   MImpl->MImageDesc = UrDesc;
   MImpl->MImageFormat = UrFormat;
-  MImpl->MImageCopyFlags =
-      sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_DEVICE;
+  MImpl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE;
   setType(detail::CG::CopyImage);
 }
 
@@ -1282,8 +1274,7 @@ void handler::ext_oneapi_copy(
   MImpl->MHostExtent = {DestExtent[0], DestExtent[1], DestExtent[2]};
   MImpl->MImageDesc = UrDesc;
   MImpl->MImageFormat = UrFormat;
-  MImpl->MImageCopyFlags =
-      sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_HOST;
+  MImpl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST;
   setType(detail::CG::CopyImage);
 }
 
@@ -1334,7 +1325,7 @@ void handler::ext_oneapi_copy(
   MImpl->MImageDesc = UrDesc;
   MImpl->MImageDesc.rowPitch = Pitch;
   MImpl->MImageFormat = UrFormat;
-  MImpl->MImageCopyFlags = detail::getPiImageCopyFlags(
+  MImpl->MImageCopyFlags = detail::getUrImageCopyFlags(
       get_pointer_type(Src, MQueue->get_context()),
       get_pointer_type(Dest, MQueue->get_context()));
   setType(detail::CG::CopyImage);
@@ -1390,7 +1381,7 @@ void handler::ext_oneapi_copy(
   MImpl->MImageDesc = UrDesc;
   MImpl->MImageDesc.rowPitch = DeviceRowPitch;
   MImpl->MImageFormat = UrFormat;
-  MImpl->MImageCopyFlags = detail::getPiImageCopyFlags(
+  MImpl->MImageCopyFlags = detail::getUrImageCopyFlags(
       get_pointer_type(Src, MQueue->get_context()),
       get_pointer_type(Dest, MQueue->get_context()));
   setType(detail::CG::CopyImage);
@@ -1402,7 +1393,7 @@ void handler::ext_oneapi_wait_external_semaphore(
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
   MImpl->MInteropSemaphoreHandle =
-      (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
+      (ur_exp_interop_semaphore_handle_t)SemaphoreHandle.raw_handle;
   setType(detail::CG::SemaphoreWait);
 }
 
@@ -1412,7 +1403,7 @@ void handler::ext_oneapi_signal_external_semaphore(
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
   MImpl->MInteropSemaphoreHandle =
-      (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
+      (ur_exp_interop_semaphore_handle_t)SemaphoreHandle.raw_handle;
   setType(detail::CG::SemaphoreSignal);
 }
 
@@ -1482,12 +1473,11 @@ void handler::depends_on(const std::vector<detail::EventImplPtr> &Events) {
 
 static bool
 checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
-                     sycl::detail::pi::PiContextInfo InfoQuery) {
-  auto &Plugin = ContextImpl->getPlugin();
-  pi_bool SupportsOp = false;
-  Plugin->call<detail::PiApiKind::piContextGetInfo>(ContextImpl->getHandleRef(),
-                                                    InfoQuery, sizeof(pi_bool),
-                                                    &SupportsOp, nullptr);
+                     ur_context_info_t InfoQuery) {
+  auto &Plugin = ContextImpl->getUrPlugin();
+  ur_bool_t SupportsOp = false;
+  Plugin->call(urContextGetInfo, ContextImpl->getUrHandleRef(), InfoQuery,
+               sizeof(ur_bool_t), &SupportsOp, nullptr);
   return SupportsOp;
 }
 
@@ -1543,7 +1533,7 @@ bool handler::supportsUSMMemcpy2D() {
        {MImpl->MSubmissionPrimaryQueue, MImpl->MSubmissionSecondaryQueue}) {
     if (QueueImpl &&
         !checkContextSupports(QueueImpl->getContextImplPtr(),
-                              PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT))
+                              UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT))
       return false;
   }
   return true;
@@ -1552,20 +1542,20 @@ bool handler::supportsUSMMemcpy2D() {
 bool handler::supportsUSMFill2D() {
   for (const std::shared_ptr<detail::queue_impl> &QueueImpl :
        {MImpl->MSubmissionPrimaryQueue, MImpl->MSubmissionSecondaryQueue}) {
-    if (QueueImpl &&
-        !checkContextSupports(QueueImpl->getContextImplPtr(),
-                              PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT))
+    if (QueueImpl && !checkContextSupports(QueueImpl->getContextImplPtr(),
+                                           UR_CONTEXT_INFO_USM_FILL2D_SUPPORT))
       return false;
   }
   return true;
 }
 
+// TODO(pi2ur): This is what pi2ur does, check this makes sense
 bool handler::supportsUSMMemset2D() {
   for (const std::shared_ptr<detail::queue_impl> &QueueImpl :
        {MImpl->MSubmissionPrimaryQueue, MImpl->MSubmissionSecondaryQueue}) {
-    if (QueueImpl &&
-        !checkContextSupports(QueueImpl->getContextImplPtr(),
-                              PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT))
+    if (QueueImpl && !checkContextSupports(QueueImpl->getContextImplPtr(),
+                                           UR_CONTEXT_INFO_USM_FILL2D_SUPPORT))
+
       return false;
   }
   return true;
@@ -1667,8 +1657,7 @@ handler::getContextImplPtr() const {
   return MQueue->getContextImplPtr();
 }
 
-void handler::setKernelCacheConfig(
-    sycl::detail::pi::PiKernelCacheConfig Config) {
+void handler::setKernelCacheConfig(ur_kernel_cache_config_t Config) {
   MImpl->MKernelCacheConfig = Config;
 }
 
@@ -1698,15 +1687,15 @@ void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
 
 std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
   auto Dev = detail::getSyclObjImpl(detail::getDeviceFromHandler(*this));
-  std::array<size_t, 3> PiResult = {}; /*
-   auto Ret = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-       Dev->getHandleRef(),
-       UrInfoCode<
-           ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
-       sizeof(PiResult), &PiResult, nullptr);*/
-                                       //  if (Ret == PI_SUCCESS) {
-  return PiResult;
-  //}
+  std::array<size_t, 3> UrResult = {};
+  auto Ret = Dev->getUrPlugin()->call_nocheck(
+      urDeviceGetInfo, Dev->getUrHandleRef(),
+      UrInfoCode<
+          ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
+      sizeof(UrResult), &UrResult, nullptr);
+  if (Ret == UR_RESULT_SUCCESS) {
+    return UrResult;
+  }
   return {};
 }
 

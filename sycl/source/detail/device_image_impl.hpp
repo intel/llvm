@@ -263,23 +263,21 @@ public:
     return MSpecConstsBlob;
   }
 
-  sycl::detail::pi::PiMem &get_spec_const_buffer_ref() noexcept {
+  ur_mem_handle_t &get_spec_const_buffer_ref() noexcept {
     std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
     if (nullptr == MSpecConstsBuffer && !MSpecConstsBlob.empty()) {
-      // const UrPluginPtr &Plugin = getSyclObjImpl(MContext)->getUrPlugin();
+      const UrPluginPtr &Plugin = getSyclObjImpl(MContext)->getUrPlugin();
       //  Uses PI_MEM_FLAGS_HOST_PTR_COPY instead of PI_MEM_FLAGS_HOST_PTR_USE
       //  since post-enqueue cleanup might trigger destruction of
       //  device_image_impl and, as a result, destruction of MSpecConstsBlob
       //  while MSpecConstsBuffer is still in use.
       //  TODO consider changing the lifetime of device_image_impl instead
-      /* FIXME: port device image and surrounding stuff
       ur_buffer_properties_t Properties = {UR_STRUCTURE_TYPE_BUFFER_PROPERTIES,
-      nullptr, MSpecConstsBlob.data()}; memBufferCreateHelper(Plugin,
-                            detail::getSyclObjImpl(MContext)->getUrHandleRef(),
-                            UR_MEM_FLAG_READ_WRITE |
-      UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER, MSpecConstsBlob.size(),
-                            &MSpecConstsBuffer, &Properties);
-                            */
+                                           nullptr, MSpecConstsBlob.data()};
+      memBufferCreateHelper(
+          Plugin, detail::getSyclObjImpl(MContext)->getUrHandleRef(),
+          UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER,
+          MSpecConstsBlob.size(), &MSpecConstsBuffer, &Properties);
     }
     return MSpecConstsBuffer;
   }
@@ -314,9 +312,8 @@ public:
     }
     if (MSpecConstsBuffer) {
       std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
-      const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
-      /* FIXME: needs porting
-      memReleaseHelper(Plugin, MSpecConstsBuffer);*/
+      const UrPluginPtr &Plugin = getSyclObjImpl(MContext)->getUrPlugin();
+      memReleaseHelper(Plugin, MSpecConstsBuffer);
     }
   }
 
@@ -419,7 +416,7 @@ private:
   // Buffer containing binary blob which can have values of all specialization
   // constants in the image, it is using for storing non-native specialization
   // constants
-  sycl::detail::pi::PiMem MSpecConstsBuffer = nullptr;
+  ur_mem_handle_t MSpecConstsBuffer = nullptr;
   // Contains map of spec const names to their descriptions + offsets in
   // the MSpecConstsBlob
   std::map<std::string, std::vector<SpecConstDescT>> MSpecConstSymMap;

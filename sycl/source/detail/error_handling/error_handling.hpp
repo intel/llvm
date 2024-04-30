@@ -25,13 +25,14 @@ namespace enqueue_kernel_launch {
 ///
 /// This function actually never returns and always throws an exception with
 /// error description.
-void handleErrorOrWarning(pi_result, const device_impl &, pi_kernel,
+void handleErrorOrWarning(ur_result_t, const device_impl &, ur_kernel_handle_t,
                           const NDRDescT &);
 } // namespace enqueue_kernel_launch
 
 namespace kernel_get_group_info {
 /// Analyzes error code of piKernelGetGroupInfo.
-void handleErrorOrWarning(pi_result, pi_kernel_group_info, const PluginPtr &);
+void handleErrorOrWarning(ur_result_t, ur_kernel_group_info_t,
+                          const UrPluginPtr &);
 } // namespace kernel_get_group_info
 
 } // namespace detail

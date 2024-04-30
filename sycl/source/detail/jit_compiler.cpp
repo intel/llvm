@@ -707,8 +707,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::vector<Requirement *> &Requirements = CGData.MRequirements;
   std::vector<detail::EventImplPtr> &Events = CGData.MEvents;
   std::vector<::jit_compiler::NDRange> Ranges;
-  sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig =
-      PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
+  ur_kernel_cache_config_t KernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
   unsigned KernelIndex = 0;
   ParamList FusedParams;
   PromotionMap PromotedAccs;
@@ -871,7 +870,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     if (KernelIndex == 0) {
       KernelCacheConfig = KernelCG->MKernelCacheConfig;
     } else if (KernelCG->MKernelCacheConfig != KernelCacheConfig) {
-      KernelCacheConfig = PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
+      KernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
     }
 
     ++KernelIndex;
