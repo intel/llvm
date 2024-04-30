@@ -724,6 +724,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
 
   case UR_DEVICE_INFO_GLOBAL_MEM_FREE: {
+    // Work around an issue on some (unsupported) architectures,
+    // where hipMemGetInfo fails internally and returns hipErrorInvalidValue
+    // when trying to query the amount of available global memory. Since we
+    // can't distinguish this condition from us doing something wrong, we can't
+    // handle it gracefully.
+    hipDeviceProp_t Props;
+    detail::ur::assertion(hipGetDeviceProperties(&Props, hDevice->get()) ==
+                          hipSuccess);
+    if (strcmp(Props.gcnArchName, "gfx1031") == 0) {
+      return ReturnValue(0);
+    }
+
     size_t FreeMemory = 0;
     size_t TotalMemory = 0;
     detail::ur::assertion(hipMemGetInfo(&FreeMemory, &TotalMemory) ==
