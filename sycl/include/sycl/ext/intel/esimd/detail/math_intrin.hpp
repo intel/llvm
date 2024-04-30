@@ -121,12 +121,13 @@ __ESIMD_UNARY_EXT_MATH_INTRIN(cos);
 
 template <class T, int SZ>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T, SZ)
-    __esimd_ieee_div(__ESIMD_raw_vec_t(T, SZ) src0,
-                     __ESIMD_raw_vec_t(T, SZ) src1) __ESIMD_INTRIN_END;
-template <class T, int SZ>
-__ESIMD_INTRIN __ESIMD_raw_vec_t(T, SZ)
     __esimd_pow(__ESIMD_raw_vec_t(T, SZ) src0,
                 __ESIMD_raw_vec_t(T, SZ) src1) __ESIMD_INTRIN_END;
+
+template <class T, int SZ>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, SZ)
+    __esimd_ieee_div(__ESIMD_raw_vec_t(T, SZ) src0,
+                     __ESIMD_raw_vec_t(T, SZ) src1) __ESIMD_INTRIN_END;
 
 template <int SZ>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<float, SZ>
