@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b37fa2c4b09a49839a83228f687c811595fce3fd
-  # Merge: c7fade0d f61e81e9
+  # commit 7371150b3a525d9c69a0790f9abf59089eb0c46c
+  # Merge: cb44d9ab bb45b7c5
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Apr 23 16:17:41 2024 +0100
-  #    Merge pull request #1544 from kbenzie/benie/l0-fix-rhel-error
-  #    [L0] Add missing <iomanip> include
-  set(UNIFIED_RUNTIME_TAG b37fa2c4b09a49839a83228f687c811595fce3fd)
+  # Date:   Fri Apr 26 15:44:19 2024 +0100
+  #    Merge pull request #1442 from Bensuo/ben/optimize-cmdbuffer-submission
+  #    [EXP][Command-Buffer] Optimize L0 command buffer submission
+  set(UNIFIED_RUNTIME_TAG 7371150b3a525d9c69a0790f9abf59089eb0c46c)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

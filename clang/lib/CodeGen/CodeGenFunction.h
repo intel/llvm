@@ -4588,7 +4588,7 @@ public:
   RValue EmitIntelFPGAMemBuiltin(const CallExpr *E);
 
   RValue EmitIntelSYCLPtrAnnotationBuiltin(const CallExpr *E);
-  RValue EmitIntelSYCLAllocaBuiltin(const CallExpr *E,
+  RValue EmitIntelSYCLAllocaBuiltin(unsigned BuiltinID, const CallExpr *E,
                                     ReturnValueSlot ReturnValue);
 
   llvm::CallInst *

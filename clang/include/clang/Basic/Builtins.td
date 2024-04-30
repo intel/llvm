@@ -4722,6 +4722,12 @@ def IntelSYCLAlloca : Builtin {
   let Prototype = "void *(void &)";
 }
 
+def IntelSYCLAllocaWithAlign : Builtin {
+  let Spellings = ["__builtin_intel_sycl_alloca_with_align"];
+  let Attributes = [NoThrow, CustomTypeChecking];
+  let Prototype = "void *(void &)";
+}
+
 // Builtins for Intel FPGA
 def IntelSYCLFPGAReg : Builtin {
   let Spellings = ["__builtin_intel_fpga_reg"];
