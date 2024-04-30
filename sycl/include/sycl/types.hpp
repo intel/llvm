@@ -108,4 +108,3 @@ struct CheckDeviceCopyable<
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
-
