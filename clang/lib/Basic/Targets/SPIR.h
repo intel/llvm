@@ -513,7 +513,6 @@ public:
     // The value of the following reflects processor type.
     // 300=386, 400=486, 500=Pentium, 600=Blend (default)
     // We lost the original triple, so we use the default.
-    // TBD should we keep these lines?  Copied from X86.h.
     Builder.defineMacro("_M_IX86", "600");
   }
 };
