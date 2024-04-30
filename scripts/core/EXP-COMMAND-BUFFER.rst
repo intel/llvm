@@ -77,9 +77,13 @@ Command-Buffer Creation
 Command-Buffers are tied to a specific ${x}_context_handle_t and
 ${x}_device_handle_t. ${x}CommandBufferCreateExp optionally takes a descriptor
 to provide additional properties for how the command-buffer should be
-constructed. The only unique member defined in ${x}_exp_command_buffer_desc_t
-is ``isUpdatable``, which should be set to ``true`` to support :ref:`updating
+constructed. The members defined in ${x}_exp_command_buffer_desc_t are:
+* ``isUpdatable``, which should be set to ``true`` to support :ref:`updating
 command-buffer commands`.
+* ``isInOrder``, which should be set to ``true`` to enable commands enqueued to
+a command-buffer to be executed in an in-order fashion where possible.
+* ``enableProfiling``, which should be set to ``true`` to enable profiling of
+the command-buffer.
 
 Command-buffers are reference counted and can be retained and released by
 calling ${x}CommandBufferRetainExp and ${x}CommandBufferReleaseExp respectively.
@@ -123,7 +127,8 @@ Sync-Points
 A sync-point is a value which represents a command inside of a command-buffer
 which is returned from command-buffer append function calls. These can be
 optionally passed to these functions to define execution dependencies on other
-commands within the command-buffer.
+commands within the command-buffer. Sync-points passed to functions may be
+ignored if the command-buffer was created in-order.
 
 Sync-points are unique and valid for use only within the command-buffer they
 were obtained from.

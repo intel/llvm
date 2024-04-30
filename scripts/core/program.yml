@@ -89,6 +89,7 @@ analogue:
     - "**clCreateProgramWithIL**"
 details:
     - "The application may call this function from simultaneous threads."
+    - "The adapter may (but is not required to) perform validation of the provided module during this call."
 params:
     - type: $x_context_handle_t
       name: hContext
@@ -128,6 +129,8 @@ analogue:
 details:
     - "The application may call this function from simultaneous threads."
     - "Following a successful call to this entry point, `phProgram` will contain a binary of type $X_PROGRAM_BINARY_TYPE_COMPILED_OBJECT or $X_PROGRAM_BINARY_TYPE_LIBRARY for `hDevice`."
+    - "The device specified by `hDevice` must be device associated with context."
+    - "The adapter may (but is not required to) perform validation of the provided module during this call."
 params:
     - type: $x_context_handle_t
       name: hContext

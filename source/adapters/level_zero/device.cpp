@@ -323,8 +323,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(
         uint64_t{Device->ZeDeviceComputeProperties->maxSharedLocalMemory});
   case UR_DEVICE_INFO_IMAGE_SUPPORTED:
-    return ReturnValue(static_cast<uint32_t>(
-        Device->ZeDeviceImageProperties->maxImageDims1D > 0));
+    return ReturnValue(Device->ZeDeviceImageProperties->maxImageDims1D > 0);
   case UR_DEVICE_INFO_HOST_UNIFIED_MEMORY:
     return ReturnValue(
         static_cast<uint32_t>((Device->ZeDeviceProperties->flags &
