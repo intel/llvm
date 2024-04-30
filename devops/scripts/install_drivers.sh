@@ -108,25 +108,15 @@ InstallIGFX () {
   echo "Compute Runtime version $CR_TAG"
   echo "CM compiler version $CM_TAG"
   echo "Level Zero version $L0_TAG"
-  IS_IGC_DEV=$(CheckIGCdevTag $IGCTAG)
-  IGNORE_CHECKSUM=false
-  DPKG_OPTIONS=""
-  if [ "$IS_IGC_DEV" == "Yes" ]; then
-    echo "IGC dev git hash $IGC_DEV_VER"
-    get_pre_release_igfx $IGC_DEV_URL $IGC_DEV_VER
-    IGNORE_CHECKSUM=true
-    DPKG_OPTIONS=" --force-depends-version"
-  else
-    echo "IGC version $IGC_TAG"
-    get_release intel/intel-graphics-compiler $IGC_TAG \
-      | grep ".*deb" \
-      | wget -qi -
-  fi
+  echo "IGC version $IGC_TAG"
+  get_release intel/intel-graphics-compiler $IGC_TAG \
+    | grep ".*deb" \
+    | wget -qi -
   get_release intel/compute-runtime $CR_TAG \
     | grep -E ".*((deb)|(sum))" \
     | wget -qi -
   # Perform the checksum conditionally and then get the release
-  ( [ "$IGNORE_CHECKSUM" ] || sha256sum -c *.sum ) && \
+  sha256sum -c *.sum  && \
   get_release intel/cm-compiler $CM_TAG \
     | grep ".*deb" \
     | grep -v "u18" \
@@ -134,7 +124,22 @@ InstallIGFX () {
   get_release oneapi-src/level-zero $L0_TAG \
     | grep ".*deb" \
     | wget -qi -
-  dpkg -i $DPKG_OPTIONS *.deb && rm *.deb *.sum
+  dpkg -i *.deb && rm *.deb *.sum
+  IS_IGC_DEV=$(CheckIGCdevTag $IGCTAG)
+  if [ "$IS_IGC_DEV" == "Yes" ]; then
+    # Dev IGC deb package did not include libopencl-clang
+    # So we need to backup and install it from release igc.
+    echo "Backup libopencl-clang"
+    cp -d /usr/local/lib/libopencl-clang.so.14*  .
+    echo "Download IGC dev git hash $IGC_DEV_VER"
+    get_pre_release_igfx $IGC_DEV_URL $IGC_DEV_VER
+    echo "Install IGC dev git hash $IGC_DEV_VER"
+    dpkg -i *.deb && rm *.deb *.sum
+    echo "Install libopencl-clang"
+    cp -d libopencl-clang.so.14*  /usr/local/lib/
+    echo "Clean up"
+    rm *.deb libopencl-clang.so.14*
+  fi
 }
 
 InstallCPURT () {
