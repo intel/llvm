@@ -1109,6 +1109,8 @@ low 32-bits back into an integer.
 position of the first least significant set bit in an integer.
 `byte_level_permute` returns a byte-permutation of two input unsigned integers,
 with bytes selected according to a third unsigned integer argument.
+`match_all_over_sub_group` and `match_any_over_sub_group` allows comparison of values
+across work-items within a sub-group.
 
 There is also an `experimental::logical_group` class which allows
 `sycl::sub_group`s to be further subdivided into 'logical' groups to perform
@@ -1135,6 +1137,14 @@ inline unsigned int byte_level_permute(unsigned int a, unsigned int b,
                                        unsigned int s);
 
 template <typename ValueT> inline int ffs(ValueT a);
+
+template <typename T>
+unsigned int match_any_over_sub_group(sycl::sub_group g, unsigned member_mask,
+                                      T value);
+
+template <typename T>
+unsigned int match_all_over_sub_group(sycl::sub_group g, unsigned member_mask,
+                                      T value, int *pred);
 
 template <typename ValueT>
 ValueT select_from_sub_group(sycl::sub_group g, ValueT x, int remote_local_id,
