@@ -1184,17 +1184,24 @@ spec, and so should be used with caution.
 namespace syclcompat {
 namespace experimental {
 
+#if defined(__AMDGPU__)
+// seq_cst currently not working for AMD
+constexpr sycl::memory_order barrier_memory_order = sycl::memory_order::acq_rel;
+#else
+constexpr sycl::memory_order barrier_memory_order = sycl::memory_order::seq_cst;
+#endif
+
 template <int dimensions = 3>
 inline void nd_range_barrier(
     sycl::nd_item<dimensions> item,
-    sycl::atomic_ref<unsigned int, sycl::memory_order::acq_rel,
+    sycl::atomic_ref<unsigned int, barrier_memory_order,
                      sycl::memory_scope::device,
                      sycl::access::address_space::global_space> &counter);
 
 template <>
 inline void nd_range_barrier(
     sycl::nd_item<1> item,
-    sycl::atomic_ref<unsigned int, sycl::memory_order::acq_rel,
+    sycl::atomic_ref<unsigned int, barrier_memory_order,
                      sycl::memory_scope::device,
                      sycl::access::address_space::global_space> &counter);
 

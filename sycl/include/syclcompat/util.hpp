@@ -493,6 +493,15 @@ inline int get_sycl_language_version() {
 }
 
 namespace experimental {
+
+// FIXME(@intel/syclcompat-lib-reviewers): unify once supported in the AMD
+// backend.
+#if defined(__AMDGPU__)
+constexpr sycl::memory_order barrier_memory_order = sycl::memory_order::acq_rel;
+#else
+constexpr sycl::memory_order barrier_memory_order = sycl::memory_order::seq_cst;
+#endif
+
 /// Synchronize work items from all work groups within a SYCL kernel.
 /// \param [in] item:  Represents a work group.
 /// \param [in] counter: An atomic object defined on a device memory which can
@@ -502,8 +511,8 @@ namespace experimental {
 /// a SYCL kernel can be scheduled actively at the same time on a device.
 template <int dimensions = 3>
 inline void nd_range_barrier(
-    sycl::nd_item<dimensions> item,
-    sycl::atomic_ref<unsigned int, sycl::memory_order::acq_rel,
+    const sycl::nd_item<dimensions> &item,
+    sycl::atomic_ref<unsigned int, barrier_memory_order,
                      sycl::memory_scope::device,
                      sycl::access::address_space::global_space> &counter) {
 
@@ -542,8 +551,8 @@ inline void nd_range_barrier(
 /// a SYCL kernel can be scheduled actively at the same time on a device.
 template <>
 inline void nd_range_barrier(
-    sycl::nd_item<1> item,
-    sycl::atomic_ref<unsigned int, sycl::memory_order::acq_rel,
+    const sycl::nd_item<1> &item,
+    sycl::atomic_ref<unsigned int, barrier_memory_order,
                      sycl::memory_scope::device,
                      sycl::access::address_space::global_space> &counter) {
   unsigned int num_groups = item.get_group_range(0);
