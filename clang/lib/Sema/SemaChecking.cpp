@@ -3013,9 +3013,12 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
       return ExprError();
     break;
   case Builtin::BI__builtin_intel_sycl_alloca:
+  case Builtin::BI__builtin_intel_sycl_alloca_with_align:
     if (!Context.getLangOpts().SYCLIsDevice) {
       Diag(TheCall->getBeginLoc(), diag::err_builtin_requires_language)
-          << "__builtin_intel_sycl_alloca"
+          << (BuiltinID == Builtin::BI__builtin_intel_sycl_alloca
+                  ? "__builtin_intel_sycl_alloca"
+                  : "__builtin_intel_sycl_alloca_with_align")
           << "SYCL device";
       return ExprError();
     }
@@ -7821,9 +7824,22 @@ static llvm::APSInt getSYCLAllocaDefaultSize(const ASTContext &Ctx,
   return Default.getInt();
 }
 
-bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
+bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned BuiltinID,
+                                                   CallExpr *Call) {
   assert(getLangOpts().SYCLIsDevice &&
          "Builtin can only be used in SYCL device code");
+
+  assert((BuiltinID == Builtin::BI__builtin_intel_sycl_alloca ||
+          BuiltinID == Builtin::BI__builtin_intel_sycl_alloca_with_align) &&
+         "Unexpected builtin");
+
+  bool IsAlignedAlloca =
+      BuiltinID == Builtin::BI__builtin_intel_sycl_alloca_with_align;
+
+  constexpr unsigned InvalidIndex = -1;
+  constexpr unsigned ElementTypeIndex = 0;
+  const unsigned AlignmentIndex = IsAlignedAlloca ? 1 : InvalidIndex;
+  const unsigned SpecNameIndex = IsAlignedAlloca ? 2 : 1;
 
   SourceLocation Loc = Call->getBeginLoc();
 
@@ -7832,7 +7848,7 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
   const FunctionDecl *FD = Call->getDirectCallee();
   assert(FD && "Builtin cannot be called from a function pointer");
   if (!FD->hasAttr<BuiltinAliasAttr>()) {
-    Diag(Loc, diag::err_intel_sycl_alloca_no_alias);
+    Diag(Loc, diag::err_intel_sycl_alloca_no_alias) << IsAlignedAlloca;
     return true;
   }
 
@@ -7841,10 +7857,11 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
     return true;
 
   // Check three template arguments are passed
-  if (const TemplateArgumentList *TAL = FD->getTemplateSpecializationArgs();
-      !TAL || TAL->size() != 3) {
+  unsigned DesiredTemplateArgumentsCount = IsAlignedAlloca ? 4 : 3;
+  const TemplateArgumentList *CST = FD->getTemplateSpecializationArgs();
+  if (!CST || CST->size() != DesiredTemplateArgumentsCount) {
     Diag(Loc, diag::err_intel_sycl_alloca_wrong_template_arg_count)
-        << (TAL ? TAL->size() : 0);
+        << IsAlignedAlloca << (CST ? CST->size() : 0);
     return true;
   }
 
@@ -7858,7 +7875,7 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
   };
   if (CheckArg(FD->getParamDecl(0)->getType())) {
     Diag(Loc, diag::err_intel_sycl_alloca_wrong_arg)
-        << FD->getParamDecl(0)->getType();
+        << IsAlignedAlloca << FD->getParamDecl(0)->getType();
     return true;
   }
 
@@ -7880,14 +7897,18 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
     return TAL.get(1).getAsIntegral() != PrivateAS;
   };
   if (CheckType(FD->getReturnType(), getASTContext())) {
-    Diag(Loc, diag::err_intel_sycl_alloca_wrong_type) << FD->getReturnType();
+    Diag(Loc, diag::err_intel_sycl_alloca_wrong_type)
+        << IsAlignedAlloca << FD->getReturnType();
     return true;
   }
 
   // Check size is passed as a specialization constant
-  const auto CheckSize = [this](const ASTContext &Ctx, SourceLocation Loc,
-                                const TemplateArgumentList *CST) {
-    QualType Ty = CST->get(1).getNonTypeTemplateArgumentType();
+  const auto CheckSize = [this, IsAlignedAlloca, ElementTypeIndex,
+                          SpecNameIndex](const ASTContext &Ctx,
+                                         SourceLocation Loc,
+                                         const TemplateArgumentList *CST) {
+    TemplateArgument TA = CST->get(SpecNameIndex);
+    QualType Ty = TA.getNonTypeTemplateArgumentType();
     if (Ty.isNull() || !Ty->isReferenceType())
       return true;
     Ty = Ty->getPointeeType();
@@ -7899,21 +7920,39 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
     if (!TAL.get(0).getAsType()->isIntegralType(Ctx))
       return true;
     llvm::APSInt DefaultSize =
-        getSYCLAllocaDefaultSize(Ctx, cast<VarDecl>(CST->get(1).getAsDecl()));
+        getSYCLAllocaDefaultSize(Ctx, cast<VarDecl>(TA.getAsDecl()));
     if (DefaultSize < 1)
       Diag(Loc, diag::warn_intel_sycl_alloca_bad_default_value)
-          << DefaultSize.getSExtValue();
+          << IsAlignedAlloca << DefaultSize.getSExtValue();
     return false;
   };
-  const TemplateArgumentList *CST = FD->getTemplateSpecializationArgs();
   if (CheckSize(getASTContext(), Loc, CST)) {
-    TemplateArgument TA = CST->get(1);
+    TemplateArgument TA = CST->get(SpecNameIndex);
     QualType Ty = TA.getNonTypeTemplateArgumentType();
+    const SemaDiagnosticBuilder &D =
+        Diag(Loc, diag::err_intel_sycl_alloca_wrong_size);
+    D << IsAlignedAlloca;
     if (Ty.isNull())
-      Diag(Loc, diag::err_intel_sycl_alloca_no_size) << TA;
+      D << TA;
     else
-      Diag(Loc, diag::err_intel_sycl_alloca_wrong_size) << TA << Ty;
+      D << Ty;
     return true;
+  }
+
+  if (IsAlignedAlloca) {
+    TemplateArgument AlignmentArg = CST->get(AlignmentIndex);
+    llvm::APSInt RequestedAlign = AlignmentArg.getAsIntegral();
+    if (!RequestedAlign.isPowerOf2())
+      return Diag(Loc, diag::err_alignment_not_power_of_two);
+    constexpr int32_t MaxAllowedAlign = std::numeric_limits<int32_t>::max() / 8;
+    if (RequestedAlign > MaxAllowedAlign)
+      return Diag(Loc, diag::err_alignment_too_big) << MaxAllowedAlign;
+    QualType AllocaType = CST->get(ElementTypeIndex).getAsType();
+    int64_t AllocaRequiredAlignment =
+        Context.getTypeAlignInChars(AllocaType).getQuantity();
+    if (RequestedAlign < AllocaRequiredAlignment)
+      return Diag(Loc, diag::err_alignas_underaligned)
+             << AllocaType << AllocaRequiredAlignment;
   }
 
   return false;
