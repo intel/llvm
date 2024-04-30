@@ -828,12 +828,10 @@ class enable_profiling {
 
 The `property::graph::enable_profiling` property enables profiling events
 returned from submissions of the executable graph. Passing this property
-implies disabling certain optimizations. This is why profiling is by default
-disabled on graphs, unless users explicitly enable it. As a result, the
-execution time of a graph finalized with profiling enabled is longer than that
-of a graph without profiling capability. An error will be thrown when
-attempting to profile an event from a graph submission that was created without
-this property.
+implies disabling certain optimizations. As a result, the execution time of a
+graph finalized with profiling enabled is longer than that of a graph without
+profiling capability. An error will be thrown when attempting to profile an
+event from a graph submission that was created without this property.
 
 ==== Graph Member Functions
 

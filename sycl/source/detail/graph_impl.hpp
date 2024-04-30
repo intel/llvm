@@ -386,19 +386,16 @@ public:
   /// Test if the node contains a N-D copy
   /// @return true if the op is a N-D copy
   bool isNDCopyNode() const {
-    if ((MCGType == sycl::detail::CG::CGTYPE::CopyAccToAcc) ||
-        (MCGType == sycl::detail::CG::CGTYPE::CopyAccToPtr) ||
-        (MCGType == sycl::detail::CG::CGTYPE::CopyPtrToAcc)) {
-      sycl::detail::CGCopy *Copy = (sycl::detail::CGCopy *)MCommandGroup.get();
-      sycl::detail::Requirement *ReqSrc =
-          (sycl::detail::Requirement *)(Copy->getSrc());
-      sycl::detail::Requirement *ReqDst =
-          (sycl::detail::Requirement *)(Copy->getDst());
-      if ((ReqSrc->MDims > 1) || (ReqDst->MDims > 1)) {
-        return true;
-      }
+    if ((MCGType != sycl::detail::CG::CGTYPE::CopyAccToAcc) &&
+        (MCGType != sycl::detail::CG::CGTYPE::CopyAccToPtr) &&
+        (MCGType != sycl::detail::CG::CGTYPE::CopyPtrToAcc)) {
+      return false;
     }
-    return false;
+
+    auto Copy = static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
+    auto ReqSrc = static_cast<sycl::detail::Requirement *>(Copy->getSrc());
+    auto ReqDst = static_cast<sycl::detail::Requirement *>(Copy->getDst());
+    return (ReqSrc->MDims > 1) || (ReqDst->MDims > 1);
   }
 
   /// Update the value of an accessor inside this node. Accessors must be
