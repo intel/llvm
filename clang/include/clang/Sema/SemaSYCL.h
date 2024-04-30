@@ -75,7 +75,7 @@ public:
   ///  the kernel with given name. Starts new kernel invocation descriptor.
   void startKernel(const FunctionDecl *SyclKernel, QualType KernelNameType,
                    SourceLocation Loc, bool IsESIMD, bool IsUnnamedKernel,
-                   bool IsFreeFunctionKernel, int64_t ObjSize);
+                   int64_t ObjSize);
 
   /// Adds a kernel parameter descriptor to current kernel invocation
   /// descriptor.
@@ -114,6 +114,9 @@ public:
   /// declaration of variable __sycl_host_pipe_registrar of this type in
   /// integration header is required.
   void addHostPipeRegistration() { NeedToEmitHostPipeRegistration = true; }
+
+  /// Save the function decl used for creating free function shims.
+  void setFreeFunctionCDecl(FunctionDecl *FFD);
 
 private:
   // Kernel actual parameter descriptor.
@@ -167,12 +170,15 @@ private:
     /// Size of the kernel object.
     int64_t ObjSize = 0;
 
+    // FunctionDecl for creating free function shims.
+    const FunctionDecl *FreeFunctionCDecl;
+
     KernelDesc(const FunctionDecl *SyclKernel, QualType NameType,
                SourceLocation KernelLoc, bool IsESIMD, bool IsUnnamedKernel,
-               bool IsFreeFunctionKernel, int64_t ObjSize)
+               int64_t ObjSize)
         : SyclKernel(SyclKernel), NameType(NameType), KernelLocation(KernelLoc),
           IsESIMDKernel(IsESIMD), IsUnnamedKernel(IsUnnamedKernel),
-          IsFreeFunctionKernel(IsFreeFunctionKernel), ObjSize(ObjSize) {}
+          ObjSize(ObjSize) {}
 
     void updateKernelNames(StringRef Name, StringRef StableName) {
       this->Name = Name.str();

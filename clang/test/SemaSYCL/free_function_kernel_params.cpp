@@ -14,18 +14,20 @@ void ff_2(int *ptr, int start, int end) {
     ptr[i] = start;
 }
 // CHECK: FunctionDecl {{.*}} __free_function_ff_2 'void (__global int *, int, int)'
-// CHECK-NEXT: ParmVarDecl {{.*}} _arg_ptr '__global int *'
-// CHECK-NEXT: ParmVarDecl {{.*}} _arg_start 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} _arg_end 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} __arg_ptr '__global int *'
+// CHECK-NEXT: ParmVarDecl {{.*}} __arg_start 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} __arg_end 'int'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: CallExpr {{.*}} 'void'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'void (*)(int *, int, int)' <FunctionToPointerDecay>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'void (int *, int, int)' Function {{.*}} 'ff_2' 'void (int *, int, int)'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *'
-// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_ptr' '__global int *'
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' ParmVar {{.*}} '_arg_start' 'int'
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' ParmVar {{.*}} '_arg_end' 'int'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '__arg_ptr' '__global int *'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '__arg_start' 'int'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '__arg_end' 'int'
 
 
 // Templated free function definition.
@@ -41,15 +43,17 @@ __attribute__((sycl_device))
 template void ff_3(int* ptr, int start, int end);
 
 // CHECK: FunctionDecl {{.*}} __free_function_Z4ff_3IiEvPT_S0_i 'void (__global int *, int, int)'
-// CHECK-NEXT: ParmVarDecl {{.*}} _arg_ptr '__global int *'
-// CHECK-NEXT: ParmVarDecl {{.*}} _arg_start 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} _arg_end 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} __arg_ptr '__global int *'
+// CHECK-NEXT: ParmVarDecl {{.*}} __arg_start 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} __arg_end 'int'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: CallExpr {{.*}} 'void'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'void (*)(int *, int, int)' <FunctionToPointerDecay>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'void (int *, int, int)' Function {{.*}} 'ff_3' 'void (int *, int, int)'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *'
-// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_ptr' '__global int *'
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' ParmVar {{.*}} '_arg_start' 'int'
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' ParmVar {{.*}} '_arg_end' 'int'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '__arg_ptr' '__global int *'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '__arg_start' 'int'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '__arg_end' 'int'
