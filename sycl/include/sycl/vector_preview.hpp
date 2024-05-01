@@ -89,7 +89,7 @@ using select_apply_cl_t = std::conditional_t<
     sizeof(_IN) == 1, T8,
     std::conditional_t<sizeof(_IN) == 2, T16,
                        std::conditional_t<sizeof(_IN) == 4, T32, T64>>>;
-    
+
 // Helper function to bit_cast one type to another.
 template <typename FromType, typename ToType>
 static constexpr ToType BitCast(const FromType &Value) {
@@ -581,7 +581,7 @@ public:
       std::is_fundamental_v<vec_data_t<Ty>> ||
           detail::is_half_or_bf16_v<typename std::remove_const_t<Ty>>,
       vec &>
-  operator=(const Ty & Rhs) {
+  operator=(const Ty &Rhs) {
     for (int i = 0; i < NumElements; ++i) {
       setValue(i, Rhs);
     }
@@ -1211,8 +1211,7 @@ private:
 #ifdef __SYCL_DEVICE_ONLY__
   template <int Num = NumElements, typename Ty = int,
             typename = typename std::enable_if_t<1 != Num>>
-  constexpr void setValue(Ty Index, const DataT &Value,
-                          int) {
+  constexpr void setValue(Ty Index, const DataT &Value, int) {
     m_Data[Index] = vec_data<DataT>::set(Value);
   }
 
