@@ -1095,10 +1095,9 @@ static std::string constructFFKernelName(const FunctionDecl *FD) {
 }
 
 // Creates a name for the free function kernel function.
-// Non-templated functions get a simple __sycl_kernel_ prefix.
-// For templated functions we add __sycl_kernel_ to the original function name
-// and then use the mangled name as the kernel name. The renaming allows a
-// normal device function to coexist with the kernel function.
+// We add __sycl_kernel_ to the original function name and then use the mangled
+// name as the kernel name. The renaming allows a normal device function to
+// coexist with the kernel function.
 static std::pair<std::string, std::string> constructFreeFunctionKernelName(
     SemaSYCL &SemaSYCLRef, const FunctionDecl *FreeFunc, MangleContext &MC) {
   SmallString<256> Result;
@@ -1106,42 +1105,38 @@ static std::pair<std::string, std::string> constructFreeFunctionKernelName(
   std::string MangledName;
   std::string StableName;
 
-  if (FreeFunc->getTemplateSpecializationArgs()) {
-    ASTContext &Ctx = SemaSYCLRef.getASTContext();
-    FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
-    QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, {}, Info);
-    std::string FFName =
-        (Twine("__sycl_kernel_") + FreeFunc->getIdentifier()->getName()).str();
-    const IdentifierInfo *FFIdent = &Ctx.Idents.get(FFName);
-    FunctionDecl *NewFD = FunctionDecl::Create(
-        Ctx, Ctx.getTranslationUnitDecl(), {}, {}, DeclarationName(FFIdent),
-        FuncType, Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), SC_None);
-    llvm::SmallVector<ParmVarDecl *, 8> Params;
-    for (ParmVarDecl *Param : FreeFunc->parameters()) {
-      QualType Ty = Param->getType();
-      ParamDesc newParamDesc =
-          std::make_tuple(Ty, &Ctx.Idents.get(Param->getName()),
-                          Ctx.getTrivialTypeSourceInfo(Ty));
-      auto *NewParam = ParmVarDecl::Create(
-          Ctx, NewFD, SourceLocation(), SourceLocation(),
-          std::get<1>(newParamDesc), std::get<0>(newParamDesc),
-          std::get<2>(newParamDesc), SC_None, /*DefArg*/ nullptr);
-      NewParam->setScopeInfo(0, Params.size());
-      NewParam->setIsUsed();
-      Params.push_back(NewParam);
-    }
-    SmallVector<QualType, 8> ArgTys;
-    std::transform(std::begin(Params), std::end(Params),
-                   std::back_inserter(ArgTys),
-                   [](const ParmVarDecl *PVD) { return PVD->getType(); });
-    FuncType = Ctx.getFunctionType(Ctx.VoidTy, ArgTys, Info);
-    NewFD->setType(FuncType);
-    NewFD->setParams(Params);
-    MC.mangleName(NewFD, Out);
-    MangledName = Out.str();
-  } else {
-    MangledName = constructFFKernelName(FreeFunc);
+  ASTContext &Ctx = SemaSYCLRef.getASTContext();
+  FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
+  QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, {}, Info);
+  std::string FFName =
+      (Twine("__sycl_kernel_") + FreeFunc->getIdentifier()->getName()).str();
+  const IdentifierInfo *FFIdent = &Ctx.Idents.get(FFName);
+  FunctionDecl *NewFD = FunctionDecl::Create(
+      Ctx, Ctx.getTranslationUnitDecl(), {}, {}, DeclarationName(FFIdent),
+      FuncType, Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), SC_None);
+  llvm::SmallVector<ParmVarDecl *, 8> Params;
+  for (ParmVarDecl *Param : FreeFunc->parameters()) {
+    QualType Ty = Param->getType();
+    ParamDesc newParamDesc =
+        std::make_tuple(Ty, &Ctx.Idents.get(Param->getName()),
+                        Ctx.getTrivialTypeSourceInfo(Ty));
+    auto *NewParam = ParmVarDecl::Create(
+        Ctx, NewFD, SourceLocation(), SourceLocation(),
+        std::get<1>(newParamDesc), std::get<0>(newParamDesc),
+        std::get<2>(newParamDesc), SC_None, /*DefArg*/ nullptr);
+    NewParam->setScopeInfo(0, Params.size());
+    NewParam->setIsUsed();
+    Params.push_back(NewParam);
   }
+  SmallVector<QualType, 8> ArgTys;
+  std::transform(std::begin(Params), std::end(Params),
+                 std::back_inserter(ArgTys),
+                 [](const ParmVarDecl *PVD) { return PVD->getType(); });
+  FuncType = Ctx.getFunctionType(Ctx.VoidTy, ArgTys, Info);
+  NewFD->setType(FuncType);
+  NewFD->setParams(Params);
+  MC.mangleName(NewFD, Out);
+  MangledName = Out.str();
   StableName = MangledName;
   return {MangledName, StableName};
 }
