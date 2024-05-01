@@ -2787,6 +2787,11 @@ class OpenACCClauseEnqueue : public OpenACCClauseVisitor<OpenACCClauseEnqueue> {
 public:
   OpenACCClauseEnqueue(EnqueueVisitor &V) : Visitor(V) {}
 
+  void VisitVarList(const OpenACCClauseWithVarList &C) {
+    for (Expr *Var : C.getVarList())
+      Visitor.AddStmt(Var);
+  }
+
 #define VISIT_CLAUSE(CLAUSE_NAME)                                              \
   void Visit##CLAUSE_NAME##Clause(const OpenACC##CLAUSE_NAME##Clause &C);
 #include "clang/Basic/OpenACCClauses.def"
@@ -2811,6 +2816,10 @@ void OpenACCClauseEnqueue::VisitVectorLengthClause(
 void OpenACCClauseEnqueue::VisitNumGangsClause(const OpenACCNumGangsClause &C) {
   for (Expr *IE : C.getIntExprs())
     Visitor.AddStmt(IE);
+}
+
+void OpenACCClauseEnqueue::VisitPrivateClause(const OpenACCPrivateClause &C) {
+  VisitVarList(C);
 }
 } // namespace
 
