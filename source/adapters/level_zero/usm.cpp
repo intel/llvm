@@ -308,6 +308,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
   uint32_t Align = USMDesc ? USMDesc->align : 0;
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
+  // L0 spec says that alignment values that are not powers of 2 are invalid.
   if (Align > 65536 || Align & (Align - 1) != 0)
     return UR_RESULT_ERROR_INVALID_VALUE;
 
