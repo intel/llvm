@@ -12,6 +12,10 @@
 
 #include <sycl/sycl.hpp>
 
+// Purpose of this test is to verify that when SYCL is backed by L0, the aligned
+// allocation USM functions will return null pointers when called with alignment
+// values that are positive and not powers of 2 as per the SYCL and L0 spec.
+
 using namespace sycl;
 using namespace ext::oneapi::experimental;
 using namespace ext::intel::experimental;
