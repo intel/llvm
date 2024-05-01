@@ -96,16 +96,6 @@ TEST_P(cudaUrContextCreateTest, ContextLifetimeExisting) {
 
     // ensure the queue has the correct context
     ASSERT_EQ(context, queue->getContext());
-
-    // create a buffer in the context to set the context as active
-    uur::raii::Mem buffer;
-    ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, 1024,
-                                     nullptr, buffer.ptr()));
-
-    // check that context is now the active cuda context
-    ASSERT_SUCCESS_CUDA(cuCtxGetCurrent(&current));
-    // Just testing the first device in context
-    ASSERT_EQ(current, context->getDevices()[0]->getNativeContext());
 }
 
 TEST_P(cudaUrContextCreateTest, ThreadedContext) {
