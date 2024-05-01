@@ -4153,14 +4153,14 @@ class FreeFunctionKernelBodyCreator : public SyclKernelFieldHandler {
   // void f(int i, int *p, struct Simple S) { ... }
   //
   // For the host-callable kernel function generate this:
-  // void __sycl_kernel_f(int _arg_i, int* _arg_p, struct Simple _arg_S)
+  // void __sycl_kernel_f(int __arg_i, int* __arg_p, struct Simple __arg_S)
   // {
-  //   f(_arg_i, _arg_p, _arg_S);
+  //   f(__arg_i, __arg_p, __arg_S);
   // }
   CompoundStmt *createFreeFunctionKernelBody() {
     SemaSYCLRef.SemaRef.PushFunctionScope();
     Expr *Fn = SemaSYCLRef.SemaRef.BuildDeclRefExpr(
-        FreeFunc, FreeFunc->getType(), VK_PRValue, FreeFunctionSrcLoc);
+        FreeFunc, FreeFunc->getType(), VK_LValue, FreeFunctionSrcLoc);
     ASTContext &Context = SemaSYCLRef.getASTContext();
     QualType ResultTy = FreeFunc->getReturnType();
     ExprValueKind VK = Expr::getValueKindForType(ResultTy);

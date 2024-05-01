@@ -20,7 +20,7 @@ void ff_2(int *ptr, int start, int end) {
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: CallExpr {{.*}} 'void'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'void (*)(int *, int, int)' <FunctionToPointerDecay>
-// CHECK-NEXT: DeclRefExpr {{.*}} 'void (int *, int, int)' Function {{.*}} 'ff_2' 'void (int *, int, int)'
+// CHECK-NEXT: DeclRefExpr {{.*}} 'void (int *, int, int)' lvalue Function {{.*}} 'ff_2' 'void (int *, int, int)'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '__arg_ptr' '__global int *'
@@ -49,7 +49,7 @@ template void ff_3(int* ptr, int start, int end);
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: CallExpr {{.*}} 'void'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'void (*)(int *, int, int)' <FunctionToPointerDecay>
-// CHECK-NEXT: DeclRefExpr {{.*}} 'void (int *, int, int)' Function {{.*}} 'ff_3' 'void (int *, int, int)'
+// CHECK-NEXT: DeclRefExpr {{.*}} 'void (int *, int, int)' lvalue Function {{.*}} 'ff_3' 'void (int *, int, int)'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '__arg_ptr' '__global int *'
