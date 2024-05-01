@@ -300,9 +300,9 @@ struct VecStorage<
 
 // Single element half
 template <> struct VecStorage<half, 1, void> {
-  using DataType = sycl::detail::half_impl::StorageT;
+  using DataType = sycl::detail::half_impl::VecElemT;
 #ifdef __SYCL_DEVICE_ONLY__
-  using VectorDataType = sycl::detail::half_impl::StorageT;
+  using VectorDataType = sycl::detail::half_impl::VecElemT;
 #endif // __SYCL_DEVICE_ONLY__
 };
 
