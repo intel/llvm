@@ -161,8 +161,6 @@ class pipe;
 }
 
 namespace ext ::oneapi ::experimental {
-// State of a queue with regards to graph recording,
-// returned by info::queue::state
 struct image_descriptor;
 } // namespace ext::oneapi::experimental
 
