@@ -18,10 +18,10 @@
 #include <sycl/sycl.hpp>
 
 int main() {
-  cl::sycl::queue deviceQueue;
+  sycl::queue deviceQueue;
 
   for (int i = 0; i < 256; i++) {
-    auto Event = deviceQueue.submit([&](cl::sycl::handler &cgh) {
+    auto Event = deviceQueue.submit([&](sycl::handler &cgh) {
       cgh.single_task<class SimpleKernel>([=]() {});
     });
     Event.wait();

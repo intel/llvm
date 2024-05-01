@@ -29,7 +29,7 @@
 #include <iostream>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 static constexpr size_t BUFFER_SIZE = 1024;
 static constexpr int MAX_ITER_NUM1 = 10;
 static constexpr int MAX_ITER_NUM2 = 10;
