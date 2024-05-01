@@ -2,8 +2,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 

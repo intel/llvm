@@ -12,9 +12,9 @@
 // discard_events.
 
 #include "../helpers.hpp" // for printableVec
-#include <sycl/sycl.hpp>
 #include <cassert>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 static constexpr size_t BUFFER_SIZE = 1024;

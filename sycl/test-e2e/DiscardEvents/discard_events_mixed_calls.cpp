@@ -25,9 +25,9 @@
 // they don't pass then it's most likely a general issue unrelated to
 // discard_events.
 // REQUIRES: aspect-usm_shared_allocations
-#include <sycl/sycl.hpp>
 #include <cassert>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 static constexpr size_t BUFFER_SIZE = 1024;
