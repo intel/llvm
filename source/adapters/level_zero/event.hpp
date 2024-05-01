@@ -31,7 +31,9 @@ extern "C" {
 ur_result_t urEventReleaseInternal(ur_event_handle_t Event);
 ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
                         bool IsMultiDevice, bool HostVisible,
-                        ur_event_handle_t *RetEvent);
+                        ur_event_handle_t *RetEvent,
+                        bool CounterBasedEventEnabled = false,
+                        bool ForceDisableProfiling = false);
 } // extern "C"
 
 // This is an experimental option that allows to disable caching of events in
@@ -226,6 +228,8 @@ struct ur_event_handle_t_ : _ur_object {
   // completion batch for this event. Only used for out-of-order immediate
   // command lists.
   std::optional<ur_completion_batch_it> completionBatch;
+  // Keeps track of whether we are using Counter-based Events.
+  bool CounterBasedEventsEnabled = false;
 };
 
 // Helper function to implement zeHostSynchronize.

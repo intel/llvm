@@ -199,6 +199,14 @@ ur_result_t ur_platform_handle_t_::initialize() {
         ZeDriverModuleProgramExtensionFound = true;
       }
     }
+    // Check if extension is available for Counting Events.
+    if (strncmp(extension.name, ZE_EVENT_POOL_COUNTER_BASED_EXP_NAME,
+                strlen(ZE_EVENT_POOL_COUNTER_BASED_EXP_NAME) + 1) == 0) {
+      if (extension.version ==
+          ZE_EVENT_POOL_COUNTER_BASED_EXP_VERSION_CURRENT) {
+        ZeDriverEventPoolCountingEventsExtensionFound = true;
+      }
+    }
     zeDriverExtensionMap[extension.name] = extension.version;
   }
 

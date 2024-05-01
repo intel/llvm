@@ -17,4 +17,26 @@ std::string deviceTestWithParamPrinter<BoolTestParam>(
     ss << param.name << (param.value ? "Enabled" : "Disabled");
     return uur::GetPlatformAndDeviceName(device) + "__" + ss.str();
 }
+
+template <>
+std::string deviceTestWithParamPrinter<SamplerCreateParamT>(
+    const ::testing::TestParamInfo<
+        std::tuple<ur_device_handle_t, uur::SamplerCreateParamT>> &info) {
+    auto device = std::get<0>(info.param);
+    auto param = std::get<1>(info.param);
+
+    const auto normalized = std::get<0>(param);
+    const auto addr_mode = std::get<1>(param);
+    const auto filter_mode = std::get<2>(param);
+
+    std::stringstream ss;
+
+    if (normalized) {
+        ss << "NORMALIZED_";
+    } else {
+        ss << "UNNORMALIZED_";
+    }
+    ss << addr_mode << "_" << filter_mode;
+    return uur::GetPlatformAndDeviceName(device) + "__" + ss.str();
+}
 } // namespace uur
