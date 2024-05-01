@@ -111,7 +111,7 @@ declare <vscale x 4 x i32> @__vecz_b_sub_group_scan_exclusive_add_vp_u5nxv4jj(<v
 ; CHECK:   %[[SCAN:.+]] = phi <vscale x 4 x i32> [ %[[NEWVEC]], %loop ]
 
 ;------- target-dependent slide-up code:
-; CHECK:   %[[SLIDE:.+]] = call <vscale x 4 x i32> @llvm.experimental.vector.splice.nxv4i32(<vscale x 4 x i32> undef, <vscale x 4 x i32> %[[SCAN]], i32 -1)
+; CHECK:   %[[SLIDE:.+]] = call <vscale x 4 x i32> @llvm{{(\.experimental)?}}.vector.splice.nxv4i32(<vscale x 4 x i32> undef, <vscale x 4 x i32> %[[SCAN]], i32 -1)
 ; CHECK:   %[[RESULT:.+]] = insertelement <vscale x 4 x i32> %[[SLIDE]], i32 0, {{i32|i64}} 0
 
 ; CHECK:   ret <vscale x 4 x i32> %[[RESULT]]
