@@ -444,15 +444,12 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
       // are cleaned up separately from cleaning up the device global USM memory
       // this must retain the event.
       {
-        /* FIXME: at least event and probably program need to be ported before
-         * this is going to work
-        if (OwnedPiEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Plugin))
+        if (OwnedUrEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Plugin))
           InitEventsRef.push_back(ZIEvent.TransferOwnership());
-        */
+
       }
       // Write the pointer to the device global and store the event in the
       // initialize events list.
-      /* FIXME: need event, queue, program for this to work
       ur_event_handle_t InitEvent;
       void *const &USMPtr = DeviceGlobalUSM.getPtr();
       Plugin->call(
@@ -461,7 +458,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
           DeviceGlobalEntry->MUniqueId.c_str(), false, sizeof(void *), 0,
           &USMPtr, 0, nullptr, &InitEvent);
 
-      InitEventsRef.push_back(InitEvent);*/
+      InitEventsRef.push_back(InitEvent);
     }
     return InitEventsRef;
   }
