@@ -207,7 +207,7 @@ void SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI) {
   // instructions returns this new/original value as a resulting value.
   AllocaInst *PExpected = new AllocaInst(
       MemTy, 0, "expected",
-      &*CI->getParent()->getParent()->getEntryBlock().getFirstInsertionPt());
+      CI->getParent()->getParent()->getEntryBlock().getFirstInsertionPt());
   PExpected->setAlignment(Align(MemTy->getScalarSizeInBits() / 8));
 
   // Tail call implies that the callee doesn't access alloca from the caller.
