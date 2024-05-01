@@ -5504,8 +5504,8 @@ llvm::GlobalVariable *CodeGenModule::CreateOrReplaceCXXRuntimeVariable(
   }
 
   // Create a new variable.
-  GV = new llvm::GlobalVariable(getModule(), Ty, /*isConstant=*/true,
-                                Linkage, nullptr, Name, nullptr,
+  GV = new llvm::GlobalVariable(getModule(), Ty, /*isConstant=*/true, Linkage,
+                                nullptr, Name, nullptr,
                                 llvm::GlobalValue::NotThreadLocal,
                                 RuntimeGlobalsInt8PtrTy->getAddressSpace());
 
