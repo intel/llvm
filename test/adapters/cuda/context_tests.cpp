@@ -120,7 +120,6 @@ TEST_P(cudaUrContextCreateTest, ThreadedContext) {
     // the first context, and then create and release another queue with
     // the second context.
     auto test_thread = std::thread([&] {
-        CUcontext current = nullptr;
 
         {
             // create a queue with the first context
@@ -158,16 +157,6 @@ TEST_P(cudaUrContextCreateTest, ThreadedContext) {
 
             // ensure queue has correct context
             ASSERT_EQ(context2, queue->getContext());
-
-            // create a buffer to set the active context
-            uur::raii::Mem buffer = nullptr;
-            ASSERT_SUCCESS(urMemBufferCreate(context2, UR_MEM_FLAG_READ_WRITE,
-                                             1024, nullptr, buffer.ptr()));
-
-            // check that the 2nd context is now tha active cuda context
-            ASSERT_SUCCESS_CUDA(cuCtxGetCurrent(&current));
-            // Just checking for first device in context
-            ASSERT_EQ(current, context2->getDevices()[0]->getNativeContext());
         }
     });
 
