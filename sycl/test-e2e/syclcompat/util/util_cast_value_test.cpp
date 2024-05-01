@@ -72,13 +72,9 @@ void test_cast_value() {
   d_out_data = (double *)sycl::malloc_device(mem_size, q);
   q.memcpy(d_out_data, h_out_data, mem_size).wait();
 
-  auto range =
-      sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1));
-  q.submit([&](sycl::handler &cgh) {
-    cgh.parallel_for(range, [=](sycl::nd_item<3> item_ct1) {
-      test_kernel_cast_value(d_out_data);
-    });
-  });
+  q.parallel_for(
+      sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+      [=](sycl::nd_item<3> item_ct1) { test_kernel_cast_value(d_out_data); });
 
   q.memcpy(h_out_data, d_out_data, mem_size).wait();
 

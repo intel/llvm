@@ -35,6 +35,7 @@
 #define SYCL_EXT_ONEAPI_COMPLEX
 #endif
 
+#include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
 #include <sycl/ext/oneapi/experimental/complex/complex.hpp>
 
 namespace syclcompat {
