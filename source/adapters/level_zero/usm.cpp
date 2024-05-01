@@ -480,7 +480,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
   // L0 spec says that alignment values that are not powers of 2 are invalid.
-  if (Alignment > 65536 || Alignment && (Alignment - 1) != 0)
+  if (Alignment > 65536 || Alignment & (Alignment - 1) != 0)
     return UR_RESULT_ERROR_INVALID_VALUE;
 
   ur_platform_handle_t Plt = Device->Platform;
