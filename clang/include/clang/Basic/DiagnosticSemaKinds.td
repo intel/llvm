@@ -198,6 +198,9 @@ def warn_intel_sycl_alloca_bad_default_value : Warning<
     "__builtin_intel_sycl_alloca%select{|_with_align}0 expects a specialization "
     "constant with a default value of at least one as an argument. Got %1">,
     InGroup<SyclPrivateAllocaPositiveSize>;
+def note_intel_sycl_alloca_aot
+    : Note<"__builtin_intel_sycl_alloca%select{|_with_align}0 cannot be AOT "
+           "compiled">;
 
 // C99 variable-length arrays
 def ext_vla : Extension<"variable length arrays are a C99 feature">,

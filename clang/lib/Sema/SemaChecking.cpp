@@ -3022,6 +3022,12 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
           << "SYCL device";
       return ExprError();
     }
+    if (getASTContext().getTargetInfo().getTriple().isSPIRAOT()) {
+      Diag(TheCall->getBeginLoc(), diag::err_builtin_target_unsupported);
+      Diag(TheCall->getBeginLoc(), diag::note_intel_sycl_alloca_aot)
+          << (BuiltinID == Builtin::BI__builtin_intel_sycl_alloca_with_align);
+      return ExprError();
+    }
     if (CheckIntelSYCLAllocaBuiltinFunctionCall(BuiltinID, TheCall))
       return ExprError();
     break;

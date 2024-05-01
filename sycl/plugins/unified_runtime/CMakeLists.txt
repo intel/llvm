@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 7371150b3a525d9c69a0790f9abf59089eb0c46c
-  # Merge: cb44d9ab bb45b7c5
+  # commit 1906ce76c9c2d2112584cc0679c25f00c4935e73
+  # Merge: 3e3d8748 7f9b30f6
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Apr 26 15:44:19 2024 +0100
-  #    Merge pull request #1442 from Bensuo/ben/optimize-cmdbuffer-submission
-  #    [EXP][Command-Buffer] Optimize L0 command buffer submission
-  set(UNIFIED_RUNTIME_TAG 7371150b3a525d9c69a0790f9abf59089eb0c46c)
+  # Date:   Tue Apr 30 11:25:19 2024 +0100
+  #     Merge pull request #1452 from jinge90/omp_device_global_intercept
+  #     [ASAN] Intercept urProgramLink in sanitizer layer
+  set(UNIFIED_RUNTIME_TAG 1906ce76c9c2d2112584cc0679c25f00c4935e73)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
