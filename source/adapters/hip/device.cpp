@@ -732,7 +732,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     hipDeviceProp_t Props;
     UR_CHECK_ERROR(hipGetDeviceProperties(&Props, hDevice->get()));
     if (strcmp(Props.gcnArchName, "gfx1031") == 0) {
-      return ReturnValue(0);
+      return ReturnValue(size_t{0});
     }
 
     size_t FreeMemory = 0;
