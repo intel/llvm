@@ -116,7 +116,13 @@ a|
 event ext_oneapi_get_last_event() const;
 ----
 | Returns an event representing the execution of the last command submitted to
-the queue.
+the queue. If a call to `ext_oneapi_set_external_event()` on the queue happened
+after all previously submitted commands to the queue, the event passed as the
+argument to that function will is returned.
+
+If the last event was set by a call to `ext_oneapi_set_external_event()`, the
+returned event is guaranteed to compare equal to the event argument of the 
+`ext_oneapi_set_external_event()` call.
 
 Calls to this member function throw a `sycl::exception` with `errc::invalid` if
 the queue does not have the `property::queue::in_order` property.
@@ -144,6 +150,9 @@ If `queue::wait()` or `queue::wait_and_throw()` is called prior to any command
 submission following a call to this member function, `externalEvent.wait()` is
 called and `externalEvent` will not be a dependency on the next command
 submitted to the queue.
+
+`externalEvent` is required to reach completed state after the event returned by
+`get_last_event()` reaches completed state.
 
 Calls to this member function throw a `sycl::exception` with `errc::invalid` if
 the queue does not have the `property::queue::in_order` property.
