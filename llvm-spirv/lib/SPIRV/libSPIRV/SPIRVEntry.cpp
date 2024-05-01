@@ -45,6 +45,7 @@
 #include "SPIRVFunction.h"
 #include "SPIRVInstruction.h"
 #include "SPIRVMemAliasingINTEL.h"
+#include "SPIRVNameMapEnum.h"
 #include "SPIRVStream.h"
 #include "SPIRVType.h"
 
@@ -299,13 +300,18 @@ void SPIRVEntry::addDecorate(SPIRVDecorate *Dec) {
     auto *LinkageAttr = static_cast<const SPIRVDecorateLinkageAttr *>(Dec);
     setName(LinkageAttr->getLinkageName());
   }
-  SPIRVDBG(spvdbgs() << "[addDecorate] " << *Dec << '\n';)
+  SPIRVDBG(spvdbgs() << "[addDecorate] Add "
+                     << SPIRVDecorationNameMap::map(Kind) << " to Id " << Id
+                     << '\n';)
 }
 
 void SPIRVEntry::addDecorate(SPIRVDecorateId *Dec) {
-  DecorateIds.insert(std::make_pair(Dec->getDecorateKind(), Dec));
+  auto Kind = Dec->getDecorateKind();
+  DecorateIds.insert(std::make_pair(Kind, Dec));
   Module->addDecorate(Dec);
-  SPIRVDBG(spvdbgs() << "[addDecorateId] " << *Dec << '\n';)
+  SPIRVDBG(spvdbgs() << "[addDecorateId] Add"
+                     << SPIRVDecorationNameMap::map(Kind) << " to Id " << Id
+                     << '\n';)
 }
 
 void SPIRVEntry::addDecorate(Decoration Kind) {
