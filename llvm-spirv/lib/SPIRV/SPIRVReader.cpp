@@ -4911,7 +4911,7 @@ std::optional<SPIRVModuleReport> getSpirvReport(std::istream &IS,
     return {};
   }
   D >> Word;
-  if (!isSPIRVVersionKnown(Word)) {
+  if (!isSPIRVVersionKnown(static_cast<VersionNumber>(Word))) {
     ErrCode = SPIRVEC_InvalidVersionNumber;
     return {};
   }
