@@ -118,7 +118,7 @@ event ext_oneapi_get_last_event() const;
 | Returns an event representing the execution of the last command submitted to
 the queue. If a call to `ext_oneapi_set_external_event()` on the queue happened
 after all previously submitted commands to the queue, the event passed as the
-argument to that function will is returned.
+argument to that function will be returned.
 
 If the last event was set by a call to `ext_oneapi_set_external_event()`, the
 returned event is guaranteed to compare equal to the event argument of the 
