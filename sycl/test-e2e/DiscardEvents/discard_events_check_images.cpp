@@ -12,7 +12,7 @@
 // discard_events.
 
 #include "../helpers.hpp" // for printableVec
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <cassert>
 #include <iostream>
 

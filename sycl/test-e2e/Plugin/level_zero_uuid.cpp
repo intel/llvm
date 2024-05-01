@@ -7,7 +7,7 @@
 // Test that the UUID is read correctly from Level Zero.
 
 // CHECK: PASSED
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <iomanip>
 #include <iostream>
 #include <level_zero/ze_api.h>

@@ -7,7 +7,7 @@
 // Check that events and pools are not leaked when event caching is
 // enabled/disabled.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <array>
 
 constexpr cl::sycl::access::mode sycl_read = cl::sycl::access::mode::read;

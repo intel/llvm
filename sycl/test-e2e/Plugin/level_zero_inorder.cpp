@@ -12,7 +12,7 @@
 // batching. IMPORTANT NOTE: this is a critical test, double-check if your
 // changes are related to L0 events and links between commands.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <cassert>
 #include <iostream>
 #include <numeric>
