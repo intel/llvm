@@ -438,14 +438,16 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     };
     auto isSYCLDeviceLib = [&](const InputInfo &II) {
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-      const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
-      bool IsWindowsMSVCEnv = HostTC->getTriple().isWindowsMSVCEnvironment();
       StringRef LibPostfix = ".bc";
-      if (IsNVPTX)
-        LibPostfix = (IsWindowsMSVCEnv && C.getDriver().IsCLMode()) ? ".obj" : ".o";
-      StringRef NewLibPostfix = (IsWindowsMSVCEnv && C.getDriver().IsCLMode()) ? ".new.obj" : ".new.o";
+      StringRef NewLibPostfix = ".new.o";
+      if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
+                 C.getDriver().IsCLMode()) {
+        LibPostfix = ".obj";
+        NewLibPostfix = ".new.obj";
+      }
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
+      const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
       if (IsNVPTX || IsSYCLNativeCPU) {
         // Linking SYCL Device libs requires libclc as well as libdevice
         if ((InputFilename.find("libspirv") != InputFilename.npos ||

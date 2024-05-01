@@ -7880,6 +7880,11 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
         break;
       }
 
+      // Backend/Assemble actions are not used for the SYCL device side
+      if (Kind == Action::OFK_SYCL &&
+          (Phase == phases::Backend || Phase == phases::Assemble))
+        continue;
+
       auto TCAndArch = TCAndArchs.begin();
       for (Action *&A : DeviceActions) {
         if (A->getType() == types::TY_Nothing)

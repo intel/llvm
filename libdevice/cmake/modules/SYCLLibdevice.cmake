@@ -58,9 +58,7 @@ if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   string(APPEND sycl_targets_opt ",nvptx64-nvidia-cuda")
   list(APPEND compile_opts
     "-fno-sycl-libspirv"
-    "-fno-bundle-offload-arch"
-    "-nocudalib"
-    "--no-offload-new-driver")
+    "-nocudalib")
 endif()
 
 if (WIN32)
