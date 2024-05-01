@@ -61,7 +61,7 @@ jobs:
         id: arc_tests
         run: |
           if [ "${{ contains(needs.detect_changes.outputs.filters, 'devigccfg') }}" == "true" ]; then
-            echo 'arc_tests="Matrix/"' >> "$GITHUB_OUTPUT"
+            echo 'arc_tests="(ESIMD|InvokeSimd|Matrix)/"' >> "$GITHUB_OUTPUT"
           elif [ "${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}" == "true" ]; then
              echo 'arc_tests=""' >> "$GITHUB_OUTPUT"
           elif [ "${{ contains(needs.detect_changes.outputs.filters, 'esimd') }}" == "true" ]; then
