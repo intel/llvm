@@ -231,12 +231,52 @@ static Value *getStateArg(Function *F, llvm::Constant *StateTLS) {
     return BB.CreateLoad(StateTLS->getType(), V);
   }
   auto *FT = F->getFunctionType();
+  assert(FT->getNumParams() > 0);
   return F->getArg(FT->getNumParams() - 1);
 }
 
 static inline bool IsNativeCPUKernel(const Function *F) {
   return F->getCallingConv() == llvm::CallingConv::SPIR_KERNEL;
 }
+
+static bool IsNonKernelCalledByNativeCPUKernel(const Function* F) {
+  if (IsNativeCPUKernel(F))
+    return false;
+  llvm::DenseSet<const Function *> todo,checked;
+  for (;;) {
+    if (checked.insert(F).second) {
+      for (const auto &Use : F->uses()) {
+        if (auto *I = cast<CallBase>(Use.getUser())) {
+          const Function *const F2 = I->getFunction();
+          if (IsNativeCPUKernel(F2))
+            return true;
+          todo.insert(F2);
+        }
+      }
+    }
+    if (todo.empty())
+      return false;
+    auto first = todo.begin();
+    F = *first;
+    todo.erase(first);
+  }
+  return false;
+}
+
+static bool IsUnusedBuiltinOrPrivateDef(const Function &F) {
+  if (F.getCallingConv() != llvm::CallingConv::SPIR_KERNEL &&
+      F.getNumUses() == 0 && !F.isDeclaration()) {
+    if (F.hasFnAttribute(llvm::Attribute::AlwaysInline)) {
+      StringRef val = F.getFnAttribute("sycl-module-id").getValueAsString();
+      if (val.endswith("libdevice/nativecpu_utils.cpp"))
+        return true;
+    }
+    if (Function::isPrivateLinkage(F.getLinkage()))
+      return true;
+  }
+  return false;
+}
+
 static constexpr StringRef STATE_TLS_NAME = "_ZL28nativecpu_thread_local_state";
 
 } // namespace
@@ -279,8 +319,9 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     if (!Glob)
       continue;
     for (const auto &Use : Glob->uses()) {
-      auto *I = cast<CallInst>(Use.getUser());
-      if (!IsNativeCPUKernel(I->getFunction()) || KernelIsCalled) {
+      auto *I = cast<CallBase>(Use.getUser());
+      if (IsNonKernelCalledByNativeCPUKernel(I->getFunction()) ||
+          KernelIsCalled) {
         // only use the threadlocal if we have kernels calling builtins
         // indirectly, or if the kernel is called by some other func.
         if (CurrentStatePointerTLS == nullptr)
@@ -349,12 +390,23 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   // replace them with calls to our Native CPU functions.
   for (const auto &Entry : UsedBuiltins) {
     SmallVector<std::pair<Instruction *, Instruction *>> ToRemove;
+    SmallVector<Function*> ToRemove2;
     Function *const Glob = Entry.first;
     Function *ReplaceFunc = nullptr;
     for (const auto &Use : Glob->uses()) {
-      auto I = cast<CallInst>(Use.getUser());
+      auto I = cast<CallBase>(Use.getUser());
+      Function *const C = I->getFunction();
+      if (IsUnusedBuiltinOrPrivateDef(*C)) {
+        ToRemove2.push_back(C);
+        continue;
+      }
+      Value *SVal = getStateArg(I->getFunction(), CurrentStatePointerTLS);
+      if (nullptr == SVal || SVal->getType() != StatePtrType) {
+        // Something went wrong, try to recover
+        SVal = Constant::getNullValue(StatePtrType);
+      }
       SmallVector<Value *> Args(I->arg_begin(), I->arg_end());
-      Args.push_back(getStateArg(I->getFunction(), CurrentStatePointerTLS));
+      Args.push_back(SVal);
       if (nullptr == ReplaceFunc)
         ReplaceFunc = getReplaceFunc(M, Entry.second, Use, Args);
       auto *NewI = CallInst::Create(ReplaceFunc->getFunctionType(), ReplaceFunc,
@@ -378,6 +430,8 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       OldI->replaceAllUsesWith(NewI);
       OldI->eraseFromParent();
     }
+    for (auto temp: ToRemove2)
+      temp->eraseFromParent();
 
     // Finally, we erase the builtin from the module
     Glob->eraseFromParent();
@@ -413,15 +467,8 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
 
   SmallVector<Function *> UnusedLibBuiltins;
   for (auto &F : M) {
-    if (F.getCallingConv() != llvm::CallingConv::SPIR_KERNEL &&
-        F.getNumUses() == 0 && !F.isDeclaration()) {
-      if (F.hasFnAttribute(llvm::Attribute::AlwaysInline)) {
-        StringRef val = F.getFnAttribute("sycl-module-id").getValueAsString();
-        if (val.endswith("libdevice/nativecpu_utils.cpp"))
-          // We remove all unused, always-inlined functions llvm-linked from
-          // the nativecpu device builtin library from the module.
-          UnusedLibBuiltins.push_back(&F);
-      }
+    if (IsUnusedBuiltinOrPrivateDef(F)) {
+      UnusedLibBuiltins.push_back(&F);
     }
   }
   for (Function *f : UnusedLibBuiltins) {
