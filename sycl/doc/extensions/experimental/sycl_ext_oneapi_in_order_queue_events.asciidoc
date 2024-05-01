@@ -151,8 +151,10 @@ submission following a call to this member function, `externalEvent.wait()` is
 called and `externalEvent` will not be a dependency on the next command
 submitted to the queue.
 
-`externalEvent` is required to reach completed state after the event returned by
-`get_last_event()` reaches completed state.
+The application is required to ensure that externalEvent does not reach the
+completed state before the completion of the most recent command that was
+submitted to the queue. If this requirement is violated, the behavior is
+undefined.
 
 Calls to this member function throw a `sycl::exception` with `errc::invalid` if
 the queue does not have the `property::queue::in_order` property.
