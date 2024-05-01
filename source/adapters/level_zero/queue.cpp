@@ -903,8 +903,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(
     ur_queue_handle_t Queue ///< [in] handle of the queue to be flushed.
 ) {
   // Flushing cross-queue dependencies is covered by
-  // createAndRetainUrZeEventList, so this can be left as a no-op.	  return
-  // Queue->executeAllOpenCommandLists();
+  // createAndRetainUrZeEventList, so this can be left as a no-op.
   std::ignore = Queue;
   return UR_RESULT_SUCCESS;
 }
