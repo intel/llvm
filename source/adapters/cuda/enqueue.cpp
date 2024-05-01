@@ -651,9 +651,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    void *DevPtr = std::get<BufferMem>(hBuffer->Mem).getVoid(Device);
+    auto DevPtr = std::get<BufferMem>(hBuffer->Mem).getPtr(Device);
     UR_CHECK_ERROR(commonEnqueueMemBufferCopyRect(
-        Stream, region, DevPtr, CU_MEMORYTYPE_DEVICE, bufferOrigin,
+        Stream, region, &DevPtr, CU_MEMORYTYPE_DEVICE, bufferOrigin,
         bufferRowPitch, bufferSlicePitch, pDst, CU_MEMORYTYPE_HOST, hostOrigin,
         hostRowPitch, hostSlicePitch));
 
