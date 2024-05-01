@@ -1108,26 +1108,41 @@ static std::string constructFFKernelName(const FunctionDecl *FD) {
   std::string NewIdent = (Twine("__sycl_kernel_") + Id->getName()).str();
   return NewIdent;
 }
-#if 0
-// Gets a name for the free function kernel function. The suffix allows a normal
-// device function to coexist with the kernel function.
-static std::pair<std::string, std::string> constructFreeFunctionKernelName(
-    SemaSYCL &SemaSYCLRef, const FunctionDecl *FreeFunc, MangleContext &MC) {
-  SmallString<256> Result;
-  llvm::raw_svector_ostream Out(Result);
-  std::string MangledName;
-  std::string StableName;
 
-  if (FreeFunc->getTemplateSpecializationArgs()) {
-    MC.mangleName(FreeFunc, Out);
-    MangledName = (Twine("__free_function") + Out.str()).str();
-  } else {
-    MangledName = constructFFKernelName(FreeFunc);
+static FunctionDecl *createNewFunctionDecl(ASTContext &Ctx,
+                                           const FunctionDecl *FD,
+                                           SourceLocation Loc,
+                                           const IdentifierInfo *NewIdent) {
+  FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
+  QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, {}, Info);
+  FunctionDecl *NewFD = FunctionDecl::Create(
+      Ctx, Ctx.getTranslationUnitDecl(), Loc, Loc, DeclarationName(NewIdent),
+      FuncType, Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), SC_None);
+  llvm::SmallVector<ParmVarDecl *, 8> Params;
+  for (ParmVarDecl *Param : FD->parameters()) {
+    QualType Ty = Param->getType();
+    ParamDesc newParamDesc =
+        std::make_tuple(Ty, &Ctx.Idents.get(Param->getName()),
+                        Ctx.getTrivialTypeSourceInfo(Ty));
+    auto *NewParam = ParmVarDecl::Create(
+        Ctx, NewFD, SourceLocation(), SourceLocation(),
+        std::get<1>(newParamDesc), std::get<0>(newParamDesc),
+        std::get<2>(newParamDesc), SC_None, /*DefArg*/ nullptr);
+    NewParam->setScopeInfo(0, Params.size());
+    NewParam->setIsUsed();
+    Params.push_back(NewParam);
   }
-  StableName = MangledName;
-  return {MangledName, StableName};
+  SmallVector<QualType, 8> ArgTys;
+  std::transform(std::begin(Params), std::end(Params),
+                 std::back_inserter(ArgTys),
+                 [](const ParmVarDecl *PVD) { return PVD->getType(); });
+
+  FuncType = Ctx.getFunctionType(Ctx.VoidTy, ArgTys, Info);
+  NewFD->setType(FuncType);
+  NewFD->setParams(Params);
+  return NewFD;
 }
-#endif
+
 // Creates a name for the free function kernel function.
 // Non-templated functions get a simple __sycl_kernel_ prefix.
 // For templated functions we add __sycl_kernel_ to the original function name
@@ -1142,35 +1157,10 @@ static std::pair<std::string, std::string> constructFreeFunctionKernelName(
 
   if (FreeFunc->getTemplateSpecializationArgs()) {
     ASTContext &Ctx = SemaSYCLRef.getASTContext();
-    FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
-    QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, {}, Info);
-    std::string FFName =
+    std::string NewName =
         (Twine("__sycl_kernel_") + FreeFunc->getIdentifier()->getName()).str();
-    const IdentifierInfo *FFIdent = &Ctx.Idents.get(FFName);
-    FunctionDecl *NewFD = FunctionDecl::Create(
-        Ctx, Ctx.getTranslationUnitDecl(), {}, {}, DeclarationName(FFIdent),
-        FuncType, Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), SC_None);
-    llvm::SmallVector<ParmVarDecl *, 8> Params;
-    for (ParmVarDecl *Param : FreeFunc->parameters()) {
-      QualType Ty = Param->getType();
-      ParamDesc newParamDesc =
-          std::make_tuple(Ty, &Ctx.Idents.get(Param->getName()),
-                          Ctx.getTrivialTypeSourceInfo(Ty));
-      auto *NewParam = ParmVarDecl::Create(
-          Ctx, NewFD, SourceLocation(), SourceLocation(),
-          std::get<1>(newParamDesc), std::get<0>(newParamDesc),
-          std::get<2>(newParamDesc), SC_None, /*DefArg*/ nullptr);
-      NewParam->setScopeInfo(0, Params.size());
-      NewParam->setIsUsed();
-      Params.push_back(NewParam);
-    }
-    SmallVector<QualType, 8> ArgTys;
-    std::transform(std::begin(Params), std::end(Params),
-                   std::back_inserter(ArgTys),
-                   [](const ParmVarDecl *PVD) { return PVD->getType(); });
-    FuncType = Ctx.getFunctionType(Ctx.VoidTy, ArgTys, Info);
-    NewFD->setType(FuncType);
-    NewFD->setParams(Params);
+    const IdentifierInfo *NewIdent = &Ctx.Idents.get(NewName);
+    FunctionDecl *NewFD = createNewFunctionDecl(Ctx, FreeFunc, {}, NewIdent);
     MC.mangleName(NewFD, Out);
     MangledName = Out.str();
   } else {
@@ -2537,7 +2527,7 @@ public:
     return ModifiedArrayElementsOrArray.pop_back_val();
   }
 };
-FunctionDecl* FFFF;
+
 // A type to Create and own the FunctionDecl for the kernel.
 class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   SYCLIntegrationHeader &Header;
@@ -2751,43 +2741,6 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     return FD;
   }
 
-  // Create a non-templated declaration suitable for use in the SYCL shims for
-  // free function traits and get_kernel_id functions.
-  FunctionDecl *createFreeFunctionCDecl(ASTContext &Ctx, FunctionDecl *FD,
-                                        SourceLocation Loc, bool IsInline) {
-    FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
-    QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, {}, Info);
-    FunctionDecl *NewFD =
-        FunctionDecl::Create(Ctx, Ctx.getTranslationUnitDecl(), Loc, Loc,
-                             DeclarationName(FD->getIdentifier()), FuncType,
-                             Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), SC_None);
-    NewFD->setImplicitlyInline(IsInline);
-    setKernelImplicitAttrs(Ctx, NewFD, false);
-    llvm::SmallVector<ParmVarDecl *, 8> Params;
-    for (ParmVarDecl *Param : FD->parameters()) {
-      QualType Ty = Param->getType();
-      ParamDesc newParamDesc =
-          std::make_tuple(Ty, &Ctx.Idents.get(Param->getName()),
-                          Ctx.getTrivialTypeSourceInfo(Ty));
-      auto *NewParam = ParmVarDecl::Create(
-          Ctx, NewFD, SourceLocation(), SourceLocation(),
-          std::get<1>(newParamDesc), std::get<0>(newParamDesc),
-          std::get<2>(newParamDesc), SC_None, /*DefArg*/ nullptr);
-      NewParam->setScopeInfo(0, Params.size());
-      NewParam->setIsUsed();
-      Params.push_back(NewParam);
-    }
-    SmallVector<QualType, 8> ArgTys;
-    std::transform(std::begin(Params), std::end(Params),
-                   std::back_inserter(ArgTys),
-                   [](const ParmVarDecl *PVD) { return PVD->getType(); });
-
-    FuncType = Ctx.getFunctionType(Ctx.VoidTy, ArgTys, Info);
-    NewFD->setType(FuncType);
-    NewFD->setParams(Params);
-    return NewFD;
-  }
-
   // If the record has been marked with SYCLGenerateNewTypeAttr,
   // it implies that it contains a pointer within. This function
   // defines a PointerHandler visitor which visits this record
@@ -2827,14 +2780,14 @@ public:
                        : createKernelDecl(S.getASTContext(), Loc, IsInline,
                                           IsSIMDKernel)),
         FuncContext(SemaSYCLRef.SemaRef, KernelDecl) {
-    S.addSyclOpenCLKernel(SYCLKernel, KernelDecl); FFFF = SYCLKernel;
+    S.addSyclOpenCLKernel(SYCLKernel, KernelDecl);
     for (auto *IRAttr :
          SYCLKernel->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
       KernelDecl->addAttr(IRAttr->clone(SemaSYCLRef.getASTContext()));
     }
     if (IsFreeFunction)
-      FreeFunctionCDecl =
-        createFreeFunctionCDecl(S.getASTContext(), SYCLKernel, Loc, IsInline);
+      FreeFunctionCDecl = createNewFunctionDecl(
+          S.getASTContext(), SYCLKernel, Loc, SYCLKernel->getIdentifier());
   }
 
   ~SyclKernelDeclCreator() {
