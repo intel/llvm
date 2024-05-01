@@ -308,7 +308,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
   uint32_t Align = USMDesc ? USMDesc->align : 0;
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
-  if (Align > 65536)
+  if (Align > 65536 || Align & (Align - 1) != 0)
     return UR_RESULT_ERROR_INVALID_VALUE;
 
   ur_platform_handle_t Plt = Context->getPlatform();
@@ -337,11 +337,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
   // find the allocator depending on context as we do for Shared and Device
   // allocations.
   umf_memory_pool_handle_t hPoolInternal = nullptr;
-  if (!UseUSMAllocator ||
-      // L0 spec says that allocation fails if Alignment != 2^n, in order to
-      // keep the same behavior for the allocator, just call L0 API directly and
-      // return the error code.
-      ((Align & (Align - 1)) != 0)) {
+  if (!UseUSMAllocator) {
     hPoolInternal = Context->HostMemProxyPool.get();
   } else if (Pool) {
     hPoolInternal = Pool->HostMemPool.get();
@@ -381,7 +377,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
 
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
-  if (Alignment > 65536)
+  // L0 spec says that alignment values that are not powers of 2 are invalid.
+  if (Alignment > 65536 || Alignment & (Alignment - 1) != 0)
     return UR_RESULT_ERROR_INVALID_VALUE;
 
   ur_platform_handle_t Plt = Device->Platform;
@@ -408,11 +405,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
   }
 
   umf_memory_pool_handle_t hPoolInternal = nullptr;
-  if (!UseUSMAllocator ||
-      // L0 spec says that allocation fails if Alignment != 2^n, in order to
-      // keep the same behavior for the allocator, just call L0 API directly and
-      // return the error code.
-      ((Alignment & (Alignment - 1)) != 0)) {
+  if (!UseUSMAllocator) {
     auto It = Context->DeviceMemProxyPools.find(Device->ZeDevice);
     if (It == Context->DeviceMemProxyPools.end())
       return UR_RESULT_ERROR_INVALID_VALUE;
@@ -485,7 +478,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
 
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
-  if (Alignment > 65536)
+  // L0 spec says that alignment values that are not powers of 2 are invalid.
+  if (Alignment > 65536 || Alignment && (Alignment - 1) != 0)
     return UR_RESULT_ERROR_INVALID_VALUE;
 
   ur_platform_handle_t Plt = Device->Platform;
@@ -508,11 +502,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
   }
 
   umf_memory_pool_handle_t hPoolInternal = nullptr;
-  if (!UseUSMAllocator ||
-      // L0 spec says that allocation fails if Alignment != 2^n, in order to
-      // keep the same behavior for the allocator, just call L0 API directly and
-      // return the error code.
-      ((Alignment & (Alignment - 1)) != 0)) {
+  if (!UseUSMAllocator) {
     auto &Allocator = (DeviceReadOnly ? Context->SharedReadOnlyMemProxyPools
                                       : Context->SharedMemProxyPools);
     auto It = Allocator.find(Device->ZeDevice);
