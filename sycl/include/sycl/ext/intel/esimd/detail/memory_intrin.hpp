@@ -1056,7 +1056,7 @@ template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
           uint8_t NBlocks, int BlockWidth, int BlockHeight, bool Transformed,
           int N>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_lsc_load2d_stateless(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
+__esimd_lsc_load2d_stateless(__ESIMD_DNS::simd_mask_storage_t<1> Pred,
                              uintptr_t Ptr, int SurfaceWidth, int SurfaceHeight,
                              int SurfacePitch, int X, int Y) __ESIMD_INTRIN_END;
 
@@ -1089,7 +1089,7 @@ template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
           uint8_t NBlocks, int BlockWidth, int BlockHeight, bool Transformed,
           int N>
 __ESIMD_INTRIN void __esimd_lsc_prefetch2d_stateless(
-    __ESIMD_DNS::simd_mask_storage_t<N> Pred, uintptr_t Ptr, int SurfaceWidth,
+    __ESIMD_DNS::simd_mask_storage_t<1> Pred, uintptr_t Ptr, int SurfaceWidth,
     int SurfaceHeight, int SurfacePitch, int X, int Y) __ESIMD_INTRIN_END;
 
 /// 2D USM pointer block store.
@@ -1126,7 +1126,7 @@ template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
           uint8_t NBlocks, int BlockWidth, int BlockHeight, bool Transformed,
           int N>
 __ESIMD_INTRIN void __esimd_lsc_store2d_stateless(
-    __ESIMD_DNS::simd_mask_storage_t<N> Pred, uintptr_t Ptr, int SurfaceWidth,
+    __ESIMD_DNS::simd_mask_storage_t<1> Pred, uintptr_t Ptr, int SurfaceWidth,
     int SurfaceHeight, int SurfacePitch, int X, int Y,
     __ESIMD_DNS::vector_type_t<Ty, N> vals) __ESIMD_INTRIN_END;
 

@@ -1111,9 +1111,11 @@ void SelectionDAG::DeallocateNode(SDNode *N) {
 
 #ifndef NDEBUG
 /// VerifySDNode - Check the given SDNode.  Aborts if it is invalid.
-static void VerifySDNode(SDNode *N) {
+static void VerifySDNode(SDNode *N, const TargetLowering *TLI) {
   switch (N->getOpcode()) {
   default:
+    if (N->getOpcode() > ISD::BUILTIN_OP_END)
+      TLI->verifyTargetSDNode(N);
     break;
   case ISD::BUILD_PAIR: {
     EVT VT = N->getValueType(0);
@@ -1157,7 +1159,7 @@ void SelectionDAG::InsertNode(SDNode *N) {
   AllNodes.push_back(N);
 #ifndef NDEBUG
   N->PersistentId = NextPersistentId++;
-  VerifySDNode(N);
+  VerifySDNode(N, TLI);
 #endif
   for (DAGUpdateListener *DUL = UpdateListeners; DUL; DUL = DUL->Next)
     DUL->NodeInserted(N);
@@ -1416,10 +1418,8 @@ void SelectionDAG::clear() {
   TargetExternalSymbols.clear();
   MCSymbols.clear();
   SDEI.clear();
-  std::fill(CondCodeNodes.begin(), CondCodeNodes.end(),
-            static_cast<CondCodeSDNode*>(nullptr));
-  std::fill(ValueTypeNodes.begin(), ValueTypeNodes.end(),
-            static_cast<SDNode*>(nullptr));
+  std::fill(CondCodeNodes.begin(), CondCodeNodes.end(), nullptr);
+  std::fill(ValueTypeNodes.begin(), ValueTypeNodes.end(), nullptr);
 
   EntryNode.UseList = nullptr;
   InsertNode(&EntryNode);
@@ -2993,6 +2993,14 @@ SelectionDAG::getValidShiftAmountConstant(SDValue V,
   return nullptr;
 }
 
+const APInt *SelectionDAG::getValidShiftAmountConstant(SDValue V) const {
+  EVT VT = V.getValueType();
+  APInt DemandedElts = VT.isFixedLengthVector()
+                           ? APInt::getAllOnes(VT.getVectorNumElements())
+                           : APInt(1, 1);
+  return getValidShiftAmountConstant(V, DemandedElts);
+}
+
 const APInt *SelectionDAG::getValidMinimumShiftAmountConstant(
     SDValue V, const APInt &DemandedElts) const {
   assert((V.getOpcode() == ISD::SHL || V.getOpcode() == ISD::SRL ||
@@ -3022,6 +3030,14 @@ const APInt *SelectionDAG::getValidMinimumShiftAmountConstant(
   return MinShAmt;
 }
 
+const APInt *SelectionDAG::getValidMinimumShiftAmountConstant(SDValue V) const {
+  EVT VT = V.getValueType();
+  APInt DemandedElts = VT.isFixedLengthVector()
+                           ? APInt::getAllOnes(VT.getVectorNumElements())
+                           : APInt(1, 1);
+  return getValidMinimumShiftAmountConstant(V, DemandedElts);
+}
+
 const APInt *SelectionDAG::getValidMaximumShiftAmountConstant(
     SDValue V, const APInt &DemandedElts) const {
   assert((V.getOpcode() == ISD::SHL || V.getOpcode() == ISD::SRL ||
@@ -3049,6 +3065,14 @@ const APInt *SelectionDAG::getValidMaximumShiftAmountConstant(
     MaxShAmt = &ShAmt;
   }
   return MaxShAmt;
+}
+
+const APInt *SelectionDAG::getValidMaximumShiftAmountConstant(SDValue V) const {
+  EVT VT = V.getValueType();
+  APInt DemandedElts = VT.isFixedLengthVector()
+                           ? APInt::getAllOnes(VT.getVectorNumElements())
+                           : APInt(1, 1);
+  return getValidMaximumShiftAmountConstant(V, DemandedElts);
 }
 
 /// Determine which bits of Op are known to be either zero or one and return
@@ -3395,6 +3419,18 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     Known = computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
     Known2 = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
     Known = KnownBits::mulhs(Known, Known2);
+    break;
+  }
+  case ISD::ABDU: {
+    Known = computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
+    Known2 = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
+    Known = KnownBits::abdu(Known, Known2);
+    break;
+  }
+  case ISD::ABDS: {
+    Known = computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
+    Known2 = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
+    Known = KnownBits::abds(Known, Known2);
     break;
   }
   case ISD::UMUL_LOHI: {
@@ -4308,7 +4344,7 @@ bool SelectionDAG::isKnownToBeAPowerOfTwo(SDValue Val, unsigned Depth) const {
   //    x & -x -> non-zero pow2
   // so if we find the pattern return whether we know `x` is non-zero.
   SDValue X;
-  if (sd_match(Val, m_And(m_Value(X), m_Sub(m_Zero(), m_Deferred(X)))))
+  if (sd_match(Val, m_And(m_Value(X), m_Neg(m_Deferred(X)))))
     return isKnownNeverZero(X, Depth);
 
   if (Val.getOpcode() == ISD::ZERO_EXTEND)
@@ -5191,15 +5227,8 @@ bool SelectionDAG::isADDLike(SDValue Op) const {
 }
 
 bool SelectionDAG::isBaseWithConstantOffset(SDValue Op) const {
-  if ((Op.getOpcode() != ISD::ADD && Op.getOpcode() != ISD::OR) ||
-      !isa<ConstantSDNode>(Op.getOperand(1)))
-    return false;
-
-  if (Op.getOpcode() == ISD::OR &&
-      !MaskedValueIsZero(Op.getOperand(0), Op.getConstantOperandAPInt(1)))
-    return false;
-
-  return true;
+  return Op.getNumOperands() == 2 && isa<ConstantSDNode>(Op.getOperand(1)) &&
+         (Op.getOpcode() == ISD::ADD || isADDLike(Op));
 }
 
 bool SelectionDAG::isKnownNeverNaN(SDValue Op, bool SNaN, unsigned Depth) const {
@@ -5392,9 +5421,6 @@ bool SelectionDAG::isKnownNeverZero(SDValue Op, unsigned Depth) const {
     if (Op1.isNonZero() && Op0.isNonZero())
       return true;
 
-    if (KnownBits::smax(Op0, Op1).isNonZero())
-      return true;
-
     return isKnownNeverZero(Op.getOperand(1), Depth + 1) &&
            isKnownNeverZero(Op.getOperand(0), Depth + 1);
   }
@@ -5408,9 +5434,6 @@ bool SelectionDAG::isKnownNeverZero(SDValue Op, unsigned Depth) const {
       return true;
 
     if (Op1.isNonZero() && Op0.isNonZero())
-      return true;
-
-    if (KnownBits::smin(Op0, Op1).isNonZero())
       return true;
 
     return isKnownNeverZero(Op.getOperand(1), Depth + 1) &&
@@ -6019,6 +6042,17 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
   case ISD::VECREDUCE_UMIN:
     if (N1.getValueType().getScalarType() == MVT::i1)
       return getNode(ISD::VECREDUCE_AND, DL, VT, N1);
+    break;
+  case ISD::SPLAT_VECTOR:
+    assert(VT.isVector() && "Wrong return type!");
+    // FIXME: Hexagon uses i32 scalar for a floating point zero vector so allow
+    // that for now.
+    assert((VT.getVectorElementType() == N1.getValueType() ||
+            (VT.isFloatingPoint() && N1.getValueType() == MVT::i32) ||
+            (VT.getVectorElementType().isInteger() &&
+             N1.getValueType().isInteger() &&
+             VT.getVectorElementType().bitsLE(N1.getValueType()))) &&
+           "Wrong operand type!");
     break;
   }
 
@@ -9897,6 +9931,18 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, SDVTList VTList,
     }
     break;
   }
+  case ISD::SADDO_CARRY:
+  case ISD::UADDO_CARRY:
+  case ISD::SSUBO_CARRY:
+  case ISD::USUBO_CARRY:
+    assert(VTList.NumVTs == 2 && Ops.size() == 3 &&
+           "Invalid add/sub overflow op!");
+    assert(VTList.VTs[0].isInteger() && VTList.VTs[1].isInteger() &&
+           Ops[0].getValueType() == Ops[1].getValueType() &&
+           Ops[0].getValueType() == VTList.VTs[0] &&
+           Ops[2].getValueType() == VTList.VTs[1] &&
+           "Binary operator types must match!");
+    break;
   case ISD::SMUL_LOHI:
   case ISD::UMUL_LOHI: {
     assert(VTList.NumVTs == 2 && Ops.size() == 2 && "Invalid mul lo/hi op!");
@@ -12922,7 +12968,7 @@ void SelectionDAG::copyExtraInfo(SDNode *From, SDNode *To) {
   // Use of operator[] on the DenseMap may cause an insertion, which invalidates
   // the iterator, hence the need to make a copy to prevent a use-after-free.
   NodeExtraInfo NEI = I->second;
-  if (LLVM_LIKELY(!NEI.PCSections)) {
+  if (LLVM_LIKELY(!NEI.PCSections) && LLVM_LIKELY(!NEI.MMRA)) {
     // No deep copy required for the types of extra info set.
     //
     // FIXME: Investigate if other types of extra info also need deep copy. This

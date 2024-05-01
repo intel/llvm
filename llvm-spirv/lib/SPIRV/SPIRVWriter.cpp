@@ -1470,7 +1470,12 @@ SPIRVValue *LLVMToSPIRVBase::transValue(Value *V, SPIRVBasicBlock *BB,
          "Invalid SPIRV BB");
 
   auto *BV = transValueWithoutDecoration(V, BB, CreateForward, FuncTrans);
-  if (!BV || !transDecoration(V, BV))
+  if (!BV)
+    return nullptr;
+  // Only translate decorations for non-forward instructions.  Forward
+  // instructions will have their decorations translated when the actual
+  // instruction is seen and rewritten to a real SPIR-V instruction.
+  if (!BV->isForward() && !transDecoration(V, BV))
     return nullptr;
   StringRef Name = V->getName();
   if (!Name.empty()) // Don't erase the name, which BM might already have
@@ -3036,7 +3041,9 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
     auto Opcode = BVF->getOpcode();
     if (Opcode == Instruction::FAdd || Opcode == Instruction::FSub ||
         Opcode == Instruction::FMul || Opcode == Instruction::FDiv ||
-        Opcode == Instruction::FRem) {
+        Opcode == Instruction::FRem ||
+        ((Opcode == Instruction::FNeg || Opcode == Instruction::FCmp) &&
+         BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))) {
       FastMathFlags FMF = BVF->getFastMathFlags();
       SPIRVWord M{0};
       if (FMF.isFast())
@@ -5501,7 +5508,7 @@ void LLVMToSPIRVBase::mutateFuncArgType(
       auto CastF = M->getOrInsertFunction(SPCV_CAST, I.second, OrigTy);
       std::vector<Value *> Args;
       Args.push_back(Arg);
-      auto *Cast = CallInst::Create(CastF, Args, "", Call);
+      auto *Cast = CallInst::Create(CastF, Args, "", Call->getIterator());
       Call->replaceUsesOfWith(Arg, Cast);
       SPIRVDBG(dbgs() << "[mutate arg type] -> " << *Cast << '\n');
     }
@@ -6160,6 +6167,15 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
   // Moreover, OpAtomicCompareExchangeWeak has been deprecated.
   if (OC == OpAtomicCompareExchangeWeak)
     OC = OpAtomicCompareExchange;
+
+  // We should do this replacement only for SPIR-V 1.5, as OpLessOrGreater is
+  // deprecated there. However we do such replacement for the usual pipeline
+  // (not via SPIR-V friendly calls) without minding the version, so we can do
+  // such thing here as well.
+  if (OC == OpLessOrGreater &&
+      BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_5))
+    OC = OpFOrdNotEqual;
+
   if (isGroupOpCode(OC))
     BM->addCapability(CapabilityGroups);
   switch (static_cast<size_t>(OC)) {
@@ -6727,6 +6743,8 @@ VersionNumber getVersionFromTriple(const Triple &TT, SPIRVErrorLog &ErrorLog) {
     return VersionNumber::SPIRV_1_3;
   case Triple::SPIRVSubArch_v14:
     return VersionNumber::SPIRV_1_4;
+  case Triple::SPIRVSubArch_v15:
+    return VersionNumber::SPIRV_1_5;
   default:
     ErrorLog.checkError(false, SPIRVEC_InvalidSubArch, TT.getArchName().str());
     return VersionNumber::MaximumVersion;
