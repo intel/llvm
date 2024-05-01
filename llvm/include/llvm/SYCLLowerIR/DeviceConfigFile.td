@@ -152,3 +152,94 @@ def : TargetInfo<"x86_64", [], [], "", "", 1>;
 def : TargetInfo<"intel_gpu_cfl", [AspectFp16, AspectFp64, AspectAtomic64], [8, 16, 32]>;
 def : TargetInfo<"intel_gpu_tgllp", [AspectFp16, AspectAtomic64], [8, 16, 32]>;
 def : TargetInfo<"intel_gpu_pvc", [AspectFp16, AspectFp64, AspectAtomic64], [16, 32]>;
+
+//
+// CUDA / NVPTX device aspects
+//
+
+// Specialize the TargetInfo class for CUDA:
+// 'maySupportOtherAspects' is set to 1 because any Cuda device with the same
+// or newer capabilities will support the aspects of the least capable device.
+class CudaTargetInfo<string targetName, list<Aspect> aspectList, int subGroupSize = 32, string toolchain = "", string options = "">
+    : TargetInfo<targetName, aspectList, [subGroupSize], toolchain, options, /*maySupportOtherAspects*/1> {
+  assert !eq(subGroupSize, 32), "sub-group size for Cuda must be equal to 32 and not " # subGroupSize # ".";
+}
+
+defvar CudaMinAspects = [AspectGpu, AspectFp16, AspectFp64, AspectQueue_profiling,
+                         AspectUsm_device_allocations, AspectUsm_host_allocations,
+                         AspectUsm_shared_allocations, AspectAtomic64];
+// Bindless images aspects are partially supported on CUDA and disabled by default at the moment.
+defvar CudaBindlessImagesAspects = [AspectExt_oneapi_bindless_images_2d_usm, AspectExt_oneapi_interop_memory_import];
+
+def : CudaTargetInfo<"nvidia_gpu_sm_50", !listconcat(CudaMinAspects, CudaBindlessImagesAspects)>;
+def : CudaTargetInfo<"nvidia_gpu_sm_52", !listconcat(CudaMinAspects, CudaBindlessImagesAspects)>;
+def : CudaTargetInfo<"nvidia_gpu_sm_53", !listconcat(CudaMinAspects, CudaBindlessImagesAspects)>;
+def : CudaTargetInfo<"nvidia_gpu_sm_60", !listconcat(CudaMinAspects, CudaBindlessImagesAspects)>;
+def : CudaTargetInfo<"nvidia_gpu_sm_61", !listconcat(CudaMinAspects, CudaBindlessImagesAspects)>;
+def : CudaTargetInfo<"nvidia_gpu_sm_62", !listconcat(CudaMinAspects, CudaBindlessImagesAspects)>;
+def : CudaTargetInfo<"nvidia_gpu_sm_70", !listconcat(CudaMinAspects, CudaBindlessImagesAspects)>;
+def : CudaTargetInfo<"nvidia_gpu_sm_72", !listconcat(CudaMinAspects, CudaBindlessImagesAspects)>;
+def : CudaTargetInfo<"nvidia_gpu_sm_75", !listconcat(CudaMinAspects, CudaBindlessImagesAspects)>;
+def : CudaTargetInfo<"nvidia_gpu_sm_80", !listconcat(CudaMinAspects, CudaBindlessImagesAspects)>;
+def : CudaTargetInfo<"nvidia_gpu_sm_86", !listconcat(CudaMinAspects, CudaBindlessImagesAspects)>;
+def : CudaTargetInfo<"nvidia_gpu_sm_87", !listconcat(CudaMinAspects, CudaBindlessImagesAspects)>;
+def : CudaTargetInfo<"nvidia_gpu_sm_89", !listconcat(CudaMinAspects, CudaBindlessImagesAspects)>;
+def : CudaTargetInfo<"nvidia_gpu_sm_90", !listconcat(CudaMinAspects, CudaBindlessImagesAspects)>;
+
+//
+// HIP / AMDGPU device aspects
+//
+
+// Specialize the TargetInfo class for HIP:
+// 'maySupportOtherAspects' is set to 0 because there is no guarantee that any
+// aspect support is compatible between older and newer gfx architectures.
+class HipTargetInfo<string targetName, list<Aspect> aspectList, list<int> subGroupSizesList, string toolchain = "", string options = "">
+    : TargetInfo<targetName, aspectList, subGroupSizesList, toolchain, options, /*maySupportOtherAspects*/0>;
+
+// DPCPP does not support AMD targets prior to the gfx7 (GCN2) family.
+defvar HipSubgroupSizesGCN2 = [16];     // gfx7
+defvar HipSubgroupSizesGCN3 = [16];     // gfx8, GCN 3rd gen and 4th gen have the same subgroup sizes
+defvar HipSubgroupSizesGCN5 = [64];     // gfx900-gfx906, gfx90c, GCN 5th gen is also known as Vega
+defvar HipSubgroupSizesRDNA = [32, 64]; // gfxX10-gfx11 (encapsulates RDNA1..3), natively 32 (64-waves mode available)
+defvar HipSubgroupSizesCDNA = [64];     // gfx908, gfx90a (encapsulates CDNA1..2)
+
+defvar HipMinAspects = [AspectGpu, AspectQueue_profiling, AspectUsm_device_allocations, AspectUsm_host_allocations];
+
+def : HipTargetInfo<"amd_gpu_gfx700", HipMinAspects, HipSubgroupSizesGCN2>;
+def : HipTargetInfo<"amd_gpu_gfx701", HipMinAspects, HipSubgroupSizesGCN2>;
+def : HipTargetInfo<"amd_gpu_gfx702", HipMinAspects, HipSubgroupSizesGCN2>;
+def : HipTargetInfo<"amd_gpu_gfx801", HipMinAspects, HipSubgroupSizesGCN3>;
+def : HipTargetInfo<"amd_gpu_gfx802", HipMinAspects, HipSubgroupSizesGCN3>;
+def : HipTargetInfo<"amd_gpu_gfx803", HipMinAspects, HipSubgroupSizesGCN3>;
+def : HipTargetInfo<"amd_gpu_gfx805", HipMinAspects, HipSubgroupSizesGCN3>;
+def : HipTargetInfo<"amd_gpu_gfx810", HipMinAspects, HipSubgroupSizesGCN3>;
+def : HipTargetInfo<"amd_gpu_gfx900", HipMinAspects, HipSubgroupSizesGCN5>;
+def : HipTargetInfo<"amd_gpu_gfx902", HipMinAspects, HipSubgroupSizesGCN5>;
+def : HipTargetInfo<"amd_gpu_gfx904", HipMinAspects, HipSubgroupSizesGCN5>;
+def : HipTargetInfo<"amd_gpu_gfx906", HipMinAspects, HipSubgroupSizesGCN5>;
+def : HipTargetInfo<"amd_gpu_gfx908", !listconcat(HipMinAspects, [AspectUsm_shared_allocations]), HipSubgroupSizesCDNA>;
+def : HipTargetInfo<"amd_gpu_gfx909", HipMinAspects, HipSubgroupSizesGCN5>;
+def : HipTargetInfo<"amd_gpu_gfx90a", !listconcat(HipMinAspects, [AspectUsm_shared_allocations]), HipSubgroupSizesCDNA>;
+def : HipTargetInfo<"amd_gpu_gfx90c", !listconcat(HipMinAspects, [AspectUsm_shared_allocations]), HipSubgroupSizesGCN5>;
+def : HipTargetInfo<"amd_gpu_gfx940", !listconcat(HipMinAspects, [AspectUsm_shared_allocations]), HipSubgroupSizesCDNA>;
+def : HipTargetInfo<"amd_gpu_gfx941", [], []>; // TBA
+def : HipTargetInfo<"amd_gpu_gfx942", [], []>; // TBA
+def : HipTargetInfo<"amd_gpu_gfx1010", HipMinAspects, HipSubgroupSizesRDNA>;
+def : HipTargetInfo<"amd_gpu_gfx1011", HipMinAspects, HipSubgroupSizesRDNA>;
+def : HipTargetInfo<"amd_gpu_gfx1012", HipMinAspects, HipSubgroupSizesRDNA>;
+def : HipTargetInfo<"amd_gpu_gfx1013", HipMinAspects, HipSubgroupSizesRDNA>;
+def : HipTargetInfo<"amd_gpu_gfx1030", !listconcat(HipMinAspects, [AspectUsm_shared_allocations]), HipSubgroupSizesRDNA>;
+def : HipTargetInfo<"amd_gpu_gfx1031", HipMinAspects, HipSubgroupSizesRDNA>;
+def : HipTargetInfo<"amd_gpu_gfx1032", HipMinAspects, HipSubgroupSizesRDNA>;
+def : HipTargetInfo<"amd_gpu_gfx1033", HipMinAspects, HipSubgroupSizesRDNA>;
+def : HipTargetInfo<"amd_gpu_gfx1034", HipMinAspects, HipSubgroupSizesRDNA>;
+def : HipTargetInfo<"amd_gpu_gfx1035", HipMinAspects, HipSubgroupSizesRDNA>;
+def : HipTargetInfo<"amd_gpu_gfx1036", HipMinAspects, HipSubgroupSizesRDNA>;
+def : HipTargetInfo<"amd_gpu_gfx1100", HipMinAspects, HipSubgroupSizesRDNA>;
+def : HipTargetInfo<"amd_gpu_gfx1101", HipMinAspects, HipSubgroupSizesRDNA>;
+def : HipTargetInfo<"amd_gpu_gfx1102", HipMinAspects, HipSubgroupSizesRDNA>;
+def : HipTargetInfo<"amd_gpu_gfx1103", HipMinAspects, HipSubgroupSizesRDNA>;
+def : HipTargetInfo<"amd_gpu_gfx1150", HipMinAspects, HipSubgroupSizesRDNA>;
+def : HipTargetInfo<"amd_gpu_gfx1151", HipMinAspects, HipSubgroupSizesRDNA>;
+def : HipTargetInfo<"amd_gpu_gfx1200", [], []>; // TBA
+def : HipTargetInfo<"amd_gpu_gfx1201", [], []>; // TBA
