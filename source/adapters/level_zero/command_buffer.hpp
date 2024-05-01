@@ -30,7 +30,7 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
       ze_command_list_handle_t CommandList,
       ze_command_list_handle_t CommandListResetEvents,
       ZeStruct<ze_command_list_desc_t> ZeDesc,
-      const ur_exp_command_buffer_desc_t *Desc);
+      const ur_exp_command_buffer_desc_t *Desc, const bool IsInOrderCmdList);
 
   ~ur_exp_command_buffer_handle_t_();
 
@@ -82,6 +82,13 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   bool IsUpdatable = false;
   // Indicates if command buffer was finalized.
   bool IsFinalized = false;
+  // Command-buffer profiling is enabled.
+  bool IsProfilingEnabled = false;
+  // Command-buffer can be submitted to an in-order command-list.
+  bool IsInOrderCmdList = false;
+  // This list is needed to release all kernels retained by the
+  // command_buffer.
+  std::vector<ur_kernel_handle_t> KernelsList;
 };
 
 struct ur_exp_command_buffer_command_handle_t_ : public _ur_object {

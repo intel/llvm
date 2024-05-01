@@ -1268,7 +1268,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
     ur_usm_pool_handle_t
         pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t
-        size, ///< [in] size in bytes of the USM memory object to be allocated
+        size, ///< [in] minimum size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM host memory object
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -1296,7 +1296,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
     ur_usm_pool_handle_t
         pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t
-        size, ///< [in] size in bytes of the USM memory object to be allocated
+        size, ///< [in] minimum size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM device memory object
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -1324,7 +1324,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
     ur_usm_pool_handle_t
         pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t
-        size, ///< [in] size in bytes of the USM memory object to be allocated
+        size, ///< [in] minimum size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM shared memory object
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -4811,7 +4811,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint, ///< [out][optional] Sync point associated with this command.
     ur_exp_command_buffer_command_handle_t
@@ -4852,7 +4853,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] Sync point associated with this command.
     ) try {
@@ -4887,7 +4889,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] sync point associated with this command.
     ) try {
@@ -4922,7 +4925,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] Sync point associated with this command.
     ) try {
@@ -4957,7 +4961,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] Sync point associated with this command.
     ) try {
@@ -4991,7 +4996,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] Sync point associated with this command.
     ) try {
@@ -5033,7 +5039,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] Sync point associated with this command.
     ) try {
@@ -5082,7 +5089,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] Sync point associated with this command.
     ) try {
@@ -5129,7 +5137,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] Sync point associated with this command.
     ) try {
@@ -5166,7 +5175,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] sync point associated with this command.
     ) try {
@@ -5199,7 +5209,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] sync point associated with this command.
     ) try {
@@ -5232,7 +5243,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
+                            ///< be ignored if command-buffer is in-order.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] sync point associated with this command.
     ) try {
