@@ -109,6 +109,12 @@ InstallIGFX () {
   echo "CM compiler version $CM_TAG"
   echo "Level Zero version $L0_TAG"
   echo "IGC version $IGC_TAG"
+  # Always install released igc version first to get rid of the dependency issue
+  # by installing the igc first, we will satisfy all the dpkg dependencies .
+  # When we install dev igc later, it will then be treated as downgrade (because dev igc come with lowest version 1.0).
+  # This can help us avoid using the risky force-depends-version option in dpkg command.
+  #
+  # Of course, this also installed the libopencl-clang so that we can copy and use later as a temporariy workaround.
   get_release intel/intel-graphics-compiler $IGC_TAG \
     | grep ".*deb" \
     | wget -qi -
@@ -128,7 +134,9 @@ InstallIGFX () {
   IS_IGC_DEV=$(CheckIGCdevTag $IGCTAG)
   if [ "$IS_IGC_DEV" == "Yes" ]; then
     # Dev IGC deb package did not include libopencl-clang
-    # So we need to backup and install it from release igc.
+    # opencl-clang repo does not provide release deb package either.
+    # Backup and install it from release igc as a temporarily workaround
+    # while we working to resolve the issue.
     echo "Backup libopencl-clang"
     cp -d /usr/local/lib/libopencl-clang.so.14*  .
     echo "Download IGC dev git hash $IGC_DEV_VER"
@@ -136,6 +144,7 @@ InstallIGFX () {
     echo "Install IGC dev git hash $IGC_DEV_VER"
     dpkg -i *.deb
     echo "Install libopencl-clang"
+    # Workaround only, will download deb and install with dpkg once fixed.
     cp -d libopencl-clang.so.14*  /usr/local/lib/
     echo "Clean up"
     rm *.deb libopencl-clang.so.14*
