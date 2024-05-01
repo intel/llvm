@@ -458,15 +458,18 @@ ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
       }
       UR_CHECK_ERROR(cuArray3DCreate(&ImageArray, &Image.ArrayDesc));
       Image.Arrays[hDevice->getIndex()] = ImageArray;
-      // HIP_RESOURCE_DESC is a union of different structs, shown here
+
+      // CUDA_RESOURCE_DESC is a union of different structs, shown here
+      // https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__TEXOBJECT.html
       // We need to fill it as described here to use it for a surface or texture
-      // HIP_RESOURCE_DESC::resType must be HIP_RESOURCE_TYPE_ARRAY and
-      // HIP_RESOURCE_DESC::res::array::hArray must be set to a valid HIP array
-      // handle.
-      // HIP_RESOURCE_DESC::flags must be set to zero
+      // https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__SURFOBJECT.html
+      // CUDA_RESOURCE_DESC::resType must be CU_RESOURCE_TYPE_ARRAY and
+      // CUDA_RESOURCE_DESC::res::array::hArray must be set to a valid CUDA
+      // array handle. CUDA_RESOURCE_DESC::flags must be set to zero
       CUDA_RESOURCE_DESC ImageResDesc;
       ImageResDesc.res.array.hArray = ImageArray;
       ImageResDesc.resType = CU_RESOURCE_TYPE_ARRAY;
+      ImageResDesc.flags = 0;
 
       UR_CHECK_ERROR(cuSurfObjectCreate(&Surface, &ImageResDesc));
       Image.SurfObjs[hDevice->getIndex()] = Surface;
