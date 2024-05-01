@@ -5,8 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
+// expected-no-diagnostics
 
 // This is basic test to test hardware dispatch functionality with ESIMD.
 
