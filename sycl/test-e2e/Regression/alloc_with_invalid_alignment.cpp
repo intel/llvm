@@ -4,7 +4,7 @@
 
 #include <sycl/sycl.hpp>
 
-// This test verifies that for L0 backend, aligned USM alloc functions return 
+// This test verifies that for L0 backend, aligned USM alloc functions return
 // null_ptr when called with alignment values that are not a power-of-2.
 
 using namespace sycl;
