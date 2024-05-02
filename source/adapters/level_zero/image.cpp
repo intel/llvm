@@ -790,8 +790,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
-  UR_CALL(hQueue->Context->getAvailableCommandList(hQueue, CommandList,
-                                                   UseCopyEngine, OkToBatch));
+  UR_CALL(hQueue->Context->getAvailableCommandList(
+      hQueue, CommandList, UseCopyEngine, numEventsInWaitList, phEventWaitList,
+      OkToBatch));
 
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent;
@@ -800,7 +801,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
   UR_CALL(createEventAndAssociateQueue(hQueue, Event, UR_COMMAND_MEM_IMAGE_COPY,
                                        CommandList, IsInternal,
                                        /*IsMultiDevice*/ false));
-  ZeEvent = (*Event)->ZeEvent;
+  UR_CALL(setSignalEvent(hQueue, UseCopyEngine, &ZeEvent, Event,
+                         numEventsInWaitList, phEventWaitList,
+                         CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
 
   const auto &ZeCommandList = CommandList->first;

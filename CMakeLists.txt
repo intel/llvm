@@ -48,6 +48,7 @@ option(UR_BUILD_EXAMPLE_CODEGEN "Build the codegen example." OFF)
 option(VAL_USE_LIBBACKTRACE_BACKTRACE "enable libbacktrace validation backtrace for linux" OFF)
 option(UR_ENABLE_ASSERTIONS "Enable assertions for all build types" OFF)
 set(UR_DPCXX "" CACHE FILEPATH "Path of the DPC++ compiler executable")
+set(UR_DPCXX_BUILD_FLAGS "" CACHE STRING "Build flags to pass to DPC++ when compiling device programs")
 set(UR_SYCL_LIBRARY_DIR "" CACHE PATH
     "Path of the SYCL runtime library directory")
 set(UR_CONFORMANCE_TARGET_TRIPLES "" CACHE STRING
