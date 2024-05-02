@@ -42,8 +42,8 @@ set( LIBCLC_TARGETS_TO_BUILD "all"
 
 option( ENABLE_RUNTIME_SUBNORMAL "Enable runtime linking of subnormal support." OFF )
 
-set( LIBCLC_NATIVECPU_FLAGS ""
-  CACHE STRING "Semicolon-separated list on compiler flags for Native CPU's libclc version.")
+set( LIBCLC_NATIVECPU_FLAGS_X86_64 ""
+  CACHE STRING "Semicolon-separated list on compiler flags for x86_64 libclc target.")
 
 if( LIBCLC_STANDALONE_BUILD OR CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   # Out-of-tree configuration
@@ -337,7 +337,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
         list( APPEND flags -mcpu=gfx940 -mllvm --amdgpu-oclc-reflect-enable=false )
       elseif( ARCH  STREQUAL x86_64)
         list( APPEND flags -Xclang -fsycl-is-native-cpu)
-        list( APPEND flags ${LIBCLC_NATIVECPU_FLAGS})
+        list( APPEND flags ${LIBCLC_NATIVECPU_FLAGS_X86_64})
       endif()
     endif()
 
