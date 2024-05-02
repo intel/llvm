@@ -441,7 +441,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       StringRef LibPostfix = ".bc";
       StringRef NewLibPostfix = ".new.o";
       if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
-                 C.getDriver().IsCLMode()) {
+          C.getDriver().IsCLMode()) {
         LibPostfix = ".obj";
         NewLibPostfix = ".new.obj";
       }
