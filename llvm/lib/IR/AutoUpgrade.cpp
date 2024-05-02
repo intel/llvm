@@ -1190,7 +1190,7 @@ static bool upgradeIntrinsicFunction1(Function *F, Function *&NewFn,
     break;
   }
   case 'n': {
-    if (Name.startswith("nvvm.")) {
+    if (Name.starts_with("nvvm.")) {
       Name = Name.substr(5);
 
       // The following nvvm intrinsics correspond exactly to an LLVM intrinsic.
