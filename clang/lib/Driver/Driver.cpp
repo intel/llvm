@@ -5902,23 +5902,31 @@ class OffloadingActionBuilder final {
             ++NumOfDeviceLibLinked;
             Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
                                          Args.MakeArgString(LibName));
-            auto *SYCLDeviceLibsInputAction =
-                C.MakeAction<InputAction>(*InputArg, types::TY_Object);
-            auto *SYCLDeviceLibsUnbundleAction =
-                C.MakeAction<OffloadUnbundlingJobAction>(
-                    SYCLDeviceLibsInputAction);
+            if (TC->getTriple().isNVPTX()) {
+              auto *SYCLDeviceLibsInputAction =
+                  C.MakeAction<InputAction>(*InputArg, types::TY_Object);
+              auto *SYCLDeviceLibsUnbundleAction =
+                  C.MakeAction<OffloadUnbundlingJobAction>(
+                      SYCLDeviceLibsInputAction);
 
-            // We are using BoundArch="" here since the NVPTX bundles in
-            // the devicelib .o files do not contain any arch information
-            SYCLDeviceLibsUnbundleAction->registerDependentActionInfo(
-                TC, /*BoundArch=*/"", Action::OFK_SYCL);
-            OffloadAction::DeviceDependences Dep;
-            Dep.add(*SYCLDeviceLibsUnbundleAction, *TC, /*BoundArch=*/"",
-                    Action::OFK_SYCL);
-            auto *SYCLDeviceLibsDependenciesAction =
-                C.MakeAction<OffloadAction>(
-                    Dep, SYCLDeviceLibsUnbundleAction->getType());
-            DeviceLinkObjects.push_back(SYCLDeviceLibsDependenciesAction);
+              // We are using BoundArch="" here since the NVPTX bundles in
+              // the devicelib .o files do not contain any arch information
+              SYCLDeviceLibsUnbundleAction->registerDependentActionInfo(
+                  TC, /*BoundArch=*/"", Action::OFK_SYCL);
+              OffloadAction::DeviceDependences Dep;
+              Dep.add(*SYCLDeviceLibsUnbundleAction, *TC, /*BoundArch=*/"",
+                      Action::OFK_SYCL);
+              auto *SYCLDeviceLibsDependenciesAction =
+                  C.MakeAction<OffloadAction>(
+                      Dep, SYCLDeviceLibsUnbundleAction->getType());
+              DeviceLinkObjects.push_back(SYCLDeviceLibsDependenciesAction);
+            } else {
+              // We are using the LLVM-IR device libraries directly, no need
+              // to unbundle any objects.
+              auto *SYCLDeviceLibsInputAction =
+                  C.MakeAction<InputAction>(*InputArg, types::TY_LLVM_BC);
+              DeviceLinkObjects.push_back(SYCLDeviceLibsInputAction);
+            }
             if (!LibLocSelected)
               LibLocSelected = !LibLocSelected;
           }
