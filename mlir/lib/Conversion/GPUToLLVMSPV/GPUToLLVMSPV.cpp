@@ -1,4 +1,4 @@
-//===- GPUToLLVMSPV.cpp - Convert GPU kernel to LLVM dialect --------------===//
+//===- GPUToLLVMSPV.cpp - Convert GPU operations to LLVM dialect ----------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -19,6 +19,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -38,15 +39,15 @@ using namespace mlir;
 // Helper Functions
 //===----------------------------------------------------------------------===//
 
-LLVM::LLVMFuncOp lookupOrCreateSPIRVFn(gpu::GPUModuleOp moduleOp,
-                                       StringRef name,
+LLVM::LLVMFuncOp lookupOrCreateSPIRVFn(Operation *symbolTable, StringRef name,
                                        ArrayRef<Type> paramTypes,
                                        Type resultType) {
-  auto func = moduleOp.lookupSymbol<LLVM::LLVMFuncOp>(name);
+  auto func =
+      static_cast<SymbolTable>(symbolTable).lookup<LLVM::LLVMFuncOp>(name);
   if (!func) {
-    OpBuilder b(moduleOp.getBodyRegion());
+    OpBuilder b(symbolTable->getRegion(0));
     func = b.create<LLVM::LLVMFuncOp>(
-        moduleOp->getLoc(), name,
+        symbolTable->getLoc(), name,
         LLVM::LLVMFunctionType::get(resultType, paramTypes));
     func.setCConv(LLVM::cconv::CConv::SPIR_FUNC);
   }
@@ -81,7 +82,8 @@ struct GPUBarrierConversion final
                   ConversionPatternRewriter &rewriter) const final {
     constexpr StringLiteral funcName = "_Z7barrierj";
 
-    auto moduleOp = op->getParentOfType<gpu::GPUModuleOp>();
+    Operation *moduleOp = op->getParentWithTrait<OpTrait::SymbolTable>();
+    assert(moduleOp && "Expecting module");
     Type flagTy = rewriter.getI32Type();
     Type voidTy = rewriter.getType<LLVM::LLVMVoidType>();
     LLVM::LLVMFuncOp func =
@@ -115,7 +117,8 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
-    auto moduleOp = op->getParentOfType<gpu::GPUModuleOp>();
+    Operation *moduleOp = op->getParentWithTrait<OpTrait::SymbolTable>();
+    assert(moduleOp && "Expecting module");
     Type dimTy = rewriter.getI32Type();
     Type indexTy = getTypeConverter()->getIndexType();
     LLVM::LLVMFuncOp func =
@@ -255,7 +258,8 @@ struct GPUShuffleConversion final
 
     std::string funcName = getFuncName(op);
 
-    auto moduleOp = op->getParentOfType<gpu::GPUModuleOp>();
+    Operation *moduleOp = op->getParentWithTrait<OpTrait::SymbolTable>();
+    assert(moduleOp && "Expecting module");
     Type valueType = adaptor.getValue().getType();
     Type offsetType = adaptor.getOffset().getType();
     Type resultType = valueType;
@@ -294,8 +298,9 @@ struct GPUToLLVMSPVConversionPass final
     LLVMTypeConverter converter(context, options);
     LLVMConversionTarget target(*context);
 
-    target.addIllegalDialect<gpu::GPUDialect>();
-    target.addLegalOp<gpu::YieldOp, gpu::GPUModuleOp, gpu::ModuleEndOp>();
+    target.addIllegalOp<gpu::BarrierOp, gpu::BlockDimOp, gpu::BlockIdOp,
+                        gpu::GlobalIdOp, gpu::GridDimOp, gpu::ShuffleOp,
+                        gpu::ThreadIdOp>();
 
     populateGpuToLLVMSPVConversionPatterns(converter, patterns, subgroupSize);
 
