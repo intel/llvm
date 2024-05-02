@@ -53,7 +53,6 @@ func.func @gen_nd_range(%dim: i32) {
 }
 
 // CHECK-LABEL:   func.func @gen_nd_range_constant() {
-// CHECK:           %[[CST_0:.*]] = arith.constant 0 : i32
 func.func @gen_nd_range_constant() {
   %cst_0 = arith.constant 0 : i32
   %cst_1 = arith.constant 1 : i32

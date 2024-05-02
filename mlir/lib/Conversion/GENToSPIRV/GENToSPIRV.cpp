@@ -63,10 +63,13 @@ public:
         op, builtin, builtinType, rewriter, spvBuiltinPrefix, spvBuiltinSuffix);
     Value idx = operands[0];
 
-    if (IntegerAttr idxAttr; matchPattern(idx, m_Constant(&idxAttr))) {
-      // Don't need to check the range here because that is verified already
-      rewriter.replaceOpWithNewOp<spirv::CompositeExtractOp>(
-          op, vector, idxAttr.getValue().getZExtValue());
+    if (llvm::APInt idxAttrValue;
+        matchPattern(idx, m_ConstantInt(&idxAttrValue))) {
+      auto idxValue = idxAttrValue.getZExtValue();
+      // The following assert should already be verified
+      assert(0 <= idxValue && idxValue < 3);
+      rewriter.replaceOpWithNewOp<spirv::CompositeExtractOp>(op, vector,
+                                                             idxValue);
     } else {
       rewriter.replaceOpWithNewOp<spirv::VectorExtractDynamicOp>(op, vector,
                                                                  idx);
