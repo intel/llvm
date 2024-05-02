@@ -666,6 +666,14 @@ operation as the runtime can perform optimizations based on the graph
 structure. After finalization the graph can be submitted for execution on a
 queue one or more times with reduced overhead.
 
+A `command_graph` can be submitted to both in-order and out-of-order queues. Any
+dependencies between the graph and other command-groups submitted to the same 
+queue will be respected. However, the in-order and out-of-order properties of the
+queue have no effect on how the graph itself is executed (e.g. the graph nodes 
+might execute out-of-order even when using an in-order queue). For further 
+information about the interaction between queues and graphs
+<<Queue Class Modifications, see the section on Queue Class Modifications>>
+
 ==== Graph State
 
 An instance of a `command_graph` object can be in one of two states:
