@@ -296,14 +296,21 @@ jobs:
           awk '/^Failed Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
         fi
         exit $exit_code
+    - name: List excluded SYCL CTS categories
+      if: inputs.tests_selector == 'cts' && env.CTS_TESTS_TO_BUILD == ''
+      run: |
+        cat $PWD/devops/cts_exclude_filter
     - name: Build SYCL CTS tests
       if: inputs.tests_selector == 'cts'
       env:
         CMAKE_EXTRA_ARGS: ${{ inputs.extra_cmake_args }}
       run: |
+        # Do not exclude any category if passing the CTS_TESTS_TO_BUILD variable.
+        cts_exclude_filter=$([ -n "$CTS_TESTS_TO_BUILD" ] && echo "" || echo "$PWD/devops/cts_exclude_filter")
+
         cmake -GNinja -B./build-cts -S./khronos_sycl_cts -DCMAKE_CXX_COMPILER=$(which clang++) \
         -DSYCL_IMPLEMENTATION=DPCPP \
-        -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="$PWD/devops/cts_exclude_filter" \
+        -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="$cts_exclude_filter" \
         -DSYCL_CTS_ENABLE_OPENCL_INTEROP_TESTS=OFF \
         -DSYCL_CTS_MEASURE_BUILD_TIMES=ON \
         -DDPCPP_INSTALL_DIR="$(dirname $(which clang++))/.." \
