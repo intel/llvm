@@ -397,8 +397,8 @@ public:
                             "flush cannot be called for a queue which is "
                             "recording to a command graph.");
     }
-    if (!MQueues.empty()) {
-      getPlugin()->call<PiApiKind::piQueueFlush>(MQueues[0]);
+    for (const auto &queue : MQueues) {
+      getPlugin()->call<PiApiKind::piQueueFlush>(queue);
     }
   }
 

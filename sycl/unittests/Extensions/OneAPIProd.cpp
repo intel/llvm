@@ -33,8 +33,10 @@ TEST(OneAPIProdTest, PiQueueFlush) {
   Graph.begin_recording(Queue);
   try {
     Queue.ext_oneapi_prod(); // flushing while graph is recording is not allowed
-    EXPECT_TRUE(false);
-  } catch (exception &) {
+    FAIL() << "Expected exception when calling ext_oneapi_prod() during graph "
+              "recording not seen.";
+  } catch (exception &ex) {
+    EXPECT_EQ(ex.code(), make_error_code(errc::invalid));
   }
   Graph.end_recording(Queue);
 }
