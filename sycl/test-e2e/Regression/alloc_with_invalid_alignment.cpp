@@ -38,7 +38,7 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
     if (Ptr != nullptr) {
       free(Ptr, q);
       std::cout << "Failed at line " << Line << ", case " << Case << std::endl;
-      assert(false && "The return is not null!");
+      assert(false && "Allocation function has returned a non-null pointer.");
     }
   };
 
