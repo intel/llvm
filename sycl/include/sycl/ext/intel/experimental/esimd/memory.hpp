@@ -11,6 +11,7 @@
 #pragma once
 
 #include <sycl/ext/intel/esimd/common.hpp>
+#include <sycl/ext/intel/esimd/detail/util.hpp>
 #include <sycl/ext/intel/esimd/memory.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/memory_intrin.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/util.hpp>
@@ -783,7 +784,7 @@ __ESIMD_API
                __ESIMD_NS::simd_mask<N> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_gather<T, NElts, DS, L1H, L2H>(
-      reinterpret_cast<T *>(acc.get_pointer().get()), offsets, pred);
+      __ESIMD_DNS::accessorToPointer<T>(acc), offsets, pred);
 #else
   __ESIMD_NS::simd<T, N * NElts> PassThru; // Intentionally uninitialized.
   using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;
@@ -858,7 +859,8 @@ __ESIMD_API
                __ESIMD_NS::simd<T, N * NElts> pass_thru) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_gather<T, NElts, DS, L1H, L2H>(
-      reinterpret_cast<T *>(acc.get_pointer().get()), offsets, pred, pass_thru);
+      reinterpret_cast<T *>(__ESIMD_DNS::accessorToPointer<T>(acc)), offsets,
+      pred, pass_thru);
 
 #else
   using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;

@@ -563,7 +563,7 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_lgamma_r(double x, private int *ip) {
       r += __spirv_ocl_fma(-0.5, y, p / q);
     }
   } else if (absx < 8.0) {
-    int i = absx;
+    int i = (int)(long)absx;
     double y = absx - (double)i;
     double p =
         y *

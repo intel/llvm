@@ -365,11 +365,13 @@ gather(const T *p, simd<OffsetT, N / VS> byte_offsets, simd_mask<N / VS> mask,
       auto Ret = __esimd_svm_gather<MsgT, N, detail::ElemsPerAddrEncoding<4>(),
                                     detail::ElemsPerAddrEncoding<1>()>(
           Addrs.data(), mask.data());
+      detail::check_rdregion_params<N * 4, N, /*VS*/ 0, N, 4>();
       return __esimd_rdregion<MsgT, N * 4, N, /*VS*/ 0, N, 4>(Ret, 0);
     } else if constexpr (sizeof(T) == 2) {
       auto Ret = __esimd_svm_gather<MsgT, N, detail::ElemsPerAddrEncoding<2>(),
                                     detail::ElemsPerAddrEncoding<2>()>(
           Addrs.data(), mask.data());
+      detail::check_rdregion_params<N * 2, N, /*VS*/ 0, N, 2>();
       return __esimd_rdregion<MsgT, N * 2, N, /*VS*/ 0, N, 2>(Ret, 0);
     } else {
       return __esimd_svm_gather<MsgT, N, detail::ElemsPerAddrEncoding<1>(),
@@ -703,12 +705,14 @@ scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
     simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
     addrs = addrs + byte_offsets_i;
     if constexpr (sizeof(T) == 1) {
+      detail::check_wrregion_params<N * 4, N, /*VS*/ 0, N, 4>();
       simd<T, N * 4> D = __esimd_wrregion<Tx, N * 4, N, /*VS*/ 0, N, 4>(
           D.data(), vals.data(), 0);
       __esimd_svm_scatter<Tx, N, detail::ElemsPerAddrEncoding<4>(),
                           detail::ElemsPerAddrEncoding<1>()>(
           addrs.data(), D.data(), mask.data());
     } else if constexpr (sizeof(T) == 2) {
+      detail::check_wrregion_params<N * 2, N, /*VS*/ 0, N, 2>();
       simd<Tx, N * 2> D = __esimd_wrregion<Tx, N * 2, N, /*VS*/ 0, N, 2>(
           D.data(), vals.data(), 0);
       __esimd_svm_scatter<Tx, N, detail::ElemsPerAddrEncoding<2>(),
@@ -5819,7 +5823,7 @@ slm_atomic_update_impl(simd<uint32_t, N> offsets, simd<T, N> src0,
   constexpr lsc_vector_size VS = to_lsc_vector_size<1>();
   constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
   constexpr int IOp = lsc_to_internal_atomic_op<T, Op>();
-  if constexpr (std::is_same_v<T, double>) {
+  if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>) {
     return __esimd_lsc_xatomic_slm_1<T, IOp, cache_hint::none, cache_hint::none,
                                      AddressScale, ImmOffset, EDS, VS,
                                      Transposed, N>(pred.data(), offsets.data(),
@@ -5863,7 +5867,7 @@ __ESIMD_API simd<T, N> slm_atomic_update_impl(simd<uint32_t, N> offsets,
   constexpr lsc_vector_size VS = to_lsc_vector_size<1>();
   constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
   constexpr int IOp = lsc_to_internal_atomic_op<T, Op>();
-  if constexpr (std::is_same_v<T, double>) {
+  if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>) {
     return __esimd_lsc_xatomic_slm_2<T, IOp, cache_hint::none, cache_hint::none,
                                      AddressScale, ImmOffset, EDS, VS,
                                      Transposed, N>(pred.data(), offsets.data(),
@@ -6003,11 +6007,11 @@ template <atomic_op Op, typename T, int N>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
                   simd_mask<N> mask = 1) {
-  // 2 byte, 8 byte types, non-power of two, and operations wider than
-  // 32 are supported only by LSC.
-  if constexpr (sizeof(T) == 2 || sizeof(T) == 8 ||
-                !__ESIMD_DNS::isPowerOf2(N, 32)) {
-    // half and short are supported in LSC.
+  // Non-LSC atomic_update supports only 4-byte int vector operations with
+  // 1,2,4,8,16,32 vector length. Non-LSC supports only 'store' for FP types.
+  if constexpr (Op == atomic_op::fmin || Op == atomic_op::fmax ||
+                Op == atomic_op::fadd || Op == atomic_op::fsub ||
+                sizeof(T) != 4 || !__ESIMD_DNS::isPowerOf2(N, 32)) {
     return slm_atomic_update_impl<Op, T, N,
                                   detail::lsc_data_size::default_size>(
         byte_offset, src0, mask);
@@ -6092,9 +6096,9 @@ template <atomic_op Op, typename T, int N>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
                   simd<T, N> src1, simd_mask<N> mask = 1) {
-  // 2 byte, 8 byte types, non-power of two, and operations wider than
-  // 32 are supported only by LSC.
-  if constexpr (sizeof(T) == 2 || sizeof(T) == 8 ||
+  // Non-LSC atomic_update supports only 4-byte int vector operations with
+  // 1,2,4,8,16,32 vector length.
+  if constexpr (sizeof(T) != 4 || Op == atomic_op::fcmpxchg ||
                 !__ESIMD_DNS::isPowerOf2(N, 32)) {
     // 2-argument lsc_atomic_update arguments order matches the standard one -
     // expected value first, then new value. But atomic_update uses reverse

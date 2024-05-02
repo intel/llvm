@@ -6128,7 +6128,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   case Builtin::BI__builtin_intel_sycl_ptr_annotation:
     return EmitIntelSYCLPtrAnnotationBuiltin(E);
   case Builtin::BI__builtin_intel_sycl_alloca:
-    return EmitIntelSYCLAllocaBuiltin(E, ReturnValue);
+  case Builtin::BI__builtin_intel_sycl_alloca_with_align:
+    return EmitIntelSYCLAllocaBuiltin(BuiltinID, E, ReturnValue);
   case Builtin::BI__builtin_get_device_side_mangled_name: {
     auto Name = CGM.getCUDARuntime().getDeviceSideName(
         cast<DeclRefExpr>(E->getArg(0)->IgnoreImpCasts())->getDecl());
@@ -23913,17 +23914,30 @@ RValue CodeGenFunction::EmitIntelSYCLPtrAnnotationBuiltin(const CallExpr *E) {
   return RValue::get(Ann);
 }
 
-RValue
-CodeGenFunction::EmitIntelSYCLAllocaBuiltin(const CallExpr *E,
-                                            ReturnValueSlot ReturnValue) {
+RValue CodeGenFunction::EmitIntelSYCLAllocaBuiltin(
+    unsigned BuiltinID, const CallExpr *E, ReturnValueSlot ReturnValue) {
+  assert((BuiltinID == Builtin::BI__builtin_intel_sycl_alloca ||
+          BuiltinID == Builtin::BI__builtin_intel_sycl_alloca_with_align) &&
+         "Unexpected builtin");
+
+  bool IsAlignedAlloca =
+      BuiltinID == Builtin::BI__builtin_intel_sycl_alloca_with_align;
+
+  constexpr unsigned InvalidIndex = -1;
+  constexpr unsigned ElementTypeIndex = 0;
+  const unsigned AlignmentIndex = IsAlignedAlloca ? 1 : InvalidIndex;
+  const unsigned SpecNameIndex = IsAlignedAlloca ? 2 : 1;
+  const unsigned DecorateAddressIndex = IsAlignedAlloca ? 3 : 2;
+
   const FunctionDecl *FD = E->getDirectCallee();
   assert(FD && "Expecting direct call to builtin");
 
   SourceLocation Loc = E->getExprLoc();
 
   // Get specialization constant ID.
-  ValueDecl *SpecConst =
-      FD->getTemplateSpecializationArgs()->get(1).getAsDecl();
+  const TemplateArgumentList *TAL = FD->getTemplateSpecializationArgs();
+  assert(TAL && "Expecting template argument list");
+  ValueDecl *SpecConst = TAL->get(SpecNameIndex).getAsDecl();
   DeclRefExpr *Ref = DeclRefExpr::Create(
       getContext(), NestedNameSpecifierLoc(), SourceLocation(), SpecConst,
       /*RefersToEnclosingVariableOrCapture=*/false, E->getExprLoc(),
@@ -23942,10 +23956,7 @@ CodeGenFunction::EmitIntelSYCLAllocaBuiltin(const CallExpr *E,
       cast<llvm::PointerType>(SpecConstPtr->getType()));
 
   // Get allocation type.
-  const TemplateArgumentList &TAL =
-      cast<ClassTemplateSpecializationDecl>(E->getType()->getAsCXXRecordDecl())
-          ->getTemplateArgs();
-  QualType AllocaType = TAL.get(0).getAsType();
+  QualType AllocaType = TAL->get(ElementTypeIndex).getAsType();
   llvm::Type *Ty = CGM.getTypes().ConvertTypeForMem(AllocaType);
   unsigned AllocaAS = CGM.getDataLayout().getAllocaAddrSpace();
   llvm::Type *AllocaTy = llvm::PointerType::get(Builder.getContext(), AllocaAS);
@@ -23953,7 +23964,9 @@ CodeGenFunction::EmitIntelSYCLAllocaBuiltin(const CallExpr *E,
   llvm::Constant *EltTyConst = llvm::Constant::getNullValue(Ty);
 
   llvm::Constant *Align = Builder.getInt64(
-      getContext().getTypeAlignInChars(AllocaType).getAsAlign().value());
+      IsAlignedAlloca
+          ? TAL->get(AlignmentIndex).getAsIntegral().getZExtValue()
+          : getContext().getTypeAlignInChars(AllocaType).getAsAlign().value());
 
   llvm::Value *Allocation = [&]() {
     // To implement automatic storage duration of the underlying memory object,
@@ -23985,7 +23998,7 @@ CodeGenFunction::EmitIntelSYCLAllocaBuiltin(const CallExpr *E,
   // Perform AS cast if needed.
 
   constexpr int NoDecorated = 0;
-  llvm::APInt Decorated = TAL.get(2).getAsIntegral();
+  llvm::APInt Decorated = TAL->get(DecorateAddressIndex).getAsIntegral();
   // Both 'sycl::access::decorated::{yes and legacy}' lead to decorated (private
   // AS) pointer type. Perform cast if 'sycl::access::decorated::no'.
   if (Decorated == NoDecorated) {

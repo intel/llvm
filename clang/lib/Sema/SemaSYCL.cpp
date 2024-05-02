@@ -1144,10 +1144,9 @@ static FunctionDecl *createNewFunctionDecl(ASTContext &Ctx,
 }
 
 // Creates a name for the free function kernel function.
-// Non-templated functions get a simple __sycl_kernel_ prefix.
-// For templated functions we add __sycl_kernel_ to the original function name
-// and then use the mangled name as the kernel name. The renaming allows a
-// normal device function to coexist with the kernel function.
+// We add __sycl_kernel_ to the original function name and then use the mangled
+// name as the kernel name. The renaming allows a normal device function to
+// coexist with the kernel function.
 static std::pair<std::string, std::string> constructFreeFunctionKernelName(
     SemaSYCL &SemaSYCLRef, const FunctionDecl *FreeFunc, MangleContext &MC) {
   SmallString<256> Result;
@@ -1155,17 +1154,13 @@ static std::pair<std::string, std::string> constructFreeFunctionKernelName(
   std::string MangledName;
   std::string StableName;
 
-  if (FreeFunc->getTemplateSpecializationArgs()) {
-    ASTContext &Ctx = SemaSYCLRef.getASTContext();
-    std::string NewName =
-        (Twine("__sycl_kernel_") + FreeFunc->getIdentifier()->getName()).str();
-    const IdentifierInfo *NewIdent = &Ctx.Idents.get(NewName);
-    FunctionDecl *NewFD = createNewFunctionDecl(Ctx, FreeFunc, {}, NewIdent);
-    MC.mangleName(NewFD, Out);
-    MangledName = Out.str();
-  } else {
-    MangledName = constructFFKernelName(FreeFunc);
-  }
+  ASTContext &Ctx = SemaSYCLRef.getASTContext();
+  std::string NewName =
+      (Twine("__sycl_kernel_") + FreeFunc->getIdentifier()->getName()).str();
+  const IdentifierInfo *NewIdent = &Ctx.Idents.get(NewName);
+  FunctionDecl *NewFD = createNewFunctionDecl(Ctx, FreeFunc, {}, NewIdent);
+  MC.mangleName(NewFD, Out);
+  MangledName = Out.str();
   StableName = MangledName;
   return {MangledName, StableName};
 }
@@ -4179,20 +4174,20 @@ class FreeFunctionKernelBodyCreator : public SyclKernelFieldHandler {
   }
 
   // For a free function such as:
-  // void f(int i, int* p, struct Simple S) { … }
+  // void f(int i, int* p, struct Simple S) { ... }
   //
   // Keep the function as-is for the version callable from device code.
-  // void f(int i, int *p, struct Simple S) { … }
+  // void f(int i, int *p, struct Simple S) { ... }
   //
   // For the host-callable kernel function generate this:
-  // void __sycl_kernel_f(int _arg_i, int* _arg_p, struct Simple _arg_S)
+  // void __sycl_kernel_f(int __arg_i, int* __arg_p, struct Simple __arg_S)
   // {
-  //   f(_arg_i, _arg_p, _arg_S);
+  //   f(__arg_i, __arg_p, __arg_S);
   // }
   CompoundStmt *createFreeFunctionKernelBody() {
     SemaSYCLRef.SemaRef.PushFunctionScope();
     Expr *Fn = SemaSYCLRef.SemaRef.BuildDeclRefExpr(
-        FreeFunc, FreeFunc->getType(), VK_PRValue, FreeFunctionSrcLoc);
+        FreeFunc, FreeFunc->getType(), VK_LValue, FreeFunctionSrcLoc);
     ASTContext &Context = SemaSYCLRef.getASTContext();
     QualType ResultTy = FreeFunc->getReturnType();
     ExprValueKind VK = Expr::getValueKindForType(ResultTy);
