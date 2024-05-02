@@ -120,7 +120,6 @@ TEST_P(cudaUrContextCreateTest, ThreadedContext) {
     // the first context, and then create and release another queue with
     // the second context.
     auto test_thread = std::thread([&] {
-
         {
             // create a queue with the first context
             uur::raii::Queue queue;
