@@ -94,31 +94,15 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  # set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # # commit 717791bfc636a1cd69f95f09fea15fcd70a9fb23
-  # # Merge: 601062ba f8c4facd
-  # # Author: aarongreig <aaron.greig@codeplay.com>
-  # # Date:   Fri Apr 19 10:35:14 2024 +0100
-  # #    Merge pull request #1517 from nrspruit/fix_l0_coverity_sync
-  # #    [L0] Store LastCommandEvent before unlock during queue sync
-  # set(UNIFIED_RUNTIME_TAG 717791bfc636a1cd69f95f09fea15fcd70a9fb23)
-
-  set(UNIFIED_RUNTIME_REPO "https://github.com/przemektmalon/unified-runtime.git")
-  # commit 56142ad69cdc34c4e090a852fd3c599446143ba2
-  # Author: Przemek Malon <przemek.malon@codeplay.com>
-  # Date:   Wed Nov 29 11:25:34 2023 +0000
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit ebf873fb5996c9ddca32bbb7c9330d3ffe15473c
+  # Merge: 633ec408 8f375039
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Thu May 2 10:56:55 2024 +0100
+  #    Merge pull request #1535 from przemektmalon/przemek/sampled-image-fetch
+  #    
   #    [Bindless][Exp] Add device queries for sampled image fetch
-  #
-  #    Added the following queries for device capabilities of fetching
-  #    sampled images:
-  #
-  #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP
-  #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP
-  #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP
-  #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP
-  #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP
-  #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP  
-  set(UNIFIED_RUNTIME_TAG 56142ad69cdc34c4e090a852fd3c599446143ba2)
+  set(UNIFIED_RUNTIME_TAG ebf873fb5996c9ddca32bbb7c9330d3ffe15473c)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
