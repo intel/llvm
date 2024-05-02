@@ -896,8 +896,7 @@ public:
 #define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
   friend vec operator BINOP(const vec &Lhs, const vec &Rhs) {                  \
     vec Ret;                                                                   \
-    if constexpr (IsBfloat16 ||                                                \
-                  std::is_same_v<DataT, sycl::detail::half_impl::half>) {      \
+    if constexpr (IsBfloat16) {                                                \
       for (size_t I = 0; I < NumElements; ++I) {                               \
         Ret.setValue(I, (Lhs.getValue(I) BINOP Rhs.getValue(I)));              \
       }                                                                        \
@@ -994,8 +993,7 @@ public:
     vec<rel_t, NumElements> Ret{};                                             \
     /* ext_vector_type does not support bfloat16 or half, so for these   */    \
     /* we do element-by-element operation on the underlying std::array.  */    \
-    if constexpr (IsBfloat16 ||                                                \
-                  std::is_same_v<DataT, sycl::detail::half_impl::half>) {      \
+    if constexpr (IsBfloat16) {                                                \
       for (size_t I = 0; I < NumElements; ++I) {                               \
         /* We cannot use SetValue here as the operator is not a friend of*/    \
         /* Ret on Windows. */                                                  \

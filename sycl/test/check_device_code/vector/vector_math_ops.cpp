@@ -169,22 +169,11 @@ SYCL_EXTERNAL auto TestAdd(vec<bool, 4> a, vec<bool, 4> b) { return a + b; }
 // CHECK-ARR-STORAGE-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.8") align 8 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.8") align 8 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.8") align 8 [[B:%.*]]) {{.*}} {
 // CHECK-ARR-STORAGE-NEXT:  entry:
 // CHECK-ARR-STORAGE-NEXT:    tail call void @llvm.experimental.noalias.{{.*}}
-// CHECK-ARR-STORAGE-NEXT:    br label [[FOR_COND_I:%.*]]
-// CHECK-ARR-STORAGE:       for.cond.i:
-// CHECK-ARR-STORAGE-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-ARR-STORAGE-NEXT:    [[CMP_I:%.*]] = icmp ult i64 [[I_0_I]], 3
-// CHECK-ARR-STORAGE-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1PLERKNS0_3VECINS0_6DETAIL9HALF_IMPL4HALFELI3EEES7__EXIT:%.*]]
-// CHECK-ARR-STORAGE:       for.body.i:
-// CHECK-ARR-STORAGE-NEXT:    [[ARRAYIDX_I_I_I_I_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::detail::half_impl::half"], ptr [[A]], i64 0, i64 [[I_0_I]]
-// CHECK-ARR-STORAGE-NEXT:    [[TMP0:%.*]] = load half, ptr [[ARRAYIDX_I_I_I_I_I]], align 2, {{.*}}
-// CHECK-ARR-STORAGE-NEXT:    [[ARRAYIDX_I_I_I_I9_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::detail::half_impl::half"], ptr [[B]], i64 0, i64 [[I_0_I]]
-// CHECK-ARR-STORAGE-NEXT:    [[TMP1:%.*]] = load half, ptr [[ARRAYIDX_I_I_I_I9_I]], align 2, {{.*}}
-// CHECK-ARR-STORAGE-NEXT:    [[ADD_I_I_I:%.*]] = fadd half [[TMP1]], [[TMP0]]
-// CHECK-ARR-STORAGE-NEXT:    [[ARRAYIDX_I_I_I_I13_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::detail::half_impl::half"], ptr addrspace(4) [[AGG_RESULT]], i64 0, i64 [[I_0_I]]
-// CHECK-ARR-STORAGE-NEXT:    store half [[ADD_I_I_I]], ptr addrspace(4) [[ARRAYIDX_I_I_I_I13_I]], align 2, {{.*}}
-// CHECK-ARR-STORAGE-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
-// CHECK-ARR-STORAGE-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP48:![0-9]+]]
-// CHECK-ARR-STORAGE:       _ZN4sycl3_V1plERKNS0_3vecINS0_6detail9half_impl4halfELi3EEES7_.exit:
+// CHECK-ARR-STORAGE-NEXT:    [[LOADVEC4_I_I:%.*]] = load <4 x half>, ptr [[A]], align 2, {{.*}}
+// CHECK-ARR-STORAGE-NEXT:    [[LOADVEC4_I7_I:%.*]] = load <4 x half>, ptr [[B]], align 2, {{.*}}
+// CHECK-ARR-STORAGE-NEXT:    [[TMP0:%.*]] = fadd <4 x half> [[LOADVEC4_I_I]], [[LOADVEC4_I7_I]]
+// CHECK-ARR-STORAGE-NEXT:    [[EXTRACTVEC_I9_I:%.*]] = shufflevector <4 x half> [[TMP0]], <4 x half> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>
+// CHECK-ARR-STORAGE-NEXT:    store <4 x half> [[EXTRACTVEC_I9_I]], ptr addrspace(4) [[AGG_RESULT]], align 8, {{.*}}
 // CHECK-ARR-STORAGE-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestAdd(vec<half, 3> a, vec<half, 3> b) { return a + b; }
@@ -381,24 +370,11 @@ SYCL_EXTERNAL auto TestGreaterThan(vec<bool, 2> a, vec<bool, 2> b) {
 // CHECK-ARR-STORAGE-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.19") align 16 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.21") align 16 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.21") align 16 [[B:%.*]]) {{.*}} {
 // CHECK-ARR-STORAGE-NEXT:  entry:
 // CHECK-ARR-STORAGE-NEXT:    tail call void @llvm.experimental.noalias.{{.*}}
-// CHECK-ARR-STORAGE-NEXT:    tail call void @llvm.memset.p4.i64(ptr addrspace(4) noundef align 16 dereferenceable(16) [[AGG_RESULT]], i8 0, i64 16, i1 false), {{.*}}
-// CHECK-ARR-STORAGE-NEXT:    br label [[FOR_COND_I:%.*]]
-// CHECK-ARR-STORAGE:       for.cond.i:
-// CHECK-ARR-STORAGE-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-ARR-STORAGE-NEXT:    [[CMP_I:%.*]] = icmp ult i64 [[I_0_I]], 8
-// CHECK-ARR-STORAGE-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1GTERKNS0_3VECINS0_6DETAIL9HALF_IMPL4HALFELI8EEES7__EXIT:%.*]]
-// CHECK-ARR-STORAGE:       for.body.i:
-// CHECK-ARR-STORAGE-NEXT:    [[ARRAYIDX_I_I_I_I_I:%.*]] = getelementptr inbounds [8 x %"class.sycl::_V1::detail::half_impl::half"], ptr [[A]], i64 0, i64 [[I_0_I]]
-// CHECK-ARR-STORAGE-NEXT:    [[TMP0:%.*]] = load half, ptr [[ARRAYIDX_I_I_I_I_I]], align 2, {{.*}}
-// CHECK-ARR-STORAGE-NEXT:    [[ARRAYIDX_I_I_I_I14_I:%.*]] = getelementptr inbounds [8 x %"class.sycl::_V1::detail::half_impl::half"], ptr [[B]], i64 0, i64 [[I_0_I]]
-// CHECK-ARR-STORAGE-NEXT:    [[TMP1:%.*]] = load half, ptr [[ARRAYIDX_I_I_I_I14_I]], align 2, {{.*}}
-// CHECK-ARR-STORAGE-NEXT:    [[CMP_I_I:%.*]] = fcmp ogt half [[TMP0]], [[TMP1]]
-// CHECK-ARR-STORAGE-NEXT:    [[CONV5_I:%.*]] = sext i1 [[CMP_I_I]] to i16
-// CHECK-ARR-STORAGE-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i16, ptr addrspace(4) [[AGG_RESULT]], i64 [[I_0_I]]
-// CHECK-ARR-STORAGE-NEXT:    store i16 [[CONV5_I]], ptr addrspace(4) [[ARRAYIDX_I_I]], align 2, {{.*}}
-// CHECK-ARR-STORAGE-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
-// CHECK-ARR-STORAGE-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP115:![0-9]+]]
-// CHECK-ARR-STORAGE:       _ZN4sycl3_V1gtERKNS0_3vecINS0_6detail9half_impl4halfELi8EEES7_.exit:
+// CHECK-ARR-STORAGE-NEXT:    [[TMP0:%.*]] = load <8 x half>, ptr [[A]], align 2, {{.*}}
+// CHECK-ARR-STORAGE-NEXT:    [[TMP1:%.*]] = load <8 x half>, ptr [[B]], align 2, {{.*}}
+// CHECK-ARR-STORAGE-NEXT:    [[CMP_I:%.*]] = fcmp ogt <8 x half> [[TMP0]], [[TMP1]]
+// CHECK-ARR-STORAGE-NEXT:    [[SEXT_I:%.*]] = sext <8 x i1> [[CMP_I]] to <8 x i16>
+// CHECK-ARR-STORAGE-NEXT:    store <8 x i16> [[SEXT_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, {{.*}}
 // CHECK-ARR-STORAGE-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestGreaterThan(vec<half, 8> a, vec<half, 8> b) {
