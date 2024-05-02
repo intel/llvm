@@ -52,6 +52,11 @@ macro(add_device_binary SOURCE_FILE)
             set(EXTRA_ENV DYLD_FALLBACK_LIBRARY_PATH=${UR_SYCL_LIBRARY_DIR})
         endif()
     endif()
+
+    # Convert build flags to a regular CMake list, splitting by unquoted white
+    # space as necessary.
+    separate_arguments(DPCXX_BUILD_FLAGS_LIST NATIVE_COMMAND "${UR_DPCXX_BUILD_FLAGS}")
+
     foreach(TRIPLE ${TARGET_TRIPLES})
         set(EXE_PATH "${DEVICE_BINARY_DIR}/${KERNEL_NAME}_${TRIPLE}")
         if(${TRIPLE} MATCHES "amd")
@@ -79,7 +84,7 @@ macro(add_device_binary SOURCE_FILE)
         add_custom_command(OUTPUT ${EXE_PATH}
             COMMAND ${UR_DPCXX} -fsycl -fsycl-targets=${TRIPLE} -fsycl-device-code-split=off 
             ${AMD_TARGET_BACKEND} ${AMD_OFFLOAD_ARCH} ${AMD_NOGPULIB}
-            ${SOURCE_FILE} -o ${EXE_PATH}
+            ${DPCXX_BUILD_FLAGS_LIST} ${SOURCE_FILE} -o ${EXE_PATH}
 
             COMMAND ${CMAKE_COMMAND} -E env ${EXTRA_ENV} SYCL_DUMP_IMAGES=true
             ${EXE_PATH} || exit 0

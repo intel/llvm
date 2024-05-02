@@ -92,6 +92,24 @@ etors:
     - name: CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP
       value: "0x2011"
       desc: "[$x_bool_t] returns true if the device supports sampling cubemapped images across face boundaries"
+    - name: BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP
+      value: "0x2012"
+      desc: "[$x_bool_t] returns true if the device is capable of fetching USM backed 1D sampled image data."
+    - name: BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP
+      value: "0x2013"
+      desc: "[$x_bool_t] returns true if the device is capable of fetching non-USM backed 1D sampled image data."
+    - name: BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP
+      value: "0x2014"
+      desc: "[$x_bool_t] returns true if the device is capable of fetching USM backed 2D sampled image data."
+    - name: BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP
+      value: "0x2015"
+      desc: "[$x_bool_t] returns true if the device is capable of fetching non-USM backed 2D sampled image data."
+    - name: BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP
+      value: "0x2016"
+      desc: "[$x_bool_t] returns true if the device is capable of fetching USM backed 3D sampled image data."
+    - name: BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP
+      value: "0x2017"
+      desc: "[$x_bool_t] returns true if the device is capable of fetching non-USM backed 3D sampled image data."
 --- #--------------------------------------------------------------------------
 type: enum
 extend: true
