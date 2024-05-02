@@ -30,8 +30,7 @@ int main() {
 
   try {
     // Extension: image descriptor
-    syclexp::image_descriptor desc({width}, sycl::image_channel_order::r,
-                                   sycl::image_channel_type::fp32);
+    syclexp::image_descriptor desc({width}, 1, sycl::image_channel_type::fp32);
 
     syclexp::bindless_image_sampler samp(
         sycl::addressing_mode::repeat,

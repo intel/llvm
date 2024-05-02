@@ -792,6 +792,66 @@ template <typename DataT> constexpr bool is_recognized_standard_type() {
           std::is_floating_point_v<DataT> || std::is_same_v<DataT, sycl::half>);
 }
 
+template <image_channel_order COrder>
+constexpr void assert_supported_channel_order() {
+  static_assert(COrder == sycl::image_channel_order::r ||
+                    COrder == sycl::image_channel_order::rg ||
+                    COrder == sycl::image_channel_order::rgba ||
+                    COrder == sycl::image_channel_order::argb ||
+                    COrder == sycl::image_channel_order::bgra ||
+                    COrder == sycl::image_channel_order::abgr,
+                "Unsupported image channel order used");
+}
+
+template <typename DataT, int N> constexpr bool is_vec_N() {
+  if constexpr (std::is_same_v<DataT, sycl::vec<float, N>> ||
+                std::is_same_v<DataT, sycl::vec<int32_t, N>> ||
+                std::is_same_v<DataT, sycl::vec<uint32_t, N>> ||
+                std::is_same_v<DataT, sycl::vec<int16_t, N>> ||
+                std::is_same_v<DataT, sycl::vec<uint16_t, N>> ||
+                std::is_same_v<DataT, sycl::vec<int8_t, N>> ||
+                std::is_same_v<DataT, sycl::vec<uint8_t, N>> ||
+                std::is_same_v<DataT, sycl::vec<half, N>>) {
+    return true;
+  }
+  return false;
+}
+
+template <typename DataT, int NChannels, sycl::image_channel_order COrder>
+DataT transform_vec4(DataT inPixel) {
+  if constexpr (COrder == sycl::image_channel_order::argb) {
+    return DataT(inPixel[3], inPixel[0], inPixel[1], inPixel[2]);
+  }
+  if constexpr (COrder == sycl::image_channel_order::bgra) {
+    return DataT(inPixel[2], inPixel[1], inPixel[0], inPixel[3]);
+  }
+  if constexpr (COrder == sycl::image_channel_order::abgr) {
+    return DataT(inPixel[3], inPixel[2], inPixel[1], inPixel[0]);
+  }
+}
+
+template <typename DataT, sycl::image_channel_order COrder>
+DataT transform_pixel(DataT inPixel) {
+  assert_supported_channel_order<COrder>();
+
+  if constexpr (is_vec_N<DataT, 4>()) {
+    return transform_vec4<DataT, 4, COrder>(inPixel);
+  }
+
+  return inPixel;
+}
+
+template <sycl::image_channel_order COrder>
+constexpr bool order_requires_swizzle() {
+  if constexpr (COrder == sycl::image_channel_order::rgba ||
+                COrder == sycl::image_channel_order::rg ||
+                COrder == sycl::image_channel_order::r) {
+    return false;
+  } else {
+    return true;
+  }
+}
+
 } // namespace detail
 
 /**
@@ -802,6 +862,7 @@ template <typename DataT> constexpr bool is_recognized_standard_type() {
  *           backend intrinsic when a user-defined type is passed as `DataT`.
  *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
  *           HintT must also have the same size as DataT.
+ *  @tparam  COrder The order in which pixel channels are to be rearranged.
  *  @tparam  CoordT The input coordinate type. e.g. int, int2, or int3 for
  *           1D, 2D, and 3D, respectively
  *  @param   imageHandle The image handle
@@ -815,7 +876,9 @@ template <typename DataT> constexpr bool is_recognized_standard_type() {
  *             The name mangling should therefore not interfere with one
  *             another
  */
-template <typename DataT, typename HintT = DataT, typename CoordT>
+template <typename DataT, typename HintT = DataT,
+          sycl::image_channel_order COrder = sycl::image_channel_order::rgba,
+          typename CoordT>
 DataT fetch_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
                   const CoordT &coords [[maybe_unused]]) {
   detail::assert_fetch_coords<CoordT>();
@@ -826,19 +889,56 @@ DataT fetch_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return __invoke__ImageFetch<DataT>(imageHandle.raw_handle, coords);
+    // Check if pixel channels need to be reordered.
+    if constexpr (!detail::order_requires_swizzle<COrder>()) {
+      return __invoke__ImageFetch<DataT>(imageHandle.raw_handle, coords);
+    } else {
+      return detail::transform_pixel<DataT, COrder>(
+          __invoke__ImageFetch<DataT>(imageHandle.raw_handle, coords));
+    }
   } else {
     static_assert(sizeof(HintT) == sizeof(DataT),
                   "When trying to read a user-defined type, HintT must be of "
                   "the same size as the user-defined DataT.");
     static_assert(detail::is_recognized_standard_type<HintT>(),
                   "HintT must always be a recognized standard type");
-    return sycl::bit_cast<DataT>(
-        __invoke__ImageFetch<HintT>(imageHandle.raw_handle, coords));
+    // Check if pixel channels need to be reordered.
+    if constexpr (!detail::order_requires_swizzle<COrder>()) {
+      return sycl::bit_cast<DataT>(
+          __invoke__ImageFetch<HintT>(imageHandle.raw_handle, coords));
+    } else {
+      return detail::transform_pixel<DataT, COrder>(sycl::bit_cast<DataT>(
+          __invoke__ImageFetch<HintT>(imageHandle.raw_handle, coords)));
+    }
   }
 #else
   assert(false); // Bindless images not yet implemented on host
 #endif
+}
+
+/**
+ *  @brief   Fetch data from an unsampled image using its handle.
+ *
+ *  @tparam  DataT The return type.
+ *  @tparam  COrder The order in which pixel channels are to be rearranged.
+ *  @tparam  CoordT The input coordinate type. e.g. int, int2, or int3 for
+ *           1D, 2D, and 3D, respectively.
+ *  @param   imageHandle The image handle.
+ *  @param   coords The coordinates at which to fetch image data.
+ *  @return  Image data.
+ *
+ *  __NVPTX__: Name mangling info.
+ *             Cuda surfaces require integer coords (by bytes).
+ *             Cuda textures require float coords (by element or normalized).
+ *             The name mangling should therefore not interfere with one
+ *             another.
+ */
+template <typename DataT,
+          sycl::image_channel_order COrder = sycl::image_channel_order::rgba,
+          typename CoordT>
+DataT fetch_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
+                  CoordT &&coords [[maybe_unused]]) {
+  return fetch_image<DataT, DataT, COrder>(imageHandle, coords);
 }
 
 /**
@@ -878,6 +978,7 @@ DataT read_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
  *           backend intrinsic when a user-defined type is passed as `DataT`.
  *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
  *           HintT must also have the same size as DataT.
+ *  @tparam  COrder The order in which pixel channels are to be rearranged.
  *  @tparam  CoordT The input coordinate type. e.g. int, int2, or int3 for
  *           1D, 2D, and 3D, respectively
  *  @param   imageHandle The image handle
@@ -891,7 +992,9 @@ DataT read_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
  *             The name mangling should therefore not interfere with one
  *             another
  */
-template <typename DataT, typename HintT = DataT, typename CoordT>
+template <typename DataT, typename HintT = DataT,
+          sycl::image_channel_order COrder = sycl::image_channel_order::rgba,
+          typename CoordT>
 DataT fetch_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                   const CoordT &coords [[maybe_unused]]) {
   detail::assert_fetch_coords<CoordT>();
@@ -907,14 +1010,52 @@ DataT fetch_image(const sampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return __invoke__SampledImageFetch<DataT>(imageHandle.raw_handle, coords);
+    // Check if pixel channels need to be reordered.
+    if constexpr (!detail::order_requires_swizzle<COrder>()) {
+      return __invoke__SampledImageFetch<DataT>(imageHandle.raw_handle, coords);
+    } else {
+      return detail::transform_pixel<DataT, COrder>(
+          __invoke__SampledImageFetch<DataT>(imageHandle.raw_handle, coords));
+    }
   } else {
-    return sycl::bit_cast<DataT>(
-        __invoke__SampledImageFetch<HintT>(imageHandle.raw_handle, coords));
+    // Check if pixel channels need to be reordered.
+    if constexpr (!detail::order_requires_swizzle<COrder>()) {
+      return sycl::bit_cast<DataT>(
+          __invoke__SampledImageFetch<HintT>(imageHandle.raw_handle, coords));
+    } else {
+      return detail::transform_pixel<DataT, COrder>(sycl::bit_cast<DataT>(
+          __invoke__SampledImageFetch<HintT>(imageHandle.raw_handle, coords)));
+    }
   }
 #else
   assert(false); // Bindless images not yet implemented on host.
 #endif
+}
+
+/**
+ *  @brief   Fetch data from a sampled image using its handle.
+ *
+ *  @tparam  DataT The return type.
+ *  @tparam  COrder The order in which pixel channels are to be rearranged.
+ *  @tparam  CoordT The input coordinate type. e.g. int, int2, or int3 for
+ *           1D, 2D, and 3D, respectively.
+ *  @param   imageHandle The image handle.
+ *  @param   coords The coordinates at which to fetch image data.
+ *  @return  Fetched image data.
+ *
+ *  __NVPTX__: Name mangling info.
+ *             Cuda surfaces require integer coords (by bytes).
+ *             Cuda textures require float coords (by element or normalized)
+ *             for sampling, and integer coords (by bytes) for fetching.
+ *             The name mangling should therefore not interfere with one
+ *             another.
+ */
+template <typename DataT,
+          sycl::image_channel_order COrder = sycl::image_channel_order::rgba,
+          typename CoordT>
+DataT fetch_image(const sampled_image_handle &imageHandle [[maybe_unused]],
+                  const CoordT &&coords [[maybe_unused]]) {
+  return fetch_image<DataT, DataT, COrder>(imageHandle, coords);
 }
 
 /**
@@ -925,6 +1066,7 @@ DataT fetch_image(const sampled_image_handle &imageHandle [[maybe_unused]],
  *           backend intrinsic when a user-defined type is passed as `DataT`.
  *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
  *           HintT must also have the same size as DataT.
+ *  @tparam  COrder The order in which pixel channels are to be rearranged.
  *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float3 for
  *           1D, 2D, and 3D, respectively
  *  @param   imageHandle The image handle
@@ -938,7 +1080,9 @@ DataT fetch_image(const sampled_image_handle &imageHandle [[maybe_unused]],
  *             The name mangling should therefore not interfere with one
  *             another
  */
-template <typename DataT, typename HintT = DataT, typename CoordT>
+template <typename DataT, typename HintT = DataT,
+          sycl::image_channel_order COrder = sycl::image_channel_order::rgba,
+          typename CoordT>
 DataT sample_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                    const CoordT &coords [[maybe_unused]]) {
   detail::assert_sample_coords<CoordT>();
@@ -954,14 +1098,52 @@ DataT sample_image(const sampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return __invoke__ImageRead<DataT>(imageHandle.raw_handle, coords);
+    // Check if pixel channels need to be reordered.
+    if constexpr (!detail::order_requires_swizzle<COrder>()) {
+      return __invoke__ImageRead<DataT>(imageHandle.raw_handle, coords);
+    } else {
+      return detail::transform_pixel<DataT, COrder>(
+          __invoke__ImageRead<DataT>(imageHandle.raw_handle, coords));
+    }
   } else {
-    return sycl::bit_cast<DataT>(
-        __invoke__ImageRead<HintT>(imageHandle.raw_handle, coords));
+    // Check if pixel channels need to be reordered.
+    if constexpr (!detail::order_requires_swizzle<COrder>()) {
+      return sycl::bit_cast<DataT>(
+          __invoke__ImageRead<HintT>(imageHandle.raw_handle, coords));
+    } else {
+      return detail::transform_pixel<DataT, COrder>(sycl::bit_cast<DataT>(
+          __invoke__ImageRead<HintT>(imageHandle.raw_handle, coords)));
+    }
   }
 #else
   assert(false); // Bindless images not yet implemented on host.
 #endif
+}
+
+/**
+ *  @brief   Sample data from a sampled image using its handle.
+ *
+ *  @tparam  DataT The return type.
+ *  @tparam  COrder The order in which pixel channels are to be rearranged.
+ *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float3 for
+ *           1D, 2D, and 3D, respectively.
+ *  @param   imageHandle The image handle.
+ *  @param   coords The coordinates at which to sample image data.
+ *  @return  Sampled image data.
+ *
+ *  __NVPTX__: Name mangling info.
+ *             Cuda surfaces require integer coords (by bytes).
+ *             Cuda textures require float coords (by element or normalized)
+ *             for sampling, and integer coords (by bytes) for fetching.
+ *             The name mangling should therefore not interfere with one
+ *             another.
+ */
+template <typename DataT,
+          sycl::image_channel_order COrder = sycl::image_channel_order::rgba,
+          typename CoordT>
+DataT sample_image(const sampled_image_handle &imageHandle [[maybe_unused]],
+                   const CoordT &&coords [[maybe_unused]]) {
+  return sample_image<DataT, DataT, COrder>(imageHandle, coords);
 }
 
 /**
@@ -1007,6 +1189,7 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
  *           backend intrinsic when a user-defined type is passed as `DataT`.
  *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
  *           HintT must also have the same size as DataT.
+ *  @tparam  COrder The order in which pixel channels are to be rearranged.
  *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float3 for
  *           1D, 2D, and 3D, respectively
  *  @param   imageHandle The mipmap image handle
@@ -1014,7 +1197,9 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
  *  @param   level The mipmap level at which to sample
  *  @return  Mipmap image data with LOD filtering
  */
-template <typename DataT, typename HintT = DataT, typename CoordT>
+template <typename DataT, typename HintT = DataT,
+          sycl::image_channel_order COrder = sycl::image_channel_order::rgba,
+          typename CoordT>
 DataT sample_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
                     const CoordT &coords [[maybe_unused]],
                     const float level [[maybe_unused]]) {
@@ -1026,19 +1211,54 @@ DataT sample_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return __invoke__ImageReadLod<DataT>(imageHandle.raw_handle, coords, level);
+    // Check if pixel channels need to be reordered.
+    if constexpr (!detail::order_requires_swizzle<COrder>()) {
+      return __invoke__ImageReadLod<DataT>(imageHandle.raw_handle, coords,
+                                           level);
+    } else {
+      return detail::transform_pixel<DataT, COrder>(
+          __invoke__ImageReadLod<DataT>(imageHandle.raw_handle, coords, level));
+    }
   } else {
     static_assert(sizeof(HintT) == sizeof(DataT),
                   "When trying to read a user-defined type, HintT must be of "
                   "the same size as the user-defined DataT.");
     static_assert(detail::is_recognized_standard_type<HintT>(),
                   "HintT must always be a recognized standard type");
-    return sycl::bit_cast<DataT>(
-        __invoke__ImageReadLod<HintT>(imageHandle.raw_handle, coords, level));
+    // Check if pixel channels need to be reordered.
+    if constexpr (!detail::order_requires_swizzle<COrder>()) {
+      return sycl::bit_cast<DataT>(
+          __invoke__ImageReadLod<HintT>(imageHandle.raw_handle, coords, level));
+    } else {
+      return detail::transform_pixel<DataT, COrder>(
+          sycl::bit_cast<DataT>(__invoke__ImageReadLod<HintT>(
+              imageHandle.raw_handle, coords, level)));
+    }
   }
 #else
   assert(false); // Bindless images not yet implemented on host
 #endif
+}
+
+/**
+ *  @brief   Sample a mipmap image using its handle with LOD filtering.
+ *
+ *  @tparam  DataT The return type.
+ *  @tparam  COrder The order in which pixel channels are to be rearranged.
+ *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float3 for
+ *           1D, 2D, and 3D, respectively.
+ *  @param   imageHandle The mipmap image handle.
+ *  @param   coords The coordinates at which to sample mipmap image data.
+ *  @param   level The mipmap level at which to sample.
+ *  @return  Mipmap image data with LOD filtering.
+ */
+template <typename DataT,
+          sycl::image_channel_order COrder = sycl::image_channel_order::rgba,
+          typename CoordT>
+DataT sample_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
+                    const CoordT &&coords [[maybe_unused]],
+                    const float level [[maybe_unused]]) {
+  return sample_mipmap<DataT, DataT, COrder>(imageHandle, coords, level);
 }
 
 /**
@@ -1049,6 +1269,7 @@ DataT sample_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
  *           backend intrinsic when a user-defined type is passed as `DataT`.
  *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
  *           HintT must also have the same size as DataT.
+ *  @tparam  COrder The order in which pixel channels are to be rearranged.
  *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float3 for
  *           1D, 2D, and 3D, respectively
  *  @param   imageHandle The mipmap image handle
@@ -1057,7 +1278,9 @@ DataT sample_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
  *  @param   dY Screen space gradient in the y dimension
  *  @return  Mipmap image data with anisotropic filtering
  */
-template <typename DataT, typename HintT = DataT, typename CoordT>
+template <typename DataT, typename HintT = DataT,
+          sycl::image_channel_order COrder = sycl::image_channel_order::rgba,
+          typename CoordT>
 DataT sample_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
                     const CoordT &coords [[maybe_unused]],
                     const CoordT &dX [[maybe_unused]],
@@ -1070,20 +1293,57 @@ DataT sample_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return __invoke__ImageReadGrad<DataT>(imageHandle.raw_handle, coords, dX,
-                                          dY);
+    // Check if pixel channels need to be reordered.
+    if constexpr (!detail::order_requires_swizzle<COrder>()) {
+      return __invoke__ImageReadGrad<DataT>(imageHandle.raw_handle, coords, dX,
+                                            dY);
+    } else {
+      return detail::transform_pixel<DataT, COrder>(
+          __invoke__ImageReadGrad<DataT>(imageHandle.raw_handle, coords, dX,
+                                         dY));
+    }
   } else {
     static_assert(sizeof(HintT) == sizeof(DataT),
                   "When trying to read a user-defined type, HintT must be of "
                   "the same size as the user-defined DataT.");
     static_assert(detail::is_recognized_standard_type<HintT>(),
                   "HintT must always be a recognized standard type");
-    return sycl::bit_cast<DataT>(
-        __invoke__ImageReadGrad<HintT>(imageHandle.raw_handle, coords, dX, dY));
+    // Check if pixel channels need to be reordered.
+    if constexpr (!detail::order_requires_swizzle<COrder>()) {
+      return sycl::bit_cast<DataT>(__invoke__ImageReadGrad<HintT>(
+          imageHandle.raw_handle, coords, dX, dY));
+    } else {
+      return detail::transform_pixel<DataT, COrder>(
+          sycl::bit_cast<DataT>(__invoke__ImageReadGrad<HintT>(
+              imageHandle.raw_handle, coords, dX, dY)));
+    }
   }
 #else
   assert(false); // Bindless images not yet implemented on host
 #endif
+}
+
+/**
+ *  @brief   Sample a mipmap image using its handle with anisotropic filtering.
+ *
+ *  @tparam  DataT The return type.
+ *  @tparam  COrder The order in which pixel channels are to be rearranged.
+ *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float3 for
+ *           1D, 2D, and 3D, respectively.
+ *  @param   imageHandle The mipmap image handle.
+ *  @param   coords The coordinates at which to sample mipmap image data.
+ *  @param   dX Screen space gradient in the x dimension.
+ *  @param   dY Screen space gradient in the y dimension.
+ *  @return  Mipmap image data with anisotropic filtering.
+ */
+template <typename DataT,
+          sycl::image_channel_order COrder = sycl::image_channel_order::rgba,
+          typename CoordT>
+DataT sample_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
+                    const CoordT &&coords [[maybe_unused]],
+                    const CoordT &dX [[maybe_unused]],
+                    const CoordT &dY [[maybe_unused]]) {
+  return sample_mipmap<DataT, DataT, COrder>(imageHandle, coords, dX, dY);
 }
 
 /**
@@ -1198,6 +1458,7 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
  *           backend intrinsic when a user-defined type is passed as `DataT`.
  *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
  *           HintT must also have the same size as DataT.
+ *  @tparam  COrder The order in which pixel channels are to be rearranged.
  *  @tparam  CoordT The input coordinate type. e.g. int or int2 for 1D or 2D,
  *           respectively
  *  @param   imageHandle The image handle
@@ -1211,7 +1472,9 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
  *             The name mangling should therefore not interfere with one
  *             another
  */
-template <typename DataT, typename HintT = DataT, typename CoordT>
+template <typename DataT, typename HintT = DataT,
+          sycl::image_channel_order COrder = sycl::image_channel_order::rgba,
+          typename CoordT>
 DataT fetch_image_array(const unsampled_image_handle &imageHandle
                         [[maybe_unused]],
                         const CoordT &coords [[maybe_unused]],
@@ -1224,16 +1487,30 @@ DataT fetch_image_array(const unsampled_image_handle &imageHandle
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return __invoke__ImageArrayFetch<DataT>(imageHandle.raw_handle, coords,
-                                            arrayLayer);
+    // Check if pixel channels need to be reordered.
+    if constexpr (!detail::order_requires_swizzle<COrder>()) {
+      return __invoke__ImageArrayFetch<DataT>(imageHandle.raw_handle, coords,
+                                              arrayLayer);
+    } else {
+      return detail::transform_pixel<DataT, COrder>(
+          __invoke__ImageArrayFetch<DataT>(imageHandle.raw_handle, coords,
+                                           arrayLayer));
+    }
   } else {
     static_assert(sizeof(HintT) == sizeof(DataT),
                   "When trying to fetch a user-defined type, HintT must be of "
                   "the same size as the user-defined DataT.");
     static_assert(detail::is_recognized_standard_type<HintT>(),
                   "HintT must always be a recognized standard type");
-    return sycl::bit_cast<DataT>(__invoke__ImageArrayFetch<HintT>(
-        imageHandle.raw_handle, coords, arrayLayer));
+    // Check if pixel channels need to be reordered.
+    if constexpr (!detail::order_requires_swizzle<COrder>()) {
+      return sycl::bit_cast<DataT>(__invoke__ImageArrayFetch<HintT>(
+          imageHandle.raw_handle, coords, arrayLayer));
+    } else {
+      return detail::transform_pixel<DataT, COrder>(
+          sycl::bit_cast<DataT>(__invoke__ImageArrayFetch<HintT>(
+              imageHandle.raw_handle, coords, arrayLayer)));
+    }
   }
 #else
   assert(false); // Bindless images not yet implemented on host.
@@ -1241,47 +1518,94 @@ DataT fetch_image_array(const unsampled_image_handle &imageHandle
 }
 
 /**
+ *  @brief   Fetch data from an unsampled image array using its handle.
+ *
+ *  @tparam  DataT The return type.
+ *  @tparam  COrder The order in which pixel channels are to be rearranged.
+ *  @tparam  CoordT The input coordinate type. e.g. int or int2 for 1D or 2D,
+ *           respectively.
+ *  @param   imageHandle The image handle.
+ *  @param   coords The coordinates at which to fetch image data.
+ *  @param   arrayLayer The image array layer at which to fetch.
+ *  @return  Image data.
+ *
+ *  __NVPTX__: Name mangling info.
+ *             Cuda surfaces require integer coords (by bytes).
+ *             Cuda textures require float coords (by element or normalized).
+ *             The name mangling should therefore not interfere with one
+ *             another.
+ */
+template <typename DataT,
+          sycl::image_channel_order COrder = sycl::image_channel_order::rgba,
+          typename CoordT>
+DataT fetch_image_array(const unsampled_image_handle &imageHandle
+                        [[maybe_unused]],
+                        const CoordT &&coords [[maybe_unused]],
+                        const int arrayLayer [[maybe_unused]]) {
+  return fetch_image_array<DataT, DataT, COrder>(imageHandle, coords,
+                                                 arrayLayer);
+}
+
+/**
  *  @brief   Fetch data from an unsampled cubemap image using its handle
  *
  *  @tparam  DataT The return type
+ *  @tparam  COrder The order in which pixel channels are to be rearranged.
  *
  *  @param   imageHandle The image handle
  *  @param   coords The coordinates at which to fetch image data (int2 only)
  *  @param   face The cubemap face at which to fetch
  *  @return  Image data
  */
-template <typename DataT>
+template <typename DataT,
+          sycl::image_channel_order COrder = sycl::image_channel_order::rgba>
 DataT fetch_cubemap(const unsampled_image_handle &imageHandle,
                     const int2 &coords, const unsigned int face) {
-  return fetch_image_array<DataT>(imageHandle, coords, face);
+  return fetch_image_array<DataT, DataT, COrder>(imageHandle, coords, face);
 }
 
 /**
  *  @brief   Sample a cubemap image using its handle
  *
  *  @tparam  DataT The return type
+ *  @tparam  COrder The order in which pixel channels are to be rearranged.
  *
  *  @param   imageHandle The image handle
  *  @param   dirVec The direction vector at which to sample image data (float3
  *           only)
  *  @return  Image data
  */
-template <typename DataT, typename HintT = DataT>
+template <typename DataT, typename HintT = DataT,
+          sycl::image_channel_order COrder = sycl::image_channel_order::rgba>
 DataT sample_cubemap(const sampled_image_handle &imageHandle [[maybe_unused]],
                      const sycl::float3 &dirVec [[maybe_unused]]) {
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return __invoke__ImageReadCubemap<DataT, uint64_t>(imageHandle.raw_handle,
-                                                       dirVec);
+    // Check if pixel channels need to be reordered.
+    if constexpr (!detail::order_requires_swizzle<COrder>()) {
+      return __invoke__ImageReadCubemap<DataT, uint64_t>(imageHandle.raw_handle,
+                                                         dirVec);
+    } else {
+      return detail::transform_pixel<DataT, COrder>(
+          __invoke__ImageReadCubemap<DataT, uint64_t>(imageHandle.raw_handle,
+                                                      dirVec));
+    }
   } else {
     static_assert(sizeof(HintT) == sizeof(DataT),
                   "When trying to read a user-defined type, HintT must be of "
                   "the same size as the user-defined DataT.");
     static_assert(detail::is_recognized_standard_type<HintT>(),
                   "HintT must always be a recognized standard type");
-    return sycl::bit_cast<DataT>(__invoke__ImageReadCubemap<DataT, uint64_t>(
-        imageHandle.raw_handle, dirVec));
+    // Check if pixel channels need to be reordered.
+    if constexpr (!detail::order_requires_swizzle<COrder>()) {
+      return sycl::bit_cast<DataT>(__invoke__ImageReadCubemap<DataT, uint64_t>(
+          imageHandle.raw_handle, dirVec));
+    } else {
+      return detail::transform_pixel<DataT, COrder>(
+          sycl::bit_cast<DataT>(__invoke__ImageReadCubemap<DataT, uint64_t>(
+              imageHandle.raw_handle, dirVec)));
+    }
   }
 #else
   assert(false); // Bindless images not yet implemented on host
@@ -1292,13 +1616,16 @@ DataT sample_cubemap(const sampled_image_handle &imageHandle [[maybe_unused]],
  *  @brief   Write to an unsampled image using its handle
  *
  *  @tparam  DataT The data type to write
+ *  @tparam  COrder The order in which pixel channels are to be rearranged.
  *  @tparam  CoordT The input coordinate type. e.g. int, int2, or int3 for
  *           1D, 2D, and 3D, respectively
  *  @param   imageHandle The image handle
  *  @param   coords The coordinates at which to write image data
  *  @param   color The data to write
  */
-template <typename DataT, typename CoordT>
+template <typename DataT,
+          sycl::image_channel_order COrder = sycl::image_channel_order::rgba,
+          typename CoordT>
 void write_image(unsampled_image_handle imageHandle [[maybe_unused]],
                  const CoordT &coords [[maybe_unused]],
                  const DataT &color [[maybe_unused]]) {
@@ -1310,12 +1637,26 @@ void write_image(unsampled_image_handle imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    __invoke__ImageWrite((uint64_t)imageHandle.raw_handle, coords, color);
+    // Check if pixel channels need to be reordered.
+    if constexpr (!detail::order_requires_swizzle<COrder>()) {
+      __invoke__ImageWrite(imageHandle.raw_handle, coords, color);
+    } else {
+      __invoke__ImageWrite(imageHandle.raw_handle, coords,
+                           detail::transform_pixel<DataT, COrder>(color));
+    }
   } else {
-    // Convert DataT to a supported backend write type when user-defined type is
-    // passed
-    __invoke__ImageWrite((uint64_t)imageHandle.raw_handle, coords,
-                         detail::convert_color(color));
+    // Convert DataT to a supported backend write type when user-defined type
+    // is passed.
+
+    // Check if pixel channels need to be reordered.
+    if constexpr (!detail::order_requires_swizzle<COrder>()) {
+      __invoke__ImageWrite(imageHandle.raw_handle, coords,
+                           detail::convert_color(color));
+    } else {
+      __invoke__ImageWrite(
+          imageHandle.raw_handle, coords,
+          detail::transform_pixel<DataT, COrder>(detail::convert_color(color)));
+    }
   }
 #else
   assert(false); // Bindless images not yet implemented on host
@@ -1326,6 +1667,7 @@ void write_image(unsampled_image_handle imageHandle [[maybe_unused]],
  *  @brief   Write to an unsampled image array using its handle
  *
  *  @tparam  DataT The data type to write
+ *  @tparam  COrder The order in which pixel channels are to be rearranged.
  *  @tparam  CoordT The input coordinate type. e.g. int or int2 for 1D or 2D,
  *           respectively
  *  @param   imageHandle The image handle
@@ -1333,7 +1675,9 @@ void write_image(unsampled_image_handle imageHandle [[maybe_unused]],
  *  @param   arrayLayer The image array layer at which to write
  *  @param   color The data to write
  */
-template <typename DataT, typename CoordT>
+template <typename DataT,
+          sycl::image_channel_order COrder = sycl::image_channel_order::rgba,
+          typename CoordT>
 void write_image_array(unsampled_image_handle imageHandle [[maybe_unused]],
                        const CoordT &coords [[maybe_unused]],
                        const int arrayLayer [[maybe_unused]],
@@ -1346,13 +1690,27 @@ void write_image_array(unsampled_image_handle imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    __invoke__ImageArrayWrite(static_cast<uint64_t>(imageHandle.raw_handle),
-                              coords, arrayLayer, color);
+    // Check if pixel channels need to be reordered.
+    if constexpr (!detail::order_requires_swizzle<COrder>()) {
+      __invoke__ImageArrayWrite(imageHandle.raw_handle, coords, arrayLayer,
+                                color);
+    } else {
+      __invoke__ImageArrayWrite(imageHandle.raw_handle, coords, arrayLayer,
+                                detail::transform_pixel<DataT, COrder>(color));
+    }
   } else {
-    // Convert DataT to a supported backend write type when user-defined type is
-    // passed
-    __invoke__ImageArrayWrite(static_cast<uint64_t>(imageHandle.raw_handle),
-                              coords, arrayLayer, detail::convert_color(color));
+    // Convert DataT to a supported backend write type when user-defined type
+    // is passed.
+
+    // Check if pixel channels need to be reordered.
+    if constexpr (!detail::order_requires_swizzle<COrder>()) {
+      __invoke__ImageArrayWrite(imageHandle.raw_handle, coords, arrayLayer,
+                                detail::convert_color(color));
+    } else {
+      __invoke__ImageArrayWrite(
+          imageHandle.raw_handle, coords, arrayLayer,
+          detail::transform_pixel<DataT, COrder>(detail::convert_color(color)));
+    }
   }
 #else
   assert(false); // Bindless images not yet implemented on host.
@@ -1363,16 +1721,18 @@ void write_image_array(unsampled_image_handle imageHandle [[maybe_unused]],
  *  @brief   Write to an unsampled cubemap using its handle
  *
  *  @tparam  DataT The data type to write
+ *  @tparam  COrder The order in which pixel channels are to be rearranged.
  *
  *  @param   imageHandle The image handle
  *  @param   coords The coordinates at which to write image data (int2 only)
  *  @param   face The cubemap face at which to write
  *  @param   color The data to write
  */
-template <typename DataT>
+template <typename DataT,
+          sycl::image_channel_order COrder = sycl::image_channel_order::rgba>
 void write_cubemap(unsampled_image_handle imageHandle, const sycl::int2 &coords,
                    const int face, const DataT &color) {
-  return write_image_array(imageHandle, coords, face, color);
+  return write_image_array<DataT, COrder>(imageHandle, coords, face, color);
 }
 
 } // namespace ext::oneapi::experimental

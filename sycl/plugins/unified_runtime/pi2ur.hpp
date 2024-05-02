@@ -2947,7 +2947,7 @@ static void pi2urImageDesc(const pi_image_format *ImageFormat,
                                      UR_IMAGE_CHANNEL_ORDER_SRGBA)
 #undef PI_TO_UR_MAP_IMAGE_CHANNEL_ORDER
   default: {
-    die("piMemImageCreate: unsuppported image_channel_data_type.");
+    die("piMemImageCreate: unsuppported image_channel_order.");
   }
   }
 

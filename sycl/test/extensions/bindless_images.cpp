@@ -21,8 +21,7 @@ int main() {
   }
 
   {
-    image_descriptor desc({width}, sycl::image_channel_order::rgba,
-                          sycl::image_channel_type::fp32);
+    image_descriptor desc({width}, 4, sycl::image_channel_type::fp32);
 
     image_mem imgMem0(desc, dev, ctxt);
     unsampled_image_handle imgHandle1 = create_image(imgMem0, desc, dev, ctxt);

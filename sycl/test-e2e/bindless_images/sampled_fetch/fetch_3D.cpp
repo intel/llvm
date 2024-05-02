@@ -38,8 +38,7 @@ int main() {
 
   try {
     // Extension: image descriptor
-    syclexp::image_descriptor desc({width, height, depth},
-                                   sycl::image_channel_order::r,
+    syclexp::image_descriptor desc({width, height, depth}, 1,
                                    sycl::image_channel_type::fp32);
 
     syclexp::bindless_image_sampler samp(

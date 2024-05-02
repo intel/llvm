@@ -40,8 +40,7 @@ int main() {
         sycl::filtering_mode::linear);
 
     // Extension: image descriptor
-    syclexp::image_descriptor desc({width, height},
-                                   sycl::image_channel_order::rgba,
+    syclexp::image_descriptor desc({width, height}, 4,
                                    sycl::image_channel_type::unsigned_int16);
     size_t pitch = 0;
 

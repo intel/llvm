@@ -52,8 +52,7 @@ int main() {
 
     // Extension: image descriptor
     sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width, height}, sycl::image_channel_order::rgba,
-        sycl::image_channel_type::fp16);
+        {width, height}, 4, sycl::image_channel_type::fp16);
 
     if (imgMem == nullptr) {
       std::cout << "Error allocating images!" << std::endl;

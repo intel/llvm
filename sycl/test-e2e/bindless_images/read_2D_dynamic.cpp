@@ -39,8 +39,7 @@ int main() {
 
     // Extension: image descriptor - can use the same for all images
     sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width, height}, sycl::image_channel_order::rgba,
-        sycl::image_channel_type::fp32);
+        {width, height}, 4, sycl::image_channel_type::fp32);
 
     // Allocate each image and save the device memory handles
     std::vector<std::shared_ptr<sycl::ext::oneapi::experimental::image_mem>>

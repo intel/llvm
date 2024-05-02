@@ -40,8 +40,7 @@ int main() {
         sycl::filtering_mode::nearest);
 
     // Extension: image descriptor
-    syclexp::image_descriptor desc({width, height},
-                                   sycl::image_channel_order::r,
+    syclexp::image_descriptor desc({width, height}, 1,
                                    sycl::image_channel_type::fp32);
 
     // Extension: allocate memory on device

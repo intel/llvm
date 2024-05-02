@@ -47,8 +47,7 @@ handles_t create_test_handles(sycl::context &ctxt, sycl::device &dev,
 }
 
 template <int NDims, typename DType, int NChannels,
-          sycl::image_channel_type CType, sycl::image_channel_order COrder,
-          typename KernelName>
+          sycl::image_channel_type CType, typename KernelName>
 bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
               int input_image_fd) {
   sycl::device dev;
@@ -56,7 +55,7 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
   auto ctxt = q.get_context();
 
   // Image descriptor - mapped to Vulkan image layout
-  syclexp::image_descriptor desc(globalSize, COrder, CType);
+  syclexp::image_descriptor desc(globalSize, NChannels, CType);
 
   syclexp::bindless_image_sampler samp(
       sycl::addressing_mode::repeat,
@@ -295,7 +294,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   printString("Getting memory file descriptors and calling into SYCL\n");
   // Pass memory to SYCL for modification
   auto input_fd = vkutil::getMemoryOpaqueFD(inputMemory);
-  bool result = run_sycl<NDims, DType, NChannels, CType, COrder, KernelName>(
+  bool result = run_sycl<NDims, DType, NChannels, CType, KernelName>(
       dims, localSize, input_fd);
 
   // Cleanup

@@ -60,8 +60,8 @@ template <typename DType, sycl::image_channel_type CType> bool runTest() {
 
     // Extension: image descriptor -- number of levels
     sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width}, sycl::image_channel_order::rgba, CType,
-        sycl::ext::oneapi::experimental::image_type::mipmap, numLevels);
+        {width}, 4, CType, sycl::ext::oneapi::experimental::image_type::mipmap,
+        numLevels);
 
     // Extension: allocate mipmap memory on device
     sycl::ext::oneapi::experimental::image_mem mipMem(desc, dev, ctxt);
