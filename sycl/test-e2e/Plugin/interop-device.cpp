@@ -18,8 +18,8 @@ int main() {
     // TODO: No sycl::device interop support for
     // sycl::backend::ext_oneapi_native_cpu, sycl::backend::ext_oneapi_cuda,
     // sycl::backend::ext_oneapi_hip.
-    constexpr sycl::backend backends[] = {
-        sycl::backend::opencl, sycl::backend::ext_oneapi_level_zero};
+    constexpr sycl::backend backends[] = {sycl::backend::opencl,
+                                          sycl::backend::ext_oneapi_level_zero};
     sycl::detail::loop<std::size(backends)>([&](auto be_idx) {
       constexpr auto be = backends[be_idx];
       if (d.get_backend() != be)
