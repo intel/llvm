@@ -1,3 +1,6 @@
+// https://github.com/intel/llvm/issues/13625
+// REQUIRES: asserts
+
 // RUN: %clangxx -fsycl -fsycl-device-only -c -o %t.bc %s
 // RUN: %if asserts %{sycl-post-link -debug-only=SpecConst %t.bc -spec-const=native -o %t.txt 2>&1 | FileCheck %s -check-prefixes=CHECK-LOG %} %else %{sycl-post-link %t.bc -spec-const=native -o %t.txt 2>&1 %}
 // RUN: cat %t_0.prop | FileCheck %s -check-prefixes=CHECK,CHECK-RT
