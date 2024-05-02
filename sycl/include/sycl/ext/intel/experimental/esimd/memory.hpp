@@ -859,8 +859,7 @@ __ESIMD_API
                __ESIMD_NS::simd<T, N * NElts> pass_thru) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_gather<T, NElts, DS, L1H, L2H>(
-      reinterpret_cast<T *>(__ESIMD_DNS::accessorToPointer<T>(acc)), offsets,
-      pred, pass_thru);
+      __ESIMD_DNS::accessorToPointer<T>(acc), offsets, pred, pass_thru);
 
 #else
   using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;

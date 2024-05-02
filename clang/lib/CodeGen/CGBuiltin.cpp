@@ -903,29 +903,32 @@ const FieldDecl *CodeGenFunction::FindFlexibleArrayMemberField(
     ASTContext &Ctx, const RecordDecl *RD, StringRef Name, uint64_t &Offset) {
   const LangOptions::StrictFlexArraysLevelKind StrictFlexArraysLevel =
       getLangOpts().getStrictFlexArraysLevel();
-  unsigned FieldNo = 0;
-  bool IsUnion = RD->isUnion();
+  uint32_t FieldNo = 0;
 
-  for (const Decl *D : RD->decls()) {
-    if (const auto *Field = dyn_cast<FieldDecl>(D);
-        Field && (Name.empty() || Field->getNameAsString() == Name) &&
+  if (RD->isImplicit())
+    return nullptr;
+
+  for (const FieldDecl *FD : RD->fields()) {
+    if ((Name.empty() || FD->getNameAsString() == Name) &&
         Decl::isFlexibleArrayMemberLike(
-            Ctx, Field, Field->getType(), StrictFlexArraysLevel,
+            Ctx, FD, FD->getType(), StrictFlexArraysLevel,
             /*IgnoreTemplateOrMacroSubstitution=*/true)) {
       const ASTRecordLayout &Layout = Ctx.getASTRecordLayout(RD);
       Offset += Layout.getFieldOffset(FieldNo);
-      return Field;
+      return FD;
     }
 
-    if (const auto *Record = dyn_cast<RecordDecl>(D))
-      if (const FieldDecl *Field =
-              FindFlexibleArrayMemberField(Ctx, Record, Name, Offset)) {
+    QualType Ty = FD->getType();
+    if (Ty->isRecordType()) {
+      if (const FieldDecl *Field = FindFlexibleArrayMemberField(
+              Ctx, Ty->getAsRecordDecl(), Name, Offset)) {
         const ASTRecordLayout &Layout = Ctx.getASTRecordLayout(RD);
         Offset += Layout.getFieldOffset(FieldNo);
         return Field;
       }
+    }
 
-    if (!IsUnion && isa<FieldDecl>(D))
+    if (!RD->isUnion())
       ++FieldNo;
   }
 
@@ -935,14 +938,13 @@ const FieldDecl *CodeGenFunction::FindFlexibleArrayMemberField(
 static unsigned CountCountedByAttrs(const RecordDecl *RD) {
   unsigned Num = 0;
 
-  for (const Decl *D : RD->decls()) {
-    if (const auto *FD = dyn_cast<FieldDecl>(D);
-        FD && FD->getType()->isCountAttributedType()) {
+  for (const FieldDecl *FD : RD->fields()) {
+    if (FD->getType()->isCountAttributedType())
       return ++Num;
-    }
 
-    if (const auto *Rec = dyn_cast<RecordDecl>(D))
-      Num += CountCountedByAttrs(Rec);
+    QualType Ty = FD->getType();
+    if (Ty->isRecordType())
+      Num += CountCountedByAttrs(Ty->getAsRecordDecl());
   }
 
   return Num;
@@ -6128,7 +6130,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   case Builtin::BI__builtin_intel_sycl_ptr_annotation:
     return EmitIntelSYCLPtrAnnotationBuiltin(E);
   case Builtin::BI__builtin_intel_sycl_alloca:
-    return EmitIntelSYCLAllocaBuiltin(E, ReturnValue);
+  case Builtin::BI__builtin_intel_sycl_alloca_with_align:
+    return EmitIntelSYCLAllocaBuiltin(BuiltinID, E, ReturnValue);
   case Builtin::BI__builtin_get_device_side_mangled_name: {
     auto Name = CGM.getCUDARuntime().getDeviceSideName(
         cast<DeclRefExpr>(E->getArg(0)->IgnoreImpCasts())->getDecl());
@@ -18364,8 +18367,8 @@ Value *CodeGenFunction::EmitHLSLBuiltinExpr(unsigned BuiltinID,
     if (!E->getArg(0)->getType()->hasFloatingRepresentation())
       llvm_unreachable("lerp operand must have a float representation");
     return Builder.CreateIntrinsic(
-        /*ReturnType=*/X->getType(), Intrinsic::dx_lerp,
-        ArrayRef<Value *>{X, Y, S}, nullptr, "dx.lerp");
+        /*ReturnType=*/X->getType(), CGM.getHLSLRuntime().getLerpIntrinsic(),
+        ArrayRef<Value *>{X, Y, S}, nullptr, "hlsl.lerp");
   }
   case Builtin::BI__builtin_hlsl_elementwise_frac: {
     Value *Op0 = EmitScalarExpr(E->getArg(0));
@@ -18393,20 +18396,28 @@ Value *CodeGenFunction::EmitHLSLBuiltinExpr(unsigned BuiltinID,
     Value *M = EmitScalarExpr(E->getArg(0));
     Value *A = EmitScalarExpr(E->getArg(1));
     Value *B = EmitScalarExpr(E->getArg(2));
-    if (E->getArg(0)->getType()->hasFloatingRepresentation()) {
+    if (E->getArg(0)->getType()->hasFloatingRepresentation())
       return Builder.CreateIntrinsic(
           /*ReturnType*/ M->getType(), Intrinsic::fmuladd,
-          ArrayRef<Value *>{M, A, B}, nullptr, "dx.fmad");
-    }
+          ArrayRef<Value *>{M, A, B}, nullptr, "hlsl.fmad");
+
     if (E->getArg(0)->getType()->hasSignedIntegerRepresentation()) {
-      return Builder.CreateIntrinsic(
-          /*ReturnType*/ M->getType(), Intrinsic::dx_imad,
-          ArrayRef<Value *>{M, A, B}, nullptr, "dx.imad");
+      if (CGM.getTarget().getTriple().getArch() == llvm::Triple::dxil)
+        return Builder.CreateIntrinsic(
+            /*ReturnType*/ M->getType(), Intrinsic::dx_imad,
+            ArrayRef<Value *>{M, A, B}, nullptr, "dx.imad");
+
+      Value *Mul = Builder.CreateNSWMul(M, A);
+      return Builder.CreateNSWAdd(Mul, B);
     }
     assert(E->getArg(0)->getType()->hasUnsignedIntegerRepresentation());
-    return Builder.CreateIntrinsic(
-        /*ReturnType=*/M->getType(), Intrinsic::dx_umad,
-        ArrayRef<Value *>{M, A, B}, nullptr, "dx.umad");
+    if (CGM.getTarget().getTriple().getArch() == llvm::Triple::dxil)
+      return Builder.CreateIntrinsic(
+          /*ReturnType=*/M->getType(), Intrinsic::dx_umad,
+          ArrayRef<Value *>{M, A, B}, nullptr, "dx.umad");
+
+    Value *Mul = Builder.CreateNUWMul(M, A);
+    return Builder.CreateNUWAdd(Mul, B);
   }
   case Builtin::BI__builtin_hlsl_elementwise_rcp: {
     Value *Op0 = EmitScalarExpr(E->getArg(0));
@@ -23913,17 +23924,30 @@ RValue CodeGenFunction::EmitIntelSYCLPtrAnnotationBuiltin(const CallExpr *E) {
   return RValue::get(Ann);
 }
 
-RValue
-CodeGenFunction::EmitIntelSYCLAllocaBuiltin(const CallExpr *E,
-                                            ReturnValueSlot ReturnValue) {
+RValue CodeGenFunction::EmitIntelSYCLAllocaBuiltin(
+    unsigned BuiltinID, const CallExpr *E, ReturnValueSlot ReturnValue) {
+  assert((BuiltinID == Builtin::BI__builtin_intel_sycl_alloca ||
+          BuiltinID == Builtin::BI__builtin_intel_sycl_alloca_with_align) &&
+         "Unexpected builtin");
+
+  bool IsAlignedAlloca =
+      BuiltinID == Builtin::BI__builtin_intel_sycl_alloca_with_align;
+
+  constexpr unsigned InvalidIndex = -1;
+  constexpr unsigned ElementTypeIndex = 0;
+  const unsigned AlignmentIndex = IsAlignedAlloca ? 1 : InvalidIndex;
+  const unsigned SpecNameIndex = IsAlignedAlloca ? 2 : 1;
+  const unsigned DecorateAddressIndex = IsAlignedAlloca ? 3 : 2;
+
   const FunctionDecl *FD = E->getDirectCallee();
   assert(FD && "Expecting direct call to builtin");
 
   SourceLocation Loc = E->getExprLoc();
 
   // Get specialization constant ID.
-  ValueDecl *SpecConst =
-      FD->getTemplateSpecializationArgs()->get(1).getAsDecl();
+  const TemplateArgumentList *TAL = FD->getTemplateSpecializationArgs();
+  assert(TAL && "Expecting template argument list");
+  ValueDecl *SpecConst = TAL->get(SpecNameIndex).getAsDecl();
   DeclRefExpr *Ref = DeclRefExpr::Create(
       getContext(), NestedNameSpecifierLoc(), SourceLocation(), SpecConst,
       /*RefersToEnclosingVariableOrCapture=*/false, E->getExprLoc(),
@@ -23942,10 +23966,7 @@ CodeGenFunction::EmitIntelSYCLAllocaBuiltin(const CallExpr *E,
       cast<llvm::PointerType>(SpecConstPtr->getType()));
 
   // Get allocation type.
-  const TemplateArgumentList &TAL =
-      cast<ClassTemplateSpecializationDecl>(E->getType()->getAsCXXRecordDecl())
-          ->getTemplateArgs();
-  QualType AllocaType = TAL.get(0).getAsType();
+  QualType AllocaType = TAL->get(ElementTypeIndex).getAsType();
   llvm::Type *Ty = CGM.getTypes().ConvertTypeForMem(AllocaType);
   unsigned AllocaAS = CGM.getDataLayout().getAllocaAddrSpace();
   llvm::Type *AllocaTy = llvm::PointerType::get(Builder.getContext(), AllocaAS);
@@ -23953,7 +23974,9 @@ CodeGenFunction::EmitIntelSYCLAllocaBuiltin(const CallExpr *E,
   llvm::Constant *EltTyConst = llvm::Constant::getNullValue(Ty);
 
   llvm::Constant *Align = Builder.getInt64(
-      getContext().getTypeAlignInChars(AllocaType).getAsAlign().value());
+      IsAlignedAlloca
+          ? TAL->get(AlignmentIndex).getAsIntegral().getZExtValue()
+          : getContext().getTypeAlignInChars(AllocaType).getAsAlign().value());
 
   llvm::Value *Allocation = [&]() {
     // To implement automatic storage duration of the underlying memory object,
@@ -23985,7 +24008,7 @@ CodeGenFunction::EmitIntelSYCLAllocaBuiltin(const CallExpr *E,
   // Perform AS cast if needed.
 
   constexpr int NoDecorated = 0;
-  llvm::APInt Decorated = TAL.get(2).getAsIntegral();
+  llvm::APInt Decorated = TAL->get(DecorateAddressIndex).getAsIntegral();
   // Both 'sycl::access::decorated::{yes and legacy}' lead to decorated (private
   // AS) pointer type. Perform cast if 'sycl::access::decorated::no'.
   if (Decorated == NoDecorated) {
