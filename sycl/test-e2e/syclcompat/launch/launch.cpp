@@ -345,19 +345,23 @@ template <typename T> void test_memsize_no_arg_launch_q() {
 }
 
 template <typename T> void test_reqd_sg_size() {
+  namespace sc_exp = syclcompat::experimental;
+
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   LaunchTestWithArgs<T> ltt;
   if (ltt.skip_) // Unsupported aspect
     return;
-  constexpr int SubgroupSize = 32;
+  
+  constexpr int SubgroupSize = 16;
   const int modifier_val = 9;
 
   T *h_a = (T *)syclcompat::malloc_host(ltt.memsize_ * sizeof(T));
   T *d_a = (T *)syclcompat::malloc(ltt.memsize_ * sizeof(T));
 
-  syclcompat::launch<SubgroupSize, reqd_sg_size_kernel<T>>(
-      ltt.grid_, ltt.thread_, modifier_val, ltt.memsize_, d_a);
+  sc_exp::launch<reqd_sg_size_kernel<T>, sc_exp::ReqdSubGroupSize16>(
+    tt.grid_, ltt.thread_, modifier_val, ltt.memsize_, d_a
+  );
 
   syclcompat::wait_and_throw();
   syclcompat::memcpy<T>(h_a, d_a, ltt.memsize_);
@@ -379,19 +383,20 @@ template <typename T> void test_reqd_sg_size() {
 }
 
 template <typename T> void test_reqd_sg_size_q() {
+  using namespace syclcompat::experimental;
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   LaunchTestWithArgs<T> ltt;
   if (ltt.skip_) // Unsupported aspect
     return;
-  constexpr int SubgroupSize = 32;
+  constexpr int SubgroupSize = 16;
   const int modifier_val = 9;
   auto &q = ltt.in_order_q_;
 
   T *h_a = (T *)syclcompat::malloc_host(ltt.memsize_ * sizeof(T), q);
   T *d_a = (T *)syclcompat::malloc(ltt.memsize_ * sizeof(T), q);
 
-  syclcompat::launch<SubgroupSize, reqd_sg_size_kernel<T>>(
+  sc_exp::launch<reqd_sg_size_kernel<T>, sc_exp::ReqdSubGroupSize16>(
       ltt.grid_, ltt.thread_, q, modifier_val, ltt.memsize_, d_a);
 
   syclcompat::wait_and_throw();

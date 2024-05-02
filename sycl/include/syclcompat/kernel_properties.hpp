@@ -30,6 +30,8 @@
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 
+#include <sycl/sycl.hpp>
+
 #if defined(SYCL_EXT_ONEAPI_KERNEL_PROPERTIES)
 
 namespace syclcompat {
@@ -39,8 +41,7 @@ constexpr auto empty_property_list =
     sycl::ext::oneapi::experimental::properties{};
 
 struct EmptyKernelPropertyStruct {
-  static constexpr auto kernel_properties =
-      sycl::ext::oneapi::experimental::properties{};
+  static constexpr auto kernel_properties = empty_property_list;
 };
 
 template <int SubgroupSize> struct ReqdSubGroupSizeStruct {
@@ -49,8 +50,8 @@ template <int SubgroupSize> struct ReqdSubGroupSizeStruct {
           sycl::ext::oneapi::experimental::sub_group_size<SubgroupSize>};
 };
 
-struct IntelSubgroupSize16 : ReqdSubGroupSizeStruct<16>;
-struct IntelSubgroupSize8 : ReqdSubGroupSizeStruct<8>;
+struct ReqdSubGroupSize16 : ReqdSubGroupSizeStruct<16>;
+struct ReqdSubGroupSize8 : ReqdSubGroupSizeStruct<8>;
 
 } // namespace experimental
 } // namespace syclcompat
