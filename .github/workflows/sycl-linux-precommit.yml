@@ -46,6 +46,7 @@ jobs:
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
       changes: ${{ needs.detect_changes.outputs.filters }}
+      build_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest-cc1dd89176dd35522d57022a57204b41ae2611a9"
 
   determine_arc_tests:
     name: Decide which Arc tests to run
@@ -59,7 +60,9 @@ jobs:
       - name: Determine Arc tests
         id: arc_tests
         run: |
-          if [ "${{ contains(needs.detect_changes.outputs.filters, 'esimd') }}" == "true" ]; then
+          if [ "${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}" == "true" ]; then
+             echo 'arc_tests=""' >> "$GITHUB_OUTPUT"
+          elif [ "${{ contains(needs.detect_changes.outputs.filters, 'esimd') }}" == "true" ]; then
             echo 'arc_tests="(ESIMD|InvokeSimd|Matrix)/"' >> "$GITHUB_OUTPUT"
           else
             echo 'arc_tests="Matrix/"' >> "$GITHUB_OUTPUT"
@@ -73,7 +76,7 @@ jobs:
         include:
           - name: AMD/HIP
             runner: '["Linux", "amdgpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+            image: ghcr.io/intel/llvm/ubuntu2204_build:latest-cc1dd89176dd35522d57022a57204b41ae2611a9
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: ext_oneapi_hip:gpu
           - name: Intel

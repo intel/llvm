@@ -10,6 +10,7 @@
 
 #include <sycl/detail/core.hpp>
 
+#include <sycl/accessor_image.hpp>
 #include <sycl/aspects.hpp>
 #include <sycl/atomic.hpp>
 #include <sycl/atomic_fence.hpp>

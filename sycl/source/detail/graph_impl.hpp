@@ -383,6 +383,21 @@ public:
     }
   }
 
+  /// Test if the node contains a N-D copy
+  /// @return true if the op is a N-D copy
+  bool isNDCopyNode() const {
+    if ((MCGType != sycl::detail::CG::CGTYPE::CopyAccToAcc) &&
+        (MCGType != sycl::detail::CG::CGTYPE::CopyAccToPtr) &&
+        (MCGType != sycl::detail::CG::CGTYPE::CopyPtrToAcc)) {
+      return false;
+    }
+
+    auto Copy = static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
+    auto ReqSrc = static_cast<sycl::detail::Requirement *>(Copy->getSrc());
+    auto ReqDst = static_cast<sycl::detail::Requirement *>(Copy->getDst());
+    return (ReqSrc->MDims > 1) || (ReqDst->MDims > 1);
+  }
+
   /// Update the value of an accessor inside this node. Accessors must be
   /// handled specifically compared to other argument values.
   /// @param ArgIndex The index of the accessor arg to be updated
@@ -779,11 +794,32 @@ public:
       MPiCommandBuffers;
   /// List of predecessors to this partition.
   std::vector<std::shared_ptr<partition>> MPredecessors;
+  /// True if the graph of this partition is a single path graph
+  /// and in-order optmization can be applied on it.
+  bool MIsInOrderGraph = false;
 
   /// @return True if the partition contains a host task
   bool isHostTask() const {
     return (MRoots.size() && ((*MRoots.begin()).lock()->MCGType ==
                               sycl::detail::CG::CGTYPE::CodeplayHostTask));
+  }
+
+  /// Checks if the graph is single path, i.e. each node has a single successor.
+  /// @return True if the graph is a single path
+  bool checkIfGraphIsSinglePath() {
+    if (MRoots.size() > 1) {
+      return false;
+    }
+    for (const auto &Node : MSchedule) {
+      // In version 1.3.28454 of the L0 driver, 2D Copy ops cannot not
+      // be enqueued in an in-order cmd-list (causing execution to stall).
+      // The 2D Copy test should be removed from here when the bug is fixed.
+      if ((Node->MSuccessors.size() > 1) || (Node->isNDCopyNode())) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   /// Add nodes to MSchedule.
@@ -1435,6 +1471,8 @@ private:
       MCommandMap;
   /// True if this graph can be updated (set with property::updatable)
   bool MIsUpdatable;
+  /// If true, the graph profiling is enabled.
+  bool MEnableProfiling;
 
   // Stores a cache of node ids from modifiable graph nodes to the companion
   // node(s) in this graph. Used for quick access when updating this graph.
