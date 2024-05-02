@@ -303,7 +303,9 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     auto Device = hKernel->getProgram()->getDevice();
-    hKernel->Args.addMemObjArg(argIndex, hArgValue, Properties->memoryAccess);
+    ur_mem_flags_t MemAccess =
+        Properties ? Properties->memoryAccess : UR_MEM_FLAG_READ_WRITE;
+    hKernel->Args.addMemObjArg(argIndex, hArgValue, MemAccess);
     if (hArgValue->isImage()) {
       CUDA_ARRAY3D_DESCRIPTOR arrayDesc;
       UR_CHECK_ERROR(cuArray3DGetDescriptor(
