@@ -65,13 +65,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b37fa2c4b09a49839a83228f687c811595fce3fd
-  # Merge: c7fade0d f61e81e9
+  # commit 633ec4081c2ede6e94530d2c762535f1f7718f52
+  # Merge: e8225146 2727e8af
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Apr 23 16:17:41 2024 +0100
-  #    Merge pull request #1544 from kbenzie/benie/l0-fix-rhel-error
-  #    [L0] Add missing <iomanip> include
-  set(UNIFIED_RUNTIME_TAG b37fa2c4b09a49839a83228f687c811595fce3fd)
+  # Date:   Tue Apr 30 21:17:45 2024 +0100
+  #     Merge pull request #1412 from konradkusiak97/memsetLargePatternL0
+  #     [L0][OpenCL] Emulate Fill with copy when patternSize is not a power of 2
+  set(UNIFIED_RUNTIME_TAG 633ec4081c2ede6e94530d2c762535f1f7718f52)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
