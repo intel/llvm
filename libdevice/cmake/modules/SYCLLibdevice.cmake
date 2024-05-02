@@ -130,11 +130,8 @@ if(LIBDEVICE_NATIVE_CPU)
   if (NOT DEFINED NATIVE_CPU_DIR)
     message( FATAL_ERROR "Undefined UR variable NATIVE_CPU_DIR. The name may have changed." )
   endif()
-  set (backup ${compile_opts})
   # enabling finding header with state definition from Native CPU UR adapter
-  list(APPEND compile_opts -I ${NATIVE_CPU_DIR})
-  add_devicelib_obj(libsycl-nativecpu_utils SRC nativecpu_utils.cpp DEP ${itt_obj_deps})
-  set (compile_opts, ${backup})
+  add_devicelib_obj(libsycl-nativecpu_utils SRC nativecpu_utils.cpp DEP ${itt_obj_deps} EXTRA_ARGS -I ${NATIVE_CPU_DIR})
 endif()
 
 add_devicelib_obj(libsycl-itt-stubs SRC itt_stubs.cpp DEP ${itt_obj_deps})
