@@ -310,7 +310,7 @@ template <> struct VecStorage<half, 1, void> {
   template <> struct VecStorage<half, Num, void> {                             \
     using DataType = std::array<sycl::half, Num>;                              \
     using VectorDataType = sycl::detail::half_impl::VecElemT                   \
-                                        __attribute__((ext_vector_type(Num))); \
+        __attribute__((ext_vector_type(Num)));                                 \
   };
 #else // __SYCL_DEVICE_ONLY__
 #define __SYCL_DEFINE_HALF_VECSTORAGE(Num)                                     \
@@ -336,14 +336,15 @@ template <> struct VecStorage<sycl::ext::oneapi::bfloat16, 1, void> {
 #ifndef __SYCL_DEVICE_ONLY__
 #define __SYCL_DEFINE_BF16_VECSTORAGE(Num)                                     \
   template <> struct VecStorage<sycl::ext::oneapi::bfloat16, Num, void> {      \
-    using DataType = std::array<sycl::ext::oneapi::detail::Bfloat16StorageT, Num>;             \
+    using DataType =                                                           \
+        std::array<sycl::ext::oneapi::detail::Bfloat16StorageT, Num>;          \
   };
 #else
 #define __SYCL_DEFINE_BF16_VECSTORAGE(Num)                                     \
   template <> struct VecStorage<sycl::ext::oneapi::bfloat16, Num, void> {      \
-    using DataType = std::array<sycl::ext::oneapi::detail::Bfloat16StorageT, Num>;             \
-    using VectorDataType =                                                     \
-        sycl::ext::oneapi::detail::Bfloat16StorageT                      \
+    using DataType =                                                           \
+        std::array<sycl::ext::oneapi::detail::Bfloat16StorageT, Num>;          \
+    using VectorDataType = sycl::ext::oneapi::detail::Bfloat16StorageT         \
         __attribute__((ext_vector_type(Num)));                                 \
   };
 #endif
@@ -494,17 +495,17 @@ template <typename Type, int NumElements> class vec {
   struct TypeChecker : std::is_convertible<T, DataT_> {};
 #define __SYCL_ALLOW_VECTOR_TYPES(num_elements)                                \
   template <typename DataT_>                                                   \
-  struct TypeChecker<vec<DataT_, num_elements>, DataT_> : std::true_type {};   \
+  struct TypeChecker<vec<DataT_, num_elements>, DataT_> : std::true_type{};    \
   template <typename DataT_, typename T2, typename T3,                         \
             template <typename> class T4, int... T5>                           \
   struct TypeChecker<                                                          \
       detail::SwizzleOp<vec<DataT_, num_elements>, T2, T3, T4, T5...>, DataT_> \
-      : std::true_type {};                                                     \
+      : std::true_type{};                                                      \
   template <typename DataT_, typename T2, typename T3,                         \
             template <typename> class T4, int... T5>                           \
   struct TypeChecker<                                                          \
       detail::SwizzleOp<const vec<DataT_, num_elements>, T2, T3, T4, T5...>,   \
-      DataT_> : std::true_type {};
+      DataT_> : std::true_type{};
 
   __SYCL_ALLOW_VECTOR_TYPES(1)
   __SYCL_ALLOW_VECTOR_TYPES(2)
