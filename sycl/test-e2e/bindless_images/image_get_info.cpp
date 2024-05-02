@@ -61,6 +61,29 @@ int main() {
               << "\nbindless_images_2d_usm_support: " << usm2dSupport << "\n";
 #endif
 
+    // Extension: query for sampled image fetch capabilities
+    bool sampledFetch1DUSMSupport =
+        dev.has(sycl::aspect::ext_oneapi_bindless_sampled_image_fetch_1d_usm);
+    bool sampledFetch2DUSMSupport =
+        dev.has(sycl::aspect::ext_oneapi_bindless_sampled_image_fetch_2d_usm);
+    bool sampledFetch3DUSMSupport =
+        dev.has(sycl::aspect::ext_oneapi_bindless_sampled_image_fetch_3d_usm);
+    bool sampledFetch1DSupport =
+        dev.has(sycl::aspect::ext_oneapi_bindless_sampled_image_fetch_1d);
+    bool sampledFetch2DSupport =
+        dev.has(sycl::aspect::ext_oneapi_bindless_sampled_image_fetch_2d);
+    bool sampledFetch3DSupport =
+        dev.has(sycl::aspect::ext_oneapi_bindless_sampled_image_fetch_3d);
+
+#ifdef VERBOSE_PRINT
+    std::cout << "sampledFetch1DUSMSupport: " << sampledFetch1DUSMSupport
+              << "\nsampledFetch2DUSMSupport: " << sampledFetch2DUSMSupport
+              << "\nsampledFetch3DUSMSupport: " << sampledFetch3DUSMSupport
+              << "\nsampledFetch1DSupport: " << sampledFetch1DSupport
+              << "\nsampledFetch2DSupport: " << sampledFetch2DSupport
+              << "\nsampledFetch3DSupport: " << sampledFetch3DSupport << "\n";
+#endif
+
     // Extension: get pitch alignment information from device -- device info
     // Make sure our pitch alignment queries work properly
     // These can be different depending on the device so we cannot test that the

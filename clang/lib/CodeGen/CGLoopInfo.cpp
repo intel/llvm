@@ -896,6 +896,8 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
         setPipelineDisabled(true);
         break;
       case LoopHintAttr::UnrollCount:
+        setUnrollState(LoopAttributes::Disable);
+        break;
       case LoopHintAttr::UnrollAndJamCount:
       case LoopHintAttr::VectorizeWidth:
       case LoopHintAttr::InterleaveCount:

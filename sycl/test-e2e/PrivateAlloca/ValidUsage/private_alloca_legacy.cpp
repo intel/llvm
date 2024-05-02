@@ -11,4 +11,7 @@
 
 constexpr sycl::specialization_id<int16_t> size(10);
 
-int main() { test<int, size, sycl::access::decorated::legacy>(); }
+int main() {
+  test<int, size, sycl::access::decorated::legacy>();
+  test<int, size, sycl::access::decorated::legacy, alignof(int) * 4>();
+}

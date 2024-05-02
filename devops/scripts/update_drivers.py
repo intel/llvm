@@ -3,6 +3,7 @@ import json
 import sys
 import os
 import re
+import argparse
 
 
 def get_latest_release(repo):
@@ -28,7 +29,19 @@ def get_artifacts_download_url(repo, name):
     return json.loads(artifacts)["artifacts"][0]["archive_download_url"]
 
 
-def uplift_linux_igfx_driver(config, platform_tag):
+def uplift_linux_igfx_driver(config, platform_tag, igc_dev_only):
+
+    if igc_dev_only:
+        igc_dev = get_latest_workflow_runs("intel/intel-graphics-compiler", "build-IGC")
+        igcdevver = igc_dev["head_sha"][:7]
+        config[platform_tag]["igc_dev"]["github_tag"] = "igc-dev-" + igcdevver
+        config[platform_tag]["igc_dev"]["version"] = igcdevver
+        config[platform_tag]["igc_dev"]["updated_at"] = igc_dev["updated_at"]
+        config[platform_tag]["igc_dev"]["url"] = get_artifacts_download_url(
+            "intel/intel-graphics-compiler", "IGC_Ubuntu22.04_llvm14_clang-" + igcdevver
+        )
+        return config
+
     compute_runtime = get_latest_release('intel/compute-runtime')
 
     config[platform_tag]['compute_runtime']['github_tag'] = compute_runtime['tag_name']
@@ -46,15 +59,6 @@ def uplift_linux_igfx_driver(config, platform_tag):
                 config[platform_tag]['igc']['url'] = 'https://github.com/intel/intel-graphics-compiler/releases/tag/igc-' + ver
                 break
 
-    igc_dev = get_latest_workflow_runs("intel/intel-graphics-compiler", "build-IGC")
-    igcdevver = igc_dev["head_sha"][:7]
-    config[platform_tag]["igc_dev"]["github_tag"] = "igc-dev-" + igcdevver
-    config[platform_tag]["igc_dev"]["version"] = igcdevver
-    config[platform_tag]["igc_dev"]["updated_at"] = igc_dev["updated_at"]
-    config[platform_tag]["igc_dev"]["url"] = get_artifacts_download_url(
-        "intel/intel-graphics-compiler", "IGC_Ubuntu22.04_llvm14_clang-" + igcdevver
-    )
-
     cm = get_latest_release('intel/cm-compiler')
     config[platform_tag]['cm']['github_tag'] = cm['tag_name']
     config[platform_tag]['cm']['version'] = cm['tag_name'].replace('cmclang-', '')
@@ -68,22 +72,30 @@ def uplift_linux_igfx_driver(config, platform_tag):
     return config
 
 
-def main(platform_tag):
+def main(platform_tag, igc_dev_only):
     script = os.path.dirname(os.path.realpath(__file__))
     config_name = os.path.join(script, '..', 'dependencies.json')
+    if igc_dev_only:
+        config_name = os.path.join(script, "..", "dependencies-igc-dev.json")
     config = {}
 
     with open(config_name, "r") as f:
         config = json.loads(f.read())
-        config = uplift_linux_igfx_driver(config, platform_tag)
+        config = uplift_linux_igfx_driver(config, platform_tag, igc_dev_only)
 
     with open(config_name, "w") as f:
         json.dump(config, f, indent=2)
         f.write('\n')
 
+    if igc_dev_only:
+        return config[platform_tag]["igc_dev"]["github_tag"]
+
     return config[platform_tag]['compute_runtime']['version']
 
 
 if __name__ == '__main__':
-    platform_tag = sys.argv[1] if len(sys.argv) > 1 else "ERROR_PLATFORM"
-    sys.stdout.write(main(platform_tag) + '\n')
+    parser = argparse.ArgumentParser()
+    parser.add_argument("platform_tag")
+    parser.add_argument("--igc-dev-only", action="store_true")
+    args = parser.parse_args()
+    sys.stdout.write(main(args.platform_tag, args.igc_dev_only) + "\n")

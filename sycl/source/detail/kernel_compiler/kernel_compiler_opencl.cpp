@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/detail/pi.hpp>          // getOsLibraryFuncAddress
-#include <sycl/exception.hpp>          // make_error_code
+#include <sycl/detail/pi.hpp> // getOsLibraryFuncAddress
+#include <sycl/exception.hpp> // make_error_code
 
 #include "kernel_compiler_opencl.hpp"
 
@@ -255,9 +255,9 @@ std::string InvokeOclocQuery(uint32_t IPVersion, const char *identifier) {
   // Gather the results.
   for (uint32_t i = 0; i < NumOutputs; i++) {
     if (!strcmp(OutputNames[i], "stdout.log")) {
-      const char *LogText = reinterpret_cast<const char *>(Outputs[i]);
-      if (LogText != nullptr && LogText[0] != '\0') {
-        QueryLog.append(LogText);
+      if (OutputLengths[i] > 0) {
+        const char *LogText = reinterpret_cast<const char *>(Outputs[i]);
+        QueryLog.append(LogText, OutputLengths[i]);
       }
     }
   }
@@ -368,9 +368,11 @@ std::string OpenCLC_Profile(uint32_t IPVersion) {
     std::string result = InvokeOclocQuery(IPVersion, "CL_DEVICE_PROFILE");
     // NOTE: result has \n\n amended. Clean it up.
     // TODO: remove this once the ocloc query is fixed.
-    while (result.back() == '\n') {
-      result.pop_back();
-    }
+    result.erase(std::remove_if(result.begin(), result.end(),
+                                [](char c) {
+                                  return !std::isprint(c) || std::isspace(c);
+                                }),
+                 result.end());
 
     return result;
   } catch (sycl::exception &) {
