@@ -5,8 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
+// expected-no-diagnostics
 
 // This is basic test to test hardware dispatch functionality with ESIMD.
 
@@ -47,15 +47,17 @@ int main() {
       payload.set_surface_pitch(SurfacePitch);
       payload.set_x(x);
       payload.set_y(y);
-      result[0] = payload.get_surface_width();
-      result[1] = payload.get_surface_height();
-      result[2] = payload.get_surface_pitch();
-      result[3] = payload.get_x();
-      result[4] = payload.get_y();
-      result[5] = payload.get_width();
-      result[6] = payload.get_height();
-      result[7] = payload.get_number_of_blocks();
-      auto p = payload.get_data_pointer();
+      config_2d_mem_access<uint32_t, BlockWidth, BlockHeight, NumBlocks>
+          payloadResult(payload);
+      result[0] = payloadResult.get_surface_width();
+      result[1] = payloadResult.get_surface_height();
+      result[2] = payloadResult.get_surface_pitch();
+      result[3] = payloadResult.get_x();
+      result[4] = payloadResult.get_y();
+      result[5] = payloadResult.get_width();
+      result[6] = payloadResult.get_height();
+      result[7] = payloadResult.get_number_of_blocks();
+      auto p = payloadResult.get_data_pointer();
       if (p == output_ptr) {
         result[8] = 8;
       } else {
