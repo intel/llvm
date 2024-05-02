@@ -327,24 +327,15 @@ ur_result_t USMHostMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
 ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
                                              ur_usm_pool_desc_t *PoolDesc)
     : Context(Context) {
-  const void *pNext = PoolDesc->pNext;
-  while (pNext != nullptr) {
-    const ur_base_desc_t *BaseDesc = static_cast<const ur_base_desc_t *>(pNext);
-    switch (BaseDesc->stype) {
-    case UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC: {
-      const ur_usm_pool_limits_desc_t *Limits =
-          reinterpret_cast<const ur_usm_pool_limits_desc_t *>(BaseDesc);
+  if (PoolDesc) {
+    if (auto *Limits = find_stype_node<ur_usm_pool_limits_desc_t>(PoolDesc)) {
       for (auto &config : DisjointPoolConfigs.Configs) {
         config.MaxPoolableSize = Limits->maxPoolableSize;
         config.SlabMinSize = Limits->minDriverAllocSize;
       }
-      break;
-    }
-    default: {
+    } else {
       throw UsmAllocationException(UR_RESULT_ERROR_INVALID_ARGUMENT);
     }
-    }
-    pNext = BaseDesc->pNext;
   }
 
   auto MemProvider =

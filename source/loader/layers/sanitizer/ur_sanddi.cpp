@@ -176,6 +176,64 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramLink
+__urdlllocal ur_result_t UR_APICALL urProgramLink(
+    ur_context_handle_t hContext, ///< [in] handle of the context instance.
+    uint32_t count, ///< [in] number of program handles in `phPrograms`.
+    const ur_program_handle_t *
+        phPrograms, ///< [in][range(0, count)] pointer to array of program handles.
+    const char *
+        pOptions, ///< [in][optional] pointer to linker options null-terminated string.
+    ur_program_handle_t
+        *phProgram ///< [out] pointer to handle of program object created.
+) {
+    auto pfnProgramLink = context.urDdiTable.Program.pfnLink;
+
+    if (nullptr == pfnProgramLink) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    context.logger.debug("==== urProgramLink");
+
+    UR_CALL(pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram));
+
+    UR_CALL(context.interceptor->registerDeviceGlobals(hContext, *phProgram));
+
+    return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramLinkExp
+ur_result_t UR_APICALL urProgramLinkExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context instance.
+    uint32_t numDevices,          ///< [in] number of devices
+    ur_device_handle_t *
+        phDevices, ///< [in][range(0, numDevices)] pointer to array of device handles
+    uint32_t count, ///< [in] number of program handles in `phPrograms`.
+    const ur_program_handle_t *
+        phPrograms, ///< [in][range(0, count)] pointer to array of program handles.
+    const char *
+        pOptions, ///< [in][optional] pointer to linker options null-terminated string.
+    ur_program_handle_t
+        *phProgram ///< [out] pointer to handle of program object created.
+) {
+    auto pfnProgramLinkExp = context.urDdiTable.ProgramExp.pfnLinkExp;
+
+    if (nullptr == pfnProgramLinkExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    context.logger.debug("==== urProgramLinkExp");
+
+    UR_CALL(pfnProgramLinkExp(hContext, numDevices, phDevices, count,
+                              phPrograms, pOptions, phProgram));
+
+    UR_CALL(context.interceptor->registerDeviceGlobals(hContext, *phProgram));
+
+    return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueKernelLaunch
 __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
@@ -375,9 +433,11 @@ __urdlllocal ur_result_t UR_APICALL urGetProgramProcAddrTable(
     }
 
     pDdiTable->pfnBuild = ur_sanitizer_layer::urProgramBuild;
+    pDdiTable->pfnLink = ur_sanitizer_layer::urProgramLink;
 
     return UR_RESULT_SUCCESS;
 }
+
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's ProgramExp table
 ///        with current process' addresses
@@ -405,9 +465,11 @@ __urdlllocal ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     pDdiTable->pfnBuildExp = ur_sanitizer_layer::urProgramBuildExp;
+    pDdiTable->pfnLinkExp = ur_sanitizer_layer::urProgramLinkExp;
 
     return result;
 }
+
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Enqueue table
 ///        with current process' addresses
