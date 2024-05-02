@@ -305,16 +305,17 @@ template <> struct VecStorage<half, 1, void> {
 };
 
 // Multiple elements half
-#if __SYCL_DEVICE_ONLY__
+#ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_DEFINE_HALF_VECSTORAGE(Num)                                     \
   template <> struct VecStorage<half, Num, void> {                             \
-    using DataType = sycl::detail::half_impl::Vec##Num##DeviceStorageT;        \
-    using VectorDataType = sycl::detail::half_impl::Vec##Num##StorageT;        \
+    using DataType = std::array<sycl::half, Num>;                              \
+    using VectorDataType = sycl::detail::half_impl::VecElemT                   \
+                                        __attribute__((ext_vector_type(Num))); \
   };
 #else // __SYCL_DEVICE_ONLY__
 #define __SYCL_DEFINE_HALF_VECSTORAGE(Num)                                     \
   template <> struct VecStorage<half, Num, void> {                             \
-    using DataType = sycl::detail::half_impl::Vec##Num##StorageT;              \
+    using DataType = std::array<sycl::half, Num>;                              \
   };
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -335,15 +336,15 @@ template <> struct VecStorage<sycl::ext::oneapi::bfloat16, 1, void> {
 #ifndef __SYCL_DEVICE_ONLY__
 #define __SYCL_DEFINE_BF16_VECSTORAGE(Num)                                     \
   template <> struct VecStorage<sycl::ext::oneapi::bfloat16, Num, void> {      \
-    using DataType = sycl::ext::oneapi::detail::bf16::Vec##Num##StorageT;      \
+    using DataType = std::array<sycl::ext::oneapi::detail::Bfloat16StorageT, Num>;             \
   };
 #else
 #define __SYCL_DEFINE_BF16_VECSTORAGE(Num)                                     \
   template <> struct VecStorage<sycl::ext::oneapi::bfloat16, Num, void> {      \
-    using DataType =                                                           \
-        sycl::ext::oneapi::detail::bf16::Vec##Num##DeviceStorageT;             \
+    using DataType = std::array<sycl::ext::oneapi::detail::Bfloat16StorageT, Num>;             \
     using VectorDataType =                                                     \
-        sycl::ext::oneapi::detail::bf16::Vec##Num##StorageT;                   \
+        sycl::ext::oneapi::detail::Bfloat16StorageT                      \
+        __attribute__((ext_vector_type(Num)));                                 \
   };
 #endif
 __SYCL_DEFINE_BF16_VECSTORAGE(2)
