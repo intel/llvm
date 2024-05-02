@@ -100,13 +100,18 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
   # Date:   Thu May 2 10:56:55 2024 +0100
   #    Merge pull request #1535 from przemektmalon/przemek/sampled-image-fetch
-  #    
   #    [Bindless][Exp] Add device queries for sampled image fetch
   set(UNIFIED_RUNTIME_TAG ebf873fb5996c9ddca32bbb7c9330d3ffe15473c)
 
   fetch_adapter_source(level_zero
-    "https://github.com/nrspruit/unified-runtime.git"
-    987c422c668455db04da12acbc5178084823c3b0
+    "https://github.com/oneapi-src/unified-runtime.git"
+    # commit f3c551963d0612bfac252bc5c82796289939ebeb
+    # Merge: ebf873fb 987c422c
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu May 2 15:26:34 2024 +0100
+    #     Merge pull request #1526 from nrspruit/event_signal_optional
+    #     [L0] Enable Batching out of order commands without signal events
+    f3c551963d0612bfac252bc5c82796289939ebeb
   )
 
   fetch_adapter_source(opencl
