@@ -57,6 +57,7 @@ Maxime France-Pillois, Codeplay +
 Jack Kirk, Codeplay +
 Ronan Keryell, AMD +
 Andrey Alekseenko, KTH Royal Institute of Technology +
+Fábio Mestre, Codeplay +
 
 == Dependencies
 
@@ -275,7 +276,7 @@ been submitted.
 
 | Edge
 | An edge in a queue recorded graph is expressed through command group
-dependencies in one of two ways. Firstly, through buffer accessors that
+dependencies in one of three ways. Firstly, through buffer accessors that
 represent data dependencies between two command groups captured as nodes.
 Secondly, by using the `handler::depends_on()` mechanism inside a command group
 captured as a node. However, for an event passed to `handler::depends_on()` to
@@ -283,7 +284,8 @@ create an edge, it must be an event returned from a queue
 submission captured by the same graph. Otherwise, a synchronous error will be
 thrown with error code `invalid`. `handler::depends_on()` can be
 used to express edges when a user is working with USM memory rather than SYCL
-buffers.
+buffers. Thirdly, for a graph recorded with an in-order queue, an edge is added
+automatically between two sequential command groups submitted to the in-order queue.
 |===
 
 ==== Sub-Graph
@@ -617,12 +619,12 @@ public:
   command_graph<graph_state::executable>
   finalize(const property_list& propList = {}) const;
 
-  bool begin_recording(queue& recordingQueue, const property_list& propList = {});
-  bool begin_recording(const std::vector<queue>& recordingQueues, const property_list& propList = {});
+  void begin_recording(queue& recordingQueue, const property_list& propList = {});
+  void begin_recording(const std::vector<queue>& recordingQueues, const property_list& propList = {});
 
-  bool end_recording();
-  bool end_recording(queue& recordingQueue);
-  bool end_recording(const std::vector<queue>& recordingQueues);
+  void end_recording();
+  void end_recording(queue& recordingQueue);
+  void end_recording(const std::vector<queue>& recordingQueues);
 
   node add(const property_list& propList = {});
 
@@ -1147,13 +1149,14 @@ queue recording.
 |
 [source, c++]
 ----
-bool
+void
 begin_recording(queue& recordingQueue,
                 const property_list& propList = {})
 ----
 
 |Synchronously changes the state of `recordingQueue` to the
-`queue_state::recording` state.
+`queue_state::recording` state. This operation is a no-op if `recordingQueue`
+is already in the `queue_state::recording` state.
 
 Parameters:
 
@@ -1163,9 +1166,6 @@ Parameters:
 
 * `propList` - Optional parameter for passing properties. Properties for
   the `command_graph` class are defined in <<graph-properties, Graph Properties>>.
-
-Returns: `true` if `recordingQueue` has its state changed from
-`queue_state::executing` to `queue_state::recording`, `false` otherwise.
 
 Exceptions:
 
@@ -1179,13 +1179,14 @@ Exceptions:
 |
 [source, c++]
 ----
-bool
+void
 begin_recording(const std::vector<queue>& recordingQueues,
                 const property_list& propList = {})
 ----
 
 |Synchronously changes the state of each queue in `recordingQueues` to the
-`queue_state::recording` state.
+`queue_state::recording` state. This operation is a no-op for any queue in
+`recordingQueues` that is already in the `queue_state::recording` state.
 
 Parameters:
 
@@ -1195,9 +1196,6 @@ Parameters:
 
 * `propList` - Optional parameter for passing properties. Properties for
   the `command_graph` class are defined in <<graph-properties, Graph Properties>>.
-
-Returns: `true` if any queue in `recordingQueues` has its state changed from
-`queue_state::executing` to `queue_state::recording`, `false` otherwise.
 
 Exceptions:
 
@@ -1211,30 +1209,27 @@ Exceptions:
 |
 [source, c++]
 ----
-bool end_recording()
+void end_recording()
 ----
 
 |Synchronously finishes recording on all queues that are recording to the
-graph and sets their state to `queue_state::executing`.
-
-Returns: `true` if any queue recording to the graph has its state changed from
-`queue_state::recording` to `queue_state::executing`, `false` otherwise.
+graph and sets their state to `queue_state::executing`. This operation is
+a no-op for any queue in the graph that is already in the
+`queue_state::executing` state.
 
 |
 [source, c++]
 ----
-bool end_recording(queue& recordingQueue)
+void end_recording(queue& recordingQueue)
 ----
 
 |Synchronously changes the state of `recordingQueue` to the
-`queue_state::executing` state.
+`queue_state::executing` state. This operation is a no-op if `recordingQueue`
+is already in the `queue_state::executing` state.
 
 Parameters:
 
 * `recordingQueue` - A `sycl::queue` object to change to the executing state.
-
-Returns: `true` if `recordingQueue` has its state changed from
-`queue_state::recording` to `queue_state::executing`, `false` otherwise.
 
 Exceptions:
 
@@ -1244,19 +1239,17 @@ Exceptions:
 |
 [source, c++]
 ----
-bool end_recording(const std::vector<queue>& recordingQueues)
+void end_recording(const std::vector<queue>& recordingQueues)
 ----
 
 |Synchronously changes the state of each queue in `recordingQueues` to the
-`queue_state::executing` state.
+`queue_state::executing` state. This operation is a no-op for any queue in
+`recordingQueues` that is already in the `queue_state::executing` state.
 
 Parameters:
 
 * `recordingQueues` - List of `sycl::queue` objects to change to the executing
   state.
-
-Returns: `true` if any queue in `recordingQueues` has its state changed from
-`queue_state::recording` to `queue_state::executing`, `false` otherwise.
 
 Exceptions:
 
@@ -1676,13 +1669,6 @@ being thrown in the default queue executing state, will still be thrown when a
 queue is in the recording state. Queue query methods operate as usual in
 recording mode, as opposed to throwing.
 
-The `command_graph::begin_recording` and `command_graph::end_recording`
-entry-points return a `bool` value informing the user whether a related queue
-state change occurred. False is returned rather than throwing an exception when
-no queue state is changed. This design is because the queues are already in
-the state the user desires, so if the function threw an exception in this case,
-the application would likely swallow it and then proceed.
-
 === Interaction With Other Extensions [[extension-interaction]]
 
 This section defines the interaction of `sycl_ext_oneapi_graph` with other
@@ -1797,6 +1783,12 @@ code `invalid` if a user tries to add them to a graph.
 
 Removing this restriction is something we may look at for future revisions of
 `sycl_ext_oneapi_graph`.
+
+==== sycl_ext_oneapi_kernel_compiler_spirv
+
+The kernels loaded using
+link:../experimental/sycl_ext_oneapi_kernel_compiler_spirv.asciidoc[sycl_ext_oneapi_kernel_compiler_spirv]
+behave as normal when used in graph nodes.
 
 == Examples
 

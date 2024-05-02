@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group.hpp>
 #include <sycl/memory_enums.hpp>
@@ -78,20 +79,20 @@ private:
   sycl::nd_item<Dimensions> it;
 };
 
-template <int Dimensions>
-group<Dimensions> get_child_group(root_group<Dimensions> g) {
-  (void)g;
-  return this_group<Dimensions>();
+namespace this_work_item {
+template <int Dimensions> root_group<Dimensions> get_root_group() {
+  return sycl::ext::oneapi::this_work_item::get_nd_item<Dimensions>()
+      .ext_oneapi_get_root_group();
 }
-
-template <int Dimensions> sycl::sub_group get_child_group(group<Dimensions> g) {
-  (void)g;
-  return this_sub_group();
-}
+} // namespace this_work_item
 
 namespace this_kernel {
-template <int Dimensions> root_group<Dimensions> get_root_group() {
-  return this_nd_item<Dimensions>().ext_oneapi_get_root_group();
+template <int Dimensions>
+__SYCL_DEPRECATED(
+    "use sycl::ext::oneapi::experimental::this_work_item::get_root_group() "
+    "instead")
+root_group<Dimensions> get_root_group() {
+  this_work_item::get_root_group<Dimensions>();
 }
 } // namespace this_kernel
 
@@ -107,7 +108,7 @@ void group_barrier(ext::oneapi::experimental::root_group<dimensions> G,
   // workaround that's not intended to reduce the bar for SPIR-V modules
   // acceptance, but rather make a pessimistic case work until we have full
   // support for the device barrier built-in from backends.
-  const auto ChildGroup = ext::oneapi::experimental::get_child_group(G);
+  const auto ChildGroup = ext::oneapi::experimental::this_group<dimensions>();
   if (ChildGroup.get_group_linear_range() == 1) {
     group_barrier(ChildGroup);
   } else {

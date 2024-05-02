@@ -1151,6 +1151,10 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-asan-instrumentation-with-call-threshold=0");
 
+      // asan initialization is done in unified runtime rather than in ctor.
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-asan-constructor-kind=none");
+
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-asan-stack=0");
       CmdArgs.push_back("-mllvm");
@@ -1211,7 +1215,9 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
                           BinaryMetadataIgnorelistFiles);
   }
 
-  if (TC.getTriple().isOSWindows() && needsUbsanRt()) {
+  if (TC.getTriple().isOSWindows() && needsUbsanRt() &&
+      Args.hasFlag(options::OPT_frtlib_defaultlib,
+                   options::OPT_fno_rtlib_defaultlib, true)) {
     // Instruct the code generator to embed linker directives in the object file
     // that cause the required runtime libraries to be linked.
     CmdArgs.push_back(
@@ -1222,7 +1228,9 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
           "--dependent-lib=" +
           TC.getCompilerRTBasename(Args, "ubsan_standalone_cxx")));
   }
-  if (TC.getTriple().isOSWindows() && needsStatsRt()) {
+  if (TC.getTriple().isOSWindows() && needsStatsRt() &&
+      Args.hasFlag(options::OPT_frtlib_defaultlib,
+                   options::OPT_fno_rtlib_defaultlib, true)) {
     CmdArgs.push_back(Args.MakeArgString(
         "--dependent-lib=" + TC.getCompilerRTBasename(Args, "stats_client")));
 

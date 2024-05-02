@@ -195,6 +195,7 @@ enum class image_type : /* unspecified */ {
   standard,
   mipmap,
   array,
+  cubemap,
 };
 
 struct image_descriptor {
@@ -232,14 +233,15 @@ struct image_descriptor {
 
 The image descriptor represents the image dimensions, channel type, and channel 
 order. An `image_type` member is also present to allow for implementation of 
-mipmapped images.
+mipmapped, image array, and cubemapped images.
 
 The `image_descriptor` shall be default constructible and follow by-value 
 semantics.
 
 [NOTE]
 ====
-Additional future `image_type`s _may_ include "cubemap".
+Additional future `image_type`s _may_ include combined image types like 
+"mipmapped cubemap".
 ====
 
 Note that `image_channel_type` and `image_channel_order` existed in SYCL 1.2.1,
@@ -655,11 +657,17 @@ through `free_image_mem`, or destroying the `image_mem` object, if one was used.
 The `bindless_image_sampler` struct shown below is used to set the sampling 
 properties of `sampled_images` upon image creation. It can be used to set 
 sampling properties that exist in the SYCL 2020 `image_sampler` as well as 
-extra properties used for sampling mipmaps including level-of-detail (LOD) and 
-anisotropic filtering.
+extra properties used for sampling additional image types including 
+level-of-detail (LOD) and anisotropic filtering for mipmaps, and seamless 
+filtering for cubemaps.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
+
+enum class cubemap_filtering_mode : /* unspecified */ {
+  disjointed,
+  seamless,
+};
 
 struct bindless_image_sampler {
 
@@ -675,6 +683,11 @@ struct bindless_image_sampler {
                          float minMipmapLevelClamp, float maxMipmapLevelClamp,
                          float maxAnisotropy);
 
+  bindless_image_sampler(sycl::addressing_mode addressing,
+                         sycl::coordinate_normalization_mode coordinate,
+                         sycl::filtering_mode filtering,
+                         cubemap_filtering_mode cubemapFiltering);
+                         
   // Specific addressing modes per dimension
   bindless_image_sampler(sycl::addressing_mode addressing[3],
                          sycl::coordinate_normalization_mode coordinate,
@@ -686,7 +699,11 @@ struct bindless_image_sampler {
                          sycl::filtering_mode mipmapFiltering,
                          float minMipmapLevelClamp, float maxMipmapLevelClamp,
                          float maxAnisotropy);
-
+  
+  bindless_image_sampler(sycl::addressing_mode addressing[3],
+                         sycl::coordinate_normalization_mode coordinate,
+                         sycl::filtering_mode filtering,
+                         cubemap_filtering_mode cubemapFiltering);
 
   sycl::addressing_mode addressing[3] = {sycl::addressing_mode::none};
   sycl::coordinate_normalization_mode coordinate =
@@ -696,6 +713,8 @@ struct bindless_image_sampler {
   float min_mipmap_level_clamp = 0.f;
   float max_mipmap_level_clamp = 0.f;
   float max_anisotropy = 0.f;
+  ext::oneapi::experimental::cubemap_filtering_mode cubemap_filtering = 
+    cubemap_filtering_mode::disjointed;
 };
 
 }
@@ -721,6 +740,19 @@ sample. This value cannot be higher than the number of allocated levels.
 
 `max_anisotropy` dictates the anisotropic ratio used when sampling the mipmap 
 with anisotropic filtering.
+
+`cubemap_filtering` dictates the method of sampling along cubemap face borders. 
+Disjointed indicates no sampling between faces whereas seamless indicates that 
+sampling across face boundaries is enabled.
+
+[NOTE]
+====
+In CUDA, when seamless cubemap filtering is enabled, sampled image address modes 
+specified are ignored. Instead, if the `filtering` mode is set to `nearest` the 
+address mode `clamp_to_edge` will be applied for all dimensions. If the 
+`filtering` mode is set to `linear` then seamless cubemap filtering will be 
+performed when sampling along the cube face borders.
+====
 
 === Explicit copies
 
@@ -778,6 +810,12 @@ public:
     size_t DeviceRowPitch,
     sycl::range<3> HostExtent,
     sycl::range<3> CopyExtent);
+
+  // Simple device to device copy
+  void ext_oneapi_copy(
+      ext::oneapi::experimental::image_mem_handle Src,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &ImageDesc);
 };
 
 class queue {
@@ -903,6 +941,22 @@ public:
       size_t DeviceRowPitch,
       sycl::range<3> HostExtent,
       sycl::range<3> CopyExtent);
+  
+  // Simple device to device copy
+  event ext_oneapi_copy(
+      ext::oneapi::experimental::image_mem_handle Src,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &ImageDesc);
+  event ext_oneapi_copy(
+      ext::oneapi::experimental::image_mem_handle Src,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &ImageDesc,
+      event DepEvent);
+  event ext_oneapi_copy(
+      ext::oneapi::experimental::image_mem_handle Src,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &ImageDesc,
+      const std::vector<event> &DepEvents);
 };
 }
 ```
@@ -910,7 +964,9 @@ public:
 To enable the copying of images an `ext_oneapi_copy` function is proposed as a 
 method of the queue and handler. It can be used to copy image memory, whether 
 allocated through USM or using an `image_mem_handle`, from host to 
-device, or device to host. For the `ext_oneapi_copy` variants that do not take 
+device, or device to host. Device to device copies are currently supported only 
+through `image_mem_handle` allocations. 
+For the `ext_oneapi_copy` variants that do not take 
 offsets and extents, the image descriptor passed to the `ext_oneapi_copy` API 
 is used to determine the pixel size, dimensions, and extent in memory of the 
 image to copy. If performing sub-region copy, the size of the memory region is 
@@ -1004,7 +1060,7 @@ DataT sample_image(const sampled_image_handle &ImageHandle,
                    const CoordT &Coords);
 
 template <typename DataT, typename CoordT>
-void write_image(unsampled_image_handle &ImageHandle,
+void write_image(unsampled_image_handle ImageHandle,
                  const CoordT &Coords, const DataT &Color);
 }
 ```
@@ -1262,7 +1318,7 @@ functions which take `image_descriptor` that has `image_type::array` and
 Currently there is no support for sampled image arrays.
 ====
 
-=== Copying image array data
+=== Copying image array data [[copying_image_array_data]]
 
 When copying to or from image arrays, the user should copy to/from the entire 
 array of images in one call to `ext_oneapi_copy` by passing the image arrays'
@@ -1303,9 +1359,9 @@ provided that type is trivially copyable.
 ```c++
 // Write to an unsampled image array
 template <typename DataT, typename CoordT>
-DataT write_image_array(const unsampled_image_handle &ImageHandle,
-                       const CoordT &Coords, const unsigned int ArrayLayer
-                       const DataT &Color);
+DataT write_image_array(unsampled_image_handle ImageHandle,
+                        const CoordT &Coords, const unsigned int ArrayLayer
+                        const DataT &Color);
 ```
 
 Writing to an image array follows the same restrictions on what coordinate types 
@@ -1315,6 +1371,119 @@ may be used as laid out in <<reading_writing_inside_kernel>>.
 ====
 Attempting to write to an image array with `write_image` or any other defined 
 write function will result in undefined behaviour.
+====
+
+== Cubemapped images
+
+Another image type this extension supports is cubemapped images. Cubemap images 
+are a specialisation of 2D image arrays that have exactly six layers 
+representing the faces of a cube where the width and height of each layer (cube 
+face) are equal. Cube mapping is a method of environment mapping, where the 
+environment is projected onto the sides of the cube. Cubemaps have been applied 
+in graphical systems such as skylight illumination, dynamic reflection, and 
+skyboxes.
+
+=== Querying cubemap support
+
+We provide the following device aspects to retrieve support information on a 
+SYCL implementation of just a couple of cubemap features.
+
+The device aspect descriptors for these queries are:
+
+[frame="none",options="header"]
+|======================
+|Device descriptor |Description
+|`aspect::ext_oneapi_cubemap` | Indicates if the device supports allocating 
+and accessing cubemap resources
+|`aspect::ext_oneapi_cubemap_seamless_filtering` | Indicates if the device 
+supports sampling cubemapped images across face bounderies
+|======================
+
+
+=== Allocation of cubemapped images
+
+As with all other image types, cubemap memory is allocated through 
+`alloc_image_mem` with the appropriately populated `image_descriptor`, where 
+`width` and `height` are equal, and the type is set to `image_type::cubemap`. 
+Since cubemaps are specialised image arrays, the `array_size` must be populated 
+with the only valid value, 6. Overriding this with any other value for 
+`array_size` could result in an exception or undefined behaviour. Cubemaps are 
+not supported with USM backed memory.
+
+Cubemap memory allocated this way requires the user to free that memory after 
+all operations using the memory are completed and no more operations operating 
+on the memory will be scheduled. This is done using `free_image_mem`, passing 
+`image_type::cubemap`. 
+
+The RAII class `image_mem` may also be used to perform allocation and 
+deallocation of cubemapped device memory. The constructor and destructor act as 
+a wrapper for the functions `alloc_image_mem` and `free_image_mem` respectively.
+
+=== Obtaining a handle to a cubemap
+
+A handle to a cubemap is acquired in the same way as a `standard` image for both 
+an `unsampled_image_handle` and `sampled_image_handle`. We create the handle for 
+a cubemap through the appropriate `create_image` functions which take the 
+`image_descriptor` and `bindless_image_sampler` for a `sampled_image_handle`, or 
+just the `image_descriptor` for an `unsampled_image_handle`. 
+
+As with allocation, the descriptor must be populated appropriately, i.e. 
+`image_type::cubemap`, `width` and `height` are equal, and `array_size` is equal 
+to 6. To sample a cubemap as expected, the cubemap sampling attribute of the 
+sampler, namely `seamless_filtering_mode`, must be defined.
+
+=== Copying cubemap image data
+
+In order to copy to or from cubemaps, the user should utilise the provided 
+`ext_oneapi_copy` functions following the details laid out in 
+<<copying_image_array_data>>. 
+
+=== Reading, writing, and sampling a cubemap
+
+Cubemaps are supported as both unsampled and sampled images, however, the 
+meaning of their usage is quite different. 
+
+An unsampled cubemap is treated as an image array with six layers, i.e. an 
+integer index denoting a face and two integer coordinates addressing a texel 
+within the layer corresponding to this face. Inside the kernel, this is done via 
+`fetch_cubemap`, passing the `unsampled_image_handle`, the integer coordinates, 
+`int2`, and an integer index denoting the face, `int`. Being an unsampled image, 
+a cubemap can be written with `write_cubemap`, passing the 
+`unsampled_image_handle`, the integer coordinates, `int2`, and an integer index 
+denoting the face, `int`.
+
+On the other hand, a sampled cubemap is addressed using three floating-point 
+coordinates `x`, `y`, and `z` that are interpreted as a direction vector 
+emanating from the centre of the cube and pointing to one face of the cube and a 
+texel within the layer corresponding to that face. Inside the kernel, this is 
+done via `sample_cubemap`, passing the `sampled_image_handle`, the 
+floating-point coordinates `x`, `y`, and `z`, as a `float3`. The method of 
+sampling depends on the sampler attributes passed upon creation of the cubemap.
+
+```c++
+// Unsampled cubemap read 
+template <typename DataT>
+DataT fetch_cubemap(const unsampled_image_handle &ImageHandle,
+                    const int2 &Coords,
+                    const int Face);
+
+// Sampled cubemap read
+template <typename DataT>
+DataT sample_cubemap(const sampled_image_handle &ImageHandle,
+                     const float3 &Vec);
+
+// Unsampled cubemap write
+template <typename DataT>
+void write_cubemap(unsampled_image_handle ImageHandle,
+                   const int2 &Coords,
+                   const int Face, 
+                   const DataT &Color);
+```
+
+[NOTE]
+====
+Attempting to read or write to a cubemap with any other defined read/write 
+function will result in undefined behaviour.
 ====
 
 == Interoperability
@@ -2005,6 +2174,137 @@ if (validated) {
 return 1;
 ```
 
+=== Sampling a cubemap
+
+```c++
+#include <iostream>
+#include <sycl/sycl.hpp>
+
+int main() {
+
+  namespace syclexp = sycl::ext::oneapi::experimental;
+
+  sycl::device dev;
+  sycl::queue q(dev);
+  auto ctxt = q.get_context();
+
+  // declare image data
+  // width and height must be equal
+  size_t width = 8;
+  size_t height = 8;
+  size_t N = width * height;
+  std::vector<float> out(N);
+  std::vector<float> expected(N);
+  std::vector<sycl::float4> dataIn1(N * 6);
+  for (int i = 0; i < width; i++) {
+    for (int j = 0; j < height; j++) {
+      for (int k = 0; k < 6; k++) {
+        dataIn1[i + width * (j + height * k)] = {i + width * (j + height * k),
+                                                 0, 0, 0};
+      }
+    }
+  }
+
+  int j = 0;
+  for (int i = N - 1; i >= 0; i--) {
+    expected[j] = (float)i;
+    j++;
+  }
+
+  // Extension: image descriptor - Cubemap
+  syclexp::image_descriptor desc(
+      {width, height}, sycl::image_channel_order::rgba,
+      sycl::image_channel_type::fp32, syclexp::image_type::cubemap, 1, 6);
+
+  syclexp::bindless_image_sampler samp(
+      sycl::addressing_mode::clamp_to_edge,
+      sycl::coordinate_normalization_mode::normalized,
+      sycl::filtering_mode::nearest, syclexp::cubemap_filtering_mode::seamless);
+
+  try {
+    // Extension: allocate memory on device and create the handle
+    syclexp::image_mem imgMem(desc, dev, ctxt);
+
+    // Extension: create the image and return the handle
+    syclexp::sampled_image_handle imgHandle =
+        syclexp::create_image(imgMem, samp, desc, dev, ctxt);
+
+    // Extension: copy over data to device (handler variant)
+    q.submit([&](sycl::handler &cgh) {
+      cgh.ext_oneapi_copy(dataIn1.data(), imgMem.get_handle(), desc);
+    });
+    q.wait_and_throw();
+
+    sycl::buffer<float, 2> buf((float *)out.data(),
+                               sycl::range<2>{height, width});
+    q.submit([&](sycl::handler &cgh) {
+      auto outAcc = buf.get_access<sycl::access_mode::write>(
+          cgh, sycl::range<2>{height, width});
+
+      // Emanating vector scans one face
+      cgh.parallel_for<kernel>(
+          sycl::nd_range<2>{{width, height}, {width, height}},
+          [=](sycl::nd_item<2> it) {
+            size_t dim0 = it.get_local_id(0);
+            size_t dim1 = it.get_local_id(1);
+
+            // Direction Vector
+            // x -- largest magnitude
+            // y -- shifted between [-0.99, 0.99] + offset
+            // z -- shifted between [-0.99, 0.99] + offset
+            //
+            // [-0.99, 0.99] -- maintains x as largest magnitude
+            //
+            // 4 elems == [-1, -0.5, 0, 0.5] -- need offset to bring uniformity
+            // +0.25 = [-0.75, -0.25, 0.25, 0.75]
+            float fdim0 = 1.f;
+            float fdim1 = (((float(dim0) / (float)width) * 1.98) - 0.99) +
+                          (1.f / (float)width);
+            float fdim2 = (((float(dim1) / (float)height) * 1.98) - 0.99) +
+                          (1.f / (float)height);
+
+            // Extension: read texture cubemap data from handle
+            sycl::float4 px = syclexp::sample_cubemap<sycl::float4>(
+                imgHandle, sycl::float3(fdim0, fdim1, fdim2));
+
+            outAcc[sycl::id<2>{dim0, dim1}] = px[0];
+          });
+    });
+    q.wait_and_throw();
+
+    // Extension: cleanup
+    syclexp::destroy_image_handle(imgHandle, dev, ctxt);
+  } catch (sycl::exception e) {
+    std::cerr << "SYCL exception caught! : " << e.what() << "\n";
+    return 1;
+  } catch (...) {
+    std::cerr << "Unknown exception caught!\n";
+    return 2;
+  }
+
+  // collect and validate output
+  bool validated = true;
+  for (int i = 0; i < N; i++) {
+    bool mismatch = false;
+    if (out[i] != expected[i]) {
+      mismatch = true;
+      validated = false;
+    }
+    if (mismatch) {
+      std::cout << "Result mismatch! Expected: " << expected[i]
+                << ", Actual: " << out[i] << std::endl;
+    }
+  }
+  if (validated) {
+    std::cout << "Test passed!" << std::endl;
+    return 0;
+  }
+
+  std::cout << "Test failed!" << std::endl;
+  return 3;
+}
+```
+
 === Using imported memory and semaphore objects
 
 ```c++
@@ -2187,7 +2487,6 @@ There are dimension specific limitations:
 These features still need to be handled:
 
 * Level Zero and SPIR-V support
-* Cubemap images
 
 == Revision History
 
@@ -2313,6 +2612,8 @@ These features still need to be handled:
                    wording around what types are allowed to be read or written.
                  - Allow `read_image` and `read_mipmap` to return a 
                    user-defined type.
+|5.1|2024-01-17| - Added overload for `ext_oneapi_copy` enabling device to device
+                   copies using `image_mem_handle`.
 |5.1|2023-12-06| - Added unique addressing modes per dimension to the 
                    `bindless_image_sampler`
 |5.2|2024-02-14| - Image read and write functions now accept 3-component 
@@ -2328,4 +2629,13 @@ These features still need to be handled:
                  - `image_descriptor::verify()` member function added.
 |5.5|2024-02-27| - Update interop with mipmap interop and slight redesign
                  - `interop` removed from `image_type`
+|5.6|2024-03-04| - Added cubemap support.
+                 - Allocation of cubemaps.
+                 - Creation of cubemaps.
+                 - Fetching/writing of unsampled cubemaps and sampling cubemaps.
+                 - `image_type::cubemap` added to enum.
+                 - Cubemap example.
+                 - Updated `image_array_write` with non-const handle parameter.
+                 - Removed `&` reference qualifier from `write_xxx` handle
+                   parameter. 
 |======================

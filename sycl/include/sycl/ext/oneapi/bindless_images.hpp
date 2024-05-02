@@ -24,6 +24,10 @@
 #include <stddef.h>    // for size_t
 #include <type_traits> // for is_scalar
 
+#ifdef __SYCL_DEVICE_ONLY__
+#include <sycl/detail/image_ocl_types.hpp> // for __invoke__*
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
@@ -1146,6 +1150,54 @@ DataT fetch_image_array(const unsampled_image_handle &imageHandle
 }
 
 /**
+ *  @brief   Fetch data from an unsampled cubemap image using its handle
+ *
+ *  @tparam  DataT The return type
+ *
+ *  @param   imageHandle The image handle
+ *  @param   coords The coordinates at which to fetch image data (int2 only)
+ *  @param   face The cubemap face at which to fetch
+ *  @return  Image data
+ */
+template <typename DataT>
+DataT fetch_cubemap(const unsampled_image_handle &imageHandle,
+                    const int2 &coords, const unsigned int face) {
+  return fetch_image_array<DataT>(imageHandle, coords, face);
+}
+
+/**
+ *  @brief   Sample a cubemap image using its handle
+ *
+ *  @tparam  DataT The return type
+ *
+ *  @param   imageHandle The image handle
+ *  @param   dirVec The direction vector at which to sample image data (float3
+ *           only)
+ *  @return  Image data
+ */
+template <typename DataT, typename HintT = DataT>
+DataT sample_cubemap(const sampled_image_handle &imageHandle [[maybe_unused]],
+                     const sycl::float3 &dirVec [[maybe_unused]]) {
+
+#ifdef __SYCL_DEVICE_ONLY__
+  if constexpr (detail::is_recognized_standard_type<DataT>()) {
+    return __invoke__ImageReadCubemap<DataT, uint64_t>(imageHandle.raw_handle,
+                                                       dirVec);
+  } else {
+    static_assert(sizeof(HintT) == sizeof(DataT),
+                  "When trying to read a user-defined type, HintT must be of "
+                  "the same size as the user-defined DataT.");
+    static_assert(detail::is_recognized_standard_type<HintT>(),
+                  "HintT must always be a recognized standard type");
+    return sycl::bit_cast<DataT>(__invoke__ImageReadCubemap<DataT, uint64_t>(
+        imageHandle.raw_handle, dirVec));
+  }
+#else
+  assert(false); // Bindless images not yet implemented on host
+#endif
+}
+
+/**
  *  @brief   Write to an unsampled image using its handle
  *
  *  @tparam  DataT The data type to write
@@ -1156,7 +1208,7 @@ DataT fetch_image_array(const unsampled_image_handle &imageHandle
  *  @param   color The data to write
  */
 template <typename DataT, typename CoordT>
-void write_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
+void write_image(unsampled_image_handle imageHandle [[maybe_unused]],
                  const CoordT &coords [[maybe_unused]],
                  const DataT &color [[maybe_unused]]) {
   detail::assert_unsampled_coords<CoordT>();
@@ -1191,8 +1243,7 @@ void write_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
  *  @param   color The data to write
  */
 template <typename DataT, typename CoordT>
-void write_image_array(const unsampled_image_handle &imageHandle
-                       [[maybe_unused]],
+void write_image_array(unsampled_image_handle imageHandle [[maybe_unused]],
                        const CoordT &coords [[maybe_unused]],
                        const int arrayLayer [[maybe_unused]],
                        const DataT &color [[maybe_unused]]) {
@@ -1215,6 +1266,22 @@ void write_image_array(const unsampled_image_handle &imageHandle
 #else
   assert(false); // Bindless images not yet implemented on host.
 #endif
+}
+
+/**
+ *  @brief   Write to an unsampled cubemap using its handle
+ *
+ *  @tparam  DataT The data type to write
+ *
+ *  @param   imageHandle The image handle
+ *  @param   coords The coordinates at which to write image data (int2 only)
+ *  @param   face The cubemap face at which to write
+ *  @param   color The data to write
+ */
+template <typename DataT>
+void write_cubemap(unsampled_image_handle imageHandle, const sycl::int2 &coords,
+                   const int face, const DataT &color) {
+  return write_image_array(imageHandle, coords, face, color);
 }
 
 } // namespace ext::oneapi::experimental

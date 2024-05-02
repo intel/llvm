@@ -12,21 +12,19 @@
 // CHECK: 1: input, "{{.*}}_lib.a", archive
 // CHECK: 2: clang-offload-unbundler, {1}, tempfilelist
 // CHECK: 3: spirv-to-ir-wrapper, {2}, tempfilelist, (device-sycl)
-// CHECK: 4: input, "{{.*}}libsycl-crt{{.*}}", object
-// CHECK: 5: clang-offload-unbundler, {4}, object
-// CHECK: 6: offload, " (spir64-unknown-unknown)" {5}, object
-// CHECK: 64: linker, {6, {{.*}}}, ir, (device-sycl)
-// CHECK: 65: linker, {3, 64}, ir, (device-sycl)
-// CHECK: 66: foreach, {3, 65}, ir, (device-sycl)
-// CHECK: 67: file-table-tform, {3, 66}, tempfilelist, (device-sycl)
-// CHECK: 68: sycl-post-link, {67}, tempfiletable, (device-sycl)
-// CHECK: 69: foreach, {67, 68}, tempfiletable, (device-sycl)
-// CHECK: 70: file-table-tform, {69}, tempfilelist, (device-sycl)
-// CHECK: 71: file-table-tform, {69}, tempfilelist, (device-sycl)
-// CHECK: 72: foreach, {67, 71}, tempfilelist, (device-sycl)
-// CHECK: 73: file-table-tform, {72}, tempfilelist, (device-sycl)
-// CHECK: 74: llvm-spirv, {73}, tempfilelist, (device-sycl)
-// CHECK: 75: file-table-tform, {70, 74}, tempfiletable, (device-sycl)
-// CHECK: 76: clang-offload-wrapper, {75}, object, (device-sycl)
-// CHECK: 77: offload, "device-sycl (spir64-unknown-unknown)" {76}, object
-// CHECK: 78: linker, {0, 77}, image, (host-sycl)
+// CHECK: 4: input, "{{.*}}libsycl-crt.bc", ir, (device-sycl)
+// CHECK: 24: linker, {4, {{.*}}}, ir, (device-sycl)
+// CHECK: 25: linker, {3, 24}, ir, (device-sycl)
+// CHECK: 26: foreach, {3, 25}, ir, (device-sycl)
+// CHECK: 27: file-table-tform, {3, 26}, tempfilelist, (device-sycl)
+// CHECK: 28: sycl-post-link, {27}, tempfiletable, (device-sycl)
+// CHECK: 29: foreach, {27, 28}, tempfiletable, (device-sycl)
+// CHECK: 30: file-table-tform, {29}, tempfilelist, (device-sycl)
+// CHECK: 31: file-table-tform, {29}, tempfilelist, (device-sycl)
+// CHECK: 32: foreach, {27, 31}, tempfilelist, (device-sycl)
+// CHECK: 33: file-table-tform, {32}, tempfilelist, (device-sycl)
+// CHECK: 34: llvm-spirv, {33}, tempfilelist, (device-sycl)
+// CHECK: 35: file-table-tform, {30, 34}, tempfiletable, (device-sycl)
+// CHECK: 36: clang-offload-wrapper, {35}, object, (device-sycl)
+// CHECK: 37: offload, "device-sycl (spir64-unknown-unknown)" {36}, object
+// CHECK: 38: linker, {0, 37}, image, (host-sycl)

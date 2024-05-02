@@ -15,6 +15,7 @@
 #include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
 #include <sycl/ext/intel/esimd/detail/math_intrin.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>
+#include <sycl/ext/intel/esimd/xmx/common.hpp>
 
 #define __ESIMD_raw_vec_t(T, SZ)                                               \
   sycl::ext::intel::esimd::detail::vector_type_t<                              \
@@ -151,8 +152,10 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(sycl::half, N)
                  __ESIMD_DNS::vector_type_t<uint16_t, N> src2)
         __ESIMD_INTRIN_END;
 
-__ESIMD_INTRIN __ESIMD_raw_vec_t(uint32_t, 4)
-    __esimd_timestamp() __ESIMD_INTRIN_END;
+template <typename T, int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+    __esimd_fmadd(__ESIMD_raw_vec_t(T, N) a, __ESIMD_raw_vec_t(T, N) b,
+                  __ESIMD_raw_vec_t(T, N) c) __ESIMD_INTRIN_END;
 
 #undef __ESIMD_raw_vec_t
 #undef __ESIMD_cpp_vec_t

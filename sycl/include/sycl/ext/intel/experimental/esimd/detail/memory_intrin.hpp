@@ -14,6 +14,7 @@
 
 #include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
 #include <sycl/ext/intel/esimd/detail/memory_intrin.hpp>
+#include <sycl/ext/intel/experimental/esimd/common.hpp>
 
 // generic work-group split barrier
 __ESIMD_INTRIN void
@@ -40,6 +41,27 @@ __ESIMD_INTRIN void __esimd_nbarrier(uint8_t mode, uint8_t id,
 ///
 /// @param count  - number of named barriers
 __ESIMD_INTRIN void __esimd_nbarrier_init(uint8_t count) __ESIMD_INTRIN_END;
+
+/// Raw send signal to perform signal operation on named barriers
+/// Available only on PVC
+/// @tparam Ty  - message element type
+///
+/// @tparam N  - message length
+///
+/// @param is_sendc  - is sendc
+///
+/// @param extended_descriptor  - extended message descriptor
+///
+/// @param descriptor  - message descriptor
+///
+/// @param msg_var  - source operand of send message
+///
+/// @param pred  - predicate for enabled channels
+template <typename Ty, int N>
+__ESIMD_INTRIN void __esimd_raw_send_nbarrier_signal(
+    uint32_t is_sendc, uint32_t extended_descriptor, uint32_t descriptor,
+    __ESIMD_DNS::vector_type_t<Ty, N> msg_var,
+    uint16_t pred = 1) __ESIMD_INTRIN_END;
 
 /// Perform signal operation on named barriers
 /// Available only on PVC

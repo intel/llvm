@@ -58,11 +58,11 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
-#include "llvm/Support/RISCVISAInfo.h"
 #include "llvm/Support/YAMLParser.h"
 #include "llvm/TargetParser/ARMTargetParserCommon.h"
 #include "llvm/TargetParser/Host.h"
 #include "llvm/TargetParser/LoongArchTargetParser.h"
+#include "llvm/TargetParser/RISCVISAInfo.h"
 #include "llvm/TargetParser/RISCVTargetParser.h"
 #include <cctype>
 
@@ -357,11 +357,14 @@ static bool addExceptionArgs(const ArgList &Args, types::ID InputType,
   bool EH = Args.hasFlag(options::OPT_fexceptions, options::OPT_fno_exceptions,
                          false);
 
-  bool EHa = Args.hasFlag(options::OPT_fasync_exceptions,
-                          options::OPT_fno_async_exceptions, false);
-  if (EHa) {
-    CmdArgs.push_back("-fasync-exceptions");
-    EH = true;
+  // Async exceptions are Windows MSVC only.
+  if (Triple.isWindowsMSVCEnvironment()) {
+    bool EHa = Args.hasFlag(options::OPT_fasync_exceptions,
+                            options::OPT_fno_async_exceptions, false);
+    if (EHa) {
+      CmdArgs.push_back("-fasync-exceptions");
+      EH = true;
+    }
   }
 
   // Obj-C exceptions are enabled by default, regardless of -fexceptions. This
@@ -668,7 +671,9 @@ static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
                                            ProfileGenerateArg->getValue()));
     // The default is to use Clang Instrumentation.
     CmdArgs.push_back("-fprofile-instrument=clang");
-    if (TC.getTriple().isWindowsMSVCEnvironment()) {
+    if (TC.getTriple().isWindowsMSVCEnvironment() &&
+        Args.hasFlag(options::OPT_frtlib_defaultlib,
+                     options::OPT_fno_rtlib_defaultlib, true)) {
       // Add dependent lib for clang_rt.profile
       CmdArgs.push_back(Args.MakeArgString(
           "--dependent-lib=" + TC.getCompilerRTBasename(Args, "profile")));
@@ -687,7 +692,9 @@ static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
     CmdArgs.push_back("-fprofile-instrument=csllvm");
   }
   if (PGOGenArg) {
-    if (TC.getTriple().isWindowsMSVCEnvironment()) {
+    if (TC.getTriple().isWindowsMSVCEnvironment() &&
+        Args.hasFlag(options::OPT_frtlib_defaultlib,
+                     options::OPT_fno_rtlib_defaultlib, true)) {
       // Add dependent lib for clang_rt.profile
       CmdArgs.push_back(Args.MakeArgString(
           "--dependent-lib=" + TC.getCompilerRTBasename(Args, "profile")));
@@ -877,6 +884,16 @@ static bool UseRelaxAll(Compilation &C, const ArgList &Args) {
 
   if (Arg *A = Args.getLastArg(options::OPT_O_Group))
     RelaxDefault = A->getOption().matches(options::OPT_O0);
+
+  // RISC-V requires an indirect jump for offsets larger than 1MiB. This cannot
+  // be done by assembler branch relaxation as it needs a free temporary
+  // register. Because of this, branch relaxation is handled by a MachineIR
+  // pass before the assembler. Forcing assembler branch relaxation for -O0
+  // makes the MachineIR branch relaxation inaccurate and it will miss cases
+  // where an indirect branch is necessary. To avoid this issue we are
+  // sacrificing the compile time improvement of using -mrelax-all for -O0.
+  if (C.getDefaultToolChain().getTriple().isRISCV())
+    RelaxDefault = false;
 
   if (RelaxDefault) {
     RelaxDefault = false;
@@ -3985,6 +4002,24 @@ bool Driver::getDefaultModuleCachePath(SmallVectorImpl<char> &Result) {
   return false;
 }
 
+llvm::SmallString<256>
+clang::driver::tools::getCXX20NamedModuleOutputPath(const ArgList &Args,
+                                                    const char *BaseInput) {
+  if (Arg *ModuleOutputEQ = Args.getLastArg(options::OPT_fmodule_output_EQ))
+    return StringRef(ModuleOutputEQ->getValue());
+
+  SmallString<256> OutputPath;
+  if (Arg *FinalOutput = Args.getLastArg(options::OPT_o);
+      FinalOutput && Args.hasArg(options::OPT_c))
+    OutputPath = FinalOutput->getValue();
+  else
+    OutputPath = BaseInput;
+
+  const char *Extension = types::getTypeTempSuffix(types::TY_ModuleFile);
+  llvm::sys::path::replace_extension(OutputPath, Extension);
+  return OutputPath;
+}
+
 static bool RenderModulesOptions(Compilation &C, const Driver &D,
                                  const ArgList &Args, const InputInfo &Input,
                                  const InputInfo &Output, bool HaveStd20,
@@ -4173,9 +4208,36 @@ static bool RenderModulesOptions(Compilation &C, const Driver &D,
   // module fragment.
   CmdArgs.push_back("-fskip-odr-check-in-gmf");
 
-  // Claim `-fmodule-output` and `-fmodule-output=` to avoid unused warnings.
-  Args.ClaimAllArgs(options::OPT_fmodule_output);
-  Args.ClaimAllArgs(options::OPT_fmodule_output_EQ);
+  if (Args.hasArg(options::OPT_modules_reduced_bmi) &&
+      (Input.getType() == driver::types::TY_CXXModule ||
+       Input.getType() == driver::types::TY_PP_CXXModule)) {
+    CmdArgs.push_back("-fexperimental-modules-reduced-bmi");
+
+    if (Args.hasArg(options::OPT_fmodule_output_EQ))
+      Args.AddLastArg(CmdArgs, options::OPT_fmodule_output_EQ);
+    else
+      CmdArgs.push_back(Args.MakeArgString(
+          "-fmodule-output=" +
+          getCXX20NamedModuleOutputPath(Args, Input.getBaseInput())));
+  }
+
+  // Noop if we see '-fexperimental-modules-reduced-bmi' with other translation
+  // units than module units. This is more user friendly to allow end uers to
+  // enable this feature without asking for help from build systems.
+  Args.ClaimAllArgs(options::OPT_modules_reduced_bmi);
+
+  // We need to include the case the input file is a module file here.
+  // Since the default compilation model for C++ module interface unit will
+  // create temporary module file and compile the temporary module file
+  // to get the object file. Then the `-fmodule-output` flag will be
+  // brought to the second compilation process. So we have to claim it for
+  // the case too.
+  if (Input.getType() == driver::types::TY_CXXModule ||
+      Input.getType() == driver::types::TY_PP_CXXModule ||
+      Input.getType() == driver::types::TY_ModuleFile) {
+    Args.ClaimAllArgs(options::OPT_fmodule_output);
+    Args.ClaimAllArgs(options::OPT_fmodule_output_EQ);
+  }
 
   return HaveModules;
 }
@@ -4699,7 +4761,8 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
       CmdArgs.push_back("-debug-info-macro");
 
   // -fno-system-debug turns off debug info generation for system headers
-  if (Args.hasArg(options::OPT_fno_system_debug))
+  if (!Args.hasFlag(options::OPT_fsystem_debug, options::OPT_fno_system_debug,
+                    true))
     CmdArgs.push_back("-fno-system-debug");
 
   // -ggnu-pubnames turns on gnu style pubnames in the backend.
@@ -4733,6 +4796,21 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
       CmdArgs.push_back("-gsimple-template-names=simple");
     }
   }
+
+  // Emit DW_TAG_template_alias for template aliases? True by default for SCE.
+  bool UseDebugTemplateAlias =
+      DebuggerTuning == llvm::DebuggerKind::SCE && RequestedDWARFVersion >= 4;
+  if (const auto *DebugTemplateAlias = Args.getLastArg(
+          options::OPT_gtemplate_alias, options::OPT_gno_template_alias)) {
+    // DW_TAG_template_alias is only supported from DWARFv5 but if a user
+    // asks for it we should let them have it (if the target supports it).
+    if (checkDebugInfoOption(DebugTemplateAlias, Args, D, TC)) {
+      const auto &Opt = DebugTemplateAlias->getOption();
+      UseDebugTemplateAlias = Opt.matches(options::OPT_gtemplate_alias);
+    }
+  }
+  if (UseDebugTemplateAlias)
+    CmdArgs.push_back("-gtemplate-alias");
 
   if (const Arg *A = Args.getLastArg(options::OPT_gsrc_hash_EQ)) {
     StringRef v = A->getValue();
@@ -5024,9 +5102,8 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   C.addCommand(std::move(Cmd));
 }
 
-static void ProcessVSRuntimeLibrary(const ArgList &Args,
-                                    ArgStringList &CmdArgs,
-                                    const ToolChain &TC) {
+static void ProcessVSRuntimeLibrary(const ToolChain &TC, const ArgList &Args,
+                                    ArgStringList &CmdArgs) {
   unsigned RTOptionID = options::OPT__SLASH_MT;
 
   bool isSPIROrSPIRV = TC.getTriple().isSPIROrSPIRV();
@@ -5130,6 +5207,12 @@ static void ProcessVSRuntimeLibrary(const ArgList &Args,
       CmdArgs.push_back("--dependent-lib=sycl-devicelib-host");
     }
   }
+
+  // All Arm64EC object files implicitly add softintrin.lib. This is necessary
+  // even if the file doesn't actually refer to any of the routines because
+  // the CRT itself has incomplete dependency markings.
+  if (TC.getTriple().isWindowsArm64EC())
+    CmdArgs.push_back("--dependent-lib=softintrin");
 }
 
 void Clang::ConstructJob(Compilation &C, const JobAction &JA,
@@ -5725,11 +5808,26 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     assert(JA.getType() == types::TY_API_INFO &&
            "Extract API actions must generate a API information.");
     CmdArgs.push_back("-extract-api");
+
+    if (Arg *PrettySGFArg = Args.getLastArg(options::OPT_emit_pretty_sgf))
+      PrettySGFArg->render(Args, CmdArgs);
+
+    Arg *SymbolGraphDirArg = Args.getLastArg(options::OPT_symbol_graph_dir_EQ);
+
     if (Arg *ProductNameArg = Args.getLastArg(options::OPT_product_name_EQ))
       ProductNameArg->render(Args, CmdArgs);
     if (Arg *ExtractAPIIgnoresFileArg =
             Args.getLastArg(options::OPT_extract_api_ignores_EQ))
       ExtractAPIIgnoresFileArg->render(Args, CmdArgs);
+    if (Arg *EmitExtensionSymbolGraphs =
+            Args.getLastArg(options::OPT_emit_extension_symbol_graphs)) {
+      if (!SymbolGraphDirArg)
+        D.Diag(diag::err_drv_missing_symbol_graph_dir);
+
+      EmitExtensionSymbolGraphs->render(Args, CmdArgs);
+    }
+    if (SymbolGraphDirArg)
+      SymbolGraphDirArg->render(Args, CmdArgs);
   } else {
     assert((isa<CompileJobAction>(JA) || isa<BackendJobAction>(JA)) &&
            "Invalid action for clang tool.");
@@ -6583,7 +6681,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CM = "large";
     if (Triple.isAArch64(64)) {
       Ok = CM == "tiny" || CM == "small" || CM == "large";
-      if (CM == "large" && RelocationModel != llvm::Reloc::Static)
+      if (CM == "large" && !Triple.isOSBinFormatMachO() &&
+          RelocationModel != llvm::Reloc::Static)
         D.Diag(diag::err_drv_argument_only_allowed_with)
             << A->getAsString(Args) << "-fno-pic";
     } else if (Triple.isLoongArch()) {
@@ -7762,7 +7861,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (Triple.isWindowsMSVCEnvironment() && !D.IsCLMode() &&
       Args.hasArg(options::OPT_fms_runtime_lib_EQ))
-    ProcessVSRuntimeLibrary(Args, CmdArgs, TC);
+    ProcessVSRuntimeLibrary(getToolChain(), Args, CmdArgs);
 
   // Handle -fgcc-version, if present.
   VersionTuple GNUCVer;
@@ -8856,7 +8955,8 @@ struct EHFlags {
 ///      The 'a' modifier is unimplemented and fundamentally hard in LLVM IR.
 /// - c: Assume that extern "C" functions are implicitly nounwind.
 /// The default is /EHs-c-, meaning cleanups are disabled.
-static EHFlags parseClangCLEHFlags(const Driver &D, const ArgList &Args) {
+static EHFlags parseClangCLEHFlags(const Driver &D, const ArgList &Args,
+                                   bool isWindowsMSVC) {
   EHFlags EH;
 
   std::vector<std::string> EHArgs =
@@ -8866,8 +8966,15 @@ static EHFlags parseClangCLEHFlags(const Driver &D, const ArgList &Args) {
       switch (EHVal[I]) {
       case 'a':
         EH.Asynch = maybeConsumeDash(EHVal, I);
-        if (EH.Asynch)
+        if (EH.Asynch) {
+          // Async exceptions are Windows MSVC only.
+          if (!isWindowsMSVC) {
+            EH.Asynch = false;
+            D.Diag(clang::diag::warn_drv_unused_argument) << "/EHa" << EHVal;
+            continue;
+          }
           EH.Synch = false;
+        }
         continue;
       case 'c':
         EH.NoUnwindC = maybeConsumeDash(EHVal, I);
@@ -8906,7 +9013,7 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
                            ArgStringList &CmdArgs) const {
   bool isNVPTX = getToolChain().getTriple().isNVPTX();
 
-  ProcessVSRuntimeLibrary(Args, CmdArgs, getToolChain());
+  ProcessVSRuntimeLibrary(getToolChain(), Args, CmdArgs);
 
   if (Arg *ShowIncludes =
           Args.getLastArg(options::OPT__SLASH_showIncludes,
@@ -8931,7 +9038,8 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
 
   const Driver &D = getToolChain().getDriver();
 
-  EHFlags EH = parseClangCLEHFlags(D, Args);
+  bool IsWindowsMSVC = getToolChain().getTriple().isWindowsMSVCEnvironment();
+  EHFlags EH = parseClangCLEHFlags(D, Args, IsWindowsMSVC);
   if (!isNVPTX && (EH.Synch || EH.Asynch)) {
     if (types::isCXX(InputType))
       CmdArgs.push_back("-fcxx-exceptions");
@@ -10264,8 +10372,99 @@ void OffloadDeps::ConstructJobMultipleOutputs(Compilation &C,
   constructJob(C, JA, Outputs, Inputs, TCArgs, LinkingOutput);
 }
 
-// Begin SPIRVTranslator
+// Utility function to gather all llvm-spirv options.
+static void getOtherSPIRVTransOpts(Compilation &C,
+                                   const llvm::opt::ArgList &TCArgs,
+                                   llvm::Triple Triple,
+                                   ArgStringList &TranslatorArgs) {
+  bool IsCPU = Triple.isSPIR() &&
+               Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
+  TranslatorArgs.push_back("-spirv-max-version=1.4");
+  // Enable NonSemanticShaderDebugInfo.200 for CPU AOT and for non-Windows
+  // Enable NonSemanticShaderDebugInfo.200 for CPU AOT and for non-Windows
+  const bool IsWindowsMSVC =
+      Triple.isWindowsMSVCEnvironment() ||
+      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
+  const bool EnableNonSemanticDebug =
+      IsCPU || (!IsWindowsMSVC && !C.getDriver().IsFPGAHWMode());
+  if (EnableNonSemanticDebug) {
+    TranslatorArgs.push_back(
+        "-spirv-debug-info-version=nonsemantic-shader-200");
+  } else {
+    TranslatorArgs.push_back("-spirv-debug-info-version=ocl-100");
+    // Prevent crash in the translator if input IR contains DIExpression
+    // operations which don't have mapping to OpenCL.DebugInfo.100 spec.
+    TranslatorArgs.push_back("-spirv-allow-extra-diexpressions");
+  }
+  std::string UnknownIntrinsics("-spirv-allow-unknown-intrinsics=llvm.genx.");
+  if (IsCPU)
+    UnknownIntrinsics += ",llvm.fpbuiltin";
+  TranslatorArgs.push_back(TCArgs.MakeArgString(UnknownIntrinsics));
+  bool CreatingSyclSPIRVFatObj =
+      C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
+      TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
+          .equals_insensitive("spirv") &&
+      !TCArgs.hasArg(options::OPT_fsycl_device_only);
+  bool ShouldPreserveMetadataInFinalImage =
+      TCArgs.hasArg(options::OPT_fsycl_preserve_device_nonsemantic_metadata);
+  bool ShouldPreserveMetadata =
+      CreatingSyclSPIRVFatObj || ShouldPreserveMetadataInFinalImage;
+  if (ShouldPreserveMetadata)
+    TranslatorArgs.push_back("--spirv-preserve-auxdata");
 
+  // Disable all the extensions by default
+  std::string ExtArg("-spirv-ext=-all");
+  std::string DefaultExtArg =
+      ",+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
+      ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls"
+      ",+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr";
+  std::string INTELExtArg =
+      ",+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io"
+      ",+SPV_INTEL_device_side_avc_motion_estimation"
+      ",+SPV_INTEL_fpga_loop_controls,+SPV_INTEL_unstructured_loop_controls"
+      ",+SPV_INTEL_fpga_reg,+SPV_INTEL_blocking_pipes"
+      ",+SPV_INTEL_function_pointers,+SPV_INTEL_kernel_attributes"
+      ",+SPV_INTEL_io_pipes,+SPV_INTEL_inline_assembly"
+      ",+SPV_INTEL_arbitrary_precision_integers"
+      ",+SPV_INTEL_float_controls2,+SPV_INTEL_vector_compute"
+      ",+SPV_INTEL_fast_composite"
+      ",+SPV_INTEL_arbitrary_precision_fixed_point"
+      ",+SPV_INTEL_arbitrary_precision_floating_point"
+      ",+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode"
+      ",+SPV_INTEL_long_constant_composite"
+      ",+SPV_INTEL_arithmetic_fence"
+      ",+SPV_INTEL_global_variable_decorations"
+      ",+SPV_INTEL_cache_controls"
+      ",+SPV_INTEL_fpga_buffer_location"
+      ",+SPV_INTEL_fpga_argument_interfaces"
+      ",+SPV_INTEL_fpga_invocation_pipelining_attributes"
+      ",+SPV_INTEL_fpga_latency_control"
+      ",+SPV_INTEL_task_sequence";
+  ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
+  if (C.getDriver().IsFPGAHWMode())
+    // Enable several extensions on FPGA H/W exclusively
+    ExtArg += ",+SPV_INTEL_usm_storage_classes,+SPV_INTEL_runtime_aligned"
+              ",+SPV_INTEL_fpga_cluster_attributes,+SPV_INTEL_loop_fuse"
+              ",+SPV_INTEL_fpga_dsp_control,+SPV_INTEL_fpga_memory_accesses"
+              ",+SPV_INTEL_fpga_memory_attributes";
+  else
+    // Don't enable several freshly added extensions on FPGA H/W
+    ExtArg += ",+SPV_INTEL_token_type"
+              ",+SPV_INTEL_bfloat16_conversion"
+              ",+SPV_INTEL_joint_matrix"
+              ",+SPV_INTEL_hw_thread_queries"
+              ",+SPV_KHR_uniform_group_instructions"
+              ",+SPV_INTEL_masked_gather_scatter"
+              ",+SPV_INTEL_tensor_float32_conversion"
+              ",+SPV_INTEL_optnone"
+              ",+SPV_KHR_non_semantic_info";
+  if (IsCPU)
+    ExtArg += ",+SPV_INTEL_fp_max_error";
+
+  TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
+}
+
+// Begin SPIRVTranslator
 void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
                                   const InputInfo &Output,
                                   const InputInfoList &Inputs,
@@ -10285,80 +10484,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     const toolchains::SYCLToolChain &TC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
     llvm::Triple Triple = TC.getTriple();
-    bool IsCPU = Triple.isSPIR() &&
-                 Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
-    TranslatorArgs.push_back("-spirv-max-version=1.4");
-    TranslatorArgs.push_back("-spirv-debug-info-version=ocl-100");
-    // Prevent crash in the translator if input IR contains DIExpression
-    // operations which don't have mapping to OpenCL.DebugInfo.100 spec.
-    TranslatorArgs.push_back("-spirv-allow-extra-diexpressions");
-    std::string UnknownIntrinsics("-spirv-allow-unknown-intrinsics=llvm.genx.");
-    if (IsCPU)
-      UnknownIntrinsics += ",llvm.fpbuiltin";
-    TranslatorArgs.push_back(TCArgs.MakeArgString(UnknownIntrinsics));
-    bool CreatingSyclSPIRVFatObj =
-        C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
-        TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
-            .equals_insensitive("spirv") &&
-        !TCArgs.hasArg(options::OPT_fsycl_device_only);
-    bool ShouldPreserveMetadataInFinalImage =
-        TCArgs.hasArg(options::OPT_fsycl_preserve_device_nonsemantic_metadata);
-    bool ShouldPreserveMetadata =
-        CreatingSyclSPIRVFatObj || ShouldPreserveMetadataInFinalImage;
-    if (ShouldPreserveMetadata)
-      TranslatorArgs.push_back("--spirv-preserve-auxdata");
-
-    // Disable all the extensions by default
-    std::string ExtArg("-spirv-ext=-all");
-    std::string DefaultExtArg =
-        ",+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
-        ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls"
-        ",+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr,+SPV_KHR_bit_instructions";
-    std::string INTELExtArg =
-        ",+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io"
-        ",+SPV_INTEL_device_side_avc_motion_estimation"
-        ",+SPV_INTEL_fpga_loop_controls,+SPV_INTEL_unstructured_loop_controls"
-        ",+SPV_INTEL_fpga_reg,+SPV_INTEL_blocking_pipes"
-        ",+SPV_INTEL_function_pointers,+SPV_INTEL_kernel_attributes"
-        ",+SPV_INTEL_io_pipes,+SPV_INTEL_inline_assembly"
-        ",+SPV_INTEL_arbitrary_precision_integers"
-        ",+SPV_INTEL_float_controls2,+SPV_INTEL_vector_compute"
-        ",+SPV_INTEL_fast_composite"
-        ",+SPV_INTEL_arbitrary_precision_fixed_point"
-        ",+SPV_INTEL_arbitrary_precision_floating_point"
-        ",+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode"
-        ",+SPV_INTEL_long_constant_composite"
-        ",+SPV_INTEL_arithmetic_fence"
-        ",+SPV_INTEL_global_variable_decorations"
-        ",+SPV_INTEL_cache_controls"
-        ",+SPV_INTEL_fpga_buffer_location"
-        ",+SPV_INTEL_fpga_argument_interfaces"
-        ",+SPV_INTEL_fpga_invocation_pipelining_attributes"
-        ",+SPV_INTEL_fpga_latency_control"
-        ",+SPV_INTEL_task_sequence";
-    ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
-    if (C.getDriver().IsFPGAHWMode())
-      // Enable several extensions on FPGA H/W exclusively
-      ExtArg += ",+SPV_INTEL_usm_storage_classes,+SPV_INTEL_runtime_aligned"
-                ",+SPV_INTEL_fpga_cluster_attributes,+SPV_INTEL_loop_fuse"
-                ",+SPV_INTEL_fpga_dsp_control,+SPV_INTEL_fpga_memory_accesses"
-                ",+SPV_INTEL_fpga_memory_attributes";
-    else
-      // Don't enable several freshly added extensions on FPGA H/W
-      ExtArg += ",+SPV_INTEL_token_type"
-                ",+SPV_INTEL_bfloat16_conversion"
-                ",+SPV_INTEL_joint_matrix"
-                ",+SPV_INTEL_hw_thread_queries"
-                ",+SPV_KHR_uniform_group_instructions"
-                ",+SPV_INTEL_masked_gather_scatter"
-                ",+SPV_INTEL_tensor_float32_conversion"
-                ",+SPV_INTEL_optnone";
-    if (ShouldPreserveMetadata)
-      ExtArg += ",+SPV_KHR_non_semantic_info";
-    if (IsCPU)
-      ExtArg += ",+SPV_INTEL_fp_max_error";
-
-    TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
+    getOtherSPIRVTransOpts(C, TCArgs, Triple, TranslatorArgs);
 
     // Handle -Xspirv-translator
     TC.TranslateTargetOpt(
@@ -10568,7 +10694,12 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Add output file table file option
   assert(Output.isFilename() && "output must be a filename");
-  addArgs(CmdArgs, TCArgs, {"-o", Output.getFilename()});
+  StringRef Device = JA.getOffloadingArch();
+  std::string OutputArg = Output.getFilename();
+  if (T.getSubArch() == llvm::Triple::SPIRSubArch_gen && Device.data())
+    OutputArg = ("intel_gpu_" + Device + "," + OutputArg).str();
+
+  addArgs(CmdArgs, TCArgs, {"-o", OutputArg});
 
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
@@ -10930,28 +11061,32 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     }
     CmdArgs.push_back(Args.MakeArgString(
         Twine("-sycl-device-library-location=") + DeviceLibDir));
-  }
 
-  auto appendOption = [](SmallString<128> &OptString, StringRef AddOpt) {
-    if (!OptString.empty())
-      OptString += " ";
-    OptString += AddOpt.str();
-  };
-  // --sycl-post-link-options="options" provides a string of options to be
-  // passed along to the sycl-post-link tool during device link.
-  if (Args.hasArg(options::OPT_Xdevice_post_link)) {
-    SmallString<128> OptString;
-    for (const auto &A : Args.getAllArgValues(options::OPT_Xdevice_post_link))
-      appendOption(OptString, A);
-    CmdArgs.push_back(
-        Args.MakeArgString("--sycl-post-link-options=" + OptString));
-  }
+    auto appendOption = [](SmallString<128> &OptString, StringRef AddOpt) {
+      if (!OptString.empty())
+        OptString += " ";
+      OptString += AddOpt.str();
+    };
+    // --sycl-post-link-options="options" provides a string of options to be
+    // passed along to the sycl-post-link tool during device link.
+    if (Args.hasArg(options::OPT_Xdevice_post_link)) {
+      SmallString<128> OptString;
+      for (const auto &A : Args.getAllArgValues(options::OPT_Xdevice_post_link))
+        appendOption(OptString, A);
+      CmdArgs.push_back(
+          Args.MakeArgString("--sycl-post-link-options=" + OptString));
+    }
 
-  // --llvm-spirv-options="options" provides a string of options to be passed
-  // along to the llvm-spirv (translation) step during device link.
-  if (Args.hasArg(options::OPT_Xspirv_translator)) {
+    // --llvm-spirv-options="options" provides a string of options to be passed
+    // along to the llvm-spirv (translation) step during device link.
     SmallString<128> OptString;
-    for (const auto &A : Args.getAllArgValues(options::OPT_Xspirv_translator))
+    if (Args.hasArg(options::OPT_Xspirv_translator)) {
+      for (const auto &A : Args.getAllArgValues(options::OPT_Xspirv_translator))
+        appendOption(OptString, A);
+    }
+    ArgStringList TranslatorArgs;
+    getOtherSPIRVTransOpts(C, Args, TargetTriple, TranslatorArgs);
+    for (const auto &A : TranslatorArgs)
       appendOption(OptString, A);
     CmdArgs.push_back(Args.MakeArgString("--llvm-spirv-options=" + OptString));
   }

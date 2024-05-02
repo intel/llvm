@@ -68,6 +68,9 @@ on:
       install_drivers:
         type: string
         required: False
+      use_dev_igc:
+        type: string
+        required: False
       env:
         type: string
         default: '{}'
@@ -115,8 +118,8 @@ on:
           Suggested variables: for E2E tests - LIT_FILTER, LIT_FILTER_OUT.
           LIT_OPTS won't work as we redefine it as part of this workflow.
 
-          For SYCL CTS - CTS_TEST_ARGS that will be passed as an argument to the
-          test_all executable.
+          For SYCL CTS - CTS_TESTS_TO_BUILD to specify which categories to
+          build.
 
           Format: '{"VAR1":"VAL1","VAR2":"VAL2",...}'
         default: '{}'
@@ -127,6 +130,12 @@ on:
         default: ''
 
       install_drivers:
+        type: choice
+        options:
+          - false
+          - true
+
+      use_dev_igc:
         type: choice
         options:
           - false
@@ -182,7 +191,10 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ github.token }}
       run: |
-        sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json --all
+        if [ "${{ inputs.use_dev_igc }}" = "true" ]; then
+            sudo apt-get install -yqq libllvm14;
+        fi
+        sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json ${{ inputs.use_dev_igc == 'true' && 'llvm/devops/dependencies-igc-dev.json --use-dev-igc' || '' }} --all
     - name: Source OneAPI TBB vars.sh
       shell: bash
       run: |
@@ -294,19 +306,29 @@ jobs:
         -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="$PWD/devops/cts_exclude_filter" \
         -DSYCL_CTS_ENABLE_OPENCL_INTEROP_TESTS=OFF \
         -DSYCL_CTS_MEASURE_BUILD_TIMES=ON \
-        -DDPCPP_INSTALL_DIR="$$(dirname (which clang++))/.." \
+        -DDPCPP_INSTALL_DIR="$(dirname $(which clang++))/.." \
         $CMAKE_EXTRA_ARGS
-        ninja -C build-cts
+        # Ignore errors so that if one category build fails others still have a
+        # chance to finish and be executed at the run stage. Note that
+        # "test_conformance" target skips building "test_all" executable.
+        ninja -C build-cts -k0 $( [ -n "$CTS_TESTS_TO_BUILD" ] && echo "$CTS_TESTS_TO_BUILD" || echo "test_conformance")
 
     - name: SYCL CTS List devices
-      if: inputs.tests_selector == 'cts'
-      run: |
-        ./build-cts/bin/test_all --list-devices
-
-    - name: Run SYCL CTS tests
-      if: inputs.tests_selector == 'cts'
+      # Proceed with execution even if the 'build' step did not succeed.
+      if: inputs.tests_selector == 'cts' && (success() || failure())
       env:
         ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
+      run: |
+        ./build-cts/bin/* --list-devices
+
+    - name: Run SYCL CTS tests
+      # Proceed with execution even if the previous two steps did not succeed.
+      if: inputs.tests_selector == 'cts' && (success() || failure())
+      env:
+        ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
+      # This job takes ~100min usually. But sometimes some test isn't
+      # responding, so the job reaches the 360min limit. Setting a lower one.
+      timeout-minutes: 150
       # By-default GitHub actions execute the "run" shell script with -e option,
       # so the execution terminates if any command returns a non-zero status.
       # Since we're using a loop to run all test-binaries separately, some test
@@ -314,32 +336,25 @@ jobs:
       # the default behavior.
       # https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#custom-shell
       shell: bash {0}
-      # FIXME: For some reason the "sub_group api" test-case is failing with
-      # SIGSEGV while running test_all, so running each binary separately.
-      # BTW test_all requires a lot of resources to build it, so probably it'll
-      # be better to build each binary also separately.
-      # run: |
-      #   ./build-cts/bin/test_all $CTS_TEST_ARGS
       run: |
-        status=""
-        failed_suites=""
-        for i in `ls -1 ./build-cts/bin`; do
-          if [ "$i" != "test_all" ]; then
-            echo "::group::Running $i"
-            build-cts/bin/$i
-            if [ $? -ne 0 ]; then
-              status=1
-              if [$failed_suites == ""]; then
-                failed_suites=$i
-              else
-                failed_suites="$failed_suites, $i"
-              fi
-            fi
-            echo "::endgroup::"
-          fi
+        # Run each test category separately so that
+        #  - crash on one would not affect others
+        #  - multiple tests could be run in parallel
+        mkdir logs
+        find build-cts/bin/ -type f -print | \
+          xargs -t -I % -P 8 sh -c 'log=logs/$(basename %).log ; echo % >$log ; date >>$log ; timeout 60m % >>$log 2>&1 ; ret=$? ; echo "exit code: $ret" >>$log ; date >>$log  ; exit $ret'
+        ret=$?
+
+        for f in logs/* ; do
+          echo "::group::$f"
+          cat $f
+          echo "::endgroup::"
         done
-        if [ -n "$status" ]; then
-          echo "Failed suite(s): $failed_suites"
-          exit 1
-        fi
-        exit 0
+
+        echo "::group::Fails:"
+        grep 'exit code: [^0]' -r logs
+        echo "::endgroup::"
+
+        grep 'exit code: [^0]' -r logs >> $GITHUB_STEP_SUMMARY
+
+        exit $ret

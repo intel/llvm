@@ -9,6 +9,8 @@
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 
+extern int __oclc_amdgpu_reflect(__constant char *);
+
 #define AMDGPU_ARCH_GEQ(LOWER) __oclc_ISA_version >= LOWER
 #define AMDGPU_ARCH_BETWEEN(LOWER, UPPER)                                      \
   __oclc_ISA_version >= LOWER &&__oclc_ISA_version < UPPER
@@ -72,14 +74,22 @@
   AMDGPU_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, local, U3AS3, 1, BUILTIN)  \
   AMDGPU_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, , , 0, BUILTIN)
 
-#define AMDGPU_CAS_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, AS, AS_MANGLED,                                          \
-                               SUB1, OP)                                                                               \
+// Safe atomics will either choose a slow CAS atomic impl (default) or a fast
+// native atomic if --amdgpu-unsafe-int-atomics is passed to LLVM.
+//
+// Safe atomics using CAS may be necessary if PCIe does not support atomic
+// operations such as and, or, xor
+#define AMDGPU_SAFE_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, AS, AS_MANGLED,                                         \
+                                SUB1, OP, USE_BUILTIN_COND, BUILTIN)                                                   \
   _CLC_DEF TYPE                                                                                                        \
       FUNC_NAME##P##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS##SUB1##_19MemorySemanticsMask4FlagE##TYPE_MANGLED( \
           volatile AS TYPE *p, enum Scope scope,                                                                       \
           enum MemorySemanticsMask semantics, TYPE val) {                                                              \
     int atomic_scope = 0, memory_order = 0;                                                                            \
     GET_ATOMIC_SCOPE_AND_ORDER(scope, atomic_scope, semantics, memory_order)                                           \
+    if (USE_BUILTIN_COND)                                                                                              \
+      return BUILTIN(p, val, memory_order, atomic_scope);                                                              \
+    /* CAS atomics*/                                                                                                   \
     TYPE oldval = __hip_atomic_load(p, memory_order, atomic_scope);                                                    \
     TYPE newval = 0;                                                                                                   \
     do {                                                                                                               \
@@ -89,7 +99,13 @@
     return oldval;                                                                                                     \
   }
 
-#define AMDGPU_CAS_ATOMIC(FUNC_NAME, TYPE, TYPE_MANGLED, OP)                   \
-  AMDGPU_CAS_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, global, U3AS1, 1, OP)  \
-  AMDGPU_CAS_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, local, U3AS3, 1, OP)   \
-  AMDGPU_CAS_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, , , 0, OP)
+#define AMDGPU_SAFE_ATOMIC(FUNC_NAME, TYPE, TYPE_MANGLED, OP, BUILTIN)         \
+  AMDGPU_SAFE_ATOMIC_IMPL(                                                     \
+      FUNC_NAME, TYPE, TYPE_MANGLED, global, U3AS1, 1, OP,                     \
+      __oclc_amdgpu_reflect("AMDGPU_OCLC_UNSAFE_INT_ATOMICS"), BUILTIN)        \
+  AMDGPU_SAFE_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, local, U3AS3, 1, OP,  \
+                          true /* local AS should always use builtin*/,        \
+                          BUILTIN)                                             \
+  AMDGPU_SAFE_ATOMIC_IMPL(                                                     \
+      FUNC_NAME, TYPE, TYPE_MANGLED, , , 0, OP,                                \
+      __oclc_amdgpu_reflect("AMDGPU_OCLC_UNSAFE_INT_ATOMICS"), BUILTIN)
