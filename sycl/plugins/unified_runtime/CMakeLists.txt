@@ -95,7 +95,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/lbushi25/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 47e59a876b157603c9d0fb3f09c4790e601434ff)
+  set(UNIFIED_RUNTIME_TAG 74e18f16c0576ba8e20e0017113791335cbfa81c)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
