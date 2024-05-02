@@ -265,6 +265,7 @@ ${th.make_type_name(n, tags, obj)}
 
 %endfor # s in specs
 
+%if not fast_mode:
 #################################################################
 ## Print API not part of the spec, needs to be generated separately
 #################################################################
@@ -359,3 +360,4 @@ Print Operators
     :project: UnifiedRuntime
     :outline:
 %endfor
+%endif
