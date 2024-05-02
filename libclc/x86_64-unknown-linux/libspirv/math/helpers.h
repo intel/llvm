@@ -37,8 +37,8 @@
   _CLC_OVERLOAD double GETNAME(NAME)(double n) { return __builtin_##NAME(n); } \
   _CLC_OVERLOAD half GETNAME(NAME)(half n) { return __builtin_##NAME(n); }     \
   GEN_UNARY_VECTOR_BUILTIN_T(NAME, float)                                      \
-  GEN_UNARY_VECTOR_BUILTIN_T(NAME, half)                                       \
-  GEN_UNARY_VECTOR_BUILTIN_T(NAME, double)
+  GEN_UNARY_VECTOR_BUILTIN_T(NAME, double)                                     \
+  GEN_UNARY_VECTOR_BUILTIN_T(NAME, half)
 
 #define GEN_TERNARY_VECTOR_BUILTIN(NAME, TYPE, NUM)                            \
   _CLC_OVERLOAD TYPE##NUM GETNAME(NAME)(TYPE##NUM n1, TYPE##NUM n2,            \
