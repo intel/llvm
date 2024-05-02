@@ -40,7 +40,7 @@
 #include <syclcompat/kernel_properties.hpp>
 #include <syclcompat/launch.hpp>
 
-#if defined(SYCL_EXT_ONEAPI_KERNEL_PROPERTIES) && \
+#if defined(SYCL_EXT_ONEAPI_KERNEL_PROPERTIES) &&                              \
     defined(SYCL_EXT_ONEAPI_PROPERTIES)
 // defined(SYCL_EXT_ONEAPI_ENQUEUE_FUNCTIONS) uncomment once
 // SYCL_EXT_ONEAPI_ENQUEUE_FUNCTIONS is defined
@@ -98,8 +98,11 @@ launch(const sycl::nd_range<3> &launch_params, std::size_t local_memory_size,
   static_assert(::syclcompat::detail::getArgumentCount(KernelFunc) ==
                     sizeof...(args) + 1,
                 "Wrong number of arguments to SYCL kernel");
-  static_assert(std::is_same_v<typename std::invoke_result_t<KernelFunc, Args..., char*>, void>, "
-  SYCL Kernels shoud return void");
+  static_assert(
+      std::is_same_v<
+          typename std::invoke_result_t<decltype(KernelFunc), Args..., char *>,
+          void>,
+      "SYCL Kernels shoud return void");
   sycl_exp::launch_config config(launch_params, launch_properties);
   return sycl_exp::submit_with_event(queue, [&](sycl::handler &cgh) {
     sycl::local_accessor<char, 1> local_mem(local_memory_size, cgh);
@@ -118,8 +121,10 @@ launch(const sycl::nd_range<3> &launch_params, const sycl::queue &queue,
   static_assert(::syclcompat::detail::getArgumentCount(KernelFunc) ==
                     sizeof...(args),
                 "Wrong number of arguments to SYCL kernel");
-  static_assert(std::is_same_v<typename std::invoke_result_t<KernelFunc, Args...>, void>, "
-  SYCL Kernels shoud return void");
+  static_assert(
+      std::is_same_v<
+          typename std::invoke_result_t<decltype(KernelFunc), Args...>, void>,
+      "SYCL Kernels shoud return void");
   sycl_exp::launch_config config(launch_params, launch_properties);
   return sycl_exp::submit_with_event(queue, [&](sycl::handler &cgh) {
     sycl_exp::nd_launch(
@@ -129,11 +134,10 @@ launch(const sycl::nd_range<3> &launch_params, const sycl::queue &queue,
   });
 }
 
-//==================================================================================//
-
 template <typename PropertyList, auto KernelFunc, class KernelPropertiesStruct,
           typename... Args>
-std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>, sycl::event>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
 launch(const sycl::range<3> &global_range, const sycl::range<3> &local_range,
        const sycl::queue &queue, const PropertyList &launch_properties,
        Args... args) {
@@ -144,16 +148,19 @@ launch(const sycl::range<3> &global_range, const sycl::range<3> &local_range,
 
 template <typename PropertyList, auto KernelFunc, class KernelPropertiesStruct,
           typename... Args>
-std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>, sycl::event>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
 launch(const sycl::range<3> &global_range, const sycl::range<3> &local_range,
        const PropertyList &launch_properties, Args... args) {
   return launch<PropertyList, KernelFunc, KernelPropertiesStruct>(
-      global_range, local_range, ::syclcompat::get_default_queue(), launch_properties, args...);
+      global_range, local_range, ::syclcompat::get_default_queue(),
+      launch_properties, args...);
 }
 
 template <typename PropertyList, auto KernelFunc, class KernelPropertiesStruct,
           typename... Args>
-std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>, sycl::event>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
 launch(const dim3 &grid_dim, const dim3 &block_dim, const sycl::queue &queue,
        const PropertyList &launch_properties, Args... args) {
   return launch<PropertyList, KernelFunc, KernelPropertiesStruct>(
@@ -163,24 +170,29 @@ launch(const dim3 &grid_dim, const dim3 &block_dim, const sycl::queue &queue,
 
 template <typename PropertyList, auto KernelFunc, class KernelPropertiesStruct,
           typename... Args>
-std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>, sycl::event>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
 launch(const dim3 &grid_dim, const dim3 &block_dim,
        const PropertyList &launch_properties, Args... args) {
   return launch<PropertyList, KernelFunc, KernelPropertiesStruct>(
-      grid_dim, block_dim, ::syclcompat::get_default_queue(), launch_properties, args...);
+      grid_dim, block_dim, ::syclcompat::get_default_queue(), launch_properties,
+      args...);
 }
 
 template <auto KernelFunc, class KernelPropertiesStruct, typename... Args>
-std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>, sycl::event>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
 launch(const sycl::range<3> &global_range, const sycl::range<3> &local_range,
        Args... args) {
   using PropertyList = decltype(empty_property_list);
   return launch<PropertyList, KernelFunc, KernelPropertiesStruct>(
-      global_range, local_range, ::syclcompat::get_default_queue(), empty_property_list, args...);
+      global_range, local_range, ::syclcompat::get_default_queue(),
+      empty_property_list, args...);
 }
 
 template <typename PropertyList, auto KernelFunc, typename... Args>
-std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>, sycl::event>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
 launch(const sycl::range<3> &global_range, const sycl::range<3> &local_range,
        const PropertyList &launch_properties, Args... args) {
   return launch<PropertyList, KernelFunc, EmptyKernelPropertyStruct>(
@@ -188,7 +200,8 @@ launch(const sycl::range<3> &global_range, const sycl::range<3> &local_range,
 }
 
 template <auto KernelFunc, class KernelPropertiesStruct, typename... Args>
-std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>, sycl::event>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
 launch(const dim3 &grid_dim, const dim3 &block_dim, Args... args) {
   using PropertyList = decltype(empty_property_list);
   return launch<PropertyList, KernelFunc, KernelPropertiesStruct>(
@@ -196,18 +209,57 @@ launch(const dim3 &grid_dim, const dim3 &block_dim, Args... args) {
 }
 
 template <typename PropertyList, auto KernelFunc, typename... Args>
-std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>, sycl::event>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
 launch(const dim3 &grid_dim, const dim3 &block_dim,
        const PropertyList &launch_properties, Args... args) {
   return launch<PropertyList, KernelFunc, EmptyKernelPropertyStruct>(
       grid_dim, block_dim, launch_properties, args...);
 }
 
-///==============================================================================================///
+template <auto KernelFunc, class KernelPropertiesStruct, typename... Args>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
+launch(const sycl::range<3> &global_range, const sycl::range<3> &local_range,
+       const sycl::queue &queue, Args... args) {
+  using PropertyList = decltype(empty_property_list);
+  return launch<PropertyList, KernelFunc, KernelPropertiesStruct>(
+      global_range, local_range, queue, empty_property_list, args...);
+}
+
+template <typename PropertyList, auto KernelFunc, typename... Args>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
+launch(const sycl::range<3> &global_range, const sycl::range<3> &local_range,
+       const sycl::queue &queue, const PropertyList &launch_properties,
+       Args... args) {
+  return launch<PropertyList, KernelFunc, EmptyKernelPropertyStruct>(
+      global_range, local_range, queue, launch_properties, args...);
+}
+
+template <auto KernelFunc, class KernelPropertiesStruct, typename... Args>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
+launch(const dim3 &grid_dim, const dim3 &block_dim, const sycl::queue &queue,
+       Args... args) {
+  using PropertyList = decltype(empty_property_list);
+  return launch<PropertyList, KernelFunc, KernelPropertiesStruct>(
+      grid_dim, block_dim, queue, empty_property_list, args...);
+}
+
+template <typename PropertyList, auto KernelFunc, typename... Args>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
+launch(const dim3 &grid_dim, const dim3 &block_dim, const sycl::queue &queue,
+       const PropertyList &launch_properties, Args... args) {
+  return launch<PropertyList, KernelFunc, EmptyKernelPropertyStruct>(
+      grid_dim, block_dim, queue, launch_properties, args...);
+}
 
 template <typename PropertyList, auto KernelFunc, class KernelPropertiesStruct,
           typename... Args>
-std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>, sycl::event>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
 launch(const sycl::range<3> &global_range, const sycl::range<3> &local_range,
        std::size_t local_mem_size, const sycl::queue &queue,
        const PropertyList &launch_properties, Args... args) {
@@ -218,18 +270,20 @@ launch(const sycl::range<3> &global_range, const sycl::range<3> &local_range,
 
 template <typename PropertyList, auto KernelFunc, class KernelPropertiesStruct,
           typename... Args>
-std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>, sycl::event>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
 launch(const sycl::range<3> &global_range, const sycl::range<3> &local_range,
        std::size_t local_mem_size, const PropertyList &launch_properties,
        Args... args) {
   return launch<PropertyList, KernelFunc, KernelPropertiesStruct>(
-      global_range, local_range, local_mem_size, ::syclcompat::get_default_queue(), launch_properties,
-      args...);
+      global_range, local_range, local_mem_size,
+      ::syclcompat::get_default_queue(), launch_properties, args...);
 }
 
 template <typename PropertyList, auto KernelFunc, class KernelPropertiesStruct,
           typename... Args>
-std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>, sycl::event>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
 launch(const dim3 &grid_dim, const dim3 &block_dim, std::size_t local_mem_size,
        const sycl::queue &queue, const PropertyList &launch_properties,
        Args... args) {
@@ -240,15 +294,18 @@ launch(const dim3 &grid_dim, const dim3 &block_dim, std::size_t local_mem_size,
 
 template <typename PropertyList, auto KernelFunc, class KernelPropertiesStruct,
           typename... Args>
-std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>, sycl::event>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
 launch(const dim3 &grid_dim, const dim3 &block_dim, std::size_t local_mem_size,
        const PropertyList &launch_properties, Args... args) {
   return launch<PropertyList, KernelFunc, KernelPropertiesStruct>(
-      grid_dim, block_dim, local_mem_size, ::syclcompat::get_default_queue(), launch_properties, args...);
+      grid_dim, block_dim, local_mem_size, ::syclcompat::get_default_queue(),
+      launch_properties, args...);
 }
 
 template <auto KernelFunc, class KernelPropertiesStruct, typename... Args>
-std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>, sycl::event>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
 launch(const dim3 &grid_dim, const dim3 &block_dim, std::size_t local_mem_size,
        Args... args) {
   using PropertyList = decltype(empty_property_list);
@@ -257,7 +314,8 @@ launch(const dim3 &grid_dim, const dim3 &block_dim, std::size_t local_mem_size,
 }
 
 template <typename PropertyList, auto KernelFunc, typename... Args>
-std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>, sycl::event>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
 launch(const dim3 &grid_dim, const dim3 &block_dim, std::size_t local_mem_size,
        const PropertyList &launch_properties, Args... args) {
   return launch<PropertyList, KernelFunc, EmptyKernelPropertyStruct>(
@@ -265,7 +323,8 @@ launch(const dim3 &grid_dim, const dim3 &block_dim, std::size_t local_mem_size,
 }
 
 template <auto KernelFunc, class KernelPropertiesStruct, typename... Args>
-std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>, sycl::event>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
 launch(const sycl::range<3> &global_range, const sycl::range<3> &local_range,
        std::size_t local_mem_size, Args... args) {
   using PropertyList = decltype(empty_property_list);
@@ -274,12 +333,55 @@ launch(const sycl::range<3> &global_range, const sycl::range<3> &local_range,
 }
 
 template <typename PropertyList, auto KernelFunc, typename... Args>
-std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>, sycl::event>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
 launch(const sycl::range<3> &global_range, const sycl::range<3> &local_range,
        std::size_t local_mem_size, const PropertyList &launch_properties,
        Args... args) {
   return launch<PropertyList, KernelFunc, EmptyKernelPropertyStruct>(
       global_range, local_range, local_mem_size, launch_properties, args...);
+}
+
+template <auto KernelFunc, class KernelPropertiesStruct, typename... Args>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
+launch(const dim3 &grid_dim, const dim3 &block_dim, std::size_t local_mem_size,
+       const sycl::queue &queue, Args... args) {
+  using PropertyList = decltype(empty_property_list);
+  return launch<PropertyList, KernelFunc, KernelPropertiesStruct>(
+      grid_dim, block_dim, local_mem_size, queue, empty_property_list, args...);
+}
+
+template <typename PropertyList, auto KernelFunc, typename... Args>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
+launch(const dim3 &grid_dim, const dim3 &block_dim, std::size_t local_mem_size,
+       const sycl::queue &queue, const PropertyList &launch_properties,
+       Args... args) {
+  return launch<PropertyList, KernelFunc, EmptyKernelPropertyStruct>(
+      grid_dim, block_dim, local_mem_size, queue, launch_properties, args...);
+}
+
+template <auto KernelFunc, class KernelPropertiesStruct, typename... Args>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
+launch(const sycl::range<3> &global_range, const sycl::range<3> &local_range,
+       std::size_t local_mem_size, const sycl::queue &queue, Args... args) {
+  using PropertyList = decltype(empty_property_list);
+  return launch<PropertyList, KernelFunc, KernelPropertiesStruct>(
+      global_range, local_range, local_mem_size, queue, empty_property_list,
+      args...);
+}
+
+template <typename PropertyList, auto KernelFunc, typename... Args>
+std::enable_if_t<std::is_invocable_v<decltype(KernelFunc), Args...>,
+                 sycl::event>
+launch(const sycl::range<3> &global_range, const sycl::range<3> &local_range,
+       std::size_t local_mem_size, const sycl::queue &queue,
+       const PropertyList &launch_properties, Args... args) {
+  return launch<PropertyList, KernelFunc, EmptyKernelPropertyStruct>(
+      global_range, local_range, local_mem_size, queue, launch_properties,
+      args...);
 }
 
 } // namespace experimental
