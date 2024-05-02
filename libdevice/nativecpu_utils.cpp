@@ -50,9 +50,6 @@ __spirv_ControlBarrier(uint32_t Execution, uint32_t Memory,
     __mux_work_group_barrier(0, Execution, Semantics);
 }
 
-// Turning clang format off here because it reorders macro invocations
-// making the code very difficult to read.
-// clang-format off
 #define DefSubgroupBlockINTEL1(Type, PType)                                    \
   template <>                                                                  \
   __SYCL_CONVERGENT__ DEVICE_EXTERNAL Type                                     \
@@ -291,10 +288,8 @@ GEN_u32(__spirv_SubgroupSize, __mux_get_sub_group_size)
   GEN_p(bname##_y, ncpu_name, 1)                                               \
   GEN_p(bname##_z, ncpu_name, 2)
 
-#if defined _WIN32
-  GEN_xyz(__spirv_GlobalInvocationId, __mux_get_global_id)
-  GEN_xyz(__spirv_GlobalSize, __mux_get_global_size)
-#endif
+GEN_xyz(__spirv_GlobalInvocationId, __mux_get_global_id)
+GEN_xyz(__spirv_GlobalSize, __mux_get_global_size)
 GEN_xyz(__spirv_GlobalOffset, __mux_get_global_offset)
 GEN_xyz(__spirv_LocalInvocationId, __mux_get_local_id)
 GEN_xyz(__spirv_NumWorkgroups, __mux_get_num_groups)
