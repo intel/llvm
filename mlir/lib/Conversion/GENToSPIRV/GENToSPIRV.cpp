@@ -14,6 +14,7 @@
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
+#include "mlir/IR/Matchers.h"
 
 namespace mlir {
 #define GEN_PASS_DEF_CONVERTGENTOSPIRV
@@ -57,10 +58,19 @@ public:
         this->template getTypeConverter<SPIRVTypeConverter>()->getIndexType();
     constexpr StringLiteral spvBuiltinPrefix = "__spirv_BuiltIn";
     constexpr StringLiteral spvBuiltinSuffix = "";
+
     Value vector = spirv::getBuiltinVariableValue(
         op, builtin, builtinType, rewriter, spvBuiltinPrefix, spvBuiltinSuffix);
-    rewriter.replaceOpWithNewOp<spirv::VectorExtractDynamicOp>(op, vector,
-                                                               operands[0]);
+    Value idx = operands[0];
+
+    if (IntegerAttr idxAttr; matchPattern(idx, m_Constant(&idxAttr))) {
+      // Don't need to check the range here because that is verified already
+      rewriter.replaceOpWithNewOp<spirv::CompositeExtractOp>(
+          op, vector, idxAttr.getValue().getZExtValue());
+    } else {
+      rewriter.replaceOpWithNewOp<spirv::VectorExtractDynamicOp>(op, vector,
+                                                                 idx);
+    }
     return success();
   }
 
