@@ -4496,6 +4496,8 @@ piextCommandBufferCreate(pi_context Context, pi_device Device,
   ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
   ur_exp_command_buffer_desc_t UrDesc;
   UrDesc.stype = UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC;
+  UrDesc.isInOrder = ur_bool_t(false);
+  UrDesc.enableProfiling = ur_bool_t(true);
   UrDesc.isUpdatable = Desc->is_updatable;
   ur_exp_command_buffer_handle_t *UrCommandBuffer =
       reinterpret_cast<ur_exp_command_buffer_handle_t *>(RetCommandBuffer);
@@ -4835,15 +4837,11 @@ inline pi_result piextCommandBufferUpdateKernelLaunch(
   ur_exp_command_buffer_update_kernel_launch_desc_t UrDesc;
 
   UrDesc.stype = ur_structure_type_t::
-      UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_EXEC_INFO_DESC;
+      UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC;
   UrDesc.numNewMemObjArgs = desc->num_mem_obj_args;
   UrDesc.numNewPointerArgs = desc->num_ptr_args;
   UrDesc.numNewValueArgs = desc->num_value_args;
   UrDesc.newWorkDim = desc->num_work_dim;
-
-  // Exec info updates are unused and will be removed from UR in future
-  UrDesc.numNewExecInfos = 0;
-  UrDesc.pNewExecInfoList = nullptr;
 
   // Convert arg descs
   std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t> UrMemObjDescs;

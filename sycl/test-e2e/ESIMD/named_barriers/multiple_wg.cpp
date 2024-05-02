@@ -16,9 +16,9 @@
 // Each work-group contain 2 threads: 1 producer and 1 consumer.
 // Producers store to SLM; consumers read SLM and store data to surface.
 
-#include <CL/sycl.hpp>
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 #include "../esimd_test_utils.hpp"
 
