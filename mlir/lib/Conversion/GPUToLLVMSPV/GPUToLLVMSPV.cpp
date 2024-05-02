@@ -199,47 +199,6 @@ struct GPUShuffleConversion final
     : public ConvertOpToLLVMPattern<gpu::ShuffleOp> {
   using ConvertOpToLLVMPattern<gpu::ShuffleOp>::ConvertOpToLLVMPattern;
 
-  GPUShuffleConversion(unsigned subgroupSize,
-                       const LLVMTypeConverter &typeConverter,
-                       PatternBenefit benefit = 1)
-      : ConvertOpToLLVMPattern(typeConverter, benefit),
-        subgroupSize(subgroupSize) {}
-
-  static std::string getFuncName(gpu::ShuffleOp op) {
-    StringRef baseName = getBaseName(op.getMode());
-    StringRef typeMangling = getTypeMangling(op.getType(0));
-    return llvm::formatv("_Z{0}{1}{2}", baseName.size(), baseName,
-                         typeMangling);
-  }
-
-  LogicalResult
-  matchAndRewrite(gpu::ShuffleOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const final {
-    auto shuffle = cast<gpu::ShuffleOp>(op);
-    llvm::APInt width;
-    if (!(matchPattern(shuffle.getWidth(), m_ConstantInt(&width)) &&
-          width == subgroupSize))
-      return failure();
-
-    std::string funcName = getFuncName(op);
-
-    auto moduleOp = op->getParentOfType<gpu::GPUModuleOp>();
-    Type valueType = adaptor.getValue().getType();
-    Type offsetType = adaptor.getOffset().getType();
-    Type resultType = valueType;
-    LLVM::LLVMFuncOp func = lookupOrCreateSPIRVFn(
-        moduleOp, funcName, {valueType, offsetType}, resultType);
-
-    Location loc = op->getLoc();
-    SmallVector<Value, 2> args{adaptor.getValue(), adaptor.getOffset()};
-    Value result =
-        createSPIRVBuiltinCall(loc, rewriter, func, args).getResult();
-    Value trueVal =
-        rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI1Type(), true);
-    rewriter.replaceOp(op, {result, trueVal});
-    return success();
-  }
-
   static StringRef getBaseName(gpu::ShuffleMode mode) {
     switch (mode) {
     case gpu::ShuffleMode::IDX:
@@ -258,7 +217,7 @@ struct GPUShuffleConversion final
     return TypeSwitch<Type, StringRef>(type)
         .Case<Float32Type>([](auto) { return "fj"; })
         .Case<Float64Type>([](auto) { return "dj"; })
-        .Case<IntegerType>([](IntegerType intTy) {
+        .Case<IntegerType>([](auto intTy) {
           switch (intTy.getWidth()) {
           case 32:
             return "ij";
@@ -267,6 +226,50 @@ struct GPUShuffleConversion final
           }
           llvm_unreachable("Invalid integer width");
         });
+  }
+
+  static std::string getFuncName(gpu::ShuffleOp op) {
+    StringRef baseName = getBaseName(op.getMode());
+    StringRef typeMangling = getTypeMangling(op.getType(0));
+    return llvm::formatv("_Z{0}{1}{2}", baseName.size(), baseName,
+                         typeMangling);
+  }
+
+  GPUShuffleConversion(unsigned subgroupSize,
+                       const LLVMTypeConverter &typeConverter,
+                       PatternBenefit benefit = 1)
+      : ConvertOpToLLVMPattern(typeConverter, benefit),
+        subgroupSize(subgroupSize) {}
+
+  bool isValidWidth(Value width) const {
+    llvm::APInt val;
+    return matchPattern(width, m_ConstantInt(&val)) && val == subgroupSize;
+  }
+
+  LogicalResult
+  matchAndRewrite(gpu::ShuffleOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    if (!isValidWidth(op.getWidth()))
+      return rewriter.notifyMatchFailure(
+          op, "shuffle width and subgroup size mismatch");
+
+    std::string funcName = getFuncName(op);
+
+    auto moduleOp = op->getParentOfType<gpu::GPUModuleOp>();
+    Type valueType = adaptor.getValue().getType();
+    Type offsetType = adaptor.getOffset().getType();
+    Type resultType = valueType;
+    LLVM::LLVMFuncOp func = lookupOrCreateSPIRVFn(
+        moduleOp, funcName, {valueType, offsetType}, resultType);
+
+    Location loc = op->getLoc();
+    SmallVector<Value, 2> args{adaptor.getValue(), adaptor.getOffset()};
+    Value result =
+        createSPIRVBuiltinCall(loc, rewriter, func, args).getResult();
+    Value trueVal =
+        rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI1Type(), true);
+    rewriter.replaceOp(op, {result, trueVal});
+    return success();
   }
 
   unsigned subgroupSize;
