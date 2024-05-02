@@ -42,8 +42,9 @@ using namespace mlir;
 LLVM::LLVMFuncOp lookupOrCreateSPIRVFn(Operation *symbolTable, StringRef name,
                                        ArrayRef<Type> paramTypes,
                                        Type resultType) {
-  auto func =
-      static_cast<SymbolTable>(symbolTable).lookup<LLVM::LLVMFuncOp>(name);
+  assert(symbolTable->hasTrait<OpTrait::SymbolTable>() &&
+         "Expecting symbol table");
+  auto func = SymbolTable(symbolTable).lookup<LLVM::LLVMFuncOp>(name);
   if (!func) {
     OpBuilder b(symbolTable->getRegion(0));
     func = b.create<LLVM::LLVMFuncOp>(
