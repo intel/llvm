@@ -32,11 +32,13 @@ using __nativecpu_state = native_cpu::state;
 #define OCL_LOCAL __attribute__((opencl_local))
 #define OCL_GLOBAL __attribute__((opencl_global))
 
-OCL_LOCAL void *__spirv_GenericCastToPtrExplicit_ToLocal(void *p, int) {
+DEVICE_EXTERNAL OCL_LOCAL void *
+__spirv_GenericCastToPtrExplicit_ToLocal(void *p, int) {
   return (OCL_LOCAL void *)p;
 }
 
-OCL_GLOBAL void *__spirv_GenericCastToPtrExplicit_ToGlobal(void *p, int) {
+DEVICE_EXTERNAL OCL_GLOBAL void *
+__spirv_GenericCastToPtrExplicit_ToGlobal(void *p, int) {
   return (OCL_GLOBAL void *)p;
 }
 
@@ -50,6 +52,9 @@ __spirv_ControlBarrier(uint32_t Execution, uint32_t Memory,
     __mux_work_group_barrier(0, Execution, Semantics);
 }
 
+// Turning clang format off here because it reorders macro invocations
+// making the following code very difficult to read.
+// clang-format off
 #define DefSubgroupBlockINTEL1(Type, PType)                                    \
   template <>                                                                  \
   __SYCL_CONVERGENT__ DEVICE_EXTERNAL Type                                     \
