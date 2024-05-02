@@ -51,4 +51,44 @@ func.func @gen_nd_range(%dim: i32) {
   %3 = gen.num_work_groups %dim
   func.return
 }
+
+// CHECK-LABEL:   func.func @gen_nd_range_constant() {
+func.func @gen_nd_range_constant() {
+  %cst_0 = arith.constant 0 : i32
+  %cst_1 = arith.constant 1 : i32
+  %cst_2 = arith.constant 2 : i32
+// CHECK-32:           %[[VAL_1:.*]] = spirv.mlir.addressof @__spirv_BuiltInLocalInvocationId : !spirv.ptr<vector<3xi32>, Input>
+// CHECK-32:           %[[VAL_2:.*]] = spirv.Load "Input" %[[VAL_1]] : vector<3xi32>
+// CHECK-32:           %[[VAL_3:.*]] = spirv.CompositeExtract %[[VAL_2]][0 : i32] : vector<3xi32>
+
+// CHECK-64:           %[[VAL_1:.*]] = spirv.mlir.addressof @__spirv_BuiltInLocalInvocationId : !spirv.ptr<vector<3xi64>, Input>
+// CHECK-64:           %[[VAL_2:.*]] = spirv.Load "Input" %[[VAL_1]] : vector<3xi64>
+// CHECK-64:           %[[VAL_3:.*]] = spirv.CompositeExtract %[[VAL_2]][0 : i32] : vector<3xi64>
+  %0 = gen.local_id %cst_0
+// CHECK-32:           %[[VAL_4:.*]] = spirv.mlir.addressof @__spirv_BuiltInWorkgroupId : !spirv.ptr<vector<3xi32>, Input>
+// CHECK-32:           %[[VAL_5:.*]] = spirv.Load "Input" %[[VAL_4]] : vector<3xi32>
+// CHECK-32:           %[[VAL_6:.*]] = spirv.CompositeExtract %[[VAL_5]][1 : i32] : vector<3xi32>
+
+// CHECK-64:           %[[VAL_4:.*]] = spirv.mlir.addressof @__spirv_BuiltInWorkgroupId : !spirv.ptr<vector<3xi64>, Input>
+// CHECK-64:           %[[VAL_5:.*]] = spirv.Load "Input" %[[VAL_4]] : vector<3xi64>
+// CHECK-64:           %[[VAL_6:.*]] = spirv.CompositeExtract %[[VAL_5]][1 : i32] : vector<3xi64>
+  %1 = gen.work_group_id %cst_1
+// CHECK-32:           %[[VAL_7:.*]] = spirv.mlir.addressof @__spirv_BuiltInWorkgroupSize : !spirv.ptr<vector<3xi32>, Input>
+// CHECK-32:           %[[VAL_8:.*]] = spirv.Load "Input" %[[VAL_7]] : vector<3xi32>
+// CHECK-32:           %[[VAL_9:.*]] = spirv.CompositeExtract %[[VAL_8]][2 : i32] : vector<3xi32>
+
+// CHECK-64:           %[[VAL_7:.*]] = spirv.mlir.addressof @__spirv_BuiltInWorkgroupSize : !spirv.ptr<vector<3xi64>, Input>
+// CHECK-64:           %[[VAL_8:.*]] = spirv.Load "Input" %[[VAL_7]] : vector<3xi64>
+// CHECK-64:           %[[VAL_9:.*]] = spirv.CompositeExtract %[[VAL_8]][2 : i32] : vector<3xi64>
+  %2 = gen.work_group_size %cst_2
+// CHECK-32:           %[[VAL_10:.*]] = spirv.mlir.addressof @__spirv_BuiltInNumWorkgroups : !spirv.ptr<vector<3xi32>, Input>
+// CHECK-32:           %[[VAL_11:.*]] = spirv.Load "Input" %[[VAL_10]] : vector<3xi32>
+// CHECK-32:           %[[VAL_12:.*]] = spirv.CompositeExtract %[[VAL_11]][0 : i32] : vector<3xi32>
+
+// CHECK-64:           %[[VAL_10:.*]] = spirv.mlir.addressof @__spirv_BuiltInNumWorkgroups : !spirv.ptr<vector<3xi64>, Input>
+// CHECK-64:           %[[VAL_11:.*]] = spirv.Load "Input" %[[VAL_10]] : vector<3xi64>
+// CHECK-64:           %[[VAL_12:.*]] = spirv.CompositeExtract %[[VAL_11]][0 : i32] : vector<3xi64>
+  %3 = gen.num_work_groups %cst_0
+  func.return
+}
 }
