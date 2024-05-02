@@ -40,18 +40,19 @@ namespace experimental {
 constexpr auto empty_property_list =
     sycl::ext::oneapi::experimental::properties{};
 
-struct EmptyKernelPropertyStruct {
+struct KernelPropertiesStruct {
   static constexpr auto kernel_properties = empty_property_list;
 };
 
-template <int SubgroupSize> struct ReqdSubGroupSizeStruct {
+template <int SubgroupSize> struct ReqdSubGroupSizeStruct : KernelPropertiesStruct{
   static constexpr auto kernel_properties =
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::sub_group_size<SubgroupSize>};
 };
 
-struct ReqdSubGroupSize16 : ReqdSubGroupSizeStruct<16>;
-struct ReqdSubGroupSize8 : ReqdSubGroupSizeStruct<8>;
+struct EmptyKernelPropertyStruct : KernelPropertiesStruct{};
+struct ReqdSubGroupSize16 : ReqdSubGroupSizeStruct<16>{};
+struct ReqdSubGroupSize8 : ReqdSubGroupSizeStruct<8>{};
 
 } // namespace experimental
 } // namespace syclcompat

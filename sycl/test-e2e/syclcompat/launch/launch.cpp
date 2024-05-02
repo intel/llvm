@@ -30,6 +30,7 @@
 #include <syclcompat/device.hpp>
 #include <syclcompat/launch.hpp>
 #include <syclcompat/memory.hpp>
+#include <syclcompat/launch_experimental.hpp>
 
 #include "../common.hpp"
 #include "launch_fixt.hpp"
@@ -345,7 +346,7 @@ template <typename T> void test_memsize_no_arg_launch_q() {
 }
 
 template <typename T> void test_reqd_sg_size() {
-  namespace sc_exp = syclcompat::experimental;
+  using namespace syclcompat::experimental;
 
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
@@ -359,8 +360,8 @@ template <typename T> void test_reqd_sg_size() {
   T *h_a = (T *)syclcompat::malloc_host(ltt.memsize_ * sizeof(T));
   T *d_a = (T *)syclcompat::malloc(ltt.memsize_ * sizeof(T));
 
-  sc_exp::launch<reqd_sg_size_kernel<T>, sc_exp::ReqdSubGroupSize16>(
-    tt.grid_, ltt.thread_, modifier_val, ltt.memsize_, d_a
+  launch<reqd_sg_size_kernel<T>, ReqdSubGroupSize16>(
+    ltt.grid_, ltt.thread_, modifier_val, ltt.memsize_, d_a
   );
 
   syclcompat::wait_and_throw();
@@ -396,7 +397,7 @@ template <typename T> void test_reqd_sg_size_q() {
   T *h_a = (T *)syclcompat::malloc_host(ltt.memsize_ * sizeof(T), q);
   T *d_a = (T *)syclcompat::malloc(ltt.memsize_ * sizeof(T), q);
 
-  sc_exp::launch<reqd_sg_size_kernel<T>, sc_exp::ReqdSubGroupSize16>(
+  launch<reqd_sg_size_kernel<T>, ReqdSubGroupSize16>(
       ltt.grid_, ltt.thread_, q, modifier_val, ltt.memsize_, d_a);
 
   syclcompat::wait_and_throw();
