@@ -565,6 +565,25 @@ def ConvertGpuOpsToGENXOps : Pass<"convert-gpu-to-genx", "gpu::GPUModuleOp"> {
 }
 
 //===----------------------------------------------------------------------===//
+// GPUToLLVMSPV
+//===----------------------------------------------------------------------===//
+
+def ConvertGpuOpsToLLVMSPVOps : Pass<"convert-gpu-to-llvm-spv", "gpu::GPUModuleOp"> {
+  let summary =
+    "Generate LLVM operations to be ingested by a SPIR-V backend for gpu operations";
+  let dependentDialects = [
+    "LLVM::LLVMDialect",
+  ];
+  let options = [
+    Option<"indexBitwidth", "index-bitwidth", "unsigned",
+           /*default=kDeriveIndexBitwidthFromDataLayout*/"0",
+           "Bitwidth of the index type, 0 to use size of machine word">,
+    Option<"subgroupSize", "subgroup-size", "unsigned",
+           "16", "Subgroup size">,
+  ];
+}
+
+//===----------------------------------------------------------------------===//
 // GPUToNVVM
 //===----------------------------------------------------------------------===//
 

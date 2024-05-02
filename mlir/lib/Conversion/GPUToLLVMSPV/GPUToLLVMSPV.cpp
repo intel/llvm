@@ -1,0 +1,322 @@
+//===- GPUToLLVMSPV.cpp - Convert GPU kernel to LLVM dialect --------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include "mlir/Conversion/GPUToLLVMSPV/GPUToLLVMSPVPass.h"
+
+#include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
+#include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
+#include "mlir/Conversion/LLVMCommon/Pattern.h"
+#include "mlir/Conversion/LLVMCommon/TypeConverter.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
+#include "mlir/Dialect/LLVMIR/LLVMAttrs.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/Matchers.h"
+#include "mlir/IR/PatternMatch.h"
+#include "mlir/Pass/Pass.h"
+#include "mlir/Support/LLVM.h"
+#include "mlir/Transforms/DialectConversion.h"
+
+#include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/FormatVariadic.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_CONVERTGPUOPSTOLLVMSPVOPS
+#include "mlir/Conversion/Passes.h.inc"
+} // namespace mlir
+
+namespace {
+using namespace mlir;
+
+//===----------------------------------------------------------------------===//
+// Helper Functions
+//===----------------------------------------------------------------------===//
+
+LLVM::LLVMFuncOp lookupOrCreateSPIRVFn(gpu::GPUModuleOp moduleOp,
+                                       StringRef name,
+                                       ArrayRef<Type> paramTypes,
+                                       Type resultType) {
+  auto func = moduleOp.lookupSymbol<LLVM::LLVMFuncOp>(name);
+  if (!func) {
+    OpBuilder b(moduleOp.getBodyRegion());
+    func = b.create<LLVM::LLVMFuncOp>(
+        moduleOp->getLoc(), name,
+        LLVM::LLVMFunctionType::get(resultType, paramTypes));
+    func.setCConv(LLVM::cconv::CConv::SPIR_FUNC);
+  }
+  return func;
+}
+
+LLVM::CallOp createSPIRVBuiltinCall(Location loc,
+                                    ConversionPatternRewriter &rewriter,
+                                    LLVM::LLVMFuncOp func, ValueRange args) {
+  auto call = rewriter.create<LLVM::CallOp>(loc, func, args);
+  call.setCConv(func.getCConv());
+  return call;
+}
+
+//===----------------------------------------------------------------------===//
+// Barriers
+//===----------------------------------------------------------------------===//
+
+/// Replace `gpu.barrier` with an `llvm.call` to `barrier` with
+/// `CLK_LOCAL_MEM_FENCE` argument, indicating work-group memory scope:
+/// ```
+/// // gpu.barrier
+/// %c1 = llvm.mlir.constant(1: i32) : i32
+/// llvm.call spir_funccc @_Z7barrierj(%c1) : (i32) -> ()
+/// ```
+struct GPUBarrierConversion final
+    : public ConvertOpToLLVMPattern<gpu::BarrierOp> {
+  using ConvertOpToLLVMPattern<gpu::BarrierOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(gpu::BarrierOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    constexpr StringLiteral funcName = "_Z7barrierj";
+
+    auto moduleOp = op->getParentOfType<gpu::GPUModuleOp>();
+    Type flagTy = rewriter.getI32Type();
+    Type voidTy = rewriter.getType<LLVM::LLVMVoidType>();
+    LLVM::LLVMFuncOp func =
+        lookupOrCreateSPIRVFn(moduleOp, funcName, flagTy, voidTy);
+
+    // Value used by SPIR-V backend to represent `CLK_LOCAL_MEM_FENCE`.
+    // See `llvm/lib/Target/SPIRV/SPIRVBuiltins.td`.
+    constexpr int64_t localMemFenceFlag = 1;
+    Location loc = op->getLoc();
+    Value flag =
+        rewriter.create<LLVM::ConstantOp>(loc, flagTy, localMemFenceFlag);
+    rewriter.replaceOp(op, createSPIRVBuiltinCall(loc, rewriter, func, flag));
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// SPIR-V Builtins
+//===----------------------------------------------------------------------===//
+
+/// Replace `gpu.*` with an `llvm.call` to the corresponding SPIR-V builtin with
+/// a constant argument for the `dimension` attribute. Return type will depend
+/// on index width option:
+/// ```
+/// // %thread_id_y = gpu.thread_id y
+/// %c1 = llvm.mlir.constant(1: i32) : i32
+/// %0 = llvm.call spir_funccc @_Z12get_local_idj(%c1) : (i32) -> i64
+/// ```
+class LaunchConfigConversion : public ConvertToLLVMPattern {
+public:
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const final {
+    auto moduleOp = op->getParentOfType<gpu::GPUModuleOp>();
+    Type dimTy = rewriter.getI32Type();
+    Type indexTy = getTypeConverter()->getIndexType();
+    LLVM::LLVMFuncOp func =
+        lookupOrCreateSPIRVFn(moduleOp, funcName, dimTy, indexTy);
+
+    // Obtain dimension attribute
+    constexpr StringLiteral attrName = "dimension";
+    gpu::DimensionAttr dimAttr =
+        op->getAttrOfType<gpu::DimensionAttr>(attrName);
+    assert(dimAttr && "Expecting attribute");
+
+    Location loc = op->getLoc();
+    Value dim = rewriter.create<LLVM::ConstantOp>(
+        loc, dimTy, static_cast<int64_t>(dimAttr.getValue()));
+    rewriter.replaceOp(op, createSPIRVBuiltinCall(loc, rewriter, func, dim));
+    return success();
+  }
+
+protected:
+  LaunchConfigConversion(StringRef funcName, StringRef rootOpName,
+                         MLIRContext *context,
+                         const LLVMTypeConverter &typeConverter,
+                         PatternBenefit benefit)
+      : ConvertToLLVMPattern(rootOpName, context, typeConverter, benefit),
+        funcName(funcName) {}
+
+private:
+  StringRef funcName;
+};
+
+template <typename SourceOp>
+struct LaunchConfigOpConversion final : public LaunchConfigConversion {
+  static StringRef getFuncName();
+
+  explicit LaunchConfigOpConversion(const LLVMTypeConverter &typeConverter,
+                                    PatternBenefit benefit = 1)
+      : LaunchConfigConversion(getFuncName(), SourceOp::getOperationName(),
+                               &typeConverter.getContext(), typeConverter,
+                               benefit) {}
+};
+
+template <>
+StringRef LaunchConfigOpConversion<gpu::BlockIdOp>::getFuncName() {
+  return "_Z12get_group_idj";
+}
+
+template <>
+StringRef LaunchConfigOpConversion<gpu::GridDimOp>::getFuncName() {
+  return "_Z14get_num_groupsj";
+}
+
+template <>
+StringRef LaunchConfigOpConversion<gpu::BlockDimOp>::getFuncName() {
+  return "_Z14get_local_sizej";
+}
+
+template <>
+StringRef LaunchConfigOpConversion<gpu::ThreadIdOp>::getFuncName() {
+  return "_Z12get_local_idj";
+}
+
+template <>
+StringRef LaunchConfigOpConversion<gpu::GlobalIdOp>::getFuncName() {
+  return "_Z13get_global_idj";
+}
+
+//===----------------------------------------------------------------------===//
+// Shuffles
+//===----------------------------------------------------------------------===//
+
+/// Replace `gpu.shuffle` with an `llvm.call` to the corresponding SPIR-V
+/// builtin for `shuffleResult`, keeping `value` and `offset` arguments, and a
+/// `true` constant for the `valid` result type. Conversion will only take place
+/// if `width` is constant and equal to the `subgroup` pass option:
+/// ```
+/// // %0 = gpu.shuffle idx %value, %offset, %width : f64
+/// %0 = llvm.call spir_funccc @_Z17sub_group_shuffledj(%value, %offset)
+///     : (f64, i32) -> f64
+/// ```
+struct GPUShuffleConversion final
+    : public ConvertOpToLLVMPattern<gpu::ShuffleOp> {
+  using ConvertOpToLLVMPattern<gpu::ShuffleOp>::ConvertOpToLLVMPattern;
+
+  GPUShuffleConversion(unsigned subgroupSize,
+                       const LLVMTypeConverter &typeConverter,
+                       PatternBenefit benefit = 1)
+      : ConvertOpToLLVMPattern(typeConverter, benefit),
+        subgroupSize(subgroupSize) {}
+
+  static std::string getFuncName(gpu::ShuffleOp op) {
+    StringRef baseName = getBaseName(op.getMode());
+    StringRef typeMangling = getTypeMangling(op.getType(0));
+    return llvm::formatv("_Z{0}{1}{2}", baseName.size(), baseName,
+                         typeMangling);
+  }
+
+  LogicalResult
+  matchAndRewrite(gpu::ShuffleOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    auto shuffle = cast<gpu::ShuffleOp>(op);
+    llvm::APInt width;
+    if (!(matchPattern(shuffle.getWidth(), m_ConstantInt(&width)) &&
+          width == subgroupSize))
+      return failure();
+
+    std::string funcName = getFuncName(op);
+
+    auto moduleOp = op->getParentOfType<gpu::GPUModuleOp>();
+    Type valueType = adaptor.getValue().getType();
+    Type offsetType = adaptor.getOffset().getType();
+    Type resultType = valueType;
+    LLVM::LLVMFuncOp func = lookupOrCreateSPIRVFn(
+        moduleOp, funcName, {valueType, offsetType}, resultType);
+
+    Location loc = op->getLoc();
+    SmallVector<Value, 2> args{adaptor.getValue(), adaptor.getOffset()};
+    Value result =
+        createSPIRVBuiltinCall(loc, rewriter, func, args).getResult();
+    Value trueVal =
+        rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI1Type(), true);
+    rewriter.replaceOp(op, {result, trueVal});
+    return success();
+  }
+
+  static StringRef getBaseName(gpu::ShuffleMode mode) {
+    switch (mode) {
+    case gpu::ShuffleMode::IDX:
+      return "sub_group_shuffle";
+    case gpu::ShuffleMode::XOR:
+      return "sub_group_shuffle_xor";
+    case gpu::ShuffleMode::UP:
+      return "sub_group_shuffle_up";
+    case gpu::ShuffleMode::DOWN:
+      return "sub_group_shuffle_down";
+    }
+    llvm_unreachable("Unhandled shuffle mode");
+  }
+
+  static StringRef getTypeMangling(Type type) {
+    return TypeSwitch<Type, StringRef>(type)
+        .Case<Float32Type>([](auto) { return "fj"; })
+        .Case<Float64Type>([](auto) { return "dj"; })
+        .Case<IntegerType>([](IntegerType intTy) {
+          switch (intTy.getWidth()) {
+          case 32:
+            return "ij";
+          case 64:
+            return "lj";
+          }
+          llvm_unreachable("Invalid integer width");
+        });
+  }
+
+  unsigned subgroupSize;
+};
+
+//===----------------------------------------------------------------------===//
+// GPU To LLVM-SPV Pass.
+//===----------------------------------------------------------------------===//
+
+struct GPUToLLVMSPVConversionPass final
+    : public impl::ConvertGpuOpsToLLVMSPVOpsBase<GPUToLLVMSPVConversionPass> {
+  using Base::Base;
+
+  void runOnOperation() final {
+    MLIRContext *context = &getContext();
+    RewritePatternSet patterns(context);
+
+    LowerToLLVMOptions options(context);
+    if (indexBitwidth != kDeriveIndexBitwidthFromDataLayout)
+      options.overrideIndexBitwidth(indexBitwidth);
+
+    LLVMTypeConverter converter(context, options);
+    LLVMConversionTarget target(*context);
+
+    target.addIllegalDialect<gpu::GPUDialect>();
+    target.addLegalOp<gpu::YieldOp, gpu::GPUModuleOp, gpu::ModuleEndOp>();
+
+    populateGpuToLLVMSPVConversionPatterns(converter, patterns, subgroupSize);
+
+    if (failed(applyPartialConversion(getOperation(), target,
+                                      std::move(patterns))))
+      signalPassFailure();
+  }
+};
+} // namespace
+
+//===----------------------------------------------------------------------===//
+// GPU To LLVM-SPV Patterns.
+//===----------------------------------------------------------------------===//
+
+namespace mlir {
+void populateGpuToLLVMSPVConversionPatterns(LLVMTypeConverter &typeConverter,
+                                            RewritePatternSet &patterns,
+                                            unsigned subgroupSize) {
+  patterns.add<GPUBarrierConversion, LaunchConfigOpConversion<gpu::BlockIdOp>,
+               LaunchConfigOpConversion<gpu::GridDimOp>,
+               LaunchConfigOpConversion<gpu::BlockDimOp>,
+               LaunchConfigOpConversion<gpu::ThreadIdOp>,
+               LaunchConfigOpConversion<gpu::GlobalIdOp>>(typeConverter);
+
+  patterns.add<GPUShuffleConversion>(subgroupSize, typeConverter);
+}
+} // namespace mlir

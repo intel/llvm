@@ -37,6 +37,7 @@
 #include "mlir/Conversion/GENToSPIRV/GENToSPIRV.h"
 #include "mlir/Conversion/GPUCommon/GPUCommonPass.h"
 #include "mlir/Conversion/GPUToGENX/GPUToGENXPass.h"
+#include "mlir/Conversion/GPUToLLVMSPV/GPUToLLVMSPVPass.h"
 #include "mlir/Conversion/GPUToNVVM/GPUToNVVMPass.h"
 #include "mlir/Conversion/GPUToROCDL/GPUToROCDLPass.h"
 #include "mlir/Conversion/GPUToSPIRV/GPUToSPIRVPass.h"
