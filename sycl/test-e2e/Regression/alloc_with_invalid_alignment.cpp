@@ -2,14 +2,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-//==----- alloc_with_invalid_alignment.cpp - SYCL USM allocation test-----==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===--------------------------------------------------------------------===//
-
 #include <sycl/sycl.hpp>
 
 // Purpose of this test is to verify that when SYCL is backed by L0, the aligned
