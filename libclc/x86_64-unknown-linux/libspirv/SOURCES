@@ -17,5 +17,3 @@ math/rint.cl
 math/round.cl
 math/trunc.cl
 shared/helpers.ll
-workitem/get_global_id.cl
-workitem/get_global_size.cl
