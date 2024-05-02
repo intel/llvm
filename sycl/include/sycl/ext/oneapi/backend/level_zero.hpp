@@ -126,10 +126,6 @@ inline context make_context<backend::ext_oneapi_level_zero>(
 }
 
 namespace detail {
-inline std::vector<device> get_all_devices(sycl::platform p) {
-  return p.get_devices();
-}
-
 inline std::optional<sycl::device> find_matching_descendent_device(
     sycl::device d,
     const backend_input_t<backend::ext_oneapi_level_zero, device>
@@ -180,7 +176,7 @@ inline device make_device<backend::ext_oneapi_level_zero>(
     if (p.get_backend() != backend::ext_oneapi_level_zero)
       continue;
 
-    for (auto d : detail::get_all_devices(p)) {
+    for (auto d : p.get_devices()) {
       if (auto maybe_device = find_matching_descendent_device(d, BackendObject))
         return *maybe_device;
     }
