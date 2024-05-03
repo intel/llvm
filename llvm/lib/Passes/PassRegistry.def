@@ -158,6 +158,7 @@ MODULE_PASS("sycl-add-opt-level-attribute", SYCLAddOptLevelAttributePass())
 MODULE_PASS("compile-time-properties", CompileTimePropertiesPass())
 MODULE_PASS("cleanup-sycl-metadata", CleanupSYCLMetadataPass())
 MODULE_PASS("lower-slm-reservation-calls", ESIMDLowerSLMReservationCalls())
+MODULE_PASS("add-aspect-names", AddAspectNamesPass())
 #undef MODULE_PASS
 
 #ifndef MODULE_PASS_WITH_PARAMS

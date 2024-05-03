@@ -54,6 +54,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ESIMD/ESIMDRemoveOptnoneNoinline.cpp
   ESIMD/LowerESIMD.cpp
   ESIMD/LowerESIMDKernelAttrs.cpp
+  AddAspectNames.cpp
   CleanupSYCLMetadata.cpp
   CompileTimePropertiesPass.cpp
   DeviceGlobals.cpp
