@@ -6261,8 +6261,8 @@ class OffloadingActionBuilder final {
     /// Reads device config file to find information about the SYCL targets in
     /// `Targets`, and defines device traits macros accordingly.
     void populateSYCLDeviceTraitsMacrosArgs(
-        Compilation &C, DerivedArgList &Args,
-        SmallVector<DeviceTargetInfo, 4> &Targets) const {
+        Compilation &C, const DerivedArgList &Args,
+        const SmallVector<DeviceTargetInfo, 4> &Targets) const {
       if (Targets.empty())
         return;
 
