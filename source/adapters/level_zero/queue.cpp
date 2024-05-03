@@ -1514,8 +1514,7 @@ ur_queue_handle_t_::resetDiscardedEvent(ur_command_list_ptr_t CommandList) {
 }
 
 ur_result_t ur_queue_handle_t_::addEventToQueueCache(ur_event_handle_t Event) {
-  if (!Event->IsMultiDevice && Event->UrQueue) {
-    auto Device = Event->UrQueue->Device;
+  if (!Event->IsMultiDevice) {
     auto EventCachesMap = Event->isHostVisible() ? &EventCachesDeviceMap[0]
                                                  : &EventCachesDeviceMap[1];
     if (EventCachesMap->find(Device) == EventCachesMap->end()) {
