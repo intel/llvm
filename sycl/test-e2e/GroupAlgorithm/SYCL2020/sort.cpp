@@ -248,7 +248,7 @@ void RunJointSort(sycl::queue &Q, const std::vector<T> &DataToSort,
 }
 
 template <UseGroupT UseGroup, int Dims, class T, class U, class Compare>
-void RunSortKeyValueOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
+void RunSortKeyValueOverGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
                               const std::vector<U> &KeysToSort,
                               const Compare &Comp) {
 
@@ -374,42 +374,33 @@ void RunSortKeyValueOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
              std::byte *ScratchPtrDefault =
                  &ScratchDefault[0] + ScratchShiftDefault;
 
-             // TODO: Remove spans?
              if constexpr (std::is_same_v<Compare, std::less<T>>)
-               oneapi_exp::sort_key_value_over_group(
-                   oneapi_exp::group_with_scratchpad(
-                       Group,
-                       sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
-                   sycl::span<U, /*ElementsPerWorkItem*/ 1>{
-                       &AccKeysToSort0[GlobalLinearID],
-                       &AccKeysToSort0[GlobalLinearID] + 1},
-                   sycl::span<T, /*ElementsPerWorkItem*/ 1>{
-                       &AccDataToSort0[GlobalLinearID],
-                       &AccDataToSort0[GlobalLinearID] + 1}); // (4)
+               std::tie(AccKeysToSort0[GlobalLinearID],
+                        AccDataToSort0[GlobalLinearID]) =
+                   oneapi_exp::sort_key_value_over_group(
+                       oneapi_exp::group_with_scratchpad(
+                           Group, sycl::span{ScratchPtrDefault,
+                                             LocalMemorySizeDefault}),
+                       AccKeysToSort0[GlobalLinearID],
+                       AccDataToSort0[GlobalLinearID]); // (4)
 
-             oneapi_exp::sort_key_value_over_group(
-                 oneapi_exp::group_with_scratchpad(
-                     Group,
-                     sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
-                 sycl::span<U, /*ElementsPerWorkItem*/ 1>{
-                     &AccKeysToSort1[GlobalLinearID],
-                     &AccKeysToSort1[GlobalLinearID] + 1},
-                 sycl::span<T, /*ElementsPerWorkItem*/ 1>{
-                     &AccDataToSort1[GlobalLinearID],
-                     &AccDataToSort1[GlobalLinearID] + 1},
-                 Comp, {}); // (5)
+             std::tie(AccKeysToSort1[GlobalLinearID],
+                      AccDataToSort1[GlobalLinearID]) =
+                 oneapi_exp::sort_key_value_over_group(
+                     oneapi_exp::group_with_scratchpad(
+                         Group,
+                         sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
+                     AccKeysToSort1[GlobalLinearID],
+                     AccDataToSort1[GlobalLinearID], Comp); // (5)
 
-             oneapi_exp::sort_key_value_over_group(
-                 Group,
-                 sycl::span<U, /*ElementsPerWorkItem*/ 1>{
-                     &AccKeysToSort2[GlobalLinearID],
-                     &AccKeysToSort2[GlobalLinearID] + 1},
-                 sycl::span<T, /*ElementsPerWorkItem*/ 1>{
-                     &AccDataToSort2[GlobalLinearID],
-                     &AccDataToSort2[GlobalLinearID] + 1},
-                 oneapi_exp::default_sorters::group_key_value_sorter<
-                     T, U, Compare, /*ElementsPerWorkItem*/ 1>(sycl::span{
-                     ScratchPtrDefault, LocalMemorySizeDefault})); // (6)
+             std::tie(AccKeysToSort2[GlobalLinearID],
+                      AccDataToSort2[GlobalLinearID]) =
+                 oneapi_exp::sort_key_value_over_group(
+                     Group, AccKeysToSort2[GlobalLinearID],
+                     AccDataToSort2[GlobalLinearID],
+                     oneapi_exp::default_sorters::group_key_value_sorter<
+                         T, U, Compare, /*ElementsPerWorkItem*/ 1>(sycl::span{
+                         ScratchPtrDefault, LocalMemorySizeDefault})); // (6)
 
              // Each sub-group should use it's own part of the scratch pad
              const size_t ScratchShiftRadix =
@@ -419,18 +410,16 @@ void RunSortKeyValueOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
                      : 0;
              std::byte *ScratchPtrRadix = &ScratchRadix[0] + ScratchShiftRadix;
 
-             /* // Radix doesn't support custom types */
+             // Radix doesn't support custom types
              if constexpr (!std::is_same_v<CustomType, T>)
-               oneapi_exp::sort_key_value_over_group(
-                   Group,
-                   sycl::span<U, /*ElementsPerWorkItem*/ 1>{
-                       &AccKeysToSort3[GlobalLinearID],
-                       &AccKeysToSort3[GlobalLinearID] + 1},
-                   sycl::span<T, /*ElementsPerWorkItem*/ 1>{
-                       &AccDataToSort3[GlobalLinearID],
-                       &AccDataToSort3[GlobalLinearID] + 1},
-                   RadixSorterT(sycl::span{ScratchPtrRadix,
-                                           LocalMemorySizeRadix})); // (6) radix
+               std::tie(AccKeysToSort3[GlobalLinearID],
+                        AccDataToSort3[GlobalLinearID]) =
+                   oneapi_exp::sort_key_value_over_group(
+                       Group, AccKeysToSort3[GlobalLinearID],
+                       AccDataToSort3[GlobalLinearID],
+                       RadixSorterT(
+                           sycl::span{ScratchPtrRadix,
+                                      LocalMemorySizeRadix})); // (6) radix
            });
      }).wait_and_throw();
   }
@@ -668,9 +657,9 @@ template <class T> void RunOverType(sycl::queue &Q, size_t DataSize) {
     RunJointSort<UseGroupT::WorkGroup, 1>(Q, Data, Comparator);
     RunJointSort<UseGroupT::WorkGroup, 2>(Q, Data, Comparator);
 
-    RunSortKeyValueOVerGroup<UseGroupT::WorkGroup, 1>(Q, Data, Keys,
+    RunSortKeyValueOverGroup<UseGroupT::WorkGroup, 1>(Q, Data, Keys,
                                                       Comparator);
-    RunSortKeyValueOVerGroup<UseGroupT::WorkGroup, 2>(Q, Data, Keys,
+    RunSortKeyValueOverGroup<UseGroupT::WorkGroup, 2>(Q, Data, Keys,
                                                       Comparator);
 
     if (Q.get_backend() == sycl::backend::ext_oneapi_cuda ||

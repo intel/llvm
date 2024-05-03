@@ -462,15 +462,10 @@ public:
     T key_result[]{key};
     U val_result[]{val};
 #ifdef __SYCL_DEVICE_ONLY__
-
-#if 0
     sycl::detail::privateStaticSort<
         /*is_key_value=*/true,
-        /*is_blocked=*/true, 1, bits>(
-        g, key_result, val_result, Order == sorting_order::ascending,
-        scratch, sycl::detail::Builder::getNDItem<Group::dimensions>(),
-        first_bit, last_bit);
-#endif
+        /*is_blocked=*/true, Order == sorting_order::ascending, 1, bits>(
+        g, key_result, val_result, scratch, first_bit, last_bit);
 #endif
     key = key_result[0];
     val = val_result[0];
