@@ -105,13 +105,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     "https://github.com/oneapi-src/unified-runtime.git"
-    # commit 9990d448081dc984c99807362532927db8c6e1b4
-    # Merge: fb342f06 112089ff
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri May 3 11:58:30 2024 +0100
-    #     Merge pull request #1555 from pbalcer/fix-enqueue-wait-barrier
-    #     stop batching multiple CmdList execution when waiting for barriers
-    9990d448081dc984c99807362532927db8c6e1b4
+    e7e8db67f95688ec630e881aef688c5d75f9e8c5
   )
 
   fetch_adapter_source(opencl
