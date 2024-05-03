@@ -426,47 +426,51 @@ void RunSortKeyValueOverGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
 
   // Verification
   {
+    std::vector<std::pair<T, T>> KeyDataToSort;
+    KeyDataToSort.reserve(KeysToSort.size());
+    std::transform(KeysToSort.begin(), KeysToSort.end(), DataToSort.begin(),
+                   std::back_inserter(KeyDataToSort),
+                   [](T Key, T Value) { return std::make_pair(Key, Value); });
     // Emulate independent sorting of each work-group/sub-group
     const size_t ChunkSize = UseGroup == UseGroupT::SubGroup
                                  ? ReqSubGroupSize
                                  : NDRange.get_local_range().size();
-    std::vector<T> KeysSorted = KeysToSort;
-    auto It = KeysSorted.begin();
-    for (; (It + ChunkSize) < KeysSorted.end(); It += ChunkSize)
-      std::sort(It, It + ChunkSize, Comp);
+    auto It = KeyDataToSort.begin();
+    auto KeyValueComp = [&](const std::pair<T, T> &A,
+                            const std::pair<T, T> &B) -> bool {
+      return Comp(A.first, B.first);
+    };
+    for (; (It + ChunkSize) < KeyDataToSort.end(); It += ChunkSize)
+      std::stable_sort(It, It + ChunkSize, KeyValueComp);
 
-    // Sort reminder
-    std::sort(It, KeysSorted.end(), Comp);
+    // Sort remainder
+    std::stable_sort(It, KeyDataToSort.end(), KeyValueComp);
 
-    // TODO: Check data as well
+    std::vector<T> KeysSorted, DataSorted;
+    KeysSorted.reserve(KeyDataToSort.size());
+    DataSorted.reserve(KeyDataToSort.size());
+    std::transform(
+        KeyDataToSort.begin(), KeyDataToSort.end(),
+        std::back_inserter(KeysSorted),
+        [](const std::pair<T, T> &KeyValue) { return KeyValue.first; });
+    std::transform(
+        KeyDataToSort.begin(), KeyDataToSort.end(),
+        std::back_inserter(DataSorted),
+        [](const std::pair<T, T> &KeyValue) { return KeyValue.second; });
 
-    /* std::cout << "Reference data: " << std::endl; */
-    /* for(auto &El: KeysSorted) */
-    /*     std::cout << El << " "; */
-    /* std::cout << std::endl; */
-
-    /* std::cout << "DataToSortCase0 data: " << std::endl; */
-    /* for(auto &El: DataToSortCase0) */
-    /*     std::cout << El << " "; */
-    /* std::cout << std::endl; */
-
-    /* std::cout << "KeysToSortCase0 data: " << std::endl; */
-    /* for(auto &El: KeysToSortCase0) */
-    /*     std::cout << El << " "; */
-    /* std::cout << std::endl; */
-
-    /* std::cout << "InputData data: " << std::endl; */
-    /* for(auto &El: DataToSort) */
-    /*     std::cout << El << " "; */
-    /* std::cout << std::endl; */
-
-    if constexpr (std::is_same_v<Compare, std::less<T>>)
+    if constexpr (std::is_same_v<Compare, std::less<T>>) {
       assert(KeysToSortCase0 == KeysSorted);
+      assert(DataToSortCase0 == DataSorted);
+    }
 
     assert(KeysToSortCase1 == KeysSorted);
+    assert(DataToSortCase1 == DataSorted);
     assert(KeysToSortCase2 == KeysSorted);
-    if constexpr (!std::is_same_v<CustomType, T>)
+    assert(DataToSortCase2 == DataSorted);
+    if constexpr (!std::is_same_v<CustomType, T>) {
       assert(KeysToSortCase3 == KeysSorted);
+      assert(DataToSortCase3 == DataSorted);
+    }
   }
 }
 
