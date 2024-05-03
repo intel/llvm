@@ -158,8 +158,6 @@ template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
 class SwizzleOp;
 
-template <typename T, int N, typename V = void> struct VecStorage;
-
 // Element type for relational operator return value.
 template <typename DataT>
 using rel_t = typename std::conditional_t<
@@ -186,174 +184,6 @@ template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernel;
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernelWithKH;
-
-// Vectors of size 1 are handled separately and therefore 1 is not included in
-// the check below.
-constexpr bool isValidVectorSize(int N) {
-  return N == 2 || N == 3 || N == 4 || N == 8 || N == 16;
-}
-template <typename T, int N, typename V> struct VecStorage {
-  static_assert(
-      isValidVectorSize(N) || N == 1,
-      "Incorrect number of elements for sycl::vec: only 1, 2, 3, 4, 8 "
-      "or 16 are supported");
-  static_assert(!std::is_same_v<V, void>, "Incorrect data type for sycl::vec");
-};
-
-#ifdef __SYCL_DEVICE_ONLY__
-// device always has ext vector support, but for huge vectors
-// we switch to std::array, so that we can use a smaller alignment (64)
-// this is to support MSVC, which has a max of 64 for direct params.
-template <typename T, int N> struct VecStorageImpl {
-  static constexpr size_t Num = (N == 3) ? 4 : N;
-  static constexpr size_t Sz = Num * sizeof(T);
-
-  using DataType = std::array<T, (N == 3) ? 4 : N>;
-  using VectorDataType = T __attribute__((ext_vector_type(N)));
-};
-#else  // __SYCL_DEVICE_ONLY__
-template <typename T, int N> struct VecStorageImpl {
-  using DataType = std::array<T, (N == 3) ? 4 : N>;
-};
-#endif // __SYCL_DEVICE_ONLY__
-
-// Single element bool
-template <> struct VecStorage<bool, 1, void> {
-  using DataType = bool;
-#ifdef __SYCL_DEVICE_ONLY__
-  using VectorDataType = bool;
-#endif // __SYCL_DEVICE_ONLY__
-};
-
-// Multiple element bool
-template <int N>
-struct VecStorage<bool, N, typename std::enable_if_t<isValidVectorSize(N)>> {
-  using DataType =
-      typename VecStorageImpl<select_apply_cl_t<bool, std::int8_t, std::int16_t,
-                                                std::int32_t, std::int64_t>,
-                              N>::DataType;
-#ifdef __SYCL_DEVICE_ONLY__
-  using VectorDataType =
-      typename VecStorageImpl<select_apply_cl_t<bool, std::int8_t, std::int16_t,
-                                                std::int32_t, std::int64_t>,
-                              N>::VectorDataType;
-#endif // __SYCL_DEVICE_ONLY__
-};
-
-#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-// Single element byte. Multiple elements will propagate through a later
-// specialization.
-template <> struct VecStorage<std::byte, 1, void> {
-  using DataType = std::int8_t;
-#ifdef __SYCL_DEVICE_ONLY__
-  using VectorDataType = std::int8_t;
-#endif // __SYCL_DEVICE_ONLY__
-};
-#endif // (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-
-// Single element signed integers
-template <typename T>
-struct VecStorage<T, 1, typename std::enable_if_t<is_sigeninteger_v<T>>> {
-  using DataType = T;
-#ifdef __SYCL_DEVICE_ONLY__
-  using VectorDataType = DataType;
-#endif // __SYCL_DEVICE_ONLY__
-};
-
-// Single element unsigned integers
-template <typename T>
-struct VecStorage<T, 1, typename std::enable_if_t<is_sugeninteger_v<T>>> {
-  using DataType = T;
-#ifdef __SYCL_DEVICE_ONLY__
-  using VectorDataType = DataType;
-#endif // __SYCL_DEVICE_ONLY__
-};
-
-// Single element floating-point (except half/bfloat16)
-template <typename T>
-struct VecStorage<
-    T, 1,
-    typename std::enable_if_t<!is_half_or_bf16_v<T> && is_sgenfloat_v<T>>> {
-  using DataType = T;
-#ifdef __SYCL_DEVICE_ONLY__
-  using VectorDataType = DataType;
-#endif // __SYCL_DEVICE_ONLY__
-};
-// Multiple elements signed/unsigned integers and floating-point (except
-// half/bfloat16)
-template <typename T, int N>
-struct VecStorage<
-    T, N,
-    typename std::enable_if_t<isValidVectorSize(N) &&
-                              (is_sgeninteger_v<T> ||
-                               (is_sgenfloat_v<T> && !is_half_or_bf16_v<T>))>> {
-  using DataType =
-      typename VecStorageImpl<typename VecStorage<T, 1>::DataType, N>::DataType;
-#ifdef __SYCL_DEVICE_ONLY__
-  using VectorDataType =
-      typename VecStorageImpl<typename VecStorage<T, 1>::DataType,
-                              N>::VectorDataType;
-#endif // __SYCL_DEVICE_ONLY__
-};
-
-// Single element half
-template <> struct VecStorage<half, 1, void> {
-  using DataType = sycl::detail::half_impl::StorageT;
-#ifdef __SYCL_DEVICE_ONLY__
-  using VectorDataType = sycl::detail::half_impl::StorageT;
-#endif // __SYCL_DEVICE_ONLY__
-};
-
-// Multiple elements half
-#ifdef __SYCL_DEVICE_ONLY__
-#define __SYCL_DEFINE_HALF_VECSTORAGE(Num)                                     \
-  template <> struct VecStorage<half, Num, void> {                             \
-    using DataType = std::array<sycl::half, (Num == 3)?4:Num>;                 \
-    using VectorDataType = sycl::detail::half_impl::VecElemT                   \
-        __attribute__((ext_vector_type(Num)));                                 \
-  };
-#else // __SYCL_DEVICE_ONLY__
-#define __SYCL_DEFINE_HALF_VECSTORAGE(Num)                                     \
-  template <> struct VecStorage<half, Num, void> {                             \
-    using DataType = std::array<sycl::half, Num>;                              \
-  };
-#endif // __SYCL_DEVICE_ONLY__
-
-__SYCL_DEFINE_HALF_VECSTORAGE(2)
-__SYCL_DEFINE_HALF_VECSTORAGE(3)
-__SYCL_DEFINE_HALF_VECSTORAGE(4)
-__SYCL_DEFINE_HALF_VECSTORAGE(8)
-__SYCL_DEFINE_HALF_VECSTORAGE(16)
-#undef __SYCL_DEFINE_HALF_VECSTORAGE
-
-// Single element bfloat16
-template <> struct VecStorage<sycl::ext::oneapi::bfloat16, 1, void> {
-  using DataType = sycl::ext::oneapi::detail::Bfloat16StorageT;
-  // using VectorDataType = sycl::ext::oneapi::bfloat16;
-  using VectorDataType = sycl::ext::oneapi::detail::Bfloat16StorageT;
-};
-// Multiple elements bfloat16
-#ifndef __SYCL_DEVICE_ONLY__
-#define __SYCL_DEFINE_BF16_VECSTORAGE(Num)                                     \
-  template <> struct VecStorage<sycl::ext::oneapi::bfloat16, Num, void> {      \
-    using DataType =                                                           \
-        std::array<sycl::ext::oneapi::detail::Bfloat16StorageT, Num>;          \
-  };
-#else
-#define __SYCL_DEFINE_BF16_VECSTORAGE(Num)                                     \
-  template <> struct VecStorage<sycl::ext::oneapi::bfloat16, Num, void> {      \
-    using DataType =                                                           \
-        std::array<sycl::ext::oneapi::detail::Bfloat16StorageT, (Num==3)?4:Num>;    \
-    using VectorDataType = sycl::ext::oneapi::detail::Bfloat16StorageT         \
-        __attribute__((ext_vector_type(Num)));                                 \
-  };
-#endif
-__SYCL_DEFINE_BF16_VECSTORAGE(2)
-__SYCL_DEFINE_BF16_VECSTORAGE(3)
-__SYCL_DEFINE_BF16_VECSTORAGE(4)
-__SYCL_DEFINE_BF16_VECSTORAGE(8)
-__SYCL_DEFINE_BF16_VECSTORAGE(16)
-#undef __SYCL_DEFINE_BF16_VECSTORAGE
 } // namespace detail
 
 template <typename T> using vec_data = detail::vec_helper<T>;
@@ -361,31 +191,74 @@ template <typename T> using vec_data = detail::vec_helper<T>;
 template <typename T>
 using vec_data_t = typename detail::vec_helper<T>::RetType;
 
+// data_type_single_t = T for all types except half, bfloat16, std::byte.
+template <typename T>
+using data_type_single_t = typename std::conditional_t<
+    // half
+    std::is_same_v<T, half>, sycl::detail::half_impl::StorageT, std::conditional_t<
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+    // std::byte
+    std::is_same_v<T, std::byte>, std::int8_t, typename std::conditional_t<
+#else
+    false, T, typename std::conditional_t<
+#endif
+    // bfloat16
+    std::is_same_v<T, sycl::ext::oneapi::bfloat16>, sycl::ext::oneapi::detail::Bfloat16StorageT,
+    T>>>;
+
+template <typename T, int N>
+using data_type_multiple_t = typename std::conditional_t<
+    // bool
+    std::is_same_v<T, bool>, std::array<int8_t, N>,
+    std::array<data_type_single_t<T>, N>
+    >;
+
+#ifdef __SYCL_DEVICE_ONLY__
+template <typename T>
+using vector_t_single = data_type_single_t<T>;
+
+template <typename T, int N>
+using vector_t_multiple = typename std::conditional_t<
+    std::is_same_v<T, bool>, int8_t __attribute__((ext_vector_type(N))),
+    vector_t_single<T> __attribute__((ext_vector_type(N)))>;
+#endif
+
 ///////////////////////// class sycl::vec /////////////////////////
 /// Provides a cross-patform vector class template that works efficiently on
 /// SYCL devices as well as in host C++ code.
 ///
 /// \ingroup sycl_api
 template <typename Type, int NumElements> class vec {
+
+  static_assert( NumElements == 1 || NumElements == 2 || NumElements == 3 ||
+                     NumElements == 4 || NumElements == 8 || NumElements == 16,
+                 "Invalid number of elements for sycl::vec: only 1, 2, 3, 4, 8 "
+                 "or 16 are supported");
+  static_assert (sizeof(bool) == sizeof(int8_t), "bool size is not 1 byte");
+
   using DataT = Type;
+  static constexpr size_t AdjustedNum = (NumElements == 3) ? 4 : NumElements;
 
   // This represent type of underlying value. There should be only one field
   // in the class, so vec<float, 16> should be equal to float16 in memory.
-  using DataType = typename detail::VecStorage<DataT, NumElements>::DataType;
+  using DataType = typename std::conditional_t<
+      AdjustedNum == 1, data_type_single_t<DataT>,
+      data_type_multiple_t<DataT, AdjustedNum>>;
 
+public:
+#ifdef __SYCL_DEVICE_ONLY__
+  // Type used for passing sycl::vec to SPIRV builtins.
+  using vector_t = typename std::conditional_t<
+      AdjustedNum == 1, vector_t_single<DataT>, vector_t_multiple<DataT, AdjustedNum>>;
+#endif // __SYCL_DEVICE_ONLY__
+
+private:
   static constexpr bool IsBfloat16 =
       std::is_same_v<DataT, sycl::ext::oneapi::bfloat16>;
 
-  static constexpr size_t AdjustedNum = (NumElements == 3) ? 4 : NumElements;
   static constexpr size_t Sz = sizeof(DataT) * AdjustedNum;
   static constexpr bool IsSizeGreaterThanMaxAlign =
       (Sz > detail::MaxVecAlignment);
-
-#ifdef __SYCL_DEVICE_ONLY__
-  static constexpr bool IsUsingArrayOnHost = false; // not compiling for host.
-#else
-  static constexpr bool IsUsingArrayOnHost = true; // host always std::array.
-#endif
 
   static constexpr int getNumElements() { return NumElements; }
 
@@ -548,11 +421,6 @@ public:
   using element_type = DataT;
   using value_type = DataT;
   using rel_t = detail::rel_t<DataT>;
-#ifdef __SYCL_DEVICE_ONLY__
-  // Type used for passing sycl::vec to SPIRV builtins.
-  using vector_t =
-      typename detail::VecStorage<DataT, NumElements>::VectorDataType;
-#endif // __SYCL_DEVICE_ONLY__
 
   vec() = default;
 
