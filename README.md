@@ -13,7 +13,6 @@
 ## Table of contents
 
 - [Unified Runtime](#unified-runtime)
-  - [Adapters](#adapters)
   - [Table of contents](#table-of-contents)
   - [Contents of the repo](#contents-of-the-repo)
   - [Integration](#integration)
@@ -29,7 +28,7 @@
     - [Adapter naming convention](#adapter-naming-convention)
     - [Source code generation](#source-code-generation)
     - [Documentation](#documentation)
-6. [Release Process](#release-process)
+  - [Release Process](#release-process)
 
 ## Contents of the repo
 
