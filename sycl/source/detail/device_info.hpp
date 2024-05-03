@@ -2311,7 +2311,8 @@ get_device_info_host<
 // given by Dev. First it calls getProgressGuarantee to get the strongest
 // guarantee available and then calls getProgressGuaranteesUpTo to get a list of
 // all guarantees that are either equal to the strongest guarantee or weaker
-// than it. The next 5 definitions follow the same model but for different scopes.
+// than it. The next 5 definitions follow the same model but for different
+// scopes.
 template <typename ReturnT>
 struct get_device_info_impl<
     ReturnT,

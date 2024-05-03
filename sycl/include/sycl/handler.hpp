@@ -940,9 +940,9 @@ private:
   }
 
   void verifyDeviceHasProgressGuarantee(
-      sycl::ext::oneapi::experimental::forward_progress_guarantee Guarantee,
+      sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
       sycl::ext::oneapi::experimental::execution_scope threadScope,
-      sycl::ext::oneapi::experimental::execution_scope CoordinationScope);
+      sycl::ext::oneapi::experimental::execution_scope coordinationScope);
 
   template <
       typename PropertyT,

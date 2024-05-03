@@ -1465,15 +1465,15 @@ checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
 }
 
 void handler::verifyDeviceHasProgressGuarantee(
-    sycl::ext::oneapi::experimental::forward_progress_guarantee Guarantee,
+    sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
     sycl::ext::oneapi::experimental::execution_scope threadScope,
-    sycl::ext::oneapi::experimental::execution_scope CoordinationScope) {
+    sycl::ext::oneapi::experimental::execution_scope coordinationScope) {
   using execution_scope = sycl::ext::oneapi::experimental::execution_scope;
   using forward_progress =
       sycl::ext::oneapi::experimental::forward_progress_guarantee;
   auto deviceImplPtr = MQueue->getDeviceImplPtr();
   const bool supported = deviceImplPtr->supportsForwardProgress(
-      Guarantee, threadScope, CoordinationScope);
+      guarantee, threadScope, coordinationScope);
   if (threadScope == execution_scope::work_group) {
     if (!supported) {
       throw sycl::exception(
@@ -1490,7 +1490,7 @@ void handler::verifyDeviceHasProgressGuarantee(
     // concurrent. Same reasoning applies for sub_group but not for work_item.
     // TODO: Further design work is probably needed to reflect this behavior in
     // Unified Runtime.
-    if (Guarantee == forward_progress::concurrent)
+    if (guarantee == forward_progress::concurrent)
       setKernelIsCooperative(true);
   } else if (threadScope == execution_scope::sub_group) {
     if (!supported) {
@@ -1499,7 +1499,7 @@ void handler::verifyDeviceHasProgressGuarantee(
                             "supported by this device.");
     }
     // Same reasoning as above.
-    if (Guarantee == forward_progress::concurrent)
+    if (guarantee == forward_progress::concurrent)
       setKernelIsCooperative(true);
   } else { // threadScope is execution_scope::work_item otherwise undefined
            // behavior
