@@ -110,11 +110,12 @@ class TargetInfo<string targetName, list<Aspect> aspectList, list<int> subGroupS
 // This definition serves the only purpose of testing whether the aspect list defined in here and in SYCL RT match.
 def : TargetInfo<"__TestAspectList",
     [AspectCpu, AspectGpu, AspectAccelerator, AspectCustom, AspectFp16, AspectFp64, AspectImage, AspectOnline_compiler, 
-    AspectOnline_linker, AspectQueue_profiling, AspectExt_intel_pci_address,
+    AspectOnline_linker, AspectQueue_profiling, AspectUsm_device_allocations, AspectUsm_host_allocations,
+    AspectUsm_shared_allocations, AspectUsm_system_allocations, AspectExt_intel_pci_address,
     AspectExt_intel_gpu_eu_count, AspectExt_intel_gpu_eu_simd_width, AspectExt_intel_gpu_slices,
     AspectExt_intel_gpu_subslices_per_slice, AspectExt_intel_gpu_eu_count_per_subslice,
     AspectExt_intel_max_mem_bandwidth, AspectExt_intel_mem_channel, AspectUsm_atomic_host_allocations,
-    AspectAtomic64, AspectExt_intel_device_info_uuid, AspectExt_oneapi_srgb,
+    AspectUsm_atomic_shared_allocations, AspectAtomic64, AspectExt_intel_device_info_uuid, AspectExt_oneapi_srgb,
     AspectExt_oneapi_native_assert, AspectHost_debuggable, AspectExt_intel_gpu_hw_threads_per_eu,
     AspectExt_oneapi_cuda_async_barrier, AspectExt_oneapi_bfloat16_math_functions, AspectExt_intel_free_memory,
     AspectExt_intel_device_id, AspectExt_intel_memory_clock_rate, AspectExt_intel_memory_bus_width, AspectEmulated,
@@ -128,7 +129,7 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_oneapi_tangle_group, AspectExt_intel_matrix, AspectExt_oneapi_is_composite, AspectExt_oneapi_is_component,
     AspectExt_oneapi_graph, AspectExt_intel_fpga_task_sequence, AspectExt_oneapi_limited_graph,
     AspectExt_oneapi_private_alloca],
-    []>;
+[]>;
 // This definition serves the only purpose of testing whether the deprecated aspect list defined in here and in SYCL RT
 // match.
 def : TargetInfo<"__TestDeprecatedAspectList",
