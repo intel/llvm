@@ -10594,13 +10594,11 @@ static void addArgs(ArgStringList &DstArgs, const llvm::opt::ArgList &Alloc,
   }
 }
 
-static void getOtherSYCLPostLinkOpts(const ToolChain &TC,
-                                     const JobAction &JA,
+static void getOtherSYCLPostLinkOpts(const ToolChain &TC, const JobAction &JA,
                                      const llvm::opt::ArgList &TCArgs,
                                      llvm::Triple Triple,
                                      ArgStringList &PostLinkArgs,
-                                     bool SpecConsts,
-                                     types::ID OutputType) {
+                                     bool SpecConsts, types::ID OutputType) {
   // See if device code splitting is requested
   if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_device_code_split_EQ)) {
     auto CodeSplitValue = StringRef(A->getValue());
@@ -10624,8 +10622,7 @@ static void getOtherSYCLPostLinkOpts(const ToolChain &TC,
   // TODO: Try to extend this feature for non-Intel GPUs.
   if (!TCArgs.hasFlag(options::OPT_fno_sycl_remove_unused_external_funcs,
                       options::OPT_fsycl_remove_unused_external_funcs, false) &&
-      !Triple.isNVPTX() && !Triple.isAMDGPU() &&
-      !isSYCLNativeCPU(TC))
+      !Triple.isNVPTX() && !Triple.isAMDGPU() && !isSYCLNativeCPU(TC))
     addArgs(PostLinkArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 
   // OPT_fsycl_device_code_split is not checked as it is an alias to
@@ -10671,7 +10668,8 @@ static void getOtherSYCLPostLinkOpts(const ToolChain &TC,
                      options::OPT_fno_sycl_add_default_spec_consts_image,
                      false) &&
       isAOT)
-    addArgs(PostLinkArgs, TCArgs, {"-generate-device-image-default-spec-consts"});
+    addArgs(PostLinkArgs, TCArgs,
+            {"-generate-device-image-default-spec-consts"});
 
   // Process device-globals.
   addArgs(PostLinkArgs, TCArgs, {"-device-globals"});
@@ -10689,10 +10687,10 @@ static void getOtherSYCLPostLinkOpts(const ToolChain &TC,
 // well under an option.
 //
 void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
-                             const InputInfo &Output,
-                             const InputInfoList &Inputs,
-                             const llvm::opt::ArgList &TCArgs,
-                             const char *LinkingOutput) const {
+                                const InputInfo &Output,
+                                const InputInfoList &Inputs,
+                                const llvm::opt::ArgList &TCArgs,
+                                const char *LinkingOutput) const {
   const SYCLPostLinkJobAction *SYCLPostLink =
       dyn_cast<SYCLPostLinkJobAction>(&JA);
   // Construct sycl-post-link command.
@@ -10701,7 +10699,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
 
   llvm::Triple T = getToolChain().getTriple();
   getOtherSYCLPostLinkOpts(getToolChain(), JA, TCArgs, T, CmdArgs,
-      SYCLPostLink->getRTSetsSpecConstants(), SYCLPostLink->getTrueType());
+                           SYCLPostLink->getRTSetsSpecConstants(),
+                           SYCLPostLink->getTrueType());
 
   // Add output file table file option
   assert(Output.isFilename() && "output must be a filename");
@@ -11088,8 +11087,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     ArgStringList PostLinkArgs;
     bool IsSYCLNativeCPU = driver::isSYCLNativeCPU(Args);
     types::ID OutputType = TargetTriple.isSPIROrSPIRV() || IsSYCLNativeCPU
-                                          ? types::TY_Tempfiletable
-                                          : types::TY_LLVM_BC;
+                               ? types::TY_Tempfiletable
+                               : types::TY_LLVM_BC;
     // TODO: Items like native_cpu and Specialization Constants behaviors are
     // dependent on each toolchain.  Passing these along as 'general settings'
     // for the clang-linker-wrapper causes for potential inconsistencies and
