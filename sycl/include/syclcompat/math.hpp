@@ -31,12 +31,11 @@
 
 #pragma once
 
-#include <sycl/sycl.hpp>
-
 #ifndef SYCL_EXT_ONEAPI_COMPLEX
 #define SYCL_EXT_ONEAPI_COMPLEX
 #endif
 
+#include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
 #include <sycl/ext/oneapi/experimental/complex/complex.hpp>
 
 namespace syclcompat {

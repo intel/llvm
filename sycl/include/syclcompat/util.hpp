@@ -34,7 +34,7 @@
 #include <cassert>
 #include <type_traits>
 
-#include <sycl/sycl.hpp>
+#include <sycl/atomic_ref.hpp>
 
 #include <syclcompat/math.hpp>
 #include <syclcompat/memory.hpp>
