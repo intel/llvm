@@ -193,7 +193,7 @@ false, T, typename std::conditional_t<
 #endif
 true, T, T>>>;
 
-// data_type_single_t = T for all types except half, bfloat16, std::byte.
+// data_type_single_t = T for all types except bfloat16, std::byte.
 template <typename T>
 using data_type_single_t = typename std::conditional_t<
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
@@ -258,10 +258,6 @@ public:
 private:
   static constexpr bool IsBfloat16 =
       std::is_same_v<DataT, sycl::ext::oneapi::bfloat16>;
-
-  static constexpr size_t Sz = sizeof(DataT) * AdjustedNum;
-  static constexpr bool IsSizeGreaterThanMaxAlign =
-      (Sz > detail::MaxVecAlignment);
 
   static constexpr int getNumElements() { return NumElements; }
 
@@ -862,7 +858,7 @@ public:
   friend vec<rel_t, NumElements> operator RELLOGOP(const vec & Lhs,            \
                                                    const vec & Rhs) {          \
     vec<rel_t, NumElements> Ret{};                                             \
-    /* ext_vector_type does not support bfloat16 or half, so for these   */    \
+    /* ext_vector_type does not support bfloat16, so for these   */            \
     /* we do element-by-element operation on the underlying std::array.  */    \
     if constexpr (IsBfloat16) {                                                \
       for (size_t I = 0; I < NumElements; ++I) {                               \
