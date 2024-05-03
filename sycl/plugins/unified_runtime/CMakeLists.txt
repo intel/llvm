@@ -95,17 +95,23 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1906ce76c9c2d2112584cc0679c25f00c4935e73
-  # Merge: 3e3d8748 7f9b30f6
+  # commit ebf873fb5996c9ddca32bbb7c9330d3ffe15473c
+  # Merge: 633ec408 8f375039
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Apr 30 11:25:19 2024 +0100
-  #     Merge pull request #1452 from jinge90/omp_device_global_intercept
-  #     [ASAN] Intercept urProgramLink in sanitizer layer
-  set(UNIFIED_RUNTIME_TAG 1906ce76c9c2d2112584cc0679c25f00c4935e73)
+  # Date:   Thu May 2 10:56:55 2024 +0100
+  #    Merge pull request #1535 from przemektmalon/przemek/sampled-image-fetch
+  #    [Bindless][Exp] Add device queries for sampled image fetch
+  set(UNIFIED_RUNTIME_TAG ebf873fb5996c9ddca32bbb7c9330d3ffe15473c)
 
   fetch_adapter_source(level_zero
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    "https://github.com/oneapi-src/unified-runtime.git"
+    # commit a44e81b59d3b6b8aa3c8d120b8074f36b917c97c
+    # Merge: 9d5865e0 e4ecd60c
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Fri May 3 10:16:01 2024 +0100
+    #     Merge pull request #1546 from pbalcer/fix-queue-locking
+    #     fix queue locking behavior when creating event lists
+    a44e81b59d3b6b8aa3c8d120b8074f36b917c97c
   )
 
   fetch_adapter_source(opencl
