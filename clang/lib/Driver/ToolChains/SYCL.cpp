@@ -1410,6 +1410,14 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
                                           ":" + BackendOptName));
     }
   }
+  // only pass -vpfp-relaxed for aoc with -fintelfpga and fp-mode=fast
+  if (Args.hasArg(options::OPT_fintelfpga)) {
+    if (Arg *A = Args.getLastArg(options::OPT_ffp_model_EQ)) {
+      if (Triple.getArchName() == "spir64_fpga"
+          && StringRef(A->getValue()).equals("fast"))
+        BeArgs.push_back("-vpfp-relaxed");
+    }
+  }
   if (IsGen) {
     // For GEN (spir64_gen) we have implied -device settings given usage
     // of intel_gpu_ as a target.  Handle those here, and also check that no
