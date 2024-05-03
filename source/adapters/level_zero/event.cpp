@@ -1289,16 +1289,26 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
         }
 
         auto Queue = EventList[I]->UrQueue;
-        if (Queue) {
-          // The caller of createAndRetainUrZeEventList must already hold
-          // a lock of the CurQueue. Additionally lock the Queue if it
-          // is different from CurQueue.
-          // TODO: rework this to avoid deadlock when another thread is
-          //       locking the same queues but in a different order.
-          auto Lock = ((Queue == CurQueue)
-                           ? std::unique_lock<ur_shared_mutex>()
-                           : std::unique_lock<ur_shared_mutex>(Queue->Mutex));
 
+        auto CurQueueDevice = CurQueue->Device;
+        std::optional<std::unique_lock<ur_shared_mutex>> QueueLock =
+            std::nullopt;
+        // The caller of createAndRetainUrZeEventList must already hold
+        // a lock of the CurQueue. However, if the CurQueue is different
+        // then the Event's Queue, we need to drop that lock and
+        // acquire the Event's Queue lock. This is done to avoid a lock
+        // ordering issue.
+        // For the rest of this scope, CurQueue cannot be accessed.
+        // TODO: This solution is very error-prone. This requires a refactor
+        // to either have fine-granularity locks inside of the queues or
+        // to move any operations on queues other than CurQueue out
+        // of this scope.
+        if (Queue && Queue != CurQueue) {
+          CurQueue->Mutex.unlock();
+          QueueLock = std::unique_lock<ur_shared_mutex>(Queue->Mutex);
+        }
+
+        if (Queue) {
           // If the event that is going to be waited is in an open batch
           // different from where this next command is going to be added,
           // then we have to force execute of that open command-list
@@ -1341,7 +1351,7 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
         }
 
         ur_command_list_ptr_t CommandList;
-        if (Queue && Queue->Device != CurQueue->Device) {
+        if (Queue && Queue->Device != CurQueueDevice) {
           // Get a command list prior to acquiring an event lock.
           // This prevents a potential deadlock with recursive
           // event locks.
@@ -1351,7 +1361,7 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
 
         std::shared_lock<ur_shared_mutex> Lock(EventList[I]->Mutex);
 
-        if (Queue && Queue->Device != CurQueue->Device &&
+        if (Queue && Queue->Device != CurQueueDevice &&
             !EventList[I]->IsMultiDevice) {
           ze_event_handle_t MultiDeviceZeEvent = nullptr;
           ur_event_handle_t MultiDeviceEvent;
@@ -1386,6 +1396,10 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
           this->UrEventList[TmpListLength]->RefCount.increment();
         }
 
+        if (QueueLock.has_value()) {
+          QueueLock.reset();
+          CurQueue->Mutex.lock();
+        }
         TmpListLength += 1;
       }
     }
