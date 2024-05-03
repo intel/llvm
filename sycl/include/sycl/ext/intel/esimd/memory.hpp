@@ -3085,7 +3085,7 @@ __ESIMD_API simd<T, N> load_2d_impl(const T *Ptr, unsigned SurfaceWidth,
   constexpr int DstElements = DstBlockElements * NBlocks;
 
   static_assert(N == ActualN || N == DstElements, "Incorrect element count");
-  simd_mask<ActualN> Mask = 1;
+  simd_mask<1> Mask = 1;
   constexpr lsc_data_size DS =
       finalize_data_size<RawT, lsc_data_size::default_size>();
   uintptr_t Addr = reinterpret_cast<uintptr_t>(Ptr);
@@ -3174,7 +3174,7 @@ __ESIMD_API void prefetch_2d_impl(const T *Ptr, unsigned SurfaceWidth,
       finalize_data_size<RawT, lsc_data_size::default_size>();
   uintptr_t Addr = reinterpret_cast<uintptr_t>(Ptr);
   constexpr lsc_data_order Transpose = lsc_data_order::nontranspose;
-  simd_mask<N> Mask = 1;
+  simd_mask<1> Mask = 1;
   __esimd_lsc_prefetch2d_stateless<RawT, L1H, L2H, DS, Transpose, NBlocks,
                                    BlockWidth, BlockHeight, false, N>(
       Mask.data(), Addr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y);
@@ -3226,7 +3226,7 @@ __ESIMD_API void store_2d_impl(T *Ptr, unsigned SurfaceWidth,
   constexpr int Pitch = getNextPowerOf2<BlockWidth>();
   constexpr int NElts = BlockHeight * Pitch;
   simd<RawT, NElts> Raw;
-  simd_mask<NElts> Mask = 1;
+  simd_mask<1> Mask = 1;
 
   if constexpr (NElts == N) {
     Raw = Vals;
