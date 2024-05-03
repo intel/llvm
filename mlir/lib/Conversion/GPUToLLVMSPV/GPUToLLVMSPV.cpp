@@ -113,8 +113,16 @@ struct GPUBarrierConversion final
 /// %c1 = llvm.mlir.constant(1: i32) : i32
 /// %0 = llvm.call spir_funccc @_Z12get_local_idj(%c1) : (i32) -> i64
 /// ```
-class LaunchConfigConversion : public ConvertToLLVMPattern {
-public:
+struct LaunchConfigConversion : public ConvertToLLVMPattern {
+  LaunchConfigConversion(StringRef funcName, StringRef rootOpName,
+                         MLIRContext *context,
+                         const LLVMTypeConverter &typeConverter,
+                         PatternBenefit benefit)
+      : ConvertToLLVMPattern(rootOpName, context, typeConverter, benefit),
+        funcName(funcName) {}
+
+  virtual gpu::Dimension getDimension(Operation *op) const = 0;
+
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
@@ -125,28 +133,14 @@ public:
     LLVM::LLVMFuncOp func =
         lookupOrCreateSPIRVFn(moduleOp, funcName, dimTy, indexTy);
 
-    // Obtain dimension attribute
-    constexpr StringLiteral attrName = "dimension";
-    gpu::DimensionAttr dimAttr =
-        op->getAttrOfType<gpu::DimensionAttr>(attrName);
-    assert(dimAttr && "Expecting attribute");
-
     Location loc = op->getLoc();
-    Value dim = rewriter.create<LLVM::ConstantOp>(
-        loc, dimTy, static_cast<int64_t>(dimAttr.getValue()));
-    rewriter.replaceOp(op, createSPIRVBuiltinCall(loc, rewriter, func, dim));
+    gpu::Dimension dim = getDimension(op);
+    Value dimVal = rewriter.create<LLVM::ConstantOp>(loc, dimTy,
+                                                     static_cast<int64_t>(dim));
+    rewriter.replaceOp(op, createSPIRVBuiltinCall(loc, rewriter, func, dimVal));
     return success();
   }
 
-protected:
-  LaunchConfigConversion(StringRef funcName, StringRef rootOpName,
-                         MLIRContext *context,
-                         const LLVMTypeConverter &typeConverter,
-                         PatternBenefit benefit)
-      : ConvertToLLVMPattern(rootOpName, context, typeConverter, benefit),
-        funcName(funcName) {}
-
-private:
   StringRef funcName;
 };
 
@@ -159,6 +153,10 @@ struct LaunchConfigOpConversion final : public LaunchConfigConversion {
       : LaunchConfigConversion(getFuncName(), SourceOp::getOperationName(),
                                &typeConverter.getContext(), typeConverter,
                                benefit) {}
+
+  gpu::Dimension getDimension(Operation *op) const final {
+    return cast<SourceOp>(op).getDimension();
+  }
 };
 
 template <>
