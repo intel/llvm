@@ -8,4 +8,5 @@ add_mlir_conversion_library(MLIRGPUToLLVMSPV
   MLIRGPUDialect
   MLIRLLVMCommonConversion
   MLIRLLVMDialect
+  MLIRSPIRVDialect
 )

@@ -16,6 +16,8 @@
 #include "mlir/Dialect/LLVMIR/LLVMAttrs.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/IR/TargetAndABI.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
@@ -236,21 +238,24 @@ struct GPUShuffleConversion final
                          typeMangling);
   }
 
-  GPUShuffleConversion(unsigned subgroupSize,
-                       const LLVMTypeConverter &typeConverter,
-                       PatternBenefit benefit = 1)
-      : ConvertOpToLLVMPattern(typeConverter, benefit),
-        subgroupSize(subgroupSize) {}
+  /// Get the subgroup size from the target or return a default.
+  static int getSubgroupSize(Operation *op) {
+    return spirv::lookupTargetEnvOrDefault(op)
+        .getResourceLimits()
+        .getSubgroupSize();
+  }
 
-  bool isValidWidth(Value width) const {
+  static bool hasValidWidth(gpu::ShuffleOp op) {
     llvm::APInt val;
-    return matchPattern(width, m_ConstantInt(&val)) && val == subgroupSize;
+    Value width = op.getWidth();
+    return matchPattern(width, m_ConstantInt(&val)) &&
+           val == getSubgroupSize(op);
   }
 
   LogicalResult
   matchAndRewrite(gpu::ShuffleOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
-    if (!isValidWidth(op.getWidth()))
+    if (!hasValidWidth(op))
       return rewriter.notifyMatchFailure(
           op, "shuffle width and subgroup size mismatch");
 
@@ -273,8 +278,6 @@ struct GPUShuffleConversion final
     rewriter.replaceOp(op, {result, trueVal});
     return success();
   }
-
-  unsigned subgroupSize;
 };
 
 //===----------------------------------------------------------------------===//
@@ -300,7 +303,7 @@ struct GPUToLLVMSPVConversionPass final
                         gpu::GlobalIdOp, gpu::GridDimOp, gpu::ShuffleOp,
                         gpu::ThreadIdOp>();
 
-    populateGpuToLLVMSPVConversionPatterns(converter, patterns, subgroupSize);
+    populateGpuToLLVMSPVConversionPatterns(converter, patterns);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
@@ -315,14 +318,12 @@ struct GPUToLLVMSPVConversionPass final
 
 namespace mlir {
 void populateGpuToLLVMSPVConversionPatterns(LLVMTypeConverter &typeConverter,
-                                            RewritePatternSet &patterns,
-                                            unsigned subgroupSize) {
-  patterns.add<GPUBarrierConversion, LaunchConfigOpConversion<gpu::BlockIdOp>,
+                                            RewritePatternSet &patterns) {
+  patterns.add<GPUBarrierConversion, GPUShuffleConversion,
+               LaunchConfigOpConversion<gpu::BlockIdOp>,
                LaunchConfigOpConversion<gpu::GridDimOp>,
                LaunchConfigOpConversion<gpu::BlockDimOp>,
                LaunchConfigOpConversion<gpu::ThreadIdOp>,
                LaunchConfigOpConversion<gpu::GlobalIdOp>>(typeConverter);
-
-  patterns.add<GPUShuffleConversion>(subgroupSize, typeConverter);
 }
 } // namespace mlir

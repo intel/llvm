@@ -21,8 +21,7 @@ class Pass;
 #include "mlir/Conversion/Passes.h.inc"
 
 void populateGpuToLLVMSPVConversionPatterns(LLVMTypeConverter &converter,
-                                            RewritePatternSet &patterns,
-                                            unsigned subgroupSize);
+                                            RewritePatternSet &patterns);
 } // namespace mlir
 
 #endif // MLIR_CONVERSION_GPUTOLLVMSPV_GPUTOLLVMSPVPASS_H_
