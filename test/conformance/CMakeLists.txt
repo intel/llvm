@@ -33,7 +33,7 @@ function(add_test_adapter name adapter)
     endif()
 
     set(TEST_ENV UR_ADAPTERS_FORCE_LOAD="$<TARGET_FILE:ur_${adapter}>")
-    if(NOT UR_CONFORMANCE_TEST_DIR)
+    if(UR_CONFORMANCE_ENABLE_MATCH_FILES)
         list(APPEND TEST_ENV GTEST_COLOR=no)
     endif()
     set_tests_properties(${TEST_NAME} PROPERTIES
