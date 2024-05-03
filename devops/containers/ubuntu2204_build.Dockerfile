@@ -7,19 +7,27 @@ USER root
 # Install Nvidia keys
 # https://forums.developer.nvidia.com/t/notice-cuda-linux-repository-key-rotation/212772
 RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub
-
+RUN g++ --version && \
+  gcc --version
 # Install SYCL prerequisites
 COPY scripts/install_build_tools.sh /install.sh
 RUN /install.sh
 
 RUN apt install -yqq libnuma-dev wget gnupg2 && \
-  g++ --version && \
-  wget https://repo.radeon.com/amdgpu-install/6.1/ubuntu/jammy/amdgpu-install_6.1.60100-1_all.deb && \
+  apt-get install -yqq gcc-12 g++-12 libstdc++-12-dev
+
+RUN wget https://repo.radeon.com/amdgpu-install/6.1/ubuntu/jammy/amdgpu-install_6.1.60100-1_all.deb && \
   apt install -yqq ./amdgpu-install_6.1.60100-1_all.deb && \
   amdgpu-install -y --usecase=rocmdev && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/*
 
+RUN g++ --version && \
+  gcc --version
+RUN ln -s -f /usr/bin/gcc-12 /usr/bin/gcc && \
+  ln -s -f /usr/bin/g++-12 /usr/bin/g++ && \
+RUN g++ --version && \
+  gcc --version
 # By default Ubuntu sets an arbitrary UID value, that is different from host
 # system. When CI passes default UID value of 1001, some of LLVM tools fail to
 # discover user home directory and fail a few LIT tests. Fixes UID and GID to
