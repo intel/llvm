@@ -1,5 +1,4 @@
-//==----------- forward_progress.hpp - sycl_ext_oneapi_forward_progress
-//------------==//
+//==------- forward_progress.hpp - sycl_ext_oneapi_forward_progress -------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
