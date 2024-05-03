@@ -95,7 +95,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/pbalcer/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 6015a3252439477b1557a9fad1348515e86d53e7)
+  set(UNIFIED_RUNTIME_TAG 112089ff6d8cbc4c33c3e51d6840fc4c76588107)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
