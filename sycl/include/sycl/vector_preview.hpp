@@ -252,7 +252,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
   // Type used for passing sycl::vec to SPIRV builtins.
   using vector_t = typename std::conditional_t<
-      AdjustedNum == 1, vector_t_single<DataT>, vector_t_multiple<DataT, AdjustedNum>>;
+      AdjustedNum == 1, vector_t_single<DataT>, vector_t_multiple<DataT, NumElements>>;
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
