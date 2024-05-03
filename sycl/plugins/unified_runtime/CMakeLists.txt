@@ -94,18 +94,24 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/pbalcer/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 112089ff6d8cbc4c33c3e51d6840fc4c76588107)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit ebf873fb5996c9ddca32bbb7c9330d3ffe15473c
+  # Merge: 633ec408 8f375039
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Thu May 2 10:56:55 2024 +0100
+  #    Merge pull request #1535 from przemektmalon/przemek/sampled-image-fetch
+  #    [Bindless][Exp] Add device queries for sampled image fetch
+  set(UNIFIED_RUNTIME_TAG ebf873fb5996c9ddca32bbb7c9330d3ffe15473c)
 
   fetch_adapter_source(level_zero
     "https://github.com/oneapi-src/unified-runtime.git"
-    # commit a44e81b59d3b6b8aa3c8d120b8074f36b917c97c
-    # Merge: 9d5865e0 e4ecd60c
+    # commit 9990d448081dc984c99807362532927db8c6e1b4
+    # Merge: fb342f06 112089ff
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri May 3 10:16:01 2024 +0100
-    #     Merge pull request #1546 from pbalcer/fix-queue-locking
-    #     fix queue locking behavior when creating event lists
-    a44e81b59d3b6b8aa3c8d120b8074f36b917c97c
+    # Date:   Fri May 3 11:58:30 2024 +0100
+    #     Merge pull request #1555 from pbalcer/fix-enqueue-wait-barrier
+    #     stop batching multiple CmdList execution when waiting for barriers
+    9990d448081dc984c99807362532927db8c6e1b4
   )
 
   fetch_adapter_source(opencl
