@@ -40,6 +40,7 @@
 namespace oneapi_exp = sycl::ext::oneapi::experimental;
 
 template <typename...> class KernelNameOverGroup;
+template <typename...> class KernelNameOverGroupArray;
 template <typename...> class KernelNameKeyValueOVerGroup;
 template <typename...> class KernelNameJoint;
 
@@ -631,8 +632,8 @@ void RunSortOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
   }
 }
 
-template <UseGroupT UseGroup, int Dims, class T, class Compare,
-          size_t ElementsPerWorkItem, T Property>
+template <UseGroupT UseGroup, int Dims, size_t ElementsPerWorkItem, class T,
+          class Compare>
 void RunSortOverGroupArray(sycl::queue &Q, const std::vector<T> &DataToSort,
                            const Compare &Comp) {
 
@@ -705,7 +706,7 @@ void RunSortOverGroupArray(sycl::queue &Q, const std::vector<T> &DataToSort,
        sycl::local_accessor<std::byte, 1> ScratchRadix({TotalLocalMemSizeRadix},
                                                        CGH);
 
-       CGH.parallel_for<KernelNameOverGroup<
+       CGH.parallel_for<KernelNameOverGroupArray<
            IntWrapper<Dims>, UseGroupWrapper<UseGroup>, T, Compare>>(
            NDRange, [=](sycl::nd_item<Dims> id) [[intel::reqd_sub_group_size(
                         ReqSubGroupSize)]] {
@@ -1063,6 +1064,8 @@ template <class T> void RunOverType(sycl::queue &Q, size_t DataSize) {
                                                       Comparator);
     RunSortKeyValueOverGroup<UseGroupT::WorkGroup, 2>(Q, Data, Keys,
                                                       Comparator);
+
+    RunSortOverGroupArray<UseGroupT::WorkGroup, 1, 1>(Q, Data, Comparator);
 
     if (Q.get_backend() == sycl::backend::ext_oneapi_cuda ||
         Q.get_backend() == sycl::backend::ext_oneapi_hip) {
