@@ -25,7 +25,7 @@ RUN wget https://repo.radeon.com/amdgpu-install/6.1/ubuntu/jammy/amdgpu-install_
 RUN g++ --version && \
   gcc --version
 RUN ln -s -f /usr/bin/gcc-12 /usr/bin/gcc && \
-  ln -s -f /usr/bin/g++-12 /usr/bin/g++ && \
+  ln -s -f /usr/bin/g++-12 /usr/bin/g++
 RUN g++ --version && \
   gcc --version
 # By default Ubuntu sets an arbitrary UID value, that is different from host
