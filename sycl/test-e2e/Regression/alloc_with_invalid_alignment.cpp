@@ -13,22 +13,19 @@ using namespace sycl;
 
 const size_t numBytes = 10;
 
-int allocate_device(size_t alignment) {
+void allocate_device(size_t alignment) {
   sycl::queue q;
   assert(!aligned_alloc_device(alignment, numBytes, q));
-  return 0;
 }
 
-int allocate_shared(size_t alignment) {
+void allocate_shared(size_t alignment) {
   sycl::queue q;
   assert(!aligned_alloc_shared(alignment, numBytes, q));
-  return 0;
 }
 
-int allocate_host(size_t alignment) {
+void allocate_host(size_t alignment) {
   sycl::queue q;
   assert(!aligned_alloc_host(alignment, numBytes, q));
-  return 0;
 }
 
 int main() {
@@ -36,12 +33,8 @@ int main() {
   size_t alignments[alignmentCount] = {3,  5,  6,   7,    9,    10,  12,
                                        15, 17, 18,  24,   30,   31,  33,
                                        63, 65, 100, 1023, 2049, 2050};
-  int allocations[alignmentCount];
-  std::transform(alignments, alignments + alignmentCount - 1, allocations,
-                 allocate_device);
-  std::transform(alignments, alignments + alignmentCount - 1, allocations,
-                 allocate_shared);
-  std::transform(alignments, alignments + alignmentCount - 1, allocations,
-                 allocate_host);
+  std::for_each(alignments, alignments + alignmentCount - 1, allocate_device);
+  std::for_each(alignments, alignments + alignmentCount - 1, allocate_shared);
+  std::for_each(alignments, alignments + alignmentCount - 1, allocate_host);
   return 0;
 }
