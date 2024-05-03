@@ -109,12 +109,8 @@ affinityDomainToString(info::partition_affinity_domain AffinityDomain) {
 }
 
 // Mapping expected SYCL return types to those returned by PI calls
-template <typename T> struct sycl_to_pi {
-  using type = T;
-};
-template <> struct sycl_to_pi<bool> {
-  using type = pi_bool;
-};
+template <typename T> struct sycl_to_pi { using type = T; };
+template <> struct sycl_to_pi<bool> { using type = pi_bool; };
 template <> struct sycl_to_pi<device> {
   using type = sycl::detail::pi::PiDevice;
 };
@@ -2223,6 +2219,12 @@ inline sycl::device get_device_info_host<
                       PI_ERROR_INVALID_DEVICE);
 }
 
+// Returns the list of all progress guarantees that can be requested for
+// work_groups from the coordination level of root_group when using host device.
+// First it calls getHostProgressGuarantee to get the strongest guarantee
+// available and then calls getProgressGuaranteesUpTo to get a list of all
+// guarantees that are either equal to the strongest guarantee or weaker than
+// it. The next 5 definitions follow the same model but for different scopes.
 template <>
 inline std::vector<ext::oneapi::experimental::forward_progress_guarantee>
 get_device_info_host<
@@ -2304,6 +2306,12 @@ get_device_info_host<
                                             execution_scope::sub_group));
 }
 
+// Returns the list of all progress guarantees that can be requested for
+// work_groups from the coordination level of root_group when using the device
+// given by Dev. First it calls getProgressGuarantee to get the strongest
+// guarantee available and then calls getProgressGuaranteesUpTo to get a list of
+// all guarantees that are either equal to the strongest guarantee or weaker
+// than it. The next 5 definitions follow the same model but for different scopes.
 template <typename ReturnT>
 struct get_device_info_impl<
     ReturnT,

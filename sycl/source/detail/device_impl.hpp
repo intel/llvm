@@ -260,6 +260,9 @@ public:
 
   bool extOneapiCanCompile(ext::oneapi::experimental::source_language Language);
 
+  // Returns all guarantees that are either equal to guarantee or weaker than
+  // it. E.g if guarantee == parallel, it returns the vector {weakly_parallel,
+  // parallel}.
   template <typename ReturnT>
   static ReturnT getProgressGuaranteesUpTo(
       ext::oneapi::experimental::forward_progress_guarantee guarantee) {
@@ -277,9 +280,9 @@ public:
   }
 
   static sycl::ext::oneapi::experimental::forward_progress_guarantee
-      getHostProgressGuarantee(
-          sycl::ext::oneapi::experimental::execution_scope,
-          sycl::ext::oneapi::experimental::execution_scope);
+  getHostProgressGuarantee(
+      sycl::ext::oneapi::experimental::execution_scope threadScope,
+      sycl::ext::oneapi::experimental::execution_scope coordinationScope);
 
   sycl::ext::oneapi::experimental::forward_progress_guarantee
   getProgressGuarantee(

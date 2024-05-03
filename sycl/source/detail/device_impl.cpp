@@ -855,6 +855,8 @@ bool device_impl::extOneapiCanCompile(
   }
 }
 
+// Returns the strongest guarantee that can be provided by the host device for threads
+  // created at threadScope from a coordination scope given by coordinationScope
 sycl::ext::oneapi::experimental::forward_progress_guarantee
 device_impl::getHostProgressGuarantee(
     ext::oneapi::experimental::execution_scope threadScope,
@@ -863,7 +865,7 @@ device_impl::getHostProgressGuarantee(
       weakly_parallel;
 }
 
-// Returns the strongest progress guarantee that can be provided for threads
+// Returns the strongest progress guarantee that can be provided by this device for threads
 // created at threadScope from the coordination scope given by
 // coordinationScope.
 sycl::ext::oneapi::experimental::forward_progress_guarantee
