@@ -13,8 +13,6 @@
 
 #include "llvm/SYCLLowerIR/CleanupSYCLMetadata.h"
 
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 

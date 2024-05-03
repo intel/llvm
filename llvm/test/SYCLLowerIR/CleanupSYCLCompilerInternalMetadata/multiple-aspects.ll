@@ -47,7 +47,7 @@ define spir_kernel void @kernel() !sycl_used_aspects !8 !sycl_fixed_targets !9 {
 !0 = !{!"A", i32 0}
 !1 = !{!"B", i32 1}
 !2 = !{!"C", i32 2}
-!3 = !{!"D", i32 3}
+!3 = !{!"D", i32 3, i32 4}
 !4 = !{!"fp64", i32 6}
 !5 = !{i32 0}
 !6 = !{i32 1, i32 0}
