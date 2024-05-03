@@ -2512,7 +2512,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_2d(float *ptr) {
   // 4) store_2d(): combinations of explicit and default template parameters
   // 5) same as (4) but without compile time properties
 
-  // CHECK-COUNT-3: call void @llvm.genx.lsc.prefetch2d.stateless.v16i1.i64(<16 x i1> {{[^)]+}}, i8 5, i8 1, i8 3, i8 1, i8 1, i16 16, i16 1, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-COUNT-3: call void @llvm.genx.lsc.prefetch2d.stateless.v1i1.i64(<1 x i1> {{[^)]+}}, i8 5, i8 1, i8 3, i8 1, i8 1, i16 16, i16 1, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}})
   prefetch_2d<float, BlockWidth, BlockHeight, NBlocks>(
       ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y, props_cache_load);
   prefetch_2d<float, BlockWidth, BlockHeight>(
@@ -2520,7 +2520,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_2d(float *ptr) {
   prefetch_2d<float, BlockWidth>(ptr, SurfaceWidth, SurfaceHeight, SurfacePitch,
                                  X, Y, props_cache_load);
 
-  // CHECK-COUNT-5: call <16 x float> @llvm.genx.lsc.load2d.stateless.v16f32.v16i1.i64(<16 x i1> {{[^)]+}}, i8 5, i8 1, i8 3, i8 1, i8 1, i16 16, i16 1, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-COUNT-5: call <16 x float> @llvm.genx.lsc.load2d.stateless.v16f32.v1i1.i64(<1 x i1> {{[^)]+}}, i8 5, i8 1, i8 3, i8 1, i8 1, i16 16, i16 1, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}})
   Vals =
       load_2d<float, BlockWidth, BlockHeight, NBlocks, Transposed, Transformed>(
           ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y,
@@ -2534,7 +2534,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_2d(float *ptr) {
   Vals = load_2d<float, BlockWidth>(ptr, SurfaceWidth, SurfaceHeight,
                                     SurfacePitch, X, Y, props_cache_load);
 
-  // CHECK-COUNT-5: call <16 x float> @llvm.genx.lsc.load2d.stateless.v16f32.v16i1.i64(<16 x i1> {{[^)]+}}, i8 0, i8 0, i8 3, i8 1, i8 1, i16 16, i16 1, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-COUNT-5: call <16 x float> @llvm.genx.lsc.load2d.stateless.v16f32.v1i1.i64(<1 x i1> {{[^)]+}}, i8 0, i8 0, i8 3, i8 1, i8 1, i16 16, i16 1, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}})
   Vals =
       load_2d<float, BlockWidth, BlockHeight, NBlocks, Transposed, Transformed>(
           ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y);
@@ -2547,7 +2547,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_2d(float *ptr) {
   Vals = load_2d<float, BlockWidth>(ptr, SurfaceWidth, SurfaceHeight,
                                     SurfacePitch, X, Y);
 
-  // CHECK-COUNT-4: call void @llvm.genx.lsc.store2d.stateless.v16i1.i64.v16f32(<16 x i1> {{[^)]+}}, i8 5, i8 1, i8 3, i8 1, i8 1, i16 16, i16 1, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, <16 x float> {{[^)]+}})
+  // CHECK-COUNT-4: call void @llvm.genx.lsc.store2d.stateless.v1i1.i64.v16f32(<1 x i1> {{[^)]+}}, i8 5, i8 1, i8 3, i8 1, i8 1, i16 16, i16 1, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, <16 x float> {{[^)]+}})
   store_2d<float, BlockWidth, BlockHeight>(ptr, SurfaceWidth, SurfaceHeight,
                                            SurfacePitch, X, Y, Vals,
                                            props_cache_load);
@@ -2560,7 +2560,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_2d(float *ptr) {
       ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y,
       Vals_view.select<16, 1>(), props_cache_load);
 
-  // CHECK-COUNT-4: call void @llvm.genx.lsc.store2d.stateless.v16i1.i64.v16f32(<16 x i1> {{[^)]+}}, i8 0, i8 0, i8 3, i8 1, i8 1, i16 16, i16 1, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, <16 x float> {{[^)]+}})
+  // CHECK-COUNT-4: call void @llvm.genx.lsc.store2d.stateless.v1i1.i64.v16f32(<1 x i1> {{[^)]+}}, i8 0, i8 0, i8 3, i8 1, i8 1, i16 16, i16 1, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, <16 x float> {{[^)]+}})
   store_2d<float, BlockWidth, BlockHeight>(ptr, SurfaceWidth, SurfaceHeight,
                                            SurfacePitch, X, Y, Vals);
   store_2d<float, BlockWidth>(ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X,
