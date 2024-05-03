@@ -1411,10 +1411,10 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     }
   }
   // only pass -vpfp-relaxed for aoc with -fintelfpga and fp-mode=fast
-  if (Args.hasArg(options::OPT_fintelfpga)) {
+  if (Args.hasArg(options::OPT_fintelfpga) && getDriver().IsFPGAHWMode()
+      && Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
     if (Arg *A = Args.getLastArg(options::OPT_ffp_model_EQ)) {
-      if (Triple.getArchName() == "spir64_fpga"
-          && StringRef(A->getValue()).equals("fast"))
+      if (StringRef(A->getValue()).equals("fast"))
         BeArgs.push_back("-vpfp-relaxed");
     }
   }
