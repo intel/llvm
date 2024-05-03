@@ -115,15 +115,10 @@ static constexpr ToType BitCast(const FromType &Value) {
 /* Helper functions to get and set values in vec, depdending on the underlying
 + * data type. */
 template <typename T> struct vec_helper {
-  using RetType = T;
+  using RetType = typename std::conditional<
+      std::is_same_v<T, bool>, std::int8_t, T>::type;
   static constexpr RetType get(T value) { return value; }
   static constexpr RetType set(T value) { return value; }
-};
-template <> struct vec_helper<bool> {
-  using RetType = select_apply_cl_t<bool, std::int8_t, std::int16_t,
-                                    std::int32_t, std::int64_t>;
-  static constexpr RetType get(bool value) { return value; }
-  static constexpr RetType set(bool value) { return value; }
 };
 
 template <> struct vec_helper<sycl::ext::oneapi::bfloat16> {
@@ -189,7 +184,14 @@ class RoundedRangeKernelWithKH;
 template <typename T> using vec_data = detail::vec_helper<T>;
 
 template <typename T>
-using vec_data_t = typename detail::vec_helper<T>::RetType;
+using vec_data_t = typename std::conditional_t<
+std::is_same_v<T, bool>, std::int8_t, typename std::conditional_t<
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+std::is_same_v<T, std::byte>, std::uint8_t, typename std::conditional_t<
+#else
+false, T, typename std::conditional_t<
+#endif
+true, T, T>>>;
 
 // data_type_single_t = T for all types except half, bfloat16, std::byte.
 template <typename T>
