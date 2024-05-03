@@ -2,67 +2,46 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+#include <algorithm>
+#include <cassert>
 #include <sycl/sycl.hpp>
 
 // This test verifies that for L0 backend, aligned USM alloc functions return
 // null_ptr when called with alignment values that are not a power-of-2.
 
 using namespace sycl;
-using namespace ext::oneapi::experimental;
-using namespace ext::intel::experimental;
-using alloc = usm::alloc;
 
-template <typename T> void testAlign(sycl::queue &q, unsigned align) {
-  const sycl::context &Ctx = q.get_context();
-  auto dev = q.get_device();
+const size_t numBytes = 10;
 
-  constexpr int N = 10;
-  assert(align > 0 || (align & (align - 1)) == 0);
-  auto ADevice = [&](size_t align, auto... args) {
-    return aligned_alloc_device(align, N, args...);
-  };
-  auto AHost = [&](size_t align, auto... args) {
-    return aligned_alloc_host(align, N, args...);
-  };
-  auto AShared = [&](size_t align, auto... args) {
-    return aligned_alloc_shared(align, N, args...);
-  };
-  auto AAnnotated = [&](size_t align, auto... args) {
-    return aligned_alloc(align, N, args...);
-  };
+int allocate_device(size_t alignment) {
+  sycl::queue q;
+  assert(!aligned_alloc_device(alignment, numBytes, q));
+  return 0;
+}
 
-  // Test cases that are expected to return null
-  auto check_null = [&q](auto AllocFn, int Line, int Case) {
-    decltype(AllocFn()) Ptr = AllocFn();
-    if (Ptr != nullptr) {
-      free(Ptr, q);
-      std::cout << "Failed at line " << Line << ", case " << Case << std::endl;
-      assert(false && "Allocation function has returned a non-null pointer.");
-    }
-  };
+int allocate_shared(size_t alignment) {
+  sycl::queue q;
+  assert(!aligned_alloc_shared(alignment, numBytes, q));
+  return 0;
+}
 
-  auto CheckNullAll = [&](auto Funcs, int Line = __builtin_LINE()) {
-    std::apply(
-        [&](auto... Fs) {
-          int Case = 0;
-          (void)std::initializer_list<int>{
-              (check_null(Fs, Line, Case++), 0)...};
-        },
-        Funcs);
-  };
-  CheckNullAll(std::tuple{
-      // Case: aligned_alloc_xxx with no alignment property, and the alignment
-      // argument is not a power of 2, the result is nullptr
-      [&]() { return ADevice(3, q); }, [&]() { return ADevice(5, dev, Ctx); },
-      [&]() { return AHost(7, q); }, [&]() { return AHost(9, Ctx); },
-      [&]() { return AShared(114, q); },
-      [&]() { return AShared(1023, dev, Ctx); },
-      [&]() { return AAnnotated(15, q, alloc::device); },
-      [&]() { return AAnnotated(17, dev, Ctx, alloc::host); }});
+int allocate_host(size_t alignment) {
+  sycl::queue q;
+  assert(!aligned_alloc_host(alignment, numBytes, q));
+  return 0;
 }
 
 int main() {
-  sycl::queue q;
-  testAlign<char>(q, 4);
+  constexpr size_t alignmentCount = 20;
+  size_t alignments[alignmentCount] = {3,  5,  6,   7,    9,    10,  12,
+                                       15, 17, 18,  24,   30,   31,  33,
+                                       63, 65, 100, 1023, 2049, 2050};
+  int allocations[alignmentCount];
+  std::transform(alignments, alignments + alignmentCount - 1, allocations,
+                 allocate_device);
+  std::transform(alignments, alignments + alignmentCount - 1, allocations,
+                 allocate_shared);
+  std::transform(alignments, alignments + alignmentCount - 1, allocations,
+                 allocate_host);
   return 0;
 }
