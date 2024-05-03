@@ -105,13 +105,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     "https://github.com/oneapi-src/unified-runtime.git"
-    # commit a44e81b59d3b6b8aa3c8d120b8074f36b917c97c
-    # Merge: 9d5865e0 e4ecd60c
+    # commit fb342f06e1ac244c5995b7be458d0c32a1ba17ab
+    # Merge: a44e81b5 7186d6ce
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri May 3 10:16:01 2024 +0100
-    #     Merge pull request #1546 from pbalcer/fix-queue-locking
-    #     fix queue locking behavior when creating event lists
-    a44e81b59d3b6b8aa3c8d120b8074f36b917c97c
+    # Date:   Fri May 3 11:55:26 2024 +0100
+    #     Merge pull request #1549 from igchor/event_fix
+    #     Fix adding event to queue cache
+    fb342f06e1ac244c5995b7be458d0c32a1ba17ab
   )
 
   fetch_adapter_source(opencl
