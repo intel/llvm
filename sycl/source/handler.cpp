@@ -29,6 +29,7 @@
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stream.hpp>
 
+#include <sycl/ext/oneapi/bindless_images_memory.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
 
 namespace sycl {
@@ -973,6 +974,17 @@ void handler::mem_advise(const void *Ptr, size_t Count, int Advice) {
   MLength = Count;
   MImpl->MAdvice = static_cast<pi_mem_advice>(Advice);
   setType(detail::CG::AdviseUSM);
+}
+
+void handler::fill_impl(void *Dest, const void *Value, size_t ValueSize,
+                        size_t Count) {
+  throwIfActionIsCreated();
+  MDstPtr = Dest;
+  MPattern.resize(ValueSize);
+  std::memcpy(MPattern.data(), Value, ValueSize);
+  MLength = Count * ValueSize;
+  setUserFacingNodeType(ext::oneapi::experimental::node_type::memfill);
+  setType(detail::CG::FillUSM);
 }
 
 void handler::ext_oneapi_memcpy2d_impl(void *Dest, size_t DestPitch,

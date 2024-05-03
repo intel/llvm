@@ -94,12 +94,24 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/pbalcer/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG e4ecd60c1c48cab1308e361923a893dac99d060a)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit ebf873fb5996c9ddca32bbb7c9330d3ffe15473c
+  # Merge: 633ec408 8f375039
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Thu May 2 10:56:55 2024 +0100
+  #    Merge pull request #1535 from przemektmalon/przemek/sampled-image-fetch
+  #    [Bindless][Exp] Add device queries for sampled image fetch
+  set(UNIFIED_RUNTIME_TAG ebf873fb5996c9ddca32bbb7c9330d3ffe15473c)
 
   fetch_adapter_source(level_zero
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    "https://github.com/oneapi-src/unified-runtime.git"
+    # commit f3c551963d0612bfac252bc5c82796289939ebeb
+    # Merge: ebf873fb 987c422c
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu May 2 15:26:34 2024 +0100
+    #     Merge pull request #1526 from nrspruit/event_signal_optional
+    #     [L0] Enable Batching out of order commands without signal events
+    f3c551963d0612bfac252bc5c82796289939ebeb
   )
 
   fetch_adapter_source(opencl
@@ -108,15 +120,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(cuda
-    "https://github.com/oneapi-src/unified-runtime.git"
-    # commit 7fcfe3ad8882fee23d83fa0fc4c4c944262a9ea3
-    # Merge: b37fa2c4 f9fb1167
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Apr 24 10:38:00 2024 +0100
-    #     Merge pull request #1265 from cppchedy/chedy/device-to-device-copy
-    #
-    #     [Bindless][Exp] Add support for device to device copies between CuArrays
-    7fcfe3ad8882fee23d83fa0fc4c4c944262a9ea3
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(hip
