@@ -1153,7 +1153,7 @@ struct urProgramTest : urQueueTest {
 
 template <class T> struct urProgramTestWithParam : urQueueTestWithParam<T> {
     void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
+        UUR_RETURN_ON_FATAL_FAILURE(urQueueTestWithParam<T>::SetUp());
 
         ur_platform_backend_t backend;
         ASSERT_SUCCESS(urPlatformGetInfo(this->platform,
@@ -1356,10 +1356,6 @@ struct urBaseKernelExecutionTestWithParam : urBaseKernelTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTestWithParam<T>::SetUp());
         UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTestWithParam<T>::Build());
-        context = urBaseKernelTestWithParam<T>::context;
-        kernel = urBaseKernelTestWithParam<T>::kernel;
-        ASSERT_SUCCESS(urQueueCreate(
-            context, urBaseKernelTestWithParam<T>::device, 0, &queue));
     }
 
     void TearDown() override {
