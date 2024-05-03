@@ -251,9 +251,6 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       }
     }
   }
-  StringRef LibSuffix =
-      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() ? ".obj"
-                                                                     : ".o";
   using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
 
   const SYCLDeviceLibsList SYCLDeviceWrapperLibs = {
@@ -294,8 +291,20 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   const SYCLDeviceLibsList SYCLDeviceSanitizerLibs = {
       {"libsycl-sanitizer", "internal"}};
 #endif
+
   const SYCLDeviceLibsList SYCLNativeCpuDeviceLibs = {
       {"libsycl-nativecpu_utils", "internal"}};
+
+  const bool isNativeCPU = (driver::isSYCLNativeCPU(Args) &&
+      driver::isSYCLNativeCPU(C.getDefaultToolChain().getTriple(),
+                              TargetTriple));
+
+  StringRef LibSuffix = ".bc";
+  if (TargetTriple.isNVPTX() || isNativeCPU)
+    // For NVidia and NativeCPU, we are unbundling objects.
+    LibSuffix = C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment()
+                    ? ".obj"
+                    : ".o";
 
   auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
     for (const DeviceLibOptInfo &Lib : LibsList) {
@@ -364,9 +373,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   }
 #endif
 
-  if (driver::isSYCLNativeCPU(Args) &&
-      driver::isSYCLNativeCPU(C.getDefaultToolChain().getTriple(),
-                              TargetTriple))
+  if (isNativeCPU)
     addLibraries(SYCLNativeCpuDeviceLibs);
 
   return LibraryList;
@@ -375,19 +382,35 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
 // The list should match pre-built SYCL device library files located in
 // compiler package. Once we add or remove any SYCL device library files,
 // the list should be updated accordingly.
-static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList {
-  "bfloat16", "crt", "cmath", "cmath-fp64", "complex", "complex-fp64",
+static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
+    "bfloat16",
+    "crt",
+    "cmath",
+    "cmath-fp64",
+    "complex",
+    "complex-fp64",
 #if defined(_WIN32)
-      "msvc-math",
+    "msvc-math",
 #else
-      "sanitizer",
+    "sanitizer",
 #endif
-      "imf", "imf-fp64", "itt-compiler-wrappers", "itt-stubs",
-      "itt-user-wrappers", "fallback-cassert", "fallback-cstring",
-      "fallback-cmath", "fallback-cmath-fp64", "fallback-complex",
-      "fallback-complex-fp64", "fallback-imf", "fallback-imf-fp64",
-      "fallback-imf-bf16", "fallback-bfloat16", "native-bfloat16"
-};
+    "imf",
+    "imf-fp64",
+    "imf-bf16",
+    "itt-compiler-wrappers",
+    "itt-stubs",
+    "itt-user-wrappers",
+    "fallback-cassert",
+    "fallback-cstring",
+    "fallback-cmath",
+    "fallback-cmath-fp64",
+    "fallback-complex",
+    "fallback-complex-fp64",
+    "fallback-imf",
+    "fallback-imf-fp64",
+    "fallback-imf-bf16",
+    "fallback-bfloat16",
+    "native-bfloat16"};
 
 const char *SYCL::Linker::constructLLVMLinkCommand(
     Compilation &C, const JobAction &JA, const InputInfo &Output,
@@ -423,15 +446,16 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     };
     auto isSYCLDeviceLib = [&](const InputInfo &II) {
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-      StringRef LibPostfix = ".o";
-      if (isNoRDCDeviceCodeLink(II))
-        LibPostfix = ".bc";
-      else if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
-               C.getDriver().IsCLMode())
-        LibPostfix = ".obj";
+      const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
+      StringRef LibPostfix = ".bc";
+      if (IsNVPTX) {
+        LibPostfix = ".o";
+        if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
+            C.getDriver().IsCLMode())
+          LibPostfix = ".obj";
+      }
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
-      const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
       if (IsNVPTX || IsSYCLNativeCPU) {
         // Linking SYCL Device libs requires libclc as well as libdevice
         if ((InputFilename.find("libspirv") != InputFilename.npos ||
@@ -442,8 +466,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       }
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
-          !InputFilename.ends_with(LibPostfix) ||
-          (InputFilename.count('-') < 2))
+          !InputFilename.ends_with(LibPostfix))
         return false;
       // Skip the prefix "libsycl-"
       std::string PureLibName =
@@ -460,7 +483,10 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
             PureLibName.substr(0, FinalDashPos) + PureLibName.substr(DotPos);
       }
       for (const auto &L : SYCLDeviceLibList) {
-        if (StringRef(PureLibName).starts_with(L))
+        std::string DeviceLibName(L);
+        DeviceLibName.append(LibPostfix);
+        if (StringRef(PureLibName).equals(DeviceLibName) ||
+            (IsNVPTX && StringRef(PureLibName).starts_with(L)))
           return true;
       }
       return false;
@@ -471,11 +497,11 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     for (size_t Idx = 1; Idx < InputFileNum; ++Idx)
       LinkSYCLDeviceLibs =
           LinkSYCLDeviceLibs && isSYCLDeviceLib(InputFiles[Idx]);
-    // Go through the Inputs to the link.  When a listfile is encountered, we
-    // know it is an unbundled generated list.
     if (LinkSYCLDeviceLibs) {
       Opts.push_back("-only-needed");
     }
+    // Go through the Inputs to the link.  When a listfile is encountered, we
+    // know it is an unbundled generated list.
     for (const auto &II : InputFiles) {
       std::string FileName = getToolChain().getInputFilename(II);
       if (II.getType() == types::TY_Tempfilelist) {
