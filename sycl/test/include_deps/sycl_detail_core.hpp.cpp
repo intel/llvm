@@ -114,8 +114,6 @@
 // CHECK-NEXT: detail/accessor_iterator.hpp
 // CHECK-NEXT: detail/generic_type_traits.hpp
 // CHECK-NEXT: detail/handler_proxy.hpp
-// CHECK-NEXT: device.hpp
-// CHECK-NEXT: kernel_bundle_enums.hpp
 // CHECK-NEXT: pointers.hpp
 // CHECK-NEXT: properties/accessor_properties.hpp
 // CHECK-NEXT: image.hpp
@@ -139,6 +137,8 @@
 // CHECK-NEXT: h_item.hpp
 // CHECK-NEXT: item.hpp
 // CHECK-NEXT: interop_handle.hpp
+// CHECK-NEXT: device.hpp
+// CHECK-NEXT: kernel_bundle_enums.hpp
 // CHECK-NEXT: exception_list.hpp
 // CHECK-NEXT: kernel_handler.hpp
 // CHECK-NEXT: nd_item.hpp
