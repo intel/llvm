@@ -1088,12 +1088,6 @@ static bool isFreeFunction(SemaSYCL &SemaSYCLRef, const FunctionDecl *FD) {
   return false;
 }
 
-static std::string constructFFKernelName(const FunctionDecl *FD) {
-  IdentifierInfo *Id = FD->getIdentifier();
-  std::string NewIdent = (Twine("__sycl_kernel_") + Id->getName()).str();
-  return NewIdent;
-}
-
 // Creates a name for the free function kernel function.
 // We add __sycl_kernel_ to the original function name and then use the mangled
 // name as the kernel name. The renaming allows a normal device function to
@@ -1901,7 +1895,6 @@ public:
   }
 
   bool handleStructType(FieldDecl *FD, QualType FieldTy) final {
-    IsInvalid |= checkNotCopyableToKernel(FD, FieldTy);
     CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
     assert(RD && "Not a RecordDecl inside the handler for struct type");
     if (RD->isLambda()) {
@@ -2691,25 +2684,6 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     return FD;
   }
 
-  static FunctionDecl *createFreeFunctionDecl(ASTContext &Ctx, FunctionDecl *FD,
-                                              SourceLocation Loc,
-                                              bool IsInline) {
-    // Create this with no prototype, and we can fix this up after we've seen
-    // all the params.
-    FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
-    QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, {}, Info);
-    const IdentifierInfo *NewIdent = &Ctx.Idents.get(constructFFKernelName(FD));
-    FD = FunctionDecl::Create(
-        Ctx, Ctx.getTranslationUnitDecl(), Loc, Loc, DeclarationName(NewIdent),
-        FuncType, Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), SC_None);
-    FD->setImplicitlyInline(IsInline);
-    setKernelImplicitAttrs(Ctx, FD, false);
-
-    // Add kernel to translation unit to see it in AST-dump.
-    Ctx.getTranslationUnitDecl()->addDecl(FD);
-    return FD;
-  }
-
   // If the record has been marked with SYCLGenerateNewTypeAttr,
   // it implies that it contains a pointer within. This function
   // defines a PointerHandler visitor which visits this record
@@ -2743,11 +2717,8 @@ public:
                         bool IsSIMDKernel, bool IsFreeFunction,
                         FunctionDecl *SYCLKernel)
       : SyclKernelFieldHandler(S), IsFreeFunction(IsFreeFunction),
-        KernelDecl(IsFreeFunction
-                       ? createFreeFunctionDecl(S.getASTContext(), SYCLKernel,
-                                                Loc, IsInline)
-                       : createKernelDecl(S.getASTContext(), Loc, IsInline,
-                                          IsSIMDKernel)),
+        KernelDecl(
+            createKernelDecl(S.getASTContext(), Loc, IsInline, IsSIMDKernel)),
         FuncContext(SemaSYCLRef.SemaRef, KernelDecl) {
     S.addSyclOpenCLKernel(SYCLKernel, KernelDecl);
     for (auto *IRAttr :
