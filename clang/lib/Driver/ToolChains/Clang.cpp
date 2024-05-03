@@ -10596,7 +10596,6 @@ static void addArgs(ArgStringList &DstArgs, const llvm::opt::ArgList &Alloc,
 
 static void getOtherSYCLPostLinkOpts(const ToolChain &TC, const JobAction &JA,
                                      const llvm::opt::ArgList &TCArgs,
-                                     llvm::Triple Triple,
                                      ArgStringList &PostLinkArgs,
                                      bool SpecConsts, types::ID OutputType) {
   // See if device code splitting is requested
@@ -10610,11 +10609,41 @@ static void getOtherSYCLPostLinkOpts(const ToolChain &TC, const JobAction &JA,
       addArgs(PostLinkArgs, TCArgs, {"-split=auto"});
     else { // Device code split is off
     }
-  } else if (Triple.getArchName() != "spir64_fpga") {
-    // for FPGA targets, off is the default split mode,
-    // otherwise auto is the default split mode
-    addArgs(PostLinkArgs, TCArgs, {"-split=auto"});
   }
+  if (OutputType == types::TY_LLVM_BC) {
+    // single file output requested - this means only perform necessary IR
+    // transformations (like specialization constant intrinsic lowering) and
+    // output LLVMIR
+    addArgs(PostLinkArgs, TCArgs, {"-ir-output-only"});
+  }
+  addArgs(PostLinkArgs, TCArgs,
+          {StringRef(getSYCLPostLinkOptimizationLevel(TCArgs))});
+  // specialization constants processing is mandatory
+  if (SpecConsts)
+    addArgs(PostLinkArgs, TCArgs, {"-spec-const=native"});
+  else
+    addArgs(PostLinkArgs, TCArgs, {"-spec-const=emulation"});
+
+  // Process device-globals.
+  addArgs(PostLinkArgs, TCArgs, {"-device-globals"});
+
+  // Make ESIMD accessors use stateless memory accesses.
+  if (TCArgs.hasFlag(options::OPT_fno_sycl_esimd_force_stateless_mem,
+                     options::OPT_fsycl_esimd_force_stateless_mem, false))
+    addArgs(PostLinkArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
+}
+
+// Add any sycl-post-link options that rely on a specific Triple.
+static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
+    const JobAction &JA, const llvm::opt::ArgList &TCArgs, llvm::Triple Triple,
+    ArgStringList &PostLinkArgs, bool SpecConsts, types::ID OutputType) {
+
+  // See if device code splitting is requested.  The logic here works along side
+  // the behavior in setOtherSYCLPostLinkOpts, where the option is added based
+  // on the user setting of-fsycl-device-code-split.
+  if (!(TCArgs.hasArg(options::OPT_fsycl_device_code_split_EQ) ||
+        Triple.getArchName() == "spir64_fpga"))
+    addArgs(PostLinkArgs, TCArgs, {"-split=auto"});
 
   // On Intel targets we don't need non-kernel functions as entry points,
   // because it only increases amount of code for device compiler to handle,
@@ -10625,20 +10654,12 @@ static void getOtherSYCLPostLinkOpts(const ToolChain &TC, const JobAction &JA,
       !Triple.isNVPTX() && !Triple.isAMDGPU() && !isSYCLNativeCPU(TC))
     addArgs(PostLinkArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 
-  // OPT_fsycl_device_code_split is not checked as it is an alias to
-  // -fsycl-device-code-split=auto
-
   if (!(Triple.isAMDGCN()))
     addArgs(PostLinkArgs, TCArgs, {"-emit-param-info"});
   // Enable PI program metadata
   if (Triple.isNVPTX() || Triple.isAMDGCN())
     addArgs(PostLinkArgs, TCArgs, {"-emit-program-metadata"});
-  if (OutputType == types::TY_LLVM_BC) {
-    // single file output requested - this means only perform necessary IR
-    // transformations (like specialization constant intrinsic lowering) and
-    // output LLVMIR
-    addArgs(PostLinkArgs, TCArgs, {"-ir-output-only"});
-  } else {
+  if (OutputType != types::TY_LLVM_BC) {
     assert(OutputType == types::TY_Tempfiletable);
     bool SplitEsimdByDefault = Triple.isSPIROrSPIRV();
     bool SplitEsimd = TCArgs.hasFlag(
@@ -10652,14 +10673,6 @@ static void getOtherSYCLPostLinkOpts(const ToolChain &TC, const JobAction &JA,
       addArgs(PostLinkArgs, TCArgs, {"-split-esimd"});
     addArgs(PostLinkArgs, TCArgs, {"-lower-esimd"});
   }
-  addArgs(PostLinkArgs, TCArgs,
-          {StringRef(getSYCLPostLinkOptimizationLevel(TCArgs))});
-  // specialization constants processing is mandatory
-  if (SpecConsts)
-    addArgs(PostLinkArgs, TCArgs, {"-spec-const=native"});
-  else
-    addArgs(PostLinkArgs, TCArgs, {"-spec-const=emulation"});
-
   bool isAOT = Triple.isNVPTX() || Triple.isAMDGCN() ||
                Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
                Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
@@ -10670,14 +10683,6 @@ static void getOtherSYCLPostLinkOpts(const ToolChain &TC, const JobAction &JA,
       isAOT)
     addArgs(PostLinkArgs, TCArgs,
             {"-generate-device-image-default-spec-consts"});
-
-  // Process device-globals.
-  addArgs(PostLinkArgs, TCArgs, {"-device-globals"});
-
-  // Make ESIMD accessors use stateless memory accesses.
-  if (TCArgs.hasFlag(options::OPT_fno_sycl_esimd_force_stateless_mem,
-                     options::OPT_fsycl_esimd_force_stateless_mem, false))
-    addArgs(PostLinkArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
 }
 
 // sycl-post-link tool normally outputs a file table (see the tool sources for
@@ -10698,9 +10703,11 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   ArgStringList CmdArgs;
 
   llvm::Triple T = getToolChain().getTriple();
-  getOtherSYCLPostLinkOpts(getToolChain(), JA, TCArgs, T, CmdArgs,
+  getOtherSYCLPostLinkOpts(getToolChain(), JA, TCArgs, CmdArgs,
                            SYCLPostLink->getRTSetsSpecConstants(),
                            SYCLPostLink->getTrueType());
+  getTripleBasedSYCLPostLinkOpts(getToolChain(), JA, TCArgs, T, CmdArgs,
+      SYCLPostLink->getRTSetsSpecConstants(), SYCLPostLink->getTrueType());
 
   // Add output file table file option
   assert(Output.isFilename() && "output must be a filename");
@@ -11094,8 +11101,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // for the clang-linker-wrapper causes for potential inconsistencies and
     // would need to handled more at the device linking level.
     bool SpecConsts = TargetTriple.isSPIROrSPIRV();
-    getOtherSYCLPostLinkOpts(getToolChain(), JA, Args, TargetTriple,
-                             PostLinkArgs, SpecConsts, OutputType);
+    getOtherSYCLPostLinkOpts(getToolChain(), JA, Args, PostLinkArgs, SpecConsts,
+                             OutputType);
+    getTripleBasedSYCLPostLinkOpts(getToolChain(), JA, Args, TargetTriple,
+                                   PostLinkArgs, SpecConsts, OutputType);
     for (const auto &A : PostLinkArgs)
       appendOption(PostLinkOptString, A);
     if (!PostLinkOptString.empty())

@@ -51,4 +51,4 @@
 // RUN:          -Xdevice-post-link -post-link-opt -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_POSTLINK %s
 // WRAPPER_OPTIONS_POSTLINK: clang-linker-wrapper{{.*}} "--triple=spir64"
-// WRAPPER_OPTIONS_POSTLINK-SAME: "--sycl-post-link-options=-post-link-opt -split=auto -emit-only-kernels-as-entry-points -emit-param-info -symbols -emit-exported-symbols -split-esimd -lower-esimd -O2 -spec-const=native -device-globals"
+// WRAPPER_OPTIONS_POSTLINK-SAME: "--sycl-post-link-options=-post-link-opt -O2 -spec-const=native -device-globals -split=auto -emit-only-kernels-as-entry-points -emit-param-info -symbols -emit-exported-symbols -split-esimd -lower-esimd"
