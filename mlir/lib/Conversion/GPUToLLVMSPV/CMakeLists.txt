@@ -4,7 +4,7 @@ add_mlir_conversion_library(MLIRGPUToLLVMSPV
   DEPENDS
   MLIRConversionPassIncGen
 
-  LINK_LIBS PRIVATE
+  LINK_LIBS PUBLIC
   MLIRGPUDialect
   MLIRLLVMCommonConversion
   MLIRLLVMDialect
