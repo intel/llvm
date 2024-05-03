@@ -219,7 +219,7 @@ public:
     auto this_comp = this->comp;
     auto comp_key_value = [this_comp](const KeyValue &lhs,
                                       const KeyValue &rhs) {
-      return this_comp(std::get<0>(lhs).front(), std::get<0>(rhs).front());
+      return this_comp(std::get<0>(lhs), std::get<0>(rhs));
     };
     return group_sorter<KeyValue, ElementsPerWorkItem,
                         decltype(comp_key_value)>(

@@ -68,6 +68,28 @@ struct is_sorter_impl<Sorter, Group, Ptr,
 template <typename Sorter, typename Group, typename ValOrPtr>
 struct is_sorter : decltype(is_sorter_impl<Sorter, Group, ValOrPtr>::test(0)) {
 };
+
+template <typename Sorter, typename Group, typename Key, typename Value>
+struct is_key_value_sorter_impl {
+  template <typename G>
+  using is_expected_return_type =
+      typename std::is_same<std::tuple<Key, Value>,
+                            decltype(std::declval<Sorter>()(
+                                std::declval<G>(), std::declval<Key>(),
+                                std::declval<Value>()))>;
+
+  template <typename G = Group>
+  static decltype(std::integral_constant<bool,
+                                         is_expected_return_type<G>::value &&
+                                             sycl::is_group_v<G>>{})
+  test(int);
+
+  template <typename = Group> static std::false_type test(...);
+};
+
+template <typename Sorter, typename Group, typename Key, typename Value>
+struct is_key_value_sorter
+    : decltype(is_key_value_sorter_impl<Sorter, Group, Key, Value>::test(0)){};
 } // namespace detail
 
 // ---- sort_over_group
@@ -137,10 +159,9 @@ joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
 }
 
 template <typename Group, typename T, typename U, typename Sorter>
-// TODO: ADD check for is_sorter , detail::is_sorter<Sorter, Group,
-// Iter>::value, void>::type>
-std::tuple<T, U> sort_key_value_over_group(Group g, T key, U value,
-                                           Sorter sorter) {
+std::enable_if_t<detail::is_key_value_sorter<Sorter, Group, T, U>::value,
+                 std::tuple<T, U>>
+sort_key_value_over_group(Group g, T key, U value, Sorter sorter) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sorter(g, key, value);
 #else
@@ -154,9 +175,11 @@ std::tuple<T, U> sort_key_value_over_group(Group g, T key, U value,
 #endif
 }
 
-template <typename GroupHelper, typename T, typename U, typename Compare,
-          typename Group, std::size_t Extent>
-std::tuple<T, U> sort_key_value_over_group(
+template <typename Group, typename T, typename U, typename Compare,
+          std::size_t Extent>
+std::enable_if_t<!detail::is_key_value_sorter<Compare, Group, T, U>::value,
+                 std::tuple<T, U>>
+sort_key_value_over_group(
     experimental::group_with_scratchpad<Group, Extent> exec, T key, U value,
     Compare comp) {
   return sort_key_value_over_group(
@@ -166,7 +189,8 @@ std::tuple<T, U> sort_key_value_over_group(
 }
 
 template <typename T, typename U, typename Group, std::size_t Extent>
-std::tuple<T, U> sort_key_value_over_group(
+std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, std::tuple<T, U>>
+sort_key_value_over_group(
     experimental::group_with_scratchpad<Group, Extent> exec, T key, U value) {
   return sort_key_value_over_group(
       exec.get_group(), key, value,
