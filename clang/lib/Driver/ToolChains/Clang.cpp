@@ -10634,9 +10634,11 @@ static void getOtherSYCLPostLinkOpts(const ToolChain &TC, const JobAction &JA,
 }
 
 // Add any sycl-post-link options that rely on a specific Triple.
-static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
-    const JobAction &JA, const llvm::opt::ArgList &TCArgs, llvm::Triple Triple,
-    ArgStringList &PostLinkArgs, bool SpecConsts, types::ID OutputType) {
+static void
+getTripleBasedSYCLPostLinkOpts(const ToolChain &TC, const JobAction &JA,
+                               const llvm::opt::ArgList &TCArgs,
+                               llvm::Triple Triple, ArgStringList &PostLinkArgs,
+                               bool SpecConsts, types::ID OutputType) {
 
   // See if device code splitting is requested.  The logic here works along side
   // the behavior in setOtherSYCLPostLinkOpts, where the option is added based
@@ -10707,7 +10709,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
                            SYCLPostLink->getRTSetsSpecConstants(),
                            SYCLPostLink->getTrueType());
   getTripleBasedSYCLPostLinkOpts(getToolChain(), JA, TCArgs, T, CmdArgs,
-      SYCLPostLink->getRTSetsSpecConstants(), SYCLPostLink->getTrueType());
+                                 SYCLPostLink->getRTSetsSpecConstants(),
+                                 SYCLPostLink->getTrueType());
 
   // Add output file table file option
   assert(Output.isFilename() && "output must be a filename");
