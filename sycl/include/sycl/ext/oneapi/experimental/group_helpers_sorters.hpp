@@ -411,10 +411,13 @@ public:
   template <typename Group, typename Properties>
   void operator()(Group g, sycl::span<ValT, ElementsPerWorkItem> values,
                   Properties properties) {
-    (void)values;
-    (void)g;
-    (void)properties;
-    static_assert(std::is_same_v<decltype(g), sycl::sub_group>);
+#ifdef __SYCL_DEVICE_ONLY__
+    sycl::detail::privateStaticSort<
+        /*is_key_value=*/false, std::is_same_v<Properties, detail::is_blocked>,
+        OrderT == sorting_order::ascending, ElementsPerWorkItem, bits>(
+        g, values.data(), /*empty*/ values.data(), scratch, first_bit,
+        last_bit);
+#endif
   }
 
   static constexpr size_t memory_required(sycl::memory_scope scope,
