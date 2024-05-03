@@ -9,7 +9,7 @@
 ; TODO: run validator once it supports the extension
 ; RUNx: spirv-val %t.spv
 
-; CHECK-SPIRV: Capability LongConstantCompositeINTEL 
+; CHECK-SPIRV: Capability LongCompositesINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_long_constant_composite"
 ; CHECK-SPIRV: TypeInt [[TInt:[0-9]+]] 8
 ; CHECK-SPIRV: Constant {{[0-9]+}} [[ArrSize:[0-9]+]] 78000

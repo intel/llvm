@@ -71,6 +71,9 @@ public:
   T *allocate(size_t NumberOfElements, const detail::code_location CodeLoc =
                                            detail::code_location::current()) {
 
+    if (!NumberOfElements)
+      return nullptr;
+
     auto Result = reinterpret_cast<T *>(
         aligned_alloc(getAlignment(), NumberOfElements * sizeof(value_type),
                       MDevice, MContext, AllocKind, MPropList, CodeLoc));

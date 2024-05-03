@@ -130,7 +130,7 @@ And to run, be sure to select the OpenCL backend (works on both CPU and GPU devi
 
 [source]
 ----
-$ SYCL_DEVICE_FILTER=opencl:gpu ./myapp.bin
+$ ONEAPI_DEVICE_SELECTOR=opencl:gpu ./myapp.bin
 ----
 
 

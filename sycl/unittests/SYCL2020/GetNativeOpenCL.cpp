@@ -75,9 +75,9 @@ pi_result redefinedEventGetInfo(pi_event event, pi_event_info param_name,
   return PI_SUCCESS;
 }
 
-static pi_result redefinedUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t,
-                                           pi_uint32, const pi_event *,
-                                           pi_event *event) {
+static pi_result redefinedUSMEnqueueMemset(pi_queue, void *, const void *,
+                                           size_t, size_t, pi_uint32,
+                                           const pi_event *, pi_event *event) {
   *event = reinterpret_cast<pi_event>(new int{});
   return PI_SUCCESS;
 }
@@ -97,7 +97,7 @@ TEST(GetNative, GetNativeHandle) {
   Mock.redefineBefore<detail::PiApiKind::piMemRetain>(redefinedMemRetain);
   Mock.redefineBefore<sycl::detail::PiApiKind::piMemBufferCreate>(
       redefinedMemBufferCreate);
-  Mock.redefineBefore<detail::PiApiKind::piextUSMEnqueueMemset>(
+  Mock.redefineBefore<detail::PiApiKind::piextUSMEnqueueFill>(
       redefinedUSMEnqueueMemset);
 
   context Context(Plt);
@@ -123,7 +123,7 @@ TEST(GetNative, GetNativeHandle) {
   get_native<backend::opencl>(Buffer);
 
   // Depending on global caches state, piDeviceRetain is called either once or
-  // twice, so there'll be 5 or 6 calls.
-  ASSERT_EQ(TestCounter, 5 + DeviceRetainCounter - 1)
+  // twice, so there'll be 6 or 7 calls.
+  ASSERT_EQ(TestCounter, 6 + DeviceRetainCounter - 1)
       << "Not all the retain methods were called";
 }

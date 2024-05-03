@@ -48,9 +48,11 @@ class AssemblyAnnotationWriter;
 class Constant;
 struct DenormalMode;
 class DISubprogram;
+enum LibFunc : unsigned;
 class LLVMContext;
 class Module;
 class raw_ostream;
+class TargetLibraryInfoImpl;
 class Type;
 class User;
 class BranchProbabilityInfo;
@@ -118,8 +120,18 @@ public:
   void convertFromNewDbgValues();
 
   void setIsNewDbgInfoFormat(bool NewVal);
+  void setNewDbgInfoFormatFlag(bool NewVal);
 
 private:
+  friend class TargetLibraryInfoImpl;
+
+  static constexpr LibFunc UnknownLibFunc = LibFunc(-1);
+
+  /// Cache for TLI::getLibFunc() result without prototype validation.
+  /// UnknownLibFunc if uninitialized. NotLibFunc if definitely not lib func.
+  /// Otherwise may be libfunc if prototype validation passes.
+  mutable LibFunc LibFuncCache = UnknownLibFunc;
+
   void CheckLazyArguments() const {
     if (hasLazyArguments())
       BuildLazyArguments();
@@ -239,12 +251,11 @@ public:
 
   static Intrinsic::ID lookupIntrinsicID(StringRef Name);
 
-  /// Recalculate the ID for this function if it is an Intrinsic defined
-  /// in llvm/Intrinsics.h.  Sets the intrinsic ID to Intrinsic::not_intrinsic
-  /// if the name of this function does not match an intrinsic in that header.
+  /// Update internal caches that depend on the function name (such as the
+  /// intrinsic ID and libcall cache).
   /// Note, this method does not need to be called directly, as it is called
   /// from Value::setName() whenever the name of this function changes.
-  void recalculateIntrinsicID();
+  void updateAfterNameChange();
 
   /// getCallingConv()/setCallingConv(CC) - These method get and set the
   /// calling convention of this function.  The enum values for the known
@@ -420,6 +431,9 @@ public:
   /// Return the attribute for the given attribute kind.
   Attribute getFnAttribute(StringRef Kind) const;
 
+  /// Return the attribute for the given attribute kind for the return value.
+  Attribute getRetAttribute(Attribute::AttrKind Kind) const;
+
   /// For a string attribute \p Kind, parse attribute as an integer.
   ///
   /// \returns \p Default if attribute is not present.
@@ -505,6 +519,13 @@ public:
   }
   void setPresplitCoroutine() { addFnAttr(Attribute::PresplitCoroutine); }
   void setSplittedCoroutine() { removeFnAttr(Attribute::PresplitCoroutine); }
+
+  bool isCoroOnlyDestroyWhenComplete() const {
+    return hasFnAttribute(Attribute::CoroDestroyOnlyWhenComplete);
+  }
+  void setCoroDestroyOnlyWhenComplete() {
+    addFnAttr(Attribute::CoroDestroyOnlyWhenComplete);
+  }
 
   MemoryEffects getMemoryEffects() const;
   void setMemoryEffects(MemoryEffects ME);
@@ -705,8 +726,9 @@ public:
   /// Insert \p BB in the basic block list at \p Position. \Returns an iterator
   /// to the newly inserted BB.
   Function::iterator insert(Function::iterator Position, BasicBlock *BB) {
+    Function::iterator FIt = BasicBlocks.insert(Position, BB);
     BB->setIsNewDbgInfoFormat(IsNewDbgInfoFormat);
-    return BasicBlocks.insert(Position, BB);
+    return FIt;
   }
 
   /// Transfer all blocks from \p FromF to this function at \p ToIt.

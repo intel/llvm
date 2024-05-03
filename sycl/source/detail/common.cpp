@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/common_info.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -70,22 +69,6 @@ const char *stringifyErrorCode(pi_int32 error) {
     return "Unknown error code";
   }
 }
-
-std::vector<std::string> split_string(const std::string &str, char delimeter) {
-  std::vector<std::string> result;
-  size_t beg = 0;
-  size_t end = 0;
-  while ((end = str.find(delimeter, beg)) != std::string::npos) {
-    result.push_back(str.substr(beg, end - beg));
-    beg = end + 1;
-  }
-  end = str.find('\0');
-  if (beg < end) {
-    result.push_back(str.substr(beg, end - beg));
-  }
-  return result;
-}
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

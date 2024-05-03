@@ -17,7 +17,6 @@
 #include <sycl/device_selector.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
-#include <sycl/stl.hpp>
 // 4.6.1 Device selection class
 
 #include <algorithm>
@@ -29,9 +28,9 @@ inline namespace _V1 {
 
 namespace detail {
 
-// SYCL_DEVICE_FILTER doesn't need to be considered in the device preferences
-// as it filters the device list returned by device::get_devices itself, so
-// only matching devices will be scored.
+// ONEAPI_DEVICE_SELECTOR doesn't need to be considered in the device
+// preferences as it filters the device list returned by device::get_devices
+// itself, so only matching devices will be scored.
 static int getDevicePreference(const device &Device) {
   int Score = 0;
 

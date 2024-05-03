@@ -10,9 +10,14 @@
 
 #include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_usm/alloc_util.hpp>
+#include <sycl/queue.hpp>
+#include <sycl/usm.hpp>
 
 namespace sycl {
 inline namespace _V1 {
+class device;
+class context;
+
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -108,10 +113,10 @@ aligned_alloc_annotated(size_t alignment, size_t count,
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Unknown USM allocation kind was specified.");
 
-  void *rawPtr = sycl::aligned_alloc(
-      combine_align(alignment, alignFromPropList), count * sizeof(T),
-      syclDevice, syclContext, kind, usmPropList);
-  return annotated_ptr<T, propertyListB>(static_cast<T *>(rawPtr));
+  size_t combinedAlign = combine_align(alignment, alignFromPropList);
+  T *rawPtr = sycl::aligned_alloc<T>(combinedAlign, count, syclDevice,
+                                     syclContext, kind, usmPropList);
+  return annotated_ptr<T, propertyListB>(rawPtr);
 }
 
 template <typename propertyListA = detail::empty_properties_t,

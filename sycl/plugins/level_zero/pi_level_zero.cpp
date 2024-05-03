@@ -58,8 +58,7 @@ pi_result piPluginGetLastError(char **message) {
 
 // Returns plugin specific backend option.
 // Return '-ze-opt-disable' for frontend_option = -O0.
-// Return '-ze-opt-level=1' for frontend_option = -O1 or -O2.
-// Return '-ze-opt-level=2' for frontend_option = -O3.
+// Return '-ze-opt-level=2' for frontend_option = -O1, O2 or -O3.
 // Return '-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'' for
 // frontend_option = -ftarget-compile-fast.
 pi_result piPluginGetBackendOption(pi_platform platform,
@@ -244,8 +243,9 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
                                  HostPtr, RetImage);
 }
 
-pi_result piextMemGetNativeHandle(pi_mem Mem, pi_native_handle *NativeHandle) {
-  return pi2ur::piextMemGetNativeHandle(Mem, NativeHandle);
+pi_result piextMemGetNativeHandle(pi_mem Mem, pi_device Dev,
+                                  pi_native_handle *NativeHandle) {
+  return pi2ur::piextMemGetNativeHandle(Mem, Dev, NativeHandle);
 }
 
 pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
@@ -558,6 +558,16 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
       NumEventsInWaitList, EventWaitList, OutEvent);
 }
 
+pi_result piextEnqueueCooperativeKernelLaunch(
+    pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
+    const size_t *LocalWorkSize, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *OutEvent) {
+  return pi2ur::piextEnqueueCooperativeKernelLaunch(
+      Queue, Kernel, WorkDim, GlobalWorkOffset, GlobalWorkSize, LocalWorkSize,
+      NumEventsInWaitList, EventWaitList, OutEvent);
+}
+
 pi_result piextKernelCreateWithNativeHandle(pi_native_handle NativeHandle,
                                             pi_context Context,
                                             pi_program Program,
@@ -571,6 +581,13 @@ pi_result piextKernelCreateWithNativeHandle(pi_native_handle NativeHandle,
 pi_result piextKernelGetNativeHandle(pi_kernel Kernel,
                                      pi_native_handle *NativeHandle) {
   return pi2ur::piextKernelGetNativeHandle(Kernel, NativeHandle);
+}
+
+pi_result piextKernelSuggestMaxCooperativeGroupCount(
+    pi_kernel Kernel, size_t LocalWorkSize, size_t DynamicSharedMemorySize,
+    pi_uint32 *GroupCountRet) {
+  return pi2ur::piextKernelSuggestMaxCooperativeGroupCount(
+      Kernel, LocalWorkSize, DynamicSharedMemorySize, GroupCountRet);
 }
 
 //
@@ -858,6 +875,15 @@ pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
                                               FunctionPointerRet);
 }
 
+pi_result piextGetGlobalVariablePointer(pi_device Device, pi_program Program,
+                                        const char *GlobalVariableName,
+                                        size_t *GlobalVariableSize,
+                                        void **GlobalVariablePointerRet) {
+  return pi2ur::piextGetGlobalVariablePointer(
+      Device, Program, GlobalVariableName, GlobalVariableSize,
+      GlobalVariablePointerRet);
+}
+
 pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
                               pi_device Device,
                               pi_usm_mem_properties *Properties, size_t Size,
@@ -903,23 +929,22 @@ pi_result piextKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
   return pi2ur::piextKernelSetArgPointer(Kernel, ArgIndex, ArgSize, ArgValue);
 }
 
-/// USM Memset API
+/// USM Fill API
 ///
 /// @param Queue is the queue to submit to
-/// @param Ptr is the ptr to memset
-/// @param Value is value to set.  It is interpreted as an 8-bit value and the
-/// upper
-///        24 bits are ignored
-/// @param Count is the size in bytes to memset
+/// @param Ptr is the ptr to fill
+/// \param Pattern is the ptr with the bytes of the pattern to set
+/// \param PatternSize is the size in bytes of the pattern to set
+/// @param Count is the size in bytes to fill
 /// @param NumEventsInWaitlist is the number of events to wait on
 /// @param EventsWaitlist is an array of events to wait on
 /// @param Event is the event that represents this operation
-pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr, pi_int32 Value,
-                                size_t Count, pi_uint32 NumEventsInWaitlist,
-                                const pi_event *EventsWaitlist,
-                                pi_event *Event) {
-  return pi2ur::piextUSMEnqueueMemset(
-      Queue, Ptr, Value, Count, NumEventsInWaitlist, EventsWaitlist, Event);
+pi_result piextUSMEnqueueFill(pi_queue Queue, void *Ptr, const void *Pattern,
+                              size_t PatternSize, size_t Count,
+                              pi_uint32 NumEventsInWaitlist,
+                              const pi_event *EventsWaitlist, pi_event *Event) {
+  return pi2ur::piextUSMEnqueueFill(Queue, Ptr, Pattern, PatternSize, Count,
+                                    NumEventsInWaitlist, EventsWaitlist, Event);
 }
 
 pi_result piextUSMEnqueueMemcpy(pi_queue Queue, pi_bool Blocking, void *DstPtr,
@@ -1223,10 +1248,12 @@ pi_result piextCommandBufferNDRangeKernel(
     pi_ext_command_buffer CommandBuffer, pi_kernel Kernel, pi_uint32 WorkDim,
     const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
     const size_t *LocalWorkSize, pi_uint32 NumSyncPointsInWaitList,
-    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint,
+    pi_ext_command_buffer_command *Command) {
   return pi2ur::piextCommandBufferNDRangeKernel(
       CommandBuffer, Kernel, WorkDim, GlobalWorkOffset, GlobalWorkSize,
-      LocalWorkSize, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
+      LocalWorkSize, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint,
+      Command);
 }
 
 pi_result piextCommandBufferMemcpyUSM(
@@ -1304,6 +1331,45 @@ pi_result piextCommandBufferMemBufferWriteRect(
       NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
 }
 
+pi_result piextCommandBufferMemBufferFill(
+    pi_ext_command_buffer CommandBuffer, pi_mem Buffer, const void *Pattern,
+    size_t PatternSize, size_t Offset, size_t Size,
+    pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferMemBufferFill(
+      CommandBuffer, Buffer, Pattern, PatternSize, Offset, Size,
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextCommandBufferFillUSM(pi_ext_command_buffer CommandBuffer,
+                                    void *Ptr, const void *Pattern,
+                                    size_t PatternSize, size_t Size,
+                                    pi_uint32 NumSyncPointsInWaitList,
+                                    const pi_ext_sync_point *SyncPointWaitList,
+                                    pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferFillUSM(
+      CommandBuffer, Ptr, Pattern, PatternSize, Size, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextCommandBufferPrefetchUSM(
+    pi_ext_command_buffer CommandBuffer, const void *Ptr, size_t Size,
+    pi_usm_migration_flags Flags, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferPrefetchUSM(CommandBuffer, Ptr, Size, Flags,
+                                              NumSyncPointsInWaitList,
+                                              SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextCommandBufferAdviseUSM(
+    pi_ext_command_buffer CommandBuffer, const void *Ptr, size_t Length,
+    pi_mem_advice Advice, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferAdviseUSM(CommandBuffer, Ptr, Length, Advice,
+                                            NumSyncPointsInWaitList,
+                                            SyncPointWaitList, SyncPoint);
+}
+
 pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
                                     pi_queue Queue,
                                     pi_uint32 NumEventsInWaitList,
@@ -1311,6 +1377,22 @@ pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
                                     pi_event *Event) {
   return pi2ur::piextEnqueueCommandBuffer(
       CommandBuffer, Queue, NumEventsInWaitList, EventWaitList, Event);
+}
+
+pi_result piextCommandBufferUpdateKernelLaunch(
+    pi_ext_command_buffer_command Command,
+    pi_ext_command_buffer_update_kernel_launch_desc *Desc) {
+  return pi2ur::piextCommandBufferUpdateKernelLaunch(Command, Desc);
+}
+
+pi_result
+piextCommandBufferRetainCommand(pi_ext_command_buffer_command Command) {
+  return pi2ur::piextCommandBufferRetainCommand(Command);
+}
+
+pi_result
+piextCommandBufferReleaseCommand(pi_ext_command_buffer_command Command) {
+  return pi2ur::piextCommandBufferReleaseCommand(Command);
 }
 
 const char SupportedVersion[] = _PI_LEVEL_ZERO_PLUGIN_VERSION_STRING;

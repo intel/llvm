@@ -4,7 +4,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+  queue Queue{};
 
   using T = int;
 
@@ -22,7 +22,7 @@ int main() {
       ReferenceA[j] = ReferenceB[j];
       ReferenceA[j] += ModValue;
       ReferenceB[j] = ReferenceA[j];
-      ReferenceB[j] += ModValue;
+      ReferenceB[j] += (ModValue + 1);
       ReferenceC[j] = ReferenceB[j];
     }
   }
@@ -83,7 +83,7 @@ int main() {
         [&](handler &CGH) {
           auto AccB = BufferB.get_access(CGH);
           CGH.parallel_for(range<2>(Size, Size),
-                           [=](item<2> id) { AccB[id] += ModValue; });
+                           [=](item<2> id) { AccB[id] += (ModValue + 1); });
         },
         NodeC);
 
@@ -99,13 +99,8 @@ int main() {
 
     auto GraphExec = Graph.finalize();
 
-    event Event;
     for (unsigned n = 0; n < Iterations; n++) {
-      Event = Queue.submit([&](handler &CGH) {
-        CGH.depends_on(Event);
-        CGH.ext_oneapi_graph(GraphExec);
-      });
-      Event.wait();
+      Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
     }
     Queue.wait_and_throw();
   }

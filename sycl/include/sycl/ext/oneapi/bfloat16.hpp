@@ -9,7 +9,6 @@
 #pragma once
 
 #include <sycl/aliases.hpp>                   // for half
-#include <sycl/builtins.hpp>                  // for isnan
 #include <sycl/detail/defines_elementary.hpp> // for __DPCPP_SYCL_EXTERNAL
 #include <sycl/half_type.hpp>                 // for half
 
@@ -30,9 +29,27 @@ namespace detail {
 using Bfloat16StorageT = uint16_t;
 Bfloat16StorageT bfloat16ToBits(const bfloat16 &Value);
 bfloat16 bitsToBfloat16(const Bfloat16StorageT Value);
+
+// sycl::vec support
+namespace bf16 {
+#ifdef __SYCL_DEVICE_ONLY__
+using Vec2StorageT = Bfloat16StorageT __attribute__((ext_vector_type(2)));
+using Vec3StorageT = Bfloat16StorageT __attribute__((ext_vector_type(3)));
+using Vec4StorageT = Bfloat16StorageT __attribute__((ext_vector_type(4)));
+using Vec8StorageT = Bfloat16StorageT __attribute__((ext_vector_type(8)));
+using Vec16StorageT = Bfloat16StorageT __attribute__((ext_vector_type(16)));
+#else
+using Vec2StorageT = std::array<Bfloat16StorageT, 2>;
+using Vec3StorageT = std::array<Bfloat16StorageT, 3>;
+using Vec4StorageT = std::array<Bfloat16StorageT, 4>;
+using Vec8StorageT = std::array<Bfloat16StorageT, 8>;
+using Vec16StorageT = std::array<Bfloat16StorageT, 16>;
+#endif
+} // namespace bf16
 } // namespace detail
 
 class bfloat16 {
+protected:
   detail::Bfloat16StorageT value;
 
   friend inline detail::Bfloat16StorageT
@@ -42,13 +59,18 @@ class bfloat16 {
 
 public:
   bfloat16() = default;
-  bfloat16(const bfloat16 &) = default;
+  constexpr bfloat16(const bfloat16 &) = default;
+  constexpr bfloat16(bfloat16 &&) = default;
+  constexpr bfloat16 &operator=(const bfloat16 &rhs) = default;
   ~bfloat16() = default;
 
 private:
   static detail::Bfloat16StorageT from_float_fallback(const float &a) {
-    if (sycl::isnan(a))
+    // We don't call sycl::isnan because we don't want a data type to depend on
+    // builtins.
+    if (a != a)
       return 0xffc1;
+
     union {
       uint32_t intStorage;
       float floatValue;
@@ -80,7 +102,7 @@ private:
   }
 
   static float to_float(const detail::Bfloat16StorageT &a) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
     return __devicelib_ConvertBF16ToFINTEL(a);
 #else
     union {
@@ -91,6 +113,14 @@ private:
     return floatValue;
 #endif
   }
+
+protected:
+  friend class sycl::vec<bfloat16, 1>;
+  friend class sycl::vec<bfloat16, 2>;
+  friend class sycl::vec<bfloat16, 3>;
+  friend class sycl::vec<bfloat16, 4>;
+  friend class sycl::vec<bfloat16, 8>;
+  friend class sycl::vec<bfloat16, 16>;
 
 public:
   // Implicit conversion from float to bfloat16
@@ -125,16 +155,16 @@ public:
     detail::Bfloat16StorageT res;
     asm("neg.bf16 %0, %1;" : "=h"(res) : "h"(lhs.value));
     return detail::bitsToBfloat16(res);
-#elif defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+#elif defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
     return bfloat16{-__devicelib_ConvertBF16ToFINTEL(lhs.value)};
 #else
-    return -to_float(lhs.value);
+    return bfloat16{-to_float(lhs.value)};
 #endif
   }
 
 // Increment and decrement operators overloading
 #define OP(op)                                                                 \
-  friend bfloat16 &operator op(bfloat16 &lhs) {                                \
+  friend bfloat16 &operator op(bfloat16 & lhs) {                               \
     float f = to_float(lhs.value);                                             \
     lhs.value = from_float(op f);                                              \
     return lhs;                                                                \
@@ -150,18 +180,7 @@ public:
 
   // Assignment operators overloading
 #define OP(op)                                                                 \
-  friend bfloat16 &operator op(bfloat16 &lhs, const bfloat16 &rhs) {           \
-    float f = static_cast<float>(lhs);                                         \
-    f op static_cast<float>(rhs);                                              \
-    return lhs = f;                                                            \
-  }                                                                            \
-  template <typename T>                                                        \
-  friend bfloat16 &operator op(bfloat16 &lhs, const T &rhs) {                  \
-    float f = static_cast<float>(lhs);                                         \
-    f op static_cast<float>(rhs);                                              \
-    return lhs = f;                                                            \
-  }                                                                            \
-  template <typename T> friend T &operator op(T &lhs, const bfloat16 &rhs) {   \
+  friend bfloat16 &operator op(bfloat16 & lhs, const bfloat16 & rhs) {         \
     float f = static_cast<float>(lhs);                                         \
     f op static_cast<float>(rhs);                                              \
     return lhs = f;                                                            \
@@ -178,11 +197,13 @@ public:
     return type{static_cast<float>(lhs) op static_cast<float>(rhs)};           \
   }                                                                            \
   template <typename T>                                                        \
-  friend type operator op(const bfloat16 &lhs, const T &rhs) {                 \
+  friend std::enable_if_t<std::is_convertible_v<T, float>, type> operator op(  \
+      const bfloat16 & lhs, const T & rhs) {                                   \
     return type{static_cast<float>(lhs) op static_cast<float>(rhs)};           \
   }                                                                            \
   template <typename T>                                                        \
-  friend type operator op(const T &lhs, const bfloat16 &rhs) {                 \
+  friend std::enable_if_t<std::is_convertible_v<T, float>, type> operator op(  \
+      const T & lhs, const bfloat16 & rhs) {                                   \
     return type{static_cast<float>(lhs) op static_cast<float>(rhs)};           \
   }
   OP(bfloat16, +)
@@ -199,6 +220,19 @@ public:
 
   // Bitwise(|,&,~,^), modulo(%) and shift(<<,>>) operations are not supported
   // for floating-point types.
+
+  // Stream Operator << and >>
+  inline friend std::ostream &operator<<(std::ostream &O, bfloat16 const &rhs) {
+    O << static_cast<float>(rhs);
+    return O;
+  }
+
+  inline friend std::istream &operator>>(std::istream &I, bfloat16 &rhs) {
+    float ValFloat = 0.0f;
+    I >> ValFloat;
+    rhs = ValFloat;
+    return I;
+  }
 };
 
 namespace detail {

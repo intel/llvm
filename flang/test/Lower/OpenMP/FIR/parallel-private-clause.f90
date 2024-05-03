@@ -2,7 +2,7 @@
 ! `PRIVATE` clause present.
 
 ! REQUIRES: shell
-! RUN: bbc --use-desc-for-alloc=false -fopenmp -emit-fir %s -o - | \
+! RUN: bbc --use-desc-for-alloc=false -fopenmp -emit-fir -hlfir=false %s -o - | \
 ! RUN:   FileCheck %s --check-prefix=FIRDialect
 
 !FIRDialect: func @_QPprivate_clause(%[[ARG1:.*]]: !fir.ref<i32>{{.*}}, %[[ARG2:.*]]: !fir.ref<!fir.array<10xi32>>{{.*}}, %[[ARG3:.*]]: !fir.boxchar<1>{{.*}}, %[[ARG4:.*]]: !fir.boxchar<1>{{.*}}) {
@@ -361,7 +361,8 @@ subroutine simd_loop_1
   ! FIRDialect:     %[[UB:.*]] = arith.constant 9 : i32
   ! FIRDialect:     %[[STEP:.*]] = arith.constant 1 : i32
 
-  ! FIRDialect: omp.simdloop for (%[[I:.*]]) : i32 = (%[[LB]]) to (%[[UB]]) inclusive step (%[[STEP]]) {
+  ! FIRDialect: omp.simd {
+  ! FIRDialect-NEXT: omp.loop_nest (%[[I:.*]]) : i32 = (%[[LB]]) to (%[[UB]]) inclusive step (%[[STEP]]) {
   !$OMP SIMD PRIVATE(r)
   do i=1, 9
   ! FIRDialect:     fir.store %[[I]] to %[[LOCAL:.*]] : !fir.ref<i32>

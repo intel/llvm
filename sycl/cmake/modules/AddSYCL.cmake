@@ -53,6 +53,14 @@ function(add_sycl_plugin PLUGIN_NAME)
       OpenCL-Headers
   )
 
+  # All SYCL plugins use UR sources.
+  # Disable errors from warnings and apply other workarounds while building the UR.
+  if(WIN32)
+    target_compile_options("pi_${PLUGIN_NAME}" PRIVATE /WX- /UUNICODE /DUSE_Z7=ON)
+  else()
+    target_compile_options("pi_${PLUGIN_NAME}" PRIVATE -Wno-error)
+  endif()
+
   # Install feature test header
   if (NOT "${ARG_HEADER}" STREQUAL "")
     get_filename_component(HEADER_NAME ${ARG_HEADER} NAME)

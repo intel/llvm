@@ -65,6 +65,36 @@ const StringMap<Decor> SpirvDecorMap = {
 };
 #undef SYCL_COMPILE_TIME_PROPERTY
 
+// Masks defined here must be in sync with the SYCL header with fp control
+// kernel property.
+enum FloatControl {
+  RTE = 1,      // Round to nearest or even
+  RTP = 1 << 1, // Round towards +ve inf
+  RTN = 1 << 2, // Round towards -ve inf
+  RTZ = 1 << 3, // Round towards zero
+
+  DENORM_FTZ = 1 << 4,     // Denorm mode flush to zero
+  DENORM_D_ALLOW = 1 << 5, // Denorm mode double allow
+  DENORM_F_ALLOW = 1 << 6, // Denorm mode float allow
+  DENORM_HF_ALLOW = 1 << 7 // Denorm mode half allow
+};
+
+enum FloatControlMask {
+  ROUND_MASK = (RTE | RTP | RTN | RTZ),
+  DENORM_MASK = (DENORM_D_ALLOW | DENORM_F_ALLOW | DENORM_HF_ALLOW)
+};
+
+// SPIRV execution modes for FP control.
+// These opcodes are specified in SPIRV specification (SPV_KHR_float_controls
+// and SPV_INTEL_float_controls2 extensions):
+// https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.pdf
+constexpr uint32_t SPIRV_ROUNDING_MODE_RTE = 4462;       // RoundingModeRTE
+constexpr uint32_t SPIRV_ROUNDING_MODE_RTZ = 4463;       // RoundingModeRTZ
+constexpr uint32_t SPIRV_ROUNDING_MODE_RTP_INTEL = 5620; // RoundingModeRTPINTEL
+constexpr uint32_t SPIRV_ROUNDING_MODE_RTN_INTEL = 5621; // RoundingModeRTNINTEL
+constexpr uint32_t SPIRV_DENORM_FLUSH_TO_ZERO = 4460;    // DenormFlushToZero
+constexpr uint32_t SPIRV_DENORM_PRESERVE = 4459;         // DenormPreserve
+
 /// Builds a metadata node for a SPIR-V decoration (decoration code is
 /// \c uint32_t integers) with no value.
 ///
@@ -279,8 +309,57 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
     return std::nullopt;
   StringRef AttrKindStr = Attr.getKindAsString();
   // Early exit if it is not a sycl-* attribute.
-  if (!AttrKindStr.startswith("sycl-"))
+  if (!AttrKindStr.starts_with("sycl-"))
     return std::nullopt;
+
+  auto AddFPControlMetadataForWidth = [&](int32_t SPIRVFPControl,
+                                          int32_t Width) {
+    auto NamedMD = M.getOrInsertNamedMetadata("spirv.ExecutionMode");
+    SmallVector<Metadata *, 4> ValueVec;
+    ValueVec.push_back(ConstantAsMetadata::get(&F));
+    ValueVec.push_back(ConstantAsMetadata::get(
+        ConstantInt::get(Type::getInt32Ty(Ctx), SPIRVFPControl)));
+    ValueVec.push_back(ConstantAsMetadata::get(
+        ConstantInt::get(Type::getInt32Ty(Ctx), Width)));
+    NamedMD->addOperand(MDNode::get(Ctx, ValueVec));
+  };
+
+  auto AddFPControlMetadata = [&](int32_t SPIRVFPControl) {
+    for (int32_t Width : {64, 32, 16}) {
+      AddFPControlMetadataForWidth(SPIRVFPControl, Width);
+    }
+  };
+
+  if (AttrKindStr == "sycl-floating-point-control") {
+    uint32_t FPControl = getAttributeAsInteger<uint32_t>(Attr);
+    auto IsFPModeSet = [FPControl](FloatControl Flag) -> bool {
+      return (FPControl & Flag) == Flag;
+    };
+
+    if (IsFPModeSet(RTE))
+      AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTE);
+
+    if (IsFPModeSet(RTP))
+      AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTP_INTEL);
+
+    if (IsFPModeSet(RTN))
+      AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTN_INTEL);
+
+    if (IsFPModeSet(RTZ))
+      AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTZ);
+
+    if (IsFPModeSet(DENORM_FTZ))
+      AddFPControlMetadata(SPIRV_DENORM_FLUSH_TO_ZERO);
+
+    if (IsFPModeSet(DENORM_HF_ALLOW))
+      AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 16);
+
+    if (IsFPModeSet(DENORM_F_ALLOW))
+      AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 32);
+
+    if (IsFPModeSet(DENORM_D_ALLOW))
+      AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 64);
+  }
 
   if (AttrKindStr == "sycl-work-group-size" ||
       AttrKindStr == "sycl-work-group-size-hint") {
@@ -337,6 +416,7 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
 
   if (AttrKindStr == "sycl-streaming-interface") {
     // generate either:
+    //   !ip_interface !N
     //   !N = !{!"streaming"} or
     //   !N = !{!"streaming", !"stall_free_return"}
     SmallVector<Metadata *, 2> MD;
@@ -349,6 +429,7 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
 
   if (AttrKindStr == "sycl-register-map-interface") {
     // generate either:
+    //   !ip_interface !N
     //   !N = !{!"csr"} or
     //   !N = !{!"csr", !"wait_for_done_write"}
     SmallVector<Metadata *, 2> MD;
@@ -359,14 +440,30 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
                                             MDNode::get(Ctx, MD));
   }
 
+  if (AttrKindStr == "sycl-fpga-cluster") {
+    // generate either:
+    //   !stall_free !N
+    //   !N = !{i32 1} or
+    //   !stall_enable !N
+    //   !N = !{i32 1}
+    std::string ClusterType =
+        getAttributeAsInteger<uint32_t>(Attr) ? "stall_enable" : "stall_free";
+    Metadata *ClusterMDArgs[] = {
+        ConstantAsMetadata::get(ConstantInt::get(Type::getInt32Ty(Ctx), 1))};
+    return std::pair<std::string, MDNode *>(ClusterType,
+                                            MDNode::get(Ctx, ClusterMDArgs));
+  }
+
   if ((AttrKindStr == SYCL_REGISTER_ALLOC_MODE_ATTR ||
        AttrKindStr == SYCL_GRF_SIZE_ATTR) &&
       !llvm::esimd::isESIMD(F)) {
     // TODO: Remove SYCL_REGISTER_ALLOC_MODE_ATTR support in next ABI break.
     uint32_t PropVal = getAttributeAsInteger<uint32_t>(Attr);
     if (AttrKindStr == SYCL_GRF_SIZE_ATTR) {
-      assert((PropVal == 0 || PropVal == 128 || PropVal == 256) &&
-             "Unsupported GRF Size");
+      // The RegisterAllocMode metadata supports only 0, 128, and 256 for
+      // PropVal.
+      if (PropVal != 0 && PropVal != 128 && PropVal != 256)
+        return std::nullopt;
       // Map sycl-grf-size values to RegisterAllocMode values used in SPIR-V.
       static constexpr int SMALL_GRF_REGALLOCMODE_VAL = 1;
       static constexpr int LARGE_GRF_REGALLOCMODE_VAL = 2;
@@ -604,7 +701,7 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
                                   : PreservedAnalyses::all();
 }
 
-void CompileTimePropertiesPass::parseAlignmentAndApply(
+bool CompileTimePropertiesPass::parseAlignmentAndApply(
     Module &M, IntrinsicInst *IntrInst) {
   // Get the global variable with the annotation string.
   const GlobalVariable *AnnotStrArgGV = nullptr;
@@ -614,11 +711,11 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
   else if (auto *GEP = dyn_cast<GEPOperator>(IntrAnnotStringArg))
     AnnotStrArgGV = dyn_cast<GlobalVariable>(GEP->getOperand(0));
   if (!AnnotStrArgGV)
-    return;
+    return false;
 
   std::optional<StringRef> AnnotStr = getGlobalVariableString(AnnotStrArgGV);
   if (!AnnotStr)
-    return;
+    return false;
 
   // parse properties string to decoration-value pairs
   auto Properties = parseSYCLPropertiesString(M, IntrInst);
@@ -629,6 +726,7 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
   getUserListIgnoringCast<StoreInst>(IntrInst, TargetedInstList);
   getUserListIgnoringCast<MemTransferInst>(IntrInst, TargetedInstList);
 
+  bool AlignApplied = false;
   for (auto &Property : Properties) {
     auto DecorStr = Property.first->str();
     auto DecorValue = Property.second;
@@ -652,18 +750,26 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
         auto Op_num = Pair.second;
         if (auto *LInst = dyn_cast<LoadInst>(Inst)) {
           LInst->setAlignment(Align_val);
+          AlignApplied = true;
         } else if (auto *SInst = dyn_cast<StoreInst>(Inst)) {
-          if (Op_num == 1)
+          if (Op_num == 1) {
             SInst->setAlignment(Align_val);
+            AlignApplied = true;
+          }
         } else if (auto *MI = dyn_cast<MemTransferInst>(Inst)) {
-          if (Op_num == 0)
+          if (Op_num == 0) {
             MI->setDestAlignment(Align_val);
-          else if (Op_num == 1)
+            AlignApplied = true;
+          } else if (Op_num == 1) {
             MI->setSourceAlignment(Align_val);
+            AlignApplied = true;
+          }
         }
       }
     }
   }
+
+  return AlignApplied;
 }
 
 // Returns true if the transformation changed IntrInst.
@@ -692,7 +798,7 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
     return false;
 
   // check alignment annotation and apply it to load/store
-  parseAlignmentAndApply(M, IntrInst);
+  bool AlignApplied = parseAlignmentAndApply(M, IntrInst);
 
   // Read the annotation values and create new annotation strings.
   std::string NewAnnotString = "";
@@ -701,9 +807,9 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   bool CacheProp = false;
   bool FPGAProp = false;
   for (const auto &[PropName, PropVal] : Properties) {
-    // sycl-alignment is converted to align on
-    // previous parseAlignmentAndApply(), dropping here
-    if (PropName == "sycl-alignment")
+    // if sycl-alignment is converted to align on IR constructs
+    // during parseAlignmentAndApply(), dropping here
+    if (PropName == "sycl-alignment" && AlignApplied)
       continue;
 
     auto DecorIt = SpirvDecorMap.find(*PropName);

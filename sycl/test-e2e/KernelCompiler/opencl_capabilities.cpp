@@ -6,13 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: ocloc
+// REQUIRES: ocloc && (opencl || level_zero)
+// UNSUPPORTED: accelerator
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // Here we are testing some of the various args that SYCL can and cannot
 // pass to an OpenCL kernel that is compiled with the kernel_compiler.
+
+// no backend supports compiling for multiple devices yet, so we limit
+// the queue and context to just one.
 
 // IMPORTANT: LevelZero YES!
 // Even though this test is covering which OpenCL capabilities
@@ -47,9 +51,9 @@ auto constexpr LocalAccCLSource = R"===(
 )===";
 
 void test_local_accessor() {
-
-  sycl::queue q;
-  sycl::context ctx = q.get_context();
+  sycl::device d{sycl::default_selector_v};
+  sycl::context ctx{d};
+  sycl::queue q{ctx, d};
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::opencl, LocalAccCLSource);
@@ -89,8 +93,9 @@ __kernel void usm_kernel(__global int *usmPtr, int multiplier,  float added) {
 )===";
 
 void test_usm_pointer_and_scalar() {
-  sycl::queue q;
-  sycl::context ctx = q.get_context();
+  sycl::device d{sycl::default_selector_v};
+  sycl::context ctx{d};
+  sycl::queue q{ctx, d};
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::opencl, USMCLSource);
@@ -142,8 +147,9 @@ struct pair {
 };
 
 void test_struct() {
-  sycl::queue q;
-  sycl::context ctx = q.get_context();
+  sycl::device d{sycl::default_selector_v};
+  sycl::context ctx{d};
+  sycl::queue q{ctx, d};
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::opencl, StructSrc);

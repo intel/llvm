@@ -11,8 +11,9 @@
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_OPERA...
 #include <sycl/detail/type_traits.hpp>        // for is_group
-#include <sycl/exception.hpp>                 // for feature_not_supported
+#include <sycl/exception.hpp>                 // for exception
 #include <sycl/ext/intel/usm_pointers.hpp>    // for multi_ptr
+#include <sycl/group.hpp>                     // for workGroupBarrier
 
 #include <type_traits> // for enable_if_t
 
@@ -42,9 +43,9 @@ std::enable_if_t<
   }
   return reinterpret_cast<__attribute__((opencl_local)) T *>(AllocatedMem);
 #else
-  throw feature_not_supported(
-      "sycl_ext_oneapi_local_memory extension is not supported on host device",
-      PI_ERROR_INVALID_OPERATION);
+  throw sycl::exception(
+      sycl::errc::feature_not_supported,
+      "sycl_ext_oneapi_local_memory extension is not supported on host");
 #endif
 }
 
@@ -64,9 +65,9 @@ std::enable_if_t<
   // Silence unused variable warning
   (void)g;
   [&args...] {}();
-  throw feature_not_supported(
-      "sycl_ext_oneapi_local_memory extension is not supported on host device",
-      PI_ERROR_INVALID_OPERATION);
+  throw sycl::exception(
+      sycl::errc::feature_not_supported,
+      "sycl_ext_oneapi_local_memory extension is not supported on host");
 #endif
 }
 } // namespace ext::oneapi

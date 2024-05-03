@@ -64,7 +64,8 @@ class NDRDescT {
 
 public:
   NDRDescT()
-      : GlobalSize{0, 0, 0}, LocalSize{0, 0, 0}, NumWorkGroups{0, 0, 0} {}
+      : GlobalSize{0, 0, 0}, LocalSize{0, 0, 0}, NumWorkGroups{0, 0, 0},
+        Dims{0} {}
 
   template <int Dims_> void set(sycl::range<Dims_> NumWorkItems) {
     for (int I = 0; I < Dims_; ++I) {
@@ -397,7 +398,8 @@ public:
           GlobalSize, LocalSize, GroupSize, GroupID);
 
       detail::NDLoop<Dims>::iterate(LocalSize, [&](const id<Dims> &LocalID) {
-        id<Dims> GlobalID = GroupID * LocalSize + LocalID + GlobalOffset;
+        id<Dims> GlobalID =
+            GroupID * id<Dims>{LocalSize} + LocalID + GlobalOffset;
         const sycl::item<Dims, /*Offset=*/true> GlobalItem =
             IDBuilder::createItem<Dims, true>(GlobalSize, GlobalID,
                                               GlobalOffset);

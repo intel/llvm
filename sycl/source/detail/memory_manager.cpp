@@ -15,6 +15,11 @@
 #include <detail/queue_impl.hpp>
 #include <detail/xpti_registry.hpp>
 
+#include <sycl/usm/usm_enums.hpp>
+#include <sycl/usm/usm_pointer_info.hpp>
+
+#include <sycl/ext/oneapi/bindless_images_memory.hpp>
+
 #include <algorithm>
 #include <cassert>
 #include <cstring>
@@ -144,7 +149,11 @@ void memBufferCreateHelper(const PluginPtr &Plugin, pi_context Ctx,
       // Always use call_nocheck here, because call may throw an exception,
       // and this lambda will be called from destructor, which in combination
       // rewards us with UB.
-      Plugin->call_nocheck<PiApiKind::piextMemGetNativeHandle>(*RetMem, &Ptr);
+      // When doing buffer interop we don't know what device the memory should
+      // be resident on, so pass nullptr for Device param. Buffer interop may
+      // not be supported by all backends.
+      Plugin->call_nocheck<PiApiKind::piextMemGetNativeHandle>(
+          *RetMem, /*Dev*/ nullptr, &Ptr);
       emitMemAllocEndTrace(MemObjID, (uintptr_t)(Ptr), Size, 0 /* guard zone */,
                            CorrID);
     }};
@@ -167,7 +176,11 @@ void memReleaseHelper(const PluginPtr &Plugin, pi_mem Mem) {
   // Do not make unnecessary PI calls without instrumentation enabled
   if (xptiTraceEnabled()) {
     pi_native_handle PtrHandle = 0;
-    Plugin->call<PiApiKind::piextMemGetNativeHandle>(Mem, &PtrHandle);
+    // When doing buffer interop we don't know what device the memory should be
+    // resident on, so pass nullptr for Device param. Buffer interop may not be
+    // supported by all backends.
+    Plugin->call<PiApiKind::piextMemGetNativeHandle>(Mem, /*Dev*/ nullptr,
+                                                     &PtrHandle);
     Ptr = (uintptr_t)(PtrHandle);
   }
 #endif
@@ -194,15 +207,15 @@ void memBufferMapHelper(const PluginPtr &Plugin, pi_queue Queue, pi_mem Buffer,
   // We only want to instrument piEnqueueMemBufferMap
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-    CorrID = emitMemAllocBeginTrace(MemObjID, Size, 0 /* guard zone */);
-    xpti::utils::finally _{[&] {
-      emitMemAllocEndTrace(MemObjID, (uintptr_t)(*RetMap), Size,
-                           0 /* guard zone */, CorrID);
-    }};
+  CorrID = emitMemAllocBeginTrace(MemObjID, Size, 0 /* guard zone */);
+  xpti::utils::finally _{[&] {
+    emitMemAllocEndTrace(MemObjID, (uintptr_t)(*RetMap), Size,
+                         0 /* guard zone */, CorrID);
+  }};
 #endif
-    Plugin->call<PiApiKind::piEnqueueMemBufferMap>(
-        Queue, Buffer, Blocking, Flags, Offset, Size, NumEvents, WaitList,
-        Event, RetMap);
+  Plugin->call<PiApiKind::piEnqueueMemBufferMap>(Queue, Buffer, Blocking, Flags,
+                                                 Offset, Size, NumEvents,
+                                                 WaitList, Event, RetMap);
 }
 
 void memUnmapHelper(const PluginPtr &Plugin, pi_queue Queue, pi_mem Mem,
@@ -934,7 +947,7 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
                              sycl::detail::pi::PiEvent *OutEvent,
                              const detail::EventImplPtr &OutEventImpl) {
   assert(!SrcQueue->getContextImplPtr()->is_host() &&
-         "Host queue not supported in fill_usm.");
+         "Host queue not supported in copy_usm.");
 
   if (!Len) { // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
@@ -970,7 +983,7 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
 }
 
 void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
-                             int Pattern,
+                             const std::vector<char> &Pattern,
                              std::vector<sycl::detail::pi::PiEvent> DepEvents,
                              sycl::detail::pi::PiEvent *OutEvent,
                              const detail::EventImplPtr &OutEventImpl) {
@@ -993,9 +1006,21 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   const PluginPtr &Plugin = Queue->getPlugin();
-  Plugin->call<PiApiKind::piextUSMEnqueueMemset>(
-      Queue->getHandleRef(), Mem, Pattern, Length, DepEvents.size(),
-      DepEvents.data(), OutEvent);
+  Plugin->call<PiApiKind::piextUSMEnqueueFill>(
+      Queue->getHandleRef(), Mem, Pattern.data(), Pattern.size(), Length,
+      DepEvents.size(), DepEvents.data(), OutEvent);
+}
+
+// TODO: This function will remain until ABI-breaking change
+void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
+                             int Pattern,
+                             std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                             sycl::detail::pi::PiEvent *OutEvent,
+                             const detail::EventImplPtr &OutEventImpl) {
+  std::vector<char> vecPattern(sizeof(Pattern));
+  std::memcpy(vecPattern.data(), &Pattern, sizeof(Pattern));
+  MemoryManager::fill_usm(Mem, Queue, Length, vecPattern, DepEvents, OutEvent,
+                          OutEventImpl);
 }
 
 // TODO: This function will remain until ABI-breaking change
@@ -1003,7 +1028,9 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                              int Pattern,
                              std::vector<sycl::detail::pi::PiEvent> DepEvents,
                              sycl::detail::pi::PiEvent *OutEvent) {
-  MemoryManager::fill_usm(Mem, Queue, Length, Pattern, DepEvents, OutEvent,
+  std::vector<char> vecPattern(sizeof(Pattern));
+  std::memcpy(vecPattern.data(), &Pattern, sizeof(Pattern));
+  MemoryManager::fill_usm(Mem, Queue, Length, vecPattern, DepEvents, OutEvent,
                           nullptr); // OutEventImpl);
 }
 
@@ -1518,10 +1545,20 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
   }
 
   if (1 == DimDst && 1 == DimSrc) {
-    Plugin->call<PiApiKind::piextCommandBufferMemBufferRead>(
-        CommandBuffer, sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem),
-        SrcXOffBytes, SrcAccessRangeWidthBytes, DstMem + DstXOffBytes,
-        Deps.size(), Deps.data(), OutSyncPoint);
+    pi_result Result =
+        Plugin->call_nocheck<PiApiKind::piextCommandBufferMemBufferRead>(
+            CommandBuffer,
+            sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem),
+            SrcXOffBytes, SrcAccessRangeWidthBytes, DstMem + DstXOffBytes,
+            Deps.size(), Deps.data(), OutSyncPoint);
+
+    if (Result == PI_ERROR_UNSUPPORTED_FEATURE) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device-to-host buffer copy command not supported by graph backend");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
   } else {
     size_t BufferRowPitch = (1 == DimSrc) ? 0 : SrcSzWidthBytes;
     size_t BufferSlicePitch =
@@ -1538,11 +1575,20 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
                                           SrcAccessRange[SrcPos.YTerm],
                                           SrcAccessRange[SrcPos.ZTerm]};
 
-    Plugin->call<PiApiKind::piextCommandBufferMemBufferReadRect>(
-        CommandBuffer, sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem),
-        &BufferOffset, &HostOffset, &RectRegion, BufferRowPitch,
-        BufferSlicePitch, HostRowPitch, HostSlicePitch, DstMem, Deps.size(),
-        Deps.data(), OutSyncPoint);
+    pi_result Result =
+        Plugin->call_nocheck<PiApiKind::piextCommandBufferMemBufferReadRect>(
+            CommandBuffer,
+            sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem),
+            &BufferOffset, &HostOffset, &RectRegion, BufferRowPitch,
+            BufferSlicePitch, HostRowPitch, HostSlicePitch, DstMem, Deps.size(),
+            Deps.data(), OutSyncPoint);
+    if (Result == PI_ERROR_UNSUPPORTED_FEATURE) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device-to-host buffer copy command not supported by graph backend");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
   }
 }
 
@@ -1576,10 +1622,20 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
   }
 
   if (1 == DimDst && 1 == DimSrc) {
-    Plugin->call<PiApiKind::piextCommandBufferMemBufferWrite>(
-        CommandBuffer, sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem),
-        DstXOffBytes, DstAccessRangeWidthBytes, SrcMem + SrcXOffBytes,
-        Deps.size(), Deps.data(), OutSyncPoint);
+    pi_result Result =
+        Plugin->call_nocheck<PiApiKind::piextCommandBufferMemBufferWrite>(
+            CommandBuffer,
+            sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem),
+            DstXOffBytes, DstAccessRangeWidthBytes, SrcMem + SrcXOffBytes,
+            Deps.size(), Deps.data(), OutSyncPoint);
+
+    if (Result == PI_ERROR_UNSUPPORTED_FEATURE) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Host-to-device buffer copy command not supported by graph backend");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
   } else {
     size_t BufferRowPitch = (1 == DimDst) ? 0 : DstSzWidthBytes;
     size_t BufferSlicePitch =
@@ -1596,11 +1652,21 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
                                           DstAccessRange[DstPos.YTerm],
                                           DstAccessRange[DstPos.ZTerm]};
 
-    Plugin->call<PiApiKind::piextCommandBufferMemBufferWriteRect>(
-        CommandBuffer, sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem),
-        &BufferOffset, &HostOffset, &RectRegion, BufferRowPitch,
-        BufferSlicePitch, HostRowPitch, HostSlicePitch, SrcMem, Deps.size(),
-        Deps.data(), OutSyncPoint);
+    pi_result Result =
+        Plugin->call_nocheck<PiApiKind::piextCommandBufferMemBufferWriteRect>(
+            CommandBuffer,
+            sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem),
+            &BufferOffset, &HostOffset, &RectRegion, BufferRowPitch,
+            BufferSlicePitch, HostRowPitch, HostSlicePitch, SrcMem, Deps.size(),
+            Deps.data(), OutSyncPoint);
+
+    if (Result == PI_ERROR_UNSUPPORTED_FEATURE) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Host-to-device buffer copy command not supported by graph backend");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
   }
 }
 
@@ -1614,8 +1680,98 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
                         PI_ERROR_INVALID_VALUE);
 
   const PluginPtr &Plugin = Context->getPlugin();
-  Plugin->call<PiApiKind::piextCommandBufferMemcpyUSM>(
-      CommandBuffer, DstMem, SrcMem, Len, Deps.size(), Deps.data(),
+  pi_result Result =
+      Plugin->call_nocheck<PiApiKind::piextCommandBufferMemcpyUSM>(
+          CommandBuffer, DstMem, SrcMem, Len, Deps.size(), Deps.data(),
+          OutSyncPoint);
+  if (Result == PI_ERROR_UNSUPPORTED_FEATURE) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "USM copy command not supported by graph backend");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
+}
+
+void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
+    sycl::detail::ContextImplPtr Context,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer, void *DstMem,
+    size_t Len, const std::vector<char> &Pattern,
+    std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+    sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
+
+  if (!DstMem)
+    throw runtime_error("NULL pointer argument in memory fill operation.",
+                        PI_ERROR_INVALID_VALUE);
+
+  const PluginPtr &Plugin = Context->getPlugin();
+
+  Plugin->call<PiApiKind::piextCommandBufferFillUSM>(
+      CommandBuffer, DstMem, Pattern.data(), Pattern.size(), Len, Deps.size(),
+      Deps.data(), OutSyncPoint);
+}
+
+void MemoryManager::ext_oneapi_fill_cmd_buffer(
+    sycl::detail::ContextImplPtr Context,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer, SYCLMemObjI *SYCLMemObj,
+    void *Mem, size_t PatternSize, const char *Pattern, unsigned int Dim,
+    sycl::range<3> Size, sycl::range<3> AccessRange, sycl::id<3> AccessOffset,
+    unsigned int ElementSize,
+    std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+    sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
+  assert(SYCLMemObj && "The SYCLMemObj is nullptr");
+
+  const PluginPtr &Plugin = Context->getPlugin();
+  if (SYCLMemObj->getType() != detail::SYCLMemObjI::MemObjType::Buffer) {
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Images are not supported in Graphs");
+  }
+
+  // 2D and 3D buffers accessors can't have custom range or the data will
+  // likely be discontiguous.
+  bool RangesUsable = (Dim <= 1) || (Size == AccessRange);
+  // For 2D and 3D buffers, the offset must be 0, or the data will be
+  // discontiguous.
+  bool OffsetUsable = (Dim <= 1) || (AccessOffset == sycl::id<3>{0, 0, 0});
+  size_t RangeMultiplier = AccessRange[0] * AccessRange[1] * AccessRange[2];
+
+  if (RangesUsable && OffsetUsable) {
+    Plugin->call<PiApiKind::piextCommandBufferMemBufferFill>(
+        CommandBuffer, pi::cast<sycl::detail::pi::PiMem>(Mem), Pattern,
+        PatternSize, AccessOffset[0] * ElementSize,
+        RangeMultiplier * ElementSize, Deps.size(), Deps.data(), OutSyncPoint);
+    return;
+  }
+  // The sycl::handler uses a parallel_for kernel in the case of unusable
+  // Range or Offset, not CG:Fill. So we should not be here.
+  throw runtime_error("Not supported configuration of fill requested",
+                      PI_ERROR_INVALID_OPERATION);
+}
+
+void MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(
+    sycl::detail::ContextImplPtr Context,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer, void *Mem,
+    size_t Length, std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+    sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
+  assert(!Context->is_host() && "Host queue not supported in prefetch_usm.");
+
+  const PluginPtr &Plugin = Context->getPlugin();
+  Plugin->call<PiApiKind::piextCommandBufferPrefetchUSM>(
+      CommandBuffer, Mem, Length, _pi_usm_migration_flags(0), Deps.size(),
+      Deps.data(), OutSyncPoint);
+}
+
+void MemoryManager::ext_oneapi_advise_usm_cmd_buffer(
+    sycl::detail::ContextImplPtr Context,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer, const void *Mem,
+    size_t Length, pi_mem_advice Advice,
+    std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+    sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
+  assert(!Context->is_host() && "Host queue not supported in advise_usm.");
+
+  const PluginPtr &Plugin = Context->getPlugin();
+  Plugin->call<PiApiKind::piextCommandBufferAdviseUSM>(
+      CommandBuffer, Mem, Length, Advice, Deps.size(), Deps.data(),
       OutSyncPoint);
 }
 
@@ -1636,7 +1792,9 @@ void MemoryManager::copy_image_bindless(
   assert((Flags == (sycl::detail::pi::PiImageCopyFlags)
                        ext::oneapi::experimental::image_copy_flags::HtoD ||
           Flags == (sycl::detail::pi::PiImageCopyFlags)
-                       ext::oneapi::experimental::image_copy_flags::DtoH) &&
+                       ext::oneapi::experimental::image_copy_flags::DtoH ||
+          Flags == (sycl::detail::pi::PiImageCopyFlags)
+                       ext::oneapi::experimental::image_copy_flags::DtoD) &&
          "Invalid flags passed to copy_image_bindless.");
   if (!Dst || !Src)
     throw sycl::exception(

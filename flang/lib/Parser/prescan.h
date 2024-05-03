@@ -16,11 +16,11 @@
 // fixed form character literals on truncated card images, file
 // inclusion, and driving the Fortran source preprocessor.
 
-#include "token-sequence.h"
 #include "flang/Common/Fortran-features.h"
 #include "flang/Parser/characters.h"
 #include "flang/Parser/message.h"
 #include "flang/Parser/provenance.h"
+#include "flang/Parser/token-sequence.h"
 #include <bitset>
 #include <optional>
 #include <string>
@@ -159,7 +159,8 @@ private:
   void SkipToEndOfLine();
   bool MustSkipToEndOfLine() const;
   void NextChar();
-  void SkipToNextSignificantCharacter();
+  // True when input flowed to a continuation line
+  bool SkipToNextSignificantCharacter();
   void SkipCComments();
   void SkipSpaces();
   static const char *SkipWhiteSpace(const char *);
@@ -218,6 +219,7 @@ private:
   bool slashInCurrentStatement_{false};
   bool preventHollerith_{false}; // CHARACTER*4HIMOM not Hollerith
   bool inCharLiteral_{false};
+  bool continuationInCharLiteral_{false};
   bool inPreprocessorDirective_{false};
 
   // In some edge cases of compiler directive continuation lines, it

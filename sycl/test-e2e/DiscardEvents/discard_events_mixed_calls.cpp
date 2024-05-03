@@ -24,12 +24,12 @@
 // the tests, please check if they pass without the discard_events property, if
 // they don't pass then it's most likely a general issue unrelated to
 // discard_events.
-
-#include <CL/sycl.hpp>
+// REQUIRES: aspect-usm_shared_allocations
 #include <cassert>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 static constexpr size_t BUFFER_SIZE = 1024;
 static constexpr int MAX_ITER_NUM1 = 10;
 static constexpr int MAX_ITER_NUM2 = 10;

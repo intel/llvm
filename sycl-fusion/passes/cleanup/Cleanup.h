@@ -25,7 +25,7 @@ namespace llvm {
 /// @param[in] F Function to be cleaned.
 /// @param[in] AM Module analysis manager.
 /// @param[in] EraseMD Keys of metadata to remove.
-void fullCleanup(const jit_compiler::ArgUsageMask &ArgUsageInfo, Function *F,
+void fullCleanup(ArrayRef<::jit_compiler::ArgUsageUT> ArgUsageInfo, Function *F,
                  ModuleAnalysisManager &AM, TargetFusionInfo &TFI,
                  ArrayRef<StringRef> EraseMD);
 } // namespace llvm

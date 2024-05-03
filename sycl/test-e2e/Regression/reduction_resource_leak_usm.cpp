@@ -1,15 +1,17 @@
 // REQUIRES: level_zero, level_zero_dev_kit
-// TODO: ZE_DEBUG=4 produces no output on Windows. Enable when fixed.
+// TODO: UR_L0_LEAKS_DEBUG=1 produces no output on Windows. Enable when fixed.
 // UNSUPPORTED: windows
 //
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR="level_zero:*" ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env ONEAPI_DEVICE_SELECTOR="level_zero:*" %{l0_leak_check}  %{run} %t.out 2>&1 | FileCheck %s
 //
 // CHECK-NOT: LEAK
 
 // Tests that additional resources required by USM reductions do not leak.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/reduction.hpp>
 
 using namespace sycl;
 

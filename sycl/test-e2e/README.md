@@ -8,6 +8,7 @@
  * [Creating or modifying tests](#creating-or-modifying-tests)
    * [LIT feature checks](#lit-feature-checks)
    * [llvm-lit parameters](#llvm-lit-parameters)
+ * [sycl/detail/core.hpp header file](#sycl/detail/core.hpp)
 
 # Overview
 This directory contains SYCL-related tests distributed in subdirectories based
@@ -97,8 +98,7 @@ llvm-lit --param sycl_devices="backend0:device0[;backendN:deviceN]*" <repo_path>
 ```
 
 to limit execution to particular devices, where `backend` is one of `opencl`,
-`ext_oneapi_hip`, `ext_oneapi_cuda`, `ext_oneapi_level_zero`, and `device`
-is one of `cpu`, `gpu` or `acc`.
+`hip`, `cuda`, `level_zero`, and `device` is one of `cpu`, `gpu` or `acc`.
 
 To run individual test use the path to it instead of the top level `test-e2e`
 directory.
@@ -163,7 +163,7 @@ semicolon-separated list of configurations. Each configuration includes backend
 separated from comma-separated list of target devices with colon. Example:
 
 ```
--DSYCL_TEST_E2E_TARGETS="opencl:cpu;ext_oneapi_level_zero:gpu;ext_oneapi_cuda:gpu;ext_oneapi_hip:gpu"
+-DSYCL_TEST_E2E_TARGETS="opencl:cpu;level_zero:gpu;cuda:gpu;hip:gpu"
 ```
 
 ***OpenCL_LIBRARY*** - path to OpenCL ICD loader library. OpenCL
@@ -184,8 +184,10 @@ Defaults to AMD if no value is given. Supported values are:
  - **AMD**    - for HIP to target AMD GPUs
  - **NVIDIA** - for HIP to target NVIDIA GPUs
  
- ***AMD_ARCH*** - flag must be set for when using HIP AMD triple.
- For example it may be set to "gfx906".
+***AMD_ARCH*** - flag may be set for when using HIP AMD triple. For example it
+may be set to "gfx906". Otherwise must be provided via the ***amd_arch*** LIT
+parameter (e.g., ***--param amd_arch=gfx906***) at runtime via the command line
+or via the ***LIT_OPTS*** environment variable.
 
 ***GPU_AOT_TARGET_OPTS*** - defines additional options which are passed to AOT
 compilation command line for GPU device. If not specified "-device *" value
@@ -225,6 +227,7 @@ unavailable.
  * **gpu-intel-dg1** - Intel GPU DG1 availability;
  * **gpu-intel-dg2** - Intel GPU DG2 availability;
  * **gpu-intel-pvc** - Intel GPU PVC availability;
+ * **gpu-intel-pvc-vg** - Intel GPU PVC-VG availability;
  * **dump_ir**: - compiler can / cannot dump IR;
  * **llvm-spirv** - llvm-spirv tool availability;
  * **llvm-link** - llvm-link tool availability;
@@ -238,8 +241,8 @@ configure specific single test execution in the command line:
 
  * **dpcpp_compiler** - full path to dpcpp compiler;
  * **sycl_devices** - `"backend0:device0[;backendN:deviceN]*"` where `backend`
-    is one of `opencl`, `ext_oneapi_hip`, `ext_oneapi_cuda`,
-    `ext_oneapi_level_zero` and `device` is one of `cpu`, `gpu` or `acc`.
+    is one of `opencl`, `hip`, `cuda`, `level_zero` and `device` is one of
+    `cpu`, `gpu` or `acc`.
  * **dump_ir** - if IR dumping is supported for compiler (True, False);
  * **compatibility_testing** - forces LIT infra to skip the tests compilation
    to support compatibility testing (a SYCL application is built with one
@@ -251,12 +254,15 @@ configure specific single test execution in the command line:
    system. It is developer / CI infra responsibility to make sure that the
    device is available in the system. Tests requiring DG1 to run must use proper
    device selector to ensure that. Use SYCL_DEVICE_ALLOWLIST or
-   SYCL_DEVICE_FILTER to get proper configuration (see
+   ONEAPI_DEVICE_SELECTOR to get proper configuration (see
    [EnvironmentVariables.md](https://github.com/intel/llvm/blob/sycl/sycl/doc/EnvironmentVariables.md));
  * **gpu-intel-dg2** - tells LIT infra that Intel GPU DG2 is present in the
    system. It is developer / CI infra responsibility to make sure that the
    device is available in the system.
  * **gpu-intel-pvc** - tells LIT infra that Intel GPU PVC is present in the
+   system. It is developer / CI infra responsibility to make sure that the
+   device is available in the system.
+ * **gpu-intel-pvc-vg** - tells LIT infra that Intel GPU PVC-VG is present in the
    system. It is developer / CI infra responsibility to make sure that the
    device is available in the system.
  * **extra_environment** - comma-separated list of variables with values to be
@@ -280,3 +286,15 @@ llvm-lit --param dpcpp_compiler=path/to/clang++ --param dump_ir=True \
          SYCL/External/RSBench
 ```
 
+## sycl/detail/core.hpp
+
+While SYCL specification dictates that the only user-visible interface is
+`<sycl/sycl.hpp>` header file we found out that as the implementation and
+multiple extensions grew, the compile time was getting worse and worse,
+negatively affecting our CI turnaround time. We are just starting some efforts
+to create a much smaller set of basic feature needed for every SYCL end-to-end
+test/program so that this issue could be somewhat mitigated. This activity is in
+its early stage and NO production code should rely on it. It WILL be changed as
+we go with our experiments. For any code outside of this project only the
+`<sycl/sycl.hpp>` must be used until we feel confident to propose an extension
+that can provide an alternative.

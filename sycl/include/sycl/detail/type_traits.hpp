@@ -11,7 +11,6 @@
 #include <sycl/access/access.hpp>             // for decorated, address_space
 #include <sycl/detail/generic_type_lists.hpp> // for vec, marray, integer_list
 #include <sycl/detail/type_list.hpp>          // for is_contained, find_twi...
-#include <sycl/half_type.hpp>                 // for half
 
 #include <array>       // for array
 #include <cstddef>     // for size_t
@@ -25,6 +24,10 @@ template <class T> struct is_fixed_size_group : std::false_type {};
 
 template <class T>
 inline constexpr bool is_fixed_size_group_v = is_fixed_size_group<T>::value;
+
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+class SwizzleOp;
 } // namespace detail
 
 template <int Dimensions> class group;
@@ -41,9 +44,9 @@ template <class T>
 inline constexpr bool is_fixed_topology_group_v =
     is_fixed_topology_group<T>::value;
 
-#ifdef SYCL_EXT_ONEAPI_ROOT_GROUP
-template <> struct is_fixed_topology_group<root_group> : std::true_type {};
-#endif
+template <int Dimensions> class root_group;
+template <int Dimensions>
+struct is_fixed_topology_group<root_group<Dimensions>> : std::true_type {};
 
 template <int Dimensions>
 struct is_fixed_topology_group<sycl::group<Dimensions>> : std::true_type {};
@@ -85,6 +88,8 @@ template <typename T>
 struct is_generic_group
     : std::integral_constant<bool,
                              is_group<T>::value || is_sub_group<T>::value> {};
+template <typename T>
+inline constexpr bool is_generic_group_v = is_generic_group<T>::value;
 
 namespace half_impl {
 class half;
@@ -148,6 +153,49 @@ template <class T> using vector_element_t = typename vector_element<T>::type;
 
 template <class T> using marray_element_t = typename T::value_type;
 
+// get_elem_type
+// Get the element type of T. If T is a scalar, the element type is considered
+// the type of the scalar.
+template <typename T, typename = void> struct get_elem_type {
+  using type = T;
+};
+template <typename T, size_t N> struct get_elem_type<marray<T, N>> {
+  using type = T;
+};
+template <typename T, int N> struct get_elem_type<vec<T, N>> {
+  using type = T;
+};
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+struct get_elem_type<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                               OperationCurrentT, Indexes...>> {
+  using type = typename get_elem_type<std::remove_cv_t<VecT>>::type;
+};
+
+template <typename ElementType, access::address_space Space,
+          access::decorated DecorateAddress>
+struct get_elem_type<multi_ptr<ElementType, Space, DecorateAddress>> {
+  using type = ElementType;
+};
+
+template <typename T, typename = void>
+struct is_ext_vector : std::false_type {};
+
+template <typename T>
+struct is_ext_vector<
+    T, std::void_t<decltype(__builtin_reduce_max(std::declval<T>()))>>
+    : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_ext_vector_v = is_ext_vector<T>::value;
+
+template <typename T>
+struct get_elem_type<T, std::enable_if_t<is_ext_vector_v<T>>> {
+  using type = decltype(__builtin_reduce_max(std::declval<T>()));
+};
+
+template <typename T> using get_elem_type_t = typename get_elem_type<T>::type;
+
 // change_base_type_t
 template <typename T, typename B> struct change_base_type {
   using type = B;
@@ -194,6 +242,12 @@ template <class T> struct make_signed<const T> {
 template <class T, int N> struct make_signed<vec<T, N>> {
   using type = vec<make_signed_t<T>, N>;
 };
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+struct make_signed<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                             OperationCurrentT, Indexes...>> {
+  using type = make_signed_t<std::remove_cv_t<VecT>>;
+};
 template <class T, std::size_t N> struct make_signed<marray<T, N>> {
   using type = marray<make_signed_t<T>, N>;
 };
@@ -209,14 +263,20 @@ template <class T> struct make_unsigned<const T> {
 template <class T, int N> struct make_unsigned<vec<T, N>> {
   using type = vec<make_unsigned_t<T>, N>;
 };
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+struct make_unsigned<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                               OperationCurrentT, Indexes...>> {
+  using type = make_unsigned_t<std::remove_cv_t<VecT>>;
+};
 template <class T, std::size_t N> struct make_unsigned<marray<T, N>> {
   using type = marray<make_unsigned_t<T>, N>;
 };
 
 // Checks that sizeof base type of T equal N and T satisfies S<T>::value
 template <typename T, int N, template <typename> class S>
-using is_gen_based_on_type_sizeof =
-    std::bool_constant<S<T>::value && (sizeof(vector_element_t<T>) == N)>;
+inline constexpr bool is_gen_based_on_type_sizeof_v =
+    S<T>::value && (sizeof(vector_element_t<T>) == N);
 
 template <typename> struct is_vec : std::false_type {};
 template <typename T, int N> struct is_vec<sycl::vec<T, N>> : std::true_type {};
@@ -263,6 +323,9 @@ struct is_scalar_arithmetic
     : std::bool_constant<!is_vec<T>::value && is_arithmetic<T>::value> {};
 
 template <typename T>
+inline constexpr bool is_scalar_arithmetic_v = is_scalar_arithmetic<T>::value;
+
+template <typename T>
 struct is_vector_arithmetic
     : std::bool_constant<is_vec<T>::value && is_arithmetic<T>::value> {};
 
@@ -279,6 +342,12 @@ struct is_vector_bool
 template <typename T>
 struct is_bool
     : std::bool_constant<is_scalar_bool<vector_element_t<T>>::value> {};
+
+// is_boolean
+template <int N> struct Boolean;
+template <typename T> struct is_boolean : std::false_type {};
+template <int N> struct is_boolean<Boolean<N>> : std::true_type {};
+template <typename T> inline constexpr bool is_boolean_v = is_boolean<T>::value;
 
 // is_pointer
 template <typename T> struct is_pointer_impl : std::false_type {};
@@ -447,6 +516,42 @@ template <typename Ret, typename... Args> struct function_traits<Ret(Args...)> {
   using ret_type = Ret;
   using args_type = std::tuple<Args...>;
 };
+
+// No first_type_t due to
+// https://open-std.org/jtc1/sc22/wg21/docs/cwg_active.html#1430.
+template <typename T, typename... Ts> struct first_type {
+  using type = T;
+};
+
+template <typename T0, typename... Ts>
+inline constexpr bool all_same_v = (... && std::is_same_v<T0, Ts>);
+
+// Example usage:
+//   using mapped = map_type<type_to_map, from0, /*->*/ to0,
+//                                        from1, /*->*/ to1,
+//                                        ...>
+template <typename...> struct map_type {
+  using type = void;
+};
+
+template <typename T, typename From, typename To, typename... Rest>
+struct map_type<T, From, To, Rest...> {
+  using type = std::conditional_t<std::is_same_v<From, T>, To,
+                                  typename map_type<T, Rest...>::type>;
+};
+template <typename T, typename... Ts> constexpr bool CheckTypeIn() {
+  constexpr bool SameType[] = {
+      std::is_same_v<std::remove_cv_t<T>, std::remove_cv_t<Ts>>...};
+  // Replace with std::any_of with C++20.
+  for (size_t I = 0; I < sizeof...(Ts); ++I)
+    if (SameType[I])
+      return true;
+  return false;
+}
+
+// NOTE: We need a constexpr variable definition for the constexpr functions
+//       as MSVC thinks function definitions are the same otherwise.
+template <typename... Ts> constexpr bool check_type_in_v = CheckTypeIn<Ts...>();
 
 } // namespace detail
 } // namespace _V1

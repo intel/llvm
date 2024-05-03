@@ -17,7 +17,6 @@
 #include <sycl/exception_list.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/property_list.hpp>
-#include <sycl/stl.hpp>
 
 #include <map>
 #include <memory>
@@ -71,6 +70,7 @@ public:
   /// transferred to runtime
   context_impl(sycl::detail::pi::PiContext PiContext,
                async_handler AsyncHandler, const PluginPtr &Plugin,
+               const std::vector<sycl::device> &DeviceList = {},
                bool OwnedByRuntime = true);
 
   ~context_impl();
@@ -117,6 +117,12 @@ public:
   ///
   /// The return type depends on information being queried.
   template <typename Param> typename Param::return_type get_info() const;
+
+  /// Queries SYCL queue for SYCL backend-specific information.
+  ///
+  /// The return type depends on information being queried.
+  template <typename Param>
+  typename Param::return_type get_backend_info() const;
 
   /// Gets the underlying context object (if any) without reference count
   /// modification.
@@ -180,8 +186,17 @@ public:
       return hasDevice(Device);
 
     while (!hasDevice(Device)) {
-      if (Device->isRootDevice())
+      if (Device->isRootDevice()) {
+        if (Device->has(aspect::ext_oneapi_is_component)) {
+          // Component devices should be implicitly usable in context created
+          // for a composite device they belong to.
+          auto CompositeDevice = Device->get_info<
+              ext::oneapi::experimental::info::device::composite_device>();
+          return hasDevice(detail::getSyclObjImpl(CompositeDevice));
+        }
+
         return false;
+      }
       Device = detail::getSyclObjImpl(
           Device->get_info<info::device::parent_device>());
     }
@@ -190,7 +205,10 @@ public:
   }
 
   // Returns the backend of this context
-  backend getBackend() const { return MPlatform->getBackend(); }
+  backend getBackend() const {
+    assert(MPlatform && "MPlatform must be not null");
+    return MPlatform->getBackend();
+  }
 
   /// Given a PiDevice, returns the matching shared_ptr<device_impl>
   /// within this context. May return nullptr if no match discovered.

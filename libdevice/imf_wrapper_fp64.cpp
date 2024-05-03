@@ -363,6 +363,12 @@ double __imf_copysign(double x, double y) {
 }
 
 DEVICE_EXTERN_C_INLINE
+double __devicelib_imf_rcp64h(double);
+
+DEVICE_EXTERN_C_INLINE
+double __imf_rcp64h(double x) { return __devicelib_imf_rcp64h(x); }
+
+DEVICE_EXTERN_C_INLINE
 _iml_half_internal __devicelib_imf_double2half(double);
 
 DEVICE_EXTERN_C_INLINE
@@ -517,4 +523,60 @@ double __imf_ddiv_rz(double x, double y) {
 
 DEVICE_EXTERN_C_INLINE
 double __imf_drcp_rz(double x) { return __devicelib_imf_ddiv_rz(1.0, x); }
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_imf_fma_rd(double, double, double);
+
+DEVICE_EXTERN_C_INLINE
+double __imf_fma_rd(double x, double y, double z) {
+  return __devicelib_imf_fma_rd(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_imf_fma_rn(double, double, double);
+
+DEVICE_EXTERN_C_INLINE
+double __imf_fma_rn(double x, double y, double z) {
+  return __devicelib_imf_fma_rn(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_imf_fma_ru(double, double, double);
+
+DEVICE_EXTERN_C_INLINE
+double __imf_fma_ru(double x, double y, double z) {
+  return __devicelib_imf_fma_ru(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_imf_fma_rz(double, double, double);
+
+DEVICE_EXTERN_C_INLINE
+double __imf_fma_rz(double x, double y, double z) {
+  return __devicelib_imf_fma_rz(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_imf_sqrt_rd(double);
+
+DEVICE_EXTERN_C_INLINE
+double __imf_sqrt_rd(double x) { return __devicelib_imf_sqrt_rd(x); }
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_imf_sqrt_rn(double);
+
+DEVICE_EXTERN_C_INLINE
+double __imf_sqrt_rn(double x) { return __devicelib_imf_sqrt_rn(x); }
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_imf_sqrt_ru(double);
+
+DEVICE_EXTERN_C_INLINE
+double __imf_sqrt_ru(double x) { return __devicelib_imf_sqrt_ru(x); }
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_imf_sqrt_rz(double);
+
+DEVICE_EXTERN_C_INLINE
+double __imf_sqrt_rz(double x) { return __devicelib_imf_sqrt_rz(x); }
 #endif // __LIBDEVICE_IMF_ENABLED__

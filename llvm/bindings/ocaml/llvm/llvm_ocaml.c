@@ -800,6 +800,15 @@ value llvm_string_of_llvalue(value M) {
   return ValueStr;
 }
 
+/* lldbgrecord -> string */
+value llvm_string_of_lldbgrecord(value Record) {
+  char *ValueCStr = LLVMPrintDbgRecordToString(DbgRecord_val(Record));
+  value ValueStr = caml_copy_string(ValueCStr);
+  LLVMDisposeMessage(ValueCStr);
+
+  return ValueStr;
+}
+
 /* llvalue -> llvalue -> unit */
 value llvm_replace_all_uses_with(value OldVal, value NewVal) {
   LLVMReplaceAllUsesWith(Value_val(OldVal), Value_val(NewVal));
@@ -1043,14 +1052,14 @@ value llvm_const_float_of_string(value RealTy, value S) {
 
 /* llcontext -> string -> llvalue */
 value llvm_const_string(value Context, value Str) {
-  return to_val(LLVMConstStringInContext(Context_val(Context), String_val(Str),
-                                         caml_string_length(Str), 1));
+  return to_val(LLVMConstStringInContext2(Context_val(Context), String_val(Str),
+                                          caml_string_length(Str), 1));
 }
 
 /* llcontext -> string -> llvalue */
 value llvm_const_stringz(value Context, value Str) {
-  return to_val(LLVMConstStringInContext(Context_val(Context), String_val(Str),
-                                         caml_string_length(Str), 0));
+  return to_val(LLVMConstStringInContext2(Context_val(Context), String_val(Str),
+                                          caml_string_length(Str), 0));
 }
 
 /* lltype -> llvalue array -> llvalue */
@@ -1230,18 +1239,6 @@ value llvm_const_fcmp(value Pred, value LHSConstant, value RHSConstant) {
 /* llvalue -> llvalue -> llvalue */
 value llvm_const_shl(value LHS, value RHS) {
   LLVMValueRef Value = LLVMConstShl(Value_val(LHS), Value_val(RHS));
-  return to_val(Value);
-}
-
-/* llvalue -> llvalue -> llvalue */
-value llvm_const_lshr(value LHS, value RHS) {
-  LLVMValueRef Value = LLVMConstLShr(Value_val(LHS), Value_val(RHS));
-  return to_val(Value);
-}
-
-/* llvalue -> llvalue -> llvalue */
-value llvm_const_ashr(value LHS, value RHS) {
-  LLVMValueRef Value = LLVMConstAShr(Value_val(LHS), Value_val(RHS));
   return to_val(Value);
 }
 

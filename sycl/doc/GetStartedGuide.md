@@ -261,6 +261,17 @@ variable `SYCL_BUILD_PI_HIP_ROCM_DIR` which can be passed using the
 python $DPCPP_HOME/llvm/buildbot/configure.py --hip \
   --cmake-opt=-DSYCL_BUILD_PI_HIP_ROCM_DIR=/usr/local/rocm
 ```
+If further customization is required — for instance when the layout of
+individual directories can not be inferred from `SYCL_BUILD_PI_HIP_ROCM_DIR` —
+it is possible to specify the location of HIP include, HSA include and HIP
+library directories, using the following CMake variables:
+* `SYCL_BUILD_PI_HIP_INCLUDE_DIR`,
+* `SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR`,
+* `SYCL_BUILD_PI_HIP_LIB_DIR`.
+Please note that a similar customization would also be required for Unified
+Runtime, see [the list of options provided by its
+CMake](https://github.com/oneapi-src/unified-runtime#cmake-standard-options)
+for details.
 
 [LLD](https://llvm.org/docs/AMDGPUUsage.html) is necessary for the AMDGPU
 compilation chain. The AMDGPU backend generates a standard ELF relocatable code
@@ -376,6 +387,21 @@ control which revision of Unified Runtime should be used when building DPC++:
     exists. This can be used as-if an in-tree build.
 * `SYCL_PI_UR_SOURCE_DIR` is a variable used to specify the path to the Unified
   Runtime repository when `SYCL_PI_UR_USE_FETCH_CONTENT` is set of `OFF`.
+
+### Build DPC++ libclc with a custom toolchain
+
+libclc is an implementation of the OpenCL required libraries, as described in
+the [OpenCL C specification](https://www.khronos.org/registry/OpenCL/specs/3.0-unified/html/OpenCL_C.html),
+additionally providing definitions of SPIR-V builtins. It is built to
+target-specific bitcode, that is linked against SYCL binaries. By default, the
+built system uses the SYCL toolchain currently being built to create libclc
+bitcode. This can be suboptimal in case of debug builds, in which case debug
+tools are used to build non-debug libclc bitcode (the notion of debug builds
+doesn't really apply to libclc), resulting in very long compilation time. In
+order to specify a directory containing custom toolchain users can set:
+`LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR` variable. Care is required, as the
+changes to the local SYCL tree might not be reflected in the custom location
+during the build time.
 
 ### Deployment
 

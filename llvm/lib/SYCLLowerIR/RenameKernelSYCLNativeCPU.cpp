@@ -13,6 +13,7 @@
 
 #include "llvm/SYCLLowerIR/RenameKernelSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
+#include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include <set>
 
 using namespace llvm;
@@ -23,7 +24,7 @@ static bool isSpirvSyclBuiltin(StringRef FName) {
   // now skip the digits
   FName = FName.drop_while([](char C) { return std::isdigit(C); });
 
-  return FName.startswith("__spirv_") || FName.startswith("__sycl_");
+  return FName.starts_with("__spirv_") || FName.starts_with("__sycl_");
 }
 
 PreservedAnalyses

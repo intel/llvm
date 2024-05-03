@@ -172,6 +172,13 @@ public:
                        sycl::detail::pi::PiEvent *OutEvent);
 
   static void fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
+                       const std::vector<char> &Pattern,
+                       std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                       sycl::detail::pi::PiEvent *OutEvent,
+                       const detail::EventImplPtr &OutEventImpl);
+
+  // TODO: This function will remain until ABI-breaking change
+  static void fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
                        int Pattern,
                        std::vector<sycl::detail::pi::PiEvent> DepEvents,
                        sycl::detail::pi::PiEvent *OutEvent,
@@ -314,6 +321,37 @@ public:
       ContextImplPtr Context, const void *SrcMem,
       sycl::detail::pi::PiExtCommandBuffer CommandBuffer, size_t Len,
       void *DstMem, std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+      sycl::detail::pi::PiExtSyncPoint *OutSyncPoint);
+
+  static void ext_oneapi_fill_usm_cmd_buffer(
+      sycl::detail::ContextImplPtr Context,
+      sycl::detail::pi::PiExtCommandBuffer CommandBuffer, void *DstMem,
+      size_t Len, const std::vector<char> &Pattern,
+      std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+      sycl::detail::pi::PiExtSyncPoint *OutSyncPoint);
+
+  static void
+  ext_oneapi_fill_cmd_buffer(sycl::detail::ContextImplPtr Context,
+                             sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+                             SYCLMemObjI *SYCLMemObj, void *Mem,
+                             size_t PatternSize, const char *Pattern,
+                             unsigned int Dim, sycl::range<3> Size,
+                             sycl::range<3> AccessRange,
+                             sycl::id<3> AccessOffset, unsigned int ElementSize,
+                             std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+                             sycl::detail::pi::PiExtSyncPoint *OutSyncPoint);
+
+  static void ext_oneapi_prefetch_usm_cmd_buffer(
+      sycl::detail::ContextImplPtr Context,
+      sycl::detail::pi::PiExtCommandBuffer CommandBuffer, void *Mem,
+      size_t Length, std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+      sycl::detail::pi::PiExtSyncPoint *OutSyncPoint);
+
+  static void ext_oneapi_advise_usm_cmd_buffer(
+      sycl::detail::ContextImplPtr Context,
+      sycl::detail::pi::PiExtCommandBuffer CommandBuffer, const void *Mem,
+      size_t Length, pi_mem_advice Advice,
+      std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
       sycl::detail::pi::PiExtSyncPoint *OutSyncPoint);
 
   static void

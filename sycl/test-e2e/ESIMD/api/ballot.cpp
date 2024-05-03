@@ -71,15 +71,13 @@ template <class T, int N> bool test(queue &Q) {
 template <class T> bool test(queue &Q) {
   bool Pass = true;
 
-  // TODO: uncomment calls below once simd<...>.copy_from() starts supporting
-  // sizes other than 8, 16 and 32.
-  //  Pass &= test<T, 4>(Q);
+  Pass &= test<T, 4>(Q);
   Pass &= test<T, 8>(Q);
-  //  Pass &= test<T, 12>(Q);
+  Pass &= test<T, 12>(Q);
   Pass &= test<T, 16>(Q);
-  //  Pass &= test<T, 20>(Q);
-  //  Pass &= test<T, 24>(Q);
-  //  Pass &= test<T, 28>(Q);
+  Pass &= test<T, 20>(Q);
+  Pass &= test<T, 24>(Q);
+  Pass &= test<T, 28>(Q);
   Pass &= test<T, 32>(Q);
 
   return Pass;

@@ -11,11 +11,9 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/spec_constant_impl.hpp>
 #include <sycl/context.hpp>
-#include <sycl/detail/common_info.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/device.hpp>
 #include <sycl/property_list.hpp>
-#include <sycl/stl.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -315,9 +313,9 @@ private:
   void check_device_feature_support(const std::vector<device> &Devices) {
     for (const auto &Device : Devices) {
       if (!Device.get_info<Param>()) {
-        throw feature_not_supported(
-            "Online compilation is not supported by this device",
-            PI_ERROR_COMPILER_NOT_AVAILABLE);
+        throw sycl::exception(
+            sycl::errc::feature_not_supported,
+            "Online compilation is not supported by this device");
       }
     }
   }

@@ -12,7 +12,7 @@
 // RUN: %{run} %t.out
 
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <iostream>
 #include <typeinfo>

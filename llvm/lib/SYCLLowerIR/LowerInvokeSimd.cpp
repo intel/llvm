@@ -88,7 +88,7 @@ std::pair<Value *, Value *>
 getHelperAndInvokeeIfInvokeSimdCall(const CallInst *CI) {
   Function *F = CI->getCalledFunction();
 
-  if (F && F->getName().startswith(esimd::INVOKE_SIMD_PREF)) {
+  if (F && F->getName().starts_with(esimd::INVOKE_SIMD_PREF)) {
     return {CI->getArgOperand(0), CI->getArgOperand(1)};
   }
   return {nullptr, nullptr};
@@ -426,7 +426,7 @@ PreservedAnalyses SYCLLowerInvokeSimdPass::run(Module &M,
 
   for (Function &F : M) {
     if (!F.isDeclaration() ||
-        !F.getName().startswith(esimd::INVOKE_SIMD_PREF)) {
+        !F.getName().starts_with(esimd::INVOKE_SIMD_PREF)) {
       continue;
     }
     SmallVector<User *, 4> Users(F.users());

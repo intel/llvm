@@ -15,7 +15,6 @@
 #include <sycl/detail/pi.hpp>
 #include <sycl/event.hpp>
 #include <sycl/info/info_desc.hpp>
-#include <sycl/stl.hpp>
 
 #include <memory>
 #include <unordered_set>
@@ -79,8 +78,21 @@ event::get_info() const {
 }
 
 template <typename Param>
+typename detail::is_backend_info_desc<Param>::return_type
+event::get_backend_info() const {
+  return impl->get_backend_info<Param>();
+}
+
+template <typename Param>
 typename detail::is_event_profiling_info_desc<Param>::return_type
 event::get_profiling_info() const {
+  if (impl->getCommandGraph()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Profiling information is unavailable for events "
+                          "returned from a submission to a queue in the "
+                          "recording state.");
+  }
+
   if constexpr (!std::is_same_v<Param, info::event_profiling::command_submit>) {
     impl->wait(impl);
   }
@@ -91,6 +103,14 @@ event::get_profiling_info() const {
   template __SYCL_EXPORT ReturnT event::get_info<info::event::Desc>() const;
 
 #include <sycl/info/event_traits.def>
+
+#undef __SYCL_PARAM_TRAITS_SPEC
+
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
+  template __SYCL_EXPORT ReturnT                                               \
+  event::get_backend_info<info::DescType::Desc>() const;
+
+#include <sycl/info/sycl_backend_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 

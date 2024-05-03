@@ -1,5 +1,4 @@
-// Use -O2 to avoid huge stack usage under -O0.
-// RUN: %{build} -O2 -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //==- bit_shift_compilation_test.cpp - Test for compilation of bit shift
 // functions -==//
@@ -10,12 +9,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 #include "../esimd_test_utils.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel::experimental::esimd;
 
 #define SIMD 16
@@ -29,7 +28,7 @@ using shared_vector = std::vector<DataT, shared_allocator<DataT>>;
 
 template <typename TRes, typename TArg1, typename TArg2,
           class Sat = __ESIMD_NS::saturation_off_tag>
-int test(cl::sycl::queue q, TArg1 arg1, TArg2 arg2, TRes expected_shl,
+int test(sycl::queue q, TArg1 arg1, TArg2 arg2, TRes expected_shl,
          TRes expected_shr, TRes expected_lsr, TRes expected_asr) {
   shared_allocator<TArg1> allocator1(q);
   shared_vector<TArg1> input(THREAD_NUM * SIMD, allocator1);

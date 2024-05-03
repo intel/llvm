@@ -138,8 +138,10 @@ export namespace std {
     }
 #endif // _LIBCPP_HAS_NO_LOCALIZATION
 
+#if _LIBCPP_STD_VER >= 23
     // [range.adaptor.object], range adaptor objects
-    // using std::ranges::range_adaptor_closure;
+    using std::ranges::range_adaptor_closure;
+#endif
 
     // [range.all], all view
     namespace views {
@@ -204,13 +206,11 @@ export namespace std {
       using std::ranges::views::drop_while;
     } // namespace views
 
-#ifdef _LIBCPP_ENABLE_EXPERIMENTAL
     using std::ranges::join_view;
 
     namespace views {
       using std::ranges::views::join;
     } // namespace views
-#endif // _LIBCPP_ENABLE_EXPERIMENTAL
 #if 0
     using std::ranges::join_with_view;
 

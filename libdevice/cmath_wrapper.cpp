@@ -8,7 +8,7 @@
 
 #include "device_math.h"
 
-#if defined(__SPIR__) || defined(__NVPTX__)
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__)
 
 DEVICE_EXTERN_C_INLINE
 int abs(int x) { return __devicelib_abs(x); }
@@ -18,6 +18,9 @@ long int labs(long int x) { return __devicelib_labs(x); }
 
 DEVICE_EXTERN_C_INLINE
 long long int llabs(long long int x) { return __devicelib_llabs(x); }
+
+DEVICE_EXTERN_C_INLINE
+float fabsf(float x) { return __devicelib_fabsf(x); }
 
 DEVICE_EXTERN_C_INLINE
 div_t div(int x, int y) { return __devicelib_div(x, y); }
@@ -164,4 +167,4 @@ DEVICE_EXTERN_C_INLINE
 float rintf(float x) { return __nv_rintf(x); }
 #endif // __NVPTX__
 
-#endif // __SPIR__ || __NVPTX__
+#endif // __SPIR__ || __SPIRV__ || __NVPTX__

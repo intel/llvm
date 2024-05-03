@@ -247,6 +247,15 @@ public:
   LLVM_PREFERRED_TYPE(bool)
   unsigned ModulesSkipHeaderSearchPaths : 1;
 
+  /// Whether to entirely skip writing pragma diagnostic mappings.
+  /// Primarily used to speed up deserialization during dependency scanning.
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned ModulesSkipPragmaDiagnosticMappings : 1;
+
+  /// Whether to prune non-affecting module map files from PCM files.
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned ModulesPruneNonAffectingModuleMaps : 1;
+
   LLVM_PREFERRED_TYPE(bool)
   unsigned ModulesHashContent : 1;
 
@@ -257,6 +266,10 @@ public:
   /// diagnostics.
   LLVM_PREFERRED_TYPE(bool)
   unsigned ModulesStrictContextHash : 1;
+
+  /// Whether to include ivfsoverlay usage information in written AST files.
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned ModulesIncludeVFSUsage : 1;
 
   HeaderSearchOptions(StringRef _Sysroot = "/")
       : Sysroot(_Sysroot), ModuleFormat("raw"), DisableModuleHash(false),
@@ -270,8 +283,10 @@ public:
         ForceCheckCXX20ModulesInputFiles(false), UseDebugInfo(false),
         ModulesValidateDiagnosticOptions(true),
         ModulesSkipDiagnosticOptions(false),
-        ModulesSkipHeaderSearchPaths(false), ModulesHashContent(false),
-        ModulesStrictContextHash(false) {}
+        ModulesSkipHeaderSearchPaths(false),
+        ModulesSkipPragmaDiagnosticMappings(false),
+        ModulesPruneNonAffectingModuleMaps(true), ModulesHashContent(false),
+        ModulesStrictContextHash(false), ModulesIncludeVFSUsage(false) {}
 
   /// AddPath - Add the \p Path path to the specified \p Group list.
   void AddPath(StringRef Path, frontend::IncludeDirGroup Group,

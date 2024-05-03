@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: ocloc
+// REQUIRES: (opencl || level_zero)
+// UNSUPPORTED: accelerator
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -78,8 +79,11 @@ void test_build_and_run() {
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
 
-  sycl::queue q;
-  sycl::context ctx = q.get_context();
+  // only one device is supported at this time, so we limit the queue and
+  // context to that
+  sycl::device d{sycl::default_selector_v};
+  sycl::context ctx{d};
+  sycl::queue q{ctx, d};
 
   bool ok = syclex::is_source_kernel_bundle_supported(
       ctx.get_backend(), syclex::source_language::opencl);
@@ -131,8 +135,11 @@ void test_error() {
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
 
-  sycl::queue q;
-  sycl::context ctx = q.get_context();
+  // only one device is supported at this time, so we limit the queue and
+  // context to that
+  sycl::device d{sycl::default_selector_v};
+  sycl::context ctx{d};
+  sycl::queue q{ctx, d};
 
   bool ok = syclex::is_source_kernel_bundle_supported(
       ctx.get_backend(), syclex::source_language::opencl);

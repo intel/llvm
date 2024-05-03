@@ -47,20 +47,26 @@ and not recommended to use in production environment.
     Special target values specific to Intel, NVIDIA and AMD Processor Graphics
     support are accepted, providing a streamlined interface for AOT. Only one of
     these values at a time is supported.
-    * intel_gpu_pvc - Ponte Vecchio Intel graphics architecture
-    * intel_gpu_acm_g12, intel_gpu_dg2_g12 - Alchemist G12 Intel graphics architecture
-    * intel_gpu_acm_g11, intel_gpu_dg2_g11 - Alchemist G11 Intel graphics architecture
-    * intel_gpu_acm_g10, intel_gpu_dg2_g10 - Alchemist G10 Intel graphics architecture
+    * intel_gpu_lnl_m, intel_gpu_20_4_4 - Lunar Lake Intel graphics architecture
+    * intel_gpu_bmg_g21, intel_gpu_20_1_4 - Battlemage G21 Intel graphics architecture
+    * intel_gpu_arl_h, intel_gpu_12_74_4 - Arrow Lake H Intel graphics architecture
+    * intel_gpu_mtl_h, intel_gpu_12_71_4 - Meteor Lake H Intel graphics architecture
+    * intel_gpu_mtl_u, intel_gpu_mtl_s, intel_gpu_arl_u, intel_gpu_arl_s, intel_gpu_12_70_4 - Meteor Lake U/S or Arrow Lake U/S Intel graphics architecture
+    * intel_gpu_pvc_vg, intel_gpu_12_61_7 - Ponte Vecchio VG Intel graphics architecture
+    * intel_gpu_pvc, intel_gpu_12_60_7 - Ponte Vecchio Intel graphics architecture
+    * intel_gpu_acm_g12, intel_gpu_dg2_g12, intel_gpu_12_57_0 - Alchemist G12 Intel graphics architecture
+    * intel_gpu_acm_g11, intel_gpu_dg2_g11, intel_gpu_12_56_5 - Alchemist G11 Intel graphics architecture
+    * intel_gpu_acm_g10, intel_gpu_dg2_g10, intel_gpu_12_55_8 - Alchemist G10 Intel graphics architecture
     * intel_gpu_dg1, intel_gpu_12_10_0 - DG1 Intel graphics architecture
     * intel_gpu_adl_n - Alder Lake N Intel graphics architecture
     * intel_gpu_adl_p - Alder Lake P Intel graphics architecture
     * intel_gpu_rpl_s - Raptor Lake Intel graphics architecture (equal to intel_gpu_adl_s)
     * intel_gpu_adl_s - Alder Lake S Intel graphics architecture
     * intel_gpu_rkl - Rocket Lake Intel graphics architecture
-    * intel_gpu_tgllp, intel_gpu_12_0_0 - Tiger Lake Intel graphics architecture
+    * intel_gpu_tgllp, intel_gpu_tgl, intel_gpu_12_0_0 - Tiger Lake Intel graphics architecture
     * intel_gpu_jsl - Jasper Lake Intel graphics architecture (equal to intel_gpu_ehl)
     * intel_gpu_ehl - Elkhart Lake Intel graphics architecture
-    * intel_gpu_icllp, intel_gpu_11_0_0 - Ice Lake Intel graphics architecture
+    * intel_gpu_icllp, intel_gpu_icl, intel_gpu_11_0_0 - Ice Lake Intel graphics architecture
     * intel_gpu_cml, intel_gpu_9_7_0 - Comet Lake Intel graphics architecture
     * intel_gpu_aml, intel_gpu_9_6_0 - Amber Lake Intel graphics architecture
     * intel_gpu_whl, intel_gpu_9_5_0 - Whiskey Lake Intel graphics architecture
@@ -69,8 +75,8 @@ and not recommended to use in production environment.
     * intel_gpu_apl, intel_gpu_9_3_0 - Apollo Lake Intel graphics architecture
     * intel_gpu_cfl, intel_gpu_9_2_9 - Coffee Lake Intel graphics architecture
     * intel_gpu_kbl, intel_gpu_9_1_9 - Kaby Lake Intel graphics architecture
-    * intel_gpu_skl, intel_gpu_9_0_9 - Skylake Intel graphics architecture
-    * intel_gpu_bdw, intel_gpu_8_0_0 - Broadwell Intel graphics architecture
+    * intel_gpu_skl, intel_gpu_9_0_9 - Intel(R) microarchitecture code name Skylake Intel graphics architecture
+    * intel_gpu_bdw, intel_gpu_8_0_0 - Intel(R) microarchitecture code name Broadwell Intel graphics architecture
     * nvidia_gpu_sm_50 - NVIDIA Maxwell architecture (compute capability 5.0)
     * nvidia_gpu_sm_52 - NVIDIA Maxwell architecture (compute capability 5.2)
     * nvidia_gpu_sm_53 - NVIDIA Maxwell architecture (compute capability 5.3)
@@ -98,7 +104,12 @@ and not recommended to use in production environment.
     * amd_gpu_gfx904 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx906 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx908 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx909 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx90a - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx90c - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx940 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx941 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx942 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx1010 - AMD GCN GFX10.1 (RDNA 1) architecture
     * amd_gpu_gfx1011 - AMD GCN GFX10.1 (RDNA 1) architecture
     * amd_gpu_gfx1012 - AMD GCN GFX10.1 (RDNA 1) architecture
@@ -106,7 +117,18 @@ and not recommended to use in production environment.
     * amd_gpu_gfx1030 - AMD GCN GFX10.3 (RDNA 2) architecture
     * amd_gpu_gfx1031 - GCN GFX10.3 (RDNA 2) architecture
     * amd_gpu_gfx1032 - GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1033 - GCN GFX10.3 (RDNA 2) architecture
     * amd_gpu_gfx1034 - GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1035 - GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1036 - GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1100 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1101 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1102 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1103 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1150 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1151 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1200 - GCN GFX12 (RDNA 4) architecture
+    * amd_gpu_gfx1201 - GCN GFX12 (RDNA 4) architecture
 
 ## Language options
 

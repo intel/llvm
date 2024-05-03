@@ -3,8 +3,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-
-  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+  queue Queue{};
 
   int DotpData = 0;
 

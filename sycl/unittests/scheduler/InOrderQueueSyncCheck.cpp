@@ -56,48 +56,17 @@ TEST_F(SchedulerTest, InOrderQueueSyncCheck) {
       sycl::detail::getSyclObjImpl(Dev), sycl::async_handler{},
       sycl::property::queue::in_order());
 
-  // What we are testing here:
-  // Task type  | Must depend on
-  //  host      | yes - always, separate sync management
-  //  host      | yes - always, separate sync management
-  //  kernel    | yes - change of sync approach
-  //  kernel    | no  - sync between pi calls must be done by backend
-  //  host      | yes - always, separate sync management
-
+  // Check that tasks submitted to an in-order queue implicitly depend_on the
+  // previous task, this is needed to properly sync blocking & blocked tasks.
   sycl::event Event;
-  // host task
-  {
-    LimitedHandlerSimulation MockCGH;
-    EXPECT_CALL(MockCGH, depends_on).Times(1);
-    Queue->finalizeHandler<LimitedHandlerSimulation>(
-        MockCGH, detail::CG::CGTYPE::CodeplayHostTask, Event);
-  }
-  // host task
-  {
-    LimitedHandlerSimulation MockCGH;
-    EXPECT_CALL(MockCGH, depends_on).Times(1);
-    Queue->finalizeHandler<LimitedHandlerSimulation>(
-        MockCGH, detail::CG::CGTYPE::CodeplayHostTask, Event);
-  }
-  // kernel task
-  {
-    LimitedHandlerSimulation MockCGH;
-    EXPECT_CALL(MockCGH, depends_on).Times(1);
-    Queue->finalizeHandler<LimitedHandlerSimulation>(
-        MockCGH, detail::CG::CGTYPE::Kernel, Event);
-  }
-  // kernel task
   {
     LimitedHandlerSimulation MockCGH;
     EXPECT_CALL(MockCGH, depends_on).Times(0);
-    Queue->finalizeHandler<LimitedHandlerSimulation>(
-        MockCGH, detail::CG::CGTYPE::Kernel, Event);
+    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, Event);
   }
-  // host task
   {
     LimitedHandlerSimulation MockCGH;
     EXPECT_CALL(MockCGH, depends_on).Times(1);
-    Queue->finalizeHandler<LimitedHandlerSimulation>(
-        MockCGH, detail::CG::CGTYPE::CodeplayHostTask, Event);
+    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, Event);
   }
 }

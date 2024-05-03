@@ -25,7 +25,7 @@ static void releaseAdapters(std::vector<ur_adapter_handle_t> &Vec) {
     for (auto Adapter : Vec) {
       urAdapterRelease(Adapter);
     }
-    urTearDown(nullptr);
+    urLoaderTearDown();
   });
 }
 
@@ -235,9 +235,9 @@ __SYCL_EXPORT pi_result piMemBufferPartition(
                                      BufferCreateInfo, RetMem);
 }
 
-__SYCL_EXPORT pi_result
-piextMemGetNativeHandle(pi_mem Mem, pi_native_handle *NativeHandle) {
-  return pi2ur::piextMemGetNativeHandle(Mem, NativeHandle);
+__SYCL_EXPORT pi_result piextMemGetNativeHandle(
+    pi_mem Mem, pi_device Dev, pi_native_handle *NativeHandle) {
+  return pi2ur::piextMemGetNativeHandle(Mem, Dev, NativeHandle);
 }
 
 __SYCL_EXPORT pi_result
@@ -437,24 +437,24 @@ __SYCL_EXPORT pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
                                ParamValueSizeRet);
 }
 
-/// USM Memset API
+/// USM Fill API
 ///
-/// @param Queue is the queue to submit to
-/// @param Ptr is the ptr to memset
-/// @param Value is value to set.  It is interpreted as an 8-bit value and the
-/// upper
-///        24 bits are ignored
-/// @param Count is the size in bytes to memset
-/// @param NumEventsInWaitlist is the number of events to wait on
-/// @param EventsWaitlist is an array of events to wait on
-/// @param Event is the event that represents this operation
-__SYCL_EXPORT pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr,
-                                              pi_int32 Value, size_t Count,
-                                              pi_uint32 NumEventsInWaitlist,
-                                              const pi_event *EventsWaitlist,
-                                              pi_event *Event) {
-  return pi2ur::piextUSMEnqueueMemset(
-      Queue, Ptr, Value, Count, NumEventsInWaitlist, EventsWaitlist, Event);
+/// \param queue is the queue to submit to
+/// \param ptr is the ptr to fill
+/// \param pattern is the ptr with the bytes of the pattern to set
+/// \param patternSize is the size in bytes of the pattern to set
+/// \param count is the size in bytes to fill
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+__SYCL_EXPORT pi_result piextUSMEnqueueFill(pi_queue Queue, void *Ptr,
+                                            const void *Pattern,
+                                            size_t PatternSize, size_t Count,
+                                            pi_uint32 NumEventsInWaitlist,
+                                            const pi_event *EventsWaitlist,
+                                            pi_event *Event) {
+  return pi2ur::piextUSMEnqueueFill(Queue, Ptr, Pattern, PatternSize, Count,
+                                    NumEventsInWaitlist, EventsWaitlist, Event);
 }
 
 __SYCL_EXPORT pi_result piEnqueueMemBufferCopyRect(
@@ -763,6 +763,15 @@ __SYCL_EXPORT pi_result piextGetDeviceFunctionPointer(
                                               FunctionPointerRet);
 }
 
+__SYCL_EXPORT pi_result piextGetGlobalVariablePointer(
+    pi_device Device, pi_program Program, const char *GlobalVariableName,
+    size_t *GlobalVariableSize, void **GlobalVariablePointerRet) {
+
+  return pi2ur::piextGetGlobalVariablePointer(
+      Device, Program, GlobalVariableName, GlobalVariableSize,
+      GlobalVariablePointerRet);
+}
+
 /// Hint to migrate memory to the device
 ///
 /// @param Queue is the queue to submit to
@@ -1021,10 +1030,12 @@ pi_result piextCommandBufferNDRangeKernel(
     pi_ext_command_buffer CommandBuffer, pi_kernel Kernel, pi_uint32 WorkDim,
     const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
     const size_t *LocalWorkSize, pi_uint32 NumSyncPointsInWaitList,
-    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint,
+    pi_ext_command_buffer_command *Command) {
   return pi2ur::piextCommandBufferNDRangeKernel(
       CommandBuffer, Kernel, WorkDim, GlobalWorkOffset, GlobalWorkSize,
-      LocalWorkSize, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
+      LocalWorkSize, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint,
+      Command);
 }
 
 pi_result piextCommandBufferMemcpyUSM(
@@ -1102,6 +1113,45 @@ pi_result piextCommandBufferMemBufferWriteRect(
       NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
 }
 
+pi_result piextCommandBufferMemBufferFill(
+    pi_ext_command_buffer CommandBuffer, pi_mem Buffer, const void *Pattern,
+    size_t PatternSize, size_t Offset, size_t Size,
+    pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferMemBufferFill(
+      CommandBuffer, Buffer, Pattern, PatternSize, Offset, Size,
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextCommandBufferFillUSM(pi_ext_command_buffer CommandBuffer,
+                                    void *Ptr, const void *Pattern,
+                                    size_t PatternSize, size_t Size,
+                                    pi_uint32 NumSyncPointsInWaitList,
+                                    const pi_ext_sync_point *SyncPointWaitList,
+                                    pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferFillUSM(
+      CommandBuffer, Ptr, Pattern, PatternSize, Size, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextCommandBufferPrefetchUSM(
+    pi_ext_command_buffer CommandBuffer, const void *Ptr, size_t Size,
+    pi_usm_migration_flags Flags, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferPrefetchUSM(CommandBuffer, Ptr, Size, Flags,
+                                              NumSyncPointsInWaitList,
+                                              SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextCommandBufferAdviseUSM(
+    pi_ext_command_buffer CommandBuffer, const void *Ptr, size_t Length,
+    pi_mem_advice Advice, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferAdviseUSM(CommandBuffer, Ptr, Length, Advice,
+                                            NumSyncPointsInWaitList,
+                                            SyncPointWaitList, SyncPoint);
+}
+
 pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
                                     pi_queue Queue,
                                     pi_uint32 NumEventsInWaitList,
@@ -1109,6 +1159,22 @@ pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
                                     pi_event *Event) {
   return pi2ur::piextEnqueueCommandBuffer(
       CommandBuffer, Queue, NumEventsInWaitList, EventWaitList, Event);
+}
+
+pi_result piextCommandBufferUpdateKernelLaunch(
+    pi_ext_command_buffer_command Command,
+    pi_ext_command_buffer_update_kernel_launch_desc *Desc) {
+  return pi2ur::piextCommandBufferUpdateKernelLaunch(Command, Desc);
+}
+
+pi_result
+piextCommandBufferRetainCommand(pi_ext_command_buffer_command Command) {
+  return pi2ur::piextCommandBufferRetainCommand(Command);
+}
+
+pi_result
+piextCommandBufferReleaseCommand(pi_ext_command_buffer_command Command) {
+  return pi2ur::piextCommandBufferReleaseCommand(Command);
 }
 
 __SYCL_EXPORT pi_result piGetDeviceAndHostTimer(pi_device Device,
@@ -1302,7 +1368,20 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   strncpy(PluginInit->PluginVersion, SupportedVersion, PluginVersionSize);
 
   // Initialize UR and discover adapters
-  HANDLE_ERRORS(urInit(0, nullptr));
+  ur_loader_config_handle_t LoaderConfig{};
+  HANDLE_ERRORS(urLoaderConfigCreate(&LoaderConfig));
+
+  if (PluginInit->SanitizeType == _PI_SANITIZE_TYPE_ADDRESS) {
+    auto Result = urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN");
+    if (Result != UR_RESULT_SUCCESS) {
+      urLoaderConfigRelease(LoaderConfig);
+      return ur2piResult(Result);
+    }
+  }
+
+  HANDLE_ERRORS(urLoaderInit(0, LoaderConfig));
+  HANDLE_ERRORS(urLoaderConfigRelease(LoaderConfig));
+
   uint32_t NumAdapters;
   HANDLE_ERRORS(urAdapterGet(0, nullptr, &NumAdapters));
   if (NumAdapters > 0) {
@@ -1376,6 +1455,7 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piProgramCompile)
   _PI_API(piProgramGetBuildInfo)
   _PI_API(piextGetDeviceFunctionPointer)
+  _PI_API(piextGetGlobalVariablePointer)
 
   _PI_API(piMemBufferCreate)
   _PI_API(piMemGetInfo)
@@ -1410,7 +1490,7 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piEnqueueMemBufferMap)
   _PI_API(piEnqueueMemUnmap)
   _PI_API(piEnqueueMemBufferFill)
-  _PI_API(piextUSMEnqueueMemset)
+  _PI_API(piextUSMEnqueueFill)
   _PI_API(piEnqueueMemBufferCopyRect)
   _PI_API(piEnqueueMemBufferCopy)
   _PI_API(piextUSMEnqueueMemcpy)

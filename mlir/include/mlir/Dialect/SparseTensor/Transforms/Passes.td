@@ -11,6 +11,35 @@
 
 include "mlir/Pass/PassBase.td"
 
+def SparseAssembler : Pass<"sparse-assembler", "ModuleOp"> {
+  let summary = "Add [dis]assemble operations on external sparse tensors";
+  let description = [{
+    A pass that converts public entry methods that use sparse tensors as
+    input parameters and/or output return values into wrapper methods
+    that [dis]assemble the individual tensors that constitute the actual
+    storage used externally into MLIR sparse tensors. This pass can be used
+    to prepare the public entry methods of a program that is compiled by the
+    MLIR sparsifier to interface with an external runtime, e.g., when passing
+    sparse tensors as numpy arrays from and to Python. Note that eventual
+    bufferization decisions (e.g. who [de]allocates the underlying memory)
+    should be resolved in agreement with the external runtime.
+
+    By default, the pass uses the [dis]assemble operations to input and output
+    sparse tensors. When the direct-out option is set, however, the output
+    directly returns the MLIR allocated buffers to the external runtime.
+  }];
+  let constructor = "mlir::createSparseAssembler()";
+  let dependentDialects = [
+    "bufferization::BufferizationDialect",
+    "sparse_tensor::SparseTensorDialect",
+    "tensor::TensorDialect",
+  ];
+  let options = [
+    Option<"directOut", "direct-out", "bool",
+      "false", "Directly returns buffers externally">,
+  ];
+}
+
 def SparseReinterpretMap : Pass<"sparse-reinterpret-map", "ModuleOp"> {
   let summary = "Reinterprets sparse tensor type mappings";
   let description = [{
@@ -105,7 +134,6 @@ def SparsificationPass : Pass<"sparsification", "ModuleOp"> {
     "affine::AffineDialect",
     "arith::ArithDialect",
     "bufferization::BufferizationDialect",
-    "gpu::GPUDialect",
     "LLVM::LLVMDialect",
     "linalg::LinalgDialect",
     "memref::MemRefDialect",
@@ -114,9 +142,6 @@ def SparsificationPass : Pass<"sparsification", "ModuleOp"> {
   ];
   // TODO(57514): These enum options are duplicated in Passes.h.
   let options = [
-    Option<"enableIndexReduction", "enable-index-reduction", "bool",
-           "false",
-           "Enable dependent index reduction based algorithm to handle non-trivial index expressions on sparse inputs (experimental features)">,
     Option<"parallelization", "parallelization-strategy", "mlir::SparseParallelizationStrategy",
            "mlir::SparseParallelizationStrategy::kNone",
            "Set the parallelization strategy", [{llvm::cl::values(
@@ -134,9 +159,13 @@ def SparsificationPass : Pass<"sparsification", "ModuleOp"> {
              clEnumValN(mlir::SparseParallelizationStrategy::kAnyStorageAnyLoop,
                         "any-storage-any-loop",
                         "Enable sparse parallelization for any storage and loop."))}]>,
-    Option<"enableGPULibgen", "enable-gpu-libgen", "bool",
-           "false",
-           "Enable GPU acceleration by means of direct library calls (like cuSPARSE)">,
+    Option<"sparseEmitStrategy", "sparse-emit-strategy", "mlir::SparseEmitStrategy",
+           "mlir::SparseEmitStrategy::kFunctional",
+           "Emit functional code or interfaces (to debug) for sparse loops", [{llvm::cl::values(
+             clEnumValN(mlir::SparseEmitStrategy::kFunctional, "functional",
+                        "Emit functional code."),
+             clEnumValN(mlir::SparseEmitStrategy::kDebugInterface, "debug-interface",
+                        "Emit non-functional but easy-to-read interfaces to debug."))}]>,
     Option<"enableRuntimeLibrary", "enable-runtime-library", "bool",
            "true", "Enable runtime library for manipulating sparse tensors">,
   ];
@@ -189,7 +218,6 @@ def LowerForeachToSCF : Pass<"lower-sparse-foreach-to-scf", "func::FuncOp"> {
     "sparse_tensor::SparseTensorDialect",
   ];
 }
-
 
 def SparseTensorConversionPass : Pass<"sparse-tensor-conversion", "ModuleOp"> {
   let summary = "Convert sparse tensors and primitives to library calls";
@@ -371,7 +399,9 @@ def SparseVectorization : Pass<"sparse-vectorization", "ModuleOp"> {
 def SparseGPUCodegen : Pass<"sparse-gpu-codegen", "ModuleOp"> {
   let summary = "Generates GPU code during sparsification";
   let description = [{
-    Enables the sparsifier to use GPU acceleration.
+    Enables the sparsifier to use GPU acceleration. When the number of GPU
+    threads is set to zero, the pass tries to enable GPU acceleration by
+    means of direct library calls (like cuSPARSE).
   }];
   let constructor = "mlir::createSparseGPUCodegenPass()";
   let dependentDialects = [
@@ -384,7 +414,9 @@ def SparseGPUCodegen : Pass<"sparse-gpu-codegen", "ModuleOp"> {
     "sparse_tensor::SparseTensorDialect",
   ];
   let options = [
-    Option<"numThreads", "num_threads", "int32_t", "1024", "Sets the number of GPU threads">,
+    Option<"numThreads", "num-threads", "int32_t", "1024", "Sets the number of GPU threads">,
+    Option<"enableRuntimeLibrary", "enable-runtime-library", "bool",
+           "true", "Enable runtime library for manipulating sparse tensors">,
   ];
 }
 
@@ -428,6 +460,7 @@ def SparsificationAndBufferization : Pass<"sparsification-and-bufferization", "M
     "memref::MemRefDialect",
     "scf::SCFDialect",
     "sparse_tensor::SparseTensorDialect",
+    "vector::VectorDialect"
   ];
 }
 

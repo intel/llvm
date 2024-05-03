@@ -55,10 +55,9 @@
 #pragma once
 
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
+#include <sycl/exception.hpp>                  // for errc
 
 #ifndef __SYCL_DEVICE_ONLY__
-#include <sycl/builtins_scalar_gen.hpp> // for ceil, floor, rint, trunc
-
 #include <cfenv> // for fesetround, fegetround
 #endif
 
@@ -69,6 +68,17 @@ namespace sycl {
 enum class rounding_mode { automatic = 0, rte = 1, rtz = 2, rtp = 3, rtn = 4 };
 
 inline namespace _V1 {
+#ifndef __SYCL_DEVICE_ONLY__
+// TODO: Refactor includes so we can just "#include".
+inline float ceil(float);
+inline double ceil(double);
+inline float floor(float);
+inline double floor(double);
+inline float rint(float);
+inline double rint(double);
+inline float trunc(float);
+inline double trunc(double);
+#endif
 namespace detail {
 
 template <typename T, typename R>
@@ -80,12 +90,9 @@ using is_uint_to_uint =
     std::bool_constant<is_sugeninteger_v<T> && is_sugeninteger_v<R>>;
 
 template <typename T, typename R>
-using is_sint_to_uint =
-    std::bool_constant<is_sigeninteger_v<T> && is_sugeninteger_v<R>>;
-
-template <typename T, typename R>
-using is_uint_to_sint =
-    std::bool_constant<is_sugeninteger_v<T> && is_sigeninteger_v<R>>;
+using is_sint_to_from_uint = std::bool_constant<
+    (detail::is_sigeninteger_v<T> && detail::is_sugeninteger_v<R>) ||
+    (detail::is_sugeninteger_v<T> && detail::is_sigeninteger_v<R>)>;
 
 template <typename T, typename R>
 using is_sint_to_float =
@@ -138,18 +145,6 @@ To ConvertSToF(From Value) {
 template <typename From, typename To, int VecSize,
           typename Enable = std::enable_if_t<VecSize == 1>>
 To ConvertUToF(From Value) {
-  return static_cast<To>(Value);
-}
-
-template <typename From, typename To, int VecSize,
-          typename Enable = std::enable_if_t<VecSize == 1>>
-To SatConvertSToU(From Value) {
-  return static_cast<To>(Value);
-}
-
-template <typename From, typename To, int VecSize,
-          typename Enable = std::enable_if_t<VecSize == 1>>
-To SatConvertUToS(From Value) {
   return static_cast<To>(Value);
 }
 
@@ -313,44 +308,6 @@ __SYCL_INT_INT_CONVERT(U, ulong)
 #undef __SYCL_SCALAR_INT_INT_CONVERT
 #undef __SYCL_VECTOR_INT_INT_CONVERT
 #undef __SYCL_INT_INT_CONVERT
-
-// signed to unsigned, unsigned to signed conversions
-#define __SYCL_SCALAR_SINT_UINT_CONVERT(Op, DestType)                          \
-  template <typename From, typename To, int VecSize, typename Enable>          \
-  enable_if_to_int_scalar_t<sycl::opencl::cl_##DestType, Enable, VecSize, To>  \
-      SatConvert##Op(From value) {                                             \
-    return __spirv_SatConvert##Op##_R##DestType(value);                        \
-  }
-
-#define __SYCL_VECTOR_SINT_UINT_CONVERT(Op, N, DestType)                       \
-  template <typename From, typename To, int VecSize, typename Enable>          \
-  enable_if_to_int_vector_t<sycl::opencl::cl_##DestType, Enable, N, VecSize,   \
-                            To>                                                \
-      SatConvert##Op(From value) {                                             \
-    return __spirv_SatConvert##Op##_R##DestType##N(value);                     \
-  }
-
-#define __SYCL_SINT_UINT_CONVERT(Op, DestType)                                 \
-  __SYCL_SCALAR_SINT_UINT_CONVERT(Op, DestType)                                \
-  __SYCL_VECTOR_SINT_UINT_CONVERT(Op, 2, DestType)                             \
-  __SYCL_VECTOR_SINT_UINT_CONVERT(Op, 3, DestType)                             \
-  __SYCL_VECTOR_SINT_UINT_CONVERT(Op, 4, DestType)                             \
-  __SYCL_VECTOR_SINT_UINT_CONVERT(Op, 8, DestType)                             \
-  __SYCL_VECTOR_SINT_UINT_CONVERT(Op, 16, DestType)
-
-__SYCL_SINT_UINT_CONVERT(UToS, char)
-__SYCL_SINT_UINT_CONVERT(UToS, short)
-__SYCL_SINT_UINT_CONVERT(UToS, int)
-__SYCL_SINT_UINT_CONVERT(UToS, long)
-
-__SYCL_SINT_UINT_CONVERT(SToU, uchar)
-__SYCL_SINT_UINT_CONVERT(SToU, ushort)
-__SYCL_SINT_UINT_CONVERT(SToU, uint)
-__SYCL_SINT_UINT_CONVERT(SToU, ulong)
-
-#undef __SYCL_SCALAR_SINT_UINT_CONVERT
-#undef __SYCL_VECTOR_SINT_UINT_CONVERT
-#undef __SYCL_SINT_UINT_CONVERT
 
 // float to signed, float to unsigned conversion
 #define __SYCL_SCALAR_FLOAT_INT_CONVERT(Op, DestType, RoundingMode,            \
@@ -586,11 +543,18 @@ NativeToT convertImpl(NativeFromT Value) {
   else if constexpr (is_float_to_uint<FromT, ToT>::value)
     return ConvertFToU<NativeFromT, NativeToT, VecSize, ElemTy, RoundingMode>(
         Value);
-  else if constexpr (is_sint_to_uint<FromT, ToT>::value)
-    return SatConvertSToU<NativeFromT, NativeToT, VecSize, ElemTy>(Value);
   else {
-    static_assert(is_uint_to_sint<FromT, ToT>::value);
-    return SatConvertUToS<NativeFromT, NativeToT, VecSize, ElemTy>(Value);
+    static_assert(is_sint_to_from_uint<FromT, ToT>::value,
+                  "Unexpected conversion type");
+    static_assert(VecSize == 1, "Conversion between signed and unsigned data "
+                                "types is only available for scalars");
+    // vec::convert is underspecified and therefore it is not entirely clear
+    // what to do here. 'static_cast' implementation matches SYCL CTS and it
+    // matches our old implementation. Unfortunately, OpSetConvertUToS and
+    // OpSatConvertSToU behave differently and we can't use them here until the
+    // behavior of conversions is well-defined by the SYCL 2020 specificiation.
+    // See https://github.com/KhronosGroup/SYCL-Docs/issues/492
+    return static_cast<NativeToT>(Value);
   }
 }
 

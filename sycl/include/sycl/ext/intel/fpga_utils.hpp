@@ -10,7 +10,6 @@
 
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/stl_type_traits.hpp>
-#include <sycl/stl.hpp>
 
 namespace sycl {
 inline namespace _V1 {

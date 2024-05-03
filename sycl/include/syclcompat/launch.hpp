@@ -63,7 +63,8 @@ launch(const sycl::nd_range<3> &range, sycl::queue q, Args... args) {
       std::is_same<std::invoke_result_t<decltype(F), Args...>, void>::value,
       "SYCL kernels should return void");
 
-  return q.parallel_for(range, [=](sycl::nd_item<3>) { F(args...); });
+  return q.parallel_for(
+      range, [=](sycl::nd_item<3>) { [[clang::always_inline]] F(args...); });
 }
 
 template <auto F, typename... Args>
@@ -81,7 +82,7 @@ sycl::event launch(const sycl::nd_range<3> &range, size_t mem_size,
     auto local_acc = sycl::local_accessor<char, 1>(mem_size, cgh);
     cgh.parallel_for(range, [=](sycl::nd_item<3>) {
       auto local_mem = local_acc.get_pointer();
-      F(args..., local_mem);
+      [[clang::always_inline]] F(args..., local_mem);
     });
   });
 }
@@ -89,8 +90,8 @@ sycl::event launch(const sycl::nd_range<3> &range, size_t mem_size,
 } // namespace detail
 
 template <int Dim>
-sycl::nd_range<Dim> compute_nd_range(sycl::range<Dim> global_size_in,
-                                     sycl::range<Dim> work_group_size) {
+inline sycl::nd_range<Dim> compute_nd_range(sycl::range<Dim> global_size_in,
+                                            sycl::range<Dim> work_group_size) {
 
   if (global_size_in.size() == 0 || work_group_size.size() == 0) {
     throw std::invalid_argument("Global or local size is zero!");

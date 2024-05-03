@@ -36,10 +36,10 @@ program_impl::program_impl(ContextImplPtr Context,
                            const property_list &PropList)
     : MContext(Context), MDevices(DeviceList), MPropList(PropList) {
   if (Context->getDevices().size() > 1) {
-    throw feature_not_supported(
+    throw sycl::exception(
+        sycl::errc::feature_not_supported,
         "multiple devices within a context are not supported with "
-        "sycl::program and sycl::kernel",
-        PI_ERROR_INVALID_OPERATION);
+        "sycl::program and sycl::kernel");
   }
 }
 
@@ -65,10 +65,10 @@ program_impl::program_impl(
 
   MContext = ProgramList[0]->MContext;
   if (MContext->getDevices().size() > 1) {
-    throw feature_not_supported(
+    throw sycl::exception(
+        sycl::errc::feature_not_supported,
         "multiple devices within a context are not supported with "
-        "sycl::program and sycl::kernel",
-        PI_ERROR_INVALID_OPERATION);
+        "sycl::program and sycl::kernel");
   }
   MDevices = ProgramList[0]->MDevices;
   std::vector<device> DevicesSorted;
@@ -402,8 +402,9 @@ program_impl::get_pi_kernel_arg_mask_pair(const std::string &KernelName) const {
 
     // Some PI Plugins (like OpenCL) require this call to enable USM
     // For others, PI will turn this into a NOP.
-    Plugin->call<PiApiKind::piKernelSetExecInfo>(
-        Result.first, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
+    if (getContextImplPtr()->getPlatformImpl()->supports_usm())
+      Plugin->call<PiApiKind::piKernelSetExecInfo>(
+          Result.first, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
 
     return Result;
 }

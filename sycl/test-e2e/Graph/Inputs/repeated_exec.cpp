@@ -3,8 +3,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-
-  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+  queue Queue{};
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 

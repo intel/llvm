@@ -27,7 +27,7 @@ target triple = "spir64-unknown-unknown"
 
 source_filename = "test/DebugInfo/X86/DW_AT_specification.ll"
 
-@_ZZN3foo3barEvE1x = constant i32 0, align 4, !dbg !0
+@_ZZN3foo3barEvE1x = addrspace(1) constant i32 0, align 4, !dbg !0
 
 define void @_ZN3foo3barEv() !dbg !2 {
 entry:

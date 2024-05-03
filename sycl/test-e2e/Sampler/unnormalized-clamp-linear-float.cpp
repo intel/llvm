@@ -14,7 +14,6 @@
 */
 
 #include "common.hpp"
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -109,7 +108,7 @@ void test_unnormalized_clamp_linear_sampler(image_channel_order ChanOrder,
 
     // REPORT RESULTS
     size_t offset = 0;
-    auto test_acc = testResults.get_access<access::mode::read>();
+    auto test_acc = testResults.get_host_access();
 
     std::cout << "read six pixels, float coordinates,   sample:   "
                  "NonNormalized + Clamp + Linear"

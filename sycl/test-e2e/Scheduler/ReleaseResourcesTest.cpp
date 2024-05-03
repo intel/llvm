@@ -11,7 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include "../helpers.hpp"
 
@@ -33,7 +33,7 @@ int main() {
                                      [=](sycl::id<1> Id) { (void)BufAcc[Id]; });
     });
 
-    auto BufHostAcc = Buf.get_access<sycl_access_mode::read>();
+    auto BufHostAcc = Buf.get_host_access();
 
     Queue.wait_and_throw();
 

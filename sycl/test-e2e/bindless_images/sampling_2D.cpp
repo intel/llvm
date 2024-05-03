@@ -5,7 +5,10 @@
 // RUN: %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/usm.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -35,10 +38,17 @@ int main() {
   }
 
   try {
-    sycl::ext::oneapi::experimental::bindless_image_sampler samp(
+    sycl::ext::oneapi::experimental::bindless_image_sampler tempSamp(
         sycl::addressing_mode::repeat,
         sycl::coordinate_normalization_mode::normalized,
         sycl::filtering_mode::linear);
+
+    // Default constructible sampler
+    sycl::ext::oneapi::experimental::bindless_image_sampler samp;
+
+    // Sampler follows by-value semantics
+    sycl::ext::oneapi::experimental::bindless_image_sampler tempSamp2(tempSamp);
+    samp = tempSamp2;
 
     // Extension: image descriptor -- can use the same for both images
     sycl::ext::oneapi::experimental::image_descriptor desc(
@@ -88,15 +98,15 @@ int main() {
             size_t dim1 = it.get_local_id(1);
 
             // Normalize coordinates -- +0.5 to look towards centre of pixel
-            float fdim0 = float(dim0 + 0.5) / (float)width;
-            float fdim1 = float(dim1 + 0.5) / (float)height;
+            float fdim0 = float(dim0 + 0.5f) / (float)width;
+            float fdim1 = float(dim1 + 0.5f) / (float)height;
 
-            // Extension: read image data from handle
+            // Extension: sample image data from handle
             sycl::float4 px1 =
-                sycl::ext::oneapi::experimental::read_image<sycl::float4>(
+                sycl::ext::oneapi::experimental::sample_image<sycl::float4>(
                     imgHandle1, sycl::float2(fdim0, fdim1));
             sycl::float4 px2 =
-                sycl::ext::oneapi::experimental::read_image<sycl::float4>(
+                sycl::ext::oneapi::experimental::sample_image<sycl::float4>(
                     imgHandle2, sycl::float2(fdim0, fdim1));
 
             outAcc[sycl::id<2>{dim1, dim0}] = px1[0] + px2[0];

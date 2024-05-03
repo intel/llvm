@@ -27,9 +27,9 @@
 ; CHECK-SPIRV: TypeArray [[#ArrayTy3:]] [[#StructTy3]] [[#]]
 ; CHECK-SPIRV: TypeArray [[#]] [[#ArrayTy3]] [[#]]
 
-; CHECK-LLVM: %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix" = type { target("spirv.CooperativeMatrixKHR", float, 8, 16, 3, 2) }
-; CHECK-LLVM: %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix.5" = type { target("spirv.CooperativeMatrixKHR", i16, 8, 16, 3, 0) }
-; CHECK-LLVM: %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix.6" = type { target("spirv.CooperativeMatrixKHR", i16, 16, 16, 3, 1) }
+; CHECK-LLVM: %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix" = type { target("spirv.CooperativeMatrixKHR", float, 3, 8, 16, 2) }
+; CHECK-LLVM: %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix.5" = type { target("spirv.CooperativeMatrixKHR", i16, 3, 8, 16, 0) }
+; CHECK-LLVM: %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix.6" = type { target("spirv.CooperativeMatrixKHR", i16, 3, 16, 16, 1) }
 ; CHECK-LLVM: alloca [4 x [4 x %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix"]]
 ; CHECK-LLVM: alloca [4 x [2 x %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix.5"]]
 ; CHECK-LLVM: alloca [4 x [2 x %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix.6"]]
@@ -42,9 +42,9 @@ target triple = "spir64-unknown-unknown"
 %"class.sycl::_V1::__generated_multi_ptr" = type { ptr addrspace(1) }
 %"class.sycl::_V1::__generated_multi_ptr.0" = type { ptr addrspace(1) }
 %"class.sycl::_V1::__generated_multi_ptr.1" = type { ptr addrspace(1) }
-%"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix" = type { target("spirv.CooperativeMatrixKHR", float, 8, 16, 3, 2) }
-%"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix.5" = type { target("spirv.CooperativeMatrixKHR", i16, 8, 16, 3, 0) }
-%"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix.6" = type { target("spirv.CooperativeMatrixKHR", i16, 16, 16, 3, 1) }
+%"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix" = type { target("spirv.CooperativeMatrixKHR", float, 3, 8, 16, 2) }
+%"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix.5" = type { target("spirv.CooperativeMatrixKHR", i16, 3, 8, 16, 0) }
+%"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix.6" = type { target("spirv.CooperativeMatrixKHR", i16, 3, 16, 16, 1) }
 %"class.sycl::_V1::ext::oneapi::bfloat16" = type { i16 }
 
 $_ZTSZZ12joint_matmulILj256ELj256ELj256ELj256ELj2EN4sycl3_V13ext6oneapi8bfloat16EfLj16EEdPT4_S6_PT5_RNS1_5queueEiENKUlRNS1_7handlerEE_clESC_EUlNS1_7nd_itemILi2EEEE_ = comdat any
@@ -117,8 +117,8 @@ for.cond.cleanup7.i:                              ; preds = %for.cond5.i
 for.body8.i:                                      ; preds = %for.cond5.i
   %conv.i = zext i32 %n.0.i to i64
   %arrayidx10.i = getelementptr inbounds [4 x [4 x %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix"]], ptr %tC.i, i64 0, i64 %idxprom.i, i64 %conv.i
-  %call.i.i = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", float, 8, 16, 3, 2) @_Z26__spirv_CompositeConstructIffLm8ELm16ELN5__spv9MatrixUseE2ELNS0_12MatrixLayoutE3ELNS0_5Scope4FlagE3EEPNS0_24__spirv_CooperativeMatrixKHRIT0_XT1_EXT2_EXT4_EXT5_EXT3_EEET_(float noundef 0.000000e+00) #5
-  store target("spirv.CooperativeMatrixKHR", float, 8, 16, 3, 2) %call.i.i, ptr %arrayidx10.i, align 8, !tbaa !82
+  %call.i.i = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", float, 3, 8, 16, 2) @_Z26__spirv_CompositeConstructIffLm8ELm16ELN5__spv9MatrixUseE2ELNS0_12MatrixLayoutE3ELNS0_5Scope4FlagE3EEPNS0_24__spirv_CooperativeMatrixKHRIT0_XT1_EXT2_EXT4_EXT5_EXT3_EEET_(float noundef 0.000000e+00) #5
+  store target("spirv.CooperativeMatrixKHR", float, 3, 8, 16, 2) %call.i.i, ptr %arrayidx10.i, align 8, !tbaa !82
   %inc.i = add nuw nsw i32 %n.0.i, 1
   br label %for.cond5.i, !llvm.loop !84
 
@@ -196,8 +196,8 @@ for.body42.i:                                     ; preds = %for.cond39.i
   %add55.i = add nuw nsw i64 %add52.i, %conv54.i
   %mul56.i = shl nuw nsw i64 %add55.i, 8
   %gep = getelementptr inbounds %"class.sycl::_V1::ext::oneapi::bfloat16", ptr addrspace(1) %invariant.gep, i64 %mul56.i
-  %call1.i.i = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", i16, 8, 16, 3, 0) @_Z32__spirv_CooperativeMatrixLoadKHRIU3AS1N4sycl3_V13ext6oneapi8bfloat16ES4_Lm8ELm16ELN5__spv9MatrixUseE0ELNS6_12MatrixLayoutE0ELNS6_5Scope4FlagE3EEPNS6_24__spirv_CooperativeMatrixKHRIT0_XT1_EXT2_EXT4_EXT5_EXT3_EEEPT_mS8_SA_i(ptr addrspace(1) noundef %gep, i64 noundef 256, i32 noundef 0, i32 noundef 3, i32 noundef 0) #5
-  store target("spirv.CooperativeMatrixKHR", i16, 8, 16, 3, 0) %call1.i.i, ptr %arrayidx47.i, align 8, !tbaa !86
+  %call1.i.i = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", i16, 3, 8, 16, 0) @_Z32__spirv_CooperativeMatrixLoadKHRIU3AS1N4sycl3_V13ext6oneapi8bfloat16ES4_Lm8ELm16ELN5__spv9MatrixUseE0ELNS6_12MatrixLayoutE0ELNS6_5Scope4FlagE3EEPNS6_24__spirv_CooperativeMatrixKHRIT0_XT1_EXT2_EXT4_EXT5_EXT3_EEEPT_mS8_SA_i(ptr addrspace(1) noundef %gep, i64 noundef 256, i32 noundef 0, i32 noundef 3, i32 noundef 0) #5
+  store target("spirv.CooperativeMatrixKHR", i16, 3, 8, 16, 0) %call1.i.i, ptr %arrayidx47.i, align 8, !tbaa !86
   %inc60.i = add nuw nsw i32 %m38.0.i, 1
   br label %for.cond39.i, !llvm.loop !88
 
@@ -212,8 +212,8 @@ for.body67.i:                                     ; preds = %for.cond63.i
   %14 = shl nuw nsw i64 %conv64.i, 5
   %mul85.i = add nuw nsw i64 %14, %11
   %add.ptr.i226.i = getelementptr inbounds %"class.sycl::_V1::ext::oneapi::bfloat16", ptr addrspace(1) %add.ptr.i225.i, i64 %mul85.i
-  %call1.i219.i = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", i16, 16, 16, 3, 1) @_Z32__spirv_CooperativeMatrixLoadKHRIU3AS1N4sycl3_V13ext6oneapi8bfloat16ES4_Lm16ELm16ELN5__spv9MatrixUseE1ELNS6_12MatrixLayoutE2ELNS6_5Scope4FlagE3EEPNS6_24__spirv_CooperativeMatrixKHRIT0_XT1_EXT2_EXT4_EXT5_EXT3_EEEPT_mS8_SA_i(ptr addrspace(1) noundef %add.ptr.i226.i, i64 noundef 512, i32 noundef 2, i32 noundef 3, i32 noundef 0) #5
-  store target("spirv.CooperativeMatrixKHR", i16, 16, 16, 3, 1) %call1.i219.i, ptr %arrayidx72.i, align 8, !tbaa !89
+  %call1.i219.i = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", i16, 3, 16, 16, 1) @_Z32__spirv_CooperativeMatrixLoadKHRIU3AS1N4sycl3_V13ext6oneapi8bfloat16ES4_Lm16ELm16ELN5__spv9MatrixUseE1ELNS6_12MatrixLayoutE2ELNS6_5Scope4FlagE3EEPNS6_24__spirv_CooperativeMatrixKHRIT0_XT1_EXT2_EXT4_EXT5_EXT3_EEEPT_mS8_SA_i(ptr addrspace(1) noundef %add.ptr.i226.i, i64 noundef 512, i32 noundef 2, i32 noundef 3, i32 noundef 0) #5
+  store target("spirv.CooperativeMatrixKHR", i16, 3, 16, 16, 1) %call1.i219.i, ptr %arrayidx72.i, align 8, !tbaa !89
   %inc87.i = add nuw nsw i32 %n62.0.i, 1
   br label %for.cond63.i, !llvm.loop !91
 
@@ -225,7 +225,7 @@ for.cond90.i:                                     ; preds = %for.cond63.i, %for.
 for.cond95.preheader.i:                           ; preds = %for.cond90.i
   %idxprom102.i = zext i32 %m89.0.i to i64
   %arrayidx105.i = getelementptr inbounds [4 x [2 x %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix.5"]], ptr %tA.i, i64 0, i64 %idxprom102.i, i64 %idxprom46.i
-  %15 = load target("spirv.CooperativeMatrixKHR", i16, 8, 16, 3, 0), ptr %arrayidx105.i, align 8, !tbaa !86, !noalias !92
+  %15 = load target("spirv.CooperativeMatrixKHR", i16, 3, 8, 16, 0), ptr %arrayidx105.i, align 8, !tbaa !86, !noalias !92
   br label %for.cond95.i
 
 for.cond.cleanup92.i:                             ; preds = %for.cond90.i
@@ -245,10 +245,10 @@ for.body99.i:                                     ; preds = %for.cond95.i
   %conv96.i = zext i32 %n94.0.i to i64
   %arrayidx109.i = getelementptr inbounds [4 x [2 x %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix.6"]], ptr %tB.i, i64 0, i64 %conv96.i, i64 %idxprom46.i
   %arrayidx113.i = getelementptr inbounds [4 x [4 x %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix"]], ptr %tC.i, i64 0, i64 %idxprom102.i, i64 %conv96.i
-  %16 = load target("spirv.CooperativeMatrixKHR", i16, 16, 16, 3, 1), ptr %arrayidx109.i, align 8, !tbaa !89, !noalias !92
-  %17 = load target("spirv.CooperativeMatrixKHR", float, 8, 16, 3, 2), ptr %arrayidx113.i, align 8, !tbaa !82, !noalias !92
-  %call.i221.i = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", float, 8, 16, 3, 2) @_Z31__spirv_CooperativeMatrixMadKHRIN4sycl3_V13ext6oneapi8bfloat16EfLm8ELm16ELm16ELN5__spv9MatrixUseE0ELS6_1ELS6_2ELNS5_12MatrixLayoutE0ELS7_2ELS7_3ELNS5_5Scope4FlagE3EEPNS5_24__spirv_CooperativeMatrixKHRIT0_XT1_EXT3_EXT9_EXT10_EXT6_EEEPNSA_IT_XT1_EXT2_EXT7_EXT10_EXT4_EEEPNSA_ISE_XT2_EXT3_EXT8_EXT10_EXT5_EEESD_S9_(target("spirv.CooperativeMatrixKHR", i16, 8, 16, 3, 0) noundef %15, target("spirv.CooperativeMatrixKHR", i16, 16, 16, 3, 1) noundef %16, target("spirv.CooperativeMatrixKHR", float, 8, 16, 3, 2) noundef %17, i32 noundef 3) #5, !noalias !92
-  store target("spirv.CooperativeMatrixKHR", float, 8, 16, 3, 2) %call.i221.i, ptr %arrayidx113.i, align 8, !tbaa !82
+  %16 = load target("spirv.CooperativeMatrixKHR", i16, 3, 16, 16, 1), ptr %arrayidx109.i, align 8, !tbaa !89, !noalias !92
+  %17 = load target("spirv.CooperativeMatrixKHR", float, 3, 8, 16, 2), ptr %arrayidx113.i, align 8, !tbaa !82, !noalias !92
+  %call.i221.i = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", float, 3, 8, 16, 2) @_Z31__spirv_CooperativeMatrixMadKHRIN4sycl3_V13ext6oneapi8bfloat16EfLm8ELm16ELm16ELN5__spv9MatrixUseE0ELS6_1ELS6_2ELNS5_12MatrixLayoutE0ELS7_2ELS7_3ELNS5_5Scope4FlagE3EEPNS5_24__spirv_CooperativeMatrixKHRIT0_XT1_EXT3_EXT9_EXT10_EXT6_EEEPNSA_IT_XT1_EXT2_EXT7_EXT10_EXT4_EEEPNSA_ISE_XT2_EXT3_EXT8_EXT10_EXT5_EEESD_S9_(target("spirv.CooperativeMatrixKHR", i16, 3, 8, 16, 0) noundef %15, target("spirv.CooperativeMatrixKHR", i16, 3, 16, 16, 1) noundef %16, target("spirv.CooperativeMatrixKHR", float, 3, 8, 16, 2) noundef %17, i32 noundef 3) #5, !noalias !92
+  store target("spirv.CooperativeMatrixKHR", float, 3, 8, 16, 2) %call.i221.i, ptr %arrayidx113.i, align 8, !tbaa !82
   %inc120.i = add nuw nsw i32 %n94.0.i, 1
   br label %for.cond95.i, !llvm.loop !97
 
@@ -281,8 +281,8 @@ for.body141.i:                                    ; preds = %for.cond137.i
   %mul160.i = shl nuw nsw i64 %conv138.i, 4
   %add161.i = add nuw nsw i64 %add158.i, %mul160.i
   %add.ptr.i228.i = getelementptr inbounds float, ptr addrspace(1) %add.ptr.i227.i, i64 %add161.i
-  %18 = load target("spirv.CooperativeMatrixKHR", float, 8, 16, 3, 2), ptr %arrayidx146.i, align 8, !tbaa !82
-  tail call spir_func void @_Z33__spirv_CooperativeMatrixStoreKHRIU3AS1ffLm8ELm16ELN5__spv9MatrixUseE2ELNS1_12MatrixLayoutE3ELNS1_5Scope4FlagE3EEvPT_PNS1_24__spirv_CooperativeMatrixKHRIT0_XT1_EXT2_EXT4_EXT5_EXT3_EEEmS3_S5_i(ptr addrspace(1) noundef %add.ptr.i228.i, target("spirv.CooperativeMatrixKHR", float, 8, 16, 3, 2) noundef %18, i64 noundef 256, i32 noundef 0, i32 noundef 3, i32 noundef 0) #5
+  %18 = load target("spirv.CooperativeMatrixKHR", float, 3, 8, 16, 2), ptr %arrayidx146.i, align 8, !tbaa !82
+  tail call spir_func void @_Z33__spirv_CooperativeMatrixStoreKHRIU3AS1ffLm8ELm16ELN5__spv9MatrixUseE2ELNS1_12MatrixLayoutE3ELNS1_5Scope4FlagE3EEvPT_PNS1_24__spirv_CooperativeMatrixKHRIT0_XT1_EXT2_EXT4_EXT5_EXT3_EEEmS3_S5_i(ptr addrspace(1) noundef %add.ptr.i228.i, target("spirv.CooperativeMatrixKHR", float, 3, 8, 16, 2) noundef %18, i64 noundef 256, i32 noundef 0, i32 noundef 3, i32 noundef 0) #5
   %inc163.i = add nuw nsw i32 %n136.0.i, 1
   br label %for.cond137.i, !llvm.loop !99
 
@@ -302,19 +302,19 @@ declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
 declare void @llvm.assume(i1 noundef) #2
 
 ; Function Attrs: convergent nounwind
-declare dso_local spir_func noundef target("spirv.CooperativeMatrixKHR", float, 8, 16, 3, 2) @_Z26__spirv_CompositeConstructIffLm8ELm16ELN5__spv9MatrixUseE2ELNS0_12MatrixLayoutE3ELNS0_5Scope4FlagE3EEPNS0_24__spirv_CooperativeMatrixKHRIT0_XT1_EXT2_EXT4_EXT5_EXT3_EEET_(float noundef) local_unnamed_addr #3
+declare dso_local spir_func noundef target("spirv.CooperativeMatrixKHR", float, 3, 8, 16, 2) @_Z26__spirv_CompositeConstructIffLm8ELm16ELN5__spv9MatrixUseE2ELNS0_12MatrixLayoutE3ELNS0_5Scope4FlagE3EEPNS0_24__spirv_CooperativeMatrixKHRIT0_XT1_EXT2_EXT4_EXT5_EXT3_EEET_(float noundef) local_unnamed_addr #3
 
 ; Function Attrs: convergent nounwind
-declare dso_local spir_func noundef target("spirv.CooperativeMatrixKHR", i16, 8, 16, 3, 0) @_Z32__spirv_CooperativeMatrixLoadKHRIU3AS1N4sycl3_V13ext6oneapi8bfloat16ES4_Lm8ELm16ELN5__spv9MatrixUseE0ELNS6_12MatrixLayoutE0ELNS6_5Scope4FlagE3EEPNS6_24__spirv_CooperativeMatrixKHRIT0_XT1_EXT2_EXT4_EXT5_EXT3_EEEPT_mS8_SA_i(ptr addrspace(1) noundef, i64 noundef, i32 noundef, i32 noundef, i32 noundef) local_unnamed_addr #3
+declare dso_local spir_func noundef target("spirv.CooperativeMatrixKHR", i16, 3, 8, 16, 0) @_Z32__spirv_CooperativeMatrixLoadKHRIU3AS1N4sycl3_V13ext6oneapi8bfloat16ES4_Lm8ELm16ELN5__spv9MatrixUseE0ELNS6_12MatrixLayoutE0ELNS6_5Scope4FlagE3EEPNS6_24__spirv_CooperativeMatrixKHRIT0_XT1_EXT2_EXT4_EXT5_EXT3_EEEPT_mS8_SA_i(ptr addrspace(1) noundef, i64 noundef, i32 noundef, i32 noundef, i32 noundef) local_unnamed_addr #3
 
 ; Function Attrs: convergent nounwind
-declare dso_local spir_func noundef target("spirv.CooperativeMatrixKHR", i16, 16, 16, 3, 1) @_Z32__spirv_CooperativeMatrixLoadKHRIU3AS1N4sycl3_V13ext6oneapi8bfloat16ES4_Lm16ELm16ELN5__spv9MatrixUseE1ELNS6_12MatrixLayoutE2ELNS6_5Scope4FlagE3EEPNS6_24__spirv_CooperativeMatrixKHRIT0_XT1_EXT2_EXT4_EXT5_EXT3_EEEPT_mS8_SA_i(ptr addrspace(1) noundef, i64 noundef, i32 noundef, i32 noundef, i32 noundef) local_unnamed_addr #3
+declare dso_local spir_func noundef target("spirv.CooperativeMatrixKHR", i16, 3, 16, 16, 1) @_Z32__spirv_CooperativeMatrixLoadKHRIU3AS1N4sycl3_V13ext6oneapi8bfloat16ES4_Lm16ELm16ELN5__spv9MatrixUseE1ELNS6_12MatrixLayoutE2ELNS6_5Scope4FlagE3EEPNS6_24__spirv_CooperativeMatrixKHRIT0_XT1_EXT2_EXT4_EXT5_EXT3_EEEPT_mS8_SA_i(ptr addrspace(1) noundef, i64 noundef, i32 noundef, i32 noundef, i32 noundef) local_unnamed_addr #3
 
 ; Function Attrs: convergent nounwind
-declare dso_local spir_func noundef target("spirv.CooperativeMatrixKHR", float, 8, 16, 3, 2) @_Z31__spirv_CooperativeMatrixMadKHRIN4sycl3_V13ext6oneapi8bfloat16EfLm8ELm16ELm16ELN5__spv9MatrixUseE0ELS6_1ELS6_2ELNS5_12MatrixLayoutE0ELS7_2ELS7_3ELNS5_5Scope4FlagE3EEPNS5_24__spirv_CooperativeMatrixKHRIT0_XT1_EXT3_EXT9_EXT10_EXT6_EEEPNSA_IT_XT1_EXT2_EXT7_EXT10_EXT4_EEEPNSA_ISE_XT2_EXT3_EXT8_EXT10_EXT5_EEESD_S9_(target("spirv.CooperativeMatrixKHR", i16, 8, 16, 3, 0) noundef, target("spirv.CooperativeMatrixKHR", i16, 16, 16, 3, 1) noundef, target("spirv.CooperativeMatrixKHR", float, 8, 16, 3, 2) noundef, i32 noundef) local_unnamed_addr #3
+declare dso_local spir_func noundef target("spirv.CooperativeMatrixKHR", float, 3, 8, 16, 2) @_Z31__spirv_CooperativeMatrixMadKHRIN4sycl3_V13ext6oneapi8bfloat16EfLm8ELm16ELm16ELN5__spv9MatrixUseE0ELS6_1ELS6_2ELNS5_12MatrixLayoutE0ELS7_2ELS7_3ELNS5_5Scope4FlagE3EEPNS5_24__spirv_CooperativeMatrixKHRIT0_XT1_EXT3_EXT9_EXT10_EXT6_EEEPNSA_IT_XT1_EXT2_EXT7_EXT10_EXT4_EEEPNSA_ISE_XT2_EXT3_EXT8_EXT10_EXT5_EEESD_S9_(target("spirv.CooperativeMatrixKHR", i16, 3, 8, 16, 0) noundef, target("spirv.CooperativeMatrixKHR", i16, 3, 16, 16, 1) noundef, target("spirv.CooperativeMatrixKHR", float, 3, 8, 16, 2) noundef, i32 noundef) local_unnamed_addr #3
 
 ; Function Attrs: convergent nounwind
-declare dso_local spir_func void @_Z33__spirv_CooperativeMatrixStoreKHRIU3AS1ffLm8ELm16ELN5__spv9MatrixUseE2ELNS1_12MatrixLayoutE3ELNS1_5Scope4FlagE3EEvPT_PNS1_24__spirv_CooperativeMatrixKHRIT0_XT1_EXT2_EXT4_EXT5_EXT3_EEEmS3_S5_i(ptr addrspace(1) noundef, target("spirv.CooperativeMatrixKHR", float, 8, 16, 3, 2) noundef, i64 noundef, i32 noundef, i32 noundef, i32 noundef) local_unnamed_addr #3
+declare dso_local spir_func void @_Z33__spirv_CooperativeMatrixStoreKHRIU3AS1ffLm8ELm16ELN5__spv9MatrixUseE2ELNS1_12MatrixLayoutE3ELNS1_5Scope4FlagE3EEvPT_PNS1_24__spirv_CooperativeMatrixKHRIT0_XT1_EXT2_EXT4_EXT5_EXT3_EEEmS3_S5_i(ptr addrspace(1) noundef, target("spirv.CooperativeMatrixKHR", float, 3, 8, 16, 2) noundef, i64 noundef, i32 noundef, i32 noundef, i32 noundef) local_unnamed_addr #3
 
 declare dso_local spir_func i32 @_Z18__spirv_ocl_printfPU3AS2Kcz(ptr addrspace(2), ...)
 

@@ -52,3 +52,5 @@ constexpr size_t getAlignment(PropertiesT Props) {
   static_assert(RequestedAlignment >= RequiredAlignment, "Too small alignment");
   return RequestedAlignment;
 }
+
+enum class TestFeatures { Generic, DG2, PVC };

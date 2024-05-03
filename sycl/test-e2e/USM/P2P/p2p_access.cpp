@@ -1,9 +1,10 @@
 // REQUIRES: cuda
 // RUN: %{build} -o %t.out
-// RUN: %if ext_oneapi_cuda %{ %{run} %t.out %}
+// RUN: %if cuda %{ %{run} %t.out %}
 
 #include <cassert>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 

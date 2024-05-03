@@ -36,7 +36,7 @@ using namespace sycl;
 #define BLOCK_WIDTH 32
 #define BLOCK_HEIGHT 64
 
-void histogram_CPU(unsigned int width, unsigned int height, unsigned char *srcY,
+void histogram_CPU(unsigned int width, unsigned int height, uint8_t *srcY,
                    unsigned int *cpuHistogram) {
   int i;
   for (i = 0; i < width * height; i++) {
@@ -124,23 +124,18 @@ int main(int argc, char *argv[]) {
 
   // Allocate Input Buffer
   queue q = esimd_test::createQueue();
+  esimd_test::printTestLabel(q);
 
-  auto dev = q.get_device();
-  auto ctxt = q.get_context();
-  unsigned char *srcY =
-      static_cast<unsigned char *>(malloc_shared(width * height, dev, ctxt));
-  unsigned int *bins = static_cast<unsigned int *>(
-      malloc_shared(NUM_BINS * sizeof(unsigned int), dev, ctxt));
-  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
-            << "\n";
+  esimd_test::shared_vector<uint8_t> srcY_vec(
+      width * height, esimd_test::shared_allocator<uint8_t>{q});
+  esimd_test::shared_vector<unsigned int> bins_vec(
+      NUM_BINS, esimd_test::shared_allocator<unsigned int>{q});
+  uint8_t *srcY = srcY_vec.data();
+  ;
+  unsigned int *bins = bins_vec.data();
 
   uint range_width = width / BLOCK_WIDTH;
   uint range_height = height / BLOCK_HEIGHT;
-
-  if (srcY == NULL) {
-    std::cerr << "Out of memory\n";
-    exit(1);
-  }
 
   // Initializes input.
   unsigned int input_size = width * height;

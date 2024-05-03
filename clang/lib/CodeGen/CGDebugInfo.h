@@ -631,7 +631,8 @@ private:
     llvm::DIType *WrappedType;
   };
 
-  std::string GetName(const Decl*, bool Qualified = false) const;
+  bool HasReconstitutableArgs(ArrayRef<TemplateArgument> Args) const;
+  std::string GetName(const Decl *, bool Qualified = false) const;
 
   /// Build up structure info for the byref.  See \a BuildByRefType.
   BlockByRefType EmitTypeForVarWithBlocksAttr(const VarDecl *VD,
@@ -900,6 +901,8 @@ public:
   /// Restore everything back to the original state.
   ~ApplyInlineDebugLocation();
 };
+
+bool noSystemDebugInfo(const Decl *D, const CodeGenModule &CGM);
 
 } // namespace CodeGen
 } // namespace clang

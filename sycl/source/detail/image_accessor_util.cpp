@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/accessor.hpp>
+#include <sycl/accessor_image.hpp>
 #include <sycl/builtins.hpp>
 
 namespace sycl {

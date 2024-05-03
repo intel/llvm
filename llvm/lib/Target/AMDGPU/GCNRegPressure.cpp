@@ -88,9 +88,10 @@ void GCNRegPressure::inc(unsigned Reg,
   }
 }
 
-bool GCNRegPressure::less(const GCNSubtarget &ST,
-                          const GCNRegPressure& O,
+bool GCNRegPressure::less(const MachineFunction &MF, const GCNRegPressure &O,
                           unsigned MaxOccupancy) const {
+  const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
+
   const auto SGPROcc = std::min(MaxOccupancy,
                                 ST.getOccupancyWithNumSGPRs(getSGPRNum()));
   const auto VGPROcc =
@@ -104,18 +105,103 @@ bool GCNRegPressure::less(const GCNSubtarget &ST,
 
   const auto Occ = std::min(SGPROcc, VGPROcc);
   const auto OtherOcc = std::min(OtherSGPROcc, OtherVGPROcc);
+
+  // Give first precedence to the better occupancy.
   if (Occ != OtherOcc)
     return Occ > OtherOcc;
+
+  unsigned MaxVGPRs = ST.getMaxNumVGPRs(MF);
+  unsigned MaxSGPRs = ST.getMaxNumSGPRs(MF);
+
+  // SGPR excess pressure conditions
+  unsigned ExcessSGPR = std::max(static_cast<int>(getSGPRNum() - MaxSGPRs), 0);
+  unsigned OtherExcessSGPR =
+      std::max(static_cast<int>(O.getSGPRNum() - MaxSGPRs), 0);
+
+  auto WaveSize = ST.getWavefrontSize();
+  // The number of virtual VGPRs required to handle excess SGPR
+  unsigned VGPRForSGPRSpills = (ExcessSGPR + (WaveSize - 1)) / WaveSize;
+  unsigned OtherVGPRForSGPRSpills =
+      (OtherExcessSGPR + (WaveSize - 1)) / WaveSize;
+
+  unsigned MaxArchVGPRs = ST.getAddressableNumArchVGPRs();
+
+  // Unified excess pressure conditions, accounting for VGPRs used for SGPR
+  // spills
+  unsigned ExcessVGPR =
+      std::max(static_cast<int>(getVGPRNum(ST.hasGFX90AInsts()) +
+                                VGPRForSGPRSpills - MaxVGPRs),
+               0);
+  unsigned OtherExcessVGPR =
+      std::max(static_cast<int>(O.getVGPRNum(ST.hasGFX90AInsts()) +
+                                OtherVGPRForSGPRSpills - MaxVGPRs),
+               0);
+  // Arch VGPR excess pressure conditions, accounting for VGPRs used for SGPR
+  // spills
+  unsigned ExcessArchVGPR = std::max(
+      static_cast<int>(getVGPRNum(false) + VGPRForSGPRSpills - MaxArchVGPRs),
+      0);
+  unsigned OtherExcessArchVGPR =
+      std::max(static_cast<int>(O.getVGPRNum(false) + OtherVGPRForSGPRSpills -
+                                MaxArchVGPRs),
+               0);
+  // AGPR excess pressure conditions
+  unsigned ExcessAGPR = std::max(
+      static_cast<int>(ST.hasGFX90AInsts() ? (getAGPRNum() - MaxArchVGPRs)
+                                           : (getAGPRNum() - MaxVGPRs)),
+      0);
+  unsigned OtherExcessAGPR = std::max(
+      static_cast<int>(ST.hasGFX90AInsts() ? (O.getAGPRNum() - MaxArchVGPRs)
+                                           : (O.getAGPRNum() - MaxVGPRs)),
+      0);
+
+  bool ExcessRP = ExcessSGPR || ExcessVGPR || ExcessArchVGPR || ExcessAGPR;
+  bool OtherExcessRP = OtherExcessSGPR || OtherExcessVGPR ||
+                       OtherExcessArchVGPR || OtherExcessAGPR;
+
+  // Give second precedence to the reduced number of spills to hold the register
+  // pressure.
+  if (ExcessRP || OtherExcessRP) {
+    // The difference in excess VGPR pressure, after including VGPRs used for
+    // SGPR spills
+    int VGPRDiff = ((OtherExcessVGPR + OtherExcessArchVGPR + OtherExcessAGPR) -
+                    (ExcessVGPR + ExcessArchVGPR + ExcessAGPR));
+
+    int SGPRDiff = OtherExcessSGPR - ExcessSGPR;
+
+    if (VGPRDiff != 0)
+      return VGPRDiff > 0;
+    if (SGPRDiff != 0) {
+      unsigned PureExcessVGPR =
+          std::max(static_cast<int>(getVGPRNum(ST.hasGFX90AInsts()) - MaxVGPRs),
+                   0) +
+          std::max(static_cast<int>(getVGPRNum(false) - MaxArchVGPRs), 0);
+      unsigned OtherPureExcessVGPR =
+          std::max(
+              static_cast<int>(O.getVGPRNum(ST.hasGFX90AInsts()) - MaxVGPRs),
+              0) +
+          std::max(static_cast<int>(O.getVGPRNum(false) - MaxArchVGPRs), 0);
+
+      // If we have a special case where there is a tie in excess VGPR, but one
+      // of the pressures has VGPR usage from SGPR spills, prefer the pressure
+      // with SGPR spills.
+      if (PureExcessVGPR != OtherPureExcessVGPR)
+        return SGPRDiff < 0;
+      // If both pressures have the same excess pressure before and after
+      // accounting for SGPR spills, prefer fewer SGPR spills.
+      return SGPRDiff > 0;
+    }
+  }
 
   bool SGPRImportant = SGPROcc < VGPROcc;
   const bool OtherSGPRImportant = OtherSGPROcc < OtherVGPROcc;
 
-  // if both pressures disagree on what is more important compare vgprs
+  // If both pressures disagree on what is more important compare vgprs.
   if (SGPRImportant != OtherSGPRImportant) {
     SGPRImportant = false;
   }
 
-  // compare large regs pressure
+  // Give third precedence to lower register tuple pressure.
   bool SGPRFirst = SGPRImportant;
   for (int I = 2; I > 0; --I, SGPRFirst = !SGPRFirst) {
     if (SGPRFirst) {
@@ -130,6 +216,8 @@ bool GCNRegPressure::less(const GCNSubtarget &ST,
         return VW < OtherVW;
     }
   }
+
+  // Give final precedence to lower general RP.
   return SGPRImportant ? (getSGPRNum() < O.getSGPRNum()):
                          (getVGPRNum(ST.hasGFX90AInsts()) <
                           O.getVGPRNum(ST.hasGFX90AInsts()));
@@ -166,66 +254,60 @@ static LaneBitmask getDefRegMask(const MachineOperand &MO,
     MRI.getTargetRegisterInfo()->getSubRegIndexLaneMask(MO.getSubReg());
 }
 
-static LaneBitmask getUsedRegMask(const MachineOperand &MO,
-                                  const MachineRegisterInfo &MRI,
-                                  const LiveIntervals &LIS) {
-  assert(MO.isUse() && MO.isReg() && MO.getReg().isVirtual());
-
-  if (auto SubReg = MO.getSubReg())
-    return MRI.getTargetRegisterInfo()->getSubRegIndexLaneMask(SubReg);
-
-  auto MaxMask = MRI.getMaxLaneMaskForVReg(MO.getReg());
-  if (SIRegisterInfo::getNumCoveredRegs(MaxMask) > 1) // cannot have subregs
-    return MaxMask;
-
-  // For a tentative schedule LIS isn't updated yet but livemask should remain
-  // the same on any schedule. Subreg defs can be reordered but they all must
-  // dominate uses anyway.
-  auto SI = LIS.getInstructionIndex(*MO.getParent()).getBaseIndex();
-  return getLiveLaneMask(MO.getReg(), SI, LIS, MRI);
-}
-
-static SmallVector<RegisterMaskPair, 8>
-collectVirtualRegUses(const MachineInstr &MI, const LiveIntervals &LIS,
+static void
+collectVirtualRegUses(SmallVectorImpl<RegisterMaskPair> &RegMaskPairs,
+                      const MachineInstr &MI, const LiveIntervals &LIS,
                       const MachineRegisterInfo &MRI) {
-  SmallVector<RegisterMaskPair, 8> Res;
+  SlotIndex InstrSI;
   for (const auto &MO : MI.operands()) {
     if (!MO.isReg() || !MO.getReg().isVirtual())
       continue;
     if (!MO.isUse() || !MO.readsReg())
       continue;
 
-    auto const UsedMask = getUsedRegMask(MO, MRI, LIS);
+    Register Reg = MO.getReg();
+    if (llvm::any_of(RegMaskPairs, [Reg](const RegisterMaskPair &RM) {
+          return RM.RegUnit == Reg;
+        }))
+      continue;
 
-    auto Reg = MO.getReg();
-    auto I = llvm::find_if(
-        Res, [Reg](const RegisterMaskPair &RM) { return RM.RegUnit == Reg; });
-    if (I != Res.end())
-      I->LaneMask |= UsedMask;
-    else
-      Res.push_back(RegisterMaskPair(Reg, UsedMask));
+    LaneBitmask UseMask;
+    auto &LI = LIS.getInterval(Reg);
+    if (!LI.hasSubRanges())
+      UseMask = MRI.getMaxLaneMaskForVReg(Reg);
+    else {
+      // For a tentative schedule LIS isn't updated yet but livemask should
+      // remain the same on any schedule. Subreg defs can be reordered but they
+      // all must dominate uses anyway.
+      if (!InstrSI)
+        InstrSI = LIS.getInstructionIndex(*MO.getParent()).getBaseIndex();
+      UseMask = getLiveLaneMask(LI, InstrSI, MRI);
+    }
+
+    RegMaskPairs.emplace_back(Reg, UseMask);
   }
-  return Res;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // GCNRPTracker
 
-LaneBitmask llvm::getLiveLaneMask(unsigned Reg,
-                                  SlotIndex SI,
+LaneBitmask llvm::getLiveLaneMask(unsigned Reg, SlotIndex SI,
                                   const LiveIntervals &LIS,
                                   const MachineRegisterInfo &MRI) {
+  return getLiveLaneMask(LIS.getInterval(Reg), SI, MRI);
+}
+
+LaneBitmask llvm::getLiveLaneMask(const LiveInterval &LI, SlotIndex SI,
+                                  const MachineRegisterInfo &MRI) {
   LaneBitmask LiveMask;
-  const auto &LI = LIS.getInterval(Reg);
   if (LI.hasSubRanges()) {
     for (const auto &S : LI.subranges())
       if (S.liveAt(SI)) {
         LiveMask |= S.LaneMask;
-        assert(LiveMask < MRI.getMaxLaneMaskForVReg(Reg) ||
-               LiveMask == MRI.getMaxLaneMaskForVReg(Reg));
+        assert(LiveMask == (LiveMask & MRI.getMaxLaneMaskForVReg(LI.reg())));
       }
   } else if (LI.liveAt(SI)) {
-    LiveMask = MRI.getMaxLaneMaskForVReg(Reg);
+    LiveMask = MRI.getMaxLaneMaskForVReg(LI.reg());
   }
   return LiveMask;
 }
@@ -261,15 +343,14 @@ void GCNRPTracker::reset(const MachineInstr &MI,
   MaxPressure = CurPressure = getRegPressure(*MRI, LiveRegs);
 }
 
-void GCNUpwardRPTracker::reset(const MachineInstr &MI,
-                               const LiveRegSet *LiveRegsCopy) {
-  GCNRPTracker::reset(MI, LiveRegsCopy, true);
-}
+////////////////////////////////////////////////////////////////////////////////
+// GCNUpwardRPTracker
 
 void GCNUpwardRPTracker::reset(const MachineRegisterInfo &MRI_,
                                const LiveRegSet &LiveRegs_) {
   MRI = &MRI_;
   LiveRegs = LiveRegs_;
+  LastTrackedMI = nullptr;
   MaxPressure = CurPressure = getRegPressure(MRI_, LiveRegs_);
 }
 
@@ -281,40 +362,60 @@ void GCNUpwardRPTracker::recede(const MachineInstr &MI) {
   if (MI.isDebugInstr())
     return;
 
-  auto const RegUses = collectVirtualRegUses(MI, LIS, *MRI);
-
-  // calc pressure at the MI (defs + uses)
-  auto AtMIPressure = CurPressure;
-  for (const auto &U : RegUses) {
-    auto LiveMask = LiveRegs[U.RegUnit];
-    AtMIPressure.inc(U.RegUnit, LiveMask, LiveMask | U.LaneMask, *MRI);
-  }
-  // update max pressure
-  MaxPressure = max(AtMIPressure, MaxPressure);
-
-  for (const auto &MO : MI.all_defs()) {
-    if (!MO.getReg().isVirtual() || MO.isDead())
+  // Kill all defs.
+  GCNRegPressure DefPressure, ECDefPressure;
+  bool HasECDefs = false;
+  for (const MachineOperand &MO : MI.all_defs()) {
+    if (!MO.getReg().isVirtual())
       continue;
 
-    auto Reg = MO.getReg();
+    Register Reg = MO.getReg();
+    LaneBitmask DefMask = getDefRegMask(MO, *MRI);
+
+    // Treat a def as fully live at the moment of definition: keep a record.
+    if (MO.isEarlyClobber()) {
+      ECDefPressure.inc(Reg, LaneBitmask::getNone(), DefMask, *MRI);
+      HasECDefs = true;
+    } else
+      DefPressure.inc(Reg, LaneBitmask::getNone(), DefMask, *MRI);
+
     auto I = LiveRegs.find(Reg);
     if (I == LiveRegs.end())
       continue;
-    auto &LiveMask = I->second;
-    auto PrevMask = LiveMask;
-    LiveMask &= ~getDefRegMask(MO, *MRI);
+
+    LaneBitmask &LiveMask = I->second;
+    LaneBitmask PrevMask = LiveMask;
+    LiveMask &= ~DefMask;
     CurPressure.inc(Reg, PrevMask, LiveMask, *MRI);
     if (LiveMask.none())
       LiveRegs.erase(I);
   }
-  for (const auto &U : RegUses) {
-    auto &LiveMask = LiveRegs[U.RegUnit];
-    auto PrevMask = LiveMask;
+
+  // Update MaxPressure with defs pressure.
+  DefPressure += CurPressure;
+  if (HasECDefs)
+    DefPressure += ECDefPressure;
+  MaxPressure = max(DefPressure, MaxPressure);
+
+  // Make uses alive.
+  SmallVector<RegisterMaskPair, 8> RegUses;
+  collectVirtualRegUses(RegUses, MI, LIS, *MRI);
+  for (const RegisterMaskPair &U : RegUses) {
+    LaneBitmask &LiveMask = LiveRegs[U.RegUnit];
+    LaneBitmask PrevMask = LiveMask;
     LiveMask |= U.LaneMask;
     CurPressure.inc(U.RegUnit, PrevMask, LiveMask, *MRI);
   }
+
+  // Update MaxPressure with uses plus early-clobber defs pressure.
+  MaxPressure = HasECDefs ? max(CurPressure + ECDefPressure, MaxPressure)
+                          : max(CurPressure, MaxPressure);
+
   assert(CurPressure == getRegPressure(*MRI, LiveRegs));
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// GCNDownwardRPTracker
 
 bool GCNDownwardRPTracker::reset(const MachineInstr &MI,
                                  const LiveRegSet *LiveRegsCopy) {
@@ -496,6 +597,34 @@ char &llvm::GCNRegPressurePrinterID = GCNRegPressurePrinter::ID;
 
 INITIALIZE_PASS(GCNRegPressurePrinter, "amdgpu-print-rp", "", true, true)
 
+// Return lanemask of Reg's subregs that are live-through at [Begin, End] and
+// are fully covered by Mask.
+static LaneBitmask
+getRegLiveThroughMask(const MachineRegisterInfo &MRI, const LiveIntervals &LIS,
+                      Register Reg, SlotIndex Begin, SlotIndex End,
+                      LaneBitmask Mask = LaneBitmask::getAll()) {
+
+  auto IsInOneSegment = [Begin, End](const LiveRange &LR) -> bool {
+    auto *Segment = LR.getSegmentContaining(Begin);
+    return Segment && Segment->contains(End);
+  };
+
+  LaneBitmask LiveThroughMask;
+  const LiveInterval &LI = LIS.getInterval(Reg);
+  if (LI.hasSubRanges()) {
+    for (auto &SR : LI.subranges()) {
+      if ((SR.LaneMask & Mask) == SR.LaneMask && IsInOneSegment(SR))
+        LiveThroughMask |= SR.LaneMask;
+    }
+  } else {
+    LaneBitmask RegMask = MRI.getMaxLaneMaskForVReg(Reg);
+    if ((RegMask & Mask) == RegMask && IsInOneSegment(LI))
+      LiveThroughMask = RegMask;
+  }
+
+  return LiveThroughMask;
+}
+
 bool GCNRegPressurePrinter::runOnMachineFunction(MachineFunction &MF) {
   const MachineRegisterInfo &MRI = MF.getRegInfo();
   const TargetRegisterInfo *TRI = MRI.getTargetRegisterInfo();
@@ -562,15 +691,15 @@ bool GCNRegPressurePrinter::runOnMachineFunction(MachineFunction &MF) {
     } else {
       GCNUpwardRPTracker RPT(LIS);
       RPT.reset(MRI, MBBEndSlot);
-      RPT.moveMaxPressure(); // Clear max pressure.
 
       LiveOut = RPT.getLiveRegs();
       RPAtMBBEnd = RPT.getPressure();
 
       for (auto &MI : reverse(MBB)) {
+        RPT.resetMaxPressure();
         RPT.recede(MI);
         if (!MI.isDebugInstr())
-          RP.emplace_back(RPT.getPressure(), RPT.moveMaxPressure());
+          RP.emplace_back(RPT.getPressure(), RPT.getMaxPressure());
       }
 
       LiveIn = RPT.getLiveRegs();
@@ -597,6 +726,19 @@ bool GCNRegPressurePrinter::runOnMachineFunction(MachineFunction &MF) {
     OS << PFX "  Live-out:" << llvm::print(LiveOut, MRI);
     if (UseDownwardTracker)
       ReportLISMismatchIfAny(LiveOut, getLiveRegs(MBBEndSlot, LIS, MRI));
+
+    GCNRPTracker::LiveRegSet LiveThrough;
+    for (auto [Reg, Mask] : LiveIn) {
+      LaneBitmask MaskIntersection = Mask & LiveOut.lookup(Reg);
+      if (MaskIntersection.any()) {
+        LaneBitmask LTMask = getRegLiveThroughMask(
+            MRI, LIS, Reg, MBBStartSlot, MBBEndSlot, MaskIntersection);
+        if (LTMask.any())
+          LiveThrough[Reg] = LTMask;
+      }
+    }
+    OS << PFX "  Live-thr:" << llvm::print(LiveThrough, MRI);
+    OS << printRP(getRegPressure(MRI, LiveThrough)) << '\n';
   }
   OS << "...\n";
   return false;

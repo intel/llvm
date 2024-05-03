@@ -20,7 +20,7 @@ using namespace sycl::ext::intel::experimental::esimd;
 template <int case_num, typename T, uint32_t Groups, uint32_t Threads,
           int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
           bool Transposed = false, bool Transformed = false,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none,
           bool use_prefetch = false>
 bool test(unsigned SurfaceWidth, unsigned SurfaceHeight, unsigned SurfacePitch,
           int X, int Y) {
@@ -34,11 +34,10 @@ bool test(unsigned SurfaceWidth, unsigned SurfaceHeight, unsigned SurfacePitch,
    * buffer. Also Transformed load_2d extends BlockWidth to the next power of 2
    * and rounds up BlockHeight.
    */
-  constexpr int SH =
-      Transformed
-          ? sycl::ext::intel::experimental::esimd::detail::roundUpNextMultiple<
-                BlockHeight, 4 / sizeof(T)>()
-          : BlockHeight;
+  constexpr int SH = Transformed
+                         ? sycl::ext::intel::esimd::detail::roundUpNextMultiple<
+                               BlockHeight, 4 / sizeof(T)>()
+                         : BlockHeight;
   constexpr int SW =
       Transformed
           ? sycl::ext::intel::esimd::detail::getNextPowerOf2<BlockWidth>()
@@ -90,14 +89,14 @@ bool test(unsigned SurfaceWidth, unsigned SurfaceHeight, unsigned SurfacePitch,
 
             simd<T, N> vals;
             if constexpr (use_prefetch) {
-              lsc_prefetch_2d<T, BlockWidth, BlockHeight, NBlocks, L1H, L3H>(
+              lsc_prefetch_2d<T, BlockWidth, BlockHeight, NBlocks, L1H, L2H>(
                   in + off, width, height, pitch, X, Y);
               vals = lsc_load_2d<T, BlockWidth, BlockHeight, NBlocks,
                                  Transposed, Transformed>(in + off, width,
                                                           height, pitch, X, Y);
             } else {
               vals = lsc_load_2d<T, BlockWidth, BlockHeight, NBlocks,
-                                 Transposed, Transformed, L1H, L3H>(
+                                 Transposed, Transformed, L1H, L2H>(
                   in + off, width, height, pitch, X, Y);
             }
 

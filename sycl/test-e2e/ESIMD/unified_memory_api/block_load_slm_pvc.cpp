@@ -20,20 +20,19 @@ int main() {
   auto Q = queue{gpu_selector_v};
   esimd_test::printTestLabel(Q);
 
-  constexpr bool TestPVCFeatures = true;
+  constexpr auto TestFeatures = TestFeatures::PVC;
   bool Passed = true;
 
-  Passed &= testSLM<int8_t, TestPVCFeatures>(Q);
-  Passed &= testSLM<int16_t, TestPVCFeatures>(Q);
+  Passed &= testSLM<int8_t, TestFeatures>(Q);
+  Passed &= testSLM<int16_t, TestFeatures>(Q);
   if (Q.get_device().has(sycl::aspect::fp16))
-    Passed &= testSLM<sycl::half, TestPVCFeatures>(Q);
-  Passed &= testSLM<uint32_t, TestPVCFeatures>(Q);
-  Passed &= testSLM<float, TestPVCFeatures>(Q);
-  Passed &=
-      testSLM<ext::intel::experimental::esimd::tfloat32, TestPVCFeatures>(Q);
-  Passed &= testSLM<int64_t, TestPVCFeatures>(Q);
+    Passed &= testSLM<sycl::half, TestFeatures>(Q);
+  Passed &= testSLM<uint32_t, TestFeatures>(Q);
+  Passed &= testSLM<float, TestFeatures>(Q);
+  Passed &= testSLM<ext::intel::experimental::esimd::tfloat32, TestFeatures>(Q);
+  Passed &= testSLM<int64_t, TestFeatures>(Q);
   if (Q.get_device().has(sycl::aspect::fp64))
-    Passed &= testSLM<double, TestPVCFeatures>(Q);
+    Passed &= testSLM<double, TestFeatures>(Q);
 
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;

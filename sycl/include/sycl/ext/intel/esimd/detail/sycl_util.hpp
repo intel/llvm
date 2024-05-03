@@ -14,6 +14,7 @@
 /// @cond ESIMD_DETAIL
 
 #include <sycl/accessor.hpp>
+#include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -104,6 +105,20 @@ template <typename T, accessor_mode_cap_val_t Capability>
 inline constexpr bool is_accessor_with_v =
     is_device_accessor_with_v<T, Capability> ||
     is_local_accessor_with_v<T, Capability>;
+
+template <typename T>
+inline constexpr bool is_rw_device_accessor_v =
+    is_device_accessor_with_v<T, accessor_mode_cap::can_read> &&
+    is_device_accessor_with_v<T, accessor_mode_cap::can_write>;
+
+template <typename T>
+inline constexpr bool is_rw_local_accessor_v =
+    is_local_accessor_with_v<T, accessor_mode_cap::can_read> &&
+    is_local_accessor_with_v<T, accessor_mode_cap::can_write>;
+
+template <typename T>
+inline constexpr bool is_rw_accessor_v =
+    is_rw_device_accessor_v<T> || is_rw_local_accessor_v<T>;
 
 template <typename T, accessor_mode_cap_val_t Capability, typename RetT>
 using EnableIfAccessor =

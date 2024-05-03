@@ -9,7 +9,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 #include <iostream>
 #include <tuple>
@@ -84,14 +85,17 @@ int main() {
                       [&]() { return MHost(q, property_list{}); },
                       [&]() { return MHost(ctx, property_list{}); }});
 
-  auto MShared = [&](auto... args) {
-    return malloc_shared(sizeof(std::max_align_t), args...);
-  };
-  CheckAll(FAlign,
-           std::tuple{[&]() { return MShared(q); },
-                      [&]() { return MShared(d, ctx); },
-                      [&]() { return MShared(q, property_list{}); },
-                      [&]() { return MShared(d, ctx, property_list{}); }});
+  if (d.has(aspect::usm_shared_allocations)) {
+    auto MShared = [&](auto... args) {
+      return malloc_shared(sizeof(std::max_align_t), args...);
+    };
+
+    CheckAll(FAlign,
+             std::tuple{[&]() { return MShared(q); },
+                        [&]() { return MShared(d, ctx); },
+                        [&]() { return MShared(q, property_list{}); },
+                        [&]() { return MShared(d, ctx, property_list{}); }});
+  }
 
   auto ADevice = [&](size_t Align, auto... args) {
     return aligned_alloc_device(Align, sizeof(std::max_align_t), args...);
@@ -124,21 +128,24 @@ int main() {
                       [&]() { return AHost(Align, q, property_list{}); },
                       [&]() { return AHost(Align, ctx, property_list{}); }});
 
-  auto AShared = [&](size_t Align, auto... args) {
-    return aligned_alloc_shared(Align, sizeof(std::max_align_t), args...);
-  };
-  CheckAll(FAlign,
-           std::tuple{
-               [&]() { return AShared(FAlign / 2, q); },
-               [&]() { return AShared(FAlign / 2, d, ctx); },
-               [&]() { return AShared(FAlign / 2, q, property_list{}); },
-               [&]() { return AShared(FAlign / 2, d, ctx, property_list{}); }});
-  CheckAll(
-      Align,
-      std::tuple{[&]() { return AShared(Align, q); },
-                 [&]() { return AShared(Align, d, ctx); },
-                 [&]() { return AShared(Align, q, property_list{}); },
-                 [&]() { return AShared(Align, d, ctx, property_list{}); }});
+  if (d.has(aspect::usm_shared_allocations)) {
+    auto AShared = [&](size_t Align, auto... args) {
+      return aligned_alloc_shared(Align, sizeof(std::max_align_t), args...);
+    };
+    CheckAll(
+        FAlign,
+        std::tuple{
+            [&]() { return AShared(FAlign / 2, q); },
+            [&]() { return AShared(FAlign / 2, d, ctx); },
+            [&]() { return AShared(FAlign / 2, q, property_list{}); },
+            [&]() { return AShared(FAlign / 2, d, ctx, property_list{}); }});
+    CheckAll(
+        Align,
+        std::tuple{[&]() { return AShared(Align, q); },
+                   [&]() { return AShared(Align, d, ctx); },
+                   [&]() { return AShared(Align, q, property_list{}); },
+                   [&]() { return AShared(Align, d, ctx, property_list{}); }});
+  }
 
   auto TDevice = [&](auto... args) {
     return malloc_device<Aligned>(1, args...);
@@ -150,11 +157,13 @@ int main() {
   CheckAll(Align, std::tuple{[&]() { return THost(q); },
                              [&]() { return THost(ctx); }});
 
-  auto TShared = [&](auto... args) {
-    return malloc_shared<Aligned>(1, args...);
-  };
-  CheckAll(Align, std::tuple{[&]() { return TShared(q); },
-                             [&]() { return TShared(d, ctx); }});
+  if (d.has(aspect::usm_shared_allocations)) {
+    auto TShared = [&](auto... args) {
+      return malloc_shared<Aligned>(1, args...);
+    };
+    CheckAll(Align, std::tuple{[&]() { return TShared(q); },
+                               [&]() { return TShared(d, ctx); }});
+  }
 
   auto ATDevice = [&](size_t Align, auto... args) {
     return aligned_alloc_device<Aligned>(Align, 1, args...);
@@ -172,15 +181,16 @@ int main() {
                              [&]() { return ATHost(Align / 2, ctx); }});
   CheckAll(Align * 2, std::tuple{[&]() { return ATHost(Align * 2, q); },
                                  [&]() { return ATHost(Align * 2, ctx); }});
-
-  auto ATShared = [&](size_t Align, auto... args) {
-    return aligned_alloc_shared<Aligned>(Align, 1, args...);
-  };
-  CheckAll(Align, std::tuple{[&]() { return ATShared(Align / 2, q); },
-                             [&]() { return ATShared(Align / 2, d, ctx); }});
-  CheckAll(Align * 2,
-           std::tuple{[&]() { return ATShared(Align * 2, q); },
-                      [&]() { return ATShared(Align * 2, d, ctx); }});
+  if (d.has(aspect::usm_shared_allocations)) {
+    auto ATShared = [&](size_t Align, auto... args) {
+      return aligned_alloc_shared<Aligned>(Align, 1, args...);
+    };
+    CheckAll(Align, std::tuple{[&]() { return ATShared(Align / 2, q); },
+                               [&]() { return ATShared(Align / 2, d, ctx); }});
+    CheckAll(Align * 2,
+             std::tuple{[&]() { return ATShared(Align * 2, q); },
+                        [&]() { return ATShared(Align * 2, d, ctx); }});
+  }
 
   auto Malloc = [&](auto... args) {
     return malloc(sizeof(std::max_align_t), args...);

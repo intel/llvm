@@ -10,14 +10,14 @@
 
 // RUN: %clangxx -fsycl %S/Inputs/filter_list_queries.cpp -o %t.out
 
-// RUN: env ONEAPI_DEVICE_SELECTOR="*:acc" %{run-unfiltered-devices} %t.out | FileCheck %s --check-prefixes=CHECK-ACC-ONLY
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:fpga" %{run-unfiltered-devices} %t.out | FileCheck %s --check-prefixes=CHECK-ACC-ONLY
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out | FileCheck %s --check-prefixes=CHECK-GPU-ONLY
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:cpu" %{run-unfiltered-devices} %t.out | FileCheck %s --check-prefixes=CHECK-CPU-ONLY
 //
-// RUN: env ONEAPI_DEVICE_SELECTOR="*:acc,gpu" %{run-unfiltered-devices} %t.out | FileCheck %s --check-prefixes=CHECK-ACC-GPU
-// RUN: env ONEAPI_DEVICE_SELECTOR="*:acc,cpu" %{run-unfiltered-devices} %t.out | FileCheck %s --check-prefixes=CHECK-ACC-CPU
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:fpga,gpu" %{run-unfiltered-devices} %t.out | FileCheck %s --check-prefixes=CHECK-ACC-GPU
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:fpga,cpu" %{run-unfiltered-devices} %t.out | FileCheck %s --check-prefixes=CHECK-ACC-CPU
 //
-// RUN: env ONEAPI_DEVICE_SELECTOR="*:cpu,acc,gpu" %{run-unfiltered-devices} %t.out | FileCheck %s --check-prefixes=CHECK-ACC-GPU-CPU
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:cpu,fpga,gpu" %{run-unfiltered-devices} %t.out | FileCheck %s --check-prefixes=CHECK-ACC-GPU-CPU
 //
 // CHECK-ACC-ONLY: Device: acc
 // CHECK-ACC-ONLY-NOT: Device: cpu

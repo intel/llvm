@@ -318,10 +318,97 @@ subroutine nested_default_clause_tests
 !CHECK: }
 !CHECK: omp.terminator
 !CHECK: }
+!CHECK: return
 !CHECK: } 
 	!$omp parallel default(firstprivate)
 		!$omp single
 			x = y
 		!$omp end single
 	!$omp end parallel
+end subroutine
+
+!CHECK: func.func @_QPskipped_default_clause_checks() {
+!CHECK: %[[TYPE_ADDR:.*]] = fir.address_of(@_QFskipped_default_clause_checksE.n.i1) : !fir.ref<!fir.char<1,2>>
+!CHECK: %[[VAL_CONST_2:.*]] = arith.constant 2 : index
+!CHECK: %[[VAL_I1_DECLARE:.*]]:2 = hlfir.declare %[[TYPE_ADDR]] typeparams %[[VAL_CONST_2]] {{.*}}
+!CHECK: %[[TYPE_ADDR_IT:.*]] = fir.address_of(@_QFskipped_default_clause_checksE.n.it) : !fir.ref<!fir.char<1,2>>
+!CHECK: %[[VAL_CONST_2_0:.*]] = arith.constant 2 : index
+!CHECK: %[[VAL_IT_DECLARE:.*]]:2 = hlfir.declare %[[TYPE_ADDR_IT]] typeparams %[[VAL_CONST_2_0]] {{.*}}
+!CHECK: %[[VAL_I_ALLOCA:.*]] = fir.alloca i32 {bindc_name = "i", uniq_name = "_QFskipped_default_clause_checksEi"}
+!CHECK: %[[VAL_I_DECLARE:.*]]:2 = hlfir.declare %[[VAL_I_ALLOCA]] {{.*}}
+!CHECK: %[[VAL_III_ALLOCA:.*]] = fir.alloca !fir.type<_QFskipped_default_clause_checksTit{i1:i32}> {bindc_name = "iii", uniq_name = "_QFskipped_default_clause_checksEiii"}
+!CHECK: %[[VAL_III_DECLARE:.*]]:2 = hlfir.declare %[[VAL_III_ALLOCA]] {{.*}}
+!CHECK: %[[VAL_X_ALLOCA:.*]] = fir.alloca i32 {bindc_name = "x", uniq_name = "_QFskipped_default_clause_checksEx"}
+!CHECK: %[[VAL_X_DECLARE:.*]]:2 = hlfir.declare %[[VAL_X_ALLOCA]] {{.*}}
+!CHECK: %[[VAL_Y_ALLOCA:.*]] = fir.alloca i32 {bindc_name = "y", uniq_name = "_QFskipped_default_clause_checksEy"}
+!CHECK: %[[VAL_Y_DECLARE:.*]]:2 = hlfir.declare %[[VAL_Y_ALLOCA]] {{.*}}
+!CHECK: %[[VAL_Z_ALLOCA:.*]] = fir.alloca i32 {bindc_name = "z", uniq_name = "_QFskipped_default_clause_checksEz"}
+!CHECK: %[[VAL_Z_DECLARE:.*]]:2 = hlfir.declare %[[VAL_Z_ALLOCA]] {{.*}}
+subroutine skipped_default_clause_checks()
+       integer :: x,y,z
+       type it
+         integer::i1
+       end type
+       type(it)::iii
+
+!CHECK: omp.parallel {
+!CHECK: omp.wsloop reduction(@min_i32 %[[VAL_Z_DECLARE]]#0 -> %[[PRV:.+]] : !fir.ref<i32>) for (%[[ARG:.*]]) {{.*}} {
+!CHECK: omp.yield
+!CHECK: }
+!CHECK: omp.terminator
+!CHECK: }
+       !$omp parallel do default(private) REDUCTION(MIN:z)
+         do i = 1, 10
+           x = x + MIN(y,x)
+         enddo
+       !$omp end parallel do
+
+!CHECK: omp.parallel {
+!CHECK: omp.terminator
+!CHECK: }
+       namelist /nam/i
+       !$omp parallel default(private)
+          write(1,nam )
+       !$omp endparallel
+
+!CHECK: omp.parallel {
+!CHECK: %[[PRIVATE_III_ALLOCA:.*]] = fir.alloca !fir.type<_QFskipped_default_clause_checksTit{i1:i32}> {{.*}}
+!CHECK: %[[PRIVATE_III_DECLARE:.*]]:2 = hlfir.declare %[[PRIVATE_III_ALLOCA]] {{.*}}
+!CHECK: %[[PRIVATE_ADDR:.*]] = fir.address_of(@_QQro._QFskipped_default_clause_checksTit.0) : !fir.ref<!fir.type<_QFskipped_default_clause_checksTit{i1:i32}>>
+!CHECK: %[[PRIVATE_PARAM:.*]]:2 = hlfir.declare %[[PRIVATE_ADDR]] {{.*}}
+!CHECK: hlfir.assign %[[PRIVATE_PARAM]]#0 to %[[PRIVATE_III_DECLARE]]#0 {{.*}}
+!CHECK: omp.terminator
+!CHECK: }
+       !$omp parallel default(private)
+          iii=it(11)
+       !$omp end parallel
+end subroutine
+
+!CHECK: func.func @_QPthreadprivate_with_default() {
+!CHECK: %[[VAR_I:.*]] = fir.alloca i32 {bindc_name = "i", uniq_name = "_QFthreadprivate_with_defaultEi"}
+!CHECK: %[[VAR_I_DECLARE:.*]] = hlfir.declare %[[VAR_I]] {uniq_name = "_QFthreadprivate_with_defaultEi"} : (!fir.ref<i32>) -> (!fir.ref<i32>, !fir.ref<i32>)
+!CHECK: %[[BLK_ADDR:.*]] = fir.address_of(@blk_) : !fir.ref<!fir.array<4xi8>>
+!CHECK: %[[BLK_THREADPRIVATE_OUTER:.*]] = omp.threadprivate %[[BLK_ADDR]] : !fir.ref<!fir.array<4xi8>> -> !fir.ref<!fir.array<4xi8>>
+!CHECK: %[[CONVERT:.*]] = fir.convert %[[BLK_THREADPRIVATE_OUTER]] : (!fir.ref<!fir.array<4xi8>>) -> !fir.ref<!fir.array<?xi8>>
+!CHECK: %[[VAR_C:.*]] = arith.constant 0 : index
+!CHECK: %[[BLK_REF:.*]] = fir.coordinate_of %[[CONVERT]], %[[VAR_C]] : (!fir.ref<!fir.array<?xi8>>, index) -> !fir.ref<i8>
+!CHECK: %[[CONVERT:.*]] = fir.convert %[[BLK_REF]] : (!fir.ref<i8>) -> !fir.ref<i32>
+!CHECK: %[[VAR_X_DECLARE:.*]] = hlfir.declare %[[CONVERT]] {uniq_name = "_QFthreadprivate_with_defaultEx"} : (!fir.ref<i32>) -> (!fir.ref<i32>, !fir.ref<i32>)
+!CHECK: omp.parallel {
+!CHECK:   %[[BLK_THREADPRIVATE_INNER:.*]] = omp.threadprivate %[[BLK_ADDR]] : !fir.ref<!fir.array<4xi8>> -> !fir.ref<!fir.array<4xi8>>
+!CHECK:   %[[CONVERT_INNER:.*]] = fir.convert %[[BLK_THREADPRIVATE_INNER]] : (!fir.ref<!fir.array<4xi8>>) -> !fir.ref<!fir.array<?xi8>>
+!CHECK:   %[[VAR_C_INNER:.*]] = arith.constant 0 : index
+!CHECK:   %[[BLK_REF_INNER:.*]] = fir.coordinate_of %[[CONVERT_INNER]], %[[VAR_C_INNER]] : (!fir.ref<!fir.array<?xi8>>, index) -> !fir.ref<i8>
+!CHECK:   %[[CONVERT_INNER:.*]] = fir.convert %[[BLK_REF_INNER]] : (!fir.ref<i8>) -> !fir.ref<i32>
+!CHECK:   %[[VAR_X_DECLARE_INNER:.*]] = hlfir.declare %[[CONVERT_INNER]] {uniq_name = "_QFthreadprivate_with_defaultEx"} : (!fir.ref<i32>) -> (!fir.ref<i32>, !fir.ref<i32>)
+subroutine threadprivate_with_default
+        integer :: x
+        common /blk/ x 
+        !$omp threadprivate (/blk/)
+
+        !$omp parallel do default(private)
+           do i = 1, 4
+              x = 4
+           end do
+        !$omp end parallel do
 end subroutine

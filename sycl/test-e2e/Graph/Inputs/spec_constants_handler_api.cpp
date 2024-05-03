@@ -33,8 +33,7 @@ int main() {
     }
   };
 
-  queue Queue{ExceptionHandler,
-              {sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+  queue Queue{ExceptionHandler};
 
   unsigned Errors = 0;
   if (!test_default_values(Queue)) {

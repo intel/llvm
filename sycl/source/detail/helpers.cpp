@@ -21,6 +21,8 @@ namespace sycl {
 inline namespace _V1 {
 using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 namespace detail {
+// TODO: remove from public header files and implementation during the next ABI
+// Breaking window. Not used any more.
 std::vector<sycl::detail::pi::PiEvent>
 getOrWaitEvents(std::vector<sycl::event> DepEvents, ContextImplPtr Context) {
   std::vector<sycl::detail::pi::PiEvent> Events;
@@ -29,8 +31,9 @@ getOrWaitEvents(std::vector<sycl::event> DepEvents, ContextImplPtr Context) {
     // throwaway events created with empty constructor will not have a context
     // (which is set lazily) calling getContextImpl() would set that
     // context, which we wish to avoid as it is expensive.
-    if (!SyclEventImplPtr->isContextInitialized() &&
-        !SyclEventImplPtr->is_host()) {
+    if ((!SyclEventImplPtr->isContextInitialized() &&
+         !SyclEventImplPtr->is_host()) ||
+        SyclEventImplPtr->isNOP()) {
       continue;
     }
     // The fusion command and its event are associated with a non-host context,

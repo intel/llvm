@@ -190,6 +190,7 @@ tools.extend(
         "llvm-dis",
         "llvm-dwarfdump",
         "llvm-dwarfutil",
+        "llvm-dwp",
         "llvm-dlltool",
         "llvm-exegesis",
         "llvm-extract",
@@ -273,7 +274,7 @@ def ptxas_version(ptxas):
     ptxas_cmd = subprocess.Popen([ptxas, "--version"], stdout=subprocess.PIPE)
     ptxas_out = ptxas_cmd.stdout.read().decode("ascii")
     ptxas_cmd.wait()
-    match = re.search("release (\d+)\.(\d+)", ptxas_out)
+    match = re.search(r"release (\d+)\.(\d+)", ptxas_out)
     if match:
         return (int(match.group(1)), int(match.group(2)))
     print("couldn't determine ptxas version")
@@ -307,6 +308,9 @@ def enable_ptxas(ptxas_executable):
             (11, 8),
             (12, 0),
             (12, 1),
+            (12, 2),
+            (12, 3),
+            (12, 4),
         ]
 
         def version_int(ver):
@@ -416,10 +420,11 @@ if config.link_llvm_dylib:
     config.available_features.add("llvm-dylib")
     config.substitutions.append(
         (
+            # libLLVM.so.19.0git
             "%llvmdylib",
-            "{}/libLLVM-{}{}".format(
-                config.llvm_shlib_dir, config.llvm_dylib_version, config.llvm_shlib_ext
-            ),
+            "{}/libLLVM{}.{}".format(
+                config.llvm_shlib_dir, config.llvm_shlib_ext, config.llvm_dylib_version
+            )
         )
     )
 
@@ -574,6 +579,9 @@ if "darwin" == sys.platform:
         if "hw.optional.fma: 1" in result:
             config.available_features.add("fma3")
 
+if not hasattr(sys, "getwindowsversion") or sys.getwindowsversion().build >= 17063:
+    config.available_features.add("unix-sockets")
+
 # .debug_frame is not emitted for targeting Windows x64, aarch64/arm64, AIX, or Apple Silicon Mac.
 if not re.match(
     r"^(x86_64|aarch64|arm64|powerpc|powerpc64).*-(windows-gnu|windows-msvc|aix)",
@@ -602,34 +610,6 @@ if config.expensive_checks:
 if "MemoryWithOrigins" in config.llvm_use_sanitizer:
     config.available_features.add("use_msan_with_origins")
 
-
-def exclude_unsupported_files_for_aix(dirname):
-    for filename in os.listdir(dirname):
-        source_path = os.path.join(dirname, filename)
-        if os.path.isdir(source_path):
-            continue
-        f = open(source_path, "r")
-        try:
-            data = f.read()
-            # 64-bit object files are not supported on AIX, so exclude the tests.
-            if (
-                "-emit-obj" in data or "-filetype=obj" in data
-            ) and "64" in config.target_triple:
-                config.excludes += [filename]
-        finally:
-            f.close()
-
-
-if "aix" in config.target_triple:
-    for directory in (
-        "/CodeGen/X86",
-        "/DebugInfo",
-        "/DebugInfo/X86",
-        "/DebugInfo/Generic",
-        "/LTO/X86",
-        "/Linker",
-    ):
-        exclude_unsupported_files_for_aix(config.test_source_root + directory)
 
 # Some tools support an environment variable "OBJECT_MODE" on AIX OS, which
 # controls the kind of objects they will support. If there is no "OBJECT_MODE"

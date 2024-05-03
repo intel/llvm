@@ -392,6 +392,16 @@ Calling convention
 A function with ``spir_kernel`` calling convention will be translated as an entry
 point of the SPIR-V module.
 
+Global variables
+----------------
+
+A global variable resides in an address space, and the default address space
+in LLVM is zero. The SPIR-V storage class represented by the zero LLVM IR
+address spaces is Function. However, SPIR-V global variable declarations are
+``OpVariable`` instructions whose Storage Class cannot be ``Function``. This
+means that global variable declarations must always have an address space
+specified and that address space cannot be ``0``.
+
 Function metadata
 -----------------
 

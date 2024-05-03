@@ -1,16 +1,16 @@
 ; Check IR produced by fusion pass:
 ; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext\
-; RUN: -passes="sycl-kernel-fusion" --sycl-info-path %S/kernel-info.yaml -S %s\
+; RUN: -passes="sycl-kernel-fusion" -S %s\
 ; RUN: | FileCheck %s --implicit-check-not fused_kernel --check-prefix FUSION
 
 ; Check metadata attached to kernel by fusion pass:
 ; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext\
-; RUN: -passes=sycl-kernel-fusion --sycl-info-path %S/kernel-info.yaml -S %s\
+; RUN: -passes=sycl-kernel-fusion -S %s\
 ; RUN: | FileCheck %s --check-prefix MD
 
 ; Check kernel information produced by fusion pass:
 ; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext\
-; RUN: -passes=sycl-kernel-fusion,print-sycl-module-info -disable-output --sycl-info-path %S/kernel-info.yaml -S %s\
+; RUN: -passes=sycl-kernel-fusion,print-sycl-module-info -disable-output -S %s\
 ; RUN: | FileCheck %s --check-prefix INFO
 
 
@@ -243,6 +243,14 @@ attributes #5 = { nounwind }
 !28 = !{i32 1, !29, !29, !30}
 !29 = !{i64 1, i64 1, i64 1}
 !30 = !{i64 0, i64 0, i64 0}
+!31 = !{
+  !"Accessor", !"StdLayout", !"StdLayout", !"StdLayout", !"Accessor",
+  !"StdLayout", !"StdLayout", !"StdLayout", !"Accessor", !"StdLayout",
+  !"StdLayout", !"StdLayout"}
+!32 = !{i8 1, i8 0, i8 0, i8 1, i8 1, i8 0, i8 0, i8 1, i8 1, i8 0, i8 0, i8 1}
+!33 = !{!"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne", !31, !32}
+!34 = !{!"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo", !31, !32}
+!sycl.moduleinfo = !{!33, !34}
 
 ; Test scenario: Fusion of two kernels with the output accessor 
 ; of the first kernel being identical to the input accessor of the second.
@@ -308,14 +316,14 @@ attributes #5 = { nounwind }
 ;.
 
 ; This prefix focuses on the correct update of the SYCLModuleInfo, 
-; tested by verifying the YAML print of the module/kernel info.
+; tested by verifying the textual dump of the module/kernel info.
 
-; INFO-LABEL: - KernelName:      fused_0
-; INFO-NEXT:   Args:
-; INFO-NEXT: Kinds: [ Accessor, StdLayout, StdLayout, StdLayout, Accessor,
-; INFO-NEXT: StdLayout, StdLayout, StdLayout, Accessor, StdLayout,
-; INFO-NEXT: StdLayout, StdLayout, Accessor, StdLayout, StdLayout,
-; INFO-NEXT: StdLayout, Accessor, StdLayout, StdLayout, StdLayout,
-; INFO-NEXT: Accessor, StdLayout, StdLayout, StdLayout ]
-; INFO-NEXT: Mask: [ 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1,
-; INFO-NEXT:  0, 0, 0, 0, 1, 0, 0, 1 ]
+; INFO-LABEL: KernelName: fused_0
+; INFO-NEXT:    Args:
+; INFO-NEXT:      Kinds: Accessor, StdLayout, StdLayout, StdLayout, Accessor,
+; INFO-SAME:             StdLayout, StdLayout, StdLayout, Accessor, StdLayout,
+; INFO-SAME:             StdLayout, StdLayout, Accessor, StdLayout, StdLayout,
+; INFO-SAME:             StdLayout, Accessor, StdLayout, StdLayout, StdLayout,
+; INFO-SAME:             Accessor, StdLayout, StdLayout, StdLayout
+; INFO-NEXT:      Mask: 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0,
+; INFO-SAME:            0, 1, 0, 0, 1
