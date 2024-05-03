@@ -60,7 +60,9 @@ jobs:
       - name: Determine Arc tests
         id: arc_tests
         run: |
-          if [ "${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}" == "true" ]; then
+          if [ "${{ contains(needs.detect_changes.outputs.filters, 'devigccfg') }}" == "true" ]; then
+            echo 'arc_tests="(ESIMD|InvokeSimd|Matrix)/"' >> "$GITHUB_OUTPUT"
+          elif [ "${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}" == "true" ]; then
              echo 'arc_tests=""' >> "$GITHUB_OUTPUT"
           elif [ "${{ contains(needs.detect_changes.outputs.filters, 'esimd') }}" == "true" ]; then
             echo 'arc_tests="(ESIMD|InvokeSimd|Matrix)/"' >> "$GITHUB_OUTPUT"
