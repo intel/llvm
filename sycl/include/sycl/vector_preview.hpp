@@ -140,10 +140,10 @@ template <> struct vec_helper<std::byte> {
   using RetType = std::uint8_t;
   static constexpr RetType get(std::byte value) { return (RetType)value; }
   static constexpr RetType set(std::byte value) { return (RetType)value; }
-  static constexpr std::byte get(std::uint8_t value) {
+  static constexpr std::byte get(RetType value) {
     return (std::byte)value;
   }
-  static constexpr std::byte set(std::uint8_t value) {
+  static constexpr std::byte set(RetType value) {
     return (std::byte)value;
   }
 };
@@ -187,7 +187,7 @@ template <typename T>
 using vec_data_t = typename std::conditional_t<
 std::is_same_v<T, bool>, std::int8_t, typename std::conditional_t<
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-std::is_same_v<T, std::byte>, std::uint8_t, typename std::conditional_t<
+std::is_same_v<T, std::byte>, std::int8_t, typename std::conditional_t<
 #else
 false, T, typename std::conditional_t<
 #endif
@@ -196,17 +196,15 @@ true, T, T>>>;
 // data_type_single_t = T for all types except half, bfloat16, std::byte.
 template <typename T>
 using data_type_single_t = typename std::conditional_t<
-    // half
-    std::is_same_v<T, half>, sycl::detail::half_impl::StorageT, std::conditional_t<
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
     // std::byte
-    std::is_same_v<T, std::byte>, std::int8_t, typename std::conditional_t<
+    std::is_same_v<T, std::byte>, std::uint8_t, typename std::conditional_t<
 #else
     false, T, typename std::conditional_t<
 #endif
     // bfloat16
     std::is_same_v<T, sycl::ext::oneapi::bfloat16>, sycl::ext::oneapi::detail::Bfloat16StorageT,
-    T>>>;
+    T>>;
 
 template <typename T, int N>
 using data_type_multiple_t = typename std::conditional_t<
@@ -217,7 +215,10 @@ using data_type_multiple_t = typename std::conditional_t<
 
 #ifdef __SYCL_DEVICE_ONLY__
 template <typename T>
-using vector_t_single = data_type_single_t<T>;
+using vector_t_single = typename std::conditional_t<
+    std::is_same_v<T, sycl::half>, sycl::detail::half_impl::StorageT, typename std::conditional_t<
+    std::is_same_v<T, sycl::ext::oneapi::bfloat16>, sycl::ext::oneapi::detail::Bfloat16StorageT,
+    data_type_single_t<T>>>;
 
 template <typename T, int N>
 using vector_t_multiple = typename std::conditional_t<
