@@ -130,8 +130,11 @@ template <> struct vec_helper<sycl::ext::oneapi::bfloat16> {
 
   static constexpr RetType get(RetType value) { return value; }
 
-  static constexpr BFloat16StorageT set(RetType value) {
-    return BitCast<RetType, BFloat16StorageT>(value);
+  static constexpr RetType set(RetType value) {
+    return value;
+  }
+  static constexpr RetType set(BFloat16StorageT value) {
+    return BitCast<BFloat16StorageT, RetType>(value);
   }
 };
 
@@ -139,9 +142,9 @@ template <> struct vec_helper<sycl::ext::oneapi::bfloat16> {
 template <> struct vec_helper<std::byte> {
   using RetType = std::uint8_t;
   static constexpr RetType get(std::byte value) { return (RetType)value; }
-  static constexpr RetType set(std::byte value) { return (RetType)value; }
-  static constexpr std::byte get(RetType value) {
-    return (std::byte)value;
+  static constexpr std::byte set(std::byte value) { return value; }
+  static constexpr RetType get(RetType value) {
+    return value;
   }
   static constexpr std::byte set(RetType value) {
     return (std::byte)value;
@@ -184,27 +187,14 @@ class RoundedRangeKernelWithKH;
 template <typename T> using vec_data = detail::vec_helper<T>;
 
 template <typename T>
-using vec_data_t = typename std::conditional_t<
-std::is_same_v<T, bool>, std::int8_t, typename std::conditional_t<
-#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-std::is_same_v<T, std::byte>, std::int8_t, typename std::conditional_t<
-#else
-false, T, typename std::conditional_t<
-#endif
-true, T, T>>>;
+using vec_data_t = typename detail::vec_helper<T>::RetType;
 
 // data_type_single_t = T for all types except bfloat16, std::byte.
 template <typename T>
 using data_type_single_t = typename std::conditional_t<
-#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-    // std::byte
-    std::is_same_v<T, std::byte>, std::uint8_t, typename std::conditional_t<
-#else
-    false, T, typename std::conditional_t<
-#endif
     // bfloat16
     std::is_same_v<T, sycl::ext::oneapi::bfloat16>, sycl::ext::oneapi::detail::Bfloat16StorageT,
-    T>>;
+    T>;
 
 template <typename T, int N>
 using data_type_multiple_t = typename std::conditional_t<
@@ -217,8 +207,13 @@ using data_type_multiple_t = typename std::conditional_t<
 template <typename T>
 using vector_t_single = typename std::conditional_t<
     std::is_same_v<T, sycl::half>, sycl::detail::half_impl::StorageT, typename std::conditional_t<
-    std::is_same_v<T, sycl::ext::oneapi::bfloat16>, sycl::ext::oneapi::detail::Bfloat16StorageT,
-    data_type_single_t<T>>>;
+    std::is_same_v<T, sycl::ext::oneapi::bfloat16>, sycl::ext::oneapi::detail::Bfloat16StorageT, typename std::conditional_t<
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+    std::is_same_v<T, std::byte>, std::uint8_t, typename std::conditional_t<
+#else
+    false, T, typename std::conditional_t<
+#endif
+    true, data_type_single_t<T>, T>>>>;
 
 template <typename T, int N>
 using vector_t_multiple = typename std::conditional_t<
@@ -412,6 +407,8 @@ private:
       : m_Data{([&](vec_data_t<DataT> v) constexpr {
           if constexpr (std::is_same_v<sycl::ext::oneapi::bfloat16, DataT>)
             return v.value;
+          else if constexpr (std::is_same_v<std::byte, DataT>)
+            return (std::byte)v;
           else
             return vec_data_t<DataT>(static_cast<DataT>(v));
         })(Arr[Is])...} {}
@@ -509,7 +506,7 @@ public:
   // Available only when: NumElements == 1
   template <int N = NumElements>
   operator typename std::enable_if_t<N == 1, DataT>() const {
-    return vec_data<DataT>::get(m_Data);
+    return vec_data<DataT>::set(m_Data);
   }
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
@@ -600,10 +597,11 @@ public:
     {
       // Otherwise, we fallback to per-element conversion:
       for (size_t I = 0; I < NumElements; ++I) {
-        Result.setValue(
-            I, vec_data<convertT>::get(
+        auto val = vec_data<convertT>::set(
                    detail::convertImpl<T, R, roundingMode, 1, OpenCLT, OpenCLR>(
-                       vec_data<DataT>::get(getValue(I)))));
+                       getValue(I)));
+
+        Result.setValue(I, val);
       }
     }
 
@@ -733,7 +731,7 @@ public:
              multi_ptr<DataT, Space, DecorateAddress> Ptr) const {
     for (int I = 0; I < NumElements; I++) {
       *multi_ptr<DataT, Space, DecorateAddress>(Ptr + Offset * NumElements +
-                                                I) = getValue(I);
+                                                I) = vec_data<DataT>::set(getValue(I));
     }
   }
   template <int Dimensions, access::mode Mode,
@@ -803,7 +801,7 @@ public:
     vec Ret{};                                                                 \
     for (size_t I = 0; I < NumElements; ++I)                                   \
       Ret.setValue(I,                                                          \
-                   (DataT)(vec_data<DataT>::get(Lhs.getValue(I))               \
+                   vec_data<DataT>::set(vec_data<DataT>::get(Lhs.getValue(I))               \
                                BINOP vec_data<DataT>::get(Rhs.getValue(I))));  \
     return Ret;                                                                \
   }                                                                            \
@@ -910,6 +908,9 @@ public:
   }
 #endif
 
+  // OP is: ==, !=, <, >, <=, >=, &&, ||
+  // vec<RET, NumElements> operatorOP(const vec<DataT, NumElements> &Rhs) const;
+  // vec<RET, NumElements> operatorOP(const DataT &Rhs) const;
   __SYCL_RELLOGOP(==)
   __SYCL_RELLOGOP(!=)
   __SYCL_RELLOGOP(>)
@@ -926,12 +927,12 @@ public:
 #endif
 #define __SYCL_UOP(UOP, OPASSIGN)                                              \
   friend vec &operator UOP(vec & Rhs) {                                        \
-    Rhs OPASSIGN vec_data<DataT>::get(1);                                      \
+    Rhs OPASSIGN vec_data<DataT>::set(1);                                      \
     return Rhs;                                                                \
   }                                                                            \
   friend vec operator UOP(vec &Lhs, int) {                                     \
     vec Ret(Lhs);                                                              \
-    Lhs OPASSIGN vec_data<DataT>::get(1);                                      \
+    Lhs OPASSIGN vec_data<DataT>::set(1);                                      \
     return Ret;                                                                \
   }
 
@@ -952,7 +953,7 @@ public:
 #else
     vec Ret{};
     for (size_t I = 0; I < NumElements; ++I) {
-      Ret.setValue(I, ~Rhs.getValue(I));
+      Ret.setValue(I, vec_data<DataT>::set(~Rhs.getValue(I)));
     }
     return Ret;
 #endif
@@ -1036,101 +1037,24 @@ public:
     return Ret;
   }
 
-  // OP is: &&, ||
-  // vec<RET, NumElements> operatorOP(const vec<DataT, NumElements> &Rhs) const;
-  // vec<RET, NumElements> operatorOP(const DataT &Rhs) const;
-
-  // OP is: ==, !=, <, >, <=, >=
-  // vec<RET, NumElements> operatorOP(const vec<DataT, NumElements> &Rhs) const;
-  // vec<RET, NumElements> operatorOP(const DataT &Rhs) const;
 private:
-  // Generic method that execute "Operation" on underlying values.
-
-#ifdef __SYCL_DEVICE_ONLY__
-  template <template <typename> class Operation,
-            typename Ty = vec<DataT, NumElements>>
-  vec<DataT, NumElements> operatorHelper(const Ty &Rhs) const {
-    vec<DataT, NumElements> Result;
-    Operation<DataT> Op;
-    // Typecast to ext_vector_type, carryout the operation, and type cast back.
-    // Compiler optimizations will remove redundant casts.
-    auto OpResult = Op(sycl::bit_cast<vector_t>(m_Data),
-                       sycl::bit_cast<vector_t>(Rhs.m_Data));
-    Result.m_Data = sycl::bit_cast<DataType>(OpResult);
-    return Result;
-  }
-#else  // __SYCL_DEVICE_ONLY__
-  template <template <typename> class Operation>
-  vec<DataT, NumElements>
-  operatorHelper(const vec<DataT, NumElements> &Rhs) const {
-    vec<DataT, NumElements> Result;
-    Operation<DataT> Op;
-    for (size_t I = 0; I < NumElements; ++I) {
-      Result.setValue(I, Op(Rhs.getValue(I), getValue(I)));
-    }
-    return Result;
-  }
-#endif // __SYCL_DEVICE_ONLY__
-
   // setValue and getValue should be able to operate on different underlying
   // types: enum cl_float#N , builtin vector float#N, builtin type float.
-  // These versions are for N > 1.
-#ifdef __SYCL_DEVICE_ONLY__
-  template <int Num = NumElements, typename Ty = int,
-            typename = typename std::enable_if_t<1 != Num>>
-  constexpr void setValue(Ty Index, const DataT &Value, int) {
-    m_Data[Index] = vec_data<DataT>::set(Value);
-  }
-
-  template <int Num = NumElements, typename Ty = int,
-            typename = typename std::enable_if_t<1 != Num>>
-  constexpr DataT getValue(Ty Index, int) const {
-    return vec_data<DataT>::get(m_Data[Index]);
-  }
-#else  // __SYCL_DEVICE_ONLY__
-  template <int Num = NumElements,
-            typename = typename std::enable_if_t<1 != Num>>
-  constexpr void setValue(int Index, const DataT &Value, int) {
-    m_Data[Index] = vec_data<DataT>::set(Value);
-  }
-
-  template <int Num = NumElements,
-            typename = typename std::enable_if_t<1 != Num>>
-  constexpr DataT getValue(int Index, int) const {
-    return vec_data<DataT>::get(m_Data[Index]);
-  }
-#endif // __SYCL_DEVICE_ONLY__
-
-  // N==1 versions, used by host and device. Shouldn't trailing type be int?
-  template <int Num = NumElements,
-            typename = typename std::enable_if_t<1 == Num>>
-  constexpr void setValue(int, const DataT &Value, float) {
-    m_Data = vec_data<DataT>::set(Value);
-  }
-
-  template <int Num = NumElements,
-            typename = typename std::enable_if_t<1 == Num>>
-  DataT getValue(int, float) const {
-    return vec_data<DataT>::get(m_Data);
-  }
-
-  // setValue and getValue.
-  // The "api" functions used by BINOP etc.  These versions just dispatch
-  // using additional int or float arg to disambiguate vec<1> vs. vec<N>
-  // Special proxies as specialization is not allowed in class scope.
-  constexpr void setValue(int Index, const DataT &Value) {
-    if (NumElements == 1)
-      setValue(Index, Value, 0);
+  constexpr auto getValue(int Index) const {
+    if constexpr (NumElements == 1)
+      return vec_data<DataT>::get(m_Data);
     else
-      setValue(Index, Value, 0.f);
+      return vec_data<DataT>::get(m_Data[Index]);
   }
 
-  DataT getValue(int Index) const {
-    return (NumElements == 1) ? getValue(Index, 0) : getValue(Index, 0.f);
+  constexpr void setValue(int Index, const DataT &Value) {
+    if constexpr (NumElements == 1)
+      m_Data = vec_data<DataT>::set(Value);
+    else
+      m_Data[Index] = vec_data<DataT>::set(Value);
   }
 
   // fields
-
   // Alignment is the same as size, to a maximum size of 64.
   // detail::vector_alignment will return that value.
   alignas(detail::vector_alignment<DataT, NumElements>::value) DataType m_Data;
@@ -1916,10 +1840,10 @@ private:
   DataT getValue(EnableIfMultipleIndexes<IdxNum, size_t> Index) const {
     if (std::is_same_v<OperationCurrentT<DataT>, GetOp<DataT>>) {
       std::array<int, getNumElements()> Idxs{Indexes...};
-      return m_Vector->getValue(Idxs[Index]);
+      return vec_data<DataT>::set(m_Vector->getValue(Idxs[Index]));
     }
     auto Op = OperationCurrentT<vec_data_t<DataT>>();
-    return vec_data<DataT>::get(
+    return vec_data<DataT>::set(
         Op(vec_data<DataT>::get(m_LeftOperation.getValue(Index)),
            vec_data<DataT>::get(m_RightOperation.getValue(Index))));
   }
@@ -1929,7 +1853,7 @@ private:
     Operation<vec_data_t<DataT>> Op;
     std::array<int, getNumElements()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
-      DataT Res = vec_data<DataT>::get(
+      DataT Res = vec_data<DataT>::set(
           Op(vec_data<DataT>::get(m_Vector->getValue(Idxs[I])),
              vec_data<DataT>::get(Rhs.getValue(I))));
       m_Vector->setValue(Idxs[I], Res);
