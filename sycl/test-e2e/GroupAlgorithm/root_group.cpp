@@ -1,5 +1,5 @@
-// Fails with opencl and level_zero on linux, enable when fixed.
-// XFAIL: opencl || (linux && level_zero)
+// Fails with opencl, enable when fixed.
+// XFAIL: opencl
 // RUN: %{build} -I . -o %t.out
 // RUN: %{run} %t.out
 
@@ -47,20 +47,19 @@ void testRootGroup() {
   const auto range = sycl::nd_range<1>{maxWGs * WorkGroupSize, WorkGroupSize};
   q.submit([&](sycl::handler &h) {
     sycl::accessor data{dataBuf, h};
-    h.parallel_for<class RootGroupKernel>(
-        range, props, [=](sycl::nd_item<1> it) {
-          auto root = it.ext_oneapi_get_root_group();
-          data[root.get_local_id()] = root.get_local_id();
-          sycl::group_barrier(root);
+    h.parallel_for<
+        class RootGroupKernel>(range, props, [=](sycl::nd_item<1> it) {
+      auto root = it.ext_oneapi_get_root_group();
+      data[root.get_local_id()] = root.get_local_id();
+      sycl::group_barrier(root);
 
-          root =
-              sycl::ext::oneapi::experimental::this_work_item::get_root_group<
-                  1>();
-          int sum = data[root.get_local_id()] +
-                    data[root.get_local_range() - root.get_local_id() - 1];
-          sycl::group_barrier(root);
-          data[root.get_local_id()] = sum;
-        });
+      root =
+          sycl::ext::oneapi::experimental::this_work_item::get_root_group<1>();
+      int sum = data[root.get_local_id()] +
+                data[root.get_local_range() - root.get_local_id() - 1];
+      sycl::group_barrier(root);
+      data[root.get_local_id()] = sum;
+    });
   });
   sycl::host_accessor data{dataBuf};
   const int workItemCount = static_cast<int>(range.get_global_range().size());
@@ -94,15 +93,15 @@ void testRootGroupFunctions() {
                                  ? root.get_local_id() == sycl::id<1>(0)
                                  : root.get_local_id() == sycl::id<1>(3);
             testResults[2] = root.get_group_range() == sycl::range<1>(1);
-            testResults[3] =
-                root.get_local_range() == sycl::range<1>(WorkGroupSize);
+            testResults[3] = root.get_local_range() == it.get_global_range();
             testResults[4] =
-                root.get_max_local_range() == sycl::range<1>(WorkGroupSize);
+                root.get_max_local_range() == root.get_local_range();
             testResults[5] = root.get_group_linear_id() == 0;
             testResults[6] =
                 root.get_local_linear_id() == root.get_local_id().get(0);
             testResults[7] = root.get_group_linear_range() == 1;
-            testResults[8] = root.get_local_linear_range() == WorkGroupSize;
+            testResults[8] =
+                root.get_local_linear_range() == root.get_local_range().size();
           }
         });
   });
