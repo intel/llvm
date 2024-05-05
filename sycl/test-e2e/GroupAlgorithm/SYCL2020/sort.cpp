@@ -637,14 +637,14 @@ template <UseGroupT UseGroup, int Dims, size_t ElementsPerWorkItem, class T,
 void RunSortOverGroupArray(sycl::queue &Q, const std::vector<T> &DataToSort,
                            const Compare &Comp) {
 
-  const size_t NumOfElements = DataToSort.size();
-  const size_t NumSubGroups = NumOfElements / ReqSubGroupSize + 1;
+  const size_t WorkSize = DataToSort.size() / ElementsPerWorkItem;
+  const size_t NumSubGroups = WorkSize / ReqSubGroupSize + 1;
 
   const sycl::nd_range<Dims> NDRange = [&]() {
     if constexpr (Dims == 1)
-      return sycl::nd_range<1>{{NumOfElements}, {NumOfElements}};
+      return sycl::nd_range<1>{{WorkSize}, {WorkSize}};
     else
-      return sycl::nd_range<2>{{1, NumOfElements}, {1, NumOfElements}};
+      return sycl::nd_range<2>{{1, WorkSize}, {1, WorkSize}};
     static_assert(Dims < 3,
                   "Only one and two dimensional kernels are supported");
   }();
@@ -667,10 +667,10 @@ void RunSortOverGroupArray(sycl::queue &Q, const std::vector<T> &DataToSort,
     // A single chunk of memory for each work-group
     LocalMemorySizeDefault = oneapi_exp::default_sorters::group_sorter<
         T, 1, Compare>::memory_required(sycl::memory_scope::work_group,
-                                        NumOfElements);
+                                        NDRange.get_local_range().size());
 
     LocalMemorySizeRadix = RadixSorterT::memory_required(
-        sycl::memory_scope::work_group, NumOfElements);
+        sycl::memory_scope::work_group, NDRange.get_local_range().size());
   }
 
   std::vector<T> DataToSortCase0 = DataToSort;
@@ -779,9 +779,10 @@ void RunSortOverGroupArray(sycl::queue &Q, const std::vector<T> &DataToSort,
   // Verification
   {
     // Emulate independent sorting of each work-group/sub-group
-    const size_t ChunkSize = UseGroup == UseGroupT::SubGroup
-                                 ? ReqSubGroupSize
-                                 : NDRange.get_local_range().size();
+    const size_t ChunkSize =
+        (UseGroup == UseGroupT::SubGroup ? ReqSubGroupSize
+                                         : NDRange.get_local_range().size()) *
+        ElementsPerWorkItem;
     std::vector<T> DataSorted = DataToSort;
     auto It = DataSorted.begin();
     for (; (It + ChunkSize) < DataSorted.end(); It += ChunkSize)
@@ -1065,8 +1066,6 @@ template <class T> void RunOverType(sycl::queue &Q, size_t DataSize) {
     RunSortKeyValueOverGroup<UseGroupT::WorkGroup, 2>(Q, Data, Keys,
                                                       Comparator);
 
-    RunSortOverGroupArray<UseGroupT::WorkGroup, 1, 1>(Q, Data, Comparator);
-
     if (Q.get_backend() == sycl::backend::ext_oneapi_cuda ||
         Q.get_backend() == sycl::backend::ext_oneapi_hip) {
       std::cout << "Note! Skipping sub group testing on CUDA BE" << std::endl;
@@ -1084,6 +1083,46 @@ template <class T> void RunOverType(sycl::queue &Q, size_t DataSize) {
   RunOnDataAndComp(DataReversed, KeysReversed, std::less<T>{});
   RunOnDataAndComp(DataRandom, KeysRandom, std::less<T>{});
   RunOnDataAndComp(DataRandom, KeysRandom, std::greater<T>{});
+
+  constexpr size_t ElementsPerWorkItem = 4;
+  std::vector<T> ArrayDataReversed(DataSize * ElementsPerWorkItem);
+  std::vector<T> ArrayKeysReversed(DataSize * ElementsPerWorkItem);
+
+  std::vector<T> ArrayDataRandom(DataSize * ElementsPerWorkItem);
+  std::vector<T> ArrayKeysRandom(DataSize * ElementsPerWorkItem);
+
+  std::iota(DataReversed.rbegin(), DataReversed.rend(), (size_t)0);
+  KeysReversed = DataReversed;
+
+  // Fill using random numbers
+  {
+    std::default_random_engine generator;
+    std::normal_distribution<float> distribution((10.0), (2.0));
+    for (T &Elem : DataRandom)
+      Elem = T(distribution(generator));
+
+    for (T &Elem : KeysRandom)
+      Elem = T(distribution(generator));
+  }
+
+  auto RunOnDataAndCompArray = [&](const std::vector<T> &Data,
+                                   const std::vector<T> &Keys,
+                                   const auto &Comparator) {
+    RunSortOverGroupArray<UseGroupT::WorkGroup, 1, ElementsPerWorkItem>(
+        Q, Data, Comparator);
+
+    if (Q.get_backend() == sycl::backend::ext_oneapi_cuda ||
+        Q.get_backend() == sycl::backend::ext_oneapi_hip) {
+      std::cout << "Note! Skipping sub group testing on CUDA BE" << std::endl;
+      return;
+    }
+  };
+
+  RunOnDataAndCompArray(ArrayDataReversed, ArrayKeysReversed,
+                        std::greater<T>{});
+  RunOnDataAndCompArray(ArrayDataReversed, ArrayKeysReversed, std::less<T>{});
+  RunOnDataAndCompArray(ArrayDataRandom, ArrayKeysRandom, std::less<T>{});
+  RunOnDataAndCompArray(ArrayDataRandom, ArrayKeysRandom, std::greater<T>{});
 }
 
 int main() {
