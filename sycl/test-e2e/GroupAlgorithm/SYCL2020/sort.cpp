@@ -41,7 +41,8 @@ namespace oneapi_exp = sycl::ext::oneapi::experimental;
 
 template <typename...> class KernelNameOverGroup;
 template <typename...> class KernelNameOverGroupArray;
-template <typename...> class KernelNameKeyValueOVerGroup;
+template <typename...> class KernelNameKeyValueOverGroup;
+template <typename...> class KernelNameKeyValueOverGroupArray;
 template <typename...> class KernelNameJoint;
 
 enum class UseGroupT { SubGroup = true, WorkGroup = false };
@@ -353,7 +354,7 @@ void RunSortKeyValueOverGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
        sycl::local_accessor<std::byte, 1> ScratchRadix({TotalLocalMemSizeRadix},
                                                        CGH);
 
-       CGH.parallel_for<KernelNameKeyValueOVerGroup<
+       CGH.parallel_for<KernelNameKeyValueOverGroup<
            IntWrapper<Dims>, UseGroupWrapper<UseGroup>, T, Compare>>(
            NDRange, [=](sycl::nd_item<Dims> id) [[intel::reqd_sub_group_size(
                         ReqSubGroupSize)]] {
@@ -802,21 +803,20 @@ void RunSortOverGroupArray(sycl::queue &Q, const std::vector<T> &DataToSort,
   }
 }
 
-template <UseGroupT UseGroup, int Dims, class T, class U, class Compare,
-          size_t ElementsPerWorkItem, T Property>
+template <UseGroupT UseGroup, int Dims, size_t ElementsPerWorkItem, class T,
+          class U, class Compare>
 void RunSortKeyValueOverGroupArray(sycl::queue &Q,
                                    const std::vector<T> &DataToSort,
                                    const std::vector<U> &KeysToSort,
                                    const Compare &Comp) {
-
-  const size_t NumOfElements = DataToSort.size();
-  const size_t NumSubGroups = NumOfElements / ReqSubGroupSize + 1;
+  const size_t WorkSize = DataToSort.size() / ElementsPerWorkItem;
+  const size_t NumSubGroups = WorkSize / ReqSubGroupSize + 1;
 
   const sycl::nd_range<Dims> NDRange = [&]() {
     if constexpr (Dims == 1)
-      return sycl::nd_range<1>{{NumOfElements}, {NumOfElements}};
+      return sycl::nd_range<1>{{WorkSize}, {WorkSize}};
     else
-      return sycl::nd_range<2>{{1, NumOfElements}, {1, NumOfElements}};
+      return sycl::nd_range<2>{{1, WorkSize}, {1, WorkSize}};
     static_assert(Dims < 3,
                   "Only one and two dimensional kernels are supported");
   }();
@@ -841,10 +841,10 @@ void RunSortKeyValueOverGroupArray(sycl::queue &Q,
     LocalMemorySizeDefault =
         oneapi_exp::default_sorters::group_key_value_sorter<
             T, U, Compare>::memory_required(sycl::memory_scope::work_group,
-                                            NumOfElements);
+                                            NDRange.get_local_range().size());
 
     LocalMemorySizeRadix = RadixSorterT::memory_required(
-        sycl::memory_scope::work_group, NumOfElements);
+        sycl::memory_scope::work_group, NDRange.get_local_range().size());
   }
 
   std::vector<T> DataToSortCase0 = DataToSort;
@@ -909,7 +909,7 @@ void RunSortKeyValueOverGroupArray(sycl::queue &Q,
        sycl::local_accessor<std::byte, 1> ScratchRadix({TotalLocalMemSizeRadix},
                                                        CGH);
 
-       CGH.parallel_for<KernelNameKeyValueOVerGroup<
+       CGH.parallel_for<KernelNameKeyValueOverGroupArray<
            IntWrapper<Dims>, UseGroupWrapper<UseGroup>, T, Compare>>(
            NDRange, [=](sycl::nd_item<Dims> id) [[intel::reqd_sub_group_size(
                         ReqSubGroupSize)]] {
@@ -989,9 +989,10 @@ void RunSortKeyValueOverGroupArray(sycl::queue &Q,
                    std::back_inserter(KeyDataToSort),
                    [](T Key, T Value) { return std::make_pair(Key, Value); });
     // Emulate independent sorting of each work-group/sub-group
-    const size_t ChunkSize = UseGroup == UseGroupT::SubGroup
-                                 ? ReqSubGroupSize
-                                 : NDRange.get_local_range().size();
+    const size_t ChunkSize =
+        (UseGroup == UseGroupT::SubGroup ? ReqSubGroupSize
+                                         : NDRange.get_local_range().size()) *
+        ElementsPerWorkItem;
     auto It = KeyDataToSort.begin();
     auto KeyValueComp = [&](const std::pair<T, T> &A,
                             const std::pair<T, T> &B) -> bool {
@@ -1113,6 +1114,11 @@ template <class T> void RunOverType(sycl::queue &Q, size_t DataSize) {
     RunSortOverGroupArray<UseGroupT::WorkGroup, 2, ElementsPerWorkItem>(
         Q, Data, Comparator);
 
+    RunSortKeyValueOverGroupArray<UseGroupT::WorkGroup, 1, ElementsPerWorkItem>(
+        Q, Data, Keys, Comparator);
+    RunSortKeyValueOverGroupArray<UseGroupT::WorkGroup, 2, ElementsPerWorkItem>(
+        Q, Data, Keys, Comparator);
+
     if (Q.get_backend() == sycl::backend::ext_oneapi_cuda ||
         Q.get_backend() == sycl::backend::ext_oneapi_hip) {
       std::cout << "Note! Skipping sub group testing on CUDA BE" << std::endl;
@@ -1123,6 +1129,11 @@ template <class T> void RunOverType(sycl::queue &Q, size_t DataSize) {
         Q, Data, Comparator);
     RunSortOverGroupArray<UseGroupT::SubGroup, 2, ElementsPerWorkItem>(
         Q, Data, Comparator);
+
+    RunSortKeyValueOverGroupArray<UseGroupT::SubGroup, 1, ElementsPerWorkItem>(
+        Q, Data, Keys, Comparator);
+    RunSortKeyValueOverGroupArray<UseGroupT::SubGroup, 2, ElementsPerWorkItem>(
+        Q, Data, Keys, Comparator);
   };
 
   RunOnDataAndCompArray(ArrayDataReversed, ArrayKeysReversed,
