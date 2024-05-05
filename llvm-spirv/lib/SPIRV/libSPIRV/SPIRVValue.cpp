@@ -51,6 +51,14 @@ void SPIRVValue::setAlignment(SPIRVWord A) {
     eraseDecorate(DecorationAlignment);
     return;
   }
+  SPIRVWord PrevAlignment;
+  if (hasAlignment(&PrevAlignment)) {
+    // Do nothing if the Id already has an Alignment decoration, provided
+    // it matches the new alignment.
+    assert(A == PrevAlignment &&
+           "New alignment does not match existing alignment");
+    return;
+  }
   addDecorate(new SPIRVDecorate(DecorationAlignment, this, A));
   SPIRVDBG(spvdbgs() << "Set alignment " << A << " for obj " << Id << "\n")
 }

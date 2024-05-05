@@ -14,8 +14,8 @@
 
 #include <algorithm>
 #include <iostream>
-#include <sycl/CL/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 #define LOG2_ELEMENTS 20
 

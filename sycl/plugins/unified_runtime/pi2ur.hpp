@@ -1270,6 +1270,24 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
         PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT,
         UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM,
+        UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D,
+        UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM,
+        UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D,
+        UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM,
+        UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D,
+        UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
         PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT,
         UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(
@@ -3871,11 +3889,12 @@ inline pi_result piEnqueueMemBufferFill(pi_queue Queue, pi_mem Buffer,
   return PI_SUCCESS;
 }
 
-inline pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr,
-                                       pi_int32 Value, size_t Count,
-                                       pi_uint32 NumEventsInWaitList,
-                                       const pi_event *EventsWaitList,
-                                       pi_event *OutEvent) {
+inline pi_result piextUSMEnqueueFill(pi_queue Queue, void *Ptr,
+                                     const void *Pattern, size_t PatternSize,
+                                     size_t Count,
+                                     pi_uint32 NumEventsInWaitList,
+                                     const pi_event *EventsWaitList,
+                                     pi_event *OutEvent) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   if (!Ptr) {
     return PI_ERROR_INVALID_VALUE;
@@ -3887,8 +3906,7 @@ inline pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr,
 
   ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
-  size_t PatternSize = 1;
-  HANDLE_ERRORS(urEnqueueUSMFill(UrQueue, Ptr, PatternSize, &Value, Count,
+  HANDLE_ERRORS(urEnqueueUSMFill(UrQueue, Ptr, PatternSize, Pattern, Count,
                                  NumEventsInWaitList, UrEventsWaitList,
                                  UREvent));
 

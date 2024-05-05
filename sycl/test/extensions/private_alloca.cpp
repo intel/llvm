@@ -1,6 +1,3 @@
-// https://github.com/intel/llvm/issues/13625
-// REQUIRES: asserts
-
 // RUN: %clangxx -fsycl -fsycl-device-only -c -o %t.bc %s
 // RUN: %if asserts %{sycl-post-link -debug-only=SpecConst %t.bc -spec-const=native -o %t.txt 2>&1 | FileCheck %s -check-prefixes=CHECK-LOG %} %else %{sycl-post-link %t.bc -spec-const=native -o %t.txt 2>&1 %}
 // RUN: cat %t_0.prop | FileCheck %s -check-prefixes=CHECK,CHECK-RT
@@ -86,23 +83,11 @@ SYCL_EXTERNAL void test(sycl::kernel_handler &kh) {
 // CHECK-NEXT-LOG:{10, 4, 46}
 // CHECK-NEXT-LOG:{22, 8, 81}
 
-// CHECK-SPV-DAG: Name [[#B0:]] "alloca1"
-// CHECK-SPV-DAG: Name [[#B1:]] "alloca"
-// CHECK-SPV-DAG: Name [[#B2:]] "alloca2"
-// CHECK-SPV-DAG: Name [[#B3:]] "alloca3"
-// CHECK-SPV-DAG: Name [[#B4:]] "alloca4"
-
 // CHECK-SPV-DAG: Decorate [[#SPEC0:]] SpecId 0
 // CHECK-SPV-DAG: Decorate [[#SPEC1:]] SpecId 1
 // CHECK-SPV-DAG: Decorate [[#SPEC2:]] SpecId 2
 // CHECK-SPV-DAG: Decorate [[#SPEC3:]] SpecId 3
 // CHECK-SPV-DAG: Decorate [[#SPEC4:]] SpecId 4
-// CHECK-SPV-DAG: Decorate [[#B0]] Alignment 4
-// CHECK-SPV-DAG: Decorate [[#B1]] Alignment 8
-// CHECK-SPV-DAG: Decorate [[#B2]] Alignment 4
-// CHECK-SPV-DAG: Decorate [[#B3]] Alignment 16
-// CHECK-SPV-DAG: Decorate [[#B4]] Alignment 32
-
 // CHECK-SPV-DAG: TypeInt [[#I8TY:]]  8 0
 // CHECK-SPV-DAG: TypeInt [[#I16TY:]] 16 0
 // CHECK-SPV-DAG: TypeInt [[#I32TY:]] 32 0
@@ -110,13 +95,11 @@ SYCL_EXTERNAL void test(sycl::kernel_handler &kh) {
 // CHECK-SPV-DAG: TypeFloat [[#F32TY:]] 32
 // CHECK-SPV-DAG: TypeFloat [[#F64TY:]] 64
 // CHECK-SPV-DAG: TypeStruct [[#COMPTY:]] [[#I32TY]] [[#I32TY]]
-
 // CHECK-SPV-DAG: SpecConstant [[#I8TY]]  [[#SPEC0]] 42
 // CHECK-SPV-DAG: SpecConstant [[#I32TY]] [[#SPEC1]] 46
 // CHECK-SPV-DAG: SpecConstant [[#I16TY]] [[#SPEC2]] 34
 // CHECK-SPV-DAG: SpecConstant [[#I64TY]] [[#SPEC3]] 81
 // CHECK-SPV-DAG: SpecConstant [[#I32TY]] [[#SPEC4]] 52
-
 // CHECK-SPV-DAG: TypeArray [[#ARRF32TY:]] [[#F32TY]] [[#SPEC0]]
 // CHECK-SPV-DAG: TypePointer [[#ARRF32PTRTY:]] [[#FUNCTIONSTORAGE:]] [[#ARRF32TY]]
 // CHECK-SPV-DAG: TypePointer [[#F32PTRTY:]] [[#FUNCTIONSTORAGE]] [[#F32TY]]
@@ -132,21 +115,25 @@ SYCL_EXTERNAL void test(sycl::kernel_handler &kh) {
 // CHECK-SPV-DAG: TypeArray [[#ARRCOMPTY:]] [[#COMPTY]] [[#SPEC4]]
 // CHECK-SPV-DAG: TypePointer [[#ARRCOMPPTRTY:]] [[#FUNCTIONSTORAGE]] [[#ARRCOMPTY]]
 // CHECK-SPV-DAG: TypePointer [[#COMPPTRTY:]] [[#FUNCTIONSTORAGE]] [[#COMPTY]]
-
 // CHECK-SPV-DAG: Variable [[#ARRF32PTRTY]] [[#V0:]] [[#FUNCTIONSTORAGE]]
-// CHECK-SPV-DAG: Bitcast [[#F32PTRTY]] [[#B0]] [[#V0]]
+// CHECK-SPV-DAG: Bitcast [[#F32PTRTY]] [[#B0:]] [[#V0]]
 // CHECK-SPV-DAG: Store {{.*}} [[#B0]]
 // CHECK-SPV-DAG: Variable [[#ARRF64PTRTY]] [[#V1:]] [[#FUNCTIONSTORAGE]]
-// CHECK-SPV-DAG: Bitcast [[#F64PTRTY]] [[#B1]] [[#V1]]
+// CHECK-SPV-DAG: Bitcast [[#F64PTRTY]] [[#B1:]] [[#V1]]
 // CHECK-SPV-DAG: PtrCastToGeneric {{.*}} [[#G1:]] [[#B1]]
 // CHECK-SPV-DAG: Store {{.*}} [[#G1]]
 // CHECK-SPV-DAG: Variable [[#ARRI32PTRTY]] [[#V2:]] [[#FUNCTIONSTORAGE]]
-// CHECK-SPV-DAG: Bitcast [[#I32PTRTY]] [[#B2]] [[#V2]]
+// CHECK-SPV-DAG: Bitcast [[#I32PTRTY]] [[#B2:]] [[#V2]]
 // CHECK-SPV-DAG: Store {{.*}} [[#B2]]
 // CHECK-SPV-DAG: Variable [[#ARRI64PTRTY]] [[#V3:]] [[#FUNCTIONSTORAGE]]
-// CHECK-SPV-DAG: Bitcast [[#I64PTRTY]] [[#B3]] [[#V3]]
+// CHECK-SPV-DAG: Bitcast [[#I64PTRTY]] [[#B3:]] [[#V3]]
 // CHECK-SPV-DAG: PtrCastToGeneric {{.*}} [[#G3:]] [[#B3]]
 // CHECK-SPV-DAG: Store {{.*}} [[#G3]]
 // CHECK-SPV-DAG: Variable [[#ARRCOMPPTRTY]] [[#V4:]] [[#FUNCTIONSTORAGE]]
-// CHECK-SPV-DAG: Bitcast [[#COMPPTRTY]] [[#B4]] [[#V4]]
+// CHECK-SPV-DAG: Bitcast [[#COMPPTRTY]] [[#B4:]] [[#V4]]
 // CHECK-SPV-DAG: Store {{.*}} [[#B4]]
+// CHECK-SPV-DAG: Decorate [[#B0]] Alignment 4
+// CHECK-SPV-DAG: Decorate [[#B1]] Alignment 8
+// CHECK-SPV-DAG: Decorate [[#B2]] Alignment 4
+// CHECK-SPV-DAG: Decorate [[#B3]] Alignment 16
+// CHECK-SPV-DAG: Decorate [[#B4]] Alignment 32
