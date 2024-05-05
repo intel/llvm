@@ -1,8 +1,12 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// UNSUPPORTED: hip
 
 // This test tests free function kernel code generation and execution.
+
+// The names of kernels depend on the host OS name mangling scheme. This test
+// will be adjusted to account for Linux/Windows name mangling differences in
+// the future. For now we check only on Linux.
+// UNSUPPORTED: system-windows
 
 #include <iostream>
 #include <sycl/sycl.hpp>

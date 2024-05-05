@@ -1,9 +1,12 @@
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -ast-dump \
 // RUN: %s -o - | FileCheck %s
-// UNSUPPORTED: system-windows
 // This test checks parameter rewriting for free functions with parameters
 // of type scalar and pointer.
-// Windows support will be added later.
+
+// The names of kernels depend on the host OS name mangling scheme. This test
+// will be adjusted to account for Linux/Windows name mangling differences in
+// the future. For now we check only on Linux.
+// UNSUPPORTED: system-windows
 
 #include "sycl.hpp"
 

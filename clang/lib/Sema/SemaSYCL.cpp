@@ -1106,8 +1106,9 @@ static std::pair<std::string, std::string> constructFreeFunctionKernelName(
       (Twine("__sycl_kernel_") + FreeFunc->getIdentifier()->getName()).str();
   const IdentifierInfo *FFIdent = &Ctx.Idents.get(FFName);
   FunctionDecl *NewFD = FunctionDecl::Create(
-      Ctx, Ctx.getTranslationUnitDecl(), {}, {}, DeclarationName(FFIdent),
-      FuncType, Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), SC_None);
+      Ctx, const_cast<DeclContext *>(FreeFunc->getDeclContext()), {}, {},
+      DeclarationName(FFIdent), FuncType,
+      Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), SC_None);
   llvm::SmallVector<ParmVarDecl *, 8> Params;
   for (ParmVarDecl *Param : FreeFunc->parameters()) {
     QualType Ty = Param->getType();
@@ -2494,8 +2495,8 @@ public:
 
 // A type to Create and own the FunctionDecl for the kernel.
 class SyclKernelDeclCreator : public SyclKernelFieldHandler {
-  bool IsFreeFunction;
-  FunctionDecl *KernelDecl;
+  bool IsFreeFunction = false;
+  FunctionDecl *KernelDecl = nullptr;
   llvm::SmallVector<ParmVarDecl *, 8> Params;
   Sema::ContextRAII FuncContext;
   // Holds the last handled field's first parameter. This doesn't store an
@@ -2721,7 +2722,7 @@ public:
             createKernelDecl(S.getASTContext(), Loc, IsInline, IsSIMDKernel)),
         FuncContext(SemaSYCLRef.SemaRef, KernelDecl) {
     S.addSyclOpenCLKernel(SYCLKernel, KernelDecl);
-    for (auto *IRAttr :
+    for (const auto *IRAttr :
          SYCLKernel->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
       KernelDecl->addAttr(IRAttr->clone(SemaSYCLRef.getASTContext()));
     }
@@ -4075,7 +4076,7 @@ public:
 class FreeFunctionKernelBodyCreator : public SyclKernelFieldHandler {
   SyclKernelDeclCreator &DeclCreator;
   llvm::SmallVector<Stmt *, 16> BodyStmts;
-  FunctionDecl *FreeFunc;
+  FunctionDecl *FreeFunc = nullptr;
   SourceLocation FreeFunctionSrcLoc; // Free function source location.
   llvm::SmallVector<Expr *, 8> ArgExprs;
 
