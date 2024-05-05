@@ -267,7 +267,7 @@ template <typename Group, template <typename...> class TBig, typename... T,
 void merge_sort(Group group, TBig<T *...> first, const size_t n, Compare comp,
                 std::byte *scratch) {
   const size_t idx = group.get_local_linear_id();
-  const size_t local = group.get_local_range(0);
+  const size_t local = group.get_local_range().size();
   const size_t chunk = (n - 1) / local + 1;
 
   // we need to sort within work item firstly

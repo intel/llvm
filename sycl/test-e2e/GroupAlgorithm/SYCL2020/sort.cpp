@@ -1110,12 +1110,19 @@ template <class T> void RunOverType(sycl::queue &Q, size_t DataSize) {
                                    const auto &Comparator) {
     RunSortOverGroupArray<UseGroupT::WorkGroup, 1, ElementsPerWorkItem>(
         Q, Data, Comparator);
+    RunSortOverGroupArray<UseGroupT::WorkGroup, 2, ElementsPerWorkItem>(
+        Q, Data, Comparator);
 
     if (Q.get_backend() == sycl::backend::ext_oneapi_cuda ||
         Q.get_backend() == sycl::backend::ext_oneapi_hip) {
       std::cout << "Note! Skipping sub group testing on CUDA BE" << std::endl;
       return;
     }
+
+    RunSortOverGroupArray<UseGroupT::SubGroup, 1, ElementsPerWorkItem>(
+        Q, Data, Comparator);
+    RunSortOverGroupArray<UseGroupT::SubGroup, 2, ElementsPerWorkItem>(
+        Q, Data, Comparator);
   };
 
   RunOnDataAndCompArray(ArrayDataReversed, ArrayKeysReversed,
