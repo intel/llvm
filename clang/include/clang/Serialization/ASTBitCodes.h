@@ -1096,6 +1096,9 @@ enum PredefinedTypeIDs {
 // \brief WebAssembly reference types with auto numeration
 #define WASM_TYPE(Name, Id, SingletonId) PREDEF_TYPE_##Id##_ID,
 #include "clang/Basic/WebAssemblyReferenceTypes.def"
+
+  /// The placeholder type for unresolved templates.
+  PREDEF_TYPE_UNRESOLVED_TEMPLATE,
   // Sentinel value. Considered a predefined type but not useable as one.
   PREDEF_TYPE_LAST_ID
 };
@@ -1105,7 +1108,7 @@ enum PredefinedTypeIDs {
 ///
 /// Type IDs for non-predefined types will start at
 /// NUM_PREDEF_TYPE_IDs.
-const unsigned NUM_PREDEF_TYPE_IDS = 514;
+const unsigned NUM_PREDEF_TYPE_IDS = 515;
 
 // Ensure we do not overrun the predefined types we reserved
 // in the enum PredefinedTypeIDs above.
