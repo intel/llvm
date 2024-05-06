@@ -90,6 +90,12 @@ struct is_key_value_sorter_impl {
 template <typename Sorter, typename Group, typename Key, typename Value>
 struct is_key_value_sorter
     : decltype(is_key_value_sorter_impl<Sorter, Group, Key, Value>::test(0)){};
+
+template <typename Property> struct is_data_placement_property {
+  static constexpr bool value = std::is_same_v<Property, detail::is_blocked> ||
+                                std::is_same_v<Property, detail::is_striped>;
+};
+
 } // namespace detail
 
 // ---- sort_over_group
@@ -127,8 +133,9 @@ sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
 
 template <typename Group, typename T, std::size_t ElementsPerWorkItem,
           typename Sorter, typename Properties = detail::is_blocked>
-void sort_over_group(Group g, sycl::span<T, ElementsPerWorkItem> values,
-                     Sorter sorter, Properties properties = {}) {
+std::enable_if_t<detail::is_data_placement_property<Properties>::value, void>
+sort_over_group(Group g, sycl::span<T, ElementsPerWorkItem> values,
+                Sorter sorter, Properties properties = {}) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sorter(g, values, properties);
 #else
@@ -145,23 +152,29 @@ void sort_over_group(Group g, sycl::span<T, ElementsPerWorkItem> values,
 template <typename Group, typename T, std::size_t Extent,
           std::size_t ElementsPerWorkItem,
           typename Properties = detail::is_blocked>
-void sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
-                     sycl::span<T, ElementsPerWorkItem> values,
-                     Properties properties = {}) {
-  return sort_over_group(exec.get_group(), values,
-                         default_sorters::group_sorter<T>(exec.get_memory()),
-                         properties);
+std::enable_if_t<detail::is_data_placement_property<Properties>::value, void>
+sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
+                sycl::span<T, ElementsPerWorkItem> values,
+                Properties properties = {}) {
+  return sort_over_group(
+      exec.get_group(), values,
+      default_sorters::group_sorter<T, ElementsPerWorkItem>(exec.get_memory()),
+      properties);
 }
 
 template <typename Group, typename T, std::size_t Extent,
           std::size_t ElementsPerWorkItem, typename Compare,
           typename Properties = detail::is_blocked>
-void sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
-                     sycl::span<T, ElementsPerWorkItem> values, Compare comp,
-                     Properties properties = {}) {
+std::enable_if_t<!detail::is_data_placement_property<Compare>::value &&
+                     detail::is_data_placement_property<Properties>::value,
+                 void>
+sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
+                sycl::span<T, ElementsPerWorkItem> values, Compare comp,
+                Properties properties = {}) {
   return sort_over_group(
       exec.get_group(), values,
-      default_sorters::group_sorter<T, 1, Compare>(exec.get_memory(), comp),
+      default_sorters::group_sorter<T, ElementsPerWorkItem, Compare>(
+          exec.get_memory(), comp),
       properties);
 }
 
@@ -241,18 +254,20 @@ sort_key_value_over_group(
 template <std::size_t ElementsPerWorkItem, typename Group, typename T,
           typename U, typename ArraySorter,
           typename Property = detail::is_blocked>
-void sort_key_value_over_group(Group group,
-                               sycl::span<T, ElementsPerWorkItem> keys,
-                               sycl::span<U, ElementsPerWorkItem> values,
-                               ArraySorter array_sorter,
-                               Property property = {}) {
+std::enable_if_t<detail::is_data_placement_property<Property>::value, void>
+sort_key_value_over_group(Group group, sycl::span<T, ElementsPerWorkItem> keys,
+                          sycl::span<U, ElementsPerWorkItem> values,
+                          ArraySorter array_sorter, Property property = {}) {
   array_sorter(group, keys, values, property);
 }
 
 template <typename Group, typename T, typename U, std::size_t Extent,
           std::size_t ElementsPerWorkItem, typename Compare,
           typename Property = detail::is_blocked>
-void sort_key_value_over_group(
+std::enable_if_t<!detail::is_data_placement_property<Compare>::value &&
+                     detail::is_data_placement_property<Property>::value,
+                 void>
+sort_key_value_over_group(
     experimental::group_with_scratchpad<Group, Extent> exec,
     sycl::span<T, ElementsPerWorkItem> keys,
     sycl::span<U, ElementsPerWorkItem> values, Compare comp,
@@ -268,7 +283,8 @@ void sort_key_value_over_group(
 template <typename Group, typename T, typename U, std::size_t Extent,
           std::size_t ElementsPerWorkItem,
           typename Property = detail::is_blocked>
-void sort_key_value_over_group(
+std::enable_if_t<detail::is_data_placement_property<Property>::value, void>
+sort_key_value_over_group(
     experimental::group_with_scratchpad<Group, Extent> exec,
     sycl::span<T, ElementsPerWorkItem> keys,
     sycl::span<U, ElementsPerWorkItem> values, Property property = {}) {
