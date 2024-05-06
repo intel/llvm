@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
  Copyright (C) 2022 Intel Corporation
 
@@ -120,6 +121,7 @@ def main():
                         required=False, help="specification version to generate.")
     parser.add_argument("--api-json", type=str, default="unified_runtime.json", required=False, help="json output file for the spec")
     parser.add_argument("--clang-format", type=str, default="clang-format", required=False, help="path to clang-format executable")
+    parser.add_argument('--fast-mode', action='store_true', help='Disable sections which are slow to render')
     args = vars(parser.parse_args())
     args['rev'] = revision()
 
@@ -175,7 +177,7 @@ def main():
                     raise Exception("Failed to format ur_api.h")
 
                 if args['rst']:
-                    generate_docs.generate_rst(docpath, config['name'], config['namespace'], config['tags'], args['ver'], args['rev'], specs, input['meta'])
+                    generate_docs.generate_rst(docpath, config['name'], config['namespace'], config['tags'], args['ver'], args['rev'], specs, input['meta'], args['fast_mode'])
 
             if util.makeErrorCount():
                 print("\n%s Errors found during generation, stopping execution!"%util.makeErrorCount())

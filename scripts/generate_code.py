@@ -411,11 +411,25 @@ Entry-point:
     generates common utilities for unified_runtime
 """
 def generate_common(path, section, namespace, tags, version, specs, meta):
+    template = "stype_map_helpers.hpp.mako"
+    fin = os.path.join("templates", template)
+
+    filename = "stype_map_helpers.def"
     layer_dstpath = os.path.join(path, "common")
     os.makedirs(layer_dstpath, exist_ok=True)
+    fout = os.path.join(layer_dstpath, filename)
 
-    loc = 0
-    print("COMMON Generated %s lines of code.\n"%loc)
+    print("Generating %s..." % fout)
+
+    loc = util.makoWrite(
+            fin, fout,
+            ver=version,
+            namespace=namespace,
+            tags=tags,
+            specs=specs,
+            meta=meta)
+    print("COMMON Generated %s lines of code.\n" % loc)
+
 
 """
 Entry-point:
