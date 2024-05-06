@@ -293,8 +293,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
 #endif
   bool IsWindowsMSVCEnv =
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
-  bool IsNewOffload = Args.hasFlag(options::OPT_offload_new_driver,
-                                   options::OPT_no_offload_new_driver, false);
+  bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
   StringRef LibSuffix = ".bc";
   if (TargetTriple.isNVPTX())
     // For NVidia, we are unbundling objects.

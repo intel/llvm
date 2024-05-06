@@ -493,6 +493,9 @@ static Error getSYCLDeviceLibs(SmallVector<std::string, 16> &DeviceLibFiles,
 }
 
 // This routine is used to convert SPIR-V input files into LLVM IR files.
+// If input is not a SPIR-V file, then the original file is returned.
+// TODO: Add a check to identify SPIR-V files and exit early if the input is
+// not a SPIR-V file.
 static Expected<StringRef> convertSPIRVToIR(StringRef Filename,
                                             const ArgList &Args) {
   Expected<std::string> SPIRVToIRWrapperPath = findProgram(
@@ -922,6 +925,7 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
     SmallVector<OffloadFile> Binaries;
     if (Error Err = extractOffloadBinaries(Buffer->getMemBufferRef(), Binaries))
       return std::move(Err);
+    bool CompatibleBinaryFound = false;
     for (auto &Binary : Binaries) {
       auto BinTriple = Binary.getBinary()->getTriple();
       if (BinTriple == Triple.getTriple()) {
@@ -929,9 +933,14 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
         if (!FileNameOrErr)
           return FileNameOrErr.takeError();
         ExtractedDeviceLibFiles.emplace_back(*FileNameOrErr);
+        CompatibleBinaryFound = true;
       }
     }
+    if (!CompatibleBinaryFound)
+      WithColor::warning(errs(), LinkerExecutable)
+          << "Compatible SYCL device library binary not found\n";
   }
+
   for (auto &File : ExtractedDeviceLibFiles)
     InputFilesVec.emplace_back(File);
   // second llvm-link step
@@ -2017,7 +2026,7 @@ getDeviceInput(const ArgList &Args) {
       continue;
 
     ErrorOr<std::unique_ptr<MemoryBuffer>> BufferOrErr =
-        MemoryBuffer::getFileOrSTDIN(*Filename);
+        MemoryBuffer::getFile(*Filename);
     if (std::error_code EC = BufferOrErr.getError())
       return createFileError(*Filename, EC);
 
