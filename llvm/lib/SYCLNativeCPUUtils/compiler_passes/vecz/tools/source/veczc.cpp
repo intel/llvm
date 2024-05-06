@@ -27,8 +27,9 @@
 #include <llvm/Analysis/CGSCCPassManager.h>
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/Bitcode/BitcodeReader.h>
-#include <llvm/Bitcode/BitcodeWriter.h>
+#include <llvm/Bitcode/BitcodeWriterPass.h>
 #include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IRPrinter/IRPrintingPasses.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/InitializePasses.h>
 #include <llvm/MC/TargetRegistry.h>
@@ -443,11 +444,13 @@ int main(const int argc, const char *const argv[]) {
   }
 
   // Write the resulting module.
+  llvm::ModulePassManager printMPM;
   if (WriteTextual) {
-    Out->os() << *module;
+    printMPM.addPass(llvm::PrintModulePass(Out->os()));
   } else {
-    llvm::WriteBitcodeToFile(*module, Out->os());
+    printMPM.addPass(llvm::BitcodeWriterPass(Out->os()));
   }
+  printMPM.run(*module, passMach.getMAM());
 
   Out->keep();
 
