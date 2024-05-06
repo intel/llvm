@@ -108,9 +108,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     ${UNIFIED_RUNTIME_TAG}
   )
 
+  # DO NOT MERGE
   fetch_adapter_source(opencl
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    "https://github.com/RossBrunton/unified-runtime.git"
+    # Author: Ross Brunton <ross@codeplay.com>
+    # Date:   Tue Apr 9 14:41:20 2024 +0100
+    # [Testing] Spec clarifications and testing updates for kernel
+    e2ffea6907be1e80122aea0d4322c6ad9ff2bbd0
   )
 
   fetch_adapter_source(cuda
