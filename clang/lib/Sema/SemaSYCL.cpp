@@ -36,6 +36,7 @@
 #include <array>
 #include <functional>
 #include <initializer_list>
+#include <iostream>
 
 using namespace clang;
 using namespace std::placeholders;
@@ -1096,44 +1097,20 @@ static std::pair<std::string, std::string> constructFreeFunctionKernelName(
     SemaSYCL &SemaSYCLRef, const FunctionDecl *FreeFunc, MangleContext &MC) {
   SmallString<256> Result;
   llvm::raw_svector_ostream Out(Result);
-  std::string MangledName;
   std::string StableName;
 
-  ASTContext &Ctx = SemaSYCLRef.getASTContext();
-  FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
-  QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, {}, Info);
-  std::string FFName =
-      (Twine("__sycl_kernel_") + FreeFunc->getIdentifier()->getName()).str();
-  const IdentifierInfo *FFIdent = &Ctx.Idents.get(FFName);
-  FunctionDecl *NewFD = FunctionDecl::Create(
-      Ctx, const_cast<DeclContext *>(FreeFunc->getDeclContext()), {}, {},
-      DeclarationName(FFIdent), FuncType,
-      Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), SC_None);
-  llvm::SmallVector<ParmVarDecl *, 8> Params;
-  for (ParmVarDecl *Param : FreeFunc->parameters()) {
-    QualType Ty = Param->getType();
-    ParamDesc newParamDesc =
-        std::make_tuple(Ty, &Ctx.Idents.get(Param->getName()),
-                        Ctx.getTrivialTypeSourceInfo(Ty));
-    auto *NewParam = ParmVarDecl::Create(
-        Ctx, NewFD, SourceLocation(), SourceLocation(),
-        std::get<1>(newParamDesc), std::get<0>(newParamDesc),
-        std::get<2>(newParamDesc), SC_None, /*DefArg*/ nullptr);
-    NewParam->setScopeInfo(0, Params.size());
-    NewParam->setIsUsed();
-    Params.push_back(NewParam);
-  }
-  SmallVector<QualType, 8> ArgTys;
-  std::transform(std::begin(Params), std::end(Params),
-                 std::back_inserter(ArgTys),
-                 [](const ParmVarDecl *PVD) { return PVD->getType(); });
-  FuncType = Ctx.getFunctionType(Ctx.VoidTy, ArgTys, Info);
-  NewFD->setType(FuncType);
-  NewFD->setParams(Params);
-  MC.mangleName(NewFD, Out);
-  MangledName = Out.str();
-  StableName = MangledName;
-  return {MangledName, StableName};
+  MC.mangleName(FreeFunc, Out);
+  std::string MangledName(Out.str());
+  size_t StartNums = MangledName.find_first_of("0123456789");
+  size_t EndNums = MangledName.find_first_not_of("0123456789", StartNums);
+  size_t NameLength =
+      std::stoi(MangledName.substr(StartNums, EndNums - StartNums));
+  size_t NewNameLength = 14 /*length of __sycl_kernel_*/ + NameLength;
+  std::string NewName = MangledName.substr(0, StartNums) +
+                        std::to_string(NewNameLength) + "__sycl_kernel_" +
+                        MangledName.substr(EndNums);
+  StableName = NewName;
+  return {NewName, StableName};
 }
 
 // The first template argument to the kernel caller function is used to identify

@@ -3,11 +3,6 @@
 // This test checks parameter rewriting for free functions with parameters
 // of type scalar and pointer.
 
-// The names of kernels depend on the host OS name mangling scheme. This test
-// will be adjusted to account for Linux/Windows name mangling differences in
-// the future. For now we check only on Linux.
-// UNSUPPORTED: system-windows
-
 #include "sycl.hpp"
 
 __attribute__((sycl_device))

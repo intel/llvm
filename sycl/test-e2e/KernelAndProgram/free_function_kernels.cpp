@@ -4,11 +4,6 @@
 
 // This test tests free function kernel code generation and execution.
 
-// The names of kernels depend on the host OS name mangling scheme. This test
-// will be adjusted to account for Linux/Windows name mangling differences in
-// the future. For now we check only on Linux.
-// UNSUPPORTED: system-windows
-
 #include <iostream>
 #include <sycl/sycl.hpp>
 
@@ -250,7 +245,7 @@ bool test_3(queue Queue, KernelFinder &KF) {
   bool PassA = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 3a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
-  kernel Kernel = KF.get_kernel("_Z18__sycl_kernel_ff_3Pii");
+  kernel Kernel = KF.get_kernel("_Z18__sycl_kernel_ff_3IiEvPT_S0_");
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
     Handler.set_arg(0, usmPtr);
