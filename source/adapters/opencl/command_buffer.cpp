@@ -11,9 +11,51 @@
 #include "command_buffer.hpp"
 #include "common.hpp"
 
+namespace {
+ur_result_t
+commandBufferReleaseInternal(ur_exp_command_buffer_handle_t CommandBuffer) {
+  if (CommandBuffer->decrementInternalReferenceCount() != 0) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  delete CommandBuffer;
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t
+commandHandleReleaseInternal(ur_exp_command_buffer_command_handle_t Command) {
+  if (Command->decrementInternalReferenceCount() != 0) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Decrement parent command-buffer internal ref count
+  commandBufferReleaseInternal(Command->hCommandBuffer);
+
+  delete Command;
+  return UR_RESULT_SUCCESS;
+}
+} // end anonymous namespace
+
+/// The ur_exp_command_buffer_handle_t_ destructor calls CL release
+/// command-buffer to free the underlying object.
+ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
+  urQueueRelease(hInternalQueue);
+
+  cl_context CLContext = cl_adapter::cast<cl_context>(hContext);
+  cl_ext::clReleaseCommandBufferKHR_fn clReleaseCommandBufferKHR = nullptr;
+  cl_int Res =
+      cl_ext::getExtFuncFromContext<decltype(clReleaseCommandBufferKHR)>(
+          CLContext, cl_ext::ExtFuncPtrCache->clReleaseCommandBufferKHRCache,
+          cl_ext::ReleaseCommandBufferName, &clReleaseCommandBufferKHR);
+  assert(Res == CL_SUCCESS);
+  (void)Res;
+
+  clReleaseCommandBufferKHR(CLCommandBuffer);
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    [[maybe_unused]] const ur_exp_command_buffer_desc_t *pCommandBufferDesc,
+    const ur_exp_command_buffer_desc_t *pCommandBufferDesc,
     ur_exp_command_buffer_handle_t *phCommandBuffer) {
 
   ur_queue_handle_t Queue = nullptr;
@@ -26,14 +68,30 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
           CLContext, cl_ext::ExtFuncPtrCache->clCreateCommandBufferKHRCache,
           cl_ext::CreateCommandBufferName, &clCreateCommandBufferKHR));
 
+  const bool IsUpdatable =
+      pCommandBufferDesc ? pCommandBufferDesc->isUpdatable : false;
+
+  bool DeviceSupportsUpdate = false;
+  cl_device_id CLDevice = cl_adapter::cast<cl_device_id>(hDevice);
+  CL_RETURN_ON_FAILURE(deviceSupportsURCommandBufferKernelUpdate(
+      CLDevice, DeviceSupportsUpdate));
+
+  if (IsUpdatable && !DeviceSupportsUpdate) {
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
+
+  cl_command_buffer_properties_khr Properties[3] = {
+      CL_COMMAND_BUFFER_FLAGS_KHR,
+      IsUpdatable ? CL_COMMAND_BUFFER_MUTABLE_KHR : 0u, 0};
+
   cl_int Res = CL_SUCCESS;
   auto CLCommandBuffer = clCreateCommandBufferKHR(
-      1, cl_adapter::cast<cl_command_queue *>(&Queue), nullptr, &Res);
+      1, cl_adapter::cast<cl_command_queue *>(&Queue), Properties, &Res);
   CL_RETURN_ON_FAILURE_AND_SET_NULL(Res, phCommandBuffer);
 
   try {
     auto URCommandBuffer = std::make_unique<ur_exp_command_buffer_handle_t_>(
-        Queue, hContext, CLCommandBuffer);
+        Queue, hContext, CLCommandBuffer, IsUpdatable);
     *phCommandBuffer = URCommandBuffer.release();
   } catch (...) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
@@ -45,33 +103,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  UR_RETURN_ON_FAILURE(urQueueRetain(hCommandBuffer->hInternalQueue));
-
-  cl_context CLContext = cl_adapter::cast<cl_context>(hCommandBuffer->hContext);
-  cl_ext::clRetainCommandBufferKHR_fn clRetainCommandBuffer = nullptr;
-  UR_RETURN_ON_FAILURE(
-      cl_ext::getExtFuncFromContext<decltype(clRetainCommandBuffer)>(
-          CLContext, cl_ext::ExtFuncPtrCache->clRetainCommandBufferKHRCache,
-          cl_ext::RetainCommandBufferName, &clRetainCommandBuffer));
-
-  CL_RETURN_ON_FAILURE(clRetainCommandBuffer(hCommandBuffer->CLCommandBuffer));
+  hCommandBuffer->incrementInternalReferenceCount();
+  hCommandBuffer->incrementExternalReferenceCount();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  UR_RETURN_ON_FAILURE(urQueueRelease(hCommandBuffer->hInternalQueue));
+  if (hCommandBuffer->decrementExternalReferenceCount() == 0) {
+    // External ref count has reached zero, internal release of created
+    // commands.
+    for (auto Command : hCommandBuffer->CommandHandles) {
+      commandHandleReleaseInternal(Command);
+    }
+  }
 
-  cl_context CLContext = cl_adapter::cast<cl_context>(hCommandBuffer->hContext);
-  cl_ext::clReleaseCommandBufferKHR_fn clReleaseCommandBufferKHR = nullptr;
-  UR_RETURN_ON_FAILURE(
-      cl_ext::getExtFuncFromContext<decltype(clReleaseCommandBufferKHR)>(
-          CLContext, cl_ext::ExtFuncPtrCache->clReleaseCommandBufferKHRCache,
-          cl_ext::ReleaseCommandBufferName, &clReleaseCommandBufferKHR));
-
-  CL_RETURN_ON_FAILURE(
-      clReleaseCommandBufferKHR(hCommandBuffer->CLCommandBuffer));
-  return UR_RESULT_SUCCESS;
+  return commandBufferReleaseInternal(hCommandBuffer);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -85,6 +132,7 @@ urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
 
   CL_RETURN_ON_FAILURE(
       clFinalizeCommandBufferKHR(hCommandBuffer->CLCommandBuffer));
+  hCommandBuffer->IsFinalized = true;
   return UR_RESULT_SUCCESS;
 }
 
@@ -95,7 +143,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    ur_exp_command_buffer_command_handle_t *) {
+    ur_exp_command_buffer_command_handle_t *phCommandHandle) {
 
   cl_context CLContext = cl_adapter::cast<cl_context>(hCommandBuffer->hContext);
   cl_ext::clCommandNDRangeKernelKHR_fn clCommandNDRangeKernelKHR = nullptr;
@@ -104,11 +152,35 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
           CLContext, cl_ext::ExtFuncPtrCache->clCommandNDRangeKernelKHRCache,
           cl_ext::CommandNRRangeKernelName, &clCommandNDRangeKernelKHR));
 
+  cl_mutable_command_khr CommandHandle = nullptr;
+  cl_mutable_command_khr *OutCommandHandle =
+      hCommandBuffer->IsUpdatable ? &CommandHandle : nullptr;
+
+  cl_ndrange_kernel_command_properties_khr UpdateProperties[] = {
+      CL_MUTABLE_DISPATCH_UPDATABLE_FIELDS_KHR,
+      CL_MUTABLE_DISPATCH_GLOBAL_OFFSET_KHR |
+          CL_MUTABLE_DISPATCH_GLOBAL_SIZE_KHR |
+          CL_MUTABLE_DISPATCH_LOCAL_SIZE_KHR |
+          CL_MUTABLE_DISPATCH_ARGUMENTS_KHR | CL_MUTABLE_DISPATCH_EXEC_INFO_KHR,
+      0};
+
+  cl_ndrange_kernel_command_properties_khr *Properties =
+      hCommandBuffer->IsUpdatable ? UpdateProperties : nullptr;
   CL_RETURN_ON_FAILURE(clCommandNDRangeKernelKHR(
-      hCommandBuffer->CLCommandBuffer, nullptr, nullptr,
+      hCommandBuffer->CLCommandBuffer, nullptr, Properties,
       cl_adapter::cast<cl_kernel>(hKernel), workDim, pGlobalWorkOffset,
       pGlobalWorkSize, pLocalWorkSize, numSyncPointsInWaitList,
-      pSyncPointWaitList, pSyncPoint, nullptr));
+      pSyncPointWaitList, pSyncPoint, OutCommandHandle));
+
+  try {
+    auto URCommandHandle =
+        std::make_unique<ur_exp_command_buffer_command_handle_t_>(
+            hCommandBuffer, CommandHandle, workDim, pLocalWorkSize != nullptr);
+    *phCommandHandle = URCommandHandle.release();
+    hCommandBuffer->CommandHandles.push_back(*phCommandHandle);
+  } catch (...) {
+    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -336,20 +408,174 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
-    [[maybe_unused]] ur_exp_command_buffer_command_handle_t hCommand) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_exp_command_buffer_command_handle_t hCommand) {
+  hCommand->incrementExternalReferenceCount();
+  hCommand->incrementInternalReferenceCount();
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
-    [[maybe_unused]] ur_exp_command_buffer_command_handle_t hCommand) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_exp_command_buffer_command_handle_t hCommand) {
+  hCommand->decrementExternalReferenceCount();
+  return commandHandleReleaseInternal(hCommand);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
-    [[maybe_unused]] ur_exp_command_buffer_command_handle_t hCommand,
-    [[maybe_unused]] const ur_exp_command_buffer_update_kernel_launch_desc_t
+namespace {
+void updateKernelPointerArgs(
+    std::vector<cl_mutable_dispatch_arg_khr> &CLUSMArgs,
+    const ur_exp_command_buffer_update_kernel_launch_desc_t
         *pUpdateKernelLaunch) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  // WARNING - This relies on USM and SVM using the same implementation,
+  // which is not guaranteed.
+  // See https://github.com/KhronosGroup/OpenCL-Docs/issues/843
+  const uint32_t NumPointerArgs = pUpdateKernelLaunch->numNewPointerArgs;
+  const ur_exp_command_buffer_update_pointer_arg_desc_t *ArgPointerList =
+      pUpdateKernelLaunch->pNewPointerArgList;
+
+  CLUSMArgs.resize(NumPointerArgs);
+  for (uint32_t i = 0; i < NumPointerArgs; i++) {
+    const ur_exp_command_buffer_update_pointer_arg_desc_t &URPointerArg =
+        ArgPointerList[i];
+    cl_mutable_dispatch_arg_khr &USMArg = CLUSMArgs[i];
+    USMArg.arg_index = URPointerArg.argIndex;
+    USMArg.arg_value = *(void *const *)URPointerArg.pNewPointerArg;
+  }
+}
+
+void updateKernelArgs(std::vector<cl_mutable_dispatch_arg_khr> &CLArgs,
+                      const ur_exp_command_buffer_update_kernel_launch_desc_t
+                          *pUpdateKernelLaunch) {
+  const uint32_t NumMemobjArgs = pUpdateKernelLaunch->numNewMemObjArgs;
+  const ur_exp_command_buffer_update_memobj_arg_desc_t *ArgMemobjList =
+      pUpdateKernelLaunch->pNewMemObjArgList;
+  const uint32_t NumValueArgs = pUpdateKernelLaunch->numNewValueArgs;
+  const ur_exp_command_buffer_update_value_arg_desc_t *ArgValueList =
+      pUpdateKernelLaunch->pNewValueArgList;
+
+  for (uint32_t i = 0; i < NumMemobjArgs; i++) {
+    const ur_exp_command_buffer_update_memobj_arg_desc_t &URMemObjArg =
+        ArgMemobjList[i];
+    cl_mutable_dispatch_arg_khr CLArg{
+        URMemObjArg.argIndex, // arg_index
+        sizeof(cl_mem),       // arg_size
+        cl_adapter::cast<const cl_mem *>(
+            &URMemObjArg.hNewMemObjArg) // arg_value
+    };
+
+    CLArgs.push_back(CLArg);
+  }
+
+  for (uint32_t i = 0; i < NumValueArgs; i++) {
+    const ur_exp_command_buffer_update_value_arg_desc_t &URValueArg =
+        ArgValueList[i];
+    cl_mutable_dispatch_arg_khr CLArg{
+        URValueArg.argIndex,    // arg_index
+        URValueArg.argSize,     // arg_size
+        URValueArg.pNewValueArg // arg_value
+    };
+    CLArgs.push_back(CLArg);
+  }
+}
+
+} // end anonymous namespace
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
+    ur_exp_command_buffer_command_handle_t hCommand,
+    const ur_exp_command_buffer_update_kernel_launch_desc_t
+        *pUpdateKernelLaunch) {
+
+  ur_exp_command_buffer_handle_t hCommandBuffer = hCommand->hCommandBuffer;
+  cl_context CLContext = cl_adapter::cast<cl_context>(hCommandBuffer->hContext);
+
+  cl_ext::clUpdateMutableCommandsKHR_fn clUpdateMutableCommandsKHR = nullptr;
+  UR_RETURN_ON_FAILURE(
+      cl_ext::getExtFuncFromContext<decltype(clUpdateMutableCommandsKHR)>(
+          CLContext, cl_ext::ExtFuncPtrCache->clUpdateMutableCommandsKHRCache,
+          cl_ext::UpdateMutableCommandsName, &clUpdateMutableCommandsKHR));
+
+  if (!hCommandBuffer->IsFinalized || !hCommandBuffer->IsUpdatable)
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+
+  if (cl_uint NewWorkDim = pUpdateKernelLaunch->newWorkDim) {
+    // Error if work dim changes
+    if (NewWorkDim != hCommand->WorkDim) {
+      return UR_RESULT_ERROR_INVALID_OPERATION;
+    }
+
+    // Error If Local size and not global size
+    if ((pUpdateKernelLaunch->pNewLocalWorkSize != nullptr) &&
+        (pUpdateKernelLaunch->pNewGlobalWorkSize == nullptr)) {
+      return UR_RESULT_ERROR_INVALID_OPERATION;
+    }
+
+    // Error if local size non-nullptr and created with null
+    // or if local size nullptr and created with non-null
+    const bool IsNewLocalSizeNull =
+        pUpdateKernelLaunch->pNewLocalWorkSize == nullptr;
+    const bool IsOriginalLocalSizeNull = !hCommand->UserDefinedLocalSize;
+
+    if (IsNewLocalSizeNull ^ IsOriginalLocalSizeNull) {
+      return UR_RESULT_ERROR_INVALID_OPERATION;
+    }
+  }
+
+  // Find the CL USM pointer arguments to the kernel to update
+  std::vector<cl_mutable_dispatch_arg_khr> CLUSMArgs;
+  updateKernelPointerArgs(CLUSMArgs, pUpdateKernelLaunch);
+
+  // Find the memory object and scalar arguments to the kernel to update
+  std::vector<cl_mutable_dispatch_arg_khr> CLArgs;
+
+  updateKernelArgs(CLArgs, pUpdateKernelLaunch);
+
+  // Find the updated ND-Range configuration of the kernel.
+  std::vector<size_t> CLGlobalWorkOffset, CLGlobalWorkSize, CLLocalWorkSize;
+  cl_uint &CommandWorkDim = hCommand->WorkDim;
+
+  // Lambda for N-Dimensional update
+  auto updateNDRange = [CommandWorkDim](std::vector<size_t> &NDRange,
+                                        size_t *UpdatePtr) {
+    NDRange.resize(CommandWorkDim, 0);
+    const size_t CopySize = sizeof(size_t) * CommandWorkDim;
+    std::memcpy(NDRange.data(), UpdatePtr, CopySize);
+  };
+
+  if (auto GlobalWorkOffsetPtr = pUpdateKernelLaunch->pNewGlobalWorkOffset) {
+    updateNDRange(CLGlobalWorkOffset, GlobalWorkOffsetPtr);
+  }
+
+  if (auto GlobalWorkSizePtr = pUpdateKernelLaunch->pNewGlobalWorkSize) {
+    updateNDRange(CLGlobalWorkSize, GlobalWorkSizePtr);
+  }
+
+  if (auto LocalWorkSizePtr = pUpdateKernelLaunch->pNewLocalWorkSize) {
+    updateNDRange(CLLocalWorkSize, LocalWorkSizePtr);
+  }
+
+  cl_mutable_command_khr command =
+      cl_adapter::cast<cl_mutable_command_khr>(hCommand->CLMutableCommand);
+  cl_mutable_dispatch_config_khr dispatch_config = {
+      CL_STRUCTURE_TYPE_MUTABLE_DISPATCH_CONFIG_KHR,
+      nullptr,
+      command,
+      static_cast<cl_uint>(CLArgs.size()),    // num_args
+      static_cast<cl_uint>(CLUSMArgs.size()), // num_svm_args
+      0,                                      // num_exec_infos
+      CommandWorkDim,                         // work_dim
+      CLArgs.data(),                          // arg_list
+      CLUSMArgs.data(),                       // arg_svm_list
+      nullptr,                                // exec_info_list
+      CLGlobalWorkOffset.data(),              // global_work_offset
+      CLGlobalWorkSize.data(),                // global_work_size
+      CLLocalWorkSize.data(),                 // local_work_size
+  };
+  cl_mutable_base_config_khr config = {
+      CL_STRUCTURE_TYPE_MUTABLE_BASE_CONFIG_KHR, nullptr, 1, &dispatch_config};
+  CL_RETURN_ON_FAILURE(
+      clUpdateMutableCommandsKHR(hCommandBuffer->CLCommandBuffer, &config));
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
@@ -357,41 +583,30 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
     ur_exp_command_buffer_info_t propName, size_t propSize, void *pPropValue,
     size_t *pPropSizeRet) {
 
-  cl_context CLContext = cl_adapter::cast<cl_context>(hCommandBuffer->hContext);
-  cl_ext::clGetCommandBufferInfoKHR_fn clGetCommandBufferInfoKHR = nullptr;
-  UR_RETURN_ON_FAILURE(
-      cl_ext::getExtFuncFromContext<decltype(clGetCommandBufferInfoKHR)>(
-          CLContext, cl_ext::ExtFuncPtrCache->clGetCommandBufferInfoKHRCache,
-          cl_ext::GetCommandBufferInfoName, &clGetCommandBufferInfoKHR));
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
-  if (propName != UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT) {
-    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  switch (propName) {
+  case UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT:
+    return ReturnValue(hCommandBuffer->getExternalReferenceCount());
+  default:
+    assert(!"Command-buffer info request not implemented");
   }
 
-  if (pPropSizeRet) {
-    *pPropSizeRet = sizeof(cl_uint);
-  }
-
-  cl_uint ref_count;
-  CL_RETURN_ON_FAILURE(clGetCommandBufferInfoKHR(
-      hCommandBuffer->CLCommandBuffer, CL_COMMAND_BUFFER_REFERENCE_COUNT_KHR,
-      sizeof(ref_count), &ref_count, nullptr));
-
-  if (pPropValue) {
-    if (propSize != sizeof(cl_uint)) {
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    static_assert(sizeof(cl_uint) == sizeof(uint32_t));
-    *static_cast<uint32_t *>(pPropValue) = static_cast<uint32_t>(ref_count);
-  }
-
-  return UR_RESULT_SUCCESS;
+  return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCommandGetInfoExp(
-    [[maybe_unused]] ur_exp_command_buffer_command_handle_t hCommand,
-    [[maybe_unused]] ur_exp_command_buffer_command_info_t propName,
-    [[maybe_unused]] size_t propSize, [[maybe_unused]] void *pPropValue,
-    [[maybe_unused]] size_t *pPropSizeRet) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_exp_command_buffer_command_handle_t hCommand,
+    ur_exp_command_buffer_command_info_t propName, size_t propSize,
+    void *pPropValue, size_t *pPropSizeRet) {
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+
+  switch (propName) {
+  case UR_EXP_COMMAND_BUFFER_COMMAND_INFO_REFERENCE_COUNT:
+    return ReturnValue(hCommand->getExternalReferenceCount());
+  default:
+    assert(!"Command-buffer command info request not implemented");
+  }
+
+  return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }

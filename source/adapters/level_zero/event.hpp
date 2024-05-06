@@ -31,7 +31,9 @@ extern "C" {
 ur_result_t urEventReleaseInternal(ur_event_handle_t Event);
 ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
                         bool IsMultiDevice, bool HostVisible,
-                        ur_event_handle_t *RetEvent);
+                        ur_event_handle_t *RetEvent,
+                        bool CounterBasedEventEnabled = false,
+                        bool ForceDisableProfiling = false);
 } // extern "C"
 
 // This is an experimental option that allows to disable caching of events in
@@ -196,6 +198,15 @@ struct ur_event_handle_t_ : _ur_object {
   // performance
   bool IsMultiDevice = {false};
 
+  // Indicates inner batched event which was not used as a signal event.
+  bool IsInnerBatchedEvent = {false};
+
+  // Queue where the batched command was executed.
+  ze_command_queue_handle_t ZeBatchedQueue = {nullptr};
+
+  // Indicates within creation of proxy event.
+  bool IsCreatingHostProxyEvent = {false};
+
   // Besides each PI object keeping a total reference count in
   // _ur_object::RefCount we keep special track of the event *external*
   // references. This way we are able to tell when the event is not referenced
@@ -222,6 +233,12 @@ struct ur_event_handle_t_ : _ur_object {
 
   // Get the host-visible event or create one and enqueue its signal.
   ur_result_t getOrCreateHostVisibleEvent(ze_event_handle_t &HostVisibleEvent);
+
+  // completion batch for this event. Only used for out-of-order immediate
+  // command lists.
+  std::optional<ur_completion_batch_it> completionBatch;
+  // Keeps track of whether we are using Counter-based Events.
+  bool CounterBasedEventsEnabled = false;
 };
 
 // Helper function to implement zeHostSynchronize.

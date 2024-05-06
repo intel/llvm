@@ -8,23 +8,51 @@
 //
 //===----------------------------------------------------------------------===//
 #include "command_buffer.hpp"
+#include "logger/ur_logger.hpp"
 #include "ur_level_zero.hpp"
 
 /* L0 Command-buffer Extension Doc see:
 https://github.com/intel/llvm/blob/sycl/sycl/doc/design/CommandGraph.md#level-zero
 */
 
+namespace {
+/// Checks the version of the level-zero driver.
+/// @param Context Execution context
+/// @param VersionMajor Major verion number to compare to.
+/// @param VersionMinor Minor verion number to compare to.
+/// @param VersionBuild Build verion number to compare to.
+/// @return true is the version of the driver is higher than or equal to the
+/// compared version
+bool IsDriverVersionNewerOrSimilar(ur_context_handle_t Context,
+                                   uint32_t VersionMajor, uint32_t VersionMinor,
+                                   uint32_t VersionBuild) {
+  ZeStruct<ze_driver_properties_t> ZeDriverProperties;
+  ZE2UR_CALL(zeDriverGetProperties,
+             (Context->getPlatform()->ZeDriver, &ZeDriverProperties));
+  uint32_t DriverVersion = ZeDriverProperties.driverVersion;
+  auto DriverVersionMajor = (DriverVersion & 0xFF000000) >> 24;
+  auto DriverVersionMinor = (DriverVersion & 0x00FF0000) >> 16;
+  auto DriverVersionBuild = DriverVersion & 0x0000FFFF;
+
+  return ((DriverVersionMajor >= VersionMajor) &&
+          (DriverVersionMinor >= VersionMinor) &&
+          (DriverVersionBuild >= VersionBuild));
+}
+}; // namespace
+
 ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     ur_context_handle_t Context, ur_device_handle_t Device,
     ze_command_list_handle_t CommandList,
     ze_command_list_handle_t CommandListResetEvents,
     ZeStruct<ze_command_list_desc_t> ZeDesc,
-    const ur_exp_command_buffer_desc_t *Desc)
+    const ur_exp_command_buffer_desc_t *Desc, const bool IsInOrderCmdList)
     : Context(Context), Device(Device), ZeCommandList(CommandList),
       ZeCommandListResetEvents(CommandListResetEvents),
       ZeCommandListDesc(ZeDesc), ZeFencesList(), QueueProperties(),
       SyncPoints(), NextSyncPoint(0),
-      IsUpdatable(Desc ? Desc->isUpdatable : false) {
+      IsUpdatable(Desc ? Desc->isUpdatable : false),
+      IsProfilingEnabled(Desc ? Desc->enableProfiling : false),
+      IsInOrderCmdList(IsInOrderCmdList) {
   urContextRetain(Context);
   urDeviceRetain(Device);
 }
@@ -75,13 +103,44 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   for (auto &ZeFence : ZeFencesList) {
     ZE_CALL_NOCHECK(zeFenceDestroy, (ZeFence));
   }
+
+  auto ReleaseIndirectMem = [](ur_kernel_handle_t Kernel) {
+    if (IndirectAccessTrackingEnabled) {
+      // urKernelRelease is called by CleanupCompletedEvent(Event) as soon as
+      // kernel execution has finished. This is the place where we need to
+      // release memory allocations. If kernel is not in use (not submitted by
+      // some other thread) then release referenced memory allocations. As a
+      // result, memory can be deallocated and context can be removed from
+      // container in the platform. That's why we need to lock a mutex here.
+      ur_platform_handle_t Platform = Kernel->Program->Context->getPlatform();
+      std::scoped_lock<ur_shared_mutex> ContextsLock(Platform->ContextsMutex);
+
+      if (--Kernel->SubmissionsCount == 0) {
+        // Kernel is not submitted for execution, release referenced memory
+        // allocations.
+        for (auto &MemAlloc : Kernel->MemAllocs) {
+          // std::pair<void *const, MemAllocRecord> *, Hash
+          USMFreeHelper(MemAlloc->second.Context, MemAlloc->first,
+                        MemAlloc->second.OwnNativeHandle);
+        }
+        Kernel->MemAllocs.clear();
+      }
+    }
+  };
+
+  for (auto &AssociatedKernel : KernelsList) {
+    ReleaseIndirectMem(AssociatedKernel);
+    urKernelRelease(AssociatedKernel);
+  }
 }
 
 ur_exp_command_buffer_command_handle_t_::
     ur_exp_command_buffer_command_handle_t_(
         ur_exp_command_buffer_handle_t CommandBuffer, uint64_t CommandId,
+        uint32_t WorkDim, bool UserDefinedLocalSize,
         ur_kernel_handle_t Kernel = nullptr)
-    : CommandBuffer(CommandBuffer), CommandId(CommandId), Kernel(Kernel) {
+    : CommandBuffer(CommandBuffer), CommandId(CommandId), WorkDim(WorkDim),
+      UserDefinedLocalSize(UserDefinedLocalSize), Kernel(Kernel) {
   urCommandBufferRetainExp(CommandBuffer);
   if (Kernel)
     urKernelRetain(Kernel);
@@ -140,16 +199,16 @@ ur_result_t calculateKernelWorkDimensions(
         while (GlobalWorkSize3D[I] % GroupSize[I]) {
           --GroupSize[I];
         }
-        if (GlobalWorkSize3D[I] / GroupSize[I] > UINT32_MAX) {
-          urPrint("calculateKernelWorkDimensions: can't find a WG size "
-                  "suitable for global work size > UINT32_MAX\n");
+        if (GlobalWorkSize[I] / GroupSize[I] > UINT32_MAX) {
+          logger::debug("calculateKernelWorkDimensions: can't find a WG size "
+                        "suitable for global work size > UINT32_MAX");
           return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
         }
         WG[I] = GroupSize[I];
       }
-      urPrint("calculateKernelWorkDimensions: using computed WG size = {%d, "
-              "%d, %d}\n",
-              WG[0], WG[1], WG[2]);
+      logger::debug("calculateKernelWorkDimensions: using computed WG "
+                    "size = {{{}, {}, {}}}",
+                    WG[0], WG[1], WG[2]);
     }
   }
 
@@ -177,30 +236,27 @@ ur_result_t calculateKernelWorkDimensions(
     break;
 
   default:
-    urPrint("calculateKernelWorkDimensions: unsupported work_dim\n");
+    logger::error("calculateKernelWorkDimensions: unsupported work_dim");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
   // Error handling for non-uniform group size case
   if (GlobalWorkSize3D[0] !=
       size_t(ZeThreadGroupDimensions.groupCountX) * WG[0]) {
-    urPrint("calculateKernelWorkDimensions: invalid work_dim. The range "
-            "is not a "
-            "multiple of the group size in the 1st dimension\n");
+    logger::error("calculateKernelWorkDimensions: invalid work_dim. The range "
+                  "is not a multiple of the group size in the 1st dimension");
     return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
   }
   if (GlobalWorkSize3D[1] !=
       size_t(ZeThreadGroupDimensions.groupCountY) * WG[1]) {
-    urPrint("calculateKernelWorkDimensions: invalid work_dim. The range "
-            "is not a "
-            "multiple of the group size in the 2nd dimension\n");
+    logger::error("calculateKernelWorkDimensions: invalid work_dim. The range "
+                  "is not a multiple of the group size in the 2nd dimension");
     return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
   }
   if (GlobalWorkSize3D[2] !=
       size_t(ZeThreadGroupDimensions.groupCountZ) * WG[2]) {
-    urPrint("calculateKernelWorkDimensions: invalid work_dim. The range "
-            "is not a "
-            "multiple of the group size in the 3rd dimension\n");
+    logger::error("calculateKernelWorkDimensions: invalid work_dim. The range "
+                  "is not a multiple of the group size in the 3rd dimension");
     return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
   }
 
@@ -227,14 +283,10 @@ static ur_result_t getEventsFromSyncPoints(
   if (!SyncPointWaitList || NumSyncPointsInWaitList == 0)
     return UR_RESULT_SUCCESS;
 
-  // Map of ur_exp_command_buffer_sync_point_t to ur_event_handle_t defining
-  // the event associated with each sync-point
-  auto SyncPoints = CommandBuffer->SyncPoints;
-
   // For each sync-point add associated L0 event to the return list.
   for (size_t i = 0; i < NumSyncPointsInWaitList; i++) {
-    if (auto EventHandle = SyncPoints.find(SyncPointWaitList[i]);
-        EventHandle != SyncPoints.end()) {
+    if (auto EventHandle = CommandBuffer->SyncPoints.find(SyncPointWaitList[i]);
+        EventHandle != CommandBuffer->SyncPoints.end()) {
       ZeEventList.push_back(EventHandle->second->ZeEvent);
     } else {
       return UR_RESULT_ERROR_INVALID_VALUE;
@@ -251,27 +303,34 @@ static ur_result_t enqueueCommandBufferMemCopyHelper(
     void *Dst, const void *Src, size_t Size, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *SyncPoint) {
-  std::vector<ze_event_handle_t> ZeEventList;
-  UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
-                                  SyncPointWaitList, ZeEventList));
+  if (CommandBuffer->IsInOrderCmdList) {
+    ZE2UR_CALL(
+        zeCommandListAppendMemoryCopy,
+        (CommandBuffer->ZeCommandList, Dst, Src, Size, nullptr, 0, nullptr));
 
-  ur_event_handle_t LaunchEvent;
-  UR_CALL(
-      EventCreate(CommandBuffer->Context, nullptr, false, false, &LaunchEvent));
-  LaunchEvent->CommandType = CommandType;
+    logger::debug("calling zeCommandListAppendMemoryCopy()");
+  } else {
+    std::vector<ze_event_handle_t> ZeEventList;
+    ur_event_handle_t LaunchEvent;
+    UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
+                                    SyncPointWaitList, ZeEventList));
+    UR_CALL(EventCreate(CommandBuffer->Context, nullptr, false, false,
+                        &LaunchEvent, false,
+                        !CommandBuffer->IsProfilingEnabled));
+    LaunchEvent->CommandType = CommandType;
 
-  // Get sync point and register the event with it.
-  *SyncPoint = CommandBuffer->GetNextSyncPoint();
-  CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+    // Get sync point and register the event with it.
+    *SyncPoint = CommandBuffer->GetNextSyncPoint();
+    CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
 
-  ZE2UR_CALL(zeCommandListAppendMemoryCopy,
-             (CommandBuffer->ZeCommandList, Dst, Src, Size,
-              LaunchEvent->ZeEvent, ZeEventList.size(), ZeEventList.data()));
+    ZE2UR_CALL(zeCommandListAppendMemoryCopy,
+               (CommandBuffer->ZeCommandList, Dst, Src, Size,
+                LaunchEvent->ZeEvent, ZeEventList.size(), ZeEventList.data()));
 
-  urPrint("calling zeCommandListAppendMemoryCopy() with"
-          "  ZeEvent %#" PRIxPTR "\n",
-          ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
-
+    logger::debug("calling zeCommandListAppendMemoryCopy() with"
+                  "  ZeEvent {}",
+                  ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -317,27 +376,37 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
   const ze_copy_region_t ZeDstRegion = {DstOriginX, DstOriginY, DstOriginZ,
                                         Width,      Height,     Depth};
 
-  std::vector<ze_event_handle_t> ZeEventList;
-  UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
-                                  SyncPointWaitList, ZeEventList));
+  if (CommandBuffer->IsInOrderCmdList) {
+    ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
+               (CommandBuffer->ZeCommandList, Dst, &ZeDstRegion, DstPitch,
+                DstSlicePitch, Src, &ZeSrcRegion, SrcPitch, SrcSlicePitch,
+                nullptr, 0, nullptr));
 
-  ur_event_handle_t LaunchEvent;
-  UR_CALL(
-      EventCreate(CommandBuffer->Context, nullptr, false, false, &LaunchEvent));
-  LaunchEvent->CommandType = CommandType;
+    logger::debug("calling zeCommandListAppendMemoryCopyRegion()");
+  } else {
+    std::vector<ze_event_handle_t> ZeEventList;
+    UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
+                                    SyncPointWaitList, ZeEventList));
 
-  // Get sync point and register the event with it.
-  *SyncPoint = CommandBuffer->GetNextSyncPoint();
-  CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+    ur_event_handle_t LaunchEvent;
+    UR_CALL(EventCreate(CommandBuffer->Context, nullptr, false, false,
+                        &LaunchEvent, false,
+                        !CommandBuffer->IsProfilingEnabled));
+    LaunchEvent->CommandType = CommandType;
 
-  ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
-             (CommandBuffer->ZeCommandList, Dst, &ZeDstRegion, DstPitch,
-              DstSlicePitch, Src, &ZeSrcRegion, SrcPitch, SrcSlicePitch,
-              LaunchEvent->ZeEvent, ZeEventList.size(), ZeEventList.data()));
+    // Get sync point and register the event with it.
+    *SyncPoint = CommandBuffer->GetNextSyncPoint();
+    CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
 
-  urPrint("calling zeCommandListAppendMemoryCopyRegion() with"
-          "  ZeEvent %#" PRIxPTR "\n",
-          ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
+    ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
+               (CommandBuffer->ZeCommandList, Dst, &ZeDstRegion, DstPitch,
+                DstSlicePitch, Src, &ZeSrcRegion, SrcPitch, SrcSlicePitch,
+                LaunchEvent->ZeEvent, ZeEventList.size(), ZeEventList.data()));
+
+    logger::debug("calling zeCommandListAppendMemoryCopyRegion() with"
+                  "  ZeEvent {}",
+                  ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -361,26 +430,35 @@ static ur_result_t enqueueCommandBufferFillHelper(
               .ZeProperties.maxMemoryFillPatternSize,
       UR_RESULT_ERROR_INVALID_VALUE);
 
-  std::vector<ze_event_handle_t> ZeEventList;
-  UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
-                                  SyncPointWaitList, ZeEventList));
+  if (CommandBuffer->IsInOrderCmdList) {
+    ZE2UR_CALL(zeCommandListAppendMemoryFill,
+               (CommandBuffer->ZeCommandList, Ptr, Pattern, PatternSize, Size,
+                nullptr, 0, nullptr));
 
-  ur_event_handle_t LaunchEvent;
-  UR_CALL(
-      EventCreate(CommandBuffer->Context, nullptr, false, true, &LaunchEvent));
-  LaunchEvent->CommandType = CommandType;
+    logger::debug("calling zeCommandListAppendMemoryFill()");
+  } else {
+    std::vector<ze_event_handle_t> ZeEventList;
+    UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
+                                    SyncPointWaitList, ZeEventList));
 
-  // Get sync point and register the event with it.
-  *SyncPoint = CommandBuffer->GetNextSyncPoint();
-  CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+    ur_event_handle_t LaunchEvent;
+    UR_CALL(EventCreate(CommandBuffer->Context, nullptr, false, true,
+                        &LaunchEvent, false,
+                        !CommandBuffer->IsProfilingEnabled));
+    LaunchEvent->CommandType = CommandType;
 
-  ZE2UR_CALL(zeCommandListAppendMemoryFill,
-             (CommandBuffer->ZeCommandList, Ptr, Pattern, PatternSize, Size,
-              LaunchEvent->ZeEvent, ZeEventList.size(), ZeEventList.data()));
+    // Get sync point and register the event with it.
+    *SyncPoint = CommandBuffer->GetNextSyncPoint();
+    CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
 
-  urPrint("calling zeCommandListAppendMemoryFill() with"
-          "  ZeEvent %#lx\n",
-          ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
+    ZE2UR_CALL(zeCommandListAppendMemoryFill,
+               (CommandBuffer->ZeCommandList, Ptr, Pattern, PatternSize, Size,
+                LaunchEvent->ZeEvent, ZeEventList.size(), ZeEventList.data()));
+
+    logger::debug("calling zeCommandListAppendMemoryFill() with"
+                  "  ZeEvent {}",
+                  ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -389,6 +467,13 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
                          const ur_exp_command_buffer_desc_t *CommandBufferDesc,
                          ur_exp_command_buffer_handle_t *CommandBuffer) {
+  // In-order command-lists are not available in old driver version.
+  bool CompatibleDriver = IsDriverVersionNewerOrSimilar(Context, 1, 3, 28454);
+  const bool IsInOrder =
+      CompatibleDriver
+          ? (CommandBufferDesc ? CommandBufferDesc->isInOrder : false)
+          : false;
+
   // Force compute queue type for now. Copy engine types may be better suited
   // for host to device copies.
   uint32_t QueueGroupOrdinal =
@@ -404,10 +489,11 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
              (Context->ZeContext, Device->ZeDevice, &ZeCommandListDesc,
               &ZeCommandListResetEvents));
 
-  // Dependencies between commands are explicitly enforced by sync points when
-  // enqueuing. Consequently, relax the command ordering in the command list
-  // can enable the backend to further optimize the workload
-  ZeCommandListDesc.flags = ZE_COMMAND_LIST_FLAG_RELAXED_ORDERING;
+  // For non-linear graph, dependencies between commands are explicitly enforced
+  // by sync points when enqueuing. Consequently, relax the command ordering in
+  // the command list can enable the backend to further optimize the workload
+  ZeCommandListDesc.flags = IsInOrder ? ZE_COMMAND_LIST_FLAG_IN_ORDER
+                                      : ZE_COMMAND_LIST_FLAG_RELAXED_ORDERING;
 
   ZeStruct<ze_mutable_command_list_exp_desc_t> ZeMutableCommandListDesc;
   if (CommandBufferDesc && CommandBufferDesc->isUpdatable) {
@@ -423,7 +509,7 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
   try {
     *CommandBuffer = new ur_exp_command_buffer_handle_t_(
         Context, Device, ZeCommandList, ZeCommandListResetEvents,
-        ZeCommandListDesc, CommandBufferDesc);
+        ZeCommandListDesc, CommandBufferDesc, IsInOrder);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -434,11 +520,14 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
   // on command-buffer enqueue.
   auto RetCommandBuffer = *CommandBuffer;
   UR_CALL(EventCreate(Context, nullptr, false, false,
-                      &RetCommandBuffer->SignalEvent));
+                      &RetCommandBuffer->SignalEvent, false,
+                      !RetCommandBuffer->IsProfilingEnabled));
   UR_CALL(EventCreate(Context, nullptr, false, false,
-                      &RetCommandBuffer->WaitEvent));
+                      &RetCommandBuffer->WaitEvent, false,
+                      !RetCommandBuffer->IsProfilingEnabled));
   UR_CALL(EventCreate(Context, nullptr, false, false,
-                      &RetCommandBuffer->AllResetEvent));
+                      &RetCommandBuffer->AllResetEvent, false,
+                      !RetCommandBuffer->IsProfilingEnabled));
 
   // Add prefix commands
   ZE2UR_CALL(
@@ -489,11 +578,24 @@ urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t CommandBuffer) {
              (CommandBuffer->ZeCommandListResetEvents,
               CommandBuffer->AllResetEvent->ZeEvent));
 
-  // Wait for all the user added commands to complete, and signal the
-  // command-buffer signal-event when they are done.
-  ZE2UR_CALL(zeCommandListAppendBarrier,
-             (CommandBuffer->ZeCommandList, CommandBuffer->SignalEvent->ZeEvent,
-              NumEvents, CommandBuffer->ZeEventsList.data()));
+  if (CommandBuffer->IsInOrderCmdList) {
+    ZE2UR_CALL(
+        zeCommandListAppendSignalEvent,
+        (CommandBuffer->ZeCommandList, CommandBuffer->SignalEvent->ZeEvent));
+  } else {
+    // Create a list of events for our signal event to wait on
+    const size_t NumEvents = CommandBuffer->SyncPoints.size();
+    std::vector<ze_event_handle_t> WaitEventList{NumEvents};
+    for (size_t i = 0; i < NumEvents; i++) {
+      WaitEventList[i] = CommandBuffer->SyncPoints[i]->ZeEvent;
+    }
+
+    // Wait for all the user added commands to complete, and signal the
+    // command-buffer signal-event when they are done.
+    ZE2UR_CALL(zeCommandListAppendBarrier, (CommandBuffer->ZeCommandList,
+                                            CommandBuffer->SignalEvent->ZeEvent,
+                                            NumEvents, WaitEventList.data()));
+  }
 
   // Close the command lists and have them ready for dispatch.
   ZE2UR_CALL(zeCommandListClose, (CommandBuffer->ZeCommandList));
@@ -519,7 +621,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   if (GlobalWorkOffset != NULL) {
     if (!CommandBuffer->Context->getPlatform()
              ->ZeDriverGlobalOffsetExtensionFound) {
-      urPrint("No global offset extension found on this driver\n");
+      logger::debug("No global offset extension found on this driver");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
 
@@ -551,21 +653,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 
   ZE2UR_CALL(zeKernelSetGroupSize, (Kernel->ZeKernel, WG[0], WG[1], WG[2]));
 
-  std::vector<ze_event_handle_t> ZeEventList;
-  UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
-                                  SyncPointWaitList, ZeEventList));
-  ur_event_handle_t LaunchEvent;
-  UR_CALL(
-      EventCreate(CommandBuffer->Context, nullptr, false, false, &LaunchEvent));
-  LaunchEvent->CommandType = UR_COMMAND_KERNEL_LAUNCH;
-
-  if (SyncPoint) {
-    // Get sync point and register the event with it.
-    *SyncPoint = CommandBuffer->GetNextSyncPoint();
-    CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
-  }
-
-  LaunchEvent->CommandData = (void *)Kernel;
+  CommandBuffer->KernelsList.push_back(Kernel);
   // Increment the reference count of the Kernel and indicate that the Kernel
   // is in use. Once the event has been signaled, the code in
   // CleanupCompletedEvent(Event) will do a urKernelRelease to update the
@@ -593,22 +681,45 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   }
   try {
     if (Command)
-      *Command = new ur_exp_command_buffer_command_handle_t_(CommandBuffer,
-                                                             CommandId, Kernel);
+      *Command = new ur_exp_command_buffer_command_handle_t_(
+          CommandBuffer, CommandId, WorkDim, LocalWorkSize != nullptr, Kernel);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
 
-  ZE2UR_CALL(zeCommandListAppendLaunchKernel,
-             (CommandBuffer->ZeCommandList, Kernel->ZeKernel,
-              &ZeThreadGroupDimensions, LaunchEvent->ZeEvent,
-              ZeEventList.size(), ZeEventList.data()));
+  if (CommandBuffer->IsInOrderCmdList) {
+    ZE2UR_CALL(zeCommandListAppendLaunchKernel,
+               (CommandBuffer->ZeCommandList, Kernel->ZeKernel,
+                &ZeThreadGroupDimensions, nullptr, 0, nullptr));
 
-  urPrint("calling zeCommandListAppendLaunchKernel() with"
-          "  ZeEvent %#" PRIxPTR "\n",
-          ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
+    logger::debug("calling zeCommandListAppendLaunchKernel()");
+  } else {
+    std::vector<ze_event_handle_t> ZeEventList;
+    UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
+                                    SyncPointWaitList, ZeEventList));
+    ur_event_handle_t LaunchEvent;
+    UR_CALL(EventCreate(CommandBuffer->Context, nullptr, false, false,
+                        &LaunchEvent, false,
+                        !CommandBuffer->IsProfilingEnabled));
+    LaunchEvent->CommandType = UR_COMMAND_KERNEL_LAUNCH;
+
+    if (SyncPoint) {
+      // Get sync point and register the event with it.
+      *SyncPoint = CommandBuffer->GetNextSyncPoint();
+      CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+    }
+
+    ZE2UR_CALL(zeCommandListAppendLaunchKernel,
+               (CommandBuffer->ZeCommandList, Kernel->ZeKernel,
+                &ZeThreadGroupDimensions, LaunchEvent->ZeEvent,
+                ZeEventList.size(), ZeEventList.data()));
+
+    logger::debug("calling zeCommandListAppendLaunchKernel() with"
+                  "  ZeEvent {}",
+                  ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -758,34 +869,42 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     ur_exp_command_buffer_sync_point_t *SyncPoint) {
   std::ignore = Flags;
 
-  std::vector<ze_event_handle_t> ZeEventList;
-  UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
-                                  SyncPointWaitList, ZeEventList));
+  if (CommandBuffer->IsInOrderCmdList) {
+    // Add the prefetch command to the command buffer.
+    // Note that L0 does not handle migration flags.
+    ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
+               (CommandBuffer->ZeCommandList, Mem, Size));
+  } else {
+    std::vector<ze_event_handle_t> ZeEventList;
+    UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
+                                    SyncPointWaitList, ZeEventList));
 
-  if (NumSyncPointsInWaitList) {
-    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-               (CommandBuffer->ZeCommandList, NumSyncPointsInWaitList,
-                ZeEventList.data()));
+    if (NumSyncPointsInWaitList) {
+      ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+                 (CommandBuffer->ZeCommandList, NumSyncPointsInWaitList,
+                  ZeEventList.data()));
+    }
+
+    ur_event_handle_t LaunchEvent;
+    UR_CALL(EventCreate(CommandBuffer->Context, nullptr, false, true,
+                        &LaunchEvent, false,
+                        !CommandBuffer->IsProfilingEnabled));
+    LaunchEvent->CommandType = UR_COMMAND_USM_PREFETCH;
+
+    // Get sync point and register the event with it.
+    *SyncPoint = CommandBuffer->GetNextSyncPoint();
+    CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+
+    // Add the prefetch command to the command buffer.
+    // Note that L0 does not handle migration flags.
+    ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
+               (CommandBuffer->ZeCommandList, Mem, Size));
+
+    // Level Zero does not have a completion "event" with the prefetch API,
+    // so manually add command to signal our event.
+    ZE2UR_CALL(zeCommandListAppendSignalEvent,
+               (CommandBuffer->ZeCommandList, LaunchEvent->ZeEvent));
   }
-
-  ur_event_handle_t LaunchEvent;
-  UR_CALL(
-      EventCreate(CommandBuffer->Context, nullptr, false, true, &LaunchEvent));
-  LaunchEvent->CommandType = UR_COMMAND_USM_PREFETCH;
-
-  // Get sync point and register the event with it.
-  *SyncPoint = CommandBuffer->GetNextSyncPoint();
-  CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
-
-  // Add the prefetch command to the command buffer.
-  // Note that L0 does not handle migration flags.
-  ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
-             (CommandBuffer->ZeCommandList, Mem, Size));
-
-  // Level Zero does not have a completion "event" with the prefetch API,
-  // so manually add command to signal our event.
-  ZE2UR_CALL(zeCommandListAppendSignalEvent,
-             (CommandBuffer->ZeCommandList, LaunchEvent->ZeEvent));
 
   return UR_RESULT_SUCCESS;
 }
@@ -822,33 +941,40 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 
   ze_memory_advice_t ZeAdvice = static_cast<ze_memory_advice_t>(Value);
 
-  std::vector<ze_event_handle_t> ZeEventList;
-  UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
-                                  SyncPointWaitList, ZeEventList));
+  if (CommandBuffer->IsInOrderCmdList) {
+    ZE2UR_CALL(zeCommandListAppendMemAdvise,
+               (CommandBuffer->ZeCommandList, CommandBuffer->Device->ZeDevice,
+                Mem, Size, ZeAdvice));
+  } else {
+    std::vector<ze_event_handle_t> ZeEventList;
+    UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
+                                    SyncPointWaitList, ZeEventList));
 
-  if (NumSyncPointsInWaitList) {
-    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-               (CommandBuffer->ZeCommandList, NumSyncPointsInWaitList,
-                ZeEventList.data()));
+    if (NumSyncPointsInWaitList) {
+      ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+                 (CommandBuffer->ZeCommandList, NumSyncPointsInWaitList,
+                  ZeEventList.data()));
+    }
+
+    ur_event_handle_t LaunchEvent;
+    UR_CALL(EventCreate(CommandBuffer->Context, nullptr, false, true,
+                        &LaunchEvent, false,
+                        !CommandBuffer->IsProfilingEnabled));
+    LaunchEvent->CommandType = UR_COMMAND_USM_ADVISE;
+
+    // Get sync point and register the event with it.
+    *SyncPoint = CommandBuffer->GetNextSyncPoint();
+    CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+
+    ZE2UR_CALL(zeCommandListAppendMemAdvise,
+               (CommandBuffer->ZeCommandList, CommandBuffer->Device->ZeDevice,
+                Mem, Size, ZeAdvice));
+
+    // Level Zero does not have a completion "event" with the advise API,
+    // so manually add command to signal our event.
+    ZE2UR_CALL(zeCommandListAppendSignalEvent,
+               (CommandBuffer->ZeCommandList, LaunchEvent->ZeEvent));
   }
-
-  ur_event_handle_t LaunchEvent;
-  UR_CALL(
-      EventCreate(CommandBuffer->Context, nullptr, false, true, &LaunchEvent));
-  LaunchEvent->CommandType = UR_COMMAND_USM_ADVISE;
-
-  // Get sync point and register the event with it.
-  *SyncPoint = CommandBuffer->GetNextSyncPoint();
-  CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
-
-  ZE2UR_CALL(zeCommandListAppendMemAdvise,
-             (CommandBuffer->ZeCommandList, CommandBuffer->Device->ZeDevice,
-              Mem, Size, ZeAdvice));
-
-  // Level Zero does not have a completion "event" with the advise API,
-  // so manually add command to signal our event.
-  ZE2UR_CALL(zeCommandListAppendSignalEvent,
-             (CommandBuffer->ZeCommandList, LaunchEvent->ZeEvent));
 
   return UR_RESULT_SUCCESS;
 }
@@ -922,8 +1048,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
       // Create command-list to execute before `CommandListPtr` and will signal
       // when `EventWaitList` dependencies are complete.
       ur_command_list_ptr_t WaitCommandList{};
-      UR_CALL(Queue->Context->getAvailableCommandList(Queue, WaitCommandList,
-                                                      false, false));
+      UR_CALL(Queue->Context->getAvailableCommandList(
+          Queue, WaitCommandList, false, NumEventsInWaitList, EventWaitList,
+          false));
 
       ZE2UR_CALL(zeCommandListAppendBarrier,
                  (WaitCommandList->first, CommandBuffer->WaitEvent->ZeEvent,
@@ -933,6 +1060,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
       MustSignalWaitEvent = false;
     }
   }
+  // Given WaitEvent was created without specifying Counting Events, then this
+  // event can be signalled on the host.
   if (MustSignalWaitEvent) {
     ZE2UR_CALL(zeEventHostSignal, (CommandBuffer->WaitEvent->ZeEvent));
   }
@@ -958,7 +1087,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   // Create a command-list to signal RetEvent on completion
   ur_command_list_ptr_t SignalCommandList{};
   UR_CALL(Queue->Context->getAvailableCommandList(Queue, SignalCommandList,
-                                                  false, false));
+                                                  false, NumEventsInWaitList,
+                                                  EventWaitList, false));
   // Reset the wait-event for the UR command-buffer that is signaled when its
   // submission dependencies have been satisfied.
   ZE2UR_CALL(zeCommandListAppendEventReset,
@@ -973,7 +1103,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
         Queue, &RetEvent, UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP,
         SignalCommandList, false, false, true));
 
-    if ((Queue->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE)) {
+    if ((Queue->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE) &&
+        (!CommandBuffer->IsInOrderCmdList) &&
+        (CommandBuffer->IsProfilingEnabled)) {
       // Multiple submissions of a command buffer implies that we need to save
       // the event timestamps before resubmiting the command buffer. We
       // therefore copy the these timestamps in a dedicated USM memory section
@@ -1041,8 +1173,30 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   UR_ASSERT(Command->CommandBuffer->IsFinalized,
             UR_RESULT_ERROR_INVALID_OPERATION);
 
-  auto CommandBuffer = Command->CommandBuffer;
   uint32_t Dim = CommandDesc->newWorkDim;
+  if (Dim != 0) {
+    // Error if work dim changes
+    if (Dim != Command->WorkDim) {
+      return UR_RESULT_ERROR_INVALID_OPERATION;
+    }
+
+    // Error If Local size and not global size
+    if ((CommandDesc->pNewLocalWorkSize != nullptr) &&
+        (CommandDesc->pNewGlobalWorkSize == nullptr)) {
+      return UR_RESULT_ERROR_INVALID_OPERATION;
+    }
+
+    // Error if local size non-nullptr and created with null
+    // or if local size nullptr and created with non-null
+    const bool IsNewLocalSizeNull = CommandDesc->pNewLocalWorkSize == nullptr;
+    const bool IsOriginalLocalSizeNull = !Command->UserDefinedLocalSize;
+
+    if (IsNewLocalSizeNull ^ IsOriginalLocalSizeNull) {
+      return UR_RESULT_ERROR_INVALID_OPERATION;
+    }
+  }
+
+  auto CommandBuffer = Command->CommandBuffer;
   const void *NextDesc = nullptr;
   auto SupportedFeatures =
       Command->CommandBuffer->Device->ZeDeviceMutableCmdListsProperties
@@ -1068,7 +1222,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   if (NewGlobalWorkOffset && Dim > 0) {
     if (!CommandBuffer->Context->getPlatform()
              ->ZeDriverGlobalOffsetExtensionFound) {
-      urPrint("No global offset extension found on this driver\n");
+      logger::error("No global offset extension found on this driver");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     auto MutableGroupOffestDesc =
@@ -1231,56 +1385,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     ZeMutableArgDesc->pArgValue = ArgValuePtr;
     NextDesc = ZeMutableArgDesc.get();
     ArgDescs.push_back(std::move(ZeMutableArgDesc));
-  }
-
-  // Check if there are new exec info flags provided.
-  for (uint32_t NewExecInfoNum = CommandDesc->numNewExecInfos;
-       NewExecInfoNum-- > 0;) {
-    ur_exp_command_buffer_update_exec_info_desc_t NewExecInfoDesc =
-        CommandDesc->pNewExecInfoList[NewExecInfoNum];
-    ur_kernel_exec_info_t PropName = NewExecInfoDesc.propName;
-    const void *PropValue = NewExecInfoDesc.pNewExecInfo;
-    if (PropName == UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS) {
-      // The whole point for users really was to not need to know anything
-      // about the types of allocations kernel uses. So in DPC++ we always
-      // just set all 3 modes for each kernel.
-      if (*(static_cast<const ur_bool_t *>(PropValue)) == true) {
-        ze_kernel_indirect_access_flags_t IndirectFlags =
-            ZE_KERNEL_INDIRECT_ACCESS_FLAG_HOST |
-            ZE_KERNEL_INDIRECT_ACCESS_FLAG_DEVICE |
-            ZE_KERNEL_INDIRECT_ACCESS_FLAG_SHARED;
-        ZE2UR_CALL(zeKernelSetIndirectAccess,
-                   (Command->Kernel->ZeKernel, IndirectFlags));
-      }
-    } else if (PropName == UR_KERNEL_EXEC_INFO_CACHE_CONFIG) {
-      ze_cache_config_flag_t ZeCacheConfig{};
-      auto CacheConfig =
-          *(static_cast<const ur_kernel_cache_config_t *>(PropValue));
-      switch (CacheConfig) {
-      case UR_KERNEL_CACHE_CONFIG_LARGE_SLM:
-        ZeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_SLM;
-        break;
-      case UR_KERNEL_CACHE_CONFIG_LARGE_DATA:
-        ZeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_DATA;
-        break;
-      case UR_KERNEL_CACHE_CONFIG_DEFAULT:
-        ZeCacheConfig = static_cast<ze_cache_config_flag_t>(0);
-        break;
-      default:
-        // Unexpected cache configuration value.
-        return UR_RESULT_ERROR_INVALID_VALUE;
-      }
-      ZE2UR_CALL(zeKernelSetCacheConfig,
-                 (Command->Kernel->ZeKernel, ZeCacheConfig););
-    } else if (PropName == UR_KERNEL_EXEC_INFO_USM_PTRS) {
-      // Ignore this property as such kernel property is not supported by Level
-      // Zero.
-      continue;
-    } else {
-      urPrint("urCommandBufferUpdateKernelLaunchExp: unsupported name of "
-              "execution attribute.\n");
-      return UR_RESULT_ERROR_INVALID_VALUE;
-    }
   }
 
   ZeStruct<ze_mutable_commands_exp_desc_t> MutableCommandDesc;

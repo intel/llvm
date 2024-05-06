@@ -1,10 +1,11 @@
 # Unified Runtime
 
 [![Build and test](https://github.com/oneapi-src/unified-runtime/actions/workflows/cmake.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/cmake.yml)
+[![E2E Cuda](https://github.com/oneapi-src/unified-runtime/actions/workflows/e2e_cuda.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/e2e_cuda.yml)
+[![E2E OpenCL](https://github.com/oneapi-src/unified-runtime/actions/workflows/e2e_opencl.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/e2e_opencl.yml)
 [![CodeQL](https://github.com/oneapi-src/unified-runtime/actions/workflows/codeql.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/codeql.yml)
 [![Bandit](https://github.com/oneapi-src/unified-runtime/actions/workflows/bandit.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/bandit.yml)
 [![Coverity](https://scan.coverity.com/projects/28213/badge.svg)](https://scan.coverity.com/projects/oneapi-src-unified-runtime)
-[![codecov.io](https://codecov.io/github/oneapi-src/unified-runtime/coverage.svg?branch=main)](https://codecov.io/github/oneapi-src/unified-runtime?branch=master)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/oneapi-src/unified-runtime/badge)](https://securityscorecards.dev/viewer/?uri=github.com/oneapi-src/unified-runtime)
 
 <!-- TODO: add general description and purpose of the project -->
@@ -12,7 +13,6 @@
 ## Table of contents
 
 - [Unified Runtime](#unified-runtime)
-  - [Adapters](#adapters)
   - [Table of contents](#table-of-contents)
   - [Contents of the repo](#contents-of-the-repo)
   - [Integration](#integration)
@@ -28,7 +28,7 @@
     - [Adapter naming convention](#adapter-naming-convention)
     - [Source code generation](#source-code-generation)
     - [Documentation](#documentation)
-6. [Release Process](#release-process)
+  - [Release Process](#release-process)
 
 ## Contents of the repo
 
@@ -87,7 +87,7 @@ for more detailed instructions on the correct setup.
 
 Required packages:
 - C++ compiler with C++17 support
-- [CMake](https://cmake.org/) >= 3.14.0
+- [CMake](https://cmake.org/) >= 3.20.0
 - Python v3.6.6 or later
 
 ### Windows
@@ -121,6 +121,7 @@ List of options provided by CMake:
 | UR_BUILD_TOOLS | Build tools | ON/OFF | ON |
 | UR_FORMAT_CPP_STYLE | Format code style | ON/OFF | OFF |
 | UR_DEVELOPER_MODE | Treat warnings as errors and enables additional checks | ON/OFF | OFF |
+| UR_ENABLE_FAST_SPEC_MODE | Enable fast specification generation mode | ON/OFF | OFF |
 | UR_USE_ASAN | Enable AddressSanitizer | ON/OFF | OFF |
 | UR_USE_TSAN | Enable ThreadSanitizer | ON/OFF | OFF |
 | UR_USE_UBSAN | Enable UndefinedBehavior Sanitizer | ON/OFF | OFF |
@@ -129,6 +130,7 @@ List of options provided by CMake:
 | UR_ENABLE_SANITIZER | Enable device sanitizer layer | ON/OFF | ON |
 | UR_CONFORMANCE_TARGET_TRIPLES | SYCL triples to build CTS device binaries for | Comma-separated list | spir64 |
 | UR_CONFORMANCE_AMD_ARCH | AMD device target ID to build CTS binaries for | string | `""` |
+| UR_CONFORMANCE_ENABLE_MATCH_FILES | Enable CTS match files | ON/OFF | ON |
 | UR_BUILD_ADAPTER_L0     | Build the Level-Zero adapter            | ON/OFF     | OFF     |
 | UR_BUILD_ADAPTER_OPENCL | Build the OpenCL adapter                | ON/OFF     | OFF     |
 | UR_BUILD_ADAPTER_CUDA   | Build the CUDA adapter                  | ON/OFF     | OFF     |
@@ -138,6 +140,7 @@ List of options provided by CMake:
 | UR_HIP_PLATFORM         | Build HIP adapter for AMD or NVIDIA platform           | AMD/NVIDIA | AMD     |
 | UR_ENABLE_COMGR         | Enable comgr lib usage           | AMD/NVIDIA | AMD     |
 | UR_DPCXX | Path of the DPC++ compiler executable to build CTS device binaries | File path | `""` |
+| UR_DPCXX_BUILD_FLAGS | Build flags to pass to DPC++ when compiling device programs | Space-separated options list | `""` |
 | UR_SYCL_LIBRARY_DIR | Path of the SYCL runtime library directory to build CTS device binaries | Directory path | `""` |
 | UR_HIP_ROCM_DIR | Path of the default ROCm HIP installation | Directory path | `/opt/rocm` |
 | UR_HIP_INCLUDE_DIR | Path of the ROCm HIP include directory | Directory path | `${UR_HIP_ROCM_DIR}/include` |

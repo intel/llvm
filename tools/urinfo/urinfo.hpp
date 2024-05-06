@@ -258,7 +258,7 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
     printDeviceInfo<ur_device_usm_access_capability_flags_t>(
         hDevice, UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT);
     std::cout << prefix;
-    printDeviceInfo<char[]>(hDevice, UR_DEVICE_INFO_UUID);
+    printDeviceUUID(hDevice, UR_DEVICE_INFO_UUID);
     std::cout << prefix;
     printDeviceInfo<char[]>(hDevice, UR_DEVICE_INFO_PCI_ADDRESS);
     std::cout << prefix;

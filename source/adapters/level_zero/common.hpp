@@ -174,10 +174,10 @@ static auto getUrResultString = [](ur_result_t Result) {
 #define UR_CALL(Call)                                                          \
   {                                                                            \
     if (PrintTrace)                                                            \
-      fprintf(stderr, "UR ---> %s\n", #Call);                                  \
+      logger::always("UR ---> {}", #Call);                                     \
     ur_result_t Result = (Call);                                               \
     if (PrintTrace)                                                            \
-      fprintf(stderr, "UR <--- %s(%s)\n", #Call, getUrResultString(Result));   \
+      logger::always("UR <--- {}({})", #Call, getUrResultString(Result));      \
     if (Result != UR_RESULT_SUCCESS)                                           \
       return Result;                                                           \
   }
@@ -241,6 +241,19 @@ static const uint32_t UrL0QueueSyncNonBlocking = [] {
   return L0QueueSyncLockingModeValue;
 }();
 
+// Controls whether the L0 Adapter creates signal events for commands on
+// integrated gpu devices.
+static const uint32_t UrL0OutOfOrderIntegratedSignalEvent = [] {
+  const char *UrL0OutOfOrderIntegratedSignalEventEnv =
+      std::getenv("UR_L0_OOQ_INTEGRATED_SIGNAL_EVENT");
+  uint32_t UrL0OutOfOrderIntegratedSignalEventValue = 1;
+  if (UrL0OutOfOrderIntegratedSignalEventEnv) {
+    UrL0OutOfOrderIntegratedSignalEventValue =
+        std::atoi(UrL0OutOfOrderIntegratedSignalEventEnv);
+  }
+  return UrL0OutOfOrderIntegratedSignalEventValue;
+}();
+
 // This class encapsulates actions taken along with a call to Level Zero API.
 class ZeCall {
 private:
@@ -267,9 +280,6 @@ public:
 // This function will ensure compatibility with both Linux and Windows for
 // setting environment variables.
 bool setEnvVar(const char *name, const char *value);
-
-// Prints to stderr if UR_L0_DEBUG allows it
-void urPrint(const char *Format, ...);
 
 // Helper for one-liner validation
 #define UR_ASSERT(condition, error)                                            \
@@ -300,9 +310,6 @@ template <class T> struct ZesStruct : public T {
 // This function will ensure compatibility with both Linux and Windows for
 // setting environment variables.
 bool setEnvVar(const char *name, const char *value);
-
-// Prints to stderr if UR_L0_DEBUG allows it
-void urPrint(const char *Format, ...);
 
 // Helper for one-liner validation
 #define UR_ASSERT(condition, error)                                            \
