@@ -31,12 +31,11 @@
 
 #pragma once
 
-#include <sycl/sycl.hpp>
-
 #ifndef SYCL_EXT_ONEAPI_COMPLEX
 #define SYCL_EXT_ONEAPI_COMPLEX
 #endif
 
+#include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
 #include <sycl/ext/oneapi/experimental/complex/complex.hpp>
 
 namespace syclcompat {
@@ -571,7 +570,7 @@ sycl::vec<T, 2> cdiv(sycl::vec<T, 2> x, sycl::vec<T, 2> y) {
 /// \returns The result
 template <typename T> T cabs(sycl::vec<T, 2> x) {
   sycl::ext::oneapi::experimental::complex<T> t(x[0], x[1]);
-  return abs(t);
+  return sycl::ext::oneapi::experimental::abs(t);
 }
 
 /// Computes the complex conjugate of a complex number.

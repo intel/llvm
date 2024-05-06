@@ -37,6 +37,7 @@
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/GlobalVariable.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Type.h"
 #include <optional>
@@ -1420,7 +1421,7 @@ void CodeGenFunction::EmitAndRegisterVariableArrayDimensions(
   // For each dimension stores its QualType and corresponding
   // size-expression Value.
   SmallVector<CodeGenFunction::VlaSizePair, 4> Dimensions;
-  SmallVector<IdentifierInfo *, 4> VLAExprNames;
+  SmallVector<const IdentifierInfo *, 4> VLAExprNames;
 
   // Break down the array into individual dimensions.
   QualType Type1D = D.getType();
@@ -1457,7 +1458,7 @@ void CodeGenFunction::EmitAndRegisterVariableArrayDimensions(
       MD = llvm::ConstantAsMetadata::get(C);
     else {
       // Create an artificial VarDecl to generate debug info for.
-      IdentifierInfo *NameIdent = VLAExprNames[NameIdx++];
+      const IdentifierInfo *NameIdent = VLAExprNames[NameIdx++];
       auto QT = getContext().getIntTypeForBitwidth(
           SizeTy->getScalarSizeInBits(), false);
       auto *ArtificialDecl = VarDecl::Create(
@@ -1498,7 +1499,7 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
   bool EmitDebugInfo = DI && CGM.getCodeGenOpts().hasReducedDebugInfo();
 
   Address address = Address::invalid();
-  Address AllocaAddr = Address::invalid();
+  RawAddress AllocaAddr = RawAddress::invalid();
   Address OpenMPLocalAddr = Address::invalid();
   if (CGM.getLangOpts().OpenMPIRBuilder)
     OpenMPLocalAddr = OMPBuilderCBHelpers::getAddressOfLocalVariable(*this, &D);
@@ -1561,7 +1562,10 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
       // return slot, so that we can elide the copy when returning this
       // variable (C++0x [class.copy]p34).
       address = ReturnValue;
-      AllocaAddr = ReturnValue;
+      AllocaAddr =
+          RawAddress(ReturnValue.emitRawPointer(*this),
+                     ReturnValue.getElementType(), ReturnValue.getAlignment());
+      ;
 
       if (const RecordType *RecordTy = Ty->getAs<RecordType>()) {
         const auto *RD = RecordTy->getDecl();
@@ -1572,7 +1576,7 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
           // to this variable. Set it to zero to indicate that NRVO was not
           // applied.
           llvm::Value *Zero = Builder.getFalse();
-          Address NRVOFlag =
+          RawAddress NRVOFlag =
               CreateTempAlloca(Zero->getType(), CharUnits::One(), "nrvo");
           EnsureInsertPoint();
           Builder.CreateStore(Zero, NRVOFlag);
@@ -1719,7 +1723,7 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
     SmallString<256> AnnotStr;
     CGM.generateIntelFPGAAnnotation(&D, AnnotStr);
     if (!AnnotStr.empty()) {
-      llvm::Value *V = address.getPointer();
+      llvm::Value *V = address.emitRawPointer(*this);
       llvm::Type *DestPtrTy = llvm::PointerType::get(
           CGM.getLLVMContext(), address.getAddressSpace());
       llvm::Value *Arg = Builder.CreateBitCast(V, DestPtrTy, V->getName());
@@ -1733,7 +1737,7 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
   }
 
   if (D.hasAttr<AnnotateAttr>() && HaveInsertPoint())
-    EmitVarAnnotations(&D, address.getPointer());
+    EmitVarAnnotations(&D, address.emitRawPointer(*this));
 
   // Make sure we call @llvm.lifetime.end.
   if (emission.useLifetimeMarkers())
@@ -1906,12 +1910,13 @@ void CodeGenFunction::emitZeroOrPatternForAutoVarInit(QualType type,
     llvm::Value *BaseSizeInChars =
         llvm::ConstantInt::get(IntPtrTy, EltSize.getQuantity());
     Address Begin = Loc.withElementType(Int8Ty);
-    llvm::Value *End = Builder.CreateInBoundsGEP(
-        Begin.getElementType(), Begin.getPointer(), SizeVal, "vla.end");
+    llvm::Value *End = Builder.CreateInBoundsGEP(Begin.getElementType(),
+                                                 Begin.emitRawPointer(*this),
+                                                 SizeVal, "vla.end");
     llvm::BasicBlock *OriginBB = Builder.GetInsertBlock();
     EmitBlock(LoopBB);
     llvm::PHINode *Cur = Builder.CreatePHI(Begin.getType(), 2, "vla.cur");
-    Cur->addIncoming(Begin.getPointer(), OriginBB);
+    Cur->addIncoming(Begin.emitRawPointer(*this), OriginBB);
     CharUnits CurAlign = Loc.getAlignment().alignmentOfArrayElement(EltSize);
     auto *I =
         Builder.CreateMemCpy(Address(Cur, Int8Ty, CurAlign),
@@ -2266,8 +2271,11 @@ void CodeGenFunction::pushDestroyAndDeferDeactivation(
 void CodeGenFunction::pushDestroyAndDeferDeactivation(
     CleanupKind cleanupKind, Address addr, QualType type, Destroyer *destroyer,
     bool useEHCleanupForArray) {
-  pushCleanupAndDeferDeactivation<DestroyObject>(
-      cleanupKind, addr, type, destroyer, useEHCleanupForArray);
+  llvm::Instruction *DominatingIP =
+      Builder.CreateFlagLoad(llvm::Constant::getNullValue(Int8PtrTy));
+  pushDestroy(cleanupKind, addr, type, destroyer, useEHCleanupForArray);
+  DeferredDeactivationCleanupStack.push_back(
+      {EHStack.stable_begin(), DominatingIP});
 }
 
 void CodeGenFunction::pushStackRestore(CleanupKind Kind, Address SPMem) {
@@ -2302,25 +2310,32 @@ void CodeGenFunction::pushLifetimeExtendedDestroy(CleanupKind cleanupKind,
   }
 
   // Otherwise, we should only destroy the object if it's been initialized.
-  // Re-use the active flag and saved address across both the EH and end of
-  // scope cleanups.
 
-  using SavedType = typename DominatingValue<Address>::saved_type;
   using ConditionalCleanupType =
       EHScopeStack::ConditionalCleanup<DestroyObject, Address, QualType,
                                        Destroyer *, bool>;
+  DominatingValue<Address>::saved_type SavedAddr = saveValueInCond(addr);
 
-  Address ActiveFlag = createCleanupActiveFlag();
-  SavedType SavedAddr = saveValueInCond(addr);
+  // Remember to emit cleanup if we branch-out before end of full-expression
+  // (eg: through stmt-expr or coro suspensions).
+  AllocaTrackerRAII DeactivationAllocas(*this);
+  Address ActiveFlagForDeactivation = createCleanupActiveFlag();
 
   pushCleanupAndDeferDeactivation<ConditionalCleanupType>(
       cleanupKind, SavedAddr, type, destroyer, useEHCleanupForArray);
-  initFullExprCleanupWithFlag(ActiveFlag);
+  initFullExprCleanupWithFlag(ActiveFlagForDeactivation);
+  EHCleanupScope &cleanup = cast<EHCleanupScope>(*EHStack.begin());
+  // Erase the active flag if the cleanup was not emitted.
+  cleanup.AddAuxAllocas(std::move(DeactivationAllocas).Take());
 
   // Since this is lifetime-extended, push it once again to the EHStack after
   // the full expression.
+  // The previous active flag would always be 'false' due to forced deferred
+  // deactivation. Use a separate flag for lifetime-extension to correctly
+  // remember if this branch was taken and the object was initialized.
+  Address ActiveFlagForLifetimeExt = createCleanupActiveFlag();
   pushCleanupAfterFullExprWithActiveFlag<ConditionalCleanupType>(
-      cleanupKind, ActiveFlag, SavedAddr, type, destroyer,
+      cleanupKind, ActiveFlagForLifetimeExt, SavedAddr, type, destroyer,
       useEHCleanupForArray);
 }
 
@@ -2358,7 +2373,7 @@ void CodeGenFunction::emitDestroy(Address addr, QualType type,
     checkZeroLength = false;
   }
 
-  llvm::Value *begin = addr.getPointer();
+  llvm::Value *begin = addr.emitRawPointer(*this);
   llvm::Value *end =
       Builder.CreateInBoundsGEP(addr.getElementType(), begin, length);
   emitArrayDestroy(begin, end, type, elementAlign, destroyer,
@@ -2617,7 +2632,7 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
   }
 
   Address DeclPtr = Address::invalid();
-  Address AllocaPtr = Address::invalid();
+  RawAddress AllocaPtr = Address::invalid();
   bool DoStore = false;
   bool IsScalar = hasScalarEvaluationKind(Ty);
   bool UseIndirectDebugAddress = false;
@@ -2629,8 +2644,8 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
     // Indirect argument is in alloca address space, which may be different
     // from the default address space.
     auto AllocaAS = CGM.getASTAllocaAddressSpace();
-    auto *V = DeclPtr.getPointer();
-    AllocaPtr = DeclPtr;
+    auto *V = DeclPtr.emitRawPointer(*this);
+    AllocaPtr = RawAddress(V, DeclPtr.getElementType(), DeclPtr.getAlignment());
 
     auto SrcLangAS = getLangOpts().OpenCL ? LangAS::opencl_private : AllocaAS;
     auto DestLangAS =
@@ -2655,7 +2670,7 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
       auto PtrTy = getContext().getPointerType(Ty);
       AllocaPtr = CreateMemTemp(PtrTy, getContext().getTypeAlignInChars(PtrTy),
                                 D.getName() + ".indirect_addr");
-      EmitStoreOfScalar(DeclPtr.getPointer(), AllocaPtr, /* Volatile */ false,
+      EmitStoreOfScalar(DeclPtr.emitRawPointer(*this), AllocaPtr, /* Volatile */ false,
                         PtrTy);
     }
 
@@ -2770,7 +2785,7 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
   }
 
   if (D.hasAttr<AnnotateAttr>())
-    EmitVarAnnotations(&D, DeclPtr.getPointer());
+    EmitVarAnnotations(&D, DeclPtr.emitRawPointer(*this));
 
   // We can only check return value nullability if all arguments to the
   // function satisfy their nullability preconditions. This makes it necessary
