@@ -15,6 +15,9 @@ UUR_TEST_SUITE_P(
                       UR_KERNEL_INFO_NUM_REGS),
     uur::deviceTestWithParamPrinter<ur_kernel_info_t>);
 
+using urKernelGetInfoSingleTest = uur::urKernelExecutionTest;
+UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelGetInfoSingleTest);
+
 TEST_P(urKernelGetInfoTest, Success) {
     auto property_name = getParam();
     size_t property_size = 0;
@@ -24,6 +27,28 @@ TEST_P(urKernelGetInfoTest, Success) {
     property_value.resize(property_size);
     ASSERT_SUCCESS(urKernelGetInfo(kernel, property_name, property_size,
                                    property_value.data(), nullptr));
+    switch (property_name) {
+    case UR_KERNEL_INFO_CONTEXT: {
+        auto returned_context =
+            reinterpret_cast<ur_context_handle_t *>(property_value.data());
+        ASSERT_EQ(context, *returned_context);
+        break;
+    }
+    case UR_KERNEL_INFO_PROGRAM: {
+        auto returned_program =
+            reinterpret_cast<ur_program_handle_t *>(property_value.data());
+        ASSERT_EQ(program, *returned_program);
+        break;
+    }
+    case UR_KERNEL_INFO_REFERENCE_COUNT: {
+        auto returned_reference_count =
+            reinterpret_cast<uint32_t *>(property_value.data());
+        ASSERT_GT(*returned_reference_count, 0U);
+        break;
+    }
+    default:
+        break;
+    }
 }
 
 TEST_P(urKernelGetInfoTest, InvalidNullHandleKernel) {
@@ -65,4 +90,24 @@ TEST_P(urKernelGetInfoTest, InvalidNullPointerPropSizeRet) {
     ASSERT_EQ_RESULT(
         urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS, 0, nullptr, nullptr),
         UR_RESULT_ERROR_INVALID_NULL_POINTER);
+}
+
+TEST_P(urKernelGetInfoSingleTest, KernelNameCorrect) {
+    size_t name_size = 0;
+    std::vector<char> name_data;
+    ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_FUNCTION_NAME, 0,
+                                   nullptr, &name_size));
+    name_data.resize(name_size);
+    ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_FUNCTION_NAME,
+                                   name_size, name_data.data(), nullptr));
+    ASSERT_EQ(name_data[name_size - 1], '\0');
+    ASSERT_STREQ(kernel_name.c_str(), name_data.data());
+}
+
+TEST_P(urKernelGetInfoSingleTest, KernelContextCorrect) {
+    ur_context_handle_t info_context;
+    ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_CONTEXT,
+                                   sizeof(ur_context_handle_t), &info_context,
+                                   nullptr));
+    ASSERT_EQ(context, info_context);
 }

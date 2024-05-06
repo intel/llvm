@@ -11,22 +11,24 @@
 #include <algorithm>
 #include <climits>
 #include <mutex>
+#include <optional>
 #include <string.h>
 
 #include "command_buffer.hpp"
 #include "common.hpp"
 #include "event.hpp"
+#include "logger/ur_logger.hpp"
 #include "ur_level_zero.hpp"
 
 void printZeEventList(const _ur_ze_event_list_t &UrZeEventList) {
   if (UrL0Debug & UR_L0_DEBUG_BASIC) {
-    urPrint("  NumEventsInWaitList %d:", UrZeEventList.Length);
+    std::stringstream ss;
+    ss << "  NumEventsInWaitList " << UrZeEventList.Length << ":";
 
     for (uint32_t I = 0; I < UrZeEventList.Length; I++) {
-      urPrint(" %#llx", ur_cast<std::uintptr_t>(UrZeEventList.ZeEventList[I]));
+      ss << " " << ur_cast<std::uintptr_t>(UrZeEventList.ZeEventList[I]);
     }
-
-    urPrint("\n");
+    logger::debug(ss.str().c_str());
   }
 }
 
@@ -82,8 +84,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
 
     // Get a new command list to be used on this call
     ur_command_list_ptr_t CommandList{};
-    UR_CALL(Queue->Context->getAvailableCommandList(Queue, CommandList,
-                                                    UseCopyEngine));
+    UR_CALL(Queue->Context->getAvailableCommandList(
+        Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList));
 
     ze_event_handle_t ZeEvent = nullptr;
     ur_event_handle_t InternalEvent;
@@ -128,7 +130,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
     if (OutEvent) {
       Queue->LastCommandEvent = reinterpret_cast<ur_event_handle_t>(*OutEvent);
 
-      ZE2UR_CALL(zeEventHostSignal, ((*OutEvent)->ZeEvent));
+      if (!(*OutEvent)->CounterBasedEventsEnabled)
+        ZE2UR_CALL(zeEventHostSignal, ((*OutEvent)->ZeEvent));
       (*OutEvent)->Completed = true;
     }
   }
@@ -253,7 +256,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     // Get an arbitrary command-list in the queue.
     ur_command_list_ptr_t CmdList;
     UR_CALL(Queue->Context->getAvailableCommandList(
-        Queue, CmdList, false /*UseCopyEngine=*/, OkToBatch));
+        Queue, CmdList, false /*UseCopyEngine=*/, NumEventsInWaitList,
+        EventWaitList, OkToBatch));
 
     // Insert the barrier into the command-list and execute.
     UR_CALL(insertBarrierIntoCmdList(CmdList, TmpWaitList, *Event, IsInternal));
@@ -308,7 +312,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
           if (ZeQueue) {
             ur_command_list_ptr_t CmdList;
             UR_CALL(Queue->Context->getAvailableCommandList(
-                Queue, CmdList, UseCopyEngine, OkToBatch, &ZeQueue));
+                Queue, CmdList, UseCopyEngine, NumEventsInWaitList,
+                EventWaitList, OkToBatch, &ZeQueue));
             CmdLists.push_back(CmdList);
           }
         }
@@ -321,7 +326,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     // Get any available command list.
     ur_command_list_ptr_t CmdList;
     UR_CALL(Queue->Context->getAvailableCommandList(
-        Queue, CmdList, false /*UseCopyEngine=*/, OkToBatch));
+        Queue, CmdList, false /*UseCopyEngine=*/, NumEventsInWaitList,
+        EventWaitList, OkToBatch));
     CmdLists.push_back(CmdList);
   }
 
@@ -445,8 +451,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(
     return ReturnValue(Event->RefCount.load());
   }
   default:
-    urPrint("Unsupported ParamName in urEventGetInfo: ParamName=%d(%x)\n",
-            PropName, PropName);
+    logger::error(
+        "Unsupported ParamName in urEventGetInfo: ParamName=ParamName={}(0x{})",
+        PropName, logger::toHex(PropName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -537,7 +544,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
         return ReturnValue(ContextEndTime);
       }
       default:
-        urPrint("urEventGetProfilingInfo: not supported ParamName\n");
+        logger::error("urEventGetProfilingInfo: not supported ParamName");
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
     } else {
@@ -580,7 +587,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
     //
     return ReturnValue(uint64_t{0});
   default:
-    urPrint("urEventGetProfilingInfo: not supported ParamName\n");
+    logger::error("urEventGetProfilingInfo: not supported ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -594,6 +601,7 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
                                                           this->Mutex);
 
   if (!HostVisibleEvent) {
+    this->IsCreatingHostProxyEvent = true;
     if (UrQueue->ZeEventsScope != OnDemandHostVisibleProxy)
       die("getOrCreateHostVisibleEvent: missing host-visible event");
 
@@ -608,7 +616,7 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
 
     ur_command_list_ptr_t CommandList{};
     UR_CALL(UrQueue->Context->getAvailableCommandList(
-        UrQueue, CommandList, false /* UseCopyEngine */, OkToBatch))
+        UrQueue, CommandList, false /* UseCopyEngine */, 0, nullptr, OkToBatch))
 
     // Create a "proxy" host-visible event.
     UR_CALL(createEventAndAssociateQueue(
@@ -616,12 +624,18 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
         /* IsInternal */ false, /* IsMultiDevice */ false,
         /* HostVisible */ true));
 
-    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-               (CommandList->first, 1, &ZeEvent));
+    if (this->IsInnerBatchedEvent) {
+      ZE2UR_CALL(zeCommandListAppendBarrier,
+                 (CommandList->first, ZeEvent, 0, nullptr));
+    } else {
+      ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+                 (CommandList->first, 1, &ZeEvent));
+    }
     ZE2UR_CALL(zeCommandListAppendSignalEvent,
                (CommandList->first, HostVisibleEvent->ZeEvent));
 
     UR_CALL(UrQueue->executeCommandList(CommandList, false, OkToBatch))
+    this->IsCreatingHostProxyEvent = false;
   }
 
   ZeHostVisibleEvent = HostVisibleEvent->ZeEvent;
@@ -677,8 +691,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventWait(
             die("The host-visible proxy event missing");
 
           ze_event_handle_t ZeEvent = HostVisibleEvent->ZeEvent;
-          urPrint("ZeEvent = %#llx\n", ur_cast<std::uintptr_t>(ZeEvent));
-          ZE2UR_CALL(zeHostSynchronize, (ZeEvent));
+          logger::debug("ZeEvent = {}", ur_cast<std::uintptr_t>(ZeEvent));
+          // If this event was an inner batched event, then sync with
+          // the Queue instead of waiting on the event.
+          if (HostVisibleEvent->IsInnerBatchedEvent && Event->ZeBatchedQueue) {
+            ZE2UR_CALL(zeHostSynchronize, (Event->ZeBatchedQueue));
+          } else {
+            ZE2UR_CALL(zeHostSynchronize, (ZeEvent));
+          }
           Event->Completed = true;
         }
       }
@@ -763,7 +783,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urExtEventCreate(
   UR_CALL(EventCreate(Context, nullptr, false, true, Event));
 
   (*Event)->RefCountExternal++;
-  ZE2UR_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
+  if (!(*Event)->CounterBasedEventsEnabled)
+    ZE2UR_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
   return UR_RESULT_SUCCESS;
 }
 
@@ -781,7 +802,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     UR_CALL(EventCreate(Context, nullptr, false, true, Event));
 
     (*Event)->RefCountExternal++;
-    ZE2UR_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
+    if (!(*Event)->CounterBasedEventsEnabled)
+      ZE2UR_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
     return UR_RESULT_SUCCESS;
   }
 
@@ -827,7 +849,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(
   std::ignore = ExecStatus;
   std::ignore = Notify;
   std::ignore = UserData;
-  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
+  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -931,7 +954,12 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
   std::list<ur_event_handle_t> EventsToBeReleased;
   ur_queue_handle_t AssociatedQueue = nullptr;
   {
-    std::scoped_lock<ur_shared_mutex> EventLock(Event->Mutex);
+    // If the Event is already locked, then continue with the cleanup, otherwise
+    // block on locking the event.
+    std::unique_lock<ur_shared_mutex> EventLock(Event->Mutex, std::try_to_lock);
+    if (!EventLock.owns_lock() && !Event->IsCreatingHostProxyEvent) {
+      EventLock.lock();
+    }
     if (SetEventCompleted)
       Event->Completed = true;
     // Exit early of event was already cleanedup.
@@ -1057,9 +1085,12 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
 //
 ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
                         bool IsMultiDevice, bool HostVisible,
-                        ur_event_handle_t *RetEvent) {
-
-  bool ProfilingEnabled = !Queue || Queue->isProfilingEnabled();
+                        ur_event_handle_t *RetEvent,
+                        bool CounterBasedEventEnabled,
+                        bool ForceDisableProfiling) {
+  bool ProfilingEnabled =
+      ForceDisableProfiling ? false : (!Queue || Queue->isProfilingEnabled());
+  bool UsingImmediateCommandlists = !Queue || Queue->UsingImmCmdLists;
 
   ur_device_handle_t Device = nullptr;
 
@@ -1068,7 +1099,7 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
   }
 
   if (auto CachedEvent = Context->getEventFromContextCache(
-          HostVisible, ProfilingEnabled, Device)) {
+          HostVisible, ProfilingEnabled, Device, CounterBasedEventEnabled)) {
     *RetEvent = CachedEvent;
     return UR_RESULT_SUCCESS;
   }
@@ -1079,14 +1110,15 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
   size_t Index = 0;
 
   if (auto Res = Context->getFreeSlotInExistingOrNewPool(
-          ZeEventPool, Index, HostVisible, ProfilingEnabled, Device))
+          ZeEventPool, Index, HostVisible, ProfilingEnabled, Device,
+          CounterBasedEventEnabled, UsingImmediateCommandlists))
     return Res;
 
   ZeStruct<ze_event_desc_t> ZeEventDesc;
   ZeEventDesc.index = Index;
   ZeEventDesc.wait = 0;
 
-  if (HostVisible) {
+  if (HostVisible || CounterBasedEventEnabled) {
     ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
   } else {
     //
@@ -1111,7 +1143,7 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
-
+  (*RetEvent)->CounterBasedEventsEnabled = CounterBasedEventEnabled;
   if (HostVisible)
     (*RetEvent)->HostVisibleEvent =
         reinterpret_cast<ur_event_handle_t>(*RetEvent);
@@ -1129,11 +1161,12 @@ ur_result_t ur_event_handle_t_::reset() {
   RefCountExternal = 0;
   RefCount.reset();
   CommandList = std::nullopt;
+  completionBatch = std::nullopt;
 
   if (!isHostVisible())
     HostVisibleEvent = nullptr;
-
-  ZE2UR_CALL(zeEventHostReset, (ZeEvent));
+  if (!CounterBasedEventsEnabled)
+    ZE2UR_CALL(zeEventHostReset, (ZeEvent));
   return UR_RESULT_SUCCESS;
 }
 
@@ -1256,16 +1289,26 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
         }
 
         auto Queue = EventList[I]->UrQueue;
-        if (Queue) {
-          // The caller of createAndRetainUrZeEventList must already hold
-          // a lock of the CurQueue. Additionally lock the Queue if it
-          // is different from CurQueue.
-          // TODO: rework this to avoid deadlock when another thread is
-          //       locking the same queues but in a different order.
-          auto Lock = ((Queue == CurQueue)
-                           ? std::unique_lock<ur_shared_mutex>()
-                           : std::unique_lock<ur_shared_mutex>(Queue->Mutex));
 
+        auto CurQueueDevice = CurQueue->Device;
+        std::optional<std::unique_lock<ur_shared_mutex>> QueueLock =
+            std::nullopt;
+        // The caller of createAndRetainUrZeEventList must already hold
+        // a lock of the CurQueue. However, if the CurQueue is different
+        // then the Event's Queue, we need to drop that lock and
+        // acquire the Event's Queue lock. This is done to avoid a lock
+        // ordering issue.
+        // For the rest of this scope, CurQueue cannot be accessed.
+        // TODO: This solution is very error-prone. This requires a refactor
+        // to either have fine-granularity locks inside of the queues or
+        // to move any operations on queues other than CurQueue out
+        // of this scope.
+        if (Queue && Queue != CurQueue) {
+          CurQueue->Mutex.unlock();
+          QueueLock = std::unique_lock<ur_shared_mutex>(Queue->Mutex);
+        }
+
+        if (Queue) {
           // If the event that is going to be waited is in an open batch
           // different from where this next command is going to be added,
           // then we have to force execute of that open command-list
@@ -1308,17 +1351,17 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
         }
 
         ur_command_list_ptr_t CommandList;
-        if (Queue && Queue->Device != CurQueue->Device) {
+        if (Queue && Queue->Device != CurQueueDevice) {
           // Get a command list prior to acquiring an event lock.
           // This prevents a potential deadlock with recursive
           // event locks.
-          UR_CALL(Queue->Context->getAvailableCommandList(Queue, CommandList,
-                                                          false, true));
+          UR_CALL(Queue->Context->getAvailableCommandList(
+              Queue, CommandList, false, 0, nullptr, true));
         }
 
         std::shared_lock<ur_shared_mutex> Lock(EventList[I]->Mutex);
 
-        if (Queue && Queue->Device != CurQueue->Device &&
+        if (Queue && Queue->Device != CurQueueDevice &&
             !EventList[I]->IsMultiDevice) {
           ze_event_handle_t MultiDeviceZeEvent = nullptr;
           ur_event_handle_t MultiDeviceEvent;
@@ -1334,7 +1377,8 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
 
           zeCommandListAppendWaitOnEvents(ZeCommandList, 1u,
                                           &EventList[I]->ZeEvent);
-          zeEventHostSignal(MultiDeviceZeEvent);
+          if (!MultiDeviceEvent->CounterBasedEventsEnabled)
+            zeEventHostSignal(MultiDeviceZeEvent);
 
           UR_CALL(Queue->executeCommandList(CommandList, /* IsBlocking */ false,
                                             /* OkToBatchCommand */ true));
@@ -1352,6 +1396,10 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
           this->UrEventList[TmpListLength]->RefCount.increment();
         }
 
+        if (QueueLock.has_value()) {
+          QueueLock.reset();
+          CurQueue->Mutex.lock();
+        }
         TmpListLength += 1;
       }
     }

@@ -41,6 +41,13 @@ struct InvalidUpdateTest
     }
 
     void TearDown() override {
+        // Workaround an issue with the OpenCL adapter implementing urUsmFree
+        // using a blocking free where hangs
+        if (updatable_cmd_buf_handle && !finalized) {
+            EXPECT_SUCCESS(
+                urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
+        }
+
         if (shared_ptr) {
             EXPECT_SUCCESS(urUSMFree(context, shared_ptr));
         }
@@ -61,6 +68,7 @@ struct InvalidUpdateTest
     static constexpr size_t allocation_size = sizeof(val) * global_size;
     void *shared_ptr = nullptr;
     ur_exp_command_buffer_command_handle_t command_handle = nullptr;
+    bool finalized = false;
 };
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(InvalidUpdateTest);
@@ -84,12 +92,10 @@ TEST_P(InvalidUpdateTest, NotFinalizedCommandBuffer) {
         0,               // numNewMemObjArgs
         0,               // numNewPointerArgs
         1,               // numNewValueArgs
-        0,               // numNewExecInfos
         0,               // newWorkDim
         nullptr,         // pNewMemObjArgList
         nullptr,         // pNewPointerArgList
         &new_input_desc, // pNewValueArgList
-        nullptr,         // pNewExecInfoList
         nullptr,         // pNewGlobalWorkOffset
         nullptr,         // pNewGlobalWorkSize
         nullptr,         // pNewLocalWorkSize
@@ -117,6 +123,7 @@ TEST_P(InvalidUpdateTest, NotUpdatableCommandBuffer) {
     EXPECT_NE(test_command_handle, nullptr);
 
     EXPECT_SUCCESS(urCommandBufferFinalizeExp(test_cmd_buf_handle));
+    finalized = true;
 
     // Set new value to use for fill at kernel index 1
     uint32_t new_val = 33;
@@ -135,12 +142,10 @@ TEST_P(InvalidUpdateTest, NotUpdatableCommandBuffer) {
         0,               // numNewMemObjArgs
         0,               // numNewPointerArgs
         1,               // numNewValueArgs
-        0,               // numNewExecInfos
         0,               // newWorkDim
         nullptr,         // pNewMemObjArgList
         nullptr,         // pNewPointerArgList
         &new_input_desc, // pNewValueArgList
-        nullptr,         // pNewExecInfoList
         nullptr,         // pNewGlobalWorkOffset
         nullptr,         // pNewGlobalWorkSize
         nullptr,         // pNewLocalWorkSize
@@ -158,4 +163,100 @@ TEST_P(InvalidUpdateTest, NotUpdatableCommandBuffer) {
     if (test_cmd_buf_handle) {
         EXPECT_SUCCESS(urCommandBufferReleaseExp(test_cmd_buf_handle));
     }
+}
+
+// Test setting `pNewLocalWorkSize` to a non-NULL value and `pNewGlobalWorkSize`
+// to NULL gives the correct error.
+TEST_P(InvalidUpdateTest, GlobalLocalSizeMistach) {
+    ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
+    finalized = true;
+
+    size_t new_local_size = 16;
+    ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
+        nullptr,                                                        // pNext
+        0,               // numNewMemObjArgs
+        0,               // numNewPointerArgs
+        0,               // numNewValueArgs
+        n_dimensions,    // newWorkDim
+        nullptr,         // pNewMemObjArgList
+        nullptr,         // pNewPointerArgList
+        nullptr,         // pNewValueArgList
+        nullptr,         // pNewGlobalWorkOffset
+        nullptr,         // pNewGlobalWorkSize
+        &new_local_size, // pNewLocalWorkSize
+    };
+
+    // Update command local size but not global size
+    ur_result_t result =
+        urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc);
+    ASSERT_EQ(UR_RESULT_ERROR_INVALID_OPERATION, result);
+}
+
+// Test setting `pNewLocalWorkSize` to a non-NULL value when the command was
+// created with a NULL local work size gives the correct error.
+TEST_P(InvalidUpdateTest, ImplToUserDefinedLocalSize) {
+    // Append kernel command to command-buffer using NULL local work size
+    ur_exp_command_buffer_command_handle_t second_command_handle = nullptr;
+    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+        updatable_cmd_buf_handle, kernel, n_dimensions, &global_offset,
+        &global_size, nullptr, 0, nullptr, nullptr, &second_command_handle));
+    ASSERT_NE(second_command_handle, nullptr);
+
+    EXPECT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
+    finalized = true;
+
+    size_t new_global_size = 64;
+    size_t new_local_size = 16;
+    ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
+        nullptr,                                                        // pNext
+        0,                // numNewMemObjArgs
+        0,                // numNewPointerArgs
+        0,                // numNewValueArgs
+        n_dimensions,     // newWorkDim
+        nullptr,          // pNewMemObjArgList
+        nullptr,          // pNewPointerArgList
+        nullptr,          // pNewValueArgList
+        nullptr,          // pNewGlobalWorkOffset
+        &new_global_size, // pNewGlobalWorkSize
+        &new_local_size,  // pNewLocalWorkSize
+    };
+
+    // Update command local size to non-NULL when created with NULL value
+    ur_result_t result = urCommandBufferUpdateKernelLaunchExp(
+        second_command_handle, &update_desc);
+    EXPECT_EQ(UR_RESULT_ERROR_INVALID_OPERATION, result);
+
+    if (second_command_handle) {
+        EXPECT_SUCCESS(urCommandBufferReleaseCommandExp(second_command_handle));
+    }
+}
+
+// Test setting `pNewLocalWorkSize` to a NULL value when the command was
+// created with a non-NULL local work size gives the correct error.
+TEST_P(InvalidUpdateTest, UserToImplDefinedLocalSize) {
+    ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
+    finalized = true;
+
+    size_t new_global_size = 64;
+    ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
+        nullptr,                                                        // pNext
+        0,                // numNewMemObjArgs
+        0,                // numNewPointerArgs
+        0,                // numNewValueArgs
+        n_dimensions,     // newWorkDim
+        nullptr,          // pNewMemObjArgList
+        nullptr,          // pNewPointerArgList
+        nullptr,          // pNewValueArgList
+        nullptr,          // pNewGlobalWorkOffset
+        &new_global_size, // pNewGlobalWorkSize
+        nullptr,          // pNewLocalWorkSize
+    };
+
+    // Update command local size to NULL when created with non-NULL value
+    ur_result_t result =
+        urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc);
+    ASSERT_EQ(UR_RESULT_ERROR_INVALID_OPERATION, result);
 }

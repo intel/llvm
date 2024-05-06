@@ -106,29 +106,6 @@ jobs:
         ref: sycl
         path: sycl-repo
 
-    - name: Install pip packages
-      working-directory: ${{github.workspace}}/ur-repo
-      run: pip install -r third_party/requirements.txt
-
-    - name: Configure CMake UR
-      working-directory: ${{github.workspace}}/ur-repo
-      run: >
-        cmake
-        -B build
-        -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
-        -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
-        -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
-        -DUR_ENABLE_TRACING=ON
-        -DUR_DEVELOPER_MODE=ON
-        -DUR_BUILD_ADAPTER_${{matrix.adapter.name}}=ON
-
-    - name: Build UR
-      run: LD_LIBRARY_PATH=${{github.workspace}}/dpcpp_compiler/lib
-        cmake --build ${{github.workspace}}/ur-repo/build -j $(nproc)
-
-    - name: Set prefer UR
-      run: echo "SYCL_PREFER_UR=1" >> $GITHUB_ENV
-
     - name: Set CUDA env vars
       if: matrix.adapter.name == 'CUDA'
       run: |
@@ -145,26 +122,23 @@ jobs:
         python3 sycl-repo/buildbot/configure.py
         -t ${{matrix.build_type}}
         -o ${{github.workspace}}/sycl_build
-        --cmake-gen "Unix Makefiles"
+        --cmake-gen "Ninja"
         --ci-defaults ${{matrix.adapter.config}}
         --cmake-opt="-DLLVM_INSTALL_UTILS=ON"
         --cmake-opt="-DSYCL_PI_TESTS=OFF"
+        --cmake-opt="-DSYCL_PI_UR_USE_FETCH_CONTENT=OFF"
+        --cmake-opt="-DSYCL_PI_UR_SOURCE_DIR=${{github.workspace}}/ur-repo/"
         --cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=ccache
         --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
     - name: Build SYCL
-      run: cmake --build ${{github.workspace}}/sycl_build
+      run: cmake --build ${{github.workspace}}/sycl_build -j
 
     - name: Run check-sycl
       # Remove after fixing SYCL test :: abi/layout_handler.cpp
       # This issue does not affect further execution of e2e with UR.
       continue-on-error: true
-      run: cmake --build ${{github.workspace}}/sycl_build --target check-sycl
-
-    - name: Swap UR loader and adapters
-      run: |
-        cp ${{github.workspace}}/ur-repo/build/lib/libur_loader.so* ${{github.workspace}}/sycl_build/lib/
-        cp ${{github.workspace}}/ur-repo/build/lib/libur_adapter_${{matrix.adapter.str_name}}.so* ${{github.workspace}}/sycl_build/lib/
+      run: cmake --build ${{github.workspace}}/sycl_build --target check-sycl -j6
 
     - name: Set additional env. vars
       run: |

@@ -7,9 +7,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
 #include "device.hpp"
 #include "adapter.hpp"
+#include "logger/ur_logger.hpp"
 #include "ur_level_zero.hpp"
 #include "ur_util.hpp"
 #include <algorithm>
@@ -96,7 +96,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
       break;
     default:
       Matched = false;
-      urPrint("Unknown device type");
+      logger::warning("Unknown device type");
       break;
     }
 
@@ -169,7 +169,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     case ZE_DEVICE_TYPE_FPGA:
       return ReturnValue(UR_DEVICE_TYPE_FPGA);
     default:
-      urPrint("This device type is not supported\n");
+      logger::error("This device type is not supported");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }
@@ -188,8 +188,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_ATOMIC_64:
     return ReturnValue(
-        static_cast<uint32_t>(Device->ZeDeviceModuleProperties->flags &
-                              ZE_DEVICE_MODULE_FLAG_INT64_ATOMICS));
+        static_cast<ur_bool_t>(Device->ZeDeviceModuleProperties->flags &
+                               ZE_DEVICE_MODULE_FLAG_INT64_ATOMICS));
   case UR_DEVICE_INFO_EXTENSIONS: {
     // Convention adopted from OpenCL:
     //     "Returns a space separated list of extension names (the extension
@@ -258,9 +258,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_BUILD_ON_SUBDEVICE:
     return ReturnValue(uint32_t{0});
   case UR_DEVICE_INFO_COMPILER_AVAILABLE:
-    return ReturnValue(static_cast<uint32_t>(true));
+    return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_LINKER_AVAILABLE:
-    return ReturnValue(static_cast<uint32_t>(true));
+    return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_MAX_COMPUTE_UNITS: {
     uint32_t MaxComputeUnits =
         Device->ZeDeviceProperties->numEUsPerSubslice *
@@ -323,8 +323,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(
         uint64_t{Device->ZeDeviceComputeProperties->maxSharedLocalMemory});
   case UR_DEVICE_INFO_IMAGE_SUPPORTED:
-    return ReturnValue(static_cast<uint32_t>(
-        Device->ZeDeviceImageProperties->maxImageDims1D > 0));
+    return ReturnValue(Device->ZeDeviceImageProperties->maxImageDims1D > 0);
   case UR_DEVICE_INFO_HOST_UNIFIED_MEMORY:
     return ReturnValue(
         static_cast<uint32_t>((Device->ZeDeviceProperties->flags &
@@ -411,7 +410,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION:
     return ReturnValue("");
   case UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC:
-    return ReturnValue(static_cast<uint32_t>(true));
+    return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_PRINTF_BUFFER_SIZE:
     return ReturnValue(
         size_t{Device->ZeDeviceModuleProperties->printfBufferSize});
@@ -428,7 +427,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(ur_device_exec_capability_flag_t{
         UR_DEVICE_EXEC_CAPABILITY_FLAG_NATIVE_KERNEL});
   case UR_DEVICE_INFO_ENDIAN_LITTLE:
-    return ReturnValue(static_cast<uint32_t>(true));
+    return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT:
     return ReturnValue(static_cast<uint32_t>(Device->ZeDeviceProperties->flags &
                                              ZE_DEVICE_PROPERTY_FLAG_ECC));
@@ -605,7 +604,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS: {
     // TODO: Not supported yet. Needs to be updated after support is added.
-    return ReturnValue(static_cast<uint32_t>(false));
+    return ReturnValue(static_cast<ur_bool_t>(false));
   }
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     // ze_device_compute_properties.subGroupSizes is in uint32_t whereas the
@@ -791,7 +790,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return UR_RESULT_ERROR_INVALID_VALUE;
   case UR_DEVICE_INFO_BFLOAT16: {
     // bfloat16 math functions are not yet supported on Intel GPUs.
-    return ReturnValue(bool{false});
+    return ReturnValue(ur_bool_t{false});
   }
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
     // There are no explicit restrictions in L0 programming guide, so assume all
@@ -840,9 +839,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(capabilities);
   }
   case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
-    return ReturnValue(uint32_t{false});
+    return ReturnValue(ur_bool_t{false});
   case UR_DEVICE_INFO_IMAGE_SRGB:
-    return ReturnValue(uint32_t{false});
+    return ReturnValue(ur_bool_t{false});
 
   case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES:
   case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
@@ -854,7 +853,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
         0)); //__read_write attribute currently undefinde in opencl
   }
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
-    return ReturnValue(static_cast<uint32_t>(true));
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
 
   case UR_DEVICE_INFO_ESIMD_SUPPORT: {
@@ -894,9 +893,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
       // can know if we are in (a) or (b) by checking if a tile is root device
       // or not.
       ur_device_handle_t URDev = Device->Platform->getDeviceFromNativeHandle(d);
-      if (URDev->isSubDevice())
+      if (URDev->isSubDevice()) {
         // We are in COMPOSITE mode, return an empty list.
-        return ReturnValue(0);
+        if (pSize) {
+          *pSize = 0;
+        }
+        return UR_RESULT_SUCCESS;
+      }
 
       Res.push_back(URDev);
     }
@@ -949,8 +952,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP:
-    urPrint("Unsupported ParamName in urGetDeviceInfo\n");
-    urPrint("ParamName=%d(0x%x)\n", ParamName, ParamName);
+    logger::error("Unsupported ParamName in urGetDeviceInfo");
+    logger::error("ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   case UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP:
     return ReturnValue(true);
@@ -963,8 +966,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP:
   case UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP:
   default:
-    urPrint("Unsupported ParamName in urGetDeviceInfo\n");
-    urPrint("ParamName=%d(0x%x)\n", ParamName, ParamName);
+    logger::error("Unsupported ParamName in urGetDeviceInfo");
+    logger::error("ParamNameParamName={}(0x{})", ParamName,
+                  logger::toHex(ParamName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -1006,8 +1010,8 @@ getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
   int UpperCopyEngineIndex = std::stoi(CopyEngineRange.substr(pos + 1));
   if ((LowerCopyEngineIndex > UpperCopyEngineIndex) ||
       (LowerCopyEngineIndex < -1) || (UpperCopyEngineIndex < -1)) {
-    urPrint("UR_L0_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
-            "default set.\n");
+    logger::error("UR_L0_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
+                  "default set.");
     LowerCopyEngineIndex = 0;
     UpperCopyEngineIndex = INT_MAX;
   }
@@ -1177,7 +1181,8 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
   if (numQueueGroups == 0) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
-  urPrint("NOTE: Number of queue groups = %d\n", numQueueGroups);
+  logger::info(logger::LegacyMessage("NOTE: Number of queue groups = {}"),
+               "Number of queue groups = {}", numQueueGroups);
   std::vector<ZeStruct<ze_command_queue_group_properties_t>>
       QueueGroupProperties(numQueueGroups);
   ZE2UR_CALL(zeDeviceGetCommandQueueGroupProperties,
@@ -1230,14 +1235,22 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         }
       }
       if (QueueGroup[queue_group_info_t::MainCopy].ZeOrdinal < 0)
-        urPrint("NOTE: main blitter/copy engine is not available\n");
+        logger::info(logger::LegacyMessage(
+                         "NOTE: main blitter/copy engine is not available"),
+                     "main blitter/copy engine is not available");
       else
-        urPrint("NOTE: main blitter/copy engine is available\n");
+        logger::info(logger::LegacyMessage(
+                         "NOTE: main blitter/copy engine is available"),
+                     "main blitter/copy engine is available");
 
       if (QueueGroup[queue_group_info_t::LinkCopy].ZeOrdinal < 0)
-        urPrint("NOTE: link blitter/copy engines are not available\n");
+        logger::info(logger::LegacyMessage(
+                         "NOTE: link blitter/copy engines are not available"),
+                     "link blitter/copy engines are not available");
       else
-        urPrint("NOTE: link blitter/copy engines are available\n");
+        logger::info(logger::LegacyMessage(
+                         "NOTE: link blitter/copy engines are available"),
+                     "link blitter/copy engines are available");
     }
   }
 
