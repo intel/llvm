@@ -629,6 +629,20 @@ public:
     return MPropList.get_property<propertyT>();
   }
 
+  /// Fills the specified memory with the specified pattern.
+  ///
+  /// \param Ptr is the pointer to the memory to fill.
+  /// \param Pattern is the pattern to fill into the memory.  T should be
+  /// trivially copyable.
+  /// \param Count is the number of times to fill Pattern into Ptr.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing fill operation.
+  template <typename T>
+  event fill(const std::shared_ptr<queue_impl> &Self, void *Ptr,
+             const T &Pattern, size_t Count,
+             const std::vector<event> &DepEvents);
+
   /// Fills the memory pointed by a USM pointer with the value specified.
   ///
   /// \param Self is a shared_ptr to this queue.
