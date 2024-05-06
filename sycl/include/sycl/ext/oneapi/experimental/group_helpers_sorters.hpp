@@ -32,6 +32,8 @@
 #include <system_error> // for error_code
 #include <type_traits>  // for is_same, is_arithmetic
 
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
@@ -147,15 +149,21 @@ public:
         "default_sorter operator() is not supported on host device.");
 #endif
   }
-
+#ifdef __SYCL_DEVICE_ONLY__
+#define CONSTANT __attribute__((opencl_constant))
+#else
+#define CONSTANT
+#endif
   // TODO: Add a check for the property type
   template <typename Group, typename Properties>
   void operator()(Group g, sycl::span<T, ElementsPerWorkItem> values,
                   Properties properties) {
 #ifdef __SYCL_DEVICE_ONLY__
     auto range_size = g.get_local_linear_range();
+    static const CONSTANT char fmt[] = "%s\n";
     if (scratch_size >=
         memory_required(Group::fence_scope, g.get_local_range().size())) {
+      ext::oneapi::experimental::printf(fmt, "Algorithm applied");
       size_t local_id = g.get_local_linear_id();
       auto temp = reinterpret_cast<T *>(scratch);
 
@@ -182,6 +190,8 @@ public:
         }
         values[i] = temp[shift];
       }
+    } else {
+      ext::oneapi::experimental::printf(fmt, "UNEXPECTED");
     }
 #endif
     (void)values;
