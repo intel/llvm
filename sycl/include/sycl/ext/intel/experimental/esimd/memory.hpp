@@ -1891,7 +1891,7 @@ public:
   /// Copy constructor
   /// </summary>
   config_2d_mem_access(const config_2d_mem_access &other)
-      : payload_data(other.payload) {}
+      : payload_data(other.payload_data) {}
 
   /// <summary>
   /// Constructor

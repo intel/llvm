@@ -125,6 +125,67 @@ inline context make_context<backend::ext_oneapi_level_zero>(
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
 }
 
+namespace detail {
+inline std::optional<sycl::device> find_matching_descendent_device(
+    sycl::device d,
+    const backend_input_t<backend::ext_oneapi_level_zero, device>
+        &BackendObject) {
+  if (get_native<backend::ext_oneapi_level_zero>(d) == BackendObject)
+    return d;
+  std::vector<info::partition_property> partition_props =
+      d.get_info<info::device::partition_properties>();
+
+  for (auto pp : partition_props) {
+    if (pp == info::partition_property::partition_by_affinity_domain) {
+      auto sub_devices = d.create_sub_devices<
+          info::partition_property::partition_by_affinity_domain>(
+          info::partition_affinity_domain::next_partitionable);
+      for (auto sub_dev : sub_devices) {
+        if (auto maybe_device =
+                find_matching_descendent_device(sub_dev, BackendObject))
+          return maybe_device;
+      }
+    }
+
+    assert(false && "Unexpected partitioning scheme for a Level-Zero device!");
+  }
+
+  return {};
+}
+} // namespace detail
+
+// Specialization of sycl::make_device for Level-Zero backend.
+// Level-Zero backend specification says:
+//
+//  > The SYCL execution environment for the Level Zero backend contains a fixed
+//  > number of devices that are enumerated via sycl::device::get_devices() and
+//  > a fixed number of sub-devices that are enumerated via
+//  > sycl::device::create_sub_devices(...). Calling this function does not
+//  > create a new device. Rather it merely creates a sycl::device object that
+//  > is a copy of one of the devices from those enumerations.
+//
+// Per SYCL 2020 specification, device and it's copy should be equally
+// comparable and its hashes must be equal. As such, we cannot simply create a
+// new `detail::device_impl` and then a `sycl::device` out of it and have to
+// iterate over the existing device hierarchy and make a copy.
+template <>
+inline device make_device<backend::ext_oneapi_level_zero>(
+    const backend_input_t<backend::ext_oneapi_level_zero, device>
+        &BackendObject) {
+  for (auto p : platform::get_platforms()) {
+    if (p.get_backend() != backend::ext_oneapi_level_zero)
+      continue;
+
+    for (auto d : p.get_devices()) {
+      if (auto maybe_device = find_matching_descendent_device(d, BackendObject))
+        return *maybe_device;
+    }
+  }
+
+  throw sycl::exception(make_error_code(errc::invalid),
+                        "Native device isn't exposed to SYCL.");
+}
+
 // Specialization of sycl::make_queue for Level-Zero backend.
 template <>
 inline queue make_queue<backend::ext_oneapi_level_zero>(

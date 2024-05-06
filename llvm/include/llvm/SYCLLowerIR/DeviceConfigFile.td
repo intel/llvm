@@ -61,6 +61,12 @@ def AspectExt_oneapi_interop_semaphore_export : Aspect<"ext_oneapi_interop_semap
 def AspectExt_oneapi_mipmap : Aspect<"ext_oneapi_mipmap">;
 def AspectExt_oneapi_mipmap_anisotropy : Aspect<"ext_oneapi_mipmap_anisotropy">;
 def AspectExt_oneapi_mipmap_level_reference : Aspect<"ext_oneapi_mipmap_level_reference">;
+def AspectExt_oneapi_bindless_sampled_image_fetch_1d_usm : Aspect<"ext_oneapi_bindless_sampled_image_fetch_1d_usm">;
+def AspectExt_oneapi_bindless_sampled_image_fetch_1d : Aspect<"ext_oneapi_bindless_sampled_image_fetch_1d">;
+def AspectExt_oneapi_bindless_sampled_image_fetch_2d_usm : Aspect<"ext_oneapi_bindless_sampled_image_fetch_2d_usm">;
+def AspectExt_oneapi_bindless_sampled_image_fetch_2d : Aspect<"ext_oneapi_bindless_sampled_image_fetch_2d">;
+def AspectExt_oneapi_bindless_sampled_image_fetch_3d_usm : Aspect<"ext_oneapi_bindless_sampled_image_fetch_3d_usm">;
+def AspectExt_oneapi_bindless_sampled_image_fetch_3d : Aspect<"ext_oneapi_bindless_sampled_image_fetch_3d">;
 def AspectExt_oneapi_cubemap : Aspect<"ext_oneapi_cubemap">;
 def AspectExt_oneapi_cubemap_seamless_filtering : Aspect<"ext_oneapi_cubemap_seamless_filtering">;
 def AspectExt_intel_esimd : Aspect<"ext_intel_esimd">;
@@ -124,7 +130,11 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_oneapi_interop_memory_import, AspectExt_oneapi_interop_memory_export,
     AspectExt_oneapi_interop_semaphore_import, AspectExt_oneapi_interop_semaphore_export,
     AspectExt_oneapi_mipmap, AspectExt_oneapi_mipmap_anisotropy, AspectExt_oneapi_mipmap_level_reference, AspectExt_oneapi_cubemap, 
-    AspectExt_oneapi_cubemap_seamless_filtering, AspectExt_intel_esimd,
+    AspectExt_oneapi_cubemap_seamless_filtering, 
+    AspectExt_oneapi_bindless_sampled_image_fetch_1d_usm, AspectExt_oneapi_bindless_sampled_image_fetch_1d,
+    AspectExt_oneapi_bindless_sampled_image_fetch_2d_usm, AspectExt_oneapi_bindless_sampled_image_fetch_2d,
+    AspectExt_oneapi_bindless_sampled_image_fetch_3d_usm, AspectExt_oneapi_bindless_sampled_image_fetch_3d,
+    AspectExt_intel_esimd,
     AspectExt_oneapi_ballot_group, AspectExt_oneapi_fixed_size_group, AspectExt_oneapi_opportunistic_group,
     AspectExt_oneapi_tangle_group, AspectExt_intel_matrix, AspectExt_oneapi_is_composite, AspectExt_oneapi_is_component,
     AspectExt_oneapi_graph, AspectExt_intel_fpga_task_sequence, AspectExt_oneapi_limited_graph,
