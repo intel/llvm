@@ -1,6 +1,6 @@
 // Purpose of this test is to ensure that in SYCL device code mode, we are only
 // emitting those virtual functions into vtable, which are marked with
-// [[intel::device_indirectly_callable]] attribute.
+// [[intel::device_indirectly_callable]] attribute or SYCL_EXTERNAL macro.
 //
 // RUN: %clang_cc1 -emit-llvm -o - -fsycl-is-device \
 // RUN:     -fsycl-allow-virtual-functions -internal-isystem %S/Inputs \
@@ -105,13 +105,13 @@ class AbstractBase {
 };
 
 class Derived3 : public AbstractBase {
-  [[intel::device_indirectly_callable]] void device_foo() override {}
-  [[intel::device_indirectly_callable]] void maybe_device_bar() override {}
+  SYCL_EXTERNAL void device_foo() override {}
+  SYCL_EXTERNAL void maybe_device_bar() override {}
   void host_foo() override {}
 };
 
 class Derived4 : public AbstractBase {
-  [[intel::device_indirectly_callable]] void device_foo() override {}
+  SYCL_EXTERNAL void device_foo() override {}
   void host_foo() override {}
   void maybe_device_bar() override {}
 };

@@ -21,7 +21,7 @@ class Base {
 
 class Derived1 : public Base {
    public:
-    [[intel::device_indirectly_callable]] void display() {}
+    [[intel::device_indirectly_callable]] void display() override {}
 };
 
 SYCL_EXTERNAL void test() {
