@@ -17,9 +17,12 @@ set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 enable_testing()
 
+# Conformance defines the generate_device_binaries target which should be
+# imported first
+add_subdirectory(conformance)
+
 add_subdirectory(loader)
 add_subdirectory(adapters)
-add_subdirectory(conformance)
 add_subdirectory(usm)
 add_subdirectory(layers)
 add_subdirectory(unit)
