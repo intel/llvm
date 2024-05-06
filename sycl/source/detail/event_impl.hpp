@@ -335,7 +335,7 @@ public:
     return MPostCompleteEvents;
   }
 
-  void updateEnqueuedState(bool IsEnqueued) { MIsEnqueued = IsEnqueued; }
+  void setEnqueued() { MIsEnqueued = true; }
 
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and

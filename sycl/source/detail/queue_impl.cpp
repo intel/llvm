@@ -603,26 +603,25 @@ event queue_impl::discard_or_return(const event &Event) {
   return createDiscardedEvent();
 }
 
-void queue_impl::revisitNotEnqueuedCommandsState(
+void queue_impl::revisitUnenqueuedCommandsState(
     const EventImplPtr &CompletedHostTask) {
   if (MIsInorder)
     return;
   auto tryToCleanup = [](DependencyTrackingItems &Deps) {
     if (Deps.LastBarrier && Deps.LastBarrier->isEnqueued()) {
       Deps.LastBarrier = nullptr;
-      Deps.NotEnqueuedCmdEvents.clear();
+      Deps.UnenqueuedCmdEvents.clear();
     } else {
-      if (Deps.NotEnqueuedCmdEvents.empty())
+      if (Deps.UnenqueuedCmdEvents.empty())
         return;
-      Deps.NotEnqueuedCmdEvents.erase(
-          std::remove_if(Deps.NotEnqueuedCmdEvents.begin(),
-                         Deps.NotEnqueuedCmdEvents.end(),
-                         [](const EventImplPtr &CommandEvent) {
-                           return (CommandEvent->is_host()
-                                       ? CommandEvent->isCompleted()
-                                       : CommandEvent->isEnqueued());
-                         }),
-          Deps.NotEnqueuedCmdEvents.end());
+      Deps.UnenqueuedCmdEvents.erase(
+          std::remove_if(
+              Deps.UnenqueuedCmdEvents.begin(), Deps.UnenqueuedCmdEvents.end(),
+              [](const EventImplPtr &CommandEvent) {
+                return (CommandEvent->is_host() ? CommandEvent->isCompleted()
+                                                : CommandEvent->isEnqueued());
+              }),
+          Deps.UnenqueuedCmdEvents.end());
     }
   };
   std::lock_guard<std::mutex> Lock{MMutex};

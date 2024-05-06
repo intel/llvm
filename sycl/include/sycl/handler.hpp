@@ -3639,9 +3639,9 @@ private:
   void setNDRangeUsed(bool Value);
 
 protected:
-  /// Registers event dependencies on this command group.
+  /// Registers event dependencies in this command group.
   void depends_on(const detail::EventImplPtr &Event);
-  /// Registers event dependencies on this command group.
+  /// Registers event dependencies in this command group.
   void depends_on(const std::vector<detail::EventImplPtr> &Events);
 };
 } // namespace _V1

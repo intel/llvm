@@ -747,7 +747,7 @@ public:
 
   // Helps to manage host tasks presence in scenario with barrier usage.
   // Approach that tracks almost all tasks to provide barrier sync for both pi
-  // tasks and host tasks is applicable for out of order queues only. Not needed
+  // tasks and host tasks is applicable for out of order queues only. No-op
   // for in order ones.
   void tryToResetEnqueuedBarrierDep(const EventImplPtr &EnqueuedBarrierEvent);
 
@@ -755,7 +755,7 @@ public:
   // Approach that tracks almost all tasks to provide barrier sync for both pi
   // tasks and host tasks is applicable for out of order queues only. Not neede
   // for in order ones.
-  void revisitNotEnqueuedCommandsState(const EventImplPtr &CompletedHostTask);
+  void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
 
 protected:
   event discard_or_return(const event &Event);
@@ -794,26 +794,27 @@ protected:
       EventToBuildDeps = getSyclObjImpl(EventRet);
     } else {
       // The following code supports barrier synchronization if host task is
-      // involve to the scenario. Native barriers could not handle host task
-      // dependency so in case if some commands was not enqueued - blocked we
-      // track them to prevent barrier to be enqueued earlier.
+      // involved in the scenario. Native barriers cannot handle host task
+      // dependency so in the case where some commands were not enqueued
+      // (blocked), we track them to prevent barrier from being enqueued
+      // earlier.
       std::lock_guard<std::mutex> Lock{MMutex};
       auto &Deps = MGraph.expired() ? MDefaultGraphDeps : MExtGraphDeps;
-      if (Type == CG::Barrier && !Deps.NotEnqueuedCmdEvents.empty()) {
-        Handler.depends_on(Deps.NotEnqueuedCmdEvents);
+      if (Type == CG::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
+        Handler.depends_on(Deps.UnenqueuedCmdEvents);
       }
       if (Deps.LastBarrier)
         Handler.depends_on(Deps.LastBarrier);
       EventRet = Handler.finalize();
       EventImplPtr EventRetImpl = getSyclObjImpl(EventRet);
       if (Type == CG::CodeplayHostTask)
-        Deps.NotEnqueuedCmdEvents.push_back(EventRetImpl);
+        Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
       else if (!EventRetImpl->isEnqueued()) {
         if (Type == CG::Barrier || Type == CG::BarrierWaitlist) {
           Deps.LastBarrier = EventRetImpl;
-          Deps.NotEnqueuedCmdEvents.clear();
+          Deps.UnenqueuedCmdEvents.clear();
         } else
-          Deps.NotEnqueuedCmdEvents.push_back(EventRetImpl);
+          Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
       }
     }
   }
@@ -964,9 +965,9 @@ protected:
     // This event is employed for enhanced dependency tracking with in-order
     // queue
     EventImplPtr LastEventPtr;
-    // The following two items is employed for proper out of order enqueue
+    // The following two items are employed for proper out of order enqueue
     // ordering
-    std::vector<EventImplPtr> NotEnqueuedCmdEvents;
+    std::vector<EventImplPtr> UnenqueuedCmdEvents;
     EventImplPtr LastBarrier;
   } MDefaultGraphDeps, MExtGraphDeps;
 

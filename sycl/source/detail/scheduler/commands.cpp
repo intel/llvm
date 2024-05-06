@@ -882,7 +882,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
     EnqueueResult =
         EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this, Res);
   else {
-    MEvent->updateEnqueuedState(true);
+    MEvent->setEnqueued();
     if (MShouldCompleteEventIfPossible &&
         (MEvent->is_host() || MEvent->getHandleRef() == nullptr))
       MEvent->setComplete();
