@@ -61,18 +61,18 @@ __SYCL_BUILTIN_ALIAS(__builtin_intel_sycl_alloca_with_align)
 template <typename ElementType, auto &SizeSpecName,
           access::decorated DecorateAddress>
 private_ptr<ElementType, DecorateAddress> private_alloca(kernel_handler &kh) {
-  throw feature_not_supported("sycl::ext::oneapi::experimental::private_alloca "
-                              "is not supported on host",
-                              PI_ERROR_INVALID_OPERATION);
+  throw exception(sycl::errc::feature_not_supported,
+                  "sycl::ext::oneapi::experimental::private_alloca is not "
+                  "supported on host");
 }
 
 template <typename ElementType, std::size_t Alignment, auto &SizeSpecName,
           access::decorated DecorateAddress>
 private_ptr<ElementType, DecorateAddress>
 aligned_private_alloca(kernel_handler &kh) {
-  throw feature_not_supported("sycl::ext::oneapi::experimental::aligned_"
-                              "private_alloca is not supported on host",
-                              PI_ERROR_INVALID_OPERATION);
+  throw exception(sycl::errc::feature_not_supported,
+                  "sycl::ext::oneapi::experimental::aligned_private_alloca is "
+                  "not supported on host");
 }
 
 #endif // __SYCL_DEVICE_ONLY__
