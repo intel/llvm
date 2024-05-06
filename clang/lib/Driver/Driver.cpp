@@ -5904,19 +5904,6 @@ class OffloadingActionBuilder final {
         }
       }
 
-      if (isNativeCPU) {
-        // If no device libraries are found check if -fsycl-libspirv_path
-        // provides a library and link it if it exists.
-        if (0 == NumOfDeviceLibLinked) {
-          if (Args.hasArg(options::OPT_fsycl_libspirv_path_EQ)) {
-            auto ProvidedPath =
-                Args.getLastArgValue(options::OPT_fsycl_libspirv_path_EQ).str();
-            if (llvm::sys::fs::exists(ProvidedPath))
-              ++NumOfDeviceLibLinked;
-          }
-        }
-      }
-
       // For NVPTX backend we need to also link libclc and CUDA libdevice
       // at the same stage that we link all of the unbundled SYCL libdevice
       // objects together.
