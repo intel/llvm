@@ -8,7 +8,7 @@
 // REQUIRES: aspect-ext_oneapi_cuda_async_barrier
 // REQUIRES: cuda
 
-#include "CL/sycl.hpp"
+#include "sycl/sycl.hpp"
 #include <iostream>
 #include <vector>
 

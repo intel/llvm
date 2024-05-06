@@ -17,6 +17,7 @@
 #include <sycl/ext/intel/esimd/detail/util.hpp>
 #include <sycl/ext/intel/esimd/simd.hpp>
 #include <sycl/ext/intel/esimd/simd_view.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/math_intrin.hpp>
 
 #include <cstdint>
 
@@ -1300,6 +1301,13 @@ __ESIMD_API uint32_t subb(uint32_t &borrow, uint32_t src0, uint32_t src1) {
   __ESIMD_NS::simd<uint32_t, 1> Res = subb(BorrowV, Src0V, Src1V);
   borrow = BorrowV[0];
   return Res[0];
+}
+
+/// rdtsc - get the value of timestamp counter.
+/// @return the current value of timestamp counter
+__ESIMD_API uint64_t rdtsc() {
+  __ESIMD_NS::simd<uint32_t, 4> retv = __esimd_timestamp();
+  return retv.template bit_cast_view<uint64_t>()[0];
 }
 
 /// @} sycl_esimd_math
