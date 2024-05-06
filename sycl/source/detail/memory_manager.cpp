@@ -1017,8 +1017,9 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                              std::vector<sycl::detail::pi::PiEvent> DepEvents,
                              sycl::detail::pi::PiEvent *OutEvent,
                              const detail::EventImplPtr &OutEventImpl) {
-  std::vector<char> vecPattern(Length);
-  std::memcpy(vecPattern.data(), &Pattern, Length);
+  // This overload with 32 bit pattern can be used only for memset
+  std::vector<char> vecPattern(1);
+  std::memcpy(vecPattern.data(), &Pattern, 1);
   MemoryManager::fill_usm(Mem, Queue, Length, vecPattern, DepEvents, OutEvent,
                           OutEventImpl);
 }
@@ -1028,8 +1029,9 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                              int Pattern,
                              std::vector<sycl::detail::pi::PiEvent> DepEvents,
                              sycl::detail::pi::PiEvent *OutEvent) {
-  std::vector<char> vecPattern(Length);
-  std::memcpy(vecPattern.data(), &Pattern, Length);
+  // This overload with 32 bit pattern can be used only for memset
+  std::vector<char> vecPattern(1);
+  std::memcpy(vecPattern.data(), &Pattern, 1);
   MemoryManager::fill_usm(Mem, Queue, Length, vecPattern, DepEvents, OutEvent,
                           nullptr); // OutEventImpl);
 }
