@@ -33,7 +33,7 @@ urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
             UR_RESULT_ERROR_INVALID_VALUE);
 
   if (!hPool) {
-    return USMHostAllocImpl(ppMem, hContext, nullptr, size, alignment);
+    return USMHostAllocImpl(ppMem, hContext, /* flags */ 0, size, alignment);
   }
 
   auto UMFPool = hPool->HostMemPool.get();
@@ -57,7 +57,7 @@ urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
             UR_RESULT_ERROR_INVALID_VALUE);
 
   if (!hPool) {
-    return USMDeviceAllocImpl(ppMem, hContext, hDevice, nullptr, size,
+    return USMDeviceAllocImpl(ppMem, hContext, hDevice, /* flags */ 0, size,
                               alignment);
   }
 
@@ -82,8 +82,8 @@ urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
             UR_RESULT_ERROR_INVALID_VALUE);
 
   if (!hPool) {
-    return USMSharedAllocImpl(ppMem, hContext, hDevice, nullptr, nullptr, size,
-                              alignment);
+    return USMSharedAllocImpl(ppMem, hContext, hDevice, /*host flags*/ 0,
+                              /*device flags*/ 0, size, alignment);
   }
 
   auto UMFPool = hPool->SharedMemPool.get();
@@ -132,7 +132,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
 }
 
 ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t Context,
-                               ur_device_handle_t, ur_usm_device_mem_flags_t *,
+                               ur_device_handle_t, ur_usm_device_mem_flags_t,
                                size_t Size, uint32_t Alignment) {
   try {
     ScopedContext Active(Context);
@@ -151,8 +151,8 @@ ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t Context,
 }
 
 ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
-                               ur_device_handle_t, ur_usm_host_mem_flags_t *,
-                               ur_usm_device_mem_flags_t *, size_t Size,
+                               ur_device_handle_t, ur_usm_host_mem_flags_t,
+                               ur_usm_device_mem_flags_t, size_t Size,
                                uint32_t Alignment) {
   try {
     ScopedContext Active(Context);
@@ -172,7 +172,7 @@ ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
 }
 
 ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t Context,
-                             ur_usm_host_mem_flags_t *, size_t Size,
+                             ur_usm_host_mem_flags_t, size_t Size,
                              uint32_t Alignment) {
   try {
     ScopedContext Active(Context);
@@ -358,19 +358,19 @@ umf_result_t USMMemoryProvider::get_min_page_size(void *Ptr, size_t *PageSize) {
 
 ur_result_t USMSharedMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
                                                   uint32_t Alignment) {
-  return USMSharedAllocImpl(ResultPtr, Context, Device, nullptr, nullptr, Size,
-                            Alignment);
+  return USMSharedAllocImpl(ResultPtr, Context, Device, /*host flags*/ 0,
+                            /*device flags*/ 0, Size, Alignment);
 }
 
 ur_result_t USMDeviceMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
                                                   uint32_t Alignment) {
-  return USMDeviceAllocImpl(ResultPtr, Context, Device, nullptr, Size,
+  return USMDeviceAllocImpl(ResultPtr, Context, Device, /* flags */ 0, Size,
                             Alignment);
 }
 
 ur_result_t USMHostMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
                                                 uint32_t Alignment) {
-  return USMHostAllocImpl(ResultPtr, Context, nullptr, Size, Alignment);
+  return USMHostAllocImpl(ResultPtr, Context, /* flags */ 0, Size, Alignment);
 }
 
 ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
