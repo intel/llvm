@@ -11,7 +11,8 @@
 // RUN:  %if any-device-is-cuda %{ %if preview-breaking-changes-supported %{  %{run} %t3.out  %} %}
 
 // Currently the feature isn't supported on FPGA.
-// UNSUPPORTED: accelerator
+// FIXME: enable opaque pointers support on CPU.
+// UNSUPPORTED: accelerator, cpu
 #include "bfloat16_builtins.hpp"
 
 int main() {

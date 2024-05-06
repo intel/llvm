@@ -5,7 +5,6 @@
 // + below sm_80 always uses generic impls
 
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
-// REQUIRES: aspect-ext_oneapi_bfloat16_math_functions
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %if any-device-is-cuda %{ -Xsycl-target-backend --cuda-gpu-arch=sm_80 %} %s -o %t.out %{mathflags}
 // RUN: %{run} %t.out
 
@@ -14,7 +13,8 @@
 // RUN:  %if preview-breaking-changes-supported %{  %{run} %t2.out  %}
 
 // Currently the feature isn't supported on FPGA.
-// UNSUPPORTED: accelerator
+// FIXME: enable opaque pointers support on CPU.
+// UNSUPPORTED: accelerator, cpu
 #include "bfloat16_builtins.hpp"
 
 int main() {
