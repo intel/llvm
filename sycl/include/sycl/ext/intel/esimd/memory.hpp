@@ -8043,6 +8043,7 @@ __ESIMD_API simd<T, m * N> media_block_load(AccessorTy acc, unsigned x,
   static_assert(Width <= 64u, "valid block width is in range [1, 64]");
   static_assert(m <= 64u, "valid block height is in range [1, 64]");
   static_assert(plane <= 3u, "valid plane index is in range [0, 3]");
+  static_assert(detail::isPowerOf2(N), "N must be a power of 2");
 
   const auto si = __ESIMD_NS::get_surface_index(acc);
   using SurfIndTy = decltype(si);
