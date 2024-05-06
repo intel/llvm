@@ -100,7 +100,8 @@ property:: A property is represented by a key and value. Properties can be used 
 
 property value:: An object of the property value class. A property value has zero or more property parameters.
 For runtime properties the value type is the same as the key type.
-For compile time properties the value type is given by the `value_t` type alias of the key type.
+For compile time properties the value type is a template instanstiation of
+`property_value` with the first template argument the key_type.
 
 property key:: A class representing the property key. It is used to query properties.
 
@@ -158,7 +159,7 @@ using foo_key = foo;
 ```
 
 For compile-time constant parameters the value type is a template specialization of `property_value`. 
-The property key class contains a `value_t` alias which is templated on the property parameters. The `property_value` class holds the
+The `property_value` class holds the
 values of the compile-time parameters as template arguments. The parameters to a compile-
 time-constant property can be either types or non-type values.
 The implementation provides a variable with the property value type. The variable has the name of the property without a suffix.
@@ -169,39 +170,22 @@ namespace sycl::ext::oneapi::experimental {
 template<typename...> struct property_value;
 
 // This property has no parameters.
-struct bar_key {
-  using value_t = property_value<bar_key>;
-};
-// bar is an object of the property value type of bar.
-inline constexpr bar_key::value_t bar;
+inline constexpr property_value<struct bar_key> bar;
 
 // This property has one integer non-type parameter.
-struct baz_key {
-  template<int K>
-  using value_t = property_value<baz_key, std::integral_constant<int, K> >;
-  // Note: integral_constant is used for the example. An implementation can use a different mapping.
-};
-// baz is an object of a property value type of baz.
 template<int K>
-inline constexpr baz_key::value_t<K> baz;
+inline constexpr property_value<struct baz_key, std::integral_constant<int, K>> baz;
 
 // This property has an arbitrary number of type parameters.
-struct boo_key {
-  template<typename...Ts>
-  using value_t = property_value<boo_key, Ts...>;
-};
-// boo is an object of a property value type of boo.
 template<typename... Ts>
-inline constexpr boo_key::value_t<Ts...> boo;
+inline constexpr property_value<struct boo_key, Ts...> boo;
 
 } // namespace experimental::oneapi::ext::sycl
 ```
 
 === Property traits
 
-All runtime and compile-time-constant properties must have a specialization of 
-`is_property_key` and `is_property_value` that inherits from
-`std::true_type`, and they must have a specialization of `is_property_key_of`
+All properties must have a specialization of `is_property_key_of`
 and `is_property_value_of`
 that inherits from `std::true_type` for each SYCL runtime class that the
 property can be applied to. All have a base case which inherits from `std::false_type`.
@@ -209,11 +193,7 @@ property can be applied to. All have a base case which inherits from `std::false
 ```c++
 namespace sycl::ext::oneapi::experimental {
 //Base case
-template<typename> struct is_property_key : std::false_type {};
 template<typename, typename> struct is_property_key_of : std::false_type {};
-
-template<> struct is_property_key<foo_key> : std::true_type {};
-template<> struct is_property_key<bar_key> : std::true_type {};
 
 // These properties can be applied to any SYCL object.
 template<typename SyclObjectT>
@@ -221,24 +201,19 @@ struct is_property_key_of<foo_key, SyclObjectT> : std::true_type {};
 template<typename SyclObjectT>
 struct is_property_key_of<bar_key, SyclObjectT> : std::true_type {};
 
-// is_property_value and is_property_value_of based on is_property_key(_of)
-template<typename V, typename=void> struct is_property_value;
-template<typename V, typename O, typename=void> struct is_property_value_of;
-// Specialization for runtime properties
-template<typename V> struct is_property_value<V, std::enable_if_t<(sizeof(V)>0)>> : is_property_key<V> {};
-template<typename V, typename O> struct is_property_value_of<V, O, std::enable_if_t<(sizeof(V)>0)>> : is_property_key_of<V,O> {};
+// is_property_value_of based on is_property_key_of. Base case for runtime properties
+template<typename V, typename O> struct is_property_value_of : is_property_key_of<V,O> {};
 // Specialization for compile-time-constant properties
-template<typename V> struct is_property_value<V, std::void_t<typename V::key_t>> :
-  is_property_key<typename V::key_t> {};
-template<typename V, typename O> struct is_property_value_of<V, O, std::void_t<typename V::key_t>> :
-  is_property_key_of<typename V::key_t, O> {};
+template<typename K, typename O, typename...A> struct is_property_value_of<property_value<K, A...>, O> :
+  is_property_key_of<K, O> {};
 
 } // namespace experimental::oneapi::ext::sycl
 ```
 
 === Property value class
 
-The `property_value` class has implementation-defined template parameters.  In
+The `property_value` class has the property key as the first template argument,
+followed by the property parameters. In
 the common case when the property has a single parameter, it provides a member
 variable named `value` and a type alias named `value_t` to retrieve the value
 and type of the parameter. When a property has more than one parameter, the
@@ -250,13 +225,10 @@ namespace sycl::ext::oneapi::experimental {
 
 template<typename Property, typename First, typename...Others>
 struct property_value {
-  // Alias of the property key type
-  using key_t = Property;
-
   // Each property with multi-parameter property_value must define template 
   // specializations for accessing the parameters.
 
-  // Available only when the property value has a single parameter and `value_t` of the property takes a non-type parameter
+  // Available only when the property value has a single non-type parameter
   static constexpr auto value = First::value;
 
   // Available only when the property value has a single parameter
@@ -282,14 +254,7 @@ a|
 ```c++
 using value_t = First;
 ```
-| Available only when there is exactly one parameter.  When the parameter's value is a type, `value_t`
-is that type.  When the parameter's value is a non-type, `value_t` is an implementation-defined type
-with a member constant `value` equal to the value.
-a|
-```c++
-using key_t = property;
-```
-| The property key type.
+| The type of the parameter. Available only when there is exactly one parameter.
 |===
 --
 
@@ -415,7 +380,7 @@ using empty_properties_t = decltype(properties{});
 [NOTE]
 ====
 Implementations will need a deduction guide to satisfy the requirement that `properties` objects created from the same set of compile-time constant property values and runtime properties must have an identical type.
-The requirement that `properties` objects have the same type if they contain the same set of compile-time constant property values and runtime properties also implies that implementations must define an ordering over all properties. This extension provides no mechanism for users to define their own properties.
+The requirement that `properties` objects have the same type if they contain the same set of compile-time constant property values and runtime properties also implies that implementations must define an ordering over all properties.
 ====
 
 The following table describes the constructors of the `properties` class:
@@ -633,10 +598,10 @@ This section provides more detailed information for implementers. It is non-norm
 
 === Interface Guidelines for `properties` consumers
 
-Adding a new compile-time constant property requires implementers to introduce the following:
+Adding a new compile-time constant property requires to introduce the following:
 
 * A new class representing the property key
-* Specializations of `sycl::is_property_key` and `sycl::is_property_key_of` for the new property class
+* Specializations of `sycl::is_property_key_of` for the new property class
 * A global variable that represents an object of the property value
 
 === Example of a Compile-time Constant Property
@@ -646,20 +611,13 @@ This is an example showing the definition of a compile-time constant property `f
 ```c++
 namespace sycl::ext::oneapi::experimental {
 
-// foo is the property key class
-struct foo_key {
-  template<int K>
-  using value_t = property_value<foo, std::integral_constant<int, K>>;
-};
+// foo_key is the property key class 
+struct foo_key;
 
 // foo is a variable of the property value class that can be used to construct a
 // property list with this property
 template<int K>
-inline constexpr foo::value_t<K> foo;
-
-// foo is a property
-template<>
-struct is_property_key<foo_key> : std::true_type {};
+inline constexpr property_value<foo_key, std::integral_constant<int, K>> foo;
 
 // foo can be applied to any object
 template<typename SyclObjectT>
@@ -676,6 +634,7 @@ struct is_property_key_of<foo_key, SyclObjectT> : std::true_type {};
 [options="header"]
 |========================================
 |Rev|Date|Author|Changes
+|3|2024-05-06|Roland Schulz|Remove value_t and key_t
 |2|2021-12-15|Roland Schulz|Rename of value/key
 |1|2021-07-13|Jason Sewall|Initial internal draft
 |========================================
