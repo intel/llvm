@@ -79,6 +79,8 @@ int main() {
           bool AnyResult = sycl::any_of_group(BallotGroup, (LID == 0));
           AnyAcc[WI] = (AnyResult == true);
 
+          // Note that this barrier is required for the test to pass for cuda 12.4 even
+          // for sm_60 and later devices. This appears to be a cuda ptxas bug.
           sycl::group_barrier(BallotGroup);
           bool AllResult = sycl::all_of_group(BallotGroup, Predicate);
           if (Predicate) {
