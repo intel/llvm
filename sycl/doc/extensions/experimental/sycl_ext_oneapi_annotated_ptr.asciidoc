@@ -287,7 +287,7 @@ class annotated_ptr {
     using reference = annotated_ref<T, PropertyListT>;
 
     annotated_ptr() noexcept;
-    explicit annotated_ptr(T *Ptr, const PropertyListT &P = properties{}) noexcept;
+    explicit annotated_ptr(T *Ptr, const PropertyListT &P = PropertyListT{}) noexcept;
     template<typename... PropertyValueTs>
     explicit annotated_ptr(T *Ptr, PropertyValueTs... props) noexcept;
 
@@ -359,7 +359,7 @@ underlying pointer is initialized to `nullptr`.
 a|
 [source,c++]
 ----
-explicit annotated_ptr(T *Ptr, const PropertyListT &P = properties{}) noexcept;
+explicit annotated_ptr(T *Ptr, const PropertyListT &P = PropertyListT{}) noexcept;
 ----
 |
 Constructs an `annotated_ptr` object. Does not allocate new storage. The
