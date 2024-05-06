@@ -445,7 +445,6 @@ void KernelsEnvironment::LoadSource(
 
     if (source_path.empty()) {
         FAIL() << error;
-        binary_out = nullptr;
     }
 
     if (cached_kernels.find(source_path) != cached_kernels.end()) {
@@ -459,7 +458,6 @@ void KernelsEnvironment::LoadSource(
 
     if (!source_file.is_open()) {
         FAIL() << "failed opening kernel path: " + source_path;
-        binary_out = nullptr;
     }
 
     size_t source_size = static_cast<size_t>(source_file.tellg());
