@@ -23,20 +23,6 @@ using DeviceImplPtr = std::shared_ptr<sycl::detail::device_impl>;
 
 constexpr auto DisableCleanupName = "SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP";
 
-bool CheckTestExecutionRequirements(const sycl::platform &plt) {
-  if (plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return false;
-  }
-  // This test only contains device image for SPIR-V capable devices.
-  if (plt.get_backend() != sycl::backend::opencl &&
-      plt.get_backend() != sycl::backend::ext_oneapi_level_zero) {
-    std::cout << "Only OpenCL and Level Zero are supported for this test\n";
-    return false;
-  }
-  return true;
-}
-
 class TestQueueImpl : public sycl::detail::queue_impl {
 public:
   TestQueueImpl(ContextImplPtr SyclContext, DeviceImplPtr Dev)
@@ -50,8 +36,6 @@ class BarrierHandlingWithHostTask : public ::testing::Test {
 protected:
   void SetUp() {
     sycl::platform Plt = Mock.getPlatform();
-    if (!CheckTestExecutionRequirements(Plt))
-      GTEST_SKIP();
 
     sycl::context SyclContext(Plt);
     sycl::device SyclDev =

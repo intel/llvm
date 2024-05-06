@@ -1455,6 +1455,19 @@ void handler::depends_on(const detail::EventImplPtr &EventImpl) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Queue operation cannot depend on discarded event.");
   }
+  if (auto Graph = getCommandGraph(); Graph) {
+    auto EventGraph = EventImpl->getCommandGraph();
+    if (EventGraph == nullptr) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Graph nodes cannot depend on events from outside the graph.");
+    }
+    if (EventGraph != Graph) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Graph nodes cannot depend on events from another graph.");
+    }
+  }
   CGData.MEvents.push_back(EventImpl);
 }
 
