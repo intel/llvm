@@ -130,41 +130,6 @@ queue_impl::getExtendDependencyList(const std::vector<event> &DepEvents,
   return MutableVec;
 }
 
-template <typename T>
-event queue_impl::fill(const std::shared_ptr<detail::queue_impl> &Self,
-                       void *Ptr, const T &Pattern, size_t Count,
-                       const std::vector<event> &DepEvents) {
-#if XPTI_ENABLE_INSTRUMENTATION
-  // We need a code pointer value and we use the object ptr; if code location
-  // information is available, we will have function name and source file
-  // information
-  XPTIScope PrepareNotify((void *)this,
-                          (uint16_t)xpti::trace_point_type_t::node_create,
-                          SYCL_STREAM_NAME, "memory_transfer_node");
-  PrepareNotify.addMetadata([&](auto TEvent) {
-    xpti::addMetadata(TEvent, "sycl_device",
-                      reinterpret_cast<size_t>(
-                          MDevice->is_host() ? 0 : MDevice->getHandleRef()));
-    xpti::addMetadata(TEvent, "memory_ptr", reinterpret_cast<size_t>(Ptr));
-    xpti::addMetadata(TEvent, "memory_size", Count);
-    xpti::addMetadata(TEvent, "queue_id", MQueueID);
-  });
-  // Before we notifiy the subscribers, we broadcast the 'queue_id', which was a
-  // metadata entry to TLS for use by callback handlers
-  xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
-  // Notify XPTI about the fill submission
-  PrepareNotify.notify();
-  // Emit a begin/end scope for this call
-  PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
-#endif
-  std::vector<char> VecPattern(sizeof(Pattern));
-  std::memcpy(VecPattern.data(), &Pattern, sizeof(Pattern));
-  return submitMemOpHelper(
-      Self, DepEvents, [&](handler &CGH) { CGH.fill<T>(Ptr, Pattern, Count); },
-      [](const auto &...Args) { MemoryManager::fill_usm(Args...); }, Ptr, Self,
-      Count * sizeof(Pattern), VecPattern);
-}
-
 event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Ptr, int Value, size_t Count,
                          const std::vector<event> &DepEvents) {

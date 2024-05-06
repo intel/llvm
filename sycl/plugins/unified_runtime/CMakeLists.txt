@@ -94,14 +94,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/konradkusiak97/unified-runtime.git")
   # commit ebf873fb5996c9ddca32bbb7c9330d3ffe15473c
   # Merge: 633ec408 8f375039
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
   # Date:   Thu May 2 10:56:55 2024 +0100
   #    Merge pull request #1535 from przemektmalon/przemek/sampled-image-fetch
   #    [Bindless][Exp] Add device queries for sampled image fetch
-  set(UNIFIED_RUNTIME_TAG ebf873fb5996c9ddca32bbb7c9330d3ffe15473c)
+  set(UNIFIED_RUNTIME_TAG URFixPostCommitFailure)
 
   fetch_adapter_source(level_zero
     "https://github.com/oneapi-src/unified-runtime.git"

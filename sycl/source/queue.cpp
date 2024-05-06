@@ -103,28 +103,6 @@ bool queue::is_host() const {
 
 void queue::throw_asynchronous() { impl->throw_asynchronous(); }
 
-template <typename T>
-event queue::fill(void *Ptr, const T &Pattern, size_t Count,
-                  const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->fill<T>(impl, Ptr, Pattern, Count, {});
-}
-
-template <typename T>
-event queue::fill(void *Ptr, const T &Pattern, size_t Count, event DepEvents,
-                  const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->fill<T>(impl, Ptr, Pattern, Count, {DepEvents});
-}
-
-template <typename T>
-event queue::fill(void *Ptr, const T &Pattern, size_t Count,
-                  const std::vector<event> &DepEvents,
-                  const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->fill<T>(impl, Ptr, Pattern, Count, DepEvents);
-}
-
 event queue::memset(void *Ptr, int Value, size_t Count,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);

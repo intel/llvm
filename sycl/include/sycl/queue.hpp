@@ -477,9 +477,13 @@ public:
   /// \param Count is the number of times to fill Pattern into Ptr.
   /// \return an event representing fill operation.
   template <typename T>
-  event
-  fill(void *Ptr, const T &Pattern, size_t Count,
-       const detail::code_location &CodeLoc = detail::code_location::current());
+  event fill(
+      void *Ptr, const T &Pattern, size_t Count,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit([&](handler &CGH) { CGH.fill<T>(Ptr, Pattern, Count); },
+                  CodeLoc);
+  }
 
   /// Fills the specified memory with the specified pattern.
   ///
@@ -490,9 +494,17 @@ public:
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing fill operation.
   template <typename T>
-  event
-  fill(void *Ptr, const T &Pattern, size_t Count, event DepEvent,
-       const detail::code_location &CodeLoc = detail::code_location::current());
+  event fill(
+      void *Ptr, const T &Pattern, size_t Count, event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvent);
+          CGH.fill<T>(Ptr, Pattern, Count);
+        },
+        CodeLoc);
+  }
 
   /// Fills the specified memory with the specified pattern.
   ///
@@ -504,10 +516,18 @@ public:
   /// dependencies.
   /// \return an event representing fill operation.
   template <typename T>
-  event
-  fill(void *Ptr, const T &Pattern, size_t Count,
-       const std::vector<event> &DepEvents,
-       const detail::code_location &CodeLoc = detail::code_location::current());
+  event fill(
+      void *Ptr, const T &Pattern, size_t Count,
+      const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.fill<T>(Ptr, Pattern, Count);
+        },
+        CodeLoc);
+  }
 
   /// Fills the memory pointed by a USM pointer with the value specified.
   /// No operations is done if \param Count is zero. An exception is thrown
