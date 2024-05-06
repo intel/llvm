@@ -11,9 +11,7 @@
 #include "spirv_vars.h"
 
 #include "include/asan_libdevice.hpp"
-#include "include/sanitizer_device_utils.hpp"
-#include <cstddef>
-#include <cstdint>
+#include "include/sanitizer_utils.hpp"
 
 using uptr = uintptr_t;
 using s8 = char;
