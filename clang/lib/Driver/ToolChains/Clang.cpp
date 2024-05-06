@@ -1076,6 +1076,14 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     C.getDriver().addFPGATempDepFile(DepFile, BaseName);
   };
 
+  // Do not add dependency generation information when compiling the source +
+  // footer combination.  The dependency generation is done in a separate
+  // compile step so we can retain original source information.
+  // TODO: remove this when/if we can improve the host compilation situation
+  // when dealing with the temporary file generated for the footer.
+  if (ContainsAppendFooterAction(&JA))
+    ArgM = nullptr;
+
   if (ArgM) {
     // Determine the output location.
     const char *DepFile;
@@ -5594,8 +5602,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // Add the -include-footer option to add the integration footer
       StringRef Footer = D.getIntegrationFooter(Input.getBaseInput());
       if (types::getPreprocessedType(Input.getType()) != types::TY_INVALID &&
-          !Args.hasArg(options::OPT_fno_sycl_use_footer) &&
-          !Footer.empty()) {
+           !Args.hasArg(options::OPT_fno_sycl_use_footer) &&
+           !Footer.empty()) {
         CmdArgs.push_back("-include-footer");
         CmdArgs.push_back(Args.MakeArgString(Footer));
         // When creating dependency information, filter out the generated

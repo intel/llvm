@@ -1113,7 +1113,6 @@ void clang::DoPrintPreprocessedInput(Preprocessor &PP, raw_ostream *OS,
     SourceLocation Loc = Tok.getLocation();
     PrintIncludeFooter(PP, Loc, PP.getPreprocessorOpts().IncludeFooter,
                        Callbacks);
-    //Callbacks->AddFooter(Loc, PP.getPreprocessorOpts().IncludeFooter);
   }
 
   // Remove the handlers we just added to leave the preprocessor in a sane state
