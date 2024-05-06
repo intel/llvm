@@ -52,3 +52,16 @@
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_POSTLINK %s
 // WRAPPER_OPTIONS_POSTLINK: clang-linker-wrapper{{.*}} "--triple=spir64"
 // WRAPPER_OPTIONS_POSTLINK-SAME: "--sycl-post-link-options=-post-link-opt"
+
+// -fsycl-device-only behavior
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN:          -fsycl-device-only -ccc-print-phases %s 2>&1 \
+// RUN   | FileCheck -check-prefix DEVICE_ONLY %s
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN:          --offload-device-only -ccc-print-phases %s 2>&1 \
+// RUN:  | FileCheck -check-prefix DEVICE_ONLY %s
+// DEVICE_ONLY: 0: input, "{{.*}}", c++, (device-sycl)
+// DEVICE_ONLY: 1: preprocessor, {0}, c++-cpp-output, (device-sycl)
+// DEVICE_ONLY: 2: compiler, {1}, ir, (device-sycl)
+// DEVICE_ONLY: 3: backend, {2}, ir, (device-sycl)
+// DEVICE_ONLY: 4: offload, "device-sycl (spir64-unknown-unknown)" {3}, none
