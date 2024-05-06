@@ -267,4 +267,4 @@
 // RUN: %clang_cl -### -fintelfpga -Xshardware %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK-NO-HARDWARE %s
 // CHK-FPGA-FPMODEL: aoc{{.*}} "-dep-files={{.*}}" "-vpfp-relaxed"
-// CHK-NO-HARDWARE-NOT: aoc{{.*}} "-vpfp-relaxed"
+// CHK-NO-HARDWARE-NOT: "-vpfp-relaxed"
