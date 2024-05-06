@@ -798,53 +798,7 @@ protected:
                     const std::shared_ptr<queue_impl> &PrimaryQueue,
                     const std::shared_ptr<queue_impl> &SecondaryQueue,
                     const detail::code_location &Loc,
-                    const SubmitPostProcessF *PostProcess) {
-    // Flag used to detect nested calls to submit and report an error.
-    thread_local static bool PreventSubmit = false;
-
-    if (PreventSubmit) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Calls to sycl::queue::submit cannot be nested. Command group "
-          "function objects should use the sycl::handler API instead.");
-    }
-
-    handler Handler(Self, PrimaryQueue, SecondaryQueue, MHostQueue);
-    Handler.saveCodeLoc(Loc);
-    PreventSubmit = true;
-    try {
-      CGF(Handler);
-    } catch (...) {
-      PreventSubmit = false;
-      throw;
-    }
-    PreventSubmit = false;
-
-    // Scheduler will later omit events, that are not required to execute tasks.
-    // Host and interop tasks, however, are not submitted to low-level runtimes
-    // and require separate dependency management.
-    const CG::CGTYPE Type = Handler.getType();
-    event Event = detail::createSyclObjFromImpl<event>(
-        std::make_shared<detail::event_impl>());
-
-    if (PostProcess) {
-      bool IsKernel = Type == CG::Kernel;
-      bool KernelUsesAssert = false;
-
-      if (IsKernel)
-        // Kernel only uses assert if it's non interop one
-        KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
-                           ProgramManager::getInstance().kernelUsesAssert(
-                               Handler.MKernelName.c_str());
-      finalizeHandler(Handler, Event);
-
-      (*PostProcess)(IsKernel, KernelUsesAssert, Event);
-    } else
-      finalizeHandler(Handler, Event);
-
-    addEvent(Event);
-    return Event;
-  }
+                    const SubmitPostProcessF *PostProcess);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param Self is a shared_ptr to this queue.
