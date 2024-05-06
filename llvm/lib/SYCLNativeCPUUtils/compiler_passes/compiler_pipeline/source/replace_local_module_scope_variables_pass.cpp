@@ -19,6 +19,8 @@
 #include <compiler/utils/metadata.h>
 #include <compiler/utils/pass_functions.h>
 #include <compiler/utils/replace_local_module_scope_variables_pass.h>
+#include <llvm/ADT/PriorityWorklist.h>
+#include <llvm/ADT/SmallPtrSet.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/DIBuilder.h>
 #include <llvm/IR/IRBuilder.h>
@@ -30,6 +32,8 @@
 #include <functional>
 
 using namespace llvm;
+
+#define DEBUG_TYPE "replace-module-scope-vars"
 
 namespace {
 using AlignIntTy = uint64_t;
@@ -116,6 +120,106 @@ struct GlobalVarDebugInfoWrapper final {
   // Kernel function variable was defined in
   Function *function;
 };
+
+// Check if a user is an instruction and if so add it to the Visited, Worklist
+// and FuncsToClone. If it's not an instruction repeat for all its users
+void checkUsersForInstructions(
+    User *user, llvm::SmallPtrSet<llvm::Function *, 4> &Visited,
+    llvm::SmallVector<llvm::Function *, 4> &FuncsToClone,
+    llvm::SmallPriorityWorklist<llvm::Function *, 4> &Worklist) {
+  if (auto *I = dyn_cast<Instruction>(user)) {
+    auto *F = I->getFunction();
+    if (Visited.insert(F).second) {
+      Worklist.insert(F);
+      FuncsToClone.push_back(F);
+      LLVM_DEBUG(
+          dbgs() << "Function '" << F->getName()
+                 << "' requires additional local module struct parameter\n");
+    }
+  } else {
+    for (auto *user_of_user : user->users()) {
+      checkUsersForInstructions(user_of_user, Visited, FuncsToClone, Worklist);
+    }
+  }
+}
+
+/// @brief Clone all required functions in a module, appending an extra
+/// parameter to them if they are part of the call graph required for access to
+/// local variables.
+///
+/// @param module llvm module containing the functions
+/// @param newParamType Type of the parameter to be added
+/// @param newParamAttrs Parameter attributes of the parameter to be added
+/// @return bool if the module has changed (currently always true)
+///
+/// This recurses through all the users of the local variables to look for any
+/// functions which use them as well as assuming that the top level kernels must
+/// have them.
+bool addParamToAllRequiredFunctions(llvm::Module &module,
+                                    llvm::Type *const newParamType,
+                                    const llvm::AttributeSet &newParamAttrs) {
+  llvm::SmallPtrSet<llvm::Function *, 4> Visited;
+  llvm::SmallVector<llvm::Function *, 4> FuncsToClone;
+  llvm::SmallPriorityWorklist<llvm::Function *, 4> Worklist;
+
+  // Iterate through the top level functions checking if they are kernels.
+  for (auto &F : module.functions()) {
+    // Kernel entry points must present a consistent ABI to external users
+    if (compiler::utils::isKernelEntryPt(F)) {
+      Visited.insert(&F);
+      Worklist.insert(&F);
+      FuncsToClone.push_back(&F);
+      LLVM_DEBUG(
+          dbgs() << "Function '" << F.getName()
+                 << "' requires additional local module struct parameter\n");
+      continue;
+    }
+  }
+
+  // Check each global's users if they are instructions or recurse up the user
+  // chain if not. If an Instruction is found we add it to the functions to
+  // clone.
+  for (auto &global : module.globals()) {
+    for (auto *user : global.users()) {
+      checkUsersForInstructions(user, Visited, FuncsToClone, Worklist);
+    }
+  }
+
+  // Iterate over the functions that require local struct parameters and
+  // recursively register all callers of those functions as needing local struct
+  // parameters too.
+  while (!Worklist.empty()) {
+    Function *F = Worklist.pop_back_val();
+    for (auto *U : F->users()) {
+      if (auto *CB = dyn_cast<CallBase>(U)) {
+        auto *Caller = CB->getFunction();
+        if (Visited.insert(Caller).second) {
+          Worklist.insert(Caller);
+          FuncsToClone.push_back(Caller);
+          LLVM_DEBUG(dbgs() << "Function '" << Caller->getName()
+                            << "' requires local struct parameters\n");
+        }
+      } else {
+        report_fatal_error("unhandled user type");
+      }
+    }
+  }
+
+  // Ideally cloneFunctionsAddArg() would take a list of functions, but
+  // currently takes a std::function so we search the created vector of
+  // functions.
+  return compiler::utils::cloneFunctionsAddArg(
+      module,
+      [newParamType, newParamAttrs](llvm::Module &) {
+        return compiler::utils::ParamTypeAttrsPair{newParamType, newParamAttrs};
+      },
+      [&FuncsToClone](const llvm::Function &func, bool &ClonedWithBody,
+                      bool &ClonedNoBody) {
+        ClonedWithBody = llvm::is_contained(FuncsToClone, &func);
+        ClonedNoBody = false;
+      },
+      nullptr /*updateMetaDataCallback*/);
+}
 
 }  // namespace
 
@@ -250,7 +354,7 @@ PreservedAnalyses compiler::utils::ReplaceLocalModuleScopeVariablesPass::run(
 
   // change all our functions to take a pointer to the new structTy we created
   const AttributeSet defaultAttrs;
-  addParamToAllFunctions(M, structTy->getPointerTo(), defaultAttrs);
+  addParamToAllRequiredFunctions(M, structTy->getPointerTo(), defaultAttrs);
 
   // Check if we have debug info, if so we need to fix it up to turn global
   // variable entries into local variable ones.
