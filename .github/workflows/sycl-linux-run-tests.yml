@@ -192,7 +192,8 @@ jobs:
         GITHUB_TOKEN: ${{ github.token }}
       run: |
         if [ "${{ inputs.use_dev_igc }}" = "true" ]; then
-            sudo apt-get install -yqq libllvm14;
+            # If libllvm14 is already installed (dev igc docker), still return true.
+            sudo apt-get install -yqq libllvm14 || true;
         fi
         sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json ${{ inputs.use_dev_igc == 'true' && 'llvm/devops/dependencies-igc-dev.json --use-dev-igc' || '' }} --all
     - name: Source OneAPI TBB vars.sh
@@ -261,6 +262,10 @@ jobs:
     - run: which clang++ sycl-ls
     - run: sycl-ls --verbose
     - run: SYCL_PI_TRACE=-1 sycl-ls
+    - run: |
+        if [ -f /usr/local/lib/igc/IGCTAG.txt ]; then
+          cat /usr/local/lib/igc/IGCTAG.txt
+        fi
 
     - name: Deduce E2E CMake options
       if: inputs.tests_selector == 'e2e'
