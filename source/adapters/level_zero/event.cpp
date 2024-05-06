@@ -84,8 +84,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
 
     // Get a new command list to be used on this call
     ur_command_list_ptr_t CommandList{};
-    UR_CALL(Queue->Context->getAvailableCommandList(Queue, CommandList,
-                                                    UseCopyEngine));
+    UR_CALL(Queue->Context->getAvailableCommandList(
+        Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList));
 
     ze_event_handle_t ZeEvent = nullptr;
     ur_event_handle_t InternalEvent;
@@ -256,7 +256,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     // Get an arbitrary command-list in the queue.
     ur_command_list_ptr_t CmdList;
     UR_CALL(Queue->Context->getAvailableCommandList(
-        Queue, CmdList, false /*UseCopyEngine=*/, OkToBatch));
+        Queue, CmdList, false /*UseCopyEngine=*/, NumEventsInWaitList,
+        EventWaitList, OkToBatch));
 
     // Insert the barrier into the command-list and execute.
     UR_CALL(insertBarrierIntoCmdList(CmdList, TmpWaitList, *Event, IsInternal));
@@ -311,7 +312,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
           if (ZeQueue) {
             ur_command_list_ptr_t CmdList;
             UR_CALL(Queue->Context->getAvailableCommandList(
-                Queue, CmdList, UseCopyEngine, OkToBatch, &ZeQueue));
+                Queue, CmdList, UseCopyEngine, NumEventsInWaitList,
+                EventWaitList, OkToBatch, &ZeQueue));
             CmdLists.push_back(CmdList);
           }
         }
@@ -324,7 +326,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     // Get any available command list.
     ur_command_list_ptr_t CmdList;
     UR_CALL(Queue->Context->getAvailableCommandList(
-        Queue, CmdList, false /*UseCopyEngine=*/, OkToBatch));
+        Queue, CmdList, false /*UseCopyEngine=*/, NumEventsInWaitList,
+        EventWaitList, OkToBatch));
     CmdLists.push_back(CmdList);
   }
 
@@ -710,6 +713,7 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
                                                           this->Mutex);
 
   if (!HostVisibleEvent) {
+    this->IsCreatingHostProxyEvent = true;
     if (UrQueue->ZeEventsScope != OnDemandHostVisibleProxy)
       die("getOrCreateHostVisibleEvent: missing host-visible event");
 
@@ -724,7 +728,7 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
 
     ur_command_list_ptr_t CommandList{};
     UR_CALL(UrQueue->Context->getAvailableCommandList(
-        UrQueue, CommandList, false /* UseCopyEngine */, OkToBatch))
+        UrQueue, CommandList, false /* UseCopyEngine */, 0, nullptr, OkToBatch))
 
     // Create a "proxy" host-visible event.
     UR_CALL(createEventAndAssociateQueue(
@@ -732,12 +736,18 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
         /* IsInternal */ false, /* IsMultiDevice */ false,
         /* HostVisible */ true));
 
-    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-               (CommandList->first, 1, &ZeEvent));
+    if (this->IsInnerBatchedEvent) {
+      ZE2UR_CALL(zeCommandListAppendBarrier,
+                 (CommandList->first, ZeEvent, 0, nullptr));
+    } else {
+      ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+                 (CommandList->first, 1, &ZeEvent));
+    }
     ZE2UR_CALL(zeCommandListAppendSignalEvent,
                (CommandList->first, HostVisibleEvent->ZeEvent));
 
     UR_CALL(UrQueue->executeCommandList(CommandList, false, OkToBatch))
+    this->IsCreatingHostProxyEvent = false;
   }
 
   ZeHostVisibleEvent = HostVisibleEvent->ZeEvent;
@@ -794,7 +804,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventWait(
 
           ze_event_handle_t ZeEvent = HostVisibleEvent->ZeEvent;
           logger::debug("ZeEvent = {}", ur_cast<std::uintptr_t>(ZeEvent));
-          ZE2UR_CALL(zeHostSynchronize, (ZeEvent));
+          // If this event was an inner batched event, then sync with
+          // the Queue instead of waiting on the event.
+          if (HostVisibleEvent->IsInnerBatchedEvent && Event->ZeBatchedQueue) {
+            ZE2UR_CALL(zeHostSynchronize, (Event->ZeBatchedQueue));
+          } else {
+            ZE2UR_CALL(zeHostSynchronize, (ZeEvent));
+          }
           Event->Completed = true;
         }
       }
@@ -1067,7 +1083,12 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
   std::list<ur_event_handle_t> EventsToBeReleased;
   ur_queue_handle_t AssociatedQueue = nullptr;
   {
-    std::scoped_lock<ur_shared_mutex> EventLock(Event->Mutex);
+    // If the Event is already locked, then continue with the cleanup, otherwise
+    // block on locking the event.
+    std::unique_lock<ur_shared_mutex> EventLock(Event->Mutex, std::try_to_lock);
+    if (!EventLock.owns_lock() && !Event->IsCreatingHostProxyEvent) {
+      EventLock.lock();
+    }
     if (SetEventCompleted)
       Event->Completed = true;
     // Exit early of event was already cleanedup.
@@ -1397,16 +1418,26 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
         }
 
         auto Queue = EventList[I]->UrQueue;
-        if (Queue) {
-          // The caller of createAndRetainUrZeEventList must already hold
-          // a lock of the CurQueue. Additionally lock the Queue if it
-          // is different from CurQueue.
-          // TODO: rework this to avoid deadlock when another thread is
-          //       locking the same queues but in a different order.
-          auto Lock = ((Queue == CurQueue)
-                           ? std::unique_lock<ur_shared_mutex>()
-                           : std::unique_lock<ur_shared_mutex>(Queue->Mutex));
 
+        auto CurQueueDevice = CurQueue->Device;
+        std::optional<std::unique_lock<ur_shared_mutex>> QueueLock =
+            std::nullopt;
+        // The caller of createAndRetainUrZeEventList must already hold
+        // a lock of the CurQueue. However, if the CurQueue is different
+        // then the Event's Queue, we need to drop that lock and
+        // acquire the Event's Queue lock. This is done to avoid a lock
+        // ordering issue.
+        // For the rest of this scope, CurQueue cannot be accessed.
+        // TODO: This solution is very error-prone. This requires a refactor
+        // to either have fine-granularity locks inside of the queues or
+        // to move any operations on queues other than CurQueue out
+        // of this scope.
+        if (Queue && Queue != CurQueue) {
+          CurQueue->Mutex.unlock();
+          QueueLock = std::unique_lock<ur_shared_mutex>(Queue->Mutex);
+        }
+
+        if (Queue) {
           // If the event that is going to be waited is in an open batch
           // different from where this next command is going to be added,
           // then we have to force execute of that open command-list
@@ -1449,17 +1480,17 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
         }
 
         ur_command_list_ptr_t CommandList;
-        if (Queue && Queue->Device != CurQueue->Device) {
+        if (Queue && Queue->Device != CurQueueDevice) {
           // Get a command list prior to acquiring an event lock.
           // This prevents a potential deadlock with recursive
           // event locks.
-          UR_CALL(Queue->Context->getAvailableCommandList(Queue, CommandList,
-                                                          false, true));
+          UR_CALL(Queue->Context->getAvailableCommandList(
+              Queue, CommandList, false, 0, nullptr, true));
         }
 
         std::shared_lock<ur_shared_mutex> Lock(EventList[I]->Mutex);
 
-        if (Queue && Queue->Device != CurQueue->Device &&
+        if (Queue && Queue->Device != CurQueueDevice &&
             !EventList[I]->IsMultiDevice) {
           ze_event_handle_t MultiDeviceZeEvent = nullptr;
           ur_event_handle_t MultiDeviceEvent;
@@ -1494,6 +1525,10 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
           this->UrEventList[TmpListLength]->RefCount.increment();
         }
 
+        if (QueueLock.has_value()) {
+          QueueLock.reset();
+          CurQueue->Mutex.lock();
+        }
         TmpListLength += 1;
       }
     }

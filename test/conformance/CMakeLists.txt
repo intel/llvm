@@ -9,23 +9,35 @@ function(add_test_adapter name adapter)
     set(TEST_TARGET_NAME test-${name})
     set(TEST_NAME ${name}-${adapter})
 
-    add_test(NAME ${TEST_NAME}
-        COMMAND ${CMAKE_COMMAND}
-        -D TEST_FILE=${Python3_EXECUTABLE}
-        -D TEST_ARGS="${UR_CONFORMANCE_TEST_DIR}/cts_exe.py --test_command ${CMAKE_BINARY_DIR}/bin/${TEST_TARGET_NAME} --test_devices_count=${UR_TEST_DEVICES_COUNT} --test_platforms_count=${UR_TEST_PLATFORMS_COUNT}"
-        -D MODE=stdout
-        -D MATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/${name}_${adapter}.match
-        -P ${PROJECT_SOURCE_DIR}/cmake/match.cmake
-        DEPENDS ${TEST_TARGET_NAME}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    set(TEST_COMMAND
+        "${PROJECT_BINARY_DIR}/bin/${TEST_TARGET_NAME} --test_devices_count=${UR_TEST_DEVICES_COUNT} --test_platforms_count=${UR_TEST_PLATFORMS_COUNT}"
     )
 
-    set(testEnv
-        UR_ADAPTERS_FORCE_LOAD="$<TARGET_FILE:ur_${adapter}>"
-        GTEST_COLOR=no
-    )
+    if(UR_CONFORMANCE_ENABLE_MATCH_FILES)
+        add_test(NAME ${TEST_NAME}
+            COMMAND ${CMAKE_COMMAND}
+            -D TEST_FILE=${Python3_EXECUTABLE}
+            -D TEST_ARGS="${UR_CONFORMANCE_TEST_DIR}/cts_exe.py --test_command ${TEST_COMMAND}"
+            -D MODE=stdout
+            -D MATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/${name}_${adapter}.match
+            -P ${PROJECT_SOURCE_DIR}/cmake/match.cmake
+            DEPENDS ${TEST_TARGET_NAME}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        )
+    else()
+        add_test(NAME ${TEST_NAME}
+            COMMAND ${TEST_COMMAND}
+            DEPENDS ${TEST_TARGET_NAME}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        )
+    endif()
+
+    set(TEST_ENV UR_ADAPTERS_FORCE_LOAD="$<TARGET_FILE:ur_${adapter}>")
+    if(UR_CONFORMANCE_ENABLE_MATCH_FILES)
+        list(APPEND TEST_ENV GTEST_COLOR=no)
+    endif()
     set_tests_properties(${TEST_NAME} PROPERTIES
-        ENVIRONMENT "${testEnv}"
+        ENVIRONMENT "${TEST_ENV}"
         LABELS "conformance;${adapter}")
 endfunction()
 
@@ -123,6 +135,7 @@ if(UR_DPCXX)
     add_subdirectory(kernel)
     add_subdirectory(program)
     add_subdirectory(enqueue)
+    add_subdirectory(integration)
     add_subdirectory(exp_command_buffer)
     add_subdirectory(exp_usm_p2p)
 else()
