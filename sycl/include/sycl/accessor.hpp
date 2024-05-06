@@ -27,7 +27,6 @@
 #include <sycl/detail/property_list_base.hpp>         // for PropertyListBase
 #include <sycl/detail/type_list.hpp>                  // for is_contained
 #include <sycl/detail/type_traits.hpp>                // for const_if_const_AS
-#include <sycl/device.hpp>                            // for device
 #include <sycl/exception.hpp>                         // for make_error_code
 #include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_prope...
 #include <sycl/ext/oneapi/weak_object_base.hpp>       // for getSyclWeakObj...
