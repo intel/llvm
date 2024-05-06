@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/__spirv/spirv_ops.hpp> // for __clc_BarrierInitialize
 #include <sycl/detail/pi.h>   // for PI_ERROR_INVALID_DEVICE
 #include <sycl/exception.hpp> // for runtime_error
 

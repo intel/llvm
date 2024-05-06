@@ -157,11 +157,11 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   // Emit a begin/end scope for this call
   PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
 #endif
-
+  const std::vector<char> Pattern{static_cast<char>(Value)};
   return submitMemOpHelper(
       Self, DepEvents, [&](handler &CGH) { CGH.memset(Ptr, Value, Count); },
       [](const auto &...Args) { MemoryManager::fill_usm(Args...); }, Ptr, Self,
-      Count, Value);
+      Count, Pattern);
 }
 
 void report(const code_location &CodeLoc) {
@@ -260,6 +260,14 @@ event queue_impl::memcpyFromDeviceGlobal(
 }
 
 event queue_impl::getLastEvent() {
+  {
+    // The external event is required to finish last if set, so it is considered
+    // the last event if present.
+    std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
+    if (MInOrderExternalEvent)
+      return *MInOrderExternalEvent;
+  }
+
   std::lock_guard<std::mutex> Lock{MMutex};
   if (MDiscardEvents)
     return createDiscardedEvent();
@@ -485,6 +493,26 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
                           "recording to a command graph.");
   }
 
+  // If there is an external event set, we know we are using an in-order queue
+  // and the event is required to finish after the last event in the queue. As
+  // such, we can just wait for it and finish.
+  std::optional<event> ExternalEvent = popExternalEvent();
+  if (ExternalEvent) {
+    ExternalEvent->wait();
+
+    // Additionally, we can clean up the event lists that we would have
+    // otherwise cleared.
+    if (!MEventsWeak.empty() || !MEventsShared.empty()) {
+      std::lock_guard<std::mutex> Lock(MMutex);
+      MEventsWeak.clear();
+      MEventsShared.clear();
+    }
+    if (!MStreamsServiceEvents.empty()) {
+      std::lock_guard<std::mutex> Lock(MStreamsServiceEventsMutex);
+      MStreamsServiceEvents.clear();
+    }
+  }
+
   std::vector<std::weak_ptr<event_impl>> WeakEvents;
   std::vector<event> SharedEvents;
   {
@@ -526,11 +554,6 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   }
   for (const EventImplPtr &Event : StreamsServiceEvents)
     Event->wait(Event);
-
-  // If there is an external event set, we need to wait on it.
-  std::optional<event> ExternalEvent = popExternalEvent();
-  if (ExternalEvent)
-    ExternalEvent->wait();
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
