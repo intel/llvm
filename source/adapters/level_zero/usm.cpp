@@ -16,6 +16,7 @@
 #include "event.hpp"
 #include "usm.hpp"
 
+#include "logger/ur_logger.hpp"
 #include "ur_level_zero.hpp"
 
 #include <umf_helpers.hpp>
@@ -170,7 +171,7 @@ static ur_result_t USMAllocationMakeResident(
 static ur_result_t USMDeviceAllocImpl(void **ResultPtr,
                                       ur_context_handle_t Context,
                                       ur_device_handle_t Device,
-                                      ur_usm_device_mem_flags_t *Flags,
+                                      ur_usm_device_mem_flags_t Flags,
                                       size_t Size, uint32_t Alignment) {
   std::ignore = Flags;
   // TODO: translate PI properties to Level Zero flags
@@ -212,12 +213,10 @@ static ur_result_t USMDeviceAllocImpl(void **ResultPtr,
   return UR_RESULT_SUCCESS;
 }
 
-static ur_result_t USMSharedAllocImpl(void **ResultPtr,
-                                      ur_context_handle_t Context,
-                                      ur_device_handle_t Device,
-                                      ur_usm_host_mem_flags_t *,
-                                      ur_usm_device_mem_flags_t *, size_t Size,
-                                      uint32_t Alignment) {
+static ur_result_t
+USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
+                   ur_device_handle_t Device, ur_usm_host_mem_flags_t,
+                   ur_usm_device_mem_flags_t, size_t Size, uint32_t Alignment) {
 
   // TODO: translate PI properties to Level Zero flags
   ZeStruct<ze_host_mem_alloc_desc_t> ZeHostDesc;
@@ -262,7 +261,7 @@ static ur_result_t USMSharedAllocImpl(void **ResultPtr,
 
 static ur_result_t USMHostAllocImpl(void **ResultPtr,
                                     ur_context_handle_t Context,
-                                    ur_usm_host_mem_flags_t *Flags, size_t Size,
+                                    ur_usm_host_mem_flags_t Flags, size_t Size,
                                     uint32_t Alignment) {
   std::ignore = Flags;
   // TODO: translate PI properties to Level Zero flags
@@ -597,7 +596,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMGetMemAllocInfo(
       MemAllocaType = UR_USM_TYPE_SHARED;
       break;
     default:
-      urPrint("urUSMGetMemAllocInfo: unexpected usm memory type\n");
+      logger::error("urUSMGetMemAllocInfo: unexpected usm memory type");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     return ReturnValue(MemAllocaType);
@@ -655,7 +654,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMGetMemAllocInfo(
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
   default:
-    urPrint("urUSMGetMemAllocInfo: unsupported ParamName\n");
+    logger::error("urUSMGetMemAllocInfo: unsupported ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
   return UR_RESULT_SUCCESS;
@@ -775,8 +774,8 @@ umf_result_t L0MemoryProvider::get_min_page_size(void *Ptr, size_t *PageSize) {
 
 ur_result_t L0SharedMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
                                                  uint32_t Alignment) {
-  return USMSharedAllocImpl(ResultPtr, Context, Device, nullptr, nullptr, Size,
-                            Alignment);
+  return USMSharedAllocImpl(ResultPtr, Context, Device, /*host flags*/ 0,
+                            /*device flags*/ 0, Size, Alignment);
 }
 
 ur_result_t L0SharedReadOnlyMemoryProvider::allocateImpl(void **ResultPtr,
@@ -784,20 +783,19 @@ ur_result_t L0SharedReadOnlyMemoryProvider::allocateImpl(void **ResultPtr,
                                                          uint32_t Alignment) {
   ur_usm_device_desc_t UsmDeviceDesc{};
   UsmDeviceDesc.flags = UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY;
-  ur_usm_host_desc_t UsmHostDesc{};
-  return USMSharedAllocImpl(ResultPtr, Context, Device, &UsmDeviceDesc.flags,
-                            &UsmHostDesc.flags, Size, Alignment);
+  return USMSharedAllocImpl(ResultPtr, Context, Device, UsmDeviceDesc.flags,
+                            /*host flags*/ 0, Size, Alignment);
 }
 
 ur_result_t L0DeviceMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
                                                  uint32_t Alignment) {
-  return USMDeviceAllocImpl(ResultPtr, Context, Device, nullptr, Size,
+  return USMDeviceAllocImpl(ResultPtr, Context, Device, /* flags */ 0, Size,
                             Alignment);
 }
 
 ur_result_t L0HostMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
                                                uint32_t Alignment) {
-  return USMHostAllocImpl(ResultPtr, Context, nullptr, Size, Alignment);
+  return USMHostAllocImpl(ResultPtr, Context, /* flags */ 0, Size, Alignment);
 }
 
 ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
@@ -822,7 +820,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
       break;
     }
     default: {
-      urPrint("urUSMPoolCreate: unexpected chained stype\n");
+      logger::error("urUSMPoolCreate: unexpected chained stype");
       throw UsmAllocationException(UR_RESULT_ERROR_INVALID_ARGUMENT);
     }
     }

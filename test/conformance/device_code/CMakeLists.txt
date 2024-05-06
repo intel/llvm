@@ -52,6 +52,11 @@ macro(add_device_binary SOURCE_FILE)
             set(EXTRA_ENV DYLD_FALLBACK_LIBRARY_PATH=${UR_SYCL_LIBRARY_DIR})
         endif()
     endif()
+
+    # Convert build flags to a regular CMake list, splitting by unquoted white
+    # space as necessary.
+    separate_arguments(DPCXX_BUILD_FLAGS_LIST NATIVE_COMMAND "${UR_DPCXX_BUILD_FLAGS}")
+
     foreach(TRIPLE ${TARGET_TRIPLES})
         set(EXE_PATH "${DEVICE_BINARY_DIR}/${KERNEL_NAME}_${TRIPLE}")
         if(${TRIPLE} MATCHES "amd")
@@ -67,10 +72,19 @@ macro(add_device_binary SOURCE_FILE)
         if(${TRIPLE} MATCHES "amd" AND ${KERNEL_NAME} MATCHES "image_copy")
             continue()
         endif()
+
+        # This seems to fail to build the SYCL binary due to the invalid asm
+        if(${TRIPLE} MATCHES "cuda" AND ${KERNEL_NAME} MATCHES "build_failure")
+            continue()
+        endif()
+        if(${TRIPLE} MATCHES "amd" AND ${KERNEL_NAME} MATCHES "build_failure")
+            continue()
+        endif()
+
         add_custom_command(OUTPUT ${EXE_PATH}
             COMMAND ${UR_DPCXX} -fsycl -fsycl-targets=${TRIPLE} -fsycl-device-code-split=off 
             ${AMD_TARGET_BACKEND} ${AMD_OFFLOAD_ARCH} ${AMD_NOGPULIB}
-            ${SOURCE_FILE} -o ${EXE_PATH}
+            ${DPCXX_BUILD_FLAGS_LIST} ${SOURCE_FILE} -o ${EXE_PATH}
 
             COMMAND ${CMAKE_COMMAND} -E env ${EXTRA_ENV} SYCL_DUMP_IMAGES=true
             ${EXE_PATH} || exit 0
@@ -92,11 +106,16 @@ add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/fill_usm.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/foo.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/image_copy.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/mean.cpp)
+add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/cpy_and_mult.cpp)
+add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/cpy_and_mult_usm.cpp)
+add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/multiply.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/spec_constant.cpp)
+add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/spec_constant_multiple.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/usm_ll.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/saxpy.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/saxpy_usm.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/indexers_usm.cpp)
+add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/build_failure.cpp)
 
 set(KERNEL_HEADER ${UR_CONFORMANCE_DEVICE_BINARIES_DIR}/kernel_entry_points.h)
 add_custom_command(OUTPUT ${KERNEL_HEADER}

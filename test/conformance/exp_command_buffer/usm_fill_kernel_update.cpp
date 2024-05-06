@@ -122,12 +122,10 @@ TEST_P(USMFillCommandTest, UpdateParameters) {
         0,                // numNewMemObjArgs
         1,                // numNewPointerArgs
         1,                // numNewValueArgs
-        0,                // numNewExecInfos
         0,                // newWorkDim
         nullptr,          // pNewMemObjArgList
         &new_output_desc, // pNewPointerArgList
         &new_input_desc,  // pNewValueArgList
-        nullptr,          // pNewExecInfoList
         nullptr,          // pNewGlobalWorkOffset
         updatable_execution_range_support ? &new_global_size
                                           : nullptr, // pNewGlobalWorkSize
@@ -143,81 +141,6 @@ TEST_P(USMFillCommandTest, UpdateParameters) {
 
     // Verify that update occurred correctly
     Validate((uint32_t *)new_shared_ptr, new_global_size, new_val);
-}
-
-// Test updating the kernel execution info
-TEST_P(USMFillCommandTest, UpdateExecInfo) {
-    // Run command-buffer prior to update an verify output
-    ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
-                                             nullptr, nullptr));
-    ASSERT_SUCCESS(urQueueFinish(queue));
-    Validate((uint32_t *)shared_ptr, global_size, val);
-
-    ur_exp_command_buffer_update_exec_info_desc_t new_exec_info_descs[3];
-
-    // Update direct access flag
-    bool indirect_access = false;
-    new_exec_info_descs[0] = {
-        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_EXEC_INFO_DESC, // stype
-        nullptr,                                                    // pNext
-        UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS,                    // propName
-        sizeof(indirect_access),                                    // propSize
-        nullptr,          // pProperties
-        &indirect_access, // pPropValue
-    };
-
-    // Update cache config
-    ur_kernel_cache_config_t cache_config = UR_KERNEL_CACHE_CONFIG_DEFAULT;
-    new_exec_info_descs[1] = {
-        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_EXEC_INFO_DESC, // stype
-        nullptr,                                                    // pNext
-        UR_KERNEL_EXEC_INFO_CACHE_CONFIG,                           // propName
-        sizeof(cache_config),                                       // propSize
-        nullptr,       // pProperties
-        &cache_config, // pPropValue
-    };
-
-    // Create a new USM allocation to set indirect access for
-    ASSERT_SUCCESS(urUSMSharedAlloc(context, device, nullptr, nullptr,
-                                    allocation_size, &new_shared_ptr));
-    ASSERT_NE(new_shared_ptr, nullptr);
-    void *pointers = {new_shared_ptr};
-    new_exec_info_descs[2] = {
-        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_EXEC_INFO_DESC, // stype
-        nullptr,                                                    // pNext
-        UR_KERNEL_EXEC_INFO_USM_PTRS,                               // propName
-        sizeof(pointers),                                           // propSize
-        nullptr,   // pProperties
-        &pointers, // pPropValue
-    };
-
-    ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
-        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
-        nullptr,                                                        // pNext
-        0,                   // numNewMemObjArgs
-        0,                   // numNewPointerArgs
-        0,                   // numNewValueArgs
-        3,                   // numNewExecInfos
-        0,                   // newWorkDim
-        nullptr,             // pNewMemObjArgList
-        nullptr,             // pNewPointerArgList
-        nullptr,             // pNewValueArgList
-        new_exec_info_descs, // pNewExecInfoList
-        nullptr,             // pNewGlobalWorkOffset
-        nullptr,             // pNewGlobalWorkSize
-        nullptr,             // pNewLocalWorkSize
-    };
-
-    // Update kernel and enqueue command-buffer again
-    ASSERT_SUCCESS(
-        urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
-    ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
-                                             nullptr, nullptr));
-    ASSERT_SUCCESS(urQueueFinish(queue));
-
-    // Verify results are correct, although exec info modifications should
-    // have no effect on output
-    Validate((uint32_t *)shared_ptr, global_size, val);
 }
 
 // Test updating a command-buffer with multiple USM fill kernel commands
@@ -351,12 +274,10 @@ TEST_P(USMMultipleFillCommandTest, UpdateAllKernels) {
             0,                // numNewMemObjArgs
             1,                // numNewPointerArgs
             1,                // numNewValueArgs
-            0,                // numNewExecInfos
             0,                // newWorkDim
             nullptr,          // pNewMemObjArgList
             &new_output_desc, // pNewPointerArgList
             &new_input_desc,  // pNewValueArgList
-            nullptr,          // pNewExecInfoList
             nullptr,          // pNewGlobalWorkOffset
             nullptr,          // pNewGlobalWorkSize
             nullptr,          // pNewLocalWorkSize
