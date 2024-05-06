@@ -118,15 +118,15 @@ protected:
 
 ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t Context,
                                ur_device_handle_t Device,
-                               ur_usm_device_mem_flags_t *Flags, size_t Size,
+                               ur_usm_device_mem_flags_t Flags, size_t Size,
                                uint32_t Alignment);
 
 ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
                                ur_device_handle_t Device,
-                               ur_usm_host_mem_flags_t *,
-                               ur_usm_device_mem_flags_t *, size_t Size,
+                               ur_usm_host_mem_flags_t,
+                               ur_usm_device_mem_flags_t, size_t Size,
                                uint32_t Alignment);
 
 ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t Context,
-                             ur_usm_host_mem_flags_t *Flags, size_t Size,
+                             ur_usm_host_mem_flags_t Flags, size_t Size,
                              uint32_t Alignment);
