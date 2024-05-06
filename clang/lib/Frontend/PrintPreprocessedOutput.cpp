@@ -344,7 +344,8 @@ void PrintPPOutputPPCallbacks::startNewLineIfNeeded() {
     EmittedDirectiveOnThisLine = false;
   }
 }
-void PrintPPOutputPPCallbacks::AddFooter(SourceLocation Loc, std::string Footer) {
+void PrintPPOutputPPCallbacks::AddFooter(SourceLocation Loc,
+                                         std::string Footer) {
   SourceManager &SourceMgr = SM;
 
   PresumedLoc UserLoc = SourceMgr.getPresumedLoc(Loc);
@@ -843,7 +844,7 @@ FileID ComputeValidFooterFileID(SourceManager &SM, StringRef Footer) {
       SM.getFileManager().getFileRef(Footer);
   if (ExpectedFileRef) {
     FooterFileID = SM.getOrCreateFileID(ExpectedFileRef.get(),
-                                      SrcMgr::CharacteristicKind::C_User);
+                                        SrcMgr::CharacteristicKind::C_User);
   }
   assert(FooterFileID.isValid() && "expecting a valid footer FileID");
   return FooterFileID;
