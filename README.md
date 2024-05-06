@@ -13,7 +13,6 @@
 ## Table of contents
 
 - [Unified Runtime](#unified-runtime)
-  - [Adapters](#adapters)
   - [Table of contents](#table-of-contents)
   - [Contents of the repo](#contents-of-the-repo)
   - [Integration](#integration)
@@ -29,7 +28,7 @@
     - [Adapter naming convention](#adapter-naming-convention)
     - [Source code generation](#source-code-generation)
     - [Documentation](#documentation)
-6. [Release Process](#release-process)
+  - [Release Process](#release-process)
 
 ## Contents of the repo
 
@@ -122,6 +121,7 @@ List of options provided by CMake:
 | UR_BUILD_TOOLS | Build tools | ON/OFF | ON |
 | UR_FORMAT_CPP_STYLE | Format code style | ON/OFF | OFF |
 | UR_DEVELOPER_MODE | Treat warnings as errors and enables additional checks | ON/OFF | OFF |
+| UR_ENABLE_FAST_SPEC_MODE | Enable fast specification generation mode | ON/OFF | OFF |
 | UR_USE_ASAN | Enable AddressSanitizer | ON/OFF | OFF |
 | UR_USE_TSAN | Enable ThreadSanitizer | ON/OFF | OFF |
 | UR_USE_UBSAN | Enable UndefinedBehavior Sanitizer | ON/OFF | OFF |
@@ -130,6 +130,7 @@ List of options provided by CMake:
 | UR_ENABLE_SANITIZER | Enable device sanitizer layer | ON/OFF | ON |
 | UR_CONFORMANCE_TARGET_TRIPLES | SYCL triples to build CTS device binaries for | Comma-separated list | spir64 |
 | UR_CONFORMANCE_AMD_ARCH | AMD device target ID to build CTS binaries for | string | `""` |
+| UR_CONFORMANCE_ENABLE_MATCH_FILES | Enable CTS match files | ON/OFF | ON |
 | UR_BUILD_ADAPTER_L0     | Build the Level-Zero adapter            | ON/OFF     | OFF     |
 | UR_BUILD_ADAPTER_OPENCL | Build the OpenCL adapter                | ON/OFF     | OFF     |
 | UR_BUILD_ADAPTER_CUDA   | Build the CUDA adapter                  | ON/OFF     | OFF     |
@@ -139,6 +140,7 @@ List of options provided by CMake:
 | UR_HIP_PLATFORM         | Build HIP adapter for AMD or NVIDIA platform           | AMD/NVIDIA | AMD     |
 | UR_ENABLE_COMGR         | Enable comgr lib usage           | AMD/NVIDIA | AMD     |
 | UR_DPCXX | Path of the DPC++ compiler executable to build CTS device binaries | File path | `""` |
+| UR_DPCXX_BUILD_FLAGS | Build flags to pass to DPC++ when compiling device programs | Space-separated options list | `""` |
 | UR_SYCL_LIBRARY_DIR | Path of the SYCL runtime library directory to build CTS device binaries | Directory path | `""` |
 | UR_HIP_ROCM_DIR | Path of the default ROCm HIP installation | Directory path | `/opt/rocm` |
 | UR_HIP_INCLUDE_DIR | Path of the ROCm HIP include directory | Directory path | `${UR_HIP_ROCM_DIR}/include` |
