@@ -1,6 +1,6 @@
 // REQUIRES: opencl, cpu
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // The purpose of this test is to check that the forward_progress_guarantee
 // properties associated with a kernel are compiled, submitted and verified
