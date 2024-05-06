@@ -322,8 +322,7 @@ llvm::Type *getJointMatrixINTELExtType(llvm::Type *CompTy,
 
 llvm::Type *
 getCooperativeMatrixKHRExtType(llvm::Type *CompTy,
-                               ArrayRef<TemplateArgument> TemplateArgs,
-                               const unsigned Val = 0) {
+                               ArrayRef<TemplateArgument> TemplateArgs) {
   assert(TemplateArgs.size() == 5 &&
          "Wrong CooperativeMatrixKHR template parameters number");
   std::vector<unsigned> Params;
