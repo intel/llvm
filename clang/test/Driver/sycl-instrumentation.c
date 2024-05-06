@@ -14,10 +14,10 @@
 // RUN: | FileCheck -check-prefixes=CHECK-SPIRV %s
 
 // CHECK-SPIRV: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-instrument-device-code"
-// CHECK-SPIRV: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-itt-user-wrappers.{{o|obj}}" "-output={{.*}}libsycl-itt-user-wrappers-{{.*}}.{{o|obj}}" "-unbundle"
-// CHECK-SPIRV: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-itt-compiler-wrappers.{{o|obj}}" "-output={{.*}}libsycl-itt-compiler-wrappers-{{.*}}.{{o|obj}}" "-unbundle"
-// CHECK-SPIRV: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-itt-stubs.{{o|obj}}" "-output={{.*}}libsycl-itt-stubs-{{.*}}.{{o|obj}}" "-unbundle"
-// CHECK-SPIRV: llvm-link{{.*}} "-only-needed" "{{.*}}" "-o" "{{.*}}.bc" "--suppress-warnings"
+// CHECK-SPIRV: llvm-link{{.*}} "-only-needed"
+// CHECK-SPIRV-SAME: "{{.*}}libsycl-itt-user-wrappers.bc"
+// CHECK-SPIRV-SAME: "{{.*}}libsycl-itt-compiler-wrappers.bc"
+// CHECK-SPIRV-SAME: "{{.*}}libsycl-itt-stubs.bc"
 // CHECK-HOST-NOT: "-cc1"{{.*}} "-fsycl-is-host"{{.*}} "-fsycl-instrument-device-code"
 
 // RUN: %clangxx -fsycl -fno-sycl-instrument-device-code -fsycl-targets=spir64 -### %s 2>&1 \
@@ -26,4 +26,4 @@
 // RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
 
 // CHECK-NONPASSED-NOT: "-fsycl-instrument-device-code"
-// CHECK-NONPASSED-NOT: "-input={{.*}}libsycl-itt-{{.*}}.{{o|obj}}"
+// CHECK-NONPASSED-NOT: llvm-link{{.*}} {{.*}}libsycl-itt-{{.*}}.bc"

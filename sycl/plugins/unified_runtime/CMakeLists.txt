@@ -95,17 +95,23 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 7371150b3a525d9c69a0790f9abf59089eb0c46c
-  # Merge: cb44d9ab bb45b7c5
+  # commit ebf873fb5996c9ddca32bbb7c9330d3ffe15473c
+  # Merge: 633ec408 8f375039
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Apr 26 15:44:19 2024 +0100
-  #    Merge pull request #1442 from Bensuo/ben/optimize-cmdbuffer-submission
-  #    [EXP][Command-Buffer] Optimize L0 command buffer submission
-  set(UNIFIED_RUNTIME_TAG 7371150b3a525d9c69a0790f9abf59089eb0c46c)
+  # Date:   Thu May 2 10:56:55 2024 +0100
+  #    Merge pull request #1535 from przemektmalon/przemek/sampled-image-fetch
+  #    [Bindless][Exp] Add device queries for sampled image fetch
+  set(UNIFIED_RUNTIME_TAG ebf873fb5996c9ddca32bbb7c9330d3ffe15473c)
 
   fetch_adapter_source(level_zero
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    "https://github.com/oneapi-src/unified-runtime.git"
+    # commit fb342f06e1ac244c5995b7be458d0c32a1ba17ab
+    # Merge: a44e81b5 7186d6ce
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Fri May 3 11:55:26 2024 +0100
+    #     Merge pull request #1549 from igchor/event_fix
+    #     Fix adding event to queue cache
+    fb342f06e1ac244c5995b7be458d0c32a1ba17ab
   )
 
   fetch_adapter_source(opencl

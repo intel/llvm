@@ -814,6 +814,25 @@ when passed on finalization of a modifiable `command_graph`. For further
 information see <<executable-graph-update, the section on Executable Graph
 Update>>.
 
+==== Enable-Profiling Property [[enable-profiling]]
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::property::graph {
+class enable_profiling {
+  public:
+    enable_profiling() = default;
+};
+}
+----
+
+The `property::graph::enable_profiling` property enables profiling events
+returned from submissions of the executable graph. Passing this property
+implies disabling certain optimizations. As a result, the execution time of a
+graph finalized with profiling enabled is longer than that of a graph without
+profiling capability. An error will be thrown when attempting to profile an
+event from a graph submission that was created without this property.
+
 ==== Graph Member Functions
 
 Table {counter: tableNumber}. Constructor of the `command_graph` class.
@@ -1345,9 +1364,12 @@ ways:
 2. `property::queue::enable_profiling` - This property has no effect on graph
    recording. When set on the queue a graph is submitted to however, it allows
    profiling information to be obtained from the event returned by a graph
-   submission. As it is not defined how a submitted graph will be split up for
-   scheduling at runtime, the `uint64_t` timestamp reported from a profiling
-   query on a graph execution event has the following semantics, which may be
+   submission. The executable graph used for this submission must have been
+   created with the `enable_profiling` property, see
+   <<enable-profiling, Enable-Profiling>> for more details. As it is not
+   defined how a submitted graph will be split up for scheduling at runtime,
+   the `uint64_t` timestamp reported from a profiling query on a graph
+   execution event has the following semantics, which may be
    pessimistic about execution time on device.
 
    * `info::event_profiling::command_submit` - Timestamp when the graph is
