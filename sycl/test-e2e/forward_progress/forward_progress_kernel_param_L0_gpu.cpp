@@ -24,7 +24,7 @@ void check_props(sycl::queue &q) {}
 
 template <>
 void check_props<forward_progress_guarantee::parallel>(sycl::queue &q) {
-  constexpr auto guarantee == forward_progress_guarantee::parallel;
+  constexpr auto guarantee = forward_progress_guarantee::parallel;
   // Check properties at execution_scope::root_group coordination level
   q.single_task(
       properties{work_group_progress<guarantee, execution_scope::root_group>},
