@@ -94,8 +94,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/aarongreig/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG aaron/minorL0DeviceInfoFixes)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit fcd3693d1b54ddad1fcbe9e2c749c01628739346
+  # Merge: c8a0d84b 5d51c9a1
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Fri May 3 19:12:25 2024 +0100
+  #    Merge pull request #1513 from aarongreig/aaron/minorL0DeviceInfoFixes
+  #    Fix some minor bugs in L0 urDeviceGetInfo revealed by PI->UR port
+  set(UNIFIED_RUNTIME_TAG fcd3693d1b54ddad1fcbe9e2c749c01628739346)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
