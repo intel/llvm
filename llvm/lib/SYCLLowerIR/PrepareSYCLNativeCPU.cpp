@@ -190,29 +190,15 @@ static Type *getStateType(Module &M) {
 
 static Function *addReplaceFunc(Module &M, StringRef Name, Type *RetTy,
                                 const SmallVector<Value *> &Args) {
-  // emit empty functions for now.
-  auto &Ctx = M.getContext();
+  // Emit declarations if builtins are not found, e.g. when the device library
+  // is not linked by some lit tests. TODO: Change those lit tests and
+  // raise compiler error instead.
   llvm::SmallVector<llvm::Type*> Paras;
   for (Value *arg: Args)
     Paras.push_back(arg->getType());
   FunctionType *FTy = FunctionType::get(RetTy, Paras, false);
   auto FCallee = M.getOrInsertFunction(Name, FTy);
-  auto *F = cast<Function>(FCallee.getCallee());
-  if (!RetTy->isIntegerTy() && !RetTy->isVoidTy())
-    return F;
-  IRBuilder<> Builder(Ctx);
-  BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
-  Builder.SetInsertPoint(BB);
-  if (RetTy->isVoidTy())
-    Builder.CreateRetVoid();
-  else {
-    auto bits = RetTy->getPrimitiveSizeInBits().getFixedValue();
-    auto zval = llvm::APInt::getZero(bits);
-    Builder.CreateRet(Builder.getInt(zval));
-  }
-  Function *Res = F;
-  Res->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
-  return Res;
+  return cast<Function>(FCallee.getCallee());
 }
 
 static Function *getReplaceFunc(Module &M, StringRef Name, const Use &U,
