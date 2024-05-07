@@ -706,15 +706,17 @@ scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
     addrs = addrs + byte_offsets_i;
     if constexpr (sizeof(T) == 1) {
       detail::check_wrregion_params<N * 4, N, /*VS*/ 0, N, 4>();
-      simd<T, N * 4> D = __esimd_wrregion<Tx, N * 4, N, /*VS*/ 0, N, 4>(
-          D.data(), vals.data(), 0);
+      simd<T, N * 4> D; // Intentionally undefined.
+      D = __esimd_wrregion<Tx, N * 4, N, /*VS*/ 0, N, 4>(D.data(), vals.data(),
+                                                         0);
       __esimd_svm_scatter<Tx, N, detail::ElemsPerAddrEncoding<4>(),
                           detail::ElemsPerAddrEncoding<1>()>(
           addrs.data(), D.data(), mask.data());
     } else if constexpr (sizeof(T) == 2) {
       detail::check_wrregion_params<N * 2, N, /*VS*/ 0, N, 2>();
-      simd<Tx, N * 2> D = __esimd_wrregion<Tx, N * 2, N, /*VS*/ 0, N, 2>(
-          D.data(), vals.data(), 0);
+      simd<Tx, N * 2> D; // Intentionally undefined.
+      D = __esimd_wrregion<Tx, N * 2, N, /*VS*/ 0, N, 2>(D.data(), vals.data(),
+                                                         0);
       __esimd_svm_scatter<Tx, N, detail::ElemsPerAddrEncoding<2>(),
                           detail::ElemsPerAddrEncoding<2>()>(
           addrs.data(), D.data(), mask.data());
