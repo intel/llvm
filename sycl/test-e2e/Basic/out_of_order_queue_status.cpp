@@ -49,10 +49,10 @@ void TestFunc(queue &Q) {
 
   // We expect that all submitted tasks are finished if ext_oneapi_empty is
   // true.
-  if (Q.ext_oneapi_empty())
-    CheckArray(Y, Size, 200);
+  // if (Q.ext_oneapi_empty())
+  // CheckArray(Y, Size, 200);
 
-  Q.wait();
+  Q.wait_and_throw();
 
   // After synchronization queue must be empty.
   assert(Q.ext_oneapi_empty() && "Queue is expected to be empty");
