@@ -159,11 +159,10 @@ public:
   void operator()(Group g, sycl::span<T, ElementsPerWorkItem> values,
                   Properties properties) {
 #ifdef __SYCL_DEVICE_ONLY__
-    auto range_size = g.get_local_linear_range();
-    static const CONSTANT char fmt[] = "%s\n";
+    auto range_size = g.get_local_range().size();
     if (scratch_size >=
         memory_required(Group::fence_scope, g.get_local_range().size())) {
-      ext::oneapi::experimental::printf(fmt, "Algorithm applied");
+
       size_t local_id = g.get_local_linear_id();
       auto temp = reinterpret_cast<T *>(scratch);
 
@@ -179,7 +178,10 @@ public:
             return comp(std::get<0>(x), std::get<0>(y));
           },
           scratch + range_size * ElementsPerWorkItem * sizeof(T) + alignof(T));
-
+      // sycl::detail::merge_sort(
+      //     g, temp, range_size * ElementsPerWorkItem,
+      //     comp,
+      //     scratch + range_size * ElementsPerWorkItem * sizeof(T) + alignof(T));
       // from temp
       std::size_t shift{};
       for (std::uint32_t i = 0; i < ElementsPerWorkItem; ++i) {
@@ -190,8 +192,20 @@ public:
         }
         values[i] = temp[shift];
       }
+
+      // if (local_id == 0) {
+      //   ext::oneapi::experimental::printf(fmt, "\nAfter sort", range_size, g.get_group_linear_id());
+      //   for (std::uint32_t i = 0; i < range_size; ++i) {
+      //     for (std::uint32_t j = 0; j < ElementsPerWorkItem; ++j) {
+      //       static const CONSTANT char fmt[] = "%d ";
+      //       ext::oneapi::experimental::printf(fmt, temp[i * ElementsPerWorkItem + j]);
+      //     }
+      //   }
+      // }
+
+
     } else {
-      ext::oneapi::experimental::printf(fmt, "UNEXPECTED");
+      //ext::oneapi::experimental::printf(fmt, "UNEXPECTED");
     }
 #endif
     (void)values;
@@ -201,7 +215,7 @@ public:
 
   static constexpr std::size_t memory_required(sycl::memory_scope scope,
                                                size_t range_size) {
-    return 2 * joint_sorter<>::template memory_required<T>(scope, range_size);
+    return 2 * joint_sorter<>::template memory_required<T>(scope, range_size * ElementsPerWorkItem);
   }
 };
 

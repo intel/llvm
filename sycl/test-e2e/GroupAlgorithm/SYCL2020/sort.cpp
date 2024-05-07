@@ -731,34 +731,52 @@ void RunSortOverGroupArray(sycl::queue &Q, const std::vector<T> &DataToSort,
              std::byte *ScratchPtrDefault =
                  &ScratchDefault[0] + ScratchShiftDefault;
 
-             if constexpr (std::is_same_v<Compare, std::less<T>>)
-               oneapi_exp::sort_over_group(
-                   oneapi_exp::group_with_scratchpad(
-                       Group,
-                       sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
-                   sycl::span<T, ElementsPerWorkItem>{
-                       &AccToSort0[GlobalLinearID],
-                       &AccToSort0[GlobalLinearID] + 1},
-                   Prop); // (4)
+              T ValsPrivate[ElementsPerWorkItem];
 
+              auto ReadToPrivate = [&](auto Acc) {
+                  for(std::size_t I = 0; I < ElementsPerWorkItem; ++I)
+                    ValsPrivate[I] = Acc[GlobalLinearID * ElementsPerWorkItem + I];
+              };
+              auto WriteToGlobal = [&](auto Acc) {
+                for(std::size_t I = 0; I < ElementsPerWorkItem; ++I)
+                  Acc[GlobalLinearID * ElementsPerWorkItem + I] = ValsPrivate[I];
+              };
+
+              if constexpr (std::is_same_v<Compare, std::less<T>>) {
+                ReadToPrivate(AccToSort0);
+                oneapi_exp::sort_over_group(
+                    oneapi_exp::group_with_scratchpad(
+                        Group,
+                        sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
+                    sycl::span<T, ElementsPerWorkItem>{
+                        ValsPrivate,
+                        ValsPrivate + ElementsPerWorkItem},
+                    Prop); // (4)
+                WriteToGlobal(AccToSort0);
+              }
+
+            ReadToPrivate(AccToSort1);
              oneapi_exp::sort_over_group(
                  oneapi_exp::group_with_scratchpad(
                      Group,
                      sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
                  sycl::span<T, ElementsPerWorkItem>{
-                     &AccToSort1[GlobalLinearID],
-                     &AccToSort1[GlobalLinearID] + 1},
+                     ValsPrivate,
+                     ValsPrivate + ElementsPerWorkItem},
                  Comp, Prop); // (5)
+            WriteToGlobal(AccToSort1);
 
+            ReadToPrivate(AccToSort2);
              oneapi_exp::sort_over_group(
                  Group,
                  sycl::span<T, ElementsPerWorkItem>{
-                     &AccToSort2[GlobalLinearID],
-                     &AccToSort2[GlobalLinearID] + 1},
+                     ValsPrivate,
+                     ValsPrivate + ElementsPerWorkItem},
                  oneapi_exp::default_sorters::group_sorter<
                      T, ElementsPerWorkItem, Compare>(
                      sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
                  Prop); // (6)
+            WriteToGlobal(AccToSort2);
 
              // Each sub-group should use it's own part of the scratch pad
              const size_t ScratchShiftRadix =
@@ -769,15 +787,18 @@ void RunSortOverGroupArray(sycl::queue &Q, const std::vector<T> &DataToSort,
              std::byte *ScratchPtrRadix = &ScratchRadix[0] + ScratchShiftRadix;
 
              /* // Radix doesn't support custom types */
-             if constexpr (!std::is_same_v<CustomType, T>)
+             if constexpr (!std::is_same_v<CustomType, T>) {
+              ReadToPrivate(AccToSort3);
                oneapi_exp::sort_over_group(
                    Group,
                    sycl::span<T, ElementsPerWorkItem>{
-                       &AccToSort3[GlobalLinearID],
-                       &AccToSort3[GlobalLinearID] + 1},
+                       ValsPrivate,
+                       ValsPrivate + ElementsPerWorkItem},
                    RadixSorterT(
                        sycl::span{ScratchPtrRadix, LocalMemorySizeRadix}),
                    Prop); // (6) radix
+                WriteToGlobal(AccToSort3);
+             }
            });
      }).wait_and_throw();
   }
@@ -808,9 +829,9 @@ void RunSortOverGroupArray(sycl::queue &Q, const std::vector<T> &DataToSort,
     };
 
    // if constexpr (std::is_same_v<Property, oneapi_exp::detail::is_blocked>) {
-        printVec("DataToSort", DataToSort);
-        printVec("DataSorted", DataSorted);
-        printVec("DataToSortCase1", DataToSortCase1);
+        // printVec("\nDataToSort", DataToSort);
+        // printVec("DataSorted", DataSorted);
+        // printVec("DataToSortCase1", DataToSortCase1);
    // }
 
 
@@ -825,248 +846,289 @@ void RunSortOverGroupArray(sycl::queue &Q, const std::vector<T> &DataToSort,
   }
 }
 
-// template <UseGroupT UseGroup, int Dims, size_t ElementsPerWorkItem,
-//           class Property = oneapi_exp::detail::is_blocked, class T, class U,
-//           class Compare>
-// void RunSortKeyValueOverGroupArray(sycl::queue &Q,
-//                                    const std::vector<T> &DataToSort,
-//                                    const std::vector<U> &KeysToSort,
-//                                    const Compare &Comp, Property Prop) {
-//   const size_t WorkSize = DataToSort.size() / ElementsPerWorkItem;
-//   const size_t NumSubGroups = WorkSize / ReqSubGroupSize + 1;
+template <UseGroupT UseGroup, int Dims, size_t ElementsPerWorkItem,
+          class Property = oneapi_exp::detail::is_blocked, class T, class U,
+          class Compare>
+void RunSortKeyValueOverGroupArray(sycl::queue &Q,
+                                   const std::vector<T> &DataToSort,
+                                   const std::vector<U> &KeysToSort,
+                                   const Compare &Comp, Property Prop) {
+  const size_t WorkSize = DataToSort.size() / ElementsPerWorkItem;
+  const size_t NumSubGroups = WorkSize / ReqSubGroupSize + 1;
 
-//   const sycl::nd_range<Dims> NDRange = [&]() {
-//     if constexpr (Dims == 1)
-//       return sycl::nd_range<1>{{WorkSize}, {WorkSize}};
-//     else
-//       return sycl::nd_range<2>{{1, WorkSize}, {1, WorkSize}};
-//     static_assert(Dims < 3,
-//                   "Only one and two dimensional kernels are supported");
-//   }();
+  const sycl::nd_range<Dims> NDRange = [&]() {
+    if constexpr (Dims == 1)
+      return sycl::nd_range<1>{{WorkSize}, {WorkSize}};
+    else
+      return sycl::nd_range<2>{{1, WorkSize}, {1, WorkSize}};
+    static_assert(Dims < 3,
+                  "Only one and two dimensional kernels are supported");
+  }();
 
-//   using RadixSorterT = oneapi_exp::radix_sorters::group_key_value_sorter<
-//       typename ConvertToSimpleType<T>::Type, U,
-//       ConvertToSortingOrder<Compare>::Type, ElementsPerWorkItem>;
+  using RadixSorterT = oneapi_exp::radix_sorters::group_key_value_sorter<
+      typename ConvertToSimpleType<T>::Type, U,
+      ConvertToSortingOrder<Compare>::Type, ElementsPerWorkItem>;
 
-//   std::size_t LocalMemorySizeDefault = 0;
-//   std::size_t LocalMemorySizeRadix = 0;
-//   if (UseGroup == UseGroupT::SubGroup) {
-//     // Each sub-group needs a piece of memory for sorting
-//     LocalMemorySizeDefault =
-//         oneapi_exp::default_sorters::group_key_value_sorter<
-//             T, U, Compare>::memory_required(sycl::memory_scope::sub_group,
-//                                             ReqSubGroupSize);
+  std::size_t LocalMemorySizeDefault = 0;
+  std::size_t LocalMemorySizeRadix = 0;
+  if (UseGroup == UseGroupT::SubGroup) {
+    // Each sub-group needs a piece of memory for sorting
+    LocalMemorySizeDefault =
+        oneapi_exp::default_sorters::group_key_value_sorter<
+            T, U, Compare, ElementsPerWorkItem>::memory_required(sycl::memory_scope::sub_group,
+                                            ReqSubGroupSize);
 
-//     LocalMemorySizeRadix = RadixSorterT::memory_required(
-//         sycl::memory_scope::sub_group, ReqSubGroupSize);
-//   } else {
-//     // A single chunk of memory for each work-group
-//     LocalMemorySizeDefault =
-//         oneapi_exp::default_sorters::group_key_value_sorter<
-//             T, U, Compare>::memory_required(sycl::memory_scope::work_group,
-//                                             NDRange.get_local_range().size());
+    LocalMemorySizeRadix = RadixSorterT::memory_required(
+        sycl::memory_scope::sub_group, ReqSubGroupSize);
+  } else {
+    // A single chunk of memory for each work-group
+    LocalMemorySizeDefault =
+        oneapi_exp::default_sorters::group_key_value_sorter<
+            T, U, Compare, ElementsPerWorkItem>::memory_required(sycl::memory_scope::work_group,
+                                            NDRange.get_local_range().size());
 
-//     LocalMemorySizeRadix = RadixSorterT::memory_required(
-//         sycl::memory_scope::work_group, NDRange.get_local_range().size());
-//   }
+    LocalMemorySizeRadix = RadixSorterT::memory_required(
+        sycl::memory_scope::work_group, NDRange.get_local_range().size());
+  }
 
-//   std::vector<T> DataToSortCase0 = DataToSort;
-//   std::vector<U> KeysToSortCase0 = KeysToSort;
+  std::vector<T> DataToSortCase0 = DataToSort;
+  std::vector<U> KeysToSortCase0 = KeysToSort;
 
-//   std::vector<T> DataToSortCase1 = DataToSort;
-//   std::vector<T> KeysToSortCase1 = KeysToSort;
+  std::vector<T> DataToSortCase1 = DataToSort;
+  std::vector<T> KeysToSortCase1 = KeysToSort;
 
-//   std::vector<T> DataToSortCase2 = DataToSort;
-//   std::vector<T> KeysToSortCase2 = KeysToSort;
+  std::vector<T> DataToSortCase2 = DataToSort;
+  std::vector<T> KeysToSortCase2 = KeysToSort;
 
-//   std::vector<T> DataToSortCase3 = DataToSort;
-//   std::vector<T> KeysToSortCase3 = KeysToSort;
+  std::vector<T> DataToSortCase3 = DataToSort;
+  std::vector<T> KeysToSortCase3 = KeysToSort;
 
-//   // Sort data using 3 different versions of sort_over_group API
-//   {
-//     sycl::buffer<T> BufDataToSort0(DataToSortCase0.data(),
-//                                    DataToSortCase0.size());
-//     sycl::buffer<U> BufKeysToSort0(KeysToSortCase0.data(),
-//                                    KeysToSortCase0.size());
+  // Sort data using 3 different versions of sort_over_group API
+  {
+    sycl::buffer<T> BufDataToSort0(DataToSortCase0.data(),
+                                   DataToSortCase0.size());
+    sycl::buffer<U> BufKeysToSort0(KeysToSortCase0.data(),
+                                   KeysToSortCase0.size());
 
-//     sycl::buffer<T> BufDataToSort1(DataToSortCase1.data(),
-//                                    DataToSortCase1.size());
-//     sycl::buffer<T> BufKeysToSort1(KeysToSortCase1.data(),
-//                                    KeysToSortCase1.size());
+    sycl::buffer<T> BufDataToSort1(DataToSortCase1.data(),
+                                   DataToSortCase1.size());
+    sycl::buffer<T> BufKeysToSort1(KeysToSortCase1.data(),
+                                   KeysToSortCase1.size());
 
-//     sycl::buffer<T> BufDataToSort2(DataToSortCase2.data(),
-//                                    DataToSortCase2.size());
-//     sycl::buffer<T> BufKeysToSort2(KeysToSortCase2.data(),
-//                                    KeysToSortCase2.size());
+    sycl::buffer<T> BufDataToSort2(DataToSortCase2.data(),
+                                   DataToSortCase2.size());
+    sycl::buffer<T> BufKeysToSort2(KeysToSortCase2.data(),
+                                   KeysToSortCase2.size());
 
-//     sycl::buffer<T> BufDataToSort3(DataToSortCase3.data(),
-//                                    DataToSortCase3.size());
-//     sycl::buffer<T> BufKeysToSort3(KeysToSortCase3.data(),
-//                                    KeysToSortCase3.size());
+    sycl::buffer<T> BufDataToSort3(DataToSortCase3.data(),
+                                   DataToSortCase3.size());
+    sycl::buffer<T> BufKeysToSort3(KeysToSortCase3.data(),
+                                   KeysToSortCase3.size());
 
-//     Q.submit([&](sycl::handler &CGH) {
-//        auto AccDataToSort0 = sycl::accessor(BufDataToSort0, CGH);
-//        auto AccKeysToSort0 = sycl::accessor(BufKeysToSort0, CGH);
+    Q.submit([&](sycl::handler &CGH) {
+       auto AccDataToSort0 = sycl::accessor(BufDataToSort0, CGH);
+       auto AccKeysToSort0 = sycl::accessor(BufKeysToSort0, CGH);
 
-//        auto AccDataToSort1 = sycl::accessor(BufDataToSort1, CGH);
-//        auto AccKeysToSort1 = sycl::accessor(BufKeysToSort1, CGH);
+       auto AccDataToSort1 = sycl::accessor(BufDataToSort1, CGH);
+       auto AccKeysToSort1 = sycl::accessor(BufKeysToSort1, CGH);
 
-//        auto AccDataToSort2 = sycl::accessor(BufDataToSort2, CGH);
-//        auto AccKeysToSort2 = sycl::accessor(BufKeysToSort2, CGH);
+       auto AccDataToSort2 = sycl::accessor(BufDataToSort2, CGH);
+       auto AccKeysToSort2 = sycl::accessor(BufKeysToSort2, CGH);
 
-//        auto AccDataToSort3 = sycl::accessor(BufDataToSort3, CGH);
-//        auto AccKeysToSort3 = sycl::accessor(BufKeysToSort3, CGH);
+       auto AccDataToSort3 = sycl::accessor(BufDataToSort3, CGH);
+       auto AccKeysToSort3 = sycl::accessor(BufKeysToSort3, CGH);
 
-//        // Allocate local memory for all sub-groups in a work-group
-//        const size_t TotalLocalMemSizeDefault =
-//            UseGroup == UseGroupT::SubGroup
-//                ? LocalMemorySizeDefault * NumSubGroups
-//                : LocalMemorySizeDefault;
-//        sycl::local_accessor<std::byte, 1> ScratchDefault(
-//            {TotalLocalMemSizeDefault}, CGH);
+       // Allocate local memory for all sub-groups in a work-group
+       const size_t TotalLocalMemSizeDefault =
+           UseGroup == UseGroupT::SubGroup
+               ? LocalMemorySizeDefault * NumSubGroups
+               : LocalMemorySizeDefault;
+       sycl::local_accessor<std::byte, 1> ScratchDefault(
+           {TotalLocalMemSizeDefault}, CGH);
 
-//        const size_t TotalLocalMemSizeRadix =
-//            UseGroup == UseGroupT::SubGroup ? LocalMemorySizeRadix * NumSubGroups
-//                                            : LocalMemorySizeRadix;
+       const size_t TotalLocalMemSizeRadix =
+           UseGroup == UseGroupT::SubGroup ? LocalMemorySizeRadix * NumSubGroups
+                                           : LocalMemorySizeRadix;
 
-//        sycl::local_accessor<std::byte, 1> ScratchRadix({TotalLocalMemSizeRadix},
-//                                                        CGH);
+       sycl::local_accessor<std::byte, 1> ScratchRadix({TotalLocalMemSizeRadix},
+                                                       CGH);
 
-//        CGH.parallel_for<KernelNameKeyValueOverGroupArray<
-//            IntWrapper<Dims>, UseGroupWrapper<UseGroup>, Property, T, Compare>>(
-//            NDRange, [=](sycl::nd_item<Dims> id) [[intel::reqd_sub_group_size(
-//                         ReqSubGroupSize)]] {
-//              const size_t GlobalLinearID = id.get_global_linear_id();
+       CGH.parallel_for<KernelNameKeyValueOverGroupArray<
+           IntWrapper<Dims>, UseGroupWrapper<UseGroup>, Property, T, Compare>>(
+           NDRange, [=](sycl::nd_item<Dims> id) [[intel::reqd_sub_group_size(
+                        ReqSubGroupSize)]] {
+             const size_t GlobalLinearID = id.get_global_linear_id();
 
-//              auto Group = [&]() {
-//                if constexpr (UseGroup == UseGroupT::SubGroup)
-//                  return id.get_sub_group();
-//                else
-//                  return id.get_group();
-//              }();
+             auto Group = [&]() {
+               if constexpr (UseGroup == UseGroupT::SubGroup)
+                 return id.get_sub_group();
+               else
+                 return id.get_group();
+             }();
 
-//              // Each sub-group should use it's own part of the scratch pad
-//              const size_t ScratchShiftDefault =
-//                  UseGroup == UseGroupT::SubGroup
-//                      ? id.get_sub_group().get_group_linear_id() *
-//                            LocalMemorySizeDefault
-//                      : 0;
-//              std::byte *ScratchPtrDefault =
-//                  &ScratchDefault[0] + ScratchShiftDefault;
+             // Each sub-group should use it's own part of the scratch pad
+             const size_t ScratchShiftDefault =
+                 UseGroup == UseGroupT::SubGroup
+                     ? id.get_sub_group().get_group_linear_id() *
+                           LocalMemorySizeDefault
+                     : 0;
+             std::byte *ScratchPtrDefault =
+                 &ScratchDefault[0] + ScratchShiftDefault;
 
-//              if constexpr (std::is_same_v<Compare, std::less<T>>)
-//                oneapi_exp::sort_key_value_over_group(
-//                    oneapi_exp::group_with_scratchpad(
-//                        Group,
-//                        sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
-//                    sycl::span<T, ElementsPerWorkItem>{
-//                        &AccKeysToSort0[GlobalLinearID],
-//                        &AccKeysToSort0[GlobalLinearID] + 1},
-//                    sycl::span<U, ElementsPerWorkItem>{
-//                        &AccDataToSort0[GlobalLinearID],
-//                        &AccDataToSort0[GlobalLinearID] + 1},
-//                    Prop); // (4)
+              T KeysPrivate[ElementsPerWorkItem];
+              U ValsPrivate[ElementsPerWorkItem];
 
-//              oneapi_exp::sort_key_value_over_group(
-//                  oneapi_exp::group_with_scratchpad(
-//                      Group,
-//                      sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
-//                  sycl::span<T, ElementsPerWorkItem>{
-//                      &AccKeysToSort1[GlobalLinearID],
-//                      &AccKeysToSort1[GlobalLinearID] + 1},
-//                  sycl::span<U, ElementsPerWorkItem>{
-//                      &AccDataToSort1[GlobalLinearID],
-//                      &AccDataToSort1[GlobalLinearID] + 1},
-//                  Comp, Prop); // (5)
+              auto ReadToPrivate = [&](auto &KeyAcc, auto &ValAcc) {
+                  for(std::size_t I = 0; I < ElementsPerWorkItem; ++I) {
+                    KeysPrivate[I] = KeyAcc[GlobalLinearID * ElementsPerWorkItem + I];
+                    ValsPrivate[I] = ValAcc[GlobalLinearID * ElementsPerWorkItem + I];
+                  }
+              };
+              auto WriteToGlobal = [&](auto &KeyAcc, auto &ValAcc) {
+                for(std::size_t I = 0; I < ElementsPerWorkItem; ++I) {
+                  KeyAcc[GlobalLinearID * ElementsPerWorkItem + I] = KeysPrivate[I];
+                  ValAcc[GlobalLinearID * ElementsPerWorkItem + I] = ValsPrivate[I];
+                }
+              };
 
-//              oneapi_exp::sort_key_value_over_group(
-//                  Group,
-//                  sycl::span<T, ElementsPerWorkItem>{
-//                      &AccKeysToSort2[GlobalLinearID],
-//                      &AccKeysToSort2[GlobalLinearID] + 1},
-//                  sycl::span<U, ElementsPerWorkItem>{
-//                      &AccDataToSort2[GlobalLinearID],
-//                      &AccDataToSort2[GlobalLinearID] + 1},
-//                  oneapi_exp::default_sorters::group_key_value_sorter<
-//                      T, U, Compare, ElementsPerWorkItem>(
-//                      sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
-//                  Prop); // (6)
+             if constexpr (std::is_same_v<Compare, std::less<T>>) {
+               ReadToPrivate(AccKeysToSort0, AccDataToSort0);
+               oneapi_exp::sort_key_value_over_group(
+                   oneapi_exp::group_with_scratchpad(
+                       Group,
+                       sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
+                   sycl::span<T, ElementsPerWorkItem>{
+                       KeysPrivate,
+                       KeysPrivate + ElementsPerWorkItem},
+                   sycl::span<U, ElementsPerWorkItem>{
+                       ValsPrivate,
+                       ValsPrivate + ElementsPerWorkItem},
+                   Prop); // (4)
+                WriteToGlobal(AccKeysToSort0, AccDataToSort0);
+             }
+             
+             ReadToPrivate(AccKeysToSort1, AccDataToSort1);
+             oneapi_exp::sort_key_value_over_group(
+                 oneapi_exp::group_with_scratchpad(
+                     Group,
+                     sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
+                   sycl::span<T, ElementsPerWorkItem>{
+                       KeysPrivate,
+                       KeysPrivate + ElementsPerWorkItem},
+                   sycl::span<U, ElementsPerWorkItem>{
+                       ValsPrivate,
+                       ValsPrivate + ElementsPerWorkItem},
+                 Comp, Prop); // (5)
+            WriteToGlobal(AccKeysToSort1, AccDataToSort1);
 
-//              // Each sub-group should use it's own part of the scratch pad
-//              const size_t ScratchShiftRadix =
-//                  UseGroup == UseGroupT::SubGroup
-//                      ? id.get_sub_group().get_group_linear_id() *
-//                            LocalMemorySizeRadix
-//                      : 0;
-//              std::byte *ScratchPtrRadix = &ScratchRadix[0] + ScratchShiftRadix;
+            ReadToPrivate(AccKeysToSort2, AccDataToSort2);
+             oneapi_exp::sort_key_value_over_group(
+                 Group,
+                   sycl::span<T, ElementsPerWorkItem>{
+                       KeysPrivate,
+                       KeysPrivate + ElementsPerWorkItem},
+                   sycl::span<U, ElementsPerWorkItem>{
+                       ValsPrivate,
+                       ValsPrivate + ElementsPerWorkItem},
+                 oneapi_exp::default_sorters::group_key_value_sorter<
+                     T, U, Compare, ElementsPerWorkItem>(
+                     sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
+                 Prop); // (6)
+              WriteToGlobal(AccKeysToSort2, AccDataToSort2);
 
-//              // Radix doesn't support custom types
-//              if constexpr (!std::is_same_v<CustomType, T>)
-//                oneapi_exp::sort_key_value_over_group(
-//                    Group,
-//                    sycl::span<T, ElementsPerWorkItem>{
-//                        &AccKeysToSort3[GlobalLinearID],
-//                        &AccKeysToSort3[GlobalLinearID] + 1},
-//                    sycl::span<U, ElementsPerWorkItem>{
-//                        &AccDataToSort3[GlobalLinearID],
-//                        &AccDataToSort3[GlobalLinearID] + 1},
-//                    RadixSorterT(
-//                        sycl::span{ScratchPtrRadix, LocalMemorySizeRadix}),
-//                    Prop); // (6) radix
-//            });
-//      }).wait_and_throw();
-//   }
+             // Each sub-group should use it's own part of the scratch pad
+             const size_t ScratchShiftRadix =
+                 UseGroup == UseGroupT::SubGroup
+                     ? id.get_sub_group().get_group_linear_id() *
+                           LocalMemorySizeRadix
+                     : 0;
+             std::byte *ScratchPtrRadix = &ScratchRadix[0] + ScratchShiftRadix;
 
-//   // Verification
-//   {
-//     std::vector<std::pair<T, T>> KeyDataToSort;
-//     KeyDataToSort.reserve(KeysToSort.size());
-//     std::transform(KeysToSort.begin(), KeysToSort.end(), DataToSort.begin(),
-//                    std::back_inserter(KeyDataToSort),
-//                    [](T Key, T Value) { return std::make_pair(Key, Value); });
-//     // Emulate independent sorting of each work-group/sub-group
-//     const size_t ChunkSize =
-//         (UseGroup == UseGroupT::SubGroup ? ReqSubGroupSize
-//                                          : NDRange.get_local_range().size()) *
-//         ElementsPerWorkItem;
-//     auto It = KeyDataToSort.begin();
-//     auto KeyValueComp = [&](const std::pair<T, T> &A,
-//                             const std::pair<T, T> &B) -> bool {
-//       return Comp(A.first, B.first);
-//     };
-//     for (; (It + ChunkSize) < KeyDataToSort.end(); It += ChunkSize)
-//       std::stable_sort(It, It + ChunkSize, KeyValueComp);
+             // Radix doesn't support custom types
+             if constexpr (!std::is_same_v<CustomType, T>) {
+              ReadToPrivate(AccKeysToSort3, AccDataToSort3);
+               oneapi_exp::sort_key_value_over_group(
+                   Group,
+                   sycl::span<T, ElementsPerWorkItem>{
+                       KeysPrivate,
+                       KeysPrivate + ElementsPerWorkItem},
+                   sycl::span<U, ElementsPerWorkItem>{
+                       ValsPrivate,
+                       ValsPrivate + ElementsPerWorkItem},
+                   RadixSorterT(
+                       sycl::span{ScratchPtrRadix, LocalMemorySizeRadix}),
+                   Prop); // (6) radix
+              WriteToGlobal(AccKeysToSort3, AccDataToSort3);
+             }
+           });
+     }).wait_and_throw();
+  }
 
-//     // Sort remainder
-//     std::stable_sort(It, KeyDataToSort.end(), KeyValueComp);
+  // Verification
+  {
+    std::vector<std::pair<T, U>> KeyDataToSort;
+    KeyDataToSort.reserve(KeysToSort.size());
+    std::transform(KeysToSort.begin(), KeysToSort.end(), DataToSort.begin(),
+                   std::back_inserter(KeyDataToSort),
+                   [](T Key, U Value) { return std::make_pair(Key, Value); });
+    // Emulate independent sorting of each work-group/sub-group
+    const size_t ChunkSize =
+        (UseGroup == UseGroupT::SubGroup ? ReqSubGroupSize
+                                         : NDRange.get_local_range().size()) *
+        ElementsPerWorkItem;
+    auto It = KeyDataToSort.begin();
+    auto KeyValueComp = [&](const std::pair<T, U> &A,
+                            const std::pair<T, U> &B) -> bool {
+      return Comp(A.first, B.first);
+    };
+    for (; (It + ChunkSize) < KeyDataToSort.end(); It += ChunkSize)
+      std::stable_sort(It, It + ChunkSize, KeyValueComp);
 
-//     std::vector<T> KeysSorted, DataSorted;
-//     KeysSorted.reserve(KeyDataToSort.size());
-//     DataSorted.reserve(KeyDataToSort.size());
-//     std::transform(
-//         KeyDataToSort.begin(), KeyDataToSort.end(),
-//         std::back_inserter(KeysSorted),
-//         [](const std::pair<T, T> &KeyValue) { return KeyValue.first; });
-//     std::transform(
-//         KeyDataToSort.begin(), KeyDataToSort.end(),
-//         std::back_inserter(DataSorted),
-//         [](const std::pair<T, T> &KeyValue) { return KeyValue.second; });
+    // Sort remainder
+    std::stable_sort(It, KeyDataToSort.end(), KeyValueComp);
 
-//     if constexpr (std::is_same_v<Compare, std::less<T>>) {
-//       assert(KeysToSortCase0 == KeysSorted);
-//       assert(DataToSortCase0 == DataSorted);
-//     }
+    std::vector<T> KeysSorted, DataSorted;
+    KeysSorted.reserve(KeyDataToSort.size());
+    DataSorted.reserve(KeyDataToSort.size());
+    std::transform(
+        KeyDataToSort.begin(), KeyDataToSort.end(),
+        std::back_inserter(KeysSorted),
+        [](const std::pair<T, U> &KeyValue) { return KeyValue.first; });
+    std::transform(
+        KeyDataToSort.begin(), KeyDataToSort.end(),
+        std::back_inserter(DataSorted),
+        [](const std::pair<T, U> &KeyValue) { return KeyValue.second; });
+    auto printVec = [&](const char* Info, auto & Vec) {
+      if constexpr (!std::is_same_v<CustomType, T>) {
+        std::cout << Info << std::endl;
+        for(auto &El: Vec)
+            std::cout << std::setw(4) << El << " ";
+        std::cout << std::endl;
+      }
+    };
+    if constexpr (std::is_same_v<Compare, std::less<T>>) {
+   // if constexpr (std::is_same_v<Property, oneapi_exp::detail::is_blocked>) {
+         printVec("\nKeysToSort", KeysToSort);
+         printVec("DataToSort", DataToSort);
+         printVec("\nKeysSorted", KeysSorted);
+         printVec("DataSorted", DataSorted);
+         printVec("\nKeysToSortCase0", KeysToSortCase0);
+         printVec("DataToSortCase0", DataToSortCase0);
+   // }
+      assert(KeysToSortCase0 == KeysSorted);
+      assert(DataToSortCase0 == DataSorted);
+    }
 
-//     assert(KeysToSortCase1 == KeysSorted);
-//     assert(DataToSortCase1 == DataSorted);
-//     assert(KeysToSortCase2 == KeysSorted);
-//     assert(DataToSortCase2 == DataSorted);
-//     if constexpr (!std::is_same_v<CustomType, T>) {
-//       assert(KeysToSortCase3 == KeysSorted);
-//       assert(DataToSortCase3 == DataSorted);
-//     }
-//   }
-// }
+    assert(KeysToSortCase1 == KeysSorted);
+    assert(DataToSortCase1 == DataSorted);
+    assert(KeysToSortCase2 == KeysSorted);
+    assert(DataToSortCase2 == DataSorted);
+    if constexpr (!std::is_same_v<CustomType, T>) {
+      assert(KeysToSortCase3 == KeysSorted);
+      assert(DataToSortCase3 == DataSorted);
+    }
+  }
+}
 
 template <class T> void RunOverType(sycl::queue &Q, size_t DataSize) {
   /*std::vector<T> DataReversed(DataSize);
@@ -1145,15 +1207,15 @@ template <class T> void RunOverType(sycl::queue &Q, size_t DataSize) {
   auto RunOnDataAndCompArray = [&](const std::vector<T> &Data,
                                    const std::vector<T> &Keys,
                                    const auto &Comparator) {
-    RunSortOverGroupArray<UseGroupT::WorkGroup, 1, ElementsPerWorkItem>(
-        Q, Data, Comparator, oneapi_exp::detail::is_blocked{});
     // RunSortOverGroupArray<UseGroupT::WorkGroup, 1, ElementsPerWorkItem>(
-    //     Q, Data, Comparator, oneapi_exp::detail::is_striped{});
-    // RunSortOverGroupArray<UseGroupT::WorkGroup, 2, ElementsPerWorkItem>(
     //     Q, Data, Comparator, oneapi_exp::detail::is_blocked{});
+    // // RunSortOverGroupArray<UseGroupT::WorkGroup, 1, ElementsPerWorkItem>(
+    // //     Q, Data, Comparator, oneapi_exp::detail::is_striped{});
+    //  RunSortOverGroupArray<UseGroupT::WorkGroup, 2, ElementsPerWorkItem>(
+    //      Q, Data, Comparator, oneapi_exp::detail::is_blocked{});
 
-    // RunSortKeyValueOverGroupArray<UseGroupT::WorkGroup, 1, ElementsPerWorkItem>(
-    //     Q, Data, Keys, Comparator, oneapi_exp::detail::is_blocked{});
+    RunSortKeyValueOverGroupArray<UseGroupT::WorkGroup, 1, ElementsPerWorkItem>(
+        Q, Data, Keys, Comparator, oneapi_exp::detail::is_blocked{});
     // RunSortKeyValueOverGroupArray<UseGroupT::WorkGroup, 2, ElementsPerWorkItem>(
     //     Q, Data, Keys, Comparator, oneapi_exp::detail::is_blocked{});
 
@@ -1176,8 +1238,8 @@ template <class T> void RunOverType(sycl::queue &Q, size_t DataSize) {
 
   // RunOnDataAndCompArray(ArrayDataReversed, ArrayKeysReversed,
   //                       std::greater<T>{});
-   RunOnDataAndCompArray(ArrayDataReversed, ArrayKeysReversed, std::less<T>{});
-  // RunOnDataAndCompArray(ArrayDataRandom, ArrayKeysRandom, std::less<T>{});
+  //  RunOnDataAndCompArray(ArrayDataReversed, ArrayKeysReversed, std::less<T>{});
+  RunOnDataAndCompArray(ArrayDataRandom, ArrayKeysRandom, std::less<T>{});
   // RunOnDataAndCompArray(ArrayDataRandom, ArrayKeysRandom, std::greater<T>{});
 }
 
@@ -1188,7 +1250,7 @@ int main() {
     sycl::queue Q;
 
     //std::vector<size_t> Sizes{18, 64};
-    std::vector<size_t> Sizes{18};
+    std::vector<size_t> Sizes{4};
 
     for (size_t Size : Sizes) {
       RunOverType<std::int32_t>(Q, Size);
