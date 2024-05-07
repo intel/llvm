@@ -1,5 +1,4 @@
 // REQUIRES: system-linux
-
 /// Verify --offload-new-driver option phases
 // RUN:  %clang --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64 --offload-new-driver -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=OFFLOAD-NEW-DRIVER %s
@@ -36,7 +35,7 @@
 // RUN:          --sysroot=%S/Inputs/SYCL -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS %s
 // WRAPPER_OPTIONS: clang-linker-wrapper{{.*}} "--triple=spir64"
-// WRAPPER_OPTIONS-SAME: "-sycl-device-libraries=libsycl-crt.bc,libsycl-complex.bc,libsycl-complex-fp64.bc,libsycl-cmath.bc,libsycl-cmath-fp64.bc,libsycl-imf.bc,libsycl-imf-fp64.bc,libsycl-imf-bf16.bc,libsycl-itt-user-wrappers.bc,libsycl-itt-compiler-wrappers.bc,libsycl-itt-stubs.bc"
+// WRAPPER_OPTIONS-SAME: "-sycl-device-libraries=libsycl-crt.new.o,libsycl-complex.new.o,libsycl-complex-fp64.new.o,libsycl-cmath.new.o,libsycl-cmath-fp64.new.o,libsycl-imf.new.o,libsycl-imf-fp64.new.o,libsycl-imf-bf16.new.o,libsycl-itt-user-wrappers.new.o,libsycl-itt-compiler-wrappers.new.o,libsycl-itt-stubs.new.o"
 // WRAPPER_OPTIONS-SAME: "-sycl-device-library-location={{.*}}/lib"
 
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \

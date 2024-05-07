@@ -181,6 +181,9 @@ public:
   /// @param IncomingReq Incoming requirement.
   /// @return True if a dependency is needed, false if not.
   bool hasRequirementDependency(sycl::detail::AccessorImplHost *IncomingReq) {
+    if (!MCommandGroup)
+      return false;
+
     access_mode InMode = IncomingReq->MAccessMode;
     switch (InMode) {
     case access_mode::read:

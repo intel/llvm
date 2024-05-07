@@ -118,10 +118,13 @@ TEST(KernelBuildOptions, KernelBundleBasic) {
                                                          {KernelID});
   auto ExecBundle = sycl::build(KernelBundle);
   EXPECT_EQ(BuildOpts,
-            "-compile-img -vc-codegen -disable-finalizer-msg -link-img");
+            "-compile-img -vc-codegen -ftranslate-legacy-memory-intrinsics "
+            "-disable-finalizer-msg -link-img");
 
   auto ObjBundle = sycl::compile(KernelBundle, KernelBundle.get_devices());
-  EXPECT_EQ(BuildOpts, "-compile-img -vc-codegen -disable-finalizer-msg");
+  EXPECT_EQ(BuildOpts,
+            "-compile-img -vc-codegen -ftranslate-legacy-memory-intrinsics "
+            "-disable-finalizer-msg");
 
   auto LinkBundle = sycl::link(ObjBundle, ObjBundle.get_devices());
   EXPECT_EQ(BuildOpts, "-link-img");
