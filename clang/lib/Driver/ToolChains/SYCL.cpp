@@ -291,12 +291,16 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   const SYCLDeviceLibsList SYCLDeviceSanitizerLibs = {
       {"libsycl-sanitizer", "internal"}};
 #endif
+  bool IsWindowsMSVCEnv =
+      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
+  bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
   StringRef LibSuffix = ".bc";
   if (TargetTriple.isNVPTX())
     // For NVidia, we are unbundling objects.
-    LibSuffix = C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment()
-                    ? ".obj"
-                    : ".o";
+    LibSuffix = IsWindowsMSVCEnv ? ".obj" : ".o";
+  if (IsNewOffload)
+    // For new offload model, we use packaged .bc files.
+    LibSuffix = IsWindowsMSVCEnv ? ".new.obj" : ".new.o";
   auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
     for (const DeviceLibOptInfo &Lib : LibsList) {
       if (!DeviceLibLinkInfo[Lib.DeviceLibOption])
@@ -441,6 +445,10 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
             C.getDriver().IsCLMode())
           LibPostfix = ".obj";
       }
+      StringRef NewLibPostfix = ".new.o";
+      if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
+          C.getDriver().IsCLMode())
+        NewLibPostfix = ".new.obj";
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
       if (IsNVPTX || IsSYCLNativeCPU) {
@@ -448,12 +456,15 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
         if ((InputFilename.find("libspirv") != InputFilename.npos ||
              InputFilename.find("libdevice") != InputFilename.npos))
           return true;
-        if (IsNVPTX)
+        if (IsNVPTX) {
           LibPostfix = ".cubin";
+          NewLibPostfix = ".new.cubin";
+        }
       }
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
-          !InputFilename.ends_with(LibPostfix))
+          !InputFilename.ends_with(LibPostfix) ||
+          InputFilename.ends_with(NewLibPostfix))
         return false;
       // Skip the prefix "libsycl-"
       std::string PureLibName =
