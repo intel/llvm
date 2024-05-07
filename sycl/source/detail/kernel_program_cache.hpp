@@ -96,7 +96,7 @@ public:
     ~ProgramBuildResult() {
       if (Val) {
         ur_result_t Err = Plugin->call_nocheck(urProgramRelease, Val);
-        __SYCL_CHECK_OCL_CODE_NO_EXC((pi_result)Err); // TODO(pi2ur)
+        __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
       }
     }
   };
@@ -129,7 +129,7 @@ public:
     ~KernelBuildResult() {
       if (Val.first) {
         ur_result_t Err = Plugin->call_nocheck(urKernelRelease, Val.first);
-        __SYCL_CHECK_OCL_CODE_NO_EXC((pi_result)Err); // TODO(pi2ur)
+        __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
       }
     }
   };

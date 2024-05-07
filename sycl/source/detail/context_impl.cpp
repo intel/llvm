@@ -368,15 +368,13 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
         InitRef.MDeviceGlobalInitEvents;
     if (!InitEventsRef.empty()) {
       // Initialization has begun but we do not know if the events are done.
-      auto NewEnd = std::remove_if(InitEventsRef.begin(), InitEventsRef.end(),
-                                   [&Plugin](const ur_event_handle_t &Event) {
-                                     /* FIXME: port event info so this works
-                                       return
-                                       get_event_info<info::event::command_execution_status>(
-                                                  Event, Plugin) ==
-                                       info::event_command_status::complete;*/
-                                     return false;
-                                   });
+      auto NewEnd = std::remove_if(
+          InitEventsRef.begin(), InitEventsRef.end(),
+          [&Plugin](const ur_event_handle_t &Event) {
+            return get_event_info<info::event::command_execution_status>(
+                       Event, Plugin) == info::event_command_status::complete;
+            return false;
+          });
       // Release the removed events.
       for (auto EventIt = NewEnd; EventIt != InitEventsRef.end(); ++EventIt)
         Plugin->call(urEventRelease, *EventIt);

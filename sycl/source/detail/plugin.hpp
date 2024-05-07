@@ -25,22 +25,22 @@
 
 #include <sycl/detail/iostream_proxy.hpp>
 
-#define __SYCL_REPORT_PI_ERR_TO_STREAM(expr)                                   \
+#define __SYCL_REPORT_UR_ERR_TO_STREAM(expr)                                   \
   {                                                                            \
     auto code = expr;                                                          \
     if (code != UR_RESULT_SUCCESS) {                                           \
-      std::cerr << __SYCL_PI_ERROR_REPORT << sycl::detail::codeToString(code)  \
+      std::cerr << __SYCL_UR_ERROR_REPORT << sycl::detail::codeToString(code)  \
                 << std::endl;                                                  \
     }                                                                          \
   }
 
-#define __SYCL_REPORT_PI_ERR_TO_EXC(expr, exc, str)                            \
+#define __SYCL_REPORT_UR_ERR_TO_EXC(expr, exc, str)                            \
   {                                                                            \
     auto code = expr;                                                          \
     if (code != UR_RESULT_SUCCESS) {                                           \
       std::string err_str =                                                    \
           str ? "\n" + std::string(str) + "\n" : std::string{};                \
-      throw exc(__SYCL_PI_ERROR_REPORT + sycl::detail::codeToString(code) +    \
+      throw exc(__SYCL_UR_ERROR_REPORT + sycl::detail::codeToString(code) +    \
                     err_str,                                                   \
                 code);                                                         \
     }                                                                          \
@@ -51,14 +51,14 @@
     auto code = expr;                                                          \
     if (code != UR_RESULT_SUCCESS) {                                           \
       throw sycl::exception(sycl::make_error_code(errc),                       \
-                            __SYCL_PI_ERROR_REPORT +                           \
+                            __SYCL_UR_ERROR_REPORT +                           \
                                 sycl::detail::codeToString(code));             \
     }                                                                          \
   }
 
 #define __SYCL_CHECK_OCL_CODE_THROW(X, EXC, STR)                               \
-  __SYCL_REPORT_PI_ERR_TO_EXC(X, EXC, STR)
-#define __SYCL_CHECK_OCL_CODE_NO_EXC(X) __SYCL_REPORT_PI_ERR_TO_STREAM(X)
+  __SYCL_REPORT_UR_ERR_TO_EXC(X, EXC, STR)
+#define __SYCL_CHECK_OCL_CODE_NO_EXC(X) __SYCL_REPORT_UR_ERR_TO_STREAM(X)
 
 #define __SYCL_CHECK_CODE_THROW_VIA_ERRC(X, ERRC)                              \
   __SYCL_REPORT_ERR_TO_EXC_VIA_ERRC(X, ERRC)

@@ -400,8 +400,8 @@ public:
                             "flush cannot be called for a queue which is "
                             "recording to a command graph.");
     }
-    for (const auto &queue : MQueues) {
-      getPlugin()->call<PiApiKind::piQueueFlush>(queue);
+    for (const auto &queue : MUrQueues) {
+      getUrPlugin()->call(urQueueFlush, queue);
     }
   }
 

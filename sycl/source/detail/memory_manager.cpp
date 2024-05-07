@@ -837,19 +837,15 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
     // The sycl::handler uses a parallel_for kernel in the case of unusable
     // Range or Offset, not CG:Fill. So we should not be here.
     throw runtime_error("Not supported configuration of fill requested",
-                        PI_ERROR_INVALID_OPERATION);
+                        UR_RESULT_ERROR_INVALID_OPERATION);
   } else {
     if (OutEventImpl != nullptr)
       OutEventImpl->setHostEnqueueTime();
-    // images don't support offset accessors and thus avoid issues of
-    // discontinguous data
-    // FIXME?? this is what's in pi2ur for this, so presumably hitting this path
-    // currently (in sycl main) inevitably hits the die here
-    pi::die("piEnqueueMemImageFill: not implemented");
-    /* Plugin->call(urEnqueueMemImageFill,
-         Queue->getUrHandleRef(), pi::cast<ur_mem_handle_t>(Mem), Pattern,
-         &Offset[0], &AccRange[0], DepEvents.size(), DepEvents.data(),
-         &OutEvent);*/
+    // We don't have any backend implementations that support enqueueing a fill
+    // on non-buffer mem objects like this. The old PI function was a stub with
+    // an abort.
+    throw runtime_error("Fill operation not supported for the given mem object",
+                        UR_RESULT_ERROR_INVALID_OPERATION);
   }
 }
 
@@ -1179,8 +1175,8 @@ void MemoryManager::fill_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
 }
 
 void MemoryManager::memset_2d_usm(void *DstMem, QueueImplPtr Queue,
-                                  size_t Pitch, size_t Width, size_t Height,
-                                  char Value,
+                                  [[maybe_unused]] size_t Pitch, size_t Width,
+                                  size_t Height, [[maybe_unused]] char Value,
                                   std::vector<ur_event_handle_t> DepEvents,
                                   ur_event_handle_t *OutEvent,
                                   const detail::EventImplPtr &OutEventImpl) {
@@ -1204,16 +1200,11 @@ void MemoryManager::memset_2d_usm(void *DstMem, QueueImplPtr Queue,
         "NULL pointer argument in 2D memory memset operation.");
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
-  const UrPluginPtr &Plugin = Queue->getUrPlugin();
-  // FIXME: this used to call pi USMMemset2D, which in pi2ur translates into:
-  pi::die("piextUSMEnqueueMemset2D: not implemented");
-  // figure out (like with... one of the image ones??) if this really was just
-  // hitting that die every time or if it's supposed to get diverted to a
-  // fallback
-  /*
-  Plugin->call(urEnqueueUSMFill2D,
-      Queue->getUrHandleRef(), DstMem, Pitch, static_cast<int>(Value), Width,
-      Height, DepEvents.size(), DepEvents.data(), OutEvent);*/
+  // TODO: Implement this in terms of urEnqueueUSMFill2D? The old PI entry
+  // point for this was never implemented anywhere (pi2ur.hpp simply hit an
+  // abort if it was called).
+  throw runtime_error("2D memset is not current supported by any backends.",
+                      UR_RESULT_ERROR_INVALID_OPERATION);
 }
 
 // TODO: This function will remain until ABI-breaking change
