@@ -678,7 +678,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
   UR_CALL(Queue->Context->getAvailableCommandList(
-      Queue, CommandList, UseCopyEngine, /* AllowBatching */ false));
+      Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
+      /* AllowBatching */ false));
 
   UR_CALL(createEventAndAssociateQueue(
       Queue, OutEvent, UR_COMMAND_TIMESTAMP_RECORDING_EXP, CommandList,
