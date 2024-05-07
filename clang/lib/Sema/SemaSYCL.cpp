@@ -6497,19 +6497,29 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       O << "}\n";
       O << "\nnamespace sycl {\n";
       O << "template <>\n";
-      O << "struct "
-           "ext::oneapi::experimental::is_nd_range_kernel<__sycl_shim"
-        << ShimCounter << "(), " << getFreeFunctionRangeDim(S, K.SyclKernel)
-        << "> {\n";
+      O << "struct ext::oneapi::experimental::is_kernel<__sycl_shim"
+        << ShimCounter << "()";
+      O << "> {\n";
       O << "  static constexpr bool value = true;\n";
       O << "};\n";
-
+      int Dim = getFreeFunctionRangeDim(S, K.SyclKernel);
       O << "template <>\n";
-      O << "kernel_id get_kernel_id < __sycl_shim" << ShimCounter
+      if (Dim > 0)
+        O << "struct ext::oneapi::experimental::is_nd_range_kernel<__sycl_shim"
+          << ShimCounter << "(), " << Dim;
+      else
+        O << "struct "
+             "ext::oneapi::experimental::is_single_task_kernel<__sycl_shim"
+          << ShimCounter << "()";
+      O  << "> {\n";
+      O << "  static constexpr bool value = true;\n";
+      O << "};\n";
+      O << "template <>\n";
+      O << "kernel_id get_kernel_id <__sycl_shim" << ShimCounter
         << "()>() {\n";
       O << "  return sycl::detail::get_kernel_id_impl(std::string_view{\""
         << K.Name << "\"});\n";
-      O << "}\n\n";
+      O << "}\n";
       O << "}\n";
       ++ShimCounter;
     }

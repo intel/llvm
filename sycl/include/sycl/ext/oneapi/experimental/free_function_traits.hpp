@@ -20,6 +20,10 @@ template <auto *Func> struct is_single_task_kernel {
   static constexpr bool value = false;
 };
 
+template <auto* Func> struct is_kernel {
+  static constexpr bool value = false;
+};
+
 template <auto *Func, int Dims>
 inline constexpr bool is_nd_range_kernel_v =
     is_nd_range_kernel<Func, Dims>::value;
@@ -27,6 +31,9 @@ inline constexpr bool is_nd_range_kernel_v =
 template <auto *Func>
 inline constexpr bool is_single_task_kernel_v =
     is_single_task_kernel<Func>::value;
+
+template <auto *Func>
+inline constexpr bool is_kernel_v = is_kernel<Func>::value;
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1
