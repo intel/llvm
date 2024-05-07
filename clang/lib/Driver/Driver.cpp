@@ -6303,21 +6303,21 @@ class OffloadingActionBuilder final {
           const auto &MaySupportOtherAspects = Info.maySupportOtherAspects;
           if (!AnyDeviceHasAnyAspect)
             AnyDeviceHasAnyAspect = MaySupportOtherAspects;
-          for (const auto &aspect : AspectList) {
+          for (const auto &Aspect : AspectList) {
             // If target has an entry in the config file, the set of aspects
             // supported by all devices supporting the target is 'AspectList'.
             // If there's no entry, such set is empty.
-            const auto &AspectIt = AllDevicesHave.find(aspect);
+            const auto &AspectIt = AllDevicesHave.find(Aspect);
             if (AspectIt != AllDevicesHave.end())
-              ++AllDevicesHave[aspect];
+              ++AllDevicesHave[Aspect];
             else
-              AllDevicesHave[aspect] = 1;
+              AllDevicesHave[Aspect] = 1;
             // If target has an entry in the config file AND
             // 'MaySupportOtherAspects' is false, the set of aspects supported
             // by any device supporting the target is 'AspectList'. If there's
             // no entry OR 'MaySupportOtherAspects' is true, such set contains
             // all the aspects.
-            AnyDeviceHas[aspect] = true;
+            AnyDeviceHas[Aspect] = true;
           }
         }
       }
