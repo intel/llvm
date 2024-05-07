@@ -55,7 +55,7 @@ public:
       typename = std::enable_if_t<
           sycl::detail::AllSuitableArgTypes<value_type, ArgTN...>::value &&
           sycl::detail::GetMArrayArgsSize<ArgTN...>::value == NumElements>>
-  constexpr marray(const ArgTN &...Args)
+  constexpr marray(const ArgTN &... Args)
       : marray{
             sycl::detail::MArrayArgArrayCreator<value_type, ArgTN...>::Create(
                 Args...),
@@ -92,9 +92,7 @@ public:
   iterator end() { return MData + NumElements; }
   const_iterator end() const { return MData + NumElements; }
 
-////////////////////////////////////////////////////////////////////////////////
-/// ASSIGNMENT OPERATORS
-////////////////////////////////////////////////////////////////////////////////
+  /// ASSIGNMENT OPERATORS
 
 #ifdef IMPL_ASSIGN_MARRAY_CPLX_OP
 #error "Multiple definition of IMPL_ASSIGN_MARRAY_CPLX_OP"
@@ -122,9 +120,7 @@ public:
 
 #undef IMPL_ASSIGN_MARRAY_CPLX_OP
 
-////////////////////////////////////////////////////////////////////////////////
-// ARITHMETIC OPERATORS
-////////////////////////////////////////////////////////////////////////////////
+  /// ARITHMETIC OPERATORS
 
 #ifdef IMPL_UNARY_MARRAY_CPLX_OP
 #error "Multiple definition of IMPL_UNARY_MARRAY_CPLX_OP"
@@ -180,9 +176,7 @@ public:
 
 #undef IMPL_ARITH_MARRAY_CPLX_OP
 
-////////////////////////////////////////////////////////////////////////////////
-// COMPARAISON OPERATORS
-////////////////////////////////////////////////////////////////////////////////
+  /// COMPARAISON OPERATORS
 
 #ifdef IMPL_COMP_MARRAY_CPLX_OP
 #error "Multiple definition of IMPL_COMP_MARRAY_CPLX_OP"
