@@ -22,6 +22,14 @@ if (NOT DEFINED SYCL_ENABLE_PLUGINS)
   set(SYCL_ENABLE_PLUGINS "opencl;level_zero")
 endif()
 
+# Option to enable online kernel fusion via a JIT compiler
+option(SYCL_ENABLE_KERNEL_FUSION "Enable kernel fusion via JIT compiler" ON)
+if(SYCL_ENABLE_KERNEL_FUSION AND WIN32)
+  message(WARNING "Kernel fusion not yet supported on Windows")
+  set(SYCL_ENABLE_KERNEL_FUSION OFF CACHE
+      BOOL "Kernel fusion not yet supported on Windows" FORCE)
+endif()
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AddSYCLExecutable)
 include(AddSYCL)
@@ -144,14 +152,6 @@ file(COPY ${OpenCL_INCLUDE_DIR}/CL
 install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
         DESTINATION ${SYCL_INCLUDE_DIR}/sycl
         COMPONENT OpenCL-Headers)
-
-# Option to enable online kernel fusion via a JIT compiler
-option(SYCL_ENABLE_KERNEL_FUSION "Enable kernel fusion via JIT compiler" ON)
-if(SYCL_ENABLE_KERNEL_FUSION AND WIN32)
-  message(WARNING "Kernel fusion not yet supported on Windows")
-  set(SYCL_ENABLE_KERNEL_FUSION OFF CACHE 
-      BOOL "Kernel fusion not yet supported on Windows" FORCE)
-endif()
 
 # Option for enabling building the SYCL major release preview library.
 option(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB "Enable build of the SYCL major release preview library" ON)
