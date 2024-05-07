@@ -104,7 +104,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   set(UNIFIED_RUNTIME_TAG fcd3693d1b54ddad1fcbe9e2c749c01628739346)
 
   fetch_adapter_source(level_zero
-    "https://github.com/oneapi-src/unified-runtime.git"
+    ${UNIFIED_RUNTIME_REPO}
     # commit fb342f06e1ac244c5995b7be458d0c32a1ba17ab
     # Merge: a44e81b5 7186d6ce
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
