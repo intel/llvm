@@ -95,7 +95,8 @@ struct BufferInterop {
   using ReturnType =
       backend_return_t<Backend, buffer<DataT, Dimensions, AllocatorT>>;
 
-  static ReturnType GetNativeObjs(const std::vector<pi_native_handle> &Handle) {
+  static ReturnType
+  GetNativeObjs(const std::vector<ur_native_handle_t> &Handle) {
     ReturnType ReturnValue = 0;
     if (Handle.size()) {
       ReturnValue = detail::pi::cast<ReturnType>(Handle[0]);
@@ -109,7 +110,8 @@ struct BufferInterop<backend::opencl, DataT, Dimensions, AllocatorT> {
   using ReturnType =
       backend_return_t<backend::opencl, buffer<DataT, Dimensions, AllocatorT>>;
 
-  static ReturnType GetNativeObjs(const std::vector<pi_native_handle> &Handle) {
+  static ReturnType
+  GetNativeObjs(const std::vector<ur_native_handle_t> &Handle) {
     ReturnType ReturnValue{};
     for (auto &Obj : Handle) {
       ReturnValue.push_back(
@@ -213,8 +215,9 @@ get_native<backend::ext_oneapi_cuda, device>(const device &Obj) {
   }
   // CUDA uses a 32-bit int instead of an opaque pointer like other backends,
   // so we need a specialization with static_cast instead of reinterpret_cast.
-  return static_cast<backend_return_t<backend::ext_oneapi_cuda, device>>(
-      Obj.getNative());
+  // TODO(pi2ur): Reimplement this when the switch to uintptr_t is done
+  return 0; // (backend_return_t<backend::ext_oneapi_cuda,
+            // device>)(Obj.getNative());
 }
 
 #ifndef SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL
@@ -266,38 +269,40 @@ namespace detail {
 // Forward declaration
 class kernel_bundle_impl;
 
-__SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle,
+__SYCL_EXPORT platform make_platform(ur_native_handle_t NativeHandle,
                                      backend Backend);
-__SYCL_EXPORT device make_device(pi_native_handle NativeHandle,
+__SYCL_EXPORT device make_device(ur_native_handle_t NativeHandle,
                                  backend Backend);
-__SYCL_EXPORT context make_context(pi_native_handle NativeHandle,
+__SYCL_EXPORT context make_context(ur_native_handle_t NativeHandle,
                                    const async_handler &Handler,
                                    backend Backend);
-__SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
+__SYCL_EXPORT queue make_queue(ur_native_handle_t NativeHandle,
                                int32_t nativeHandleDesc,
                                const context &TargetContext,
                                const device *TargetDevice, bool KeepOwnership,
                                const property_list &PropList,
                                const async_handler &Handler, backend Backend);
-__SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
+__SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,
                                const context &TargetContext, backend Backend);
-__SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
+__SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,
                                const context &TargetContext, bool KeepOwnership,
                                backend Backend);
 // TODO: Unused. Remove when allowed.
-__SYCL_EXPORT kernel make_kernel(pi_native_handle NativeHandle,
+__SYCL_EXPORT kernel make_kernel(ur_native_handle_t NativeHandle,
                                  const context &TargetContext, backend Backend);
 __SYCL_EXPORT kernel make_kernel(
     const context &TargetContext,
     const kernel_bundle<bundle_state::executable> &KernelBundle,
-    pi_native_handle NativeKernelHandle, bool KeepOwnership, backend Backend);
+    ur_native_handle_t NativeKernelHandle, bool KeepOwnership, backend Backend);
 // TODO: Unused. Remove when allowed.
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
-make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
-                   bundle_state State, backend Backend);
+make_kernel_bundle(ur_native_handle_t NativeHandle,
+                   const context &TargetContext, bundle_state State,
+                   backend Backend);
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
-make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
-                   bool KeepOwnership, bundle_state State, backend Backend);
+make_kernel_bundle(ur_native_handle_t NativeHandle,
+                   const context &TargetContext, bool KeepOwnership,
+                   bundle_state State, backend Backend);
 } // namespace detail
 
 template <backend Backend>
@@ -307,7 +312,7 @@ make_platform(
     const typename backend_traits<Backend>::template input_type<platform>
         &BackendObject) {
   return detail::make_platform(
-      detail::pi::cast<pi_native_handle>(BackendObject), Backend);
+      detail::pi::cast<ur_native_handle_t>(BackendObject), Backend);
 }
 
 template <backend Backend>
@@ -325,8 +330,8 @@ make_device(const typename backend_traits<Backend>::template input_type<device>
     }
   }
 
-  return detail::make_device(detail::pi::cast<pi_native_handle>(BackendObject),
-                             Backend);
+  return detail::make_device(
+      detail::pi::cast<ur_native_handle_t>(BackendObject), Backend);
 }
 
 template <backend Backend>
@@ -336,8 +341,8 @@ make_context(
     const typename backend_traits<Backend>::template input_type<context>
         &BackendObject,
     const async_handler &Handler = {}) {
-  return detail::make_context(detail::pi::cast<pi_native_handle>(BackendObject),
-                              Handler, Backend);
+  return detail::make_context(
+      detail::pi::cast<ur_native_handle_t>(BackendObject), Handler, Backend);
 }
 
 template <backend Backend>
@@ -348,7 +353,7 @@ make_queue(const typename backend_traits<Backend>::template input_type<queue>
            const context &TargetContext, const async_handler Handler = {}) {
   auto KeepOwnership =
       Backend == backend::ext_oneapi_cuda || Backend == backend::ext_oneapi_hip;
-  return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
+  return detail::make_queue(detail::pi::cast<ur_native_handle_t>(BackendObject),
                             false, TargetContext, nullptr, KeepOwnership, {},
                             Handler, Backend);
 }
@@ -359,7 +364,7 @@ std::enable_if_t<detail::InteropFeatureSupportMap<Backend>::MakeEvent == true,
 make_event(const typename backend_traits<Backend>::template input_type<event>
                &BackendObject,
            const context &TargetContext) {
-  return detail::make_event(detail::pi::cast<pi_native_handle>(BackendObject),
+  return detail::make_event(detail::pi::cast<ur_native_handle_t>(BackendObject),
                             TargetContext, Backend);
 }
 
@@ -371,7 +376,7 @@ std::enable_if_t<detail::InteropFeatureSupportMap<Backend>::MakeEvent == true,
                                            &BackendObject,
                                    const context &TargetContext,
                                    bool KeepOwnership) {
-  return detail::make_event(detail::pi::cast<pi_native_handle>(BackendObject),
+  return detail::make_event(detail::pi::cast<ur_native_handle_t>(BackendObject),
                             TargetContext, KeepOwnership, Backend);
 }
 
@@ -385,7 +390,7 @@ make_buffer(const typename backend_traits<Backend>::template input_type<
                 buffer<T, Dimensions, AllocatorT>> &BackendObject,
             const context &TargetContext, event AvailableEvent = {}) {
   return detail::make_buffer_helper<T, Dimensions, AllocatorT>(
-      detail::pi::cast<pi_native_handle>(BackendObject), TargetContext,
+      detail::pi::cast<ur_native_handle_t>(BackendObject), TargetContext,
       AvailableEvent);
 }
 
@@ -398,7 +403,7 @@ make_image(const typename backend_traits<Backend>::template input_type<
                image<Dimensions, AllocatorT>> &BackendObject,
            const context &TargetContext, event AvailableEvent = {}) {
   return image<Dimensions, AllocatorT>(
-      detail::pi::cast<pi_native_handle>(BackendObject), TargetContext,
+      detail::pi::cast<ur_native_handle_t>(BackendObject), TargetContext,
       AvailableEvent);
 }
 
@@ -407,8 +412,9 @@ kernel
 make_kernel(const typename backend_traits<Backend>::template input_type<kernel>
                 &BackendObject,
             const context &TargetContext) {
-  return detail::make_kernel(detail::pi::cast<pi_native_handle>(BackendObject),
-                             TargetContext, Backend);
+  return detail::make_kernel(
+      detail::pi::cast<ur_native_handle_t>(BackendObject), TargetContext,
+      Backend);
 }
 
 template <backend Backend, bundle_state State>
@@ -420,7 +426,7 @@ make_kernel_bundle(const typename backend_traits<Backend>::template input_type<
                    const context &TargetContext) {
   std::shared_ptr<detail::kernel_bundle_impl> KBImpl =
       detail::make_kernel_bundle(
-          detail::pi::cast<pi_native_handle>(BackendObject), TargetContext,
+          detail::pi::cast<ur_native_handle_t>(BackendObject), TargetContext,
           false, State, Backend);
   return detail::createSyclObjFromImpl<kernel_bundle<State>>(KBImpl);
 }

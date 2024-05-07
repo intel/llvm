@@ -90,7 +90,7 @@ public:
   /// \param Context is a pointer to SYCL context impl.
   /// \param InteropProgram is an instance of plugin interface interoperability
   /// program.
-  program_impl(ContextImplPtr Context, pi_native_handle InteropProgram);
+  program_impl(ContextImplPtr Context, ur_native_handle_t InteropProgram);
 
   /// Constructs a program instance from plugin interface interoperability
   /// kernel.
@@ -307,7 +307,7 @@ public:
 
 private:
   // Deligating Constructor used in Implementation.
-  program_impl(ContextImplPtr Context, pi_native_handle InteropProgram,
+  program_impl(ContextImplPtr Context, ur_native_handle_t InteropProgram,
                ur_program_handle_t Program);
   /// Checks feature support for specific devices.
   ///

@@ -699,9 +699,8 @@ void exec_graph_impl::createCommandBuffers(
     sycl::device Device, std::shared_ptr<partition> &Partition) {
   ur_exp_command_buffer_handle_t OutCommandBuffer;
   ur_exp_command_buffer_desc_t Desc{
-      UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC, nullptr,
-      Partition->MIsInOrderGraph && !MEnableProfiling, MEnableProfiling,
-      MIsUpdatable};
+      UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC, nullptr, MIsUpdatable,
+      Partition->MIsInOrderGraph && !MEnableProfiling, MEnableProfiling};
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   const sycl::detail::UrPluginPtr &Plugin = ContextImpl->getUrPlugin();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(Device);

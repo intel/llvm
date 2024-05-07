@@ -115,13 +115,13 @@ program_impl::program_impl(
 }
 
 program_impl::program_impl(ContextImplPtr Context,
-                           pi_native_handle InteropProgram)
+                           ur_native_handle_t InteropProgram)
     : program_impl(Context, InteropProgram, nullptr) {
   MIsInterop = true;
 }
 
 program_impl::program_impl(ContextImplPtr Context,
-                           pi_native_handle InteropProgram,
+                           ur_native_handle_t InteropProgram,
                            ur_program_handle_t Program)
     : MURProgram(Program), MContext(Context), MLinkable(true) {
   const UrPluginPtr &Plugin = getUrPlugin();
@@ -129,8 +129,7 @@ program_impl::program_impl(ContextImplPtr Context,
     assert(InteropProgram &&
            "No InteropProgram/PiProgram defined with piextProgramFromNative");
     // Translate the raw program handle into PI program.
-    Plugin->call(urProgramCreateWithNativeHandle,
-                 reinterpret_cast<ur_native_handle_t>(InteropProgram),
+    Plugin->call(urProgramCreateWithNativeHandle, InteropProgram,
                  MContext->getUrHandleRef(), nullptr, &MURProgram);
   } else
     Plugin->call(urProgramRetain, Program);
@@ -197,16 +196,8 @@ program_impl::program_impl(ContextImplPtr Context,
   assert(false && "BinaryType is invalid.");
 }
 
-// program_impl::program_impl(ContextImplPtr Context,
-//                            sycl::detail::pi::PiKernel Kernel)
-//     : program_impl(Context, reinterpret_cast<pi_native_handle>(nullptr),
-//                    ProgramManager::getInstance().getPiProgramFromPiKernel(
-//                        Kernel, Context)) {
-//   MIsInterop = true;
-// }
-
 program_impl::program_impl(ContextImplPtr Context, ur_kernel_handle_t Kernel)
-    : program_impl(Context, reinterpret_cast<pi_native_handle>(nullptr),
+    : program_impl(Context, static_cast<ur_native_handle_t>(nullptr),
                    ProgramManager::getInstance().getUrProgramFromUrKernel(
                        Kernel, Context)) {
   MIsInterop = true;
@@ -393,14 +384,6 @@ void program_impl::build(const std::string &Options) {
   MBuildOptions = Options;
 }
 
-std::vector<sycl::detail::pi::PiDevice> program_impl::get_pi_devices() const {
-  std::vector<sycl::detail::pi::PiDevice> PiDevices;
-  for (const auto &Device : MDevices) {
-    PiDevices.push_back(getSyclObjImpl(Device)->getHandleRef());
-  }
-  return PiDevices;
-}
-
 std::vector<ur_device_handle_t> program_impl::get_ur_devices() const {
   std::vector<ur_device_handle_t> UrDevices;
   for (const auto &Device : MDevices) {
@@ -436,8 +419,8 @@ std::vector<device>
 program_impl::sort_devices_by_cl_device_id(std::vector<device> Devices) {
   std::sort(Devices.begin(), Devices.end(),
             [](const device &id1, const device &id2) {
-              return (detail::getSyclObjImpl(id1)->getHandleRef() <
-                      detail::getSyclObjImpl(id2)->getHandleRef());
+              return (detail::getSyclObjImpl(id1)->getUrHandleRef() <
+                      detail::getSyclObjImpl(id2)->getUrHandleRef());
             });
   return Devices;
 }

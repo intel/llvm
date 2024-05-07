@@ -66,13 +66,13 @@ context::context(const std::vector<device> &DeviceList,
   else {
     const device &NonHostDevice = *NonHostDeviceIter;
     const auto &NonHostPlatform =
-        detail::getSyclObjImpl(NonHostDevice.get_platform())->getHandleRef();
+        detail::getSyclObjImpl(NonHostDevice.get_platform())->getUrHandleRef();
     if (std::any_of(DeviceList.begin(), DeviceList.end(),
                     [&](const device &CurrentDevice) {
                       return (
                           detail::getSyclObjImpl(CurrentDevice)->is_host() ||
                           (detail::getSyclObjImpl(CurrentDevice.get_platform())
-                               ->getHandleRef() != NonHostPlatform));
+                               ->getUrHandleRef() != NonHostPlatform));
                     }))
       throw invalid_parameter_error(
           "Can't add devices across platforms to a single context.",
@@ -83,10 +83,9 @@ context::context(const std::vector<device> &DeviceList,
   }
 }
 context::context(cl_context ClContext, async_handler AsyncHandler) {
-  const auto &Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
+  const auto &Plugin = sycl::detail::pi::getUrPlugin<backend::opencl>();
   impl = std::make_shared<detail::context_impl>(
-      detail::pi::cast<sycl::detail::pi::PiContext>(ClContext), AsyncHandler,
-      Plugin);
+      detail::pi::cast<ur_context_handle_t>(ClContext), AsyncHandler, Plugin);
 }
 
 template <typename Param>
@@ -155,7 +154,7 @@ std::vector<device> context::get_devices() const {
 
 context::context(std::shared_ptr<detail::context_impl> Impl) : impl(Impl) {}
 
-pi_native_handle context::getNative() const { return impl->getNative(); }
+ur_native_handle_t context::getNative() const { return impl->getNative(); }
 
 } // namespace _V1
 } // namespace sycl

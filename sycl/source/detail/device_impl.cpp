@@ -22,80 +22,21 @@ device_impl::device_impl()
       // assert is natively supported by host
       MIsAssertFailSupported(true) {}
 
-device_impl::device_impl(pi_native_handle InteropDeviceHandle,
-                         const PluginPtr &Plugin)
+device_impl::device_impl(ur_native_handle_t InteropDeviceHandle,
+                         const UrPluginPtr &Plugin)
     : device_impl(InteropDeviceHandle, nullptr, nullptr, Plugin) {}
-
-device_impl::device_impl(sycl::detail::pi::PiDevice Device,
-                         PlatformImplPtr Platform)
-    : device_impl(reinterpret_cast<pi_native_handle>(nullptr), Device, Platform,
-                  Platform->getPlugin()) {}
-
-device_impl::device_impl(sycl::detail::pi::PiDevice Device,
-                         const PluginPtr &Plugin)
-    : device_impl(reinterpret_cast<pi_native_handle>(nullptr), Device, nullptr,
-                  Plugin) {}
 
 /// Constructs a SYCL device instance using the provided
 /// PI device instance.
 device_impl::device_impl(ur_device_handle_t Device, PlatformImplPtr Platform)
-    : device_impl(reinterpret_cast<pi_native_handle>(nullptr), Device, Platform,
-                  Platform->getUrPlugin()) {}
+    : device_impl(nullptr, Device, Platform, Platform->getUrPlugin()) {}
 
 /// Constructs a SYCL device instance using the provided
 /// PI device instance.
 device_impl::device_impl(ur_device_handle_t Device, const UrPluginPtr &Plugin)
-    : device_impl(reinterpret_cast<pi_native_handle>(nullptr), Device, nullptr,
-                  Plugin) {}
+    : device_impl(nullptr, Device, nullptr, Plugin) {}
 
-device_impl::device_impl(pi_native_handle InteropDeviceHandle,
-                         sycl::detail::pi::PiDevice Device,
-                         PlatformImplPtr Platform, const PluginPtr &Plugin)
-    : MDevice(Device), MIsHostDevice(false),
-      MDeviceHostBaseTime(std::make_pair(0, 0)) {
-
-  bool InteroperabilityConstructor = false;
-  if (Device == nullptr) {
-    assert(InteropDeviceHandle);
-    // Get PI device from the raw device handle.
-    // NOTE: this is for OpenCL interop only (and should go away).
-    // With SYCL-2020 BE generalization "make" functions are used instead.
-    Plugin->call<PiApiKind::piextDeviceCreateWithNativeHandle>(
-        InteropDeviceHandle, nullptr, &MDevice);
-    InteroperabilityConstructor = true;
-  }
-
-  // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call<PiApiKind::piDeviceGetInfo>(
-      MDevice, PI_DEVICE_INFO_TYPE, sizeof(sycl::detail::pi::PiDeviceType),
-      &MType, nullptr);
-
-  // No need to set MRootDevice when MAlwaysRootDevice is true
-  if ((Platform == nullptr) || !Platform->MAlwaysRootDevice) {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin->call<PiApiKind::piDeviceGetInfo>(
-        MDevice, PI_DEVICE_INFO_PARENT_DEVICE,
-        sizeof(sycl::detail::pi::PiDevice), &MRootDevice, nullptr);
-  }
-
-  if (!InteroperabilityConstructor) {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    // Interoperability Constructor already calls DeviceRetain in
-    // piextDeviceFromNative.
-    Plugin->call<PiApiKind::piDeviceRetain>(MDevice);
-  }
-
-  // set MPlatform
-  if (!Platform) {
-    Platform = platform_impl::getPlatformFromPiDevice(MDevice, Plugin);
-  }
-  MPlatform = Platform;
-
-  MIsAssertFailSupported =
-      has_extension(PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT);
-}
-
-device_impl::device_impl(pi_native_handle InteropDeviceHandle,
+device_impl::device_impl(ur_native_handle_t InteropDeviceHandle,
                          ur_device_handle_t Device, PlatformImplPtr Platform,
                          const UrPluginPtr &Plugin)
     : MUrDevice(Device), MIsHostDevice(false),
@@ -104,12 +45,11 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
   bool InteroperabilityConstructor = false;
   if (Device == nullptr) {
     assert(InteropDeviceHandle);
-    // Get PI device from the raw device handle.
+    // Get UR device from the raw device handle.
     // NOTE: this is for OpenCL interop only (and should go away).
     // With SYCL-2020 BE generalization "make" functions are used instead.
-    Plugin->call(urDeviceCreateWithNativeHandle,
-                 reinterpret_cast<ur_native_handle_t>(InteropDeviceHandle),
-                 nullptr, nullptr, &MUrDevice);
+    Plugin->call(urDeviceCreateWithNativeHandle, InteropDeviceHandle, nullptr,
+                 nullptr, &MUrDevice);
     InteroperabilityConstructor = true;
   }
 
@@ -164,7 +104,8 @@ cl_device_id device_impl::get() const {
         PI_ERROR_INVALID_DEVICE);
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
-  getPlugin()->call<PiApiKind::piDeviceRetain>(MDevice);
+  // TODO(pi2ur): Use GetNativeHandle
+  getUrPlugin()->call(urDeviceRetain, MUrDevice);
   return pi::cast<cl_device_id>(getNative());
 }
 
@@ -251,16 +192,15 @@ bool device_impl::is_partition_supported(info::partition_property Prop) const {
                    Prop) != SupportedProperties.end();
 }
 
-std::vector<device>
-device_impl::create_sub_devices(const cl_device_partition_property *Properties,
-                                size_t SubDevicesCount) const {
-
-  std::vector<sycl::detail::pi::PiDevice> SubDevices(SubDevicesCount);
+std::vector<device> device_impl::create_sub_devices(
+    const ur_device_partition_properties_t *Properties,
+    size_t SubDevicesCount) const {
+  std::vector<ur_device_handle_t> SubDevices(SubDevicesCount);
   pi_uint32 ReturnedSubDevices = 0;
-  const PluginPtr &Plugin = getPlugin();
-  Plugin->call<sycl::errc::invalid, PiApiKind::piDevicePartition>(
-      MDevice, Properties, SubDevicesCount, SubDevices.data(),
-      &ReturnedSubDevices);
+  const UrPluginPtr &Plugin = getUrPlugin();
+  Plugin->call<sycl::errc::invalid>(urDevicePartition, MUrDevice, Properties,
+                                    SubDevicesCount, SubDevices.data(),
+                                    &ReturnedSubDevices);
   if (ReturnedSubDevices != SubDevicesCount) {
     throw sycl::exception(
         errc::invalid,
@@ -272,9 +212,9 @@ device_impl::create_sub_devices(const cl_device_partition_property *Properties,
   //
   std::vector<device> res;
   std::for_each(SubDevices.begin(), SubDevices.end(),
-                [&res, this](const sycl::detail::pi::PiDevice &a_pi_device) {
+                [&res, this](const ur_device_handle_t &a_ur_device) {
                   device sycl_device = detail::createSyclObjFromImpl<device>(
-                      MPlatform->getOrMakeDeviceImpl(a_pi_device, MPlatform));
+                      MPlatform->getOrMakeDeviceImpl(a_ur_device, MPlatform));
                   res.push_back(sycl_device);
                 });
   return res;
@@ -297,10 +237,17 @@ std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
                           "Total counts exceed max compute units");
 
   size_t SubDevicesCount = MaxComputeUnits / ComputeUnits;
-  const pi_device_partition_property Properties[3] = {
-      PI_DEVICE_PARTITION_EQUALLY, (pi_device_partition_property)ComputeUnits,
-      0};
-  return create_sub_devices(Properties, SubDevicesCount);
+
+  ur_device_partition_property_t Prop{};
+  Prop.type = UR_DEVICE_PARTITION_EQUALLY;
+  Prop.value.count = static_cast<uint32_t>(ComputeUnits);
+
+  ur_device_partition_properties_t Properties{};
+  Properties.stype = UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES;
+  Properties.PropCount = 1;
+  Properties.pProperties = &Prop;
+
+  return create_sub_devices(&Properties, SubDevicesCount);
 }
 
 std::vector<device>
@@ -313,19 +260,23 @@ device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
         "sycl::info::partition_property::partition_by_counts.",
         PI_ERROR_INVALID_OPERATION);
   }
-  static const pi_device_partition_property P[] = {
-      PI_DEVICE_PARTITION_BY_COUNTS, PI_DEVICE_PARTITION_BY_COUNTS_LIST_END, 0};
-  std::vector<pi_device_partition_property> Properties(P, P + 3);
+
+  std::vector<ur_device_partition_property_t> Props{};
 
   // Fill the properties vector with counts and validate it
-  auto It = Properties.begin() + 1;
   size_t TotalCounts = 0;
   size_t NonZeroCounts = 0;
   for (auto Count : Counts) {
     TotalCounts += Count;
     NonZeroCounts += (Count != 0) ? 1 : 0;
-    It = Properties.insert(It, Count);
+    Props.push_back(ur_device_partition_property_t{
+        UR_DEVICE_PARTITION_BY_COUNTS, static_cast<uint32_t>(Count)});
   }
+
+  ur_device_partition_properties_t Properties{};
+  Properties.stype = UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES;
+  Properties.pProperties = Props.data();
+  Properties.PropCount = Props.size();
 
   // If the number of non-zero values in counts exceeds the device’s maximum
   // number of sub devices (as returned by info::device::
@@ -343,7 +294,7 @@ device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
     throw sycl::exception(errc::invalid,
                           "Total counts exceed max compute units");
 
-  return create_sub_devices(Properties.data(), Counts.size());
+  return create_sub_devices(&Properties, Counts.size());
 }
 
 std::vector<device> device_impl::create_sub_devices(
@@ -363,16 +314,23 @@ std::vector<device> device_impl::create_sub_devices(
             ".",
         PI_ERROR_INVALID_VALUE);
   }
-  const pi_device_partition_property Properties[3] = {
-      PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
-      (pi_device_partition_property)AffinityDomain, 0};
+
+  ur_device_partition_property_t Prop;
+  Prop.type = UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
+  Prop.value.affinity_domain =
+      static_cast<ur_device_affinity_domain_flags_t>(AffinityDomain);
+
+  ur_device_partition_properties_t Properties{};
+  Properties.stype = UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES;
+  Properties.PropCount = 1;
+  Properties.pProperties = &Prop;
 
   pi_uint32 SubDevicesCount = 0;
-  const PluginPtr &Plugin = getPlugin();
-  Plugin->call<sycl::errc::invalid, PiApiKind::piDevicePartition>(
-      MDevice, Properties, 0, nullptr, &SubDevicesCount);
+  const UrPluginPtr &Plugin = getUrPlugin();
+  Plugin->call<sycl::errc::invalid>(urDevicePartition, MUrDevice, &Properties,
+                                    0, nullptr, &SubDevicesCount);
 
-  return create_sub_devices(Properties, SubDevicesCount);
+  return create_sub_devices(&Properties, SubDevicesCount);
 }
 
 std::vector<device> device_impl::create_sub_devices() const {
@@ -386,23 +344,28 @@ std::vector<device> device_impl::create_sub_devices() const {
         PI_ERROR_INVALID_OPERATION);
   }
 
-  const pi_device_partition_property Properties[2] = {
-      PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE, 0};
+  ur_device_partition_property_t Prop;
+  Prop.type = UR_DEVICE_PARTITION_BY_CSLICE;
+
+  ur_device_partition_properties_t Properties{};
+  Properties.stype = UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES;
+  Properties.pProperties = &Prop;
+  Properties.PropCount = 1;
 
   pi_uint32 SubDevicesCount = 0;
-  const PluginPtr &Plugin = getPlugin();
-  Plugin->call<sycl::errc::invalid, PiApiKind::piDevicePartition>(
-      MDevice, Properties, 0, nullptr, &SubDevicesCount);
+  const UrPluginPtr &Plugin = getUrPlugin();
+  Plugin->call(urDevicePartition, MUrDevice, &Properties, 0, nullptr,
+               &SubDevicesCount);
 
-  return create_sub_devices(Properties, SubDevicesCount);
+  return create_sub_devices(&Properties, SubDevicesCount);
 }
 
-pi_native_handle device_impl::getNative() const {
-  auto Plugin = getPlugin();
+ur_native_handle_t device_impl::getNative() const {
+  auto Plugin = getUrPlugin();
   if (getBackend() == backend::opencl)
-    Plugin->call<PiApiKind::piDeviceRetain>(getHandleRef());
-  pi_native_handle Handle;
-  Plugin->call<PiApiKind::piextDeviceGetNativeHandle>(getHandleRef(), &Handle);
+    Plugin->call(urDeviceRetain, getUrHandleRef());
+  ur_native_handle_t Handle;
+  Plugin->call(urDeviceGetNativeHandle, getUrHandleRef(), &Handle);
   return Handle;
 }
 
@@ -882,10 +845,10 @@ uint64_t device_impl::getCurrentDeviceTime() {
 
   // If getCurrentDeviceTime is called for the first time or we have to refresh.
   if (!MDeviceHostBaseTime.second || Diff > TimeTillRefresh) {
-    const auto &Plugin = getPlugin();
-    auto Result =
-        Plugin->call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
-            MDevice, &MDeviceHostBaseTime.first, &MDeviceHostBaseTime.second);
+    const auto &Plugin = getUrPlugin();
+    auto Result = Plugin->call_nocheck(urDeviceGetGlobalTimestamps, MUrDevice,
+                                       &MDeviceHostBaseTime.first,
+                                       &MDeviceHostBaseTime.second);
     // We have to remember base host timestamp right after PI call and it is
     // going to be used for calculation of the device timestamp at the next
     // getCurrentDeviceTime() call. We need to do it here because getPlugin()
@@ -899,16 +862,14 @@ uint64_t device_impl::getCurrentDeviceTime() {
     HostTime =
         duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
             .count();
-    if (Result == PI_ERROR_INVALID_OPERATION) {
-      char *p = nullptr;
-      Plugin->call_nocheck<detail::PiApiKind::piPluginGetLastError>(&p);
-      std::string errorMsg(p ? p : "");
+    if (Result == UR_RESULT_ERROR_INVALID_OPERATION) {
+      // NOTE(pi2ur): Removed the call to GetLastError because  we shouldn't be
+      // calling it after ERROR_INVALID_OPERATION: there is no
+      // adapter-specific error. We should double check this is ok.
       throw sycl::feature_not_supported(
-          "Device and/or backend does not support querying timestamp: " +
-              errorMsg,
-          Result);
+          "Device and/or backend does not support querying timestamp", Result);
     } else {
-      Plugin->checkPiResult(Result);
+      Plugin->checkUrResult(Result);
     }
     // Until next sync we will compute device time based on the host time
     // returned in HostTime, so make this our base host time.
@@ -919,12 +880,11 @@ uint64_t device_impl::getCurrentDeviceTime() {
 }
 
 bool device_impl::isGetDeviceAndHostTimerSupported() {
-  const auto &Plugin = getPlugin();
+  const auto &Plugin = getUrPlugin();
   uint64_t DeviceTime = 0, HostTime = 0;
-  auto Result =
-      Plugin->call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
-          MDevice, &DeviceTime, &HostTime);
-  return Result != PI_ERROR_INVALID_OPERATION;
+  auto Result = Plugin->call_nocheck(urDeviceGetGlobalTimestamps, MUrDevice,
+                                     &DeviceTime, &HostTime);
+  return Result != UR_RESULT_ERROR_INVALID_OPERATION;
 }
 
 bool device_impl::extOneapiCanCompile(

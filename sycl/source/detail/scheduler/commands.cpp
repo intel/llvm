@@ -147,7 +147,7 @@ static size_t deviceToID(const device &Device) {
   if (getSyclObjImpl(Device)->is_host())
     return 0;
   else
-    return reinterpret_cast<size_t>(getSyclObjImpl(Device)->getHandleRef());
+    return reinterpret_cast<size_t>(getSyclObjImpl(Device)->getUrHandleRef());
 }
 #endif
 
@@ -1947,7 +1947,7 @@ std::string instrumentationGetKernelName(
   std::string KernelName;
   if (SyclKernel && SyclKernel->isCreatedFromSource()) {
     FromSource = true;
-    pi_kernel KernelHandle = SyclKernel->getHandleRef();
+    ur_kernel_handle_t KernelHandle = SyclKernel->getUrHandleRef();
     Address = KernelHandle;
     KernelName = FunctionName;
   } else {
@@ -3123,8 +3123,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         for (AllocaCommandBase *AllocaCmd : AllocaCmds)
           if (HostTask->MQueue->getContextImplPtr() ==
               AllocaCmd->getQueue()->getContextImplPtr()) {
-            auto MemArg =
-                reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
+            auto MemArg = reinterpret_cast<ur_mem_handle_t>(
+                AllocaCmd->getMemAllocation());
             ReqToMem.emplace_back(std::make_pair(Req, MemArg));
 
             return;

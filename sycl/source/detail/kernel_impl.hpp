@@ -159,16 +159,10 @@ public:
   template <typename Param>
   typename Param::return_type ext_oneapi_get_info(const queue &q) const;
 
-  /// Get a reference to a raw kernel object.
-  ///
-  /// \return a reference to a valid PiKernel instance with raw kernel object.
-  sycl::detail::pi::PiKernel &getHandleRef() { return MKernel; }
   /// Get a constant reference to a raw kernel object.
   ///
   /// \return a constant reference to a valid PiKernel instance with raw
   /// kernel object.
-  const sycl::detail::pi::PiKernel &getHandleRef() const { return MKernel; }
-
   const ur_kernel_handle_t &getUrHandleRef() const { return MURKernel; }
 
   /// Check if kernel was created from a program that had been created from
@@ -207,7 +201,6 @@ public:
   std::mutex *getCacheMutex() const { return MCacheMutex; }
 
 private:
-  sycl::detail::pi::PiKernel MKernel;
   ur_kernel_handle_t MURKernel = nullptr;
   const ContextImplPtr MContext;
   const PiProgram MProgram = nullptr;

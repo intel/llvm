@@ -17,14 +17,6 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
-                         ContextImplPtr Context,
-                         KernelBundleImplPtr KernelBundleImpl,
-                         const KernelArgMask *ArgMask) {
-  kernel_impl(reinterpret_cast<ur_kernel_handle_t>(Kernel), Context,
-              KernelBundleImpl, ArgMask);
-}
-
 kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr Context,
                          KernelBundleImplPtr KernelBundleImpl,
                          const KernelArgMask *ArgMask)

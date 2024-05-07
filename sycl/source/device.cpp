@@ -34,14 +34,16 @@ device::device() : device(default_selector_v) {}
 device::device(cl_device_id DeviceId) {
   // The implementation constructor takes ownership of the native handle so we
   // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
-  sycl::detail::pi::PiDevice Device;
-  auto Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
-  Plugin->call<detail::PiApiKind::piextDeviceCreateWithNativeHandle>(
-      detail::pi::cast<pi_native_handle>(DeviceId), nullptr, &Device);
+  // TODO(pi2ur): Don't cast from cl below, use urGetNativeHandle
+  ur_device_handle_t Device;
+  auto Plugin = sycl::detail::pi::getUrPlugin<backend::opencl>();
+  Plugin->call(urDeviceCreateWithNativeHandle,
+               detail::pi::cast<ur_native_handle_t>(DeviceId), nullptr, nullptr,
+               &Device);
   auto Platform =
-      detail::platform_impl::getPlatformFromPiDevice(Device, Plugin);
+      detail::platform_impl::getPlatformFromUrDevice(Device, Plugin);
   impl = Platform->getOrMakeDeviceImpl(Device, Platform);
-  Plugin->call<detail::PiApiKind::piDeviceRetain>(impl->getHandleRef());
+  Plugin->call(urDeviceRetain, impl->getUrHandleRef());
 }
 
 device::device(const device_selector &deviceSelector) {
@@ -214,32 +216,32 @@ device::get_backend_info() const {
 
 backend device::get_backend() const noexcept { return impl->getBackend(); }
 
-pi_native_handle device::getNative() const { return impl->getNative(); }
+ur_native_handle_t device::getNative() const { return impl->getNative(); }
 
 bool device::has(aspect Aspect) const { return impl->has(Aspect); }
 
 void device::ext_oneapi_enable_peer_access(const device &peer) {
-  const sycl::detail::pi::PiDevice Device = impl->getHandleRef();
-  const sycl::detail::pi::PiDevice Peer = peer.impl->getHandleRef();
+  ur_device_handle_t Device = impl->getUrHandleRef();
+  ur_device_handle_t Peer = peer.impl->getUrHandleRef();
   if (Device != Peer) {
-    auto Plugin = impl->getPlugin();
-    Plugin->call<detail::PiApiKind::piextEnablePeerAccess>(Device, Peer);
+    auto Plugin = impl->getUrPlugin();
+    Plugin->call(urUsmP2PEnablePeerAccessExp, Device, Peer);
   }
 }
 
 void device::ext_oneapi_disable_peer_access(const device &peer) {
-  const sycl::detail::pi::PiDevice Device = impl->getHandleRef();
-  const sycl::detail::pi::PiDevice Peer = peer.impl->getHandleRef();
+  ur_device_handle_t Device = impl->getUrHandleRef();
+  ur_device_handle_t Peer = peer.impl->getUrHandleRef();
   if (Device != Peer) {
-    auto Plugin = impl->getPlugin();
-    Plugin->call<detail::PiApiKind::piextDisablePeerAccess>(Device, Peer);
+    auto Plugin = impl->getUrPlugin();
+    Plugin->call(urUsmP2PDisablePeerAccessExp, Device, Peer);
   }
 }
 
 bool device::ext_oneapi_can_access_peer(const device &peer,
                                         ext::oneapi::peer_access attr) {
-  const sycl::detail::pi::PiDevice Device = impl->getHandleRef();
-  const sycl::detail::pi::PiDevice Peer = peer.impl->getHandleRef();
+  ur_device_handle_t Device = impl->getUrHandleRef();
+  ur_device_handle_t Peer = peer.impl->getUrHandleRef();
 
   if (Device == Peer) {
     return true;
@@ -248,19 +250,19 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
   size_t returnSize;
   int value;
 
-  sycl::detail::pi::PiPeerAttr PiAttr = [&]() {
+  ur_exp_peer_info_t UrAttr = [&]() {
     switch (attr) {
     case ext::oneapi::peer_access::access_supported:
-      return PI_PEER_ACCESS_SUPPORTED;
+      return UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED;
     case ext::oneapi::peer_access::atomics_supported:
-      return PI_PEER_ATOMICS_SUPPORTED;
+      return UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED;
     }
     throw sycl::exception(make_error_code(errc::invalid),
                           "Unrecognized peer access attribute.");
   }();
-  auto Plugin = impl->getPlugin();
-  Plugin->call<detail::PiApiKind::piextPeerAccessGetInfo>(
-      Device, Peer, PiAttr, sizeof(int), &value, &returnSize);
+  auto Plugin = impl->getUrPlugin();
+  Plugin->call(urUsmP2PPeerAccessGetInfoExp, Device, Peer, UrAttr, sizeof(int),
+               &value, &returnSize);
 
   return value == 1;
 }
@@ -282,13 +284,13 @@ bool device::ext_oneapi_can_compile(
 }
 
 bool device::ext_oneapi_supports_cl_c_feature(const std::string &Feature) {
-  const detail::pi::PiDevice Device = impl->getHandleRef();
-  auto Plugin = impl->getPlugin();
+  ur_device_handle_t Device = impl->getUrHandleRef();
+  auto Plugin = impl->getUrPlugin();
   uint32_t ipVersion = 0;
-  auto res = Plugin->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-      Device, PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
-      &ipVersion, nullptr);
-  if (res != PI_SUCCESS)
+  auto res =
+      Plugin->call_nocheck(urDeviceGetInfo, Device, UR_DEVICE_INFO_IP_VERSION,
+                           sizeof(uint32_t), &ipVersion, nullptr);
+  if (res != UR_RESULT_SUCCESS)
     return false;
 
   return ext::oneapi::experimental::detail::OpenCLC_Feature_Available(
@@ -297,13 +299,13 @@ bool device::ext_oneapi_supports_cl_c_feature(const std::string &Feature) {
 
 bool device::ext_oneapi_supports_cl_c_version(
     const ext::oneapi::experimental::cl_version &Version) const {
-  const detail::pi::PiDevice Device = impl->getHandleRef();
-  auto Plugin = impl->getPlugin();
+  ur_device_handle_t Device = impl->getUrHandleRef();
+  auto Plugin = impl->getUrPlugin();
   uint32_t ipVersion = 0;
-  auto res = Plugin->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-      Device, PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
-      &ipVersion, nullptr);
-  if (res != PI_SUCCESS)
+  auto res =
+      Plugin->call_nocheck(urDeviceGetInfo, Device, UR_DEVICE_INFO_IP_VERSION,
+                           sizeof(uint32_t), &ipVersion, nullptr);
+  if (res != UR_RESULT_SUCCESS)
     return false;
 
   return ext::oneapi::experimental::detail::OpenCLC_Supports_Version(Version,
@@ -313,13 +315,13 @@ bool device::ext_oneapi_supports_cl_c_version(
 bool device::ext_oneapi_supports_cl_extension(
     const std::string &Name,
     ext::oneapi::experimental::cl_version *VersionPtr) const {
-  const detail::pi::PiDevice Device = impl->getHandleRef();
-  auto Plugin = impl->getPlugin();
+  ur_device_handle_t Device = impl->getUrHandleRef();
+  auto Plugin = impl->getUrPlugin();
   uint32_t ipVersion = 0;
-  auto res = Plugin->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-      Device, PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
-      &ipVersion, nullptr);
-  if (res != PI_SUCCESS)
+  auto res =
+      Plugin->call_nocheck(urDeviceGetInfo, Device, UR_DEVICE_INFO_IP_VERSION,
+                           sizeof(uint32_t), &ipVersion, nullptr);
+  if (res != UR_RESULT_SUCCESS)
     return false;
 
   return ext::oneapi::experimental::detail::OpenCLC_Supports_Extension(
@@ -327,12 +329,12 @@ bool device::ext_oneapi_supports_cl_extension(
 }
 
 std::string device::ext_oneapi_cl_profile() const {
-  const detail::pi::PiDevice Device = impl->getHandleRef();
-  auto Plugin = impl->getPlugin();
+  ur_device_handle_t Device = impl->getUrHandleRef();
+  auto Plugin = impl->getUrPlugin();
   uint32_t ipVersion = 0;
-  auto res = Plugin->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-      Device, PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
-      &ipVersion, nullptr);
+  auto res =
+      Plugin->call_nocheck(urDeviceGetInfo, Device, UR_DEVICE_INFO_IP_VERSION,
+                           sizeof(uint32_t), &ipVersion, nullptr);
   if (res != PI_SUCCESS)
     return "";
 

@@ -192,20 +192,20 @@ public:
       // Add the function to capture meta data for the XPTI trace event
       PrepareNotify.addMetadata([&](auto TEvent) {
         xpti::addMetadata(TEvent, "sycl_context",
-                          reinterpret_cast<size_t>(MContext->getHandleRef()));
+                          reinterpret_cast<size_t>(MContext->getUrHandleRef()));
         if (MDevice) {
           xpti::addMetadata(TEvent, "sycl_device_name",
                             MDevice->getDeviceName());
           xpti::addMetadata(
               TEvent, "sycl_device",
               reinterpret_cast<size_t>(
-                  MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+                  MDevice->is_host() ? 0 : MDevice->getUrHandleRef()));
         }
         xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
         xpti::addMetadata(TEvent, "queue_id", MQueueID);
         if (!MHostQueue)
           xpti::addMetadata(TEvent, "queue_handle",
-                            reinterpret_cast<size_t>(getHandleRef()));
+                            reinterpret_cast<size_t>(getUrHandleRef()));
       });
       // Also publish to TLS
       xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
@@ -257,19 +257,19 @@ private:
       // Add the function to capture meta data for the XPTI trace event
       PrepareNotify.addMetadata([&](auto TEvent) {
         xpti::addMetadata(TEvent, "sycl_context",
-                          reinterpret_cast<size_t>(MContext->getHandleRef()));
+                          reinterpret_cast<size_t>(MContext->getUrHandleRef()));
         if (MDevice) {
           xpti::addMetadata(TEvent, "sycl_device_name",
                             MDevice->getDeviceName());
           xpti::addMetadata(
               TEvent, "sycl_device",
               reinterpret_cast<size_t>(
-                  MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+                  MDevice->is_host() ? 0 : MDevice->getUrHandleRef()));
         }
         xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
         xpti::addMetadata(TEvent, "queue_id", MQueueID);
         if (!MHostQueue)
-          xpti::addMetadata(TEvent, "queue_handle", getHandleRef());
+          xpti::addMetadata(TEvent, "queue_handle", getUrHandleRef());
       });
       // Also publish to TLS before notification
       xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
@@ -278,52 +278,10 @@ private:
 #endif
   }
 
-  void queue_impl_interop(sycl::detail::pi::PiQueue) {}
-
 public:
   /// Constructs a SYCL queue from plugin interoperability handle.
   ///
-  /// \param PiQueue is a raw PI queue handle.
-  /// \param Context is a SYCL context to associate with the queue being
-  /// constructed.
-  /// \param AsyncHandler is a SYCL asynchronous exception handler.
-  queue_impl(sycl::detail::pi::PiQueue PiQueue, const ContextImplPtr &Context,
-             const async_handler &AsyncHandler)
-      : MContext(Context), MAsyncHandler(AsyncHandler), MHostQueue(false),
-        MIsInorder(has_property<property::queue::in_order>()),
-        MDiscardEvents(
-            has_property<ext::oneapi::property::queue::discard_events>()),
-        MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MSupportsDiscardingPiEvents(MDiscardEvents &&
-                                    (MHostQueue ? true : MIsInorder)),
-        MQueueID{
-            MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
-    queue_impl_interop(PiQueue);
-  }
-
-  /// Constructs a SYCL queue from plugin interoperability handle.
-  ///
-  /// \param PiQueue is a raw PI queue handle.
-  /// \param Context is a SYCL context to associate with the queue being
-  /// constructed.
-  /// \param AsyncHandler is a SYCL asynchronous exception handler.
-  /// \param PropList is the queue properties.
-  queue_impl(sycl::detail::pi::PiQueue PiQueue, const ContextImplPtr &Context,
-             const async_handler &AsyncHandler, const property_list &PropList)
-      : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(PropList),
-        MHostQueue(false),
-        MIsInorder(has_property<property::queue::in_order>()),
-        MDiscardEvents(
-            has_property<ext::oneapi::property::queue::discard_events>()),
-        MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MSupportsDiscardingPiEvents(MDiscardEvents &&
-                                    (MHostQueue ? true : MIsInorder)) {
-    queue_impl_interop(PiQueue);
-  }
-
-  /// Constructs a SYCL queue from plugin interoperability handle.
-  ///
-  /// \param PiQueue is a raw PI queue handle.
+  /// \param UrQueue is a raw UR queue handle.
   /// \param Context is a SYCL context to associate with the queue being
   /// constructed.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
@@ -668,46 +626,8 @@ public:
     return *PIQ;
   }
 
-  sycl::detail::pi::PiQueue &getExclusiveQueueHandleRef() {
-    sycl::detail::pi::PiQueue *PIQ = nullptr;
-    /*bool ReuseQueue = false;
-    {
-      std::lock_guard<std::mutex> Lock(MMutex);
-
-      // To achieve parallelism for FPGA with in order execution model with
-      // possibility of two kernels to share data with each other we shall
-      // create a queue for every kernel enqueued.
-      if (MQueues.size() < MaxNumQueues) {
-        MQueues.push_back({});
-        PIQ = &MQueues.back();
-      } else {
-        // If the limit of OpenCL queues is going to be exceeded - take the
-        // earliest used queue, wait until it finished and then reuse it.
-        PIQ = &MQueues[MNextQueueIdx];
-        MNextQueueIdx = (MNextQueueIdx + 1) % MaxNumQueues;
-        ReuseQueue = true;
-      }
-    }
-
-    if (!ReuseQueue)
-      *PIQ = createQueue(QueueOrder::Ordered);
-    else
-      getUrPlugin()->call(urQueueFinish, *PIQ);
-*/
-    return *PIQ;
-  }
-
-
-
   /// \return a raw PI queue handle. The returned handle is not retained. It
   /// is caller responsibility to make sure queue is still alive.
-  sycl::detail::pi::PiQueue &getHandleRef() {
-    if (!MEmulateOOO)
-      return MQueues[0];
-
-    return getExclusiveQueueHandleRef();
-  }
-
   ur_queue_handle_t &getUrHandleRef() {
     if (!MEmulateOOO)
       return MUrQueues[0];
@@ -1005,7 +925,6 @@ protected:
   const property_list MPropList;
 
   /// List of queues created for FPGA device from a single SYCL queue.
-  std::vector<sycl::detail::pi::PiQueue> MQueues;
   std::vector<ur_queue_handle_t> MUrQueues;
   /// Iterator through MQueues.
   size_t MNextQueueIdx = 0;

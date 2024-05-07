@@ -193,13 +193,12 @@ void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
 }
 
 void contextSetExtendedDeleter(const sycl::context &context,
-                               pi_context_extended_deleter func,
+                               ur_context_extended_deleter_t func,
                                void *user_data) {
   auto impl = getSyclObjImpl(context);
-  auto contextHandle = reinterpret_cast<pi_context>(impl->getHandleRef());
-  const auto &Plugin = impl->getPlugin();
-  Plugin->call<PiApiKind::piextContextSetExtendedDeleter>(contextHandle, func,
-                                                          user_data);
+  auto contextHandle = impl->getUrHandleRef();
+  const auto &Plugin = impl->getUrPlugin();
+  Plugin->call(urContextSetExtendedDeleter, contextHandle, func, user_data);
 }
 
 std::string platformInfoToString(pi_platform_info info) {
@@ -570,6 +569,23 @@ template <backend BE> const PluginPtr &getPlugin() {
                       PI_ERROR_INVALID_OPERATION);
 }
 
+// Get the plugin serving given backend.
+template <backend BE> const UrPluginPtr &getUrPlugin() {
+  static UrPluginPtr *Plugin = nullptr;
+  if (Plugin)
+    return *Plugin;
+
+  std::vector<UrPluginPtr> &Plugins = pi::initializeUr();
+  for (auto &P : Plugins)
+    if (P->hasBackend(BE)) {
+      Plugin = &P;
+      return *Plugin;
+    }
+
+  throw runtime_error("pi::getUrPlugin couldn't find plugin",
+                      PI_ERROR_INVALID_OPERATION);
+}
+
 template __SYCL_EXPORT const PluginPtr &getPlugin<backend::opencl>();
 template __SYCL_EXPORT const PluginPtr &
 getPlugin<backend::ext_oneapi_level_zero>();
@@ -577,6 +593,16 @@ template __SYCL_EXPORT const PluginPtr &
 getPlugin<backend::ext_intel_esimd_emulator>();
 template __SYCL_EXPORT const PluginPtr &getPlugin<backend::ext_oneapi_cuda>();
 template __SYCL_EXPORT const PluginPtr &getPlugin<backend::ext_oneapi_hip>();
+
+template __SYCL_EXPORT const UrPluginPtr &getUrPlugin<backend::opencl>();
+template __SYCL_EXPORT const UrPluginPtr &
+getUrPlugin<backend::ext_oneapi_level_zero>();
+template __SYCL_EXPORT const UrPluginPtr &
+getUrPlugin<backend::ext_intel_esimd_emulator>();
+template __SYCL_EXPORT const UrPluginPtr &
+getUrPlugin<backend::ext_oneapi_cuda>();
+template __SYCL_EXPORT const UrPluginPtr &
+getUrPlugin<backend::ext_oneapi_hip>();
 
 // Report error and no return (keeps compiler from printing warnings).
 // TODO: Probably change that to throw a catchable exception,

@@ -39,31 +39,6 @@ PlatformImplPtr platform_impl::getHostPlatformImpl() {
 }
 
 PlatformImplPtr
-platform_impl::getOrMakePlatformImpl(sycl::detail::pi::PiPlatform PiPlatform,
-                                     const PluginPtr &Plugin) {
-  PlatformImplPtr Result;
-  {
-    const std::lock_guard<std::mutex> Guard(
-        GlobalHandler::instance().getPlatformMapMutex());
-
-    std::vector<PlatformImplPtr> &PlatformCache =
-        GlobalHandler::instance().getPlatformCache();
-
-    // If we've already seen this platform, return the impl
-    for (const auto &PlatImpl : PlatformCache) {
-      if (PlatImpl->getHandleRef() == PiPlatform)
-        return PlatImpl;
-    }
-
-    // Otherwise make the impl
-    Result = std::make_shared<platform_impl>(PiPlatform, Plugin);
-    PlatformCache.emplace_back(Result);
-  }
-
-  return Result;
-}
-
-PlatformImplPtr
 platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
                                      const UrPluginPtr &Plugin) {
   PlatformImplPtr Result;
@@ -86,17 +61,6 @@ platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
   }
 
   return Result;
-}
-
-PlatformImplPtr
-platform_impl::getPlatformFromPiDevice(sycl::detail::pi::PiDevice PiDevice,
-                                       const PluginPtr &Plugin) {
-  sycl::detail::pi::PiPlatform Plt =
-      nullptr; // TODO catch an exception and put it to list
-  // of asynchronous exceptions
-  Plugin->call<PiApiKind::piDeviceGetInfo>(PiDevice, PI_DEVICE_INFO_PLATFORM,
-                                           sizeof(Plt), &Plt, nullptr);
-  return getOrMakePlatformImpl(Plt, Plugin);
 }
 
 PlatformImplPtr
@@ -325,31 +289,9 @@ platform_impl::filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
 }
 
 std::shared_ptr<device_impl>
-platform_impl::getDeviceImpl(sycl::detail::pi::PiDevice PiDevice) {
-  const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
-  return getDeviceImplHelper(PiDevice);
-}
-
-std::shared_ptr<device_impl>
 platform_impl::getDeviceImpl(ur_device_handle_t UrDevice) {
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
   return getDeviceImplHelper(UrDevice);
-}
-
-std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
-    sycl::detail::pi::PiDevice PiDevice,
-    const std::shared_ptr<platform_impl> &PlatformImpl) {
-  const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
-  // If we've already seen this device, return the impl
-  std::shared_ptr<device_impl> Result = getDeviceImplHelper(PiDevice);
-  if (Result)
-    return Result;
-
-  // Otherwise make the impl
-  Result = std::make_shared<device_impl>(PiDevice, PlatformImpl);
-  MDeviceCache.emplace_back(Result);
-
-  return Result;
 }
 
 std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
@@ -699,17 +641,6 @@ bool platform_impl::has(aspect Aspect) const {
     }
   }
   return true;
-}
-
-std::shared_ptr<device_impl>
-platform_impl::getDeviceImplHelper(sycl::detail::pi::PiDevice PiDevice) {
-  for (const std::weak_ptr<device_impl> &DeviceWP : MDeviceCache) {
-    if (std::shared_ptr<device_impl> Device = DeviceWP.lock()) {
-      if (Device->getHandleRef() == PiDevice)
-        return Device;
-    }
-  }
-  return nullptr;
 }
 
 std::shared_ptr<device_impl>

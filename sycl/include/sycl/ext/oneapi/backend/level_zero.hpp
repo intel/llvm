@@ -45,18 +45,18 @@ namespace ext::oneapi::level_zero {
 // Implementation of various "make" functions resides in libsycl.so and thus
 // their interface needs to be backend agnostic.
 // TODO: remove/merge with similar functions in sycl::detail
-__SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle);
+__SYCL_EXPORT platform make_platform(ur_native_handle_t NativeHandle);
 __SYCL_EXPORT device make_device(const platform &Platform,
-                                 pi_native_handle NativeHandle);
+                                 ur_native_handle_t NativeHandle);
 __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
-                                   pi_native_handle NativeHandle,
+                                   ur_native_handle_t NativeHandle,
                                    bool keep_ownership = false);
 __SYCL_EXPORT queue make_queue(const context &Context, const device &Device,
-                               pi_native_handle InteropHandle,
+                               ur_native_handle_t InteropHandle,
                                bool IsImmCmdList, bool keep_ownership,
                                const property_list &Properties);
 __SYCL_EXPORT event make_event(const context &Context,
-                               pi_native_handle InteropHandle,
+                               ur_native_handle_t InteropHandle,
                                bool keep_ownership = false);
 
 // Construction of SYCL platform.
@@ -65,7 +65,7 @@ template <typename T,
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_platform free function")
 T make(typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
            Interop) {
-  return make_platform(reinterpret_cast<pi_native_handle>(Interop));
+  return make_platform(reinterpret_cast<ur_native_handle_t>(Interop));
 }
 
 // Construction of SYCL device.
@@ -75,7 +75,7 @@ __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_device free function")
 T make(const platform &Platform,
        typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
            Interop) {
-  return make_device(Platform, reinterpret_cast<pi_native_handle>(Interop));
+  return make_device(Platform, reinterpret_cast<ur_native_handle_t>(Interop));
 }
 
 /// Construction of SYCL context.
@@ -94,7 +94,7 @@ T make(const std::vector<device> &DeviceList,
            Interop,
        ownership Ownership = ownership::transfer) {
   return make_context(DeviceList,
-                      sycl::detail::pi::cast<pi_native_handle>(Interop),
+                      sycl::detail::pi::cast<ur_native_handle_t>(Interop),
                       Ownership == ownership::keep);
 }
 
@@ -106,7 +106,7 @@ T make(const context &Context,
        typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
            Interop,
        ownership Ownership = ownership::transfer) {
-  return make_event(Context, reinterpret_cast<pi_native_handle>(Interop),
+  return make_event(Context, reinterpret_cast<ur_native_handle_t>(Interop),
                     Ownership == ownership::keep);
 }
 
@@ -121,7 +121,7 @@ inline context make_context<backend::ext_oneapi_level_zero>(
   (void)Handler;
   return ext::oneapi::level_zero::make_context(
       BackendObject.DeviceList,
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      detail::pi::cast<ur_native_handle_t>(BackendObject.NativeHandle),
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
 }
 
@@ -195,13 +195,13 @@ inline queue make_queue<backend::ext_oneapi_level_zero>(
   const device Device = device{BackendObject.Device};
   bool IsImmCmdList = std::holds_alternative<ze_command_list_handle_t>(
       BackendObject.NativeHandle);
-  pi_native_handle Handle = IsImmCmdList
-                                ? reinterpret_cast<pi_native_handle>(
-                                      *(std::get_if<ze_command_list_handle_t>(
-                                          &BackendObject.NativeHandle)))
-                                : reinterpret_cast<pi_native_handle>(
-                                      *(std::get_if<ze_command_queue_handle_t>(
-                                          &BackendObject.NativeHandle)));
+  ur_native_handle_t Handle =
+      IsImmCmdList ? reinterpret_cast<ur_native_handle_t>(
+                         *(std::get_if<ze_command_list_handle_t>(
+                             &BackendObject.NativeHandle)))
+                   : reinterpret_cast<ur_native_handle_t>(
+                         *(std::get_if<ze_command_queue_handle_t>(
+                             &BackendObject.NativeHandle)));
   return ext::oneapi::level_zero::make_queue(
       TargetContext, Device, Handle, IsImmCmdList,
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
@@ -229,7 +229,7 @@ inline event make_event<backend::ext_oneapi_level_zero>(
     const context &TargetContext) {
   return ext::oneapi::level_zero::make_event(
       TargetContext,
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      detail::pi::cast<ur_native_handle_t>(BackendObject.NativeHandle),
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
 }
 
@@ -243,7 +243,7 @@ make_kernel_bundle<backend::ext_oneapi_level_zero, bundle_state::executable>(
     const context &TargetContext) {
   std::shared_ptr<detail::kernel_bundle_impl> KBImpl =
       detail::make_kernel_bundle(
-          detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+          detail::pi::cast<ur_native_handle_t>(BackendObject.NativeHandle),
           TargetContext,
           BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
           bundle_state::executable, backend::ext_oneapi_level_zero);
@@ -259,7 +259,7 @@ inline kernel make_kernel<backend::ext_oneapi_level_zero>(
     const context &TargetContext) {
   return detail::make_kernel(
       TargetContext, BackendObject.KernelBundle,
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      detail::pi::cast<ur_native_handle_t>(BackendObject.NativeHandle),
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
       backend::ext_oneapi_level_zero);
 }
@@ -274,7 +274,7 @@ make_buffer(
                           buffer<T, Dimensions, AllocatorT>> &BackendObject,
     const context &TargetContext, event AvailableEvent) {
   return detail::make_buffer_helper<T, Dimensions, AllocatorT>(
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      detail::pi::cast<ur_native_handle_t>(BackendObject.NativeHandle),
       TargetContext, AvailableEvent,
       !(BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep));
 }
@@ -289,7 +289,7 @@ make_buffer(
                           buffer<T, Dimensions, AllocatorT>> &BackendObject,
     const context &TargetContext) {
   return detail::make_buffer_helper<T, Dimensions, AllocatorT>(
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      detail::pi::cast<ur_native_handle_t>(BackendObject.NativeHandle),
       TargetContext, event{},
       !(BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep));
 }
@@ -307,7 +307,7 @@ make_image(const backend_input_t<Backend, image<Dimensions, AllocatorT>>
       (BackendObject.Ownership == ext::oneapi::level_zero::ownership::transfer);
 
   return image<Dimensions, AllocatorT>(
-      detail::pi::cast<pi_native_handle>(BackendObject.ZeImageHandle),
+      detail::pi::cast<ur_native_handle_t>(BackendObject.ZeImageHandle),
       TargetContext, AvailableEvent, BackendObject.ChanOrder,
       BackendObject.ChanType, OwnNativeHandle, BackendObject.Range);
 }

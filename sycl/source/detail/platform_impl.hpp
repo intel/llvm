@@ -40,18 +40,6 @@ public:
   ///
   /// \param APlatform is a raw plug-in platform handle.
   /// \param APlugin is a plug-in handle.
-  explicit platform_impl(sycl::detail::pi::PiPlatform APlatform,
-                         const std::shared_ptr<plugin> &APlugin)
-      : MPlatform(APlatform), MPlugin(APlugin) {
-
-    // Find out backend of the platform
-    sycl::detail::pi::PiPlatformBackend PiBackend;
-    APlugin->call_nocheck<PiApiKind::piPlatformGetInfo>(
-        APlatform, PI_EXT_PLATFORM_INFO_BACKEND,
-        sizeof(sycl::detail::pi::PiPlatformBackend), &PiBackend, nullptr);
-    MBackend = convertBackend(PiBackend);
-  }
-
   explicit platform_impl(ur_platform_handle_t APlatform,
                          const std::shared_ptr<urPlugin> &APlugin)
       : MUrPlatform(APlatform), MUrPlugin(APlugin) {
@@ -123,22 +111,7 @@ public:
           "This instance of platform doesn't support OpenCL interoperability.",
           PI_ERROR_INVALID_PLATFORM);
     }
-    return pi::cast<cl_platform_id>(MPlatform);
-  }
-
-  /// Returns raw underlying plug-in platform handle.
-  ///
-  /// Unlike get() method, this method does not retain handler. It is caller
-  /// responsibility to make sure that platform stays alive while raw handle
-  /// is in use.
-  ///
-  /// \return a raw plug-in platform handle.
-  const sycl::detail::pi::PiPlatform &getHandleRef() const {
-    if (is_host())
-      throw invalid_object_error("This instance of platform is a host instance",
-                                 PI_ERROR_INVALID_PLATFORM);
-
-    return MPlatform;
+    return pi::cast<cl_platform_id>(MUrPlatform); // TODO(pi2ur)
   }
 
   const ur_platform_handle_t &getUrHandleRef() const { return MUrPlatform; }
@@ -191,8 +164,8 @@ public:
   /// \param PiDevice is the PiDevice whose impl is requested
   ///
   /// \return a shared_ptr<device_impl> corresponding to the device
-  std::shared_ptr<device_impl>
-  getDeviceImpl(sycl::detail::pi::PiDevice PiDevice);
+  // std::shared_ptr<device_impl>
+  // getDeviceImpl(sycl::detail::pi::PiDevice PiDevice);
   std::shared_ptr<device_impl> getDeviceImpl(ur_device_handle_t UrDevice);
 
   /// Queries the device_impl cache to either return a shared_ptr
@@ -204,10 +177,6 @@ public:
   /// \param PlatormImpl is the Platform for that Device
   ///
   /// \return a shared_ptr<device_impl> corresponding to the device
-  std::shared_ptr<device_impl>
-  getOrMakeDeviceImpl(sycl::detail::pi::PiDevice PiDevice,
-                      const std::shared_ptr<platform_impl> &PlatformImpl);
-
   std::shared_ptr<device_impl>
   getOrMakeDeviceImpl(ur_device_handle_t UrDevice,
                       const std::shared_ptr<platform_impl> &PlatformImpl);
@@ -228,10 +197,6 @@ public:
   /// \param Plugin is the PI plugin providing the backend for the platform
   /// \return the platform_impl representing the PI platform
   static std::shared_ptr<platform_impl>
-  getOrMakePlatformImpl(sycl::detail::pi::PiPlatform PiPlatform,
-                        const PluginPtr &Plugin);
-
-  static std::shared_ptr<platform_impl>
   getOrMakePlatformImpl(ur_platform_handle_t, const UrPluginPtr &Plugin);
 
   /// Queries the cache for the specified platform based on an input device.
@@ -244,10 +209,6 @@ public:
   /// platform
   /// \return the platform_impl that contains the input device
   static std::shared_ptr<platform_impl>
-  getPlatformFromPiDevice(sycl::detail::pi::PiDevice PiDevice,
-                          const PluginPtr &Plugin);
-
-  static std::shared_ptr<platform_impl>
   getPlatformFromUrDevice(ur_device_handle_t UrDevice,
                           const UrPluginPtr &Plugin);
 
@@ -256,9 +217,6 @@ public:
   bool MAlwaysRootDevice = false;
 
 private:
-  std::shared_ptr<device_impl>
-  getDeviceImplHelper(sycl::detail::pi::PiDevice PiDevice);
-
   std::shared_ptr<device_impl> getDeviceImplHelper(ur_device_handle_t UrDevice);
 
   // Helper to filter reportable devices in the platform
@@ -268,7 +226,6 @@ private:
                      ListT *FilterList) const;
 
   bool MHostPlatform = false;
-  sycl::detail::pi::PiPlatform MPlatform = 0;
   ur_platform_handle_t MUrPlatform = 0;
   backend MBackend;
 

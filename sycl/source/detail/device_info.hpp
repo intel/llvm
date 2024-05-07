@@ -1292,7 +1292,7 @@ struct get_device_info_impl<
                             "Only devices with aspect::ext_oneapi_is_component "
                             "can call this function.");
 
-    typename sycl_to_pi<device>::type Result;
+    typename sycl_to_ur<device>::type Result;
     Dev->getUrPlugin()->call(
         urDeviceGetInfo, Dev->getUrHandleRef(),
         UrInfoCode<

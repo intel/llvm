@@ -31,7 +31,6 @@ namespace detail {
 context_impl::context_impl(const device &Device, async_handler AsyncHandler,
                            const property_list &PropList)
     : MOwnedByRuntime(true), MAsyncHandler(AsyncHandler), MDevices(1, Device),
-      MContext(nullptr),
       MPlatform(detail::getSyclObjImpl(Device.get_platform())),
       MPropList(PropList),
       MHostContext(detail::getSyclObjImpl(Device)->is_host()),
@@ -43,7 +42,7 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
                            async_handler AsyncHandler,
                            const property_list &PropList)
     : MOwnedByRuntime(true), MAsyncHandler(AsyncHandler), MDevices(Devices),
-      MContext(nullptr), MPlatform(), MPropList(PropList), MHostContext(false),
+      MPlatform(), MPropList(PropList), MHostContext(false),
       MSupportBufferLocationByDevices(NotChecked) {
   MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   std::vector<ur_device_handle_t> DeviceIds;
@@ -69,33 +68,32 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
   MKernelProgramCache.setContextPtr(this);
 }
 
-context_impl::context_impl(sycl::detail::pi::PiContext PiContext,
-                           async_handler AsyncHandler, const PluginPtr &Plugin,
+context_impl::context_impl(ur_context_handle_t UrContext,
+                           async_handler AsyncHandler,
+                           const UrPluginPtr &Plugin,
                            const std::vector<sycl::device> &DeviceList,
                            bool OwnedByRuntime)
     : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(AsyncHandler),
-      MDevices(DeviceList), MContext(PiContext), MPlatform(),
+      MDevices(DeviceList), MUrContext(UrContext), MPlatform(),
       MHostContext(false), MSupportBufferLocationByDevices(NotChecked) {
   if (!MDevices.empty()) {
     MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   } else {
-    std::vector<sycl::detail::pi::PiDevice> DeviceIds;
+    std::vector<ur_device_handle_t> DeviceIds;
     uint32_t DevicesNum = 0;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin->call<PiApiKind::piContextGetInfo>(
-        MContext, PI_CONTEXT_INFO_NUM_DEVICES, sizeof(DevicesNum), &DevicesNum,
-        nullptr);
+    Plugin->call(urContextGetInfo, MUrContext, UR_CONTEXT_INFO_NUM_DEVICES,
+                 sizeof(DevicesNum), &DevicesNum, nullptr);
     DeviceIds.resize(DevicesNum);
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin->call<PiApiKind::piContextGetInfo>(
-        MContext, PI_CONTEXT_INFO_DEVICES,
-        sizeof(sycl::detail::pi::PiDevice) * DevicesNum, &DeviceIds[0],
-        nullptr);
+    Plugin->call(urContextGetInfo, MUrContext, UR_CONTEXT_INFO_DEVICES,
+                 sizeof(ur_device_handle_t) * DevicesNum, &DeviceIds[0],
+                 nullptr);
 
     if (!DeviceIds.empty()) {
       std::shared_ptr<detail::platform_impl> Platform =
-          platform_impl::getPlatformFromPiDevice(DeviceIds[0], Plugin);
-      for (sycl::detail::pi::PiDevice Dev : DeviceIds) {
+          platform_impl::getPlatformFromUrDevice(DeviceIds[0], Plugin);
+      for (ur_device_handle_t Dev : DeviceIds) {
         MDevices.emplace_back(createSyclObjFromImpl<device>(
             Platform->getOrMakeDeviceImpl(Dev, Platform)));
       }
@@ -113,7 +111,7 @@ context_impl::context_impl(sycl::detail::pi::PiContext PiContext,
   // TODO: Move this backend-specific retain of the context to SYCL-2020 style
   //       make_context<backend::opencl> interop, when that is created.
   if (getBackend() == sycl::backend::opencl) {
-    getPlugin()->call<PiApiKind::piContextRetain>(MContext);
+    getUrPlugin()->call(urContextRetain, MUrContext);
   }
   MKernelProgramCache.setContextPtr(this);
 }
@@ -125,8 +123,9 @@ cl_context context_impl::get() const {
         PI_ERROR_INVALID_CONTEXT);
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
-  getPlugin()->call<PiApiKind::piContextRetain>(MContext);
-  return pi::cast<cl_context>(MContext);
+  getUrPlugin()->call(urContextRetain, MUrContext);
+  // TODO(pi2ur): This should be done with getnativehandle?
+  return pi::cast<cl_context>(MUrContext);
 }
 
 bool context_impl::is_host() const { return MHostContext; }
@@ -286,11 +285,6 @@ context_impl::get_backend_info<info::device::backend_version>() const {
   // empty string as per specification.
 }
 
-sycl::detail::pi::PiContext &context_impl::getHandleRef() { return MContext; }
-const sycl::detail::pi::PiContext &context_impl::getHandleRef() const {
-  return MContext;
-}
-
 ur_context_handle_t &context_impl::getUrHandleRef() { return MUrContext; }
 const ur_context_handle_t &context_impl::getUrHandleRef() const {
   return MUrContext;
@@ -308,15 +302,6 @@ bool context_impl::hasDevice(
   return false;
 }
 
-DeviceImplPtr context_impl::findMatchingDeviceImpl(
-    sycl::detail::pi::PiDevice &DevicePI) const {
-  for (device D : MDevices)
-    if (getSyclObjImpl(D)->getHandleRef() == DevicePI)
-      return getSyclObjImpl(D);
-
-  return nullptr;
-}
-
 DeviceImplPtr
 context_impl::findMatchingDeviceImpl(ur_device_handle_t &DeviceUR) const {
   for (device D : MDevices)
@@ -326,12 +311,12 @@ context_impl::findMatchingDeviceImpl(ur_device_handle_t &DeviceUR) const {
   return nullptr;
 }
 
-pi_native_handle context_impl::getNative() const {
-  const auto &Plugin = getPlugin();
+ur_native_handle_t context_impl::getNative() const {
+  const auto &Plugin = getUrPlugin();
   if (getBackend() == backend::opencl)
-    Plugin->call<PiApiKind::piContextRetain>(getHandleRef());
-  pi_native_handle Handle;
-  Plugin->call<PiApiKind::piextContextGetNativeHandle>(getHandleRef(), &Handle);
+    Plugin->call(urContextRetain, getUrHandleRef());
+  ur_native_handle_t Handle;
+  Plugin->call(urContextGetNativeHandle, getUrHandleRef(), &Handle);
   return Handle;
 }
 

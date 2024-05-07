@@ -185,7 +185,7 @@ public:
 private:
   friend class detail::ExecCGCommand;
   friend class detail::DispatchHostTask;
-  using ReqToMem = std::pair<detail::AccessorImplHost *, pi_mem>;
+  using ReqToMem = std::pair<detail::AccessorImplHost *, ur_mem_handle_t>;
 
   interop_handle(std::vector<ReqToMem> MemObjs,
                  const std::shared_ptr<detail::queue_impl> &Queue,
@@ -197,7 +197,7 @@ private:
   template <backend Backend, typename DataT, int Dims>
   backend_return_t<Backend, buffer<DataT, Dims>>
   getMemImpl(detail::AccessorImplHost *Req) const {
-    std::vector<pi_native_handle> NativeHandles{getNativeMem(Req)};
+    std::vector<ur_native_handle_t> NativeHandles{getNativeMem(Req)};
     return detail::BufferInterop<Backend, DataT, Dims>::GetNativeObjs(
         NativeHandles);
   }
@@ -209,12 +209,12 @@ private:
     return reinterpret_cast<image_return_t>(getNativeMem(Req));
   }
 
-  __SYCL_EXPORT pi_native_handle
+  __SYCL_EXPORT ur_native_handle_t
   getNativeMem(detail::AccessorImplHost *Req) const;
   __SYCL_EXPORT ur_native_handle_t
   getNativeQueue(int32_t &NativeHandleDesc) const;
-  __SYCL_EXPORT pi_native_handle getNativeDevice() const;
-  __SYCL_EXPORT pi_native_handle getNativeContext() const;
+  __SYCL_EXPORT ur_native_handle_t getNativeDevice() const;
+  __SYCL_EXPORT ur_native_handle_t getNativeContext() const;
 
   std::shared_ptr<detail::queue_impl> MQueue;
   std::shared_ptr<detail::device_impl> MDevice;

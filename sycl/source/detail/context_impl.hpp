@@ -68,23 +68,8 @@ public:
   /// \param Plugin is the reference to the underlying Plugin that this
   /// \param OwnedByRuntime is the flag if ownership is kept by user or
   /// transferred to runtime
-  context_impl(sycl::detail::pi::PiContext PiContext,
-               async_handler AsyncHandler, const PluginPtr &Plugin,
-               const std::vector<sycl::device> &DeviceList = {},
-               bool OwnedByRuntime = true);
-
-  /// Construct a context_impl using plug-in interoperability handle.
-  ///
-  /// The constructed context_impl will use the AsyncHandler parameter to
-  /// handle exceptions.
-  ///
-  /// \param PiContext is an instance of a valid plug-in context handle.
-  /// \param AsyncHandler is an instance of async_handler.
-  /// \param Plugin is the reference to the underlying Plugin that this
-  /// \param OwnedByRuntime is the flag if ownership is kept by user or
-  /// transferred to runtime
   context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
-               const PluginPtr &Plugin,
+               const UrPluginPtr &Plugin,
                const std::vector<sycl::device> &DeviceList = {},
                bool OwnedByRuntime = true);
 
@@ -141,26 +126,6 @@ public:
   /// The return type depends on information being queried.
   template <typename Param>
   typename Param::return_type get_backend_info() const;
-
-  /// Gets the underlying context object (if any) without reference count
-  /// modification.
-  ///
-  /// Caller must ensure the returned object lives on stack only. It can also
-  /// be safely passed to the underlying native runtime API. Warning. Returned
-  /// reference will be invalid if context_impl was destroyed.
-  ///
-  /// \return an instance of raw plug-in context handle.
-  sycl::detail::pi::PiContext &getHandleRef();
-
-  /// Gets the underlying context object (if any) without reference count
-  /// modification.
-  ///
-  /// Caller must ensure the returned object lives on stack only. It can also
-  /// be safely passed to the underlying native runtime API. Warning. Returned
-  /// reference will be invalid if context_impl was destroyed.
-  ///
-  /// \return an instance of raw plug-in context handle.
-  const sycl::detail::pi::PiContext &getHandleRef() const;
 
   /// Gets the underlying context object (if any) without reference count
   /// modification.
@@ -260,7 +225,7 @@ public:
   /// Gets the native handle of the SYCL context.
   ///
   /// \return a native handle.
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
   // Returns true if buffer_location property is supported by devices
   bool isBufferLocationSupported() const;
@@ -311,7 +276,6 @@ private:
   bool MOwnedByRuntime;
   async_handler MAsyncHandler;
   std::vector<device> MDevices;
-  sycl::detail::pi::PiContext MContext;
   ur_context_handle_t MUrContext;
   PlatformImplPtr MPlatform;
   property_list MPropList;

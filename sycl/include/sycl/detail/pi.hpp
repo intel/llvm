@@ -204,6 +204,7 @@ std::vector<UrPluginPtr> &initializeUr();
 
 // Get the plugin serving given backend.
 template <backend BE> __SYCL_EXPORT const PluginPtr &getPlugin();
+template <backend BE> __SYCL_EXPORT const UrPluginPtr &getUrPlugin();
 
 // Utility Functions to get Function Name for a PI Api.
 template <PiApiKind PiApiOffset> struct PiFuncInfo {};

@@ -241,7 +241,7 @@ private:
   /// Constructs a SYCL context object from a valid context_impl instance.
   context(std::shared_ptr<detail::context_impl> Impl);
 
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
   std::shared_ptr<detail::context_impl> impl;
 
