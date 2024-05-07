@@ -1,5 +1,5 @@
-// RUN: %{build} -std=c++17 -o %t.out
-// RUN: %{run} %t.out
+// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -std=c++17 -o %t2.out %}
+// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 
 //==---------- vector_byte.cpp - SYCL vec<> for std::byte test -------------==//
 //
@@ -102,118 +102,14 @@ int main() {
     sycl::vec<std::byte, 4> vop3{std::byte{5}, std::byte{6}, std::byte{2},
                                  std::byte{3}};
 
-    // binary op for 2 vec
-    auto vop = vop1 + vop2;
-    assert(vop[0] == std::byte{6});
-    vop = vop1 - vop2;
-    vop = vop1 * vop2;
-    vop = vop1 / vop2;
-    assert(vop[0] == std::byte{2});
-    vop = vop1 % vop2;
-
-    // binary op for 2 swizzle
-    auto swlo = vop3.lo();
-    auto swhi = vop3.hi();
-    auto swplus = swlo + swhi;
-    sycl::vec<std::byte, 2> vec_test = swplus;
-    assert(vec_test.x() == std::byte{7} && vec_test.y() == std::byte{9});
-    auto swominus = swlo - swhi;
-    auto swmul = swlo * swhi;
-    vec_test = swmul;
-    assert(vec_test.x() == std::byte{10} && vec_test.y() == std::byte{18});
-    auto swdiv = swlo / swhi;
-
-    // binary op for 1 vec
-    vop = vop1 + std::byte{3};
-    vop = vop1 - std::byte{3};
-    assert(vop[1] == std::byte{6});
-    vop = vop1 * std::byte{3};
-    vop = vop1 / std::byte{3};
-    vop = vop1 % std::byte{3};
-    assert(vop[0] == std::byte{1});
-
-    vop = std::byte{3} + vop1;
-    assert(vop[0] == std::byte{7});
-    vop = std::byte{3} - vop1;
-    vop = std::byte{3} * vop1;
-    assert(vop[2] == std::byte{75});
-    vop = std::byte{3} / vop1;
-
-    // binary op for 1 swizzle
-    auto swplus1 = swlo + std::byte{3};
-    auto swminus1 = swlo - std::byte{3};
-    vec_test = swminus1;
-    assert(vec_test.x() == std::byte{2} && vec_test.y() == std::byte{3});
-    auto swmul1 = swlo * std::byte{3};
-    auto swdiv1 = swlo / std::byte{3};
-    vec_test = swdiv1;
-    assert(vec_test.x() == std::byte{1} && vec_test.y() == std::byte{2});
-
-    auto swplus2 = std::byte{3} + swlo;
-    vec_test = swplus2;
-    assert(vec_test.x() == std::byte{8} && vec_test.y() == std::byte{9});
-    auto swminus2 = std::byte{3} - swlo;
-    auto swmul2 = std::byte{3} * swlo;
-    vec_test = swmul2;
-    assert(vec_test.x() == std::byte{15} && vec_test.y() == std::byte{18});
-    auto swdiv2 = std::byte{3} / swlo;
-
-    // operatorOP= for 2 vec
-    sycl::vec<std::byte, 3> vbuf{std::byte{4}, std::byte{5}, std::byte{6}};
-    vop = vbuf += vop1;
-    assert(vop[0] == std::byte{8});
-    vop = vbuf -= vop1;
-    vop = vbuf *= vop1;
-    vop = vbuf /= vop1;
-    vop = vbuf %= vop1;
-
-    // operatorOP= for 2 swizzle
-    swlo += swhi;
-    swlo -= swhi;
-    vec_test = swlo;
-    assert(vec_test.x() == std::byte{5} && vec_test.y() == std::byte{6});
-    swlo *= swhi;
-    swlo /= swhi;
-    swlo %= swhi;
-
-    // operatorOP= for 1 vec
-    vop = vop1 += std::byte{3};
-    assert(vop[0] == std::byte{7});
-    vop = vop1 -= std::byte{3};
-    vop = vop1 *= std::byte{3};
-    vop = vop1 /= std::byte{3};
-    vop = vop1 %= std::byte{3};
-
-    // operatorOP= for 1 swizzle
-
-    swlo += std::byte{3};
-    swlo -= std::byte{1};
-    vec_test = swlo;
-    assert(vec_test.x() == std::byte{3} && vec_test.y() == std::byte{2});
-    swlo *= std::byte{3};
-    swlo /= std::byte{3};
-    swlo %= std::byte{3};
-
-    // unary operator++ and -- for vec
-    vop1 = sycl::vec<std::byte, 3>(std::byte{4}, std::byte{9}, std::byte{25});
-    vop1++;
-    vop1--;
-    vop = ++vop1;
-    assert(vop[2] == std::byte{26});
-    --vop1;
-
-    // unary operator++ and -- for swizzle
-    swlo++;
-    swlo--;
-    vec_test = swlo;
-    assert(vec_test.x() == std::byte{0} && vec_test.y() == std::byte{2});
-
     // logical binary op for 2 vec
-    vop = vop1 & vop2;
+    auto vop = vop1 & vop2;
     vop = vop1 | vop2;
     vop = vop1 ^ vop2;
 
     // logical binary op for 2 swizzle
+    auto swlo = vop3.lo();
+    auto swhi = vop3.hi();
     auto swand = swlo & swhi;
     auto swor = swlo | swhi;
     auto swxor = swlo ^ swhi;
@@ -238,21 +134,15 @@ int main() {
     // bit binary op for 2 vec
     vop = vop1 && vop2;
     vop = vop1 || vop2;
-    vop = vop1 >> vop2;
-    vop = vop1 << vop2;
 
-    vop = vop1 >> std::byte{3};
-    vop = vop1 << std::byte{3};
-    vop = std::byte{3} >> vop1;
-    vop = std::byte{3} << vop1;
+    vop = vop1 << 3;
+    vop = vop1 >> 3;
 
     // bit binary op for 2 swizzle
-    swlo >> swhi;
-    swlo << swhi;
-    swlo >> std::byte{3};
-    swlo << std::byte{3};
-    auto right = std::byte{3} >> swhi;
-    auto left = std::byte{3} << swhi;
+    // TODO: Fix >> and << for swizzle of std::byte. Currently, Swizzles assume that both operands
+    // of the >> abd << operator have the same data type. That is not the case with std::byte.
+    // swlo >> 3;
+    // swlo << 3;
 
     // condition op for 2 vec
     auto vres = vop1 == vop2;

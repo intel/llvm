@@ -42,7 +42,7 @@
 #include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
 
 #include <array>       // for array
-#include <assert.h>    // for assert
+#include <cassert>     // for assert
 #include <cstddef>     // for size_t, NULL, byte
 #include <cstdint>     // for uint8_t, int16_t, int...
 #include <functional>  // for divides, multiplies
@@ -82,14 +82,6 @@ struct elem {
 };
 
 namespace detail {
-// select_apply_cl_t selects from T8/T16/T32/T64 basing on
-// sizeof(_IN).  expected to handle scalar types in _IN.
-template <typename _IN, typename T8, typename T16, typename T32, typename T64>
-using select_apply_cl_t = std::conditional_t<
-    sizeof(_IN) == 1, T8,
-    std::conditional_t<sizeof(_IN) == 2, T16,
-                       std::conditional_t<sizeof(_IN) == 4, T32, T64>>>;
-
 // Helper function to bit_cast one type to another.
 template <typename FromType, typename ToType>
 static constexpr ToType BitCast(const FromType &Value) {
@@ -115,40 +107,36 @@ static constexpr ToType BitCast(const FromType &Value) {
 /* Helper functions to get and set values in vec, depdending on the underlying
 + * data type. */
 template <typename T> struct vec_helper {
-  using RetType = typename std::conditional<
-      std::is_same_v<T, bool>, std::int8_t, T>::type;
-  static constexpr RetType get(T value) { return value; }
-  static constexpr RetType set(T value) { return value; }
+  using NativeType =
+      typename std::conditional<std::is_same_v<T, bool>, std::int8_t, T>::type;
+  static constexpr NativeType get(T value) { return value; }
+  static constexpr NativeType set(T value) { return value; }
 };
 
 template <> struct vec_helper<sycl::ext::oneapi::bfloat16> {
-  using RetType = sycl::ext::oneapi::bfloat16;
-  using BFloat16StorageT = sycl::ext::oneapi::detail::Bfloat16StorageT;
-  static constexpr RetType get(BFloat16StorageT value) {
-    return BitCast<BFloat16StorageT, RetType>(value);
+  using BF16Type = sycl::ext::oneapi::bfloat16;
+  using NativeType = sycl::ext::oneapi::detail::Bfloat16StorageT;
+
+  static constexpr NativeType get(NativeType value) { return value; }
+  static constexpr NativeType get(BF16Type value) {
+    return BitCast<BF16Type, NativeType>(value);
   }
 
-  static constexpr RetType get(RetType value) { return value; }
-
-  static constexpr RetType set(RetType value) {
-    return value;
-  }
-  static constexpr RetType set(BFloat16StorageT value) {
-    return BitCast<BFloat16StorageT, RetType>(value);
+  static constexpr BF16Type set(BF16Type value) { return value; }
+  static constexpr BF16Type set(NativeType value) {
+    return BitCast<NativeType, BF16Type>(value);
   }
 };
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <> struct vec_helper<std::byte> {
-  using RetType = std::uint8_t;
-  static constexpr RetType get(std::byte value) { return (RetType)value; }
+  using NativeType = std::uint8_t;
+
+  static constexpr NativeType get(std::byte value) { return (NativeType)value; }
+  static constexpr NativeType get(NativeType value) { return value; }
+
   static constexpr std::byte set(std::byte value) { return value; }
-  static constexpr RetType get(RetType value) {
-    return value;
-  }
-  static constexpr std::byte set(RetType value) {
-    return (std::byte)value;
-  }
+  static constexpr std::byte set(NativeType value) { return (std::byte)value; }
 };
 #endif
 
@@ -187,33 +175,36 @@ class RoundedRangeKernelWithKH;
 template <typename T> using vec_data = detail::vec_helper<T>;
 
 template <typename T>
-using vec_data_t = typename detail::vec_helper<T>::RetType;
+using vec_data_t = typename detail::vec_helper<T>::NativeType;
 
-// data_type_single_t = T for all types except bfloat16, std::byte.
+// data_type_single_t = T for all types except bfloat16.
 template <typename T>
 using data_type_single_t = typename std::conditional_t<
     // bfloat16
-    std::is_same_v<T, sycl::ext::oneapi::bfloat16>, sycl::ext::oneapi::detail::Bfloat16StorageT,
-    T>;
+    std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
+    sycl::ext::oneapi::bfloat16, T>;
 
 template <typename T, int N>
 using data_type_multiple_t = typename std::conditional_t<
     // bool
     std::is_same_v<T, bool>, std::array<int8_t, N>,
-    std::array<data_type_single_t<T>, N>
-    >;
+    std::array<data_type_single_t<T>, N>>;
 
 #ifdef __SYCL_DEVICE_ONLY__
 template <typename T>
 using vector_t_single = typename std::conditional_t<
-    std::is_same_v<T, sycl::half>, sycl::detail::half_impl::StorageT, typename std::conditional_t<
-    std::is_same_v<T, sycl::ext::oneapi::bfloat16>, sycl::ext::oneapi::detail::Bfloat16StorageT, typename std::conditional_t<
+    std::is_same_v<T, sycl::half>, sycl::detail::half_impl::StorageT,
+    typename std::conditional_t<std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
+                                sycl::ext::oneapi::detail::Bfloat16StorageT,
+                                typename std::conditional_t<
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-    std::is_same_v<T, std::byte>, std::uint8_t, typename std::conditional_t<
+                                    std::is_same_v<T, std::byte>, std::uint8_t,
+                                    typename std::conditional_t<
 #else
-    false, T, typename std::conditional_t<
+                                     false, T,
+                                     typename std::conditional_t<
 #endif
-    true, data_type_single_t<T>, T>>>>;
+                                        true, data_type_single_t<T>, T>>>>;
 
 template <typename T, int N>
 using vector_t_multiple = typename std::conditional_t<
@@ -222,32 +213,31 @@ using vector_t_multiple = typename std::conditional_t<
 #endif
 
 ///////////////////////// class sycl::vec /////////////////////////
-/// Provides a cross-patform vector class template that works efficiently on
-/// SYCL devices as well as in host C++ code.
-///
-/// \ingroup sycl_api
+// Provides a cross-patform vector class template that works efficiently on
+// SYCL devices as well as in host C++ code.
 template <typename Type, int NumElements> class vec {
 
-  static_assert( NumElements == 1 || NumElements == 2 || NumElements == 3 ||
-                     NumElements == 4 || NumElements == 8 || NumElements == 16,
-                 "Invalid number of elements for sycl::vec: only 1, 2, 3, 4, 8 "
-                 "or 16 are supported");
-  static_assert (sizeof(bool) == sizeof(int8_t), "bool size is not 1 byte");
+  static_assert(NumElements == 1 || NumElements == 2 || NumElements == 3 ||
+                    NumElements == 4 || NumElements == 8 || NumElements == 16,
+                "Invalid number of elements for sycl::vec: only 1, 2, 3, 4, 8 "
+                "or 16 are supported");
+  static_assert(sizeof(bool) == sizeof(int8_t), "bool size is not 1 byte");
 
   using DataT = Type;
   static constexpr size_t AdjustedNum = (NumElements == 3) ? 4 : NumElements;
 
   // This represent type of underlying value. There should be only one field
   // in the class, so vec<float, 16> should be equal to float16 in memory.
-  using DataType = typename std::conditional_t<
-      AdjustedNum == 1, data_type_single_t<DataT>,
-      data_type_multiple_t<DataT, AdjustedNum>>;
+  using DataType =
+      typename std::conditional_t<AdjustedNum == 1, data_type_single_t<DataT>,
+                                  data_type_multiple_t<DataT, AdjustedNum>>;
 
 public:
 #ifdef __SYCL_DEVICE_ONLY__
   // Type used for passing sycl::vec to SPIRV builtins.
-  using vector_t = typename std::conditional_t<
-      AdjustedNum == 1, vector_t_single<DataT>, vector_t_multiple<DataT, NumElements>>;
+  using vector_t =
+      typename std::conditional_t<AdjustedNum == 1, vector_t_single<DataT>,
+                                  vector_t_multiple<DataT, NumElements>>;
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
@@ -405,12 +395,7 @@ private:
   constexpr vec(const std::array<vec_data_t<DataT>, NumElements> &Arr,
                 std::index_sequence<Is...>)
       : m_Data{([&](vec_data_t<DataT> v) constexpr {
-          if constexpr (std::is_same_v<sycl::ext::oneapi::bfloat16, DataT>)
-            return v.value;
-          else if constexpr (std::is_same_v<std::byte, DataT>)
-            return (std::byte)v;
-          else
-            return vec_data_t<DataT>(static_cast<DataT>(v));
+          return vec_data<DataT>::set(v);
         })(Arr[Is])...} {}
 
 public:
@@ -418,46 +403,25 @@ public:
   using value_type = DataT;
   using rel_t = detail::rel_t<DataT>;
 
+  /****************** Constructors **************/
   vec() = default;
-
   constexpr vec(const vec &Rhs) = default;
   constexpr vec(vec &&Rhs) = default;
 
+  explicit constexpr vec(const DataT &arg)
+      : vec{detail::RepeatValue<NumElements>(vec_data<DataT>::get(arg)),
+            std::make_index_sequence<NumElements>()} {}
+
+  // Constructor from values of base type or vec of base type. Checks that
+  // base types are match and that the NumElements == sum of lengths of args.
+  template <typename... argTN, typename = EnableIfSuitableTypes<argTN...>,
+            typename = EnableIfSuitableNumElements<argTN...>>
+  constexpr vec(const argTN &...args)
+      : vec{VecArgArrayCreator<vec_data_t<DataT>, argTN...>::Create(args...),
+            std::make_index_sequence<NumElements>()} {}
+
+  /****************** Assignment Operators **************/
   constexpr vec &operator=(const vec &Rhs) = default;
-
-  // W/o this, things like "vec<char,*> = vec<signed char, *>" doesn't work.
-  template <typename Ty = DataT>
-  typename std::enable_if_t<!std::is_same_v<Ty, rel_t> &&
-                                std::is_convertible_v<vec_data_t<Ty>, rel_t>,
-                            vec &>
-  operator=(const vec<rel_t, NumElements> &Rhs) {
-    *this = Rhs.template as<vec>();
-    return *this;
-  }
-
-#ifdef __SYCL_DEVICE_ONLY__
-  explicit constexpr vec(const DataT &arg)
-
-      : vec{detail::RepeatValue<NumElements>(
-                static_cast<vec_data_t<DataT>>(arg)),
-            std::make_index_sequence<NumElements>()} {}
-
-  template <typename Ty = DataT>
-  typename std::enable_if_t<
-      std::is_fundamental_v<vec_data_t<Ty>> ||
-          detail::is_half_or_bf16_v<typename std::remove_const_t<Ty>>,
-      vec &>
-  operator=(const Ty &Rhs) {
-    for (int i = 0; i < NumElements; ++i) {
-      setValue(i, Rhs);
-    }
-    return *this;
-  }
-#else  // __SYCL_DEVICE_ONLY__
-  explicit constexpr vec(const DataT &arg)
-      : vec{detail::RepeatValue<NumElements>(
-                static_cast<vec_data_t<DataT>>(arg)),
-            std::make_index_sequence<NumElements>()} {}
 
   template <typename Ty = DataT>
   typename std::enable_if_t<
@@ -470,15 +434,16 @@ public:
     }
     return *this;
   }
-#endif // __SYCL_DEVICE_ONLY__
 
-  // Constructor from values of base type or vec of base type. Checks that
-  // base types are match and that the NumElements == sum of lengths of args.
-  template <typename... argTN, typename = EnableIfSuitableTypes<argTN...>,
-            typename = EnableIfSuitableNumElements<argTN...>>
-  constexpr vec(const argTN &...args)
-      : vec{VecArgArrayCreator<vec_data_t<DataT>, argTN...>::Create(args...),
-            std::make_index_sequence<NumElements>()} {}
+  // W/o this, things like "vec<char,*> = vec<signed char, *>" doesn't work.
+  template <typename Ty = DataT>
+  typename std::enable_if_t<!std::is_same_v<Ty, rel_t> &&
+                                std::is_convertible_v<vec_data_t<Ty>, rel_t>,
+                            vec &>
+  operator=(const vec<rel_t, NumElements> &Rhs) {
+    *this = Rhs.template as<vec>();
+    return *this;
+  }
 
 #ifdef __SYCL_DEVICE_ONLY__
   template <typename vector_t_ = vector_t,
@@ -598,8 +563,8 @@ public:
       // Otherwise, we fallback to per-element conversion:
       for (size_t I = 0; I < NumElements; ++I) {
         auto val = vec_data<convertT>::set(
-                   detail::convertImpl<T, R, roundingMode, 1, OpenCLT, OpenCLR>(
-                       getValue(I)));
+            detail::convertImpl<T, R, roundingMode, 1, OpenCLT, OpenCLR>(
+                getValue(I)));
 
         Result.setValue(I, val);
       }
@@ -730,8 +695,8 @@ public:
   void store(size_t Offset,
              multi_ptr<DataT, Space, DecorateAddress> Ptr) const {
     for (int I = 0; I < NumElements; I++) {
-      *multi_ptr<DataT, Space, DecorateAddress>(Ptr + Offset * NumElements +
-                                                I) = vec_data<DataT>::set(getValue(I));
+      *multi_ptr<DataT, Space, DecorateAddress>(
+          Ptr + Offset * NumElements + I) = vec_data<DataT>::set(getValue(I));
     }
   }
   template <int Dimensions, access::mode Mode,
@@ -758,12 +723,14 @@ public:
 #endif
 
 #ifdef __SYCL_DEVICE_ONLY__
-#define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
-  friend vec operator BINOP(const vec &Lhs, const vec &Rhs) {                  \
+#define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT, COND)                           \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec> operator BINOP(                \
+      const vec & Lhs, const vec & Rhs) {                                      \
     vec Ret;                                                                   \
     if constexpr (IsBfloat16) {                                                \
       for (size_t I = 0; I < NumElements; ++I) {                               \
-        Ret.setValue(I, (Lhs.getValue(I) BINOP Rhs.getValue(I)));              \
+        Ret.setValue(I, vec_data<DataT>::set(Lhs[I] BINOP Rhs[I]));            \
       }                                                                        \
     } else {                                                                   \
       vector_t ExtVecLhs = sycl::bit_cast<vector_t>(Lhs.m_Data);               \
@@ -777,67 +744,110 @@ public:
     }                                                                          \
     return Ret;                                                                \
   }                                                                            \
-  friend vec operator BINOP(const vec &Lhs, const DataT &Rhs) {                \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec> operator BINOP(                \
+      const vec & Lhs, const DataT & Rhs) {                                    \
     return Lhs BINOP vec(Rhs);                                                 \
   }                                                                            \
-  friend vec operator BINOP(const DataT &Lhs, const vec &Rhs) {                \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec> operator BINOP(                \
+      const DataT & Lhs, const vec & Rhs) {                                    \
     return vec(Lhs) BINOP Rhs;                                                 \
   }                                                                            \
-  friend vec &operator OPASSIGN(vec & Lhs, const vec & Rhs) {                  \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec> &operator OPASSIGN(            \
+      vec & Lhs, const vec & Rhs) {                                            \
     Lhs = Lhs BINOP Rhs;                                                       \
     return Lhs;                                                                \
   }                                                                            \
-  template <int Num = NumElements>                                             \
-  friend typename std::enable_if_t<Num != 1, vec &> operator OPASSIGN(         \
-      vec & Lhs, const DataT & Rhs) {                                          \
+  template <int Num = NumElements, typename T = DataT>                         \
+  friend typename std::enable_if_t<(Num != 1) && (COND), vec &>                \
+  operator OPASSIGN(vec & Lhs, const DataT & Rhs) {                            \
     Lhs = Lhs BINOP vec(Rhs);                                                  \
     return Lhs;                                                                \
   }
-
 #else // __SYCL_DEVICE_ONLY__
 
-#define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
-  friend vec operator BINOP(const vec &Lhs, const vec &Rhs) {                  \
+#define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT, COND)                           \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec> operator BINOP(                \
+      const vec & Lhs, const vec & Rhs) {                                      \
     vec Ret{};                                                                 \
-    for (size_t I = 0; I < NumElements; ++I)                                   \
-      Ret.setValue(I,                                                          \
-                   vec_data<DataT>::set(vec_data<DataT>::get(Lhs.getValue(I))               \
-                               BINOP vec_data<DataT>::get(Rhs.getValue(I))));  \
+    for (size_t I = 0; I < NumElements; ++I) {                                 \
+      Ret.setValue(I, vec_data<DataT>::set(vec_data<DataT>::set(Lhs[I]) BINOP  \
+                                           vec_data<DataT>::set(Rhs[I])));     \
+    }                                                                          \
     return Ret;                                                                \
   }                                                                            \
-  friend vec operator BINOP(const vec &Lhs, const DataT &Rhs) {                \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec> operator BINOP(                \
+      const vec & Lhs, const DataT & Rhs) {                                    \
     return Lhs BINOP vec(Rhs);                                                 \
   }                                                                            \
-  friend vec operator BINOP(const DataT &Lhs, const vec &Rhs) {                \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec> operator BINOP(                \
+      const DataT & Lhs, const vec & Rhs) {                                    \
     return vec(Lhs) BINOP Rhs;                                                 \
   }                                                                            \
-  friend vec &operator OPASSIGN(vec & Lhs, const vec & Rhs) {                  \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec> &operator OPASSIGN(            \
+      vec & Lhs, const vec & Rhs) {                                            \
     Lhs = Lhs BINOP Rhs;                                                       \
     return Lhs;                                                                \
   }                                                                            \
-  template <int Num = NumElements>                                             \
-  friend typename std::enable_if_t<Num != 1, vec &> operator OPASSIGN(         \
-      vec & Lhs, const DataT & Rhs) {                                          \
+  template <int Num = NumElements, typename T = DataT>                         \
+  friend typename std::enable_if_t<(Num != 1) && (COND), vec &>                \
+  operator OPASSIGN(vec & Lhs, const DataT & Rhs) {                            \
     Lhs = Lhs BINOP vec(Rhs);                                                  \
     return Lhs;                                                                \
   }
 #endif // __SYCL_DEVICE_ONLY__
 
-  __SYCL_BINOP(+, +=, true)
-  __SYCL_BINOP(-, -=, true)
-  __SYCL_BINOP(*, *=, false)
-  __SYCL_BINOP(/, /=, false)
+  // std::byte is not an arithmetic type.
+  __SYCL_BINOP(+, +=, true, (!std::is_same_v<T, std::byte>))
+  __SYCL_BINOP(-, -=, true, (!std::is_same_v<T, std::byte>))
+  __SYCL_BINOP(*, *=, false, (!std::is_same_v<T, std::byte>))
+  __SYCL_BINOP(/, /=, false, (!std::is_same_v<T, std::byte>))
 
-  // TODO: The following OPs are available only when: DataT != cl_float &&
-  // DataT != cl_double && DataT != cl_half
-  __SYCL_BINOP(%, %=, false)
-  __SYCL_BINOP(|, |=, false)
-  __SYCL_BINOP(&, &=, false)
-  __SYCL_BINOP(^, ^=, false)
-  __SYCL_BINOP(>>, >>=, false)
-  __SYCL_BINOP(<<, <<=, true)
+  // The following OPs are available only when: DataT != cl_float &&
+  // DataT != cl_double && DataT != cl_half && DataT != BF16.
+  __SYCL_BINOP(%, %=, false, (!detail::is_vgenfloat_v<T> && !std::is_same_v<T, std::byte>))
+  // Bitwise operations are allowed for std::byte.
+  __SYCL_BINOP(|, |=, false, (!detail::is_vgenfloat_v<T>))
+  __SYCL_BINOP(&, &=, false, (!detail::is_vgenfloat_v<T>))
+  __SYCL_BINOP(^, ^=, false, (!detail::is_vgenfloat_v<T>))
+  __SYCL_BINOP(>>, >>=, false, (!detail::is_vgenfloat_v<T> && !std::is_same_v<T, std::byte>))
+  __SYCL_BINOP(<<, <<=, true, (!detail::is_vgenfloat_v<T> && !std::is_same_v<T, std::byte>))
 #undef __SYCL_BINOP
-#undef __SYCL_BINOP_HELP
+
+  // Special <<, >> operators for std::byte.
+  // std::byte is not an arithmetic type and it only supports the following
+  // overloads of >> and << operators.
+  //
+  // 1 template <class IntegerType>
+  //   constexpr std::byte operator<<( std::byte b, IntegerType shift ) noexcept;
+  // 2 template <class IntegerType>
+  //   constexpr std::byte operator>>( std::byte b, IntegerType shift ) noexcept;
+#define __SYCL_SHIFT_BYTE(OP, OPASSIGN)                                         \
+  template <typename T = DataT>                                                 \
+  friend typename std::enable_if_t<std::is_same_v<T, std::byte>, vec>           \
+  operator OP(const vec & Lhs, int shift) {                                     \
+    vec Ret;                                                                    \
+    for (size_t I = 0; I < NumElements; ++I) {                                  \
+      Ret.setValue(I, Lhs[I] OP shift);                                         \
+    }                                                                           \
+    return Ret;                                                                 \
+  }                                                                             \
+  template <typename T = DataT>                                                 \
+  friend typename std::enable_if_t<std::is_same_v<T, std::byte>, vec&>          \
+  operator OPASSIGN(vec & Lhs, int shift) {                                     \
+    Lhs = Lhs OP shift;                                                         \
+    return Lhs;                                                                 \
+  }
+
+  __SYCL_SHIFT_BYTE(<<, <<=)
+  __SYCL_SHIFT_BYTE(>>, >>=)
+#undef __SYCL_SHIFT_BYTE
 
   // Note: vec<>/SwizzleOp logical value is 0/-1 logic, as opposed to 0/1 logic.
   // As far as CTS validation is concerned, 0/-1 logic also applies when
