@@ -7882,9 +7882,9 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
         break;
       }
 
-      // Backend/Assemble actions are not used for the SYCL device side
-      if (Kind == Action::OFK_SYCL &&
-          (Phase == phases::Backend || Phase == phases::Assemble))
+      // Assemble actions are not used for the SYCL device side.  Both compile
+      // and backend actions are used to generate IR and textual IR if needed.
+      if (Kind == Action::OFK_SYCL && Phase == phases::Assemble)
         continue;
 
       auto TCAndArch = TCAndArchs.begin();
