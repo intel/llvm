@@ -2,6 +2,12 @@
 // NOTE: and manually adjusted to follow the related explicit instantiation.
 // RUN: %clangxx -O3 -fsycl -fsycl-device-only -S -emit-llvm -fno-sycl-instrument-device-code  -o - %s | FileCheck %s
 
+// Windows/linux have some slight differences in IR generation (function
+// arguments passing and long/long long differences/mangling) that could
+// complicate test updates while not improving test coverage. Limiting to linux
+// should be fine.
+// REQUIRES: linux
+
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
