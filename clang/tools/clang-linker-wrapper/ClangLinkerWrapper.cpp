@@ -814,6 +814,13 @@ static Expected<StringRef> runCompile(StringRef &InputFile,
 
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*LLCPath);
+  // Checking for '-shared' linker option
+  for (const opt::Arg *Arg : Args) {
+    if (Arg->getOption().matches(OPT_shared)) {
+      CmdArgs.push_back("-relocation-model=pic");
+      break;
+    }
+  }
   CmdArgs.push_back("-filetype=obj");
   CmdArgs.push_back("-o");
   CmdArgs.push_back(*OutputFileOrErr);
