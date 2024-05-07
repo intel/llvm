@@ -2570,6 +2570,18 @@ void OpenACCClauseProfiler::VisitFirstPrivateClause(
     Profiler.VisitStmt(E);
 }
 
+void OpenACCClauseProfiler::VisitAttachClause(
+    const OpenACCAttachClause &Clause) {
+  for (auto *E : Clause.getVarList())
+    Profiler.VisitStmt(E);
+}
+
+void OpenACCClauseProfiler::VisitDevicePtrClause(
+    const OpenACCDevicePtrClause &Clause) {
+  for (auto *E : Clause.getVarList())
+    Profiler.VisitStmt(E);
+}
+
 void OpenACCClauseProfiler::VisitNoCreateClause(
     const OpenACCNoCreateClause &Clause) {
   for (auto *E : Clause.getVarList())
