@@ -206,7 +206,7 @@ struct ur_event_handle_t_ : _ur_object {
 
   // Indicates within creation of proxy event.
   bool IsCreatingHostProxyEvent = {false};
-  
+
   // Indicates the recorded start and end timestamps for the event. These are
   // only set for events returned by timestamp recording enqueue functions.
   // A non-zero value for RecordEventStartTimestamp indicates the event was the
