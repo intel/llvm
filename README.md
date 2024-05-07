@@ -87,7 +87,7 @@ for more detailed instructions on the correct setup.
 
 Required packages:
 - C++ compiler with C++17 support
-- [CMake](https://cmake.org/) >= 3.14.0
+- [CMake](https://cmake.org/) >= 3.20.0
 - Python v3.6.6 or later
 
 ### Windows
