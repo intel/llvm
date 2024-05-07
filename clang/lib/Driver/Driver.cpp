@@ -5905,7 +5905,10 @@ class OffloadingActionBuilder final {
             ++NumOfDeviceLibLinked;
             Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
                                          Args.MakeArgString(LibName));
-            if (TC->getTriple().isNVPTX()) {
+            if (TC->getTriple().isNVPTX() ||
+                (TC->getTriple().isSPIR() &&
+                 TC->getTriple().getSubArch() ==
+                     llvm::Triple::SPIRSubArch_fpga)) {
               auto *SYCLDeviceLibsInputAction =
                   C.MakeAction<InputAction>(*InputArg, types::TY_Object);
               auto *SYCLDeviceLibsUnbundleAction =
