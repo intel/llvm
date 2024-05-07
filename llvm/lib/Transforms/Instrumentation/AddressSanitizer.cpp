@@ -64,6 +64,7 @@
 #include "llvm/IR/Use.h"
 #include "llvm/IR/Value.h"
 #include "llvm/MC/MCSectionMachO.h"
+#include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -923,6 +924,7 @@ private:
   void initializeCallbacks(Module &M);
 
   void instrumentGlobals(IRBuilder<> &IRB, Module &M, bool *CtorComdat);
+  void instrumentDeviceGlobal(IRBuilder<> &IRB, Module &M);
   void InstrumentGlobalsCOFF(IRBuilder<> &IRB, Module &M,
                              ArrayRef<GlobalVariable *> ExtendedGlobals,
                              ArrayRef<Constant *> MetadataInitializers);
@@ -2449,6 +2451,77 @@ Instruction *ModuleAddressSanitizer::CreateAsanModuleDtor(Module &M) {
   return ReturnInst::Create(*C, AsanDtorBB);
 }
 
+void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB,
+                                                    Module &M) {
+  auto &DL = M.getDataLayout();
+  SmallVector<GlobalVariable *, 8> GlobalsToRemove;
+  SmallVector<GlobalVariable *, 8> NewDeviceGlobals;
+  SmallVector<Constant *, 8> DeviceGlobalMetadata;
+
+  Type *IntTy = Type::getIntNTy(M.getContext(), DL.getPointerSizeInBits());
+
+  // Device global meta data is described by a structure
+  //  size_t device_global_size
+  //  size_t device_global_size_with_red_zone
+  //  size_t beginning address of the device global
+  StructType *StructTy = StructType::get(IntTy, IntTy, IntTy);
+
+  for (auto &G : M.globals()) {
+    // Non image scope device globals are implemented by device USM, and the
+    // out-of-bounds check for them will be done by sanitizer USM part. So we
+    // exclude them here.
+    if (!isDeviceGlobalVariable(G) || !hasDeviceImageScopeProperty(G))
+      continue;
+
+    Type *Ty = G.getValueType();
+    const uint64_t SizeInBytes = DL.getTypeAllocSize(Ty);
+    const uint64_t RightRedzoneSize = getRedzoneSizeForGlobal(SizeInBytes);
+    Type *RightRedZoneTy = ArrayType::get(IRB.getInt8Ty(), RightRedzoneSize);
+    StructType *NewTy = StructType::get(Ty, RightRedZoneTy);
+    Constant *NewInitializer = ConstantStruct::get(
+        NewTy, G.getInitializer(), Constant::getNullValue(RightRedZoneTy));
+
+    // Create a new global variable with enough space for a redzone.
+    GlobalVariable *NewGlobal = new GlobalVariable(
+        M, NewTy, G.isConstant(), G.getLinkage(), NewInitializer, "", &G,
+        G.getThreadLocalMode(), G.getAddressSpace());
+    NewGlobal->copyAttributesFrom(&G);
+    NewGlobal->setComdat(G.getComdat());
+    NewGlobal->setAlignment(Align(getMinRedzoneSizeForGlobal()));
+    NewGlobal->copyMetadata(&G, 0);
+
+    Value *Indices2[2];
+    Indices2[0] = IRB.getInt32(0);
+    Indices2[1] = IRB.getInt32(0);
+
+    G.replaceAllUsesWith(
+        ConstantExpr::getGetElementPtr(NewTy, NewGlobal, Indices2, true));
+    NewGlobal->takeName(&G);
+    GlobalsToRemove.push_back(&G);
+    NewDeviceGlobals.push_back(NewGlobal);
+    DeviceGlobalMetadata.push_back(ConstantStruct::get(
+        StructTy, ConstantInt::get(IntTy, SizeInBytes),
+        ConstantInt::get(IntTy, SizeInBytes + RightRedzoneSize),
+        ConstantExpr::getPointerCast(NewGlobal, IntTy)));
+  }
+
+  if (GlobalsToRemove.empty())
+    return;
+
+  // Create meta data global to record device globals' information
+  ArrayType *ArrayTy = ArrayType::get(StructTy, NewDeviceGlobals.size());
+  Constant *MetadataInitializer =
+      ConstantArray::get(ArrayTy, DeviceGlobalMetadata);
+  GlobalVariable *AsanDeviceGlobalMetadata = new GlobalVariable(
+      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
+      MetadataInitializer, "__AsanDeviceGlobalMetadata", nullptr,
+      GlobalValue::NotThreadLocal, 1);
+  AsanDeviceGlobalMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+
+  for (auto *G : GlobalsToRemove)
+    G->eraseFromParent();
+}
+
 void ModuleAddressSanitizer::InstrumentGlobalsCOFF(
     IRBuilder<> &IRB, Module &M, ArrayRef<GlobalVariable *> ExtendedGlobals,
     ArrayRef<Constant *> MetadataInitializers) {
@@ -2922,6 +2995,9 @@ bool ModuleAddressSanitizer::instrumentModule(Module &M) {
     auto *MD = M.getOrInsertNamedMetadata("device.sanitizer");
     Metadata *MDVals[] = {MDString::get(Ctx, "asan")};
     MD->addOperand(MDNode::get(Ctx, MDVals));
+
+    IRBuilder<> IRB(*C);
+    instrumentDeviceGlobal(IRB, M);
   }
 
   const uint64_t Priority = GetCtorAndDtorPriority(TargetTriple);
