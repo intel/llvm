@@ -12,6 +12,7 @@
 #include <detail/platform_impl.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
+#include <sycl/image.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
 

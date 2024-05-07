@@ -116,8 +116,7 @@
 // CHECK-NEXT: detail/handler_proxy.hpp
 // CHECK-NEXT: pointers.hpp
 // CHECK-NEXT: properties/accessor_properties.hpp
-// CHECK-NEXT: image.hpp
-// CHECK-NEXT: detail/backend_traits.hpp
+// CHECK-NEXT: properties/buffer_properties.hpp
 // CHECK-NEXT: sampler.hpp
 // CHECK-NEXT: types.hpp
 // CHECK-NEXT: marray.hpp
@@ -125,7 +124,6 @@
 // CHECK-NEXT: detail/memcpy.hpp
 // CHECK-NEXT: detail/vector_convert.hpp
 // CHECK-NEXT: swizzles.def
-// CHECK-NEXT: properties/buffer_properties.hpp
 // CHECK-NEXT: queue.hpp
 // CHECK-NEXT: detail/assert_happened.hpp
 // CHECK-NEXT: detail/cg_types.hpp
@@ -140,6 +138,8 @@
 // CHECK-NEXT: device.hpp
 // CHECK-NEXT: kernel_bundle_enums.hpp
 // CHECK-NEXT: exception_list.hpp
+// CHECK-NEXT: image.hpp
+// CHECK-NEXT: detail/backend_traits.hpp
 // CHECK-NEXT: kernel_handler.hpp
 // CHECK-NEXT: nd_item.hpp
 // CHECK-NEXT: nd_range.hpp
