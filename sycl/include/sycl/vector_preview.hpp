@@ -82,30 +82,8 @@ struct elem {
 };
 
 namespace detail {
-// Helper function to bit_cast one type to another.
-template <typename FromType, typename ToType>
-static constexpr ToType BitCast(const FromType &Value) {
-
-  static_assert(sizeof(FromType) == sizeof(ToType),
-                "BitCast: sizes of types are different");
-
-#ifdef __SYCL_BITCAST_IS_CONSTEXPR
-  return sycl::bit_cast<ToType>(Value);
-#else
-  // Awkward workaround. sycl::bit_cast isn't constexpr in older GCC
-  // C++20 will give us both std::bit_cast and constexpr reinterpet for void*
-  // but neither available yet.
-  union {
-    const FromType from;
-    ToType to;
-  } result = {};
-  result.from = Value;
-  return result.to;
-#endif
-}
-
 /* Helper functions to get and set values in vec, depdending on the underlying
-+ * data type. */
+ * data type. */
 template <typename T> struct vec_helper {
   using NativeType =
       typename std::conditional<std::is_same_v<T, bool>, std::int8_t, T>::type;
@@ -117,14 +95,14 @@ template <> struct vec_helper<sycl::ext::oneapi::bfloat16> {
   using BF16Type = sycl::ext::oneapi::bfloat16;
   using NativeType = sycl::ext::oneapi::detail::Bfloat16StorageT;
 
-  static constexpr NativeType get(NativeType value) { return value; }
-  static constexpr NativeType get(BF16Type value) {
-    return BitCast<BF16Type, NativeType>(value);
+  static NativeType get(NativeType value) { return value; }
+  static NativeType get(BF16Type value) {
+    return sycl::bit_cast<NativeType>(value);
   }
 
-  static constexpr BF16Type set(BF16Type value) { return value; }
-  static constexpr BF16Type set(NativeType value) {
-    return BitCast<NativeType, BF16Type>(value);
+  static BF16Type set(BF16Type value) { return value; }
+  static BF16Type set(NativeType value) {
+    return sycl::bit_cast<BF16Type>(value);
   }
 };
 
@@ -132,11 +110,11 @@ template <> struct vec_helper<sycl::ext::oneapi::bfloat16> {
 template <> struct vec_helper<std::byte> {
   using NativeType = std::uint8_t;
 
-  static constexpr NativeType get(std::byte value) { return (NativeType)value; }
-  static constexpr NativeType get(NativeType value) { return value; }
+  static NativeType get(std::byte value) { return (NativeType)value; }
+  static NativeType get(NativeType value) { return value; }
 
-  static constexpr std::byte set(std::byte value) { return value; }
-  static constexpr std::byte set(NativeType value) { return (std::byte)value; }
+  static std::byte set(std::byte value) { return value; }
+  static std::byte set(NativeType value) { return (std::byte)value; }
 };
 #endif
 
@@ -177,12 +155,10 @@ template <typename T> using vec_data = detail::vec_helper<T>;
 template <typename T>
 using vec_data_t = typename detail::vec_helper<T>::NativeType;
 
-// data_type_single_t = T for all types except bfloat16.
+// data_type_single_t and data_type_multiple_t are data types
+// used to store sycl::vec on host and device.
 template <typename T>
-using data_type_single_t = typename std::conditional_t<
-    // bfloat16
-    std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
-    sycl::ext::oneapi::bfloat16, T>;
+using data_type_single_t = T;
 
 template <typename T, int N>
 using data_type_multiple_t = typename std::conditional_t<
@@ -190,6 +166,8 @@ using data_type_multiple_t = typename std::conditional_t<
     std::is_same_v<T, bool>, std::array<int8_t, N>,
     std::array<data_type_single_t<T>, N>>;
 
+// sycl::vec is converted to vector_t_single and vector_t_multiple
+// data types on device for use in SPIRV builtins.
 #ifdef __SYCL_DEVICE_ONLY__
 template <typename T>
 using vector_t_single = typename std::conditional_t<
@@ -296,7 +274,7 @@ private:
   }
   template <typename DataT_, typename T>
   static constexpr auto FlattenVecArgHelper(const T &A) {
-    return std::array<DataT_, 1>{vec_data<DataT_>::get(static_cast<DataT_>(A))};
+    return std::array<DataT_, 1>{A};
   }
   template <typename DataT_, typename T> struct FlattenVecArg {
     constexpr auto operator()(const T &A) const {
@@ -392,10 +370,10 @@ private:
       typename std::enable_if_t<SizeChecker<0, NumElements, argTN...>::value>;
 
   template <size_t... Is>
-  constexpr vec(const std::array<vec_data_t<DataT>, NumElements> &Arr,
+  constexpr vec(const std::array<DataT, NumElements> &Arr,
                 std::index_sequence<Is...>)
-      : m_Data{([&](vec_data_t<DataT> v) constexpr {
-          return vec_data<DataT>::set(v);
+      : m_Data{([&](DataT v) constexpr {
+          return v;
         })(Arr[Is])...} {}
 
 public:
@@ -409,7 +387,7 @@ public:
   constexpr vec(vec &&Rhs) = default;
 
   explicit constexpr vec(const DataT &arg)
-      : vec{detail::RepeatValue<NumElements>(vec_data<DataT>::get(arg)),
+      : vec{detail::RepeatValue<NumElements>(arg),
             std::make_index_sequence<NumElements>()} {}
 
   // Constructor from values of base type or vec of base type. Checks that
@@ -417,7 +395,7 @@ public:
   template <typename... argTN, typename = EnableIfSuitableTypes<argTN...>,
             typename = EnableIfSuitableNumElements<argTN...>>
   constexpr vec(const argTN &...args)
-      : vec{VecArgArrayCreator<vec_data_t<DataT>, argTN...>::Create(args...),
+      : vec{VecArgArrayCreator<DataT, argTN...>::Create(args...),
             std::make_index_sequence<NumElements>()} {}
 
   /****************** Assignment Operators **************/
@@ -451,7 +429,19 @@ public:
                 typename std::enable_if_t<std::is_same_v<vector_t_, vector_t> &&
                                           !std::is_same_v<vector_t_, DataT>>>
   constexpr vec(vector_t_ openclVector) {
-    m_Data = detail::BitCast<vector_t, DataType>(openclVector);
+#ifdef __SYCL_BITCAST_IS_CONSTEXPR
+    m_Data = sycl::bit_cast<DataType>(openclVector);
+#else
+  // Awkward workaround. sycl::bit_cast isn't constexpr in older GCC
+  // C++20 will give us both std::bit_cast and constexpr reinterpet for void*
+  // but neither available yet.
+  union {
+    vector_t from;
+    DataType to;
+  } result = {};
+  result.from = openclVector;
+  m_Data = result.to;
+#endif
   }
 
   /* @SYCL2020
