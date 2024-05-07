@@ -95,16 +95,16 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ebf873fb5996c9ddca32bbb7c9330d3ffe15473c
-  # Merge: 633ec408 8f375039
+  # commit fcd3693d1b54ddad1fcbe9e2c749c01628739346
+  # Merge: c8a0d84b 5d51c9a1
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu May 2 10:56:55 2024 +0100
-  #    Merge pull request #1535 from przemektmalon/przemek/sampled-image-fetch
-  #    [Bindless][Exp] Add device queries for sampled image fetch
-  set(UNIFIED_RUNTIME_TAG ebf873fb5996c9ddca32bbb7c9330d3ffe15473c)
+  # Date:   Fri May 3 19:12:25 2024 +0100
+  #    Merge pull request #1513 from aarongreig/aaron/minorL0DeviceInfoFixes
+  #    Fix some minor bugs in L0 urDeviceGetInfo revealed by PI->UR port
+  set(UNIFIED_RUNTIME_TAG fcd3693d1b54ddad1fcbe9e2c749c01628739346)
 
   fetch_adapter_source(level_zero
-    "https://github.com/oneapi-src/unified-runtime.git"
+    ${UNIFIED_RUNTIME_REPO}
     # commit fb342f06e1ac244c5995b7be458d0c32a1ba17ab
     # Merge: a44e81b5 7186d6ce
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>

@@ -1,14 +1,19 @@
 set(obj_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+set(obj_new_offload_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 if (MSVC)
   set(lib-suffix obj)
+  set(new-offload-lib-suffix new.obj)
   set(spv_binary_dir "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
   set(install_dest_spv bin)
   set(devicelib_host_static sycl-devicelib-host.lib)
+  set(devicelib_host_static_new_offload sycl-devicelib-host.new.lib)
 else()
   set(lib-suffix o)
+  set(new-offload-lib-suffix new.o)
   set(spv_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
   set(install_dest_spv lib${LLVM_LIBDIR_SUFFIX})
   set(devicelib_host_static libsycl-devicelib-host.a)
+  set(devicelib_host_static_new_offload libsycl-devicelib-host.new.a)
 endif()
 set(bc_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 set(install_dest_lib lib${LLVM_LIBDIR_SUFFIX})
@@ -45,8 +50,8 @@ if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   string(APPEND sycl_targets_opt ",nvptx64-nvidia-cuda")
   list(APPEND compile_opts
     "-fno-sycl-libspirv"
-    "-fno-bundle-offload-arch"
-    "-nocudalib")
+    "-nocudalib"
+    "--cuda-gpu-arch=sm_50")
 endif()
 
 if (WIN32)
@@ -55,13 +60,15 @@ if (WIN32)
 endif()
 
 add_custom_target(libsycldevice-obj)
+add_custom_target(libsycldevice-obj-new-offload)
 add_custom_target(libsycldevice-spv)
 add_custom_target(libsycldevice-bc)
 
 add_custom_target(libsycldevice DEPENDS
   libsycldevice-obj
-  libsycldevice-spv
-  libsycldevice-bc)
+  libsycldevice-bc
+  libsycldevice-obj-new-offload
+  libsycldevice-spv)
 
 function(add_devicelib_obj obj_filename)
   cmake_parse_arguments(OBJ  "" "" "SRC;DEP;EXTRA_ARGS" ${ARGN})
@@ -78,6 +85,22 @@ function(add_devicelib_obj obj_filename)
   add_custom_target(${devicelib-obj-target} DEPENDS ${devicelib-obj-file})
   add_dependencies(libsycldevice-obj ${devicelib-obj-target})
   install(FILES ${devicelib-obj-file}
+          DESTINATION ${install_dest_lib}
+          COMPONENT libsycldevice)
+
+  set(devicelib-obj-file-new-offload ${obj_new_offload_binary_dir}/${obj_filename}.${new-offload-lib-suffix})
+  add_custom_command(OUTPUT ${devicelib-obj-file-new-offload}
+                     COMMAND ${clang} -fsycl -c --offload-new-driver
+                             ${compile_opts} ${sycl_targets_opt} ${OBJ_EXTRA_ARGS}
+                             ${CMAKE_CURRENT_SOURCE_DIR}/${OBJ_SRC}
+                             -o ${devicelib-obj-file-new-offload}
+                     MAIN_DEPENDENCY ${OBJ_SRC}
+                     DEPENDS ${OBJ_DEP}
+                     VERBATIM)
+  set(devicelib-obj-target-new-offload ${obj_filename}-new-offload-obj)
+  add_custom_target(${devicelib-obj-target-new-offload} DEPENDS ${devicelib-obj-file-new-offload})
+  add_dependencies(libsycldevice-obj ${devicelib-obj-target-new-offload})
+  install(FILES ${devicelib-obj-file-new-offload}
           DESTINATION ${install_dest_lib}
           COMPONENT libsycldevice)
 endfunction()
@@ -240,11 +263,27 @@ add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-imf.${lib-suffix}
                    DEPENDS ${imf_fallback_fp32_deps} get_imf_fallback_fp32 sycl-compiler
                    VERBATIM)
 
+add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-imf.${new-offload-lib-suffix}
+                   COMMAND ${clang} -fsycl -c --offload-new-driver
+                           ${compile_opts} ${sycl_targets_opt}
+                           ${imf_fp32_fallback_src} -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
+                           -o ${obj_binary_dir}/libsycl-fallback-imf.${new-offload-lib-suffix}
+                   DEPENDS ${imf_fallback_fp32_deps} get_imf_fallback_fp32 sycl-compiler
+                   VERBATIM)
+
 add_custom_command(OUTPUT ${obj_binary_dir}/fallback-imf-fp32-host.${lib-suffix}
                    COMMAND ${clang} ${imf_host_cxx_flags}
                            -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
                            ${imf_fp32_fallback_src}
                            -o ${obj_binary_dir}/fallback-imf-fp32-host.${lib-suffix}
+                   DEPENDS ${imf_fallback_fp32_deps} get_imf_fallback_fp32 sycl-compiler
+                   VERBATIM)
+
+add_custom_command(OUTPUT ${obj_binary_dir}/fallback-imf-fp32-host.${new-offload-lib-suffix}
+                   COMMAND ${clang} ${imf_host_cxx_flags} --offload-new-driver
+                           -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
+                           ${imf_fp32_fallback_src}
+                           -o ${obj_binary_dir}/fallback-imf-fp32-host.${new-offload-lib-suffix}
                    DEPENDS ${imf_fallback_fp32_deps} get_imf_fallback_fp32 sycl-compiler
                    VERBATIM)
 
@@ -274,11 +313,28 @@ add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-imf-fp64.${lib-suff
                    DEPENDS ${imf_fallback_fp64_deps} get_imf_fallback_fp64 sycl-compiler
                    VERBATIM)
 
+add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-imf-fp64.${new-offload-lib-suffix}
+                   COMMAND ${clang} -fsycl -c -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
+                           --offload-new-driver
+                           ${compile_opts} ${sycl_targets_opt}
+                           ${imf_fp64_fallback_src}
+                           -o ${obj_binary_dir}/libsycl-fallback-imf-fp64.${new-offload-lib-suffix}
+                   DEPENDS ${imf_fallback_fp64_deps} get_imf_fallback_fp64 sycl-compiler
+                   VERBATIM)
+
 add_custom_command(OUTPUT ${obj_binary_dir}/fallback-imf-fp64-host.${lib-suffix}
                    COMMAND ${clang} ${imf_host_cxx_flags}
                            -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
                            ${imf_fp64_fallback_src}
                            -o ${obj_binary_dir}/fallback-imf-fp64-host.${lib-suffix}
+                   DEPENDS ${imf_fallback_fp64_deps} get_imf_fallback_fp64 sycl-compiler
+                   VERBATIM)
+
+add_custom_command(OUTPUT ${obj_binary_dir}/fallback-imf-fp64-host.${new-offload-lib-suffix}
+                   COMMAND ${clang} ${imf_host_cxx_flags} --offload-new-driver
+                           -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
+                           ${imf_fp64_fallback_src}
+                           -o ${obj_binary_dir}/fallback-imf-fp64-host.${new-offload-lib-suffix}
                    DEPENDS ${imf_fallback_fp64_deps} get_imf_fallback_fp64 sycl-compiler
                    VERBATIM)
 
@@ -308,6 +364,15 @@ add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-imf-bf16.${lib-suff
                    DEPENDS ${imf_fallback_bf16_deps} get_imf_fallback_bf16 sycl-compiler
                    VERBATIM)
 
+add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-imf-bf16.${new-offload-lib-suffix}
+                   COMMAND ${clang} -fsycl -c -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
+                           --offload-new-driver
+                           ${compile_opts} ${sycl_targets_opt}
+                           ${imf_bf16_fallback_src}
+                           -o ${obj_binary_dir}/libsycl-fallback-imf-bf16.${new-offload-lib-suffix}
+                   DEPENDS ${imf_fallback_bf16_deps} get_imf_fallback_bf16 sycl-compiler
+                   VERBATIM)
+
 add_custom_command(OUTPUT ${obj_binary_dir}/fallback-imf-bf16-host.${lib-suffix}
                    COMMAND ${clang} ${imf_host_cxx_flags}
                            -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
@@ -316,34 +381,59 @@ add_custom_command(OUTPUT ${obj_binary_dir}/fallback-imf-bf16-host.${lib-suffix}
                    DEPENDS ${imf_fallback_bf16_deps} get_imf_fallback_bf16 sycl-compiler
                    VERBATIM)
 
+add_custom_command(OUTPUT ${obj_binary_dir}/fallback-imf-bf16-host.${new-offload-lib-suffix}
+                   COMMAND ${clang} ${imf_host_cxx_flags} --offload-new-driver
+                           -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
+                           ${imf_bf16_fallback_src}
+                           -o ${obj_binary_dir}/fallback-imf-bf16-host.${new-offload-lib-suffix}
+                   DEPENDS ${imf_fallback_bf16_deps} get_imf_fallback_bf16 sycl-compiler
+                   VERBATIM)
+
 add_custom_target(imf_fallback_fp32_spv DEPENDS ${spv_binary_dir}/libsycl-fallback-imf.spv)
 add_custom_target(imf_fallback_fp32_bc DEPENDS ${bc_binary_dir}/libsycl-fallback-imf.bc)
 add_custom_target(imf_fallback_fp32_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf.${lib-suffix})
 add_custom_target(imf_fallback_fp32_host_obj DEPENDS ${obj_binary_dir}/fallback-imf-fp32-host.${lib-suffix})
+add_custom_target(imf_fallback_fp32_new_offload_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf.${new-offload-lib-suffix})
+add_custom_target(imf_fallback_fp32_host_new_offload_obj DEPENDS ${obj_binary_dir}/fallback-imf-fp32-host.${new-offload-lib-suffix})
 add_dependencies(libsycldevice-spv imf_fallback_fp32_spv)
 add_dependencies(libsycldevice-bc imf_fallback_fp32_bc)
 add_dependencies(libsycldevice-obj imf_fallback_fp32_obj)
+add_dependencies(libsycldevice-obj imf_fallback_fp32_new_offload_obj)
 
 add_custom_target(imf_fallback_fp64_spv DEPENDS ${spv_binary_dir}/libsycl-fallback-imf-fp64.spv)
 add_custom_target(imf_fallback_fp64_bc DEPENDS ${bc_binary_dir}/libsycl-fallback-imf-fp64.bc)
 add_custom_target(imf_fallback_fp64_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf-fp64.${lib-suffix})
 add_custom_target(imf_fallback_fp64_host_obj DEPENDS ${obj_binary_dir}/fallback-imf-fp64-host.${lib-suffix})
+add_custom_target(imf_fallback_fp64_new_offload_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf-fp64.${new-offload-lib-suffix})
+add_custom_target(imf_fallback_fp64_host_new_offload_obj DEPENDS ${obj_binary_dir}/fallback-imf-fp64-host.${new-offload-lib-suffix})
 add_dependencies(libsycldevice-spv imf_fallback_fp64_spv)
 add_dependencies(libsycldevice-bc imf_fallback_fp64_bc)
 add_dependencies(libsycldevice-obj imf_fallback_fp64_obj)
+add_dependencies(libsycldevice-obj imf_fallback_fp64_new_offload_obj)
 
 add_custom_target(imf_fallback_bf16_spv DEPENDS ${spv_binary_dir}/libsycl-fallback-imf-bf16.spv)
 add_custom_target(imf_fallback_bf16_bc DEPENDS ${bc_binary_dir}/libsycl-fallback-imf-bf16.bc)
 add_custom_target(imf_fallback_bf16_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf-bf16.${lib-suffix})
 add_custom_target(imf_fallback_bf16_host_obj DEPENDS ${obj_binary_dir}/fallback-imf-bf16-host.${lib-suffix})
+add_custom_target(imf_fallback_bf16_new_offload_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf-bf16.${new-offload-lib-suffix})
+add_custom_target(imf_fallback_bf16_host_new_offload_obj DEPENDS ${obj_binary_dir}/fallback-imf-bf16-host.${new-offload-lib-suffix})
 add_dependencies(libsycldevice-spv imf_fallback_bf16_spv)
 add_dependencies(libsycldevice-bc imf_fallback_bf16_bc)
 add_dependencies(libsycldevice-obj imf_fallback_bf16_obj)
+add_dependencies(libsycldevice-obj imf_fallback_bf16_new_offload_obj)
 
 add_custom_command(OUTPUT ${obj_binary_dir}/imf-fp32-host.${lib-suffix}
                    COMMAND ${clang} ${imf_host_cxx_flags}
                            ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper.cpp
                            -o ${obj_binary_dir}/imf-fp32-host.${lib-suffix}
+                   MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper.cpp
+                   DEPENDS ${imf_obj_deps}
+                   VERBATIM)
+
+add_custom_command(OUTPUT ${obj_binary_dir}/imf-fp32-host.${new-offload-lib-suffix}
+                   COMMAND ${clang} ${imf_host_cxx_flags} --offload-new-driver
+                           ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper.cpp
+                           -o ${obj_binary_dir}/imf-fp32-host.${new-offload-lib-suffix}
                    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper.cpp
                    DEPENDS ${imf_obj_deps}
                    VERBATIM)
@@ -356,6 +446,14 @@ add_custom_command(OUTPUT ${obj_binary_dir}/imf-fp64-host.${lib-suffix}
                    DEPENDS ${imf_obj_deps}
                    VERBATIM)
 
+add_custom_command(OUTPUT ${obj_binary_dir}/imf-fp64-host.${new-offload-lib-suffix}
+                   COMMAND ${clang} ${imf_host_cxx_flags} --offload-new-driver
+                           ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper_fp64.cpp
+                           -o ${obj_binary_dir}/imf-fp64-host.${new-offload-lib-suffix}
+                   MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper_fp64.cpp
+                   DEPENDS ${imf_obj_deps}
+                   VERBATIM)
+
 add_custom_command(OUTPUT ${obj_binary_dir}/imf-bf16-host.${lib-suffix}
                    COMMAND ${clang} ${imf_host_cxx_flags}
                            ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper_bf16.cpp
@@ -364,9 +462,21 @@ add_custom_command(OUTPUT ${obj_binary_dir}/imf-bf16-host.${lib-suffix}
                    DEPENDS ${imf_obj_deps}
                    VERBATIM)
 
+add_custom_command(OUTPUT ${obj_binary_dir}/imf-bf16-host.${new-offload-lib-suffix}
+                   COMMAND ${clang} ${imf_host_cxx_flags} --offload-new-driver
+                           ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper_bf16.cpp
+                           -o ${obj_binary_dir}/imf-bf16-host.${new-offload-lib-suffix}
+                   MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper_bf16.cpp
+                   DEPENDS ${imf_obj_deps}
+                   VERBATIM)
+
 add_custom_target(imf_fp32_host_obj DEPENDS ${obj_binary_dir}/imf-fp32-host.${lib-suffix})
 add_custom_target(imf_fp64_host_obj DEPENDS ${obj_binary_dir}/imf-fp64-host.${lib-suffix})
 add_custom_target(imf_bf16_host_obj DEPENDS ${obj_binary_dir}/imf-bf16-host.${lib-suffix})
+
+add_custom_target(imf_fp32_host_new_offload_obj DEPENDS ${obj_binary_dir}/imf-fp32-host.${new-offload-lib-suffix})
+add_custom_target(imf_fp64_host_new_offload_obj DEPENDS ${obj_binary_dir}/imf-fp64-host.${new-offload-lib-suffix})
+add_custom_target(imf_bf16_host_new_offload_obj DEPENDS ${obj_binary_dir}/imf-bf16-host.${new-offload-lib-suffix})
 
 add_custom_target(imf_host_obj DEPENDS ${obj_binary_dir}/${devicelib_host_static})
 add_custom_command(OUTPUT ${obj_binary_dir}/${devicelib_host_static}
@@ -382,7 +492,22 @@ add_custom_command(OUTPUT ${obj_binary_dir}/${devicelib_host_static}
                   DEPENDS imf_bf16_host_obj imf_fallback_bf16_host_obj
                   DEPENDS sycl-compiler
                   VERBATIM)
+add_custom_target(imf_host_new_offload_obj DEPENDS ${obj_binary_dir}/${devicelib_host_static_new_offload})
+add_custom_command(OUTPUT ${obj_binary_dir}/${devicelib_host_static_new_offload}
+                  COMMAND ${llvm-ar} rcs ${obj_binary_dir}/${devicelib_host_static_new_offload}
+                          ${obj_binary_dir}/imf-fp32-host.${new-offload-lib-suffix}
+                          ${obj_binary_dir}/fallback-imf-fp32-host.${new-offload-lib-suffix}
+                          ${obj_binary_dir}/imf-fp64-host.${new-offload-lib-suffix}
+                          ${obj_binary_dir}/fallback-imf-fp64-host.${new-offload-lib-suffix}
+                          ${obj_binary_dir}/imf-bf16-host.${new-offload-lib-suffix}
+                          ${obj_binary_dir}/fallback-imf-bf16-host.${new-offload-lib-suffix}
+                  DEPENDS imf_fp32_host_new_offload_obj imf_fallback_fp32_host_new_offload_obj
+                  DEPENDS imf_fp64_host_new_offload_obj imf_fallback_fp64_host_new_offload_obj
+                  DEPENDS imf_bf16_host_new_offload_obj imf_fallback_bf16_host_new_offload_obj
+                  DEPENDS sycl-compiler
+                  VERBATIM)
 add_dependencies(libsycldevice-obj imf_host_obj)
+add_dependencies(libsycldevice-obj imf_host_new_offload_obj)
 install(FILES ${spv_binary_dir}/libsycl-fallback-imf.spv
               ${spv_binary_dir}/libsycl-fallback-imf-fp64.spv
               ${spv_binary_dir}/libsycl-fallback-imf-bf16.spv
@@ -399,5 +524,12 @@ install(FILES ${obj_binary_dir}/libsycl-fallback-imf.${lib-suffix}
               ${obj_binary_dir}/libsycl-fallback-imf-fp64.${lib-suffix}
               ${obj_binary_dir}/libsycl-fallback-imf-bf16.${lib-suffix}
               ${obj_binary_dir}/${devicelib_host_static}
+        DESTINATION ${install_dest_lib}
+        COMPONENT libsycldevice)
+
+install(FILES ${obj_binary_dir}/libsycl-fallback-imf.${new-offload-lib-suffix}
+              ${obj_binary_dir}/libsycl-fallback-imf-fp64.${new-offload-lib-suffix}
+              ${obj_binary_dir}/libsycl-fallback-imf-bf16.${new-offload-lib-suffix}
+              ${obj_binary_dir}/${devicelib_host_static_new_offload}
         DESTINATION ${install_dest_lib}
         COMPONENT libsycldevice)

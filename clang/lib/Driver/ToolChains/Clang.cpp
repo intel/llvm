@@ -10361,7 +10361,6 @@ static void getOtherSPIRVTransOpts(Compilation &C,
       ",+SPV_INTEL_fpga_reg,+SPV_INTEL_blocking_pipes"
       ",+SPV_INTEL_function_pointers,+SPV_INTEL_kernel_attributes"
       ",+SPV_INTEL_io_pipes,+SPV_INTEL_inline_assembly"
-      ",+SPV_INTEL_arbitrary_precision_integers"
       ",+SPV_INTEL_float_controls2,+SPV_INTEL_vector_compute"
       ",+SPV_INTEL_fast_composite"
       ",+SPV_INTEL_arbitrary_precision_fixed_point"
@@ -10394,6 +10393,9 @@ static void getOtherSPIRVTransOpts(Compilation &C,
               ",+SPV_INTEL_tensor_float32_conversion"
               ",+SPV_INTEL_optnone"
               ",+SPV_KHR_non_semantic_info";
+  if (C.getDriver().IsFPGAHWMode() || C.getDriver().IsFPGAEmulationMode())
+    ExtArg += ",+SPV_INTEL_arbitrary_precision_integers";
+
   if (IsCPU)
     ExtArg += ",+SPV_INTEL_fp_max_error";
 
@@ -11005,7 +11007,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     SYCLInstallationDetector SYCLInstallation(D);
     SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
     SmallString<128> LibName("libsycl-crt");
-    StringRef LibSuffix = TheTriple.isWindowsMSVCEnvironment() ? ".obj" : ".o";
+    bool IsNewOffload = D.getUseNewOffloadingDriver();
+    StringRef LibSuffix = TheTriple.isWindowsMSVCEnvironment()
+                              ? (IsNewOffload ? ".new.obj" : ".obj")
+                              : (IsNewOffload ? ".new.o" : ".o");
     llvm::sys::path::replace_extension(LibName, LibSuffix);
     for (const auto &LibLoc : LibLocCandidates) {
       SmallString<128> FullLibName(LibLoc);
