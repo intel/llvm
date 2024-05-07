@@ -72,7 +72,7 @@ struct KernelsEnvironment : DevicesEnvironment {
     virtual void SetUp() override;
     virtual void TearDown() override;
 
-    void LoadSource(const std::string &kernel_name, uint32_t device_index,
+    void LoadSource(const std::string &kernel_name,
                     std::shared_ptr<std::vector<char>> &binary_out);
 
     ur_result_t CreateProgram(ur_platform_handle_t hPlatform,
@@ -89,9 +89,8 @@ struct KernelsEnvironment : DevicesEnvironment {
   private:
     KernelOptions parseKernelOptions(int argc, char **argv,
                                      const std::string &kernels_default_dir);
-    std::string getKernelSourcePath(const std::string &kernel_name,
-                                    uint32_t device_index);
-    std::string getSupportedILPostfix(uint32_t device_index);
+    std::string getKernelSourcePath(const std::string &kernel_name);
+    std::string getTargetName();
 
     KernelOptions kernel_options;
     // mapping between kernels (full_path + kernel_name) and their saved source.
