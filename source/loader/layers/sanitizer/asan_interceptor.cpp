@@ -522,16 +522,18 @@ SanitizerInterceptor::registerDeviceGlobals(ur_context_handle_t Context,
     for (auto Device : Devices) {
         ManagedQueue Queue(Context, Device);
 
-        uint64_t NumOfDeviceGlobal;
-        auto Result = context.urDdiTable.Enqueue.pfnDeviceGlobalVariableRead(
-            Queue, Program, kSPIR_AsanDeviceGlobalCount, true,
-            sizeof(NumOfDeviceGlobal), 0, &NumOfDeviceGlobal, 0, nullptr,
-            nullptr);
+        [[maybe_unused]] size_t MetadataSize;
+        [[maybe_unused]] void *MetadataPtr;
+        auto Result = context.urDdiTable.Program.pfnGetGlobalVariablePointer(
+            Device, Program, kSPIR_AsanDeviceGlobalMetadata, &MetadataSize,
+            &MetadataPtr);
         if (Result != UR_RESULT_SUCCESS) {
             context.logger.info("No device globals");
             continue;
         }
 
+        const uint64_t NumOfDeviceGlobal =
+            MetadataSize / sizeof(DeviceGlobalInfo);
         std::vector<DeviceGlobalInfo> GVInfos(NumOfDeviceGlobal);
         Result = context.urDdiTable.Enqueue.pfnDeviceGlobalVariableRead(
             Queue, Program, kSPIR_AsanDeviceGlobalMetadata, true,
