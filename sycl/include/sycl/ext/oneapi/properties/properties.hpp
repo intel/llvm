@@ -124,7 +124,7 @@ struct ExtractProperties<PropertyArgsT,
   static constexpr std::tuple<PropertyT, PropertiesTs...>
   Extract(const PropertyArgsT &PropertyValues) {
     // TODO: NumOccurrences and checks should be moved out of the function once
-    //       ISSUE has been fixed.
+    //       https://github.com/intel/llvm/issues/13677 has been fixed.
     constexpr size_t NumOccurrences =
         CountTypeInTuple<PropertyT, PropertyArgsT>::value;
     static_assert(

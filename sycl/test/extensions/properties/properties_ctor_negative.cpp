@@ -34,7 +34,8 @@ int main() {
   sycl::ext::oneapi::experimental::empty_properties_t InvalidPropertyList7{
       sycl::ext::oneapi::experimental::foo{0}};
   /*
-  // TODO: Uncomment these lines once ISSUE has been fixed.
+  // TODO: Uncomment these lines once https://github.com/intel/llvm/issues/13677
+  // has been fixed.
   decltype(sycl::ext::oneapi::experimental::properties{
       sycl::ext::oneapi::experimental::foo{0}}) InvalidPropertyList8{
       sycl::ext::oneapi::experimental::foo{0},
