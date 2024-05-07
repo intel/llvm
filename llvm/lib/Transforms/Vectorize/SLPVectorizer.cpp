@@ -13169,6 +13169,10 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E, bool PostponedPHIs) {
       } else {
         assert(E->State == TreeEntry::StridedVectorize &&
                "Expected either strided or conseutive stores.");
+        if (!E->ReorderIndices.empty()) {
+          SI = cast<StoreInst>(E->Scalars[E->ReorderIndices.front()]);
+          Ptr = SI->getPointerOperand();
+        }
         Align CommonAlignment = computeCommonAlignment<StoreInst>(E->Scalars);
         Type *StrideTy = DL->getIndexType(SI->getPointerOperandType());
         auto *Inst = Builder.CreateIntrinsic(
@@ -15483,8 +15487,7 @@ void BoUpSLP::computeMinimumValueSizes() {
       TreeEntry *TE = VectorizableTree[Idx].get();
       if (MinBWs.contains(TE))
         continue;
-      bool IsSigned = TE->getOpcode() == Instruction::SExt ||
-                      any_of(TE->Scalars, [&](Value *R) {
+      bool IsSigned = any_of(TE->Scalars, [&](Value *R) {
                         return !isKnownNonNegative(R, SimplifyQuery(*DL));
                       });
       MinBWs.try_emplace(TE, MaxBitWidth, IsSigned);

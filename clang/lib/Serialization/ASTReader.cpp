@@ -11888,6 +11888,12 @@ OpenACCClause *ASTRecordReader::readOpenACCClause() {
     return OpenACCCreateClause::Create(getContext(), ClauseKind, BeginLoc,
                                        LParenLoc, IsZero, VarList, EndLoc);
   }
+  case OpenACCClauseKind::Async: {
+    SourceLocation LParenLoc = readSourceLocation();
+    Expr *AsyncExpr = readBool() ? readSubExpr() : nullptr;
+    return OpenACCAsyncClause::Create(getContext(), BeginLoc, LParenLoc,
+                                      AsyncExpr, EndLoc);
+  }
 
   case OpenACCClauseKind::Finalize:
   case OpenACCClauseKind::IfPresent:
@@ -11911,7 +11917,6 @@ OpenACCClause *ASTRecordReader::readOpenACCClause() {
   case OpenACCClauseKind::DefaultAsync:
   case OpenACCClauseKind::DeviceType:
   case OpenACCClauseKind::DType:
-  case OpenACCClauseKind::Async:
   case OpenACCClauseKind::Tile:
   case OpenACCClauseKind::Gang:
   case OpenACCClauseKind::Wait:
