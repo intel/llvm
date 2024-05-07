@@ -3681,8 +3681,11 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
 static bool IsSYCLDeviceLibObj(std::string ObjFilePath, bool isMSVCEnv) {
   StringRef ObjFileName = llvm::sys::path::filename(ObjFilePath);
   StringRef ObjSuffix = isMSVCEnv ? ".obj" : ".o";
+  StringRef NewObjSuffix = isMSVCEnv ? ".new.obj" : ".new.o";
   bool Ret =
-      (ObjFileName.starts_with("libsycl-") && ObjFileName.ends_with(ObjSuffix))
+      (ObjFileName.starts_with("libsycl-") &&
+       ObjFileName.ends_with(ObjSuffix) &&
+       !ObjFileName.ends_with(NewObjSuffix)) // Avoid new-offload-driver objs
           ? true
           : false;
   return Ret;
@@ -7974,6 +7977,11 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
         assert(Phase == PL.back() && "linking must be final compilation step.");
         break;
       }
+
+      // Backend/Assemble actions are not used for the SYCL device side
+      if (Kind == Action::OFK_SYCL &&
+          (Phase == phases::Backend || Phase == phases::Assemble))
+        continue;
 
       auto TCAndArch = TCAndArchs.begin();
       for (Action *&A : DeviceActions) {
