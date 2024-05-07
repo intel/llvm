@@ -10,20 +10,18 @@
 // OFFLOAD-NEW-DRIVER: 4: input, "[[INPUT]]", c++, (device-sycl)
 // OFFLOAD-NEW-DRIVER: 5: preprocessor, {4}, c++-cpp-output, (device-sycl)
 // OFFLOAD-NEW-DRIVER: 6: compiler, {5}, ir, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 7: backend, {6}, assembler, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 8: assembler, {7}, object, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 9: offload, "device-sycl (nvptx64-nvidia-cuda)" {8}, object
-// OFFLOAD-NEW-DRIVER: 10: input, "[[INPUT]]", c++, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 11: preprocessor, {10}, c++-cpp-output, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 12: compiler, {11}, ir, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 13: backend, {12}, assembler, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 14: assembler, {13}, object, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 15: offload, "device-sycl (spir64-unknown-unknown)" {14}, object
-// OFFLOAD-NEW-DRIVER: 16: clang-offload-packager, {9, 15}, image, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 17: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (x86_64-unknown-linux-gnu)" {16}, ir
-// OFFLOAD-NEW-DRIVER: 18: backend, {17}, assembler, (host-sycl)
-// OFFLOAD-NEW-DRIVER: 19: assembler, {18}, object, (host-sycl)
-// OFFLOAD-NEW-DRIVER: 20: clang-linker-wrapper, {19}, image, (host-sycl)
+// OFFLOAD-NEW-DRIVER: 7: backend, {6}, ir, (device-sycl)
+// OFFLOAD-NEW-DRIVER: 8: offload, "device-sycl (nvptx64-nvidia-cuda)" {7}, ir
+// OFFLOAD-NEW-DRIVER: 9: input, "[[INPUT]]", c++, (device-sycl)
+// OFFLOAD-NEW-DRIVER: 10: preprocessor, {9}, c++-cpp-output, (device-sycl)
+// OFFLOAD-NEW-DRIVER: 11: compiler, {10}, ir, (device-sycl)
+// OFFLOAD-NEW-DRIVER: 12: backend, {11}, ir, (device-sycl)
+// OFFLOAD-NEW-DRIVER: 13: offload, "device-sycl (spir64-unknown-unknown)" {12}, ir
+// OFFLOAD-NEW-DRIVER: 14: clang-offload-packager, {8, 13}, image, (device-sycl)
+// OFFLOAD-NEW-DRIVER: 15: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (x86_64-unknown-linux-gnu)" {14}, ir
+// OFFLOAD-NEW-DRIVER: 16: backend, {15}, assembler, (host-sycl)
+// OFFLOAD-NEW-DRIVER: 17: assembler, {16}, object, (host-sycl)
+// OFFLOAD-NEW-DRIVER: 18: clang-linker-wrapper, {17}, image, (host-sycl)
 
 /// Check the toolflow for SYCL compilation using new offload model
 // RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64 --offload-new-driver %s 2>&1 | FileCheck -check-prefix=CHK-FLOW %s

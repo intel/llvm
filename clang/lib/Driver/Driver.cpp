@@ -8132,7 +8132,7 @@ Action *Driver::ConstructPhaseAction(
     }
     if (Args.hasArg(options::OPT_emit_llvm) ||
         ((TargetDeviceOffloadKind == Action::OFK_SYCL &&
-          C.getDriver().getUseNewOffloadingDriver() && offloadDeviceOnly()) ||
+          C.getDriver().getUseNewOffloadingDriver()) ||
          (((Input->getOffloadingToolChain() &&
             Input->getOffloadingToolChain()->getTriple().isAMDGPU()) ||
            TargetDeviceOffloadKind == Action::OFK_HIP) &&
