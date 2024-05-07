@@ -110,7 +110,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     # Date:   Fri May 3 11:55:26 2024 +0100
     #     Merge pull request #1549 from igchor/event_fix
     #     Fix adding event to queue cache
-    d5718275657c548b3360643e366538594f1f6101
+    e06e467705cd575bd1326ad400283d0877a9cdaa
   )
 
   fetch_adapter_source(opencl
