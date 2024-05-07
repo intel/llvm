@@ -93,7 +93,6 @@ constexpr auto kSPIR_AsanShadowMemoryGlobalEnd = "__AsanShadowMemoryGlobalEnd";
 constexpr auto kSPIR_DeviceType = "__DeviceType";
 constexpr auto kSPIR_AsanDebug = "__AsanDebug";
 
-constexpr auto kSPIR_AsanDeviceGlobalCount = "__AsanDeviceGlobalCount";
 constexpr auto kSPIR_AsanDeviceGlobalMetadata = "__AsanDeviceGlobalMetadata";
 
 inline const char *ToString(DeviceSanitizerMemoryType MemoryType) {
