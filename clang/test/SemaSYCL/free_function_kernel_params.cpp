@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -ast-dump \
-// RUN: %s -o - | FileCheck %s
+// RUN: %clang -fsycl-device-only -Xclang -ast-dump %s | FileCheck %s
+
 // This test checks parameter rewriting for free functions with parameters
 // of type scalar and pointer.
 
