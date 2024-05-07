@@ -522,8 +522,8 @@ SanitizerInterceptor::registerDeviceGlobals(ur_context_handle_t Context,
     for (auto Device : Devices) {
         ManagedQueue Queue(Context, Device);
 
-        [[maybe_unused]] size_t MetadataSize;
-        [[maybe_unused]] void *MetadataPtr;
+        size_t MetadataSize;
+        void *MetadataPtr;
         auto Result = context.urDdiTable.Program.pfnGetGlobalVariablePointer(
             Device, Program, kSPIR_AsanDeviceGlobalMetadata, &MetadataSize,
             &MetadataPtr);
@@ -535,10 +535,9 @@ SanitizerInterceptor::registerDeviceGlobals(ur_context_handle_t Context,
         const uint64_t NumOfDeviceGlobal =
             MetadataSize / sizeof(DeviceGlobalInfo);
         std::vector<DeviceGlobalInfo> GVInfos(NumOfDeviceGlobal);
-        Result = context.urDdiTable.Enqueue.pfnDeviceGlobalVariableRead(
-            Queue, Program, kSPIR_AsanDeviceGlobalMetadata, true,
-            sizeof(DeviceGlobalInfo) * NumOfDeviceGlobal, 0, &GVInfos[0], 0,
-            nullptr, nullptr);
+        Result = context.urDdiTable.Enqueue.pfnUSMMemcpy(
+            Queue, true, &GVInfos[0], MetadataPtr,
+            sizeof(DeviceGlobalInfo) * NumOfDeviceGlobal, 0, nullptr, nullptr);
         if (Result != UR_RESULT_SUCCESS) {
             context.logger.error("Device Global[{}] Read Failed: {}",
                                  kSPIR_AsanDeviceGlobalMetadata, Result);
