@@ -120,9 +120,9 @@ template __SYCL_EXPORT typename ext::oneapi::experimental::info::
 
 kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
 
-pi_native_handle kernel::getNative() const { return impl->getNative(); }
+ur_native_handle_t kernel::getNative() const { return impl->getNative(); }
 
-pi_native_handle kernel::getNativeImpl() const { return impl->getNative(); }
+ur_native_handle_t kernel::getNativeImpl() const { return impl->getNative(); }
 
 } // namespace _V1
 } // namespace sycl

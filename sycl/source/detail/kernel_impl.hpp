@@ -110,10 +110,10 @@ public:
     if (is_host()) {
       throw invalid_object_error(
           "This instance of kernel doesn't support OpenCL interoperability.",
-          PI_ERROR_INVALID_KERNEL);
+          UR_RESULT_ERROR_INVALID_KERNEL);
     }
-    getPlugin()->call<PiApiKind::piKernelRetain>(MKernel);
-    return pi::cast<cl_kernel>(MKernel);
+    getUrPlugin()->call(urKernelRetain, MURKernel);
+    return pi::cast<cl_kernel>(MURKernel);
   }
 
   /// Check if the associated SYCL context is a SYCL host context.
@@ -179,14 +179,14 @@ public:
 
   const DeviceImageImplPtr &getDeviceImage() const { return MDeviceImageImpl; }
 
-  pi_native_handle getNative() const {
-    const PluginPtr &Plugin = MContext->getPlugin();
+  ur_native_handle_t getNative() const {
+    const UrPluginPtr &Plugin = MContext->getUrPlugin();
 
     if (MContext->getBackend() == backend::opencl)
-      Plugin->call<PiApiKind::piKernelRetain>(MKernel);
+      Plugin->call(urKernelRetain, MURKernel);
 
-    pi_native_handle NativeKernel = 0;
-    Plugin->call<PiApiKind::piextKernelGetNativeHandle>(MKernel, &NativeKernel);
+    ur_native_handle_t NativeKernel = 0;
+    Plugin->call(urKernelGetNativeHandle, MURKernel, &NativeKernel);
 
     return NativeKernel;
   }

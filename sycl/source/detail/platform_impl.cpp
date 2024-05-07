@@ -631,11 +631,10 @@ bool platform_impl::supports_usm() const {
          has_extension("cl_intel_unified_shared_memory");
 }
 
-pi_native_handle platform_impl::getNative() const {
-  const auto &Plugin = getPlugin();
-  pi_native_handle Handle;
-  Plugin->call<PiApiKind::piextPlatformGetNativeHandle>(getHandleRef(),
-                                                        &Handle);
+ur_native_handle_t platform_impl::getNative() const {
+  const auto &Plugin = getUrPlugin();
+  ur_native_handle_t Handle = nullptr;
+  Plugin->call(urPlatformGetNativeHandle, getUrHandleRef(), &Handle);
   return Handle;
 }
 

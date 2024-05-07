@@ -236,7 +236,7 @@ public:
   std::vector<device> ext_oneapi_get_composite_devices() const;
 
 private:
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
   std::shared_ptr<detail::platform_impl> impl;
   platform(std::shared_ptr<detail::platform_impl> impl) : impl(impl) {}

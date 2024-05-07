@@ -290,25 +290,24 @@ public:
     return MSpecConstAccessMtx;
   }
 
-  pi_native_handle getNative() const {
+  ur_native_handle_t getNative() const {
     assert(MProgram);
     const auto &ContextImplPtr = detail::getSyclObjImpl(MContext);
-    const PluginPtr &Plugin = ContextImplPtr->getPlugin();
+    const UrPluginPtr &Plugin = ContextImplPtr->getUrPlugin();
 
     if (ContextImplPtr->getBackend() == backend::opencl)
-      Plugin->call<PiApiKind::piProgramRetain>(MProgram);
-    pi_native_handle NativeProgram = 0;
-    Plugin->call<PiApiKind::piextProgramGetNativeHandle>(MProgram,
-                                                         &NativeProgram);
+      Plugin->call(urProgramRetain, MURProgram);
+    ur_native_handle_t NativeProgram = nullptr;
+    Plugin->call(urProgramGetNativeHandle, MURProgram, &NativeProgram);
 
     return NativeProgram;
   }
 
   ~device_image_impl() {
 
-    if (MProgram) {
-      const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
-      Plugin->call<PiApiKind::piProgramRelease>(MProgram);
+    if (MURProgram) {
+      const UrPluginPtr &Plugin = getSyclObjImpl(MContext)->getUrPlugin();
+      Plugin->call(urProgramRelease, MURProgram);
     }
     if (MSpecConstsBuffer) {
       std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};

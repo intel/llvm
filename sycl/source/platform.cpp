@@ -64,7 +64,7 @@ platform::get_info_impl() const {
   return detail::convert_to_abi_neutral(impl->template get_info<Param>());
 }
 
-pi_native_handle platform::getNative() const { return impl->getNative(); }
+ur_native_handle_t platform::getNative() const { return impl->getNative(); }
 
 bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
 

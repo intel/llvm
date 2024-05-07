@@ -51,7 +51,7 @@ program_impl::program_impl(
   // Verify arguments
   if (ProgramList.empty()) {
     throw runtime_error("Non-empty vector of programs expected",
-                        PI_ERROR_INVALID_VALUE);
+                        UR_RESULT_ERROR_INVALID_VALUE);
   }
 
   // Sort the programs to avoid deadlocks due to locking multiple mutexes &
@@ -60,7 +60,7 @@ program_impl::program_impl(
   auto It = std::unique(ProgramList.begin(), ProgramList.end());
   if (It != ProgramList.end()) {
     throw runtime_error("Attempting to link a program with itself",
-                        PI_ERROR_INVALID_PROGRAM);
+                        UR_RESULT_ERROR_INVALID_PROGRAM);
   }
 
   MContext = ProgramList[0]->MContext;
@@ -83,7 +83,7 @@ program_impl::program_impl(
     if (Prg->MContext != MContext) {
       throw invalid_object_error(
           "Not all programs are associated with the same context",
-          PI_ERROR_INVALID_PROGRAM);
+          UR_RESULT_ERROR_INVALID_PROGRAM);
     }
     if (!is_host()) {
       std::vector<device> PrgDevicesSorted =
@@ -91,7 +91,7 @@ program_impl::program_impl(
       if (PrgDevicesSorted != DevicesSorted) {
         throw invalid_object_error(
             "Not all programs are associated with the same devices",
-            PI_ERROR_INVALID_PROGRAM);
+            UR_RESULT_ERROR_INVALID_PROGRAM);
       }
     }
   }
@@ -225,10 +225,11 @@ cl_program program_impl::get() const {
   if (is_host()) {
     throw invalid_object_error(
         "This instance of program doesn't support OpenCL interoperability.",
-        PI_ERROR_INVALID_PROGRAM);
+        UR_RESULT_ERROR_INVALID_PROGRAM);
   }
-  getPlugin()->call<PiApiKind::piProgramRetain>(MProgram);
-  return pi::cast<cl_program>(MProgram);
+  // FIXME: this will likely need to involve a call to GetNativeHandle
+  getUrPlugin()->call(urProgramRetain, MURProgram);
+  return pi::cast<cl_program>(MURProgram);
 }
 
 void program_impl::compile_with_kernel_name(std::string KernelName,
@@ -507,12 +508,12 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
   }
 }
 
-pi_native_handle program_impl::getNative() const {
-  const auto &Plugin = getPlugin();
+ur_native_handle_t program_impl::getNative() const {
+  const auto &Plugin = getUrPlugin();
   if (getContextImplPtr()->getBackend() == backend::opencl)
-    Plugin->call<PiApiKind::piProgramRetain>(MProgram);
-  pi_native_handle Handle;
-  Plugin->call<PiApiKind::piextProgramGetNativeHandle>(MProgram, &Handle);
+    Plugin->call(urProgramRetain, MURProgram);
+  ur_native_handle_t Handle = nullptr;
+  Plugin->call(urProgramGetNativeHandle, MURProgram, &Handle);
   return Handle;
 }
 

@@ -301,7 +301,7 @@ public:
   bool is_cacheable() const { return MProgramAndKernelCachingAllowed; }
 
   /// Returns the native plugin handle.
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
   bool isInterop() const { return MIsInterop; }
 

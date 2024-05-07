@@ -39,7 +39,7 @@ bool device_image_plain::has_kernel(const kernel_id &KernelID,
   return impl->has_kernel(KernelID, Dev);
 }
 
-pi_native_handle device_image_plain::getNative() const {
+ur_native_handle_t device_image_plain::getNative() const {
   return impl->getNative();
 }
 
