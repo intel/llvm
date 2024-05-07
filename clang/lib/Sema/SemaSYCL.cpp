@@ -36,7 +36,6 @@
 #include <array>
 #include <functional>
 #include <initializer_list>
-#include <iostream>
 
 using namespace clang;
 using namespace std::placeholders;
