@@ -1279,8 +1279,8 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
   }
 
   SmallVector<std::pair<Function *, Function *>> SpirFuncs;
-  const int LongSize = M.getDataLayout().getPointerSizeInBits();
-  auto *IntptrTy = Type::getIntNTy(M.getContext(), LongSize);
+  auto *IntptrTy =
+      M.getDataLayout().getIntPtrType(M.getContext(), kSpirOffloadGlobalAS);
 
   for (auto *F : SpirFixupFuncs) {
     SmallVector<Type *, 16> Types;
@@ -1337,10 +1337,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
       auto *Node = NewF->getMetadata(MDName);
       if (!Node)
         return;
-      SmallVector<Metadata *, 8> NewMD;
-      for (unsigned I = 0; I < Node->getNumOperands(); ++I) {
-        NewMD.emplace_back(Node->getOperand(I));
-      }
+      SmallVector<Metadata *, 8> NewMD(Node->operands());
       NewMD.emplace_back(ConstantAsMetadata::get(NewV));
       NewF->setMetadata(MDName, llvm::MDNode::get(NewF->getContext(), NewMD));
     };
@@ -1357,22 +1354,21 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
     SmallVector<User *, 16> Users(F->users());
     for (User *U : Users) {
       if (auto *CI = dyn_cast<CallInst>(U)) {
-        if (CI->getCalledOperand() == F) {
-          // Append "launch_info" into arguments of call instruction
-          SmallVector<Value *, 16> Args;
-          for (unsigned I = 0, E = CI->arg_size(); I != E; ++I)
-            Args.push_back(CI->getArgOperand(I));
-          // "launch_info" is the last argument of current function
-          auto *CurF = CI->getFunction();
-          Args.push_back(CurF->getArg(CurF->arg_size() - 1));
+        if (CI->getCalledOperand() != F)
+          continue;
 
-          CallInst *NewCI = CallInst::Create(NewF, Args, CI->getName(), CI);
-          NewCI->setCallingConv(CI->getCallingConv());
-          NewCI->setAttributes(CI->getAttributes());
-          NewCI->setDebugLoc(CI->getDebugLoc());
-          CI->replaceAllUsesWith(NewCI);
-          CI->eraseFromParent();
-        }
+        // Append "launch_info" into arguments of call instruction
+        SmallVector<Value *, 16> Args(CI->args());
+        // "launch_info" is the last argument of kernel
+        auto *CurF = CI->getFunction();
+        Args.push_back(CurF->getArg(CurF->arg_size() - 1));
+
+        CallInst *NewCI = CallInst::Create(NewF, Args, CI->getName(), CI);
+        NewCI->setCallingConv(CI->getCallingConv());
+        NewCI->setAttributes(CI->getAttributes());
+        NewCI->setDebugLoc(CI->getDebugLoc());
+        CI->replaceAllUsesWith(NewCI);
+        CI->eraseFromParent();
       }
     }
     F->removeFromParent();
