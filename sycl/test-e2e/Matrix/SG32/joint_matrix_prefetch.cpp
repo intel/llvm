@@ -9,7 +9,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL:*
+// XFAIL:gpu
 
 #include "../common.hpp"
 
