@@ -95,17 +95,23 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1906ce76c9c2d2112584cc0679c25f00c4935e73
-  # Merge: 3e3d8748 7f9b30f6
+  # commit fcd3693d1b54ddad1fcbe9e2c749c01628739346
+  # Merge: c8a0d84b 5d51c9a1
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Apr 30 11:25:19 2024 +0100
-  #     Merge pull request #1452 from jinge90/omp_device_global_intercept
-  #     [ASAN] Intercept urProgramLink in sanitizer layer
-  set(UNIFIED_RUNTIME_TAG 1906ce76c9c2d2112584cc0679c25f00c4935e73)
+  # Date:   Fri May 3 19:12:25 2024 +0100
+  #    Merge pull request #1513 from aarongreig/aaron/minorL0DeviceInfoFixes
+  #    Fix some minor bugs in L0 urDeviceGetInfo revealed by PI->UR port
+  set(UNIFIED_RUNTIME_TAG fcd3693d1b54ddad1fcbe9e2c749c01628739346)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit fb342f06e1ac244c5995b7be458d0c32a1ba17ab
+    # Merge: a44e81b5 7186d6ce
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Fri May 3 11:55:26 2024 +0100
+    #     Merge pull request #1549 from igchor/event_fix
+    #     Fix adding event to queue cache
+    fb342f06e1ac244c5995b7be458d0c32a1ba17ab
   )
 
   fetch_adapter_source(opencl

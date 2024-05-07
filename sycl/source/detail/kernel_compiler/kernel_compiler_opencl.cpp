@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/detail/pi.hpp>          // getOsLibraryFuncAddress
-#include <sycl/exception.hpp>          // make_error_code
+#include <sycl/detail/pi.hpp> // getOsLibraryFuncAddress
+#include <sycl/exception.hpp> // make_error_code
 
 #include "kernel_compiler_opencl.hpp"
 
@@ -368,9 +368,11 @@ std::string OpenCLC_Profile(uint32_t IPVersion) {
     std::string result = InvokeOclocQuery(IPVersion, "CL_DEVICE_PROFILE");
     // NOTE: result has \n\n amended. Clean it up.
     // TODO: remove this once the ocloc query is fixed.
-    while (result.back() == '\n') {
-      result.pop_back();
-    }
+    result.erase(std::remove_if(result.begin(), result.end(),
+                                [](char c) {
+                                  return !std::isprint(c) || std::isspace(c);
+                                }),
+                 result.end());
 
     return result;
   } catch (sycl::exception &) {

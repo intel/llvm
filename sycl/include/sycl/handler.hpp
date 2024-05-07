@@ -28,9 +28,8 @@
 #include <sycl/exception.hpp>
 #include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
-#include <sycl/ext/oneapi/bindless_images_descriptor.hpp>
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
-#include <sycl/ext/oneapi/bindless_images_memory.hpp>
+#include <sycl/ext/oneapi/bindless_images_mem_handle.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
@@ -160,6 +159,10 @@ template <class _name, class _dataT, int32_t _min_capacity, class _propertiesT,
           class>
 class pipe;
 }
+
+namespace ext ::oneapi ::experimental {
+struct image_descriptor;
+} // namespace ext::oneapi::experimental
 
 namespace ext::oneapi::experimental::detail {
 class graph_impl;
@@ -2867,14 +2870,9 @@ public:
   /// device copyable.
   /// \param Count is the number of times to fill Pattern into Ptr.
   template <typename T> void fill(void *Ptr, const T &Pattern, size_t Count) {
-    throwIfActionIsCreated();
-    setUserFacingNodeType(ext::oneapi::experimental::node_type::memfill);
     static_assert(is_device_copyable<T>::value,
                   "Pattern must be device copyable");
-    parallel_for<__usmfill<T>>(range<1>(Count), [=](id<1> Index) {
-      T *CastedPtr = static_cast<T *>(Ptr);
-      CastedPtr[Index] = Pattern;
-    });
+    this->fill_impl(Ptr, &Pattern, sizeof(T), Count);
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -3573,6 +3571,9 @@ private:
       }
     });
   }
+
+  // Implementation of USM fill using command for native fill.
+  void fill_impl(void *Dest, const void *Value, size_t ValueSize, size_t Count);
 
   // Implementation of ext_oneapi_memcpy2d using command for native 2D memcpy.
   void ext_oneapi_memcpy2d_impl(void *Dest, size_t DestPitch, const void *Src,

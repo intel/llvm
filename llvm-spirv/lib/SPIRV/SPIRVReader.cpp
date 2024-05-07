@@ -3349,6 +3349,7 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
   case OpCooperativeMatrixLoadKHR:
   case internal::OpCooperativeMatrixLoadCheckedINTEL:
   case internal::OpTaskSequenceCreateINTEL:
+  case internal::OpConvertHandleToImageINTEL:
     AddRetTypePostfix = true;
     break;
   default: {
@@ -4911,7 +4912,7 @@ std::optional<SPIRVModuleReport> getSpirvReport(std::istream &IS,
     return {};
   }
   D >> Word;
-  if (!isSPIRVVersionKnown(Word)) {
+  if (!isSPIRVVersionKnown(static_cast<VersionNumber>(Word))) {
     ErrCode = SPIRVEC_InvalidVersionNumber;
     return {};
   }

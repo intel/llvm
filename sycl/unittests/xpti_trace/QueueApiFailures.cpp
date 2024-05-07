@@ -145,7 +145,8 @@ TEST_F(QueueApiFailures, QueueSingleTask) {
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
-pi_result redefinedUSMEnqueueMemset(pi_queue Queue, void *Ptr, pi_int32 Value,
+pi_result redefinedUSMEnqueueMemset(pi_queue Queue, void *Ptr,
+                                    const void *Pattern, size_t PatternSize,
                                     size_t Count,
                                     pi_uint32 Num_events_in_waitlist,
                                     const pi_event *Events_waitlist,
@@ -154,7 +155,7 @@ pi_result redefinedUSMEnqueueMemset(pi_queue Queue, void *Ptr, pi_int32 Value,
 }
 
 TEST_F(QueueApiFailures, QueueMemset) {
-  MockPlugin.redefine<detail::PiApiKind::piextUSMEnqueueMemset>(
+  MockPlugin.redefine<detail::PiApiKind::piextUSMEnqueueFill>(
       redefinedUSMEnqueueMemset);
   MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
       redefinedPluginGetLastError);
@@ -241,18 +242,17 @@ TEST_F(QueueApiFailures, QueueCopy) {
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
-pi_result redefinedEnqueueMemBufferFill(pi_queue Queue, pi_mem Buffer,
-                                        const void *Pattern, size_t PatternSize,
-                                        size_t Offset, size_t Size,
-                                        pi_uint32 NumEventsInWaitList,
-                                        const pi_event *EventWaitList,
-                                        pi_event *Event) {
+pi_result redefinedUSMEnqueueFill(pi_queue Queue, void *Ptr,
+                                  const void *Pattern, size_t PatternSize,
+                                  size_t Count, pi_uint32 NumEventsInWaitList,
+                                  const pi_event *EventWaitList,
+                                  pi_event *Event) {
   return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
 }
 
 TEST_F(QueueApiFailures, QueueFill) {
-  MockPlugin.redefine<detail::PiApiKind::piEnqueueMemBufferFill>(
-      redefinedEnqueueMemBufferFill);
+  MockPlugin.redefine<detail::PiApiKind::piextUSMEnqueueFill>(
+      redefinedUSMEnqueueFill);
   MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
       redefinedPluginGetLastError);
   sycl::queue Q;

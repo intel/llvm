@@ -178,7 +178,7 @@
 // CHK-FPGA-AOCX-SRC: clang-offload-wrapper{{.*}} "-o=[[WRAPOUT:.+\.bc]]" {{.*}} "-target=spir64_fpga" "-kind=sycl" "--sym-prop-bc-files=[[SYM_AND_PROP]]" "-batch" "[[TABLEOUT]]"
 // CHK-FPGA-AOCX-SRC: llc{{.*}} "-filetype=obj" "-o" "[[LLCOUT:.+\.(o|obj)]]" "[[WRAPOUT]]"
 // CHK-FPGA-AOCX-SRC: llvm-link{{.*}} "[[DEVICEBC]]" "-o" "[[LLVMLINKOUT:.+\.bc]]" "--suppress-warnings"
-// CHK-FPGA-AOCX-SRC: sycl-post-link{{.*}} "-O2" "-spec-const=emulation" "-device-globals" "-o" "[[POSTLINKOUT:.+\.table]]" "[[LLVMLINKOUT]]
+// CHK-FPGA-AOCX-SRC: sycl-post-link{{.*}} "-O2" "-spec-const=emulation" "-device-globals"{{.*}} "-o" "[[POSTLINKOUT:.+\.table]]" "[[LLVMLINKOUT]]
 // CHK-FPGA-AOCX-SRC: file-table-tform{{.*}} "-o" "[[TABLEOUT:.+\.txt]]" "[[POSTLINKOUT]]"
 // CHK-FPGA-AOCX-SRC: llvm-spirv{{.*}} "-o" "[[LLVMSPVOUT:.+\.txt]]" {{.*}} "[[TABLEOUT]]"
 // CHK-FPGA-AOCX-SRC: opencl-aot{{.*}} "-device=fpga_fast_emu" "-spv=[[LLVMSPVOUT]]" "-ir=[[OUTPUT4:.+\.aocx]]" "--bo=-g"
