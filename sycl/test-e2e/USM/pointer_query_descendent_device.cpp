@@ -10,7 +10,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <CL/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/usm.hpp>
+
 #include <cassert>
 
 std::vector<sycl::device> getSubDevices(sycl::device &Dev) {

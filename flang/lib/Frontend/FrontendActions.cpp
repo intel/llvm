@@ -63,10 +63,10 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/RISCVISAInfo.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/TargetParser/RISCVISAInfo.h"
 #include "llvm/TargetParser/RISCVTargetParser.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include <memory>
@@ -177,7 +177,7 @@ static void addAMDGPUSpecificMLIRItems(mlir::ModuleOp &mlirModule,
     return;
   }
 
-  mlir::ConversionPatternRewriter builder(mlirModule.getContext());
+  mlir::IRRewriter builder(mlirModule.getContext());
   unsigned oclcABIVERsion = codeGenOpts.CodeObjectVersion;
   auto int32Type = builder.getI32Type();
 
@@ -301,9 +301,6 @@ bool CodeGenAction::beginSourceFileAction() {
           Fortran::common::LanguageFeature::OpenMP)) {
     setOffloadModuleInterfaceAttributes(*mlirModule,
                                         ci.getInvocation().getLangOpts());
-    setOffloadModuleInterfaceTargetAttribute(
-        *mlirModule, targetMachine.getTargetCPU(),
-        targetMachine.getTargetFeatureString());
     setOpenMPVersionAttribute(*mlirModule,
                               ci.getInvocation().getLangOpts().OpenMPVersion);
   }
@@ -402,7 +399,9 @@ void PrintPreprocessedAction::executeAction() {
 
   // Format or dump the prescanner's output
   CompilerInstance &ci = this->getInstance();
-  if (ci.getInvocation().getPreprocessorOpts().noReformat) {
+  if (ci.getInvocation().getPreprocessorOpts().showMacros) {
+    ci.getParsing().EmitPreprocessorMacros(outForPP);
+  } else if (ci.getInvocation().getPreprocessorOpts().noReformat) {
     ci.getParsing().DumpCookedChars(outForPP);
   } else {
     ci.getParsing().EmitPreprocessedSource(
@@ -785,9 +784,14 @@ void CodeGenAction::generateLLVMIR() {
 
   CompilerInstance &ci = this->getInstance();
   auto opts = ci.getInvocation().getCodeGenOpts();
+  auto mathOpts = ci.getInvocation().getLoweringOpts().getMathOptions();
   llvm::OptimizationLevel level = mapToLevel(opts);
 
   fir::support::loadDialects(*mlirCtx);
+  mlir::DialectRegistry registry;
+  fir::support::registerNonCodegenDialects(registry);
+  fir::support::addFIRExtensions(registry);
+  mlirCtx->appendDialectRegistry(registry);
   fir::support::registerLLVMTranslation(*mlirCtx);
 
   // Set-up the MLIR pass manager
@@ -797,7 +801,7 @@ void CodeGenAction::generateLLVMIR() {
   pm.addPass(std::make_unique<Fortran::lower::VerifierPass>());
   pm.enableVerifier(/*verifyPasses=*/true);
 
-  MLIRToLLVMPassPipelineConfig config(level, opts);
+  MLIRToLLVMPassPipelineConfig config(level, opts, mathOpts);
 
   if (auto vsr = getVScaleRange(ci)) {
     config.VScaleMin = vsr->first;
@@ -805,7 +809,7 @@ void CodeGenAction::generateLLVMIR() {
   }
 
   // Create the pass pipeline
-  fir::createMLIRToLLVMPassPipeline(pm, config);
+  fir::createMLIRToLLVMPassPipeline(pm, config, getCurrentFile());
   (void)mlir::applyPassManagerCLOptions(pm);
 
   // run the pass manager
@@ -857,7 +861,6 @@ getOutputStream(CompilerInstance &ci, llvm::StringRef inFile,
     return ci.createDefaultOutputFile(
         /*Binary=*/false, inFile, /*extension=*/"ll");
   case BackendActionTy::Backend_EmitFIR:
-    LLVM_FALLTHROUGH;
   case BackendActionTy::Backend_EmitHLFIR:
     return ci.createDefaultOutputFile(
         /*Binary=*/false, inFile, /*extension=*/"mlir");

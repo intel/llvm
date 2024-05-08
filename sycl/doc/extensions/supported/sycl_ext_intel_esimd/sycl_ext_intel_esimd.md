@@ -46,7 +46,7 @@
 
 ## Introduction
 
-The main motivation for introducing the "Explicit SIMD" SYCL extension 
+The main motivation for introducing the "Explicit SIMD" SYCL extension
 (or simply "ESIMD") is enabling efficient low-level programming for Intel graphics
 architectures. It provides APIs close to the Intel GPU ISA
 and allows writing explicitly vectorized device code.
@@ -356,7 +356,7 @@ See more details on the API documentation [page TODO](https://intel.github.io/ll
 ### Memory access APIs
 
 Explicit SIMD memory access interface is quite different from the standard SYCL
-memory access interface. It supports main SYCL's device memory representations:
+memory access interface. It supports main SYCL device memory representations:
 - USM pointers
 - SYCL accessors
   - 1D global accessors
@@ -365,8 +365,8 @@ memory access interface. It supports main SYCL's device memory representations:
 
 Only small subset of `sycl::accessor` APIs is supported in ESIMD context:
 - accessor::accessor();
-- accessor::get_pointer(); // Supported only with the `-fsycl-esimd-force-stateless-mem` switch.
-- accessor::operator[]; // Supported only with the `-fsycl-esimd-force-stateless-mem` switch.
+- accessor::get_pointer(); // Supported only with the `-fsycl-esimd-force-stateless-mem` switch (turned ON by default).
+- accessor::operator[]; // Supported only with the `-fsycl-esimd-force-stateless-mem` switch (turned ON by default).
 
 ESIMD provides special APIs to access memory through accessors. Those APIs
 accept an accessor object as a base reference to the addressed memory and
@@ -419,6 +419,8 @@ They go through extra layer of faster cache.
 load/store scalar values through accessors. In case of USM pointers, usual
 C++ dereference operator can be used. SLM versions are also available.
 
+See a more detailed list of available memory APIs [here](./sycl_ext_intel_esimd_functions.md).
+
 
 #### Shared local memory access
 
@@ -428,13 +430,13 @@ This memory is shared between work items in a workgroup - basically
 it is ESIMD variant of the SYCL `local` memory.
 
 SLM variants of APIs have 'slm_' prefix in their names,
-e.g. ext::intel::esimd::slm_block_load() or ext::intel::experimental::esimd::lsc_slm_gather().
+e.g. ext::intel::esimd::slm_block_load() or ext::intel::esimd::slm_gather().
 
 SLM memory must be explicitly allocated before it is read or written.
 
 There are 3 different ways of SLM allocation in ESIMD:
-* static allocation using slm_init<SLMByteSize>() and slm_init(SpecializationConstSLMByteSize)
-* semi-dynamic allocation using slm_allocator<SLMByteSize> class
+* static allocation using `slm_init<SLMByteSize>()` and `slm_init(SpecializationConstSLMByteSize)`
+* semi-dynamic allocation using `slm_allocator<SLMByteSize>` class
 * SYCL local accessors
 
 ##### Static allocation of SLM using slm_init function.
@@ -457,6 +459,7 @@ Restrictions:
 * The call of `slm_init` must be placed in the beginning of the kernel.
 If `slm_init` is called in some function 'F' called from kernel, then inlining
 of 'F' to the kernel must be forced/guaranteed.
+* `slm_init` cannot be used together with `local_accessor` in the same kernel.
 
 ##### Semi-dynamic allocation of SLM.
 The class `slm_allocator` is designed to be used in basic blocks or functions
@@ -648,7 +651,7 @@ ESIMD supports the following non-standard math functions implemented in hardware
 - Fraction - `frc`,  extracts the fractional parts of the input vector elements.
 - Count leading zeroes - `lzd`.
 - Linear interpolation - `lrp`. Basically computes `src1 * src0 + src2 * (1.0f - src0)`
-- Plane equation - `plane`. Solves a component-wise plane equation 
+- Plane equation - `plane`. Solves a component-wise plane equation
   `w = p*u + q*v + r` where `u`, `v`, `w` are vectors and `p`, `q`, `r` are scalars.
 
 
@@ -862,7 +865,7 @@ There are other useful miscellaneous APIs provided by ESIMD.
   types with saturation.
 - Conversion - `convert`. Converts between vectors with different element data
   types.
-- Reverse bits - `bf_reverse`. 
+- Reverse bits - `bf_reverse`.
 - Insert bit field - `bf_insert`.
 - Extract bit field - `bf_extract`.
 - Convert mask to integer and back - `pack_mask`, `unpack_mask`.
@@ -975,7 +978,7 @@ More examples of the unwrap/merge process:
       B6 b;
       char x;
       char y;
-    
+
       C6 foo() { return *this; }
     };
     ```
@@ -986,7 +989,7 @@ More examples of the unwrap/merge process:
       ```
       %struct.C6 = type { %struct.B6, i8, i8 }
       %struct.B6 = type { i32 addrspace(4)*, i32 }
-      ``` 
+      ```
 
 Note that `__regcall` does not guarantee passing through registers in the final
 generated code. For example, compiler will use a threshold for argument or
@@ -1159,8 +1162,7 @@ inside ESIMD kernels and functions. Most of missing SYCL features listed below
 must be supported eventually:
 - 2D and 3D target::device accessor and local_accessor;
 - Constant accessors;
-- `sycl::accessor::get_pointer()` and `sycl::accessor::operator[]` are supported only with `-fsycl-esimd-force-stateless-mem`. Otherwise, All memory accesses through an accessor are
-done via explicit APIs; e.g. `sycl::ext::intel::esimd::block_store(acc, offset)`
+- `sycl::accessor::get_pointer()` and `sycl::accessor::operator[]` are not supported with with `-fno-sycl-esimd-force-stateless-mem` compilation switch.
 - Accessors with non-zero offsets to accessed buffer;
 - Accessors with access/memory range specified;
 - `sycl::image`, `sycl::sampler` and `sycl::stream` classes.

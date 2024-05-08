@@ -139,7 +139,7 @@ bool X86TargetInfo::initFeatureMap(
     if (Feature.substr(1, 6) == "avx10.") {
       if (Feature[0] == '+') {
         HasAVX10 = true;
-        if (Feature.substr(Feature.size() - 3, 3) == "512")
+        if (StringRef(Feature).ends_with("512"))
           HasAVX10_512 = true;
         LastAVX10 = Feature;
       } else if (HasAVX10 && Feature == "-avx10.1-256") {
@@ -954,6 +954,9 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__CCMP__");
   if (HasCF)
     Builder.defineMacro("__CF__");
+  // Condition here is aligned with the feature set of mapxf in Options.td
+  if (HasEGPR && HasPush2Pop2 && HasPPX && HasNDD)
+    Builder.defineMacro("__APX_F__");
 
   // Each case falls through to the previous one here.
   switch (SSELevel) {

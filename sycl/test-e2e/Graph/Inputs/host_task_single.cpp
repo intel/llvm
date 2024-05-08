@@ -5,10 +5,6 @@
 int main() {
   queue Queue{};
 
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
-
   using T = int;
 
   const T ModValue = T{7};

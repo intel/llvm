@@ -6,10 +6,6 @@
 int main() {
   queue Queue{};
 
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
-
   using T = unsigned short;
 
   std::vector<T> DataA(Size), DataB(Size), DataC(Size);
@@ -39,10 +35,8 @@ int main() {
 
     auto GraphExec = Graph.finalize();
 
-    event Event;
     for (unsigned n = 0; n < Iterations; n++) {
-      Event =
-          Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
+      Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
     }
     Queue.wait_and_throw();
   }

@@ -35,10 +35,6 @@ int main() {
 
   queue Queue{ExceptionHandler};
 
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
-
   unsigned Errors = 0;
   if (!test_default_values(Queue)) {
     std::cout << "Test for default values of specialization constants failed!"

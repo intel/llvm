@@ -4,7 +4,7 @@
 #include <sycl/sycl.hpp>
 
 // CHECK: spir_kernel void @_ZTSN4sycl3_V16detail19__pf_kernel_wrapperI10image_readEE
-// CHECK: tail call spir_func noundef <4 x float> @_Z17__spirv_ImageReadIDv4
+// CHECK: tail call spir_func noundef <4 x float> @_Z18__spirv_ImageFetchIDv4
 using namespace sycl::ext::oneapi::experimental;
 class image_read;
 int main() {
@@ -35,7 +35,7 @@ int main() {
       auto outAcc = buf.get_access<sycl::access_mode::write>(cgh, width);
 
       cgh.parallel_for<image_read>(width, [=](sycl::id<1> id) {
-        sycl::float4 px1 = read_image<sycl::float4>(imgHandle1, int(id[0]));
+        sycl::float4 px1 = fetch_image<sycl::float4>(imgHandle1, int(id[0]));
         outAcc[id] = px1[0];
       });
     });

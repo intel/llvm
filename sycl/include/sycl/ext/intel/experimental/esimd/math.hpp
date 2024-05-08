@@ -1445,22 +1445,22 @@ template <> ESIMD_INLINE float atan2_fast(float y, float x) {
 template <int N>
 ESIMD_INLINE __ESIMD_NS::simd<float, N> atan2(__ESIMD_NS::simd<float, N> y,
                                               __ESIMD_NS::simd<float, N> x) {
-  __ESIMD_NS::simd<float, N> v_distance;
   __ESIMD_NS::simd<float, N> atan2;
   __ESIMD_NS::simd_mask<N> mask;
+  __ESIMD_NS::simd<float, N> atan = esimd::atan(y / x);
 
   constexpr float CONST_DBL_EPSILON = 0.00001f;
 
-  mask = (x < -CONST_DBL_EPSILON && y < CONST_DBL_EPSILON && y >= 0.f);
-  atan2.merge(float(detail::__ESIMD_CONST_PI), 0.f, mask);
-  mask = (x < -CONST_DBL_EPSILON && y > -CONST_DBL_EPSILON && y < 0);
-  atan2.merge(float(-detail::__ESIMD_CONST_PI), mask);
-  mask = (x < CONST_DBL_EPSILON && __ESIMD_NS::abs(y) > CONST_DBL_EPSILON);
-  v_distance = __ESIMD_NS::sqrt(x * x + y * y);
-  atan2.merge(2.0f * esimd::atan((v_distance - x) / y), mask);
-
-  mask = (x > 0.f);
-  atan2.merge(2.0f * esimd::atan(y / (v_distance + x)), mask);
+  mask = (__ESIMD_NS::abs(x) < CONST_DBL_EPSILON && y < -CONST_DBL_EPSILON);
+  atan2.merge(float(-detail::__ESIMD_CONST_PI) / 2.f, 0.f, mask);
+  mask = (__ESIMD_NS::abs(x) < CONST_DBL_EPSILON && y > CONST_DBL_EPSILON);
+  atan2.merge(float(detail::__ESIMD_CONST_PI) / 2.f, mask);
+  mask = (x < -CONST_DBL_EPSILON && y < -CONST_DBL_EPSILON);
+  atan2.merge(atan - float(detail::__ESIMD_CONST_PI), mask);
+  mask = (x < -CONST_DBL_EPSILON && y >= -CONST_DBL_EPSILON);
+  atan2.merge(atan + float(detail::__ESIMD_CONST_PI), mask);
+  mask = (x > CONST_DBL_EPSILON);
+  atan2.merge(atan, mask);
 
   return atan2;
 }
@@ -1724,10 +1724,29 @@ __ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T>::value &&
 }
 
 /// rdtsc - get the value of timestamp counter.
-/// \return the current value of timestamp counter
-ESIMD_INLINE uint64_t rdtsc() {
-  __ESIMD_NS::simd<uint32_t, 4> retv = __esimd_timestamp();
-  return retv.template bit_cast_view<uint64_t>()[0];
+/// @return the current value of timestamp counter
+__SYCL_DEPRECATED("Please use sycl::ext::intel::esimd::rdtsc();")
+ESIMD_INLINE uint64_t rdtsc() { return __ESIMD_NS::rdtsc(); }
+
+/// Performs a fused multiply add computation with three vector operands.
+/// @tparam T type of the vector operands.
+/// @tparam N size of the vector operands.
+/// @param a First vector function argument.
+/// @param b Second vector function argument.
+/// @param c Third vector function argument.
+/// @return the computation result
+template <typename T, int N>
+ESIMD_INLINE __ESIMD_NS::simd<T, N> fma(__ESIMD_NS::simd<T, N> a,
+                                        __ESIMD_NS::simd<T, N> b,
+                                        __ESIMD_NS::simd<T, N> c) {
+  static_assert(__ESIMD_DNS::is_generic_floating_point_v<T>,
+                "fma only supports floating point types");
+  using CppT = __ESIMD_DNS::element_type_traits<T>::EnclosingCppT;
+  auto Ret = __esimd_fmadd<__ESIMD_DNS::__raw_t<CppT>, N>(
+      __ESIMD_DNS::convert_vector<CppT, T, N>(a.data()),
+      __ESIMD_DNS::convert_vector<CppT, T, N>(b.data()),
+      __ESIMD_DNS::convert_vector<CppT, T, N>(c.data()));
+  return __ESIMD_DNS::convert_vector<T, CppT, N>(Ret);
 }
 
 /// @} sycl_esimd_logical

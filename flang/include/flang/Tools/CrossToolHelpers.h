@@ -13,6 +13,7 @@
 #ifndef FORTRAN_TOOLS_CROSS_TOOL_HELPERS_H
 #define FORTRAN_TOOLS_CROSS_TOOL_HELPERS_H
 
+#include "flang/Common/MathOptionsBase.h"
 #include "flang/Frontend/CodeGenOptions.h"
 #include "flang/Frontend/LangOptions.h"
 #include <cstdint>
@@ -28,7 +29,8 @@ struct MLIRToLLVMPassPipelineConfig {
     OptLevel = level;
   }
   explicit MLIRToLLVMPassPipelineConfig(llvm::OptimizationLevel level,
-      const Fortran::frontend::CodeGenOptions &opts) {
+      const Fortran::frontend::CodeGenOptions &opts,
+      const Fortran::common::MathOptionsBase &mathOpts) {
     OptLevel = level;
     StackArrays = opts.StackArrays;
     Underscoring = opts.Underscoring;
@@ -36,6 +38,15 @@ struct MLIRToLLVMPassPipelineConfig {
     DebugInfo = opts.getDebugInfo();
     AliasAnalysis = opts.AliasAnalysis;
     FramePointerKind = opts.getFramePointer();
+    // The logic for setting these attributes is intended to match the logic
+    // used in Clang.
+    NoInfsFPMath = mathOpts.getNoHonorInfs();
+    NoNaNsFPMath = mathOpts.getNoHonorNaNs();
+    ApproxFuncFPMath = mathOpts.getApproxFunc();
+    NoSignedZerosFPMath = mathOpts.getNoSignedZeros();
+    UnsafeFPMath = mathOpts.getAssociativeMath() &&
+        mathOpts.getReciprocalMath() && NoSignedZerosFPMath &&
+        ApproxFuncFPMath && mathOpts.getFPContractEnabled();
   }
 
   llvm::OptimizationLevel OptLevel; ///< optimisation level
@@ -49,6 +60,13 @@ struct MLIRToLLVMPassPipelineConfig {
       llvm::FramePointerKind::None; ///< Add frame pointer to functions.
   unsigned VScaleMin = 0; ///< SVE vector range minimum.
   unsigned VScaleMax = 0; ///< SVE vector range maximum.
+  bool NoInfsFPMath = false; ///< Set no-infs-fp-math attribute for functions.
+  bool NoNaNsFPMath = false; ///< Set no-nans-fp-math attribute for functions.
+  bool ApproxFuncFPMath =
+      false; ///< Set approx-func-fp-math attribute for functions.
+  bool NoSignedZerosFPMath =
+      false; ///< Set no-signed-zeros-fp-math attribute for functions.
+  bool UnsafeFPMath = false; ///< Set unsafe-fp-math attribute for functions.
 };
 
 struct OffloadModuleOpts {
@@ -91,7 +109,7 @@ struct OffloadModuleOpts {
 
 //  Shares assinging of the OpenMP OffloadModuleInterface and its assorted
 //  attributes accross Flang tools (bbc/flang)
-void setOffloadModuleInterfaceAttributes(
+[[maybe_unused]] static void setOffloadModuleInterfaceAttributes(
     mlir::ModuleOp &module, OffloadModuleOpts Opts) {
   // Should be registered by the OpenMPDialect
   if (auto offloadMod = llvm::dyn_cast<mlir::omp::OffloadModuleInterface>(
@@ -109,21 +127,18 @@ void setOffloadModuleInterfaceAttributes(
   }
 }
 
-//  Shares assinging of the OpenMP OffloadModuleInterface and its TargetCPU
-//  attribute accross Flang tools (bbc/flang)
-void setOffloadModuleInterfaceTargetAttribute(mlir::ModuleOp &module,
-    llvm::StringRef targetCPU, llvm::StringRef targetFeatures) {
-  // Should be registered by the OpenMPDialect
-  if (auto offloadMod = llvm::dyn_cast<mlir::omp::OffloadModuleInterface>(
-          module.getOperation())) {
-    offloadMod.setTarget(targetCPU, targetFeatures);
-  }
-}
-
-void setOpenMPVersionAttribute(mlir::ModuleOp &module, int64_t version) {
+[[maybe_unused]] static void setOpenMPVersionAttribute(
+    mlir::ModuleOp &module, int64_t version) {
   module.getOperation()->setAttr(
       mlir::StringAttr::get(module.getContext(), llvm::Twine{"omp.version"}),
       mlir::omp::VersionAttr::get(module.getContext(), version));
+}
+
+[[maybe_unused]] static int64_t getOpenMPVersionAttribute(
+    mlir::ModuleOp module, int64_t fallback = -1) {
+  if (mlir::Attribute verAttr = module->getAttr("omp.version"))
+    return llvm::cast<mlir::omp::VersionAttr>(verAttr).getVersion();
+  return fallback;
 }
 
 #endif // FORTRAN_TOOLS_CROSS_TOOL_HELPERS_H

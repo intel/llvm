@@ -162,6 +162,7 @@ BUILTIN(__builtin_ptx_implicit_offset, "Ui*", "nc")
 
 BUILTIN(__nvvm_prmt, "UiUiUiUi", "")
 BUILTIN(__nvvm_exit, "v", "r")
+BUILTIN(__nvvm_reflect, "UicC*", "r")
 TARGET_BUILTIN(__nvvm_nanosleep, "vUi", "n", AND(SM_70, PTX63))
 
 // Min Max

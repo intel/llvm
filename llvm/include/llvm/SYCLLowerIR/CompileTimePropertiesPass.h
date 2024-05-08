@@ -40,7 +40,7 @@ private:
       Module &M, IntrinsicInst *IntrInst,
       SmallVectorImpl<IntrinsicInst *> &RemovableAnnotations);
 
-  void parseAlignmentAndApply(Module &M, IntrinsicInst *IntrInst);
+  bool parseAlignmentAndApply(Module &M, IntrinsicInst *IntrInst);
 
   // Map for keeping track of global variables generated for annotation strings.
   // This allows reuse for annotations with the same generated annotation

@@ -12,13 +12,15 @@
 #pragma once
 #include "llvm/ADT/Twine.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/Passes/OptimizationLevel.h"
 
 namespace llvm {
 namespace sycl {
 namespace utils {
 
 void addSYCLNativeCPUBackendPasses(ModulePassManager &MPM,
-                                   ModuleAnalysisManager &MAM);
+                                   ModuleAnalysisManager &MAM,
+                                   OptimizationLevel OptLevel);
 const constexpr char NativeCPUGlobalId[] = "__dpcpp_nativecpu_get_global_id";
 const constexpr char NativeCPUGlobaRange[] =
     "__dpcpp_nativecpu_get_global_range";
@@ -43,6 +45,10 @@ inline llvm::Twine addSYCLNativeCPUSuffix(StringRef S) {
   if (S.starts_with(SYCLNATIVECPUPREFIX) || S.ends_with(SYCLNATIVECPUKERNEL))
     return S;
   return llvm::Twine(S, SYCLNATIVECPUSUFFIX);
+}
+
+inline bool isSYCLNativeCPU(const Module &M) {
+  return M.getModuleFlag("is-native-cpu") != nullptr;
 }
 
 } // namespace utils

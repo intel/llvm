@@ -434,7 +434,7 @@ TypeSpecifierType BuiltinTypeLoc::getWrittenTypeSpec() const {
 #include "clang/Basic/WebAssemblyReferenceTypes.def"
   case BuiltinType::BuiltinFn:
   case BuiltinType::IncompleteMatrixIdx:
-  case BuiltinType::OMPArraySection:
+  case BuiltinType::ArraySection:
   case BuiltinType::OMPArrayShaping:
   case BuiltinType::OMPIterator:
     return TST_unspecified;
@@ -519,6 +519,10 @@ SourceRange AttributedTypeLoc::getLocalSourceRange() const {
   // That enclosure doesn't necessarily belong to a single attribute
   // anyway.
   return getAttr() ? getAttr()->getRange() : SourceRange();
+}
+
+SourceRange CountAttributedTypeLoc::getLocalSourceRange() const {
+  return getCountExpr() ? getCountExpr()->getSourceRange() : SourceRange();
 }
 
 SourceRange BTFTagAttributedTypeLoc::getLocalSourceRange() const {
@@ -742,4 +746,13 @@ AutoTypeLoc TypeLoc::getContainedAutoTypeLoc() const {
   if (Res.isNull())
     return AutoTypeLoc();
   return Res.getAs<AutoTypeLoc>();
+}
+
+SourceLocation TypeLoc::getTemplateKeywordLoc() const {
+  if (const auto TSTL = getAsAdjusted<TemplateSpecializationTypeLoc>())
+    return TSTL.getTemplateKeywordLoc();
+  if (const auto DTSTL =
+          getAsAdjusted<DependentTemplateSpecializationTypeLoc>())
+    return DTSTL.getTemplateKeywordLoc();
+  return SourceLocation();
 }

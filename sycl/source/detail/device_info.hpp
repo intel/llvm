@@ -8,11 +8,11 @@
 
 #pragma once
 #include <detail/device_impl.hpp>
+#include <detail/jit_compiler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_util.hpp>
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
-#include <sycl/detail/common_info.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
@@ -26,6 +26,8 @@
 
 #include <chrono>
 #include <thread>
+
+#include "split_string.hpp"
 
 namespace sycl {
 inline namespace _V1 {
@@ -638,6 +640,12 @@ constexpr std::pair<const int, oneapi_exp_arch> IntelGPUArchitectures[] = {
     {0x030e0005, oneapi_exp_arch::intel_gpu_acm_g11},
     {0x030e4000, oneapi_exp_arch::intel_gpu_acm_g12},
     {0x030f0007, oneapi_exp_arch::intel_gpu_pvc},
+    {0x030f4007, oneapi_exp_arch::intel_gpu_pvc_vg},
+    {0x03118004, oneapi_exp_arch::intel_gpu_mtl_u},
+    {0x0311c004, oneapi_exp_arch::intel_gpu_mtl_h},
+    {0x03128004, oneapi_exp_arch::intel_gpu_arl_h},
+    {0x05004004, oneapi_exp_arch::intel_gpu_bmg_g21},
+    {0x05010004, oneapi_exp_arch::intel_gpu_lnl_m},
 };
 
 // Only for Intel CPU architectures
@@ -738,9 +746,27 @@ struct get_device_info_impl<
   get(const DeviceImplPtr &Dev) {
     using namespace ext::oneapi::experimental::matrix;
     using namespace ext::oneapi::experimental;
-    architecture DeviceArch = get_device_info_impl<
-        ext::oneapi::experimental::architecture,
-        ext::oneapi::experimental::info::device::architecture>::get(Dev);
+    backend CurrentBackend = Dev->getBackend();
+    auto get_current_architecture = [&Dev]() -> std::optional<architecture> {
+      // this helper lambda ignores all runtime-related exceptions from
+      // quering the device architecture. For instance, if device architecture
+      // on user's machine is not supported by
+      // sycl_ext_oneapi_device_architecture, the runtime exception is omitted,
+      // and std::nullopt is returned.
+      try {
+        return get_device_info_impl<
+            architecture,
+            ext::oneapi::experimental::info::device::architecture>::get(Dev);
+      } catch (sycl::exception &e) {
+        if (e.code() != errc::runtime)
+          std::rethrow_exception(std::make_exception_ptr(e));
+      }
+      return std::nullopt;
+    };
+    std::optional<architecture> DeviceArchOpt = get_current_architecture();
+    if (!DeviceArchOpt.has_value())
+      return {};
+    architecture DeviceArch = DeviceArchOpt.value();
     if (architecture::intel_cpu_spr == DeviceArch)
       return {
           {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::uint8,
@@ -785,6 +811,8 @@ struct get_device_info_impl<
            matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 16, 16, 16, matrix_type::bf16, matrix_type::bf16,
            matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 1, 64, 16, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 32, 64, 16, matrix_type::bf16, matrix_type::bf16,
            matrix_type::fp32, matrix_type::fp32},
           {8, 0, 0, 0, 16, 8, matrix_type::tf32, matrix_type::tf32,
@@ -807,6 +835,115 @@ struct get_device_info_impl<
           {8, 0, 0, 0, 8, 16, matrix_type::bf16, matrix_type::bf16,
            matrix_type::fp32, matrix_type::fp32},
       };
+    else if (architecture::amd_gpu_gfx90a == DeviceArch)
+      return {
+          {0, 0, 0, 32, 32, 8, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 32, 32, 8, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {0, 0, 0, 16, 16, 16, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {0, 0, 0, 32, 32, 8, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 16, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 4, matrix_type::fp64, matrix_type::fp64,
+           matrix_type::fp64, matrix_type::fp64},
+      };
+    else if (backend::ext_oneapi_cuda == CurrentBackend) {
+      // TODO: Tho following can be simplified when comparison of architectures
+      // using < and > will be implemented
+      using oneapi_exp_arch = sycl::ext::oneapi::experimental::architecture;
+      constexpr std::pair<float, oneapi_exp_arch> NvidiaArchNumbs[] = {
+          {5.0, oneapi_exp_arch::nvidia_gpu_sm_50},
+          {5.2, oneapi_exp_arch::nvidia_gpu_sm_52},
+          {5.3, oneapi_exp_arch::nvidia_gpu_sm_53},
+          {6.0, oneapi_exp_arch::nvidia_gpu_sm_60},
+          {6.1, oneapi_exp_arch::nvidia_gpu_sm_61},
+          {6.2, oneapi_exp_arch::nvidia_gpu_sm_62},
+          {7.0, oneapi_exp_arch::nvidia_gpu_sm_70},
+          {7.2, oneapi_exp_arch::nvidia_gpu_sm_72},
+          {7.5, oneapi_exp_arch::nvidia_gpu_sm_75},
+          {8.0, oneapi_exp_arch::nvidia_gpu_sm_80},
+          {8.6, oneapi_exp_arch::nvidia_gpu_sm_86},
+          {8.7, oneapi_exp_arch::nvidia_gpu_sm_87},
+          {8.9, oneapi_exp_arch::nvidia_gpu_sm_89},
+          {9.0, oneapi_exp_arch::nvidia_gpu_sm_90},
+      };
+      auto GetArchNum = [&](const architecture &arch) {
+        for (const auto &Item : NvidiaArchNumbs)
+          if (Item.second == arch)
+            return Item.first;
+        return 0.f;
+      };
+      float ComputeCapability = GetArchNum(DeviceArch);
+      std::vector<combination> sm_70_combinations = {
+          {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 8, 32, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 32, 8, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp16, matrix_type::fp16},
+          {0, 0, 0, 8, 32, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp16, matrix_type::fp16},
+          {0, 0, 0, 32, 8, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp16, matrix_type::fp16},
+          {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp16},
+          {0, 0, 0, 8, 32, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp16},
+          {0, 0, 0, 32, 8, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp16},
+          {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp16, matrix_type::fp32},
+          {0, 0, 0, 8, 32, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp16, matrix_type::fp32},
+          {0, 0, 0, 32, 8, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp16, matrix_type::fp32}};
+      std::vector<combination> sm_72_combinations = {
+          {0, 0, 0, 16, 16, 16, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {0, 0, 0, 8, 32, 16, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {0, 0, 0, 32, 8, 16, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {0, 0, 0, 16, 16, 16, matrix_type::uint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {0, 0, 0, 8, 32, 16, matrix_type::uint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {0, 0, 0, 32, 8, 16, matrix_type::uint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32}};
+      std::vector<combination> sm_80_combinations = {
+          {0, 0, 0, 16, 16, 8, matrix_type::tf32, matrix_type::tf32,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 16, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 8, 32, 16, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 32, 8, 16, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 8, 8, 4, matrix_type::fp64, matrix_type::fp64,
+           matrix_type::fp64, matrix_type::fp64}};
+      if (ComputeCapability >= 8.0) {
+        sm_80_combinations.insert(sm_80_combinations.end(),
+                                  sm_72_combinations.begin(),
+                                  sm_72_combinations.end());
+        sm_80_combinations.insert(sm_80_combinations.end(),
+                                  sm_70_combinations.begin(),
+                                  sm_70_combinations.end());
+        return sm_80_combinations;
+      } else if (ComputeCapability >= 7.2) {
+        sm_72_combinations.insert(sm_72_combinations.end(),
+                                  sm_70_combinations.begin(),
+                                  sm_70_combinations.end());
+        return sm_72_combinations;
+      } else if (ComputeCapability >= 7.0)
+        return sm_70_combinations;
+    }
     return {};
   }
 };
@@ -1023,6 +1160,11 @@ struct get_device_info_impl<
     bool, ext::codeplay::experimental::info::device::supports_fusion> {
   static bool get(const DeviceImplPtr &Dev) {
 #if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+    // If the JIT library can't be loaded or entry points in the JIT library
+    // can't be resolved, fusion is not available.
+    if (!jit_compiler::get_instance().isAvailable()) {
+      return false;
+    }
     // Currently fusion is only supported for SPIR-V based backends,
     // CUDA and HIP.
     if (Dev->getBackend() == backend::opencl) {
@@ -1057,31 +1199,64 @@ struct get_device_info_impl<
   }
 };
 
-// Specialization for graph extension support
+// Specialization for composite devices extension.
 template <>
 struct get_device_info_impl<
-    ext::oneapi::experimental::graph_support_level,
-    ext::oneapi::experimental::info::device::graph_support> {
-  static ext::oneapi::experimental::graph_support_level
-  get(const DeviceImplPtr &Dev) {
+    std::vector<sycl::device>,
+    ext::oneapi::experimental::info::device::component_devices> {
+  static std::vector<sycl::device> get(const DeviceImplPtr &Dev) {
+    if (Dev->getBackend() != backend::ext_oneapi_level_zero)
+      return {};
     size_t ResultSize = 0;
+    // First call to get DevCount.
     Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PI_DEVICE_INFO_EXTENSIONS, 0, nullptr,
-        &ResultSize);
-    if (ResultSize == 0)
-      return ext::oneapi::experimental::graph_support_level::unsupported;
-
-    std::unique_ptr<char[]> Result(new char[ResultSize]);
+        Dev->getHandleRef(),
+        PiInfoCode<
+            ext::oneapi::experimental::info::device::component_devices>::value,
+        0, nullptr, &ResultSize);
+    size_t DevCount = ResultSize / sizeof(pi_device);
+    // Second call to get the list.
+    std::vector<pi_device> Devs(DevCount);
     Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PI_DEVICE_INFO_EXTENSIONS, ResultSize,
-        Result.get(), nullptr);
+        Dev->getHandleRef(),
+        PiInfoCode<
+            ext::oneapi::experimental::info::device::component_devices>::value,
+        ResultSize, Devs.data(), nullptr);
+    std::vector<sycl::device> Result;
+    const auto &Platform = Dev->getPlatformImpl();
+    for (const auto &d : Devs)
+      Result.push_back(createSyclObjFromImpl<device>(
+          Platform->getOrMakeDeviceImpl(d, Platform)));
 
-    std::string_view ExtensionsString(Result.get());
-    bool CmdBufferSupport =
-        ExtensionsString.find("ur_exp_command_buffer") != std::string::npos;
-    return CmdBufferSupport
-               ? ext::oneapi::experimental::graph_support_level::native
-               : ext::oneapi::experimental::graph_support_level::unsupported;
+    return Result;
+  }
+};
+template <>
+struct get_device_info_impl<
+    sycl::device, ext::oneapi::experimental::info::device::composite_device> {
+  static sycl::device get(const DeviceImplPtr &Dev) {
+    if (Dev->getBackend() != backend::ext_oneapi_level_zero)
+      return {};
+    if (!Dev->has(sycl::aspect::ext_oneapi_is_component))
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Only devices with aspect::ext_oneapi_is_component "
+                            "can call this function.");
+
+    typename sycl_to_pi<device>::type Result;
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+        Dev->getHandleRef(),
+        PiInfoCode<
+            ext::oneapi::experimental::info::device::composite_device>::value,
+        sizeof(Result), &Result, nullptr);
+
+    if (Result) {
+      const auto &Platform = Dev->getPlatformImpl();
+      return createSyclObjFromImpl<device>(
+          Platform->getOrMakeDeviceImpl(Result, Platform));
+    }
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "A component with aspect::ext_oneapi_is_component "
+                          "must have a composite device.");
   }
 };
 
@@ -1987,13 +2162,6 @@ inline uint32_t get_device_info_host<
 }
 
 template <>
-inline ext::oneapi::experimental::graph_support_level
-get_device_info_host<ext::oneapi::experimental::info::device::graph_support>() {
-  // No support for graphs on the host device.
-  return ext::oneapi::experimental::graph_support_level::unsupported;
-}
-
-template <>
 inline uint32_t get_device_info_host<
     ext::oneapi::experimental::info::device::image_row_pitch_align>() {
   throw runtime_error("Obtaining image pitch alignment is not "
@@ -2038,6 +2206,20 @@ template <>
 inline float get_device_info_host<
     ext::oneapi::experimental::info::device::mipmap_max_anisotropy>() {
   throw runtime_error("Bindless image mipaps are not supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline std::vector<sycl::device> get_device_info_host<
+    ext::oneapi::experimental::info::device::component_devices>() {
+  throw runtime_error("Host devices cannot be component devices.",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline sycl::device get_device_info_host<
+    ext::oneapi::experimental::info::device::composite_device>() {
+  throw runtime_error("Host devices cannot be composite devices.",
                       PI_ERROR_INVALID_DEVICE);
 }
 

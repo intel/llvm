@@ -29,6 +29,9 @@ int main() {
   Passed &= testSLM<uint32_t, TestFeatures>(Q);
   Passed &= testSLM<float, TestFeatures>(Q);
   Passed &= testSLM<ext::intel::experimental::esimd::tfloat32, TestFeatures>(Q);
+  Passed &= testSLM<int64_t, TestFeatures>(Q);
+  if (Q.get_device().has(sycl::aspect::fp64))
+    Passed &= testSLM<double, TestFeatures>(Q);
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;
 }

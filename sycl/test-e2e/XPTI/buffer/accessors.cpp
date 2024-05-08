@@ -36,7 +36,7 @@ int main() {
     auto A5 = Buf.get_access<mode::discard_read_write, target::device>(cgh);
     // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID6:.*]]|2014|1029|{{.*}}accessors.cpp:[[# @LINE + 1]]:15
     auto A6 = Buf.get_access<mode::atomic>(cgh);
-    cgh.parallel_for<class FillBuffer>(NDRange, [=](sycl::id<1> WIid) {
+    cgh.parallel_for<class FillBuffer>(NDRange, [=](sycl::nd_item<1>) {
       (void)A1;
       (void)A2;
       (void)A3;

@@ -34,7 +34,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <syclcompat.hpp>
 
 #define WARP_SIZE 32
@@ -90,8 +90,8 @@ void test_permute_sub_group_by_xor() {
   unsigned int *dev_data_u = nullptr;
   sycl::range<3> GridSize(1, 1, 1);
   sycl::range<3> BlockSize(1, 1, 1);
-  dev_data = sycl::malloc_shared<int>(DATA_NUM, *q_ct1);
-  dev_data_u = sycl::malloc_shared<unsigned int>(DATA_NUM, *q_ct1);
+  dev_data = sycl::malloc_device<int>(DATA_NUM, *q_ct1);
+  dev_data_u = sycl::malloc_device<unsigned int>(DATA_NUM, *q_ct1);
 
   GridSize = sycl::range<3>(1, 1, 2);
   BlockSize = sycl::range<3>(1, 2, 32);
@@ -105,7 +105,10 @@ void test_permute_sub_group_by_xor() {
       88,  89,  94,  95,  92,  93,  98,  99,  96,  97,  102, 103, 100, 101, 106,
       107, 104, 105, 110, 111, 108, 109, 114, 115, 112, 113, 118, 119, 116, 117,
       122, 123, 120, 121, 126, 127, 124, 125};
-  init_data<unsigned int>(dev_data_u, DATA_NUM);
+  unsigned int host_dev_data_u[DATA_NUM];
+  init_data<unsigned int>(host_dev_data_u, DATA_NUM);
+  q_ct1->memcpy(dev_data_u, host_dev_data_u, DATA_NUM * sizeof(unsigned int))
+      .wait();
 
   q_ct1->parallel_for(sycl::nd_range<3>(GridSize * BlockSize, BlockSize),
                       [=](sycl::nd_item<3> item_ct1)
@@ -114,7 +117,9 @@ void test_permute_sub_group_by_xor() {
                           });
 
   dev_ct1.queues_wait_and_throw();
-  verify_data<unsigned int>(dev_data_u, expect1, DATA_NUM);
+  q_ct1->memcpy(host_dev_data_u, dev_data_u, DATA_NUM * sizeof(unsigned int))
+      .wait();
+  verify_data<unsigned int>(host_dev_data_u, expect1, DATA_NUM);
 
   GridSize = sycl::range<3>(1, 1, 2);
   BlockSize = sycl::range<3>(1, 2, 32);
@@ -128,8 +133,10 @@ void test_permute_sub_group_by_xor() {
       91,  90,  93,  92,  95,  94,  97,  96,  99,  98,  101, 100, 103, 102, 105,
       104, 107, 106, 109, 108, 111, 110, 113, 112, 115, 114, 117, 116, 119, 118,
       121, 120, 123, 122, 125, 124, 127, 126};
-  init_data<unsigned int>(dev_data_u, DATA_NUM);
+  init_data<unsigned int>(host_dev_data_u, DATA_NUM);
 
+  q_ct1->memcpy(dev_data_u, host_dev_data_u, DATA_NUM * sizeof(unsigned int))
+      .wait();
   q_ct1->parallel_for(sycl::nd_range<3>(GridSize * BlockSize, BlockSize),
                       [=](sycl::nd_item<3> item_ct1)
                           [[intel::reqd_sub_group_size(32)]] {
@@ -137,7 +144,9 @@ void test_permute_sub_group_by_xor() {
                           });
 
   dev_ct1.queues_wait_and_throw();
-  verify_data<unsigned int>(dev_data_u, expect2, DATA_NUM);
+  q_ct1->memcpy(host_dev_data_u, dev_data_u, DATA_NUM * sizeof(unsigned int))
+      .wait();
+  verify_data<unsigned int>(host_dev_data_u, expect2, DATA_NUM);
 
   sycl::free(dev_data, *q_ct1);
   sycl::free(dev_data_u, *q_ct1);

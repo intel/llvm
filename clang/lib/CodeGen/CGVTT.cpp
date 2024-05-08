@@ -42,8 +42,8 @@ CodeGenVTables::EmitVTTDefinition(llvm::GlobalVariable *VTT,
                                   llvm::GlobalVariable::LinkageTypes Linkage,
                                   const CXXRecordDecl *RD) {
   VTTBuilder Builder(CGM.getContext(), RD, /*GenerateDefinition=*/true);
-  llvm::ArrayType *ArrayType =
-      llvm::ArrayType::get(CGM.DefaultInt8PtrTy, Builder.getVTTComponents().size());
+  llvm::ArrayType *ArrayType = llvm::ArrayType::get(
+      CGM.GlobalsInt8PtrTy, Builder.getVTTComponents().size());
 
   SmallVector<llvm::GlobalVariable *, 8> VTables;
   SmallVector<VTableAddressPointsMapTy, 8> VTableAddressPoints;
@@ -77,12 +77,18 @@ CodeGenVTables::EmitVTTDefinition(llvm::GlobalVariable *VTT,
        llvm::ConstantInt::get(CGM.Int32Ty, AddressPoint.AddressPointIndex),
      };
 
+     // Add inrange attribute to indicate that only the VTableIndex can be
+     // accessed.
+     unsigned ComponentSize =
+         CGM.getDataLayout().getTypeAllocSize(getVTableComponentType());
+     unsigned VTableSize = CGM.getDataLayout().getTypeAllocSize(
+         cast<llvm::StructType>(VTable->getValueType())
+             ->getElementType(AddressPoint.VTableIndex));
+     unsigned Offset = ComponentSize * AddressPoint.AddressPointIndex;
+     llvm::ConstantRange InRange(llvm::APInt(32, -Offset, true),
+                                 llvm::APInt(32, VTableSize - Offset, true));
      llvm::Constant *Init = llvm::ConstantExpr::getGetElementPtr(
-         VTable->getValueType(), VTable, Idxs, /*InBounds=*/true,
-         /*InRangeIndex=*/1);
-
-     Init = llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(
-         Init, CGM.Int8PtrTy);
+         VTable->getValueType(), VTable, Idxs, /*InBounds=*/true, InRange);
 
      VTTComponents.push_back(Init);
   }
@@ -117,9 +123,9 @@ llvm::GlobalVariable *CodeGenVTables::GetAddrOfVTT(const CXXRecordDecl *RD) {
 
   VTTBuilder Builder(CGM.getContext(), RD, /*GenerateDefinition=*/false);
 
-  llvm::ArrayType *ArrayType =
-    llvm::ArrayType::get(CGM.Int8PtrTy, Builder.getVTTComponents().size());
-  llvm::Align Align = CGM.getDataLayout().getABITypeAlign(CGM.Int8PtrTy);
+  llvm::ArrayType *ArrayType = llvm::ArrayType::get(
+      CGM.GlobalsInt8PtrTy, Builder.getVTTComponents().size());
+  llvm::Align Align = CGM.getDataLayout().getABITypeAlign(CGM.GlobalsInt8PtrTy);
 
   llvm::GlobalVariable *GV = CGM.CreateOrReplaceCXXRuntimeVariable(
       Name, ArrayType, llvm::GlobalValue::ExternalLinkage, Align);

@@ -15,6 +15,11 @@
 #include <detail/queue_impl.hpp>
 #include <detail/xpti_registry.hpp>
 
+#include <sycl/usm/usm_enums.hpp>
+#include <sycl/usm/usm_pointer_info.hpp>
+
+#include <sycl/ext/oneapi/bindless_images_memory.hpp>
+
 #include <algorithm>
 #include <cassert>
 #include <cstring>
@@ -942,7 +947,7 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
                              sycl::detail::pi::PiEvent *OutEvent,
                              const detail::EventImplPtr &OutEventImpl) {
   assert(!SrcQueue->getContextImplPtr()->is_host() &&
-         "Host queue not supported in fill_usm.");
+         "Host queue not supported in copy_usm.");
 
   if (!Len) { // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
@@ -978,7 +983,7 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
 }
 
 void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
-                             int Pattern,
+                             const std::vector<char> &Pattern,
                              std::vector<sycl::detail::pi::PiEvent> DepEvents,
                              sycl::detail::pi::PiEvent *OutEvent,
                              const detail::EventImplPtr &OutEventImpl) {
@@ -1001,9 +1006,21 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   const PluginPtr &Plugin = Queue->getPlugin();
-  Plugin->call<PiApiKind::piextUSMEnqueueMemset>(
-      Queue->getHandleRef(), Mem, Pattern, Length, DepEvents.size(),
-      DepEvents.data(), OutEvent);
+  Plugin->call<PiApiKind::piextUSMEnqueueFill>(
+      Queue->getHandleRef(), Mem, Pattern.data(), Pattern.size(), Length,
+      DepEvents.size(), DepEvents.data(), OutEvent);
+}
+
+// TODO: This function will remain until ABI-breaking change
+void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
+                             int Pattern,
+                             std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                             sycl::detail::pi::PiEvent *OutEvent,
+                             const detail::EventImplPtr &OutEventImpl) {
+  std::vector<char> vecPattern(sizeof(Pattern));
+  std::memcpy(vecPattern.data(), &Pattern, sizeof(Pattern));
+  MemoryManager::fill_usm(Mem, Queue, Length, vecPattern, DepEvents, OutEvent,
+                          OutEventImpl);
 }
 
 // TODO: This function will remain until ABI-breaking change
@@ -1011,7 +1028,9 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                              int Pattern,
                              std::vector<sycl::detail::pi::PiEvent> DepEvents,
                              sycl::detail::pi::PiEvent *OutEvent) {
-  MemoryManager::fill_usm(Mem, Queue, Length, Pattern, DepEvents, OutEvent,
+  std::vector<char> vecPattern(sizeof(Pattern));
+  std::memcpy(vecPattern.data(), &Pattern, sizeof(Pattern));
+  MemoryManager::fill_usm(Mem, Queue, Length, vecPattern, DepEvents, OutEvent,
                           nullptr); // OutEventImpl);
 }
 
@@ -1533,7 +1552,7 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
             SrcXOffBytes, SrcAccessRangeWidthBytes, DstMem + DstXOffBytes,
             Deps.size(), Deps.data(), OutSyncPoint);
 
-    if (Result == PI_ERROR_INVALID_OPERATION) {
+    if (Result == PI_ERROR_UNSUPPORTED_FEATURE) {
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Device-to-host buffer copy command not supported by graph backend");
@@ -1563,7 +1582,7 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
             &BufferOffset, &HostOffset, &RectRegion, BufferRowPitch,
             BufferSlicePitch, HostRowPitch, HostSlicePitch, DstMem, Deps.size(),
             Deps.data(), OutSyncPoint);
-    if (Result == PI_ERROR_INVALID_OPERATION) {
+    if (Result == PI_ERROR_UNSUPPORTED_FEATURE) {
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Device-to-host buffer copy command not supported by graph backend");
@@ -1610,7 +1629,7 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
             DstXOffBytes, DstAccessRangeWidthBytes, SrcMem + SrcXOffBytes,
             Deps.size(), Deps.data(), OutSyncPoint);
 
-    if (Result == PI_ERROR_INVALID_OPERATION) {
+    if (Result == PI_ERROR_UNSUPPORTED_FEATURE) {
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Host-to-device buffer copy command not supported by graph backend");
@@ -1641,7 +1660,7 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
             BufferSlicePitch, HostRowPitch, HostSlicePitch, SrcMem, Deps.size(),
             Deps.data(), OutSyncPoint);
 
-    if (Result == PI_ERROR_INVALID_OPERATION) {
+    if (Result == PI_ERROR_UNSUPPORTED_FEATURE) {
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Host-to-device buffer copy command not supported by graph backend");
@@ -1665,7 +1684,7 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
       Plugin->call_nocheck<PiApiKind::piextCommandBufferMemcpyUSM>(
           CommandBuffer, DstMem, SrcMem, Len, Deps.size(), Deps.data(),
           OutSyncPoint);
-  if (Result == PI_ERROR_INVALID_OPERATION) {
+  if (Result == PI_ERROR_UNSUPPORTED_FEATURE) {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "USM copy command not supported by graph backend");
@@ -1677,7 +1696,8 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
 void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
     sycl::detail::ContextImplPtr Context,
     sycl::detail::pi::PiExtCommandBuffer CommandBuffer, void *DstMem,
-    size_t Len, int Pattern, std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+    size_t Len, const std::vector<char> &Pattern,
+    std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
     sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
 
   if (!DstMem)
@@ -1685,10 +1705,9 @@ void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
                         PI_ERROR_INVALID_VALUE);
 
   const PluginPtr &Plugin = Context->getPlugin();
-  // Pattern is interpreted as an unsigned char so pattern size is always 1.
-  size_t PatternSize = 1;
+
   Plugin->call<PiApiKind::piextCommandBufferFillUSM>(
-      CommandBuffer, DstMem, &Pattern, PatternSize, Len, Deps.size(),
+      CommandBuffer, DstMem, Pattern.data(), Pattern.size(), Len, Deps.size(),
       Deps.data(), OutSyncPoint);
 }
 
@@ -1773,7 +1792,9 @@ void MemoryManager::copy_image_bindless(
   assert((Flags == (sycl::detail::pi::PiImageCopyFlags)
                        ext::oneapi::experimental::image_copy_flags::HtoD ||
           Flags == (sycl::detail::pi::PiImageCopyFlags)
-                       ext::oneapi::experimental::image_copy_flags::DtoH) &&
+                       ext::oneapi::experimental::image_copy_flags::DtoH ||
+          Flags == (sycl::detail::pi::PiImageCopyFlags)
+                       ext::oneapi::experimental::image_copy_flags::DtoD) &&
          "Invalid flags passed to copy_image_bindless.");
   if (!Dst || !Src)
     throw sycl::exception(

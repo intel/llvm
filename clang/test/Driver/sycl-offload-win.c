@@ -95,19 +95,19 @@
 // FOFFLOAD_STATIC_LIB_SRC: 8: compiler, {7}, ir, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 9: backend, {8}, assembler, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 10: assembler, {9}, object, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 11: linker, {0, 10}, image, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 12: linker, {0, 10}, host_dep_image, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 13: clang-offload-deps, {12}, ir, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 14: input, "[[INPUTLIB]]", archive
-// FOFFLOAD_STATIC_LIB_SRC: 15: clang-offload-unbundler, {14}, tempfilelist
-// FOFFLOAD_STATIC_LIB_SRC: 16: spirv-to-ir-wrapper, {15}, tempfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 17: linker, {6, 13, 16}, ir, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 18: sycl-post-link, {17}, tempfiletable, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 19: file-table-tform, {18}, tempfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 20: llvm-spirv, {19}, tempfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 21: file-table-tform, {18, 20}, tempfiletable, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 22: clang-offload-wrapper, {21}, object, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 23: offload, "host-sycl (x86_64-pc-windows-msvc)" {11}, "device-sycl (spir64-unknown-unknown)" {22}, image
+// FOFFLOAD_STATIC_LIB_SRC: 11: linker, {0, 10}, host_dep_image, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 12: clang-offload-deps, {11}, ir, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 13: input, "[[INPUTLIB]]", archive
+// FOFFLOAD_STATIC_LIB_SRC: 14: clang-offload-unbundler, {13}, tempfilelist
+// FOFFLOAD_STATIC_LIB_SRC: 15: spirv-to-ir-wrapper, {14}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 16: linker, {6, 12, 15}, ir, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 17: sycl-post-link, {16}, tempfiletable, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 18: file-table-tform, {17}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 19: llvm-spirv, {18}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 20: file-table-tform, {17, 19}, tempfiletable, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 21: clang-offload-wrapper, {20}, object, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 22: offload, "device-sycl (spir64-unknown-unknown)" {21}, object
+// FOFFLOAD_STATIC_LIB_SRC: 23: linker, {0, 10, 22}, image, (host-sycl)
 
 /// ###########################################################################
 

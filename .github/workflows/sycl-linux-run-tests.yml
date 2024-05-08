@@ -68,6 +68,9 @@ on:
       install_drivers:
         type: string
         required: False
+      use_dev_igc:
+        type: string
+        required: False
       env:
         type: string
         default: '{}'
@@ -81,6 +84,7 @@ on:
           - '["Linux", "gen12"]'
           - '["amdgpu"]'
           - '["Linux", "arc"]'
+          - '["cts-cpu"]'
       image:
         description: |
           Use option ending with ":build" for AMDGPU, ":latest" for the rest.
@@ -100,7 +104,7 @@ on:
         options:
           - 'opencl:cpu'
           - 'opencl:gpu'
-          - 'opencl:acc'
+          - 'opencl:fpga'
           - 'ext_oneapi_level_zero:gpu'
           - 'ext_oneapi_hip:gpu'
       tests_selector:
@@ -114,8 +118,8 @@ on:
           Suggested variables: for E2E tests - LIT_FILTER, LIT_FILTER_OUT.
           LIT_OPTS won't work as we redefine it as part of this workflow.
 
-          For SYCL CTS - CTS_TEST_ARGS that will be passed as an argument to the
-          test_all executable.
+          For SYCL CTS - CTS_TESTS_TO_BUILD to specify which categories to
+          build.
 
           Format: '{"VAR1":"VAL1","VAR2":"VAL2",...}'
         default: '{}'
@@ -130,6 +134,15 @@ on:
         options:
           - false
           - true
+
+      use_dev_igc:
+        type: choice
+        options:
+          - false
+          - true
+
+permissions:
+  contents: read
 
 jobs:
   run:
@@ -178,7 +191,10 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ github.token }}
       run: |
-        sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json --all
+        if [ "${{ inputs.use_dev_igc }}" = "true" ]; then
+            sudo apt-get install -yqq libllvm14;
+        fi
+        sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json ${{ inputs.use_dev_igc == 'true' && 'llvm/devops/dependencies-igc-dev.json --use-dev-igc' || '' }} --all
     - name: Source OneAPI TBB vars.sh
       shell: bash
       run: |
@@ -267,29 +283,85 @@ jobs:
       run: |
         cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DSYCL_TEST_E2E_TARGETS="${{ inputs.target_devices }}" -DCMAKE_CXX_COMPILER="$(which clang++)" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
     - name: SYCL End-to-end tests
+      shell: bash {0}
       if: inputs.tests_selector == 'e2e'
       env:
         LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests ${{ inputs.extra_lit_opts }}
       run: |
-        ninja -C build-e2e check-sycl-e2e
-
+        ninja -C build-e2e check-sycl-e2e > e2e.log 2>&1
+        exit_code=$?
+        cat e2e.log
+        if [ $exit_code -ne 0 ]; then
+          # TODO: XPASS/UNRESOLVED
+          awk '/^Failed Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
+        fi
+        exit $exit_code
+    - name: List excluded SYCL CTS categories
+      if: inputs.tests_selector == 'cts' && env.CTS_TESTS_TO_BUILD == ''
+      run: |
+        cat $PWD/devops/cts_exclude_filter
     - name: Build SYCL CTS tests
       if: inputs.tests_selector == 'cts'
       env:
         CMAKE_EXTRA_ARGS: ${{ inputs.extra_cmake_args }}
       run: |
+        # Do not exclude any category if passing the CTS_TESTS_TO_BUILD variable.
+        cts_exclude_filter=$([ -n "$CTS_TESTS_TO_BUILD" ] && echo "" || echo "$PWD/devops/cts_exclude_filter")
+
         cmake -GNinja -B./build-cts -S./khronos_sycl_cts -DCMAKE_CXX_COMPILER=$(which clang++) \
         -DSYCL_IMPLEMENTATION=DPCPP \
-        -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="$PWD/devops/cts_exclude_filter" \
+        -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="$cts_exclude_filter" \
         -DSYCL_CTS_ENABLE_OPENCL_INTEROP_TESTS=OFF \
         -DSYCL_CTS_MEASURE_BUILD_TIMES=ON \
-        -DDPCPP_INSTALL_DIR="$$(dirname (which clang++))/.." \
+        -DDPCPP_INSTALL_DIR="$(dirname $(which clang++))/.." \
         $CMAKE_EXTRA_ARGS
-        ninja -C build-cts
-    - name: Run SYCL CTS tests
-      if: inputs.tests_selector == 'cts'
+        # Ignore errors so that if one category build fails others still have a
+        # chance to finish and be executed at the run stage. Note that
+        # "test_conformance" target skips building "test_all" executable.
+        ninja -C build-cts -k0 $( [ -n "$CTS_TESTS_TO_BUILD" ] && echo "$CTS_TESTS_TO_BUILD" || echo "test_conformance")
+
+    - name: SYCL CTS List devices
+      # Proceed with execution even if the 'build' step did not succeed.
+      if: inputs.tests_selector == 'cts' && (success() || failure())
       env:
         ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
       run: |
-        ./build-cts/bin/test_all --list-devices
-        ./build-cts/bin/test_all $CTS_TEST_ARGS
+        ./build-cts/bin/* --list-devices
+
+    - name: Run SYCL CTS tests
+      # Proceed with execution even if the previous two steps did not succeed.
+      if: inputs.tests_selector == 'cts' && (success() || failure())
+      env:
+        ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
+      # This job takes ~100min usually. But sometimes some test isn't
+      # responding, so the job reaches the 360min limit. Setting a lower one.
+      timeout-minutes: 150
+      # By-default GitHub actions execute the "run" shell script with -e option,
+      # so the execution terminates if any command returns a non-zero status.
+      # Since we're using a loop to run all test-binaries separately, some test
+      # may fail and terminate the execution. Setting "shell" value to override
+      # the default behavior.
+      # https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#custom-shell
+      shell: bash {0}
+      run: |
+        # Run each test category separately so that
+        #  - crash on one would not affect others
+        #  - multiple tests could be run in parallel
+        mkdir logs
+        find build-cts/bin/ -type f -print | \
+          xargs -t -I % -P 8 sh -c 'log=logs/$(basename %).log ; echo % >$log ; date >>$log ; timeout 60m % >>$log 2>&1 ; ret=$? ; echo "exit code: $ret" >>$log ; date >>$log  ; exit $ret'
+        ret=$?
+
+        for f in logs/* ; do
+          echo "::group::$f"
+          cat $f
+          echo "::endgroup::"
+        done
+
+        echo "::group::Fails:"
+        grep 'exit code: [^0]' -r logs
+        echo "::endgroup::"
+
+        grep 'exit code: [^0]' -r logs >> $GITHUB_STEP_SUMMARY
+
+        exit $ret

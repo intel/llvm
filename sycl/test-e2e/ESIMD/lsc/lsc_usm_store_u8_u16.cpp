@@ -6,6 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc
+// TODO: GPU Driver fails with "add3 src operand only supports integer D/W type"
+// error. Enable the test when it is fixed.
+// UNSUPPORTED: gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

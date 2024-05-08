@@ -14,6 +14,7 @@
 
 #include <stddef.h> // for size_t
 #include <stdint.h> // for uint32_t
+#include <type_traits>
 
 // Convergent attribute
 #ifdef __SYCL_DEVICE_ONLY__
@@ -51,9 +52,11 @@ template <typename T, typename Tp, std::size_t R, std::size_t C,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern __DPCPP_SYCL_EXTERNAL
     __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *
-    __spirv_CompositeConstructCheckedINTEL(const T Value, size_t Height,
-                                           size_t Stride, size_t Width,
-                                           size_t CoordX, size_t CoordY);
+    __spirv_CooperativeMatrixConstructCheckedINTEL(int32_t CoordX,
+                                                   int32_t CoordY,
+                                                   uint32_t Height,
+                                                   uint32_t Width,
+                                                   const T Value);
 
 template <typename T, typename Tp, std::size_t R, std::size_t C,
           __spv::MatrixUse U,
@@ -61,22 +64,20 @@ template <typename T, typename Tp, std::size_t R, std::size_t C,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern __DPCPP_SYCL_EXTERNAL
     __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *
-    __spirv_JointMatrixLoadCheckedINTEL(T *Ptr, std::size_t Stride,
-                                        size_t Height, size_t Width,
-                                        size_t CoordX, size_t CoordY,
-                                        __spv::MatrixLayout Layout = L,
-                                        __spv::Scope::Flag Sc = S,
-                                        int MemOperand = 0);
+    __spirv_CooperativeMatrixLoadCheckedINTEL(
+        T *Ptr, int32_t CoordX, int32_t CoordY, __spv::MatrixLayout Layout = L,
+        uint32_t Height = 0, uint32_t Width = 0, std::size_t Stride = 0,
+        int MemOperand = 0);
 
 template <typename T, typename Tp, std::size_t R, std::size_t C,
           __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL void __spirv_JointMatrixStoreCheckedINTEL(
-    T *Ptr, __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *Object,
-    std::size_t Stride, size_t Height, size_t Width, size_t CoordX,
-    size_t CoordY, __spv::MatrixLayout Layout = L, __spv::Scope::Flag Sc = S,
-    int MemOperand = 0);
+extern __DPCPP_SYCL_EXTERNAL void __spirv_CooperativeMatrixStoreCheckedINTEL(
+    T *Ptr, int32_t CoordX, int32_t CoordY,
+    __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *Object,
+    __spv::MatrixLayout Layout = L, uint32_t Height = 0, uint32_t Width = 0,
+    std::size_t Stride = 0, int MemOperand = 0);
 
 template <typename TA, typename TB, typename TC, std::size_t M, std::size_t K,
           std::size_t N, __spv::MatrixUse UA, __spv::MatrixUse UB,
@@ -174,10 +175,10 @@ extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *
 __spirv_VectorInsertDynamic(__spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *,
                             Ts val, size_t i);
 
-template <typename T, std::size_t NumRows, std::size_t NumCols>
-extern __DPCPP_SYCL_EXTERNAL void __spirv_JointMatrixPrefetchINTEL(
-    T *Ptr, std::size_t coordX, std::size_t coordY, unsigned int CacheLevel,
-    __spv::MatrixLayout Layout, std::size_t Stride);
+template <typename T>
+extern __DPCPP_SYCL_EXTERNAL void __spirv_CooperativeMatrixPrefetchINTEL(
+    T *Ptr, int32_t coordX, int32_t coordY, uint32_t NumRows, uint32_t NumCols,
+    unsigned int CacheLevel, __spv::MatrixLayout Layout, size_t Stride);
 
 #ifndef __SPIRV_BUILTIN_DECLARATIONS__
 #error                                                                         \
@@ -199,6 +200,20 @@ extern __DPCPP_SYCL_EXTERNAL void __spirv_ImageWrite(ImageT, CoordT, ValT);
 template <class RetT, typename ImageT, typename TempArgT>
 extern __DPCPP_SYCL_EXTERNAL RetT __spirv_ImageRead(ImageT, TempArgT);
 
+template <class RetT, typename ImageT, typename TempArgT>
+extern __DPCPP_SYCL_EXTERNAL RetT __spirv_ImageFetch(ImageT, TempArgT);
+
+template <class RetT, typename ImageT, typename TempArgT>
+extern __DPCPP_SYCL_EXTERNAL RetT __spirv_SampledImageFetch(ImageT, TempArgT);
+
+template <class RetT, typename ImageT, typename TempArgT>
+extern __DPCPP_SYCL_EXTERNAL RetT __spirv_ImageArrayFetch(ImageT, TempArgT,
+                                                          int);
+
+template <typename ImageT, typename CoordT, typename ValT>
+extern __DPCPP_SYCL_EXTERNAL void __spirv_ImageArrayWrite(ImageT, CoordT, int,
+                                                          ValT);
+
 template <typename ImageT, typename SampledType>
 extern __DPCPP_SYCL_EXTERNAL SampledType __spirv_SampledImage(ImageT,
                                                               __ocl_sampler_t);
@@ -210,6 +225,10 @@ __spirv_ImageSampleExplicitLod(SampledType, TempArgT, int, float);
 template <typename SampledType, typename TempRetT, typename TempArgT>
 extern __DPCPP_SYCL_EXTERNAL TempRetT
 __spirv_ImageSampleExplicitLod(SampledType, TempArgT, int, TempArgT, TempArgT);
+
+template <typename SampledType, typename TempRetT, typename TempArgT>
+extern __DPCPP_SYCL_EXTERNAL TempRetT __spirv_ImageSampleCubemap(SampledType,
+                                                                 TempArgT);
 
 #define __SYCL_OpGroupAsyncCopyGlobalToLocal __spirv_GroupAsyncCopy
 #define __SYCL_OpGroupAsyncCopyLocalToGlobal __spirv_GroupAsyncCopy
@@ -1173,7 +1192,11 @@ __clc_BarrierTestWait(int64_t *state, int64_t arrival) noexcept;
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT void
 __clc_BarrierArriveAndWait(int64_t *state) noexcept;
 
-#ifdef __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
+#ifdef __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__
+extern __DPCPP_SYCL_EXTERNAL int
+__spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format, ...);
+extern __DPCPP_SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format, ...);
+#else
 template <typename... Args>
 extern __DPCPP_SYCL_EXTERNAL int
 __spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format,
@@ -1181,10 +1204,6 @@ __spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format,
 template <typename... Args>
 extern __DPCPP_SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format,
                                                     Args... args);
-#else
-extern __DPCPP_SYCL_EXTERNAL int
-__spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format, ...);
-extern __DPCPP_SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format, ...);
 #endif
 
 // Native builtin extension
@@ -1256,6 +1275,25 @@ template <typename from, typename to>
 extern __DPCPP_SYCL_EXTERNAL
     std::enable_if_t<std::is_integral_v<to> && std::is_unsigned_v<to>, to>
     __spirv_ConvertPtrToU(from val) noexcept;
+
+template <typename RetT, typename... ArgsT>
+extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_TaskSequenceINTEL *
+__spirv_TaskSequenceCreateINTEL(RetT (*f)(ArgsT...), int Pipelined = -1,
+                                int ClusterMode = -1,
+                                unsigned int ResponseCapacity = 0,
+                                unsigned int InvocationCapacity = 0) noexcept;
+
+template <typename... ArgsT>
+extern __DPCPP_SYCL_EXTERNAL void
+__spirv_TaskSequenceAsyncINTEL(__spv::__spirv_TaskSequenceINTEL *TaskSequence,
+                               ArgsT... Args) noexcept;
+
+template <typename RetT>
+extern __DPCPP_SYCL_EXTERNAL RetT __spirv_TaskSequenceGetINTEL(
+    __spv::__spirv_TaskSequenceINTEL *TaskSequence) noexcept;
+
+extern __DPCPP_SYCL_EXTERNAL void __spirv_TaskSequenceReleaseINTEL(
+    __spv::__spirv_TaskSequenceINTEL *TaskSequence) noexcept;
 
 #else  // if !__SYCL_DEVICE_ONLY__
 
