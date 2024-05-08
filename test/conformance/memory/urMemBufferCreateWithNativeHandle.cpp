@@ -9,7 +9,7 @@ using urMemBufferCreateWithNativeHandleTest = uur::urMemBufferTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemBufferCreateWithNativeHandleTest);
 
 TEST_P(urMemBufferCreateWithNativeHandleTest, Success) {
-    ur_native_handle_t hNativeMem = nullptr;
+    ur_native_handle_t hNativeMem = 0;
     {
         UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
             urMemGetNativeHandle(buffer, device, &hNativeMem));

@@ -8,7 +8,7 @@ using urDeviceCreateWithNativeHandleTest = uur::urAllDevicesTest;
 
 TEST_F(urDeviceCreateWithNativeHandleTest, Success) {
     for (auto device : devices) {
-        ur_native_handle_t native_handle = nullptr;
+        ur_native_handle_t native_handle = 0;
         {
             UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
                 urDeviceGetNativeHandle(device, &native_handle));
@@ -31,7 +31,7 @@ TEST_F(urDeviceCreateWithNativeHandleTest, Success) {
 
 TEST_F(urDeviceCreateWithNativeHandleTest, SuccessWithOwnedNativeHandle) {
     for (auto device : devices) {
-        ur_native_handle_t native_handle = nullptr;
+        ur_native_handle_t native_handle = 0;
         {
             UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
                 urDeviceGetNativeHandle(device, &native_handle));
@@ -54,7 +54,7 @@ TEST_F(urDeviceCreateWithNativeHandleTest, SuccessWithOwnedNativeHandle) {
 
 TEST_F(urDeviceCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
     for (auto device : devices) {
-        ur_native_handle_t native_handle = nullptr;
+        ur_native_handle_t native_handle = 0;
         {
             UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
                 urDeviceGetNativeHandle(device, &native_handle));
@@ -77,7 +77,7 @@ TEST_F(urDeviceCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
 
 TEST_F(urDeviceCreateWithNativeHandleTest, InvalidNullHandlePlatform) {
     for (auto device : devices) {
-        ur_native_handle_t native_handle = nullptr;
+        ur_native_handle_t native_handle = 0;
         ASSERT_SUCCESS(urDeviceGetNativeHandle(device, &native_handle));
 
         ur_device_handle_t dev = nullptr;
@@ -89,7 +89,7 @@ TEST_F(urDeviceCreateWithNativeHandleTest, InvalidNullHandlePlatform) {
 
 TEST_F(urDeviceCreateWithNativeHandleTest, InvalidNullPointerDevice) {
     for (auto device : devices) {
-        ur_native_handle_t native_handle = nullptr;
+        ur_native_handle_t native_handle = 0;
         ASSERT_SUCCESS(urDeviceGetNativeHandle(device, &native_handle));
 
         ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,

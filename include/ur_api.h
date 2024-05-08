@@ -394,7 +394,7 @@ typedef struct ur_queue_handle_t_ *ur_queue_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of a native object
-typedef struct ur_native_handle_t_ *ur_native_handle_t;
+typedef uintptr_t ur_native_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of a Sampler object

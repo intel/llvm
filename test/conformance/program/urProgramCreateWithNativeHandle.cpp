@@ -21,7 +21,7 @@ struct urProgramCreateWithNativeHandleTest : uur::urProgramTest {
         UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::TearDown());
     }
 
-    ur_native_handle_t native_program_handle = nullptr;
+    ur_native_handle_t native_program_handle = 0;
     ur_program_handle_t native_program = nullptr;
 };
 UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramCreateWithNativeHandleTest);

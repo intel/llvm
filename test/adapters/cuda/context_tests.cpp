@@ -68,9 +68,9 @@ TEST_P(cudaUrContextCreateTest, ActiveContext) {
     ASSERT_SUCCESS_CUDA(cuCtxGetCurrent(&cudaCtx));
     ASSERT_NE(cudaCtx, nullptr);
 
-    ur_native_handle_t native_context = nullptr;
+    ur_native_handle_t native_context = 0;
     ASSERT_SUCCESS(urContextGetNativeHandle(context, &native_context));
-    ASSERT_NE(native_context, nullptr);
+    ASSERT_NE(reinterpret_cast<CUcontext>(native_context), nullptr);
     ASSERT_EQ(cudaCtx, reinterpret_cast<CUcontext>(native_context));
 }
 
