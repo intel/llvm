@@ -182,7 +182,6 @@ public:
         }
         values[i] = temp[shift];
       }
-
     }
 #endif
     (void)values;
@@ -192,7 +191,8 @@ public:
 
   static constexpr std::size_t memory_required(sycl::memory_scope scope,
                                                size_t range_size) {
-    return 2 * joint_sorter<>::template memory_required<T>(scope, range_size * ElementsPerWorkItem);
+    return 2 * joint_sorter<>::template memory_required<T>(
+                   scope, range_size * ElementsPerWorkItem);
   }
 };
 

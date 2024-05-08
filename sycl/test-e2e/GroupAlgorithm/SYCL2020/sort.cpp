@@ -32,8 +32,8 @@
 #include <sycl/group_algorithm.hpp>
 
 #include <algorithm>
-#include <iostream>
 #include <iomanip>
+#include <iostream>
 #include <numeric>
 #include <random>
 #include <vector>
@@ -660,17 +660,17 @@ void RunSortOverGroupArray(sycl::queue &Q, const std::vector<T> &DataToSort,
   std::size_t LocalMemorySizeRadix = 0;
   if (UseGroup == UseGroupT::SubGroup) {
     // Each sub-group needs a piece of memory for sorting
-    LocalMemorySizeDefault = oneapi_exp::default_sorters::group_sorter<
-        T, ElementsPerWorkItem, Compare>::memory_required(sycl::memory_scope::sub_group,
-                                        ReqSubGroupSize);
+    LocalMemorySizeDefault = oneapi_exp::default_sorters::
+        group_sorter<T, ElementsPerWorkItem, Compare>::memory_required(
+            sycl::memory_scope::sub_group, ReqSubGroupSize);
 
     LocalMemorySizeRadix = RadixSorterT::memory_required(
         sycl::memory_scope::sub_group, ReqSubGroupSize);
   } else {
     // A single chunk of memory for each work-group
-    LocalMemorySizeDefault = oneapi_exp::default_sorters::group_sorter<
-        T, ElementsPerWorkItem, Compare>::memory_required(sycl::memory_scope::work_group,
-                                        NDRange.get_local_range().size());
+    LocalMemorySizeDefault = oneapi_exp::default_sorters::
+        group_sorter<T, ElementsPerWorkItem, Compare>::memory_required(
+            sycl::memory_scope::work_group, NDRange.get_local_range().size());
 
     LocalMemorySizeRadix = RadixSorterT::memory_required(
         sycl::memory_scope::work_group, NDRange.get_local_range().size());
@@ -731,52 +731,49 @@ void RunSortOverGroupArray(sycl::queue &Q, const std::vector<T> &DataToSort,
              std::byte *ScratchPtrDefault =
                  &ScratchDefault[0] + ScratchShiftDefault;
 
-              T ValsPrivate[ElementsPerWorkItem];
+             T ValsPrivate[ElementsPerWorkItem];
 
-              auto ReadToPrivate = [&](auto Acc) {
-                  for(std::size_t I = 0; I < ElementsPerWorkItem; ++I)
-                    ValsPrivate[I] = Acc[GlobalLinearID * ElementsPerWorkItem + I];
-              };
-              auto WriteToGlobal = [&](auto Acc) {
-                for(std::size_t I = 0; I < ElementsPerWorkItem; ++I)
-                  Acc[GlobalLinearID * ElementsPerWorkItem + I] = ValsPrivate[I];
-              };
+             auto ReadToPrivate = [&](auto Acc) {
+               for (std::size_t I = 0; I < ElementsPerWorkItem; ++I)
+                 ValsPrivate[I] = Acc[GlobalLinearID * ElementsPerWorkItem + I];
+             };
+             auto WriteToGlobal = [&](auto Acc) {
+               for (std::size_t I = 0; I < ElementsPerWorkItem; ++I)
+                 Acc[GlobalLinearID * ElementsPerWorkItem + I] = ValsPrivate[I];
+             };
 
-              if constexpr (std::is_same_v<Compare, std::less<T>>) {
-                ReadToPrivate(AccToSort0);
-                oneapi_exp::sort_over_group(
-                    oneapi_exp::group_with_scratchpad(
-                        Group,
-                        sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
-                    sycl::span<T, ElementsPerWorkItem>{
-                        ValsPrivate,
-                        ValsPrivate + ElementsPerWorkItem},
-                    Prop); // (4)
-                WriteToGlobal(AccToSort0);
-              }
+             if constexpr (std::is_same_v<Compare, std::less<T>>) {
+               ReadToPrivate(AccToSort0);
+               oneapi_exp::sort_over_group(
+                   oneapi_exp::group_with_scratchpad(
+                       Group,
+                       sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
+                   sycl::span<T, ElementsPerWorkItem>{
+                       ValsPrivate, ValsPrivate + ElementsPerWorkItem},
+                   Prop); // (4)
+               WriteToGlobal(AccToSort0);
+             }
 
-            ReadToPrivate(AccToSort1);
+             ReadToPrivate(AccToSort1);
              oneapi_exp::sort_over_group(
                  oneapi_exp::group_with_scratchpad(
                      Group,
                      sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
                  sycl::span<T, ElementsPerWorkItem>{
-                     ValsPrivate,
-                     ValsPrivate + ElementsPerWorkItem},
+                     ValsPrivate, ValsPrivate + ElementsPerWorkItem},
                  Comp, Prop); // (5)
-            WriteToGlobal(AccToSort1);
+             WriteToGlobal(AccToSort1);
 
-            ReadToPrivate(AccToSort2);
+             ReadToPrivate(AccToSort2);
              oneapi_exp::sort_over_group(
                  Group,
                  sycl::span<T, ElementsPerWorkItem>{
-                     ValsPrivate,
-                     ValsPrivate + ElementsPerWorkItem},
+                     ValsPrivate, ValsPrivate + ElementsPerWorkItem},
                  oneapi_exp::default_sorters::group_sorter<
                      T, ElementsPerWorkItem, Compare>(
                      sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
                  Prop); // (6)
-            WriteToGlobal(AccToSort2);
+             WriteToGlobal(AccToSort2);
 
              // Each sub-group should use it's own part of the scratch pad
              const size_t ScratchShiftRadix =
@@ -788,16 +785,15 @@ void RunSortOverGroupArray(sycl::queue &Q, const std::vector<T> &DataToSort,
 
              /* // Radix doesn't support custom types */
              if constexpr (!std::is_same_v<CustomType, T>) {
-              ReadToPrivate(AccToSort3);
+               ReadToPrivate(AccToSort3);
                oneapi_exp::sort_over_group(
                    Group,
                    sycl::span<T, ElementsPerWorkItem>{
-                       ValsPrivate,
-                       ValsPrivate + ElementsPerWorkItem},
+                       ValsPrivate, ValsPrivate + ElementsPerWorkItem},
                    RadixSorterT(
                        sycl::span{ScratchPtrRadix, LocalMemorySizeRadix}),
                    Prop); // (6) radix
-                WriteToGlobal(AccToSort3);
+               WriteToGlobal(AccToSort3);
              }
            });
      }).wait_and_throw();
@@ -858,8 +854,9 @@ void RunSortKeyValueOverGroupArray(sycl::queue &Q,
     // Each sub-group needs a piece of memory for sorting
     LocalMemorySizeDefault =
         oneapi_exp::default_sorters::group_key_value_sorter<
-            T, U, Compare, ElementsPerWorkItem>::memory_required(sycl::memory_scope::sub_group,
-                                            ReqSubGroupSize);
+            T, U, Compare,
+            ElementsPerWorkItem>::memory_required(sycl::memory_scope::sub_group,
+                                                  ReqSubGroupSize);
 
     LocalMemorySizeRadix = RadixSorterT::memory_required(
         sycl::memory_scope::sub_group, ReqSubGroupSize);
@@ -867,8 +864,9 @@ void RunSortKeyValueOverGroupArray(sycl::queue &Q,
     // A single chunk of memory for each work-group
     LocalMemorySizeDefault =
         oneapi_exp::default_sorters::group_key_value_sorter<
-            T, U, Compare, ElementsPerWorkItem>::memory_required(sycl::memory_scope::work_group,
-                                            NDRange.get_local_range().size());
+            T, U, Compare, ElementsPerWorkItem>::
+            memory_required(sycl::memory_scope::work_group,
+                            NDRange.get_local_range().size());
 
     LocalMemorySizeRadix = RadixSorterT::memory_required(
         sycl::memory_scope::work_group, NDRange.get_local_range().size());
@@ -958,21 +956,25 @@ void RunSortKeyValueOverGroupArray(sycl::queue &Q,
              std::byte *ScratchPtrDefault =
                  &ScratchDefault[0] + ScratchShiftDefault;
 
-              T KeysPrivate[ElementsPerWorkItem];
-              U ValsPrivate[ElementsPerWorkItem];
+             T KeysPrivate[ElementsPerWorkItem];
+             U ValsPrivate[ElementsPerWorkItem];
 
-              auto ReadToPrivate = [&](auto &KeyAcc, auto &ValAcc) {
-                  for(std::size_t I = 0; I < ElementsPerWorkItem; ++I) {
-                    KeysPrivate[I] = KeyAcc[GlobalLinearID * ElementsPerWorkItem + I];
-                    ValsPrivate[I] = ValAcc[GlobalLinearID * ElementsPerWorkItem + I];
-                  }
-              };
-              auto WriteToGlobal = [&](auto &KeyAcc, auto &ValAcc) {
-                for(std::size_t I = 0; I < ElementsPerWorkItem; ++I) {
-                  KeyAcc[GlobalLinearID * ElementsPerWorkItem + I] = KeysPrivate[I];
-                  ValAcc[GlobalLinearID * ElementsPerWorkItem + I] = ValsPrivate[I];
-                }
-              };
+             auto ReadToPrivate = [&](auto &KeyAcc, auto &ValAcc) {
+               for (std::size_t I = 0; I < ElementsPerWorkItem; ++I) {
+                 KeysPrivate[I] =
+                     KeyAcc[GlobalLinearID * ElementsPerWorkItem + I];
+                 ValsPrivate[I] =
+                     ValAcc[GlobalLinearID * ElementsPerWorkItem + I];
+               }
+             };
+             auto WriteToGlobal = [&](auto &KeyAcc, auto &ValAcc) {
+               for (std::size_t I = 0; I < ElementsPerWorkItem; ++I) {
+                 KeyAcc[GlobalLinearID * ElementsPerWorkItem + I] =
+                     KeysPrivate[I];
+                 ValAcc[GlobalLinearID * ElementsPerWorkItem + I] =
+                     ValsPrivate[I];
+               }
+             };
 
              if constexpr (std::is_same_v<Compare, std::less<T>>) {
                ReadToPrivate(AccKeysToSort0, AccDataToSort0);
@@ -981,43 +983,37 @@ void RunSortKeyValueOverGroupArray(sycl::queue &Q,
                        Group,
                        sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
                    sycl::span<T, ElementsPerWorkItem>{
-                       KeysPrivate,
-                       KeysPrivate + ElementsPerWorkItem},
+                       KeysPrivate, KeysPrivate + ElementsPerWorkItem},
                    sycl::span<U, ElementsPerWorkItem>{
-                       ValsPrivate,
-                       ValsPrivate + ElementsPerWorkItem},
+                       ValsPrivate, ValsPrivate + ElementsPerWorkItem},
                    Prop); // (4)
-                WriteToGlobal(AccKeysToSort0, AccDataToSort0);
+               WriteToGlobal(AccKeysToSort0, AccDataToSort0);
              }
-             
+
              ReadToPrivate(AccKeysToSort1, AccDataToSort1);
              oneapi_exp::sort_key_value_over_group(
                  oneapi_exp::group_with_scratchpad(
                      Group,
                      sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
-                   sycl::span<T, ElementsPerWorkItem>{
-                       KeysPrivate,
-                       KeysPrivate + ElementsPerWorkItem},
-                   sycl::span<U, ElementsPerWorkItem>{
-                       ValsPrivate,
-                       ValsPrivate + ElementsPerWorkItem},
+                 sycl::span<T, ElementsPerWorkItem>{
+                     KeysPrivate, KeysPrivate + ElementsPerWorkItem},
+                 sycl::span<U, ElementsPerWorkItem>{
+                     ValsPrivate, ValsPrivate + ElementsPerWorkItem},
                  Comp, Prop); // (5)
-            WriteToGlobal(AccKeysToSort1, AccDataToSort1);
+             WriteToGlobal(AccKeysToSort1, AccDataToSort1);
 
-            ReadToPrivate(AccKeysToSort2, AccDataToSort2);
+             ReadToPrivate(AccKeysToSort2, AccDataToSort2);
              oneapi_exp::sort_key_value_over_group(
                  Group,
-                   sycl::span<T, ElementsPerWorkItem>{
-                       KeysPrivate,
-                       KeysPrivate + ElementsPerWorkItem},
-                   sycl::span<U, ElementsPerWorkItem>{
-                       ValsPrivate,
-                       ValsPrivate + ElementsPerWorkItem},
+                 sycl::span<T, ElementsPerWorkItem>{
+                     KeysPrivate, KeysPrivate + ElementsPerWorkItem},
+                 sycl::span<U, ElementsPerWorkItem>{
+                     ValsPrivate, ValsPrivate + ElementsPerWorkItem},
                  oneapi_exp::default_sorters::group_key_value_sorter<
                      T, U, Compare, ElementsPerWorkItem>(
                      sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
                  Prop); // (6)
-              WriteToGlobal(AccKeysToSort2, AccDataToSort2);
+             WriteToGlobal(AccKeysToSort2, AccDataToSort2);
 
              // Each sub-group should use it's own part of the scratch pad
              const size_t ScratchShiftRadix =
@@ -1029,19 +1025,17 @@ void RunSortKeyValueOverGroupArray(sycl::queue &Q,
 
              // Radix doesn't support custom types
              if constexpr (!std::is_same_v<CustomType, T>) {
-              ReadToPrivate(AccKeysToSort3, AccDataToSort3);
+               ReadToPrivate(AccKeysToSort3, AccDataToSort3);
                oneapi_exp::sort_key_value_over_group(
                    Group,
                    sycl::span<T, ElementsPerWorkItem>{
-                       KeysPrivate,
-                       KeysPrivate + ElementsPerWorkItem},
+                       KeysPrivate, KeysPrivate + ElementsPerWorkItem},
                    sycl::span<U, ElementsPerWorkItem>{
-                       ValsPrivate,
-                       ValsPrivate + ElementsPerWorkItem},
+                       ValsPrivate, ValsPrivate + ElementsPerWorkItem},
                    RadixSorterT(
                        sycl::span{ScratchPtrRadix, LocalMemorySizeRadix}),
                    Prop); // (6) radix
-              WriteToGlobal(AccKeysToSort3, AccDataToSort3);
+               WriteToGlobal(AccKeysToSort3, AccDataToSort3);
              }
            });
      }).wait_and_throw();
@@ -1180,8 +1174,8 @@ template <class T> void RunOverType(sycl::queue &Q, size_t DataSize) {
     // TODO: enable testing of is_striped.
     // RunSortOverGroupArray<UseGroupT::WorkGroup, 1, ElementsPerWorkItem>(
     //     Q, Data, Comparator, oneapi_exp::detail::is_striped{});
-     RunSortOverGroupArray<UseGroupT::WorkGroup, 2, ElementsPerWorkItem>(
-         Q, Data, Comparator, oneapi_exp::detail::is_blocked{});
+    RunSortOverGroupArray<UseGroupT::WorkGroup, 2, ElementsPerWorkItem>(
+        Q, Data, Comparator, oneapi_exp::detail::is_blocked{});
 
     if (Q.get_backend() == sycl::backend::ext_oneapi_cuda ||
         Q.get_backend() == sycl::backend::ext_oneapi_hip) {
@@ -1201,11 +1195,9 @@ template <class T> void RunOverType(sycl::queue &Q, size_t DataSize) {
   RunOnDataAndCompArray(ArrayDataRandom, ArrayKeysRandom, std::less<T>{});
   RunOnDataAndCompArray(ArrayDataRandom, ArrayKeysRandom, std::greater<T>{});
 
-
-    auto RunKeyValueOnDataAndCompArray = [&](const std::vector<T> &Data,
-                                   const std::vector<T> &Keys,
-                                   const auto &Comparator) {
-
+  auto RunKeyValueOnDataAndCompArray = [&](const std::vector<T> &Data,
+                                           const std::vector<T> &Keys,
+                                           const auto &Comparator) {
     RunSortKeyValueOverGroupArray<UseGroupT::WorkGroup, 1, ElementsPerWorkItem>(
         Q, Data, Keys, Comparator, oneapi_exp::detail::is_blocked{});
     RunSortKeyValueOverGroupArray<UseGroupT::WorkGroup, 2, ElementsPerWorkItem>(
@@ -1224,13 +1216,15 @@ template <class T> void RunOverType(sycl::queue &Q, size_t DataSize) {
   };
 
   RunKeyValueOnDataAndCompArray(ArrayDataReversed, ArrayKeysReversed,
-                        std::greater<T>{});
-  RunKeyValueOnDataAndCompArray(ArrayDataReversed, ArrayKeysReversed, std::less<T>{});
+                                std::greater<T>{});
+  RunKeyValueOnDataAndCompArray(ArrayDataReversed, ArrayKeysReversed,
+                                std::less<T>{});
 
-  //TODO: Currently there is an issue with key/value sorting for array input - for some reasons sorting is not stable, order of values is not preserved.
-  // RunKeyValueOnDataAndCompArray(ArrayDataRandom, ArrayKeysRandom, std::less<T>{});
-  // RunKeyValueOnDataAndCompArray(ArrayDataRandom, ArrayKeysRandom, std::greater<T>{});
-
+  // TODO: Currently there is an issue with key/value sorting for array input -
+  // for some reasons sorting is not stable, order of values is not preserved.
+  //  RunKeyValueOnDataAndCompArray(ArrayDataRandom, ArrayKeysRandom,
+  //  std::less<T>{}); RunKeyValueOnDataAndCompArray(ArrayDataRandom,
+  //  ArrayKeysRandom, std::greater<T>{});
 }
 
 int main() {
