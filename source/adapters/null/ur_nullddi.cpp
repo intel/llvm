@@ -5514,6 +5514,47 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueTimestampRecordingExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    bool
+        blocking, ///< [in] indicates whether the call to this function should block until
+    ///< until the device timestamp recording command has executed on the
+    ///< device.
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the kernel execution.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    ///< events.
+    ur_event_handle_t *
+        phEvent ///< [in,out] return an event object that identifies this particular kernel
+                ///< execution instance. Profiling information can be queried
+    ///< from this event as if `hQueue` had profiling enabled. Querying
+    ///< `UR_PROFILING_INFO_COMMAND_QUEUED` or `UR_PROFILING_INFO_COMMAND_SUBMIT`
+    ///< reports the timestamp at the time of the call to this function.
+    ///< Querying `UR_PROFILING_INFO_COMMAND_START` or `UR_PROFILING_INFO_COMMAND_END`
+    ///< reports the timestamp recorded when the command is executed on the device.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnTimestampRecordingExp =
+        d_context.urDdiTable.EnqueueExp.pfnTimestampRecordingExp;
+    if (nullptr != pfnTimestampRecordingExp) {
+        result = pfnTimestampRecordingExp(hQueue, blocking, numEventsInWaitList,
+                                          phEventWaitList, phEvent);
+    } else {
+        // generic implementation
+        *phEvent = reinterpret_cast<ur_event_handle_t>(d_context.get());
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramBuildExp
 __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     ur_program_handle_t hProgram, ///< [in] Handle of the program to build.
@@ -6068,6 +6109,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 
     pDdiTable->pfnCooperativeKernelLaunchExp =
         driver::urEnqueueCooperativeKernelLaunchExp;
+
+    pDdiTable->pfnTimestampRecordingExp =
+        driver::urEnqueueTimestampRecordingExp;
 
     return result;
 } catch (...) {
