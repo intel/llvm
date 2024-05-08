@@ -1314,6 +1314,11 @@ struct KernelLaunchHelper {
                                               sizeof(zero), 0, size, 0, nullptr,
                                               nullptr));
         ASSERT_SUCCESS(urQueueFinish(queue));
+        SetBuffer1DArg(mem_handle, buffer_index);
+        *out_buffer = mem_handle;
+    }
+
+    void SetBuffer1DArg(ur_mem_handle_t mem_handle, size_t *buffer_index) {
         ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, current_arg_index, nullptr,
                                             mem_handle));
         if (buffer_index) {
@@ -1350,7 +1355,6 @@ struct KernelLaunchHelper {
                                                &accessor));
             current_arg_index += 2;
         }
-        *out_buffer = mem_handle;
     }
 
     template <class T> void AddPodArg(T data) {
