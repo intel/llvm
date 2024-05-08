@@ -183,9 +183,14 @@ def do_configure(args):
     ]
 
     if libclc_enabled:
-      cmake_cmd.extend([
-            "-DLIBCLC_TARGETS_TO_BUILD={}".format(libclc_targets_to_build),
-            "-DLIBCLC_GENERATE_REMANGLED_VARIANTS={}".format(libclc_gen_remangled_variants)])
+        cmake_cmd.extend(
+            [
+                "-DLIBCLC_TARGETS_TO_BUILD={}".format(libclc_targets_to_build),
+                "-DLIBCLC_GENERATE_REMANGLED_VARIANTS={}".format(
+                    libclc_gen_remangled_variants
+                ),
+            ]
+        )
 
     if args.l0_headers and args.l0_loader:
       cmake_cmd.extend([
