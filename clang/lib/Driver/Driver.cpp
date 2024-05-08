@@ -92,12 +92,12 @@
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
-#include "llvm/Support/RISCVISAInfo.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/RISCVISAInfo.h"
 #include <cstdlib> // ::getenv
 #include <map>
 #include <memory>
@@ -382,6 +382,7 @@ phases::ID Driver::getFinalPhase(const DerivedArgList &DAL,
              (PhaseArg = DAL.getLastArg(options::OPT_rewrite_legacy_objc)) ||
              (PhaseArg = DAL.getLastArg(options::OPT__migrate)) ||
              (PhaseArg = DAL.getLastArg(options::OPT__analyze)) ||
+             (PhaseArg = DAL.getLastArg(options::OPT_emit_cir)) ||
              (PhaseArg = DAL.getLastArg(options::OPT_emit_ast))) {
     FinalPhase = phases::Compile;
 
@@ -3683,8 +3684,11 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
 static bool IsSYCLDeviceLibObj(std::string ObjFilePath, bool isMSVCEnv) {
   StringRef ObjFileName = llvm::sys::path::filename(ObjFilePath);
   StringRef ObjSuffix = isMSVCEnv ? ".obj" : ".o";
+  StringRef NewObjSuffix = isMSVCEnv ? ".new.obj" : ".new.o";
   bool Ret =
-      (ObjFileName.starts_with("libsycl-") && ObjFileName.ends_with(ObjSuffix))
+      (ObjFileName.starts_with("libsycl-") &&
+       ObjFileName.ends_with(ObjSuffix) &&
+       !ObjFileName.ends_with(NewObjSuffix)) // Avoid new-offload-driver objs
           ? true
           : false;
   return Ret;
@@ -5901,23 +5905,31 @@ class OffloadingActionBuilder final {
             ++NumOfDeviceLibLinked;
             Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
                                          Args.MakeArgString(LibName));
-            auto *SYCLDeviceLibsInputAction =
-                C.MakeAction<InputAction>(*InputArg, types::TY_Object);
-            auto *SYCLDeviceLibsUnbundleAction =
-                C.MakeAction<OffloadUnbundlingJobAction>(
-                    SYCLDeviceLibsInputAction);
+            if (TC->getTriple().isNVPTX()) {
+              auto *SYCLDeviceLibsInputAction =
+                  C.MakeAction<InputAction>(*InputArg, types::TY_Object);
+              auto *SYCLDeviceLibsUnbundleAction =
+                  C.MakeAction<OffloadUnbundlingJobAction>(
+                      SYCLDeviceLibsInputAction);
 
-            // We are using BoundArch="" here since the NVPTX bundles in
-            // the devicelib .o files do not contain any arch information
-            SYCLDeviceLibsUnbundleAction->registerDependentActionInfo(
-                TC, /*BoundArch=*/"", Action::OFK_SYCL);
-            OffloadAction::DeviceDependences Dep;
-            Dep.add(*SYCLDeviceLibsUnbundleAction, *TC, /*BoundArch=*/"",
-                    Action::OFK_SYCL);
-            auto *SYCLDeviceLibsDependenciesAction =
-                C.MakeAction<OffloadAction>(
-                    Dep, SYCLDeviceLibsUnbundleAction->getType());
-            DeviceLinkObjects.push_back(SYCLDeviceLibsDependenciesAction);
+              // We are using BoundArch="" here since the NVPTX bundles in
+              // the devicelib .o files do not contain any arch information
+              SYCLDeviceLibsUnbundleAction->registerDependentActionInfo(
+                  TC, /*BoundArch=*/"", Action::OFK_SYCL);
+              OffloadAction::DeviceDependences Dep;
+              Dep.add(*SYCLDeviceLibsUnbundleAction, *TC, /*BoundArch=*/"",
+                      Action::OFK_SYCL);
+              auto *SYCLDeviceLibsDependenciesAction =
+                  C.MakeAction<OffloadAction>(
+                      Dep, SYCLDeviceLibsUnbundleAction->getType());
+              DeviceLinkObjects.push_back(SYCLDeviceLibsDependenciesAction);
+            } else {
+              // We are using the LLVM-IR device libraries directly, no need
+              // to unbundle any objects.
+              auto *SYCLDeviceLibsInputAction =
+                  C.MakeAction<InputAction>(*InputArg, types::TY_LLVM_BC);
+              DeviceLinkObjects.push_back(SYCLDeviceLibsInputAction);
+            }
             if (!LibLocSelected)
               LibLocSelected = !LibLocSelected;
           }
@@ -7869,6 +7881,11 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
         break;
       }
 
+      // Backend/Assemble actions are not used for the SYCL device side
+      if (Kind == Action::OFK_SYCL &&
+          (Phase == phases::Backend || Phase == phases::Assemble))
+        continue;
+
       auto TCAndArch = TCAndArchs.begin();
       for (Action *&A : DeviceActions) {
         if (A->getType() == types::TY_Nothing)
@@ -8092,6 +8109,8 @@ Action *Driver::ConstructPhaseAction(
       return C.MakeAction<MigrateJobAction>(Input, types::TY_Remap);
     if (Args.hasArg(options::OPT_emit_ast))
       return C.MakeAction<CompileJobAction>(Input, types::TY_AST);
+    if (Args.hasArg(options::OPT_emit_cir))
+      return C.MakeAction<CompileJobAction>(Input, types::TY_CIR);
     if (Args.hasArg(options::OPT_module_file_info))
       return C.MakeAction<CompileJobAction>(Input, types::TY_ModuleFile);
     if (Args.hasArg(options::OPT_verify_pch))

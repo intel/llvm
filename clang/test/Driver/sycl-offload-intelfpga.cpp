@@ -252,3 +252,19 @@
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DISCARD-VALUE-NAMES %s
 // CHK-DISCARD-VALUE-NAMES-NOT: clang{{.*}} "-fsycl-is-device"{{.*}} "-discard-value-names"
+
+/// Check for vpfp-relaxed in the aoc call
+// RUN: %clangxx -### -fintelfpga -ffp-model=fast -Xshardware %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK-FPGA-FPMODEL %s
+// RUN: %clang_cl -### -fintelfpga /clang:-ffp-model=fast -Xshardware %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK-FPGA-FPMODEL %s
+// RUN: %clangxx -### -fintelfpga -ffp-model=fast %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK-NO-HARDWARE %s
+// RUN: %clang_cl -### -fintelfpga /clang:-ffp-model=fast %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK-NO-HARDWARE %s
+// RUN: %clangxx -### -fintelfpga -Xshardware %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK-NO-HARDWARE %s
+// RUN: %clang_cl -### -fintelfpga -Xshardware %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK-NO-HARDWARE %s
+// CHK-FPGA-FPMODEL: aoc{{.*}} "-dep-files={{.*}}" "-vpfp-relaxed"
+// CHK-NO-HARDWARE-NOT: "-vpfp-relaxed"

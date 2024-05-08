@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/nd_item.hpp>
 
 namespace syclcompat {

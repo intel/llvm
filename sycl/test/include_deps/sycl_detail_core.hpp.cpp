@@ -114,12 +114,9 @@
 // CHECK-NEXT: detail/accessor_iterator.hpp
 // CHECK-NEXT: detail/generic_type_traits.hpp
 // CHECK-NEXT: detail/handler_proxy.hpp
-// CHECK-NEXT: device.hpp
-// CHECK-NEXT: kernel_bundle_enums.hpp
 // CHECK-NEXT: pointers.hpp
 // CHECK-NEXT: properties/accessor_properties.hpp
-// CHECK-NEXT: image.hpp
-// CHECK-NEXT: detail/backend_traits.hpp
+// CHECK-NEXT: properties/buffer_properties.hpp
 // CHECK-NEXT: sampler.hpp
 // CHECK-NEXT: types.hpp
 // CHECK-NEXT: marray.hpp
@@ -127,7 +124,6 @@
 // CHECK-NEXT: detail/memcpy.hpp
 // CHECK-NEXT: detail/vector_convert.hpp
 // CHECK-NEXT: swizzles.def
-// CHECK-NEXT: properties/buffer_properties.hpp
 // CHECK-NEXT: queue.hpp
 // CHECK-NEXT: detail/assert_happened.hpp
 // CHECK-NEXT: detail/cg_types.hpp
@@ -139,7 +135,11 @@
 // CHECK-NEXT: h_item.hpp
 // CHECK-NEXT: item.hpp
 // CHECK-NEXT: interop_handle.hpp
+// CHECK-NEXT: device.hpp
+// CHECK-NEXT: kernel_bundle_enums.hpp
 // CHECK-NEXT: exception_list.hpp
+// CHECK-NEXT: image.hpp
+// CHECK-NEXT: detail/backend_traits.hpp
 // CHECK-NEXT: kernel_handler.hpp
 // CHECK-NEXT: nd_item.hpp
 // CHECK-NEXT: nd_range.hpp
@@ -150,9 +150,6 @@
 // CHECK-NEXT: ext/oneapi/sub_group_mask.hpp
 // CHECK-NEXT: feature_test.hpp
 // CHECK-NEXT: functional.hpp
-// CHECK-NEXT: ext/oneapi/bindless_images_descriptor.hpp
-// CHECK-NEXT: ext/oneapi/bindless_images_interop.hpp
-// CHECK-NEXT: ext/oneapi/bindless_images_memory.hpp
 // CHECK-NEXT: ext/oneapi/device_global/device_global.hpp
 // CHECK-NEXT: ext/oneapi/device_global/properties.hpp
 // CHECK-NEXT: ext/oneapi/properties/property.hpp
@@ -167,7 +164,8 @@
 // CHECK-NEXT: detail/reduction_forward.hpp
 // CHECK-NEXT: ext/intel/experimental/fp_control_kernel_properties.hpp
 // CHECK-NEXT: ext/intel/experimental/kernel_execution_properties.hpp
-// CHECK-NEXT: ext/oneapi/experimental/root_group.hpp
-// CHECK-NEXT: ext/oneapi/free_function_queries.hpp
+// CHECK-NEXT: ext/oneapi/bindless_images_interop.hpp
+// CHECK-NEXT: ext/oneapi/bindless_images_mem_handle.hpp
+// CHECK-NEXT: ext/oneapi/experimental/use_root_sync_prop.hpp
 // CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
 // CHECK-EMPTY:

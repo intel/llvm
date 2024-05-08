@@ -10,12 +10,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: *
-
 #include "../common.hpp"
-
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
 
 #define SG_SZ 8
 constexpr size_t TN = 8;

@@ -94,8 +94,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/steffenlarsen/unified-runtime")
-  set(UNIFIED_RUNTIME_TAG steffen/record_event)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 7ce68e09b47f6f7f7ad61b15c302a19462bbe887
+  # Merge: 5a23b18e 84bad6c7
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Wed May 8 13:25:25 2024 +0100
+  #     Merge pull request #1400 from steffenlarsen/steffen/record_event
+  #     [UR][L0][CUDA][HIP] Add enqueue timestamp recording extension
+  set(UNIFIED_RUNTIME_TAG 7ce68e09b47f6f7f7ad61b15c302a19462bbe887)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
