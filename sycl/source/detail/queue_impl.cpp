@@ -199,7 +199,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     xpti::addMetadata(TEvent, "queue_id", MQueueID);
   });
   xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
-  // Notify XPTI about the memset submission
+  // Notify XPTI about the memcpy submission
   PrepareNotify.notify();
   // Emit a begin/end scope for this call
   PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
