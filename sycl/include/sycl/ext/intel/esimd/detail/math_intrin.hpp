@@ -26,6 +26,9 @@
 #define __ESIMD_cpp_vec_t(T, SZ)                                               \
   __ESIMD_DNS::vector_type_t<__ESIMD_DNS::__cpp_t<T>, SZ>
 
+// The following spirv intrinsics declarations are put here to avoid unintended
+// use by other targets where it causes run time failures due to the fact that
+// they are implemented for INTEL GPU only.
 template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_exp2(T);
 template <typename T, int N>
 extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
