@@ -42,6 +42,7 @@
 #include <utility>
 
 #include <sycl/builtins.hpp>
+#include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/ext/oneapi/group_local_memory.hpp>
 #include <sycl/group.hpp>
 #include <sycl/usm.hpp>

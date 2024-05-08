@@ -28,7 +28,7 @@ on:
       build_configure_extra_args:
         type: string
         required: false
-        default: "--hip --cuda"
+        default: "--hip --cuda --native_cpu"
       build_artifact_suffix:
         type: string
         required: true
@@ -82,7 +82,7 @@ on:
       build_configure_extra_args:
         type: choice
         options:
-          - "--hip --cuda"
+          - "--hip --cuda --native_cpu"
       # Cache properties need to match CC/CXX/CMake opts. Any additional choices
       # would need extra care.
       build_cache_root:
@@ -168,6 +168,7 @@ jobs:
           --cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=ccache \
           --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
+          --cmake-opt="-DNATIVECPU_USE_OCK=Off" \
           --cmake-opt="-DSYCL_PI_TESTS=OFF"
     - name: Compile
       id: build
