@@ -332,13 +332,12 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
       CompileOpts += std::string(TemporaryStr);
   }
   bool isEsimdImage = getUint32PropAsBool(Img, "isEsimdImage");
-  // The -vc-codegen and -ftranslate-legacy-memory-intrinsics options are
-  // always preserved for ESIMD kernels, regardless of the contents
-  // of the SYCL_PROGRAM_COMPILE_OPTIONS environment variable.
+  // The -vc-codegen option is always preserved for ESIMD kernels, regardless
+  // of the contents SYCL_PROGRAM_COMPILE_OPTIONS environment variable.
   if (isEsimdImage) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
-    CompileOpts += "-vc-codegen -ftranslate-legacy-memory-intrinsics";
+    CompileOpts += "-vc-codegen";
     // Allow warning and performance hints from vc/finalizer if the RT warning
     // level is at least 1.
     if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() == 0)

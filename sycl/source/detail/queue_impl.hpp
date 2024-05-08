@@ -718,7 +718,7 @@ public:
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
     std::lock_guard<std::mutex> Lock(MMutex);
     MGraph = Graph;
-    MGraphLastEventPtr = nullptr;
+    MExtGraphDeps.LastEventPtr = nullptr;
   }
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
@@ -745,6 +745,18 @@ public:
                           std::vector<event> &MutableVec,
                           std::unique_lock<std::mutex> &QueueLock);
 
+  // Helps to manage host tasks presence in scenario with barrier usage.
+  // Approach that tracks almost all tasks to provide barrier sync for both pi
+  // tasks and host tasks is applicable for out of order queues only. No-op
+  // for in order ones.
+  void tryToResetEnqueuedBarrierDep(const EventImplPtr &EnqueuedBarrierEvent);
+
+  // Called on host task completion that could block some kernels from enqueue.
+  // Approach that tracks almost all tasks to provide barrier sync for both pi
+  // tasks and host tasks is applicable for out of order queues only. Not neede
+  // for in order ones.
+  void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
+
 protected:
   event discard_or_return(const event &Event);
   // Hook to the scheduler to clean up any fusion command held on destruction.
@@ -752,7 +764,8 @@ protected:
 
   // template is needed for proper unit testing
   template <typename HandlerType = handler>
-  void finalizeHandler(HandlerType &Handler, event &EventRet) {
+  void finalizeHandler(HandlerType &Handler, const CG::CGTYPE &Type,
+                       event &EventRet) {
     if (MIsInorder) {
       // Accessing and changing of an event isn't atomic operation.
       // Hence, here is the lock for thread-safety.
@@ -764,11 +777,11 @@ protected:
       //    by a host task. This dependency allows to build the enqueue order in
       //    the RT but will not be passed to the backend. See getPIEvents in
       //    Command.
-      auto &EventToBuildDeps =
-          MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
+
+      auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
+                                                : MExtGraphDeps.LastEventPtr;
       if (EventToBuildDeps)
-        Handler.depends_on(
-            createSyclObjFromImpl<sycl::event>(EventToBuildDeps));
+        Handler.depends_on(EventToBuildDeps);
 
       // If there is an external event set, add it as a dependency and clear it.
       // We do not need to hold the lock as MLastEventMtx will ensure the last
@@ -779,8 +792,31 @@ protected:
 
       EventRet = Handler.finalize();
       EventToBuildDeps = getSyclObjImpl(EventRet);
-    } else
+    } else {
+      // The following code supports barrier synchronization if host task is
+      // involved in the scenario. Native barriers cannot handle host task
+      // dependency so in the case where some commands were not enqueued
+      // (blocked), we track them to prevent barrier from being enqueued
+      // earlier.
+      std::lock_guard<std::mutex> Lock{MMutex};
+      auto &Deps = MGraph.expired() ? MDefaultGraphDeps : MExtGraphDeps;
+      if (Type == CG::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
+        Handler.depends_on(Deps.UnenqueuedCmdEvents);
+      }
+      if (Deps.LastBarrier)
+        Handler.depends_on(Deps.LastBarrier);
       EventRet = Handler.finalize();
+      EventImplPtr EventRetImpl = getSyclObjImpl(EventRet);
+      if (Type == CG::CodeplayHostTask)
+        Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
+      else if (!EventRetImpl->isEnqueued()) {
+        if (Type == CG::Barrier || Type == CG::BarrierWaitlist) {
+          Deps.LastBarrier = EventRetImpl;
+          Deps.UnenqueuedCmdEvents.clear();
+        } else
+          Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
+      }
+    }
   }
 
   /// Performs command group submission to the queue.
@@ -836,11 +872,11 @@ protected:
         KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
                            ProgramManager::getInstance().kernelUsesAssert(
                                Handler.MKernelName.c_str());
-      finalizeHandler(Handler, Event);
+      finalizeHandler(Handler, Type, Event);
 
       (*PostProcess)(IsKernel, KernelUsesAssert, Event);
     } else
-      finalizeHandler(Handler, Event);
+      finalizeHandler(Handler, Type, Event);
 
     addEvent(Event);
     return Event;
@@ -924,13 +960,16 @@ protected:
   /// need to emulate it with multiple native in-order queues.
   bool MEmulateOOO = false;
 
-  // This event is employed for enhanced dependency tracking with in-order queue
-  // Access to the event should be guarded with MMutex
-  EventImplPtr MLastEventPtr;
-  // Same as above but for graph begin-end recording cycle.
-  // Track deps within graph commands separately.
-  // Protected by common queue object mutex MMutex.
-  EventImplPtr MGraphLastEventPtr;
+  // Access should be guarded with MMutex
+  struct DependencyTrackingItems {
+    // This event is employed for enhanced dependency tracking with in-order
+    // queue
+    EventImplPtr LastEventPtr;
+    // The following two items are employed for proper out of order enqueue
+    // ordering
+    std::vector<EventImplPtr> UnenqueuedCmdEvents;
+    EventImplPtr LastBarrier;
+  } MDefaultGraphDeps, MExtGraphDeps;
 
   const bool MIsInorder;
 
