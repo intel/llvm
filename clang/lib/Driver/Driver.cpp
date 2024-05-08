@@ -382,6 +382,7 @@ phases::ID Driver::getFinalPhase(const DerivedArgList &DAL,
              (PhaseArg = DAL.getLastArg(options::OPT_rewrite_legacy_objc)) ||
              (PhaseArg = DAL.getLastArg(options::OPT__migrate)) ||
              (PhaseArg = DAL.getLastArg(options::OPT__analyze)) ||
+             (PhaseArg = DAL.getLastArg(options::OPT_emit_cir)) ||
              (PhaseArg = DAL.getLastArg(options::OPT_emit_ast))) {
     FinalPhase = phases::Compile;
 
@@ -3683,8 +3684,11 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
 static bool IsSYCLDeviceLibObj(std::string ObjFilePath, bool isMSVCEnv) {
   StringRef ObjFileName = llvm::sys::path::filename(ObjFilePath);
   StringRef ObjSuffix = isMSVCEnv ? ".obj" : ".o";
+  StringRef NewObjSuffix = isMSVCEnv ? ".new.obj" : ".new.o";
   bool Ret =
-      (ObjFileName.starts_with("libsycl-") && ObjFileName.ends_with(ObjSuffix))
+      (ObjFileName.starts_with("libsycl-") &&
+       ObjFileName.ends_with(ObjSuffix) &&
+       !ObjFileName.ends_with(NewObjSuffix)) // Avoid new-offload-driver objs
           ? true
           : false;
   return Ret;
@@ -7877,6 +7881,11 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
         break;
       }
 
+      // Backend/Assemble actions are not used for the SYCL device side
+      if (Kind == Action::OFK_SYCL &&
+          (Phase == phases::Backend || Phase == phases::Assemble))
+        continue;
+
       auto TCAndArch = TCAndArchs.begin();
       for (Action *&A : DeviceActions) {
         if (A->getType() == types::TY_Nothing)
@@ -8100,6 +8109,8 @@ Action *Driver::ConstructPhaseAction(
       return C.MakeAction<MigrateJobAction>(Input, types::TY_Remap);
     if (Args.hasArg(options::OPT_emit_ast))
       return C.MakeAction<CompileJobAction>(Input, types::TY_AST);
+    if (Args.hasArg(options::OPT_emit_cir))
+      return C.MakeAction<CompileJobAction>(Input, types::TY_CIR);
     if (Args.hasArg(options::OPT_module_file_info))
       return C.MakeAction<CompileJobAction>(Input, types::TY_ModuleFile);
     if (Args.hasArg(options::OPT_verify_pch))
