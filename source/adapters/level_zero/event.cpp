@@ -1014,15 +1014,7 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   }
 
   // Save pointer to the queue before deleting/resetting event.
-  // When we add an event to the cache we need to check whether profiling is
-  // enabled or not, so we access properties of the queue and that's why queue
-  // must released later.
   auto Queue = Event->UrQueue;
-  if (DisableEventsCaching || !Event->OwnNativeHandle) {
-    delete Event;
-  } else {
-    Event->Context->addEventToContextCache(Event);
-  }
 
   // If the event was a timestamp recording, we try to evict its entry in the
   // queue.
@@ -1039,6 +1031,15 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
         Event->UrQueue->EndTimeRecordings.erase(Entry);
       }
     }
+  }
+
+  // When we add an event to the cache we need to check whether profiling is
+  // enabled or not, so we access properties of the queue and that's why queue
+  // must released later.
+  if (DisableEventsCaching || !Event->OwnNativeHandle) {
+    delete Event;
+  } else {
+    Event->Context->addEventToContextCache(Event);
   }
 
   // We intentionally incremented the reference counter when an event is
