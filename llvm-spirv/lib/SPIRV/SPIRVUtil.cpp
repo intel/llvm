@@ -806,8 +806,11 @@ bool getParameterTypes(Function *F, SmallVectorImpl<Type *> &ArgTys,
       HasSret = true;
       unsigned AS = Arg.getType()->getPointerAddressSpace();
       if (auto *STy = dyn_cast<StructType>(Ty))
-        ArgTys.push_back(
-            TypedPointerType::get(GetStructType(STy->getName()), AS));
+        if (STy->hasName())
+          ArgTys.push_back(
+              TypedPointerType::get(GetStructType(STy->getName()), AS));
+        else
+          ArgTys.push_back(TypedPointerType::get(STy, AS));
       else
         ArgTys.push_back(TypedPointerType::get(Ty, AS));
     } else {
@@ -1564,6 +1567,9 @@ Type *getLLVMTypeForSPIRVImageSampledTypePostfix(StringRef Postfix,
   if (Postfix == kSPIRVImageSampledTypeName::Int ||
       Postfix == kSPIRVImageSampledTypeName::UInt)
     return Type::getInt32Ty(Ctx);
+  if (Postfix == kSPIRVImageSampledTypeName::Long ||
+      Postfix == kSPIRVImageSampledTypeName::ULong)
+    return Type::getInt64Ty(Ctx);
   llvm_unreachable("Invalid sampled type postfix");
   return nullptr;
 }
@@ -2168,13 +2174,13 @@ bool lowerBuiltinCallsToVariables(Module *M) {
       auto *CI = dyn_cast<CallInst>(U);
       assert(CI && "invalid instruction");
       const DebugLoc &DLoc = CI->getDebugLoc();
-      Instruction *NewValue = new LoadInst(GVType, BV, "", CI);
+      Instruction *NewValue = new LoadInst(GVType, BV, "", CI->getIterator());
       if (DLoc)
         NewValue->setDebugLoc(DLoc);
       LLVM_DEBUG(dbgs() << "Transform: " << *CI << " => " << *NewValue << '\n');
       if (IsVec) {
-        NewValue =
-            ExtractElementInst::Create(NewValue, CI->getArgOperand(0), "", CI);
+        NewValue = ExtractElementInst::Create(NewValue, CI->getArgOperand(0),
+                                              "", CI->getIterator());
         if (DLoc)
           NewValue->setDebugLoc(DLoc);
         LLVM_DEBUG(dbgs() << *NewValue << '\n');
@@ -2271,12 +2277,13 @@ bool postProcessBuiltinWithArrayArguments(Function *F,
           auto *T = I->getType();
           if (!T->isArrayTy())
             continue;
-          auto *Alloca = new AllocaInst(T, 0, "", &(*FBegin));
-          new StoreInst(I, Alloca, false, CI);
+          auto *Alloca = new AllocaInst(T, 0, "", FBegin);
+          new StoreInst(I, Alloca, false, CI->getIterator());
           auto *Zero =
               ConstantInt::getNullValue(Type::getInt32Ty(T->getContext()));
           Value *Index[] = {Zero, Zero};
-          I = GetElementPtrInst::CreateInBounds(T, Alloca, Index, "", CI);
+          I = GetElementPtrInst::CreateInBounds(T, Alloca, Index, "",
+                                                CI->getIterator());
         }
         return Name.str();
       },
@@ -2327,7 +2334,7 @@ public:
 
   void init(StringRef UniqUnmangledName) override {
     UnmangledName = UniqUnmangledName.str();
-    switch (OC) {
+    switch (static_cast<unsigned>(OC)) {
     case OpConvertUToF:
     case OpUConvert:
     case OpSatConvertUToS:
@@ -2492,6 +2499,10 @@ public:
       }
       break;
     }
+    case internal::OpConvertHandleToImageINTEL:
+    case internal::OpConvertHandleToSamplerINTEL:
+      addUnsignedArg(0);
+      break;
     default:;
       // No special handling is needed
     }
