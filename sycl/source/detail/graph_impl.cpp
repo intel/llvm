@@ -1281,6 +1281,8 @@ void exec_graph_impl::update(
   // Rebuild cached requirements for this graph with updated nodes
   MRequirements.clear();
   for (auto &Node : MNodeStorage) {
+    if (!Node->MCommandGroup)
+      continue;
     MRequirements.insert(MRequirements.end(),
                          Node->MCommandGroup->getRequirements().begin(),
                          Node->MCommandGroup->getRequirements().end());
