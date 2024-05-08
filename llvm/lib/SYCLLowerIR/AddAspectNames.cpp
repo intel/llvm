@@ -1,5 +1,4 @@
-//===--------------- AddAspectNames.cpp - AddAspectNames Pass
-//---------------===//
+//===--------------- AddAspectNames.cpp - AddAspectNames Pass -------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,8 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 //
-//
-//
+// The !sycl_used_aspects metadata is populated from C++ attributes and
+// further populated by the SYCLPropagateAspectsPass that describes which
+// apsects a function uses. The format of this metadata initially just an
+// integer value corresponding to the enum value in C++. The !sycl_aspects
+// named metadata contains the associations from aspect values to aspect names.
+// This pass takes the associations from !sycl_aspects and then updates all the
+// !sycl_used_aspects metadata to include the aspect names.
 //===----------------------------------------------------------------------===//
 //
 
@@ -37,24 +41,30 @@ PreservedAnalyses AddAspectNamesPass::run(Module &M,
 
   auto &Ctx = M.getContext();
   for (Function &F : M.functions()) {
-    auto *MDNode = F.getMetadata("sycl_used_aspects");
-    if (!MDNode)
-      continue;
+    const char *MetadataToProcess[] = { 
+      "sycl_used_aspects", 
+      "sycl_declared_aspects" 
+    };
+    for (auto MetadataName : MetadataToProcess) {
+      auto *MDNode = F.getMetadata(MetadataName);
+      if (!MDNode)
+        continue;
 
-    // Change the metadata from {1, 2} to
-    // a format like {{"cpu", 1}, {"gpu", 2}}
-    SmallVector<Metadata *, 8> AspectNameValuePairs;
-    for (const auto &MDOp : MDNode->operands()) {
-      const Constant *C = cast<ConstantAsMetadata>(MDOp)->getValue();
-      int64_t AspectValue = cast<ConstantInt>(C)->getSExtValue();
-      if (auto it = ValueToNameValuePairMD.find(AspectValue);
-          it != ValueToNameValuePairMD.end())
-        AspectNameValuePairs.push_back(it->second);
-      else
-        AspectNameValuePairs.push_back(MDOp);
+      // Change the metadata from {1, 2} to
+      // a format like {{"cpu", 1}, {"gpu", 2}}
+      SmallVector<Metadata *, 8> AspectNameValuePairs;
+      for (const auto &MDOp : MDNode->operands()) {
+        const Constant *C = cast<ConstantAsMetadata>(MDOp)->getValue();
+        int64_t AspectValue = cast<ConstantInt>(C)->getSExtValue();
+        if (auto it = ValueToNameValuePairMD.find(AspectValue);
+            it != ValueToNameValuePairMD.end())
+          AspectNameValuePairs.push_back(it->second);
+        else
+          AspectNameValuePairs.push_back(MDOp);
+      }
+
+      F.setMetadata(MetadataName, MDNode::get(Ctx, AspectNameValuePairs));
     }
-
-    F.setMetadata("sycl_used_aspects", MDNode::get(Ctx, AspectNameValuePairs));
   }
 
   return PreservedAnalyses::all();
