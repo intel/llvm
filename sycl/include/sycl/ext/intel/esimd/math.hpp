@@ -403,25 +403,22 @@ __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, sin, sin)
 /// Absolute error: \c 0.0008 or less for the range [-32767*pi, 32767*pi].
 __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, cos, cos)
 
-template <class T = double, int N, class Sat = saturation_off_tag,
-          class = std::enable_if_t<detail::is_generic_floating_point_v<T> &&
-                                   (sizeof(T) > 4)>>
-__ESIMD_API simd<double, N> sqrt(simd<T, N> src, Sat sat = {}) {
+template <class T = double, int N, class Sat = saturation_off_tag>
+__ESIMD_API std::enable_if_t<std::is_same_v<T, double>, simd<double, N>>
+sqrt(simd<T, N> src, Sat sat = {}) {
   return sqrt_ieee(src, sat);
 }
 
 /** Scalar version.                                                       */
-template <class T, class Sat = saturation_off_tag,
-          class = std::enable_if_t<detail::is_generic_floating_point_v<T> &&
-                                   (sizeof(T) > 4)>>
-__ESIMD_API double sqrt(T src, Sat sat = {}) {
+template <class T, class Sat = saturation_off_tag>
+__ESIMD_API std::enable_if_t<std::is_same_v<T, double>, double>
+sqrt(T src, Sat sat = {}) {
   return sqrt_ieee(src, sat);
 }
 
-template <class T, int N, class Sat = saturation_off_tag,
-          class = std::enable_if_t<detail::is_generic_floating_point_v<T> &&
-                                   (sizeof(T) > 4)>>
-__ESIMD_API simd<double, N> rsqrt(simd<T, N> src, Sat sat = {}) {
+template <class T, int N, class Sat = saturation_off_tag>
+__ESIMD_API std::enable_if_t<std::is_same_v<T, double>, simd<double, N>>
+rsqrt(simd<T, N> src, Sat sat = {}) {
   if constexpr (std::is_same_v<Sat, saturation_off_tag>)
     return 1. / sqrt(src);
   else
@@ -429,10 +426,9 @@ __ESIMD_API simd<double, N> rsqrt(simd<T, N> src, Sat sat = {}) {
 }
 
 /** Scalar version.                                                       */
-template <class T, class Sat = saturation_off_tag,
-          class = std::enable_if_t<detail::is_generic_floating_point_v<T> &&
-                                   (sizeof(T) > 4)>>
-__ESIMD_API double rsqrt(T src, Sat sat = {}) {
+template <class T, class Sat = saturation_off_tag>
+__ESIMD_API std::enable_if_t<std::is_same_v<T, double>, double>
+rsqrt(T src, Sat sat = {}) {
   if constexpr (std::is_same_v<Sat, saturation_off_tag>)
     return 1. / sqrt(src);
   else
@@ -714,10 +710,11 @@ pack_mask(simd_mask<N> src0) {
 /// @return an \c uint, where each bit is set if the corresponding element of
 /// the source operand is non-zero and unset otherwise.
 template <typename T, int N>
-__ESIMD_API std::enable_if_t<(std::is_same_v<T, ushort> ||
-                              std::is_same_v<T, uint>)&&(N > 0 && N <= 32),
-                             uint>
-ballot(simd<T, N> mask) {
+__ESIMD_API
+    std::enable_if_t<(std::is_same_v<T, ushort> || std::is_same_v<T, uint>) &&
+                         (N > 0 && N <= 32),
+                     uint>
+    ballot(simd<T, N> mask) {
   simd_mask<N> cmp = (mask != 0);
   if constexpr (N == 8 || N == 16 || N == 32) {
     return __esimd_pack_mask<N>(cmp.data());
