@@ -38,8 +38,7 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 
 # Disable errors from warnings while building the UR.
-# And remember origin flags before doing that.
-set(CMAKE_CXX_FLAGS_BAK "${CMAKE_CXX_FLAGS}")
+# And remember origin flags before doing that. set(CMAKE_CXX_FLAGS_BAK "${CMAKE_CXX_FLAGS}")
 if(WIN32)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX-")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX-")
@@ -94,14 +93,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1e1f577262747d67fcb5c513de4a11bec67ea5db
-  # Merge: dd212f3f 0b405a12
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu May 9 18:00:36 2024 +0100
-  #    Merge pull request #1591 from nrspruit/disable_driver_in_order_lists_default
-  #    [L0] Disable Usage of Driver In order Lists by default
-  set(UNIFIED_RUNTIME_TAG 1e1f577262747d67fcb5c513de4a11bec67ea5db)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/MartinWehking/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG c19b5ac6657ee80094671624100209678c5df1bd)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
