@@ -20,7 +20,7 @@ float make_fp32(uint16_t x) {
 }
 
 bool check(float a, float b) {
-  return fabs(2 * (a - b) / (a + b)) > bf16_eps * 2;
+  return sycl::fabs(2 * (a - b) / (a + b)) > bf16_eps * 2;
 }
 
 bool check(bool a, bool b) { return (a != b); }
@@ -91,8 +91,9 @@ bool check(bool a, bool b) { return (a != b); }
       cgh.parallel_for(N, [=](id<1> index) {                                   \
         float ABF16 = float{bfloat16{A[index]}};                               \
         float BBF16 = float{bfloat16{B[index]}};                               \
-        if (check(NAME(bfloat16{A[index]}, bfloat16{B[index]}),                \
-                  NAME(ABF16, BBF16))) {                                       \
+        if (check(sycl::ext::oneapi::experimental::NAME(bfloat16{A[index]},    \
+                                                        bfloat16{B[index]}),   \
+                  sycl::NAME(ABF16, BBF16))) {                                 \
           ERR[0] = 1;                                                          \
         }                                                                      \
       });                                                                      \
@@ -117,11 +118,12 @@ bool check(bool a, bool b) { return (a != b); }
           arg0[i] = A[index][i];                                               \
           arg1[i] = B[index][i];                                               \
         }                                                                      \
-        marray<bfloat16, SZ> res = NAME(arg0, arg1);                           \
+        marray<bfloat16, SZ> res =                                             \
+            sycl::ext::oneapi::experimental::NAME(arg0, arg1);                 \
         for (int i = 0; i < SZ; i++) {                                         \
           float ABF16 = float{bfloat16{A[index][i]}};                          \
           float BBF16 = float{bfloat16{B[index][i]}};                          \
-          if (check(res[i], NAME(ABF16, BBF16))) {                             \
+          if (check(res[i], sycl::NAME(ABF16, BBF16))) {                       \
             ERR[0] = 1;                                                        \
           }                                                                    \
         }                                                                      \
@@ -156,9 +158,10 @@ bool check(bool a, bool b) { return (a != b); }
         float ABF16 = float{bfloat16{A[index]}};                               \
         float BBF16 = float{bfloat16{B[index]}};                               \
         float CBF16 = float{bfloat16{C[index]}};                               \
-        if (check(NAME(bfloat16{A[index]}, bfloat16{B[index]},                 \
-                       bfloat16{C[index]}),                                    \
-                  NAME(ABF16, BBF16, CBF16))) {                                \
+        if (check(sycl::ext::oneapi::experimental::NAME(bfloat16{A[index]},    \
+                                                        bfloat16{B[index]},    \
+                                                        bfloat16{C[index]}),   \
+                  sycl::NAME(ABF16, BBF16, CBF16))) {                          \
           ERR[0] = 1;                                                          \
         }                                                                      \
       });                                                                      \
@@ -187,12 +190,13 @@ bool check(bool a, bool b) { return (a != b); }
           arg1[i] = B[index][i];                                               \
           arg2[i] = C[index][i];                                               \
         }                                                                      \
-        marray<bfloat16, SZ> res = NAME(arg0, arg1, arg2);                     \
+        marray<bfloat16, SZ> res =                                             \
+            sycl::ext::oneapi::experimental::NAME(arg0, arg1, arg2);           \
         for (int i = 0; i < SZ; i++) {                                         \
           float ABF16 = float{bfloat16{A[index][i]}};                          \
           float BBF16 = float{bfloat16{B[index][i]}};                          \
           float CBF16 = float{bfloat16{C[index][i]}};                          \
-          if (check(res[i], NAME(ABF16, BBF16, CBF16))) {                      \
+          if (check(res[i], sycl::NAME(ABF16, BBF16, CBF16))) {                \
             ERR[0] = 1;                                                        \
           }                                                                    \
         }                                                                      \
@@ -218,9 +222,12 @@ bool check(bool a, bool b) { return (a != b); }
       accessor<float, 1, access::mode::write, target::device> checkNAN(        \
           nan_buf, cgh);                                                       \
       cgh.single_task([=]() {                                                  \
-        checkNAN[0] = NAME(bfloat16{NAN}, bfloat16{NAN});                      \
-        if ((NAME(bfloat16{2}, bfloat16{NAN}) != 2) ||                         \
-            (NAME(bfloat16{NAN}, bfloat16{2}) != 2)) {                         \
+        checkNAN[0] = sycl::ext::oneapi::experimental::NAME(bfloat16{NAN},     \
+                                                            bfloat16{NAN});    \
+        if ((sycl::ext::oneapi::experimental::NAME(bfloat16{2},                \
+                                                   bfloat16{NAN}) != 2) ||     \
+            (sycl::ext::oneapi::experimental::NAME(bfloat16{NAN},              \
+                                                   bfloat16{2}) != 2)) {       \
           ERR[0] = 1;                                                          \
         }                                                                      \
       });                                                                      \
