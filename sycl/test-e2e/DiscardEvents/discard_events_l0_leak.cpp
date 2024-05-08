@@ -14,7 +14,7 @@
 // EventRelease for events, that are used for dependencies between
 // command-lists.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 int main(int argc, char *argv[]) {
   assert(argc == 2 && "Invalid number of arguments");
   std::string use_queue_finish(argv[1]);

@@ -251,9 +251,6 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       }
     }
   }
-  StringRef LibSuffix =
-      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() ? ".obj"
-                                                                     : ".o";
   using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
 
   const SYCLDeviceLibsList SYCLDeviceWrapperLibs = {
@@ -294,7 +291,16 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   const SYCLDeviceLibsList SYCLDeviceSanitizerLibs = {
       {"libsycl-sanitizer", "internal"}};
 #endif
-
+  bool IsWindowsMSVCEnv =
+      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
+  bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
+  StringRef LibSuffix = ".bc";
+  if (TargetTriple.isNVPTX())
+    // For NVidia, we are unbundling objects.
+    LibSuffix = IsWindowsMSVCEnv ? ".obj" : ".o";
+  if (IsNewOffload)
+    // For new offload model, we use packaged .bc files.
+    LibSuffix = IsWindowsMSVCEnv ? ".new.obj" : ".new.o";
   auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
     for (const DeviceLibOptInfo &Lib : LibsList) {
       if (!DeviceLibLinkInfo[Lib.DeviceLibOption])
@@ -367,19 +373,35 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
 // The list should match pre-built SYCL device library files located in
 // compiler package. Once we add or remove any SYCL device library files,
 // the list should be updated accordingly.
-static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList {
-  "bfloat16", "crt", "cmath", "cmath-fp64", "complex", "complex-fp64",
+static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
+    "bfloat16",
+    "crt",
+    "cmath",
+    "cmath-fp64",
+    "complex",
+    "complex-fp64",
 #if defined(_WIN32)
-      "msvc-math",
+    "msvc-math",
 #else
-      "sanitizer",
+    "sanitizer",
 #endif
-      "imf", "imf-fp64", "itt-compiler-wrappers", "itt-stubs",
-      "itt-user-wrappers", "fallback-cassert", "fallback-cstring",
-      "fallback-cmath", "fallback-cmath-fp64", "fallback-complex",
-      "fallback-complex-fp64", "fallback-imf", "fallback-imf-fp64",
-      "fallback-imf-bf16", "fallback-bfloat16", "native-bfloat16"
-};
+    "imf",
+    "imf-fp64",
+    "imf-bf16",
+    "itt-compiler-wrappers",
+    "itt-stubs",
+    "itt-user-wrappers",
+    "fallback-cassert",
+    "fallback-cstring",
+    "fallback-cmath",
+    "fallback-cmath-fp64",
+    "fallback-complex",
+    "fallback-complex-fp64",
+    "fallback-imf",
+    "fallback-imf-fp64",
+    "fallback-imf-bf16",
+    "fallback-bfloat16",
+    "native-bfloat16"};
 
 const char *SYCL::Linker::constructLLVMLinkCommand(
     Compilation &C, const JobAction &JA, const InputInfo &Output,
@@ -415,27 +437,34 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     };
     auto isSYCLDeviceLib = [&](const InputInfo &II) {
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-      StringRef LibPostfix = ".o";
-      if (isNoRDCDeviceCodeLink(II))
-        LibPostfix = ".bc";
-      else if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
-               C.getDriver().IsCLMode())
-        LibPostfix = ".obj";
+      const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
+      StringRef LibPostfix = ".bc";
+      if (IsNVPTX) {
+        LibPostfix = ".o";
+        if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
+            C.getDriver().IsCLMode())
+          LibPostfix = ".obj";
+      }
+      StringRef NewLibPostfix = ".new.o";
+      if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
+          C.getDriver().IsCLMode())
+        NewLibPostfix = ".new.obj";
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
-      const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
       if (IsNVPTX || IsSYCLNativeCPU) {
         // Linking SYCL Device libs requires libclc as well as libdevice
         if ((InputFilename.find("libspirv") != InputFilename.npos ||
              InputFilename.find("libdevice") != InputFilename.npos))
           return true;
-        if (IsNVPTX)
+        if (IsNVPTX) {
           LibPostfix = ".cubin";
+          NewLibPostfix = ".new.cubin";
+        }
       }
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
           !InputFilename.ends_with(LibPostfix) ||
-          (InputFilename.count('-') < 2))
+          InputFilename.ends_with(NewLibPostfix))
         return false;
       // Skip the prefix "libsycl-"
       std::string PureLibName =
@@ -452,7 +481,10 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
             PureLibName.substr(0, FinalDashPos) + PureLibName.substr(DotPos);
       }
       for (const auto &L : SYCLDeviceLibList) {
-        if (StringRef(PureLibName).starts_with(L))
+        std::string DeviceLibName(L);
+        DeviceLibName.append(LibPostfix);
+        if (StringRef(PureLibName).equals(DeviceLibName) ||
+            (IsNVPTX && StringRef(PureLibName).starts_with(L)))
           return true;
       }
       return false;
@@ -463,11 +495,11 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     for (size_t Idx = 1; Idx < InputFileNum; ++Idx)
       LinkSYCLDeviceLibs =
           LinkSYCLDeviceLibs && isSYCLDeviceLib(InputFiles[Idx]);
-    // Go through the Inputs to the link.  When a listfile is encountered, we
-    // know it is an unbundled generated list.
     if (LinkSYCLDeviceLibs) {
       Opts.push_back("-only-needed");
     }
+    // Go through the Inputs to the link.  When a listfile is encountered, we
+    // know it is an unbundled generated list.
     for (const auto &II : InputFiles) {
       std::string FileName = getToolChain().getInputFilename(II);
       if (II.getType() == types::TY_Tempfilelist) {
@@ -896,19 +928,31 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
           .Cases("intel_gpu_whl", "intel_gpu_9_5_0", "whl")
           .Cases("intel_gpu_aml", "intel_gpu_9_6_0", "aml")
           .Cases("intel_gpu_cml", "intel_gpu_9_7_0", "cml")
-          .Cases("intel_gpu_icllp", "intel_gpu_11_0_0", "icllp")
-          .Cases("intel_gpu_ehl", "intel_gpu_jsl", "ehl")
-          .Cases("intel_gpu_tgllp", "intel_gpu_12_0_0", "tgllp")
-          .Case("intel_gpu_rkl", "rkl")
-          .Cases("intel_gpu_adl_s", "intel_gpu_rpl_s", "adl_s")
-          .Case("intel_gpu_adl_p", "adl_p")
-          .Case("intel_gpu_adl_n", "adl_n")
+          .Cases("intel_gpu_icllp", "intel_gpu_icl", "intel_gpu_11_0_0",
+                 "icllp")
+          .Cases("intel_gpu_ehl", "intel_gpu_jsl", "intel_gpu_11_2_0", "ehl")
+          .Cases("intel_gpu_tgllp", "intel_gpu_tgl", "intel_gpu_12_0_0",
+                 "tgllp")
+          .Cases("intel_gpu_rkl", "intel_gpu_12_1_0", "rkl")
+          .Cases("intel_gpu_adl_s", "intel_gpu_rpl_s", "intel_gpu_12_2_0",
+                 "adl_s")
+          .Cases("intel_gpu_adl_p", "intel_gpu_12_3_0", "adl_p")
+          .Cases("intel_gpu_adl_n", "intel_gpu_12_4_0", "adl_n")
           .Cases("intel_gpu_dg1", "intel_gpu_12_10_0", "dg1")
-          .Cases("intel_gpu_acm_g10", "intel_gpu_dg2_g10", "acm_g10")
-          .Cases("intel_gpu_acm_g11", "intel_gpu_dg2_g11", "acm_g11")
-          .Cases("intel_gpu_acm_g12", "intel_gpu_dg2_g12", "acm_g12")
-          .Case("intel_gpu_pvc", "pvc")
-          .Case("intel_gpu_pvc_vg", "pvc_vg")
+          .Cases("intel_gpu_acm_g10", "intel_gpu_dg2_g10", "intel_gpu_12_55_8",
+                 "acm_g10")
+          .Cases("intel_gpu_acm_g11", "intel_gpu_dg2_g11", "intel_gpu_12_56_5",
+                 "acm_g11")
+          .Cases("intel_gpu_acm_g12", "intel_gpu_dg2_g12", "intel_gpu_12_57_0",
+                 "acm_g12")
+          .Cases("intel_gpu_pvc", "intel_gpu_12_60_7", "pvc")
+          .Cases("intel_gpu_pvc_vg", "intel_gpu_12_61_7", "pvc_vg")
+          .Cases("intel_gpu_mtl_u", "intel_gpu_mtl_s", "intel_gpu_arl_u",
+                 "intel_gpu_arl_s", "intel_gpu_12_70_4", "mtl_u")
+          .Cases("intel_gpu_mtl_h", "intel_gpu_12_71_4", "mtl_h")
+          .Cases("intel_gpu_arl_h", "intel_gpu_12_74_4", "arl_h")
+          .Cases("intel_gpu_bmg_g21", "intel_gpu_20_1_4", "bmg_g21")
+          .Cases("intel_gpu_lnl_m", "intel_gpu_20_4_4", "lnl_m")
           .Case("nvidia_gpu_sm_50", "sm_50")
           .Case("nvidia_gpu_sm_52", "sm_52")
           .Case("nvidia_gpu_sm_53", "sm_53")
@@ -990,6 +1034,11 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
                       .Case("acm_g12", "INTEL_GPU_ACM_G12")
                       .Case("pvc", "INTEL_GPU_PVC")
                       .Case("pvc_vg", "INTEL_GPU_PVC_VG")
+                      .Case("mtl_u", "INTEL_GPU_MTL_U")
+                      .Case("mtl_h", "INTEL_GPU_MTL_H")
+                      .Case("arl_h", "INTEL_GPU_ARL_H")
+                      .Case("bmg_g21", "INTEL_GPU_BMG_G21")
+                      .Case("lnl_m", "INTEL_GPU_LNL_M")
                       .Case("sm_50", "NVIDIA_GPU_SM_50")
                       .Case("sm_52", "NVIDIA_GPU_SM_52")
                       .Case("sm_53", "NVIDIA_GPU_SM_53")
@@ -1370,6 +1419,14 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
              Triple.getSubArch() == llvm::Triple::NoSubArch) {
       BeArgs.push_back(Args.MakeArgString(RegAllocModeOptName + DeviceName +
                                           ":" + BackendOptName));
+    }
+  }
+  // only pass -vpfp-relaxed for aoc with -fintelfpga and -fp-model=fast
+  if (Args.hasArg(options::OPT_fintelfpga) && getDriver().IsFPGAHWMode() &&
+      Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
+    if (Arg *A = Args.getLastArg(options::OPT_ffp_model_EQ)) {
+      if (StringRef(A->getValue()).equals("fast"))
+        BeArgs.push_back("-vpfp-relaxed");
     }
   }
   if (IsGen) {

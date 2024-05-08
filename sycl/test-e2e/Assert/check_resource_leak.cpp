@@ -11,6 +11,7 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/builtins.hpp>
+#include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
 
 // DeviceGlobalUSMMem::~DeviceGlobalUSMMem() has asserts to ensure some
