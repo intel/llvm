@@ -4028,6 +4028,8 @@
 ?default_selector_v@_V1@sycl@@YAHAEBVdevice@12@@Z
 ?deleteAccProps@buffer_plain@detail@_V1@sycl@@IEAAXAEBW4PropWithDataKind@234@@Z
 ?deleteAccessorProperty@SYCLMemObjT@detail@_V1@sycl@@QEAAXAEBW4PropWithDataKind@234@@Z
+?depends_on@handler@_V1@sycl@@IEAAXAEBV?$shared_ptr@Vevent_impl@detail@_V1@sycl@@@std@@@Z
+?depends_on@handler@_V1@sycl@@IEAAXAEBV?$vector@V?$shared_ptr@Vevent_impl@detail@_V1@sycl@@@std@@V?$allocator@V?$shared_ptr@Vevent_impl@detail@_V1@sycl@@@std@@@2@@std@@@Z
 ?depends_on@handler@_V1@sycl@@QEAAXAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
 ?depends_on@handler@_V1@sycl@@QEAAXVevent@23@@Z
 ?destroy_external_semaphore@experimental@oneapi@ext@_V1@sycl@@YAXUinterop_semaphore_handle@12345@AEBVdevice@45@AEBVcontext@45@@Z
