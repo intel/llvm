@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 7ce68e09b47f6f7f7ad61b15c302a19462bbe887
-  # Merge: 5a23b18e 84bad6c7
+  # commit 6d5d84c2ad706e32c7ae01d63a08cbb03410e580
+  # Merge: 7ce68e09 cb3d9454
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed May 8 13:25:25 2024 +0100
-  #     Merge pull request #1400 from steffenlarsen/steffen/record_event
-  #     [UR][L0][CUDA][HIP] Add enqueue timestamp recording extension
-  set(UNIFIED_RUNTIME_TAG 7ce68e09b47f6f7f7ad61b15c302a19462bbe887)
+  # Date:   Wed May 8 16:02:54 2024 +0100
+  #     Merge pull request #1588 from steffenlarsen/steffen/fix_timestamp_merge_mistake
+  #     [CUDA] Add back device info enums after merge mistake
+  set(UNIFIED_RUNTIME_TAG 6d5d84c2ad706e32c7ae01d63a08cbb03410e580)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
