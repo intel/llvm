@@ -9,7 +9,7 @@ using urContextCreateWithNativeHandleTest = uur::urContextTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urContextCreateWithNativeHandleTest);
 
 TEST_P(urContextCreateWithNativeHandleTest, Success) {
-    ur_native_handle_t native_context = nullptr;
+    ur_native_handle_t native_context = 0;
     {
         UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
             urContextGetNativeHandle(context, &native_context));
@@ -33,7 +33,7 @@ TEST_P(urContextCreateWithNativeHandleTest, Success) {
 }
 
 TEST_P(urContextCreateWithNativeHandleTest, SuccessWithOwnedNativeHandle) {
-    ur_native_handle_t native_context = nullptr;
+    ur_native_handle_t native_context = 0;
     {
         UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
             urContextGetNativeHandle(context, &native_context));
@@ -53,7 +53,7 @@ TEST_P(urContextCreateWithNativeHandleTest, SuccessWithOwnedNativeHandle) {
 }
 
 TEST_P(urContextCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
-    ur_native_handle_t native_context = nullptr;
+    ur_native_handle_t native_context = 0;
     {
         UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
             urContextGetNativeHandle(context, &native_context));
@@ -75,7 +75,7 @@ TEST_P(urContextCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
 }
 
 TEST_P(urContextCreateWithNativeHandleTest, InvalidNullPointerDevices) {
-    ur_native_handle_t native_context = nullptr;
+    ur_native_handle_t native_context = 0;
     ASSERT_SUCCESS(urContextGetNativeHandle(context, &native_context));
 
     ur_context_handle_t ctx = nullptr;
@@ -85,7 +85,7 @@ TEST_P(urContextCreateWithNativeHandleTest, InvalidNullPointerDevices) {
 }
 
 TEST_P(urContextCreateWithNativeHandleTest, InvalidNullPointerContext) {
-    ur_native_handle_t native_context = nullptr;
+    ur_native_handle_t native_context = 0;
     ASSERT_SUCCESS(urContextGetNativeHandle(context, &native_context));
 
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,

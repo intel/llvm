@@ -926,7 +926,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
 
   // we dont have urEventCreate, so use this check for now to know that
   // the call comes from urEventCreate()
-  if (NativeEvent == nullptr) {
+  if (reinterpret_cast<ze_event_handle_t>(NativeEvent) == nullptr) {
     UR_CALL(EventCreate(Context, nullptr, false, true, Event));
 
     (*Event)->RefCountExternal++;

@@ -9,7 +9,7 @@ using urHipContextGetNativeHandleTest = uur::urContextTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urHipContextGetNativeHandleTest);
 
 TEST_P(urHipContextGetNativeHandleTest, Success) {
-    ur_native_handle_t native_context = nullptr;
+    ur_native_handle_t native_context = 0;
     ASSERT_SUCCESS(urContextGetNativeHandle(context, &native_context));
     hipCtx_t hip_context = reinterpret_cast<hipCtx_t>(native_context);
     std::ignore = hip_context;

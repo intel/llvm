@@ -121,7 +121,9 @@ ${th.make_func_name(n, tags, obj)}(
     );
 ## HANDLE #####################################################################
 %elif re.match(r"handle", obj['type']):
-%if 'alias' in obj:
+%if th.type_traits.is_native_handle(obj['name']):
+typedef uintptr_t ${th.subt(n, tags, obj['name'])};
+%elif 'alias' in obj:
 typedef ${th.subt(n, tags, obj['alias'])} ${th.subt(n, tags, obj['name'])};
 %else:
 typedef struct ${th.subt(n, tags, obj['name'])}_ *${th.subt(n, tags, obj['name'])};
