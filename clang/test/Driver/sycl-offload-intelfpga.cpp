@@ -275,12 +275,12 @@
 // RUN:  | FileCheck -check-prefix UNBUNDLE_DEVICELIB %s
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_fpga -ccc-print-phases %s 2>&1 \
 // RUN:  | FileCheck -check-prefix UNBUNDLE_DEVICELIB %s
-// UNBUNDLE_DEVICELIB: [[#DEVLIB:]]: input, "{{.*}}libsycl-itt-user-wrappers.o", object
+// UNBUNDLE_DEVICELIB: [[#DEVLIB:]]: input, "{{.*}}libsycl-itt-user-wrappers{{.*}}", object
 // UNBUNDLE_DEVICELIB: [[#DEVLIB+1]]: clang-offload-unbundler, {[[#DEVLIB]]}, object
 // UNBUNDLE_DEVICELIB: [[#DEVLIB+2]]: offload, " (spir64_fpga-unknown-unknown)" {[[#DEVLIB+1]]}, object
-// UNBUNDLE_DEVICELIB: [[#DEVLIB+3]]: input, "{{.*}}libsycl-itt-compiler-wrappers.o", object
+// UNBUNDLE_DEVICELIB: [[#DEVLIB+3]]: input, "{{.*}}libsycl-itt-compiler-wrappers{{.*}}", object
 // UNBUNDLE_DEVICELIB: [[#DEVLIB+4]]: clang-offload-unbundler, {[[#DEVLIB+3]]}, object
 // UNBUNDLE_DEVICELIB: [[#DEVLIB+5]]: offload, " (spir64_fpga-unknown-unknown)" {[[#DEVLIB+4]]}, object
-// UNBUNDLE_DEVICELIB: [[#DEVLIB+6]]: input, "{{.*}}libsycl-itt-stubs.o", object
+// UNBUNDLE_DEVICELIB: [[#DEVLIB+6]]: input, "{{.*}}libsycl-itt-stubs{{.*}}", object
 // UNBUNDLE_DEVICELIB: [[#DEVLIB+7]]: clang-offload-unbundler, {[[#DEVLIB+6]]}, object
 // UNBUNDLE_DEVICELIB: [[#DEVLIB+8]]: offload, " (spir64_fpga-unknown-unknown)" {[[#DEVLIB+7]]}, object
