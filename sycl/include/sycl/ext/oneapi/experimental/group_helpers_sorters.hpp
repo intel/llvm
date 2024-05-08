@@ -32,8 +32,6 @@
 #include <system_error> // for error_code
 #include <type_traits>  // for is_same, is_arithmetic
 
-#include <sycl/ext/oneapi/experimental/builtins.hpp>
-
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
@@ -149,11 +147,7 @@ public:
         "default_sorter operator() is not supported on host device.");
 #endif
   }
-#ifdef __SYCL_DEVICE_ONLY__
-#define CONSTANT __attribute__((opencl_constant))
-#else
-#define CONSTANT
-#endif
+
   // TODO: Add a check for the property type
   template <typename Group, typename Properties>
   void operator()(Group g, sycl::span<T, ElementsPerWorkItem> values,
@@ -178,10 +172,6 @@ public:
             return comp(std::get<0>(x), std::get<0>(y));
           },
           scratch + range_size * ElementsPerWorkItem * sizeof(T) + alignof(T));
-      // sycl::detail::merge_sort(
-      //     g, temp, range_size * ElementsPerWorkItem,
-      //     comp,
-      //     scratch + range_size * ElementsPerWorkItem * sizeof(T) + alignof(T));
       // from temp
       std::size_t shift{};
       for (std::uint32_t i = 0; i < ElementsPerWorkItem; ++i) {
@@ -193,19 +183,6 @@ public:
         values[i] = temp[shift];
       }
 
-      // if (local_id == 0) {
-      //   ext::oneapi::experimental::printf(fmt, "\nAfter sort", range_size, g.get_group_linear_id());
-      //   for (std::uint32_t i = 0; i < range_size; ++i) {
-      //     for (std::uint32_t j = 0; j < ElementsPerWorkItem; ++j) {
-      //       static const CONSTANT char fmt[] = "%d ";
-      //       ext::oneapi::experimental::printf(fmt, temp[i * ElementsPerWorkItem + j]);
-      //     }
-      //   }
-      // }
-
-
-    } else {
-      //ext::oneapi::experimental::printf(fmt, "UNEXPECTED");
     }
 #endif
     (void)values;
