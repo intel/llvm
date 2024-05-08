@@ -95,23 +95,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit fcd3693d1b54ddad1fcbe9e2c749c01628739346
-  # Merge: c8a0d84b 5d51c9a1
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri May 3 19:12:25 2024 +0100
-  #    Merge pull request #1513 from aarongreig/aaron/minorL0DeviceInfoFixes
-  #    Fix some minor bugs in L0 urDeviceGetInfo revealed by PI->UR port
-  set(UNIFIED_RUNTIME_TAG fcd3693d1b54ddad1fcbe9e2c749c01628739346)
+  # commit 8438b8a1de1ddc6e05e3bc012fb6be74d2e830e4
+  # Merge: 6076b0622452 847b3ace28b8
+  # Author: Fábio <fabio.mestre@codeplay.com>
+  # Date:   Mon May 6 18:00:46 2024 +0100
+  #    Merge branch 'main' into fabio/command-buffer-refactor
+  #    [EXP][Command-Buffer] Remove duplicated code from headers
+  set(UNIFIED_RUNTIME_TAG 8438b8a1de1ddc6e05e3bc012fb6be74d2e830e4)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit fb342f06e1ac244c5995b7be458d0c32a1ba17ab
-    # Merge: a44e81b5 7186d6ce
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri May 3 11:55:26 2024 +0100
-    #     Merge pull request #1549 from igchor/event_fix
-    #     Fix adding event to queue cache
-    fb342f06e1ac244c5995b7be458d0c32a1ba17ab
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
