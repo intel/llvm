@@ -926,7 +926,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // CUDA supports cubemap seamless filtering.
     return ReturnValue(true);
   }
-    case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP: {
     // CUDA does support fetching 1D USM sampled image data.
     return ReturnValue(true);
   }
