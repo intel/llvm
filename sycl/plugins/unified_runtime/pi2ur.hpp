@@ -3889,12 +3889,11 @@ inline pi_result piEnqueueMemBufferFill(pi_queue Queue, pi_mem Buffer,
   return PI_SUCCESS;
 }
 
-inline pi_result piextUSMEnqueueFill(pi_queue Queue, void *Ptr,
-                                     const void *Pattern, size_t PatternSize,
-                                     size_t Count,
-                                     pi_uint32 NumEventsInWaitList,
-                                     const pi_event *EventsWaitList,
-                                     pi_event *OutEvent) {
+inline pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr,
+                                       pi_int32 Value, size_t Count,
+                                       pi_uint32 NumEventsInWaitList,
+                                       const pi_event *EventsWaitList,
+                                       pi_event *OutEvent) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   if (!Ptr) {
     return PI_ERROR_INVALID_VALUE;
@@ -3906,7 +3905,8 @@ inline pi_result piextUSMEnqueueFill(pi_queue Queue, void *Ptr,
 
   ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
-  HANDLE_ERRORS(urEnqueueUSMFill(UrQueue, Ptr, PatternSize, Pattern, Count,
+  size_t PatternSize = 1;
+  HANDLE_ERRORS(urEnqueueUSMFill(UrQueue, Ptr, PatternSize, &Value, Count,
                                  NumEventsInWaitList, UrEventsWaitList,
                                  UREvent));
 
