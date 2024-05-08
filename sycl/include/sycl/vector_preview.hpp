@@ -157,14 +157,11 @@ using vec_data_t = typename detail::vec_helper<T>::NativeType;
 
 // data_type_single_t and data_type_multiple_t are data types
 // used to store sycl::vec on host and device.
-template <typename T>
-using data_type_single_t = T;
-
 template <typename T, int N>
 using data_type_multiple_t = typename std::conditional_t<
     // bool
     std::is_same_v<T, bool>, std::array<int8_t, N>,
-    std::array<data_type_single_t<T>, N>>;
+    std::array<T, N>>;
 
 // sycl::vec is converted to vector_t_single and vector_t_multiple
 // data types on device for use in SPIRV builtins.
@@ -182,7 +179,7 @@ using vector_t_single = typename std::conditional_t<
                                      false, T,
                                      typename std::conditional_t<
 #endif
-                                        true, data_type_single_t<T>, T>>>>;
+                                        true, T, T>>>>;
 
 template <typename T, int N>
 using vector_t_multiple = typename std::conditional_t<
@@ -206,16 +203,12 @@ template <typename Type, int NumElements> class vec {
 
   // This represent type of underlying value. There should be only one field
   // in the class, so vec<float, 16> should be equal to float16 in memory.
-  using DataType =
-      typename std::conditional_t<AdjustedNum == 1, data_type_single_t<DataT>,
-                                  data_type_multiple_t<DataT, AdjustedNum>>;
+  using DataType = data_type_multiple_t<DataT, AdjustedNum>;
 
 public:
 #ifdef __SYCL_DEVICE_ONLY__
   // Type used for passing sycl::vec to SPIRV builtins.
-  using vector_t =
-      typename std::conditional_t<AdjustedNum == 1, vector_t_single<DataT>,
-                                  vector_t_multiple<DataT, NumElements>>;
+  using vector_t = vector_t_multiple<DataT, NumElements>;
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
@@ -274,7 +267,9 @@ private:
   }
   template <typename DataT_, typename T>
   static constexpr auto FlattenVecArgHelper(const T &A) {
-    return std::array<DataT_, 1>{A};
+    // static_cast required to avoid narrowing conversion warning
+    // when T = unsigned long int and DataT_ = int.
+    return std::array<DataT_, 1>{static_cast<DataT_>(A)};
   }
   template <typename DataT_, typename T> struct FlattenVecArg {
     constexpr auto operator()(const T &A) const {
@@ -450,18 +445,14 @@ public:
    * type defined by vector_t.
    */
   operator vector_t() const {
-    if constexpr (NumElements == 1) {
-      return m_Data;
-    } else {
       return sycl::bit_cast<vector_t>(m_Data);
-    }
   }
 #endif // __SYCL_DEVICE_ONLY__
 
   // Available only when: NumElements == 1
   template <int N = NumElements>
   operator typename std::enable_if_t<N == 1, DataT>() const {
-    return vec_data<DataT>::set(m_Data);
+    return vec_data<DataT>::set(m_Data[0]);
   }
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
@@ -1012,9 +1003,9 @@ public:
     namespace oneapi = sycl::ext::oneapi;
     vec Ret{};
     if constexpr (IsBfloat16 && NumElements == 1) {
-      oneapi::bfloat16 v = oneapi::detail::bitsToBfloat16(Lhs.m_Data);
+      oneapi::bfloat16 v = oneapi::detail::bitsToBfloat16(Lhs.m_Data[0]);
       oneapi::bfloat16 w = -v;
-      Ret.m_Data = oneapi::detail::bfloat16ToBits(w);
+      Ret.m_Data[0] = oneapi::detail::bfloat16ToBits(w);
     } else if constexpr (IsBfloat16) {
       for (size_t I = 0; I < NumElements; I++) {
         oneapi::bfloat16 v = oneapi::detail::bitsToBfloat16(Lhs.m_Data[I]);
@@ -1041,17 +1032,17 @@ private:
   // setValue and getValue should be able to operate on different underlying
   // types: enum cl_float#N , builtin vector float#N, builtin type float.
   constexpr auto getValue(int Index) const {
-    if constexpr (NumElements == 1)
-      return vec_data<DataT>::get(m_Data);
-    else
-      return vec_data<DataT>::get(m_Data[Index]);
+#ifndef __SYCL_DEVICE_ONLY__
+    assert(Index < NumElements && "Index out of range");
+#endif
+    return vec_data<DataT>::get(m_Data[Index]);
   }
 
   constexpr void setValue(int Index, const DataT &Value) {
-    if constexpr (NumElements == 1)
-      m_Data = vec_data<DataT>::set(Value);
-    else
-      m_Data[Index] = vec_data<DataT>::set(Value);
+#ifndef __SYCL_DEVICE_ONLY__
+    assert(Index < NumElements && "Index out of range");
+#endif
+    m_Data[Index] = vec_data<DataT>::set(Value);
   }
 
   // fields
