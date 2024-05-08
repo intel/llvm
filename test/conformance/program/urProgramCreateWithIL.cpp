@@ -17,7 +17,7 @@ struct urProgramCreateWithILTest : uur::urContextTest {
         if (backend == UR_PLATFORM_BACKEND_HIP) {
             GTEST_SKIP();
         }
-        uur::KernelsEnvironment::instance->LoadSource("foo", 0, il_binary);
+        uur::KernelsEnvironment::instance->LoadSource("foo", il_binary);
     }
 
     void TearDown() override {
@@ -72,4 +72,13 @@ TEST_P(urProgramCreateWithILTest, InvalidNullPointerProgram) {
                      urProgramCreateWithIL(context, il_binary->data(),
                                            il_binary->size(), nullptr,
                                            nullptr));
+}
+
+TEST_P(urProgramCreateWithILTest, BuildInvalidProgram) {
+    ur_program_handle_t program = nullptr;
+    char binary[] = {0, 1, 2, 3, 4};
+    auto result = urProgramCreateWithIL(context, &binary, 5, nullptr, &program);
+    // The driver is not required to reject the binary
+    ASSERT_TRUE(result == UR_RESULT_ERROR_INVALID_BINARY ||
+                result == UR_RESULT_SUCCESS);
 }

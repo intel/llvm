@@ -16,8 +16,8 @@
 #include <vector>
 
 #include "adapter.hpp"
-#include "adapters/level_zero/event.hpp"
 #include "common.hpp"
+#include "event.hpp"
 #include "queue.hpp"
 #include "ur_api.h"
 #include "ur_level_zero.hpp"
@@ -451,8 +451,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(
     return ReturnValue(true);
   }
   default:
-    urPrint("Unsupported ParamName in urQueueGetInfo: ParamName=%d(0x%x)\n",
-            ParamName, ParamName);
+    logger::error(
+        "Unsupported ParamName in urQueueGetInfo: ParamName=ParamName={}(0x{})",
+        ParamName, logger::toHex(ParamName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -981,9 +982,9 @@ static const zeCommandListBatchConfig ZeCommandListBatchConfig(bool IsCopy) {
           Val = std::stoi(BatchConfig.substr(Pos));
         } catch (...) {
           if (IsCopy)
-            urPrint("UR_L0_COPY_BATCH_SIZE: failed to parse value\n");
+            logger::error("UR_L0_COPY_BATCH_SIZE: failed to parse value");
           else
-            urPrint("UR_L0_BATCH_SIZE: failed to parse value\n");
+            logger::error("UR_L0_BATCH_SIZE: failed to parse value");
           break;
         }
         switch (Ord) {
@@ -1006,20 +1007,20 @@ static const zeCommandListBatchConfig ZeCommandListBatchConfig(bool IsCopy) {
           die("Unexpected batch config");
         }
         if (IsCopy)
-          urPrint("UR_L0_COPY_BATCH_SIZE: dynamic batch param "
-                  "#%d: %d\n",
-                  (int)Ord, (int)Val);
+          logger::error("UR_L0_COPY_BATCH_SIZE: dynamic batch param "
+                        "#{}: {}",
+                        (int)Ord, (int)Val);
         else
-          urPrint("UR_L0_BATCH_SIZE: dynamic batch param #%d: %d\n", (int)Ord,
-                  (int)Val);
+          logger::error("UR_L0_BATCH_SIZE: dynamic batch param #{}: {}",
+                        (int)Ord, (int)Val);
       };
 
     } else {
       // Negative batch sizes are silently ignored.
       if (IsCopy)
-        urPrint("UR_L0_COPY_BATCH_SIZE: ignored negative value\n");
+        logger::warning("UR_L0_COPY_BATCH_SIZE: ignored negative value");
       else
-        urPrint("UR_L0_BATCH_SIZE: ignored negative value\n");
+        logger::warning("UR_L0_BATCH_SIZE: ignored negative value");
     }
   }
   return Config;
@@ -1166,6 +1167,20 @@ ur_queue_handle_t_::ur_queue_handle_t_(
   ComputeCommandBatch.QueueBatchSize =
       ZeCommandListBatchComputeConfig.startSize();
   CopyCommandBatch.QueueBatchSize = ZeCommandListBatchCopyConfig.startSize();
+
+  static const bool useDriverCounterBasedEvents = [Device] {
+    const char *UrRet = std::getenv("UR_L0_USE_DRIVER_COUNTER_BASED_EVENTS");
+    if (!UrRet) {
+      if (Device->isPVC())
+        return true;
+      return false;
+    }
+    return std::atoi(UrRet) != 0;
+  }();
+  this->CounterBasedEventsEnabled =
+      UsingImmCmdLists && isInOrderQueue() && Device->useDriverInOrderLists() &&
+      useDriverCounterBasedEvents &&
+      Device->Platform->ZeDriverEventPoolCountingEventsExtensionFound;
 }
 
 void ur_queue_handle_t_::adjustBatchSizeForFullBatch(bool IsCopy) {
@@ -1188,7 +1203,7 @@ void ur_queue_handle_t_::adjustBatchSizeForFullBatch(bool IsCopy) {
           ZeCommandListBatchConfig.NumTimesClosedFullThreshold) {
     if (QueueBatchSize < ZeCommandListBatchConfig.DynamicSizeMax) {
       QueueBatchSize += ZeCommandListBatchConfig.DynamicSizeStep;
-      urPrint("Raising QueueBatchSize to %d\n", QueueBatchSize);
+      logger::debug("Raising QueueBatchSize to {}", QueueBatchSize);
     }
     CommandBatch.NumTimesClosedEarly = 0;
     CommandBatch.NumTimesClosedFull = 0;
@@ -1215,7 +1230,7 @@ void ur_queue_handle_t_::adjustBatchSizeForPartialBatch(bool IsCopy) {
     QueueBatchSize = CommandBatch.OpenCommandList->second.size() - 1;
     if (QueueBatchSize < 1)
       QueueBatchSize = 1;
-    urPrint("Lowering QueueBatchSize to %d\n", QueueBatchSize);
+    logger::debug("Lowering QueueBatchSize to {}", QueueBatchSize);
     CommandBatch.NumTimesClosedEarly = 0;
     CommandBatch.NumTimesClosedFull = 0;
   }
@@ -1322,6 +1337,7 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
     // in the command list is not empty, otherwise we are going to just create
     // and remove proxy event right away and dereference deleted object
     // afterwards.
+    bool AppendBarrierNeeded = true;
     if (ZeEventsScope == LastCommandInBatchHostVisible &&
         !CommandList->second.EventList.empty()) {
       // If there are only internal events in the command list then we don't
@@ -1390,6 +1406,7 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
           ZE2UR_CALL(zeCommandListAppendSignalEvent,
                      (CommandList->first, HostVisibleEvent->ZeEvent));
         } else {
+          AppendBarrierNeeded = false;
           ZE2UR_CALL(
               zeCommandListAppendBarrier,
               (CommandList->first, HostVisibleEvent->ZeEvent, 0, nullptr));
@@ -1401,6 +1418,27 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
     } else {
       // If we don't have host visible proxy then signal event if needed.
       this->signalEventFromCmdListIfLastEventDiscarded(CommandList);
+    }
+    // Append Signalling of the inner events at the end of the batch if this is
+    // an integrated gpu and out of order signal events are not allowed.
+    if (!UrL0OutOfOrderIntegratedSignalEvent && this->Device->isIntegrated()) {
+      for (auto &Event : CommandList->second.EventList) {
+        // If the events scope does not apply a barrier already above, then we
+        // need to apply a barrier to wait on all the previous commands without
+        // signal events to complete before we can signal the batched events as
+        // completed. This functionality is only used if this command list is
+        // out of order and there are events created that were not used as
+        // signal events.
+        if (Event->IsInnerBatchedEvent) {
+          if (AppendBarrierNeeded) {
+            ZE2UR_CALL(zeCommandListAppendBarrier,
+                       (CommandList->first, nullptr, 0, nullptr));
+            AppendBarrierNeeded = false;
+          }
+          ZE2UR_CALL(zeCommandListAppendSignalEvent,
+                     (CommandList->first, Event->ZeEvent));
+        }
+      }
     }
 
     // Close the command list and have it ready for dispatch.
@@ -1415,10 +1453,6 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
         (ZeCommandQueue, 1, &ZeCommandList, CommandList->second.ZeFence));
     if (ZeResult != ZE_RESULT_SUCCESS) {
       this->Healthy = false;
-      if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
-        // Turn into a more informative end-user error.
-        return UR_RESULT_ERROR_UNKNOWN;
-      }
       // Reset Command List and erase the Fence forcing the user to resubmit
       // their commands.
       std::vector<ur_event_handle_t> EventListToCleanup;
@@ -1450,8 +1484,10 @@ ur_queue_handle_t_::resetDiscardedEvent(ur_command_list_ptr_t CommandList) {
   if (LastCommandEvent && LastCommandEvent->IsDiscarded) {
     ZE2UR_CALL(zeCommandListAppendBarrier,
                (CommandList->first, nullptr, 1, &(LastCommandEvent->ZeEvent)));
-    ZE2UR_CALL(zeCommandListAppendEventReset,
-               (CommandList->first, LastCommandEvent->ZeEvent));
+    if (!CounterBasedEventsEnabled) {
+      ZE2UR_CALL(zeCommandListAppendEventReset,
+                 (CommandList->first, LastCommandEvent->ZeEvent));
+    }
 
     // Create new ur_event_handle_t but with the same ze_event_handle_t. We are
     // going to use this ur_event_handle_t for the next command with discarded
@@ -1478,8 +1514,7 @@ ur_queue_handle_t_::resetDiscardedEvent(ur_command_list_ptr_t CommandList) {
 }
 
 ur_result_t ur_queue_handle_t_::addEventToQueueCache(ur_event_handle_t Event) {
-  if (!Event->IsMultiDevice && Event->UrQueue) {
-    auto Device = Event->UrQueue->Device;
+  if (!Event->IsMultiDevice) {
     auto EventCachesMap = Event->isHostVisible() ? &EventCachesDeviceMap[0]
                                                  : &EventCachesDeviceMap[1];
     if (EventCachesMap->find(Device) == EventCachesMap->end()) {
@@ -1531,14 +1566,14 @@ ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
           }
   }
 
-  urPrint("urQueueRelease(compute) NumTimesClosedFull %d, "
-          "NumTimesClosedEarly %d\n",
-          UrQueue->ComputeCommandBatch.NumTimesClosedFull,
-          UrQueue->ComputeCommandBatch.NumTimesClosedEarly);
-  urPrint("urQueueRelease(copy) NumTimesClosedFull %d, NumTimesClosedEarly "
-          "%d\n",
-          UrQueue->CopyCommandBatch.NumTimesClosedFull,
-          UrQueue->CopyCommandBatch.NumTimesClosedEarly);
+  logger::debug("urQueueRelease(compute) NumTimesClosedFull {}, "
+                "NumTimesClosedEarly {}",
+                UrQueue->ComputeCommandBatch.NumTimesClosedFull,
+                UrQueue->ComputeCommandBatch.NumTimesClosedEarly);
+  logger::debug(
+      "urQueueRelease(copy) NumTimesClosedFull {}, NumTimesClosedEarly {}",
+      UrQueue->CopyCommandBatch.NumTimesClosedFull,
+      UrQueue->CopyCommandBatch.NumTimesClosedEarly);
 
   delete UrQueue;
 
@@ -1721,6 +1756,58 @@ ur_event_handle_t ur_queue_handle_t_::getEventFromQueueCache(bool IsMultiDevice,
   return RetEvent;
 }
 
+// This helper function checks to see if an event for a command can be included
+// at the end of a command list batch. This will only be true if the event does
+// not have dependencies or the dependencies are not for events which exist in
+// this batch.
+bool eventCanBeBatched(ur_queue_handle_t Queue, bool UseCopyEngine,
+                       uint32_t NumEventsInWaitList,
+                       const ur_event_handle_t *EventWaitList) {
+  auto &CommandBatch =
+      UseCopyEngine ? Queue->CopyCommandBatch : Queue->ComputeCommandBatch;
+  // First see if there is an command-list open for batching commands
+  // for this queue.
+  if (Queue->hasOpenCommandList(UseCopyEngine)) {
+    // If this command should be batched, but the command has a dependency on a
+    // command in the current batch, then the command needs to have an event
+    // to track its completion so this event cannot be batched to the end of the
+    // command list.
+    if (NumEventsInWaitList > 0) {
+      for (auto &Event : CommandBatch.OpenCommandList->second.EventList) {
+        for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
+          if (Event == EventWaitList[i]) {
+            return false;
+          }
+        }
+      }
+    }
+  }
+  return true;
+}
+
+// This helper function checks to see if a signal event at the end of a command
+// should be set. If the Queue is out of order and the command has no
+// dependencies, then this command can be enqueued without a signal event set in
+// a command list batch. The signal event will be appended at the end of the
+// batch to be signalled at the end of the command list.
+ur_result_t setSignalEvent(ur_queue_handle_t Queue, bool UseCopyEngine,
+                           ze_event_handle_t *ZeEvent, ur_event_handle_t *Event,
+                           uint32_t NumEventsInWaitList,
+                           const ur_event_handle_t *EventWaitList,
+                           ze_command_queue_handle_t ZeQueue) {
+  if (!UrL0OutOfOrderIntegratedSignalEvent && Queue->Device->isIntegrated() &&
+      eventCanBeBatched(Queue, UseCopyEngine, NumEventsInWaitList,
+                        EventWaitList) &&
+      !Queue->isInOrderQueue() && !Queue->UsingImmCmdLists) {
+    ZeEvent = nullptr;
+    (*Event)->IsInnerBatchedEvent = true;
+    (*Event)->ZeBatchedQueue = ZeQueue;
+  } else {
+    (*ZeEvent) = (*Event)->ZeEvent;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
 // This helper function creates a ur_event_handle_t and associate a
 // ur_queue_handle_t. Note that the caller of this function must have acquired
 // lock on the Queue that is passed in.
@@ -1753,7 +1840,8 @@ ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
 
   if (*Event == nullptr)
     UR_CALL(EventCreate(Queue->Context, Queue, IsMultiDevice,
-                        HostVisible.value(), Event));
+                        HostVisible.value(), Event,
+                        Queue->CounterBasedEventsEnabled));
 
   (*Event)->UrQueue = Queue;
   (*Event)->CommandType = CommandType;
@@ -2072,10 +2160,10 @@ ur_queue_handle_t_::ur_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
     ZeCommandQueueDesc.flags = ZE_COMMAND_QUEUE_FLAG_EXPLICIT_ONLY;
   }
 
-  urPrint("[getZeQueue]: create queue ordinal = %d, index = %d "
-          "(round robin in [%d, %d]) priority = %s\n",
-          ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
-          UpperIndex, Priority);
+  logger::debug("[getZeQueue]: create queue ordinal = {}, index = {} "
+                "(round robin in [{}, {}]) priority = {}",
+                ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index,
+                LowerIndex, UpperIndex, Priority);
 
   auto ZeResult = ZE_CALL_NOCHECK(
       zeCommandQueueCreate, (Queue->Context->ZeContext, Queue->Device->ZeDevice,
@@ -2287,10 +2375,10 @@ ur_command_list_ptr_t &ur_queue_handle_t_::ur_queue_group_t::getImmCmdList() {
 
   // If cache didn't contain a command list, create one.
   if (!ZeCommandList) {
-    urPrint("[getZeQueue]: create queue ordinal = %d, index = %d "
-            "(round robin in [%d, %d]) priority = %s\n",
-            ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
-            UpperIndex, Priority);
+    logger::debug("[getZeQueue]: create queue ordinal = {}, index = {} "
+                  "(round robin in [{}, {}]) priority = {}",
+                  ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index,
+                  LowerIndex, UpperIndex, Priority);
 
     ZE_CALL_NOCHECK(zeCommandListCreateImmediate,
                     (Queue->Context->ZeContext, Queue->Device->ZeDevice,
