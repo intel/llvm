@@ -141,6 +141,7 @@ int main() {
     // bit binary op for 2 swizzle
     // TODO: Fix >> and << for swizzle of std::byte. Currently, Swizzles assume that both operands
     // of the >> abd << operator have the same data type. That is not the case with std::byte.
+  
     // swlo >> 3;
     // swlo << 3;
 
