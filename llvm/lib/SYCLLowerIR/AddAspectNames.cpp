@@ -41,10 +41,8 @@ PreservedAnalyses AddAspectNamesPass::run(Module &M,
 
   auto &Ctx = M.getContext();
   for (Function &F : M.functions()) {
-    const char *MetadataToProcess[] = { 
-      "sycl_used_aspects", 
-      "sycl_declared_aspects" 
-    };
+    const char *MetadataToProcess[] = {"sycl_used_aspects",
+                                       "sycl_declared_aspects"};
     for (auto MetadataName : MetadataToProcess) {
       auto *MDNode = F.getMetadata(MetadataName);
       if (!MDNode)
