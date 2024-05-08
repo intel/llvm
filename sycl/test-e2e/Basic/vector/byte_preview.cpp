@@ -14,6 +14,10 @@
 #include <cstddef> // std::byte
 #include <tuple>   // std::ignore
 
+// std::byte is not an arithmetic type or a character type, so std::byte and
+// vec<std::byte> support a limited set of operations. Namely, bitwise
+// operations, comparison operations, and shift operations.
+
 int main() {
   std::byte bt{7};
   // constructors
@@ -131,10 +135,6 @@ int main() {
     auto swor3 = std::byte{3} | swlo;
     auto swxor3 = std::byte{3} ^ swlo;
 
-    // bit binary op for 2 vec
-    vop = vop1 && vop2;
-    vop = vop1 || vop2;
-
     vop = vop1 << 3;
     vop = vop1 >> 3;
 
@@ -182,7 +182,6 @@ int main() {
 
     sycl::vec<std::byte, 3> voptest{std::byte{4}, std::byte{9}, std::byte{25}};
     auto bitv1 = ~vop3;
-    auto bitv2 = !vop3;
     auto bitw = ~swhi;
   }
 
