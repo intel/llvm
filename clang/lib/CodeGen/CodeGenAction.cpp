@@ -62,10 +62,6 @@ using namespace llvm;
 
 #define DEBUG_TYPE "codegenaction"
 
-namespace llvm {
-extern cl::opt<bool> ClRelinkBuiltinBitcodePostop;
-}
-
 namespace clang {
   class BackendConsumer;
   class ClangDiagnosticHandler final : public DiagnosticHandler {
@@ -1384,7 +1380,7 @@ void CodeGenAction::ExecuteAction() {
                          std::move(LinkModules), *VMContext, nullptr);
 
   // Link in each pending link module.
-  if (Result.LinkInModules(&*TheModule))
+  if (!CodeGenOpts.LinkBitcodePostopt && Result.LinkInModules(&*TheModule))
     return;
 
   // PR44896: Force DiscardValueNames as false. DiscardValueNames cannot be
