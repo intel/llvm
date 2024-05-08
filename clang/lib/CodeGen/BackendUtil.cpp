@@ -45,6 +45,7 @@
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Passes/StandardInstrumentations.h"
 #include "llvm/ProfileData/InstrProfCorrelator.h"
+#include "llvm/SYCLLowerIR/AddAspectNames.h"
 #include "llvm/SYCLLowerIR/CleanupSYCLMetadata.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
@@ -1122,6 +1123,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       // Rerun aspect propagation without warning diagnostics.
       MPM.addPass(SYCLPropagateAspectsUsagePass(/*ExcludeAspects=*/{},
                                                 /*ValidateAspects=*/false));
+
+      MPM.addPass(AddAspectNamesPass());
 
       // Add attribute corresponding to optimization level.
       MPM.addPass(SYCLAddOptLevelAttributePass(CodeGenOpts.OptimizationLevel));

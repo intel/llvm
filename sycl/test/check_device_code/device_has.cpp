@@ -68,16 +68,20 @@ void foo() {
   });
 }
 
-// CHECK-ASPECTS-DAG: [[ASPECTS1]] = !{i32 1}
+// CHECK-ASPECTS-DAG: [[ASPECTS1]] = !{![[ASPECTCPU:[0-9]+]]}
+// CHECK-ASPECTS-DAG: [[ASPECTCPU]] = !{!"cpu", i32 1}
 // CHECK-SRCLOC-DAG: [[SRCLOC1]] = !{i32 {{[0-9]+}}}
 // CHECK-ASPECTS-DAG: [[EMPTYASPECTS]] = !{}
 // CHECK-SRCLOC-DAG: [[SRCLOC2]] = !{i32 {{[0-9]+}}}
-// CHECK-ASPECTS-DAG: [[ASPECTS2]] = !{i32 5, i32 2}
+// CHECK-ASPECTS-DAG: [[ASPECTS2]] = !{![[ASPECTFP16:[0-9]+]], ![[ASPECTGPU:[0-9]+]]}
+// CHECK-ASPECTS-DAG: [[ASPECTFP16]] = !{!"fp16", i32 5}
+// CHECK-ASPECTS-DAG: [[ASPECTGPU]] = !{!"gpu", i32 2}
 // CHECK-SRCLOC-DAG: [[SRCLOC3]] = !{i32 {{[0-9]+}}}
 // CHECK-SRCLOC-DAG: [[SRCLOC4]] = !{i32 {{[0-9]+}}}
-// CHECK-ASPECTS-DAG: [[ASPECTS3]] = !{i32 0}
+// CHECK-ASPECTS-DAG: [[ASPECTS3]] = !{![[ASPECTHOST:[0-9]+]]}
+// CHECK-ASPECTS-DAG: [[ASPECTHOST]] = !{!"host", i32 0}
 // CHECK-SRCLOC-DAG: [[SRCLOC5]] = !{i32 {{[0-9]+}}}
 // CHECK-SRCLOC-DAG: [[SRCLOC6]] = !{i32 {{[0-9]+}}}
 // CHECK-SRCLOC-DAG: [[SRCLOC7]] = !{i32 {{[0-9]+}}}
-// CHECK-ASPECTS-DAG: [[ASPECTS4]] = !{i32 2}
+// CHECK-ASPECTS-DAG: [[ASPECTS4]] = !{![[ASPECTGPU]]}
 // CHECK-SRCLOC-DAG: [[SRCLOC8]] = !{i32 {{[0-9]+}}}
