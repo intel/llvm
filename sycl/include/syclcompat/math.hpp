@@ -423,38 +423,38 @@ cbrt(ValueT val) {
 // `std::int64_t` type arguments are acceptable.
 // sycl::half supported as well.
 template <typename ValueT, typename ValueU>
-std::enable_if_t<std::is_integral_v<ValueT> && std::is_integral_v<ValueU>,
+inline std::enable_if_t<std::is_integral_v<ValueT> && std::is_integral_v<ValueU>,
                  std::common_type_t<ValueT, ValueU>>
 min(ValueT a, ValueU b) {
   return sycl::min(static_cast<std::common_type_t<ValueT, ValueU>>(a),
                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
 }
 template <typename ValueT, typename ValueU>
-std::enable_if_t<std::is_floating_point_v<ValueT> &&
+inline std::enable_if_t<std::is_floating_point_v<ValueT> &&
                      std::is_floating_point_v<ValueU>,
                  std::common_type_t<ValueT, ValueU>>
 min(ValueT a, ValueU b) {
   return sycl::fmin(static_cast<std::common_type_t<ValueT, ValueU>>(a),
                     static_cast<std::common_type_t<ValueT, ValueU>>(b));
 }
-sycl::half min(sycl::half a, sycl::half b) { return sycl::fmin(a, b); }
+inline sycl::half min(sycl::half a, sycl::half b) { return sycl::fmin(a, b); }
 
 template <typename ValueT, typename ValueU>
-std::enable_if_t<std::is_integral_v<ValueT> && std::is_integral_v<ValueU>,
+inline std::enable_if_t<std::is_integral_v<ValueT> && std::is_integral_v<ValueU>,
                  std::common_type_t<ValueT, ValueU>>
 max(ValueT a, ValueU b) {
   return sycl::max(static_cast<std::common_type_t<ValueT, ValueU>>(a),
                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
 }
 template <typename ValueT, typename ValueU>
-std::enable_if_t<std::is_floating_point_v<ValueT> &&
+inline std::enable_if_t<std::is_floating_point_v<ValueT> &&
                      std::is_floating_point_v<ValueU>,
                  std::common_type_t<ValueT, ValueU>>
 max(ValueT a, ValueU b) {
   return sycl::fmax(static_cast<std::common_type_t<ValueT, ValueU>>(a),
                     static_cast<std::common_type_t<ValueT, ValueU>>(b));
 }
-sycl::half max(sycl::half a, sycl::half b) { return sycl::fmax(a, b); }
+inline sycl::half max(sycl::half a, sycl::half b) { return sycl::fmax(a, b); }
 
 /// Performs 2 elements comparison and returns the bigger one. If either of
 /// inputs is NaN, then return NaN.
