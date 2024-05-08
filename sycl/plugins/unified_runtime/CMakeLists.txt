@@ -94,7 +94,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/MartinWehking/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG c19b5ac6657ee80094671624100209678c5df1bd)
+  set(UNIFIED_RUNTIME_TAG event_cuda_amd_reuse)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
