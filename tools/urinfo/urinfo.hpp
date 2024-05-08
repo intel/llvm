@@ -258,7 +258,7 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
     printDeviceInfo<ur_device_usm_access_capability_flags_t>(
         hDevice, UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT);
     std::cout << prefix;
-    printDeviceInfo<char[]>(hDevice, UR_DEVICE_INFO_UUID);
+    printDeviceUUID(hDevice, UR_DEVICE_INFO_UUID);
     std::cout << prefix;
     printDeviceInfo<char[]>(hDevice, UR_DEVICE_INFO_PCI_ADDRESS);
     std::cout << prefix;
@@ -383,5 +383,23 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
     std::cout << prefix;
     printDeviceInfo<ur_bool_t>(
         hDevice, UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP);
+    std::cout << prefix;
+    printDeviceInfo<ur_bool_t>(
+        hDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP);
+    std::cout << prefix;
+    printDeviceInfo<ur_bool_t>(
+        hDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP);
+    std::cout << prefix;
+    printDeviceInfo<ur_bool_t>(
+        hDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP);
+    std::cout << prefix;
+    printDeviceInfo<ur_bool_t>(
+        hDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP);
+    std::cout << prefix;
+    printDeviceInfo<ur_bool_t>(
+        hDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP);
+    std::cout << prefix;
+    printDeviceInfo<ur_bool_t>(
+        hDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP);
 }
 } // namespace urinfo

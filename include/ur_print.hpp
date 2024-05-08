@@ -334,7 +334,6 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_command_buffer_update_memobj_arg_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_command_buffer_update_pointer_arg_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_command_buffer_update_value_arg_desc_t params);
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_command_buffer_update_exec_info_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_command_buffer_update_kernel_launch_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_peer_info_t value);
 
@@ -1049,9 +1048,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_structure_type_t value
     case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC:
         os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC";
         break;
-    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_EXEC_INFO_DESC:
-        os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_EXEC_INFO_DESC";
-        break;
     case UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES";
         break;
@@ -1287,11 +1283,6 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
 
     case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC: {
         const ur_exp_command_buffer_update_value_arg_desc_t *pstruct = (const ur_exp_command_buffer_update_value_arg_desc_t *)ptr;
-        printPtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_EXEC_INFO_DESC: {
-        const ur_exp_command_buffer_update_exec_info_desc_t *pstruct = (const ur_exp_command_buffer_update_exec_info_desc_t *)ptr;
         printPtr(os, pstruct);
     } break;
 
@@ -2562,6 +2553,24 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     case UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP";
         break;
+    case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP:
+        os << "UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP";
+        break;
+    case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP:
+        os << "UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP";
+        break;
+    case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP:
+        os << "UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP";
+        break;
+    case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP:
+        os << "UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP";
+        break;
+    case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP:
+        os << "UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP";
+        break;
+    case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP:
+        os << "UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -3596,8 +3605,17 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
     } break;
     case UR_DEVICE_INFO_UUID: {
 
-        const char *tptr = (const char *)ptr;
-        printPtr(os, tptr);
+        const uint8_t *tptr = (const uint8_t *)ptr;
+        os << "{";
+        size_t nelems = size / sizeof(uint8_t);
+        for (size_t i = 0; i < nelems; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
+
+            os << tptr[i];
+        }
+        os << "}";
     } break;
     case UR_DEVICE_INFO_PCI_ADDRESS: {
 
@@ -4179,6 +4197,78 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         os << ")";
     } break;
     case UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
@@ -9496,6 +9586,16 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_command_bu
 
     os << (params.isUpdatable);
 
+    os << ", ";
+    os << ".isInOrder = ";
+
+    os << (params.isInOrder);
+
+    os << ", ";
+    os << ".enableProfiling = ";
+
+    os << (params.enableProfiling);
+
     os << "}";
     return os;
 }
@@ -9611,46 +9711,6 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_command_bu
     return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_exp_command_buffer_update_exec_info_desc_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_command_buffer_update_exec_info_desc_t params) {
-    os << "(struct ur_exp_command_buffer_update_exec_info_desc_t){";
-
-    os << ".stype = ";
-
-    os << (params.stype);
-
-    os << ", ";
-    os << ".pNext = ";
-
-    ur::details::printStruct(os,
-                             (params.pNext));
-
-    os << ", ";
-    os << ".propName = ";
-
-    os << (params.propName);
-
-    os << ", ";
-    os << ".propSize = ";
-
-    os << (params.propSize);
-
-    os << ", ";
-    os << ".pProperties = ";
-
-    os << (params.pProperties);
-
-    os << ", ";
-    os << ".pNewExecInfo = ";
-
-    os << (params.pNewExecInfo);
-
-    os << "}";
-    return os;
-}
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_command_buffer_update_kernel_launch_desc_t type
 /// @returns
 ///     std::ostream &
@@ -9681,11 +9741,6 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_command_bu
     os << ".numNewValueArgs = ";
 
     os << (params.numNewValueArgs);
-
-    os << ", ";
-    os << ".numNewExecInfos = ";
-
-    os << (params.numNewExecInfos);
 
     os << ", ";
     os << ".newWorkDim = ";
@@ -9722,17 +9777,6 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_command_bu
         }
 
         os << ((params.pNewValueArgList))[i];
-    }
-    os << "}";
-
-    os << ", ";
-    os << ".pNewExecInfoList = {";
-    for (size_t i = 0; (params.pNewExecInfoList) != NULL && i < params.numNewExecInfos; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
-
-        os << ((params.pNewExecInfoList))[i];
     }
     os << "}";
 

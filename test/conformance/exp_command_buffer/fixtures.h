@@ -100,7 +100,7 @@ struct urCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
 
     ur_exp_command_buffer_handle_t cmd_buf_handle = nullptr;
     ur_bool_t updatable_command_buffer_support = false;
-    ur_platform_backend_t backend;
+    ur_platform_backend_t backend{};
 };
 
 struct urUpdatableCommandBufferExpExecutionTest
