@@ -1121,6 +1121,28 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreate(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelRetain
+__urdlllocal ur_result_t UR_APICALL urKernelRetain(
+    ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to retain
+) {
+    auto pfnRetain = context.urDdiTable.Kernel.pfnRetain;
+
+    if (nullptr == pfnRetain) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    context.logger.debug("==== urKernelRetain");
+
+    UR_CALL(pfnRetain(hKernel));
+
+    if (auto KernelInfo = context.interceptor->getKernelInfo(hKernel)) {
+        KernelInfo->RefCount++;
+    }
+
+    return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelRelease
 __urdlllocal ur_result_t urKernelRelease(
     ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to release
@@ -1135,13 +1157,10 @@ __urdlllocal ur_result_t urKernelRelease(
     UR_CALL(pfnRelease(hKernel));
 
     if (auto KernelInfo = context.interceptor->getKernelInfo(hKernel)) {
-        uint32_t RefCount;
-        UR_CALL(context.urDdiTable.Kernel.pfnGetInfo(
-            hKernel, UR_KERNEL_INFO_REFERENCE_COUNT, sizeof(RefCount),
-            &RefCount, nullptr));
-        if (RefCount == 1) {
-            UR_CALL(context.interceptor->eraseKernel(hKernel));
+        if (--KernelInfo->RefCount != 0) {
+            return UR_RESULT_SUCCESS;
         }
+        UR_CALL(context.interceptor->eraseKernel(hKernel));
     }
 
     return UR_RESULT_SUCCESS;
@@ -1300,6 +1319,7 @@ __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     pDdiTable->pfnCreate = ur_sanitizer_layer::urKernelCreate;
+    pDdiTable->pfnRetain = ur_sanitizer_layer::urKernelRetain;
     pDdiTable->pfnRelease = ur_sanitizer_layer::urKernelRelease;
     pDdiTable->pfnSetArgValue = ur_sanitizer_layer::urKernelSetArgValue;
     pDdiTable->pfnSetArgMemObj = ur_sanitizer_layer::urKernelSetArgMemObj;

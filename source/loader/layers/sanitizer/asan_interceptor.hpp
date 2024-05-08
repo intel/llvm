@@ -83,6 +83,7 @@ struct QueueInfo {
 struct KernelInfo {
     ur_kernel_handle_t Handle;
     ur_shared_mutex Mutex;
+    std::atomic<int32_t> RefCount = 1;
     std::unordered_map<uint32_t, std::shared_ptr<MemBuffer>> BufferArgs;
 
     explicit KernelInfo(ur_kernel_handle_t Kernel) : Handle(Kernel) {

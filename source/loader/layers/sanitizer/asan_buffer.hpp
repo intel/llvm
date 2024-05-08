@@ -59,7 +59,7 @@ struct MemBuffer {
 
     std::optional<SubBuffer_t> SubBuffer;
 
-    std::atomic<int32_t> RefCount;
+    std::atomic<int32_t> RefCount = 1;
 
     ur_shared_mutex Mutex;
 };
