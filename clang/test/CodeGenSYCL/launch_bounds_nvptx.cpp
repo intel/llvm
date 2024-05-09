@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -triple nvptx-unknown-unknown -target-cpu sm_90 -disable-llvm-passes -S -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -triple nvptx-unknown-unknown -target-cpu sm_90 -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s
 
 // Test correct handling of maximum work group size, minimum work groups per
 // compute unit and maximum work groups per multi-processor attributes, that

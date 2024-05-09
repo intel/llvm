@@ -5,8 +5,8 @@
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-windows -aux-triple x86_64-pc-windows-msvc  -fsyntax-only -verify %s
 // RUN: %clang_cc1 -fsycl-is-device -triple spirv64-unknown-unknown -aux-triple x86_64-pc-windows-msvc  -fsyntax-only -verify %s
 // expected-no-diagnostics
-// RUN: %clang_cc1 -fsycl-is-device -triple spirv64-unknown-unknown -aux-triple x86_64-pc-windows-msvc  -fsyntax-only -E -dM -o - | FileCheck -match-full-lines %s --check-prefix=CHECK-MS64
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -aux-triple x86_64-pc-windows-msvc  -fsyntax-only -E -dM -o - | FileCheck -match-full-lines %s --check-prefix=CHECK-MS64
+// RUN: %clang_cc1 -fsycl-is-device -triple spirv64-unknown-unknown -aux-triple x86_64-pc-windows-msvc  -E -dM -o - | FileCheck -match-full-lines %s --check-prefix=CHECK-MS64
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -aux-triple x86_64-pc-windows-msvc  -E -dM -o - | FileCheck -match-full-lines %s --check-prefix=CHECK-MS64
 // CHECK-MS64: #define _M_AMD64 100
 // CHECK-MS64: #define _M_X64 100
 typedef __PTRDIFF_TYPE__ ptrdiff_t;
