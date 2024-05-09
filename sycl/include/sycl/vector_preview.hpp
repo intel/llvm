@@ -421,19 +421,7 @@ public:
                 typename std::enable_if_t<std::is_same_v<vector_t_, vector_t> &&
                                           !std::is_same_v<vector_t_, DataT>>>
   constexpr vec(vector_t_ openclVector) {
-#ifdef __SYCL_BITCAST_IS_CONSTEXPR
-    m_Data = sycl::bit_cast<DataType>(openclVector);
-#else
-    // Awkward workaround. sycl::bit_cast isn't constexpr in older GCC
-    // C++20 will give us both std::bit_cast and constexpr reinterpet for void*
-    // but neither available yet.
-    union {
-      vector_t from;
-      DataType to;
-    } result = {};
-    result.from = openclVector;
-    m_Data = result.to;
-#endif
+    m_Data = __builtin_bit_cast(DataType, openclVector);
   }
 
   /* @SYCL2020
