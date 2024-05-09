@@ -1,5 +1,5 @@
 //==- bit_shift_compilation_test_64_supportedns.cpp - Test 64-bit bit shift
-//functions -==//
+// functions -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
