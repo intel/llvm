@@ -159,6 +159,7 @@ public:
   /// Specialized handler for misexpect warnings.
   /// Note that misexpect remarks are emitted through ORE
   void MisExpectDiagHandler(const llvm::DiagnosticInfoMisExpect &D);
+  void AspectMismatchDiagHandler(const llvm::DiagnosticInfoAspectsMismatch &D);
 };
 
 } // namespace clang
