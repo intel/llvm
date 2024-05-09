@@ -117,7 +117,7 @@ DefineGOp1(All, __mux_sub_group_all_i1)
       if (static_cast<unsigned>(__spv::GroupOperation::Reduce) == id)          \
         return __mux_sub_group_reduce_##mux_sfx(v);                            \
     } else if (__spv::Scope::Flag::Workgroup == g) {                           \
-      uint32_t bid = 0; /*todo*/                                               \
+      uint32_t bid = 0;                                                        \
       if (static_cast<unsigned>(__spv::GroupOperation::ExclusiveScan) == id)   \
         return __mux_work_group_scan_exclusive_##mux_sfx(bid, v);              \
       if (static_cast<unsigned>(__spv::GroupOperation::InclusiveScan) == id)   \
@@ -125,41 +125,40 @@ DefineGOp1(All, __mux_sub_group_all_i1)
       if (static_cast<unsigned>(__spv::GroupOperation::Reduce) == id)          \
         return __mux_work_group_reduce_##mux_sfx(bid, v);                      \
     }                                                                          \
-    return Type(); /*todo*/                                                    \
+    return Type(); /*todo: add support for other flags as they are tested*/    \
   }
 
-#define DefineIOp(Name, MuxName)\
-  DefineGOp(int32_t, int32_t, Name, MuxName)\
-  DefineGOp(uint32_t, int32_t, Name, MuxName)
+#define DefineSignedGOp(Name, MuxName, Bits)\
+  DefineGOp(int##Bits##_t, int##Bits##_t, Name, MuxName##Bits)
 
+#define DefineUnsignedGOp(Name, MuxName, Bits)\
+  DefineGOp(uint##Bits##_t, int##Bits##_t, Name, MuxName##Bits)
 
-DefineGOp(int32_t, int32_t, IAdd, add_i32)
-DefineGOp(uint32_t, int32_t, IAdd, add_i32)
-DefineGOp(int64_t, int64_t, IAdd, add_i64)
-DefineGOp(uint64_t, int64_t, IAdd, add_i64)
+#define Define_32_64(Define, Name, MuxName)                                    \
+  Define(Name, MuxName, 32)                                                    \
+  Define(Name, MuxName, 64)
 
-DefineGOp(uint32_t, int32_t, UMin, umin_i32)
-DefineGOp(uint32_t, int32_t, UMax, umax_i32)
-DefineGOp(uint64_t, int64_t, UMin, umin_i64)
-DefineGOp(uint64_t, int64_t, UMax, umax_i64)
+// todo: add support for other integer and float types once there are tests
+#define DefineIntGOps(Name, MuxName)                                           \
+  Define_32_64(DefineSignedGOp,   Name, MuxName)                               \
+  Define_32_64(DefineUnsignedGOp, Name, MuxName)
 
-DefineGOp(int32_t, int32_t, IMulKHR, mul_i32)
-DefineGOp(uint32_t, int32_t, IMulKHR, mul_i32)
-DefineGOp(int64_t, int64_t, IMulKHR, mul_i64)
-DefineGOp(uint64_t, int64_t, IMulKHR, mul_i64)
+#define DefineFPGOps(Name, MuxName)                                            \
+  DefineGOp(float, float, Name, MuxName##32)                                   \
+  DefineGOp(double, double, Name, MuxName##64)
 
-DefineGOp(float, float, FMulKHR, fmul_f32)
-DefineGOp(double, double, FMulKHR, fmul_f64)
+DefineIntGOps(IAdd,    add_i)
+DefineIntGOps(IMulKHR, mul_i)
 
-DefineGOp(float, float, FAdd, fadd_f32)
-DefineGOp(double, double, FAdd, fadd_f64)
+Define_32_64(DefineUnsignedGOp, UMin, umin_i)
+Define_32_64(DefineUnsignedGOp, UMax, umax_i)
+Define_32_64(DefineSignedGOp,   SMin, smin_i)
+Define_32_64(DefineSignedGOp,   SMax, smax_i)
 
-DefineGOp(int32_t, int32_t, SMin, smin_i32)
-DefineGOp(int32_t, int32_t, SMax, smax_i32)
-DefineGOp(float, float, FMin, fmin_f32)
-DefineGOp(float, float, FMax, fmax_f32)
-DefineGOp(double, double, FMin, fmin_f64)
-DefineGOp(double, double, FMax, fmax_f64)
+DefineFPGOps(FMulKHR, fmul_f)
+DefineFPGOps(FAdd,    fadd_f)
+DefineFPGOps(FMin,    fmin_f)
+DefineFPGOps(FMax,    fmax_f)
 
 #define DefineBitwiseGroupOp(Type, MuxType, mux_sfx)                          \
   DefineGOp(Type, MuxType, BitwiseOrKHR, or_##mux_sfx)                        \
@@ -180,7 +179,7 @@ DefineBitwiseGroupOp(uint64_t, int64_t, i64)
                                               IDType l) {                      \
     if (__spv::Scope::Flag::Subgroup == g)                                     \
       return __mux_sub_group_broadcast_##Sfx(v, l);                            \
-    return Type(); /*TODO*/                                                    \
+    return Type(); /*todo: add support for other flags as they are tested*/    \
   }
 
 #define DefineBroadCast(Type, Sfx, MuxType)\
@@ -313,7 +312,7 @@ template <class T> using MakeGlobalType =
     s->field = value;                                                          \
   }
 
-// Sub-group setters
+// Subgroup setters
 DefStateSetWithType(_set_num_sub_groups, NumSubGroups, uint32_t)
 DefStateSetWithType(_set_sub_group_id, SubGroup_id, uint32_t)
 DefStateSetWithType(_set_max_sub_group_size, SubGroup_size, uint32_t)
@@ -326,7 +325,7 @@ DefStateSetWithType(_set_max_sub_group_size, SubGroup_size, uint32_t)
 #define DefineStateGet_U32(name, field)                                        \
   DefineStateGetWithType(name, field, uint32_t)
 
-// Sub-group getters
+// Subgroup getters
 DefineStateGet_U32(_get_sub_group_id, SubGroup_id)
 DefineStateGet_U32(_get_sub_group_local_id, SubGroup_local_id)
 DefineStateGet_U32(_get_sub_group_size, SubGroup_size)
