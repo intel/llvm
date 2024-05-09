@@ -41,6 +41,7 @@
 
 #include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
 
+#include <algorithm>   // for std::min
 #include <array>       // for array
 #include <cassert>     // for assert
 #include <cstddef>     // for size_t, NULL, byte
