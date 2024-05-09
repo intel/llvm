@@ -1,7 +1,6 @@
 #define TM 8
 #define TK 8
 
-
 template <typename T, size_t M, size_t N>
 void assert_ops_ref(host_accessor<T, 2, access::mode::read> C,
                     const float ref) {
@@ -12,6 +11,7 @@ void assert_ops_ref(host_accessor<T, 2, access::mode::read> C,
              std::numeric_limits<float>::epsilon());
     }
 }
+
 template <typename T, typename Ts, size_t M, size_t K>
 void matrix_verify_add(queue q, big_matrix<Ts, M, K> &A, nd_range<2> &r,
                        const float ref) {
