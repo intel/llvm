@@ -28,7 +28,8 @@ Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of
 The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
 permission by Khronos.
 
-Other names and brands may be claimed as the property of others
+Other company and product names may be trademarks of the respective companies
+with which they are associated and can be claimed as the property of others.
 
 == Contact
 
