@@ -51,8 +51,15 @@ struct full_group_key
 inline constexpr full_group_key::value_t full_group;
 
 namespace detail {
+struct naive_key : detail::compile_time_property_key<detail::PropKind::Naive> {
+  using value_t = property_value<naive_key>;
+};
+inline constexpr naive_key::value_t naive;
 using namespace sycl::detail;
+} // namespace detail
 
+#ifdef __SYCL_DEVICE_ONLY__
+namespace detail {
 template <typename InputIteratorT, typename OutputElemT>
 inline constexpr bool verify_load_types =
     std::is_same_v<
@@ -101,7 +108,6 @@ int get_mem_idx(GroupTy g, int vec_or_array_idx) {
 }
 } // namespace detail
 
-#ifdef __SYCL_DEVICE_ONLY__
 // Load API span overload.
 template <typename Group, typename InputIteratorT, typename OutputT,
           std::size_t ElementsPerWorkItem,
@@ -109,13 +115,20 @@ template <typename Group, typename InputIteratorT, typename OutputT,
 std::enable_if_t<detail::verify_load_types<InputIteratorT, OutputT> &&
                  detail::is_generic_group_v<Group>>
 group_load(Group g, InputIteratorT in_ptr,
-           span<OutputT, ElementsPerWorkItem> out, Properties properties = {}) {
-  constexpr bool blocked = detail::isBlocked(properties);
+           span<OutputT, ElementsPerWorkItem> out, Properties props = {}) {
+  constexpr bool blocked = detail::isBlocked(props);
 
-  group_barrier(g);
-  for (int i = 0; i < out.size(); ++i)
-    out[i] = in_ptr[detail::get_mem_idx<blocked, ElementsPerWorkItem>(g, i)];
-  group_barrier(g);
+  if constexpr (props.template has_property<detail::naive_key>()) {
+    group_barrier(g);
+    for (int i = 0; i < out.size(); ++i)
+      out[i] = in_ptr[detail::get_mem_idx<blocked, ElementsPerWorkItem>(g, i)];
+    group_barrier(g);
+  } else {
+    using use_naive =
+        detail::merged_properties_t<Properties,
+                                    decltype(properties(detail::naive))>;
+    return group_load(g, in_ptr, out, use_naive{});
+  }
 }
 
 // Store API span overload.

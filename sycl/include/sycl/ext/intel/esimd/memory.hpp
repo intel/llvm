@@ -706,15 +706,17 @@ scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
     addrs = addrs + byte_offsets_i;
     if constexpr (sizeof(T) == 1) {
       detail::check_wrregion_params<N * 4, N, /*VS*/ 0, N, 4>();
-      simd<T, N * 4> D = __esimd_wrregion<Tx, N * 4, N, /*VS*/ 0, N, 4>(
-          D.data(), vals.data(), 0);
+      simd<T, N * 4> D; // Intentionally undefined.
+      D = __esimd_wrregion<Tx, N * 4, N, /*VS*/ 0, N, 4>(D.data(), vals.data(),
+                                                         0);
       __esimd_svm_scatter<Tx, N, detail::ElemsPerAddrEncoding<4>(),
                           detail::ElemsPerAddrEncoding<1>()>(
           addrs.data(), D.data(), mask.data());
     } else if constexpr (sizeof(T) == 2) {
       detail::check_wrregion_params<N * 2, N, /*VS*/ 0, N, 2>();
-      simd<Tx, N * 2> D = __esimd_wrregion<Tx, N * 2, N, /*VS*/ 0, N, 2>(
-          D.data(), vals.data(), 0);
+      simd<Tx, N * 2> D; // Intentionally undefined.
+      D = __esimd_wrregion<Tx, N * 2, N, /*VS*/ 0, N, 2>(D.data(), vals.data(),
+                                                         0);
       __esimd_svm_scatter<Tx, N, detail::ElemsPerAddrEncoding<2>(),
                           detail::ElemsPerAddrEncoding<2>()>(
           addrs.data(), D.data(), mask.data());
@@ -3085,7 +3087,7 @@ __ESIMD_API simd<T, N> load_2d_impl(const T *Ptr, unsigned SurfaceWidth,
   constexpr int DstElements = DstBlockElements * NBlocks;
 
   static_assert(N == ActualN || N == DstElements, "Incorrect element count");
-  simd_mask<ActualN> Mask = 1;
+  simd_mask<1> Mask = 1;
   constexpr lsc_data_size DS =
       finalize_data_size<RawT, lsc_data_size::default_size>();
   uintptr_t Addr = reinterpret_cast<uintptr_t>(Ptr);
@@ -3174,7 +3176,7 @@ __ESIMD_API void prefetch_2d_impl(const T *Ptr, unsigned SurfaceWidth,
       finalize_data_size<RawT, lsc_data_size::default_size>();
   uintptr_t Addr = reinterpret_cast<uintptr_t>(Ptr);
   constexpr lsc_data_order Transpose = lsc_data_order::nontranspose;
-  simd_mask<N> Mask = 1;
+  simd_mask<1> Mask = 1;
   __esimd_lsc_prefetch2d_stateless<RawT, L1H, L2H, DS, Transpose, NBlocks,
                                    BlockWidth, BlockHeight, false, N>(
       Mask.data(), Addr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y);
@@ -3226,7 +3228,7 @@ __ESIMD_API void store_2d_impl(T *Ptr, unsigned SurfaceWidth,
   constexpr int Pitch = getNextPowerOf2<BlockWidth>();
   constexpr int NElts = BlockHeight * Pitch;
   simd<RawT, NElts> Raw;
-  simd_mask<NElts> Mask = 1;
+  simd_mask<1> Mask = 1;
 
   if constexpr (NElts == N) {
     Raw = Vals;
@@ -8043,6 +8045,7 @@ __ESIMD_API simd<T, m * N> media_block_load(AccessorTy acc, unsigned x,
   static_assert(Width <= 64u, "valid block width is in range [1, 64]");
   static_assert(m <= 64u, "valid block height is in range [1, 64]");
   static_assert(plane <= 3u, "valid plane index is in range [0, 3]");
+  static_assert(detail::isPowerOf2(N), "N must be a power of 2");
 
   const auto si = __ESIMD_NS::get_surface_index(acc);
   using SurfIndTy = decltype(si);

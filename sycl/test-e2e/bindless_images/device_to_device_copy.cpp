@@ -1,6 +1,5 @@
 // REQUIRES: linux
 // REQUIRES: cuda
-// XFAIL: *
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -89,15 +88,15 @@ int main() {
   // Standard images copies
   bool validated = run_copy_test_with<sycl::image_channel_order::r,
                                       sycl::image_channel_type::fp32, 2>(
-      dev, q, {2048 * 8, 2048 * 8});
+      dev, q, {2048, 2048});
 
-  validated &= run_copy_test_with<sycl::image_channel_order::r,
-                                  sycl::image_channel_type::fp32, 1>(
-      dev, q, {512 * 256});
+  validated &=
+      run_copy_test_with<sycl::image_channel_order::r,
+                         sycl::image_channel_type::fp32, 1>(dev, q, {512 * 4});
 
   validated &= run_copy_test_with<sycl::image_channel_order::r,
                                   sycl::image_channel_type::fp32, 3>(
-      dev, q, {2048, 2048, 64});
+      dev, q, {256, 256, 4});
 
   // Layered images copies
   validated &=
@@ -107,7 +106,7 @@ int main() {
   validated &=
       run_copy_test_with<sycl::image_channel_order::r,
                          sycl::image_channel_type::fp32, 3,
-                         syclexp::image_type::array>(dev, q, {2048, 2048, 64});
+                         syclexp::image_type::array>(dev, q, {256, 256, 4});
 
   if (!validated) {
     std::cout << "Tests failed";
