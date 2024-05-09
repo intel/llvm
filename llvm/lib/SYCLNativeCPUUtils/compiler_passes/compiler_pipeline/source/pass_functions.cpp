@@ -469,25 +469,6 @@ void remapClonedCallsites(llvm::Function &oldFunc, llvm::Function &newFunc,
   }
 }
 
-bool addParamToAllFunctions(llvm::Module &module,
-                            llvm::Type *const newParamType,
-                            const llvm::AttributeSet &newParamAttrs,
-                            const UpdateMDCallbackFn &updateMetaDataCallback) {
-  return cloneFunctionsAddArg(
-      module,
-      [newParamType, newParamAttrs](llvm::Module &) {
-        return ParamTypeAttrsPair{newParamType, newParamAttrs};
-      },
-      [](const llvm::Function &func, bool &ClonedWithBody, bool &ClonedNoBody) {
-        // don't clone and add arg to special functions starting with __llvm.
-        // These are reserved for clang generated functions such as profile
-        // related ones
-        ClonedWithBody = !func.getName().starts_with("__llvm");
-        ClonedNoBody = false;
-      },
-      updateMetaDataCallback);
-}
-
 llvm::BasicBlock *createLoop(llvm::BasicBlock *entry, llvm::BasicBlock *exit,
                              llvm::Value *indexStart, llvm::Value *indexEnd,
                              const CreateLoopOpts &opts,

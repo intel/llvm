@@ -159,26 +159,6 @@ bool cloneFunctionsAddArg(
 void remapClonedCallsites(llvm::Function &oldFunc, llvm::Function &newFunc,
                           bool extraArg);
 
-/// @brief Clone all functions in a module, appending an extra parameter to
-/// them.
-///
-/// @param module llvm module containing the functions
-/// @param newParamType Type of the parameter to be added
-/// @param newParamAttrs Parameter attributes of the parameter to be added
-/// @param updateMetaDataCallback if set, is invokved with the old function,
-/// new function and new argument index.
-///
-/// @return bool if the module has changed (currently always true)
-///
-/// This iterates through all the functions in a module and clones all
-/// functions with a body and adds the extra param at the end of their parameter
-/// lists. Simpler version of `cloneFunctionsAddArg()` where the use case is
-/// more limited.
-bool addParamToAllFunctions(
-    llvm::Module &module, llvm::Type *const newParamType,
-    const llvm::AttributeSet &newParamAttrs,
-    const UpdateMDCallbackFn &updateMetaDataCallback = nullptr);
-
 using CreateLoopBodyFn = std::function<llvm::BasicBlock *(
     llvm::BasicBlock *, llvm::Value *, llvm::ArrayRef<llvm::Value *>,
     llvm::MutableArrayRef<llvm::Value *>)>;
