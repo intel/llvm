@@ -3,9 +3,7 @@
 // ./llvm/utils/update_cc_test_checks.py --clang=./build/bin/clang
 // ./sycl/test/check_device_code/vector/vector_math_ops.cpp
 
-// RUN: %clangxx -I %sycl_include -S -emit-llvm -fno-sycl-instrument-device-code -Xclang -disable-lifetime-markers -fsycl-device-only %s -o - | FileCheck %s
-
-// REQUIRES: asserts
+// RUN: %clangxx -I %sycl_include -fno-discard-value-names -S -emit-llvm -fno-sycl-instrument-device-code -Xclang -disable-lifetime-markers -fsycl-device-only %s -o - | FileCheck %s
 
 // This test checks
 // (1) the storage type of sycl::vec on device for all data types, and
