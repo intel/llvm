@@ -1,4 +1,5 @@
-//==- bit_shift_compilation_test_64.cpp - Test 64-bit bit shift functions -==//
+//==- bit_shift_compilation_test_64_supportedns.cpp - Test 64-bit bit shift
+//functions -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,4 +13,5 @@
 // REQUIRES: gpu-intel-pvc
 
 #define TEST_INT64
+#define SUP
 #include "bit_shift_compilation_test.cpp"
