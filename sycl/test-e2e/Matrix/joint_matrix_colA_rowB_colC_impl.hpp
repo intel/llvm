@@ -1,4 +1,4 @@
-//===--------------------- DPC++ joint_matrix------------------------------===//
+//===---joint_matrix_colA_rowB_colC_impl.hpp - DPC++ joint_matrix----------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
