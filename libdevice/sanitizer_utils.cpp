@@ -307,6 +307,14 @@ bool __asan_internal_report_save(
   const int Expected = ASAN_REPORT_NONE;
   int Desired = ASAN_REPORT_START;
 
+  if (__AsanDebug) {
+    auto *launch_info = (__SYCL_GLOBAL__ LaunchInfo *)__AsanLaunchInfo;
+    __spirv_ocl_printf(__mem_launch_info, launch_info,
+                       launch_info->LocalShadowOffset,
+                       launch_info->LocalShadowOffsetEnd,
+                       launch_info->NumLocalArgs, launch_info->LocalArgs);
+  }
+
   auto &SanitizerReport =
       ((__SYCL_GLOBAL__ LaunchInfo *)__AsanLaunchInfo)->SanitizerReport;
 
