@@ -82,42 +82,6 @@ struct elem {
 };
 
 namespace detail {
-/* Helper functions to get and set values in vec, depdending on the underlying
- * data type. */
-template <typename T> struct vec_helper {
-  using NativeType =
-      typename std::conditional<std::is_same_v<T, bool>, std::int8_t, T>::type;
-  static constexpr NativeType get(T value) { return value; }
-  static constexpr NativeType set(T value) { return value; }
-};
-
-template <> struct vec_helper<sycl::ext::oneapi::bfloat16> {
-  using BF16Type = sycl::ext::oneapi::bfloat16;
-  using NativeType = sycl::ext::oneapi::detail::Bfloat16StorageT;
-
-  static NativeType get(NativeType value) { return value; }
-  static NativeType get(BF16Type value) {
-    return sycl::bit_cast<NativeType>(value);
-  }
-
-  static BF16Type set(BF16Type value) { return value; }
-  static BF16Type set(NativeType value) {
-    return sycl::bit_cast<BF16Type>(value);
-  }
-};
-
-#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-template <> struct vec_helper<std::byte> {
-  using NativeType = std::uint8_t;
-
-  static NativeType get(std::byte value) { return (NativeType)value; }
-  static NativeType get(NativeType value) { return value; }
-
-  static std::byte set(std::byte value) { return value; }
-  static std::byte set(NativeType value) { return (std::byte)value; }
-};
-#endif
-
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
 class SwizzleOp;
@@ -150,41 +114,35 @@ template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernelWithKH;
 } // namespace detail
 
-template <typename T> using vec_data = detail::vec_helper<T>;
-
+// OpenCL data type to convert to.
 template <typename T>
-using vec_data_t = typename detail::vec_helper<T>::NativeType;
-
-// data_type_multiple_t data type is
-// used to store sycl::vec on host and device.
-template <typename T, int N>
-using data_type_multiple_t = typename std::conditional_t<
-    // bool
-    std::is_same_v<T, bool>, std::array<int8_t, N>, std::array<T, N>>;
-
-// sycl::vec is converted to vector_t_single and vector_t_multiple
-// data types on device for use in SPIRV builtins.
-#ifdef __SYCL_DEVICE_ONLY__
-template <typename T>
-using vector_t_single = typename std::conditional_t<
-    std::is_same_v<T, sycl::half>, sycl::detail::half_impl::StorageT,
-    typename std::conditional_t<std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
-                                sycl::ext::oneapi::detail::Bfloat16StorageT,
-                                typename std::conditional_t<
+using vec_data_t = typename std::conditional_t<
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-                                    std::is_same_v<T, std::byte>, std::uint8_t,
-                                    typename std::conditional_t<
+      std::is_same_v<T, std::byte>, std::uint8_t,
 #else
-                                    false, T,
-                                    typename std::conditional_t<
+      false, T,
 #endif
-                                        true, T, T>>>>;
+      typename std::conditional_t<std::is_same_v<T, bool>, std::int8_t,
+      typename std::conditional_t<std::is_same_v<T, sycl::half>, sycl::detail::half_impl::StorageT,
+      typename std::conditional_t<std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
+      sycl::ext::oneapi::detail::Bfloat16StorageT, T>>>>;
 
-template <typename T, int N>
-using vector_t_multiple = typename std::conditional_t<
-    std::is_same_v<T, bool>, int8_t __attribute__((ext_vector_type(N))),
-    vector_t_single<T> __attribute__((ext_vector_type(N)))>;
-#endif
+// Helper functions to convert to and from OpenCL type.
+template <typename T> auto VecConvertToOpenCLType(T value) {
+  if constexpr (std::is_same_v<T, sycl::ext::oneapi::bfloat16>)
+    return sycl::bit_cast<vec_data_t<T>>(value);
+  else
+    return (vec_data_t<T>)value;
+}
+
+template <typename T, typename U> auto VecConvertFromOpenCLType(U value) {
+  if constexpr (std::is_same_v<T, sycl::ext::oneapi::bfloat16>)
+    return sycl::bit_cast<T>(value);
+  else if constexpr (std::is_same_v<T, bool>)
+    return (int8_t)value;
+  else
+    return (T)value;
+}
 
 ///////////////////////// class sycl::vec /////////////////////////
 // Provides a cross-patform vector class template that works efficiently on
@@ -202,12 +160,15 @@ template <typename Type, int NumElements> class vec {
 
   // This represent type of underlying value. There should be only one field
   // in the class, so vec<float, 16> should be equal to float16 in memory.
+  template <typename T, int N>
+  using data_type_multiple_t = typename std::conditional_t<
+    std::is_same_v<T, bool>, std::array<int8_t, N>, std::array<T, N>>;
   using DataType = data_type_multiple_t<DataT, AdjustedNum>;
 
 public:
 #ifdef __SYCL_DEVICE_ONLY__
   // Type used for passing sycl::vec to SPIRV builtins.
-  using vector_t = vector_t_multiple<DataT, NumElements>;
+  using vector_t = vec_data_t<DataT> __attribute__((ext_vector_type(NumElements)));
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
@@ -484,8 +445,8 @@ public:
     static_assert(std::is_integral_v<vec_data_t<convertT>> ||
                       detail::is_floating_point<convertT>::value,
                   "Unsupported convertT");
-    using T = vec_data_t<DataT>;
-    using R = vec_data_t<convertT>;
+    using T = typename std::conditional_t<std::is_same_v<DataT, sycl::half>, DataT, vec_data_t<DataT>>;
+    using R = typename std::conditional_t<std::is_same_v<convertT, sycl::half>, convertT, vec_data_t<convertT>>;
     using OpenCLT = detail::ConvertToOpenCLType_t<T>;
     using OpenCLR = detail::ConvertToOpenCLType_t<R>;
     vec<convertT, NumElements> Result;
@@ -518,6 +479,7 @@ public:
         //   defined, there is no guarantee that integer conversion yields
         //   right results here;
         !std::is_same_v<convertT, bool>;
+
     if constexpr (canUseNativeVectorConvert) {
       Result.m_Data = sycl::bit_cast<decltype(Result.m_Data)>(
           detail::convertImpl<T, R, roundingMode, NumElements, OpenCLVecT,
@@ -527,7 +489,7 @@ public:
     {
       // Otherwise, we fallback to per-element conversion:
       for (size_t I = 0; I < NumElements; ++I) {
-        auto val = vec_data<convertT>::set(
+        auto val = VecConvertFromOpenCLType<convertT>(
             detail::convertImpl<T, R, roundingMode, 1, OpenCLT, OpenCLR>(
                 getValue(I)));
 
@@ -661,7 +623,7 @@ public:
              multi_ptr<DataT, Space, DecorateAddress> Ptr) const {
     for (int I = 0; I < NumElements; I++) {
       *multi_ptr<DataT, Space, DecorateAddress>(
-          Ptr + Offset * NumElements + I) = vec_data<DataT>::set(getValue(I));
+          Ptr + Offset * NumElements + I) = VecConvertFromOpenCLType<DataT>(getValue(I));
     }
   }
   template <int Dimensions, access::mode Mode,
@@ -958,7 +920,7 @@ public:
 #else
     vec Ret{};
     for (size_t I = 0; I < NumElements; ++I) {
-      Ret.setValue(I, vec_data<DataT>::set(~Rhs.getValue(I)));
+      Ret.setValue(I, VecConvertFromOpenCLType<DataT>(~Rhs.getValue(I)));
     }
     return Ret;
 #endif
@@ -969,7 +931,6 @@ public:
   friend typename std::enable_if_t<(!IsByte<T>::value),
                                    vec<detail::rel_t<DataT>, NumElements>>
   operator!(const vec &Rhs) {
-    vec Ret{};
 #ifdef __SYCL_DEVICE_ONLY__
     if constexpr (!std::is_same_v<DataT, sycl::ext::oneapi::bfloat16> &&
                   !std::is_same_v<DataT, sycl::detail::half_impl::half> &&
@@ -979,10 +940,12 @@ public:
     } else
 #endif // __SYCL_DEVICE_ONLY__
     {
+      vec<detail::rel_t<DataT>, NumElements> Ret{};
       for (size_t I = 0; I < NumElements; ++I) {
-        Ret.setValue(I, !vec_data<DataT>::get(Rhs[I]));
+        // static_cast will work here as the output of ! operator is either 0 or -1.
+        Ret[I] = static_cast<detail::rel_t<DataT>>(-1*(!VecConvertToOpenCLType<DataT>(Rhs[I])));
       }
-      return Ret.template as<vec<detail::rel_t<DataT>, NumElements>>();
+      return Ret;
     }
   }
 
@@ -1032,20 +995,19 @@ private:
 #ifndef __SYCL_DEVICE_ONLY__
     assert(Index < NumElements && "Index out of range");
 #endif
-    return vec_data<DataT>::get(m_Data[Index]);
+    return VecConvertToOpenCLType<DataT>(m_Data[Index]);
   }
 
   constexpr void setValue(int Index, const DataT &Value) {
 #ifndef __SYCL_DEVICE_ONLY__
     assert(Index < NumElements && "Index out of range");
 #endif
-    m_Data[Index] = vec_data<DataT>::set(Value);
+    m_Data[Index] = VecConvertFromOpenCLType<DataT>(Value);
   }
 
   // fields
   // Alignment is the same as size, to a maximum size of 64.
-  // detail::vector_alignment will return that value.
-  alignas(detail::vector_alignment<DataT, NumElements>::value) DataType m_Data;
+  alignas(std::min((long unsigned)64, sizeof(DataType))) DataType m_Data;
 
   // friends
   template <typename T1, typename T2, typename T3, template <typename> class T4,
@@ -1819,21 +1781,21 @@ private:
       return m_Vector->getValue(Idxs[Index]);
     }
     auto Op = OperationCurrentT<vec_data_t<CommonDataT>>();
-    return vec_data<CommonDataT>::get(
-        Op(vec_data<CommonDataT>::get(m_LeftOperation.getValue(Index)),
-           vec_data<CommonDataT>::get(m_RightOperation.getValue(Index))));
+    return VecConvertToOpenCLType<CommonDataT>(
+        Op(VecConvertToOpenCLType<CommonDataT>(m_LeftOperation.getValue(Index)),
+           VecConvertToOpenCLType<CommonDataT>(m_RightOperation.getValue(Index))));
   }
 
   template <int IdxNum = getNumElements()>
   DataT getValue(EnableIfMultipleIndexes<IdxNum, size_t> Index) const {
     if (std::is_same_v<OperationCurrentT<DataT>, GetOp<DataT>>) {
       std::array<int, getNumElements()> Idxs{Indexes...};
-      return vec_data<DataT>::set(m_Vector->getValue(Idxs[Index]));
+      return VecConvertFromOpenCLType<DataT>(m_Vector->getValue(Idxs[Index]));
     }
     auto Op = OperationCurrentT<vec_data_t<DataT>>();
-    return vec_data<DataT>::set(
-        Op(vec_data<DataT>::get(m_LeftOperation.getValue(Index)),
-           vec_data<DataT>::get(m_RightOperation.getValue(Index))));
+    return VecConvertFromOpenCLType<DataT>(
+        Op(VecConvertToOpenCLType<DataT>(m_LeftOperation.getValue(Index)),
+           VecConvertToOpenCLType<DataT>(m_RightOperation.getValue(Index))));
   }
 
   template <template <typename> class Operation, typename RhsOperation>
@@ -1841,9 +1803,9 @@ private:
     Operation<vec_data_t<DataT>> Op;
     std::array<int, getNumElements()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
-      DataT Res = vec_data<DataT>::set(
-          Op(vec_data<DataT>::get(m_Vector->getValue(Idxs[I])),
-             vec_data<DataT>::get(Rhs.getValue(I))));
+      DataT Res = VecConvertFromOpenCLType<DataT>(
+          Op(VecConvertToOpenCLType<DataT>(m_Vector->getValue(Idxs[I])),
+             VecConvertToOpenCLType<DataT>(Rhs.getValue(I))));
       m_Vector->setValue(Idxs[I], Res);
     }
   }
