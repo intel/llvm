@@ -944,28 +944,6 @@ private:
       sycl::ext::oneapi::experimental::execution_scope threadScope,
       sycl::ext::oneapi::experimental::execution_scope coordinationScope);
 
-  template <
-      typename PropertyT,
-      sycl::ext::oneapi::experimental::forward_progress_guarantee Guarantee,
-      sycl::ext::oneapi::experimental::execution_scope CoordinationScope>
-  void extractForwardProgressPropArgsAndVerify(
-      typename PropertyT::template value_t<Guarantee, CoordinationScope>) {
-    using execution_scope = ext::oneapi::experimental::execution_scope;
-    if constexpr (std::is_same_v<PropertyT, sycl::ext::oneapi::experimental::
-                                                work_group_progress_key>) {
-      verifyDeviceHasProgressGuarantee(Guarantee, execution_scope::work_group,
-                                       CoordinationScope);
-    } else if constexpr (std::is_same_v<PropertyT,
-                                        sycl::ext::oneapi::experimental::
-                                            sub_group_progress_key>) {
-      verifyDeviceHasProgressGuarantee(Guarantee, execution_scope::sub_group,
-                                       CoordinationScope);
-    } else {
-      verifyDeviceHasProgressGuarantee(Guarantee, execution_scope::work_item,
-                                       CoordinationScope);
-    }
-  }
-
   /// Process kernel properties.
   ///
   /// Stores information about kernel properties into the handler.
@@ -1005,24 +983,30 @@ private:
                           work_group_progress_key>()) {
       auto prop = Props.template get_property<
           sycl::ext::oneapi::experimental::work_group_progress_key>();
-      extractForwardProgressPropArgsAndVerify<
-          sycl::ext::oneapi::experimental::work_group_progress_key>(prop);
+      verifyDeviceHasProgressGuarantee(
+          prop.guarantee,
+          sycl::ext::oneapi::experimental::execution_scope::work_group,
+          prop.coordinationScope);
     }
     if constexpr (PropertiesT::template has_property<
                       sycl::ext::oneapi::experimental::
                           sub_group_progress_key>()) {
       auto prop = Props.template get_property<
           sycl::ext::oneapi::experimental::sub_group_progress_key>();
-      extractForwardProgressPropArgsAndVerify<
-          sycl::ext::oneapi::experimental::sub_group_progress_key>(prop);
+      verifyDeviceHasProgressGuarantee(
+          prop.guarantee,
+          sycl::ext::oneapi::experimental::execution_scope::sub_group,
+          prop.coordinationScope);
     }
     if constexpr (PropertiesT::template has_property<
                       sycl::ext::oneapi::experimental::
                           work_item_progress_key>()) {
       auto prop = Props.template get_property<
           sycl::ext::oneapi::experimental::work_item_progress_key>();
-      extractForwardProgressPropArgsAndVerify<
-          sycl::ext::oneapi::experimental::work_item_progress_key>(prop);
+      verifyDeviceHasProgressGuarantee(
+          prop.guarantee,
+          sycl::ext::oneapi::experimental::execution_scope::work_item,
+          prop.coordinationScope);
     }
   }
 

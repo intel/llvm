@@ -158,6 +158,39 @@ struct work_item_progress_key
 
 template <forward_progress_guarantee Guarantee,
           execution_scope CoordinationScope>
+struct property_value<
+    work_group_progress_key,
+    std::integral_constant<forward_progress_guarantee, Guarantee>,
+    std::integral_constant<execution_scope, CoordinationScope>> {
+  using key_t = work_group_progress_key;
+  static constexpr forward_progress_guarantee guarantee = Guarantee;
+  static constexpr execution_scope coordinationScope = CoordinationScope;
+};
+
+template <forward_progress_guarantee Guarantee,
+          execution_scope CoordinationScope>
+struct property_value<
+    sub_group_progress_key,
+    std::integral_constant<forward_progress_guarantee, Guarantee>,
+    std::integral_constant<execution_scope, CoordinationScope>> {
+  using key_t = work_group_progress_key;
+  static constexpr forward_progress_guarantee guarantee = Guarantee;
+  static constexpr execution_scope coordinationScope = CoordinationScope;
+};
+
+template <forward_progress_guarantee Guarantee,
+          execution_scope CoordinationScope>
+struct property_value<
+    work_item_progress_key,
+    std::integral_constant<forward_progress_guarantee, Guarantee>,
+    std::integral_constant<execution_scope, CoordinationScope>> {
+  using key_t = work_group_progress_key;
+  static constexpr forward_progress_guarantee guarantee = Guarantee;
+  static constexpr execution_scope coordinationScope = CoordinationScope;
+};
+
+template <forward_progress_guarantee Guarantee,
+          execution_scope CoordinationScope>
 inline constexpr work_group_progress_key::value_t<Guarantee, CoordinationScope>
     work_group_progress;
 
