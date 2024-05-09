@@ -254,7 +254,7 @@ static bool IsUnusedBuiltinOrPrivateDef(const Function &F) {
       F.getNumUses() == 0 && !F.isDeclaration()) {
     if (F.hasFnAttribute(llvm::Attribute::AlwaysInline)) {
       StringRef val = F.getFnAttribute("sycl-module-id").getValueAsString();
-      if (val.endswith("libdevice/nativecpu_utils.cpp"))
+      if (val.ends_with("libdevice/nativecpu_utils.cpp"))
         return true;
     }
     if (Function::isPrivateLinkage(F.getLinkage()))
