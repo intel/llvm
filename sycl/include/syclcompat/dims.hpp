@@ -38,7 +38,7 @@ public:
 
   dim3(const sycl::range<1> &r) : x(r[0]), y(1), z(1) {}
 
-  constexpr dim3() : x(1), y(1), z(1) {}
+  constexpr dim3() : x(0), y(0), z(0) {}
 
   constexpr dim3(size_t x, size_t y = 1, size_t z = 1) : x(x), y(y), z(z) {}
 
