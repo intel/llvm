@@ -262,6 +262,13 @@ template <typename T>
 using make_unsinged_integer_t =
     make_type_t<T, gtl::scalar_unsigned_integer_list>;
 
+template <int Size>
+using cl_unsigned = std::conditional_t<
+    Size == 1, opencl::cl_uchar,
+    std::conditional_t<
+        Size == 2, opencl::cl_ushort,
+        std::conditional_t<Size == 4, opencl::cl_uint, opencl::cl_ulong>>>;
+
 // select_apply_cl_scalar_t selects from T8/T16/T32/T64 basing on
 // sizeof(IN).  expected to handle scalar types.
 template <typename T, typename T8, typename T16, typename T32, typename T64>
