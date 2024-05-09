@@ -383,9 +383,9 @@ __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, log2, log)
 /// Precision: 4 ULP.
 __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, exp2, exp)
 
-/// Square root. Is not IEEE754-compatible.  Supports \c half and \c float.
-/// Precision: 4 ULP.
-__ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, sqrt, sqrt)
+/// Square root. Is not IEEE754-compatible. Supports \c half, \c float and
+/// \c double. Precision: 4 ULP.
+__ESIMD_UNARY_INTRINSIC_DEF(detail::is_generic_floating_point_v<T>, sqrt, sqrt)
 
 /// IEEE754-compliant square root. Supports \c float and \c double.
 __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_IEEE_COND, sqrt_ieee, ieee_sqrt)
@@ -403,19 +403,6 @@ __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, sin, sin)
 /// Absolute error: \c 0.0008 or less for the range [-32767*pi, 32767*pi].
 __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, cos, cos)
 
-template <class T = double, int N, class Sat = saturation_off_tag>
-__ESIMD_API std::enable_if_t<std::is_same_v<T, double>, simd<double, N>>
-sqrt(simd<T, N> src, Sat sat = {}) {
-  return sqrt_ieee(src, sat);
-}
-
-/** Scalar version.                                                       */
-template <class T, class Sat = saturation_off_tag>
-__ESIMD_API std::enable_if_t<std::is_same_v<T, double>, double>
-sqrt(T src, Sat sat = {}) {
-  return sqrt_ieee(src, sat);
-}
-
 template <class T, int N, class Sat = saturation_off_tag>
 __ESIMD_API std::enable_if_t<std::is_same_v<T, double>, simd<double, N>>
 rsqrt(simd<T, N> src, Sat sat = {}) {
@@ -432,7 +419,7 @@ rsqrt(T src, Sat sat = {}) {
   if constexpr (std::is_same_v<Sat, saturation_off_tag>)
     return 1. / sqrt(src);
   else
-    return esimd::saturate<double>(simd<double, 1>(1. / sqrt(src)))[0];
+    return esimd::saturate<double>(1. / sqrt(src));
 }
 
 #undef __ESIMD_UNARY_INTRINSIC_DEF

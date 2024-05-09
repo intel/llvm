@@ -31,8 +31,7 @@ using namespace sycl::ext::intel;
 #define ESIMD_SATURATION_TAG                                                   \
   esimd::saturation_on_tag {}
 #define ESIMD_SATURATE(T, x) esimd::saturate<T>(x)
-#define HOST_SATURATE(x)                                                       \
-  ((x) < 1.0f ? (x) : 1.0f) > 0.0f ? ((x) < 1.0f ? (x) : 1.0f) : 0.0f
+#define HOST_SATURATE(x) (x) >= 1.0f ? 1.0f : ((x) <= 0.0f ? 0.0f : (x))
 #else
 #define ESIMD_SATURATION_TAG                                                   \
   esimd::saturation_off_tag {}
