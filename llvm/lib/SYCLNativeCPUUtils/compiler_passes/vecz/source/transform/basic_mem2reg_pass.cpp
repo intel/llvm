@@ -185,10 +185,8 @@ bool BasicMem2RegPass::promoteAlloca(AllocaInst *Alloca) const {
       DIBuilder DIB(*Alloca->getModule(), /*AllowUnresolved*/ false);
 #if LLVM_VERSION_GREATER_EQUAL(18, 0)
       auto DbgIntrinsics = findDbgDeclares(Alloca);
-#elif LLVM_VERSION_GREATER_EQUAL(17, 0)
-      auto DbgIntrinsics = FindDbgDeclareUses(Alloca);
 #else
-      auto DbgIntrinsics = FindDbgAddrUses(Alloca);
+      auto DbgIntrinsics = FindDbgDeclareUses(Alloca);
 #endif
       for (auto oldDII : DbgIntrinsics) {
         ConvertDebugDeclareToDebugValue(oldDII, Store, DIB);

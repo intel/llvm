@@ -747,11 +747,7 @@ Value *TargetInfoRISCV::createVPKernelWidth(IRBuilder<> &B,
   auto *const I64Ty = Type::getInt64Ty(B.getContext());
 
   auto *const VL =
-#if LLVM_VERSION_GREATER_EQUAL(17, 0)
       B.CreateIntrinsic(Intrinsic::RISCVIntrinsics::riscv_vsetvli, {I64Ty},
-#else
-      B.CreateIntrinsic(Intrinsic::RISCVIntrinsics::riscv_vsetvli_opt, {I64Ty},
-#endif
                         {RemainingIters, VSEW, VLMul});
 
   return B.CreateTrunc(VL, I32Ty);

@@ -623,16 +623,10 @@ static llvm::Function *createKernelWrapperFunctionImpl(
   if (auto *SP = F.getSubprogram()) {
     const llvm::DIBuilder DIB(*F.getParent());
     llvm::DISubprogram *const NewSP = DIB.createArtificialSubprogram(SP);
-#if LLVM_VERSION_GREATER_EQUAL(17, 0)
     // Wipe the list of retained nodes, as this new function is a wrapper over
     // the old one and does not itself contain/retain any of the wrapped
     // function's nodes.
     NewSP->replaceRetainedNodes({});
-#else
-    // This does the same as the above, but there's no cleaner API with which
-    // to do it.
-    NewSP->replaceOperandWith(7, nullptr);
-#endif
     NewFunction.setSubprogram(NewSP);
   }
 

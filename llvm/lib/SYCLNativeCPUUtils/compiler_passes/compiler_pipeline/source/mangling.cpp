@@ -249,20 +249,15 @@ bool NameMangler::mangleType(raw_ostream &O, Type *Ty, TypeQualifiers Quals,
   } else if (Ty->isPointerTy()) {
     PointerType *PtrTy = cast<PointerType>(Ty);
     const unsigned AddressSpace = PtrTy->getAddressSpace();
-#if LLVM_VERSION_LESS(17, 0)
-    assert(PtrTy->isOpaque() && "No support for typed pointers past LLVM 15");
-#endif
     O << "u3ptr";
     manglePointerQuals(O, Qual, AddressSpace);
     return true;
-#if LLVM_VERSION_GREATER_EQUAL(17, 0)
   } else if (Ty->isTargetExtTy()) {
     if (auto Name = mangleBuiltinType(Ty)) {
       O << *Name;
       return true;
     }
     return false;
-#endif
   } else {
     return false;
   }
@@ -331,17 +326,6 @@ bool NameMangler::demangleSimpleType(Lexer &L, Type *&Ty, TypeQualifier &Qual) {
 }
 
 std::optional<std::string> NameMangler::mangleBuiltinType(Type *Ty) {
-  // With opaque pointers, before LLVM 17 we can't actually mangle OpenCL
-  // builtin types because our APIs don't expose the ability to mangle a pointer
-  // based on its element type.
-  // This is never a problem in the compiler as we don't generate such functions
-  // on the fly, but it is a weakness in the API. We could fix this, or wait it
-  // out until LLVM 17 becomes the minimum version, at which point target
-  // extension types save the day.
-#if LLVM_VERSION_LESS(17, 0)
-  (void)Ty;
-  return nullptr;
-#else
   auto *const TgtTy = cast<TargetExtType>(Ty);
   const StringRef Name = TgtTy->getName();
 
@@ -399,7 +383,6 @@ std::optional<std::string> NameMangler::mangleBuiltinType(Type *Ty) {
   }
 
   return std::to_string(MangledName.size()) + MangledName;
-#endif
 }
 
 bool NameMangler::demangleOpenCLBuiltinType(Lexer &L, Type *&Ty) {
@@ -408,7 +391,6 @@ bool NameMangler::demangleOpenCLBuiltinType(Lexer &L, Type *&Ty) {
     return true;
   }
 
-#if LLVM_VERSION_GREATER_EQUAL(17, 0)
   if (auto *TargetExtTy = [this, &L]() -> Type * {
         if (L.Consume("11ocl_image1d")) {
           return compiler::utils::tgtext::getImage1DTy(*Context);
@@ -449,7 +431,6 @@ bool NameMangler::demangleOpenCLBuiltinType(Lexer &L, Type *&Ty) {
     Ty = TargetExtTy;
     return true;
   }
-#endif
 
   StringRef Name;
   //
