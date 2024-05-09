@@ -103,8 +103,18 @@ using rel_t = typename std::conditional_t<
 template <typename T> class GetOp {
 public:
   using DataT = T;
-  DataT getValue(size_t) const { return (DataT)0; }
-  DataT operator()(DataT, DataT) { return (DataT)0; }
+  DataT getValue(size_t) const {
+    if constexpr (std::is_same_v<DataT, sycl::detail::host_half_impl::half>)
+      return DataT{0.0f};
+    else
+      return (DataT)0;
+  }
+  DataT operator()(DataT, DataT) {
+    if constexpr (std::is_same_v<DataT, sycl::detail::host_half_impl::half>)
+      return DataT{0.0f};
+    else
+      return (DataT)0;
+  }
 };
 
 // Forward declarations
