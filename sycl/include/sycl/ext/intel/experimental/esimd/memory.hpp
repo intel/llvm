@@ -366,6 +366,7 @@ __ESIMD_API
 /// Available only on PVC
 ///
 /// @param id  - named barrier id
+__SYCL_DEPRECATED("use sycl::ext::intel::esimd::named_barrier_wait")
 __ESIMD_API void named_barrier_wait(uint8_t id) {
   __ESIMD_NS::named_barrier_wait(id);
 }
@@ -374,7 +375,9 @@ __ESIMD_API void named_barrier_wait(uint8_t id) {
 /// Available only on PVC
 ///
 /// @tparam NbarCount  - number of named barriers
-template <uint8_t NbarCount> __ESIMD_API void named_barrier_init() {
+template <uint8_t NbarCount>
+__SYCL_DEPRECATED("use sycl::ext::intel::esimd::named_barrier_init")
+__ESIMD_API void named_barrier_init() {
   __ESIMD_NS::named_barrier_init<NbarCount>();
 }
 
@@ -390,6 +393,7 @@ template <uint8_t NbarCount> __ESIMD_API void named_barrier_init() {
 /// @param num_producers  - number of producers
 ///
 /// @param num_consumers  - number of consumers
+__SYCL_DEPRECATED("use sycl::ext::intel::esimd::named_barrier_signal")
 __ESIMD_API void named_barrier_signal(uint8_t barrier_id,
                                       uint8_t producer_consumer_mode,
                                       uint32_t num_producers,
