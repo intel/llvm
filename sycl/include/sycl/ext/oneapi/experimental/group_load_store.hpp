@@ -120,24 +120,28 @@ int get_mem_idx(GroupTy g, int vec_or_array_idx) {
 // Reads require 4-byte alignment, writes 16-byte alignment. Supported
 // sizes:
 //
-// +--------+-------------+
-// | uchar  | 1,2,4,8,16  |
-// | ushort | 1,2,4,8     |
-// | uint   | 1,2,4,8     |
-// | ulong  | 1,2,4,8     |
-// +--------+-------------+
+// +------------+-------------+
+// | block type | # of blocks |
+// +------------+-------------+
+// | uchar      | 1,2,4,8,16  |
+// | ushort     | 1,2,4,8     |
+// | uint       | 1,2,4,8     |
+// | ulong      | 1,2,4,8     |
+// +------------+-------------+
 //
 // Utility type traits below are used to map user type to one of the block
 // read/write types above.
 
-template <typename IteratorT, std::size_t ElementsPerWorkItem, bool blocked>
+template <typename IteratorT, std::size_t ElementsPerWorkItem, bool Blocked>
 struct BlockInfo {
   using value_type =
       remove_decoration_t<typename std::iterator_traits<IteratorT>::value_type>;
 
   static constexpr int block_size =
-      sizeof(value_type) * (blocked ? ElementsPerWorkItem : 1);
-  static constexpr int num_blocks = blocked ? 1 : ElementsPerWorkItem;
+      sizeof(value_type) * (Blocked ? ElementsPerWorkItem : 1);
+  static constexpr int num_blocks = Blocked ? 1 : ElementsPerWorkItem;
+  // There is an overload in the table above that could be used for the block
+  // operation:
   static constexpr bool has_builtin =
       detail::is_power_of_two(block_size) &&
       detail::is_power_of_two(num_blocks) && block_size <= 8 &&
@@ -146,9 +150,9 @@ struct BlockInfo {
 
 template <typename BlockInfoTy> struct BlockTypeInfo;
 
-template <typename IteratorT, std::size_t ElementsPerWorkItem, bool blocked>
-struct BlockTypeInfo<BlockInfo<IteratorT, ElementsPerWorkItem, blocked>> {
-  using BlockInfoTy = BlockInfo<IteratorT, ElementsPerWorkItem, blocked>;
+template <typename IteratorT, std::size_t ElementsPerWorkItem, bool Blocked>
+struct BlockTypeInfo<BlockInfo<IteratorT, ElementsPerWorkItem, Blocked>> {
+  using BlockInfoTy = BlockInfo<IteratorT, ElementsPerWorkItem, Blocked>;
   static_assert(BlockInfoTy::has_builtin);
 
   using block_type = detail::cl_unsigned<BlockInfoTy::block_size>;
@@ -198,21 +202,25 @@ auto get_block_op_ptr(IteratorT iter, [[maybe_unused]] Properties props) {
     else
       return nullptr;
   } else {
+    // Load/store to/from nullptr would be an UB, this assume allows the
+    // compiler to optimize the IR further.
     __builtin_assume(iter != nullptr);
-    static_assert(BlkInfo::has_builtin);
-    bool aligned = alignof(value_type) >= RequiredAlign ||
-                   reinterpret_cast<uintptr_t>(iter) % RequiredAlign == 0;
+
+    // No early return as that would mess up return type deduction.
+    bool is_aligned = alignof(value_type) >= RequiredAlign ||
+                      reinterpret_cast<uintptr_t>(iter) % RequiredAlign == 0;
 
     constexpr auto AS = detail::deduce_AS<iter_no_cv>::value;
     using block_pointer_type =
         typename BlockTypeInfo<BlkInfo>::block_pointer_type;
     if constexpr (AS == access::address_space::global_space) {
-      return aligned ? reinterpret_cast<block_pointer_type>(iter) : nullptr;
+      return is_aligned ? reinterpret_cast<block_pointer_type>(iter) : nullptr;
     } else if constexpr (AS == access::address_space::generic_space) {
-      return aligned ? reinterpret_cast<block_pointer_type>(
-                           __SYCL_GenericCastToPtrExplicit_ToGlobal<value_type>(
-                               iter))
-                     : nullptr;
+      return is_aligned
+                 ? reinterpret_cast<block_pointer_type>(
+                       __SYCL_GenericCastToPtrExplicit_ToGlobal<value_type>(
+                           iter))
+                 : nullptr;
     } else {
       return nullptr;
     }
