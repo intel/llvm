@@ -437,6 +437,11 @@ static cl::opt<AsanDtorKind> ClOverrideDestructorKind(
                           "Use global destructors")),
     cl::init(AsanDtorKind::Invalid), cl::Hidden);
 
+// SYCL flags
+static cl::opt<bool> ClDeviceGlobals("asan-device-globals",
+                                     cl::desc("instrument device globals"),
+                                     cl::Hidden, cl::init(true));
+
 // Debug flags.
 
 static cl::opt<int> ClDebug("asan-debug", cl::desc("debug"), cl::Hidden,
@@ -2996,8 +3001,10 @@ bool ModuleAddressSanitizer::instrumentModule(Module &M) {
     Metadata *MDVals[] = {MDString::get(Ctx, "asan")};
     MD->addOperand(MDNode::get(Ctx, MDVals));
 
-    IRBuilder<> IRB(*C);
-    instrumentDeviceGlobal(IRB, M);
+    if (ClDeviceGlobals) {
+      IRBuilder<> IRB(*C);
+      instrumentDeviceGlobal(IRB, M);
+    }
   }
 
   const uint64_t Priority = GetCtorAndDtorPriority(TargetTriple);
