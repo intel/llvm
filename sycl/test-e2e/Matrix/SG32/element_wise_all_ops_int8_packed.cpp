@@ -13,14 +13,7 @@
 
 // This test stores the matrix B that is VNNIed (packed).
 
-#include <iostream>
-#include <random>
-#include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/matrix/matrix.hpp>
-
-using namespace sycl;
-using namespace sycl::ext::intel;
-using namespace sycl::ext::oneapi::experimental::matrix;
+#include "../common.hpp"
 
 constexpr size_t SG_SZ = 32;
 constexpr size_t TN = 16;

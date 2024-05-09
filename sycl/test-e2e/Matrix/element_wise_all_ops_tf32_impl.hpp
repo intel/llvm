@@ -1,15 +1,6 @@
 #define TM 8
 #define TK 8
 
-template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
-public:
-  T *mat;
-
-public:
-  T *get_data() { return mat; }
-  void set_data(T *data) { mat = data; }
-  big_matrix(T *data) : mat(data) {}
-};
 
 template <typename T, size_t M, size_t N>
 void assert_ops_ref(host_accessor<T, 2, access::mode::read> C,

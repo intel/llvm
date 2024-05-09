@@ -1,22 +1,5 @@
 static constexpr size_t M_MULTIPLIER = 16;
 
-static float make_fp32(bfloat16 x) {
-  unsigned int y = *((int *)&x);
-  y = y << 16;
-  float *res = reinterpret_cast<float *>(&y);
-  return *res;
-}
-
-template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
-public:
-  T *mat;
-
-public:
-  T *get_data() { return mat; }
-  void set_data(T *data) { mat = data; }
-  big_matrix(T *data) : mat(data) {}
-};
-
 template <typename T, size_t M, size_t N>
 void assert_ops_ref(host_accessor<T, 2, access::mode::read_write> C,
                     const T ref) {

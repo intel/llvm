@@ -14,12 +14,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <iostream>
-#include <sycl/sycl.hpp>
-
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::bfloat16;
+#include "common.hpp"
 
 #define SG_SZ 16
 
@@ -28,16 +23,6 @@ using bfloat16 = sycl::ext::oneapi::bfloat16;
 #define TM 10
 #define TN 12
 #define TK 16
-
-template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
-public:
-  T *mat;
-
-public:
-  T *get_data() { return mat; }
-  void set_data(T *data) { mat = data; }
-  big_matrix(T *data) : mat(data) {}
-};
 
 template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
           size_t NUM_ROWS_B, size_t NUM_COLS_B, size_t NUM_ROWS_C,
@@ -120,30 +105,6 @@ bfloat16 A[MATRIX_M][MATRIX_K];
 bfloat16 B[MATRIX_K / 2][MATRIX_N * 2];
 float C[MATRIX_M][MATRIX_N];
 float D[MATRIX_M][MATRIX_N];
-
-float make_fp32(bfloat16 x) {
-  unsigned int y = *((int *)&x);
-  y = y << 16;
-  float *res = reinterpret_cast<float *>(&y);
-  return *res;
-}
-
-void matrix_multiply_ref(int *A_mem, int *B_mem, int *C_mem, int M, int N,
-                         int K) {
-  for (int m = 0; m < M; m++)
-    for (int n = 0; n < N; n++) {
-      for (int k = 0; k < K; k++) {
-        bfloat16 *va = (bfloat16 *)(A_mem + m * K + k);
-        bfloat16 *vb = (bfloat16 *)(B_mem + k * N + n);
-        float acc = *((float *)(C_mem + m * N + n));
-        for (int i = 0; i < 2; i++) {
-          acc += (make_fp32(va[i]) * make_fp32(vb[i]));
-        }
-        *((float *)(C_mem + m * N + n)) = acc;
-      }
-      *((float *)(C_mem + m * N + n)) += 5.0;
-    }
-}
 
 int main() {
   for (int i = 0; i < MATRIX_M; i++) {
