@@ -67,6 +67,14 @@ defined in this specification.*
 
 This extension is only supported by the `ext_oneapi_cuda` backend.
 
+
+== Glossary
+
+* Compute Capability: Abbreviated as "cc", a number assigned to each generation
+of NVIDIA's GPUs conveying the feature set associated with that number.
+
+
+
 == Overview
 
 NVIDIA’s compute capability (cc) 9.0 devices introduced a new level in the
