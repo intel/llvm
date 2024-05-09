@@ -64,6 +64,7 @@
 #endif
 #include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
 #include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
+#include <sycl/ext/intel/experimental/forward_progress.hpp>
 #include <sycl/ext/intel/experimental/fpga_mem/fpga_datapath.hpp>
 #include <sycl/ext/intel/experimental/fpga_mem/fpga_mem.hpp>
 #include <sycl/ext/intel/experimental/fpga_mem/properties.hpp>
