@@ -27,37 +27,17 @@ namespace utils {
 namespace tgtext {
 
 Type *getEventTy(LLVMContext &Ctx) {
-#if LLVM_VERSION_LESS(17, 0)
-  (void)Ctx;
-  llvm_unreachable("Can't use target extension types before LLVM 17");
-#else
   return TargetExtType::get(Ctx, "spirv.Event");
-#endif
 }
 
 Type *getSamplerTy(LLVMContext &Ctx) {
-#if LLVM_VERSION_LESS(17, 0)
-  (void)Ctx;
-  llvm_unreachable("Can't use target extension types before LLVM 17");
-#else
   return TargetExtType::get(Ctx, "spirv.Sampler");
-#endif
 }
 
 [[maybe_unused]] static Type *getImageTyHelper(
     LLVMContext &Ctx, ImageTyDimensionalityParam Dim, ImageTyDepthParam Depth,
     ImageTyArrayedParam Arrayed, ImageTyMSParam MS, ImageTySampledParam Sampled,
     ImageTyAccessQualParam AccessQual) {
-#if LLVM_VERSION_LESS(17, 0)
-  (void)Ctx;
-  (void)Dim;
-  (void)Depth;
-  (void)Arrayed;
-  (void)MS;
-  (void)Sampled;
-  (void)AccessQual;
-  llvm_unreachable("Can't use target extension types before LLVM 17");
-#else
   unsigned IntParams[7];
   IntParams[ImageTyDimensionalityIdx] = Dim;
   IntParams[ImageTyDepthIdx] = Depth;
@@ -68,7 +48,6 @@ Type *getSamplerTy(LLVMContext &Ctx) {
   IntParams[ImageTyAccessQualIdx] = AccessQual;
   return TargetExtType::get(Ctx, "spirv.Image", Type::getVoidTy(Ctx),
                             IntParams);
-#endif
 }
 
 [[maybe_unused]] static Type *getOpenCLImageTyHelper(
@@ -87,74 +66,34 @@ Type *getSamplerTy(LLVMContext &Ctx) {
 }
 
 Type *getImage1DTy(LLVMContext &Ctx, ImageTyAccessQualParam AccessQual) {
-#if LLVM_VERSION_LESS(17, 0)
-  (void)Ctx;
-  (void)AccessQual;
-  llvm_unreachable("Can't use target extension types before LLVM 17");
-#else
   return getOpenCLImageTyHelper(Ctx, ImageDim1D, ImageNonArrayed, AccessQual);
-#endif
 }
 
 Type *getImage1DArrayTy(LLVMContext &Ctx, ImageTyAccessQualParam AccessQual) {
-#if LLVM_VERSION_LESS(17, 0)
-  (void)Ctx;
-  (void)AccessQual;
-  llvm_unreachable("Can't use target extension types before LLVM 17");
-#else
   return getOpenCLImageTyHelper(Ctx, ImageDim1D, ImageArrayed, AccessQual);
-#endif
 }
 
 Type *getImage1DBufferTy(LLVMContext &Ctx, ImageTyAccessQualParam AccessQual) {
-#if LLVM_VERSION_LESS(17, 0)
-  (void)Ctx;
-  (void)AccessQual;
-  llvm_unreachable("Can't use target extension types before LLVM 17");
-#else
   return getOpenCLImageTyHelper(Ctx, ImageDimBuffer, ImageNonArrayed,
                                 AccessQual);
-#endif
 }
 
 Type *getImage2DTy(LLVMContext &Ctx, bool Depth, bool MS,
                    ImageTyAccessQualParam AccessQual) {
-#if LLVM_VERSION_LESS(17, 0)
-  (void)Ctx;
-  (void)Depth;
-  (void)MS;
-  (void)AccessQual;
-  llvm_unreachable("Can't use target extension types before LLVM 17");
-#else
   return getOpenCLImageTyHelper(
       Ctx, ImageDim2D, ImageNonArrayed, Depth ? ImageDepth : ImageDepthNone,
       MS ? ImageMSMultiSampled : ImageMSSingleSampled, AccessQual);
-#endif
 }
 
 Type *getImage2DArrayTy(LLVMContext &Ctx, bool Depth, bool MS,
                         ImageTyAccessQualParam AccessQual) {
-#if LLVM_VERSION_LESS(17, 0)
-  (void)Ctx;
-  (void)Depth;
-  (void)MS;
-  (void)AccessQual;
-  llvm_unreachable("Can't use target extension types before LLVM 17");
-#else
   return getOpenCLImageTyHelper(
       Ctx, ImageDim2D, ImageArrayed, Depth ? ImageDepth : ImageDepthNone,
       MS ? ImageMSMultiSampled : ImageMSSingleSampled, AccessQual);
-#endif
 }
 
 Type *getImage3DTy(LLVMContext &Ctx, ImageTyAccessQualParam AccessQual) {
-#if LLVM_VERSION_LESS(17, 0)
-  (void)Ctx;
-  (void)AccessQual;
-  llvm_unreachable("Can't use target extension types before LLVM 17");
-#else
   return getOpenCLImageTyHelper(Ctx, ImageDim3D, ImageNonArrayed, AccessQual);
-#endif
 }
 
 }  // namespace tgtext

@@ -20,6 +20,5 @@
 #include <multi_llvm/enums.h>
 #include <multi_llvm/llvm_version.h>
 #include <multi_llvm/loop_utils.h>
-#include <multi_llvm/triple.h>
 
 #endif  // MULTI_LLVM_MULTI_LLVM_H_INCLUDED

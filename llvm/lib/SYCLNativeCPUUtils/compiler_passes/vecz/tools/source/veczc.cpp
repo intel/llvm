@@ -294,9 +294,6 @@ int main(const int argc, const char *const argv[]) {
 
   llvm::SMDiagnostic err;
   llvm::LLVMContext context;
-#if LLVM_VERSION_LESS(17, 0)
-  context.setOpaquePointers(true);
-#endif
 
   std::unique_ptr<llvm::Module> module =
       llvm::parseIRFile(InputFilename, err, context);

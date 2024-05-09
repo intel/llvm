@@ -28,6 +28,7 @@
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/Error.h>
 #include <llvm/Support/MathExtras.h>
+#include <llvm/TargetParser/Triple.h>
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <llvm/Transforms/Utils/ValueMapper.h>
 #include <multi_llvm/multi_llvm.h>

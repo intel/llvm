@@ -19,7 +19,7 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/MC/TargetRegistry.h>
 #include <llvm/Target/TargetMachine.h>
-#include <multi_llvm/triple.h>
+#include <llvm/TargetParser/Triple.h>
 #include <multi_llvm/vector_type_helper.h>
 
 #include "debugging.h"

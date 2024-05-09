@@ -26,7 +26,7 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/IntrinsicInst.h>
 #include <llvm/IR/Intrinsics.h>
-#include <multi_llvm/triple.h>
+#include <llvm/TargetParser/Triple.h>
 #include <multi_llvm/vector_type_helper.h>
 
 #define DEBUG_TYPE "ca-optimal-builtins"

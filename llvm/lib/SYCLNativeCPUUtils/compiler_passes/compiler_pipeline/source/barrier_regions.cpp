@@ -972,10 +972,8 @@ void compiler::utils::Barrier::MakeLiveVariableMemType() {
     // so record this and the matching byte offset into the struct.
 #if LLVM_VERSION_GREATER_EQUAL(18, 0)
     auto DbgIntrinsics = findDbgDeclares(member.value);
-#elif LLVM_VERSION_GREATER_EQUAL(17, 0)
-    auto DbgIntrinsics = FindDbgDeclareUses(member.value);
 #else
-    auto DbgIntrinsics = FindDbgAddrUses(member.value);
+    auto DbgIntrinsics = FindDbgDeclareUses(member.value);
 #endif
     for (auto DII : DbgIntrinsics) {
       if (auto dbgDeclare = dyn_cast<DbgDeclareInst>(DII)) {
