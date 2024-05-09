@@ -68,7 +68,7 @@ This extension is only supported by the `ext_oneapi_cuda` backend.
 
 == Overview
 
-Nvidia’s compute capability (cc) 9.0 devices introduced a new level in the
+NVIDIA’s compute capability (cc) 9.0 devices introduced a new level in the
 thread hierarchy, called as thread block clusters, in CUDA terminology. A thread
 block cluster, is a collection of thread blocks (a work-group in SYCL
 terminology). The work-groups which make up a cluster have the ability to access
@@ -99,14 +99,14 @@ supports
 |Description
 
 |1
-|The APIs of this experimental extension are not versioned, so the
+|The APIs of this experimental extension are not version-ed, so the
  feature-test macro always has this value.
 |===
 
 
 === Launching a kernel with a `cluster_group`
 
-Becuase of the special scheduling guarantees associated with a cluster launch,
+Because of the special scheduling guarantees associated with a cluster launch,
 the backend must know which kernel would be using this feature. This can be
 thought of as a runtime property of the kernel.This proposal defines a new
 `struct` which will hold the cluster ranges in each dimension. If the value of
@@ -140,9 +140,9 @@ be used to launch the kernel with the mentioned properties.
 
 === Accessing the Cluster Group From Device Code
 
-Building upon the group heirarchy in sycl, this proposal adds another level
+Building upon the group hierarchy in sycl, this proposal adds another level
 above `group`(for work-groups), to be called as `cluster-group`, which 
-represents a collection of work-groups and will be accesible via the `nd_item`
+represents a collection of work-groups and will be accessible via the `nd_item`
 class, via a method to be introduced called `ext_oneapi_cuda_get_cluster_group()`.
 
 
@@ -150,7 +150,7 @@ class, via a method to be introduced called `ext_oneapi_cuda_get_cluster_group()
 |===
 
 |`cluster_group<Dimensions> nd_item::ext_oneapi_cuda_get_cluster_group()`
-|Returns the consituent `cluster_group` in the kernel, representing this
+|Returns the constituent `cluster_group` in the kernel, representing this
 `cluster_group`'s overall position in the `nd_range`
 |===
 
