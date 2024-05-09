@@ -432,8 +432,8 @@ min(ValueT a, ValueU b) {
 }
 template <typename ValueT, typename ValueU>
 inline std::enable_if_t<std::is_floating_point_v<ValueT> &&
-                     std::is_floating_point_v<ValueU>,
-                 std::common_type_t<ValueT, ValueU>>
+                            std::is_floating_point_v<ValueU>,
+                        std::common_type_t<ValueT, ValueU>>
 min(ValueT a, ValueU b) {
   return sycl::fmin(static_cast<std::common_type_t<ValueT, ValueU>>(a),
                     static_cast<std::common_type_t<ValueT, ValueU>>(b));
@@ -450,8 +450,8 @@ max(ValueT a, ValueU b) {
 }
 template <typename ValueT, typename ValueU>
 inline std::enable_if_t<std::is_floating_point_v<ValueT> &&
-                     std::is_floating_point_v<ValueU>,
-                 std::common_type_t<ValueT, ValueU>>
+                            std::is_floating_point_v<ValueU>,
+                        std::common_type_t<ValueT, ValueU>>
 max(ValueT a, ValueU b) {
   return sycl::fmax(static_cast<std::common_type_t<ValueT, ValueU>>(a),
                     static_cast<std::common_type_t<ValueT, ValueU>>(b));
