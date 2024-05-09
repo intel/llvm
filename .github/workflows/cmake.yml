@@ -20,6 +20,7 @@ jobs:
         compiler: [{c: gcc, cxx: g++}]
         libbacktrace: ['-DVAL_USE_LIBBACKTRACE_BACKTRACE=OFF']
         pool_tracking: ['-DUMF_ENABLE_POOL_TRACKING=ON', '-DUMF_ENABLE_POOL_TRACKING=OFF']
+        latency_tracking: ['-DUMF_ENABLE_LATENCY_TRACKING=OFF']
         include:
           - os: 'ubuntu-22.04'
             build_type: Release
@@ -36,6 +37,10 @@ jobs:
           - os: 'ubuntu-20.04'
             build_type: Release
             compiler: {c: gcc-7, cxx: g++-7}
+          - os: 'ubuntu-22.04'
+            build_type: Release
+            compiler: {c: clang, cxx: clang++}
+            latency_tracking: '-DUMF_ENABLE_LATENCY_TRACKING=ON'
     runs-on: ${{ (matrix.os == 'ubuntu-22.04' && github.repository_owner == 'oneapi-src') && 'intel-ubuntu-22.04' || matrix.os }}
 
     steps:
@@ -92,6 +97,7 @@ jobs:
         -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
         ${{matrix.libbacktrace}}
         ${{matrix.pool_tracking}}
+        ${{matrix.latency_tracking}}
 
     - name: Configure CMake
       if: matrix.os == 'ubuntu-20.04'
@@ -106,6 +112,7 @@ jobs:
         -DUR_FORMAT_CPP_STYLE=ON
         ${{matrix.libbacktrace}}
         ${{matrix.pool_tracking}}
+        ${{matrix.latency_tracking}}
 
     - name: Generate source from spec, check for uncommitted diff
       if: matrix.os == 'ubuntu-22.04'
