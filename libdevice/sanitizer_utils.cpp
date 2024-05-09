@@ -132,7 +132,7 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
 }
 
 static __SYCL_CONSTANT__ const char __mem_launch_info[] =
-    "[kernel] launch_info: %p (offset=%p, offset_end=%p, argLocalArgs=%d, "
+    "[kernel] launch_info: %p (local_shadow=%p~%p, numLocalArgs=%d, "
     "localArgs=%p)\n";
 
 static __SYCL_CONSTANT__ const char __generic_to[] =
@@ -197,7 +197,9 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
     }
 
     if (__AsanDebug)
-      __spirv_ocl_printf(__mem_launch_info, shadow_offset, shadow_offset_end,
+      __spirv_ocl_printf(__mem_launch_info, launch_info,
+                         launch_info->LocalShadowOffset,
+                         launch_info->LocalShadowOffsetEnd,
                          launch_info->NumLocalArgs, launch_info->LocalArgs);
 
     uptr shadow_ptr = shadow_offset +
@@ -680,7 +682,8 @@ __asan_set_shadow_dynamic_local(uptr ptr, uint32_t num_args) {
 
   uptr *args = (uptr *)ptr;
   if (__AsanDebug)
-    __spirv_ocl_printf(__mem_launch_info, launch_info->LocalShadowOffset,
+    __spirv_ocl_printf(__mem_launch_info, launch_info,
+                       launch_info->LocalShadowOffset,
                        launch_info->LocalShadowOffsetEnd,
                        launch_info->NumLocalArgs, launch_info->LocalArgs);
 
