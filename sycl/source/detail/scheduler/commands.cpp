@@ -270,7 +270,7 @@ std::vector<sycl::detail::pi::PiEvent> Command::getPiEventsBlocking(
       continue;
     // In this path nullptr native event means that the command has not been
     // enqueued. It may happen if async enqueue in a host task is involved.
-    if (EventImpl->getHandleRef() == nullptr) {
+    if (!EventImpl->isEnqueued()) {
       if (!EventImpl->getCommand() ||
           !static_cast<Command *>(EventImpl->getCommand())->producesPiEvent())
         continue;
@@ -883,6 +883,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
     EnqueueResult =
         EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this, Res);
   else {
+    MEvent->setEnqueued();
     if (MShouldCompleteEventIfPossible &&
         (MEvent->is_host() || MEvent->getHandleRef() == nullptr))
       MEvent->setComplete();
@@ -1784,8 +1785,7 @@ void EmptyCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#8d8f29\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "EMPTY NODE"
-         << "\\n";
+  Stream << "EMPTY NODE" << "\\n";
 
   Stream << "\"];" << std::endl;
 
@@ -3472,8 +3472,7 @@ void UpdateCommandBufferCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#8d8f29\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "CommandBuffer Command Update"
-         << "\\n";
+  Stream << "CommandBuffer Command Update" << "\\n";
 
   Stream << "\"];" << std::endl;
 
