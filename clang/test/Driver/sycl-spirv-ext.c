@@ -1,9 +1,9 @@
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64-unknown-unknown %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown %s -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT
+// RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT,CHECK-FPGA-EMULATION
 // RUN: %clang -target x86_64-unknown-linux-gnu -fintelfpga %s -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT
+// RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT,CHECK-FPGA-EMULATION
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown -Xshardware %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHECK-FPGA-HW
 // RUN: %clang -target x86_64-unknown-linux-gnu -fintelfpga -Xshardware %s -### 2>&1 \
@@ -13,9 +13,9 @@
 // RUN: %clang -target x86_64-unknown-linux-gnu -fintelfpga -Xssimulation %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHECK-FPGA-HW
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown -Xsemulator %s -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT
+// RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT,CHECK-FPGA-EMULATION
 // RUN: %clang -target x86_64-unknown-linux-gnu -fintelfpga -Xsemulator %s -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT
+// RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT,CHECK-FPGA-EMULATION
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen-unknown-unknown %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen-unknown-unknown %s -### 2>&1 \
@@ -34,7 +34,7 @@
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_unstructured_loop_controls,+SPV_INTEL_fpga_reg
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_blocking_pipes,+SPV_INTEL_function_pointers
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_kernel_attributes,+SPV_INTEL_io_pipes
-// CHECK-DEFAULT-SAME:,+SPV_INTEL_inline_assembly,+SPV_INTEL_arbitrary_precision_integers
+// CHECK-DEFAULT-SAME:,+SPV_INTEL_inline_assembly
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_float_controls2
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_vector_compute,+SPV_INTEL_fast_composite
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_arbitrary_precision_fixed_point
@@ -56,7 +56,9 @@
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_masked_gather_scatter
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_tensor_float32_conversion
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_optnone
-// CHECK-DEFAULT-SAME:,+SPV_KHR_non_semantic_info"
+// CHECK-DEFAULT-SAME:,+SPV_KHR_non_semantic_info
+// CHECK-FPGA-EMULATION-SAME:,+SPV_INTEL_arbitrary_precision_integers
+// CHECK-DEFAULT-SAME:"
 // CHECK-FPGA-HW: llvm-spirv{{.*}}"-spirv-ext=-all
 // CHECK-FPGA-HW-SAME:,+SPV_EXT_shader_atomic_float_add
 // CHECK-FPGA-HW-SAME:,+SPV_EXT_shader_atomic_float_min_max
@@ -68,7 +70,7 @@
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_unstructured_loop_controls,+SPV_INTEL_fpga_reg
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_blocking_pipes,+SPV_INTEL_function_pointers
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_kernel_attributes,+SPV_INTEL_io_pipes
-// CHECK-FPGA-HW-SAME:,+SPV_INTEL_inline_assembly,+SPV_INTEL_arbitrary_precision_integers
+// CHECK-FPGA-HW-SAME:,+SPV_INTEL_inline_assembly
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_float_controls2
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_vector_compute,+SPV_INTEL_fast_composite
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_arbitrary_precision_fixed_point
@@ -85,7 +87,8 @@
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_cluster_attributes,+SPV_INTEL_loop_fuse
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_dsp_control
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_memory_accesses
-// CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_memory_attributes"
+// CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_memory_attributes
+// CHECK-FPGA-HW-SAME:,+SPV_INTEL_arbitrary_precision_integers"
 // CHECK-CPU: llvm-spirv{{.*}}"-spirv-allow-unknown-intrinsics=llvm.genx.,llvm.fpbuiltin"
 // CHECK-CPU-SAME: {{.*}}"-spirv-ext=-all
 // CHECK-CPU-SAME:,+SPV_EXT_shader_atomic_float_add
@@ -98,7 +101,7 @@
 // CHECK-CPU-SAME:,+SPV_INTEL_unstructured_loop_controls,+SPV_INTEL_fpga_reg
 // CHECK-CPU-SAME:,+SPV_INTEL_blocking_pipes,+SPV_INTEL_function_pointers
 // CHECK-CPU-SAME:,+SPV_INTEL_kernel_attributes,+SPV_INTEL_io_pipes
-// CHECK-CPU-SAME:,+SPV_INTEL_inline_assembly,+SPV_INTEL_arbitrary_precision_integers
+// CHECK-CPU-SAME:,+SPV_INTEL_inline_assembly
 // CHECK-CPU-SAME:,+SPV_INTEL_float_controls2
 // CHECK-CPU-SAME:,+SPV_INTEL_vector_compute,+SPV_INTEL_fast_composite
 // CHECK-CPU-SAME:,+SPV_INTEL_arbitrary_precision_fixed_point

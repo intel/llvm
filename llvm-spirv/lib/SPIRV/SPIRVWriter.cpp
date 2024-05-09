@@ -1076,7 +1076,7 @@ void LLVMToSPIRVBase::transVectorComputeMetadata(Function *F) {
   }
 }
 
-static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target);
+static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target);
 
 void LLVMToSPIRVBase::transFPGAFunctionMetadata(SPIRVFunction *BF,
                                                 Function *F) {
@@ -2763,7 +2763,7 @@ void checkIsGlobalVar(SPIRVEntry *E, Decoration Dec) {
                               ErrStr);
 }
 
-static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
+static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target) {
   SPIRVErrorLog &ErrLog = Target->getErrorLog();
 
   auto *ArgDecoMD = dyn_cast<MDNode>(MD);
@@ -2782,6 +2782,17 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
 
     const size_t NumOperands = DecoMD->getNumOperands();
     switch (static_cast<size_t>(DecoKind)) {
+    case DecorationAlignment: {
+      // Handle Alignment via SPIRVValue::setAlignment() to avoid duplicate
+      // Alignment decorations.
+      auto *Alignment =
+          mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
+      ErrLog.checkError(Alignment, SPIRVEC_InvalidLlvmModule,
+                        "Alignment operand must be an integer.");
+      Target->setAlignment(Alignment->getZExtValue());
+      break;
+    }
+
       ONE_STRING_DECORATION_CASE(MemoryINTEL, spv)
       ONE_STRING_DECORATION_CASE(UserSemantic, spv)
       ONE_INT_DECORATION_CASE(AliasScopeINTEL, spv, SPIRVId)
