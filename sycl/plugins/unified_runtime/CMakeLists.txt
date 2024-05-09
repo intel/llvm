@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8438b8a1de1ddc6e05e3bc012fb6be74d2e830e4
-  # Merge: 6076b0622452 847b3ace28b8
-  # Author: Fábio <fabio.mestre@codeplay.com>
-  # Date:   Mon May 6 18:00:46 2024 +0100
-  #    Merge branch 'main' into fabio/command-buffer-refactor
-  #    [EXP][Command-Buffer] Remove duplicated code from headers
-  set(UNIFIED_RUNTIME_TAG 8438b8a1de1ddc6e05e3bc012fb6be74d2e830e4)
+  # commit 1e1f577262747d67fcb5c513de4a11bec67ea5db
+  # Merge: dd212f3f 0b405a12
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Thu May 9 18:00:36 2024 +0100
+  #    Merge pull request #1591 from nrspruit/disable_driver_in_order_lists_default
+  #    [L0] Disable Usage of Driver In order Lists by default
+  set(UNIFIED_RUNTIME_TAG 1e1f577262747d67fcb5c513de4a11bec67ea5db)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
