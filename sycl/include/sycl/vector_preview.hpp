@@ -435,7 +435,8 @@ public:
   // Available only when: NumElements == 1
   template <int N = NumElements>
   operator typename std::enable_if_t<N == 1, DataT>() const {
-    return vec_data<DataT>::set(m_Data[0]);
+    // Cast required to convert int8_t to bool.
+    return (DataT)m_Data[0];
   }
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
@@ -704,7 +705,7 @@ public:
     vec Ret;                                                                   \
     if constexpr (IsBfloat16) {                                                \
       for (size_t I = 0; I < NumElements; ++I) {                               \
-        Ret.setValue(I, vec_data<DataT>::set(Lhs[I] BINOP Rhs[I]));            \
+        Ret[I] = Lhs[I] BINOP Rhs[I];                                          \
       }                                                                        \
     } else {                                                                   \
       vector_t ExtVecLhs = sycl::bit_cast<vector_t>(Lhs.m_Data);               \
@@ -748,8 +749,7 @@ public:
       const vec & Lhs, const vec & Rhs) {                                      \
     vec Ret{};                                                                 \
     for (size_t I = 0; I < NumElements; ++I) {                                 \
-      Ret.setValue(I, vec_data<DataT>::set(vec_data<DataT>::set(               \
-                          Lhs[I]) BINOP vec_data<DataT>::set(Rhs[I])));        \
+      Ret[I] = Lhs[I] BINOP Rhs[I];                                            \
     }                                                                          \
     return Ret;                                                                \
   }                                                                            \
@@ -927,13 +927,13 @@ public:
 #define __SYCL_UOP(UOP, OPASSIGN, COND)                                        \
   template <typename T = DataT>                                                \
   friend typename std::enable_if_t<(COND), vec &> operator UOP(vec & Rhs) {    \
-    Rhs OPASSIGN vec_data<DataT>::set(1);                                      \
+    Rhs OPASSIGN DataT{1};                                                     \
     return Rhs;                                                                \
   }                                                                            \
   template <typename T = DataT>                                                \
   friend typename std::enable_if_t<(COND), vec> operator UOP(vec & Lhs, int) { \
     vec Ret(Lhs);                                                              \
-    Lhs OPASSIGN vec_data<DataT>::set(1);                                      \
+    Lhs OPASSIGN DataT{1};                                                     \
     return Ret;                                                                \
   }
 
@@ -996,8 +996,7 @@ public:
 #else
     vec Ret{};
     for (size_t I = 0; I < NumElements; ++I)
-      Ret.setValue(
-          I, vec_data<DataT>::get(+vec_data<DataT>::get(Lhs.getValue(I))));
+      Ret[I] = +Lhs[I];
     return Ret;
 #endif
   }
@@ -1010,7 +1009,7 @@ public:
     vec Ret{};
     if constexpr (IsBfloat16) {
       for (size_t I = 0; I < NumElements; I++)
-        Ret.m_Data[I] = -Lhs.m_Data[I];
+        Ret[I] = -Lhs[I];
     } else {
 #ifndef __SYCL_DEVICE_ONLY__
       for (size_t I = 0; I < NumElements; ++I)
