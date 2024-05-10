@@ -21,3 +21,5 @@
 #include <sycl/accessor.hpp>
 #include <sycl/buffer.hpp>
 #include <sycl/queue.hpp>
+
+#include <sycl/sycl.hpp>
