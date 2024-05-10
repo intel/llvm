@@ -6,7 +6,7 @@
 // RUN: -Xclang -include-footer -Xclang %S/Inputs/file2.h \
 // RUN: | FileCheck %s
 
-// CHECK: // __CLANG_OFFLOAD_BUNDLE____START__ sycl-spir64-unknown-unknown
+// CHECK: // __CLANG_OFFLOAD_BUNDLE____START__ sycl-spir64
 // CHECK: # 1 "[[INPUTFILE:.+\.cpp]]"
 // CHECK: # 1 "[[INTHEADER:.+\.h]]" 1
 // CHECK: int file1() {
@@ -23,8 +23,8 @@
 // CHECK:   return 2;
 // CHECK: }
 
-// CHECK: // __CLANG_OFFLOAD_BUNDLE____END__ sycl-spir64-unknown-unknown
-// CHECK: // __CLANG_OFFLOAD_BUNDLE____START__ host-x86_64-pc-windows-msvc
+// CHECK: // __CLANG_OFFLOAD_BUNDLE____END__ sycl-spir64
+// CHECK: // __CLANG_OFFLOAD_BUNDLE____START__ host-x86_64
 // CHECK: # 1 "[[TEMP_INPUTFILE:.+\.cpp]]"
 // CHECK: # 1 "[[INTHEADER]]" 1
 // CHECK: int file1() {
@@ -44,5 +44,5 @@
 // CHECK: int file2() {
 // CHECK:   return 2;
 // CHECK: }
-// CHECK: // __CLANG_OFFLOAD_BUNDLE____END__ host-x86_64-pc-windows-msvc
+// CHECK: // __CLANG_OFFLOAD_BUNDLE____END__ host-x86_64
 
