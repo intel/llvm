@@ -255,8 +255,9 @@ sycl::event launch_kernel_with_cluster() {
 
     sycl::nd_range<3> kernel_range({4096, 4096, 32}, {32, 32, 1});
     properties ClusterProperties(ClusterRange(4, 4, 1));
+    sycl::queue queue;
     launch_config config(kernel_range, ClusterProperties);
-    return submit_with_event([&](sycl::handler& cgh){
+    return submit_with_event(queue, [&](sycl::handler& cgh){
         nd_launch(cgh, config, kernel_function_foo);
     })
 }
