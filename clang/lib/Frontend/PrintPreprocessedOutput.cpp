@@ -11,11 +11,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Frontend/Utils.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Frontend/PreprocessorOutputOptions.h"
+#include "clang/Frontend/Utils.h"
 #include "clang/Lex/MacroInfo.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Pragma.h"
@@ -241,9 +241,8 @@ public:
 
 void PrintPPOutputPPCallbacks::WriteFooterInfo(unsigned LineNo,
                                                StringRef Footer) {
-  *OS << '#' << ' ' << LineNo << ' ' << '"';
-  *OS << "<built-in>" << ' ' << "2";
-  std::string str = "# 1 \"<built-in>\" 2\n";
+  *OS << '#' << ' ' << 1 << ' ' << '"';
+  *OS << "<built-in>" << '"' << ' ' << "1";
   *OS << '\n';
   *OS << Twine("# 1 ") + "\"" + Footer + "\"" + Twine(" 1");
   *OS << '\n';

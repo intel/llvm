@@ -39,7 +39,7 @@
 // CHECK: }
 
 // CHECK: # 7 "[[INPUTFILE]]" 2
-// CHECK: # 6 "<built-in> 2
+// CHECK: # 1 "<built-in>" 1
 // CHECK: # 1 "[[INTFOOTER]]" 1
 // CHECK: int file2() {
 // CHECK:   return 2;
