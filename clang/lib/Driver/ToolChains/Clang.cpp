@@ -5591,10 +5591,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
           !Args.hasArg(options::OPT_fno_sycl_use_footer) && !Footer.empty()) {
         CmdArgs.push_back("-include-footer");
         CmdArgs.push_back(Args.MakeArgString(Footer));
-        // When creating dependency information, filter out the generated
-        // integration footer file.
-        CmdArgs.push_back("-dependency-filter");
-        CmdArgs.push_back(Args.MakeArgString(Footer));
       }
 
       // Let the FE know we are doing a SYCL offload compilation, but we are

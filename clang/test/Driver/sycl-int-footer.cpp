@@ -104,10 +104,3 @@
 // RUN:  %clangxx -fsycl -MD -c %s -o dummy -### 2>&1 \
 // RUN:   | FileCheck -check-prefix DEP_GEN_OUT_ERROR %s
 // DEP_GEN_OUT_ERROR-NOT: cannot specify -o when generating multiple output files
-
-// RUN:  %clangxx -fsycl %/s -### 2>&1 \
-// RUN:   | FileCheck -check-prefix INCLUDEFOOTER %s
-
-// INCLUDEFOOTER: clang{{.*}} "-fsycl-is-device"  {{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\h]]" "-sycl-std={{.*}}"{{.*}}
-// INCLUDEFOOTER: append-file{{.*}} "[[INPUTFILE:.+\.cpp]]" "--append=[[INTFOOTER]]" "--orig-filename=[[INPUTFILE]]" "--output=[[APPENDEDSRC:.+\.cpp]]" {{.*}}
-// INCLUDEFOOTER: clang{{.*}}  "-include" "[[INTHEADER]]" {{.*}} "-include-footer" "[[INTFOOTER]]"
