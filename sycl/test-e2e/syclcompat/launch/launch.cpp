@@ -23,6 +23,7 @@
 // RUN: %clangxx -std=c++20 -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
+#include <algorithm>
 #include <type_traits>
 
 #include <sycl/sycl.hpp>
@@ -31,6 +32,7 @@
 #include <syclcompat/launch.hpp>
 #include <syclcompat/memory.hpp>
 #include <syclcompat/launch_experimental.hpp>
+#include <syclcompat/id_query.hpp>
 
 #include "../common.hpp"
 #include "launch_fixt.hpp"
@@ -40,6 +42,35 @@ inline void empty_kernel(){};
 inline void int_kernel(int a){};
 inline void int_ptr_kernel(int *a){};
 inline void dynamic_local_mem_empty_kernel(char *a){};
+
+template <auto KernelFunc, typename tuple, std::size_t... I>
+__attribute__((always_inline)) inline void
+run_kernel(tuple args, std::index_sequence<I...>) {
+  KernelFunc(std::get<I>(args)...);
+}
+
+template <auto KernelFunc, typename tuple>
+__attribute__((always_inline)) inline void run_kernel(tuple args) {
+  auto indices = std::make_index_sequence<std::tuple_size_v<tuple>>{};
+  run_kernel<KernelFunc>(args, indices);
+}
+
+template <int SubgroupSize, auto KernelFunc, typename... Args>
+struct KernelFunctor {
+  KernelFunctor(Args... args) : argument_tuple(std::make_tuple(args...)) {}
+
+  auto get(sycl_exp::properties_tag) {
+    return sycl::ext::oneapi::experimental::properties{
+        sycl::ext::oneapi::experimental::sub_group_size<SubgroupSize>};
+  }
+
+  __attribute__((always_inline)) inline void
+  operator()(sycl::nd_item<3> it) const {
+    run_kernel<KernelFunc>(argument_tuple);
+  }
+
+  std::tuple<Args...> argument_tuple;
+};
 
 template <typename T>
 inline void dynamic_local_mem_basicdt_kernel(T value, char *local_mem){};
@@ -65,8 +96,8 @@ template <typename T>
 void reqd_sg_size_kernel(int modifier_val, int num_elements, T *data) {
 
   const int id =
-      sycl::ext::oneapi::this_work_item::get_nd_item<1>().get_global_id(0);
-  const int sg_size = sycl::ext::oneapi::this_work_item::get_nd_item<1>()
+      sycl::ext::oneapi::this_work_item::get_nd_item<3>().get_global_linear_id();
+  const int sg_size = sycl::ext::oneapi::this_work_item::get_nd_item<3>()
                           .get_sub_group()
                           .get_local_linear_range();
   if (id < num_elements) {
@@ -77,7 +108,35 @@ void reqd_sg_size_kernel(int modifier_val, int num_elements, T *data) {
       data[id] = static_cast<T>(id + modifier_val + sg_size);
     }
   }
-};
+}
+
+
+template <typename T>
+void reqd_sg_size_kernel_with_local_memory(int modifier_val, int num_elements, T *data, char* local_mem) {
+  T* typed_local_mem = reinterpret_cast<T*>(local_mem);
+  const int id =
+      sycl::ext::oneapi::this_work_item::get_nd_item<3>().get_global_linear_id();
+  const int sg_size = sycl::ext::oneapi::this_work_item::get_nd_item<3>()
+                          .get_sub_group()
+                          .get_local_linear_range();
+
+  const int wi_id_in_wg = sycl::ext::oneapi::this_work_item::get_nd_item<3>().get_local_linear_id();
+  //sycl::ext::oneapi::experimental::printf(" %d \n", wi_id_in_wg);
+  if (id < num_elements) {
+    if (id < num_elements - modifier_val) {
+      typed_local_mem[wi_id_in_wg] = static_cast<T>(
+          (id + modifier_val - sg_size) < 0 ? 0 : id + modifier_val - sg_size);
+    } else {
+      typed_local_mem[wi_id_in_wg] = static_cast<T>(id + modifier_val + sg_size);
+    }
+  }
+
+  syclcompat::wg_barrier();
+
+  if (id < num_elements) {
+    data[id] = typed_local_mem[wi_id_in_wg];
+  }
+}
 
 template <int Dim>
 void compute_nd_range_3d(RangeParams<Dim> range_param, std::string test_name) {
@@ -346,7 +405,7 @@ template <typename T> void test_memsize_no_arg_launch_q() {
 }
 
 template <typename T> void test_reqd_sg_size() {
-  using namespace syclcompat::experimental;
+  namespace syclc_exp = syclcompat::experimental;
 
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
@@ -354,15 +413,25 @@ template <typename T> void test_reqd_sg_size() {
   if (ltt.skip_) // Unsupported aspect
     return;
   
-  constexpr int SubgroupSize = 16;
+  int SubgroupSize = 16;
   const int modifier_val = 9;
 
   T *h_a = (T *)syclcompat::malloc_host(ltt.memsize_ * sizeof(T));
   T *d_a = (T *)syclcompat::malloc(ltt.memsize_ * sizeof(T));
+  auto sg_sizes = syclcompat::get_default_queue()
+                      .get_device()
+                      .get_info<sycl::info::device::sub_group_sizes>();
 
-  launch<reqd_sg_size_kernel<T>, ReqdSubGroupSize16>(
-    ltt.grid_, ltt.thread_, modifier_val, ltt.memsize_, d_a
-  );
+  if (std::find(sg_sizes.begin(), sg_sizes.end(), 16) != sg_sizes.end()) {
+    syclc_exp::launch<KernelFunctor<16, reqd_sg_size_kernel<T>, int, int, T*>>(
+      ltt.grid_, ltt.thread_, modifier_val, static_cast<int>(ltt.memsize_), d_a
+    );
+  } else {
+    SubgroupSize = 32;
+    syclc_exp::launch<KernelFunctor<32, reqd_sg_size_kernel<T>, int, int, T*>>(
+      ltt.grid_, ltt.thread_, modifier_val, static_cast<int>(ltt.memsize_), d_a
+    );
+  }
 
   syclcompat::wait_and_throw();
   syclcompat::memcpy<T>(h_a, d_a, ltt.memsize_);
@@ -384,21 +453,32 @@ template <typename T> void test_reqd_sg_size() {
 }
 
 template <typename T> void test_reqd_sg_size_q() {
-  using namespace syclcompat::experimental;
+  namespace syclc_exp = syclcompat::experimental;
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   LaunchTestWithArgs<T> ltt;
   if (ltt.skip_) // Unsupported aspect
     return;
-  constexpr int SubgroupSize = 16;
+  int SubgroupSize = 16;
   const int modifier_val = 9;
   auto &q = ltt.in_order_q_;
 
   T *h_a = (T *)syclcompat::malloc_host(ltt.memsize_ * sizeof(T), q);
   T *d_a = (T *)syclcompat::malloc(ltt.memsize_ * sizeof(T), q);
 
-  launch<reqd_sg_size_kernel<T>, ReqdSubGroupSize16>(
-      ltt.grid_, ltt.thread_, q, modifier_val, ltt.memsize_, d_a);
+  auto sg_sizes =
+      q.get_device().template get_info<sycl::info::device::sub_group_sizes>();
+  if (std::find(sg_sizes.begin(), sg_sizes.end(), 16) != sg_sizes.end()) {
+    syclc_exp::launch<KernelFunctor<16, reqd_sg_size_kernel<T>, int, int, T*>>(
+      ltt.grid_, ltt.thread_, modifier_val, static_cast<int>(ltt.memsize_), d_a
+    );
+  } else {
+    SubgroupSize = 32;
+    syclc_exp::launch<KernelFunctor<32, reqd_sg_size_kernel<T>, int, int, T*>>(
+      ltt.grid_, ltt.thread_, modifier_val, static_cast<int>(ltt.memsize_), d_a
+    );
+  }
+
 
   syclcompat::wait_and_throw();
   syclcompat::memcpy<T>(h_a, d_a, ltt.memsize_, q);
@@ -417,6 +497,63 @@ template <typename T> void test_reqd_sg_size_q() {
   }
   syclcompat::free(h_a, q);
 }
+
+
+template <typename T> void test_reqd_sg_size_with_local_memory() {
+  namespace syclc_exp = syclcompat::experimental;
+
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  LaunchTestWithArgs<T> ltt;
+  if (ltt.skip_) // Unsupported aspect
+    return;
+  
+  int SubgroupSize = 16;
+  const int modifier_val = 9;
+  
+  std::size_t local_memory_size = ltt.thread_.x * ltt.thread_.y * ltt.thread_.z * sizeof(T);
+
+  auto global_range = ltt.thread_ * ltt.grid_;
+
+  auto num_elements = global_range.x * global_range.y * global_range.z;
+  std::cout << global_range.x << " " << global_range.y << " " << global_range.z << std::endl;
+
+  T *h_a = (T *)syclcompat::malloc_host(num_elements * sizeof(T));
+  T *d_a = (T *)syclcompat::malloc(num_elements * sizeof(T));
+
+  auto sg_sizes = syclcompat::get_default_queue()
+                      .get_device()
+                      .get_info<sycl::info::device::sub_group_sizes>();
+
+  if (std::find(sg_sizes.begin(), sg_sizes.end(), 16) != sg_sizes.end()) {
+    syclc_exp::launch<KernelFunctor<16, reqd_sg_size_kernel_with_local_memory<T>, int, int, T*, char*>>(
+      ltt.grid_, ltt.thread_, local_memory_size, modifier_val, static_cast<int>(num_elements), d_a
+    );
+  } else {
+    SubgroupSize = 32;
+    syclc_exp::launch<KernelFunctor<32, reqd_sg_size_kernel_with_local_memory<T>, int, int, T*, char*>>(
+      ltt.grid_, ltt.thread_, local_memory_size, modifier_val, static_cast<int>(num_elements), d_a
+    );
+  }
+
+  syclcompat::wait_and_throw();
+  syclcompat::memcpy<T>(h_a, d_a, num_elements);
+
+  for (int i = 0; i < static_cast<int>(num_elements); i++) {
+    T result;
+    if (i < (static_cast<int>(num_elements) - modifier_val)) {
+      result = static_cast<T>((i + modifier_val - SubgroupSize) < 0
+                                  ? 0
+                                  : (i + modifier_val - SubgroupSize));
+    } else {
+      result = static_cast<T>(i + modifier_val + SubgroupSize);
+    }
+    assert(h_a[i] == result);
+  }
+  syclcompat::free(d_a);
+  syclcompat::free(h_a);
+}
+
 
 int main() {
 
@@ -440,6 +577,7 @@ int main() {
 
   INSTANTIATE_ALL_TYPES(memsize_type_list, test_reqd_sg_size);
   INSTANTIATE_ALL_TYPES(memsize_type_list, test_reqd_sg_size_q);
+  INSTANTIATE_ALL_TYPES(memsize_type_list, test_reqd_sg_size_with_local_memory);
 
   return 0;
 }

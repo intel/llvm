@@ -53,28 +53,35 @@ namespace experimental {
 namespace detail {
 constexpr auto empty_property_list =
     sycl::ext::oneapi::experimental::properties{};
-}
+
+template <typename T> struct is_property_list_type : std::false_type {};
+
+template <typename T>
+struct is_property_list_type<sycl_exp::properties<T>> : std::true_type {};
+} // namespace detail
 
 //================================================================================================//
-                      // Overloads using Local Memory //
+// Overloads using Local Memory //
 //================================================================================================//
 
-template <auto KernelFunctor, typename PropertyList, typename... Args>
-inline std::enable_if_t<std::is_invocable_v<decltype(KernelFunctor), Args..., char *>,
+template <typename KernelFunctor, typename PropertyList, typename... Args>
+inline std::enable_if_t<std::is_invocable_v<KernelFunctor, sycl::nd_item<3>>,
                         sycl::event>
 launch(const sycl::nd_range<3> &launch_params, std::size_t local_memory_size,
        const PropertyList &launch_properties, const sycl::queue &queue,
        const Args &...args) {
   sycl_exp::launch_config config(launch_params, launch_properties);
-  return sycl_exp::submit_with_event([&](sycl::handler &cgh) {
+  return sycl_exp::submit_with_event(queue, [&](sycl::handler &cgh) {
     sycl::local_accessor<char, 1> local_memory(local_memory_size, cgh);
     sycl_exp::nd_launch(cgh, config,
-                        KernelFunctor(arg..., local_memory.get_pointer()));
+                        KernelFunctor(args..., local_memory.get_pointer()));
   });
 }
 
-template <int Dim, auto KernelFunctor, typename PropertyList, typename... Args>
-inline std::enable_if_t<std::is_invocable_v<decltype(KernelFunctor), Args..., char *>,
+template <typename KernelFunctor, int Dim, typename PropertyList,
+          typename... Args>
+inline std::enable_if_t<std::is_invocable_v<KernelFunctor, sycl::nd_item<3>> &&
+                            detail::is_property_list_type<PropertyList>::value,
                         sycl::event>
 launch(const sycl::nd_range<Dim> &launch_params, std::size_t local_memory_size,
        const PropertyList &launch_properties, const Args &...args) {
@@ -84,19 +91,21 @@ launch(const sycl::nd_range<Dim> &launch_params, std::size_t local_memory_size,
       args...);
 }
 
-template <int Dim, auto KernelFunctor, typename... Args>
-inline std::enable_if_t<std::is_invocable_v<decltype(KernelFunctor), Args..., char *>,
+template <typename KernelFunctor, int Dim, typename... Args>
+inline std::enable_if_t<std::is_invocable_v<KernelFunctor, sycl::nd_item<3>>,
                         sycl::event>
 launch(const sycl::nd_range<Dim> &launch_params, std::size_t local_memory_size,
        const Args &...args) {
   using PropertyList = decltype(detail::empty_property_list);
-  return launch<KernelFunctor, PropertyList>(
+  return launch<KernelFunctor>(
       ::syclcompat::detail::transform_nd_range(launch_params),
       local_memory_size, detail::empty_property_list, args...);
 }
 
-template <int Dim, auto KernelFunctor, typename PropertyList, typename... Args>
-inline std::enable_if_t<std::is_invocable_v<decltype(KernelFunctor), Args..., char *>,
+template <typename KernelFunctor, int Dim, typename PropertyList,
+          typename... Args>
+inline std::enable_if_t<std::is_invocable_v<KernelFunctor, sycl::nd_item<3>> &&
+                            detail::is_property_list_type<PropertyList>::value,
                         sycl::event>
 launch(const sycl::range<Dim> &global_range,
        const sycl::range<Dim> &local_range, std::size_t local_memory_size,
@@ -108,58 +117,61 @@ launch(const sycl::range<Dim> &global_range,
       args...);
 }
 
-template <int Dim, auto KernelFunctor, typename... Args>
-inline std::enable_if_t<std::is_invocable_v<decltype(KernelFunctor), Args..., char *>,
+template <typename KernelFunctor, int Dim, typename... Args>
+inline std::enable_if_t<std::is_invocable_v<KernelFunctor, sycl::nd_item<3>>,
                         sycl::event>
 launch(const sycl::range<Dim> &global_range,
        const sycl::range<Dim> &local_range, std::size_t local_memory_size,
        const Args &...args) {
   using PropertyList = decltype(detail::empty_property_list);
-  return launch<KernelFunctor, PropertyList>(
+  return launch<KernelFunctor>(
       ::syclcompat::detail::transform_nd_range(
           sycl::nd_range<Dim>(global_range, local_range)),
       local_memory_size, detail::empty_property_list, args...);
 }
 
-template <auto KernelFunctor, typename PropertyList, typename... Args>
-inline std::enable_if_t<std::is_invocable_v<decltype(KernelFunctor), Args..., char *>,
+template <typename KernelFunctor, typename PropertyList, typename... Args>
+inline std::enable_if_t<std::is_invocable_v<KernelFunctor, sycl::nd_item<3>> &&
+                            detail::is_property_list_type<PropertyList>::value,
                         sycl::event>
 launch(const dim3 &grid_dim, const dim3 &block_dim,
        std::size_t local_memory_size, const PropertyList &launch_properties,
        const Args &...args) {
-  return launch<KernelFunctor>(sycl::nd_range<3>(grid_dim, block_dim),
+  return launch<KernelFunctor>(sycl::nd_range<3>(grid_dim * block_dim, block_dim),
                                local_memory_size, launch_properties,
                                ::syclcompat::get_default_queue(), args...);
 }
 
-template <auto KernelFunctor, typename... Args>
-inline std::enable_if_t<std::is_invocable_v<decltype(KernelFunctor), Args..., char *>,
+template <typename KernelFunctor, typename... Args>
+inline std::enable_if_t<std::is_invocable_v<KernelFunctor, sycl::nd_item<3>>,
                         sycl::event>
 launch(const dim3 &grid_dim, const dim3 &block_dim,
        std::size_t local_memory_size, const Args &...args) {
   using PropertyList = decltype(detail::empty_property_list);
-  return launch<KernelFunctor, PropertyList>(
-      sycl::nd_range<3>(grid_dim, block_dim), local_memory_size,
+  return launch<KernelFunctor>(
+      sycl::nd_range<3>(grid_dim * block_dim, block_dim), local_memory_size,
       detail::empty_property_list, args...);
 }
 
 //================================================================================================//
-                      // Overloads not using Local Memory //
+// Overloads not using Local Memory //
 //================================================================================================//
 
-template <auto KernelFunctor, typename PropertyList, typename... Args>
-inline std::enable_if_t<std::is_invocable_v<decltype(KernelFunctor), Args...>,
+template <typename KernelFunctor, typename PropertyList, typename... Args>
+inline std::enable_if_t<std::is_invocable_v<KernelFunctor, sycl::nd_item<3>>,
                         sycl::event>
 launch(sycl::nd_range<3> launch_params, const PropertyList &launch_properties,
        const sycl::queue &queue, const Args &...args) {
   sycl_exp::launch_config config(launch_params, launch_properties);
-  return sycl_exp::submit_with_event([&](sycl::handler &cgh) {
-    sycl_exp::nd_launch(cgh, config, KernelFunctor(arg...));
+  return sycl_exp::submit_with_event(queue, [&](sycl::handler &cgh) {
+    sycl_exp::nd_launch(cgh, config, KernelFunctor(args...));
   });
 }
 
-template <int Dim, auto KernelFunctor, typename PropertyList, typename... Args>
-inline std::enable_if_t<std::is_invocable_v<decltype(KernelFunctor), Args...>,
+template <typename KernelFunctor, int Dim, typename PropertyList,
+          typename... Args>
+inline std::enable_if_t<std::is_invocable_v<KernelFunctor, sycl::nd_item<3>> &&
+                            detail::is_property_list_type<PropertyList>::value,
                         sycl::event>
 launch(sycl::nd_range<Dim> launch_params, const PropertyList &launch_properties,
        const Args &...args) {
@@ -168,18 +180,20 @@ launch(sycl::nd_range<Dim> launch_params, const PropertyList &launch_properties,
       launch_properties, ::syclcompat::get_default_queue(), args...);
 }
 
-template <int Dim, auto KernelFunctor, typename... Args>
-inline std::enable_if_t<std::is_invocable_v<decltype(KernelFunctor), Args...>,
+template <typename KernelFunctor, int Dim, typename... Args>
+inline std::enable_if_t<std::is_invocable_v<KernelFunctor, sycl::nd_item<3>>,
                         sycl::event>
 launch(sycl::nd_range<Dim> launch_params, const Args &...args) {
   using PropertyList = decltype(detail::empty_property_list);
-  return launch<KernelFunctor, PropertyList>(
+  return launch<KernelFunctor>(
       ::syclcompat::detail::transform_nd_range(launch_params),
-      empty_properties_t, args...);
+      empty_property_list, args...);
 }
 
-template <int Dim, auto KernelFunctor, typename PropertyList, typename... Args>
-inline std::enable_if_t<std::is_invocable_v<decltype(KernelFunctor), Args...>,
+template <typename KernelFunctor, int Dim, typename PropertyList,
+          typename... Args>
+inline std::enable_if_t<std::is_invocable_v<KernelFunctor, sycl::nd_item<3>> &&
+                            detail::is_property_list_type<PropertyList>::value,
                         sycl::event>
 launch(sycl::range<Dim> global_range, sycl::range<Dim> local_range,
        const PropertyList &launch_properties, const Args &...args) {
@@ -189,35 +203,36 @@ launch(sycl::range<Dim> global_range, sycl::range<Dim> local_range,
       launch_properties, ::syclcompat::get_default_queue(), args...);
 }
 
-template <int Dim, auto KernelFunctor, typename... Args>
-inline std::enable_if_t<std::is_invocable_v<decltype(KernelFunctor), Args...>,
+template <typename KernelFunctor, int Dim, typename... Args>
+inline std::enable_if_t<std::is_invocable_v<KernelFunctor, sycl::nd_item<3>>,
                         sycl::event>
-launch(sycl::range<Dim> global_range, sycl::range<Dim> local_range, ,
+launch(sycl::range<Dim> global_range, sycl::range<Dim> local_range,
        const Args &...args) {
   using PropertyList = decltype(detail::empty_property_list);
-  return launch<KernelFunctor, PropertyList>(
+  return launch<KernelFunctor>(
       ::syclcompat::detail::transform_nd_range(
           sycl::nd_range<Dim>(global_range, local_range)),
-      empty_properties_t, args...);
+      empty_property_list, args...);
 }
 
-template <auto KernelFunctor, typename PropertyList, typename... Args>
-inline std::enable_if_t<std::is_invocable_v<decltype(KernelFunctor), Args...>,
+template <typename KernelFunctor, typename PropertyList, typename... Args>
+inline std::enable_if_t<std::is_invocable_v<KernelFunctor, sycl::nd_item<3>> &&
+                            detail::is_property_list_type<PropertyList>::value,
                         sycl::event>
 launch(const dim3 &grid_dim, const dim3 &block_dim,
        const PropertyList &launch_properties, const Args &...args) {
-  return launch<KernelFunctor>(sycl::nd_range<3>(grid_dim, block_dim),
+  return launch<KernelFunctor>(sycl::nd_range<3>(grid_dim * block_dim, block_dim),
                                launch_properties,
                                ::syclcompat::get_default_queue(), args...);
 }
 
-template <auto KernelFunctor, typename... Args>
-inline std::enable_if_t<std::is_invocable_v<decltype(KernelFunctor), Args...>,
+template <typename KernelFunctor, typename... Args>
+inline std::enable_if_t<std::is_invocable_v<KernelFunctor, sycl::nd_item<3>>,
                         sycl::event>
 launch(const dim3 &grid_dim, const dim3 &block_dim, const Args &...args) {
   using PropertyList = decltype(detail::empty_property_list);
-  return launch<KernelFunctor, PropertyList>(
-      sycl::nd_range<3>(grid_dim, block_dim), detail::empty_property_list,
+  return launch<KernelFunctor>(
+      sycl::nd_range<3>(grid_dim * block_dim, block_dim), detail::empty_property_list,
       args...);
 }
 
