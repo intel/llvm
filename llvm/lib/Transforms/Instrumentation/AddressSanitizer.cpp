@@ -1371,6 +1371,8 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
         CI->eraseFromParent();
       }
     }
+    // Replace old Func to new Func in metadata
+    ValueAsMetadata::handleRAUW(F, NewF);
     F->removeFromParent();
   }
 }
