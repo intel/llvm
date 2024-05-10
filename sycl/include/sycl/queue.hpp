@@ -41,6 +41,12 @@
 #include <sycl/property_list.hpp>                       // for property_list
 #include <sycl/range.hpp>                               // for range
 
+#if __SYCL_USE_FALLBACK_ASSERT
+// TODO: maybe we can move detail::submitAssertCapture into the shared library
+// instead.
+#include <sycl/detail/host_task_impl.hpp>
+#endif
+
 #include <cstddef>     // for size_t
 #include <functional>  // for function
 #include <memory>      // for shared_ptr, hash

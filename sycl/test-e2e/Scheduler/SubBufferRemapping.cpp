@@ -21,6 +21,7 @@
 // CHECK-NEXT: <unknown> : 3
 
 #include <sycl/detail/core.hpp>
+#include <sycl/detail/host_task_impl.hpp>
 
 int main(int argc, const char **argv) {
 

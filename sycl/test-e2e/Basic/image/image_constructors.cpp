@@ -11,6 +11,7 @@
 
 #include <cassert>
 #include <sycl/detail/core.hpp>
+#include <sycl/image.hpp>
 
 void no_delete(void *) {}
 

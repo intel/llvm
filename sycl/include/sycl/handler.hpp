@@ -38,7 +38,6 @@
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group.hpp>
 #include <sycl/id.hpp>
-#include <sycl/interop_handle.hpp>
 #include <sycl/item.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -1826,18 +1825,7 @@ private:
                                               void()>::value ||
                    detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void(interop_handle)>::value>
-  host_task_impl(FuncT &&Func) {
-    throwIfActionIsCreated();
-
-    MNDRDesc.set(range<1>(1));
-    // Need to copy these rather than move so that we can check associated
-    // accessors during finalize
-    MArgs = MAssociatedAccesors;
-
-    MHostTask.reset(new detail::HostTask(std::move(Func)));
-
-    setType(detail::CG::CodeplayHostTask);
-  }
+  host_task_impl(FuncT &&Func);
 
   /// @brief Get the command graph if any associated with this handler. It can
   /// come from either the associated queue or from being set explicitly through

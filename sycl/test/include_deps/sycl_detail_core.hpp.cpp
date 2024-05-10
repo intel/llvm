@@ -134,12 +134,6 @@
 // CHECK-NEXT: device_event.hpp
 // CHECK-NEXT: h_item.hpp
 // CHECK-NEXT: item.hpp
-// CHECK-NEXT: interop_handle.hpp
-// CHECK-NEXT: device.hpp
-// CHECK-NEXT: kernel_bundle_enums.hpp
-// CHECK-NEXT: exception_list.hpp
-// CHECK-NEXT: image.hpp
-// CHECK-NEXT: detail/backend_traits.hpp
 // CHECK-NEXT: kernel_handler.hpp
 // CHECK-NEXT: nd_item.hpp
 // CHECK-NEXT: nd_range.hpp
@@ -150,6 +144,9 @@
 // CHECK-NEXT: ext/oneapi/sub_group_mask.hpp
 // CHECK-NEXT: feature_test.hpp
 // CHECK-NEXT: functional.hpp
+// CHECK-NEXT: device.hpp
+// CHECK-NEXT: kernel_bundle_enums.hpp
+// CHECK-NEXT: exception_list.hpp
 // CHECK-NEXT: ext/oneapi/device_global/device_global.hpp
 // CHECK-NEXT: ext/oneapi/device_global/properties.hpp
 // CHECK-NEXT: ext/oneapi/properties/property.hpp
