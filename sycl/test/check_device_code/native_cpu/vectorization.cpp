@@ -7,6 +7,7 @@
 
 // Invalid invocations: check that they don't crash the compiler
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -mllvm -inline-threshold=500 -mllvm -sycl-native-dump-device-ir %s > %t_temp.ll
+// RUN: opt -O3 -verify-each %t_temp.ll -S -o %t_temp2.ll
 // RUN: %clangxx -O2 -mllvm -sycl-native-cpu-backend -S -emit-llvm %t_temp.ll
 
 #include <sycl/sycl.hpp>
