@@ -35,11 +35,8 @@ FetchContent_Declare(unified-memory-framework
     GIT_TAG           ${UMF_TAG}
 )
 
-if(UR_BUILD_TESTS)
-    set(UMF_BUILD_TESTS ON CACHE INTERNAL "Build UMF tests")
-else()
-    set(UMF_BUILD_TESTS OFF CACHE INTERNAL "Build UMF tests")
-endif()
+set(UMF_BUILD_TESTS OFF CACHE INTERNAL "Build UMF tests")
+set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "Build UMF examples")
 # TODO: L0 provider not ready yet
 set(UMF_BUILD_LEVEL_ZERO_PROVIDER OFF CACHE INTERNAL "Build Level Zero Provider")
 set(UMF_BUILD_SHARED_LIBRARY ${UMF_BUILD_SHARED_LIBRARY} CACHE INTERNAL "Build UMF shared library")
