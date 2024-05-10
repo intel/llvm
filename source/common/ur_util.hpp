@@ -294,7 +294,7 @@ template <typename T> struct stype_map {};
 // stype_map_impl<UR_STRUCTURE_TYPE_USM_DEVICE_DESC> {};
 #include "stype_map_helpers.def"
 
-template <typename T> constexpr int as_stype() { return stype_map<T>::value; };
+template <typename T> constexpr int as_stype() { return stype_map<T>::value; }
 
 /// Walk a generic UR linked list looking for a node of the given type. If it's
 /// found, its address is returned, othewise `nullptr`. e.g. to find out whether
