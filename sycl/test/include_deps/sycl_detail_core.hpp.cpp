@@ -118,12 +118,6 @@
 // CHECK-NEXT: properties/accessor_properties.hpp
 // CHECK-NEXT: properties/buffer_properties.hpp
 // CHECK-NEXT: sampler.hpp
-// CHECK-NEXT: types.hpp
-// CHECK-NEXT: marray.hpp
-// CHECK-NEXT: vector.hpp
-// CHECK-NEXT: detail/memcpy.hpp
-// CHECK-NEXT: detail/vector_convert.hpp
-// CHECK-NEXT: swizzles.def
 // CHECK-NEXT: queue.hpp
 // CHECK-NEXT: detail/assert_happened.hpp
 // CHECK-NEXT: detail/cg_types.hpp
@@ -140,6 +134,12 @@
 // CHECK-NEXT: exception_list.hpp
 // CHECK-NEXT: image.hpp
 // CHECK-NEXT: detail/backend_traits.hpp
+// CHECK-NEXT: types.hpp
+// CHECK-NEXT: marray.hpp
+// CHECK-NEXT: vector.hpp
+// CHECK-NEXT: detail/memcpy.hpp
+// CHECK-NEXT: detail/vector_convert.hpp
+// CHECK-NEXT: swizzles.def
 // CHECK-NEXT: kernel_handler.hpp
 // CHECK-NEXT: nd_item.hpp
 // CHECK-NEXT: nd_range.hpp
