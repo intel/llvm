@@ -137,7 +137,6 @@ LLVM IR:
 @__usid_str.1 = private unnamed_addr constant [31 x i8] c"uid2c9b8e1a387f5dba____ZL4size\00", align 1
 ...
 %alloca.i = tail call ptr @llvm.sycl.alloca.p0.p4.p4.p4.f32(ptr addrspace(4) addrspacecast (ptr @__usid_str.1 to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) @_ZL4size to ptr addrspace(4)), ptr addrspace(4) null, float 0.000000e+00, i64 4)
-%3 = addrspacecast ptr %alloca.i to ptr addrspace(4)
 ```
 
 **Note:** the third argument is set to `null` for now. That argument will be set
@@ -145,10 +144,6 @@ to the `RTBuffer` for the specialization constants, i.e., a pointer to the
 corresponding member of the input `sycl::kernel_handler`. This change will be
 needed to support this extension in non-SPIR-V targets, i.e., in targets with
 emulated specialization constants.
-
-An `addrspacecast` instruction is needed on the returned pointer in case the
-returned pointer is not decorated, i.e., the `DecorateAddress` argument is
-`sycl::access::decorated::no`.
 
 `llvm.sycl.alloca` is handled in `sycl-post-link`.
 
@@ -167,7 +162,6 @@ IR code above into:
 ```llvm
 %size = call i64 @_Z20__spirv_SpecConstantix(i32 0, i64 1)
 %alloca.i = alloca float, i64 %size, align 4
-%3 = addrspacecast ptr %alloca.i to ptr addrspace(4)
 ```
 
 The builtin in conjunction with the `alloca` instruction are handled by the
@@ -192,7 +186,6 @@ as follows:
 ...
        %alloca = OpVariable %arrptrty Function
       %bitcast = OpBitcast %floatptrty %alloca
-%addrspacecast = OpPtrCastToGeneric %genfloatptrty %bitcast
 ```
 
 When passed a specialization constant as size, a single `alloca` instruction is
