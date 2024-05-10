@@ -1,3 +1,11 @@
+//===---joint_matrix_gemm_cuda.hpp - DPC++ joint_matrix--------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 // This tests the latest unified matrix extension interfaces.
 // Specifying the sm version via the --cuda-gpu-arch flag is necessary
 // for the Nvidia case.  DPC++ JIT compilation is not

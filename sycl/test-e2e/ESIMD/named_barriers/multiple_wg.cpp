@@ -9,6 +9,8 @@
 // REQUIRES: gpu-intel-pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// RUN: %{build} -o %t1.out -DEXP
+// RUN: %{run} %t1.out
 //
 // Test checks support of named barrier in ESIMD kernel.
 // Basic case with 2 work-groups.
@@ -21,6 +23,12 @@
 #include <sycl/sycl.hpp>
 
 #include "../esimd_test_utils.hpp"
+
+#ifdef EXP
+#define NS __ESIMD_ENS
+#else
+#define NS __ESIMD_NS
+#endif
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -66,7 +74,7 @@ bool test(QueueTY q) {
             // number of ints each producer stored / each consumer loaded
             constexpr unsigned VL2 = 2 * VL;
 
-            named_barrier_init<bnum>();
+            NS::named_barrier_init<bnum>();
 
             unsigned int localID = ndi.get_local_id(0);
             unsigned int groupID = ndi.get_group(0);
@@ -94,10 +102,10 @@ bool test(QueueTY q) {
             }
 
             // signaling after data stored
-            named_barrier_signal(bid, flag, producers, consumers);
+            NS::named_barrier_signal(bid, flag, producers, consumers);
 
             if (is_consumer) {
-              named_barrier_wait(
+              NS::named_barrier_wait(
                   bid); // consumers waiting here for signal from producer
               // offset inside work-group
               unsigned int off = localID * VL * sizeof(int);

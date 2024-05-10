@@ -13,9 +13,11 @@ COPY scripts/install_build_tools.sh /install.sh
 RUN /install.sh
 
 RUN apt install -yqq libnuma-dev wget gnupg2 && \
-  wget https://repo.radeon.com/amdgpu-install/6.1/ubuntu/jammy/amdgpu-install_6.1.60100-1_all.deb && \
+  apt-get install -yqq libstdc++-12-dev
+
+RUN wget https://repo.radeon.com/amdgpu-install/6.1/ubuntu/jammy/amdgpu-install_6.1.60100-1_all.deb && \
   apt install -yqq ./amdgpu-install_6.1.60100-1_all.deb && \
-  yes | amdgpu-install --usecase=rocmdev && \
+  amdgpu-install -y --usecase=rocmdev && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/*
 
