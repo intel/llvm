@@ -19,8 +19,6 @@ void matrix_verify_op(big_matrix<T, M, N> &A, const float ref, OP op) {
 
   queue q;
   size_t sg_size = get_sg_size<kernel_name>(q);
-  std::cout << "Artem: sg_size: " << sg_size << "\n";
-  std::cout << "Artem: SG_SZ: " << SG_SZ << "\n";
   nd_range<2> r({M / TileM, N / TileN * sg_size}, {1, 1 * sg_size});
 
   q.submit([&](handler &cgh) {
@@ -68,7 +66,7 @@ int main() {
   matrix_verify_op<half, MATRIX_M, MATRIX_N, TM, TN, TK, class mult>(
       MA, 15.0, [=](auto &x) { x = x * static_cast<half>(3.0); });
   matrix_verify_op<half, MATRIX_M, MATRIX_N, TM, TN, TK, class div>(
-      MA, 2.0, [=](auto &x) { x = x / static_cast<half>(2.0); });
+      MA, 2.5, [=](auto &x) { x = x / static_cast<half>(2.0); });
   matrix_verify_op<half, MATRIX_M, MATRIX_N, TM, TN, TK, class logic>(
       MA, 7.0, [=](auto &x) {
         if (x) {
