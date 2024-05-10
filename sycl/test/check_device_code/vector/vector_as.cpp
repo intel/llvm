@@ -7,6 +7,12 @@
 // RUN: %clangxx -O3 -fsycl -fsycl-device-only -fno-discard-value-names -S -emit-llvm -fno-sycl-instrument-device-code  -o - %s -fpreview-breaking-changes | FileCheck %s --check-prefix=CHECK-PREVIEW \
 // RUN: %}
 
+// Windows/linux have some slight differences in IR generation (function
+// arguments passing and long/long long differences/mangling) that could
+// complicate test updates while not improving test coverage. Limiting to linux
+// should be fine.
+// REQUIRES: linux
+
 #include <sycl/sycl.hpp>
 
 template SYCL_EXTERNAL sycl::vec<int, 4> sycl::vec<float, 4>::as<sycl::vec<int, 4>>() const;
