@@ -304,13 +304,13 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     auto *Glob = M.getFunction(Entry.first);
     if (!Glob)
       continue;
-    for (const auto &Use : Glob->uses()) {
-      auto *I = cast<CallBase>(Use.getUser());
-      if (IsNonKernelCalledByNativeCPUKernel(I->getFunction()) ||
-          KernelIsCalled) {
-        // only use the threadlocal if we have kernels calling builtins
-        // indirectly, or if the kernel is called by some other func.
-        if (CurrentStatePointerTLS == nullptr)
+    if (CurrentStatePointerTLS == nullptr) {
+      for (const auto &Use : Glob->uses()) {
+        auto *I = cast<CallBase>(Use.getUser());
+        if (KernelIsCalled ||
+            IsNonKernelCalledByNativeCPUKernel(I->getFunction())) {
+          // only use the threadlocal if we have kernels calling builtins
+          // indirectly, or if the kernel is called by some other func.
           CurrentStatePointerTLS = M.getOrInsertGlobal(
               STATE_TLS_NAME, StatePtrType, [&M, StatePtrType]() {
                 GlobalVariable *p = new GlobalVariable(
@@ -325,7 +325,8 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
                 p->setInitializer(Constant::getNullValue(StatePtrType));
                 return p;
               });
-        break;
+          break;
+        }
       }
     }
     UsedBuiltins.push_back({Glob, Entry.second});
