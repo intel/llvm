@@ -34,7 +34,6 @@ extern template void ff_3(int* ptr, int start);
 // A plain function that is not a free function.
 void ff_4(int* ptr, int start) {}
 
-#if 1
 bool test_kernel_apis(queue Queue)
 {
   bool Pass = true;
@@ -75,7 +74,6 @@ bool test_kernel_apis(queue Queue)
   std::cout << "Test kernel APIs: " << (Pass ? "PASS" : "FAIL") << std::endl;
   return Pass;
 }
-#endif
 
 bool test_bundle_apis(queue Queue) {
   bool Pass = true;
@@ -84,35 +82,33 @@ bool test_bundle_apis(queue Queue) {
   std::vector<device> Devices{Context.get_devices()};
   std::cerr << "Num devices = " << Devices.size() << std::endl;
 
-#if 1
   // ff_4 is not a free function, has_kernel_bundle will not be evaluated.
   if constexpr (ext::oneapi::experimental::is_kernel_v<ff_4>)
     Pass &= has_kernel_bundle<ff_4, bundle_state::executable>(Context);
 
   // ff_2 and ff_3 are free functions, evaluate has_kernel_bundle.
   Pass &= has_kernel_bundle<ff_2, bundle_state::executable>(Context);
-#if 1
+
   if constexpr (ext::oneapi::experimental::is_kernel_v<(
     void (*)(int*, int))ff_3>)
   Pass &=
       has_kernel_bundle<(void (*)(int *, int))ff_3, bundle_state::executable>(
           Context);
-#endif
+
   // ff_2 and ff_3 are free functions, evaluate has_kernel_bundle.
   Pass &= has_kernel_bundle<ff_2, bundle_state::executable>(Context, Devices);
-#if 1
+
   if constexpr (ext::oneapi::experimental::is_kernel_v<(
     void (*)(int*, int))ff_3>)
   Pass &=
       has_kernel_bundle<(void (*)(int *, int))ff_3, bundle_state::executable>(
           Context, Devices);
-#endif
-#if 1
+
   // ff_3 is compatible.
   if constexpr (ext::oneapi::experimental::is_kernel_v<(
                     void (*)(int *, int))ff_3>)
     Pass &= is_compatible<(void (*)(int *, int))ff_3>(Device);
-#endif
+
   // ff_4 is not compatible.
   if constexpr (ext::oneapi::experimental::is_kernel_v<ff_4>)
     Pass &= !is_compatible<ff_4>(Device);
@@ -125,8 +121,7 @@ bool test_bundle_apis(queue Queue) {
     Pass &= Bundle.ext_oneapi_has_kernel<ff_2>(Device);
     kernel Kernel = Bundle.ext_oneapi_get_kernel<ff_2>();
   }
-#endif
-#if 1
+
   // Check that ff_3 is found in bundle.
   if constexpr (ext::oneapi::experimental::is_kernel_v<(
                     void (*)(int *, int))ff_3>) {
@@ -141,28 +136,20 @@ bool test_bundle_apis(queue Queue) {
     kernel Kernel = Bundle.ext_oneapi_get_kernel<(void (*)(int *, int))ff_3>();
     std::cerr << "Got kernel\n";
   }
-#endif
+
   kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(Context, Devices);
   std::cerr << "Got bundle\n";
   kernel_id Id = get_kernel_id<ff_2>();
 
-#if 1
   // Check that ff_2 is found in bundle obtained using devices.
   if constexpr (ext::oneapi::experimental::is_kernel_v<ff_2>) {
-    std::cerr << "Did constexpr\n";
-#if 1
     kernel_bundle Bundle =
         get_kernel_bundle<ff_2, bundle_state::executable>(Context, Devices);
-    std::cerr << "Got bundle\n";
     Pass &= Bundle.ext_oneapi_has_kernel<ff_2>();
-    std::cerr << "Checked plain\n";
     Pass &= Bundle.ext_oneapi_has_kernel<ff_2>(Device);
-    std::cerr << "Checked with Devices\n";
     kernel Kernel = Bundle.ext_oneapi_get_kernel<ff_2>();
-    std::cerr << "Got kernel\n";
-#endif
   }
-#if 1
+
   // Check that ff_3 is found in bundle obtained using devices.
   if constexpr (ext::oneapi::experimental::is_kernel_v<(
                     void (*)(int *, int))ff_3>) {
@@ -173,7 +160,7 @@ bool test_bundle_apis(queue Queue) {
     Pass &= Bundle.ext_oneapi_has_kernel<(void (*)(int *, int))ff_3>(Device);
     kernel Kernel = Bundle.ext_oneapi_get_kernel<(void (*)(int *, int))ff_3>();
   }
-#endif
+
   // Check that ff_4 is not checked for being in bundle.
   if constexpr (ext::oneapi::experimental::is_kernel_v<ff_4>) {
     kernel_bundle Bundle =
@@ -182,7 +169,6 @@ bool test_bundle_apis(queue Queue) {
     Pass &= Bundle.ext_oneapi_has_kernel<ff_4>(Device);
     kernel Kernel = Bundle.ext_oneapi_get_kernel<ff_4>();
   }
-#endif
 
   std::cout << "Test bundle APIs: " << (Pass ? "PASS" : "FAIL") << std::endl;
   return Pass;
