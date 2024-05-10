@@ -5,7 +5,7 @@
 
 #include "include/asmhelper.h"
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <vector>
 
 constexpr int CONST_ARGUMENT = 0xabc;

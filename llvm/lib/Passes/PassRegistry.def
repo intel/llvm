@@ -151,11 +151,13 @@ MODULE_PASS("deadargelim-sycl", DeadArgumentEliminationSYCLPass())
 MODULE_PASS("sycllowerwglocalmemory", SYCLLowerWGLocalMemoryPass())
 MODULE_PASS("lower-esimd-kernel-attrs", SYCLFixupESIMDKernelWrapperMDPass())
 MODULE_PASS("esimd-remove-host-code", ESIMDRemoveHostCodePass());
+MODULE_PASS("esimd-remove-optnone-noinline", ESIMDRemoveOptnoneNoinlinePass());
 MODULE_PASS("sycl-propagate-aspects-usage", SYCLPropagateAspectsUsagePass())
 MODULE_PASS("sycl-propagate-joint-matrix-usage", SYCLPropagateJointMatrixUsagePass())
 MODULE_PASS("sycl-add-opt-level-attribute", SYCLAddOptLevelAttributePass())
 MODULE_PASS("compile-time-properties", CompileTimePropertiesPass())
 MODULE_PASS("cleanup-sycl-metadata", CleanupSYCLMetadataPass())
+MODULE_PASS("lower-slm-reservation-calls", ESIMDLowerSLMReservationCalls())
 #undef MODULE_PASS
 
 #ifndef MODULE_PASS_WITH_PARAMS
@@ -269,6 +271,9 @@ FUNCTION_ANALYSIS("demanded-bits", DemandedBitsAnalysis())
 FUNCTION_ANALYSIS("domfrontier", DominanceFrontierAnalysis())
 FUNCTION_ANALYSIS("domtree", DominatorTreeAnalysis())
 FUNCTION_ANALYSIS("func-properties", FunctionPropertiesAnalysis())
+FUNCTION_ANALYSIS(
+    "machine-function-info",
+    MachineFunctionAnalysis(static_cast<const LLVMTargetMachine *>(TM)))
 FUNCTION_ANALYSIS("gc-function", GCFunctionAnalysis())
 FUNCTION_ANALYSIS("inliner-size-estimator", InlineSizeEstimatorAnalysis())
 FUNCTION_ANALYSIS("lazy-value-info", LazyValueAnalysis())
@@ -317,6 +322,7 @@ FUNCTION_PASS("alignment-from-assumptions", AlignmentFromAssumptionsPass())
 FUNCTION_PASS("annotation-remarks", AnnotationRemarksPass())
 FUNCTION_PASS("assume-builder", AssumeBuilderPass())
 FUNCTION_PASS("assume-simplify", AssumeSimplifyPass())
+FUNCTION_PASS("atomic-expand", AtomicExpandPass(TM))
 FUNCTION_PASS("bdce", BDCEPass())
 FUNCTION_PASS("bounds-checking", BoundsCheckingPass())
 FUNCTION_PASS("break-crit-edges", BreakCriticalEdgesPass())
@@ -377,6 +383,7 @@ FUNCTION_PASS("loop-load-elim", LoopLoadEliminationPass())
 FUNCTION_PASS("loop-simplify", LoopSimplifyPass())
 FUNCTION_PASS("loop-sink", LoopSinkPass())
 FUNCTION_PASS("loop-versioning", LoopVersioningPass())
+FUNCTION_PASS("lower-allow-check", LowerAllowCheckPass())
 FUNCTION_PASS("lower-atomic", LowerAtomicPass())
 FUNCTION_PASS("lower-constant-intrinsics", LowerConstantIntrinsicsPass())
 FUNCTION_PASS("lower-expect", LowerExpectIntrinsicPass())
@@ -602,6 +609,9 @@ LOOP_ANALYSIS("ddg", DDGAnalysis())
 LOOP_ANALYSIS("iv-users", IVUsersAnalysis())
 LOOP_ANALYSIS("no-op-loop", NoOpLoopAnalysis())
 LOOP_ANALYSIS("pass-instrumentation", PassInstrumentationAnalysis(PIC))
+LOOP_ANALYSIS("should-run-extra-simple-loop-unswitch",
+                  ShouldRunExtraSimpleLoopUnswitch())
+
 #undef LOOP_ANALYSIS
 
 #ifndef LOOP_PASS

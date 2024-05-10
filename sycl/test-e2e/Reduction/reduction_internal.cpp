@@ -1,7 +1,10 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/reduction.hpp>
+
 using namespace sycl;
 
 template <int Dims> auto get_global_range(range<Dims> Range) { return Range; }

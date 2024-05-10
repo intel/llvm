@@ -6,10 +6,6 @@
 int main() {
   queue Queue{};
 
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
-
   using T = int;
 
   size_t OffsetSrc = 2 * size_t(Size / 4);

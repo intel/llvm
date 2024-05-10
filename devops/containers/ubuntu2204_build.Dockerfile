@@ -12,13 +12,14 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
 COPY scripts/install_build_tools.sh /install.sh
 RUN /install.sh
 
-# Install AMD ROCm
-RUN printf 'Package: *\nPin: release o=repo.radeon.com\nPin-Priority: 600\n' | tee /etc/apt/preferences.d/rocm-pin-600
 RUN apt install -yqq libnuma-dev wget gnupg2 && \
-  wget -q -O - https://repo.radeon.com/rocm/rocm.gpg.key | apt-key add - && \
-  echo 'deb [arch=amd64] https://repo.radeon.com/rocm/apt/debian/ ubuntu main' | tee /etc/apt/sources.list.d/rocm.list && \
-  apt update && \
-  apt install -yqq rocm-dev && \
+  apt-get install -yqq gcc-12 g++-12 libstdc++-12-dev && \
+  update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 100 && \
+  update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 100
+
+RUN wget https://repo.radeon.com/amdgpu-install/6.1/ubuntu/jammy/amdgpu-install_6.1.60100-1_all.deb && \
+  apt install -yqq ./amdgpu-install_6.1.60100-1_all.deb && \
+  amdgpu-install -y --usecase=rocmdev && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/*
 

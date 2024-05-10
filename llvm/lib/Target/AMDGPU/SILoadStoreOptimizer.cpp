@@ -376,14 +376,14 @@ static unsigned getOpcodeWidth(const MachineInstr &MI, const SIInstrInfo &TII) {
   case AMDGPU::S_BUFFER_LOAD_DWORDX8_SGPR_IMM:
   case AMDGPU::S_LOAD_DWORDX8_IMM:
     return 8;
-  case AMDGPU::DS_READ_B32:      [[fallthrough]];
-  case AMDGPU::DS_READ_B32_gfx9: [[fallthrough]];
-  case AMDGPU::DS_WRITE_B32:     [[fallthrough]];
+  case AMDGPU::DS_READ_B32:
+  case AMDGPU::DS_READ_B32_gfx9:
+  case AMDGPU::DS_WRITE_B32:
   case AMDGPU::DS_WRITE_B32_gfx9:
     return 1;
-  case AMDGPU::DS_READ_B64:      [[fallthrough]];
-  case AMDGPU::DS_READ_B64_gfx9: [[fallthrough]];
-  case AMDGPU::DS_WRITE_B64:     [[fallthrough]];
+  case AMDGPU::DS_READ_B64:
+  case AMDGPU::DS_READ_B64_gfx9:
+  case AMDGPU::DS_WRITE_B64:
   case AMDGPU::DS_WRITE_B64_gfx9:
     return 2;
   default:
@@ -399,19 +399,35 @@ static InstClassEnum getInstClass(unsigned Opc, const SIInstrInfo &TII) {
       switch (AMDGPU::getMUBUFBaseOpcode(Opc)) {
       default:
         return UNKNOWN;
+      case AMDGPU::BUFFER_LOAD_DWORD_BOTHEN:
+      case AMDGPU::BUFFER_LOAD_DWORD_BOTHEN_exact:
+      case AMDGPU::BUFFER_LOAD_DWORD_IDXEN:
+      case AMDGPU::BUFFER_LOAD_DWORD_IDXEN_exact:
       case AMDGPU::BUFFER_LOAD_DWORD_OFFEN:
       case AMDGPU::BUFFER_LOAD_DWORD_OFFEN_exact:
       case AMDGPU::BUFFER_LOAD_DWORD_OFFSET:
       case AMDGPU::BUFFER_LOAD_DWORD_OFFSET_exact:
+      case AMDGPU::BUFFER_LOAD_DWORD_VBUFFER_BOTHEN:
+      case AMDGPU::BUFFER_LOAD_DWORD_VBUFFER_BOTHEN_exact:
+      case AMDGPU::BUFFER_LOAD_DWORD_VBUFFER_IDXEN:
+      case AMDGPU::BUFFER_LOAD_DWORD_VBUFFER_IDXEN_exact:
       case AMDGPU::BUFFER_LOAD_DWORD_VBUFFER_OFFEN:
       case AMDGPU::BUFFER_LOAD_DWORD_VBUFFER_OFFEN_exact:
       case AMDGPU::BUFFER_LOAD_DWORD_VBUFFER_OFFSET:
       case AMDGPU::BUFFER_LOAD_DWORD_VBUFFER_OFFSET_exact:
         return BUFFER_LOAD;
+      case AMDGPU::BUFFER_STORE_DWORD_BOTHEN:
+      case AMDGPU::BUFFER_STORE_DWORD_BOTHEN_exact:
+      case AMDGPU::BUFFER_STORE_DWORD_IDXEN:
+      case AMDGPU::BUFFER_STORE_DWORD_IDXEN_exact:
       case AMDGPU::BUFFER_STORE_DWORD_OFFEN:
       case AMDGPU::BUFFER_STORE_DWORD_OFFEN_exact:
       case AMDGPU::BUFFER_STORE_DWORD_OFFSET:
       case AMDGPU::BUFFER_STORE_DWORD_OFFSET_exact:
+      case AMDGPU::BUFFER_STORE_DWORD_VBUFFER_BOTHEN:
+      case AMDGPU::BUFFER_STORE_DWORD_VBUFFER_BOTHEN_exact:
+      case AMDGPU::BUFFER_STORE_DWORD_VBUFFER_IDXEN:
+      case AMDGPU::BUFFER_STORE_DWORD_VBUFFER_IDXEN_exact:
       case AMDGPU::BUFFER_STORE_DWORD_VBUFFER_OFFEN:
       case AMDGPU::BUFFER_STORE_DWORD_VBUFFER_OFFEN_exact:
       case AMDGPU::BUFFER_STORE_DWORD_VBUFFER_OFFSET:
@@ -862,7 +878,7 @@ SILoadStoreOptimizer::combineKnownAdjacentMMOs(const CombineInfo &CI,
   const MachineMemOperand *MMOa = *CI.I->memoperands_begin();
   const MachineMemOperand *MMOb = *Paired.I->memoperands_begin();
 
-  unsigned Size = MMOa->getSize() + MMOb->getSize();
+  unsigned Size = MMOa->getSize().getValue() + MMOb->getSize().getValue();
 
   // A base pointer for the combined operation is the same as the leading
   // operation's pointer.

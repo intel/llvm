@@ -6,7 +6,9 @@
 #include "../bindless_helpers.hpp"
 #include <iostream>
 #include <random>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
 #include <type_traits>
 
 static sycl::device dev;

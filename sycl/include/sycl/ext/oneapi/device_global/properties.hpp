@@ -21,13 +21,15 @@ namespace ext::oneapi::experimental {
 
 template <typename T, typename PropertyListT> class device_global;
 
-struct device_image_scope_key {
+struct device_image_scope_key
+    : detail::compile_time_property_key<detail::PropKind::DeviceImageScope> {
   using value_t = property_value<device_image_scope_key>;
 };
 
 enum class host_access_enum : std::uint16_t { read, write, read_write, none };
 
-struct host_access_key {
+struct host_access_key
+    : detail::compile_time_property_key<detail::PropKind::HostAccess> {
   template <host_access_enum Access>
   using value_t =
       property_value<host_access_key,
@@ -36,14 +38,16 @@ struct host_access_key {
 
 enum class init_mode_enum : std::uint16_t { reprogram, reset };
 
-struct init_mode_key {
+struct init_mode_key
+    : detail::compile_time_property_key<detail::PropKind::InitMode> {
   template <init_mode_enum Trigger>
   using value_t =
       property_value<init_mode_key,
                      std::integral_constant<init_mode_enum, Trigger>>;
 };
 
-struct implement_in_csr_key {
+struct implement_in_csr_key
+    : detail::compile_time_property_key<detail::PropKind::ImplementInCSR> {
   template <bool Enable>
   using value_t =
       property_value<implement_in_csr_key, std::bool_constant<Enable>>;
@@ -73,11 +77,6 @@ inline constexpr implement_in_csr_key::value_t<Enable> implement_in_csr;
 inline constexpr implement_in_csr_key::value_t<true> implement_in_csr_on;
 inline constexpr implement_in_csr_key::value_t<false> implement_in_csr_off;
 
-template <> struct is_property_key<device_image_scope_key> : std::true_type {};
-template <> struct is_property_key<host_access_key> : std::true_type {};
-template <> struct is_property_key<init_mode_key> : std::true_type {};
-template <> struct is_property_key<implement_in_csr_key> : std::true_type {};
-
 template <typename T, typename PropertyListT>
 struct is_property_key_of<device_image_scope_key,
                           device_global<T, PropertyListT>> : std::true_type {};
@@ -92,26 +91,6 @@ struct is_property_key_of<implement_in_csr_key, device_global<T, PropertyListT>>
     : std::true_type {};
 
 namespace detail {
-template <> struct PropertyToKind<device_image_scope_key> {
-  static constexpr PropKind Kind = PropKind::DeviceImageScope;
-};
-template <> struct PropertyToKind<host_access_key> {
-  static constexpr PropKind Kind = PropKind::HostAccess;
-};
-template <> struct PropertyToKind<init_mode_key> {
-  static constexpr PropKind Kind = PropKind::InitMode;
-};
-template <> struct PropertyToKind<implement_in_csr_key> {
-  static constexpr PropKind Kind = PropKind::ImplementInCSR;
-};
-
-template <>
-struct IsCompileTimeProperty<device_image_scope_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<host_access_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<init_mode_key> : std::true_type {};
-template <>
-struct IsCompileTimeProperty<implement_in_csr_key> : std::true_type {};
-
 template <> struct PropertyMetaInfo<device_image_scope_key::value_t> {
   static constexpr const char *name = "sycl-device-image-scope";
   static constexpr std::nullptr_t value = nullptr;

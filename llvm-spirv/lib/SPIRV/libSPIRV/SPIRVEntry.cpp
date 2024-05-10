@@ -45,6 +45,7 @@
 #include "SPIRVFunction.h"
 #include "SPIRVInstruction.h"
 #include "SPIRVMemAliasingINTEL.h"
+#include "SPIRVNameMapEnum.h"
 #include "SPIRVStream.h"
 #include "SPIRVType.h"
 
@@ -80,7 +81,7 @@ SPIRVEntry *SPIRVEntry::create(Op OpCode) {
 #undef _SPIRV_OP
   };
 
-  typedef std::map<Op, SPIRVFactoryTy> OpToFactoryMapTy;
+  typedef std::unordered_map<Op, SPIRVFactoryTy> OpToFactoryMapTy;
   static const OpToFactoryMapTy OpToFactoryMap(std::begin(Table),
                                                std::end(Table));
 
@@ -299,13 +300,18 @@ void SPIRVEntry::addDecorate(SPIRVDecorate *Dec) {
     auto *LinkageAttr = static_cast<const SPIRVDecorateLinkageAttr *>(Dec);
     setName(LinkageAttr->getLinkageName());
   }
-  SPIRVDBG(spvdbgs() << "[addDecorate] " << *Dec << '\n';)
+  SPIRVDBG(spvdbgs() << "[addDecorate] Add "
+                     << SPIRVDecorationNameMap::map(Kind) << " to Id " << Id
+                     << '\n';)
 }
 
 void SPIRVEntry::addDecorate(SPIRVDecorateId *Dec) {
-  DecorateIds.insert(std::make_pair(Dec->getDecorateKind(), Dec));
+  auto Kind = Dec->getDecorateKind();
+  DecorateIds.insert(std::make_pair(Kind, Dec));
   Module->addDecorate(Dec);
-  SPIRVDBG(spvdbgs() << "[addDecorateId] " << *Dec << '\n';)
+  SPIRVDBG(spvdbgs() << "[addDecorateId] Add"
+                     << SPIRVDecorationNameMap::map(Kind) << " to Id " << Id
+                     << '\n';)
 }
 
 void SPIRVEntry::addDecorate(Decoration Kind) {
@@ -592,8 +598,7 @@ void SPIRVEntry::updateModuleVersion() const {
   if (!Module)
     return;
 
-  Module->setMinSPIRVVersion(
-      static_cast<VersionNumber>(getRequiredSPIRVVersion()));
+  Module->setMinSPIRVVersion(getRequiredSPIRVVersion());
 }
 
 spv_ostream &operator<<(spv_ostream &O, const SPIRVEntry &E) {
@@ -661,6 +666,9 @@ void SPIRVExecutionMode::decode(std::istream &I) {
   case ExecutionModeRegisterMapInterfaceINTEL:
   case ExecutionModeStreamingInterfaceINTEL:
   case spv::internal::ExecutionModeNamedSubgroupSizeINTEL:
+  case ExecutionModeMaximumRegistersINTEL:
+  case ExecutionModeMaximumRegistersIdINTEL:
+  case ExecutionModeNamedMaximumRegistersINTEL:
     WordLiterals.resize(1);
     break;
   default:

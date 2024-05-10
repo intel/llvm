@@ -39,6 +39,10 @@ template <typename T> struct is_event_profiling_info_desc : std::false_type {};
 // workaround, we use return_type alias from is_*info_desc that doesn't run into
 // the same problem.
 // TODO remove once this gcc/clang discrepancy is resolved
+
+template <typename T> struct is_backend_info_desc : std::false_type {};
+// Similar approach to limit valid get_backend_info template argument
+
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template <> struct PiInfoCode<info::DescType::Desc> {                        \
     static constexpr pi_##DescType##_info value = PiCode;                      \
@@ -123,6 +127,13 @@ struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
 #include <sycl/info/ext_codeplay_device_traits.def>
 #include <sycl/info/ext_intel_device_traits.def>
 #include <sycl/info/ext_oneapi_device_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+  template <>                                                                  \
+  struct is_backend_info_desc<info::DescType::Desc> : std::true_type {         \
+    using return_type = info::DescType::Desc::return_type;                     \
+  };
+#include <sycl/info/sycl_backend_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace detail

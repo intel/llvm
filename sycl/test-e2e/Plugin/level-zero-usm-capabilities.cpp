@@ -3,7 +3,7 @@
 // RUN: %{run} %t.out 2>&1 | FileCheck %s
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 // Check for queries of USM capabilities.
 // All supported L0 devices have these capabilities currently:

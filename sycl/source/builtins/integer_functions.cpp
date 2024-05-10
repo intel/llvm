@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/builtins_preview.hpp>
+#include <sycl/detail/builtins/builtins.hpp>
 
 #include "host_helper_macros.hpp"
 
@@ -90,11 +90,11 @@ BUILTIN_GENINT(ONE_ARG, abs, [](auto x) -> decltype(x) {
 })
 
 BUILTIN_GENINT_SU(TWO_ARGS, abs_diff, [](auto x, auto y) -> decltype(x) {
-  // From SYCL 2020 revision 8:
-  //
-  // > The subtraction is done without modulo overflow. The behavior is
-  // > undefined if the result cannot be represented by the return type.
-  return sycl::abs(x - y);
+  if constexpr (std::is_signed_v<decltype(x)>)
+    if ((x < 0) != (y < 0))
+      return std::abs(x) + std::abs(y);
+
+  return std::max(x, y) - std::min(x, y);
 })
 
 BUILTIN_GENINT_SU(TWO_ARGS, add_sat, [](auto x, auto y) -> decltype(x) {

@@ -5,8 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Use -O2 to avoid huge stack usage under -O0.
-// RUN: %{build} -O2 -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// TODO: Re-enable after internal tracker fixed
+// UNSUPPORTED: gpu-intel-dg2
 
 #include "BitonicSortKv2.hpp"
