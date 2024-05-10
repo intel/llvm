@@ -114,8 +114,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(cuda
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    "https://github.com/Bensuo/unified-runtime.git"
+    "cuda_bool"
   )
 
   fetch_adapter_source(hip
