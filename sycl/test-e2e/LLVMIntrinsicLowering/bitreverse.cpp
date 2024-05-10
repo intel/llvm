@@ -130,12 +130,12 @@ template <typename TYPE> void do_scalar_bitreverse_test() {
   queue q;
 
   // calculate bitlength
-  int bitlength=0;
-  TYPE t=1;
+  int bitlength = 0;
+  TYPE t = 1;
   do {
     ++bitlength;
-    t<<=1;
-  } while(t);
+    t <<= 1;
+  } while (t);
 
   TYPE *Input = (TYPE *)malloc_shared(sizeof(TYPE) * NUM_TESTS, q.get_device(),
                                       q.get_context());
@@ -153,8 +153,9 @@ template <typename TYPE> void do_scalar_bitreverse_test() {
   q.wait();
   for (unsigned i = 0; i < NUM_TESTS; i++)
     if (Output[i] != reference_reverse(Input[i], bitlength)) {
-      std::cerr << "Failed for scalar " << std::hex << static_cast<uint64_t>(Input[i])
-                << " bitlength=" << bitlength << "\n";
+      std::cerr << "Failed for scalar " << std::hex
+                << static_cast<uint64_t>(Input[i]) << " bitlength=" << bitlength
+                << "\n";
 
       exit(-1);
     }
