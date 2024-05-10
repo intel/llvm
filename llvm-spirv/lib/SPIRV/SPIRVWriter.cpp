@@ -1076,7 +1076,7 @@ void LLVMToSPIRVBase::transVectorComputeMetadata(Function *F) {
   }
 }
 
-static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target);
+static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target);
 
 void LLVMToSPIRVBase::transFPGAFunctionMetadata(SPIRVFunction *BF,
                                                 Function *F) {
@@ -1470,7 +1470,12 @@ SPIRVValue *LLVMToSPIRVBase::transValue(Value *V, SPIRVBasicBlock *BB,
          "Invalid SPIRV BB");
 
   auto *BV = transValueWithoutDecoration(V, BB, CreateForward, FuncTrans);
-  if (!BV || !transDecoration(V, BV))
+  if (!BV)
+    return nullptr;
+  // Only translate decorations for non-forward instructions.  Forward
+  // instructions will have their decorations translated when the actual
+  // instruction is seen and rewritten to a real SPIR-V instruction.
+  if (!BV->isForward() && !transDecoration(V, BV))
     return nullptr;
   StringRef Name = V->getName();
   if (!Name.empty()) // Don't erase the name, which BM might already have
@@ -2758,7 +2763,7 @@ void checkIsGlobalVar(SPIRVEntry *E, Decoration Dec) {
                               ErrStr);
 }
 
-static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
+static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target) {
   SPIRVErrorLog &ErrLog = Target->getErrorLog();
 
   auto *ArgDecoMD = dyn_cast<MDNode>(MD);
@@ -2777,6 +2782,17 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
 
     const size_t NumOperands = DecoMD->getNumOperands();
     switch (static_cast<size_t>(DecoKind)) {
+    case DecorationAlignment: {
+      // Handle Alignment via SPIRVValue::setAlignment() to avoid duplicate
+      // Alignment decorations.
+      auto *Alignment =
+          mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
+      ErrLog.checkError(Alignment, SPIRVEC_InvalidLlvmModule,
+                        "Alignment operand must be an integer.");
+      Target->setAlignment(Alignment->getZExtValue());
+      break;
+    }
+
       ONE_STRING_DECORATION_CASE(MemoryINTEL, spv)
       ONE_STRING_DECORATION_CASE(UserSemantic, spv)
       ONE_INT_DECORATION_CASE(AliasScopeINTEL, spv, SPIRVId)
@@ -3036,7 +3052,9 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
     auto Opcode = BVF->getOpcode();
     if (Opcode == Instruction::FAdd || Opcode == Instruction::FSub ||
         Opcode == Instruction::FMul || Opcode == Instruction::FDiv ||
-        Opcode == Instruction::FRem) {
+        Opcode == Instruction::FRem ||
+        ((Opcode == Instruction::FNeg || Opcode == Instruction::FCmp) &&
+         BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))) {
       FastMathFlags FMF = BVF->getFastMathFlags();
       SPIRVWord M{0};
       if (FMF.isFast())

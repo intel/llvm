@@ -2,6 +2,7 @@
 
 #include <sycl/accessor.hpp>
 #include <sycl/detail/image_accessor_util.hpp>
+#include <sycl/device.hpp>
 #include <sycl/image.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__

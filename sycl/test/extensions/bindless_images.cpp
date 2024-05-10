@@ -4,7 +4,7 @@
 #include <sycl/sycl.hpp>
 
 // CHECK: spir_kernel void @_ZTSN4sycl3_V16detail19__pf_kernel_wrapperI10image_readEE
-// CHECK: tail call spir_func noundef <4 x float> @_Z17__spirv_ImageReadIDv4
+// CHECK: tail call spir_func noundef <4 x float> @_Z18__spirv_ImageFetchIDv4
 using namespace sycl::ext::oneapi::experimental;
 class image_read;
 int main() {

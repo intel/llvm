@@ -518,19 +518,6 @@ kernel_bundle<State> get_kernel_bundle(const context &Ctx) {
   return get_kernel_bundle<State>(Ctx, Ctx.get_devices());
 }
 
-// For free functions.
-template <auto *Func, bundle_state State>
-kernel_bundle<State> get_kernel_bundle(const context &Ctx,
-                                       const std::vector<device> &Devs) {
-  get_kernel_bundle<State>(Ctx, Devs, {get_kernel_id<Func>()});
-}
-
-template <auto *Func, bundle_state State>
-kernel_bundle<State> get_kernel_bundle(const context &Ctx) {
-  return get_kernel_bundle<State>(Ctx, Ctx.get_devices(),
-                                  {get_kernel_id<Func>()});
-}
-
 namespace detail {
 
 // Internal non-template versions of get_kernel_bundle API which is used by
@@ -576,6 +563,19 @@ template <typename KernelName, bundle_state State>
 kernel_bundle<State> get_kernel_bundle(const context &Ctx,
                                        const std::vector<device> &Devs) {
   return get_kernel_bundle<State>(Ctx, Devs, {get_kernel_id<KernelName>()});
+}
+
+// For free functions.
+template <auto *Func, bundle_state State>
+kernel_bundle<State> get_kernel_bundle(const context &Ctx,
+                                       const std::vector<device> &Devs) {
+  return get_kernel_bundle<State>(Ctx, Devs, {get_kernel_id<Func>()});
+}
+
+template <auto *Func, bundle_state State>
+kernel_bundle<State> get_kernel_bundle(const context &Ctx) {
+  return get_kernel_bundle<State>(Ctx, Ctx.get_devices(),
+                                  {get_kernel_id<Func>()});
 }
 
 namespace detail {

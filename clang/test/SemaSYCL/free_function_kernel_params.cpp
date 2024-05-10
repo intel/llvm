@@ -1,9 +1,7 @@
-// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -ast-dump \
-// RUN: %s -o - | FileCheck %s
-// UNSUPPORTED: system-windows
+// RUN: %clang -fsycl-device-only -Xclang -ast-dump %s | FileCheck %s
+
 // This test checks parameter rewriting for free functions with parameters
 // of type scalar and pointer.
-// Windows support will be added later.
 
 #include "sycl.hpp"
 
@@ -13,7 +11,7 @@ void ff_2(int *ptr, int start, int end) {
   for (int i = start; i <= end; i++)
     ptr[i] = start;
 }
-// CHECK: FunctionDecl {{.*}} _Z18__sycl_kernel_ff_2Piii 'void (__global int *, int, int)'
+// CHECK: FunctionDecl {{.*}}__sycl_kernel_ff_2{{.*}} 'void (__global int *, int, int)'
 // CHECK-NEXT: ParmVarDecl {{.*}} __arg_ptr '__global int *'
 // CHECK-NEXT: ParmVarDecl {{.*}} __arg_start 'int'
 // CHECK-NEXT: ParmVarDecl {{.*}} __arg_end 'int'
@@ -39,10 +37,10 @@ __attribute__((sycl_device))
       ptr[i] = start;
 }
 
-// Explicit instantiation with “int*”
+// Explicit instantiation with "int*"
 template void ff_3(int* ptr, int start, int end);
 
-// CHECK: FunctionDecl {{.*}} _Z18__sycl_kernel_ff_3Piii 'void (__global int *, int, int)'
+// CHECK: FunctionDecl {{.*}}__sycl_kernel_ff_3{{.*}} 'void (__global int *, int, int)'
 // CHECK-NEXT: ParmVarDecl {{.*}} __arg_ptr '__global int *'
 // CHECK-NEXT: ParmVarDecl {{.*}} __arg_start 'int'
 // CHECK-NEXT: ParmVarDecl {{.*}} __arg_end 'int'

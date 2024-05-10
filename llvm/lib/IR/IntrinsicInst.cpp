@@ -120,7 +120,8 @@ static ValueAsMetadata *getAsMetadata(Value *V) {
 }
 
 void DbgVariableIntrinsic::replaceVariableLocationOp(Value *OldValue,
-                                                     Value *NewValue) {
+                                                     Value *NewValue,
+                                                     bool AllowEmpty) {
   // If OldValue is used as the address part of a dbg.assign intrinsic replace
   // it with NewValue and return true.
   auto ReplaceDbgAssignAddress = [this, OldValue, NewValue]() -> bool {
@@ -137,6 +138,8 @@ void DbgVariableIntrinsic::replaceVariableLocationOp(Value *OldValue,
   auto Locations = location_ops();
   auto OldIt = find(Locations, OldValue);
   if (OldIt == Locations.end()) {
+    if (AllowEmpty || DbgAssignAddrReplaced)
+      return;
     assert(DbgAssignAddrReplaced &&
            "OldValue must be dbg.assign addr if unused in DIArgList");
     return;
@@ -356,6 +359,12 @@ bool FPBuiltinIntrinsic::classof(const IntrinsicInst *I) {
   default:
     return false;
   }
+}
+
+Value *InstrProfCallsite::getCallee() const {
+  if (isa<InstrProfCallsite>(this))
+    return getArgOperand(4);
+  return nullptr;
 }
 
 std::optional<RoundingMode> ConstrainedFPIntrinsic::getRoundingMode() const {
@@ -735,6 +744,7 @@ Function *VPIntrinsic::getDeclarationForParams(Module *M, Intrinsic::ID VPID,
   case Intrinsic::vp_inttoptr:
   case Intrinsic::vp_lrint:
   case Intrinsic::vp_llrint:
+  case Intrinsic::vp_cttz_elts:
     VPFunc =
         Intrinsic::getDeclaration(M, VPID, {ReturnType, Params[0]->getType()});
     break;
