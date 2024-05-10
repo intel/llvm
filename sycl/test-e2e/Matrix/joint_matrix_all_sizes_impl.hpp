@@ -1,3 +1,11 @@
+//===---joint_matrix_all_sizes_impl.hpp - DPC++ joint_matrix---------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 static constexpr size_t M_MULTIPLIER = 16;
 
 template <typename T1, typename T2, size_t M, size_t N, size_t K,
