@@ -230,6 +230,18 @@ template <typename SampledType, typename TempRetT, typename TempArgT>
 extern __DPCPP_SYCL_EXTERNAL TempRetT __spirv_ImageSampleCubemap(SampledType,
                                                                  TempArgT);
 
+template <typename RetT>
+extern __DPCPP_SYCL_EXTERNAL RetT
+__spirv_ConvertHandleToImageINTEL(unsigned long);
+
+template <typename RetT>
+extern __DPCPP_SYCL_EXTERNAL RetT
+__spirv_ConvertHandleToSamplerINTEL(unsigned long);
+
+template <typename RetT>
+extern __DPCPP_SYCL_EXTERNAL RetT
+__spirv_ConvertHandleToSampledImageINTEL(unsigned long);
+
 #define __SYCL_OpGroupAsyncCopyGlobalToLocal __spirv_GroupAsyncCopy
 #define __SYCL_OpGroupAsyncCopyLocalToGlobal __spirv_GroupAsyncCopy
 
