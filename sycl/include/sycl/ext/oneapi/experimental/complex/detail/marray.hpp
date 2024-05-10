@@ -55,7 +55,7 @@ public:
       typename = std::enable_if_t<
           sycl::detail::AllSuitableArgTypes<value_type, ArgTN...>::value &&
           sycl::detail::GetMArrayArgsSize<ArgTN...>::value == NumElements>>
-  constexpr marray(const ArgTN &... Args)
+  constexpr marray(const ArgTN &...Args)
       : marray{
             sycl::detail::MArrayArgArrayCreator<value_type, ArgTN...>::Create(
                 Args...),
@@ -99,14 +99,14 @@ public:
 #endif
 
 #define IMPL_ASSIGN_MARRAY_CPLX_OP(op)                                         \
-  friend marray &operator op(marray &lhs, const marray &rhs) {                 \
+  friend marray &operator op(marray & lhs, const marray & rhs) {               \
     for (std::size_t i = 0; i < NumElements; ++i) {                            \
       lhs[i] op rhs[i];                                                        \
     }                                                                          \
     return lhs;                                                                \
   }                                                                            \
                                                                                \
-  friend marray &operator op(marray &lhs, const value_type &rhs) {             \
+  friend marray &operator op(marray & lhs, const value_type & rhs) {           \
     for (std::size_t i = 0; i < NumElements; ++i) {                            \
       lhs[i] op rhs;                                                           \
     }                                                                          \
@@ -183,8 +183,8 @@ public:
 #endif
 
 #define IMPL_COMP_MARRAY_CPLX_OP(op)                                           \
-  friend marray<bool, NumElements> operator op(const marray &lhs,              \
-                                               const marray &rhs) {            \
+  friend marray<bool, NumElements> operator op(const marray & lhs,             \
+                                               const marray & rhs) {           \
     marray<bool, NumElements> rtn;                                             \
     for (std::size_t i = 0; i < NumElements; ++i) {                            \
       rtn[i] = lhs[i] op rhs[i];                                               \
@@ -192,8 +192,8 @@ public:
     return rtn;                                                                \
   }                                                                            \
                                                                                \
-  friend marray<bool, NumElements> operator op(const marray &lhs,              \
-                                               const value_type &rhs) {        \
+  friend marray<bool, NumElements> operator op(const marray & lhs,             \
+                                               const value_type & rhs) {       \
     marray<bool, NumElements> rtn;                                             \
     for (std::size_t i = 0; i < NumElements; ++i) {                            \
       rtn[i] = lhs[i] op rhs;                                                  \
@@ -201,8 +201,8 @@ public:
     return rtn;                                                                \
   }                                                                            \
                                                                                \
-  friend marray<bool, NumElements> operator op(const value_type &lhs,          \
-                                               const marray &rhs) {            \
+  friend marray<bool, NumElements> operator op(const value_type & lhs,         \
+                                               const marray & rhs) {           \
     marray<bool, NumElements> rtn;                                             \
     for (std::size_t i = 0; i < NumElements; ++i) {                            \
       rtn[i] = lhs op rhs[i];                                                  \
