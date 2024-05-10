@@ -199,10 +199,11 @@ enum PropKind : uint32_t {
   DataPlacement = 58,
   ContiguousMemory = 59,
   FullGroup = 60,
-  NDRangeKernel = 61,
-  SingleTaskKernel = 62,
+  Naive = 61,
+  NDRangeKernel = 62,
+  SingleTaskKernel = 63,
   // PropKindSize must always be the last value.
-  PropKindSize = 63,
+  PropKindSize = 64,
 };
 
 struct property_key_base_tag {};
