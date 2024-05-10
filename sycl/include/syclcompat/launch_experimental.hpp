@@ -37,7 +37,6 @@
 
 #include <syclcompat/device.hpp>
 #include <syclcompat/dims.hpp>
-#include <syclcompat/kernel_properties.hpp>
 #include <syclcompat/launch.hpp>
 
 #if defined(SYCL_EXT_ONEAPI_KERNEL_PROPERTIES) &&                              \
@@ -187,7 +186,7 @@ launch(sycl::nd_range<Dim> launch_params, const Args &...args) {
   using PropertyList = decltype(detail::empty_property_list);
   return launch<KernelFunctor>(
       ::syclcompat::detail::transform_nd_range(launch_params),
-      empty_property_list, args...);
+      detail::empty_property_list, args...);
 }
 
 template <typename KernelFunctor, int Dim, typename PropertyList,
@@ -212,7 +211,7 @@ launch(sycl::range<Dim> global_range, sycl::range<Dim> local_range,
   return launch<KernelFunctor>(
       ::syclcompat::detail::transform_nd_range(
           sycl::nd_range<Dim>(global_range, local_range)),
-      empty_property_list, args...);
+      detail::empty_property_list, args...);
 }
 
 template <typename KernelFunctor, typename PropertyList, typename... Args>

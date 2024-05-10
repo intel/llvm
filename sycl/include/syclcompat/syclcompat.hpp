@@ -28,7 +28,6 @@
 #include <syclcompat/dims.hpp>
 #include <syclcompat/id_query.hpp>
 #include <syclcompat/kernel.hpp>
-#include <syclcompat/kernel_properties.hpp>
 #include <syclcompat/launch.hpp>
 #include <syclcompat/launch_experimental.hpp>
 #include <syclcompat/math.hpp>

@@ -31,7 +31,6 @@
 #include <syclcompat/device.hpp>
 #include <syclcompat/launch.hpp>
 #include <syclcompat/memory.hpp>
-#include <syclcompat/launch_experimental.hpp>
 #include <syclcompat/id_query.hpp>
 
 #include "../common.hpp"
@@ -121,7 +120,7 @@ void reqd_sg_size_kernel_with_local_memory(int modifier_val, int num_elements, T
                           .get_local_linear_range();
 
   const int wi_id_in_wg = sycl::ext::oneapi::this_work_item::get_nd_item<3>().get_local_linear_id();
-  //sycl::ext::oneapi::experimental::printf(" %d \n", wi_id_in_wg);
+
   if (id < num_elements) {
     if (id < num_elements - modifier_val) {
       typed_local_mem[wi_id_in_wg] = static_cast<T>(
