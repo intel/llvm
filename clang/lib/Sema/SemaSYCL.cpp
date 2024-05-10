@@ -36,6 +36,7 @@
 #include <array>
 #include <functional>
 #include <initializer_list>
+#include <iostream>
 
 using namespace clang;
 using namespace std::placeholders;
@@ -1101,12 +1102,6 @@ static int getFreeFunctionRangeDim(SemaSYCL &SemaSYCLRef,
     }
   }
   return false;
-}
-
-static std::string constructFFKernelName(const FunctionDecl *FD) {
-  IdentifierInfo *Id = FD->getIdentifier();
-  std::string NewIdent = (Twine("__sycl_kernel_") + Id->getName()).str();
-  return NewIdent;
 }
 
 static FunctionDecl *createNewFunctionDecl(ASTContext &Ctx,
@@ -4952,23 +4947,43 @@ void SemaSYCL::SetSYCLKernelNames() {
       getASTContext().createMangleContext());
   // We assume the list of KernelDescs is the complete list of kernels needing
   // to be rewritten.
+  std::cerr << "SetSYCLKernelNames\n";
   for (const std::pair<const FunctionDecl *, FunctionDecl *> &Pair :
        SyclKernelsToOpenCLKernels) {
+    {
+      const IdentifierInfo *II1 = Pair.first->getIdentifier();
+      std::cerr << "Pair.first: " << (II1 ? II1->getName().data() : "Unnamed")
+                << std::endl;
+      const IdentifierInfo *II2 = Pair.first->getIdentifier();
+      std::cerr << "Pair.second: " << (II2 ? II2->getName().data() : "Unnamed")
+                << std::endl;
+    }
+
     std::string CalculatedName, StableName;
     StringRef KernelName;
     if (isFreeFunction(*this, Pair.first)) {
+      std::cerr << "isFreeFunction = true\n";
       std::tie(CalculatedName, StableName) =
           constructFreeFunctionKernelName(*this, Pair.first, *MangleCtx);
+      std::cerr << "CalculatedName=" << CalculatedName << std::endl;
+      std::cerr << "StableName=" << StableName << std::endl;
       KernelName = CalculatedName;
+      std::cerr << "KernelName=" << KernelName.str() << std::endl;
     } else {
+      std::cerr << "isFreeFunction = false\n";
       std::tie(CalculatedName, StableName) =
           constructKernelName(*this, Pair.first, *MangleCtx);
+      std::cerr << "CalculatedName=" << CalculatedName << std::endl;
+      std::cerr << "StableName=" << StableName << std::endl;
       KernelName =
           IsSYCLUnnamedKernel(*this, Pair.first) ? StableName : CalculatedName;
+      std::cerr << "KernelName=" << KernelName.str() << std::endl;
     }
 
     getSyclIntegrationHeader().updateKernelNames(Pair.first, KernelName,
                                                  StableName);
+    std::cerr << "updateKernelNames(" << KernelName.str() << "," << StableName
+              << ")\n";
 
     // Set name of generated kernel.
     Pair.second->setDeclName(&getASTContext().Idents.get(KernelName));
