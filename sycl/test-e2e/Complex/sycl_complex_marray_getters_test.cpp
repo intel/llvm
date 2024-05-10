@@ -19,20 +19,24 @@ template <typename T> struct test_real {
           experimental::complex<T>{static_cast<T>(init[i]), static_cast<T>(0)};
     }
 
-    auto *cplx_out =
-        sycl::malloc_shared<sycl::marray<T, GETTERS_TEST_CASE_SIZE>>(1, Q);
+    sycl::buffer<sycl::marray<T, GETTERS_TEST_CASE_SIZE>> cplx_out_buf{
+        sycl::range{1}};
+
+    Q.submit([&](sycl::handler &cgh) {
+      sycl::accessor cplx_out{cplx_out_buf, cgh};
+
+      cgh.single_task([=]() {
+        cplx_out[0] = sycl::ext::oneapi::experimental::real(cplx_in);
+      });
+    });
 
     /* Check cplx::complex output from device */
-    Q.single_task([=]() {
-       *cplx_out = sycl::ext::oneapi::experimental::real(cplx_in);
-     }).wait();
-    pass &= check_results(*cplx_out, std_in, /*is_device*/ true);
+    sycl::host_accessor cplx_out_acc{cplx_out_buf};
+    pass &= check_results(cplx_out_acc[0], std_in, /*is_device*/ true);
 
     /* Check cplx::complex output from host */
-    *cplx_out = sycl::ext::oneapi::experimental::real(cplx_in);
-    pass &= check_results(*cplx_out, std_in, /*is_device*/ false);
-
-    sycl::free(cplx_out, Q);
+    cplx_out_acc[0] = sycl::ext::oneapi::experimental::real(cplx_in);
+    pass &= check_results(cplx_out_acc[0], std_in, /*is_device*/ false);
 
     return pass;
   }
@@ -54,20 +58,24 @@ template <typename T> struct test_imag {
           experimental::complex<T>{static_cast<T>(0), static_cast<T>(init[i])};
     }
 
-    auto *cplx_out =
-        sycl::malloc_shared<sycl::marray<T, GETTERS_TEST_CASE_SIZE>>(1, Q);
+    sycl::buffer<sycl::marray<T, GETTERS_TEST_CASE_SIZE>> cplx_out_buf{
+        sycl::range{1}};
+
+    Q.submit([&](sycl::handler &cgh) {
+      sycl::accessor cplx_out{cplx_out_buf, cgh};
+
+      cgh.single_task([=]() {
+        cplx_out[0] = sycl::ext::oneapi::experimental::imag(cplx_in);
+      });
+    });
 
     /* Check cplx::complex output from device */
-    Q.single_task([=]() {
-       *cplx_out = sycl::ext::oneapi::experimental::imag(cplx_in);
-     }).wait();
-    pass &= check_results(*cplx_out, std_in, /*is_device*/ true);
+    sycl::host_accessor cplx_out_acc{cplx_out_buf};
+    pass &= check_results(cplx_out_acc[0], std_in, /*is_device*/ true);
 
     /* Check cplx::complex output from host */
-    *cplx_out = sycl::ext::oneapi::experimental::imag(cplx_in);
-    pass &= check_results(*cplx_out, std_in, /*is_device*/ false);
-
-    sycl::free(cplx_out, Q);
+    cplx_out_acc[0] = sycl::ext::oneapi::experimental::imag(cplx_in);
+    pass &= check_results(cplx_out_acc[0], std_in, /*is_device*/ false);
 
     return pass;
   }

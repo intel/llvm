@@ -24,9 +24,9 @@
       }                                                                        \
                                                                                \
       sycl::marray<std::complex<X>, DEFAULT_TEST_CASE_SIZE> std_out{};         \
-      auto *cplx_out = sycl::malloc_shared<                                    \
-          sycl::marray<experimental::complex<T>, DEFAULT_TEST_CASE_SIZE>>(1,   \
-                                                                          Q);  \
+      sycl::buffer<                                                            \
+          sycl::marray<experimental::complex<T>, DEFAULT_TEST_CASE_SIZE>>      \
+          cplx_out_buf{sycl::range{1}};                                        \
                                                                                \
       /* Get std::complex output */                                            \
       if (use_ref) {                                                           \
@@ -41,19 +41,22 @@
         }                                                                      \
       }                                                                        \
                                                                                \
+      Q.submit([&](sycl::handler &cgh) {                                       \
+        sycl::accessor cplx_out{cplx_out_buf, cgh};                            \
+                                                                               \
+        cgh.single_task(                                                       \
+            [=]() { cplx_out[0] = experimental::func_name(cplx_in); });        \
+      });                                                                      \
+                                                                               \
       /* Check cplx::complex output from device */                             \
-      Q.single_task([=]() {                                                    \
-         *cplx_out = experimental::func_name(cplx_in);                         \
-       }).wait();                                                              \
-      pass &= check_results(*cplx_out, convert_marray<T>(std_out),             \
+      sycl::host_accessor cplx_out_acc{cplx_out_buf};                          \
+      pass &= check_results(cplx_out_acc[0], convert_marray<T>(std_out),       \
                             /*is_device*/ true);                               \
                                                                                \
       /* Check cplx::complex output from host */                               \
-      *cplx_out = experimental::func_name(cplx_in);                            \
-      pass &= check_results(*cplx_out, convert_marray<T>(std_out),             \
+      cplx_out_acc[0] = experimental::func_name(cplx_in);                      \
+      pass &= check_results(cplx_out_acc[0], convert_marray<T>(std_out),       \
                             /*is_device*/ false);                              \
-                                                                               \
-      sycl::free(cplx_out, Q);                                                 \
                                                                                \
       return pass;                                                             \
     }                                                                          \
@@ -102,8 +105,8 @@ TEST_MATH_MARRAY_CPLX_IN_CPLX_OUT(tanh)
       }                                                                        \
                                                                                \
       sycl::marray<T, DEFAULT_TEST_CASE_SIZE> std_out{};                       \
-      auto *cplx_out =                                                         \
-          sycl::malloc_shared<sycl::marray<T, DEFAULT_TEST_CASE_SIZE>>(1, Q);  \
+      sycl::buffer<sycl::marray<T, DEFAULT_TEST_CASE_SIZE>> cplx_out_buf{      \
+          sycl::range{1}};                                                     \
                                                                                \
       /* Get std::complex output */                                            \
       if (use_ref) {                                                           \
@@ -116,17 +119,20 @@ TEST_MATH_MARRAY_CPLX_IN_CPLX_OUT(tanh)
         }                                                                      \
       }                                                                        \
                                                                                \
+      Q.submit([&](sycl::handler &cgh) {                                       \
+        sycl::accessor cplx_out{cplx_out_buf, cgh};                            \
+                                                                               \
+        cgh.single_task(                                                       \
+            [=]() { cplx_out[0] = experimental::func_name(cplx_in); });        \
+      });                                                                      \
+                                                                               \
       /* Check cplx::complex output from device */                             \
-      Q.single_task([=]() {                                                    \
-         *cplx_out = experimental::func_name(cplx_in);                         \
-       }).wait();                                                              \
-      pass &= check_results(*cplx_out, std_out, /*is_device*/ true);           \
+      sycl::host_accessor cplx_out_acc{cplx_out_buf};                          \
+      pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ true);     \
                                                                                \
       /* Check cplx::complex output from host */                               \
-      *cplx_out = experimental::func_name(cplx_in);                            \
-      pass &= check_results(*cplx_out, std_out, /*is_device*/ false);          \
-                                                                               \
-      sycl::free(cplx_out, Q);                                                 \
+      cplx_out_acc[0] = experimental::func_name(cplx_in);                      \
+      pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ false);    \
                                                                                \
       return pass;                                                             \
     }                                                                          \
@@ -153,8 +159,8 @@ template <typename T> struct test_polar {
     }
 
     sycl::marray<std::complex<T>, POLAR_TEST_CASE_SIZE> std_out{};
-    auto *cplx_out = sycl::malloc_shared<
-        sycl::marray<experimental::complex<T>, POLAR_TEST_CASE_SIZE>>(1, Q);
+    sycl::buffer<sycl::marray<experimental::complex<T>, POLAR_TEST_CASE_SIZE>>
+        cplx_out_buf{sycl::range{1}};
 
     /* Get std::complex output */
     if (use_ref) {
@@ -169,17 +175,19 @@ template <typename T> struct test_polar {
       }
     }
 
+    Q.submit([&](sycl::handler &cgh) {
+      sycl::accessor cplx_out{cplx_out_buf, cgh};
+
+      cgh.single_task([=]() { cplx_out[0] = experimental::polar(rho, theta); });
+    });
+
     /* Check cplx::complex output from device */
-    Q.single_task([=]() {
-       *cplx_out = experimental::polar(rho, theta);
-     }).wait();
-    pass &= check_results(*cplx_out, std_out, /*is_device*/ true);
+    sycl::host_accessor cplx_out_acc{cplx_out_buf};
+    pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ true);
 
     /* Check cplx::complex output from host */
-    *cplx_out = experimental::polar(rho, theta);
-    pass &= check_results(*cplx_out, std_out, /*is_device*/ false);
-
-    sycl::free(cplx_out, Q);
+    cplx_out_acc[0] = experimental::polar(rho, theta);
+    pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ false);
 
     return pass;
   }
@@ -206,8 +214,8 @@ template <typename T> struct test_pow_cplx_cplx {
     }
 
     sycl::marray<std::complex<X>, DEFAULT_TEST_CASE_SIZE> std_out{};
-    auto *cplx_out = sycl::malloc_shared<
-        sycl::marray<experimental::complex<T>, DEFAULT_TEST_CASE_SIZE>>(1, Q);
+    sycl::buffer<sycl::marray<experimental::complex<T>, DEFAULT_TEST_CASE_SIZE>>
+        cplx_out_buf{sycl::range{1}};
 
     /* Get std::complex output */
     if (use_ref) {
@@ -222,19 +230,22 @@ template <typename T> struct test_pow_cplx_cplx {
       }
     }
 
+    Q.submit([&](sycl::handler &cgh) {
+      sycl::accessor cplx_out{cplx_out_buf, cgh};
+
+      cgh.single_task(
+          [=]() { cplx_out[0] = experimental::pow(cplx_in, cplx_in); });
+    });
+
     /* Check cplx::complex output from device */
-    Q.single_task([=]() {
-       *cplx_out = experimental::pow(cplx_in, cplx_in);
-     }).wait();
-    pass &= check_results(*cplx_out, convert_marray<T>(std_out),
+    sycl::host_accessor cplx_out_acc{cplx_out_buf};
+    pass &= check_results(cplx_out_acc[0], convert_marray<T>(std_out),
                           /*is_device*/ true);
 
     /* Check cplx::complex output from host */
-    *cplx_out = experimental::pow(cplx_in, cplx_in);
-    pass &= check_results(*cplx_out, convert_marray<T>(std_out),
+    cplx_out_acc[0] = experimental::pow(cplx_in, cplx_in);
+    pass &= check_results(cplx_out_acc[0], convert_marray<T>(std_out),
                           /*is_device*/ false);
-
-    sycl::free(cplx_out, Q);
 
     return pass;
   }
@@ -261,8 +272,8 @@ template <typename T> struct test_pow_cplx_deci {
     }
 
     sycl::marray<std::complex<X>, DEFAULT_TEST_CASE_SIZE> std_out{};
-    auto *cplx_out = sycl::malloc_shared<
-        sycl::marray<experimental::complex<T>, DEFAULT_TEST_CASE_SIZE>>(1, Q);
+    sycl::buffer<sycl::marray<experimental::complex<T>, DEFAULT_TEST_CASE_SIZE>>
+        cplx_out_buf{sycl::range{1}};
 
     /* Get std::complex output */
     if (use_ref) {
@@ -277,21 +288,25 @@ template <typename T> struct test_pow_cplx_deci {
       }
     }
 
+    Q.submit([&](sycl::handler &cgh) {
+      sycl::accessor cplx_out{cplx_out_buf, cgh};
+
+      cgh.single_task([=]() {
+        cplx_out[0] = experimental::pow(
+            cplx_in, sycl::ext::oneapi::experimental::real(cplx_in));
+      });
+    });
+
     /* Check cplx::complex output from device */
-    Q.single_task([=]() {
-       *cplx_out = experimental::pow(
-           cplx_in, sycl::ext::oneapi::experimental::real(cplx_in));
-     }).wait();
-    pass &= check_results(*cplx_out, convert_marray<T>(std_out),
+    sycl::host_accessor cplx_out_acc{cplx_out_buf};
+    pass &= check_results(cplx_out_acc[0], convert_marray<T>(std_out),
                           /*is_device*/ true);
 
     /* Check cplx::complex output from host */
-    *cplx_out = experimental::pow(
+    cplx_out_acc[0] = experimental::pow(
         cplx_in, sycl::ext::oneapi::experimental::real(cplx_in));
-    pass &= check_results(*cplx_out, convert_marray<T>(std_out),
+    pass &= check_results(cplx_out_acc[0], convert_marray<T>(std_out),
                           /*is_device*/ false);
-
-    sycl::free(cplx_out, Q);
 
     return pass;
   }
@@ -318,8 +333,8 @@ template <typename T> struct test_pow_deci_cplx {
     }
 
     sycl::marray<std::complex<X>, DEFAULT_TEST_CASE_SIZE> std_out{};
-    auto *cplx_out = sycl::malloc_shared<
-        sycl::marray<experimental::complex<T>, DEFAULT_TEST_CASE_SIZE>>(1, Q);
+    sycl::buffer<sycl::marray<experimental::complex<T>, DEFAULT_TEST_CASE_SIZE>>
+        cplx_out_buf{sycl::range{1}};
 
     /* Get std::complex output */
     if (use_ref) {
@@ -334,21 +349,25 @@ template <typename T> struct test_pow_deci_cplx {
       }
     }
 
+    Q.submit([&](sycl::handler &cgh) {
+      sycl::accessor cplx_out{cplx_out_buf, cgh};
+
+      cgh.single_task([=]() {
+        cplx_out[0] = experimental::pow(
+            sycl::ext::oneapi::experimental::real(cplx_in), cplx_in);
+      });
+    });
+
     /* Check cplx::complex output from device */
-    Q.single_task([=]() {
-       *cplx_out = experimental::pow(
-           sycl::ext::oneapi::experimental::real(cplx_in), cplx_in);
-     }).wait();
-    pass &= check_results(*cplx_out, convert_marray<T>(std_out),
+    sycl::host_accessor cplx_out_acc{cplx_out_buf};
+    pass &= check_results(cplx_out_acc[0], convert_marray<T>(std_out),
                           /*is_device*/ true);
 
     /* Check cplx::complex output from host */
-    *cplx_out = experimental::pow(
+    cplx_out_acc[0] = experimental::pow(
         sycl::ext::oneapi::experimental::real(cplx_in), cplx_in);
-    pass &= check_results(*cplx_out, convert_marray<T>(std_out),
+    pass &= check_results(cplx_out_acc[0], convert_marray<T>(std_out),
                           /*is_device*/ false);
-
-    sycl::free(cplx_out, Q);
 
     return pass;
   }
