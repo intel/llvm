@@ -28,3 +28,14 @@
 // RUN:   %clang -fsycl-device-only -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-SYCL-DEVICE-ONLY %s
 // CHECK-SYCL-DEVICE-ONLY-COUNT-1: "-D__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__=1"
+
+/// Check device traits macros are defined if sycl is enabled:
+/// Verify that when compiling for multiple targets and maySupportOtherAspects
+/// is false for all of the targets, the driver will never add the
+/// __SYCL_ANY_DEVICE_HAS_ANY_ASPECT__ macro to the compilation arguments.
+/// NOTE: Both intel_gpu_pvc and amd_gpu_gfx906 have non-empty aspects lists and
+/// set maySupportOtherAspects to false, hence why they are used for this test.
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=intel_gpu_pvc,amd_gpu_gfx906 \
+// RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-SYCL-TARGETS-NO-MAY-SUPPORT-OTHER-ASPECTS %s
+// CHECK-SYCL-TARGETS-NO-MAY-SUPPORT-OTHER-ASPECTS-NOT: "-D__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__=1"
