@@ -2629,11 +2629,21 @@ public:
   __SYCL2020_DEPRECATED(
       "local_accessor::get_pointer() is deprecated, please use get_multi_ptr()")
   local_ptr<DataT> get_pointer() const noexcept {
+#ifndef __SYCL_DEVICE_ONLY__
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "get_pointer must not be called on the host for a local accessor");
+#endif
     return local_ptr<DataT>(local_acc::getQualifiedPtr());
   }
 
   template <access::decorated IsDecorated>
   accessor_ptr<IsDecorated> get_multi_ptr() const noexcept {
+#ifndef __SYCL_DEVICE_ONLY__
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "get_multi_ptr must not be called on the host for a local accessor");
+#endif
     return accessor_ptr<IsDecorated>(local_acc::getQualifiedPtr());
   }
 
