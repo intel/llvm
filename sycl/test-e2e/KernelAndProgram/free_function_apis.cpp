@@ -1,7 +1,9 @@
-#include <sycl/sycl.hpp>
-#include <ext/oneapi/experimental/free_function_traits.hpp>
-#include <sycl/kernel_bundle.hpp>
+// REQUIRES: aspect-usm_shared_allocations
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
+
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -13,14 +15,13 @@ void ff_2(int *ptr, int start) {
   nd_item<2> Item = ext::oneapi::this_work_item::get_nd_item<2>();
   id<2> GId = Item.get_global_id();
   id<2> LId = Item.get_local_id();
-  ptr2D[GId.get(0)][GId.get(1)] =
-      LId.get(0) + LId.get(1) + start;
+  ptr2D[GId.get(0)][GId.get(1)] = LId.get(0) + LId.get(1) + start;
 }
 
 // Templated free function definition.
 template <typename T>
 SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((
-  ext::oneapi::experimental::single_task_kernel)) void ff_3(T* ptr, T start) {
+    ext::oneapi::experimental::single_task_kernel)) void ff_3(T *ptr, T start) {
   int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(ptr);
   nd_item<2> Item = ext::oneapi::this_work_item::get_nd_item<2>();
   id<2> GId = Item.get_global_id();
@@ -29,13 +30,12 @@ SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((
 }
 
 // Explicit instantiation of free function.
-extern template void ff_3(int* ptr, int start);
+extern template void ff_3(int *ptr, int start);
 
 // A plain function that is not a free function.
-void ff_4(int* ptr, int start) {}
+void ff_4(int *ptr, int start) {}
 
-bool test_kernel_apis(queue Queue)
-{
+bool test_kernel_apis(queue Queue) {
   bool Pass = true;
 
   // Check for a free function, which is known to be a free function.
@@ -90,19 +90,19 @@ bool test_bundle_apis(queue Queue) {
   Pass &= has_kernel_bundle<ff_2, bundle_state::executable>(Context);
 
   if constexpr (ext::oneapi::experimental::is_kernel_v<(
-    void (*)(int*, int))ff_3>)
-  Pass &=
-      has_kernel_bundle<(void (*)(int *, int))ff_3, bundle_state::executable>(
-          Context);
+                    void (*)(int *, int))ff_3>)
+    Pass &=
+        has_kernel_bundle<(void (*)(int *, int))ff_3, bundle_state::executable>(
+            Context);
 
   // ff_2 and ff_3 are free functions, evaluate has_kernel_bundle.
   Pass &= has_kernel_bundle<ff_2, bundle_state::executable>(Context, Devices);
 
   if constexpr (ext::oneapi::experimental::is_kernel_v<(
-    void (*)(int*, int))ff_3>)
-  Pass &=
-      has_kernel_bundle<(void (*)(int *, int))ff_3, bundle_state::executable>(
-          Context, Devices);
+                    void (*)(int *, int))ff_3>)
+    Pass &=
+        has_kernel_bundle<(void (*)(int *, int))ff_3, bundle_state::executable>(
+            Context, Devices);
 
   // ff_3 is compatible.
   if constexpr (ext::oneapi::experimental::is_kernel_v<(
@@ -137,7 +137,8 @@ bool test_bundle_apis(queue Queue) {
     std::cerr << "Got kernel\n";
   }
 
-  kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(Context, Devices);
+  kernel_bundle Bundle =
+      get_kernel_bundle<bundle_state::executable>(Context, Devices);
   std::cerr << "Got bundle\n";
   kernel_id Id = get_kernel_id<ff_2>();
 
