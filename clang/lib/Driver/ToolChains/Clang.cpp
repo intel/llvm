@@ -5584,15 +5584,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         // included, enable the integration header based diagnostics.
         CmdArgs.push_back("-fsycl-enable-int-header-diags");
       }
-
-      // Add the -include-footer option to add the integration footer
-      StringRef Footer = D.getIntegrationFooter(Input.getBaseInput());
-      if (types::getPreprocessedType(Input.getType()) != types::TY_INVALID &&
-          !Args.hasArg(options::OPT_fno_sycl_use_footer) && !Footer.empty()) {
-        CmdArgs.push_back("-include-footer");
-        CmdArgs.push_back(Args.MakeArgString(Footer));
-      }
-
       // Let the FE know we are doing a SYCL offload compilation, but we are
       // doing the host pass.
       CmdArgs.push_back("-fsycl-is-host");
