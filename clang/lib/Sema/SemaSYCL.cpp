@@ -6058,9 +6058,7 @@ class FreeFunctionFwdDeclEmitter
       Visit(Args[I]);
   }
 
-  void EmitAsString(QualType Ty) {
-    OS << Ty.getAsString();
-  }
+  void EmitAsString(QualType Ty) { OS << Ty.getAsString(); }
 
 public:
   FreeFunctionFwdDeclEmitter(raw_ostream &OS, const LangOptions &LO)
@@ -6194,9 +6192,7 @@ public:
     checkAndEmitForwardDecl(ND);
   }
 
-  void VisitFunctionPointerType(QualType FnPtrTy) {
-    EmitAsString(FnPtrTy);
-  }
+  void VisitFunctionPointerType(QualType FnPtrTy) { EmitAsString(FnPtrTy); }
 };
 
 static void OutputStableNameChar(raw_ostream &O, char C) {
@@ -6510,12 +6506,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         O << "struct "
              "ext::oneapi::experimental::is_single_task_kernel<__sycl_shim"
           << ShimCounter << "()";
-      O  << "> {\n";
+      O << "> {\n";
       O << "  static constexpr bool value = true;\n";
       O << "};\n";
       O << "template <>\n";
-      O << "kernel_id get_kernel_id <__sycl_shim" << ShimCounter
-        << "()>() {\n";
+      O << "kernel_id get_kernel_id <__sycl_shim" << ShimCounter << "()>() {\n";
       O << "  return sycl::detail::get_kernel_id_impl(std::string_view{\""
         << K.Name << "\"});\n";
       O << "}\n";

@@ -52,7 +52,7 @@ class kernel_impl;
 } // namespace detail
 
 template <typename KernelName> kernel_id get_kernel_id();
-template <auto* Func> kernel_id get_kernel_id();
+template <auto *Func> kernel_id get_kernel_id();
 
 /// Objects of the class identify kernel is some kernel_bundle related APIs
 ///

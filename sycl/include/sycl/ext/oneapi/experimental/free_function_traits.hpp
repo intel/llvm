@@ -20,7 +20,7 @@ template <auto *Func> struct is_single_task_kernel {
   static constexpr bool value = false;
 };
 
-template <auto* Func> struct is_kernel {
+template <auto *Func> struct is_kernel {
   static constexpr bool value = false;
 };
 
