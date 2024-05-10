@@ -8,12 +8,17 @@
 
 #pragma once
 
+#include <sycl/detail/spirv.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/group.hpp>
 #include <sycl/memory_enums.hpp>
 #include <sycl/nd_item.hpp>
 #include <sycl/sub_group.hpp>
+
+#ifdef __SYCL_DEVICE_ONLY__
+#include <sycl/ext/oneapi/functional.hpp>
+#endif
 
 namespace sycl {
 inline namespace _V1 {

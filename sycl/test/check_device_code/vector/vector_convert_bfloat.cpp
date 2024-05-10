@@ -6,6 +6,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/types.hpp>
 
 using namespace sycl;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
