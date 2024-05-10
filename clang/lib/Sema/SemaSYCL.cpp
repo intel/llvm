@@ -1092,6 +1092,11 @@ static bool isFreeFunction(SemaSYCL &SemaSYCLRef, const FunctionDecl *FD) {
 // We add __sycl_kernel_ to the original function name and then use the mangled
 // name as the kernel name. The renaming allows a normal device function to
 // coexist with the kernel function.
+// FIXME: Free functions are allowed only at file scope currently, thus there
+// are no namespace prefixes to the function name. That is why the number
+// following _Z is the length of the function name. In the future, namespaces
+// will be allowed and then this function will be modified to ensure a unique
+// name is constructed for the free function kernel.
 static std::pair<std::string, std::string> constructFreeFunctionKernelName(
     SemaSYCL &SemaSYCLRef, const FunctionDecl *FreeFunc, MangleContext &MC) {
   SmallString<256> Result;
@@ -4286,10 +4291,6 @@ public:
 // the first template argument has been corrected by the library to match the
 // functor type.
 static bool IsSYCLUnnamedKernel(SemaSYCL &SemaSYCLRef, const FunctionDecl *FD) {
-  // If free function then remaining checks are not applicable.
-  if (isFreeFunction(SemaSYCLRef, FD))
-    return false;
-
   if (!SemaSYCLRef.getLangOpts().SYCLUnnamedLambda)
     return false;
 
@@ -4890,14 +4891,17 @@ void SemaSYCL::SetSYCLKernelNames() {
   for (const std::pair<const FunctionDecl *, FunctionDecl *> &Pair :
        SyclKernelsToOpenCLKernels) {
     std::string CalculatedName, StableName;
-    if (isFreeFunction(*this, Pair.first))
+    StringRef KernelName;
+    if (isFreeFunction(*this, Pair.first)) {
       std::tie(CalculatedName, StableName) =
           constructFreeFunctionKernelName(*this, Pair.first, *MangleCtx);
-    else
+      KernelName = CalculatedName;
+    } else {
       std::tie(CalculatedName, StableName) =
           constructKernelName(*this, Pair.first, *MangleCtx);
-    StringRef KernelName(
-        IsSYCLUnnamedKernel(*this, Pair.first) ? StableName : CalculatedName);
+      KernelName =
+          IsSYCLUnnamedKernel(*this, Pair.first) ? StableName : CalculatedName;
+    }
 
     getSyclIntegrationHeader().updateKernelNames(Pair.first, KernelName,
                                                  StableName);
