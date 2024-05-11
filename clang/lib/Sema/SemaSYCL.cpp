@@ -1138,8 +1138,8 @@ static FunctionDecl *createNewFunctionDecl(ASTContext &Ctx,
   return NewFD;
 }
 
-static std::string constructFFKernelName(const FunctionDecl* FD) {
-  IdentifierInfo* Id = FD->getIdentifier();
+static std::string constructFFKernelName(const FunctionDecl *FD) {
+  IdentifierInfo *Id = FD->getIdentifier();
   std::string NewIdent = (Id->getName() + Twine(".sycl_kernel")).str();
   return NewIdent;
 }
@@ -1926,7 +1926,6 @@ public:
   }
 
   bool handleStructType(FieldDecl *FD, QualType FieldTy) final {
-    IsInvalid |= checkNotCopyableToKernel(FD, FieldTy);
     CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
     assert(RD && "Not a RecordDecl inside the handler for struct type");
     if (RD->isLambda()) {
@@ -2716,8 +2715,8 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     // Add kernel to translation unit to see it in AST-dump.
     Ctx.getTranslationUnitDecl()->addDecl(FD);
     return FD;
-  }  
-  
+  }
+
   static FunctionDecl *createFreeFunctionDecl(ASTContext &Ctx, FunctionDecl *FD,
                                               SourceLocation Loc,
                                               bool IsInline) {
