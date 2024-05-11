@@ -1138,6 +1138,12 @@ static FunctionDecl *createNewFunctionDecl(ASTContext &Ctx,
   return NewFD;
 }
 
+static std::string constructFFKernelName(const FunctionDecl* FD) {
+  IdentifierInfo* Id = FD->getIdentifier();
+  std::string NewIdent = (Id->getName() + Twine(".sycl_kernel")).str();
+  return NewIdent;
+}
+
 // Creates a name for the free function kernel function.
 // We add __sycl_kernel_ to the original function name and then use the mangled
 // name as the kernel name. The renaming allows a normal device function to
@@ -1155,14 +1161,7 @@ static std::pair<std::string, std::string> constructFreeFunctionKernelName(
 
   MC.mangleName(FreeFunc, Out);
   std::string MangledName(Out.str());
-  size_t StartNums = MangledName.find_first_of("0123456789");
-  size_t EndNums = MangledName.find_first_not_of("0123456789", StartNums);
-  size_t NameLength =
-      std::stoi(MangledName.substr(StartNums, EndNums - StartNums));
-  size_t NewNameLength = 14 /*length of __sycl_kernel_*/ + NameLength;
-  std::string NewName = MangledName.substr(0, StartNums) +
-                        std::to_string(NewNameLength) + "__sycl_kernel_" +
-                        MangledName.substr(EndNums);
+  std::string NewName = MangledName + ".sycl_kernel";
   StableName = NewName;
   return {NewName, StableName};
 }
@@ -2717,6 +2716,25 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     // Add kernel to translation unit to see it in AST-dump.
     Ctx.getTranslationUnitDecl()->addDecl(FD);
     return FD;
+  }  
+  
+  static FunctionDecl *createFreeFunctionDecl(ASTContext &Ctx, FunctionDecl *FD,
+                                              SourceLocation Loc,
+                                              bool IsInline) {
+    // Create this with no prototype, and we can fix this up after we've seen
+    // all the params.
+    FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
+    QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, {}, Info);
+    const IdentifierInfo *NewIdent = &Ctx.Idents.get(constructFFKernelName(FD));
+    FD = FunctionDecl::Create(
+        Ctx, Ctx.getTranslationUnitDecl(), Loc, Loc, DeclarationName(NewIdent),
+        FuncType, Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), SC_None);
+    FD->setImplicitlyInline(IsInline);
+    setKernelImplicitAttrs(Ctx, FD, false);
+
+    // Add kernel to translation unit to see it in AST-dump.
+    Ctx.getTranslationUnitDecl()->addDecl(FD);
+    return FD;
   }
 
   // If the record has been marked with SYCLGenerateNewTypeAttr,
@@ -2752,8 +2770,11 @@ public:
                         bool IsSIMDKernel, bool IsFreeFunction,
                         FunctionDecl *SYCLKernel, SYCLIntegrationHeader &H)
       : SyclKernelFieldHandler(S), Header(H), IsFreeFunction(IsFreeFunction),
-        KernelDecl(
-            createKernelDecl(S.getASTContext(), Loc, IsInline, IsSIMDKernel)),
+        KernelDecl(IsFreeFunction
+                       ? createFreeFunctionDecl(S.getASTContext(), SYCLKernel,
+                                                Loc, IsInline)
+                       : createKernelDecl(S.getASTContext(), Loc, IsInline,
+                                          IsSIMDKernel)),
         FuncContext(SemaSYCLRef.SemaRef, KernelDecl) {
     S.addSyclOpenCLKernel(SYCLKernel, KernelDecl);
     for (const auto *IRAttr :
@@ -2788,6 +2809,12 @@ public:
         SYCLKernelAttr::CreateImplicit(SemaSYCLRef.getASTContext()));
 
     SemaSYCLRef.addSyclDeviceDecl(KernelDecl);
+    if (IsFreeFunction) {
+      const IdentifierInfo *II = KernelDecl->getIdentifier();
+      std::cerr << "Free Function: " << (II ? II->getName().data() : "Unnamed")
+                << std::endl;
+      KernelDecl->dump();
+    }
   }
 
   bool enterStruct(const CXXRecordDecl *, FieldDecl *, QualType) final {
