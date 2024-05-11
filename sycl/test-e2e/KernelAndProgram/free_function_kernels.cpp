@@ -102,7 +102,7 @@ bool test_0(queue Queue, KernelFinder &KF) {
   bool PassA = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 0a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
-  kernel Kernel = KF.get_kernel("_Z18__sycl_kernel_ff_0Piii");
+  kernel Kernel = KF.get_kernel("_Z4ff_0Piii.sycl_kernel");
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
     Handler.set_arg(0, usmPtr);
@@ -146,7 +146,7 @@ bool test_1(queue Queue, KernelFinder &KF) {
   bool PassA = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 1a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
-  kernel Kernel = KF.get_kernel("_Z18__sycl_kernel_ff_1Piii");
+  kernel Kernel = KF.get_kernel("_Z4ff_1Piii.sycl_kernel");
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
     Handler.set_arg(0, usmPtr);
@@ -195,7 +195,7 @@ bool test_2(queue Queue, KernelFinder &KF) {
   bool PassA = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 2a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
-  kernel Kernel = KF.get_kernel("_Z18__sycl_kernel_ff_1Pii");
+  kernel Kernel = KF.get_kernel("_Z4ff_1Pii.sycl_kernel");
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
     Handler.set_arg(0, usmPtr);
@@ -245,7 +245,7 @@ bool test_3(queue Queue, KernelFinder &KF) {
   bool PassA = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 3a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
-  kernel Kernel = KF.get_kernel("_Z18__sycl_kernel_ff_3IiEvPT_S0_");
+  kernel Kernel = KF.get_kernel("_Z4ff_3IiEvPT_S0_.sycl_kernel");
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
     Handler.set_arg(0, usmPtr);

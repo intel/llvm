@@ -11,7 +11,7 @@ void ff_2(int *ptr, int start, int end) {
   for (int i = start; i <= end; i++)
     ptr[i] = start;
 }
-// CHECK: FunctionDecl {{.*}}__sycl_kernel_{{.*}} 'void (__global int *, int, int)'
+// CHECK: FunctionDecl {{.*}}.sycl_kernel{{.*}} 'void (__global int *, int, int)'
 // CHECK-NEXT: ParmVarDecl {{.*}} __arg_ptr '__global int *'
 // CHECK-NEXT: ParmVarDecl {{.*}} __arg_start 'int'
 // CHECK-NEXT: ParmVarDecl {{.*}} __arg_end 'int'
@@ -40,7 +40,7 @@ __attribute__((sycl_device))
 // Explicit instantiation with "int*"
 template void ff_3(int* ptr, int start, int end);
 
-// CHECK: FunctionDecl {{.*}}__sycl_kernel_{{.*}} 'void (__global int *, int, int)'
+// CHECK: FunctionDecl {{.*}}.sycl_kernel{{.*}} 'void (__global int *, int, int)'
 // CHECK-NEXT: ParmVarDecl {{.*}} __arg_ptr '__global int *'
 // CHECK-NEXT: ParmVarDecl {{.*}} __arg_start 'int'
 // CHECK-NEXT: ParmVarDecl {{.*}} __arg_end 'int'

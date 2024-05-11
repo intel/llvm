@@ -1089,14 +1089,9 @@ static bool isFreeFunction(SemaSYCL &SemaSYCLRef, const FunctionDecl *FD) {
 }
 
 // Creates a name for the free function kernel function.
-// We add __sycl_kernel_ to the original function name and then use the mangled
-// name as the kernel name. The renaming allows a normal device function to
-// coexist with the kernel function.
-// FIXME: Free functions are allowed only at file scope currently, thus there
-// are no namespace prefixes to the function name. That is why the number
-// following _Z is the length of the function name. In the future, namespaces
-// will be allowed and then this function will be modified to ensure a unique
-// name is constructed for the free function kernel.
+// We add .sycl_kernel to the original function name and use it's mangled name
+// as the kernel name. The renaming allows a normal device function to coexist
+// with the kernel function.
 static std::pair<std::string, std::string> constructFreeFunctionKernelName(
     SemaSYCL &SemaSYCLRef, const FunctionDecl *FreeFunc, MangleContext &MC) {
   SmallString<256> Result;
@@ -1105,14 +1100,7 @@ static std::pair<std::string, std::string> constructFreeFunctionKernelName(
 
   MC.mangleName(FreeFunc, Out);
   std::string MangledName(Out.str());
-  size_t StartNums = MangledName.find_first_of("0123456789");
-  size_t EndNums = MangledName.find_first_not_of("0123456789", StartNums);
-  size_t NameLength =
-      std::stoi(MangledName.substr(StartNums, EndNums - StartNums));
-  size_t NewNameLength = 14 /*length of __sycl_kernel_*/ + NameLength;
-  std::string NewName = MangledName.substr(0, StartNums) +
-                        std::to_string(NewNameLength) + "__sycl_kernel_" +
-                        MangledName.substr(EndNums);
+  std::string NewName = MangledName + ".sycl_kernel";
   StableName = NewName;
   return {NewName, StableName};
 }
@@ -2666,6 +2654,27 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     return FD;
   }
 
+  static FunctionDecl *createFreeFunctionDecl(ASTContext &Ctx, FunctionDecl *FD,
+                                              SourceLocation Loc,
+                                              bool IsInline) {
+    // Create this with no prototype, and we can fix this up after we've seen
+    // all the params.
+    FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
+    QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, {}, Info);
+    IdentifierInfo *Id = FD->getIdentifier();
+    std::string NewName = (Id->getName() + Twine(".sycl_kernel")).str();
+    const IdentifierInfo *NewIdent = &Ctx.Idents.get(NewName);
+    FD = FunctionDecl::Create(
+        Ctx, Ctx.getTranslationUnitDecl(), Loc, Loc, DeclarationName(NewIdent),
+        FuncType, Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), SC_None);
+    FD->setImplicitlyInline(IsInline);
+    setKernelImplicitAttrs(Ctx, FD, false);
+
+    // Add kernel to translation unit to see it in AST-dump.
+    Ctx.getTranslationUnitDecl()->addDecl(FD);
+    return FD;
+  }
+
   // If the record has been marked with SYCLGenerateNewTypeAttr,
   // it implies that it contains a pointer within. This function
   // defines a PointerHandler visitor which visits this record
@@ -2699,8 +2708,11 @@ public:
                         bool IsSIMDKernel, bool IsFreeFunction,
                         FunctionDecl *SYCLKernel)
       : SyclKernelFieldHandler(S), IsFreeFunction(IsFreeFunction),
-        KernelDecl(
-            createKernelDecl(S.getASTContext(), Loc, IsInline, IsSIMDKernel)),
+        KernelDecl(IsFreeFunction
+                       ? createFreeFunctionDecl(S.getASTContext(), SYCLKernel,
+                                                Loc, IsInline)
+                       : createKernelDecl(S.getASTContext(), Loc, IsInline,
+                                          IsSIMDKernel)),
         FuncContext(SemaSYCLRef.SemaRef, KernelDecl) {
     S.addSyclOpenCLKernel(SYCLKernel, KernelDecl);
     for (const auto *IRAttr :
