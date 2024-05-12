@@ -36,7 +36,6 @@
 #include <array>
 #include <functional>
 #include <initializer_list>
-#include <iostream>
 
 using namespace clang;
 using namespace std::placeholders;
@@ -1104,6 +1103,12 @@ static int getFreeFunctionRangeDim(SemaSYCL &SemaSYCLRef,
   return false;
 }
 
+static std::string constructFFKernelName(const FunctionDecl *FD) {
+  IdentifierInfo *Id = FD->getIdentifier();
+  std::string NewIdent = (Twine("__sycl_kernel_") + Id->getName()).str();
+  return NewIdent;
+}
+
 static FunctionDecl *createNewFunctionDecl(ASTContext &Ctx,
                                            const FunctionDecl *FD,
                                            SourceLocation Loc,
@@ -1138,21 +1143,10 @@ static FunctionDecl *createNewFunctionDecl(ASTContext &Ctx,
   return NewFD;
 }
 
-static std::string constructFFKernelName(const FunctionDecl *FD) {
-  IdentifierInfo *Id = FD->getIdentifier();
-  std::string NewIdent = (Id->getName() + Twine(".sycl_kernel")).str();
-  return NewIdent;
-}
-
 // Creates a name for the free function kernel function.
 // We add __sycl_kernel_ to the original function name and then use the mangled
 // name as the kernel name. The renaming allows a normal device function to
 // coexist with the kernel function.
-// FIXME: Free functions are allowed only at file scope currently, thus there
-// are no namespace prefixes to the function name. That is why the number
-// following _Z is the length of the function name. In the future, namespaces
-// will be allowed and then this function will be modified to ensure a unique
-// name is constructed for the free function kernel.
 static std::pair<std::string, std::string> constructFreeFunctionKernelName(
     SemaSYCL &SemaSYCLRef, const FunctionDecl *FreeFunc, MangleContext &MC) {
   SmallString<256> Result;
@@ -1161,7 +1155,14 @@ static std::pair<std::string, std::string> constructFreeFunctionKernelName(
 
   MC.mangleName(FreeFunc, Out);
   std::string MangledName(Out.str());
-  std::string NewName = MangledName + ".sycl_kernel";
+  size_t StartNums = MangledName.find_first_of("0123456789");
+  size_t EndNums = MangledName.find_first_not_of("0123456789", StartNums);
+  size_t NameLength =
+      std::stoi(MangledName.substr(StartNums, EndNums - StartNums));
+  size_t NewNameLength = 14 /*length of __sycl_kernel_*/ + NameLength;
+  std::string NewName = MangledName.substr(0, StartNums) +
+                        std::to_string(NewNameLength) + "__sycl_kernel_" +
+                        MangledName.substr(EndNums);
   StableName = NewName;
   return {NewName, StableName};
 }
@@ -2808,12 +2809,6 @@ public:
         SYCLKernelAttr::CreateImplicit(SemaSYCLRef.getASTContext()));
 
     SemaSYCLRef.addSyclDeviceDecl(KernelDecl);
-    if (IsFreeFunction) {
-      const IdentifierInfo *II = KernelDecl->getIdentifier();
-      std::cerr << "Free Function: " << (II ? II->getName().data() : "Unnamed")
-                << std::endl;
-      KernelDecl->dump();
-    }
   }
 
   bool enterStruct(const CXXRecordDecl *, FieldDecl *, QualType) final {
@@ -4973,43 +4968,23 @@ void SemaSYCL::SetSYCLKernelNames() {
       getASTContext().createMangleContext());
   // We assume the list of KernelDescs is the complete list of kernels needing
   // to be rewritten.
-  std::cerr << "SetSYCLKernelNames\n";
   for (const std::pair<const FunctionDecl *, FunctionDecl *> &Pair :
        SyclKernelsToOpenCLKernels) {
-    {
-      const IdentifierInfo *II1 = Pair.first->getIdentifier();
-      std::cerr << "Pair.first: " << (II1 ? II1->getName().data() : "Unnamed")
-                << std::endl;
-      const IdentifierInfo *II2 = Pair.first->getIdentifier();
-      std::cerr << "Pair.second: " << (II2 ? II2->getName().data() : "Unnamed")
-                << std::endl;
-    }
-
     std::string CalculatedName, StableName;
     StringRef KernelName;
     if (isFreeFunction(*this, Pair.first)) {
-      std::cerr << "isFreeFunction = true\n";
       std::tie(CalculatedName, StableName) =
           constructFreeFunctionKernelName(*this, Pair.first, *MangleCtx);
-      std::cerr << "CalculatedName=" << CalculatedName << std::endl;
-      std::cerr << "StableName=" << StableName << std::endl;
       KernelName = CalculatedName;
-      std::cerr << "KernelName=" << KernelName.str() << std::endl;
     } else {
-      std::cerr << "isFreeFunction = false\n";
       std::tie(CalculatedName, StableName) =
           constructKernelName(*this, Pair.first, *MangleCtx);
-      std::cerr << "CalculatedName=" << CalculatedName << std::endl;
-      std::cerr << "StableName=" << StableName << std::endl;
       KernelName =
           IsSYCLUnnamedKernel(*this, Pair.first) ? StableName : CalculatedName;
-      std::cerr << "KernelName=" << KernelName.str() << std::endl;
     }
 
     getSyclIntegrationHeader().updateKernelNames(Pair.first, KernelName,
                                                  StableName);
-    std::cerr << "updateKernelNames(" << KernelName.str() << "," << StableName
-              << ")\n";
 
     // Set name of generated kernel.
     Pair.second->setDeclName(&getASTContext().Idents.get(KernelName));
