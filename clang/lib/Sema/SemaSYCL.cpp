@@ -1151,20 +1151,18 @@ static std::pair<std::string, std::string> constructFreeFunctionKernelName(
     SemaSYCL &SemaSYCLRef, const FunctionDecl *FreeFunc, MangleContext &MC) {
   SmallString<256> Result;
   llvm::raw_svector_ostream Out(Result);
+  std::string MangledName;
   std::string StableName;
 
-  MC.mangleName(FreeFunc, Out);
-  std::string MangledName(Out.str());
-  size_t StartNums = MangledName.find_first_of("0123456789");
-  size_t EndNums = MangledName.find_first_not_of("0123456789", StartNums);
-  size_t NameLength =
-      std::stoi(MangledName.substr(StartNums, EndNums - StartNums));
-  size_t NewNameLength = 14 /*length of __sycl_kernel_*/ + NameLength;
-  std::string NewName = MangledName.substr(0, StartNums) +
-                        std::to_string(NewNameLength) + "__sycl_kernel_" +
-                        MangledName.substr(EndNums);
-  StableName = NewName;
-  return {NewName, StableName};
+  ASTContext &Ctx = SemaSYCLRef.getASTContext();
+  std::string NewName =
+      (Twine("__sycl_kernel_") + FreeFunc->getIdentifier()->getName()).str();
+  const IdentifierInfo *NewIdent = &Ctx.Idents.get(NewName);
+  FunctionDecl *NewFD = createNewFunctionDecl(Ctx, FreeFunc, {}, NewIdent);
+  MC.mangleName(NewFD, Out);
+  MangledName = Out.str();
+  StableName = MangledName;
+  return {MangledName, StableName};
 }
 
 // The first template argument to the kernel caller function is used to identify
