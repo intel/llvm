@@ -62,6 +62,23 @@ struct DeviceSanitizerReport {
     bool IsRecover = false;
 };
 
+struct LocalArgsInfo {
+    uint64_t Size = 0;
+    uint64_t SizeWithRedZone = 0;
+};
+
+struct LaunchInfo {
+    uintptr_t PrivateShadowOffset =
+        0; // don't move this field, we use it in AddressSanitizerPass
+
+    uintptr_t LocalShadowOffset = 0;
+    uintptr_t LocalShadowOffsetEnd = 0;
+    DeviceSanitizerReport SanitizerReport;
+
+    uint32_t NumLocalArgs = 0;
+    LocalArgsInfo *LocalArgs = nullptr; // ordered by ArgIndex
+};
+
 constexpr unsigned ASAN_SHADOW_SCALE = 3;
 constexpr unsigned ASAN_SHADOW_GRANULARITY = 1ULL << ASAN_SHADOW_SCALE;
 
