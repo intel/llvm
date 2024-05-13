@@ -3194,10 +3194,12 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     // enqueue is blocked until it finishes.
     if (!MQueue->isInOrder())
       Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
-          MQueue->getHandleRef(), 0, nullptr, nullptr);
+          MQueue->getHandleRef(), /*num_events_in_wait_list=*/0,
+          /*event_wait_list=*/nullptr, /*event=*/nullptr);
 
     Plugin->call<PiApiKind::piEnqueueTimestampRecordingExp>(
-        MQueue->getHandleRef(), false, 0, nullptr, Event);
+        MQueue->getHandleRef(), /*blocking=*/false,
+        /*num_events_in_wait_list=*/0, /*event_wait_list=*/nullptr, Event);
 
     return PI_SUCCESS;
   }

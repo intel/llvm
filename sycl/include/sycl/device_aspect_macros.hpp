@@ -747,6 +747,6 @@
 #endif
 
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_queue_profiling_tag__
-// __SYCL_ASPECT(ext_oneapi_queue_profiling_tag, 67)
+// __SYCL_ASPECT(ext_oneapi_queue_profiling_tag, 73)
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_queue_profiling_tag__ 0
 #endif
