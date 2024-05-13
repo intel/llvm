@@ -17,7 +17,7 @@ struct urProgramCreateWithILTest : uur::urContextTest {
         if (backend == UR_PLATFORM_BACKEND_HIP) {
             GTEST_SKIP();
         }
-        uur::KernelsEnvironment::instance->LoadSource("foo", 0, il_binary);
+        uur::KernelsEnvironment::instance->LoadSource("foo", il_binary);
     }
 
     void TearDown() override {

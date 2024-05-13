@@ -10,6 +10,10 @@ else()
     set(AMD_ARCH "${UR_CONFORMANCE_AMD_ARCH}")
 endif()
 
+cmake_path(GET UR_DPCXX EXTENSION EXE)
+cmake_path(REPLACE_FILENAME UR_DPCXX "clang-offload-extract${EXE}" OUTPUT_VARIABLE DEFAULT_EXTRACTOR_NAME)
+set(UR_DEVICE_CODE_EXTRACTOR "${DEFAULT_EXTRACTOR_NAME}" CACHE PATH "Path to clang-offload-extract")
+
 if("${AMD_ARCH}" STREQUAL "" AND "${TARGET_TRIPLES}" MATCHES "amd")
     find_package(RocmAgentEnumerator)
     if(NOT ROCM_AGENT_ENUMERATOR_FOUND)
@@ -59,6 +63,8 @@ macro(add_device_binary SOURCE_FILE)
 
     foreach(TRIPLE ${TARGET_TRIPLES})
         set(EXE_PATH "${DEVICE_BINARY_DIR}/${KERNEL_NAME}_${TRIPLE}")
+        set(BIN_PATH "${DEVICE_BINARY_DIR}/${TRIPLE}.bin.0")
+
         if(${TRIPLE} MATCHES "amd")
             set(AMD_TARGET_BACKEND -Xsycl-target-backend=${TRIPLE})
             set(AMD_OFFLOAD_ARCH  --offload-arch=${AMD_ARCH})
@@ -81,17 +87,17 @@ macro(add_device_binary SOURCE_FILE)
             continue()
         endif()
 
-        add_custom_command(OUTPUT ${EXE_PATH}
+        add_custom_command(OUTPUT "${BIN_PATH}"
             COMMAND ${UR_DPCXX} -fsycl -fsycl-targets=${TRIPLE} -fsycl-device-code-split=off 
             ${AMD_TARGET_BACKEND} ${AMD_OFFLOAD_ARCH} ${AMD_NOGPULIB}
             ${DPCXX_BUILD_FLAGS_LIST} ${SOURCE_FILE} -o ${EXE_PATH}
 
-            COMMAND ${CMAKE_COMMAND} -E env ${EXTRA_ENV} SYCL_DUMP_IMAGES=true
-            ${EXE_PATH} || exit 0
+            COMMAND ${CMAKE_COMMAND} -E env ${EXTRA_ENV} ${UR_DEVICE_CODE_EXTRACTOR} --stem="${TRIPLE}.bin" ${EXE_PATH}
+
             WORKING_DIRECTORY "${DEVICE_BINARY_DIR}"
             DEPENDS ${SOURCE_FILE}
         )
-        add_custom_target(generate_${KERNEL_NAME}_${TRIPLE} DEPENDS ${EXE_PATH})
+        add_custom_target(generate_${KERNEL_NAME}_${TRIPLE} DEPENDS ${BIN_PATH})
         add_dependencies(generate_device_binaries generate_${KERNEL_NAME}_${TRIPLE})
     endforeach()
     list(APPEND DEVICE_CODE_SOURCES ${SOURCE_FILE})
