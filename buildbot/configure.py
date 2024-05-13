@@ -126,6 +126,7 @@ def do_configure(args):
         llvm_enable_projects += ";clang-tools-extra;compiler-rt"
         if sys.platform != "darwin":
             # libclc is required for CI validation
+            libclc_enabled = True
             if 'libclc' not in llvm_enable_projects:
                 llvm_enable_projects += ';libclc'
             # libclc passes `--nvvm-reflect-enable=false`, build NVPTX to enable it
