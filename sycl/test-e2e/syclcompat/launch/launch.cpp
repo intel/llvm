@@ -32,9 +32,13 @@
 #include <syclcompat/launch.hpp>
 #include <syclcompat/memory.hpp>
 #include <syclcompat/id_query.hpp>
+#include <syclcompat/launch_experimental.hpp>
+#include <sycl/ext/oneapi/properties/properties.hpp>
 
 #include "../common.hpp"
 #include "launch_fixt.hpp"
+
+namespace sycl_exp = sycl::ext::oneapi::experimental;
 
 // Dummy kernel functions for testing
 inline void empty_kernel(){};
@@ -121,13 +125,11 @@ void reqd_sg_size_kernel_with_local_memory(int modifier_val, int num_elements, T
 
   const int wi_id_in_wg = sycl::ext::oneapi::this_work_item::get_nd_item<3>().get_local_linear_id();
 
-  if (id < num_elements) {
-    if (id < num_elements - modifier_val) {
-      typed_local_mem[wi_id_in_wg] = static_cast<T>(
-          (id + modifier_val - sg_size) < 0 ? 0 : id + modifier_val - sg_size);
-    } else {
-      typed_local_mem[wi_id_in_wg] = static_cast<T>(id + modifier_val + sg_size);
-    }
+  if (id < num_elements - modifier_val) {
+    typed_local_mem[wi_id_in_wg] = static_cast<T>(
+        (id + modifier_val - sg_size) < 0 ? 0 : id + modifier_val - sg_size);
+  } else {
+    typed_local_mem[wi_id_in_wg] = static_cast<T>(id + modifier_val + sg_size);
   }
 
   syclcompat::wg_barrier();
@@ -511,11 +513,9 @@ template <typename T> void test_reqd_sg_size_with_local_memory() {
   const int modifier_val = 9;
   
   std::size_t local_memory_size = ltt.thread_.x * ltt.thread_.y * ltt.thread_.z * sizeof(T);
-
   auto global_range = ltt.thread_ * ltt.grid_;
 
   auto num_elements = global_range.x * global_range.y * global_range.z;
-  std::cout << global_range.x << " " << global_range.y << " " << global_range.z << std::endl;
 
   T *h_a = (T *)syclcompat::malloc_host(num_elements * sizeof(T));
   T *d_a = (T *)syclcompat::malloc(num_elements * sizeof(T));
