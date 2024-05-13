@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -Wno-sycl-2020-compat -ast-dump %s | FileCheck %s
 
 // The test checks AST of [[intel::reqd_sub_group_size()]] attribute.
 
@@ -12,13 +12,6 @@ queue q;
 class Functor16 {
 public:
   [[intel::reqd_sub_group_size(16)]] void operator()() const {}
-};
-
-class Functor {
-public:
-  void operator()() const {
-    foo();
-  }
 };
 
 // Test that checks template parameter support on member function of class template.
@@ -59,32 +52,24 @@ int main() {
     // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name2
     // CHECK: IntelReqdSubGroupSizeAttr {{.*}} reqd_sub_group_size
     // CHECK-NEXT: ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT: value: Int 4
-    // CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
-    Functor f;
-    h.single_task<class kernel_name2>(f);
+    // CHECK-NEXT: value: Int 2
+    // CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
+    h.single_task<class kernel_name2>([]() [[intel::reqd_sub_group_size(2)]] {});
 
     // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name3
     // CHECK: IntelReqdSubGroupSizeAttr {{.*}} reqd_sub_group_size
     // CHECK-NEXT: ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT: value: Int 2
-    // CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
-    h.single_task<class kernel_name3>([]() [[intel::reqd_sub_group_size(2)]] {});
-
-    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name4
-    // CHECK: IntelReqdSubGroupSizeAttr {{.*}} reqd_sub_group_size
-    // CHECK-NEXT: ConstantExpr {{.*}} 'int'
     // CHECK-NEXT: value: Int 4
     // CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
-    h.single_task<class kernel_name4>([]() [[intel::reqd_sub_group_size(4)]] { foo(); });
-    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
+    h.single_task<class kernel_name3>([]() [[intel::reqd_sub_group_size(4)]] { foo(); });
+    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name4
     // CHECK: IntelReqdSubGroupSizeAttr {{.*}} reqd_sub_group_size
     // CHECK-NEXT: ConstantExpr {{.*}} 'int'
     // CHECK-NEXT: value: Int 6
     // CHECK-NEXT: IntegerLiteral{{.*}}6{{$}}
-    h.single_task<class kernel_name5>([]() [[intel::reqd_sub_group_size(6)]] {});
+    h.single_task<class kernel_name4>([]() [[intel::reqd_sub_group_size(6)]] {});
 
-    // CHECK: FunctionDecl {{.*}}kernel_name_6
+    // CHECK: FunctionDecl {{.*}}kernel_name5
     // CHECK: IntelReqdSubGroupSizeAttr {{.*}} reqd_sub_group_size
     // CHECK-NEXT: ConstantExpr{{.*}}'int'
     // CHECK-NEXT: value: Int 10
@@ -92,11 +77,11 @@ int main() {
     // CHECK-NEXT: NonTypeTemplateParmDecl
     // CHECK-NEXT: IntegerLiteral {{.*}} 'int' 10
     KernelFunctor<10> f2;
-    h.single_task<class kernel_name_6>(f2);
+    h.single_task<class kernel_name5>(f2);
 
     // Ignore duplicate attribute.
-    h.single_task<class kernel_name_7>(
-        // CHECK: FunctionDecl {{.*}}kernel_name_7
+    h.single_task<class kernel_name6>(
+        // CHECK: FunctionDecl {{.*}}kernel_name6
         // CHECK: IntelReqdSubGroupSizeAttr {{.*}} reqd_sub_group_size
         // CHECK-NEXT: ConstantExpr {{.*}} 'int'
         // CHECK-NEXT: value: Int 8

@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -Wno-sycl-2020-compat -ast-dump %s | FileCheck %s
 
-// Test for AST of work_group_size_hint kernel attribute in SYCL 1.2.1.
+// Test for AST of work_group_size_hint kernel attribute in SYCL 2020.
 
 #include "sycl.hpp"
 
@@ -65,8 +65,6 @@ int check() {
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
 
-[[sycl::work_group_size_hint(4)]] void f4() {}
-
 class Functor16 {
 public:
   [[sycl::work_group_size_hint(16)]] void operator()() const {}
@@ -75,13 +73,6 @@ public:
 class Functor32x16x8 {
 public:
   [[sycl::work_group_size_hint(32, 16, 8)]] void operator()() const {}
-};
-
-class Functor {
-public:
-  void operator()() const {
-    f4();
-  }
 };
 
 class FunctorAttr {
@@ -109,14 +100,6 @@ int main() {
     // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name2
     // CHECK: SYCLWorkGroupSizeHintAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 4
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    Functor f;
-    h.single_task<class kernel_name2>(f);
-
-    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name3
-    // CHECK: SYCLWorkGroupSizeHintAttr
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 32
     // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
@@ -126,9 +109,9 @@ int main() {
     // CHECK-NEXT:  value: Int 8
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
     Functor32x16x8 f32x16x8;
-    h.single_task<class kernel_name3>(f32x16x8);
+    h.single_task<class kernel_name2>(f32x16x8);
 
-    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name4
+    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name3
     // CHECK: SYCLWorkGroupSizeHintAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 128
@@ -140,9 +123,9 @@ int main() {
     // CHECK-NEXT:  value: Int 512
     // CHECK-NEXT:  IntegerLiteral{{.*}}512{{$}}
     FunctorAttr fattr;
-    h.single_task<class kernel_name4>(fattr);
+    h.single_task<class kernel_name3>(fattr);
 
-    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
+    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name4
     // CHECK: SYCLWorkGroupSizeHintAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 8
@@ -153,37 +136,9 @@ int main() {
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 32
     // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
-    h.single_task<class kernel_name5>([]() [[sycl::work_group_size_hint(8, 16, 32)]] {
+    h.single_task<class kernel_name4>([]() [[sycl::work_group_size_hint(8, 16, 32)]] {
       f8x16x32();
     });
-
-    // CHECK:  FunctionDecl {{.*}} {{.*}}kernel_name6
-    // CHECK:  SYCLIntelNoGlobalWorkOffsetAttr
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK: SYCLIntelMaxWorkGroupSizeAttr {{.*}} Inherited
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 4
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 2
-    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 6
-    // CHECK-NEXT:  IntegerLiteral{{.*}}6{{$}}
-    // CHECK: SYCLWorkGroupSizeHintAttr
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 2
-    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 3
-    // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
-    h.single_task<class kernel_name6>(
-        []() { func1(); });
   });
   return 0;
 }
