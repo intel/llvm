@@ -474,8 +474,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
 
     if (DepEvents.size()) {
-      UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
-                                       phEventWaitList));
+      UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, DepEvents.size(),
+                                       DepEvents.data()));
     }
 
     // For memory migration across devices in the same context
