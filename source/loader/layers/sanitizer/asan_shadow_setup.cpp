@@ -72,11 +72,17 @@ ur_result_t DestroyShadowMemory() {
 } // namespace cpu
 
 namespace pvc {
-
+///
+/// USM Allocation Range (56 bits)
+///   Host   USM : 0x0000_0000_0000_0000 ~ 0x00ff_ffff_ffff_ffff
+///   Shared USM : 0x0000_0000_0000_0000 ~ 0x0000_7fff_ffff_ffff
+///   Device USM : 0xff00_0000_0000_0000 ~ 0xff00_ffff_ffff_ffff
+///
 /// SHADOW MEMORY MAPPING (PVC, with CPU 47bit)
 ///   Host/Shared USM : 0x0              ~ 0x0fff_ffff_ffff
 ///   ?               : 0x1000_0000_0000 ~ 0x1fff_ffff_ffff
 ///   Device USM      : 0x2000_0000_0000 ~ 0x3fff_ffff_ffff
+///
 constexpr size_t SHADOW_SIZE = 1ULL << 46;
 
 uptr LOW_SHADOW_BEGIN;
@@ -123,7 +129,7 @@ ur_result_t DestroyShadowMemory() {
 
 namespace dg2 {
 ///
-/// USM Allocation Range
+/// USM Allocation Range (48 bits)
 ///   Host/Shared USM : 0x0000_0000_0000_0000 ~ 0x0000_7fff_ffff_ffff
 ///   Device      USM : 0xffff_8000_0000_0000 ~ 0xffff_ffff_ffff_ffff
 ///
