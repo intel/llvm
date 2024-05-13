@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 6d5d84c2ad706e32c7ae01d63a08cbb03410e580
-  # Merge: 7ce68e09 cb3d9454
+  # commit 1e1f577262747d67fcb5c513de4a11bec67ea5db
+  # Merge: dd212f3f 0b405a12
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed May 8 16:02:54 2024 +0100
-  #     Merge pull request #1588 from steffenlarsen/steffen/fix_timestamp_merge_mistake
-  #     [CUDA] Add back device info enums after merge mistake
-  set(UNIFIED_RUNTIME_TAG 6d5d84c2ad706e32c7ae01d63a08cbb03410e580)
+  # Date:   Thu May 9 18:00:36 2024 +0100
+  #    Merge pull request #1591 from nrspruit/disable_driver_in_order_lists_default
+  #    [L0] Disable Usage of Driver In order Lists by default
+  set(UNIFIED_RUNTIME_TAG 1e1f577262747d67fcb5c513de4a11bec67ea5db)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

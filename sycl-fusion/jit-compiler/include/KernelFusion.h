@@ -9,11 +9,11 @@
 #ifndef SYCL_FUSION_JIT_COMPILER_KERNELFUSION_H
 #define SYCL_FUSION_JIT_COMPILER_KERNELFUSION_H
 
-#include "DynArray.h"
 #include "Kernel.h"
 #include "Options.h"
 #include "Parameter.h"
 #include "View.h"
+#include "sycl/detail/string.hpp"
 
 #include <cassert>
 
@@ -48,7 +48,7 @@ private:
 
   FusionResultType Type;
   SYCLKernelInfo KernelInfo;
-  DynString ErrorMessage;
+  sycl::detail::string ErrorMessage;
 };
 
 extern "C" {

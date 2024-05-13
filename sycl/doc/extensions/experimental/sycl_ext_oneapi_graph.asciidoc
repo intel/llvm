@@ -1603,6 +1603,19 @@ As a result, users don't need to manually wrap queue recording code in a
 back to the executing state. Instead, an uncaught exception destroying the
 modifiable graph will perform this action, useful in RAII pattern usage.
 
+=== Command-Group Function Limitations
+
+While not disallowed by the SYCL specification it should be noted that it is not
+possible to capture arbitrary C++ code which is inside a CGF (Command-Group
+Function) used to create a graph node. This code will be evaluated once during
+the call to `queue::submit()` or `command_graph::add()` along with the calls to
+handler functions and this will not be reflected on future executions of the
+graph.
+
+Any code like this should be moved to a separate host-task and added to the
+graph via the recording or explicit APIs in order to be compatible with this
+extension.
+
 === Host Tasks
 
 :host-task: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#subsec:interfaces.hosttasks
