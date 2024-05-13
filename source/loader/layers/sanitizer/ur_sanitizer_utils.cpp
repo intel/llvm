@@ -76,7 +76,7 @@ std::string GetDeviceName(ur_device_handle_t Device) {
     size_t Size = 0;
     [[maybe_unused]] auto Res = context.urDdiTable.Device.pfnGetInfo(
         Device, UR_DEVICE_INFO_NAME, 0, nullptr, &Size);
-    assert(Res == UR_RESULT_SUCCESS);
+    assert(Res == UR_RESULT_SUCCESS && "GetDeviceName() failed");
 
     std::vector<char> NameBuf(Size);
     Res = context.urDdiTable.Device.pfnGetInfo(Device, UR_DEVICE_INFO_NAME,
