@@ -1055,6 +1055,10 @@ namespace sycl::ext::oneapi::experimental {
 template <typename DataT, typename HintT = DataT, typename CoordT>
 DataT fetch_image(const unsampled_image_handle &ImageHandle,
                   const CoordT &Coords);
+
+template <typename DataT, typename HintT = DataT, typename CoordT>
+DataT fetch_image(const sampled_image_handle &ImageHandle,
+                  const CoordT &Coords);
 template <typename DataT, typename HintT = DataT, typename CoordT>
 DataT sample_image(const sampled_image_handle &ImageHandle, 
                    const CoordT &Coords);
@@ -1066,11 +1070,18 @@ void write_image(unsampled_image_handle ImageHandle,
 ```
 
 Inside a kernel, it's possible to retrieve data from an image via `fetch_image` 
-or  `sample_image`, passing the appropirate image handle. The `fetch_image` API 
-is only applicable to unsampled images, and the data will be fetched exactly as 
-is in device memory. The `sample_image` API is only applicable to sampled 
-images, the image data will be sampled according to the 
+or `sample_image`, passing the appropirate image handle. The `fetch_image` API 
+is applicable to sampled and unsampled images, and the data will be fetched 
+exactly as is in device memory. The `sample_image` API is only applicable to 
+sampled images, the image data will be sampled according to the 
 `bindless_image_sampler` that was passed to the image upon construction.
+
+When fetching from a sampled image handle, data exatly as is in memory, no 
+sampling operations will be performed, and the `bindless_image_sampler` passed 
+to the image upon creation has no effect on the returned image data. Note that 
+not all devices may support fetching of sampled image data depending on the 
+dimension or backing memory type. We provide device aspect queries for this in 
+<<querying_sampled_image_fetch_support>>.
 
 The user is required to pass a `DataT` template parameter, which specifies the
 return type of the `fetch_image` and `sample_image` functions. If `DataT` is 
@@ -1102,8 +1113,11 @@ For fetching and writing of unsampled images, coordinates are specified by
 `int`, `sycl::vec<int, 2>`, and `sycl::vec<int, 3>` for 1D, 2D, and 3D images, 
 respectively.
 
-Sampled image reads take `float`, `sycl::vec<float, 2>`, and 
+Sampled image "sampled reads" take `float`, `sycl::vec<float, 2>`, and 
 `sycl::vec<float, 3>` coordinate types for 1D, 2D, and 3D images, respectively.
+
+Sampled image "fetch reads" take `int`, `sycl::vec<int, 2>`, and 
+`sycl::vec<int, 3>` coordinate types for 1D, 2D, and 3D images, respectively.
 
 Note also that all images must be used in either read-only or write-only fashion 
 within a single kernel invocation; read/write images are not supported.
@@ -1148,6 +1162,36 @@ struct my_short2 {
 When providing the above types as `DataT` parameters to an image read function, 
 the corresponding `HintT` parameters to use would be `sycl::vec<float, 4>` and
 `sycl::vec<short, 2>`, respectively.
+
+=== Querying sampled image fetch support [[querying_sampled_image_fetch_support]]
+
+We provide the following device queries to query support for sampled image 
+fetch with various backing memory types and dimensionalities.
+
+The device aspect descriptors for these queries are:
+
+[frame="none",options="header"]
+|======================
+|Device descriptor | Description
+|`aspect::ext_oneapi_bindless_sampled_image_fetch_1d_usm` | 
+ Indicates if the device is capable of fetching USM backed 1D 
+ sampled image data.
+|`aspect::ext_oneapi_bindless_sampled_image_fetch_1d` | 
+ Indicates if the device is capable of fetching non-USM backed 1D 
+ sampled image data.
+|`aspect::ext_oneapi_bindless_sampled_image_fetch_2d_usm` | 
+ Indicates if the device is capable of fetching USM backed 2D 
+ sampled image data.
+|`aspect::ext_oneapi_bindless_sampled_image_fetch_2d` | 
+ Indicates if the device is capable of fetching non-USM backed 2D 
+ sampled image data.
+|`aspect::ext_oneapi_bindless_sampled_image_fetch_3d_usm` | 
+ Indicates if the device is capable of fetching USM backed 3D 
+ sampled image data.
+|`aspect::ext_oneapi_bindless_sampled_image_fetch_3d` | 
+ Indicates if the device is capable of fetching non-USM backed 3D 
+ sampled image data.
+|======================
 
 == Mipmapped images
 
@@ -1462,13 +1506,13 @@ sampling depends on the sampler attributes passed upon creation of the cubemap.
 
 ```c++
 // Unsampled cubemap read 
-template <typename DataT>
+template <typename DataT, typename HintT = DataT>
 DataT fetch_cubemap(const unsampled_image_handle &ImageHandle,
                     const int2 &Coords,
                     const int Face);
 
 // Sampled cubemap read
-template <typename DataT>
+template <typename DataT, typename HintT = DataT>
 DataT sample_cubemap(const sampled_image_handle &ImageHandle,
                      const float3 &Vec);
 
@@ -2638,4 +2682,8 @@ These features still need to be handled:
                  - Updated `image_array_write` with non-const handle parameter.
                  - Removed `&` reference qualifier from `write_xxx` handle
                    parameter. 
+|5.7|2024-04-09| - Allow fetching of sampled image data through the 
+                   `fetch_image` API.
+|5.8|2024-05-09| - Add missing cubemap `HintT` template parameter to 
+                   `fetch_cubemap` and `sample_cubemap`.
 |======================

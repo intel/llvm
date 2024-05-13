@@ -242,6 +242,48 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T1, N)
 __ESIMD_INTRIN __ESIMD_raw_vec_t(uint32_t, 4)
     __esimd_timestamp() __ESIMD_INTRIN_END;
 
+template <typename T0, typename T1, int SZ>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
+    __esimd_ssshl(__ESIMD_raw_vec_t(T1, SZ) src0,
+                  __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
+template <typename T0, typename T1, int SZ>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
+    __esimd_sushl(__ESIMD_raw_vec_t(T1, SZ) src0,
+                  __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
+template <typename T0, typename T1, int SZ>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
+    __esimd_usshl(__ESIMD_raw_vec_t(T1, SZ) src0,
+                  __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
+template <typename T0, typename T1, int SZ>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
+    __esimd_uushl(__ESIMD_raw_vec_t(T1, SZ) src0,
+                  __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
+template <typename T0, typename T1, int SZ>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
+    __esimd_ssshl_sat(__ESIMD_raw_vec_t(T1, SZ) src0,
+                      __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
+template <typename T0, typename T1, int SZ>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
+    __esimd_sushl_sat(__ESIMD_raw_vec_t(T1, SZ) src0,
+                      __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
+template <typename T0, typename T1, int SZ>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
+    __esimd_usshl_sat(__ESIMD_raw_vec_t(T1, SZ) src0,
+                      __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
+template <typename T0, typename T1, int SZ>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
+    __esimd_uushl_sat(__ESIMD_raw_vec_t(T1, SZ) src0,
+                      __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
+
+template <typename T0, typename T1, int SZ>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
+    __esimd_rol(__ESIMD_raw_vec_t(T1, SZ) src0,
+                __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
+template <typename T0, typename T1, int SZ>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
+    __esimd_ror(__ESIMD_raw_vec_t(T1, SZ) src0,
+                __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
+
 #ifdef __SYCL_DEVICE_ONLY__
 
 // lane-id for reusing scalar math functions.

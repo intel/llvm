@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1906ce76c9c2d2112584cc0679c25f00c4935e73
-  # Merge: 3e3d8748 7f9b30f6
+  # commit 1e1f577262747d67fcb5c513de4a11bec67ea5db
+  # Merge: dd212f3f 0b405a12
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Apr 30 11:25:19 2024 +0100
-  #     Merge pull request #1452 from jinge90/omp_device_global_intercept
-  #     [ASAN] Intercept urProgramLink in sanitizer layer
-  set(UNIFIED_RUNTIME_TAG 1906ce76c9c2d2112584cc0679c25f00c4935e73)
+  # Date:   Thu May 9 18:00:36 2024 +0100
+  #    Merge pull request #1591 from nrspruit/disable_driver_in_order_lists_default
+  #    [L0] Disable Usage of Driver In order Lists by default
+  set(UNIFIED_RUNTIME_TAG 1e1f577262747d67fcb5c513de4a11bec67ea5db)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

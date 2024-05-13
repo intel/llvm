@@ -3,9 +3,7 @@
 // ./llvm/utils/update_cc_test_checks.py --clang=./build/bin/clang
 // ./sycl/test/check_device_code/vector/vector_math_ops.cpp
 
-// RUN: %clangxx -I %sycl_include -S -emit-llvm -fno-sycl-instrument-device-code -Xclang -disable-lifetime-markers -fsycl-device-only %s -o - | FileCheck %s
-
-// REQUIRES: asserts
+// RUN: %clangxx -I %sycl_include -fno-discard-value-names -S -emit-llvm -fno-sycl-instrument-device-code -Xclang -disable-lifetime-markers -fsycl-device-only %s -o - | FileCheck %s
 
 // This test checks
 // (1) the storage type of sycl::vec on device for all data types, and
@@ -53,18 +51,19 @@ SYCL_EXTERNAL auto TestAdd(vec<float, 3> a, vec<float, 3> b) { return a + b; }
 //
 SYCL_EXTERNAL auto TestAdd(vec<char, 16> a, vec<char, 16> b) { return a + b; }
 
-// CHECK-LABEL: define dso_local spir_func void @_Z7TestAddN4sycl3_V13vecISt4byteLi8EEES3_(
+// std::byte does not support '+'. Therefore, using bitwise XOR as a substitute.
+// CHECK-LABEL: define dso_local spir_func void @_Z7TestXorN4sycl3_V13vecISt4byteLi8EEES3_(
 // CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.2") align 8 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.2") align 8 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.2") align 8 [[B:%.*]]) {{.*}}{
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.{{.*}}
 // CHECK-NEXT:    [[TMP0:%.*]] = load <8 x i8>, ptr [[A]], align 8, {{.*}}
 // CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i8>, ptr [[B]], align 8, {{.*}}
-// CHECK-NEXT:    [[ADD_I:%.*]] = add <8 x i8> [[TMP0]], [[TMP1]]
-// CHECK-NEXT:    store <8 x i8> [[ADD_I]], ptr addrspace(4) [[AGG_RESULT]], align 8, {{.*}}
+// CHECK-NEXT:    [[XOR_I:%.*]] = xor <8 x i8> [[TMP0]], [[TMP1]]
+// CHECK-NEXT:    store <8 x i8> [[XOR_I]], ptr addrspace(4) [[AGG_RESULT]], align 8, {{.*}}
 // CHECK-NEXT:    ret void
 //
-SYCL_EXTERNAL auto TestAdd(vec<std::byte, 8> a, vec<std::byte, 8> b) {
-  return a + b;
+SYCL_EXTERNAL auto TestXor(vec<std::byte, 8> a, vec<std::byte, 8> b) {
+  return a ^ b;
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z7TestAddN4sycl3_V13vecIbLi4EEES2_(
@@ -228,7 +227,6 @@ SYCL_EXTERNAL auto TestGreaterThan(vec<half, 8> a, vec<half, 8> b) {
 // FIXME: We incorrectly interpret BF16 as INT16 to peform logical operation.
 // For example, vec<BF16, 2>{-0.5, 3.333} < vec<BF16, 2>{6.0, 6.666} results
 // into {-1, -1} on host but {0, -1} on device.
-
 // CHECK-LABEL: define dso_local spir_func void @_Z15TestGreaterThanN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi4EEES5_(
 // CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.13") align 8 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.14") align 8 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.14") align 8 [[B:%.*]]) {{.*}}{
 // CHECK-NEXT:  entry:
@@ -289,50 +287,20 @@ SYCL_EXTERNAL auto TestNegation(vec<int, 3> a) { return !a; }
 //
 SYCL_EXTERNAL auto TestMinus(vec<int, 4> a) { return -a; }
 
-// CHECK-LABEL: define dso_local spir_func void @_Z12TestNegationN4sycl3_V13vecISt4byteLi16EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.17") align 16 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.18") align 16 [[A:%.*]]) {{.*}}{
+// Negation is not valid for std::byte. Therefore, using bitwise negation.
+// CHECK-LABEL: define dso_local spir_func void @_Z19TestBitwiseNegationN4sycl3_V13vecISt4byteLi16EEE(
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.17") align 16 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.17") align 16 [[A:%.*]]) {{.*}}{
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[REF_TMP_I:%.*]] = alloca %"class.sycl::_V1::vec.18", align 16
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.{{.*}}
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 16, ptr nonnull [[REF_TMP_I]])
 // CHECK-NEXT:    [[TMP0:%.*]] = load <16 x i8>, ptr [[A]], align 16, {{.*}}
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp eq <16 x i8> [[TMP0]], zeroinitializer
-// CHECK-NEXT:    [[SEXT_I:%.*]] = sext <16 x i1> [[CMP_I]] to <16 x i8>
-// CHECK-NEXT:    store <16 x i8> [[SEXT_I]], ptr [[REF_TMP_I]], align 16, {{.*}}
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.{{.*}}
-// CHECK-NEXT:    br label [[FOR_COND_I_I_I:%.*]]
-// CHECK:       for.cond.i.i.i:
-// CHECK-NEXT:    [[I_0_I_I_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I_I:%.*]], [[FOR_BODY_I_I_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp ult i64 [[I_0_I_I_I]], 16
-// CHECK-NEXT:    br i1 [[CMP_I_I_I]], label [[FOR_BODY_I_I_I]], label [[_ZN4SYCL3_V1NTERKNS0_3VECIST4BYTELI16EEE_EXIT:%.*]]
-// CHECK:       for.body.i.i.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[REF_TMP_I]], i64 [[I_0_I_I_I]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load i8, ptr [[ARRAYIDX_I_I_I]], align 1, {{.*}}
-// CHECK-NEXT:    [[ARRAYIDX1_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 [[I_0_I_I_I]]
-// CHECK-NEXT:    store i8 [[TMP1]], ptr addrspace(4) [[ARRAYIDX1_I_I_I]], align 1, {{.*}}
-// CHECK-NEXT:    [[INC_I_I_I]] = add nuw nsw i64 [[I_0_I_I_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I_I_I]], !llvm.loop [[LOOP97]]
-// CHECK:       _ZN4sycl3_V1ntERKNS0_3vecISt4byteLi16EEE.exit:
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 16, ptr nonnull [[REF_TMP_I]])
+// CHECK-NEXT:    [[NOT_I:%.*]] = xor <16 x i8> [[TMP0]], <i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1>
+// CHECK-NEXT:    store <16 x i8> [[NOT_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, {{.*}}
 // CHECK-NEXT:    ret void
 //
-SYCL_EXTERNAL auto TestNegation(vec<std::byte, 16> a) { return !a; }
-
-// CHECK-LABEL: define dso_local spir_func void @_Z9TestMinusN4sycl3_V13vecISt4byteLi3EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.8") align 4 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.8") align 4 [[A:%.*]]) {{.*}}{
-// CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.{{.*}}
-// CHECK-NEXT:    [[LOADVEC4_I:%.*]] = load <4 x i8>, ptr [[A]], align 4, {{.*}}
-// CHECK-NEXT:    [[EXTRACTVEC_I:%.*]] = shufflevector <4 x i8> [[LOADVEC4_I]], <4 x i8> poison, <3 x i32> <i32 0, i32 1, i32 2>
-// CHECK-NEXT:    [[SUB_I:%.*]] = sub <3 x i8> zeroinitializer, [[EXTRACTVEC_I]]
-// CHECK-NEXT:    [[EXTRACTVEC_I_I:%.*]] = shufflevector <3 x i8> [[SUB_I]], <3 x i8> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>
-// CHECK-NEXT:    store <4 x i8> [[EXTRACTVEC_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 4, {{.*}}
-// CHECK-NEXT:    ret void
-//
-SYCL_EXTERNAL auto TestMinus(vec<std::byte, 3> a) { return -a; }
+SYCL_EXTERNAL auto TestBitwiseNegation(vec<std::byte, 16> a) { return ~a; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z12TestNegationN4sycl3_V13vecIbLi4EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.19") align 4 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.3") align 4 [[A:%.*]]) {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.18") align 4 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.3") align 4 [[A:%.*]]) {{.*}}{
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[REF_TMP_I:%.*]] = alloca %"class.sycl::_V1::vec.3", align 4
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.{{.*}}
@@ -361,9 +329,9 @@ SYCL_EXTERNAL auto TestMinus(vec<std::byte, 3> a) { return -a; }
 SYCL_EXTERNAL auto TestNegation(vec<bool, 4> a) { return !a; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z12TestNegationN4sycl3_V13vecINS0_6detail9half_impl4halfELi2EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.20") align 4 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.21") align 4 [[A:%.*]]) {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.19") align 4 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.20") align 4 [[A:%.*]]) {{.*}}{
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[REF_TMP_I:%.*]] = alloca %"class.sycl::_V1::vec.21", align 4
+// CHECK-NEXT:    [[REF_TMP_I:%.*]] = alloca %"class.sycl::_V1::vec.20", align 4
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.{{.*}}
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 4, ptr nonnull [[REF_TMP_I]])
 // CHECK-NEXT:    [[TMP0:%.*]] = load <2 x half>, ptr [[A]], align 4, {{.*}}
@@ -401,7 +369,7 @@ SYCL_EXTERNAL auto TestNegation(vec<half, 2> a) { return !a; }
 SYCL_EXTERNAL auto TestMinus(vec<half, 8> a) { return -a; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z12TestNegationN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi3EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.22") align 8 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.5") align 8 [[A:%.*]]) {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.21") align 8 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.5") align 8 [[A:%.*]]) {{.*}}{
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[RET_I:%.*]] = alloca %"class.sycl::_V1::vec.5", align 8
 // CHECK-NEXT:    [[REF_TMP1_I:%.*]] = alloca float, align 4
@@ -432,7 +400,7 @@ SYCL_EXTERNAL auto TestMinus(vec<half, 8> a) { return -a; }
 // CHECK-NEXT:    [[CALL_I_I9_I:%.*]] = call spir_func noundef zeroext i16 @__devicelib_ConvertFToBF16INTEL(ptr addrspace(4) noundef align 4 dereferenceable(4) [[REF_TMP1_ASCAST_I]]) #[[ATTR9]], {{.*}}
 // CHECK-NEXT:    [[VECINS_I_I_I]] = insertelement <3 x i16> [[TMP0]], i16 [[CALL_I_I9_I]], i32 [[CONV_I]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP148:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP140:![0-9]+]]
 // CHECK:       for.end.i:
 // CHECK-NEXT:    store <3 x i16> [[TMP0]], ptr [[RET_I]], align 1, {{.*}}
 // CHECK-NEXT:    call void @llvm.experimental.noalias.{{.*}}
@@ -457,7 +425,7 @@ SYCL_EXTERNAL auto TestMinus(vec<half, 8> a) { return -a; }
 SYCL_EXTERNAL auto TestNegation(vec<ext::oneapi::bfloat16, 3> a) { return !a; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z9TestMinusN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi16EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.23") align 32 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.23") align 32 [[A:%.*]]) {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.22") align 32 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.22") align 32 [[A:%.*]]) {{.*}}{
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[REF_TMP_I_I:%.*]] = alloca float, align 4
 // CHECK-NEXT:    [[V_I:%.*]] = alloca %"class.sycl::_V1::ext::oneapi::bfloat16", align 2
@@ -483,6 +451,6 @@ SYCL_EXTERNAL auto TestNegation(vec<ext::oneapi::bfloat16, 3> a) { return !a; }
 // CHECK-NEXT:    [[TMP1:%.*]] = getelementptr inbounds <16 x i16>, ptr addrspace(4) [[AGG_RESULT]], i64 0, i64 [[I_0_I]]
 // CHECK-NEXT:    store i16 [[CALL_I_I_I_I]], ptr addrspace(4) [[TMP1]], align 2, {{.*}}
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP165:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP157:![0-9]+]]
 //
 SYCL_EXTERNAL auto TestMinus(vec<ext::oneapi::bfloat16, 16> a) { return -a; }

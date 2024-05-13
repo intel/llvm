@@ -1,3 +1,11 @@
+//===---element_wise_all_ops_all_sizes_impl.hpp - DPC++ joint_matrix-------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 static constexpr size_t M_MULTIPLIER = 16;
 
 static float make_fp32(bfloat16 x) {
