@@ -129,7 +129,7 @@ namespace dg2 {
 ///
 /// SHADOW MEMORY MAPPING
 ///   Host/Shared USM : 0x0              ~ 0x0fff_ffff_ffff
-///   ?               : 0x1000_0000_0000 ~ 0x1fff_ffff_ffff
+///   Device      USM : 0x1000_0000_0000 ~ 0x1fff_ffff_ffff
 ///
 constexpr size_t SHADOW_SIZE = 0x200000000000ULL;
 
