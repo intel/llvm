@@ -75,8 +75,8 @@ void test(sycl::queue &q, std::initializer_list<InputTy> Input,
       if (EquTy()(Expected, Acc[i]))
         continue;
       std::cout << "Mismatch at line " << Line << "[" << i << "]: ("
-                << Acc[i].s0() << ", " << Acc[i].s1() << ")"
-                << " != (" << Expected.s0() << ", " << Expected.s1() << ")"
+                << Acc[i].s0() << ", " << Acc[i].s1() << ")" << " != ("
+                << Expected.s0() << ", " << Expected.s1() << ")"
                 << ", input was (" << (*(std::begin(Input) + i)).s0() << ", "
                 << (*(std::begin(Input) + i)).s1() << ")" << std::endl;
     } else {
@@ -128,9 +128,9 @@ void test2(sycl::queue &q, std::initializer_list<InputTy> Input1,
       if (EquTy()(Expected, Acc[i]))
         continue;
       std::cout << "Mismatch at line " << Line << "[" << i << "]: ("
-                << Acc[i].s0() << ", " << Acc[i].s1() << ")"
-                << " != (" << Expected.s0() << ", " << Expected.s1()
-                << "), input idx was " << i << std::endl;
+                << Acc[i].s0() << ", " << Acc[i].s1() << ")" << " != ("
+                << Expected.s0() << ", " << Expected.s1() << "), input idx was "
+                << i << std::endl;
     } else {
       if (EquTy()(Expected, Acc[i]))
         continue;
@@ -184,9 +184,9 @@ void test3(sycl::queue &q, std::initializer_list<InputTy1> Input1,
       if (EquTy()(Expected, Acc[i]))
         continue;
       std::cout << "Mismatch at line " << Line << "[" << i << "]: ("
-                << Acc[i].s0() << ", " << Acc[i].s1() << ")"
-                << " != (" << Expected.s0() << ", " << Expected.s1()
-                << "), input idx was " << i << std::endl;
+                << Acc[i].s0() << ", " << Acc[i].s1() << ")" << " != ("
+                << Expected.s0() << ", " << Expected.s1() << "), input idx was "
+                << i << std::endl;
     } else {
       if (EquTy()(Expected, Acc[i]))
         continue;
@@ -222,16 +222,9 @@ void test3(sycl::queue &q, std::initializer_list<InputTy1> Input1,
   [](unsigned int x) {                                                         \
     return __builtin_bit_cast(uint16_t, (Name)(__builtin_bit_cast(float, x))); \
   }
-#define F_Half4(Name)                                                          \
-  [](uint64_t x) {                                                             \
-    return __builtin_bit_cast(uint16_t,                                        \
-                              (Name)(__builtin_bit_cast(double, x)));          \
-  }
 #else
 #define F_Half1(Name) [](uint16_t x) { return (Name)(x); }
 #define F_Half2(Name) [](auto x) { return (Name)(x); }
 #define F_Half3(Name)                                                          \
   [](unsigned int x) { return (Name)(__builtin_bit_cast(float, x)); }
-#define F_Half4(Name)                                                          \
-  [](uint64_t x) { return (Name)(__builtin_bit_cast(double, x)); }
 #endif
