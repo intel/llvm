@@ -393,10 +393,6 @@ struct ur_mem_handle_t_ {
   // We should wait on this event prior to migrating memory across allocations
   // in this ur_mem_handle_t_
   ur_event_handle_t LastEventWritingToMemObj{nullptr};
-  // Since the event may not contain device info (if using interop, which
-  // doesn't take a queue) we should use this member var to keep track of which
-  // device has most recent view of data
-  ur_device_handle_t LastDeviceWritingToMemObj{nullptr};
 
   // Enumerates all possible types of accesses.
   enum access_mode_t { unknown, read_write, read_only, write_only };
@@ -491,23 +487,18 @@ struct ur_mem_handle_t_ {
 
   uint32_t getReferenceCount() const noexcept { return RefCount; }
 
-  void setLastEventWritingToMemObj(ur_event_handle_t NewEvent,
-                                   ur_device_handle_t RecentDevice) {
+  void setLastEventWritingToMemObj(ur_event_handle_t NewEvent) {
     assert(NewEvent && "Invalid event!");
     // This entry point should only ever be called when using multi device ctx
     assert(Context->Devices.size() > 1);
-    urEventRetain(NewEvent);
-    urDeviceRetain(RecentDevice);
     if (LastEventWritingToMemObj != nullptr) {
       urEventRelease(LastEventWritingToMemObj);
     }
-    if (LastDeviceWritingToMemObj != nullptr) {
-      urDeviceRelease(LastDeviceWritingToMemObj);
-    }
+    urEventRetain(NewEvent);
     LastEventWritingToMemObj = NewEvent;
     for (const auto &Device : Context->getDevices()) {
       HaveMigratedToDeviceSinceLastWrite[Device->getIndex()] =
-          Device == RecentDevice;
+          Device == NewEvent->getQueue()->getDevice();
     }
   }
 };
