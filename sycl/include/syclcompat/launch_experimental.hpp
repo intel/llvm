@@ -57,16 +57,6 @@ launch(sycl::nd_range<Dim> launch_range, std::size_t local_memory_size,
       ::syclcompat::get_default_queue(), args...);
 }
 
-template <auto F, int SubgroupSize, int Dim, typename... Args>
-std::enable_if_t<std::is_invocable_v<decltype(F), Args..., char *>, sycl::event>
-launch(sycl::range<Dim> global_range, sycl::range<Dim> local_range,
-       std::size_t local_memory_size, Args... args) {
-  return launch<F, SubgroupSize, Args...>(
-      ::syclcompat::detail::transform_nd_range(
-          sycl::nd_range<Dim>(global_range, local_range)),
-      local_memory_size, ::syclcompat::get_default_queue(), args...);
-}
-
 template <auto F, int SubgroupSize, typename... Args>
 std::enable_if_t<std::is_invocable_v<decltype(F), Args..., char *>, sycl::event>
 launch(::syclcompat::dim3 grid_dim, ::syclcompat::dim3 block_dim,
@@ -98,16 +88,6 @@ std::enable_if_t<std::is_invocable_v<decltype(F), Args...>, sycl::event>
 launch(sycl::nd_range<Dim> launch_range, Args... args) {
   return launch<F, SubgroupSize, Args...>(
       ::syclcompat::detail::transform_nd_range(launch_range),
-      ::syclcompat::get_default_queue(), args...);
-}
-
-template <auto F, int SubgroupSize, int Dim, typename... Args>
-std::enable_if_t<std::is_invocable_v<decltype(F), Args...>, sycl::event>
-launch(sycl::range<Dim> global_range, sycl::range<Dim> local_range,
-       Args... args) {
-  return launch<F, SubgroupSize, Args...>(
-      ::syclcompat::detail::transform_nd_range(
-          sycl::nd_range<Dim>(global_range, local_range)),
       ::syclcompat::get_default_queue(), args...);
 }
 
