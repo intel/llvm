@@ -134,6 +134,9 @@ inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
+
+template <class, class...> struct property_value;
+
 namespace detail {
 
 // List of all properties.
@@ -203,11 +206,7 @@ enum PropKind : uint32_t {
   // PropKindSize must always be the last value.
   PropKindSize = 62,
 };
-
-struct property_key_base_tag {};
-struct compile_time_property_key_base_tag : property_key_base_tag {};
-
-template <PropKind Kind_> struct run_time_property_key : property_key_base_tag {
+template <PropKind Kind_> struct run_time_property_key {
 protected:
   static constexpr PropKind Kind = Kind_;
 
@@ -215,8 +214,7 @@ protected:
   friend struct PropertyToKind;
 };
 
-template <PropKind Kind_>
-struct compile_time_property_key : compile_time_property_key_base_tag {
+template <PropKind Kind_> struct compile_time_property_key {
 protected:
   static constexpr PropKind Kind = Kind_;
 
@@ -224,31 +222,14 @@ protected:
   friend struct PropertyToKind;
 };
 
-// This trait must be specialized for all properties and must have a unique
-// constexpr PropKind member named Kind.
+// Map Property to Kind
 template <typename PropertyT> struct PropertyToKind {
-  static constexpr PropKind Kind = PropertyT::Kind;
+  static constexpr PropKind value = PropertyT::Kind;
 };
-
-// Get unique ID for property.
-template <typename PropertyT> struct PropertyID {
-  static constexpr int value =
-      static_cast<int>(PropertyToKind<PropertyT>::Kind);
+template <typename PropertyT, typename... A>
+struct PropertyToKind<property_value<PropertyT, A...>> {
+  static constexpr PropKind value = PropertyT::Kind;
 };
-
-// Trait for identifying runtime properties.
-template <typename PropertyT>
-struct IsRuntimeProperty
-    : std::bool_constant<
-          std::is_base_of_v<property_key_base_tag, PropertyT> &&
-          !std::is_base_of_v<compile_time_property_key_base_tag, PropertyT>> {};
-
-// Trait for identifying compile-time properties.
-template <typename PropertyT>
-struct IsCompileTimeProperty
-    : std::bool_constant<
-          std::is_base_of_v<property_key_base_tag, PropertyT> &&
-          std::is_base_of_v<compile_time_property_key_base_tag, PropertyT>> {};
 
 // Trait for property compile-time meta names and values.
 template <typename PropertyT> struct PropertyMetaInfo {
@@ -260,10 +241,6 @@ template <typename PropertyT> struct PropertyMetaInfo {
 
 } // namespace detail
 
-template <typename T>
-struct is_property_key
-    : std::bool_constant<std::is_base_of_v<detail::property_key_base_tag, T>> {
-};
 template <typename, typename> struct is_property_key_of : std::false_type {};
 
 } // namespace experimental

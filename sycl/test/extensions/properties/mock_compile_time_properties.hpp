@@ -47,10 +47,7 @@ inline bool operator!=(const foo &lhs, const foo &rhs) { return !(lhs == rhs); }
 struct foz : detail::run_time_property_key<fakePropKind(4)> {
   constexpr foz(float v1, bool v2) : value1(v1), value2(v2) {}
   // Define copy constructor to make foz non-trivially copyable
-  constexpr foz(const foz &f) {
-    value1 = f.value1;
-    value2 = f.value2;
-  }
+  constexpr foz(const foz &f) : value1(f.value1), value2(f.value2) {}
   float value1;
   bool value2;
 };
@@ -97,16 +94,10 @@ template <typename syclObjectT>
 struct is_property_key_of<foz_key, syclObjectT> : std::true_type {};
 template <typename syclObjectT>
 struct is_property_key_of<fir_key, syclObjectT> : std::true_type {};
-
 namespace detail {
-template <typename Properties>
-struct ConflictingProperties<boo_key, Properties>
-    : ContainsProperty<fir_key, Properties> {};
-
-template <typename Properties>
-struct ConflictingProperties<fir_key, Properties>
-    : ContainsProperty<boo_key, Properties> {};
-
+template <> struct ConflictingPropertiesImpl<boo_key> {
+  using type = type_list<fir_key>;
+};
 } // namespace detail
 } // namespace experimental
 } // namespace oneapi

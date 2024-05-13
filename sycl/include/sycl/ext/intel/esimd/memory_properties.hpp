@@ -77,8 +77,9 @@ public:
 // Deduction guides
 template <typename... PropertyValueTs>
 properties(PropertyValueTs... props)
-    -> properties<typename sycl::ext::oneapi::experimental::detail::Sorted<
-        PropertyValueTs...>::type>;
+    -> properties<sycl::ext::oneapi::experimental::detail::sort_properties<
+        sycl::ext::oneapi::experimental::detail::type_list<
+            PropertyValueTs...>>>;
 #endif
 
 /// The 'alignment' property is used to specify the alignment of memory

@@ -9,265 +9,158 @@
 #pragma once
 
 #include <sycl/ext/oneapi/properties/property.hpp>       // for IsRuntimePr...
-#include <sycl/ext/oneapi/properties/property_utils.hpp> // for Sorted, Mer...
+#include <sycl/ext/oneapi/properties/property_utils.hpp> // for sorting...
 #include <sycl/ext/oneapi/properties/property_value.hpp> // for property_value
 #include <sycl/types.hpp>                                // for is_device_c...
 
-#include <tuple>       // for tuple, tupl...
+#include <sycl/detail/boost/mp11/bind.hpp> //for mp_bind_back
+#include <sycl/detail/boost/mp11/map.hpp>  // for mp_is_map
+
 #include <type_traits> // for enable_if_t
-#include <variant>     // for tuple
 
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 namespace detail {
-
-// Checks if a tuple of properties contains a property.
-template <typename PropT, typename PropertiesT>
-struct ContainsProperty : std::false_type {};
-template <typename PropT, typename T, typename... Ts>
-struct ContainsProperty<PropT, std::tuple<T, Ts...>>
-    : ContainsProperty<PropT, std::tuple<Ts...>> {};
-template <typename PropT, typename... Rest>
-struct ContainsProperty<PropT, std::tuple<PropT, Rest...>> : std::true_type {};
-template <typename PropT, typename... PropValuesTs, typename... Rest>
-struct ContainsProperty<
-    PropT, std::tuple<property_value<PropT, PropValuesTs...>, Rest...>>
-    : std::true_type {};
-
-// Finds the full property_value type of a property in a tuple of properties.
-// type is void if the type was not found in the tuple of properties.
-template <typename CTPropertyT, typename PropertiesT = void>
-struct FindCompileTimePropertyValueType {
-  using type = void;
-};
-template <typename CTPropertyT, typename OtherProperty, typename... Rest>
-struct FindCompileTimePropertyValueType<CTPropertyT,
-                                        std::tuple<OtherProperty, Rest...>> {
-  using type =
-      typename FindCompileTimePropertyValueType<CTPropertyT,
-                                                std::tuple<Rest...>>::type;
-};
-template <typename CTPropertyT, typename... CTPropertyValueTs, typename... Rest>
-struct FindCompileTimePropertyValueType<
-    CTPropertyT,
-    std::tuple<property_value<CTPropertyT, CTPropertyValueTs...>, Rest...>> {
-  using type = property_value<CTPropertyT, CTPropertyValueTs...>;
-};
-
-template <typename CTPropertyT, bool HasProperty, typename PropertiesT = void>
-static constexpr std::enable_if_t<
-    HasProperty,
-    typename FindCompileTimePropertyValueType<CTPropertyT, PropertiesT>::type>
-get_property() {
-  return {};
+using sycl::detail::type_list;
 }
 
-template <typename CTPropertyT, bool HasProperty, typename PropertiesT = void>
-static constexpr std::enable_if_t<!HasProperty, void> get_property() {
-  return;
-}
-
-// Filters for all runtime properties with data in a tuple of properties.
-// NOTE: We only need storage for runtime properties with data.
-template <typename T> struct RuntimePropertyStorage {};
-template <typename... Ts> struct RuntimePropertyStorage<std::tuple<Ts...>> {
-  using type = std::tuple<>;
+namespace detail {
+template <class V> struct make_entry {
+  using type = type_list<V, V>;
+}; // for runtime property: key&value same type
+template <class P, class... T>
+struct make_entry<property_value<P, T...>> // for type compile-time property:
+                                           // key: P, value: P<T...>
+{
+  using type = type_list<P, property_value<P, T...>>;
 };
-template <typename T, typename... Ts>
-struct RuntimePropertyStorage<std::tuple<T, Ts...>>
-    : std::conditional_t<IsRuntimeProperty<T>::value,
-                         PrependTuple<T, typename RuntimePropertyStorage<
-                                             std::tuple<Ts...>>::type>,
-                         RuntimePropertyStorage<std::tuple<Ts...>>> {};
-
-// Helper class to extract a subset of elements from a tuple.
-// NOTES: This assumes no duplicate properties and that all properties in the
-//        struct template argument appear in the tuple passed to Extract.
-template <typename PropertiesT> struct ExtractProperties {};
-template <typename... PropertiesTs>
-struct ExtractProperties<std::tuple<PropertiesTs...>> {
-  template <typename... PropertyValueTs>
-  using ExtractedPropertiesT = std::tuple<>;
-
-  template <typename... PropertyValueTs>
-  static constexpr ExtractedPropertiesT<PropertyValueTs...>
-  Extract(std::tuple<PropertyValueTs...>) {
-    return {};
-  }
-};
-template <typename PropertyT, typename... PropertiesTs>
-struct ExtractProperties<std::tuple<PropertyT, PropertiesTs...>> {
-  template <typename... PropertyValueTs>
-  using NextExtractedPropertiesT =
-      typename ExtractProperties<std::tuple<PropertiesTs...>>::
-          template ExtractedPropertiesT<PropertyValueTs...>;
-  template <typename... PropertyValueTs>
-  using ExtractedPropertiesT =
-      typename PrependTuple<PropertyT,
-                            NextExtractedPropertiesT<PropertyValueTs...>>::type;
-
-  template <typename... PropertyValueTs>
-  static constexpr ExtractedPropertiesT<PropertyValueTs...>
-  Extract(std::tuple<PropertyValueTs...> PropertyValues) {
-    PropertyT ThisExtractedProperty = std::get<PropertyT>(PropertyValues);
-    NextExtractedPropertiesT<PropertyValueTs...> NextExtractedProperties =
-        ExtractProperties<std::tuple<PropertiesTs...>>::template Extract<
-            PropertyValueTs...>(PropertyValues);
-    return std::tuple_cat(std::tuple<PropertyT>{ThisExtractedProperty},
-                          NextExtractedProperties);
-  }
-};
-
+template <class V> using make_entry_t = typename make_entry<V>::type;
+template <class T, class = void>
+struct is_empty_or_incomplete : std::true_type {};
+template <class T>
+struct is_empty_or_incomplete<
+    T, std::enable_if_t<(sizeof(T) > 0) && !std::is_empty_v<T>>>
+    : std::false_type {};
+template <class T>
+constexpr bool is_empty_or_incomplete_v = is_empty_or_incomplete<T>::value;
+template <class T>
+using IsRuntimeProperty = mp11::mp_not<is_empty_or_incomplete<T>>;
 } // namespace detail
 
-template <typename PropertiesT> class properties {
-  static_assert(detail::IsTuple<PropertiesT>::value,
-                "Properties must be in a tuple.");
-  static_assert(detail::AllPropertyValues<PropertiesT>::value,
+// base case is only for invalid cases to suppress compiler errors about base
+// class storage of properties
+template <class L, class = void> class properties {
+  static_assert(detail::mp11::mp_all_of<L, std::is_class>(),
                 "Unrecognized property in property list.");
-  static_assert(detail::IsSorted<PropertiesT>::value,
-                "Properties in property list are not sorted.");
-  static_assert(detail::SortedAllUnique<PropertiesT>::value,
+  static_assert(detail::mp11::mp_is_set<L>(),
                 "Duplicate properties in property list.");
-  static_assert(detail::NoConflictingProperties<PropertiesT>::value,
-                "Conflicting properties in property list.");
+};
+
+template <template <class...> class TL, class... V>
+class properties<TL<V...>,
+                 std::enable_if_t<(std::is_class_v<V> && ...) &&
+                                  detail::mp11::mp_is_set<TL<V...>>::value>>
+    : V... {
+private:
+  using M = detail::type_list<detail::make_entry_t<V>...>; // map of properties
+  static_assert(detail::mp11::mp_is_map<M>(),
+                "Duplicate properties in property list.");
+  using K = detail::mp11::mp_map_keys<M>;
+  using C = detail::mp11::mp_apply<
+      detail::mp11::mp_append,
+      detail::mp11::mp_transform<detail::ConflictingProperties, K>>;
+  static_assert(
+      !detail::mp11::mp_any_of_q<
+          C, detail::mp11::mp_bind_front<detail::mp11::mp_set_contains, K>>(),
+      "Conflicting properties in property list.");
 
 public:
-  template <typename... PropertyValueTs>
-  constexpr properties(PropertyValueTs... props)
-      : Storage(detail::ExtractProperties<StorageT>::Extract(
-            std::tuple<PropertyValueTs...>{props...})) {}
-
-  template <typename PropertyT>
-  static constexpr std::enable_if_t<detail::IsProperty<PropertyT>::value, bool>
-  has_property() {
-    return detail::ContainsProperty<PropertyT, PropertiesT>::value;
+  template <class... T>
+  constexpr properties(T... v)
+      : T(v)... {} // T might have different ordering than V
+  template <class P> static constexpr bool has_property() {
+    return detail::mp11::mp_map_contains<M, P>();
   }
-
-  template <typename PropertyT>
-  typename std::enable_if_t<detail::IsRuntimeProperty<PropertyT>::value &&
-                                has_property<PropertyT>(),
-                            PropertyT>
-  get_property() const {
-    return std::get<PropertyT>(Storage);
-  }
-
-  template <typename PropertyT>
-  typename std::enable_if_t<detail::IsRuntimeProperty<PropertyT>::value &&
-                                !has_property<PropertyT>(),
-                            void>
-  get_property() const {
-    static_assert(has_property<PropertyT>(),
+  template <class P,
+            class = std::enable_if_t<detail::is_empty_or_incomplete_v<P>>>
+  static constexpr auto get_property() {
+    using T = detail::mp11::mp_map_find<M, P>;
+    static_assert(!std::is_same_v<T, void>,
                   "Property list does not contain the requested property.");
-    return;
+    return detail::mp11::mp_second<T>();
   }
-
-  template <typename PropertyT>
-  static constexpr auto get_property(
-      typename std::enable_if_t<detail::IsCompileTimeProperty<PropertyT>::value>
-          * = 0) {
-    static_assert(has_property<PropertyT>(),
+  template <class P,
+            class = std::enable_if_t<!detail::is_empty_or_incomplete_v<P>>>
+  constexpr P get_property() const {
+    static_assert(has_property<P>(),
                   "Property list does not contain the requested property.");
-    return detail::get_property<PropertyT, has_property<PropertyT>(),
-                                PropertiesT>();
+    return *this;
   }
-
-private:
-  using StorageT = typename detail::RuntimePropertyStorage<PropertiesT>::type;
-
-  StorageT Storage;
 };
 
 #ifdef __cpp_deduction_guides
 // Deduction guides
-template <typename... PropertyValueTs>
+template <class... PropertyValueTs>
 properties(PropertyValueTs... props)
-    -> properties<typename detail::Sorted<PropertyValueTs...>::type>;
+    -> properties<
+        detail::sort_properties<detail::type_list<PropertyValueTs...>>>;
 #endif
 
-using empty_properties_t = properties<std::tuple<>>;
-
-// Property list traits
-template <typename propertiesT> struct is_property_list : std::false_type {};
-template <typename... PropertyValueTs>
-struct is_property_list<properties<std::tuple<PropertyValueTs...>>>
-    : std::is_same<
-          properties<std::tuple<PropertyValueTs...>>,
-          properties<typename detail::Sorted<PropertyValueTs...>::type>> {};
-
-#if __cplusplus > 201402L
-template <typename propertiesT>
-inline constexpr bool is_property_list_v = is_property_list<propertiesT>::value;
-#endif
+using empty_properties_t = properties<detail::type_list<>>;
 
 namespace detail {
 
 // Helper for reconstructing a properties type. This assumes that
 // PropertyValueTs is sorted and contains only valid properties.
 template <typename... PropertyValueTs>
-using properties_t = properties<std::tuple<PropertyValueTs...>>;
-
-// Helper for merging two property lists;
-template <typename LHSPropertiesT, typename RHSPropertiesT>
-struct merged_properties;
-template <typename... LHSPropertiesTs, typename... RHSPropertiesTs>
-struct merged_properties<properties_t<LHSPropertiesTs...>,
-                         properties_t<RHSPropertiesTs...>> {
-  using type = properties<typename MergeProperties<
-      std::tuple<LHSPropertiesTs...>, std::tuple<RHSPropertiesTs...>>::type>;
-};
-template <typename LHSPropertiesT, typename RHSPropertiesT>
-using merged_properties_t =
-    typename merged_properties<LHSPropertiesT, RHSPropertiesT>::type;
-
-template <typename Properties, typename PropertyKey, typename Cond = void>
-struct ValueOrDefault {
-  template <typename ValT> static constexpr ValT get(ValT Default) {
-    return Default;
-  }
-};
-
-template <typename Properties, typename PropertyKey>
-struct ValueOrDefault<
-    Properties, PropertyKey,
-    std::enable_if_t<is_property_list_v<Properties> &&
-                     Properties::template has_property<PropertyKey>()>> {
-  template <typename ValT> static constexpr ValT get(ValT) {
-    return Properties::template get_property<PropertyKey>().value;
-  }
-};
-
-template <typename SyclT, typename PropertiesT> struct all_props_are_keys_of;
+using properties_t = properties<detail::type_list<PropertyValueTs...>>;
 
 template <typename SyclT, typename PropertiesT>
-struct all_props_are_keys_of : std::true_type {};
+using all_props_are_keys_of = detail::mp11::mp_all_of_q<
+    PropertiesT, detail::mp11::mp_bind_back<
+                     ext::oneapi::experimental::is_property_key_of, SyclT>>;
 
-template <typename SyclT>
-struct all_props_are_keys_of<SyclT,
-                             ext::oneapi::experimental::empty_properties_t>
-    : std::true_type {};
+// Helper for merging property lists
+template <typename... PropertiesT>
+using merged_properties_t =
+    detail::sort_properties<detail::mp11::mp_append<PropertiesT...>>;
 
-template <typename SyclT, typename PropT>
-struct all_props_are_keys_of<
-    SyclT, ext::oneapi::experimental::properties<std::tuple<PropT>>>
-    : std::bool_constant<
-          ext::oneapi::experimental::is_property_key_of<PropT, SyclT>::value> {
+template <typename Properties, typename PropertyKey>
+struct ValueOrDefault { // TODO: this should be a normal function (no wrapping
+                        // in struct) and properties should be passed by value
+  template <typename ValT> static constexpr auto get(ValT Default) {
+    if constexpr (Properties::template has_property<PropertyKey>())
+      return Properties::template get_property<PropertyKey>();
+    else
+      return Default;
+  }
 };
-
-template <typename SyclT, typename PropT, typename... PropTs>
-struct all_props_are_keys_of<
-    SyclT, ext::oneapi::experimental::properties<std::tuple<PropT, PropTs...>>>
-    : std::bool_constant<
-          ext::oneapi::experimental::is_property_key_of<PropT, SyclT>::value &&
-          all_props_are_keys_of<SyclT, PropTs...>()> {};
+// Checks if a list of properties contains a property.
+template <typename PropT, typename PropertiesT>
+using ContainsProperty =
+    std::bool_constant<properties<PropertiesT>::template has_property<PropT>()>;
 
 } // namespace detail
+
+// Property list traits
+template <typename propertiesT> struct is_property_list : std::false_type {};
+template <typename... PropertyValueTs>
+struct is_property_list<properties<PropertyValueTs...>>
+    : std::is_same<properties<PropertyValueTs...>,
+                   detail::sort_properties<properties<PropertyValueTs...>>> {};
+
+#if __cplusplus > 201402L
+template <typename propertiesT>
+inline constexpr bool is_property_list_v = is_property_list<propertiesT>::value;
+#endif
+
 } // namespace ext::oneapi::experimental
 
 template <typename PropertiesT>
 struct is_device_copyable<ext::oneapi::experimental::properties<PropertiesT>>
-    : is_device_copyable<PropertiesT> {};
+    : ext::oneapi::experimental::detail::mp11::mp_all_of<PropertiesT,
+                                                         is_device_copyable> {};
 } // namespace _V1
 } // namespace sycl
