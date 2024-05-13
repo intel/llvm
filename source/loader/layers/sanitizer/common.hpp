@@ -65,6 +65,41 @@ inline constexpr uptr ComputeRZLog(uptr user_requested_size) {
     return rz_log;
 }
 
+/// Returns the next integer (mod 2**64) that is greater than or equal to
+/// \p Value and is a multiple of \p Align. \p Align must be non-zero.
+///
+/// Examples:
+/// \code
+///   alignTo(5, 8) = 8
+///   alignTo(17, 8) = 24
+///   alignTo(~0LL, 8) = 0
+///   alignTo(321, 255) = 510
+/// \endcode
+inline uint64_t AlignTo(uint64_t Value, uint64_t Align) {
+    assert(Align != 0u && "Align can't be 0.");
+    return (Value + Align - 1) / Align * Align;
+}
+
+inline uint64_t GetSizeAndRedzoneSizeForLocal(uint64_t Size,
+                                              uint64_t Granularity,
+                                              uint64_t Alignment) {
+    uint64_t Res = 0;
+    if (Size <= 4) {
+        Res = 16;
+    } else if (Size <= 16) {
+        Res = 32;
+    } else if (Size <= 128) {
+        Res = Size + 32;
+    } else if (Size <= 512) {
+        Res = Size + 64;
+    } else if (Size <= 4096) {
+        Res = Size + 128;
+    } else {
+        Res = Size + 256;
+    }
+    return AlignTo(std::max(Res, 2 * Granularity), Alignment);
+}
+
 // ================================================================
 
 // Trace an internal UR call; returns in case of an error.
