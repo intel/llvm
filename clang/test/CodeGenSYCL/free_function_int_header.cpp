@@ -47,36 +47,36 @@ template <> void ff_3<double>(double *ptr, double start, double end) {
 }
 
 // CHECK:      const char* const kernel_names[] = {
-// CHECK-NEXT:   {{.*}}ff_2Piii.sycl_kernel
-// CHECK-NEXT:   {{.*}}ff_2Piiii.sycl_kernel
-// CHECK-NEXT:   {{.*}}ff_3IiEvPT_S0_S0_.sycl_kernel
-// CHECK-NEXT:   {{.*}}ff_3IfEvPT_S0_S0_.sycl_kernel
-// CHECK-NEXT:   {{.*}}ff_3IdEvPT_S0_S0_.sycl_kernel
+// CHECK-NEXT:   {{.*}}__sycl_kernel_ff_2Piii
+// CHECK-NEXT:   {{.*}}__sycl_kernel_ff_2Piiii
+// CHECK-NEXT:   {{.*}}__sycl_kernel_ff_3IiEvPT_S0_S0_
+// CHECK-NEXT:   {{.*}}__sycl_kernel_ff_3IfEvPT_S0_S0_
+// CHECK-NEXT:   {{.*}}__sycl_kernel_ff_3IdEvPT_S0_S0_
 // CHECK-NEXT: };
 
 // CHECK:      const kernel_param_desc_t kernel_signatures[] = {
-// CHECK-NEXT:   {{.*}}ff_2Piii.sycl_kernel
+// CHECK-NEXT:   {{.*}}__sycl_kernel_ff_2Piii
 // CHECK-NEXT:   { kernel_param_kind_t::kind_pointer, 8, 0 },
 // CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 8 },
 // CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 12 },
 
-// CHECK:        {{.*}}ff_2Piiii.sycl_kernel
+// CHECK:        {{.*}}__sycl_kernel_ff_2Piiii
 // CHECK-NEXT:   { kernel_param_kind_t::kind_pointer, 8, 0 },
 // CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 8 },
 // CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 12 },
 // CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 16 },
 
-// CHECK:        {{.*}}ff_3IiEvPT_S0_S0_.sycl_kernel
+// CHECK:        {{.*}}__sycl_kernel_ff_3IiEvPT_S0_S0_
 // CHECK-NEXT:   { kernel_param_kind_t::kind_pointer, 8, 0 },
 // CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 8 },
 // CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 12 },
 
-// CHECK:        {{.*}}ff_3IfEvPT_S0_S0_.sycl_kernel
+// CHECK:        {{.*}}__sycl_kernel_ff_3IfEvPT_S0_S0_
 // CHECK-NEXT:   { kernel_param_kind_t::kind_pointer, 8, 0 },
 // CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 8 },
 // CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 12 },
 
-// CHECK:        {{.*}}ff_3IdEvPT_S0_S0_.sycl_kernel
+// CHECK:        {{.*}}__sycl_kernel_ff_3IdEvPT_S0_S0_
 // CHECK-NEXT:   { kernel_param_kind_t::kind_pointer, 8, 0 },
 // CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 8, 8 },
 // CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 8, 16 },

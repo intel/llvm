@@ -2,6 +2,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// The name mangling for free function kernels currently does not work with PTX.
+// UNSUPPORTED: cuda
+
 // This test tests free function kernel code generation and execution.
 
 #include <iostream>
@@ -102,7 +105,7 @@ bool test_0(queue Queue, KernelFinder &KF) {
   bool PassA = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 0a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
-  kernel Kernel = KF.get_kernel("_Z4ff_0Piii.sycl_kernel");
+  kernel Kernel = KF.get_kernel("_Z18__sycl_kernel_ff_0Piii");
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
     Handler.set_arg(0, usmPtr);
@@ -146,7 +149,7 @@ bool test_1(queue Queue, KernelFinder &KF) {
   bool PassA = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 1a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
-  kernel Kernel = KF.get_kernel("_Z4ff_1Piii.sycl_kernel");
+  kernel Kernel = KF.get_kernel("_Z18__sycl_kernel_ff_1Piii");
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
     Handler.set_arg(0, usmPtr);
@@ -195,7 +198,7 @@ bool test_2(queue Queue, KernelFinder &KF) {
   bool PassA = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 2a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
-  kernel Kernel = KF.get_kernel("_Z4ff_1Pii.sycl_kernel");
+  kernel Kernel = KF.get_kernel("_Z18__sycl_kernel_ff_1Pii");
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
     Handler.set_arg(0, usmPtr);
@@ -245,7 +248,7 @@ bool test_3(queue Queue, KernelFinder &KF) {
   bool PassA = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 3a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
-  kernel Kernel = KF.get_kernel("_Z4ff_3IiEvPT_S0_.sycl_kernel");
+  kernel Kernel = KF.get_kernel("_Z18__sycl_kernel_ff_3IiEvPT_S0_");
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
     Handler.set_arg(0, usmPtr);
