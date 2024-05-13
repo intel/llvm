@@ -31,7 +31,7 @@ using namespace sycl::ext::intel;
 #define ESIMD_SATURATION_TAG                                                   \
   esimd::saturation_on_tag {}
 #define ESIMD_SATURATE(T, x) esimd::saturate<T>(x)
-#define HOST_SATURATE(x) std::max(0.0f, std::min((x), 1.0f))
+#define HOST_SATURATE(x) (x) >= 1.0f ? 1.0f : ((x) <= 0.0f ? 0.0f : (x))
 #else
 #define ESIMD_SATURATION_TAG                                                   \
   esimd::saturation_off_tag {}
@@ -449,6 +449,21 @@ template <class T, int N> bool testESIMDSqrtIEEE(queue &Q) {
   return Pass;
 }
 
+template <class T, int N> bool testESIMDSqrt(queue &Q) {
+  bool Pass = true;
+  std::cout << "--- TESTING ESIMD sqrt, T=" << typeid(T).name() << ", N = " << N
+            << "...\n";
+  Pass &= test<T, N, MathOp::sqrt, ESIMDf>(Q, "sqrt", InitWide<T>{});
+  return Pass;
+}
+template <class T, int N> bool testESIMDRSqrt(queue &Q) {
+  bool Pass = true;
+  std::cout << "--- TESTING ESIMD rsqrt, T=" << typeid(T).name()
+            << ", N = " << N << "...\n";
+  Pass &= test<T, N, MathOp::rsqrt, ESIMDf>(Q, "rsqrt", InitWide<T>{});
+  return Pass;
+}
+
 template <class T, int N> bool testESIMDDivIEEE(queue &Q) {
   bool Pass = true;
   std::cout << "--- TESTING ESIMD div_ieee, T=" << typeid(T).name()
@@ -488,12 +503,18 @@ int main(void) {
   auto Dev = Q.get_device();
 
   bool Pass = true;
+  if (Dev.has(sycl::aspect::fp64)) {
+    Pass &= testESIMDSqrt<double, 32>(Q);
+    Pass &= testESIMDRSqrt<double, 32>(Q);
+  }
 #ifdef TEST_IEEE_DIV_REM
   Pass &= testESIMDSqrtIEEE<float, 16>(Q);
   Pass &= testESIMDDivIEEE<float, 8>(Q);
   if (Dev.has(sycl::aspect::fp64)) {
     Pass &= testESIMDSqrtIEEE<double, 32>(Q);
     Pass &= testESIMDDivIEEE<double, 32>(Q);
+    Pass &= testESIMDSqrt<double, 32>(Q);
+    Pass &= testESIMDRSqrt<double, 32>(Q);
   }
 #else // !TEST_IEEE_DIV_REM
   Pass &= testESIMD<half, 8>(Q);
