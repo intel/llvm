@@ -49,6 +49,18 @@
 #include <sycl/range.hpp>
 #include <sycl/sampler.hpp>
 
+#ifdef __SYCL_BUILD_SYCL_DLL
+// The following fails (somewhat expectedly) when compiled with MSVC:
+//
+//   #include <memory>
+//   struct __declspec(dllexport) handler { std::unique_ptr<struct Incomplete> Member; };
+//
+// We do __SYCL_EXPORT sycl::handler class and it has an
+// std::unique_ptr<detail::HostTask> member. As such, ensure the type is
+// complete if we're building the SYCL shared library.
+#include <sycl/detail/host_task_impl.hpp>
+#endif
+
 #include <assert.h>
 #include <functional>
 #include <memory>
