@@ -1550,6 +1550,10 @@ DataT fetch_image_array(const unsampled_image_handle &imageHandle
  *  @brief   Fetch data from an unsampled cubemap image using its handle
  *
  *  @tparam  DataT The return type
+ *  @tparam  HintT A hint type that can be used to select for a specialized
+ *           backend intrinsic when a user-defined type is passed as `DataT`.
+ *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
+ *           HintT must also have the same size as DataT.
  *  @tparam  COrder The order in which pixel channels are to be rearranged.
  *
  *  @param   imageHandle The image handle
@@ -1557,17 +1561,21 @@ DataT fetch_image_array(const unsampled_image_handle &imageHandle
  *  @param   face The cubemap face at which to fetch
  *  @return  Image data
  */
-template <typename DataT,
+template <typename DataT, typename HintT = DataT,
           sycl::image_channel_order COrder = sycl::image_channel_order::rgba>
 DataT fetch_cubemap(const unsampled_image_handle &imageHandle,
                     const int2 &coords, const unsigned int face) {
-  return fetch_image_array<DataT, DataT, COrder>(imageHandle, coords, face);
+  return fetch_image_array<DataT, HintT, COrder>(imageHandle, coords, face);
 }
 
 /**
  *  @brief   Sample a cubemap image using its handle
  *
  *  @tparam  DataT The return type
+ *  @tparam  HintT A hint type that can be used to select for a specialized
+ *           backend intrinsic when a user-defined type is passed as `DataT`.
+ *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
+ *           HintT must also have the same size as DataT.
  *  @tparam  COrder The order in which pixel channels are to be rearranged.
  *
  *  @param   imageHandle The image handle
@@ -1599,11 +1607,11 @@ DataT sample_cubemap(const sampled_image_handle &imageHandle [[maybe_unused]],
                   "HintT must always be a recognized standard type");
     // Check if pixel channels need to be reordered.
     if constexpr (!detail::order_requires_swizzle<COrder>()) {
-      return sycl::bit_cast<DataT>(__invoke__ImageReadCubemap<DataT, uint64_t>(
+      return sycl::bit_cast<DataT>(__invoke__ImageReadCubemap<HintT, uint64_t>(
           imageHandle.raw_handle, dirVec));
     } else {
       return detail::transform_pixel<DataT, COrder>(
-          sycl::bit_cast<DataT>(__invoke__ImageReadCubemap<DataT, uint64_t>(
+          sycl::bit_cast<DataT>(__invoke__ImageReadCubemap<HintT, uint64_t>(
               imageHandle.raw_handle, dirVec)));
     }
   }

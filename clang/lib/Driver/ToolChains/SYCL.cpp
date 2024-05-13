@@ -295,8 +295,10 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
   bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
   StringRef LibSuffix = ".bc";
-  if (TargetTriple.isNVPTX())
-    // For NVidia, we are unbundling objects.
+  if (TargetTriple.isNVPTX() ||
+      (TargetTriple.isSPIR() &&
+       TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga))
+    // For NVidia or FPGA, we are unbundling objects.
     LibSuffix = IsWindowsMSVCEnv ? ".obj" : ".o";
   if (IsNewOffload)
     // For new offload model, we use packaged .bc files.
@@ -438,8 +440,11 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     auto isSYCLDeviceLib = [&](const InputInfo &II) {
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
+      const bool IsFPGA = this->getToolChain().getTriple().isSPIR() &&
+                          this->getToolChain().getTriple().getSubArch() ==
+                              llvm::Triple::SPIRSubArch_fpga;
       StringRef LibPostfix = ".bc";
-      if (IsNVPTX) {
+      if (IsNVPTX || IsFPGA) {
         LibPostfix = ".o";
         if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
             C.getDriver().IsCLMode())
@@ -1419,6 +1424,14 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
              Triple.getSubArch() == llvm::Triple::NoSubArch) {
       BeArgs.push_back(Args.MakeArgString(RegAllocModeOptName + DeviceName +
                                           ":" + BackendOptName));
+    }
+  }
+  // only pass -vpfp-relaxed for aoc with -fintelfpga and -fp-model=fast
+  if (Args.hasArg(options::OPT_fintelfpga) && getDriver().IsFPGAHWMode() &&
+      Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
+    if (Arg *A = Args.getLastArg(options::OPT_ffp_model_EQ)) {
+      if (StringRef(A->getValue()).equals("fast"))
+        BeArgs.push_back("-vpfp-relaxed");
     }
   }
   if (IsGen) {

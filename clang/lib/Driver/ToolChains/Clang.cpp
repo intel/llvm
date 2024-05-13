@@ -10359,7 +10359,7 @@ static void getOtherSPIRVTransOpts(Compilation &C,
       C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
       TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
           .equals_insensitive("spirv") &&
-      !TCArgs.hasArg(options::OPT_fsycl_device_only);
+      !C.getDriver().offloadDeviceOnly();
   bool ShouldPreserveMetadataInFinalImage =
       TCArgs.hasArg(options::OPT_fsycl_preserve_device_nonsemantic_metadata);
   bool ShouldPreserveMetadata =

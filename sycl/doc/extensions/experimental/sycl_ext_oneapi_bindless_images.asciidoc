@@ -1557,14 +1557,14 @@ sampling depends on the sampler attributes passed upon creation of the cubemap.
 
 ```c++
 // Unsampled cubemap read 
-template <typename DataT,
+template <typename DataT, typename HintT = DataT,
           sycl::image_channel_order COrder = sycl::image_channel_order::rgba>
 DataT fetch_cubemap(const unsampled_image_handle &ImageHandle,
                     const int2 &Coords,
                     const int Face);
 
 // Sampled cubemap read
-template <typename DataT,
+template <typename DataT, typename HintT = DataT,
           sycl::image_channel_order COrder = sycl::image_channel_order::rgba>
 DataT sample_cubemap(const sampled_image_handle &ImageHandle,
                      const float3 &Vec);
@@ -2804,4 +2804,6 @@ These features still need to be handled:
                    This function is redundant since images don't have a notion
                    of channel order outwith kernel image accesses, only the
                    channel size. Use `get_num_channels` instead.
+|5.9|2024-05-09| - Add missing cubemap `HintT` template parameter to 
+                   `fetch_cubemap` and `sample_cubemap`.
 |======================
