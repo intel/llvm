@@ -60,6 +60,8 @@ target_link_libraries(sycl-fusion
   ${CMAKE_THREAD_LIBS_INIT}
 )
 
+add_dependencies(sycl-fusion sycl-headers)
+
 if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   target_compile_definitions(sycl-fusion PRIVATE FUSION_JIT_SUPPORT_PTX)
 endif()
