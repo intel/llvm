@@ -164,7 +164,7 @@ struct BlockTypeInfo<BlockInfo<IteratorT, ElementsPerWorkItem, Blocked>> {
 
   using block_pointer_type = typename detail::DecoratedType<
       block_pointer_elem_type, access::address_space::global_space>::type *;
-  using block_load_type = std::conditional_t<
+  using block_op_type = std::conditional_t<
       BlockInfoTy::num_blocks == 1, block_type,
       detail::ConvertToOpenCLType_t<vec<block_type, BlockInfoTy::num_blocks>>>;
 };
@@ -263,7 +263,7 @@ group_load(Group g, InputIteratorT in_ptr,
 
       auto load = __spirv_SubgroupBlockReadINTEL<
           typename detail::BlockTypeInfo<detail::BlockInfo<
-              InputIteratorT, ElementsPerWorkItem, blocked>>::block_load_type>(
+              InputIteratorT, ElementsPerWorkItem, blocked>>::block_op_type>(
           ptr);
 
       // TODO: accessor_iterator's value_type is weird, so we need
@@ -307,13 +307,45 @@ template <typename Group, typename InputT, std::size_t ElementsPerWorkItem,
 std::enable_if_t<detail::verify_store_types<InputT, OutputIteratorT> &&
                  detail::is_generic_group_v<Group>>
 group_store(Group g, const span<InputT, ElementsPerWorkItem> in,
-            OutputIteratorT out_ptr, Properties properties = {}) {
-  constexpr bool blocked = detail::isBlocked(properties);
+            OutputIteratorT out_ptr, Properties props = {}) {
+  constexpr bool blocked = detail::isBlocked(props);
+  using use_naive =
+      detail::merged_properties_t<Properties,
+                                  decltype(properties(detail::naive))>;
 
-  group_barrier(g);
-  for (int i = 0; i < in.size(); ++i)
-    out_ptr[detail::get_mem_idx<blocked, ElementsPerWorkItem>(g, i)] = in[i];
-  group_barrier(g);
+  if constexpr (props.template has_property<detail::naive_key>()) {
+    group_barrier(g);
+    for (int i = 0; i < in.size(); ++i)
+      out_ptr[detail::get_mem_idx<blocked, ElementsPerWorkItem>(g, i)] = in[i];
+    group_barrier(g);
+    return;
+  } else if constexpr (!std::is_same_v<Group, sycl::sub_group>) {
+    return group_store(g, in, out_ptr, use_naive{});
+  } else {
+    auto ptr =
+        detail::get_block_op_ptr<16 /* store align */, ElementsPerWorkItem>(
+            out_ptr, props);
+    if (!ptr)
+      return group_store(g, in, out_ptr, use_naive{});
+
+    if constexpr (!std::is_same_v<std::nullptr_t, decltype(ptr)>) {
+      // Do optimized store.
+      std::remove_const_t<remove_decoration_t<
+          typename std::iterator_traits<OutputIteratorT>::value_type>>
+          values[ElementsPerWorkItem];
+
+      for (int i = 0; i < ElementsPerWorkItem; ++i) {
+        // Including implicit conversion.
+        values[i] = in[i];
+      }
+
+      __spirv_SubgroupBlockWriteINTEL(
+          ptr,
+          sycl::bit_cast<typename detail::BlockTypeInfo<detail::BlockInfo<
+              OutputIteratorT, ElementsPerWorkItem, blocked>>::block_op_type>(
+              values));
+    }
+  }
 }
 
 // Load API scalar.
