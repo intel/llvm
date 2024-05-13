@@ -916,6 +916,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP:
         os << "UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP";
         break;
+    case UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP:
+        os << "UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP";
+        break;
     case UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE:
         os << "UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE";
         break;
@@ -2573,6 +2576,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
         break;
     case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP:
         os << "UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP";
+        break;
+    case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:
+        os << "UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP";
         break;
     default:
         os << "unknown enumerator";
@@ -4272,6 +4278,18 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         os << ")";
     } break;
     case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
@@ -8790,6 +8808,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_command_t value) {
         break;
     case UR_COMMAND_INTEROP_SEMAPHORE_SIGNAL_EXP:
         os << "UR_COMMAND_INTEROP_SEMAPHORE_SIGNAL_EXP";
+        break;
+    case UR_COMMAND_TIMESTAMP_RECORDING_EXP:
+        os << "UR_COMMAND_TIMESTAMP_RECORDING_EXP";
         break;
     default:
         os << "unknown enumerator";
@@ -14151,6 +14172,48 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_enqueue_timestamp_recording_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_enqueue_timestamp_recording_exp_params_t *params) {
+
+    os << ".hQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->phQueue));
+
+    os << ", ";
+    os << ".blocking = ";
+
+    os << *(params->pblocking);
+
+    os << ", ";
+    os << ".numEventsInWaitList = ";
+
+    os << *(params->pnumEventsInWaitList);
+
+    os << ", ";
+    os << ".phEventWaitList = {";
+    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".phEvent = ";
+
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_bindless_images_unsampled_image_handle_destroy_exp_params_t type
 /// @returns
 ///     std::ostream &
@@ -17174,6 +17237,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     } break;
     case UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP: {
         os << (const struct ur_enqueue_cooperative_kernel_launch_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP: {
+        os << (const struct ur_enqueue_timestamp_recording_exp_params_t *)params;
     } break;
     case UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP: {
         os << (const struct ur_bindless_images_unsampled_image_handle_destroy_exp_params_t *)params;
