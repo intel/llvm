@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/DBDuncan/unified-runtime.git")
-  # commit 3f3d569108bb5c28d5b2ec5fae51e383ab9e1bc2
+  # commit 2c2afd96e70d016e2f457e56d1c5cd58874a872b
   # Author: Duncan Brawley <duncan.brawley@codeplay.com>
   # Date:   Thu, 21 Mar 2024 16:35:42 +0000
   #    [Bindless][Exp] Remove phMem argument from bindless image creation functions
   #     Remove phMem argument from bindless image creation functions.
   #     It not used outside of UR and is currently causing a minor memory leak.
-  set(UNIFIED_RUNTIME_TAG 3f3d569108bb5c28d5b2ec5fae51e383ab9e1bc2)
+  set(UNIFIED_RUNTIME_TAG 2c2afd96e70d016e2f457e56d1c5cd58874a872b)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
