@@ -450,6 +450,28 @@ template <typename T> static constexpr T max_v() {
 template <typename T> static constexpr T min_v() {
   return (std::numeric_limits<T>::min)();
 }
+
+// Check if a given type is derived from std::array or Clang's ext_vector_type.
+template<typename T>
+struct is_std_array : std::false_type {};
+
+template<typename T, std::size_t N>
+struct is_std_array<std::array<T, N>> : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_std_array_v = is_std_array<T>::value;
+
+#ifdef __SYCL_DEVICE_ONLY__
+template<typename T>
+struct is_ext_vector_type : std::false_type {};
+
+template<typename T, unsigned N>
+struct is_ext_vector_type<T __attribute__((ext_vector_type(N)))> : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_ext_vector_type_v = is_ext_vector_type<T>::value;
+#endif // __SYCL_DEVICE_ONLY__
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
