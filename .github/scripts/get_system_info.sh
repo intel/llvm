@@ -53,7 +53,7 @@ function system_info {
 	echo "**********/proc/meminfo**********"
 	cat /proc/meminfo
 	echo "**********build/bin/urinfo**********"
-	$(dirname "$(readlink -f "$0")")/../../build/bin/urinfo || true
+	$(dirname "$(readlink -f "$0")")/../../build/bin/urinfo --no-linear-ids --verbose || true
 	echo "******OpenCL*******"
 	# The driver version of OpenCL Graphics is the compute-runtime version
 	clinfo || echo "OpenCL not installed"

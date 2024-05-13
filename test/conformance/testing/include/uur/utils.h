@@ -395,6 +395,8 @@ ur_result_t GetDeviceMaxComputeQueueIndices(ur_device_handle_t device,
                                             uint32_t &max_indices);
 ur_result_t GetDeviceHostPipeRWSupported(ur_device_handle_t device,
                                          bool &support);
+ur_result_t GetTimestampRecordingSupport(ur_device_handle_t device,
+                                         bool &support);
 
 ur_device_partition_property_t makePartitionByCountsDesc(uint32_t count);
 
