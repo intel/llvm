@@ -53,7 +53,9 @@
 // The following fails (somewhat expectedly) when compiled with MSVC:
 //
 //   #include <memory>
-//   struct __declspec(dllexport) handler { std::unique_ptr<struct Incomplete> Member; };
+//   struct __declspec(dllexport) handler {
+//      std::unique_ptr<struct Incomplete> Member;
+//   };
 //
 // We do __SYCL_EXPORT sycl::handler class and it has an
 // std::unique_ptr<detail::HostTask> member. As such, ensure the type is
