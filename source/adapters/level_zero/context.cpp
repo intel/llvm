@@ -679,6 +679,11 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
   if (Queue->hasOpenCommandList(UseCopyEngine)) {
     if (AllowBatching) {
       bool batchingAllowed = true;
+      if (ForcedCmdQueue &&
+          CommandBatch.OpenCommandList->second.ZeQueue != *ForcedCmdQueue) {
+        // Current open batch doesn't match the forced command queue
+        batchingAllowed = false;
+      }
       if (!UrL0OutOfOrderIntegratedSignalEvent &&
           Queue->Device->isIntegrated()) {
         batchingAllowed = eventCanBeBatched(Queue, UseCopyEngine,

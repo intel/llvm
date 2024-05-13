@@ -20,6 +20,14 @@
     }                                                                          \
     (void)0
 
+#define UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(ret)                                 \
+    auto status = ret;                                                         \
+    if (status == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {                       \
+        GTEST_SKIP();                                                          \
+    } else {                                                                   \
+        ASSERT_EQ(status, UR_RESULT_SUCCESS);                                  \
+    }
+
 namespace uur {
 
 struct urPlatformTest : ::testing::Test {
@@ -321,7 +329,8 @@ template <class T> struct urMemImageTestWithParam : urContextTestWithParam<T> {
 struct urQueueTest : urContextTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
-        ASSERT_SUCCESS(urQueueCreate(context, device, 0, &queue));
+        ASSERT_SUCCESS(
+            urQueueCreate(context, device, &queue_properties, &queue));
         ASSERT_NE(queue, nullptr);
     }
 
@@ -332,6 +341,8 @@ struct urQueueTest : urContextTest {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
     }
 
+    ur_queue_properties_t queue_properties = {
+        UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr, 0};
     ur_queue_handle_t queue = nullptr;
 };
 
@@ -339,7 +350,7 @@ struct urHostPipeTest : urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
         UUR_RETURN_ON_FATAL_FAILURE(
-            uur::KernelsEnvironment::instance->LoadSource("foo", 0, il_binary));
+            uur::KernelsEnvironment::instance->LoadSource("foo", il_binary));
         ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
             platform, context, device, *il_binary, nullptr, &program));
 
@@ -382,7 +393,9 @@ struct urHostPipeTest : urQueueTest {
 template <class T> struct urQueueTestWithParam : urContextTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
-        ASSERT_SUCCESS(urQueueCreate(this->context, this->device, 0, &queue));
+        ASSERT_SUCCESS(urQueueCreate(this->context, this->device,
+                                     &queue_properties, &queue));
+        ASSERT_NE(queue, nullptr);
     }
 
     void TearDown() override {
@@ -391,7 +404,8 @@ template <class T> struct urQueueTestWithParam : urContextTestWithParam<T> {
         }
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::TearDown());
     }
-
+    ur_queue_properties_t queue_properties = {
+        UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr, 0};
     ur_queue_handle_t queue;
 };
 
@@ -1121,7 +1135,7 @@ struct urProgramTest : urQueueTest {
             GTEST_SKIP();
         }
         UUR_RETURN_ON_FATAL_FAILURE(
-            uur::KernelsEnvironment::instance->LoadSource(program_name, 0,
+            uur::KernelsEnvironment::instance->LoadSource(program_name,
                                                           il_binary));
 
         const ur_program_properties_t properties = {
@@ -1145,9 +1159,9 @@ struct urProgramTest : urQueueTest {
     std::vector<ur_program_metadata_t> metadatas{};
 };
 
-template <class T> struct urProgramTestWithParam : urContextTestWithParam<T> {
+template <class T> struct urProgramTestWithParam : urQueueTestWithParam<T> {
     void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
+        UUR_RETURN_ON_FATAL_FAILURE(urQueueTestWithParam<T>::SetUp());
 
         ur_platform_backend_t backend;
         ASSERT_SUCCESS(urPlatformGetInfo(this->platform,
@@ -1160,7 +1174,7 @@ template <class T> struct urProgramTestWithParam : urContextTestWithParam<T> {
         }
 
         UUR_RETURN_ON_FATAL_FAILURE(
-            uur::KernelsEnvironment::instance->LoadSource(program_name, 0,
+            uur::KernelsEnvironment::instance->LoadSource(program_name,
                                                           il_binary));
         ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
             this->platform, this->context, this->device, *il_binary, nullptr,
@@ -1171,7 +1185,7 @@ template <class T> struct urProgramTestWithParam : urContextTestWithParam<T> {
         if (program) {
             EXPECT_SUCCESS(urProgramRelease(program));
         }
-        UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::TearDown());
+        UUR_RETURN_ON_FATAL_FAILURE(urQueueTestWithParam<T>::TearDown());
     }
 
     std::shared_ptr<std::vector<char>> il_binary;
@@ -1246,20 +1260,16 @@ template <class T> struct urKernelTestWithParam : urBaseKernelTestWithParam<T> {
     }
 };
 
-struct urBaseKernelExecutionTest : urBaseKernelTest {
-    void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTest::SetUp());
-    }
+struct KernelLaunchHelper {
 
-    void TearDown() override {
-        for (auto &buffer : buffer_args) {
-            ASSERT_SUCCESS(urMemRelease(buffer));
-        }
-        UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTest::TearDown());
-    }
+    KernelLaunchHelper(ur_platform_handle_t &platform,
+                       ur_context_handle_t &context, ur_kernel_handle_t &kernel,
+                       ur_queue_handle_t &queue)
+        : platform{platform}, context{context}, kernel{kernel}, queue{queue} {}
 
     // Adds a kernel arg representing a sycl buffer constructed with a 1D range.
-    void AddBuffer1DArg(size_t size, ur_mem_handle_t *out_buffer) {
+    void AddBuffer1DArg(size_t size, ur_mem_handle_t *out_buffer,
+                        size_t *buffer_index) {
         ur_mem_handle_t mem_handle = nullptr;
         ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, size,
                                          nullptr, &mem_handle));
@@ -1270,6 +1280,9 @@ struct urBaseKernelExecutionTest : urBaseKernelTest {
         ASSERT_SUCCESS(urQueueFinish(queue));
         ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, current_arg_index, nullptr,
                                             mem_handle));
+        if (buffer_index) {
+            *buffer_index = current_arg_index;
+        }
 
         // SYCL device kernels have different interfaces depending on the
         // backend being used. Typically a kernel which takes a buffer argument
@@ -1301,8 +1314,6 @@ struct urBaseKernelExecutionTest : urBaseKernelTest {
                                                &accessor));
             current_arg_index += 2;
         }
-
-        buffer_args.push_back(mem_handle);
         *out_buffer = mem_handle;
     }
 
@@ -1340,7 +1351,11 @@ struct urBaseKernelExecutionTest : urBaseKernelTest {
         ValidateBuffer<T>(buffer, size, validator);
     }
 
-    std::vector<ur_mem_handle_t> buffer_args;
+    ur_platform_handle_t &platform;
+    ur_context_handle_t &context;
+    ur_kernel_handle_t &kernel;
+    ur_queue_handle_t &queue;
+
     uint32_t current_arg_index = 0;
 };
 
@@ -1349,10 +1364,6 @@ struct urBaseKernelExecutionTestWithParam : urBaseKernelTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTestWithParam<T>::SetUp());
         UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTestWithParam<T>::Build());
-        context = urBaseKernelTestWithParam<T>::context;
-        kernel = urBaseKernelTestWithParam<T>::kernel;
-        ASSERT_SUCCESS(urQueueCreate(
-            context, urBaseKernelTestWithParam<T>::device, 0, &queue));
     }
 
     void TearDown() override {
@@ -1360,91 +1371,85 @@ struct urBaseKernelExecutionTestWithParam : urBaseKernelTestWithParam<T> {
             ASSERT_SUCCESS(urMemRelease(buffer));
         }
         UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTestWithParam<T>::TearDown());
-        if (queue) {
-            EXPECT_SUCCESS(urQueueRelease(queue));
-        }
     }
 
-    // Adds a kernel arg representing a sycl buffer constructed with a 1D range.
-    void AddBuffer1DArg(size_t size, ur_mem_handle_t *out_buffer) {
-        ur_mem_handle_t mem_handle = nullptr;
-        ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, size,
-                                         nullptr, &mem_handle));
-        char zero = 0;
-        ASSERT_SUCCESS(urEnqueueMemBufferFill(queue, mem_handle, &zero,
-                                              sizeof(zero), 0, size, 0, nullptr,
-                                              nullptr));
-        ASSERT_SUCCESS(urQueueFinish(queue));
-        ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, current_arg_index, nullptr,
-                                            mem_handle));
-
-        // SYCL device kernels have different interfaces depending on the
-        // backend being used. Typically a kernel which takes a buffer argument
-        // will take a pointer to the start of the buffer and a sycl::id param
-        // which is a struct that encodes the accessor to the buffer. However
-        // the AMD backend handles this differently and uses three separate
-        // arguments for each of the three dimensions of the accessor.
-
-        ur_platform_backend_t backend;
-        ASSERT_SUCCESS(urPlatformGetInfo(urBaseKernelTestWithParam<T>::platform,
-                                         UR_PLATFORM_INFO_BACKEND,
-                                         sizeof(backend), &backend, nullptr));
-        if (backend == UR_PLATFORM_BACKEND_HIP) {
-            // this emulates the three offset params for buffer accessor on AMD.
-            size_t val = 0;
-            ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 1,
-                                               sizeof(size_t), nullptr, &val));
-            ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 2,
-                                               sizeof(size_t), nullptr, &val));
-            ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 3,
-                                               sizeof(size_t), nullptr, &val));
-            current_arg_index += 4;
-        } else {
-            // This emulates the offset struct sycl adds for a 1D buffer accessor.
-            struct {
-                size_t offsets[1] = {0};
-            } accessor;
-            ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 1,
-                                               sizeof(accessor), nullptr,
-                                               &accessor));
-            current_arg_index += 2;
-        }
-
-        buffer_args.push_back(mem_handle);
-        *out_buffer = mem_handle;
+    void AddBuffer1DArg(size_t size, ur_mem_handle_t *out_buffer,
+                        size_t *buffer_index = nullptr) {
+        helper.AddBuffer1DArg(size, out_buffer, buffer_index);
+        buffer_args.push_back(*out_buffer);
     }
 
-    template <class U> void AddPodArg(U data) {
-        ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index,
-                                           sizeof(data), nullptr, &data));
-        current_arg_index++;
+    template <class K> void AddPodArg(K data) { helper.AddPodArg(data); }
+
+    void Launch1DRange(size_t global_size, size_t local_size = 1) {
+        helper.Launch1DRange(global_size, local_size);
     }
 
-    // Validate the contents of `buffer` according to the given validator.
-    template <class U>
+    template <class K>
     void ValidateBuffer(ur_mem_handle_t buffer, size_t size,
-                        std::function<bool(U &)> validator) {
-        std::vector<U> read_buffer(size / sizeof(U));
-        ASSERT_SUCCESS(urEnqueueMemBufferRead(queue, buffer, true, 0, size,
-                                              read_buffer.data(), 0, nullptr,
-                                              nullptr));
-        ASSERT_TRUE(
-            std::all_of(read_buffer.begin(), read_buffer.end(), validator));
+                        std::function<bool(T &)> validator) {
+        helper.ValidateBuffer(buffer, size, validator);
     }
 
-    // Helper that uses the generic validate function to check for a given value.
-    template <class U>
-    void ValidateBuffer(ur_mem_handle_t buffer, size_t size, U value) {
-        auto validator = [&value](U result) -> bool { return result == value; };
-
-        ValidateBuffer<U>(buffer, size, validator);
+    template <class K>
+    void ValidateBuffer(ur_mem_handle_t buffer, size_t size, K value) {
+        helper.ValidateBuffer(buffer, size, value);
     }
 
+  private:
+    KernelLaunchHelper helper = KernelLaunchHelper{
+        this->platform, this->context, this->kernel, this->queue};
     std::vector<ur_mem_handle_t> buffer_args;
-    uint32_t current_arg_index = 0;
-    ur_context_handle_t context;
-    ur_kernel_handle_t kernel;
-    ur_queue_handle_t queue;
+};
+
+struct urBaseKernelExecutionTest : urBaseKernelTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTest::SetUp());
+    }
+
+    void TearDown() override {
+        for (auto &buffer : buffer_args) {
+            ASSERT_SUCCESS(urMemRelease(buffer));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTest::TearDown());
+    }
+
+    void AddBuffer1DArg(size_t size, ur_mem_handle_t *out_buffer,
+                        size_t *buffer_index = nullptr) {
+        helper.AddBuffer1DArg(size, out_buffer, buffer_index);
+        buffer_args.push_back(*out_buffer);
+    }
+
+    template <class T> void AddPodArg(T data) { helper.AddPodArg(data); }
+
+    void Launch1DRange(size_t global_size, size_t local_size = 1) {
+        helper.Launch1DRange(global_size, local_size);
+    }
+
+    template <class T>
+    void ValidateBuffer(ur_mem_handle_t buffer, size_t size,
+                        std::function<bool(T &)> validator) {
+        helper.ValidateBuffer(buffer, size, validator);
+    }
+
+    template <class T>
+    void ValidateBuffer(ur_mem_handle_t buffer, size_t size, T value) {
+        helper.ValidateBuffer(buffer, size, value);
+    }
+
+  private:
+    KernelLaunchHelper helper =
+        KernelLaunchHelper{platform, context, kernel, queue};
+    std::vector<ur_mem_handle_t> buffer_args;
+};
+
+template <class T>
+struct urKernelExecutionTestWithParam : urBaseKernelExecutionTestWithParam<T> {
+    void SetUp() {
+        UUR_RETURN_ON_FATAL_FAILURE(
+            urBaseKernelExecutionTestWithParam<T>::SetUp());
+        this->Build();
+    }
 };
 
 struct urKernelExecutionTest : urBaseKernelExecutionTest {

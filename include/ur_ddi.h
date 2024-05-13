@@ -1449,9 +1449,19 @@ typedef ur_result_t(UR_APICALL *ur_pfnEnqueueCooperativeKernelLaunchExp_t)(
     ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueTimestampRecordingExp
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueTimestampRecordingExp_t)(
+    ur_queue_handle_t,
+    bool,
+    uint32_t,
+    const ur_event_handle_t *,
+    ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of EnqueueExp functions pointers
 typedef struct ur_enqueue_exp_dditable_t {
     ur_pfnEnqueueCooperativeKernelLaunchExp_t pfnCooperativeKernelLaunchExp;
+    ur_pfnEnqueueTimestampRecordingExp_t pfnTimestampRecordingExp;
 } ur_enqueue_exp_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////
