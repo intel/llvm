@@ -1244,22 +1244,30 @@ DataT fetch_image_array(const unsampled_image_handle &imageHandle
  *  @brief   Fetch data from an unsampled cubemap image using its handle
  *
  *  @tparam  DataT The return type
+ *  @tparam  HintT A hint type that can be used to select for a specialized
+ *           backend intrinsic when a user-defined type is passed as `DataT`.
+ *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
+ *           HintT must also have the same size as DataT.
  *
  *  @param   imageHandle The image handle
  *  @param   coords The coordinates at which to fetch image data (int2 only)
  *  @param   face The cubemap face at which to fetch
  *  @return  Image data
  */
-template <typename DataT>
+template <typename DataT, typename HintT = DataT>
 DataT fetch_cubemap(const unsampled_image_handle &imageHandle,
                     const int2 &coords, const unsigned int face) {
-  return fetch_image_array<DataT>(imageHandle, coords, face);
+  return fetch_image_array<DataT, HintT>(imageHandle, coords, face);
 }
 
 /**
  *  @brief   Sample a cubemap image using its handle
  *
  *  @tparam  DataT The return type
+ *  @tparam  HintT A hint type that can be used to select for a specialized
+ *           backend intrinsic when a user-defined type is passed as `DataT`.
+ *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
+ *           HintT must also have the same size as DataT.
  *
  *  @param   imageHandle The image handle
  *  @param   dirVec The direction vector at which to sample image data (float3
@@ -1280,7 +1288,7 @@ DataT sample_cubemap(const sampled_image_handle &imageHandle [[maybe_unused]],
                   "the same size as the user-defined DataT.");
     static_assert(detail::is_recognized_standard_type<HintT>(),
                   "HintT must always be a recognized standard type");
-    return sycl::bit_cast<DataT>(__invoke__ImageReadCubemap<DataT, uint64_t>(
+    return sycl::bit_cast<DataT>(__invoke__ImageReadCubemap<HintT, uint64_t>(
         imageHandle.raw_handle, dirVec));
   }
 #else

@@ -7,4 +7,6 @@
 
 #define GRAPH_E2E_EXPLICIT
 
+// UNSUPPORTED: cuda
+
 #include "../../Inputs/whole_update_double_buffer.cpp"

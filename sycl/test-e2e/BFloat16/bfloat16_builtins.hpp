@@ -1,24 +1,5 @@
+#pragma once
 
-// On CUDA, the test behaves differently depending on whether it is compiled for
-// sm_xx>=sm_80 or not:
-// + sm_80 and above uses some native bfloat16 math instructions
-// + below sm_80 always uses generic impls
-
-// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
-// REQUIRES: aspect-ext_oneapi_bfloat16_math_functions
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %if any-device-is-cuda %{ -Xsycl-target-backend --cuda-gpu-arch=sm_80 %} %s -o %t.out %{mathflags}
-// RUN: %{run} %t.out
-
-// Test "new" (ABI breaking) for all platforms ( sm_80/native if CUDA )
-// RUN:  %if preview-breaking-changes-supported %{  %clangxx -fsycl -fpreview-breaking-changes -fsycl-targets=%{sycl_triple} %if any-device-is-cuda %{ -Xsycl-target-backend --cuda-gpu-arch=sm_80 %} %s -o %t2.out %{mathflags} %}
-// RUN:  %if preview-breaking-changes-supported %{  %{run} %t2.out  %}
-
-// If CUDA, test "new" again for sm_75/generic
-// RUN:  %if any-device-is-cuda %{ %if preview-breaking-changes-supported %{  %clangxx -fsycl -fpreview-breaking-changes -fsycl-targets=%{sycl_triple}  -Xsycl-target-backend --cuda-gpu-arch=sm_75  %s -o %t3.out %{mathflags} %} %}
-// RUN:  %if any-device-is-cuda %{ %if preview-breaking-changes-supported %{  %{run} %t3.out  %} %}
-
-// Currently the feature isn't supported on FPGA.
-// UNSUPPORTED: accelerator
 #include <sycl/sycl.hpp>
 
 #include <cmath>
@@ -39,7 +20,7 @@ float make_fp32(uint16_t x) {
 }
 
 bool check(float a, float b) {
-  return fabs(2 * (a - b) / (a + b)) > bf16_eps * 2;
+  return sycl::fabs(2 * (a - b) / (a + b)) > bf16_eps * 2;
 }
 
 bool check(bool a, bool b) { return (a != b); }
@@ -110,8 +91,9 @@ bool check(bool a, bool b) { return (a != b); }
       cgh.parallel_for(N, [=](id<1> index) {                                   \
         float ABF16 = float{bfloat16{A[index]}};                               \
         float BBF16 = float{bfloat16{B[index]}};                               \
-        if (check(NAME(bfloat16{A[index]}, bfloat16{B[index]}),                \
-                  NAME(ABF16, BBF16))) {                                       \
+        if (check(sycl::ext::oneapi::experimental::NAME(bfloat16{A[index]},    \
+                                                        bfloat16{B[index]}),   \
+                  sycl::NAME(ABF16, BBF16))) {                                 \
           ERR[0] = 1;                                                          \
         }                                                                      \
       });                                                                      \
@@ -136,11 +118,12 @@ bool check(bool a, bool b) { return (a != b); }
           arg0[i] = A[index][i];                                               \
           arg1[i] = B[index][i];                                               \
         }                                                                      \
-        marray<bfloat16, SZ> res = NAME(arg0, arg1);                           \
+        marray<bfloat16, SZ> res =                                             \
+            sycl::ext::oneapi::experimental::NAME(arg0, arg1);                 \
         for (int i = 0; i < SZ; i++) {                                         \
           float ABF16 = float{bfloat16{A[index][i]}};                          \
           float BBF16 = float{bfloat16{B[index][i]}};                          \
-          if (check(res[i], NAME(ABF16, BBF16))) {                             \
+          if (check(res[i], sycl::NAME(ABF16, BBF16))) {                       \
             ERR[0] = 1;                                                        \
           }                                                                    \
         }                                                                      \
@@ -175,9 +158,10 @@ bool check(bool a, bool b) { return (a != b); }
         float ABF16 = float{bfloat16{A[index]}};                               \
         float BBF16 = float{bfloat16{B[index]}};                               \
         float CBF16 = float{bfloat16{C[index]}};                               \
-        if (check(NAME(bfloat16{A[index]}, bfloat16{B[index]},                 \
-                       bfloat16{C[index]}),                                    \
-                  NAME(ABF16, BBF16, CBF16))) {                                \
+        if (check(sycl::ext::oneapi::experimental::NAME(bfloat16{A[index]},    \
+                                                        bfloat16{B[index]},    \
+                                                        bfloat16{C[index]}),   \
+                  sycl::NAME(ABF16, BBF16, CBF16))) {                          \
           ERR[0] = 1;                                                          \
         }                                                                      \
       });                                                                      \
@@ -206,12 +190,13 @@ bool check(bool a, bool b) { return (a != b); }
           arg1[i] = B[index][i];                                               \
           arg2[i] = C[index][i];                                               \
         }                                                                      \
-        marray<bfloat16, SZ> res = NAME(arg0, arg1, arg2);                     \
+        marray<bfloat16, SZ> res =                                             \
+            sycl::ext::oneapi::experimental::NAME(arg0, arg1, arg2);           \
         for (int i = 0; i < SZ; i++) {                                         \
           float ABF16 = float{bfloat16{A[index][i]}};                          \
           float BBF16 = float{bfloat16{B[index][i]}};                          \
           float CBF16 = float{bfloat16{C[index][i]}};                          \
-          if (check(res[i], NAME(ABF16, BBF16, CBF16))) {                      \
+          if (check(res[i], sycl::NAME(ABF16, BBF16, CBF16))) {                \
             ERR[0] = 1;                                                        \
           }                                                                    \
         }                                                                      \
@@ -237,9 +222,12 @@ bool check(bool a, bool b) { return (a != b); }
       accessor<float, 1, access::mode::write, target::device> checkNAN(        \
           nan_buf, cgh);                                                       \
       cgh.single_task([=]() {                                                  \
-        checkNAN[0] = NAME(bfloat16{NAN}, bfloat16{NAN});                      \
-        if ((NAME(bfloat16{2}, bfloat16{NAN}) != 2) ||                         \
-            (NAME(bfloat16{NAN}, bfloat16{2}) != 2)) {                         \
+        checkNAN[0] = sycl::ext::oneapi::experimental::NAME(bfloat16{NAN},     \
+                                                            bfloat16{NAN});    \
+        if ((sycl::ext::oneapi::experimental::NAME(bfloat16{2},                \
+                                                   bfloat16{NAN}) != 2) ||     \
+            (sycl::ext::oneapi::experimental::NAME(bfloat16{NAN},              \
+                                                   bfloat16{2}) != 2)) {       \
           ERR[0] = 1;                                                          \
         }                                                                      \
       });                                                                      \

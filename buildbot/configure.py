@@ -64,7 +64,8 @@ def do_configure(args):
     if platform.system() == 'Windows' or (args.hip and args.hip_platform == 'AMD'):
         llvm_enable_projects += ';lld'
 
-    if args.cuda or args.hip or args.native_cpu:
+    libclc_enabled = args.cuda or args.hip or args.native_cpu
+    if libclc_enabled:
         llvm_enable_projects += ';libclc'
 
     if args.cuda:
@@ -125,6 +126,7 @@ def do_configure(args):
         llvm_enable_projects += ";clang-tools-extra;compiler-rt"
         if sys.platform != "darwin":
             # libclc is required for CI validation
+            libclc_enabled = True
             if 'libclc' not in llvm_enable_projects:
                 llvm_enable_projects += ';libclc'
             # libclc passes `--nvvm-reflect-enable=false`, build NVPTX to enable it
@@ -163,8 +165,6 @@ def do_configure(args):
         "-DLLVM_EXTERNAL_LIBDEVICE_SOURCE_DIR={}".format(libdevice_dir),
         "-DLLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR={}".format(fusion_dir),
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
-        "-DLIBCLC_TARGETS_TO_BUILD={}".format(libclc_targets_to_build),
-        "-DLIBCLC_GENERATE_REMANGLED_VARIANTS={}".format(libclc_gen_remangled_variants),
         "-DSYCL_BUILD_PI_HIP_PLATFORM={}".format(sycl_build_pi_hip_platform),
         "-DLLVM_BUILD_TOOLS=ON",
         "-DSYCL_ENABLE_WERROR={}".format(sycl_werror),
@@ -182,6 +182,16 @@ def do_configure(args):
         "-DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB={}".format(sycl_preview_lib),
         "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
     ]
+
+    if libclc_enabled:
+        cmake_cmd.extend(
+            [
+                "-DLIBCLC_TARGETS_TO_BUILD={}".format(libclc_targets_to_build),
+                "-DLIBCLC_GENERATE_REMANGLED_VARIANTS={}".format(
+                    libclc_gen_remangled_variants
+                ),
+            ]
+        )
 
     if args.l0_headers and args.l0_loader:
       cmake_cmd.extend([

@@ -95,23 +95,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ebf873fb5996c9ddca32bbb7c9330d3ffe15473c
-  # Merge: 633ec408 8f375039
+  # commit 1e1f577262747d67fcb5c513de4a11bec67ea5db
+  # Merge: dd212f3f 0b405a12
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu May 2 10:56:55 2024 +0100
-  #    Merge pull request #1535 from przemektmalon/przemek/sampled-image-fetch
-  #    [Bindless][Exp] Add device queries for sampled image fetch
-  set(UNIFIED_RUNTIME_TAG ebf873fb5996c9ddca32bbb7c9330d3ffe15473c)
+  # Date:   Thu May 9 18:00:36 2024 +0100
+  #    Merge pull request #1591 from nrspruit/disable_driver_in_order_lists_default
+  #    [L0] Disable Usage of Driver In order Lists by default
+  set(UNIFIED_RUNTIME_TAG 1e1f577262747d67fcb5c513de4a11bec67ea5db)
 
   fetch_adapter_source(level_zero
-    "https://github.com/oneapi-src/unified-runtime.git"
-    # commit fb342f06e1ac244c5995b7be458d0c32a1ba17ab
-    # Merge: a44e81b5 7186d6ce
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri May 3 11:55:26 2024 +0100
-    #     Merge pull request #1549 from igchor/event_fix
-    #     Fix adding event to queue cache
-    fb342f06e1ac244c5995b7be458d0c32a1ba17ab
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
