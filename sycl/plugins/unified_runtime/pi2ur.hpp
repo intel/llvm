@@ -5253,21 +5253,25 @@ static void pi2urImageCopyFlags(const pi_image_copy_flags PiFlags,
   }
 }
 
-inline pi_result
-piextMemImageCopy(pi_queue Queue, void *DstPtr, void *SrcPtr,
-                  const pi_image_format *ImageFormat,
-                  const pi_image_desc *ImageDesc,
-                  const pi_image_copy_flags Flags, pi_image_offset SrcOffset,
-                  pi_image_offset DstOffset, pi_image_region CopyExtent,
-                  pi_image_region HostExtent, pi_uint32 NumEventsInWaitList,
-                  const pi_event *EventWaitList, pi_event *Event) {
+inline pi_result piextMemImageCopy(
+    pi_queue Queue, void *DstPtr, void *SrcPtr,
+    const pi_image_desc *SrcImageDesc, const pi_image_desc *DestImageDesc,
+    const pi_image_format *SrcImageFormat,
+    const pi_image_format *DestImageFormat, const pi_image_copy_flags Flags,
+    pi_image_offset SrcOffset, pi_image_offset DstOffset,
+    pi_image_region CopyExtent, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *Event) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
   auto UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
 
-  ur_image_format_t UrFormat{};
-  ur_image_desc_t UrDesc{};
-  pi2urImageDesc(ImageFormat, ImageDesc, &UrFormat, &UrDesc);
+  ur_image_format_t UrFormatSrc{};
+  ur_image_desc_t UrDescSrc{};
+  pi2urImageDesc(SrcImageFormat, SrcImageDesc, &UrFormatSrc, &UrDescSrc);
+
+  ur_image_format_t UrFormatDest{};
+  ur_image_desc_t UrDescDest{};
+  pi2urImageDesc(DestImageFormat, DestImageDesc, &UrFormatDest, &UrDescDest);
 
   ur_exp_image_copy_flags_t UrFlags;
   pi2urImageCopyFlags(Flags, &UrFlags);
@@ -5278,18 +5282,19 @@ piextMemImageCopy(pi_queue Queue, void *DstPtr, void *SrcPtr,
   UrCopyExtent.depth = CopyExtent->depth;
   UrCopyExtent.height = CopyExtent->height;
   UrCopyExtent.width = CopyExtent->width;
-  ur_rect_region_t UrHostExtent{};
-  UrHostExtent.depth = HostExtent->depth;
-  UrHostExtent.height = HostExtent->height;
-  UrHostExtent.width = HostExtent->width;
+
+  ur_exp_image_copy_region_t UrCopyRegion{};
+  UrCopyRegion.copyExtent = UrCopyExtent;
+  UrCopyRegion.srcOffset = UrSrcOffset;
+  UrCopyRegion.dstOffset = UrDstOffset;
 
   const ur_event_handle_t *UrEventWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventWaitList);
   ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(Event);
 
   HANDLE_ERRORS(urBindlessImagesImageCopyExp(
-      UrQueue, DstPtr, SrcPtr, &UrFormat, &UrDesc, UrFlags, UrSrcOffset,
-      UrDstOffset, UrCopyExtent, UrHostExtent, NumEventsInWaitList,
+      UrQueue, SrcPtr, DstPtr, &UrDescSrc, &UrDescDest, &UrFormatSrc,
+      &UrFormatDest, &UrCopyRegion, UrFlags, NumEventsInWaitList,
       UrEventWaitList, UREvent));
 
   return PI_SUCCESS;

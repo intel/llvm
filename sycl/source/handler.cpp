@@ -482,9 +482,10 @@ event handler::finalize() {
   } break;
   case detail::CG::CopyImage:
     CommandGroup.reset(new detail::CGCopyImage(
-        MSrcPtr, MDstPtr, MImpl->MImageDesc, MImpl->MImageFormat,
-        MImpl->MImageCopyFlags, MImpl->MSrcOffset, MImpl->MDestOffset,
-        MImpl->MHostExtent, MImpl->MCopyExtent, std::move(CGData), MCodeLoc));
+        MSrcPtr, MDstPtr, MImpl->MSrcImageDesc, MImpl->MDestImageDesc,
+        MImpl->MSrcImageFormat, MImpl->MDestImageFormat, MImpl->MImageCopyFlags,
+        MImpl->MSrcOffset, MImpl->MDestOffset, MImpl->MCopyExtent,
+        std::move(CGData), MCodeLoc));
     break;
   case detail::CG::SemaphoreWait:
     CommandGroup.reset(new detail::CGSemaphoreWait(
@@ -1040,9 +1041,10 @@ void handler::ext_oneapi_copy(
   MImpl->MSrcOffset = {0, 0, 0};
   MImpl->MDestOffset = {0, 0, 0};
   MImpl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
-  MImpl->MHostExtent = {Desc.width, Desc.height, Desc.depth};
-  MImpl->MImageDesc = PiDesc;
-  MImpl->MImageFormat = PiFormat;
+  MImpl->MSrcImageDesc = PiDesc;
+  MImpl->MDestImageDesc = PiDesc;
+  MImpl->MSrcImageFormat = PiFormat;
+  MImpl->MDestImageFormat = PiFormat;
   MImpl->MImageCopyFlags =
       sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_HOST_TO_DEVICE;
   setType(detail::CG::CopyImage);
@@ -1094,9 +1096,14 @@ void handler::ext_oneapi_copy(
   MImpl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
   MImpl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
   MImpl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
-  MImpl->MHostExtent = {SrcExtent[0], SrcExtent[1], SrcExtent[2]};
-  MImpl->MImageDesc = PiDesc;
-  MImpl->MImageFormat = PiFormat;
+  MImpl->MSrcImageDesc = PiDesc;
+  MImpl->MSrcImageDesc.image_width = SrcExtent[0];
+  MImpl->MSrcImageDesc.image_height = SrcExtent[1];
+  MImpl->MSrcImageDesc.image_depth = SrcExtent[2];
+  MImpl->MDestImageDesc = PiDesc;
+  MImpl->MSrcImageFormat = PiFormat;
+  MImpl->MDestImageFormat = PiFormat;
+
   MImpl->MImageCopyFlags =
       sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_HOST_TO_DEVICE;
   setType(detail::CG::CopyImage);
@@ -1146,9 +1153,10 @@ void handler::ext_oneapi_copy(
   MImpl->MSrcOffset = {0, 0, 0};
   MImpl->MDestOffset = {0, 0, 0};
   MImpl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
-  MImpl->MHostExtent = {Desc.width, Desc.height, Desc.depth};
-  MImpl->MImageDesc = PiDesc;
-  MImpl->MImageFormat = PiFormat;
+  MImpl->MSrcImageDesc = PiDesc;
+  MImpl->MDestImageDesc = PiDesc;
+  MImpl->MSrcImageFormat = PiFormat;
+  MImpl->MDestImageFormat = PiFormat;
   MImpl->MImageCopyFlags =
       sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_HOST;
   setType(detail::CG::CopyImage);
@@ -1198,9 +1206,10 @@ void handler::ext_oneapi_copy(
   MImpl->MSrcOffset = {0, 0, 0};
   MImpl->MDestOffset = {0, 0, 0};
   MImpl->MCopyExtent = {ImageDesc.width, ImageDesc.height, ImageDesc.depth};
-  MImpl->MHostExtent = {ImageDesc.width, ImageDesc.height, ImageDesc.depth};
-  MImpl->MImageDesc = PiDesc;
-  MImpl->MImageFormat = PiFormat;
+  MImpl->MSrcImageDesc = PiDesc;
+  MImpl->MDestImageDesc = PiDesc;
+  MImpl->MSrcImageFormat = PiFormat;
+  MImpl->MDestImageFormat = PiFormat;
   MImpl->MImageCopyFlags =
       sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_DEVICE;
   setType(detail::CG::CopyImage);
@@ -1252,9 +1261,14 @@ void handler::ext_oneapi_copy(
   MImpl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
   MImpl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
   MImpl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
-  MImpl->MHostExtent = {DestExtent[0], DestExtent[1], DestExtent[2]};
-  MImpl->MImageDesc = PiDesc;
-  MImpl->MImageFormat = PiFormat;
+  MImpl->MSrcImageDesc = PiDesc;
+  MImpl->MDestImageDesc = PiDesc;
+  MImpl->MDestImageDesc.image_width = DestExtent[0];
+  MImpl->MDestImageDesc.image_height = DestExtent[1];
+  MImpl->MDestImageDesc.image_depth = DestExtent[2];
+  MImpl->MSrcImageFormat = PiFormat;
+  MImpl->MDestImageFormat = PiFormat;
+
   MImpl->MImageCopyFlags =
       sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_HOST;
   setType(detail::CG::CopyImage);
@@ -1304,10 +1318,12 @@ void handler::ext_oneapi_copy(
   MImpl->MSrcOffset = {0, 0, 0};
   MImpl->MDestOffset = {0, 0, 0};
   MImpl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
-  MImpl->MHostExtent = {Desc.width, Desc.height, Desc.depth};
-  MImpl->MImageDesc = PiDesc;
-  MImpl->MImageDesc.image_row_pitch = Pitch;
-  MImpl->MImageFormat = PiFormat;
+  MImpl->MSrcImageDesc = PiDesc;
+  MImpl->MDestImageDesc = PiDesc;
+  MImpl->MSrcImageFormat = PiFormat;
+  MImpl->MDestImageFormat = PiFormat;
+  MImpl->MSrcImageDesc.image_row_pitch = Pitch;
+  MImpl->MDestImageDesc.image_row_pitch = Pitch;
   MImpl->MImageCopyFlags = detail::getPiImageCopyFlags(
       get_pointer_type(Src, MQueue->get_context()),
       get_pointer_type(Dest, MQueue->get_context()));
@@ -1360,14 +1376,35 @@ void handler::ext_oneapi_copy(
 
   MImpl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
   MImpl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
-  MImpl->MHostExtent = {HostExtent[0], HostExtent[1], HostExtent[2]};
   MImpl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
-  MImpl->MImageDesc = PiDesc;
-  MImpl->MImageDesc.image_row_pitch = DeviceRowPitch;
-  MImpl->MImageFormat = PiFormat;
+  MImpl->MSrcImageFormat = PiFormat;
+  MImpl->MDestImageFormat = PiFormat;
   MImpl->MImageCopyFlags = detail::getPiImageCopyFlags(
       get_pointer_type(Src, MQueue->get_context()),
       get_pointer_type(Dest, MQueue->get_context()));
+  MImpl->MSrcImageDesc = PiDesc;
+  MImpl->MDestImageDesc = PiDesc;
+
+  // Fill the descriptor row pitch and host extent based on the type of copy
+  if (MImpl->MImageCopyFlags ==
+      sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_HOST_TO_DEVICE) {
+    MImpl->MDestImageDesc.image_row_pitch = DeviceRowPitch;
+    MImpl->MSrcImageDesc.image_row_pitch = 0;
+    MImpl->MSrcImageDesc.image_width = HostExtent[0];
+    MImpl->MSrcImageDesc.image_height = HostExtent[1];
+    MImpl->MSrcImageDesc.image_depth = HostExtent[2];
+  } else if (MImpl->MImageCopyFlags ==
+             sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_HOST) {
+    MImpl->MSrcImageDesc.image_row_pitch = DeviceRowPitch;
+    MImpl->MDestImageDesc.image_row_pitch = 0;
+    MImpl->MDestImageDesc.image_width = HostExtent[0];
+    MImpl->MDestImageDesc.image_height = HostExtent[1];
+    MImpl->MDestImageDesc.image_depth = HostExtent[2];
+  } else {
+    MImpl->MDestImageDesc.image_row_pitch = DeviceRowPitch;
+    MImpl->MSrcImageDesc.image_row_pitch = DeviceRowPitch;
+  }
+
   setType(detail::CG::CopyImage);
 }
 

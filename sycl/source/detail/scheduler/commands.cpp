@@ -3251,13 +3251,11 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   case CG::CGTYPE::CopyImage: {
     CGCopyImage *Copy = (CGCopyImage *)MCommandGroup.get();
 
-    sycl::detail::pi::PiMemImageDesc Desc = Copy->getDesc();
-
     MemoryManager::copy_image_bindless(
-        Copy->getSrc(), MQueue, Copy->getDst(), Desc, Copy->getFormat(),
+        MQueue, Copy->getSrc(), Copy->getDst(), Copy->getSrcDesc(),
+        Copy->getDestDesc(), Copy->getSrcFormat(), Copy->getDestFormat(),
         Copy->getCopyFlags(), Copy->getSrcOffset(), Copy->getDstOffset(),
-        Copy->getHostExtent(), Copy->getCopyExtent(), std::move(RawEvents),
-        Event);
+        Copy->getCopyExtent(), std::move(RawEvents), Event);
     return PI_SUCCESS;
   }
   case CG::CGTYPE::SemaphoreWait: {
