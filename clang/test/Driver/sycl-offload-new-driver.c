@@ -38,6 +38,21 @@
 // WRAPPER_OPTIONS-SAME: "-sycl-device-libraries=libsycl-crt.new.o,libsycl-complex.new.o,libsycl-complex-fp64.new.o,libsycl-cmath.new.o,libsycl-cmath-fp64.new.o,libsycl-imf.new.o,libsycl-imf-fp64.new.o,libsycl-imf-bf16.new.o,libsycl-itt-user-wrappers.new.o,libsycl-itt-compiler-wrappers.new.o,libsycl-itt-stubs.new.o"
 // WRAPPER_OPTIONS-SAME: "-sycl-device-library-location={{.*}}/lib"
 
+/// Verify phases used to generate SPIR-V instead of LLVM-IR
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN:          -fsycl-device-obj=spirv -ccc-print-phases %s 2>&1 \
+// RUN:   | FileCheck -check-prefix SPIRV_OBJ %s
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN:          -fsycl-device-only -fsycl-device-obj=spirv \
+// RUN:          -ccc-print-phases %s 2>&1 \
+// RUN:   | FileCheck -check-prefix SPIRV_OBJ %s
+// SPIRV_OBJ: [[#SPVOBJ:]]: input, "{{.*}}", c++, (device-sycl)
+// SPIRV_OBJ: [[#SPVOBJ+1]]: preprocessor, {[[#SPVOBJ]]}, c++-cpp-output, (device-sycl)
+// SPIRV_OBJ: [[#SPVOBJ+2]]: compiler, {[[#SPVOBJ+1]]}, ir, (device-sycl)
+// SPIRV_OBJ: [[#SPVOBJ+3]]: backend, {[[#SPVOBJ+2]]}, ir, (device-sycl)
+// SPIRV_OBJ: [[#SPVOBJ+4]]: llvm-spirv, {[[#SPVOBJ+3]]}, spirv, (device-sycl)
+// SPIRV_OBJ: [[#SPVOBJ+5]]: offload, "device-sycl (spir64-unknown-unknown)" {[[#SPVOBJ+4]]}, {{.*}}
+
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
 // RUN:          -Xspirv-translator -translator-opt -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_TRANSLATOR %s
