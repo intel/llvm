@@ -51,6 +51,41 @@ float __imf_ull2float_rd(unsigned long long int);
 float __imf_ull2float_rn(unsigned long long int);
 float __imf_ull2float_ru(unsigned long long int);
 float __imf_ull2float_rz(unsigned long long int);
+float __imf_double2float_rd(double);
+float __imf_double2float_rn(double);
+float __imf_double2float_ru(double);
+float __imf_double2float_rz(double);
+int __imf_double2hiint(double);
+int __imf_double2loint(double);
+int __imf_double2int_rd(double);
+int __imf_double2int_rn(double);
+int __imf_double2int_ru(double);
+int __imf_double2int_rz(double);
+long long __imf_double2ll_rd(double);
+long long __imf_double2ll_rn(double);
+long long __imf_double2ll_ru(double);
+long long __imf_double2ll_rz(double);
+unsigned int __imf_double2uint_rd(double);
+unsigned int __imf_double2uint_rn(double);
+unsigned int __imf_double2uint_ru(double);
+unsigned int __imf_double2uint_rz(double);
+unsigned long long __imf_double2ull_rd(double);
+unsigned long long __imf_double2ull_rn(double);
+unsigned long long __imf_double2ull_ru(double);
+unsigned long long __imf_double2ull_rz(double);
+long long __imf_double_as_longlong(double);
+double __imf_hiloint2double(int, int);
+double __imf_int2double_rn(int);
+double __imf_ll2double_rd(long long);
+double __imf_ll2double_rn(long long);
+double __imf_ll2double_ru(long long);
+double __imf_ll2double_rz(long long);
+double __imf_longlong_as_double(long long);
+double __imf_uint2double_rn(unsigned);
+double __imf_ull2double_rd(unsigned long long);
+double __imf_ull2double_rn(unsigned long long);
+double __imf_ull2double_ru(unsigned long long);
+double __imf_ull2double_rz(unsigned long long);
 float __imf_half2float(_iml_half_internal);
 _iml_half_internal __imf_float2half_rd(float);
 _iml_half_internal __imf_float2half_rn(float);
@@ -342,6 +377,174 @@ template <typename To = float, typename From = int> To int_as_float(From x) {
 template <typename To = float, typename From = unsigned int>
 To uint_as_float(From x) {
   return __imf_uint_as_float(x);
+}
+
+template <typename To = float, typename From = double>
+To double2float_rd(From x) {
+  return __imf_double2float_rd(x);
+}
+
+template <typename To = float, typename From = double>
+To double2float_rn(From x) {
+  return __imf_double2float_rn(x);
+}
+
+template <typename To = float, typename From = double>
+To double2float_ru(From x) {
+  return __imf_double2float_ru(x);
+}
+
+template <typename To = float, typename From = double>
+To double2float_rz(From x) {
+  return __imf_double2float_rz(x);
+}
+
+template <typename To = int, typename From = double> To double2hiint(From x) {
+  return __imf_double2hiint(x);
+}
+
+template <typename To = int, typename From = double> To double2loint(From x) {
+  return __imf_double2loint(x);
+}
+
+template <typename To = int, typename From = double> To double2int_rd(From x) {
+  return __imf_double2int_rd(x);
+}
+
+template <typename To = int, typename From = double> To double2int_rn(From x) {
+  return __imf_double2int_rn(x);
+}
+
+template <typename To = int, typename From = double> To double2int_ru(From x) {
+  return __imf_double2int_ru(x);
+}
+
+template <typename To = int, typename From = double> To double2int_rz(From x) {
+  return __imf_double2int_rz(x);
+}
+
+template <typename To = long long, typename From = double>
+To double2ll_rd(From x) {
+  return __imf_double2ll_rd(x);
+}
+
+template <typename To = long long, typename From = double>
+To double2ll_rn(From x) {
+  return __imf_double2ll_rn(x);
+}
+
+template <typename To = long long, typename From = double>
+To double2ll_ru(From x) {
+  return __imf_double2ll_ru(x);
+}
+
+template <typename To = long long, typename From = double>
+To double2ll_rz(From x) {
+  return __imf_double2ll_rz(x);
+}
+
+template <typename To = unsigned int, typename From = double>
+To double2uint_rd(From x) {
+  return __imf_double2uint_rd(x);
+}
+
+template <typename To = unsigned int, typename From = double>
+To double2uint_rn(From x) {
+  return __imf_double2uint_rn(x);
+}
+
+template <typename To = unsigned int, typename From = double>
+To double2uint_ru(From x) {
+  return __imf_double2uint_ru(x);
+}
+
+template <typename To = unsigned int, typename From = double>
+To double2uint_rz(From x) {
+  return __imf_double2uint_rz(x);
+}
+
+template <typename To = unsigned long long, typename From = double>
+To double2ull_rd(From x) {
+  return __imf_double2ull_rd(x);
+}
+
+template <typename To = unsigned long long, typename From = double>
+To double2ull_rn(From x) {
+  return __imf_double2ull_rn(x);
+}
+
+template <typename To = unsigned long long, typename From = double>
+To double2ull_ru(From x) {
+  return __imf_double2ull_ru(x);
+}
+
+template <typename To = unsigned long long, typename From = double>
+To double2ull_rz(From x) {
+  return __imf_double2ull_rz(x);
+}
+
+template <typename To = long long, typename From = double>
+To double_as_longlong(From x) {
+  return __imf_double_as_longlong(x);
+}
+
+template <typename To = double, typename From = long long>
+To longlong_as_double(From x) {
+  return __imf_longlong_as_double(x);
+}
+
+template <typename To = double, typename From = int>
+To hiloint2double(From x, From y) {
+  return __imf_hiloint2double(x, y);
+}
+
+template <typename To = double, typename From = int> To int2double_rn(From x) {
+  return __imf_int2double_rn(x);
+}
+
+template <typename To = double, typename From = unsigned int>
+To uint2double_rn(From x) {
+  return __imf_uint2double_rn(x);
+}
+
+template <typename To = double, typename From = long long>
+To ll2double_rd(From x) {
+  return __imf_ll2double_rd(x);
+}
+
+template <typename To = double, typename From = long long>
+To ll2double_rn(From x) {
+  return __imf_ll2double_rn(x);
+}
+
+template <typename To = double, typename From = long long>
+To ll2double_ru(From x) {
+  return __imf_ll2double_ru(x);
+}
+
+template <typename To = double, typename From = long long>
+To ll2double_rz(From x) {
+  return __imf_ll2double_rz(x);
+}
+
+template <typename To = double, typename From = unsigned long long>
+To ull2double_rd(From x) {
+  return __imf_ull2double_rd(x);
+}
+
+template <typename To = double, typename From = unsigned long long>
+To ull2double_rn(From x) {
+  return __imf_ull2double_rn(x);
+}
+
+template <typename To = double, typename From = unsigned long long>
+To ull2double_ru(From x) {
+  return __imf_ull2double_ru(x);
+}
+
+template <typename To = double, typename From = unsigned long long>
+To ull2double_rz(From x) {
+  return __imf_ull2double_rz(x);
 }
 
 template <typename To = float, typename From = sycl::half>
