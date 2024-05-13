@@ -87,9 +87,9 @@ def do_configure(args):
         sycl_enabled_plugins.append("hip")
 
     if args.native_cpu:
-        #Todo: we should set whatever targets we support for native cpu
-        libclc_targets_to_build += ';x86_64-unknown-linux-gnu'
-        libclc_gen_remangled_variants = 'ON'
+        # Todo: we should set whatever targets we support for native cpu
+        libclc_targets_to_build += ";x86_64-unknown-linux-gnu"
+        libclc_gen_remangled_variants = "ON"
         sycl_enabled_plugins.append("native_cpu")
 
 
