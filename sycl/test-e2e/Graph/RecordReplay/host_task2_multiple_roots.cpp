@@ -7,6 +7,10 @@
 
 // REQUIRES: aspect-usm_shared_allocations
 
+// Concurrent access to shared USM allocations is not supported by CUDA on
+// Windows
+// UNSUPPORTED: cuda && windows
+
 #define GRAPH_E2E_RECORD_REPLAY
 
 #include "../Inputs/host_task2_multiple_roots.cpp"
