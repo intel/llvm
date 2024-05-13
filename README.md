@@ -87,7 +87,7 @@ for more detailed instructions on the correct setup.
 
 Required packages:
 - C++ compiler with C++17 support
-- [CMake](https://cmake.org/) >= 3.14.0
+- [CMake](https://cmake.org/) >= 3.20.0
 - Python v3.6.6 or later
 
 ### Windows
@@ -140,6 +140,7 @@ List of options provided by CMake:
 | UR_HIP_PLATFORM         | Build HIP adapter for AMD or NVIDIA platform           | AMD/NVIDIA | AMD     |
 | UR_ENABLE_COMGR         | Enable comgr lib usage           | AMD/NVIDIA | AMD     |
 | UR_DPCXX | Path of the DPC++ compiler executable to build CTS device binaries | File path | `""` |
+| UR_DEVICE_CODE_EXTRACTOR | Path of the `clang-offload-extract` executable from the DPC++ package, required for CTS device binaries | File path | `"${dirname(UR_DPCXX)}/clang-offload-extract"` |
 | UR_DPCXX_BUILD_FLAGS | Build flags to pass to DPC++ when compiling device programs | Space-separated options list | `""` |
 | UR_SYCL_LIBRARY_DIR | Path of the SYCL runtime library directory to build CTS device binaries | Directory path | `""` |
 | UR_HIP_ROCM_DIR | Path of the default ROCm HIP installation | Directory path | `/opt/rocm` |

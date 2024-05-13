@@ -350,7 +350,7 @@ struct urHostPipeTest : urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
         UUR_RETURN_ON_FATAL_FAILURE(
-            uur::KernelsEnvironment::instance->LoadSource("foo", 0, il_binary));
+            uur::KernelsEnvironment::instance->LoadSource("foo", il_binary));
         ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
             platform, context, device, *il_binary, nullptr, &program));
 
@@ -1135,7 +1135,7 @@ struct urProgramTest : urQueueTest {
             GTEST_SKIP();
         }
         UUR_RETURN_ON_FATAL_FAILURE(
-            uur::KernelsEnvironment::instance->LoadSource(program_name, 0,
+            uur::KernelsEnvironment::instance->LoadSource(program_name,
                                                           il_binary));
 
         const ur_program_properties_t properties = {
@@ -1174,7 +1174,7 @@ template <class T> struct urProgramTestWithParam : urQueueTestWithParam<T> {
         }
 
         UUR_RETURN_ON_FATAL_FAILURE(
-            uur::KernelsEnvironment::instance->LoadSource(program_name, 0,
+            uur::KernelsEnvironment::instance->LoadSource(program_name,
                                                           il_binary));
         ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
             this->platform, this->context, this->device, *il_binary, nullptr,
