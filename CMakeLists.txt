@@ -3,7 +3,7 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-cmake_minimum_required(VERSION 3.14.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.20.0 FATAL_ERROR)
 project(unified-runtime VERSION 0.9.0)
 
 include(GNUInstallDirs)
@@ -54,6 +54,7 @@ set(UR_SYCL_LIBRARY_DIR "" CACHE PATH
 set(UR_CONFORMANCE_TARGET_TRIPLES "" CACHE STRING
     "List of sycl targets to build CTS device binaries for")
 set(UR_CONFORMANCE_AMD_ARCH "" CACHE STRING "AMD device target ID to build CTS binaries for")
+option(UR_CONFORMANCE_ENABLE_MATCH_FILES "Enable CTS match files" ON)
 set(UR_ADAPTER_LEVEL_ZERO_SOURCE_DIR "" CACHE PATH
     "Path to external 'level_zero' adapter source dir")
 set(UR_ADAPTER_OPENCL_SOURCE_DIR "" CACHE PATH

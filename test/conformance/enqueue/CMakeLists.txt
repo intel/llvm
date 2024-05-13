@@ -29,4 +29,5 @@ add_conformance_test_with_kernels_environment(enqueue
     urEnqueueUSMPrefetch.cpp
     urEnqueueReadHostPipe.cpp
     urEnqueueWriteHostPipe.cpp
+    urEnqueueTimestampRecording.cpp
     )

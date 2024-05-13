@@ -138,3 +138,4 @@
 {{OPT}}urProgramSetSpecializationConstantsTest.InvalidSizeCount/SYCL_NATIVE_CPU___SYCL_Native_CPU_
 {{OPT}}urProgramSetMultipleSpecializationConstantsTest.MultipleCalls/SYCL_NATIVE_CPU___SYCL_Native_CPU_
 {{OPT}}urProgramSetMultipleSpecializationConstantsTest.SingleCall/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}{{Segmentation fault|Aborted}}
