@@ -95,23 +95,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ebf873fb5996c9ddca32bbb7c9330d3ffe15473c
-  # Merge: 633ec408 8f375039
+  # commit 4c69624c3f651819210148ad11d0e1e5c9af12de
+  # Merge: ea009363 f04b44c3
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu May 2 10:56:55 2024 +0100
-  #    Merge pull request #1535 from przemektmalon/przemek/sampled-image-fetch
-  #    [Bindless][Exp] Add device queries for sampled image fetch
+  # Date:   Mon May 13 11:56:12 2024 +0100
+  #     Merge pull request #1532 from AllanZyne/review/yang/local_accessor
+  #     [DeviceSanitizer] Check out-of-bounds on sycl::local_accessor
   set(UNIFIED_RUNTIME_TAG ebf873fb5996c9ddca32bbb7c9330d3ffe15473c)
 
   fetch_adapter_source(level_zero
-    "https://github.com/oneapi-src/unified-runtime.git"
-    # commit fb342f06e1ac244c5995b7be458d0c32a1ba17ab
-    # Merge: a44e81b5 7186d6ce
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri May 3 11:55:26 2024 +0100
-    #     Merge pull request #1549 from igchor/event_fix
-    #     Fix adding event to queue cache
-    fb342f06e1ac244c5995b7be458d0c32a1ba17ab
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
@@ -143,8 +137,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
-    GIT_REPOSITORY    "https://github.com/AllanZyne/unified-runtime.git"
-    GIT_TAG           "review/yang/local_accessor"
+    GIT_REPOSITORY    ${UNIFIED_RUNTIME_REPO}
+    GIT_TAG           ${UNIFIED_RUNTIME_TAG}
   )
 
   FetchContent_GetProperties(unified-runtime)
