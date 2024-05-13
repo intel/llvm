@@ -229,11 +229,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
                                        &hBuffer->LastEventWritingToMemObj));
     }
 
-    ScopedContext Active(Device);
-
     // Use the default stream if copying from another device
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                      phEventWaitList));
+
+    // enqueueEventsWait may set a different context
+    ScopedContext Active(Device);
 
     if (phEvent) {
       RetImplEvent =
@@ -596,10 +597,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
                                        &hBuffer->LastEventWritingToMemObj));
     }
 
-    ScopedContext Active(Device);
-
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                      phEventWaitList));
+
+    // enqueueEventsWait may set a different context
+    ScopedContext Active(Device);
 
     if (phEvent) {
       RetImplEvent =
