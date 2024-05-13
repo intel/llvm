@@ -10,6 +10,8 @@
 
 #include <sycl/backend.hpp>
 #include <sycl/context.hpp>
+#include <sycl/interop_handle.hpp>
+
 #include <sycl/ext/oneapi/experimental/backend/backend_traits_cuda.hpp>
 
 #include <vector>
