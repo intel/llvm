@@ -1733,12 +1733,13 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   if (Args.getLastArg(options::OPT_fsycl_dump_device_code_EQ))
     DumpDeviceCode = true;
 
-  if (const Arg *A = Args.getLastArg(options::OPT_offload_host_only,
-                                     options::OPT_offload_device_only,
-                                     options::OPT_offload_host_device)) {
+  if (const Arg *A = Args.getLastArg(
+          options::OPT_offload_host_only, options::OPT_offload_device_only,
+          options::OPT_offload_host_device, options::OPT_fsycl_device_only)) {
     if (A->getOption().matches(options::OPT_offload_host_only))
       Offload = OffloadHost;
-    else if (A->getOption().matches(options::OPT_offload_device_only))
+    else if (A->getOption().matches(options::OPT_offload_device_only) ||
+             A->getOption().matches(options::OPT_fsycl_device_only))
       Offload = OffloadDevice;
     else
       Offload = OffloadHostDevice;
@@ -4947,7 +4948,7 @@ class OffloadingActionBuilder final {
     getDeviceDependences(OffloadAction::DeviceDependences &DA,
                          phases::ID CurPhase, phases::ID FinalPhase,
                          PhasesTy &Phases) override {
-      bool SYCLDeviceOnly = Args.hasArg(options::OPT_fsycl_device_only);
+      bool SYCLDeviceOnly = C.getDriver().offloadDeviceOnly();
       if (CurPhase == phases::Preprocess) {
         // Do not perform the host compilation when doing preprocessing only
         // with -fsycl-device-only.
@@ -5905,7 +5906,10 @@ class OffloadingActionBuilder final {
             ++NumOfDeviceLibLinked;
             Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
                                          Args.MakeArgString(LibName));
-            if (TC->getTriple().isNVPTX()) {
+            if (TC->getTriple().isNVPTX() ||
+                (TC->getTriple().isSPIR() &&
+                 TC->getTriple().getSubArch() ==
+                     llvm::Triple::SPIRSubArch_fpga)) {
               auto *SYCLDeviceLibsInputAction =
                   C.MakeAction<InputAction>(*InputArg, types::TY_Object);
               auto *SYCLDeviceLibsUnbundleAction =
@@ -7881,9 +7885,9 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
         break;
       }
 
-      // Backend/Assemble actions are not used for the SYCL device side
-      if (Kind == Action::OFK_SYCL &&
-          (Phase == phases::Backend || Phase == phases::Assemble))
+      // Assemble actions are not used for the SYCL device side.  Both compile
+      // and backend actions are used to generate IR and textual IR if needed.
+      if (Kind == Action::OFK_SYCL && Phase == phases::Assemble)
         continue;
 
       auto TCAndArch = TCAndArchs.begin();
@@ -7913,6 +7917,15 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
 
         ++TCAndArch;
       }
+    }
+    // Use of -fsycl-device-obj=spirv converts the original LLVM-IR file to
+    // SPIR-V for later consumption.
+    for (Action *&A : DeviceActions) {
+      if (!Args.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
+               .equals_insensitive("spirv") ||
+          Kind != Action::OFK_SYCL || A->getType() != types::TY_LLVM_BC)
+        continue;
+      A = C.MakeAction<SPIRVTranslatorJobAction>(A, types::TY_SPIRV);
     }
 
     // Compiling HIP in non-RDC mode requires linking each action individually.
@@ -8138,12 +8151,14 @@ Action *Driver::ConstructPhaseAction(
       return C.MakeAction<BackendJobAction>(Input, Output);
     }
     if (Args.hasArg(options::OPT_emit_llvm) ||
-        (((Input->getOffloadingToolChain() &&
-           Input->getOffloadingToolChain()->getTriple().isAMDGPU()) ||
-          TargetDeviceOffloadKind == Action::OFK_HIP) &&
-         (Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
-                       false) ||
-          TargetDeviceOffloadKind == Action::OFK_OpenMP))) {
+        ((TargetDeviceOffloadKind == Action::OFK_SYCL &&
+          C.getDriver().getUseNewOffloadingDriver()) ||
+         (((Input->getOffloadingToolChain() &&
+            Input->getOffloadingToolChain()->getTriple().isAMDGPU()) ||
+           TargetDeviceOffloadKind == Action::OFK_HIP) &&
+          (Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
+                        false) ||
+           TargetDeviceOffloadKind == Action::OFK_OpenMP)))) {
       types::ID Output =
           Args.hasArg(options::OPT_S) &&
                   (TargetDeviceOffloadKind == Action::OFK_None ||
@@ -9400,7 +9415,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
       return C.addResultFile(FinalOutput->getValue(), &JA);
     // Output to destination for -fsycl-device-only and Windows -o
-    if (C.getArgs().hasArg(options::OPT_fsycl_device_only))
+    if (offloadDeviceOnly() && JA.getOffloadingDeviceKind() == Action::OFK_SYCL)
       if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT__SLASH_o))
         return C.addResultFile(FinalOutput->getValue(), &JA);
   }
