@@ -1709,3 +1709,33 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
+    ur_queue_handle_t hQueue, bool blocking, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
+  try {
+    ScopedContext Active(hQueue->getContext());
+    CUstream CuStream = hQueue->getNextComputeStream();
+
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
+                                     phEventWaitList));
+
+    RetImplEvent =
+        std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+            UR_COMMAND_TIMESTAMP_RECORDING_EXP, hQueue, CuStream));
+    UR_CHECK_ERROR(RetImplEvent->start());
+    UR_CHECK_ERROR(RetImplEvent->record());
+
+    if (blocking) {
+      UR_CHECK_ERROR(cuStreamSynchronize(CuStream));
+    }
+
+    *phEvent = RetImplEvent.release();
+  } catch (ur_result_t Err) {
+    Result = Err;
+  }
+  return Result;
+}
