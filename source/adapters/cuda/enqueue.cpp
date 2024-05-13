@@ -630,7 +630,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     if (hBuffer->LastEventWritingToMemObj &&
         hBuffer->LastEventWritingToMemObj->getQueue()->getDevice() !=
             hQueue->getDevice()) {
-      Device = hBuffer->LastEventWritingToMemObj->getQueue()->getDevice();
+      hQueue = hBuffer->LastEventWritingToMemObj->getQueue();
+      Device = hQueue->getDevice();
       ScopedContext Active(Device);
       Stream = CUstream{0}; // Default stream for different device
       // We may have to wait for an event on another queue if it is the last
@@ -639,10 +640,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
                                        &hBuffer->LastEventWritingToMemObj));
     }
 
-    ScopedContext Active(Device);
-
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, Stream, numEventsInWaitList,
                                      phEventWaitList));
+
+    // enqueueEventsWait may set a context so we need to reset it here
+    ScopedContext Active(Device);
 
     if (phEvent) {
       RetImplEvent =
@@ -1639,7 +1641,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
     if (hBuffer->LastEventWritingToMemObj &&
         hBuffer->LastEventWritingToMemObj->getQueue()->getDevice() !=
             hQueue->getDevice()) {
-      Device = hBuffer->LastEventWritingToMemObj->getQueue()->getDevice();
+      hQueue = hBuffer->LastEventWritingToMemObj->getQueue();
+      Device = hQueue->getDevice();
       ScopedContext Active(Device);
       Stream = CUstream{0}; // Default stream for different device
       // We may have to wait for an event on another queue if it is the last
@@ -1648,10 +1651,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
                                        &hBuffer->LastEventWritingToMemObj));
     }
 
-    ScopedContext Active(Device);
-
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, Stream, numEventsInWaitList,
                                      phEventWaitList));
+
+    // enqueueEventsWait may set a context so we need to reset it here
+    ScopedContext Active(Device);
 
     if (phEvent) {
       RetImplEvent =
