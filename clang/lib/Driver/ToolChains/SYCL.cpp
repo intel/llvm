@@ -1588,7 +1588,7 @@ void SYCLToolChain::AddSYCLIncludeArgs(const clang::driver::Driver &Driver,
                                        ArgStringList &CC1Args) {
   // Add ../include/sycl, ../include/sycl/stl_wrappers and ../include (in that
   // order).
-  SmallString<128> IncludePath(Driver.getInstalledDir());
+  SmallString<128> IncludePath(Driver.Dir);
   llvm::sys::path::append(IncludePath, "..");
   llvm::sys::path::append(IncludePath, "include");
   SmallString<128> SYCLPath(IncludePath);

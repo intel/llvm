@@ -660,10 +660,6 @@ RISCVISAInfo::parseArchString(StringRef Arch, bool EnableExperimentalExtension,
     break;
   }
 
-  if (Arch.back() == '_')
-    return createStringError(errc::invalid_argument,
-                             "extension name missing after separator '_'");
-
   // Skip baseline.
   StringRef Exts = Arch.drop_front(1);
 
@@ -703,18 +699,18 @@ RISCVISAInfo::parseArchString(StringRef Arch, bool EnableExperimentalExtension,
   // Consume the base ISA version number and any '_' between rvxxx and the
   // first extension
   Exts = Exts.drop_front(ConsumeLength);
-  Exts.consume_front("_");
 
-  SmallVector<StringRef, 8> SplitExts;
-  // Only split if the string is not empty. Otherwise the split will push an
-  // empty string into the vector.
-  if (!Exts.empty())
-    Exts.split(SplitExts, '_');
+  while (!Exts.empty()) {
+    if (Exts.front() == '_') {
+      if (Exts.size() == 1 || Exts[1] == '_')
+        return createStringError(errc::invalid_argument,
+                                 "extension name missing after separator '_'");
+      Exts = Exts.drop_front();
+    }
 
-  for (auto Ext : SplitExts) {
-    if (Ext.empty())
-      return createStringError(errc::invalid_argument,
-                               "extension name missing after separator '_'");
+    size_t Idx = Exts.find('_');
+    StringRef Ext = Exts.slice(0, Idx);
+    Exts = Exts.slice(Idx, StringRef::npos);
 
     do {
       if (RISCVISAUtils::AllStdExts.contains(Ext.front())) {
@@ -998,19 +994,19 @@ RISCVISAInfo::postProcessAndChecking(std::unique_ptr<RISCVISAInfo> &&ISAInfo) {
 
 StringRef RISCVISAInfo::computeDefaultABI() const {
   if (XLen == 32) {
-    if (hasExtension("e"))
+    if (Exts.count("e"))
       return "ilp32e";
-    if (hasExtension("d"))
+    if (Exts.count("d"))
       return "ilp32d";
-    if (hasExtension("f"))
+    if (Exts.count("f"))
       return "ilp32f";
     return "ilp32";
   } else if (XLen == 64) {
-    if (hasExtension("e"))
+    if (Exts.count("e"))
       return "lp64e";
-    if (hasExtension("d"))
+    if (Exts.count("d"))
       return "lp64d";
-    if (hasExtension("f"))
+    if (Exts.count("f"))
       return "lp64f";
     return "lp64";
   }
