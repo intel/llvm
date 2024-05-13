@@ -1311,9 +1311,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       }
     }
   }
-  // Define macros associated with `any_device_has/all_devices_have` according
-  // to the aspects defined in the DeviceConfigFile for the SYCL targets.
-  populateSYCLDeviceTraitsMacrosArgs(C.getInputArgs(), UniqueSYCLTriplesVec);
   // We'll need to use the SYCL and host triples as the key into
   // getOffloadingDeviceToolChain, because the device toolchains we're
   // going to create will depend on both.
@@ -6277,6 +6274,101 @@ class OffloadingActionBuilder final {
       return FinalDeviceSections;
     }
 
+    /// Reads device config file to find information about the SYCL targets in
+    /// `Targets`, and defines device traits macros accordingly.
+    void populateSYCLDeviceTraitsMacrosArgs(
+        Compilation &C, const DerivedArgList &Args,
+        const SmallVector<DeviceTargetInfo, 4> &Targets) const {
+      if (Targets.empty())
+        return;
+
+      const auto &TargetTable = DeviceConfigFile::TargetTable;
+      std::map<StringRef, unsigned int> AllDevicesHave;
+      std::map<StringRef, bool> AnyDeviceHas;
+      bool AnyDeviceHasAnyAspect = false;
+      unsigned int ValidTargets = 0;
+      for (const auto &[TC, BoundArch] : Targets) {
+        assert(TC && "Invalid SYCL Offload Toolchain");
+        // Try and find the device arch, if it's empty, try to search for either
+        // the whole Triple or just the 'ArchName' string.
+        auto TargetIt = TargetTable.end();
+        const llvm::Triple &TargetTriple = TC->getTriple();
+        const StringRef TargetArch{BoundArch};
+        if (!TargetArch.empty()) {
+          TargetIt = llvm::find_if(TargetTable, [&](const auto &Value) {
+            using namespace tools::SYCL;
+            StringRef Device{Value.first};
+            if (Device.consume_front(gen::AmdGPU))
+              return TargetArch.equals(Device) && TargetTriple.isAMDGCN();
+            if (Device.consume_front(gen::NvidiaGPU))
+              return TargetArch.equals(Device) && TargetTriple.isNVPTX();
+            if (Device.consume_front(gen::IntelGPU))
+              return TargetArch.equals(Device) && TargetTriple.isSPIRAOT();
+            return TargetArch.equals(Device) && isValidSYCLTriple(TargetTriple);
+          });
+        } else {
+          TargetIt = TargetTable.find(TargetTriple.str());
+          if (TargetIt == TargetTable.end())
+            TargetIt = TargetTable.find(TargetTriple.getArchName().str());
+        }
+
+        if (TargetIt != TargetTable.end()) {
+          const DeviceConfigFile::TargetInfo &Info = (*TargetIt).second;
+          ++ValidTargets;
+          const auto &AspectList = Info.aspects;
+          const auto &MaySupportOtherAspects = Info.maySupportOtherAspects;
+          if (!AnyDeviceHasAnyAspect)
+            AnyDeviceHasAnyAspect = MaySupportOtherAspects;
+          for (const auto &Aspect : AspectList) {
+            // If target has an entry in the config file, the set of aspects
+            // supported by all devices supporting the target is 'AspectList'.
+            // If there's no entry, such set is empty.
+            const auto &AspectIt = AllDevicesHave.find(Aspect);
+            if (AspectIt != AllDevicesHave.end())
+              ++AllDevicesHave[Aspect];
+            else
+              AllDevicesHave[Aspect] = 1;
+            // If target has an entry in the config file AND
+            // 'MaySupportOtherAspects' is false, the set of aspects supported
+            // by any device supporting the target is 'AspectList'. If there's
+            // no entry OR 'MaySupportOtherAspects' is true, such set contains
+            // all the aspects.
+            AnyDeviceHas[Aspect] = true;
+          }
+        }
+      }
+
+      // If there's no entry for the target in the device config file, the set
+      // of aspects supported by any device supporting the target contains all
+      // the aspects.
+      if (ValidTargets == 0)
+        AnyDeviceHasAnyAspect = true;
+
+      const Driver &D = C.getDriver();
+      if (AnyDeviceHasAnyAspect) {
+        // There exists some target that supports any given aspect.
+        constexpr static StringRef MacroAnyDeviceAnyAspect{
+            "-D__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__=1"};
+        D.addSYCLDeviceTraitsMacroArg(Args, MacroAnyDeviceAnyAspect);
+      } else {
+        // Some of the aspects are not supported at all by any of the targets.
+        // Thus, we need to define individual macros for each supported aspect.
+        for (const auto &[TargetKey, SupportedTarget] : AnyDeviceHas) {
+          assert(SupportedTarget);
+          const SmallString<64> MacroAnyDevice{
+              {"-D__SYCL_ANY_DEVICE_HAS_", TargetKey, "__=1"}};
+          D.addSYCLDeviceTraitsMacroArg(Args, MacroAnyDevice);
+        }
+      }
+      for (const auto &[TargetKey, SupportedTargets] : AllDevicesHave) {
+        if (SupportedTargets != ValidTargets)
+          continue;
+        const SmallString<64> MacroAllDevices{
+            {"-D__SYCL_ALL_DEVICES_HAVE_", TargetKey, "__=1"}};
+        D.addSYCLDeviceTraitsMacroArg(Args, MacroAllDevices);
+      }
+    }
+
     bool initialize() override {
       using namespace tools::SYCL;
       // Get the SYCL toolchains. If we don't get any, the action builder will
@@ -6535,6 +6627,11 @@ class OffloadingActionBuilder final {
 
       checkForOffloadMismatch(C, Args, SYCLTargetInfoList);
       checkForMisusedAddDefaultSpecConstsImageFlag(C, Args, SYCLTargetInfoList);
+
+      // Define macros associated with `any_device_has/all_devices_have`
+      // according to the aspects defined in the DeviceConfigFile for the SYCL
+      // targets.
+      populateSYCLDeviceTraitsMacrosArgs(C, Args, SYCLTargetInfoList);
 
       DeviceLinkerInputs.resize(SYCLTargetInfoList.size());
       return false;
@@ -10442,92 +10539,6 @@ llvm::Error driver::expandResponseFiles(SmallVectorImpl<const char *> &Args,
   }
 
   return llvm::Error::success();
-}
-
-void Driver::populateSYCLDeviceTraitsMacrosArgs(
-    const llvm::opt::ArgList &Args,
-    const llvm::SmallVector<llvm::Triple, 4> &UniqueSYCLTriplesVec) {
-  const auto &TargetTable = DeviceConfigFile::TargetTable;
-  std::map<StringRef, unsigned int> AllDevicesHave;
-  std::map<StringRef, bool> AnyDeviceHas;
-  bool AnyDeviceHasAnyAspect = false;
-  unsigned int ValidTargets = 0;
-  for (const auto &TargetTriple : UniqueSYCLTriplesVec) {
-    // Try and find the whole triple, if there's no match, remove parts of the
-    // triple from the end to find partial matches.
-    auto TargetTripleStr = TargetTriple.getTriple();
-    bool Found = false;
-    bool EmptyTriple = false;
-    auto TripleIt = TargetTable.end();
-    while (!Found && !EmptyTriple) {
-      TripleIt = TargetTable.find(TargetTripleStr);
-      Found = (TripleIt != TargetTable.end());
-      if (!Found) {
-        auto Pos = TargetTripleStr.find_last_of('-');
-        EmptyTriple = (Pos == std::string::npos);
-        TargetTripleStr =
-            EmptyTriple ? TargetTripleStr : TargetTripleStr.substr(0, Pos);
-      }
-    }
-    if (Found) {
-      assert(TripleIt != TargetTable.end());
-      const auto &TargetInfo = (*TripleIt).second;
-      ++ValidTargets;
-      const auto &AspectList = TargetInfo.aspects;
-      const auto &MaySupportOtherAspects = TargetInfo.maySupportOtherAspects;
-      if (!AnyDeviceHasAnyAspect)
-        AnyDeviceHasAnyAspect = MaySupportOtherAspects;
-      for (const auto &aspect : AspectList) {
-        // If target has an entry in the config file, the set of aspects
-        // supported by all devices supporting the target is 'AspectList'. If
-        // there's no entry, such set is empty.
-        const auto &AspectIt = AllDevicesHave.find(aspect);
-        if (AspectIt != AllDevicesHave.end())
-          ++AllDevicesHave[aspect];
-        else
-          AllDevicesHave[aspect] = 1;
-        // If target has an entry in the config file AND
-        // 'MaySupportOtherAspects' is false, the set of aspects supported by
-        // any device supporting the target is 'AspectList'. If there's no
-        // entry OR 'MaySupportOtherAspects' is true, such set contains all
-        // the aspects.
-        AnyDeviceHas[aspect] = true;
-      }
-    }
-  }
-
-  if (ValidTargets == 0) {
-    // If there's no entry for the target in the device config file, the set
-    // of aspects supported by any device supporting the target contains all
-    // the aspects.
-    AnyDeviceHasAnyAspect = true;
-  }
-
-  if (AnyDeviceHasAnyAspect) {
-    // There exists some target that supports any given aspect.
-    SmallString<64> MacroAnyDeviceAnyAspect(
-        "-D__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__=1");
-    SYCLDeviceTraitsMacrosArgs.push_back(
-        Args.MakeArgString(MacroAnyDeviceAnyAspect));
-  } else {
-    // Some of the aspects are not supported at all by any of the targets.
-    // Thus, we need to define individual macros for each supported aspect.
-    for (const auto &[TargetKey, SupportedTarget] : AnyDeviceHas) {
-      assert(SupportedTarget);
-      SmallString<64> MacroAnyDevice("-D__SYCL_ANY_DEVICE_HAS_");
-      MacroAnyDevice += TargetKey;
-      MacroAnyDevice += "__=1";
-      SYCLDeviceTraitsMacrosArgs.push_back(Args.MakeArgString(MacroAnyDevice));
-    }
-  }
-  for (const auto &[TargetKey, SupportedTargets] : AllDevicesHave) {
-    if (SupportedTargets != ValidTargets)
-      continue;
-    SmallString<64> MacroAllDevices("-D__SYCL_ALL_DEVICES_HAVE_");
-    MacroAllDevices += TargetKey;
-    MacroAllDevices += "__=1";
-    SYCLDeviceTraitsMacrosArgs.push_back(Args.MakeArgString(MacroAllDevices));
-  }
 }
 
 static const char *GetStableCStr(llvm::StringSet<> &SavedStrings, StringRef S) {
