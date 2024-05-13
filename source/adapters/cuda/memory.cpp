@@ -498,10 +498,12 @@ ur_result_t migrateBufferToDevice(ur_mem_handle_t Mem,
       UR_CHECK_ERROR(
           cuMemcpyHtoD(Buffer.getPtr(hDevice), Buffer.HostPtr, Buffer.Size));
     }
-  } else if (Mem->LastDeviceWritingToMemObj != hDevice) {
-    UR_CHECK_ERROR(cuMemcpyDtoD(Buffer.getPtr(hDevice),
-                                Buffer.getPtr(Mem->LastDeviceWritingToMemObj),
-                                Buffer.Size));
+  } else if (Mem->LastEventWritingToMemObj->getQueue()->getDevice() !=
+             hDevice) {
+    UR_CHECK_ERROR(cuMemcpyDtoD(
+        Buffer.getPtr(hDevice),
+        Buffer.getPtr(Mem->LastEventWritingToMemObj->getQueue()->getDevice()),
+        Buffer.Size));
   }
   return UR_RESULT_SUCCESS;
 }
@@ -551,19 +553,24 @@ ur_result_t migrateImageToDevice(ur_mem_handle_t Mem,
       CpyDesc3D.srcHost = Image.HostPtr;
       UR_CHECK_ERROR(cuMemcpy3D(&CpyDesc3D));
     }
-  } else if (Mem->LastDeviceWritingToMemObj != hDevice) {
+  } else if (Mem->LastEventWritingToMemObj->getQueue()->getDevice() !=
+             hDevice) {
     if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE1D) {
       // FIXME: 1D memcpy from DtoD going through the host.
       UR_CHECK_ERROR(cuMemcpyAtoH(
-          Image.HostPtr, Image.getArray(Mem->LastDeviceWritingToMemObj),
+          Image.HostPtr,
+          Image.getArray(
+              Mem->LastEventWritingToMemObj->getQueue()->getDevice()),
           0 /*srcOffset*/, ImageSizeBytes));
       UR_CHECK_ERROR(
           cuMemcpyHtoA(ImageArray, 0, Image.HostPtr, ImageSizeBytes));
     } else if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE2D) {
-      CpyDesc2D.srcArray = Image.getArray(Mem->LastDeviceWritingToMemObj);
+      CpyDesc2D.srcArray = Image.getArray(
+          Mem->LastEventWritingToMemObj->getQueue()->getDevice());
       UR_CHECK_ERROR(cuMemcpy2D(&CpyDesc2D));
     } else if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE3D) {
-      CpyDesc3D.srcArray = Image.getArray(Mem->LastDeviceWritingToMemObj);
+      CpyDesc3D.srcArray = Image.getArray(
+          Mem->LastEventWritingToMemObj->getQueue()->getDevice());
       UR_CHECK_ERROR(cuMemcpy3D(&CpyDesc3D));
     }
   }
