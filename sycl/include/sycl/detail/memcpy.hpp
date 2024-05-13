@@ -8,17 +8,17 @@
 
 #pragma once
 
-#include <cstddef>
+#include <cstring>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
 inline void memcpy(void *Dst, const void *Src, size_t Size) {
-  char *Destination = reinterpret_cast<char *>(Dst);
-  const char *Source = reinterpret_cast<const char *>(Src);
-  for (size_t I = 0; I < Size; ++I) {
-    Destination[I] = Source[I];
-  }
+#ifdef __SYCL_DEVICE_ONLY__
+  __builtin_memcpy(Dst, Src, Size);
+#else
+  std::memcpy(Dst, Src, Size);
+#endif
 }
 } // namespace detail
 } // namespace _V1
