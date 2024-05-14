@@ -9,7 +9,6 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// XFAIL: *
 
 #include "common.hpp"
 #include <iostream>
