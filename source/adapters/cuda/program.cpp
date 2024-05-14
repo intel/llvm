@@ -374,8 +374,7 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
   case UR_PROGRAM_INFO_NUM_DEVICES:
     return ReturnValue(1u);
   case UR_PROGRAM_INFO_DEVICES:
-    return ReturnValue(
-        static_cast<uint32_t>(hProgram->getDevice()->getIndex()));
+    return ReturnValue(&hProgram->Device, 1);
   case UR_PROGRAM_INFO_SOURCE:
     return ReturnValue(hProgram->Binary);
   case UR_PROGRAM_INFO_BINARY_SIZES:
