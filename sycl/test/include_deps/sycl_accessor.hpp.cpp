@@ -117,10 +117,4 @@
 // CHECK-NEXT: properties/accessor_properties.hpp
 // CHECK-NEXT: properties/buffer_properties.hpp
 // CHECK-NEXT: sampler.hpp
-// CHECK-NEXT: types.hpp
-// CHECK-NEXT: marray.hpp
-// CHECK-NEXT: vector.hpp
-// CHECK-NEXT: detail/memcpy.hpp
-// CHECK-NEXT: detail/vector_convert.hpp
-// CHECK-NEXT: swizzles.def
 // CHECK-EMPTY:
