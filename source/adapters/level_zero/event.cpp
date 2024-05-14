@@ -368,8 +368,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
   }
 
   // Execute each command list so the barriers can be encountered.
-  for (ur_command_list_ptr_t &CmdList : CmdLists)
+  for (ur_command_list_ptr_t &CmdList : CmdLists) {
+    bool IsCopy =
+        CmdList->second.isCopy(reinterpret_cast<ur_queue_handle_t>(Queue));
+    const auto &CommandBatch =
+        (IsCopy) ? Queue->CopyCommandBatch : Queue->ComputeCommandBatch;
+    // Only batch if the matching CmdList is already open.
+    OkToBatch = CommandBatch.OpenCommandList == CmdList;
+
     UR_CALL(Queue->executeCommandList(CmdList, false, OkToBatch));
+  }
 
   UR_CALL(Queue->ActiveBarriers.clear());
   auto UREvent = reinterpret_cast<ur_event_handle_t>(*Event);
