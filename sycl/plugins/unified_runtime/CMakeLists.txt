@@ -60,12 +60,25 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # fetch for a UR adapter, this allows development of adapters to be decoupled
   # from each other.
   #
+  # A separate content fetch will not be performed if:
+  # * The adapter name is not present in the SYCL_ENABLE_PLUGINS variable.
+  # * The repo and tag provided match the values of the
+  #   UNIFIED_RUNTIME_REPO/UNIFIED_RUNTIME_TAG variables
+  #
   # Args:
   #   * name - Must be the directory name of the adapter
   #   * repo - A valid Git URL of a Unified Runtime repo
   #   * tag - A valid Git branch/tag/commit in the Unified Runtime repo
   function(fetch_adapter_source name repo tag)
-    message(STATUS "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
+    if(NOT ${name} IN_LIST SYCL_ENABLE_PLUGINS)
+      return()
+    endif()
+    if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
+        tag STREQUAL UNIFIED_RUNTIME_TAG)
+      return()
+    endif()
+    message(STATUS
+      "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
     set(fetch-name unified-runtime-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
@@ -82,13 +95,38 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 0816206d9e863b88feadf9139c9bb829dcc0d2de
-  # Merge: 0c0f48db 46f69b9f
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Apr 1 10:22:25 2024 +0100
-  #     Merge pull request #1460 from hdelan/remove-unused-prototypes
-  #     [HIP][CUDA] Remove function prototypes from enqueue.hpp
-  set(UNIFIED_RUNTIME_TAG 0816206d9e863b88feadf9139c9bb829dcc0d2de)
+  # commit 1e1f577262747d67fcb5c513de4a11bec67ea5db
+  # Merge: dd212f3f 0b405a12
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Thu May 9 18:00:36 2024 +0100
+  #    Merge pull request #1591 from nrspruit/disable_driver_in_order_lists_default
+  #    [L0] Disable Usage of Driver In order Lists by default
+  set(UNIFIED_RUNTIME_TAG 1e1f577262747d67fcb5c513de4a11bec67ea5db)
+
+  fetch_adapter_source(level_zero
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(opencl
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(cuda
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(hip
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(native_cpu
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
+  )
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/yingcong-wu/unified-runtime.git")
   set(UNIFIED_RUNTIME_TAG "yc/new-api-suggestgroupsize") #20240308

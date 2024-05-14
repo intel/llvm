@@ -57,6 +57,7 @@ static pi_result ur2piResult(ur_result_t urResult) {
     return PI_ERROR_INVALID_DEVICE;
   case UR_RESULT_ERROR_DEVICE_REQUIRES_RESET:
   case UR_RESULT_ERROR_DEVICE_LOST:
+  case UR_RESULT_ERROR_DEVICE_NOT_AVAILABLE:
     return PI_ERROR_DEVICE_NOT_AVAILABLE;
   case UR_RESULT_ERROR_DEVICE_PARTITION_FAILED:
     return PI_ERROR_DEVICE_PARTITION_FAILED;
@@ -1263,6 +1264,29 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     PI_TO_UR_MAP_DEVICE_INFO(
         PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT,
         UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SUPPORT,
+                             UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT,
+        UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM,
+        UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D,
+        UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM,
+        UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D,
+        UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM,
+        UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D,
+        UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(
         PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT,
         UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP)
@@ -2951,6 +2975,8 @@ static void pi2urImageDesc(const pi_image_format *ImageFormat,
                             UR_MEM_TYPE_IMAGE1D_ARRAY)
     PI_TO_UR_MAP_IMAGE_TYPE(PI_MEM_TYPE_IMAGE1D_BUFFER,
                             UR_MEM_TYPE_IMAGE1D_BUFFER)
+    PI_TO_UR_MAP_IMAGE_TYPE(PI_MEM_TYPE_IMAGE_CUBEMAP,
+                            UR_MEM_TYPE_IMAGE_CUBEMAP_EXP)
 #undef PI_TO_UR_MAP_IMAGE_TYPE
   default: {
     die("piMemImageCreate: unsuppported image_type.");
@@ -4488,6 +4514,8 @@ piextCommandBufferCreate(pi_context Context, pi_device Device,
   ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
   ur_exp_command_buffer_desc_t UrDesc;
   UrDesc.stype = UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC;
+  UrDesc.isInOrder = ur_bool_t(Desc->is_in_order);
+  UrDesc.enableProfiling = ur_bool_t(Desc->enable_profiling);
   UrDesc.isUpdatable = Desc->is_updatable;
   ur_exp_command_buffer_handle_t *UrCommandBuffer =
       reinterpret_cast<ur_exp_command_buffer_handle_t *>(RetCommandBuffer);
@@ -4827,15 +4855,11 @@ inline pi_result piextCommandBufferUpdateKernelLaunch(
   ur_exp_command_buffer_update_kernel_launch_desc_t UrDesc;
 
   UrDesc.stype = ur_structure_type_t::
-      UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_EXEC_INFO_DESC;
+      UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC;
   UrDesc.numNewMemObjArgs = desc->num_mem_obj_args;
   UrDesc.numNewPointerArgs = desc->num_ptr_args;
   UrDesc.numNewValueArgs = desc->num_value_args;
   UrDesc.newWorkDim = desc->num_work_dim;
-
-  // Exec info updates are unused and will be removed from UR in future
-  UrDesc.numNewExecInfos = 0;
-  UrDesc.pNewExecInfoList = nullptr;
 
   // Convert arg descs
   std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t> UrMemObjDescs;
@@ -5058,8 +5082,12 @@ inline pi_result piextBindlessImageSamplerCreate(
   ur_exp_sampler_addr_modes_t UrAddrModes{};
   UrAddrModes.stype = UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES;
   UrMipProps.pNext = &UrAddrModes;
-
   int addrIndex = 0;
+
+  ur_exp_sampler_cubemap_properties_t UrCubemapProps{};
+  UrCubemapProps.stype = UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES;
+  UrAddrModes.pNext = &UrCubemapProps;
+
   const pi_sampler_properties *CurProperty = SamplerProperties;
   while (*CurProperty != 0) {
     switch (*CurProperty) {
@@ -5108,6 +5136,20 @@ inline pi_result piextBindlessImageSamplerCreate(
         UrMipProps.mipFilterMode = UR_SAMPLER_FILTER_MODE_NEAREST;
       else if (CurValueFilterMode == PI_SAMPLER_FILTER_MODE_LINEAR)
         UrMipProps.mipFilterMode = UR_SAMPLER_FILTER_MODE_LINEAR;
+    } break;
+
+    case PI_SAMPLER_PROPERTIES_CUBEMAP_FILTER_MODE: {
+      pi_sampler_cubemap_filter_mode CurValueFilterMode =
+          ur_cast<pi_sampler_cubemap_filter_mode>(
+              ur_cast<pi_uint32>(*(++CurProperty)));
+
+      if (CurValueFilterMode == PI_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS)
+        UrCubemapProps.cubemapFilterMode =
+            UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS;
+      else if (CurValueFilterMode == PI_SAMPLER_CUBEMAP_FILTER_MODE_DISJOINTED)
+        UrCubemapProps.cubemapFilterMode =
+            UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_DISJOINTED;
+
     } break;
 
     default:

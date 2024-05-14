@@ -5,9 +5,8 @@ import platform
 import copy
 import re
 import subprocess
-import tempfile
 import textwrap
-from distutils.spawn import find_executable
+import shutil
 
 import lit.formats
 import lit.util
@@ -377,6 +376,11 @@ else:
     )
     config.substitutions.append(("%shared_lib", "-shared"))
 
+# Check if user passed verbose-print parameter, if yes, add VERBOSE_PRINT macro
+if "verbose-print" in lit_config.params:
+    config.substitutions.append(("%verbose_print", "-DVERBOSE_PRINT"))
+else:
+    config.substitutions.append(("%verbose_print", ""))
 
 config.substitutions.append(("%vulkan_include_dir", config.vulkan_include_dir))
 config.substitutions.append(("%vulkan_lib", config.vulkan_lib))
@@ -462,6 +466,12 @@ if "cuda:gpu" in config.sycl_devices:
 
 # FIXME: This needs to be made per-device as well, possibly with a helper.
 if "hip:gpu" in config.sycl_devices and config.hip_platform == "AMD":
+    if not config.amd_arch:
+        lit_config.error(
+            "Cannot run tests for HIP without an offload-arch. Please "
+            + "specify one via the 'amd_arch' parameter or 'AMD_ARCH' CMake "
+            + "variable."
+        )
     llvm_config.with_system_environment("ROCM_PATH")
     config.available_features.add("hip_amd")
     arch_flag = (
@@ -552,7 +562,7 @@ for tool in feature_tools:
     else:
         lit_config.warning("Can't find " + tool.key)
 
-if find_executable("cmc"):
+if shutil.which("cmc") is not None:
     config.available_features.add("cm-compiler")
 
 # Device AOT compilation tools aren't part of the SYCL project,
@@ -560,7 +570,7 @@ if find_executable("cmc"):
 aot_tools = ["ocloc", "opencl-aot"]
 
 for aot_tool in aot_tools:
-    if find_executable(aot_tool) is not None:
+    if shutil.which(aot_tool) is not None:
         lit_config.note("Found pre-installed AOT device compiler " + aot_tool)
         config.available_features.add(aot_tool)
     else:
@@ -696,7 +706,3 @@ try:
     lit_config.maxIndividualTestTime = 600
 except ImportError:
     pass
-
-config.substitutions.append(
-    ("%device_sanitizer_flags", "-Xsycl-target-frontend -fsanitize=address")
-)

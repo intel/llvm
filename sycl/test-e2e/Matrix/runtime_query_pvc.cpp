@@ -1,3 +1,11 @@
+//===---runtime_query_pvc.cpp - DPC++ joint_matrix-------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 // REQUIRES: gpu-intel-pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -30,6 +38,8 @@ int main() {
       {8, 0, 0, 0, 16, 16, matrix_type::bf16, matrix_type::bf16,
        matrix_type::fp32, matrix_type::fp32},
       {0, 0, 0, 16, 16, 16, matrix_type::bf16, matrix_type::bf16,
+       matrix_type::fp32, matrix_type::fp32},
+      {0, 0, 0, 1, 64, 16, matrix_type::bf16, matrix_type::bf16,
        matrix_type::fp32, matrix_type::fp32},
       {0, 0, 0, 32, 64, 16, matrix_type::bf16, matrix_type::bf16,
        matrix_type::fp32, matrix_type::fp32},

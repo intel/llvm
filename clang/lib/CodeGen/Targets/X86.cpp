@@ -1109,6 +1109,12 @@ Address X86_32ABIInfo::EmitVAArg(CodeGenFunction &CGF,
 
   auto TypeInfo = getContext().getTypeInfoInChars(Ty);
 
+  CCState State(*const_cast<CGFunctionInfo *>(CGF.CurFnInfo));
+  ABIArgInfo AI = classifyArgumentType(Ty, State, /*ArgIndex*/ 0);
+  // Empty records are ignored for parameter passing purposes.
+  if (AI.isIgnore())
+    return CGF.CreateMemTemp(Ty);
+
   // x86-32 changes the alignment of certain arguments on the stack.
   //
   // Just messing with TypeInfo like this works because we never pass
@@ -2121,7 +2127,7 @@ void X86_64ABIInfo::classify(QualType Ty, uint64_t OffsetBase, Class &Lo,
       bool BitField = i->isBitField();
 
       // Ignore padding bit-fields.
-      if (BitField && i->isUnnamedBitfield())
+      if (BitField && i->isUnnamedBitField())
         continue;
 
       // AMD64-ABI 3.2.3p2: Rule 1. If the size of an object is larger than
@@ -2140,8 +2146,11 @@ void X86_64ABIInfo::classify(QualType Ty, uint64_t OffsetBase, Class &Lo,
         postMerge(Size, Lo, Hi);
         return;
       }
+
+      bool IsInMemory =
+          Offset % getContext().getTypeAlign(i->getType().getCanonicalType());
       // Note, skip this test for bit-fields, see below.
-      if (!BitField && Offset % getContext().getTypeAlign(i->getType())) {
+      if (!BitField && IsInMemory) {
         Lo = Memory;
         postMerge(Size, Lo, Hi);
         return;
@@ -2159,7 +2168,7 @@ void X86_64ABIInfo::classify(QualType Ty, uint64_t OffsetBase, Class &Lo,
       // structure to be passed in memory even if unaligned, and
       // therefore they can straddle an eightbyte.
       if (BitField) {
-        assert(!i->isUnnamedBitfield());
+        assert(!i->isUnnamedBitField());
         uint64_t Offset = OffsetBase + Layout.getFieldOffset(idx);
         uint64_t Size = i->getBitWidthValue(getContext());
 

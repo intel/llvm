@@ -28,13 +28,12 @@
 #include <sycl/exception.hpp>
 #include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
-#include <sycl/ext/oneapi/bindless_images_descriptor.hpp>
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
-#include <sycl/ext/oneapi/bindless_images_memory.hpp>
+#include <sycl/ext/oneapi/bindless_images_mem_handle.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
-#include <sycl/ext/oneapi/experimental/root_group.hpp>
+#include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group.hpp>
@@ -160,6 +159,10 @@ template <class _name, class _dataT, int32_t _min_capacity, class _propertiesT,
           class>
 class pipe;
 }
+
+namespace ext ::oneapi ::experimental {
+struct image_descriptor;
+} // namespace ext::oneapi::experimental
 
 namespace ext::oneapi::experimental::detail {
 class graph_impl;
@@ -1315,8 +1318,6 @@ private:
                   "Kernel argument cannot have a sycl::nd_item type in "
                   "sycl::parallel_for with sycl::range");
 
-#if defined(SYCL2020_CONFORMANT_APIS) ||                                       \
-    defined(__INTEL_PREVIEW_BREAKING_CHANGES)
     static_assert(std::is_convertible_v<item<Dims>, LambdaArgType> ||
                       std::is_convertible_v<item<Dims, false>, LambdaArgType>,
                   "sycl::parallel_for(sycl::range) kernel must have the "
@@ -1329,7 +1330,6 @@ private:
          std::is_invocable_v<KernelType, RefLambdaArgType, kernel_handler>),
         "SYCL kernel lambda/functor has an unexpected signature, it should be "
         "invocable with sycl::item and optionally sycl::kernel_handler");
-#endif
 
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
@@ -1421,19 +1421,11 @@ private:
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
-#if defined(SYCL2020_CONFORMANT_APIS) ||                                       \
-    defined(__INTEL_PREVIEW_BREAKING_CHANGES)
     static_assert(
         std::is_convertible_v<sycl::nd_item<Dims>, LambdaArgType>,
         "Kernel argument of a sycl::parallel_for with sycl::nd_range "
         "must be either sycl::nd_item or be convertible from sycl::nd_item");
     using TransformedArgType = sycl::nd_item<Dims>;
-#else
-    // If user type is convertible from sycl::item/sycl::nd_item, use
-    // sycl::item/sycl::nd_item to transport item information
-    using TransformedArgType =
-        typename TransformUserItemType<Dims, LambdaArgType>::type;
-#endif
 
     (void)ExecutionRange;
     (void)Props;
@@ -1566,8 +1558,7 @@ private:
       nullptr,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void
-  kernel_single_task(_KERNELFUNCPARAM(KernelFunc)) {
+  __SYCL_KERNEL_ATTR__ void kernel_single_task(_KERNELFUNCPARAM(KernelFunc)) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc();
 #else
@@ -1585,8 +1576,8 @@ private:
       nullptr,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void
-  kernel_single_task(_KERNELFUNCPARAM(KernelFunc), kernel_handler KH) {
+  __SYCL_KERNEL_ATTR__ void kernel_single_task(_KERNELFUNCPARAM(KernelFunc),
+                                               kernel_handler KH) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(KH);
 #else
@@ -1604,8 +1595,7 @@ private:
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void
-  kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc)) {
+  __SYCL_KERNEL_ATTR__ void kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc)) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
 #else
@@ -1622,8 +1612,8 @@ private:
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void
-  kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc), kernel_handler KH) {
+  __SYCL_KERNEL_ATTR__ void kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc),
+                                                kernel_handler KH) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
 #else
@@ -3236,6 +3226,18 @@ public:
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch);
 
+  /// Copies data from device to device memory, where \p Src and \p Dest
+  /// are opaque image memory handles.
+  /// An exception is thrown if either \p Src or \p Dest is incomplete
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param ImageDesc is the source image descriptor
+  void
+  ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src,
+                  ext::oneapi::experimental::image_mem_handle Dest,
+                  const ext::oneapi::experimental::image_descriptor &ImageDesc);
+
   /// Copies data from one memory region to another, where \p Src and \p Dest
   /// are USM pointers. Allows for a sub-region copy, where \p SrcOffset ,
   /// \p DestOffset , and \p Extent are used to determine the sub-region.
@@ -3650,6 +3652,12 @@ private:
 
   // Set that an ND Range was used during a call to parallel_for
   void setNDRangeUsed(bool Value);
+
+protected:
+  /// Registers event dependencies in this command group.
+  void depends_on(const detail::EventImplPtr &Event);
+  /// Registers event dependencies in this command group.
+  void depends_on(const std::vector<detail::EventImplPtr> &Events);
 };
 } // namespace _V1
 } // namespace sycl

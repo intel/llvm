@@ -44,15 +44,17 @@ int main() {
                                    1,
                                });
   deviceQueue.submit([&](sycl::handler &h) {
-    h.parallel_for<Test2>(r2, [=](sycl::id<2> id) { acc[id[1]] = 42; });
+    h.parallel_for<Test2>(
+        r2, [=](sycl::nd_item<2> ndi) { acc[ndi.get_global_id(1)] = 42; });
     // CHECK: @_ZTS5Test2.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, ptr addrspace(1) %2)
     // CHECK: call{{.*}}__dpcpp_nativecpu_get_global_id(i32 1, ptr addrspace(1) %2)
     // CHECK: call{{.*}}__dpcpp_nativecpu_get_global_id(i32 0, ptr addrspace(1) %2)
   });
   sycl::nd_range<3> r3({1, 1, 1}, {1, 1, 1});
   deviceQueue.submit([&](sycl::handler &h) {
-    h.parallel_for<Test3>(
-        r3, [=](sycl::item<3> item) { acc[item[2]] = item.get_range(0); });
+    h.parallel_for<Test3>(r3, [=](sycl::nd_item<3> ndi) {
+      acc[ndi.get_global_id(2)] = ndi.get_global_range(0);
+    });
     // CHECK: @_ZTS5Test3.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, ptr addrspace(1) %2)
     // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_get_global_range(i32 2, ptr addrspace(1) %2)
     // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_get_global_range(i32 1, ptr addrspace(1) %2)

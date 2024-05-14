@@ -315,12 +315,6 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
       PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME,
                                backend::ext_oneapi_cuda);
     }
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    if (list.backendCompatible(backend::ext_intel_esimd_emulator)) {
-      PluginNames.emplace_back(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME,
-                               backend::ext_intel_esimd_emulator);
-    }
-#endif
     if (list.backendCompatible(backend::ext_oneapi_hip)) {
       PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
     }
@@ -376,12 +370,16 @@ bool trace(TraceLevel Level) {
 
 // Initializes all available Plugins.
 std::vector<PluginPtr> &initialize() {
-  static std::once_flag PluginsInitDone;
-  // std::call_once is blocking all other threads if a thread is already
-  // creating a vector of plugins. So, no additional lock is needed.
-  std::call_once(PluginsInitDone, [&]() {
+  // This uses static variable initialization to work around a gcc bug with
+  // std::call_once and exceptions.
+  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66146
+  auto initializeHelper = []() {
     initializePlugins(GlobalHandler::instance().getPlugins());
-  });
+    return true;
+  };
+  static bool Initialized = initializeHelper();
+  std::ignore = Initialized;
+
   return GlobalHandler::instance().getPlugins();
 }
 

@@ -22,7 +22,7 @@ gitdb==4.0.9
     # via gitpython
 gitpython==3.1.41
     # via -r requirements.txt.in
-idna==3.4
+idna==3.7
     # via requests
 pycparser==2.21
     # via cffi

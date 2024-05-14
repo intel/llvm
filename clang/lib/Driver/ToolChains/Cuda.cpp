@@ -980,8 +980,8 @@ void CudaToolChain::addClangTargetOptions(
     }
   }
 
-  auto NoLibSpirv = DriverArgs.hasArg(options::OPT_fno_sycl_libspirv,
-                                      options::OPT_fsycl_device_only);
+  auto NoLibSpirv = DriverArgs.hasArg(options::OPT_fno_sycl_libspirv) ||
+                    getDriver().offloadDeviceOnly();
   if (DeviceOffloadingKind == Action::OFK_SYCL && !NoLibSpirv) {
     std::string LibSpirvFile;
 
@@ -1153,7 +1153,10 @@ CudaToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
   }
 
   for (Arg *A : Args) {
-    DAL->append(A);
+    // Make sure flags are not duplicated.
+    if (!llvm::is_contained(*DAL, A)) {
+      DAL->append(A);
+    }
   }
 
   if (!BoundArch.empty()) {

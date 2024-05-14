@@ -1,5 +1,8 @@
 # These two take too much time
 kernel_bundle
 marray
-# https://github.com/intel/llvm/issues/12926
-h_item
+# https://github.com/intel/llvm/issues/13477
+math_builtin_api
+# https://github.com/intel/llvm/issues/13574
+hierarchical
+accessor

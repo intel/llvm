@@ -695,7 +695,7 @@ namespace clang {
     // Returns true if the given function has a placeholder return type and
     // that type is declared inside the body of the function.
     // E.g. auto f() { struct X{}; return X(); }
-    bool hasAutoReturnTypeDeclaredInside(FunctionDecl *D);
+    bool hasReturnTypeDeclaredInside(FunctionDecl *D);
   };
 
 template <typename InContainerTy>
@@ -1222,6 +1222,15 @@ ASTNodeImporter::VisitConstantArrayType(const ConstantArrayType *T) {
   return Importer.getToContext().getConstantArrayType(
       ToElementType, T->getSize(), ToSizeExpr, T->getSizeModifier(),
       T->getIndexTypeCVRQualifiers());
+}
+
+ExpectedType
+ASTNodeImporter::VisitArrayParameterType(const ArrayParameterType *T) {
+  ExpectedType ToArrayTypeOrErr = VisitConstantArrayType(T);
+  if (!ToArrayTypeOrErr)
+    return ToArrayTypeOrErr.takeError();
+
+  return Importer.getToContext().getArrayParameterType(*ToArrayTypeOrErr);
 }
 
 ExpectedType
@@ -3644,15 +3653,28 @@ private:
 };
 } // namespace
 
-/// This function checks if the function has 'auto' return type that contains
+/// This function checks if the given function has a return type that contains
 /// a reference (in any way) to a declaration inside the same function.
-bool ASTNodeImporter::hasAutoReturnTypeDeclaredInside(FunctionDecl *D) {
+bool ASTNodeImporter::hasReturnTypeDeclaredInside(FunctionDecl *D) {
   QualType FromTy = D->getType();
   const auto *FromFPT = FromTy->getAs<FunctionProtoType>();
   assert(FromFPT && "Must be called on FunctionProtoType");
 
+  auto IsCXX11LambdaWithouTrailingReturn = [&]() {
+    if (Importer.FromContext.getLangOpts().CPlusPlus14) // C++14 or later
+      return false;
+
+    if (FromFPT->hasTrailingReturn())
+      return false;
+
+    if (const auto *MD = dyn_cast<CXXMethodDecl>(D))
+      return cast<CXXRecordDecl>(MD->getDeclContext())->isLambda();
+
+    return false;
+  };
+
   QualType RetT = FromFPT->getReturnType();
-  if (isa<AutoType>(RetT.getTypePtr())) {
+  if (isa<AutoType>(RetT.getTypePtr()) || IsCXX11LambdaWithouTrailingReturn()) {
     FunctionDecl *Def = D->getDefinition();
     IsTypeDeclaredInsideVisitor Visitor(Def ? Def : D);
     return Visitor.CheckType(RetT);
@@ -3808,7 +3830,7 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
     // E.g.: auto foo() { struct X{}; return X(); }
     // To avoid an infinite recursion when importing, create the FunctionDecl
     // with a simplified return type.
-    if (hasAutoReturnTypeDeclaredInside(D)) {
+    if (hasReturnTypeDeclaredInside(D)) {
       FromReturnTy = Importer.getFromContext().VoidTy;
       UsedDifferentProtoType = true;
     }
@@ -3944,6 +3966,14 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
     // decl and its redeclarations may be required.
   }
 
+  StringLiteral *Msg = D->getDeletedMessage();
+  if (Msg) {
+    auto Imported = import(Msg);
+    if (!Imported)
+      return Imported.takeError();
+    Msg = *Imported;
+  }
+
   ToFunction->setQualifierInfo(ToQualifierLoc);
   ToFunction->setAccess(D->getAccess());
   ToFunction->setLexicalDeclContext(LexicalDC);
@@ -3957,6 +3987,11 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
       D->FriendConstraintRefersToEnclosingTemplate());
   ToFunction->setRangeEnd(ToEndLoc);
   ToFunction->setDefaultLoc(ToDefaultLoc);
+
+  if (Msg)
+    ToFunction->setDefaultedOrDeletedInfo(
+        FunctionDecl::DefaultedOrDeletedFunctionInfo::Create(
+            Importer.getToContext(), {}, Msg));
 
   // Set the parameters.
   for (auto *Param : Parameters) {
@@ -4538,6 +4573,10 @@ ExpectedDecl ASTNodeImporter::VisitVarDecl(VarDecl *D) {
   ToVar->setQualifierInfo(ToQualifierLoc);
   ToVar->setAccess(D->getAccess());
   ToVar->setLexicalDeclContext(LexicalDC);
+  if (D->isInlineSpecified())
+    ToVar->setInlineSpecified();
+  if (D->isInline())
+    ToVar->setImplicitlyInline();
 
   if (FoundByLookup) {
     auto *Recent = const_cast<VarDecl *>(FoundByLookup->getMostRecentDecl());
@@ -5945,7 +5984,8 @@ ASTNodeImporter::VisitTemplateTemplateParmDecl(TemplateTemplateParmDecl *D) {
           ToD, D, Importer.getToContext(),
           Importer.getToContext().getTranslationUnitDecl(), *LocationOrErr,
           D->getDepth(), D->getPosition(), D->isParameterPack(),
-          (*NameOrErr).getAsIdentifierInfo(), *TemplateParamsOrErr))
+          (*NameOrErr).getAsIdentifierInfo(), D->wasDeclaredWithTypename(),
+          *TemplateParamsOrErr))
     return ToD;
 
   if (D->hasDefaultArgument()) {
@@ -8376,8 +8416,8 @@ ASTNodeImporter::VisitCXXPseudoDestructorExpr(CXXPseudoDestructorExpr *E) {
     return std::move(Err);
 
   PseudoDestructorTypeStorage Storage;
-  if (IdentifierInfo *FromII = E->getDestroyedTypeIdentifier()) {
-    IdentifierInfo *ToII = Importer.Import(FromII);
+  if (const IdentifierInfo *FromII = E->getDestroyedTypeIdentifier()) {
+    const IdentifierInfo *ToII = Importer.Import(FromII);
     ExpectedSLoc ToDestroyedTypeLocOrErr = import(E->getDestroyedTypeLoc());
     if (!ToDestroyedTypeLocOrErr)
       return ToDestroyedTypeLocOrErr.takeError();
@@ -8540,8 +8580,8 @@ ASTNodeImporter::VisitUnresolvedLookupExpr(UnresolvedLookupExpr *E) {
 
   return UnresolvedLookupExpr::Create(
       Importer.getToContext(), *ToNamingClassOrErr, *ToQualifierLocOrErr,
-      ToNameInfo, E->requiresADL(), E->isOverloaded(), ToDecls.begin(),
-      ToDecls.end());
+      ToNameInfo, E->requiresADL(), ToDecls.begin(), ToDecls.end(),
+      /*KnownDependent=*/E->isTypeDependent());
 }
 
 ExpectedStmt
@@ -10187,7 +10227,7 @@ Expected<Selector> ASTImporter::Import(Selector FromSel) {
   if (FromSel.isNull())
     return Selector{};
 
-  SmallVector<IdentifierInfo *, 4> Idents;
+  SmallVector<const IdentifierInfo *, 4> Idents;
   Idents.push_back(Import(FromSel.getIdentifierInfoForSlot(0)));
   for (unsigned I = 1, N = FromSel.getNumArgs(); I < N; ++I)
     Idents.push_back(Import(FromSel.getIdentifierInfoForSlot(I)));
