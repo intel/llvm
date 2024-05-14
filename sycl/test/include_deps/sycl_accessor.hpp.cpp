@@ -115,14 +115,6 @@
 // CHECK-NEXT: detail/handler_proxy.hpp
 // CHECK-NEXT: pointers.hpp
 // CHECK-NEXT: properties/accessor_properties.hpp
-// CHECK-NEXT: image.hpp
-// CHECK-NEXT: detail/backend_traits.hpp
-// CHECK-NEXT: sampler.hpp
-// CHECK-NEXT: types.hpp
-// CHECK-NEXT: marray.hpp
-// CHECK-NEXT: vector.hpp
-// CHECK-NEXT: detail/memcpy.hpp
-// CHECK-NEXT: detail/vector_convert.hpp
-// CHECK-NEXT: swizzles.def
 // CHECK-NEXT: properties/buffer_properties.hpp
+// CHECK-NEXT: sampler.hpp
 // CHECK-EMPTY:

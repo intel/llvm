@@ -26,6 +26,52 @@
 #define __ESIMD_cpp_vec_t(T, SZ)                                               \
   __ESIMD_DNS::vector_type_t<__ESIMD_DNS::__cpp_t<T>, SZ>
 
+// The following spirv intrinsics declarations are put here to avoid unintended
+// use by other targets where it causes run time failures due to the fact that
+// they are implemented for INTEL GPU only.
+template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_exp2(T);
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_native_exp2(__ESIMD_raw_vec_t(T, N));
+
+template <typename T>
+extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_recip(T);
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_native_recip(__ESIMD_raw_vec_t(T, N));
+
+template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_cos(T);
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_native_cos(__ESIMD_raw_vec_t(T, N));
+
+template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_log2(T);
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_native_log2(__ESIMD_raw_vec_t(T, N));
+
+template <typename T>
+extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_rsqrt(T);
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_native_rsqrt(__ESIMD_raw_vec_t(T, N));
+
+template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_sin(T);
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_native_sin(__ESIMD_raw_vec_t(T, N));
+
+template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_sqrt(T);
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_native_sqrt(__ESIMD_raw_vec_t(T, N));
+
+template <typename T>
+extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_powr(T, T);
+template <typename T, int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_native_powr(__ESIMD_raw_vec_t(T, N), __ESIMD_raw_vec_t(T, N));
+
 // saturation intrinsics
 template <typename T0, typename T1, int SZ>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
@@ -195,6 +241,48 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T1, N)
                        __ESIMD_raw_vec_t(T4, N) src2) __ESIMD_INTRIN_END;
 __ESIMD_INTRIN __ESIMD_raw_vec_t(uint32_t, 4)
     __esimd_timestamp() __ESIMD_INTRIN_END;
+
+template <typename T0, typename T1, int SZ>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
+    __esimd_ssshl(__ESIMD_raw_vec_t(T1, SZ) src0,
+                  __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
+template <typename T0, typename T1, int SZ>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
+    __esimd_sushl(__ESIMD_raw_vec_t(T1, SZ) src0,
+                  __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
+template <typename T0, typename T1, int SZ>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
+    __esimd_usshl(__ESIMD_raw_vec_t(T1, SZ) src0,
+                  __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
+template <typename T0, typename T1, int SZ>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
+    __esimd_uushl(__ESIMD_raw_vec_t(T1, SZ) src0,
+                  __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
+template <typename T0, typename T1, int SZ>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
+    __esimd_ssshl_sat(__ESIMD_raw_vec_t(T1, SZ) src0,
+                      __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
+template <typename T0, typename T1, int SZ>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
+    __esimd_sushl_sat(__ESIMD_raw_vec_t(T1, SZ) src0,
+                      __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
+template <typename T0, typename T1, int SZ>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
+    __esimd_usshl_sat(__ESIMD_raw_vec_t(T1, SZ) src0,
+                      __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
+template <typename T0, typename T1, int SZ>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
+    __esimd_uushl_sat(__ESIMD_raw_vec_t(T1, SZ) src0,
+                      __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
+
+template <typename T0, typename T1, int SZ>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
+    __esimd_rol(__ESIMD_raw_vec_t(T1, SZ) src0,
+                __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
+template <typename T0, typename T1, int SZ>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
+    __esimd_ror(__ESIMD_raw_vec_t(T1, SZ) src0,
+                __ESIMD_raw_vec_t(T1, SZ) src1) __ESIMD_INTRIN_END;
 
 #ifdef __SYCL_DEVICE_ONLY__
 

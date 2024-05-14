@@ -299,7 +299,7 @@ public:
         MPattern(std::move(Pattern)), MDst(DstPtr), MLength(Length) {}
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
-  const std::vector<char> &getPattern() { return MPattern; }
+  int getFill() { return MPattern[0]; }
 };
 
 /// "Prefetch USM" command group class.
