@@ -70,7 +70,6 @@ bool testUSM(queue Q, uint32_t Groups, uint32_t Threads,
            Vals.template copy_to<ChunkSize>(Out + ElemOff, PropertiesT{});
          else
            Vals.template copy_to<ChunkSize>(Out + ElemOff);
-         
        });
      }).wait();
   } catch (sycl::exception const &e) {
@@ -136,8 +135,6 @@ bool testACC(queue Q, uint32_t Groups, uint32_t Threads,
          else
            Vals.template copy_to<decltype(OutAcc), ChunkSize>(
                OutAcc, ElemOff * sizeof(T));
-        
-         
        });
      }).wait();
   } catch (sycl::exception const &e) {
