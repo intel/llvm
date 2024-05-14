@@ -1025,7 +1025,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     if (hImage->LastEventWritingToMemObj &&
         hImage->LastEventWritingToMemObj->getQueue()->getDevice() !=
             hQueue->getDevice()) {
-      Device = hImage->LastEventWritingToMemObj->getQueue()->getDevice();
+      hQueue = hImage->LastEventWritingToMemObj->getQueue();
+      Device = hQueue->getDevice();
       ScopedContext Active(Device);
       Stream = CUstream{0}; // Default stream for different device
       // We may have to wait for an event on another queue if it is the last
