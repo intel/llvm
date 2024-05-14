@@ -12,11 +12,11 @@ using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 
 // Returns true iff verification is passed.
-template <typename T> bool verify(T OutVal, const T *Out, size_t Size, int N) {
+template <typename T> bool verify(const T *Out, size_t Size, int N) {
   int NumErrors = 0;
   using Tuint = sycl::_V1::ext::intel::esimd::detail::uint_type_t<sizeof(T)>;
   for (int i = 0; i < Size; i++) {
-    Tuint Expected = sycl::bit_cast<Tuint>((T)(i + 3));
+    Tuint Expected = sycl::bit_cast<Tuint>((T)(i * 2));
     Tuint Computed = sycl::bit_cast<Tuint>(Out[i]);
     if (Computed != Expected) {
       NumErrors++;
@@ -41,37 +41,36 @@ bool testUSM(queue Q, uint32_t Groups, uint32_t Threads,
   sycl::range<1> LocalRange{Threads};
   sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
   constexpr size_t Alignment = getAlignment<T, N, false>(Properties);
+  T *In = sycl::aligned_alloc_shared<T>(Alignment, Size, Q);
   T *Out = sycl::aligned_alloc_shared<T>(Alignment, Size, Q);
   T OutVal = esimd_test::getRandomValue<T>();
-  for (int i = 0; i < Size; i++)
+  for (int i = 0; i < Size; i++) {
+    In[i] = i;
     Out[i] = OutVal;
+  }
 
   try {
     Q.submit([&](handler &cgh) {
        cgh.parallel_for(Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
          uint16_t GlobalID = ndi.get_global_id(0);
          uint32_t ElemOff = GlobalID * N;
-         simd<uint32_t, N> PassThruInt(ElemOff, 1);
-         simd<T, N> Vals = PassThruInt;
-
+         simd<T, N> Vals(ElemOff, 1);
+         simd<T, N> Input;
          if constexpr (UseProperties) {
            Vals.copy_to(Out + ElemOff, PropertiesT{});
-           Vals.copy_from(Out + ElemOff, PropertiesT{});
+           Input.copy_from(In + ElemOff, PropertiesT{});
          } else {
            Vals.copy_to(Out + ElemOff);
-           Vals.copy_from(Out + ElemOff);
+           Input.copy_from(In + ElemOff);
          }
-         Vals += 3;
+         Vals += Input;
          constexpr int ChunkSize = sizeof(T) * N < 4 ? 2 : 16;
 
-         if constexpr (UseProperties) {
+         if constexpr (UseProperties)
            Vals.template copy_to<ChunkSize>(Out + ElemOff, PropertiesT{});
-           Vals.template copy_from<ChunkSize>(Out + ElemOff, PropertiesT{});
-         } else {
+         else
            Vals.template copy_to<ChunkSize>(Out + ElemOff);
-           Vals.template copy_from<ChunkSize>(Out + ElemOff);
-         }
-         Vals.copy_to(Out + ElemOff);
+         
        });
      }).wait();
   } catch (sycl::exception const &e) {
@@ -80,7 +79,7 @@ bool testUSM(queue Q, uint32_t Groups, uint32_t Threads,
     return false;
   }
 
-  bool Passed = verify(OutVal, Out, Size, N);
+  bool Passed = verify(Out, Size, N);
 
   sycl::free(Out, Q);
 
@@ -101,43 +100,44 @@ bool testACC(queue Q, uint32_t Groups, uint32_t Threads,
   sycl::range<1> GlobalRange{Groups};
   sycl::range<1> LocalRange{Threads};
   sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
+  shared_vector In(Size, shared_allocator{Q});
   shared_vector Out(Size, shared_allocator{Q});
   T OutVal = esimd_test::getRandomValue<T>();
-  for (int i = 0; i < Size; i++)
+  for (int i = 0; i < Size; i++) {
+    In[i] = i;
     Out[i] = OutVal;
+  }
 
   try {
+    buffer<T, 1> InBuf(In);
     buffer<T, 1> OutBuf(Out);
     Q.submit([&](handler &cgh) {
+       accessor InAcc{InBuf, cgh};
        accessor OutAcc{OutBuf, cgh};
        cgh.parallel_for(Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
          uint16_t GlobalID = ndi.get_global_id(0);
          uint32_t ElemOff = GlobalID * N;
-         simd<uint32_t, N> PassThruInt(ElemOff, 1);
-         simd<T, N> Vals = PassThruInt;
+         simd<T, N> Vals(ElemOff, 1);
+         simd<T, N> Input;
 
          if constexpr (UseProperties) {
            Vals.copy_to(OutAcc, ElemOff * sizeof(T), PropertiesT{});
-           Vals.copy_from(OutAcc, ElemOff * sizeof(T), PropertiesT{});
+           Input.copy_from(InAcc, ElemOff * sizeof(T), PropertiesT{});
          } else {
            Vals.copy_to(OutAcc, ElemOff * sizeof(T));
-           Vals.copy_from(OutAcc, ElemOff * sizeof(T));
+           Input.copy_from(InAcc, ElemOff * sizeof(T));
          }
-         Vals += 3;
+         Vals += Input;
          constexpr int ChunkSize = sizeof(T) * N < 4 ? 2 : 16;
 
-         if constexpr (UseProperties) {
+         if constexpr (UseProperties)
            Vals.template copy_to<decltype(OutAcc), ChunkSize>(
                OutAcc, ElemOff * sizeof(T), PropertiesT{});
-           Vals.template copy_from<decltype(OutAcc), ChunkSize>(
-               OutAcc, ElemOff * sizeof(T), PropertiesT{});
-         } else {
+         else
            Vals.template copy_to<decltype(OutAcc), ChunkSize>(
                OutAcc, ElemOff * sizeof(T));
-           Vals.template copy_from<decltype(OutAcc), ChunkSize>(
-               OutAcc, ElemOff * sizeof(T));
-         }
-         Vals.copy_to(OutAcc, ElemOff * sizeof(T));
+        
+         
        });
      }).wait();
   } catch (sycl::exception const &e) {
@@ -145,7 +145,7 @@ bool testACC(queue Q, uint32_t Groups, uint32_t Threads,
     return false;
   }
 
-  bool Passed = verify(OutVal, Out.data(), Size, N);
+  bool Passed = verify(Out.data(), Size, N);
 
   return Passed;
 }
@@ -164,6 +164,7 @@ bool testLocalAccSLM(queue Q, uint32_t Groups, PropertiesT Properties) {
   sycl::range<1> GlobalRange{Groups};
   sycl::range<1> LocalRange{GroupSize};
   sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
+  shared_vector In(Size, shared_allocator{Q});
 
   shared_vector Out(Size, shared_allocator{Q});
   T OutVal = esimd_test::getRandomValue<T>();
@@ -173,7 +174,6 @@ bool testLocalAccSLM(queue Q, uint32_t Groups, PropertiesT Properties) {
   try {
     Q.submit([&](handler &CGH) {
        local_accessor<T, 1> LocalAcc(GroupSize * N, CGH);
-
        auto OutPtr = Out.data();
 
        CGH.parallel_for(Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
@@ -197,7 +197,7 @@ bool testLocalAccSLM(queue Q, uint32_t Groups, PropertiesT Properties) {
            Vals.copy_to(LocalAcc, LocalElemOffset);
            Vals.copy_from(LocalAcc, LocalElemOffset);
          }
-         Vals += 3;
+         Vals *= 2;
          constexpr int ChunkSize = sizeof(T) * N < 4 ? 2 : 16;
 
          if constexpr (UseProperties) {
@@ -219,7 +219,7 @@ bool testLocalAccSLM(queue Q, uint32_t Groups, PropertiesT Properties) {
     return false;
   }
 
-  bool Passed = verify(OutVal, Out.data(), Size, N);
+  bool Passed = verify(Out.data(), Size, N);
 
   return Passed;
 }

@@ -825,7 +825,8 @@ public:
   /// @param offset offset to copy from (in bytes).
   template <typename AccessorT, typename Flags = element_aligned_tag,
             int ChunkSize = 32>
-  ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read, void,
+  ESIMD_INLINE std::enable_if_t<detail::is_device_accessor_with_v<
+                                    AccessorT, accessor_mode_cap::can_read> &&
                                 is_simd_flag_type_v<Flags>>
   copy_from(AccessorT acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
@@ -850,8 +851,9 @@ public:
   /// @param offset offset to copy from (in bytes).
   template <typename AccessorT, int ChunkSize = 32,
             typename PropertyListT = oneapi::experimental::empty_properties_t>
-  ESIMD_INLINE EnableIfAccessor<
-      AccessorT, accessor_mode_cap::can_read, void,
+  ESIMD_INLINE std::enable_if_t<
+      detail::is_device_accessor_with_v<AccessorT,
+                                        accessor_mode_cap::can_read> &&
       ext::oneapi::experimental::is_property_list_v<PropertyListT>>
   copy_from(AccessorT acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
@@ -936,7 +938,8 @@ public:
   /// @param acc accessor to copy from.
   /// @param offset offset to copy from.
   template <typename AccessorT, typename Flags, int ChunkSize = 32>
-  ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write, void,
+  ESIMD_INLINE std::enable_if_t<detail::is_device_accessor_with_v<
+                                    AccessorT, accessor_mode_cap::can_write> &&
                                 is_simd_flag_type_v<Flags>>
   copy_to(AccessorT acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
@@ -958,8 +961,9 @@ public:
   /// @param offset offset to copy from.
   template <typename AccessorT, int ChunkSize = 32,
             typename PropertyListT = oneapi::experimental::empty_properties_t>
-  ESIMD_INLINE EnableIfAccessor<
-      AccessorT, accessor_mode_cap::can_write, void,
+  ESIMD_INLINE std::enable_if_t<
+      detail::is_device_accessor_with_v<AccessorT,
+                                        accessor_mode_cap::can_write> &&
       ext::oneapi::experimental::is_property_list_v<PropertyListT>>
   copy_to(AccessorT acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
@@ -1142,7 +1146,8 @@ private:
             typename TOffset>
   ESIMD_INLINE std::enable_if_t<
       ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-  copy_to_impl(AccessorT acc, TOffset offset) const SYCL_ESIMD_FUNCTION;
+  copy_to_impl(AccessorT acc, TOffset offset,
+               PropertyListT = {}) const SYCL_ESIMD_FUNCTION;
   template <int ChunkSize, typename Flags, typename AccessorT, typename TOffset>
   ESIMD_INLINE std::enable_if_t<is_simd_flag_type_v<Flags>>
   copy_from_impl(AccessorT acc, TOffset offset) SYCL_ESIMD_FUNCTION;
@@ -1150,7 +1155,8 @@ private:
             typename TOffset>
   ESIMD_INLINE std::enable_if_t<
       ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-  copy_from_impl(AccessorT acc, TOffset offset) SYCL_ESIMD_FUNCTION;
+  copy_from_impl(AccessorT acc, TOffset offset,
+                 PropertyListT = {}) SYCL_ESIMD_FUNCTION;
 
 protected:
   // The test proxy if enabled

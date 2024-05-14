@@ -9786,8 +9786,7 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_from(
   using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
   constexpr unsigned Size = sizeof(T) * N;
   constexpr size_t Align =
-      detail::getPropertyValue<PropertyListT, alignment_key>(
-          sizeof(typename T1::element_type));
+      detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(UT));
 
   constexpr unsigned BlockSize = OperandSize::OWORD * 8;
   constexpr unsigned NumBlocks = Size / BlockSize;
@@ -9850,10 +9849,7 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_from(
     const simd_obj_impl<T, N, T1, SFINAE>::element_type *Addr,
     Flags) SYCL_ESIMD_FUNCTION {
   constexpr unsigned Align = Flags::template alignment<T1>;
-  using NewPropertyListT =
-      detail::add_alignment_property_t<oneapi::experimental::empty_properties_t,
-                                       Align>;
-  copy_from<ChunkSize>(Addr, NewPropertyListT{});
+  copy_from<ChunkSize>(Addr, properties{alignment<Align>});
 }
 
 template <typename T, int N, class T1, class SFINAE>
@@ -9862,12 +9858,11 @@ template <int ChunkSize, typename PropertyListT, typename AccessorT,
 ESIMD_INLINE std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 simd_obj_impl<T, N, T1, SFINAE>::copy_to_impl(
-    AccessorT acc, TOffset offset) const SYCL_ESIMD_FUNCTION {
+    AccessorT acc, TOffset offset, PropertyListT) const SYCL_ESIMD_FUNCTION {
   using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
   constexpr unsigned Size = sizeof(T) * N;
   constexpr size_t Align =
-      detail::getPropertyValue<PropertyListT, alignment_key>(
-          sizeof(typename T1::element_type));
+      detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(UT));
 
   constexpr unsigned BlockSize = OperandSize::OWORD * 8;
   constexpr unsigned NumBlocks = Size / BlockSize;
@@ -9936,10 +9931,7 @@ ESIMD_INLINE std::enable_if_t<is_simd_flag_type_v<Flags>>
 simd_obj_impl<T, N, T1, SFINAE>::copy_to_impl(
     AccessorT acc, TOffset offset) const SYCL_ESIMD_FUNCTION {
   constexpr unsigned Align = Flags::template alignment<T1>;
-  using NewPropertyListT =
-      detail::add_alignment_property_t<oneapi::experimental::empty_properties_t,
-                                       Align>;
-  copy_to_impl<ChunkSize, NewPropertyListT, AccessorT, TOffset>(acc, offset);
+  copy_to_impl<ChunkSize>(acc, offset, properties{alignment<Align>});
 }
 
 template <typename T, int N, class T1, class SFINAE>
@@ -9947,14 +9939,13 @@ template <int ChunkSize, typename PropertyListT, typename AccessorT,
           typename TOffset>
 ESIMD_INLINE std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-simd_obj_impl<T, N, T1, SFINAE>::copy_from_impl(AccessorT acc, TOffset offset)
-    SYCL_ESIMD_FUNCTION {
+simd_obj_impl<T, N, T1, SFINAE>::copy_from_impl(
+    AccessorT acc, TOffset offset, PropertyListT) SYCL_ESIMD_FUNCTION {
   using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
   static_assert(sizeof(UT) == sizeof(T));
   constexpr unsigned Size = sizeof(T) * N;
   constexpr size_t Align =
-      detail::getPropertyValue<PropertyListT, alignment_key>(
-          sizeof(typename T1::element_type));
+      detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(UT));
 
   constexpr unsigned BlockSize = OperandSize::OWORD * 8;
   constexpr unsigned NumBlocks = Size / BlockSize;
@@ -10017,16 +10008,14 @@ ESIMD_INLINE std::enable_if_t<is_simd_flag_type_v<Flags>>
 simd_obj_impl<T, N, T1, SFINAE>::copy_from_impl(AccessorT acc, TOffset offset)
     SYCL_ESIMD_FUNCTION {
   constexpr unsigned Align = Flags::template alignment<T1>;
-  using NewPropertyListT =
-      detail::add_alignment_property_t<oneapi::experimental::empty_properties_t,
-                                       Align>;
-  copy_from_impl<ChunkSize, NewPropertyListT, AccessorT, TOffset>(acc, offset);
+  copy_from_impl<ChunkSize>(acc, offset, properties{alignment<Align>});
 }
 
 template <typename T, int N, class T1, class SFINAE>
 template <typename AccessorT, typename Flags, int ChunkSize>
-ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read, void,
-                              is_simd_flag_type_v<Flags>>
+ESIMD_INLINE std::enable_if_t<
+    detail::is_device_accessor_with_v<AccessorT, accessor_mode_cap::can_read> &&
+    is_simd_flag_type_v<Flags>>
 simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc,
                                            detail::DeviceAccessorOffsetT offset,
                                            Flags) SYCL_ESIMD_FUNCTION {
@@ -10036,8 +10025,8 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc,
 
 template <typename T, int N, class T1, class SFINAE>
 template <typename AccessorT, int ChunkSize, typename PropertyListT>
-ESIMD_INLINE EnableIfAccessor<
-    AccessorT, accessor_mode_cap::can_read, void,
+ESIMD_INLINE std::enable_if_t<
+    detail::is_device_accessor_with_v<AccessorT, accessor_mode_cap::can_read> &&
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc,
                                            detail::DeviceAccessorOffsetT offset,
@@ -10079,8 +10068,7 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(
   using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
   constexpr unsigned Size = sizeof(T) * N;
   constexpr size_t Align =
-      detail::getPropertyValue<PropertyListT, alignment_key>(
-          sizeof(typename T1::element_type));
+      detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(UT));
 
   constexpr unsigned BlockSize = OperandSize::OWORD * 8;
   constexpr unsigned NumBlocks = Size / BlockSize;
@@ -10173,15 +10161,13 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(
     simd_obj_impl<T, N, T1, SFINAE>::element_type *Addr,
     Flags) const SYCL_ESIMD_FUNCTION {
   constexpr unsigned Align = Flags::template alignment<T1>;
-  using NewPropertyListT =
-      detail::add_alignment_property_t<oneapi::experimental::empty_properties_t,
-                                       Align>;
-  copy_to<ChunkSize, NewPropertyListT>(Addr, NewPropertyListT{});
+  copy_to<ChunkSize>(Addr, properties{alignment<Align>});
 }
 
 template <typename T, int N, class T1, class SFINAE>
 template <typename AccessorT, typename Flags, int ChunkSize>
-ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write, void,
+ESIMD_INLINE std::enable_if_t<detail::is_device_accessor_with_v<
+                                  AccessorT, accessor_mode_cap::can_write> &&
                               is_simd_flag_type_v<Flags>>
 simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc,
                                          detail::DeviceAccessorOffsetT offset,
@@ -10191,8 +10177,9 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc,
 
 template <typename T, int N, class T1, class SFINAE>
 template <typename AccessorT, int ChunkSize, typename PropertyListT>
-ESIMD_INLINE EnableIfAccessor<
-    AccessorT, accessor_mode_cap::can_write, void,
+ESIMD_INLINE std::enable_if_t<
+    detail::is_device_accessor_with_v<AccessorT,
+                                      accessor_mode_cap::can_write> &&
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 simd_obj_impl<T, N, T1, SFINAE>::copy_to(
     AccessorT acc, detail::DeviceAccessorOffsetT offset,
