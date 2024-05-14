@@ -54,11 +54,9 @@ void matrix_verify_op(big_matrix<Ts, M, K> &A, const float ref, OP op) {
 static constexpr size_t MATRIX_M = TM * 2;
 static constexpr size_t MATRIX_K = TK * 2;
 float A[MATRIX_M][MATRIX_K];
-float D[MATRIX_M][MATRIX_K];
 
 int main() {
 
-  big_matrix<float, MATRIX_M, MATRIX_K> MD((float *)&D);
   big_matrix<float, MATRIX_M, MATRIX_K> MA((float *)&A);
 
   matrix_verify_op<precision::tf32, float, MATRIX_M, MATRIX_K, TM, TN, TK,

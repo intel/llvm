@@ -54,11 +54,9 @@ void matrix_verify_op(big_matrix<T, M, N> &A, const R ref, OP op) {
 static constexpr size_t MATRIX_M = TM * 2;
 static constexpr size_t MATRIX_N = TN * 2;
 int8_t A[MATRIX_M][MATRIX_N];
-int D[MATRIX_M][MATRIX_N];
 
 int main() {
 
-  big_matrix<int, MATRIX_M, MATRIX_N> MD((int *)&D);
   big_matrix<int8_t, MATRIX_M, MATRIX_N> MA((int8_t *)&A);
 
   matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK, class add, int>(
