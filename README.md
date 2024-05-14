@@ -3,6 +3,7 @@
 [![Build and test](https://github.com/oneapi-src/unified-runtime/actions/workflows/cmake.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/cmake.yml)
 [![E2E Cuda](https://github.com/oneapi-src/unified-runtime/actions/workflows/e2e_cuda.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/e2e_cuda.yml)
 [![E2E OpenCL](https://github.com/oneapi-src/unified-runtime/actions/workflows/e2e_opencl.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/e2e_opencl.yml)
+[![E2E Level Zero](https://github.com/oneapi-src/unified-runtime/actions/workflows/e2e_level_zero.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/e2e_level_zero.yml)
 [![CodeQL](https://github.com/oneapi-src/unified-runtime/actions/workflows/codeql.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/codeql.yml)
 [![Bandit](https://github.com/oneapi-src/unified-runtime/actions/workflows/bandit.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/bandit.yml)
 [![Coverity](https://scan.coverity.com/projects/28213/badge.svg)](https://scan.coverity.com/projects/oneapi-src-unified-runtime)
