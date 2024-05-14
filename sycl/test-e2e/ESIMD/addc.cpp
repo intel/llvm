@@ -127,7 +127,7 @@ bool test(sycl::queue Q) {
            }
 
          } // end for BI
-       }   // end for AI
+       } // end for AI
      }).wait();
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
@@ -159,7 +159,8 @@ bool test(sycl::queue Q) {
           std::cout << "Error for (" << AI << "," << BI << "): " << A << " + "
                     << B << " is Computed(" << ComputedCarry << ","
                     << ComputedRes << ") != Expected (" << ExpectedCarry << ","
-                    << ExpectedRes << ")" << "\n";
+                    << ExpectedRes << ")"
+                    << "\n";
           NumErrors++;
         }
       }
