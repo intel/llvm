@@ -10359,7 +10359,7 @@ static void getOtherSPIRVTransOpts(Compilation &C,
       C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
       TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
           .equals_insensitive("spirv") &&
-      !TCArgs.hasArg(options::OPT_fsycl_device_only);
+      !C.getDriver().offloadDeviceOnly();
   bool ShouldPreserveMetadataInFinalImage =
       TCArgs.hasArg(options::OPT_fsycl_preserve_device_nonsemantic_metadata);
   bool ShouldPreserveMetadata =
@@ -10380,6 +10380,7 @@ static void getOtherSPIRVTransOpts(Compilation &C,
       ",+SPV_INTEL_fpga_reg,+SPV_INTEL_blocking_pipes"
       ",+SPV_INTEL_function_pointers,+SPV_INTEL_kernel_attributes"
       ",+SPV_INTEL_io_pipes,+SPV_INTEL_inline_assembly"
+      ",+SPV_INTEL_arbitrary_precision_integers"
       ",+SPV_INTEL_float_controls2,+SPV_INTEL_vector_compute"
       ",+SPV_INTEL_fast_composite"
       ",+SPV_INTEL_arbitrary_precision_fixed_point"
@@ -10412,9 +10413,6 @@ static void getOtherSPIRVTransOpts(Compilation &C,
               ",+SPV_INTEL_tensor_float32_conversion"
               ",+SPV_INTEL_optnone"
               ",+SPV_KHR_non_semantic_info";
-  if (C.getDriver().IsFPGAHWMode() || C.getDriver().IsFPGAEmulationMode())
-    ExtArg += ",+SPV_INTEL_arbitrary_precision_integers";
-
   if (IsCPU)
     ExtArg += ",+SPV_INTEL_fp_max_error";
 

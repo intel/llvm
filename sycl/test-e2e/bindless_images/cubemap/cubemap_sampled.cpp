@@ -4,6 +4,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+#include "../user_types/user_types_common.hpp"
 #include <iostream>
 #include <sycl/sycl.hpp>
 
@@ -27,12 +28,12 @@ int main() {
   size_t N = width * height;
   std::vector<float> out(N);
   std::vector<float> expected(N);
-  std::vector<sycl::float4> dataIn1(N * 6);
+  std::vector<sycl::float4> dataIn(N * 6);
   for (int i = 0; i < width; i++) {
     for (int j = 0; j < height; j++) {
       for (int k = 0; k < 6; k++) {
-        dataIn1[i + width * (j + height * k)] = {i + width * (j + height * k),
-                                                 0, 0, 0};
+        dataIn[i + width * (j + height * k)] = {i + width * (j + height * k), 0,
+                                                0, 0};
       }
     }
   }
@@ -63,7 +64,7 @@ int main() {
 
     // Extension: copy over data to device (handler variant).
     q.submit([&](sycl::handler &cgh) {
-      cgh.ext_oneapi_copy(dataIn1.data(), imgMem.get_handle(), desc);
+      cgh.ext_oneapi_copy(dataIn.data(), imgMem.get_handle(), desc);
     });
     q.wait_and_throw();
 
@@ -95,11 +96,13 @@ int main() {
             float fdim2 = (((float(dim1) / (float)height) * 1.98) - 0.99) +
                           (1.f / (float)height);
 
+            my_float4 myPixel{};
+
             // Extension: sample cubemap data from handle.
-            sycl::float4 px = syclexp::sample_cubemap<sycl::float4>(
+            myPixel = syclexp::sample_cubemap<my_float4, sycl::float4>(
                 imgHandle, sycl::float3(fdim0, fdim1, fdim2));
 
-            outAcc[sycl::id<2>{dim0, dim1}] = px[0];
+            outAcc[sycl::id<2>{dim0, dim1}] = myPixel.x;
           });
     });
     q.wait_and_throw();

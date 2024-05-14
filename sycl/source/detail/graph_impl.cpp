@@ -1699,22 +1699,22 @@ node node::get_node_from_event(event nodeEvent) {
       GraphImpl->getNodeForEvent(EventImpl));
 }
 
-template <> void node::update_nd_range<1>(nd_range<1> NDRange) {
+template <> __SYCL_EXPORT void node::update_nd_range<1>(nd_range<1> NDRange) {
   impl->updateNDRange(NDRange);
 }
-template <> void node::update_nd_range<2>(nd_range<2> NDRange) {
+template <> __SYCL_EXPORT void node::update_nd_range<2>(nd_range<2> NDRange) {
   impl->updateNDRange(NDRange);
 }
-template <> void node::update_nd_range<3>(nd_range<3> NDRange) {
+template <> __SYCL_EXPORT void node::update_nd_range<3>(nd_range<3> NDRange) {
   impl->updateNDRange(NDRange);
 }
-template <> void node::update_range<1>(range<1> Range) {
+template <> __SYCL_EXPORT void node::update_range<1>(range<1> Range) {
   impl->updateRange(Range);
 }
-template <> void node::update_range<2>(range<2> Range) {
+template <> __SYCL_EXPORT void node::update_range<2>(range<2> Range) {
   impl->updateRange(Range);
 }
-template <> void node::update_range<3>(range<3> Range) {
+template <> __SYCL_EXPORT void node::update_range<3>(range<3> Range) {
   impl->updateRange(Range);
 }
 } // namespace experimental
