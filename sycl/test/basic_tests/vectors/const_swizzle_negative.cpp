@@ -89,8 +89,8 @@ int main() {
 
     int I = 1;
     // expected-error@+1 {{no matching member function for call to 'load'}}
-    X.load(0,
-           sycl::address_space_cast<sycl::access::address_space::private_space,
+    X.swizzle<0>().load(
+        0, sycl::address_space_cast<sycl::access::address_space::private_space,
                                     sycl::access::decorated::no>(&I));
   });
   return 0;
