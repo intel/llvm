@@ -140,7 +140,7 @@ TEST_F(urQueueCreateTestMultipleDevices, ContextFromWrongDevice) {
     ur_queue_handle_t queue = nullptr;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_DEVICE,
                      urQueueCreate(context2, device1, nullptr, &queue));
-    ASSERT_NE(queue, nullptr);
+    ASSERT_EQ(queue, nullptr);
 }
 
 TEST_P(urQueueCreateTest, InvalidNullHandleContext) {
