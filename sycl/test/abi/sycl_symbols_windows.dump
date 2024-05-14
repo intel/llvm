@@ -4341,6 +4341,12 @@
 ?get_mip_level_mem_handle@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AUimage_mem_handle@23456@I@Z
 ?get_name@kernel_id@_V1@sycl@@QEBAPEBDXZ
 ?get_node_from_event@node@experimental@oneapi@ext@_V1@sycl@@SA?AV123456@Vevent@56@@Z
+??$update_nd_range@$00@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$00@45@@Z
+??$update_nd_range@$01@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$01@45@@Z
+??$update_nd_range@$02@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$02@45@@Z
+??$update_range@$00@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$range@$00@45@@Z
+??$update_range@$01@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$range@$01@45@@Z
+??$update_range@$02@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$range@$02@45@@Z
 ?get_nodes@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ?get_num_channels@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBAIXZ
 ?get_pipe_name@pipe_base@experimental@intel@ext@_V1@sycl@@KA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEBX@Z

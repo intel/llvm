@@ -13,6 +13,8 @@
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/handler.hpp>
 
+#include <sycl/detail/host_task_impl.hpp>
+
 #include <detail/accessor_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/kernel_impl.hpp>
