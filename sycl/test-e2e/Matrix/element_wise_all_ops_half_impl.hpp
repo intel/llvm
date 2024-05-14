@@ -1,20 +1,20 @@
 #define TM 8
 #define TK 16
 
-template <typename T, size_t M, size_t N>
+template <typename T, size_t M, size_t N, typename R>
 void assert_ops_ref(host_accessor<T, 2, access::mode::read> C,
                     const float ref) {
   for (size_t i = 0; i < M; i++)
     for (size_t j = 0; j < N; j++) {
       auto diff = C[i][j] - ref;
-      assert(std::fabs(static_cast<float>(diff)) <
-             std::numeric_limits<float>::epsilon());
+      assert(std::fabs(static_cast<R>(diff)) <
+             std::numeric_limits<R>::epsilon());
     }
 }
 
 template <typename T, size_t M, size_t N, size_t TileM, size_t TileN,
-          size_t TileK, class kernel_name, typename OP>
-void matrix_verify_op(big_matrix<T, M, N> &A, const float ref, OP op) {
+          size_t TileK, class kernel_name, typename R, typename OP>
+void matrix_verify_op(big_matrix<T, M, N> &A, const R ref, OP op) {
   buffer<half, 2> bufA(A.get_data(), range<2>(M, N));
 
   queue q;
@@ -49,7 +49,7 @@ void matrix_verify_op(big_matrix<T, M, N> &A, const float ref, OP op) {
                N);
          }); // parallel for
    }).wait();
-  assert_ops_ref<T, M, N>(bufA.get_host_access(read_only), ref);
+  assert_ops_ref<T, M, N, R>(bufA.get_host_access(read_only), ref);
 }
 
 int main() {
@@ -59,15 +59,15 @@ int main() {
   half A[MATRIX_M][MATRIX_N];
   big_matrix<half, MATRIX_M, MATRIX_N> MA((half *)&A);
 
-  matrix_verify_op<half, MATRIX_M, MATRIX_N, TM, TN, TK, class add>(
+  matrix_verify_op<half, MATRIX_M, MATRIX_N, TM, TN, TK, class add, float>(
       MA, 7.0, [=](auto &x) { x = x + static_cast<half>(2); });
-  matrix_verify_op<half, MATRIX_M, MATRIX_N, TM, TN, TK, class sub>(
+  matrix_verify_op<half, MATRIX_M, MATRIX_N, TM, TN, TK, class sub, float>(
       MA, 3.0, [=](auto &x) { x = x - static_cast<half>(2); });
-  matrix_verify_op<half, MATRIX_M, MATRIX_N, TM, TN, TK, class mult>(
+  matrix_verify_op<half, MATRIX_M, MATRIX_N, TM, TN, TK, class mult, float>(
       MA, 15.0, [=](auto &x) { x = x * static_cast<half>(3.0); });
-  matrix_verify_op<half, MATRIX_M, MATRIX_N, TM, TN, TK, class div>(
+  matrix_verify_op<half, MATRIX_M, MATRIX_N, TM, TN, TK, class div, float>(
       MA, 2.5, [=](auto &x) { x = x / static_cast<half>(2.0); });
-  matrix_verify_op<half, MATRIX_M, MATRIX_N, TM, TN, TK, class logic>(
+  matrix_verify_op<half, MATRIX_M, MATRIX_N, TM, TN, TK, class logic, float>(
       MA, 7.0, [=](auto &x) {
         if (x) {
           if (x > static_cast<half>(2.0) || x >= static_cast<half>(2.0) ||
