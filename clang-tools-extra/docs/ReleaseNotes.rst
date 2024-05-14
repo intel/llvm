@@ -90,7 +90,9 @@ Improvements to clang-doc
 Improvements to clang-query
 ---------------------------
 
-The improvements are...
+- Added the `file` command to dynamically load a list of commands and matchers
+  from an external file, allowing the cost of reading the compilation database
+  and building the AST to be imposed just once for faster prototyping.
 
 Improvements to clang-rename
 ----------------------------
@@ -337,6 +339,10 @@ Changes in existing checks
   <clang-tidy/checks/readability/duplicate-include>` check by excluding include
   directives that form the filename using macro.
 
+- Improved :doc:`readability-else-after-return
+  <clang-tidy/checks/readability/else-after-return>` check to ignore
+  `if consteval` statements, for which the `else` branch must not be removed.
+
 - Improved :doc:`readability-identifier-naming
   <clang-tidy/checks/readability/identifier-naming>` check in `GetConfigPerFile`
   mode by resolving symbolic links to header files. Fixed handling of Hungarian
@@ -356,6 +362,10 @@ Changes in existing checks
   <clang-tidy/checks/readability/static-accessed-through-instance>` check to
   support calls to overloaded operators as base expression and provide fixes to
   expressions with side-effects.
+
+- Improved :doc:`readability-simplify-boolean-expr
+  <clang-tidy/checks/readability/simplify-boolean-expr>` check to avoid to emit
+  warning for macro when IgnoreMacro option is enabled.
 
 - Improved :doc:`readability-static-definition-in-anonymous-namespace
   <clang-tidy/checks/readability/static-definition-in-anonymous-namespace>`

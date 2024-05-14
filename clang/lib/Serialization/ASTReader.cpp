@@ -1005,7 +1005,7 @@ static bool readBit(unsigned &Bits) {
   return Value;
 }
 
-IdentID ASTIdentifierLookupTrait::ReadIdentifierID(const unsigned char *d) {
+IdentifierID ASTIdentifierLookupTrait::ReadIdentifierID(const unsigned char *d) {
   using namespace llvm::support;
 
   unsigned RawID = endian::readNext<uint32_t, llvm::endianness::little>(d);
@@ -1041,7 +1041,7 @@ IdentifierInfo *ASTIdentifierLookupTrait::ReadData(const internal_key_type& k,
   markIdentifierFromAST(Reader, *II);
   Reader.markIdentifierUpToDate(II);
 
-  IdentID ID = Reader.getGlobalIdentifierID(F, RawID);
+  IdentifierID ID = Reader.getGlobalIdentifierID(F, RawID);
   if (!IsInteresting) {
     // For uninteresting identifiers, there's nothing else to do. Just notify
     // the reader that we've finished loading this identifier.
@@ -11912,6 +11912,21 @@ OpenACCClause *ASTRecordReader::readOpenACCClause() {
                                      DevNumExpr, QueuesLoc, QueueIdExprs,
                                      EndLoc);
   }
+  case OpenACCClauseKind::DeviceType:
+  case OpenACCClauseKind::DType: {
+    SourceLocation LParenLoc = readSourceLocation();
+    llvm::SmallVector<DeviceTypeArgument> Archs;
+    unsigned NumArchs = readInt();
+
+    for (unsigned I = 0; I < NumArchs; ++I) {
+      IdentifierInfo *Ident = readBool() ? readIdentifier() : nullptr;
+      SourceLocation Loc = readSourceLocation();
+      Archs.emplace_back(Ident, Loc);
+    }
+
+    return OpenACCDeviceTypeClause::Create(getContext(), ClauseKind, BeginLoc,
+                                           LParenLoc, Archs, EndLoc);
+  }
 
   case OpenACCClauseKind::Finalize:
   case OpenACCClauseKind::IfPresent:
@@ -11933,8 +11948,6 @@ OpenACCClause *ASTRecordReader::readOpenACCClause() {
   case OpenACCClauseKind::Bind:
   case OpenACCClauseKind::DeviceNum:
   case OpenACCClauseKind::DefaultAsync:
-  case OpenACCClauseKind::DeviceType:
-  case OpenACCClauseKind::DType:
   case OpenACCClauseKind::Tile:
   case OpenACCClauseKind::Gang:
   case OpenACCClauseKind::Invalid:

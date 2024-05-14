@@ -7992,6 +7992,11 @@ TreeTransform<Derived>::TransformIfStmt(IfStmt *S) {
   // Transform the "then" branch.
   StmtResult Then;
   if (!ConstexprConditionValue || *ConstexprConditionValue) {
+    EnterExpressionEvaluationContext Ctx(
+        getSema(), Sema::ExpressionEvaluationContext::ImmediateFunctionContext,
+        nullptr, Sema::ExpressionEvaluationContextRecord::EK_Other,
+        S->isNonNegatedConsteval());
+
     Then = getDerived().TransformStmt(S->getThen());
     if (Then.isInvalid())
       return StmtError();
@@ -8006,6 +8011,11 @@ TreeTransform<Derived>::TransformIfStmt(IfStmt *S) {
   // Transform the "else" branch.
   StmtResult Else;
   if (!ConstexprConditionValue || !*ConstexprConditionValue) {
+    EnterExpressionEvaluationContext Ctx(
+        getSema(), Sema::ExpressionEvaluationContext::ImmediateFunctionContext,
+        nullptr, Sema::ExpressionEvaluationContextRecord::EK_Other,
+        S->isNegatedConsteval());
+
     Else = getDerived().TransformStmt(S->getElse());
     if (Else.isInvalid())
       return StmtError();
@@ -11497,6 +11507,16 @@ void OpenACCClauseTransform<Derived>::VisitWaitClause(
       ParsedClause.getLParenLoc(), ParsedClause.getDevNumExpr(),
       ParsedClause.getQueuesLoc(), ParsedClause.getQueueIdExprs(),
       ParsedClause.getEndLoc());
+}
+
+template <typename Derived>
+void OpenACCClauseTransform<Derived>::VisitDeviceTypeClause(
+    const OpenACCDeviceTypeClause &C) {
+  // Nothing to transform here, just create a new version of 'C'.
+  NewClause = OpenACCDeviceTypeClause::Create(
+      Self.getSema().getASTContext(), C.getClauseKind(),
+      ParsedClause.getBeginLoc(), ParsedClause.getLParenLoc(),
+      C.getArchitectures(), ParsedClause.getEndLoc());
 }
 } // namespace
 template <typename Derived>
