@@ -507,7 +507,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
           cl_adapter::cast<cl_device_id>(hDevice), {"cl_khr_fp16"}, Supported));
 
       if (!Supported) {
-        return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
       }
     }
 
