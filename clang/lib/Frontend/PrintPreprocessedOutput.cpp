@@ -218,8 +218,8 @@ public:
                    const Token &Tok) {
     return ConcatInfo.AvoidConcat(PrevPrevTok, PrevTok, Tok);
   }
-  void WriteFooterInfo(unsigned LineNo, StringRef Footer);
-  void WriteFooterContent(unsigned LineNo, StringRef CodeFooter);
+  void WriteFooterInfo(StringRef Footer);
+  void WriteFooterContent(StringRef CodeFooter);
   void WriteLineInfo(unsigned LineNo, const char *Extra=nullptr,
                      unsigned ExtraLen=0);
   bool LineMarkersAreDisabled() const { return DisableLineMarkers; }
@@ -239,8 +239,7 @@ public:
 };
 }  // end anonymous namespace
 
-void PrintPPOutputPPCallbacks::WriteFooterInfo(unsigned LineNo,
-                                               StringRef Footer) {
+void PrintPPOutputPPCallbacks::WriteFooterInfo(StringRef Footer) {
   *OS << '#' << ' ' << 1 << ' ' << '"';
   *OS << "<built-in>" << '"' << ' ' << "1";
   *OS << '\n';
@@ -248,8 +247,7 @@ void PrintPPOutputPPCallbacks::WriteFooterInfo(unsigned LineNo,
   *OS << '\n';
 }
 
-void PrintPPOutputPPCallbacks::WriteFooterContent(unsigned LineNo,
-                                                  StringRef CodeFooter) {
+void PrintPPOutputPPCallbacks::WriteFooterContent(StringRef CodeFooter) {
   *OS << CodeFooter;
   *OS << '\n';
 }
@@ -345,15 +343,11 @@ void PrintPPOutputPPCallbacks::startNewLineIfNeeded() {
 }
 void PrintPPOutputPPCallbacks::AddFooter(SourceLocation Loc,
                                          std::string Footer) {
-  SourceManager &SourceMgr = SM;
-
-  PresumedLoc UserLoc = SourceMgr.getPresumedLoc(Loc);
+  PresumedLoc UserLoc = SM.getPresumedLoc(Loc);
   if (UserLoc.isInvalid())
     return;
 
-  unsigned NewLine = UserLoc.getLine();
-  CurLine = NewLine;
-  WriteFooterInfo(CurLine, Footer);
+  WriteFooterInfo(Footer);
 }
 
 /// FileChanged - Whenever the preprocessor enters or exits a #include file
@@ -858,9 +852,8 @@ static void PrintIncludeFooter(Preprocessor &PP, SourceLocation Loc,
     return;
   FileID FooterFileID = ComputeValidFooterFileID(SourceMgr, Footer);
   StringRef FooterContentBuffer = SourceMgr.getBufferData(FooterFileID);
-  unsigned NewLine = UserLoc.getLine();
   // print out the name of the integration footer.
-  Callbacks->WriteFooterInfo(NewLine, Footer);
+  Callbacks->WriteFooterInfo(Footer);
   std::string StrippedFooterContentBuffer;
   SmallVector<StringRef, 8> FooterContentArr;
   FooterContentBuffer.split(FooterContentArr, '\r');
@@ -868,7 +861,7 @@ static void PrintIncludeFooter(Preprocessor &PP, SourceLocation Loc,
   for (auto &Val : FooterContentArr) {
     Val.consume_front("\n");
     if (!Val.empty())
-      Callbacks->WriteFooterContent(NewLine, Val);
+      Callbacks->WriteFooterContent(Val);
   }
 }
 
