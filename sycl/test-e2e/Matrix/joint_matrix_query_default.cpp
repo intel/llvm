@@ -12,7 +12,21 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "common.hpp"
+#include <iostream>
+#include <sycl/sycl.hpp>
+
+using namespace sycl;
+using namespace sycl::ext::oneapi::experimental::matrix;
+
+template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
+public:
+  T *mat;
+
+public:
+  T *get_data() { return mat; }
+  void set_data(T *data) { mat = data; }
+  big_matrix(T *data) : mat(data) {}
+};
 
 template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
           size_t NUM_ROWS_B, size_t NUM_COLS_B, size_t NUM_ROWS_C,
@@ -103,6 +117,23 @@ int8_t A[MATRIX_M][MATRIX_K];
 int8_t B[MATRIX_K / 4][MATRIX_N * 4];
 int32_t C[MATRIX_M][MATRIX_N];
 int32_t D[MATRIX_M][MATRIX_N];
+
+void matrix_multiply_ref(int32_t *A_mem, int32_t *B_mem, int32_t *C_mem, int M,
+                         int N, int K) {
+  // tiling
+  for (int m = 0; m < M; m++)
+    for (int n = 0; n < N; n++) {
+      for (int k = 0; k < K; k++) {
+        char *va = (char *)(A_mem + m * K + k);
+        char *vb = (char *)(B_mem + k * N + n);
+        int acc = *(C_mem + m * N + n);
+        for (int i = 0; i < 4; i++) {
+          acc += (va[i] * vb[i]);
+        }
+        *(C_mem + m * N + n) = acc;
+      }
+    }
+}
 
 int main() {
   for (int i = 0; i < MATRIX_M; i++) {

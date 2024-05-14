@@ -15,5 +15,4 @@
 #define SG_SZ 16
 constexpr size_t TN = 16;
 
-#include "common.hpp"
 #include "element_wise_abc_impl.hpp"
