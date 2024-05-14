@@ -806,18 +806,14 @@ using OCLImageTyWrite =
 
 // Macros are required because it is not legal for a function to return
 // a variable of type 'opencl_image_type'.
-#if defined(__NVPTX__)
-#define CONVERT_HANDLE_TO_IMAGE(raw_handle, ImageType) raw_handle
-#elif defined(__SPIR__)
+#if defined(__SPIR__)
 #define CONVERT_HANDLE_TO_IMAGE(raw_handle, ImageType)                         \
   __spirv_ConvertHandleToImageINTEL<ImageType>(raw_handle)
 #else
 #define CONVERT_HANDLE_TO_IMAGE(raw_handle, ImageType) raw_handle
 #endif
 
-#if defined(__NVPTX__)
-#define CONVERT_HANDLE_TO_SAMPLED_IMAGE(raw_handle, NDims) raw_handle
-#elif defined(__SPIR__)
+#if defined(__SPIR__)
 #define CONVERT_HANDLE_TO_SAMPLED_IMAGE(raw_handle, NDims)                     \
   __spirv_ConvertHandleToSampledImageINTEL<                                    \
       typename sycl::detail::sampled_opencl_image_type<                        \
@@ -826,10 +822,7 @@ using OCLImageTyWrite =
 #define CONVERT_HANDLE_TO_SAMPLED_IMAGE(raw_handle, NDims) raw_handle
 #endif
 
-#if defined(__NVPTX__)
-#define FETCH_UNSAMPLED_IMAGE(DataT, raw_handle, coords)                       \
-  __invoke__ImageFetch<DataT>(raw_handle, coords)
-#elif defined(__SPIR__)
+#if defined(__SPIR__)
 #define FETCH_UNSAMPLED_IMAGE(DataT, raw_handle, coords)                       \
   __invoke__ImageRead<DataT>(raw_handle, coords)
 #else
