@@ -359,7 +359,7 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
     NestedCallsTracker tracker;
     CGF(Handler);
   }
-  
+
   // Scheduler will later omit events, that are not required to execute tasks.
   // Host and interop tasks, however, are not submitted to low-level runtimes
   // and require separate dependency management.
@@ -374,8 +374,8 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
     if (IsKernel)
       // Kernel only uses assert if it's non interop one
       KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
-                          ProgramManager::getInstance().kernelUsesAssert(
-                              Handler.MKernelName.c_str());
+                         ProgramManager::getInstance().kernelUsesAssert(
+                             Handler.MKernelName.c_str());
     finalizeHandler(Handler, Type, Event);
 
     (*PostProcess)(IsKernel, KernelUsesAssert, Event);
