@@ -644,11 +644,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
                                        &hBuffer->LastEventWritingToMemObj));
     }
 
+    ScopedContext Active(Device);
+
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, Stream, numEventsInWaitList,
                                      phEventWaitList));
-
-    // enqueueEventsWait may set a context so we need to reset it here
-    ScopedContext Active(Device);
 
     if (phEvent) {
       RetImplEvent =
@@ -1655,11 +1654,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
                                        &hBuffer->LastEventWritingToMemObj));
     }
 
+    ScopedContext Active(Device);
+
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, Stream, numEventsInWaitList,
                                      phEventWaitList));
-
-    // enqueueEventsWait may set a context so we need to reset it here
-    ScopedContext Active(Device);
 
     if (phEvent) {
       RetImplEvent =
