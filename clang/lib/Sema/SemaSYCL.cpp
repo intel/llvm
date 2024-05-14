@@ -1075,6 +1075,8 @@ static target getAccessTarget(QualType FieldTy,
       AccTy->getTemplateArgs()[3].getAsIntegral().getExtValue());
 }
 
+// FIXME: Free functions are only supported at file scope, outside any
+// namespaces.
 static bool isFreeFunction(SemaSYCL &SemaSYCLRef, const FunctionDecl *FD) {
   for (auto *IRAttr : FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
     SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
