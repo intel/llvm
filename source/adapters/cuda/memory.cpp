@@ -43,8 +43,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     BufferMem::AllocMode AllocMode = BufferMem::AllocMode::Classic;
 
     if ((flags & UR_MEM_FLAG_USE_HOST_POINTER) && EnableUseHostPtr) {
+      UR_CHECK_ERROR(
+          cuMemHostRegister(HostPtr, size, CU_MEMHOSTREGISTER_DEVICEMAP));
       AllocMode = BufferMem::AllocMode::UseHostPtr;
     } else if (flags & UR_MEM_FLAG_ALLOC_HOST_POINTER) {
+      UR_CHECK_ERROR(cuMemAllocHost(&HostPtr, size));
       AllocMode = BufferMem::AllocMode::AllocHostPtr;
     } else if (flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER) {
       AllocMode = BufferMem::AllocMode::CopyIn;
