@@ -55,19 +55,6 @@ struct sampled_image_handle {
   raw_image_handle_type raw_handle;
 };
 
-// Image types used for generating SPIR-V
-#ifdef __SYCL_DEVICE_ONLY__
-template <int NDims>
-using OCLImageTyRead =
-    typename sycl::detail::opencl_image_type<NDims, sycl::access::mode::read,
-                                             sycl::access::target::image>::type;
-
-template <int NDims>
-using OCLImageTyWrite =
-    typename sycl::detail::opencl_image_type<NDims, sycl::access::mode::write,
-                                             sycl::access::target::image>::type;
-#endif
-
 /**
  *  @brief   Allocate image memory based on image_descriptor
  *
@@ -806,6 +793,17 @@ template <typename DataT> constexpr bool is_recognized_standard_type() {
 
 #ifdef __SYCL_DEVICE_ONLY__
 
+// Image types used for generating SPIR-V
+template <int NDims>
+using OCLImageTyRead =
+    typename sycl::detail::opencl_image_type<NDims, sycl::access::mode::read,
+                                             sycl::access::target::image>::type;
+
+template <int NDims>
+using OCLImageTyWrite =
+    typename sycl::detail::opencl_image_type<NDims, sycl::access::mode::write,
+                                             sycl::access::target::image>::type;
+
 // Macros are required because it is not legal for a function to return
 // a variable of type 'opencl_image_type'.
 #if defined(__NVPTX__)
@@ -818,14 +816,14 @@ template <typename DataT> constexpr bool is_recognized_standard_type() {
 #endif
 
 #if defined(__NVPTX__)
-#define CONVERT_HANDLE_TO_SAMPLED_IMAGE(raw_handle, ImageType) raw_handle
+#define CONVERT_HANDLE_TO_SAMPLED_IMAGE(raw_handle, NDims) raw_handle
 #elif defined(__SPIR__)
-#define CONVERT_HANDLE_TO_SAMPLED_IMAGE(raw_handle, ImageType)                 \
+#define CONVERT_HANDLE_TO_SAMPLED_IMAGE(raw_handle, NDims)                     \
   __spirv_ConvertHandleToSampledImageINTEL<                                    \
-      typename sycl::detail::sampled_opencl_image_type<ImageType>::type>(      \
-      raw_handle)
+      typename sycl::detail::sampled_opencl_image_type<                        \
+          detail::OCLImageTyRead<NDims>>::type>(raw_handle)
 #else
-#define CONVERT_HANDLE_TO_SAMPLED_IMAGE(raw_handle, ImageType) raw_handle
+#define CONVERT_HANDLE_TO_SAMPLED_IMAGE(raw_handle, NDims) raw_handle
 #endif
 
 #if defined(__NVPTX__)
@@ -878,7 +876,7 @@ DataT fetch_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
     return FETCH_UNSAMPLED_IMAGE(
         DataT,
         CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
-                                OCLImageTyRead<coordSize>),
+                                detail::OCLImageTyRead<coordSize>),
         coords);
 
   } else {
@@ -890,7 +888,7 @@ DataT fetch_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
     return sycl::bit_cast<DataT>(FETCH_UNSAMPLED_IMAGE(
         HintT,
         CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
-                                OCLImageTyRead<coordSize>),
+                                detail::OCLImageTyRead<coordSize>),
         coords));
   }
 #else
@@ -965,13 +963,11 @@ DataT fetch_image(const sampled_image_handle &imageHandle [[maybe_unused]],
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
     return __invoke__SampledImageFetch<DataT>(
-        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle,
-                                        OCLImageTyRead<coordSize>),
+        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
         coords);
   } else {
     return sycl::bit_cast<DataT>(__invoke__SampledImageFetch<HintT>(
-        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle,
-                                        OCLImageTyRead<coordSize>),
+        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
         coords));
   }
 #else
@@ -1017,13 +1013,11 @@ DataT sample_image(const sampled_image_handle &imageHandle [[maybe_unused]],
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
     return __invoke__ImageRead<DataT>(
-        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle,
-                                        OCLImageTyRead<coordSize>),
+        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
         coords);
   } else {
     return sycl::bit_cast<DataT>(__invoke__ImageRead<HintT>(
-        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle,
-                                        OCLImageTyRead<coordSize>),
+        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
         coords));
   }
 #else
@@ -1094,8 +1088,7 @@ DataT sample_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
     return __invoke__ImageReadLod<DataT>(
-        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle,
-                                        OCLImageTyRead<coordSize>),
+        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
         coords, level);
   } else {
     static_assert(sizeof(HintT) == sizeof(DataT),
@@ -1104,8 +1097,7 @@ DataT sample_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
     static_assert(detail::is_recognized_standard_type<HintT>(),
                   "HintT must always be a recognized standard type");
     return sycl::bit_cast<DataT>(__invoke__ImageReadLod<HintT>(
-        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle,
-                                        OCLImageTyRead<coordSize>),
+        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
         coords, level));
   }
 #else
@@ -1143,8 +1135,7 @@ DataT sample_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
     return __invoke__ImageReadGrad<DataT>(
-        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle,
-                                        OCLImageTyRead<coordSize>),
+        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
         coords, dX, dY);
   } else {
     static_assert(sizeof(HintT) == sizeof(DataT),
@@ -1153,8 +1144,7 @@ DataT sample_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
     static_assert(detail::is_recognized_standard_type<HintT>(),
                   "HintT must always be a recognized standard type");
     return sycl::bit_cast<DataT>(__invoke__ImageReadGrad<HintT>(
-        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle,
-                                        OCLImageTyRead<coordSize>),
+        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
         coords, dX, dY));
   }
 #else
@@ -1302,7 +1292,7 @@ DataT fetch_image_array(const unsampled_image_handle &imageHandle
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
     return __invoke__ImageArrayFetch<DataT>(
         CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
-                                OCLImageTyRead<coordSize>),
+                                detail::OCLImageTyRead<coordSize>),
         coords, arrayLayer);
   } else {
     static_assert(sizeof(HintT) == sizeof(DataT),
@@ -1312,7 +1302,7 @@ DataT fetch_image_array(const unsampled_image_handle &imageHandle
                   "HintT must always be a recognized standard type");
     return sycl::bit_cast<DataT>(__invoke__ImageArrayFetch<HintT>(
         CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
-                                OCLImageTyRead<coordSize>),
+                                detail::OCLImageTyRead<coordSize>),
         coords, arrayLayer));
   }
 #else
@@ -1362,9 +1352,7 @@ DataT sample_cubemap(const sampled_image_handle &imageHandle [[maybe_unused]],
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
     return __invoke__ImageReadCubemap<DataT, uint64_t>(
-        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle,
-                                        OCLImageTyRead<NDims>),
-        dirVec);
+        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, NDims), dirVec);
   } else {
     static_assert(sizeof(HintT) == sizeof(DataT),
                   "When trying to read a user-defined type, HintT must be of "
@@ -1372,8 +1360,7 @@ DataT sample_cubemap(const sampled_image_handle &imageHandle [[maybe_unused]],
     static_assert(detail::is_recognized_standard_type<HintT>(),
                   "HintT must always be a recognized standard type");
     return sycl::bit_cast<DataT>(__invoke__ImageReadCubemap<HintT, uint64_t>(
-        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle,
-                                        OCLImageTyRead<NDims>),
+        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, NDims),
         dirVec));
   }
 #else
@@ -1403,15 +1390,17 @@ void write_image(unsampled_image_handle imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    __invoke__ImageWrite(CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
-                                                 OCLImageTyWrite<coordSize>),
-                         coords, color);
+    __invoke__ImageWrite(
+        CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
+                                detail::OCLImageTyWrite<coordSize>),
+        coords, color);
   } else {
     // Convert DataT to a supported backend write type when user-defined type is
     // passed
-    __invoke__ImageWrite(CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
-                                                 OCLImageTyWrite<coordSize>),
-                         coords, detail::convert_color(color));
+    __invoke__ImageWrite(
+        CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
+                                detail::OCLImageTyWrite<coordSize>),
+        coords, detail::convert_color(color));
   }
 #else
   assert(false); // Bindless images not yet implemented on host
@@ -1444,14 +1433,14 @@ void write_image_array(unsampled_image_handle imageHandle [[maybe_unused]],
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
     __invoke__ImageArrayWrite(
         CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
-                                OCLImageTyRead<coordSize>),
+                                detail::OCLImageTyRead<coordSize>),
         coords, arrayLayer, color);
   } else {
     // Convert DataT to a supported backend write type when user-defined type is
     // passed
     __invoke__ImageArrayWrite(
         CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
-                                OCLImageTyRead<coordSize>),
+                                detail::OCLImageTyRead<coordSize>),
         coords, arrayLayer, detail::convert_color(color));
   }
 #else
