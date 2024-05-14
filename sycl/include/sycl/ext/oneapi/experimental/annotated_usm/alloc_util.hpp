@@ -94,7 +94,7 @@ template <typename Prop> struct IsRuntimePropertyValid : std::false_type {};
 template <typename T, typename propertyList>
 struct ValidAllocPropertyList : std::false_type {};
 template <typename T>
-struct ValidAllocPropertyList<T, empty_properties_t> : std::true_type{};
+struct ValidAllocPropertyList<T, empty_properties_t> : std::true_type {};
 template <typename T, typename Prop, typename... Props>
 struct ValidAllocPropertyList<T, detail::properties_t<Prop, Props...>>
     : std::integral_constant<

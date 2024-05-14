@@ -247,7 +247,7 @@ struct all_props_are_keys_of : std::true_type {};
 template <typename SyclT>
 struct all_props_are_keys_of<SyclT,
                              ext::oneapi::experimental::empty_properties_t>
-    : std::true_type{};
+    : std::true_type {};
 
 template <typename SyclT, typename PropT>
 struct all_props_are_keys_of<
