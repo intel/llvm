@@ -459,10 +459,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   uint32_t LocalSize = hKernel->getLocalSize();
   CUfunction CuFunc = hKernel->get();
 
-  UR_CHECK_ERROR(setKernelParams(hQueue->getContext(), hQueue->Device, workDim,
-                                 pGlobalWorkOffset, pGlobalWorkSize,
-                                 pLocalWorkSize, hKernel, CuFunc,
-                                 ThreadsPerBlock, BlocksPerGrid));
+  // This might return UR_RESULT_ERROR_ADAPTER_SPECIFIC, which cannot be handled
+  // using the standard UR_CHECK_ERROR
+  if (ur_result_t Ret =
+          setKernelParams(hQueue->getContext(), hQueue->Device, workDim,
+                          pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
+                          hKernel, CuFunc, ThreadsPerBlock, BlocksPerGrid);
+      Ret != UR_RESULT_SUCCESS)
+    return Ret;
 
   try {
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
