@@ -256,9 +256,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     return UR_RESULT_SUCCESS;
   }
 
-  // OpenCL only supports pattern sizes as large as the largest CL type
-  // (double16/long16 - 128 bytes), anything larger we need to do on the host
-  // side and copy it into the target allocation.
+  // OpenCL only supports pattern sizes which are powers of 2 and are as large
+  // as the largest CL type (double16/long16 - 128 bytes), anything larger or
+  // not a power of 2, we need to do on the host side and copy it into the
+  // target allocation.
   clHostMemAllocINTEL_fn HostMemAlloc = nullptr;
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clHostMemAllocINTEL_fn>(
       CLContext, cl_ext::ExtFuncPtrCache->clHostMemAllocINTELCache,
@@ -275,14 +276,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
       cl_ext::MemBlockingFreeName, &USMFree));
 
   cl_int ClErr = CL_SUCCESS;
-  auto HostBuffer = static_cast<uint64_t *>(
+  auto HostBuffer = static_cast<unsigned char *>(
       HostMemAlloc(CLContext, nullptr, size, 0, &ClErr));
   CL_RETURN_ON_FAILURE(ClErr);
 
-  auto NumValues = size / sizeof(uint64_t);
-  auto NumChunks = patternSize / sizeof(uint64_t);
-  for (size_t i = 0; i < NumValues; i++) {
-    HostBuffer[i] = static_cast<const uint64_t *>(pPattern)[i % NumChunks];
+  auto NumChunks = size / patternSize;
+  for (size_t i = 0; i < NumChunks; i++) {
+    auto Dest = HostBuffer + i * patternSize;
+    memcpy(Dest, pPattern, patternSize);
   }
 
   cl_event CopyEvent = nullptr;
