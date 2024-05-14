@@ -220,7 +220,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
     if (hBuffer->LastEventWritingToMemObj &&
         hBuffer->LastEventWritingToMemObj->getQueue()->getDevice() !=
             hQueue->getDevice()) {
-      Device = hBuffer->LastEventWritingToMemObj->getQueue()->getDevice();
+      // This event is never created with interop so getQueue is never null
+      hQueue = hBuffer->LastEventWritingToMemObj->getQueue();
+      Device = hQueue->getDevice();
       ScopedContext Active(Device);
       HIPStream = hipStream_t{0}; // Default stream for different device
       // We may have to wait for an event on another queue if it is the last
@@ -229,12 +231,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
                                        &hBuffer->LastEventWritingToMemObj));
     }
 
+    ScopedContext Active(Device);
+
     // Use the default stream if copying from another device
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                      phEventWaitList));
-
-    // enqueueEventsWait may set a different context
-    ScopedContext Active(Device);
 
     if (phEvent) {
       RetImplEvent =
@@ -588,7 +589,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     if (hBuffer->LastEventWritingToMemObj &&
         hBuffer->LastEventWritingToMemObj->getQueue()->getDevice() !=
             hQueue->getDevice()) {
-      Device = hBuffer->LastEventWritingToMemObj->getQueue()->getDevice();
+      // This event is never created with interop so getQueue is never null
+      hQueue = hBuffer->LastEventWritingToMemObj->getQueue();
+      Device = hQueue->getDevice();
       ScopedContext Active(Device);
       HIPStream = hipStream_t{0}; // Default stream for different device
       // We may have to wait for an event on another queue if it is the last
@@ -597,11 +600,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
                                        &hBuffer->LastEventWritingToMemObj));
     }
 
+    ScopedContext Active(Device);
+
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                      phEventWaitList));
-
-    // enqueueEventsWait may set a different context
-    ScopedContext Active(Device);
 
     if (phEvent) {
       RetImplEvent =
@@ -1023,7 +1025,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     if (hImage->LastEventWritingToMemObj &&
         hImage->LastEventWritingToMemObj->getQueue()->getDevice() !=
             hQueue->getDevice()) {
-      Device = hImage->LastEventWritingToMemObj->getQueue()->getDevice();
+      hQueue = hImage->LastEventWritingToMemObj->getQueue();
+      Device = hQueue->getDevice();
       ScopedContext Active(Device);
       HIPStream = hipStream_t{0}; // Default stream for different device
       // We may have to wait for an event on another queue if it is the last
