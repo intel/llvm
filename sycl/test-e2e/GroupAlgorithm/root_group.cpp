@@ -1,5 +1,5 @@
-// Fails with opencl and level_zero on linux, enable when fixed.
-// XFAIL: opencl || (linux && level_zero)
+// Fails with opencl non-cpu and level_zero on linux, enable when fixed.
+// XFAIL: (opencl && !cpu) || (linux && level_zero)
 // RUN: %{build} -I . -o %t.out
 // RUN: %{run} %t.out
 
