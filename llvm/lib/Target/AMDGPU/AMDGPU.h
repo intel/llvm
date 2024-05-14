@@ -62,6 +62,7 @@ FunctionPass *createAMDGPUMachineCFGStructurizerPass();
 FunctionPass *createAMDGPURewriteOutArgumentsPass();
 ModulePass *
 createAMDGPULowerModuleLDSLegacyPass(const AMDGPUTargetMachine *TM = nullptr);
+ModulePass *createAMDGPULowerBufferFatPointersPass();
 FunctionPass *createSIModeRegisterPass();
 FunctionPass *createGCNPreRAOptimizationsPass();
 
@@ -129,6 +130,12 @@ struct AMDGPULowerKernelAttributesPass
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
+struct AMDGPUOclcReflectPass : public PassInfoMixin<AMDGPUOclcReflectPass> {
+public:
+  PreservedAnalyses run(Function &M, FunctionAnalysisManager &AM);
+  static bool isRequired() { return true; }
+};
+
 void initializeAMDGPULowerModuleLDSLegacyPass(PassRegistry &);
 extern char &AMDGPULowerModuleLDSLegacyPassID;
 
@@ -137,6 +144,18 @@ struct AMDGPULowerModuleLDSPass : PassInfoMixin<AMDGPULowerModuleLDSPass> {
   AMDGPULowerModuleLDSPass(const AMDGPUTargetMachine &TM_) : TM(TM_) {}
 
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+};
+
+void initializeAMDGPULowerBufferFatPointersPass(PassRegistry &);
+extern char &AMDGPULowerBufferFatPointersID;
+
+struct AMDGPULowerBufferFatPointersPass
+    : PassInfoMixin<AMDGPULowerBufferFatPointersPass> {
+  AMDGPULowerBufferFatPointersPass(const TargetMachine &TM) : TM(TM) {}
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+
+private:
+  const TargetMachine &TM;
 };
 
 void initializeAMDGPURewriteOutArgumentsPass(PassRegistry &);

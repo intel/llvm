@@ -15,10 +15,8 @@
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_kernel_device_specif...
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
 #include <sycl/detail/pi.h>                   // for pi_native_handle
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
-#endif
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>              // for device
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
@@ -142,13 +140,16 @@ public:
   ///
   /// \return depends on information being queried.
   template <typename Param>
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   typename detail::is_kernel_info_desc<Param>::return_type get_info() const {
     return detail::convert_from_abi_neutral(get_info_impl<Param>());
   }
-#else
-  typename detail::is_kernel_info_desc<Param>::return_type get_info() const;
-#endif
+
+  /// Queries the kernel object for SYCL backend-specific information.
+  ///
+  /// The return type depends on information being queried.
+  template <typename Param>
+  typename detail::is_backend_info_desc<Param>::return_type
+  get_backend_info() const;
 
   /// Query device-specific information from the kernel object using the
   /// info::kernel_device_specific descriptor.
@@ -194,12 +195,10 @@ private:
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
   typename detail::ABINeutralT_t<
       typename detail::is_kernel_info_desc<Param>::return_type>
   get_info_impl() const;
-#endif
 };
 } // namespace _V1
 } // namespace sycl

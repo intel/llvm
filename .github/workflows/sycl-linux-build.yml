@@ -28,7 +28,7 @@ on:
       build_configure_extra_args:
         type: string
         required: false
-        default: "--hip --cuda"
+        default: "--hip --cuda --native_cpu"
       build_artifact_suffix:
         type: string
         required: true
@@ -82,7 +82,7 @@ on:
       build_configure_extra_args:
         type: choice
         options:
-          - "--hip --cuda"
+          - "--hip --cuda --native_cpu"
       # Cache properties need to match CC/CXX/CMake opts. Any additional choices
       # would need extra care.
       build_cache_root:
@@ -102,6 +102,8 @@ on:
         type: choice
         options:
           - 3
+
+permissions: read-all
 
 jobs:
   build:
@@ -166,6 +168,7 @@ jobs:
           --cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=ccache \
           --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
+          --cmake-opt="-DNATIVECPU_USE_OCK=Off" \
           --cmake-opt="-DSYCL_PI_TESTS=OFF"
     - name: Compile
       id: build
@@ -186,6 +189,12 @@ jobs:
         # TODO consider moving this to Dockerfile.
         export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
         cmake --build $GITHUB_WORKSPACE/build --target check-sycl
+    - name: check-sycl-unittests
+      if: always() && !cancelled() && contains(inputs.changes, 'sycl')
+      run: |
+        # TODO consider moving this to Dockerfile.
+        export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+        cmake --build $GITHUB_WORKSPACE/build --target check-sycl-unittests
     - name: check-llvm-spirv
       if: always() && !cancelled() && contains(inputs.changes, 'llvm_spirv')
       run: |

@@ -875,8 +875,11 @@ MaybeExpr ExpressionAnalyzer::Analyze(const parser::CharLiteralConstant &x) {
 MaybeExpr ExpressionAnalyzer::Analyze(
     const parser::HollerithLiteralConstant &x) {
   int kind{GetDefaultKind(TypeCategory::Character)};
-  auto value{x.v};
-  return AnalyzeString(std::move(value), kind);
+  auto result{AnalyzeString(std::string{x.v}, kind)};
+  if (auto *constant{UnwrapConstantValue<Ascii>(result)}) {
+    constant->set_wasHollerith(true);
+  }
+  return result;
 }
 
 // .TRUE. and .FALSE. of various kinds
@@ -1299,7 +1302,8 @@ static NamedEntity IgnoreAnySubscripts(Designator<SomeDerived> &&designator) {
       std::move(designator.u));
 }
 
-// Components of parent derived types are explicitly represented as such.
+// Components, but not bindings, of parent derived types are explicitly
+// represented as such.
 std::optional<Component> ExpressionAnalyzer::CreateComponent(DataRef &&base,
     const Symbol &component, const semantics::Scope &scope,
     bool C919bAlreadyEnforced) {
@@ -1307,7 +1311,8 @@ std::optional<Component> ExpressionAnalyzer::CreateComponent(DataRef &&base,
       base.Rank() > 0) { // C919b
     Say("An allocatable or pointer component reference must be applied to a scalar base"_err_en_US);
   }
-  if (&component.owner() == &scope) {
+  if (&component.owner() == &scope ||
+      component.has<semantics::ProcBindingDetails>()) {
     return Component{std::move(base), component};
   }
   if (const Symbol *typeSymbol{scope.GetSymbol()}) {
@@ -2557,7 +2562,8 @@ std::pair<const Symbol *, bool> ExpressionAnalyzer::ResolveGeneric(
       }
       if (std::optional<characteristics::Procedure> procedure{
               characteristics::Procedure::Characterize(
-                  ProcedureDesignator{specific}, context_.foldingContext())}) {
+                  ProcedureDesignator{specific}, context_.foldingContext(),
+                  /*emitError=*/false)}) {
         ActualArguments localActuals{actuals};
         if (specific.has<semantics::ProcBindingDetails>()) {
           if (!adjustActuals.value()(specific, localActuals)) {
@@ -2983,8 +2989,8 @@ void ExpressionAnalyzer::Analyze(const parser::CallStmt &callStmt) {
   for (const auto &arg : actualArgList) {
     analyzer.Analyze(arg, true /* is subroutine call */);
   }
-  auto chevrons{AnalyzeChevrons(callStmt)};
-  if (!analyzer.fatalErrors() && chevrons) {
+  if (auto chevrons{AnalyzeChevrons(callStmt)};
+      chevrons && !analyzer.fatalErrors()) {
     if (std::optional<CalleeAndArguments> callee{
             GetCalleeAndArguments(std::get<parser::ProcedureDesignator>(call.t),
                 analyzer.GetActuals(), true /* subroutine */)}) {
@@ -3159,7 +3165,7 @@ std::optional<characteristics::Procedure> ExpressionAnalyzer::CheckCall(
   }
   if (!chars) {
     chars = characteristics::Procedure::Characterize(
-        proc, context_.foldingContext());
+        proc, context_.foldingContext(), /*emitError=*/true);
   }
   bool ok{true};
   if (chars) {

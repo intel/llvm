@@ -10,8 +10,8 @@
 // RUN: %{run} %t.out
 
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/fpga_extensions.hpp>
-#include <sycl/sycl.hpp>
 
 int test_lsu(sycl::queue Queue) {
   int output_data[2];

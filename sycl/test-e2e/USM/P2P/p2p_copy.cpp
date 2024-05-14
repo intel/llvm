@@ -4,7 +4,8 @@
 
 #include <cassert>
 #include <numeric>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 #include <vector>
 
 using namespace sycl;

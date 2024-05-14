@@ -4,7 +4,7 @@
 // RUN: %{run} %t.out
 
 #include "include/asmhelper.h"
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 class no_operands_kernel;
 
 int main() {

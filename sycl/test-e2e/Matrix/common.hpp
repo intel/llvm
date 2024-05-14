@@ -8,7 +8,8 @@
 #include <cmath>
 #include <iostream>
 #include <random>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/matrix/matrix.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
@@ -42,21 +43,21 @@ float make_fp32(bfloat16 x) {
   return *res;
 }
 
-template <typename Ta, typename Tb, typename Tc, unsigned int VF = 1>
+template <typename Ta, typename Tb, typename Tc, unsigned int VF = 1,
+          typename F = std::nullptr_t>
 void matrix_multiply_ref(Ta *A, Tb *B, Tc *C, int M, int N, int K,
                          bool transpose_c = false, bool colmajor_a = false,
-                         bool colmajor_b = false) {
+                         bool colmajor_b = false, F &&lambda = {}) {
   for (unsigned int m = 0; m < M; m++) {
     for (unsigned int n = 0; n < N; n++) {
-      for (unsigned int k = 0; k < K; k++) {
+      int c_ind = transpose_c ? (n * M + m) : m * N + n;
+      Tc acc = *(C + c_ind);
 
+      for (unsigned int k = 0; k < K; k++) {
         int a_ind = colmajor_a ? (k * M + m) : m * K + k;
         int b_ind = colmajor_b ? (n * K + k) : k * N + n;
-        int c_ind = transpose_c ? (n * M + m) : m * N + n;
-
         Ta *va = (Ta *)(A + a_ind * VF);
         Tb *vb = (Tb *)(B + b_ind * VF);
-        Tc acc = *(C + c_ind);
 
         for (unsigned int i = 0; i < VF; i++) {
           if constexpr (std::is_same_v<Ta, bfloat16> &&
@@ -74,9 +75,12 @@ void matrix_multiply_ref(Ta *A, Tb *B, Tc *C, int M, int N, int K,
           else
             assert(false && "Unsupported type in matrix_multiply_ref.");
         }
-
-        *(C + c_ind) = acc;
       }
+
+      if constexpr (!std::is_same_v<F, std::nullptr_t>) {
+        lambda(acc);
+      }
+      *(C + c_ind) = acc;
     }
   }
 }
@@ -132,8 +136,7 @@ void matrix_rand(unsigned int rows, unsigned int cols, T *src, T val) {
       if constexpr (std::is_same_v<T, bfloat16> || std::is_same_v<T, float> ||
                     std::is_same_v<T, double>) {
         src[i * cols + j] = T(fdistr(dev));
-      } else if constexpr (std::is_same_v<T, int8_t> ||
-                           std::is_same_v<T, int32_t>) {
+      } else if constexpr (std::is_integral_v<T>) {
         src[i * cols + j] = T(idistr(dev));
       } else {
         assert(false && "Unsupported type in matrix_rand.");
@@ -170,8 +173,9 @@ bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
         }
       } else if constexpr (exact || std::is_same_v<T1, int32_t>) {
         if (src[i * cols + j] != ref[i * cols + j]) {
-          std::cout << "Incorrect result in matrix." << "i: " << i
-                    << ", j: " << j << ", Ref: " << ref[i * cols + j]
+          std::cout << "Incorrect result in matrix."
+                    << "i: " << i << ", j: " << j
+                    << ", Ref: " << ref[i * cols + j]
                     << ", Val: " << src[i * cols + j] << "\n";
           return false;
         }

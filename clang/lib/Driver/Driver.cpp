@@ -49,6 +49,7 @@
 #include "ToolChains/WebAssembly.h"
 #include "ToolChains/XCore.h"
 #include "ToolChains/ZOS.h"
+#include "clang/Basic/DiagnosticDriver.h"
 #include "clang/Basic/TargetID.h"
 #include "clang/Basic/Version.h"
 #include "clang/Config/config.h"
@@ -91,11 +92,12 @@
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
-#include "llvm/Support/RISCVISAInfo.h"
+#include "llvm/Support/Regex.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/RISCVISAInfo.h"
 #include <cstdlib> // ::getenv
 #include <map>
 #include <memory>
@@ -380,6 +382,7 @@ phases::ID Driver::getFinalPhase(const DerivedArgList &DAL,
              (PhaseArg = DAL.getLastArg(options::OPT_rewrite_legacy_objc)) ||
              (PhaseArg = DAL.getLastArg(options::OPT__migrate)) ||
              (PhaseArg = DAL.getLastArg(options::OPT__analyze)) ||
+             (PhaseArg = DAL.getLastArg(options::OPT_emit_cir)) ||
              (PhaseArg = DAL.getLastArg(options::OPT_emit_ast))) {
     FinalPhase = phases::Compile;
 
@@ -805,10 +808,10 @@ static bool isValidSYCLTriple(llvm::Triple T) {
     return true;
 
   // Check for invalid SYCL device triple values.
-  // Non-SPIR arch.
-  if (!T.isSPIR())
+  // Non-SPIR/SPIRV arch.
+  if (!T.isSPIROrSPIRV())
     return false;
-  // SPIR arch, but has invalid SubArch for AOT.
+  // SPIR/SPIRV arch, but has invalid SubArch for AOT.
   StringRef A(T.getArchName());
   if (T.getSubArch() == llvm::Triple::NoSubArch &&
       ((T.getArch() == llvm::Triple::spir && !A.equals("spir")) ||
@@ -832,7 +835,7 @@ static bool addSYCLDefaultTriple(Compilation &C,
     return false;
   for (const auto &SYCLTriple : SYCLTriples) {
     if (SYCLTriple.getSubArch() == llvm::Triple::NoSubArch &&
-        SYCLTriple.isSPIR())
+        SYCLTriple.isSPIROrSPIRV())
       return false;
     // If we encounter a known non-spir* target, do not add the default triple.
     if (SYCLTriple.isNVPTX() || SYCLTriple.isAMDGCN())
@@ -1158,6 +1161,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   checkSingleArgValidity(DeviceCodeSplit,
                          {"per_kernel", "per_source", "auto", "off"});
 
+  Arg *RangeRoundingPreference =
+      C.getInputArgs().getLastArg(options::OPT_fsycl_range_rounding_EQ);
+  checkSingleArgValidity(RangeRoundingPreference, {"disable", "force", "on"});
+
   Arg *SYCLForceTarget =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_force_target_EQ);
   if (SYCLForceTarget) {
@@ -1304,9 +1311,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       }
     }
   }
-  // Define macros associated with `any_device_has/all_devices_have` according
-  // to the aspects defined in the DeviceConfigFile for the SYCL targets.
-  populateSYCLDeviceTraitsMacrosArgs(C.getInputArgs(), UniqueSYCLTriplesVec);
   // We'll need to use the SYCL and host triples as the key into
   // getOffloadingDeviceToolChain, because the device toolchains we're
   // going to create will depend on both.
@@ -1726,12 +1730,13 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   if (Args.getLastArg(options::OPT_fsycl_dump_device_code_EQ))
     DumpDeviceCode = true;
 
-  if (const Arg *A = Args.getLastArg(options::OPT_offload_host_only,
-                                     options::OPT_offload_device_only,
-                                     options::OPT_offload_host_device)) {
+  if (const Arg *A = Args.getLastArg(
+          options::OPT_offload_host_only, options::OPT_offload_device_only,
+          options::OPT_offload_host_device, options::OPT_fsycl_device_only)) {
     if (A->getOption().matches(options::OPT_offload_host_only))
       Offload = OffloadHost;
-    else if (A->getOption().matches(options::OPT_offload_device_only))
+    else if (A->getOption().matches(options::OPT_offload_device_only) ||
+             A->getOption().matches(options::OPT_fsycl_device_only))
       Offload = OffloadDevice;
     else
       Offload = OffloadHostDevice;
@@ -2387,8 +2392,9 @@ void Driver::PrintHelp(bool ShowHidden) const {
 }
 
 llvm::Triple Driver::MakeSYCLDeviceTriple(StringRef TargetArch) const {
-  SmallVector<StringRef, 5> SYCLAlias = {"spir", "spir64", "spir64_fpga",
-                                         "spir64_x86_64", "spir64_gen"};
+  SmallVector<StringRef, 5> SYCLAlias = {
+      "spir",       "spir64",  "spir64_fpga", "spir64_x86_64",
+      "spir64_gen", "spirv32", "spirv64"};
   if (std::find(SYCLAlias.begin(), SYCLAlias.end(), TargetArch) !=
       SYCLAlias.end()) {
     llvm::Triple TT;
@@ -2476,6 +2482,12 @@ void Driver::PrintVersion(const Compilation &C, raw_ostream &OS) const {
 
   // Print out the install directory.
   OS << "InstalledDir: " << Dir << '\n';
+
+  // Print the build config if it's non-default.
+  // Intended to help LLVM developers understand the configs of compilers
+  // they're investigating.
+  if (!llvm::cl::getCompilerBuildConfig().empty())
+    llvm::cl::printBuildConfig(OS);
 
   // If configuration files were used, print their paths.
   for (auto ConfigFile : ConfigFiles)
@@ -2674,6 +2686,12 @@ bool Driver::HandleImmediateArgs(const Compilation &C) {
         llvm::outs() << Path;
     }
     llvm::outs() << "\n";
+    return false;
+  }
+
+  if (C.getArgs().hasArg(options::OPT_print_std_module_manifest_path)) {
+    llvm::outs() << GetStdModuleManifestPath(C, C.getDefaultToolChain())
+                 << '\n';
     return false;
   }
 
@@ -3664,8 +3682,11 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
 static bool IsSYCLDeviceLibObj(std::string ObjFilePath, bool isMSVCEnv) {
   StringRef ObjFileName = llvm::sys::path::filename(ObjFilePath);
   StringRef ObjSuffix = isMSVCEnv ? ".obj" : ".o";
+  StringRef NewObjSuffix = isMSVCEnv ? ".new.obj" : ".new.o";
   bool Ret =
-      (ObjFileName.starts_with("libsycl-") && ObjFileName.ends_with(ObjSuffix))
+      (ObjFileName.starts_with("libsycl-") &&
+       ObjFileName.ends_with(ObjSuffix) &&
+       !ObjFileName.ends_with(NewObjSuffix)) // Avoid new-offload-driver objs
           ? true
           : false;
   return Ret;
@@ -3688,7 +3709,7 @@ bool Driver::checkForSYCLDefaultDevice(Compilation &C,
   if (const Arg *A = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
     for (const char *Val : A->getValues()) {
       llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
-      if (TT.isSPIR() && TT.getSubArch() == llvm::Triple::NoSubArch)
+      if ((TT.isSPIROrSPIRV()) && TT.getSubArch() == llvm::Triple::NoSubArch)
         // Default triple found
         return false;
     }
@@ -4166,7 +4187,7 @@ class OffloadingActionBuilder final {
       // supported GPUs.  sm_20 code should work correctly, if
       // suboptimally, on all newer GPUs.
       if (GpuArchList.empty()) {
-        if (ToolChains.front()->getTriple().isSPIRV())
+        if (ToolChains.front()->getTriple().isSPIROrSPIRV())
           GpuArchList.push_back(CudaArch::Generic);
         else
           GpuArchList.push_back(DefaultCudaArch);
@@ -4341,7 +4362,7 @@ class OffloadingActionBuilder final {
                      OffloadingActionBuilder &OAB)
         : CudaActionBuilderBase(C, Args, Inputs, Action::OFK_HIP, OAB) {
 
-      DefaultCudaArch = CudaArch::GFX906;
+      DefaultCudaArch = CudaArch::HIPDefault;
 
       if (Args.hasArg(options::OPT_fhip_emit_relocatable,
                       options::OPT_fno_hip_emit_relocatable)) {
@@ -4438,7 +4459,7 @@ class OffloadingActionBuilder final {
             // compiler phases, including backend and assemble phases.
             ActionList AL;
             Action *BackendAction = nullptr;
-            if (ToolChains.front()->getTriple().isSPIRV()) {
+            if (ToolChains.front()->getTriple().isSPIROrSPIRV()) {
               // Emit LLVM bitcode for SPIR-V targets. SPIR-V device tool chain
               // (HIPSPVToolChain) runs post-link LLVM IR passes.
               types::ID Output = Args.hasArg(options::OPT_S)
@@ -4759,7 +4780,7 @@ class OffloadingActionBuilder final {
         DA->registerDependentActionInfo(
             ToolChains[I], /*BoundArch=*/StringRef(), Action::OFK_OpenMP);
 
-        if (!ToolChains[I]->getTriple().isSPIR()) {
+        if (!ToolChains[I]->getTriple().isSPIROrSPIRV()) {
           // Create object from the deps bitcode.
           auto *BA = C.MakeAction<BackendJobAction>(DA, types::TY_PP_Asm);
           auto *AA = C.MakeAction<AssembleJobAction>(BA, types::TY_Object);
@@ -4924,7 +4945,7 @@ class OffloadingActionBuilder final {
     getDeviceDependences(OffloadAction::DeviceDependences &DA,
                          phases::ID CurPhase, phases::ID FinalPhase,
                          PhasesTy &Phases) override {
-      bool SYCLDeviceOnly = Args.hasArg(options::OPT_fsycl_device_only);
+      bool SYCLDeviceOnly = C.getDriver().offloadDeviceOnly();
       if (CurPhase == phases::Preprocess) {
         // Do not perform the host compilation when doing preprocessing only
         // with -fsycl-device-only.
@@ -5047,10 +5068,8 @@ class OffloadingActionBuilder final {
           // action or fat binary.
           SYCLDeviceActions.clear();
 
-          for (auto SDA : SYCLDeviceActions)
-            SYCLLinkBinaryList.push_back(SDA);
           if (WrapDeviceOnlyBinary)
-            return ABRT_Success;
+            return ABRT_Ignore_Host;
           auto *Link =
               C.MakeAction<LinkJobAction>(SYCLLinkBinaryList, types::TY_Image);
           SYCLLinkBinary =
@@ -5302,7 +5321,7 @@ class OffloadingActionBuilder final {
       auto TargetTriple = TC->getTriple();
       auto IsNVPTX = TargetTriple.isNVPTX();
       auto IsAMDGCN = TargetTriple.isAMDGCN();
-      auto IsSPIR = TargetTriple.isSPIR();
+      auto IsSPIR = TargetTriple.isSPIROrSPIRV();
       bool IsSpirvAOT = TargetTriple.isSPIRAOT();
       const bool IsSYCLNativeCPU =
           TC->getAuxTriple() &&
@@ -5838,7 +5857,7 @@ class OffloadingActionBuilder final {
         LibraryPaths.emplace_back(WithInstallPath.c_str());
 
         // Select libclc variant based on target triple
-        std::string LibSpirvTargetName = "builtins.link.libspirv-";
+        std::string LibSpirvTargetName = "libspirv-";
         LibSpirvTargetName.append(TC->getTripleString() + ".bc");
 
         for (StringRef LibraryPath : LibraryPaths) {
@@ -5884,23 +5903,34 @@ class OffloadingActionBuilder final {
             ++NumOfDeviceLibLinked;
             Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
                                          Args.MakeArgString(LibName));
-            auto *SYCLDeviceLibsInputAction =
-                C.MakeAction<InputAction>(*InputArg, types::TY_Object);
-            auto *SYCLDeviceLibsUnbundleAction =
-                C.MakeAction<OffloadUnbundlingJobAction>(
-                    SYCLDeviceLibsInputAction);
+            if (TC->getTriple().isNVPTX() ||
+                (TC->getTriple().isSPIR() &&
+                 TC->getTriple().getSubArch() ==
+                     llvm::Triple::SPIRSubArch_fpga)) {
+              auto *SYCLDeviceLibsInputAction =
+                  C.MakeAction<InputAction>(*InputArg, types::TY_Object);
+              auto *SYCLDeviceLibsUnbundleAction =
+                  C.MakeAction<OffloadUnbundlingJobAction>(
+                      SYCLDeviceLibsInputAction);
 
-            // We are using BoundArch="" here since the NVPTX bundles in
-            // the devicelib .o files do not contain any arch information
-            SYCLDeviceLibsUnbundleAction->registerDependentActionInfo(
-                TC, /*BoundArch=*/"", Action::OFK_SYCL);
-            OffloadAction::DeviceDependences Dep;
-            Dep.add(*SYCLDeviceLibsUnbundleAction, *TC, /*BoundArch=*/"",
-                    Action::OFK_SYCL);
-            auto *SYCLDeviceLibsDependenciesAction =
-                C.MakeAction<OffloadAction>(
-                    Dep, SYCLDeviceLibsUnbundleAction->getType());
-            DeviceLinkObjects.push_back(SYCLDeviceLibsDependenciesAction);
+              // We are using BoundArch="" here since the NVPTX bundles in
+              // the devicelib .o files do not contain any arch information
+              SYCLDeviceLibsUnbundleAction->registerDependentActionInfo(
+                  TC, /*BoundArch=*/"", Action::OFK_SYCL);
+              OffloadAction::DeviceDependences Dep;
+              Dep.add(*SYCLDeviceLibsUnbundleAction, *TC, /*BoundArch=*/"",
+                      Action::OFK_SYCL);
+              auto *SYCLDeviceLibsDependenciesAction =
+                  C.MakeAction<OffloadAction>(
+                      Dep, SYCLDeviceLibsUnbundleAction->getType());
+              DeviceLinkObjects.push_back(SYCLDeviceLibsDependenciesAction);
+            } else {
+              // We are using the LLVM-IR device libraries directly, no need
+              // to unbundle any objects.
+              auto *SYCLDeviceLibsInputAction =
+                  C.MakeAction<InputAction>(*InputArg, types::TY_LLVM_BC);
+              DeviceLinkObjects.push_back(SYCLDeviceLibsInputAction);
+            }
             if (!LibLocSelected)
               LibLocSelected = !LibLocSelected;
           }
@@ -6098,7 +6128,8 @@ class OffloadingActionBuilder final {
         if (Triple.isAMDGCN() && llvm::none_of(GpuArchList, [&](auto &P) {
               return P.first.isAMDGCN();
             })) {
-          C.getDriver().Diag(clang::diag::err_drv_sycl_missing_amdgpu_arch);
+          C.getDriver().Diag(clang::diag::err_drv_sycl_missing_amdgpu_arch)
+              << (SYCLTripleList.size() > 1) << Triple.str();
           return true;
         }
       }
@@ -6157,7 +6188,7 @@ class OffloadingActionBuilder final {
         // If any section found is an 'image' based object that was created
         // with the intention of not requiring the matching SYCL target, do
         // not emit the diagnostic.
-        if (SyclTarget.TC->getTriple().isSPIR()) {
+        if (SyclTarget.TC->getTriple().isSPIROrSPIRV()) {
           bool SectionFound = false;
           for (auto Section : UniqueSections) {
             if (SectionFound)
@@ -6241,6 +6272,101 @@ class OffloadingActionBuilder final {
         }
       }
       return FinalDeviceSections;
+    }
+
+    /// Reads device config file to find information about the SYCL targets in
+    /// `Targets`, and defines device traits macros accordingly.
+    void populateSYCLDeviceTraitsMacrosArgs(
+        Compilation &C, const DerivedArgList &Args,
+        const SmallVector<DeviceTargetInfo, 4> &Targets) const {
+      if (Targets.empty())
+        return;
+
+      const auto &TargetTable = DeviceConfigFile::TargetTable;
+      std::map<StringRef, unsigned int> AllDevicesHave;
+      std::map<StringRef, bool> AnyDeviceHas;
+      bool AnyDeviceHasAnyAspect = false;
+      unsigned int ValidTargets = 0;
+      for (const auto &[TC, BoundArch] : Targets) {
+        assert(TC && "Invalid SYCL Offload Toolchain");
+        // Try and find the device arch, if it's empty, try to search for either
+        // the whole Triple or just the 'ArchName' string.
+        auto TargetIt = TargetTable.end();
+        const llvm::Triple &TargetTriple = TC->getTriple();
+        const StringRef TargetArch{BoundArch};
+        if (!TargetArch.empty()) {
+          TargetIt = llvm::find_if(TargetTable, [&](const auto &Value) {
+            using namespace tools::SYCL;
+            StringRef Device{Value.first};
+            if (Device.consume_front(gen::AmdGPU))
+              return TargetArch.equals(Device) && TargetTriple.isAMDGCN();
+            if (Device.consume_front(gen::NvidiaGPU))
+              return TargetArch.equals(Device) && TargetTriple.isNVPTX();
+            if (Device.consume_front(gen::IntelGPU))
+              return TargetArch.equals(Device) && TargetTriple.isSPIRAOT();
+            return TargetArch.equals(Device) && isValidSYCLTriple(TargetTriple);
+          });
+        } else {
+          TargetIt = TargetTable.find(TargetTriple.str());
+          if (TargetIt == TargetTable.end())
+            TargetIt = TargetTable.find(TargetTriple.getArchName().str());
+        }
+
+        if (TargetIt != TargetTable.end()) {
+          const DeviceConfigFile::TargetInfo &Info = (*TargetIt).second;
+          ++ValidTargets;
+          const auto &AspectList = Info.aspects;
+          const auto &MaySupportOtherAspects = Info.maySupportOtherAspects;
+          if (!AnyDeviceHasAnyAspect)
+            AnyDeviceHasAnyAspect = MaySupportOtherAspects;
+          for (const auto &Aspect : AspectList) {
+            // If target has an entry in the config file, the set of aspects
+            // supported by all devices supporting the target is 'AspectList'.
+            // If there's no entry, such set is empty.
+            const auto &AspectIt = AllDevicesHave.find(Aspect);
+            if (AspectIt != AllDevicesHave.end())
+              ++AllDevicesHave[Aspect];
+            else
+              AllDevicesHave[Aspect] = 1;
+            // If target has an entry in the config file AND
+            // 'MaySupportOtherAspects' is false, the set of aspects supported
+            // by any device supporting the target is 'AspectList'. If there's
+            // no entry OR 'MaySupportOtherAspects' is true, such set contains
+            // all the aspects.
+            AnyDeviceHas[Aspect] = true;
+          }
+        }
+      }
+
+      // If there's no entry for the target in the device config file, the set
+      // of aspects supported by any device supporting the target contains all
+      // the aspects.
+      if (ValidTargets == 0)
+        AnyDeviceHasAnyAspect = true;
+
+      const Driver &D = C.getDriver();
+      if (AnyDeviceHasAnyAspect) {
+        // There exists some target that supports any given aspect.
+        constexpr static StringRef MacroAnyDeviceAnyAspect{
+            "-D__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__=1"};
+        D.addSYCLDeviceTraitsMacroArg(Args, MacroAnyDeviceAnyAspect);
+      } else {
+        // Some of the aspects are not supported at all by any of the targets.
+        // Thus, we need to define individual macros for each supported aspect.
+        for (const auto &[TargetKey, SupportedTarget] : AnyDeviceHas) {
+          assert(SupportedTarget);
+          const SmallString<64> MacroAnyDevice{
+              {"-D__SYCL_ANY_DEVICE_HAS_", TargetKey, "__=1"}};
+          D.addSYCLDeviceTraitsMacroArg(Args, MacroAnyDevice);
+        }
+      }
+      for (const auto &[TargetKey, SupportedTargets] : AllDevicesHave) {
+        if (SupportedTargets != ValidTargets)
+          continue;
+        const SmallString<64> MacroAllDevices{
+            {"-D__SYCL_ALL_DEVICES_HAVE_", TargetKey, "__=1"}};
+        D.addSYCLDeviceTraitsMacroArg(Args, MacroAllDevices);
+      }
     }
 
     bool initialize() override {
@@ -6502,6 +6628,11 @@ class OffloadingActionBuilder final {
       checkForOffloadMismatch(C, Args, SYCLTargetInfoList);
       checkForMisusedAddDefaultSpecConstsImageFlag(C, Args, SYCLTargetInfoList);
 
+      // Define macros associated with `any_device_has/all_devices_have`
+      // according to the aspects defined in the DeviceConfigFile for the SYCL
+      // targets.
+      populateSYCLDeviceTraitsMacrosArgs(C, Args, SYCLTargetInfoList);
+
       DeviceLinkerInputs.resize(SYCLTargetInfoList.size());
       return false;
     }
@@ -6739,7 +6870,7 @@ public:
            ++TI) {
         HasFPGATarget |= TI->second->getTriple().getSubArch() ==
                          llvm::Triple::SPIRSubArch_fpga;
-        HasSPIRTarget |= TI->second->getTriple().isSPIR();
+        HasSPIRTarget |= TI->second->getTriple().isSPIROrSPIRV();
       }
       bool isArchive = !(HostAction->getType() == types::TY_Object &&
                          isObjectFile(InputArg->getAsString(Args)));
@@ -6749,9 +6880,8 @@ public:
         return false;
       if (HasFPGATarget && !updateInputForFPGA(A, InputArg, Args))
         return false;
-      // FIXME - unbundling action is being split into two different actions
-      // when unbundling objects.  One action for the host, the other for the
-      // device.
+      // FIXME - unbundling action with -fsycl-link is unbundling for both host
+      // and device, where only the device is needed.
       auto UnbundlingHostAction = C.MakeAction<OffloadUnbundlingJobAction>(
           A, (HasSPIRTarget && HostAction->getType() == types::TY_Archive)
                  ? types::TY_Tempfilelist
@@ -7325,7 +7455,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   ExtractAPIJobAction *ExtractAPIAction = nullptr;
   ActionList LinkerInputs;
   ActionList MergerInputs;
-  ActionList DeviceAOTLinkerInputs;
   ActionList HostActions;
   llvm::SmallVector<const Arg *, 6> LinkerInputArgs;
   llvm::SmallVector<phases::ID, phases::MaxNumberOfPhases> PL;
@@ -7362,17 +7491,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       if (Phase == phases::Link) {
         assert(Phase == PL.back() && "linking must be final compilation step.");
 
-        // When performing -fsycl-link the current inputs are not expected to
-        // be passed to the final host link step.  Instead, take these inputs
-        // and redirect them to the associated wrapping step to create the
-        // final object.
-        if (C.getInputArgs().hasArg(options::OPT_fsycl_link_EQ) &&
-            !Args.hasArg(options::OPT_fintelfpga)) {
-          DeviceAOTLinkerInputs.push_back(Current);
-          Current = nullptr;
-          break;
-        }
-
         // We don't need to generate additional link commands if emitting AMD
         // bitcode or compiling only for the offload device
         if (!(C.getInputArgs().hasArg(options::OPT_hip_link) &&
@@ -7392,19 +7510,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         MergerInputs.push_back(Current);
         Current = nullptr;
         break;
-      }
-
-      // When performing -fsycl based compilations and generating dependency
-      // information, perform a specific dependency generation compilation which
-      // is not based on the source + footer compilation.
-      if (Phase == phases::Preprocess && Args.hasArg(options::OPT_fsycl) &&
-          Args.hasArg(options::OPT_M_Group) &&
-          !Args.hasArg(options::OPT_fno_sycl_use_footer)) {
-        Action *PreprocessAction =
-            C.MakeAction<PreprocessJobAction>(Current, types::TY_Dependencies);
-        PreprocessAction->propagateHostOffloadInfo(Action::OFK_SYCL,
-                                                   /*BoundArch=*/nullptr);
-        Actions.push_back(PreprocessAction);
       }
 
       if (Phase == phases::Precompile && ExtractAPIAction) {
@@ -7512,14 +7617,13 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   }
 
   // Add a link action if necessary.
+  // When offloading with -fsycl-link-targets, no link action is processed
+  // as we stop at the spirv-translation step.
   Arg *FinalPhaseArg;
   if (!UseNewOffloadingDriver &&
-      getFinalPhase(Args, &FinalPhaseArg) == phases::Link) {
-    if (LinkerInputs.empty() && DeviceAOTLinkerInputs.empty())
-      OffloadBuilder->appendDeviceLinkActions(Actions);
-
-    if (!DeviceAOTLinkerInputs.empty() &&
-        Args.hasArg(options::OPT_fsycl_link_EQ) &&
+      getFinalPhase(Args, &FinalPhaseArg) == phases::Link &&
+      !Args.hasArg(options::OPT_fsycl_link_targets_EQ)) {
+    if (Args.hasArg(options::OPT_fsycl_link_EQ) &&
         !Args.hasArg(options::OPT_fintelfpga)) {
       ActionList LAList;
       OffloadBuilder->makeHostLinkDeviceOnlyAction(LAList);
@@ -7528,7 +7632,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         LA = OffloadBuilder->processHostLinkAction(LA);
         Actions.push_back(LA);
       }
-    }
+    } else if (LinkerInputs.empty())
+      OffloadBuilder->appendDeviceLinkActions(Actions);
   }
 
   if (!LinkerInputs.empty()) {
@@ -7877,6 +7982,11 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
         break;
       }
 
+      // Assemble actions are not used for the SYCL device side.  Both compile
+      // and backend actions are used to generate IR and textual IR if needed.
+      if (Kind == Action::OFK_SYCL && Phase == phases::Assemble)
+        continue;
+
       auto TCAndArch = TCAndArchs.begin();
       for (Action *&A : DeviceActions) {
         if (A->getType() == types::TY_Nothing)
@@ -7905,6 +8015,15 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
         ++TCAndArch;
       }
     }
+    // Use of -fsycl-device-obj=spirv converts the original LLVM-IR file to
+    // SPIR-V for later consumption.
+    for (Action *&A : DeviceActions) {
+      if (!Args.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
+               .equals_insensitive("spirv") ||
+          Kind != Action::OFK_SYCL || A->getType() != types::TY_LLVM_BC)
+        continue;
+      A = C.MakeAction<SPIRVTranslatorJobAction>(A, types::TY_SPIRV);
+    }
 
     // Compiling HIP in non-RDC mode requires linking each action individually.
     for (Action *&A : DeviceActions) {
@@ -7922,12 +8041,30 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
       DDeps.add(*A, *TCAndArch->first, TCAndArch->second.data(), Kind);
       OffloadAction::DeviceDependences DDep;
       DDep.add(*A, *TCAndArch->first, TCAndArch->second.data(), Kind);
+
+      // Compiling CUDA in non-RDC mode uses the PTX output if available.
+      for (Action *Input : A->getInputs())
+        if (Kind == Action::OFK_Cuda && A->getType() == types::TY_Object &&
+            !Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
+                          false))
+          DDep.add(*Input, *TCAndArch->first, TCAndArch->second.data(), Kind);
       OffloadActions.push_back(C.MakeAction<OffloadAction>(DDep, A->getType()));
+
       ++TCAndArch;
     }
   }
 
-  if (offloadDeviceOnly())
+  // HIP code in non-RDC mode will bundle the output if it invoked the linker.
+  bool ShouldBundleHIP =
+      C.isOffloadingHostKind(Action::OFK_HIP) &&
+      Args.hasFlag(options::OPT_gpu_bundle_output,
+                   options::OPT_no_gpu_bundle_output, true) &&
+      !Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, false) &&
+      !llvm::any_of(OffloadActions,
+                    [](Action *A) { return A->getType() != types::TY_Image; });
+
+  // All kinds exit now in device-only mode except for non-RDC mode HIP.
+  if (offloadDeviceOnly() && !ShouldBundleHIP)
     return C.MakeAction<OffloadAction>(DDeps, types::TY_Nothing);
 
   if (OffloadActions.empty())
@@ -7959,6 +8096,10 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
     DDep.add(*PackagerAction, *C.getSingleOffloadToolChain<Action::OFK_Host>(),
              nullptr, C.getActiveOffloadKinds());
   }
+
+  // HIP wants '--offload-device-only' to create a fatbinary by default.
+  if (offloadDeviceOnly())
+    return C.MakeAction<OffloadAction>(DDep, types::TY_Nothing);
 
   // If we are unable to embed a single device output into the host, we need to
   // add each device output as a host dependency to ensure they are still built.
@@ -8035,6 +8176,14 @@ Action *Driver::ConstructPhaseAction(
     if (Args.hasArg(options::OPT_extract_api))
       return C.MakeAction<ExtractAPIJobAction>(Input, types::TY_API_INFO);
 
+    // With 'fexperimental-modules-reduced-bmi', we don't want to run the
+    // precompile phase unless the user specified '--precompile'. In the case
+    // the '--precompile' flag is enabled, we will try to emit the reduced BMI
+    // as a by product in GenerateModuleInterfaceAction.
+    if (Args.hasArg(options::OPT_modules_reduced_bmi) &&
+        !Args.getLastArg(options::OPT__precompile))
+      return Input;
+
     types::ID OutputTy = getPrecompiledType(Input->getType());
     assert(OutputTy != types::TY_INVALID &&
            "Cannot precompile this input type!");
@@ -8070,6 +8219,8 @@ Action *Driver::ConstructPhaseAction(
       return C.MakeAction<MigrateJobAction>(Input, types::TY_Remap);
     if (Args.hasArg(options::OPT_emit_ast))
       return C.MakeAction<CompileJobAction>(Input, types::TY_AST);
+    if (Args.hasArg(options::OPT_emit_cir))
+      return C.MakeAction<CompileJobAction>(Input, types::TY_CIR);
     if (Args.hasArg(options::OPT_module_file_info))
       return C.MakeAction<CompileJobAction>(Input, types::TY_ModuleFile);
     if (Args.hasArg(options::OPT_verify_pch))
@@ -8097,12 +8248,14 @@ Action *Driver::ConstructPhaseAction(
       return C.MakeAction<BackendJobAction>(Input, Output);
     }
     if (Args.hasArg(options::OPT_emit_llvm) ||
-        (((Input->getOffloadingToolChain() &&
-           Input->getOffloadingToolChain()->getTriple().isAMDGPU()) ||
-          TargetDeviceOffloadKind == Action::OFK_HIP) &&
-         (Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
-                       false) ||
-          TargetDeviceOffloadKind == Action::OFK_OpenMP))) {
+        ((TargetDeviceOffloadKind == Action::OFK_SYCL &&
+          C.getDriver().getUseNewOffloadingDriver()) ||
+         (((Input->getOffloadingToolChain() &&
+            Input->getOffloadingToolChain()->getTriple().isAMDGPU()) ||
+           TargetDeviceOffloadKind == Action::OFK_HIP) &&
+          (Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
+                        false) ||
+           TargetDeviceOffloadKind == Action::OFK_OpenMP)))) {
       types::ID Output =
           Args.hasArg(options::OPT_S) &&
                   (TargetDeviceOffloadKind == Action::OFK_None ||
@@ -8141,9 +8294,6 @@ void Driver::BuildJobs(Compilation &C) const {
   // we are also generating .o files. So we allow more than one output file in
   // this case as well.
   //
-  // Preprocessing job performed for -fsycl enabled compilation specifically
-  // for dependency generation (TY_Dependencies)
-  //
   // OffloadClass of type TY_Nothing: device-only output will place many outputs
   // into a single offloading action. We should count all inputs to the action
   // as outputs. Also ignore device-only outputs if we're compiling with
@@ -8159,10 +8309,7 @@ void Driver::BuildJobs(Compilation &C) const {
              A->getKind() == clang::driver::Action::CompileJobClass &&
              0 == NumIfsOutputs++) ||
             (A->getKind() == Action::BindArchClass && A->getInputs().size() &&
-             A->getInputs().front()->getKind() == Action::IfsMergeJobClass) ||
-            (A->getKind() == Action::PreprocessJobClass &&
-             A->getType() == types::TY_Dependencies &&
-             C.getArgs().hasArg(options::OPT_fsycl))))
+             A->getInputs().front()->getKind() == Action::IfsMergeJobClass)))
         ++NumOutputs;
       else if (A->getKind() == Action::OffloadClass &&
                A->getType() == types::TY_Nothing &&
@@ -8999,6 +9146,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       InputInfo CurI;
       bool IsFPGAObjLink =
           (JA->getType() == types::TY_Object &&
+           EffectiveTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
            C.getInputArgs().hasArg(options::OPT_fsycl_link_EQ));
       if (C.getDriver().getOffloadStaticLibSeen() &&
           (JA->getType() == types::TY_Archive ||
@@ -9019,8 +9167,8 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       } else if (types::isFPGA(JA->getType())) {
         std::string Ext(types::getTypeTempSuffix(JA->getType()));
         types::ID TI = types::TY_Object;
-        if (EffectiveTriple.isSPIR()) {
-          if (!UI.DependentToolChain->getTriple().isSPIR())
+        if (EffectiveTriple.isSPIROrSPIRV()) {
+          if (!UI.DependentToolChain->getTriple().isSPIROrSPIRV())
             continue;
           // Output file from unbundle is FPGA device. Name the file
           // accordingly.
@@ -9091,7 +9239,8 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       // in this instance
       Action::OffloadKind DependentOffloadKind;
       if (UI.DependentOffloadKind == Action::OFK_SYCL &&
-          TargetDeviceOffloadKind == Action::OFK_None)
+          TargetDeviceOffloadKind == Action::OFK_None &&
+          !(isSYCLNativeCPU(Args) &&  isSYCLNativeCPU(C.getDefaultToolChain().getTriple(), TC->getTriple())))
         DependentOffloadKind = Action::OFK_Host;
       else
         DependentOffloadKind = UI.DependentOffloadKind;
@@ -9339,19 +9488,9 @@ static const char *GetModuleOutputPath(Compilation &C, const JobAction &JA,
          (C.getArgs().hasArg(options::OPT_fmodule_output) ||
           C.getArgs().hasArg(options::OPT_fmodule_output_EQ)));
 
-  if (Arg *ModuleOutputEQ =
-          C.getArgs().getLastArg(options::OPT_fmodule_output_EQ))
-    return C.addResultFile(ModuleOutputEQ->getValue(), &JA);
+  SmallString<256> OutputPath =
+      tools::getCXX20NamedModuleOutputPath(C.getArgs(), BaseInput);
 
-  SmallString<64> OutputPath;
-  Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o);
-  if (FinalOutput && C.getArgs().hasArg(options::OPT_c))
-    OutputPath = FinalOutput->getValue();
-  else
-    OutputPath = BaseInput;
-
-  const char *Extension = types::getTypeTempSuffix(JA.getType());
-  llvm::sys::path::replace_extension(OutputPath, Extension);
   return C.addResultFile(C.getArgs().MakeArgString(OutputPath.c_str()), &JA);
 }
 
@@ -9373,7 +9512,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
       return C.addResultFile(FinalOutput->getValue(), &JA);
     // Output to destination for -fsycl-device-only and Windows -o
-    if (C.getArgs().hasArg(options::OPT_fsycl_device_only))
+    if (offloadDeviceOnly() && JA.getOffloadingDeviceKind() == Action::OFK_SYCL)
       if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT__SLASH_o))
         return C.addResultFile(FinalOutput->getValue(), &JA);
   }
@@ -9455,6 +9594,12 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
         &JA);
   }
 
+  if (JA.getType() == types::TY_API_INFO &&
+      C.getArgs().hasArg(options::OPT_emit_extension_symbol_graphs) &&
+      C.getArgs().hasArg(options::OPT_o))
+    Diag(clang::diag::err_drv_unexpected_symbol_graph_output)
+        << C.getArgs().getLastArgValue(options::OPT_o);
+
   // DXC defaults to standard out when generating assembly. We check this after
   // any DXC flags that might specify a file.
   if (AtTopLevel && JA.getType() == types::TY_PP_Asm && IsDXCMode())
@@ -9469,8 +9614,10 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   // If we're emitting a module output with the specified option
   // `-fmodule-output`.
   if (!AtTopLevel && isa<PrecompileJobAction>(JA) &&
-      JA.getType() == types::TY_ModuleFile && SpecifiedModuleOutput)
+      JA.getType() == types::TY_ModuleFile && SpecifiedModuleOutput) {
+    assert(!C.getArgs().hasArg(options::OPT_modules_reduced_bmi));
     return GetModuleOutputPath(C, JA, BaseInput);
+  }
 
   // Output to a temporary file?
   if ((!AtTopLevel && !isSaveTempsEnabled() &&
@@ -9784,6 +9931,51 @@ std::string Driver::GetProgramPath(StringRef Name, const ToolChain &TC) const {
   return std::string(Name);
 }
 
+std::string Driver::GetStdModuleManifestPath(const Compilation &C,
+                                             const ToolChain &TC) const {
+  std::string error = "<NOT PRESENT>";
+
+  switch (TC.GetCXXStdlibType(C.getArgs())) {
+  case ToolChain::CST_Libcxx: {
+    auto evaluate = [&](const char *library) -> std::optional<std::string> {
+      std::string lib = GetFilePath(library, TC);
+
+      // Note when there are multiple flavours of libc++ the module json needs
+      // to look at the command-line arguments for the proper json. These
+      // flavours do not exist at the moment, but there are plans to provide a
+      // variant that is built with sanitizer instrumentation enabled.
+
+      // For example
+      //  StringRef modules = [&] {
+      //    const SanitizerArgs &Sanitize = TC.getSanitizerArgs(C.getArgs());
+      //    if (Sanitize.needsAsanRt())
+      //      return "libc++.modules-asan.json";
+      //    return "libc++.modules.json";
+      //  }();
+
+      SmallString<128> path(lib.begin(), lib.end());
+      llvm::sys::path::remove_filename(path);
+      llvm::sys::path::append(path, "libc++.modules.json");
+      if (TC.getVFS().exists(path))
+        return static_cast<std::string>(path);
+
+      return {};
+    };
+
+    if (std::optional<std::string> result = evaluate("libc++.so"); result)
+      return *result;
+
+    return evaluate("libc++.a").value_or(error);
+  }
+
+  case ToolChain::CST_Libstdcxx:
+    // libstdc++ does not provide Standard library modules yet.
+    return error;
+  }
+
+  return error;
+}
+
 std::string Driver::GetTemporaryPath(StringRef Prefix, StringRef Suffix) const {
   SmallString<128> Path;
   std::error_code EC = llvm::sys::fs::createTemporaryFile(Prefix, Suffix, Path);
@@ -10065,6 +10257,8 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(
       switch (Target.getArch()) {
       case llvm::Triple::spir:
       case llvm::Triple::spir64:
+      case llvm::Triple::spirv32:
+      case llvm::Triple::spirv64:
         TC = std::make_unique<toolchains::SYCLToolChain>(*this, Target, HostTC,
                                                          Args);
         break;
@@ -10347,88 +10541,130 @@ llvm::Error driver::expandResponseFiles(SmallVectorImpl<const char *> &Args,
   return llvm::Error::success();
 }
 
-void Driver::populateSYCLDeviceTraitsMacrosArgs(
-    const llvm::opt::ArgList &Args,
-    const llvm::SmallVector<llvm::Triple, 4> &UniqueSYCLTriplesVec) {
-  const auto &TargetTable = DeviceConfigFile::TargetTable;
-  std::map<StringRef, unsigned int> AllDevicesHave;
-  std::map<StringRef, bool> AnyDeviceHas;
-  bool AnyDeviceHasAnyAspect = false;
-  unsigned int ValidTargets = 0;
-  for (const auto &TargetTriple : UniqueSYCLTriplesVec) {
-    // Try and find the whole triple, if there's no match, remove parts of the
-    // triple from the end to find partial matches.
-    auto TargetTripleStr = TargetTriple.getTriple();
-    bool Found = false;
-    bool EmptyTriple = false;
-    auto TripleIt = TargetTable.end();
-    while (!Found && !EmptyTriple) {
-      TripleIt = TargetTable.find(TargetTripleStr);
-      Found = (TripleIt != TargetTable.end());
-      if (!Found) {
-        auto Pos = TargetTripleStr.find_last_of('-');
-        EmptyTriple = (Pos == std::string::npos);
-        TargetTripleStr =
-            EmptyTriple ? TargetTripleStr : TargetTripleStr.substr(0, Pos);
+static const char *GetStableCStr(llvm::StringSet<> &SavedStrings, StringRef S) {
+  return SavedStrings.insert(S).first->getKeyData();
+}
+
+/// Apply a list of edits to the input argument lists.
+///
+/// The input string is a space separated list of edits to perform,
+/// they are applied in order to the input argument lists. Edits
+/// should be one of the following forms:
+///
+///  '#': Silence information about the changes to the command line arguments.
+///
+///  '^': Add FOO as a new argument at the beginning of the command line.
+///
+///  '+': Add FOO as a new argument at the end of the command line.
+///
+///  's/XXX/YYY/': Substitute the regular expression XXX with YYY in the command
+///  line.
+///
+///  'xOPTION': Removes all instances of the literal argument OPTION.
+///
+///  'XOPTION': Removes all instances of the literal argument OPTION,
+///  and the following argument.
+///
+///  'Ox': Removes all flags matching 'O' or 'O[sz0-9]' and adds 'Ox'
+///  at the end of the command line.
+///
+/// \param OS - The stream to write edit information to.
+/// \param Args - The vector of command line arguments.
+/// \param Edit - The override command to perform.
+/// \param SavedStrings - Set to use for storing string representations.
+static void applyOneOverrideOption(raw_ostream &OS,
+                                   SmallVectorImpl<const char *> &Args,
+                                   StringRef Edit,
+                                   llvm::StringSet<> &SavedStrings) {
+  // This does not need to be efficient.
+
+  if (Edit[0] == '^') {
+    const char *Str = GetStableCStr(SavedStrings, Edit.substr(1));
+    OS << "### Adding argument " << Str << " at beginning\n";
+    Args.insert(Args.begin() + 1, Str);
+  } else if (Edit[0] == '+') {
+    const char *Str = GetStableCStr(SavedStrings, Edit.substr(1));
+    OS << "### Adding argument " << Str << " at end\n";
+    Args.push_back(Str);
+  } else if (Edit[0] == 's' && Edit[1] == '/' && Edit.ends_with("/") &&
+             Edit.slice(2, Edit.size() - 1).contains('/')) {
+    StringRef MatchPattern = Edit.substr(2).split('/').first;
+    StringRef ReplPattern = Edit.substr(2).split('/').second;
+    ReplPattern = ReplPattern.slice(0, ReplPattern.size() - 1);
+
+    for (unsigned i = 1, e = Args.size(); i != e; ++i) {
+      // Ignore end-of-line response file markers
+      if (Args[i] == nullptr)
+        continue;
+      std::string Repl = llvm::Regex(MatchPattern).sub(ReplPattern, Args[i]);
+
+      if (Repl != Args[i]) {
+        OS << "### Replacing '" << Args[i] << "' with '" << Repl << "'\n";
+        Args[i] = GetStableCStr(SavedStrings, Repl);
       }
     }
-    if (Found) {
-      assert(TripleIt != TargetTable.end());
-      const auto &TargetInfo = (*TripleIt).second;
-      ++ValidTargets;
-      const auto &AspectList = TargetInfo.aspects;
-      const auto &MaySupportOtherAspects = TargetInfo.maySupportOtherAspects;
-      if (!AnyDeviceHasAnyAspect)
-        AnyDeviceHasAnyAspect = MaySupportOtherAspects;
-      for (const auto &aspect : AspectList) {
-        // If target has an entry in the config file, the set of aspects
-        // supported by all devices supporting the target is 'AspectList'. If
-        // there's no entry, such set is empty.
-        const auto &AspectIt = AllDevicesHave.find(aspect);
-        if (AspectIt != AllDevicesHave.end())
-          ++AllDevicesHave[aspect];
-        else
-          AllDevicesHave[aspect] = 1;
-        // If target has an entry in the config file AND
-        // 'MaySupportOtherAspects' is false, the set of aspects supported by
-        // any device supporting the target is 'AspectList'. If there's no
-        // entry OR 'MaySupportOtherAspects' is true, such set contains all
-        // the aspects.
-        AnyDeviceHas[aspect] = true;
-      }
+  } else if (Edit[0] == 'x' || Edit[0] == 'X') {
+    auto Option = Edit.substr(1);
+    for (unsigned i = 1; i < Args.size();) {
+      if (Option == Args[i]) {
+        OS << "### Deleting argument " << Args[i] << '\n';
+        Args.erase(Args.begin() + i);
+        if (Edit[0] == 'X') {
+          if (i < Args.size()) {
+            OS << "### Deleting argument " << Args[i] << '\n';
+            Args.erase(Args.begin() + i);
+          } else
+            OS << "### Invalid X edit, end of command line!\n";
+        }
+      } else
+        ++i;
     }
-  }
-
-  if (ValidTargets == 0) {
-    // If there's no entry for the target in the device config file, the set
-    // of aspects supported by any device supporting the target contains all
-    // the aspects.
-    AnyDeviceHasAnyAspect = true;
-  }
-
-  if (AnyDeviceHasAnyAspect) {
-    // There exists some target that supports any given aspect.
-    SmallString<64> MacroAnyDeviceAnyAspect(
-        "-D__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__=1");
-    SYCLDeviceTraitsMacrosArgs.push_back(
-        Args.MakeArgString(MacroAnyDeviceAnyAspect));
+  } else if (Edit[0] == 'O') {
+    for (unsigned i = 1; i < Args.size();) {
+      const char *A = Args[i];
+      // Ignore end-of-line response file markers
+      if (A == nullptr)
+        continue;
+      if (A[0] == '-' && A[1] == 'O' &&
+          (A[2] == '\0' || (A[3] == '\0' && (A[2] == 's' || A[2] == 'z' ||
+                                             ('0' <= A[2] && A[2] <= '9'))))) {
+        OS << "### Deleting argument " << Args[i] << '\n';
+        Args.erase(Args.begin() + i);
+      } else
+        ++i;
+    }
+    OS << "### Adding argument " << Edit << " at end\n";
+    Args.push_back(GetStableCStr(SavedStrings, '-' + Edit.str()));
   } else {
-    // Some of the aspects are not supported at all by any of the targets.
-    // Thus, we need to define individual macros for each supported aspect.
-    for (const auto &[TargetKey, SupportedTarget] : AnyDeviceHas) {
-      assert(SupportedTarget);
-      SmallString<64> MacroAnyDevice("-D__SYCL_ANY_DEVICE_HAS_");
-      MacroAnyDevice += TargetKey;
-      MacroAnyDevice += "__=1";
-      SYCLDeviceTraitsMacrosArgs.push_back(Args.MakeArgString(MacroAnyDevice));
-    }
+    OS << "### Unrecognized edit: " << Edit << "\n";
   }
-  for (const auto &[TargetKey, SupportedTargets] : AllDevicesHave) {
-    if (SupportedTargets != ValidTargets)
-      continue;
-    SmallString<64> MacroAllDevices("-D__SYCL_ALL_DEVICES_HAVE_");
-    MacroAllDevices += TargetKey;
-    MacroAllDevices += "__=1";
-    SYCLDeviceTraitsMacrosArgs.push_back(Args.MakeArgString(MacroAllDevices));
+}
+
+void driver::applyOverrideOptions(SmallVectorImpl<const char *> &Args,
+                                  const char *OverrideStr,
+                                  llvm::StringSet<> &SavedStrings,
+                                  raw_ostream *OS) {
+  if (!OS)
+    OS = &llvm::nulls();
+
+  if (OverrideStr[0] == '#') {
+    ++OverrideStr;
+    OS = &llvm::nulls();
+  }
+
+  *OS << "### CCC_OVERRIDE_OPTIONS: " << OverrideStr << "\n";
+
+  // This does not need to be efficient.
+
+  const char *S = OverrideStr;
+  while (*S) {
+    const char *End = ::strchr(S, ' ');
+    if (!End)
+      End = S + strlen(S);
+    if (End != S)
+      applyOneOverrideOption(*OS, Args, std::string(S, End), SavedStrings);
+    S = End;
+    if (*S != '\0')
+      ++S;
   }
 }

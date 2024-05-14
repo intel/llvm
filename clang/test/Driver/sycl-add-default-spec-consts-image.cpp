@@ -2,6 +2,7 @@
 
 // Check usages when warning should be issued.
 // RUN: %clang -### -fsycl -fsycl-add-default-spec-consts-image 2>&1 %s | FileCheck %s -check-prefix=CHECK-NON-AOT
+// RUN: %clang_cl -### -fsycl -fsycl-add-default-spec-consts-image 2>&1 %s | FileCheck %s -check-prefix=CHECK-NON-AOT
 // RUN: %clang -### -fsycl -fsycl-add-default-spec-consts-image -fsycl-targets=spir64 2>&1 %s | FileCheck %s -check-prefix=CHECK-NON-AOT
 // CHECK-NON-AOT: warning: -fsycl-add-default-spec-consts-image flag has an effect only in Ahead of Time Compilation mode (AOT).
 
@@ -20,4 +21,5 @@
 
 
 // RUN: %clang -### -fsycl -fno-sycl-add-default-spec-consts-image -fsycl-targets=spir64_gen 2>&1  %s | FileCheck %s -check-prefix=CHECK-NO-ADD
+// RUN: %clang_cl -### -fsycl -fno-sycl-add-default-spec-consts-image -fsycl-targets=spir64_gen 2>&1  %s | FileCheck %s -check-prefix=CHECK-NO-ADD
 // CHECK-NO-ADD-NOT: {{.*}}sycl-post-link{{.*}} "-generate-device-image-default-spec-consts"

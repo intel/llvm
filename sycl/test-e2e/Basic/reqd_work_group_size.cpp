@@ -4,7 +4,7 @@
 // Failing negative test with HIP
 // UNSUPPORTED: hip
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <iostream>
 

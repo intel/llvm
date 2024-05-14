@@ -23,7 +23,10 @@
 #pragma once
 
 #include <sycl/sycl.hpp>
-#include <syclcompat.hpp>
+
+#include <syclcompat/id_query.hpp>
+#include <syclcompat/launch.hpp>
+#include <syclcompat/memory.hpp>
 
 // Class to launch a kernel and run a lambda on output data
 template <auto F> class QueryLauncher {

@@ -16,7 +16,8 @@
 
 #include <cassert>
 #include <iomanip>
-#include <sycl/sycl.hpp>
+#include <sycl/accessor_image.hpp>
+#include <sycl/detail/core.hpp>
 #if DEBUG_OUTPUT
 #include <iostream>
 #endif

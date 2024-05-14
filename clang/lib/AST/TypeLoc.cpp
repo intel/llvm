@@ -434,7 +434,7 @@ TypeSpecifierType BuiltinTypeLoc::getWrittenTypeSpec() const {
 #include "clang/Basic/WebAssemblyReferenceTypes.def"
   case BuiltinType::BuiltinFn:
   case BuiltinType::IncompleteMatrixIdx:
-  case BuiltinType::OMPArraySection:
+  case BuiltinType::ArraySection:
   case BuiltinType::OMPArrayShaping:
   case BuiltinType::OMPIterator:
     return TST_unspecified;
@@ -519,6 +519,10 @@ SourceRange AttributedTypeLoc::getLocalSourceRange() const {
   // That enclosure doesn't necessarily belong to a single attribute
   // anyway.
   return getAttr() ? getAttr()->getRange() : SourceRange();
+}
+
+SourceRange CountAttributedTypeLoc::getLocalSourceRange() const {
+  return getCountExpr() ? getCountExpr()->getSourceRange() : SourceRange();
 }
 
 SourceRange BTFTagAttributedTypeLoc::getLocalSourceRange() const {

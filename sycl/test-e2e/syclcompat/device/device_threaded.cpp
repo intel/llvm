@@ -38,34 +38,39 @@
 
 #include "device_fixt.hpp"
 
-int main() {
-  // Check a thread is able to select a non-default device
-  std::cout << "Testing DeviceSelect" << std::endl;
-  {
-    DeviceTestsFixt dtf;
-    if (dtf.get_n_devices() > 1) {
-      constexpr unsigned int TARGET_DEV = 1;
-      unsigned int thread_dev_id{};
-      std::thread other_thread{[&]() {
-        syclcompat::select_device(TARGET_DEV);
-        thread_dev_id = syclcompat::get_current_device_id();
-      }};
-      other_thread.join();
-      assert(thread_dev_id == TARGET_DEV);
-    } else {
-      std::cout << "  Skipping, only doable with multiple devices" << std::endl;
-    }
-  }
+// Check a thread is able to select a non-default device
+void test_device_select() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
 
-  // Check multiple threads get same device by default
-  std::cout << "Testing Threads" << std::endl;
-  {
+  DeviceTestsFixt dtf;
+  if (dtf.get_n_devices() > 1) {
+    constexpr unsigned int TARGET_DEV = 1;
     unsigned int thread_dev_id{};
-    std::thread other_thread{
-        [&]() { thread_dev_id = syclcompat::get_current_device_id(); }};
+    std::thread other_thread{[&]() {
+      syclcompat::select_device(TARGET_DEV);
+      thread_dev_id = syclcompat::get_current_device_id();
+    }};
     other_thread.join();
-    assert(thread_dev_id == syclcompat::get_current_device_id());
+    assert(thread_dev_id == TARGET_DEV);
+  } else {
+    std::cout << "  Skipping, only doable with multiple devices" << std::endl;
   }
+}
+
+// Check multiple threads get same device by default
+void test_threads() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  unsigned int thread_dev_id{};
+  std::thread other_thread{
+      [&]() { thread_dev_id = syclcompat::get_current_device_id(); }};
+  other_thread.join();
+  assert(thread_dev_id == syclcompat::get_current_device_id());
+}
+
+int main() {
+  test_device_select();
+  test_threads();
 
   return 0;
 }

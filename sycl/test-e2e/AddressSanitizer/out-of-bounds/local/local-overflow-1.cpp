@@ -1,7 +1,11 @@
 // REQUIRES: linux, cpu
-// RUN: %{build} %device_sanitizer_flags -g -o %t.out
-// RUN: env SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} not %t.out 2>&1 | FileCheck %s
-#include <sycl/sycl.hpp>
+// RUN: %{build} %device_asan_flags -g -o %t.out
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t.out 2>&1 | FileCheck %s
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/group_local_memory.hpp>
+#include <sycl/usm.hpp>
 
 constexpr std::size_t N = 16;
 constexpr std::size_t group_size = 8;

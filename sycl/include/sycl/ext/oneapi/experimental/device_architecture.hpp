@@ -10,6 +10,7 @@
 
 #include <cstdint> // for uint64_t
 #include <optional>
+#include <utility> // for std::integer_sequence
 
 namespace sycl {
 inline namespace _V1 {
@@ -25,9 +26,15 @@ enum class architecture : uint64_t {
   //   - "-fsycl-targets" description in sycl/doc/UsersManual.md
   //
   // Add
-  //   - __SYCL_TARGET_<ARCH>__ to the compiler driver and to all places below
-  //   - the unique ID of the new architecture in SYCL RT source code to support
-  //     querying the device architecture
+  //   - new value for -fsycl-targets option to the compiler driver in
+  //     accordance with changes from sycl/doc/UsersManual.md and update the
+  //     compiler driver tests
+  //   - ___SYCL_TARGET_<ARCH>__ to the compiler driver and to all places below
+  //   - the unique ID of the new architecture to the SYCL RT source code to
+  //     support querying the device architecture through
+  //     device::get_info<ext::oneapi::experimental::info::device::architecture>
+  //   - alias of architecture if this is Intel GPU architecture in format
+  //     intel_gpu_<intel_gpu_arch_version>
   //
   // Important note about keeping architecture IDs below unique:
   //   - the architecture ID must be a hex number with 16 digits
@@ -55,34 +62,46 @@ enum class architecture : uint64_t {
   //
   // AA is 00,
   // CCCCCCCC is GMDID of that architecture
-  intel_gpu_bdw = 0x0000000200000000,
-  intel_gpu_skl = 0x0000000240000900,
-  intel_gpu_kbl = 0x0000000240400900,
-  intel_gpu_cfl = 0x0000000240800900,
-  intel_gpu_apl = 0x0000000240c00000,
-  intel_gpu_bxt = intel_gpu_apl,
-  intel_gpu_glk = 0x0000000241000000,
-  intel_gpu_whl = 0x0000000241400000,
-  intel_gpu_aml = 0x0000000241800000,
-  intel_gpu_cml = 0x0000000241c00000,
-  intel_gpu_icllp = 0x00000002c0000000,
-  intel_gpu_ehl = 0x00000002c0800000,
-  intel_gpu_jsl = intel_gpu_ehl,
-  intel_gpu_tgllp = 0x0000000300000000,
-  intel_gpu_rkl = 0x0000000300400000,
-  intel_gpu_adl_s = 0x0000000300800000,
-  intel_gpu_rpl_s = intel_gpu_adl_s,
-  intel_gpu_adl_p = 0x0000000300c00000,
-  intel_gpu_adl_n = 0x0000000301000000,
-  intel_gpu_dg1 = 0x0000000302800000,
-  intel_gpu_acm_g10 = 0x000000030dc00800,
-  intel_gpu_dg2_g10 = intel_gpu_acm_g10,
-  intel_gpu_acm_g11 = 0x000000030e000500,
-  intel_gpu_dg2_g11 = intel_gpu_acm_g11,
-  intel_gpu_acm_g12 = 0x000000030e400000,
-  intel_gpu_dg2_g12 = intel_gpu_acm_g12,
-  intel_gpu_pvc = 0x000000030f000700,
-  intel_gpu_pvc_vg = 0x000000030f400700,
+  intel_gpu_bdw =
+      0x0000000200000000, // Intel(R) microarchitecture code name Broadwell
+  intel_gpu_skl =
+      0x0000000240000900, // Intel(R) microarchitecture code name Skylake
+  intel_gpu_kbl = 0x0000000240400900,     // Kaby Lake
+  intel_gpu_cfl = 0x0000000240800900,     // Coffee Lake
+  intel_gpu_apl = 0x0000000240c00000,     // Apollo Lake
+  intel_gpu_bxt = intel_gpu_apl,          // Broxton
+  intel_gpu_glk = 0x0000000241000000,     // Gemini Lake
+  intel_gpu_whl = 0x0000000241400000,     // Whiskey Lake
+  intel_gpu_aml = 0x0000000241800000,     // Amber Lake
+  intel_gpu_cml = 0x0000000241c00000,     // Comet Lake
+  intel_gpu_icllp = 0x00000002c0000000,   // Ice Lake
+  intel_gpu_icl = intel_gpu_icllp,        // Ice Lake
+  intel_gpu_ehl = 0x00000002c0800000,     // Elkhart Lake
+  intel_gpu_jsl = intel_gpu_ehl,          // Jasper Lake
+  intel_gpu_tgllp = 0x0000000300000000,   // Tiger Lake
+  intel_gpu_tgl = intel_gpu_tgllp,        // Tiger Lake
+  intel_gpu_rkl = 0x0000000300400000,     // Rocket Lake
+  intel_gpu_adl_s = 0x0000000300800000,   // Alder Lake S
+  intel_gpu_rpl_s = intel_gpu_adl_s,      // Raptor Lake
+  intel_gpu_adl_p = 0x0000000300c00000,   // Alder Lake P
+  intel_gpu_adl_n = 0x0000000301000000,   // Alder Lake N
+  intel_gpu_dg1 = 0x0000000302800000,     // DG1
+  intel_gpu_acm_g10 = 0x000000030dc00800, // Alchemist G10
+  intel_gpu_dg2_g10 = intel_gpu_acm_g10,  // Alchemist G10
+  intel_gpu_acm_g11 = 0x000000030e000500, // Alchemist G11
+  intel_gpu_dg2_g11 = intel_gpu_acm_g11,  // Alchemist G11
+  intel_gpu_acm_g12 = 0x000000030e400000, // Alchemist G12
+  intel_gpu_dg2_g12 = intel_gpu_acm_g12,  // Alchemist G12
+  intel_gpu_pvc = 0x000000030f000700,     // Ponte Vecchio
+  intel_gpu_pvc_vg = 0x000000030f400700,  // Ponte Vecchio VG
+  intel_gpu_mtl_u = 0x0000000311800400,   // Meteor Lake U
+  intel_gpu_mtl_s = intel_gpu_mtl_u,      // Meteor Lake S
+  intel_gpu_arl_u = intel_gpu_mtl_u,      // Arrow Lake U
+  intel_gpu_arl_s = intel_gpu_mtl_u,      // Arrow Lake S
+  intel_gpu_mtl_h = 0x0000000311c00400,   // Meteor Lake H
+  intel_gpu_arl_h = 0x0000000312800400,   // Arrow Lake H
+  intel_gpu_bmg_g21 = 0x0000000500400400, // Battlemage G21
+  intel_gpu_lnl_m = 0x0000000501000400,   // Lunar Lake
   //
   // NVIDIA architectures
   //
@@ -145,6 +164,9 @@ enum class architecture : uint64_t {
   amd_gpu_gfx1151 = 0x0200000000115100,
   amd_gpu_gfx1200 = 0x0200000000120000,
   amd_gpu_gfx1201 = 0x0200000000120100,
+  //
+  // Aliases for Intel graphics architectures
+  //
   intel_gpu_8_0_0 = intel_gpu_bdw,
   intel_gpu_9_0_9 = intel_gpu_skl,
   intel_gpu_9_1_9 = intel_gpu_kbl,
@@ -155,8 +177,23 @@ enum class architecture : uint64_t {
   intel_gpu_9_6_0 = intel_gpu_aml,
   intel_gpu_9_7_0 = intel_gpu_cml,
   intel_gpu_11_0_0 = intel_gpu_icllp,
+  intel_gpu_11_2_0 = intel_gpu_ehl,
   intel_gpu_12_0_0 = intel_gpu_tgllp,
+  intel_gpu_12_1_0 = intel_gpu_rkl,
+  intel_gpu_12_2_0 = intel_gpu_adl_s,
+  intel_gpu_12_3_0 = intel_gpu_adl_p,
+  intel_gpu_12_4_0 = intel_gpu_adl_n,
   intel_gpu_12_10_0 = intel_gpu_dg1,
+  intel_gpu_12_55_8 = intel_gpu_acm_g10,
+  intel_gpu_12_56_5 = intel_gpu_acm_g11,
+  intel_gpu_12_57_0 = intel_gpu_acm_g12,
+  intel_gpu_12_60_7 = intel_gpu_pvc,
+  intel_gpu_12_61_7 = intel_gpu_pvc_vg,
+  intel_gpu_12_70_4 = intel_gpu_mtl_u,
+  intel_gpu_12_71_4 = intel_gpu_mtl_h,
+  intel_gpu_12_74_4 = intel_gpu_arl_h,
+  intel_gpu_20_1_4 = intel_gpu_bmg_g21,
+  intel_gpu_20_4_4 = intel_gpu_lnl_m,
 };
 
 enum class arch_category {
@@ -187,7 +224,7 @@ static constexpr ext::oneapi::experimental::architecture
         ext::oneapi::experimental::architecture::intel_gpu_bdw;
 static constexpr ext::oneapi::experimental::architecture
     max_intel_gpu_architecture =
-        ext::oneapi::experimental::architecture::intel_gpu_pvc_vg;
+        ext::oneapi::experimental::architecture::intel_gpu_lnl_m;
 
 static constexpr ext::oneapi::experimental::architecture
     min_nvidia_gpu_architecture =
@@ -271,6 +308,21 @@ static constexpr ext::oneapi::experimental::architecture
 #endif
 #ifndef __SYCL_TARGET_INTEL_GPU_PVC_VG__
 #define __SYCL_TARGET_INTEL_GPU_PVC_VG__ 0
+#endif
+#ifndef __SYCL_TARGET_INTEL_GPU_MTL_U__
+#define __SYCL_TARGET_INTEL_GPU_MTL_U__ 0
+#endif
+#ifndef __SYCL_TARGET_INTEL_GPU_MTL_H__
+#define __SYCL_TARGET_INTEL_GPU_MTL_H__ 0
+#endif
+#ifndef __SYCL_TARGET_INTEL_GPU_ARL_H__
+#define __SYCL_TARGET_INTEL_GPU_ARL_H__ 0
+#endif
+#ifndef __SYCL_TARGET_INTEL_GPU_BMG_G21__
+#define __SYCL_TARGET_INTEL_GPU_BMG_G21__ 0
+#endif
+#ifndef __SYCL_TARGET_INTEL_GPU_LNL_M__
+#define __SYCL_TARGET_INTEL_GPU_LNL_M__ 0
 #endif
 #ifndef __SYCL_TARGET_NVIDIA_GPU_SM50__
 #define __SYCL_TARGET_NVIDIA_GPU_SM50__ 0
@@ -458,6 +510,11 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_INTEL_GPU_ACM_G12__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_PVC__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_PVC_VG__ == 1) ||
+    (__SYCL_TARGET_INTEL_GPU_MTL_U__ == 1) ||
+    (__SYCL_TARGET_INTEL_GPU_MTL_H__ == 1) ||
+    (__SYCL_TARGET_INTEL_GPU_ARL_H__ == 1) ||
+    (__SYCL_TARGET_INTEL_GPU_BMG_G21__ == 1) ||
+    (__SYCL_TARGET_INTEL_GPU_LNL_M__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM50__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM52__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM53__ == 1) ||
@@ -586,6 +643,21 @@ get_current_architecture_aot() {
 #endif
 #if __SYCL_TARGET_INTEL_GPU_PVC_VG__
   return ext::oneapi::experimental::architecture::intel_gpu_pvc_vg;
+#endif
+#if __SYCL_TARGET_INTEL_GPU_MTL_U__
+  return ext::oneapi::experimental::architecture::intel_gpu_mtl_u;
+#endif
+#if __SYCL_TARGET_INTEL_GPU_MTL_H__
+  return ext::oneapi::experimental::architecture::intel_gpu_mtl_h;
+#endif
+#if __SYCL_TARGET_INTEL_GPU_ARL_H__
+  return ext::oneapi::experimental::architecture::intel_gpu_arl_h;
+#endif
+#if __SYCL_TARGET_INTEL_GPU_BMG_G21__
+  return ext::oneapi::experimental::architecture::intel_gpu_bmg_g21;
+#endif
+#if __SYCL_TARGET_INTEL_GPU_LNL_M__
+  return ext::oneapi::experimental::architecture::intel_gpu_lnl_m;
 #endif
 #if __SYCL_TARGET_NVIDIA_GPU_SM50__
   return ext::oneapi::experimental::architecture::nvidia_gpu_sm_50;
@@ -1009,6 +1081,163 @@ public:
 
 namespace ext::oneapi::experimental {
 
+namespace detail {
+// Call the callable object "fn" only when this code runs on a device which
+// has a certain set of aspects or a particular architecture.
+//
+// Condition is a parameter pack of int's that define a simple expression
+// language which tells the set of aspects or architectures that the device
+// must have in order to enable the call.  See the "Condition*" values below.
+template <typename T, typename... Condition>
+#ifdef __SYCL_DEVICE_ONLY__
+[[__sycl_detail__::add_ir_attributes_function(
+    "sycl-call-if-on-device-conditionally", true)]]
+#endif
+void call_if_on_device_conditionally(T fn, Condition...) {
+  fn();
+}
+
+// The "Condition" parameter pack above is a sequence of int's that define an
+// expression tree.  Each node represents a boolean subexpression:
+//
+// ConditionAspect -       Next int is a value from "enum aspect".  The
+//                           subexpression is true if the device has this
+//                           aspect.
+// ConditionArchitecture - Next int is a value from "enum architecture".  The
+//                           subexpression is true if the device has this
+//                           architecture.
+// ConditionNot -          Next int is the root of another subexpression S1.
+//                           This subexpression is true if S1 is false.
+// ConditionAnd -          Next int is the root of another subexpression S1.
+//                           The int following that subexpression is the root
+//                           of another subexpression S2.  This subexpression
+//                           is true if both S1 and S2 are true.
+// ConditionOr -           Next int is the root of another subexpression S1.
+//                           The int following that subexpression is the root
+//                           of another subexpression S2.  This subexpression
+//                           is true if either S1 or S2 are true.
+//
+// These values are stored in the application's executable, so they are
+// effectively part of the ABI.  Therefore, any change to an existing value
+// is an ABI break.
+//
+// There is no programmatic reason for the values to be negative.  They are
+// negative only by convention to make it easier for humans to distinguish them
+// from aspect or architecture values (which are positive).
+static constexpr int ConditionAspect = -1;
+static constexpr int ConditionArchitecture = -2;
+static constexpr int ConditionNot = -3;
+static constexpr int ConditionAnd = -4;
+static constexpr int ConditionOr = -5;
+
+// Metaprogramming helper to construct a ConditionOr expression for a sequence
+// of architectures.  "ConditionAnyArchitectureBuilder<Archs...>::seq" is an
+// "std::integer_sequence" representing the expression.
+template <architecture... Archs> struct ConditionAnyArchitectureBuilder;
+
+template <architecture Arch, architecture... Archs>
+struct ConditionAnyArchitectureBuilder<Arch, Archs...> {
+  template <int I1, int I2, int I3, int... Is>
+  static auto append(std::integer_sequence<int, Is...>) {
+    return std::integer_sequence<int, I1, I2, I3, Is...>{};
+  }
+  using rest = typename ConditionAnyArchitectureBuilder<Archs...>::seq;
+  static constexpr int arch = static_cast<int>(Arch);
+  using seq =
+      decltype(append<ConditionOr, ConditionArchitecture, arch>(rest{}));
+};
+
+template <architecture Arch> struct ConditionAnyArchitectureBuilder<Arch> {
+  static constexpr int arch = static_cast<int>(Arch);
+  using seq = std::integer_sequence<int, ConditionArchitecture, arch>;
+};
+
+// Metaprogramming helper to construct a ConditionNot expression.
+// ConditionNotBuilder<Exp>::seq" is an "std::integer_sequence" representing
+// the expression.
+template <typename Exp> struct ConditionNotBuilder {
+  template <int I, int... Is>
+  static auto append(std::integer_sequence<int, Is...>) {
+    return std::integer_sequence<int, I, Is...>{};
+  }
+  using rest = typename Exp::seq;
+  using seq = decltype(append<ConditionNot>(rest{}));
+};
+
+// Metaprogramming helper to construct a ConditionAnd expression.
+// "ConditionAndBuilder<Exp1, Exp2>::seq" is an "std::integer_sequence"
+// representing the expression.
+template <typename Exp1, typename Exp2> struct ConditionAndBuilder {
+  template <int I, int... I1s, int... I2s>
+  static auto append(std::integer_sequence<int, I1s...>,
+                     std::integer_sequence<int, I2s...>) {
+    return std::integer_sequence<int, I, I1s..., I2s...>{};
+  }
+  using rest1 = typename Exp1::seq;
+  using rest2 = typename Exp2::seq;
+  using seq = decltype(append<ConditionAnd>(rest1{}, rest2{}));
+};
+
+// Metaprogramming helper to construct a ConditionOr expression.
+// "ConditionOrBuilder<Exp1, Exp2>::seq" is an "std::integer_sequence"
+// representing the expression.
+template <typename Exp1, typename Exp2> struct ConditionOrBuilder {
+  template <int I, int... I1s, int... I2s>
+  static auto append(std::integer_sequence<int, I1s...>,
+                     std::integer_sequence<int, I2s...>) {
+    return std::integer_sequence<int, I, I1s..., I2s...>{};
+  }
+  using rest1 = typename Exp1::seq;
+  using rest2 = typename Exp2::seq;
+  using seq = decltype(append<ConditionOr>(rest1{}, rest2{}));
+};
+
+// Helper function to call call_if_on_device_conditionally() while converting
+// the "std::integer_sequence" for a condition expression into individual
+// arguments of type int.
+template <typename T, int... Is>
+void call_if_on_device_conditionally_helper(T fn,
+                                            std::integer_sequence<int, Is...>) {
+  call_if_on_device_conditionally(fn, Is...);
+}
+
+// Same sort of helper object for "else_if_architecture_is".
+template <typename MakeCallIf> class if_architecture_is_helper {
+public:
+  template <architecture... Archs, typename T,
+            typename = std::enable_if<std::is_invocable_v<T>>>
+  auto else_if_architecture_is(T fn) {
+    using make_call_if =
+        ConditionAndBuilder<MakeCallIf,
+                            ConditionAnyArchitectureBuilder<Archs...>>;
+    using make_else_call_if = ConditionAndBuilder<
+        MakeCallIf,
+        ConditionNotBuilder<ConditionAnyArchitectureBuilder<Archs...>>>;
+
+    using cond = typename make_call_if::seq;
+    call_if_on_device_conditionally_helper(fn, cond{});
+    return if_architecture_is_helper<make_else_call_if>{};
+  }
+
+  template <typename T> void otherwise(T fn) {
+    using cond = typename MakeCallIf::seq;
+    call_if_on_device_conditionally_helper(fn, cond{});
+  }
+};
+
+} // namespace detail
+
+#ifdef SYCL_EXT_ONEAPI_DEVICE_ARCHITECTURE_NEW_DESIGN_IMPL
+template <architecture... Archs, typename T>
+static auto if_architecture_is(T fn) {
+  using make_call_if = detail::ConditionAnyArchitectureBuilder<Archs...>;
+  using make_else_call_if = detail::ConditionNotBuilder<make_call_if>;
+
+  using cond = typename make_call_if::seq;
+  detail::call_if_on_device_conditionally_helper(fn, cond{});
+  return detail::if_architecture_is_helper<make_else_call_if>{};
+}
+#else
 /// The condition is `true` only if the device which executes the
 /// `if_architecture_is` function has any one of the architectures listed in the
 /// @tparam Archs pack.
@@ -1026,6 +1255,7 @@ constexpr static auto if_architecture_is(T fn) {
     return sycl::detail::if_architecture_helper<true>{};
   }
 }
+#endif // SYCL_EXT_ONEAPI_DEVICE_ARCHITECTURE_NEW_DESIGN_IMPL
 
 /// The condition is `true` only if the device which executes the
 /// `if_architecture_is` function has an architecture that is in any one of the

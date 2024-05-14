@@ -196,8 +196,12 @@ enum PropKind : uint32_t {
   Balanced = 55,
   InvocationCapacity = 56,
   ResponseCapacity = 57,
+  DataPlacement = 58,
+  ContiguousMemory = 59,
+  FullGroup = 60,
+  Naive = 61,
   // PropKindSize must always be the last value.
-  PropKindSize = 58,
+  PropKindSize = 62,
 };
 
 struct property_key_base_tag {};

@@ -6,7 +6,8 @@
 #include <cstdint>
 #include <limits>
 #include <numeric>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/group_algorithm.hpp>
 
 using namespace sycl;
 
