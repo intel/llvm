@@ -199,8 +199,8 @@ void matrix_verify_op(big_matrix<Ts, M, K> &A, const float ref, OP op) {
   q.submit([&](handler &cgh) {
      sycl::accessor accA{bufA, cgh, sycl::read_write};
 
-     cgh.parallel_for<class mul_matrix>(
-         r, [accA](nd_item<2> spmd_item)
+     cgh.parallel_for<kernel_name>(
+         r, [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
                 [[intel::reqd_sub_group_size(SG_SZ)]]
 #endif
