@@ -101,7 +101,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Mon May 13 11:56:12 2024 +0100
   #     Merge pull request #1532 from AllanZyne/review/yang/local_accessor
   #     [DeviceSanitizer] Check out-of-bounds on sycl::local_accessor
-  set(UNIFIED_RUNTIME_TAG ebf873fb5996c9ddca32bbb7c9330d3ffe15473c)
+  set(UNIFIED_RUNTIME_TAG 4c69624c3f651819210148ad11d0e1e5c9af12de)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
