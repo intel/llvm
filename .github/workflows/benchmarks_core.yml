@@ -1,0 +1,199 @@
+name: Compute Benchmarks
+
+on:
+  # this workflow can by only triggered by other workflows
+  # for example by: e2e_cuda.yml or e2e_opencl.yml
+  workflow_call:
+    # acceptable input from adapter-specific workflows
+    inputs:
+      name:
+        description: Adapter name
+        type: string
+        required: true
+      str_name:
+        description: Formatted adapter name
+        type: string
+        required: true
+      config:
+        description: Params for sycl configuration
+        type: string
+        required: true
+      unit:
+        description: Test unit (cpu/gpu)
+        type: string
+        required: true
+      runner_tag:
+        description: Tag defined for the runner
+        type: string
+        required: true
+      trigger:
+        description: Type of workflow trigger
+        type: string
+        required: true
+      comment:
+        description: Text if triggered by a comment
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  e2e-build-hw:
+    if: github.repository == 'oneapi-src/unified-runtime'  # run only on upstream; forks will not have the HW
+    name: Build SYCL, UR, run Compute Benchmarks
+    strategy:
+      matrix:
+        adapter: [
+          {name: "${{inputs.name}}",
+          str_name: "${{inputs.str_name}}",
+          config: "${{inputs.config}}",
+          unit: "${{inputs.unit}}"}
+        ]
+        build_type: [Release]
+        compiler: [{c: clang, cxx: clang++}]
+
+    runs-on: ${{inputs.runner_tag}}
+
+    steps:
+    # Workspace on self-hosted runners is not cleaned automatically.
+    # We have to delete the files created outside of using actions.
+    - name: Cleanup self-hosted workspace
+      if: always()
+      run: |
+        ls -la ./
+        rm -rf ./* || true
+
+    - name: Add comment to PR
+      uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+      if: ${{ always() && inputs.trigger != 'schedule' }}
+      with:
+        script: |
+          const adapter = '${{ matrix.adapter.name }}';
+          const url = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}';
+          const body = `Compute Benchmarks ${adapter} run: \n${url}`;
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: body
+          })
+
+    - name: Checkout UR
+      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      with:
+        path: ur-repo
+
+    # On issue_comment trigger (for PRs) we need to fetch special ref for
+    # proper PR's merge commit. Note, this ref may be absent if the PR is already merged.
+    - name: Fetch PR's merge commit
+      if: ${{ inputs.trigger != 'schedule' }}
+      working-directory: ${{github.workspace}}/ur-repo
+      env:
+        PR_NO: ${{github.event.issue.number}}
+      run: |
+        git fetch -- https://github.com/${{github.repository}} +refs/pull/${PR_NO}/*:refs/remotes/origin/pr/${PR_NO}/*
+        git checkout origin/pr/${PR_NO}/merge
+        git rev-parse origin/pr/${PR_NO}/merge
+
+    - name: Checkout SYCL
+      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      with:
+        repository: intel/llvm
+        ref: refs/heads/sycl
+        path: sycl-repo
+        fetch-depth: 1
+        fetch-tags: false
+
+    - name: Set CUDA env vars
+      if: matrix.adapter.name == 'CUDA'
+      run: |
+        echo "CUDA_LIB_PATH=/usr/local/cuda/lib64/stubs" >> $GITHUB_ENV
+        echo "LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
+    - name: Configure SYCL
+      run: >
+        python3 sycl-repo/buildbot/configure.py
+        -t ${{matrix.build_type}}
+        -o ${{github.workspace}}/sycl_build
+        --cmake-gen "Ninja"
+        --ci-defaults ${{matrix.adapter.config}}
+        --cmake-opt="-DLLVM_INSTALL_UTILS=ON"
+        --cmake-opt="-DSYCL_PI_TESTS=OFF"
+        --cmake-opt="-DSYCL_PI_UR_USE_FETCH_CONTENT=OFF"
+        --cmake-opt="-DSYCL_PI_UR_SOURCE_DIR=${{github.workspace}}/ur-repo/"
+        --cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=ccache
+        --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+    - name: Build SYCL
+      run: cmake --build ${{github.workspace}}/sycl_build -j
+
+    - name: Set additional env. vars
+      run: |
+        echo "${{github.workspace}}/sycl_build/bin" >> $GITHUB_PATH
+        echo "LD_LIBRARY_PATH=${{github.workspace}}/sycl_build/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
+    # Running (newly built) sycl-ls sets up some extra variables
+    - name: Setup SYCL variables
+      run: |
+        which clang++ sycl-ls
+        SYCL_PI_TRACE=-1 sycl-ls
+
+    - name: Checkout Compute Benchmarks
+      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      with:
+        repository: intel/compute-benchmarks
+        path: compute-benchmarks-repo
+        submodules: recursive
+
+    - name: Configure Compute Benchmarks
+      run: >
+        cmake
+        -B ${{github.workspace}}/compute-benchmarks-build/
+        -S ${{github.workspace}}/compute-benchmarks-repo/
+        -DCMAKE_BUILD_TYPE=Release
+        -DBUILD_SYCL=ON
+        -DSYCL_COMPILER_ROOT=${{github.workspace}}/sycl_build
+        -DALLOW_WARNINGS=ON
+
+    - name: Build Compute Benchmarks
+      run: cmake --build ${{github.workspace}}/compute-benchmarks-build/ -j
+
+    - name: Set oneAPI Device Selector
+      run: |
+        echo "ONEAPI_DEVICE_SELECTOR=${{ matrix.adapter.str_name }}:${{ matrix.adapter.unit }}" >> $GITHUB_ENV
+
+    - name: Extract arguments from comment
+      id: args
+      run: echo "ARGS=$(echo '${{ inputs.comment }}' | sed -n 's/.*\/benchmarks-[^ ]* \(.*\)/\1/p')" >> $GITHUB_ENV
+
+    - name: Run SYCL API Overhead benchmark
+      id: benchmarks
+      run: ${{github.workspace}}/ur-repo/.github/scripts/compute_benchmarks.py ${{github.workspace}}/compute-benchmarks-build/bin/ $ARGS
+
+    - name: Add comment to PR
+      uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+      if: ${{ always() && inputs.trigger != 'schedule' }}
+      with:
+        script: |
+          let markdown = ""
+          try {
+            const fs = require('fs');
+            markdown = fs.readFileSync('benchmark_results.md', 'utf8');
+          } catch(err) {
+          }
+
+          const adapter = '${{ matrix.adapter.name }}';
+          const url = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}';
+          const test_status = '${{ steps.benchmarks.outcome }}';
+          const job_status = '${{ job.status }}';
+          const body = `Compute Benchmarks ${adapter} run:\n${url}\nJob status: ${job_status}. Test status: ${test_status}.\n ${markdown}`;
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: body
+          })
