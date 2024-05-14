@@ -1081,8 +1081,15 @@ static bool isFreeFunction(SemaSYCL &SemaSYCLRef, const FunctionDecl *FD) {
         IRAttr->getAttributeNameValuePairs(SemaSYCLRef.getASTContext());
     for (const auto &NameValuePair : NameValuePairs) {
       if (NameValuePair.first == "sycl-nd-range-kernel" ||
-          NameValuePair.first == "sycl-single-task-kernel")
+          NameValuePair.first == "sycl-single-task-kernel") {
+        if (!FD->getReturnType()->isVoidType()) {
+          llvm::report_fatal_error(
+              "Only functions at file scope with void return "
+              "type are permitted as free functions");
+          return false;
+        }
         return true;
+      }
     }
   }
   return false;
