@@ -206,8 +206,6 @@ public:
 } // namespace node
 } // namespace property
 
-template <graph_state State> class command_graph;
-
 namespace detail {
 // Templateless modifiable command-graph base class.
 class __SYCL_EXPORT modifiable_command_graph {

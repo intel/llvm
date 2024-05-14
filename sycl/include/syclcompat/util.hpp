@@ -35,6 +35,7 @@
 #include <type_traits>
 
 #include <sycl/atomic_ref.hpp>
+#include <sycl/group_barrier.hpp>
 
 #include <syclcompat/math.hpp>
 #include <syclcompat/memory.hpp>

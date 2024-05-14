@@ -132,6 +132,7 @@ InstallIGFX () {
     | wget -qi -
   dpkg -i *.deb && rm *.deb *.sum
   IS_IGC_DEV=$(CheckIGCdevTag $IGCTAG)
+  echo "$IGC_TAG" > /usr/local/lib/igc/IGCTAG.txt
   if [ "$IS_IGC_DEV" == "Yes" ]; then
     # Dev IGC deb package did not include libopencl-clang
     # opencl-clang repo does not provide release deb package either.
@@ -148,6 +149,7 @@ InstallIGFX () {
     cp -d libopencl-clang.so.14*  /usr/local/lib/
     echo "Clean up"
     rm *.deb libopencl-clang.so.14*
+    echo "$IGC_DEV_TAG" > /usr/local/lib/igc/IGCTAG.txt
   fi
 }
 

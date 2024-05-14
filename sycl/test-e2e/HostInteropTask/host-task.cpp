@@ -8,6 +8,7 @@
 #include <chrono>
 #include <iostream>
 #include <sycl/detail/core.hpp>
+#include <sycl/detail/host_task_impl.hpp>
 #include <vector>
 
 using namespace sycl;
