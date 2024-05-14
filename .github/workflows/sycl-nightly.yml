@@ -5,6 +5,8 @@ on:
   schedule:
     - cron: '0 3 * * *'
 
+permissions: read-all
+
 jobs:
   ubuntu2204_build:
     if: github.repository == 'intel/llvm'
@@ -79,7 +81,7 @@ jobs:
             target_devices: ext_oneapi_cuda:gpu
             tests_selector: e2e
 
-          - name: SYCL-CTS
+          - name: SYCL-CTS on OCL CPU
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
@@ -127,6 +129,8 @@ jobs:
     if: ${{ github.ref_name == 'sycl' }}
     needs: [ubuntu2204_build, build-win]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
     - uses: actions/download-artifact@v4
       with:
@@ -144,7 +148,7 @@ jobs:
           echo "TAG=$(date +'%Y-%m-%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         fi
     - name: Upload binaries
-      uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844
+      uses: softprops/action-gh-release@9d7c94cfd0a1f3ed45544c887983e9fa900f0564
       with:
         files: |
           sycl_linux.tar.gz
@@ -158,6 +162,8 @@ jobs:
   ubuntu2204_docker_build_push:
     if: github.repository == 'intel/llvm'
     runs-on: [Linux, build]
+    permissions:
+      packages: write
     needs: ubuntu2204_build
     steps:
     - uses: actions/checkout@v4

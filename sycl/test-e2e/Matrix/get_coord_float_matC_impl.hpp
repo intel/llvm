@@ -5,6 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <sycl/atomic_ref.hpp>
+#include <sycl/group_algorithm.hpp>
+
 constexpr size_t TM = 8;
 
 // clang-format off

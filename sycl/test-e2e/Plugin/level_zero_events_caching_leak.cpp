@@ -7,29 +7,29 @@
 // Check that events and pools are not leaked when event caching is
 // enabled/disabled.
 
-#include <CL/sycl.hpp>
 #include <array>
+#include <sycl/sycl.hpp>
 
-constexpr cl::sycl::access::mode sycl_read = cl::sycl::access::mode::read;
-constexpr cl::sycl::access::mode sycl_write = cl::sycl::access::mode::write;
+constexpr sycl::access::mode sycl_read = sycl::access::mode::read;
+constexpr sycl::access::mode sycl_write = sycl::access::mode::write;
 
 int main() {
-  cl::sycl::queue deviceQueue;
+  sycl::queue deviceQueue;
 
   const size_t array_size = 4;
   std::array<int, array_size> A = {{1, 2, 3, 4}}, B = {{1, 2, 3, 4}}, C;
-  cl::sycl::range<1> numOfItems{array_size};
-  cl::sycl::buffer<int, 1> bufferA(A.data(), numOfItems);
-  cl::sycl::buffer<int, 1> bufferB(B.data(), numOfItems);
-  cl::sycl::buffer<int, 1> bufferC(C.data(), numOfItems);
+  sycl::range<1> numOfItems{array_size};
+  sycl::buffer<int, 1> bufferA(A.data(), numOfItems);
+  sycl::buffer<int, 1> bufferB(B.data(), numOfItems);
+  sycl::buffer<int, 1> bufferC(C.data(), numOfItems);
 
   for (int i = 0; i < 256; i++) {
-    deviceQueue.submit([&](cl::sycl::handler &cgh) {
+    deviceQueue.submit([&](sycl::handler &cgh) {
       auto accessorA = bufferA.get_access<sycl_read>(cgh);
       auto accessorB = bufferB.get_access<sycl_read>(cgh);
       auto accessorC = bufferC.get_access<sycl_write>(cgh);
 
-      cgh.parallel_for<class SimpleVadd>(numOfItems, [=](cl::sycl::id<1> wiID) {
+      cgh.parallel_for<class SimpleVadd>(numOfItems, [=](sycl::id<1> wiID) {
         accessorC[wiID] = accessorA[wiID] + accessorB[wiID];
       });
     });

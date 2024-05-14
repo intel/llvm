@@ -13,7 +13,7 @@
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/intel/esimd/simd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <vector>
 
 constexpr auto sycl_write = sycl::access::mode::write;

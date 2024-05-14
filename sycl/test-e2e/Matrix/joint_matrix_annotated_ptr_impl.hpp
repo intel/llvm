@@ -1,3 +1,13 @@
+//===---joint_matrix_annotated_ptr_impl.hpp - DPC++ joint_matrix-----------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include <sycl/usm.hpp>
+
 #define TM 8
 #define TK 16
 
@@ -12,15 +22,6 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue &q) {
          [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]]
 
          {
-           auto pA =
-               address_space_cast<sycl::access::address_space::global_space,
-                                  sycl::access::decorated::no>(A);
-           auto pB =
-               address_space_cast<sycl::access::address_space::global_space,
-                                  sycl::access::decorated::no>(B);
-           auto pC =
-               address_space_cast<sycl::access::address_space::global_space,
-                                  sycl::access::decorated::no>(C);
            const auto global_idx = spmd_item.get_global_id(0);
            const auto global_idy = spmd_item.get_global_id(1);
            const auto sg_startx = global_idx - spmd_item.get_local_id(0);

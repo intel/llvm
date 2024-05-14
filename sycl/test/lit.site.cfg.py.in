@@ -26,11 +26,11 @@ config.llvm_enable_projects = "@LLVM_ENABLE_PROJECTS@"
 config.sycl_threads_lib = '@SYCL_THREADS_LIB@'
 config.sycl_use_libcxx = '@SYCL_USE_LIBCXX@'
 config.extra_environment = lit_config.params.get("extra_environment", "@LIT_EXTRA_ENVIRONMENT@")
-config.cuda_be = '@SYCL_BUILD_PI_CUDA@'
-config.hip_be = '@SYCL_BUILD_PI_HIP@'
-config.opencl_be = '@SYCL_BUILD_PI_OPENCL@'
-config.level_zero_be = '@SYCL_BUILD_PI_LEVEL_ZERO@'
-config.native_cpu_be = '@SYCL_BUILD_NATIVE_CPU@'
+config.cuda = '@SYCL_BUILD_PI_CUDA@'
+config.hip = '@SYCL_BUILD_PI_HIP@'
+config.opencl = '@SYCL_BUILD_PI_OPENCL@'
+config.level_zero = '@SYCL_BUILD_PI_LEVEL_ZERO@'
+config.native_cpu = '@SYCL_BUILD_NATIVE_CPU@'
 config.native_cpu_ock = '@NATIVECPU_USE_OCK@'
 config.sycl_preview_lib_enabled = '@SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB@'
 
@@ -39,3 +39,7 @@ lit.llvm.initialize(lit_config, config)
 
 # Let the main config do the real work.
 lit_config.load_config(config, "@SYCL_SOURCE_DIR@/test/lit.cfg.py")
+
+
+import site
+site.addsitedir("@CMAKE_CURRENT_SOURCE_DIR@")

@@ -32,25 +32,22 @@
 
 #include <sycl/sycl.hpp>
 
-#ifdef _WIN32
-#define DLL_EXPORT __declspec(dllexport)
-#else
-#define DLL_EXPORT
-#endif
+#include <syclcompat/defs.hpp>
 
 void foo(int *k, sycl::nd_item<3> item_ct1, uint8_t *local_mem) {
   k[item_ct1.get_global_linear_id()] = item_ct1.get_global_linear_id();
 }
 
 extern "C" {
-DLL_EXPORT void foo_wrapper(sycl::queue &queue, const sycl::nd_range<3> &nr,
-                            unsigned int localMemSize, void **kernelParams,
-                            void **extra) {
+SYCLCOMPAT_EXPORT void foo_wrapper(sycl::queue &queue,
+                                   const sycl::nd_range<3> &nr,
+                                   unsigned int local_mem_size,
+                                   void **kernel_params, void **extra) {
   int *k;
-  k = (int *)kernelParams[0];
+  k = (int *)kernel_params[0];
   queue.submit([&](sycl::handler &cgh) {
-    sycl::local_accessor<uint8_t, 1> local_acc_ct1(sycl::range<1>(localMemSize),
-                                                   cgh);
+    sycl::local_accessor<uint8_t, 1> local_acc_ct1(
+        sycl::range<1>(local_mem_size), cgh);
     cgh.parallel_for(nr, [=](sycl::nd_item<3> item_ct1) {
       foo(k, item_ct1,
           local_acc_ct1.get_multi_ptr<sycl::access::decorated::no>().get());

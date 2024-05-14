@@ -12,7 +12,9 @@
 // - `tmp2` is an `i8` buffer. The corresponding `i8`-typed GEPs must be
 //   remapped during internalization.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 using namespace sycl;
 

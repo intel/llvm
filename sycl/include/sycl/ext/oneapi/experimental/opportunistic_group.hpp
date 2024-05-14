@@ -9,13 +9,16 @@
 #pragma once
 
 #include <sycl/aspects.hpp>
-#include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_DEVICE
-#include <sycl/detail/type_traits.hpp>        // for is_group, is_user_cons...
-#include <sycl/exception.hpp>                 // for runtime_error
+#include <sycl/detail/pi.h>            // for PI_ERROR_INVALID_DEVICE
+#include <sycl/detail/type_traits.hpp> // for is_group, is_user_cons...
+#include <sycl/exception.hpp>          // for runtime_error
+#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
+#include <sycl/ext/oneapi/free_function_queries.hpp> // for this_sub_group
 #include <sycl/ext/oneapi/sub_group_mask.hpp> // for sub_group_mask
 #include <sycl/id.hpp>                        // for id
 #include <sycl/memory_enums.hpp>              // for memory_scope
 #include <sycl/range.hpp>                     // for range
+#include <sycl/sub_group.hpp>
 
 #include <stdint.h>    // for uint32_t
 #include <type_traits> // for true_type
@@ -140,7 +143,7 @@ namespace this_kernel {
 
 inline opportunistic_group get_opportunistic_group() {
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__SPIR__)
+#if defined(__SPIR__) || defined(__SPIRV__)
   // TODO: It may be wiser to call the intrinsic than rely on this_group()
   sycl::sub_group sg = sycl::ext::oneapi::experimental::this_sub_group();
   sub_group_mask mask = sycl::ext::oneapi::group_ballot(sg, true);

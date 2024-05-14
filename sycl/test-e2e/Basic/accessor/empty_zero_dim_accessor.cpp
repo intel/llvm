@@ -1,9 +1,10 @@
+// REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.5382
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // Tests the size and iterator members of an empty zero-dimensional accessor.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 
