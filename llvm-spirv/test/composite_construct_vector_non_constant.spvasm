@@ -1,0 +1,40 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
+; RUN: FileCheck < %t.rev.ll %s
+
+; CHECK: define spir_func <3 x i32> @non_constant_vector_elements(i32 %[[#ARG0:]], i32 %[[#ARG1:]])
+; CHECK: %[[#VEC0:]] = insertelement <3 x i32> poison, i32 %[[#ARG1]], i32 0
+; CHECK: %[[#VEC1:]] = insertelement <3 x i32> %[[#VEC0]], i32 %[[#ARG0]], i32 1
+; CHECK: %[[#VEC2:]] = insertelement <3 x i32> %[[#VEC1]], i32 1, i32 2
+; CHECK: ret <3 x i32> %[[#VEC2]]
+
+; SPIR-V
+; Version: 1.0
+; Generator: Khronos LLVM/SPIR-V Translator; 14
+; Bound: 23
+; Schema: 0
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+          %1 = OpExtInstImport "OpenCL.std"
+               OpMemoryModel Physical64 OpenCL
+               OpSource Unknown 0
+               OpName %vectype "vectype"
+               OpName %non_constant_vector_elements "non_constant_vector_elements"
+               OpDecorate %non_constant_vector_elements LinkageAttributes "non_constant_vector_elements" Export
+       %uint = OpTypeInt 32 0
+     %uint_0 = OpConstant %uint 0
+     %uint_1 = OpConstant %uint 1
+    %vectype = OpTypeVector %uint 3
+          %5 = OpTypeFunction %vectype %uint %uint
+%_ptr_Function_uint = OpTypePointer Function %uint
+%non_constant_vector_elements = OpFunction %vectype None %5
+        %484 = OpFunctionParameter %uint
+        %485 = OpFunctionParameter %uint
+          %7 = OpLabel
+         %14 = OpCompositeConstruct %vectype %485 %484 %uint_1
+               OpReturnValue %14
+               OpFunctionEnd

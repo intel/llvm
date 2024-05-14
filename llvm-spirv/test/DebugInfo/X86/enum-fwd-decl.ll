@@ -10,7 +10,7 @@ target triple = "spir64-unknown-unknown"
 
 source_filename = "test/DebugInfo/X86/enum-fwd-decl.ll"
 
-@e = global i16 0, align 2, !dbg !0
+@e = addrspace(1) global i16 0, align 2, !dbg !0
 
 !llvm.dbg.cu = !{!4}
 !llvm.module.flags = !{!7}

@@ -5,6 +5,8 @@
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv -r --spirv-target-env=SPV-IR %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
 
 ; ModuleID = 'image_signedness.ll'
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
@@ -21,6 +23,11 @@ target triple = "spir-unknown-unknown"
 ; CHECK-LLVM: call spir_func <4 x i32> @_Z12read_imageui20ocl_image1d_array_rwDv2_i(
 ; CHECK-LLVM: call spir_func <4 x i32> @_Z12read_imageui14ocl_image1d_roi(
 ; CHECK-LLVM: call spir_func <4 x i32> @_Z11read_imagei14ocl_image1d_roi(
+; CHECK-SPV-IR: call spir_func <4 x i32> @_Z37__spirv_ImageSampleExplicitLod_Ruint4PU3AS140__spirv_SampledImage__void_0_0_0_0_0_0_0iif(
+; CHECK-SPV-IR: call spir_func <4 x i32> @_Z36__spirv_ImageSampleExplicitLod_Rint4PU3AS140__spirv_SampledImage__void_0_0_0_0_0_0_0iif(
+; CHECK-SPV-IR: call spir_func <4 x i32> @_Z24__spirv_ImageRead_Ruint4PU3AS133__spirv_Image__void_0_0_1_0_0_0_2Dv2_ii(
+; CHECK-SPV-IR: call spir_func <4 x i32> @_Z24__spirv_ImageRead_Ruint4PU3AS133__spirv_Image__void_0_0_0_0_0_0_0ii(
+; CHECK-SPV-IR: call spir_func <4 x i32> @_Z23__spirv_ImageRead_Rint4PU3AS133__spirv_Image__void_0_0_0_0_0_0_0ii(
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @imagereads(ptr addrspace(1) %im, ptr addrspace(1) %ima, ptr addrspace(1) nocapture %res, ptr addrspace(1) nocapture %resu) local_unnamed_addr #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !7 !kernel_arg_type_qual !8 {
@@ -42,6 +49,8 @@ entry:
 ; CHECK-LLVM-LABEL: @imagewrites
 ; CHECK-LLVM: call spir_func void @_Z12write_imagei14ocl_image2d_woDv2_iDv4_i(
 ; CHECK-LLVM: call spir_func void @_Z13write_imageui14ocl_image2d_woDv2_iDv4_j(
+; CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iDv4_ii(
+; CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iDv4_ji(
 
 ; Function Attrs: alwaysinline convergent nounwind
 define spir_kernel void @imagewrites(i32 %offset, ptr addrspace(1) nocapture readonly %input, ptr addrspace(1) nocapture readonly %inputu, ptr addrspace(1) %output) local_unnamed_addr #0 !kernel_arg_addr_space !14 !kernel_arg_access_qual !15 !kernel_arg_type !16 !kernel_arg_base_type !17 !kernel_arg_type_qual !18 !kernel_arg_name !19 !kernel_attributes !20 {

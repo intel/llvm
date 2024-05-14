@@ -4,7 +4,7 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
   message(STATUS "Download Level Zero loader and headers from github.com")
 
   set(LEVEL_ZERO_LOADER_REPO "https://github.com/oneapi-src/level-zero.git")
-  set(LEVEL_ZERO_LOADER_TAG v1.11.0)
+  set(LEVEL_ZERO_LOADER_TAG v1.16.1)
 
   # Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104
   set(CMAKE_INCLUDE_CURRENT_DIR OFF)
@@ -77,7 +77,6 @@ add_sycl_plugin(level_zero
     #
     "ur_bindings.hpp"
     "../unified_runtime/pi2ur.hpp"
-    "../unified_runtime/pi2ur.cpp"
     ${UR_L0_ADAPTER_SOURCES}
     # Following are the PI Level-Zero Plugin only codes.
     "pi_level_zero.cpp"
@@ -94,17 +93,18 @@ add_sycl_plugin(level_zero
     LevelZeroLoader-Headers
     UnifiedRuntime-Headers
     UnifiedRuntimeCommon
-    UnifiedMallocFramework
+    UnifiedMemoryFramework
     LevelZeroLoader
     Threads::Threads
     ${XPTI_LIBS}
 )
-add_dependencies(pi_level_zero ze-api)
 
 if (WIN32)
- target_link_libraries(pi_level_zero PRIVATE delayimp)
- target_link_options(pi_level_zero PRIVATE /DELAYLOAD:ze_loader.dll)
+  # 0x800: Search for the DLL only in the System32 folder
+  target_link_options(pi_level_zero PUBLIC /DEPENDENTLOADFLAG:0x800)
 endif()
+
+add_dependencies(pi_level_zero ze-api)
 
 if (SYCL_ENABLE_XPTI_TRACING)
   target_compile_definitions(pi_level_zero PRIVATE

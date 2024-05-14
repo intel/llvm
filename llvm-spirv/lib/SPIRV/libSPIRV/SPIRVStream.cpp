@@ -147,6 +147,7 @@ SPIRV_DEF_ENCDEC(SPIRVDebugExtOpKind)
 SPIRV_DEF_ENCDEC(NonSemanticAuxDataOpKind)
 SPIRV_DEF_ENCDEC(InitializationModeQualifier)
 SPIRV_DEF_ENCDEC(HostAccessQualifier)
+SPIRV_DEF_ENCDEC(NamedMaximumNumberOfRegisters)
 SPIRV_DEF_ENCDEC(LinkageType)
 
 // Read a string with padded 0's at the end so that they form a stream of
@@ -357,6 +358,7 @@ std::vector<SPIRVEntry *> SPIRVDecoder::getSourceContinuedInstructions() {
     SPIRVExtInst *Inst = static_cast<SPIRVExtInst *>(Entry);
     if (Inst->getExtOp() != SPIRVDebug::Instruction::SourceContinued) {
       IS.seekg(Pos); // restore position
+      delete Entry;
       return ContinuedInst;
     }
     M.add(Entry);

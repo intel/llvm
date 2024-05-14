@@ -43,8 +43,10 @@ bool test(queue Q, uint32_t LocalRange, uint32_t GlobalRange) {
        CGH.parallel_for(NDRange, [=](nd_item<1> Item) SYCL_ESIMD_KERNEL {
          uint32_t GID = Item.get_global_id(0);
          uint32_t LID = Item.get_local_id(0);
-         uint32_t LocalAccOffset = static_cast<uint32_t>(
-             reinterpret_cast<std::uintptr_t>(LocalAcc.get_pointer().get()));
+         uint32_t LocalAccOffset =
+             static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(
+                 LocalAcc.template get_multi_ptr<access::decorated::yes>()
+                     .get()));
          if constexpr (TestSubscript) {
            for (int I = 0; I < VL; I++)
              LocalAcc[LID * VL + I] = GID * 100 + I;
@@ -67,7 +69,7 @@ bool test(queue Q, uint32_t LocalRange, uint32_t GlobalRange) {
                ValuesFromSLM.copy_to(Out + (GID + LID) * VL);
              }
            } // end for (int LID = 0; LID < LocalRange; LID++)
-         }   // end if (LID == 0)
+         } // end if (LID == 0)
        });
      }).wait();
   } catch (sycl::exception const &e) {

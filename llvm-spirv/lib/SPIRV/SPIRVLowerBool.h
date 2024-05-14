@@ -70,6 +70,8 @@ class SPIRVLowerBoolPass : public llvm::PassInfoMixin<SPIRVLowerBoolPass>,
 public:
   llvm::PreservedAnalyses run(llvm::Module &M,
                               llvm::ModuleAnalysisManager &MAM);
+
+  static bool isRequired() { return true; }
 };
 
 class SPIRVLowerBoolLegacy : public llvm::ModulePass,

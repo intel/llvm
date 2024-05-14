@@ -36,6 +36,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "LLVMToSPIRVDbgTran.h"
+#include "SPIRV.debug.h"
 #include "SPIRVWriter.h"
 
 #include "llvm/IR/DebugInfo.h"
@@ -247,6 +248,8 @@ void LLVMToSPIRVDbgTran::transLocationInfo() {
                         Col);
         }
       } // Instructions
+      // Reset current debug line at end of basic block.
+      BM->setCurrentDebugLine(nullptr);
     }   // Basic Blocks
   }     // Functions
 }
@@ -1019,8 +1022,6 @@ LLVMToSPIRVDbgTran::transDbgMemberTypeOpenCL(const DIDerivedType *MT) {
       Ops.push_back(Val->getId());
     }
   }
-  if (isNonSemanticDebugInfo())
-    transformToConstant(Ops, {LineIdx, ColumnIdx, FlagsIdx});
   return BM->addDebugInfo(SPIRVDebug::TypeMember, getVoidTy(), Ops);
 }
 
@@ -1054,20 +1055,32 @@ LLVMToSPIRVDbgTran::transDbgMemberTypeNonSemantic(const DIDerivedType *MT) {
 
 SPIRVEntry *LLVMToSPIRVDbgTran::transDbgInheritance(const DIDerivedType *DT) {
   using namespace SPIRVDebug::Operand::TypeInheritance;
-  const SPIRVWord Offset = isNonSemanticDebugInfo() ? 1 : 0;
-  SPIRVWordVec Ops(OperandCount - Offset);
-  // There is no Child operand in NonSemantic debug spec
-  if (!isNonSemanticDebugInfo())
-    Ops[ChildIdx] = transDbgEntry(DT->getScope())->getId();
-  Ops[ParentIdx - Offset] = transDbgEntry(DT->getBaseType())->getId();
+  unsigned ParentIdx, OffsetIdx, SizeIdx, FlagsIdx, OperandCount;
+  if (isNonSemanticDebugInfo()) {
+    ParentIdx = NonSemantic::ParentIdx;
+    OffsetIdx = NonSemantic::OffsetIdx;
+    SizeIdx = NonSemantic::SizeIdx;
+    FlagsIdx = NonSemantic::FlagsIdx;
+    OperandCount = NonSemantic::OperandCount;
+  } else {
+    ParentIdx = OpenCL::ParentIdx;
+    OffsetIdx = OpenCL::OffsetIdx;
+    SizeIdx = OpenCL::SizeIdx;
+    FlagsIdx = OpenCL::FlagsIdx;
+    OperandCount = OpenCL::OperandCount;
+  }
+  SPIRVWordVec Ops(OperandCount);
+  Ops[ParentIdx] = transDbgEntry(DT->getBaseType())->getId();
   ConstantInt *OffsetInBits = getUInt(M, DT->getOffsetInBits());
-  Ops[OffsetIdx - Offset] =
-      SPIRVWriter->transValue(OffsetInBits, nullptr)->getId();
+  Ops[OffsetIdx] = SPIRVWriter->transValue(OffsetInBits, nullptr)->getId();
   ConstantInt *Size = getUInt(M, DT->getSizeInBits());
-  Ops[SizeIdx - Offset] = SPIRVWriter->transValue(Size, nullptr)->getId();
-  Ops[FlagsIdx - Offset] = transDebugFlags(DT);
-  if (isNonSemanticDebugInfo())
-    transformToConstant(Ops, {FlagsIdx - Offset});
+  Ops[SizeIdx] = SPIRVWriter->transValue(Size, nullptr)->getId();
+  Ops[FlagsIdx] = transDebugFlags(DT);
+  if (isNonSemanticDebugInfo()) {
+    transformToConstant(Ops, {FlagsIdx});
+  } else {
+    Ops[OpenCL::ChildIdx] = transDbgEntry(DT->getScope())->getId();
+  }
   return BM->addDebugInfo(SPIRVDebug::TypeInheritance, getVoidTy(), Ops);
 }
 
@@ -1186,6 +1199,23 @@ LLVMToSPIRVDbgTran::transDbgGlobalVariable(const DIGlobalVariable *GV) {
   // Check if GV is the definition of previously declared static member
   if (DIDerivedType *StaticMember = GV->getStaticDataMemberDeclaration())
     Ops.push_back(transDbgEntry(StaticMember)->getId());
+
+  // Check if Ops[VariableIdx] has no information
+  if (isNonSemanticDebugInfo() && Ops[VariableIdx] == getDebugInfoNoneId()) {
+    // Check if GV has an associated GVE with a non-empty DIExpression.
+    // The non-empty DIExpression gives the initial value of the GV.
+    for (const DIGlobalVariableExpression *GVE : DIF.global_variables()) {
+      if ( // GVE matches GV
+          GVE->getVariable() == GV &&
+          // DIExpression is non-empty
+          GVE->getExpression()->getNumElements()) {
+        // Repurpose VariableIdx operand to hold the initial value held in the
+        // GVE's DIExpression
+        Ops[VariableIdx] = transDbgExpression(GVE->getExpression())->getId();
+        break;
+      }
+    }
+  }
 
   if (isNonSemanticDebugInfo())
     transformToConstant(Ops, {LineIdx, ColumnIdx, FlagsIdx});

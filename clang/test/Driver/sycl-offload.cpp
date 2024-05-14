@@ -170,3 +170,11 @@
 /// Check if the clang with fsycl adds C++ libraries to the link line
 //  RUN:  %clang -### -target x86_64-unknown-linux-gnu -fsycl %s 2>&1 | FileCheck -check-prefix=CHECK-FSYCL-WITH-CLANG %s
 // CHECK-FSYCL-WITH-CLANG: "-lstdc++"
+
+/// Check selective passing of -emit-only-kernels-as-entry-points to sycl-post-link tool
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_OPT_PASS %s
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_OPT_PASS %s
+// CHECK_SYCL_POST_LINK_OPT_PASS: sycl-post-link{{.*}}emit-only-kernels-as-entry-points
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen -fno-sycl-remove-unused-external-funcs %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_OPT_NO_PASS %s
+// CHECK_SYCL_POST_LINK_OPT_NO_PASS-NOT: sycl-post-link{{.*}}emit-only-kernels-as-entry-points
+

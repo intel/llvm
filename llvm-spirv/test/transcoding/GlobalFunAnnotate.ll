@@ -12,9 +12,9 @@
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-linux"
 
-@.str = private unnamed_addr constant [23 x i8] c"annotation_on_function\00", section "llvm.metadata"
-@.str.1 = private unnamed_addr constant [6 x i8] c"an.cl\00", section "llvm.metadata"
-@llvm.global.annotations = appending global [1 x { ptr, ptr, ptr, i32, ptr }] [{ ptr, ptr, ptr, i32, ptr } { ptr @foo, ptr @.str, ptr @.str.1, i32 2, ptr null }], section "llvm.metadata"
+@.str = private unnamed_addr addrspace(1) constant [23 x i8] c"annotation_on_function\00", section "llvm.metadata"
+@.str.1 = private unnamed_addr addrspace(1) constant [6 x i8] c"an.cl\00", section "llvm.metadata"
+@llvm.global.annotations = appending global [1 x { ptr, ptr addrspace(1), ptr addrspace(1), i32, ptr }] [{ ptr, ptr addrspace(1), ptr addrspace(1), i32, ptr } { ptr @foo, ptr addrspace(1) @.str, ptr addrspace(1) @.str.1, i32 2, ptr null }], section "llvm.metadata"
 
 ; Function Attrs: convergent norecurse nounwind
 define dso_local spir_func void @foo() #0 {

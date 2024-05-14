@@ -12,6 +12,7 @@
 #include <detail/host_pipe_map_entry.hpp>
 #include <detail/kernel_arg_mask.hpp>
 #include <detail/spec_constant_impl.hpp>
+#include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/device_global_map.hpp>
 #include <sycl/detail/export.hpp>
@@ -21,7 +22,6 @@
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
 #include <sycl/kernel_bundle.hpp>
-#include <sycl/stl.hpp>
 
 #include <cstdint>
 #include <map>
@@ -53,7 +53,8 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
                                       const RTDeviceBinaryImage &BinImages);
 std::optional<sycl::exception>
 checkDevSupportDeviceRequirements(const device &Dev,
-                                  const RTDeviceBinaryImage &BinImages);
+                                  const RTDeviceBinaryImage &BinImages,
+                                  const NDRDescT &NDRDesc = {});
 
 // This value must be the same as in libdevice/device_itt.h.
 // See sycl/doc/design/ITTAnnotations.md for more info.
@@ -135,9 +136,11 @@ public:
   /// \param KernelName the kernel's name
   /// \param JITCompilationIsRequired If JITCompilationIsRequired is true
   ///        add a check that kernel is compiled, otherwise don't add the check.
-  sycl::detail::pi::PiProgram getBuiltPIProgram(
-      const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
-      const std::string &KernelName, bool JITCompilationIsRequired = false);
+  sycl::detail::pi::PiProgram
+  getBuiltPIProgram(const ContextImplPtr &ContextImpl,
+                    const DeviceImplPtr &DeviceImpl,
+                    const std::string &KernelName, const NDRDescT &NDRDesc = {},
+                    bool JITCompilationIsRequired = false);
 
   sycl::detail::pi::PiProgram
   getBuiltPIProgram(const context &Context, const device &Device,
@@ -149,7 +152,8 @@ public:
              sycl::detail::pi::PiProgram>
   getOrCreateKernel(const ContextImplPtr &ContextImpl,
                     const DeviceImplPtr &DeviceImpl,
-                    const std::string &KernelName);
+                    const std::string &KernelName,
+                    const NDRDescT &NDRDesc = {});
 
   sycl::detail::pi::PiProgram
   getPiProgramFromPiKernel(sycl::detail::pi::PiKernel Kernel,

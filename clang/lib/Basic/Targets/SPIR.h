@@ -20,6 +20,7 @@
 #include "llvm/Support/Compiler.h"
 #include "OSTargets.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/Support/VersionTuple.h"
 #include "llvm/TargetParser/Triple.h"
 #include <optional>
 
@@ -130,7 +131,9 @@ protected:
       LongAlign = HostTarget->getLongAlign();
       LongLongWidth = HostTarget->getLongLongWidth();
       LongLongAlign = HostTarget->getLongLongAlign();
-      MinGlobalAlign = HostTarget->getMinGlobalAlign(/* TypeSize = */ 0);
+      MinGlobalAlign =
+          HostTarget->getMinGlobalAlign(/* TypeSize = */ 0,
+                                        /* HasNonWeakDef = */ true);
       NewAlign = HostTarget->getNewAlign();
       DefaultAlignForAttributeAligned =
           HostTarget->getDefaultAlignForAttributeAligned();
@@ -412,16 +415,18 @@ public:
       : BaseSPIRVTargetInfo(Triple, Opts) {
     assert(Triple.getArch() == llvm::Triple::spirv &&
            "Invalid architecture for Logical SPIR-V.");
-    assert(Triple.getOS() == llvm::Triple::ShaderModel &&
-           "Logical SPIR-V requires a valid ShaderModel.");
+    assert(Triple.getOS() == llvm::Triple::Vulkan &&
+           Triple.getVulkanVersion() != llvm::VersionTuple(0) &&
+           "Logical SPIR-V requires a valid Vulkan environment.");
     assert(Triple.getEnvironment() >= llvm::Triple::Pixel &&
            Triple.getEnvironment() <= llvm::Triple::Amplification &&
            "Logical SPIR-V environment must be a valid shader stage.");
+    PointerWidth = PointerAlign = 64;
 
     // SPIR-V IDs are represented with a single 32-bit word.
     SizeType = TargetInfo::UnsignedInt;
     resetDataLayout("e-i64:64-v16:16-v24:32-v32:32-v48:64-"
-                    "v96:128-v192:256-v256:256-v512:512-v1024:1024");
+                    "v96:128-v192:256-v256:256-v512:512-v1024:1024-G1");
   }
 
   void getTargetDefines(const LangOptions &Opts,
@@ -442,7 +447,7 @@ public:
     SizeType = TargetInfo::UnsignedInt;
     PtrDiffType = IntPtrType = TargetInfo::SignedInt;
     resetDataLayout("e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-"
-                    "v96:128-v192:256-v256:256-v512:512-v1024:1024");
+                    "v96:128-v192:256-v256:256-v512:512-v1024:1024-G1");
   }
 
   void getTargetDefines(const LangOptions &Opts,
@@ -463,11 +468,101 @@ public:
     SizeType = TargetInfo::UnsignedLong;
     PtrDiffType = IntPtrType = TargetInfo::SignedLong;
     resetDataLayout("e-i64:64-v16:16-v24:32-v32:32-v48:64-"
-                    "v96:128-v192:256-v256:256-v512:512-v1024:1024");
+                    "v96:128-v192:256-v256:256-v512:512-v1024:1024-G1");
   }
 
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
+};
+
+// x86-32 SPIRV32 Windows target
+class LLVM_LIBRARY_VISIBILITY WindowsX86_32SPIRV32TargetInfo
+    : public WindowsTargetInfo<SPIRV32TargetInfo> {
+public:
+  WindowsX86_32SPIRV32TargetInfo(const llvm::Triple &Triple,
+                                 const TargetOptions &Opts)
+      : WindowsTargetInfo<SPIRV32TargetInfo>(Triple, Opts) {
+    DoubleAlign = LongLongAlign = 64;
+    WCharType = UnsignedShort;
+  }
+
+  BuiltinVaListKind getBuiltinVaListKind() const override {
+    return TargetInfo::CharPtrBuiltinVaList;
+  }
+
+  CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
+    if (CC == CC_X86VectorCall)
+      // Permit CC_X86VectorCall which is used in Microsoft headers
+      return CCCR_OK;
+    return (CC == CC_SpirFunction || CC == CC_OpenCLKernel) ? CCCR_OK
+                                                            : CCCR_Warning;
+  }
+};
+
+// x86-32 SPIRV32 Windows Visual Studio target
+class LLVM_LIBRARY_VISIBILITY MicrosoftX86_32SPIRV32TargetInfo
+    : public WindowsX86_32SPIRV32TargetInfo {
+public:
+  MicrosoftX86_32SPIRV32TargetInfo(const llvm::Triple &Triple,
+                                   const TargetOptions &Opts)
+      : WindowsX86_32SPIRV32TargetInfo(Triple, Opts) {}
+
+  void getTargetDefines(const LangOptions &Opts,
+                        MacroBuilder &Builder) const override {
+    WindowsX86_32SPIRV32TargetInfo::getTargetDefines(Opts, Builder);
+    // The value of the following reflects processor type.
+    // 300=386, 400=486, 500=Pentium, 600=Blend (default)
+    // We lost the original triple, so we use the default.
+    Builder.defineMacro("_M_IX86", "600");
+  }
+};
+
+// x86-64 SPIRV64 Windows target
+class LLVM_LIBRARY_VISIBILITY WindowsX86_64_SPIRV64TargetInfo
+    : public WindowsTargetInfo<SPIRV64TargetInfo> {
+public:
+  WindowsX86_64_SPIRV64TargetInfo(const llvm::Triple &Triple,
+                                  const TargetOptions &Opts)
+      : WindowsTargetInfo<SPIRV64TargetInfo>(Triple, Opts) {
+    LongWidth = LongAlign = 32;
+    DoubleAlign = LongLongAlign = 64;
+    IntMaxType = SignedLongLong;
+    Int64Type = SignedLongLong;
+    SizeType = UnsignedLongLong;
+    PtrDiffType = SignedLongLong;
+    IntPtrType = SignedLongLong;
+    WCharType = UnsignedShort;
+  }
+
+  BuiltinVaListKind getBuiltinVaListKind() const override {
+    return TargetInfo::CharPtrBuiltinVaList;
+  }
+
+  CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
+    if (CC == CC_X86VectorCall || CC == CC_X86RegCall)
+      // Permit CC_X86VectorCall which is used in Microsoft headers
+      // Permit CC_X86RegCall which is used to mark external functions with
+      // explicit simd or structure type arguments to pass them via registers.
+      return CCCR_OK;
+    return (CC == CC_SpirFunction || CC == CC_OpenCLKernel) ? CCCR_OK
+                                                            : CCCR_Warning;
+  }
+};
+
+// x86-64 SPIRV64 Windows Visual Studio target
+class LLVM_LIBRARY_VISIBILITY MicrosoftX86_64_SPIRV64TargetInfo
+    : public WindowsX86_64_SPIRV64TargetInfo {
+public:
+  MicrosoftX86_64_SPIRV64TargetInfo(const llvm::Triple &Triple,
+                                    const TargetOptions &Opts)
+      : WindowsX86_64_SPIRV64TargetInfo(Triple, Opts) {}
+
+  void getTargetDefines(const LangOptions &Opts,
+                        MacroBuilder &Builder) const override {
+    WindowsX86_64_SPIRV64TargetInfo::getTargetDefines(Opts, Builder);
+    Builder.defineMacro("_M_X64", "100");
+    Builder.defineMacro("_M_AMD64", "100");
+  }
 };
 
 } // namespace targets

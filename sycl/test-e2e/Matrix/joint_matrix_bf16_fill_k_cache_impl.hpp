@@ -7,7 +7,9 @@
 //===-------------------------------------------------------------------------===//
 
 #include <random>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/matrix/matrix.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
@@ -76,14 +78,6 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
   assert(rowsA % tM == 0);
   assert(colsA % tK == 0);
   assert(colsB % tN == 0);
-
-  auto pA = address_space_cast<sycl::access::address_space::global_space,
-                               sycl::access::decorated::no>(A);
-  auto pB = address_space_cast<sycl::access::address_space::global_space,
-                               sycl::access::decorated::no>(B);
-  auto pC = address_space_cast<sycl::access::address_space::global_space,
-                               sycl::access::decorated::no>(C);
-
   // submit main kernel
   std::chrono::high_resolution_clock::time_point start =
       std::chrono::high_resolution_clock::now();
@@ -94,6 +88,15 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
         // loop global
         // loop localrange
         [=](nd_item<2> it) [[intel::reqd_sub_group_size(sgSize)]] {
+          auto pA =
+              address_space_cast<sycl::access::address_space::global_space,
+                                 sycl::access::decorated::no>(A);
+          auto pB =
+              address_space_cast<sycl::access::address_space::global_space,
+                                 sycl::access::decorated::no>(B);
+          auto pC =
+              address_space_cast<sycl::access::address_space::global_space,
+                                 sycl::access::decorated::no>(C);
           auto m2 = it.get_group(0);
           auto n2 = it.get_group(1);
           auto m1 = it.get_local_id(0);

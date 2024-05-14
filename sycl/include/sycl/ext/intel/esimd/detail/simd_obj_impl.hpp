@@ -124,13 +124,23 @@ constexpr vector_type_t<T, N> make_vector(const T (&&Arr)[N]) {
 }
 
 template <class T, int N, size_t... Is>
-constexpr vector_type_t<T, N> make_vector_impl(T Base, T Stride,
-                                               std::index_sequence<Is...>) {
-  return vector_type_t<T, N>{(T)(Base + ((T)Is) * Stride)...};
+constexpr auto make_vector_impl(T Base, T Stride, std::index_sequence<Is...>) {
+  if constexpr (std::is_integral_v<T> && N <= 3) {
+    // This sequence is a bit more efficient for integral types and N <= 3.
+    return vector_type_t<T, N>{(T)(Base + ((T)Is) * Stride)...};
+  } else {
+    using CppT = typename element_type_traits<T>::EnclosingCppT;
+    CppT BaseCpp = Base;
+    CppT StrideCpp = Stride;
+    vector_type_t<CppT, N> VBase = BaseCpp;
+    vector_type_t<CppT, N> VStride = StrideCpp;
+    vector_type_t<CppT, N> VStrideCoef{(CppT)(Is)...};
+    vector_type_t<CppT, N> Result{VBase + VStride * VStrideCoef};
+    return wrapper_type_converter<T>::template to_vector<N>(Result);
+  }
 }
 
-template <class T, int N>
-constexpr vector_type_t<T, N> make_vector(T Base, T Stride) {
+template <class T, int N> constexpr auto make_vector(T Base, T Stride) {
   return make_vector_impl<T, N>(Base, Stride, std::make_index_sequence<N>{});
 }
 
@@ -265,18 +275,13 @@ public:
   /// are initialized with the arithmetic progression defined by the arguments.
   /// For example, <code>simd<int, 4> x(1, 3)</code> will initialize x to the
   /// <code>{1, 4, 7, 10}</code> sequence.
-  /// @param Val The start of the progression.
+  /// If Ty is a floating-point type and \p Base or \p Step is +/-inf or nan,
+  /// then this constructor has undefined behavior.
+  /// @param Base The start of the progression.
   /// @param Step The step of the progression.
-  simd_obj_impl(Ty Val, Ty Step) noexcept {
-    __esimd_dbg_print(simd_obj_impl(Ty Val, Ty Step));
-    if constexpr (is_wrapper_elem_type_v<Ty> || !std::is_integral_v<Ty>) {
-      for (int i = 0; i < N; ++i) {
-        M_data[i] = bitcast_to_raw_type(Val);
-        Val = binary_op<BinOp::add, Ty>(Val, Step);
-      }
-    } else {
-      M_data = make_vector<Ty, N>(Val, Step);
-    }
+  simd_obj_impl(Ty Base, Ty Step) noexcept {
+    __esimd_dbg_print(simd_obj_impl(Ty Base, Ty Step));
+    M_data = make_vector<Ty, N>(Base, Step);
   }
 
   /// Broadcast constructor. Given value is type-converted to the
@@ -400,6 +405,7 @@ public:
   /// @param Val The object to take new values from.
   /// @param Mask The mask.
   void merge(const Derived &Val, const simd_mask_type<N> &Mask) {
+    check_wrregion_params<N, N, 0 /*VS*/, N, 1>();
     set(__esimd_wrregion<RawTy, N, N, 0 /*VS*/, N, 1, N>(data(), Val.data(), 0,
                                                          Mask.data()));
   }
@@ -473,6 +479,7 @@ public:
     static_assert(Size > 1 || Stride == 1,
                   "Stride must be 1 in single-element region");
     Derived &&Val = std::move(cast_this_to_derived());
+    check_rdregion_params<N, Size, /*VS*/ 0, Size, Stride>();
     return __esimd_rdregion<RawTy, N, Size, /*VS*/ 0, Size, Stride>(Val.data(),
                                                                     Offset);
   }
@@ -609,6 +616,7 @@ public:
   template <int Rep, int VS, int W, int HS>
   resize_a_simd_type_t<Derived, Rep * W>
   replicate_vs_w_hs(uint16_t Offset) const {
+    check_rdregion_params<N, Rep * W, VS, W, HS>();
     return __esimd_rdregion<RawTy, N, Rep * W, VS, W, HS, N>(
         data(), Offset * sizeof(RawTy));
   }
@@ -650,14 +658,7 @@ protected:
       constexpr int M = RTy::Size_x;
       constexpr int Stride = RTy::Stride_x;
       uint16_t Offset = Region.M_offset_x * sizeof(ElemTy);
-      static_assert(M > 0, "Malformed RHS region.");
-      static_assert(M <= BN, "Attempt to write beyond viewed area: The viewed "
-                             "object in LHS does not fit RHS.");
-      // (M > BN) condition is added below to not duplicate the above assert
-      // for big values of M. The assert below is for 'Stride'.
-      static_assert((M > BN) || (M - 1) * Stride < BN,
-                    "Malformed RHS region - too big stride.");
-
+      check_wrregion_params<BN, M, /*VS*/ 0, M, Stride>();
       // Merge and update.
       auto Merged = __esimd_wrregion<ElemTy, BN, M,
                                      /*VS*/ 0, M, Stride>(Base, Val, Offset);
@@ -692,11 +693,7 @@ protected:
         constexpr int Stride = TR::Stride_x;
         uint16_t Offset = Region.first.M_offset_x * sizeof(ElemTy);
 
-        static_assert(M <= BN1, "Attempt to write beyond viewed area: The "
-                                "viewed object in LHS does not fit RHS.");
-        static_assert(M > 0, "Malformed RHS region.");
-        static_assert((M - 1) * Stride < BN,
-                      "Malformed RHS region - too big stride.");
+        check_wrregion_params<BN1, M, /*VS*/ 0, M, Stride>();
         // Merge and update.
         Base1 = __esimd_wrregion<ElemTy, BN1, M,
                                  /*VS*/ 0, M, Stride>(Base1, Val, Offset);
@@ -714,12 +711,7 @@ protected:
             (Region.first.M_offset_y * PaTy::Size_x + Region.first.M_offset_x) *
             sizeof(ElemTy));
 
-        static_assert(M <= BN1, "Attempt to write beyond viewed area: The "
-                                "viewed object in LHS does not fit RHS.");
-        static_assert(M > 0 && W > 0 && M % W == 0, "Malformed RHS region.");
-        static_assert(W == 0 || ((M / W) - 1) * VS + (W - 1) * HS < BN1,
-                      "Malformed RHS region - too big vertical and/or "
-                      "horizontal stride.");
+        check_wrregion_params<BN1, M, VS, W, HS>();
         // Merge and update.
         Base1 = __esimd_wrregion<ElemTy, BN1, M, VS, W, HS, ParentWidth>(
             Base1, Val, Offset);

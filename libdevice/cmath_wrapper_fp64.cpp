@@ -9,12 +9,16 @@
 
 #include "device_math.h"
 
-#if defined(__SPIR__) || defined(__NVPTX__)
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__)
 
 // All exported functions in math and complex device libraries are weak
 // reference. If users provide their own math or complex functions(with
 // the prototype), functions in device libraries will be ignored and
 // overrided by users' version.
+
+DEVICE_EXTERN_C_INLINE
+double fabs(double x) { return __devicelib_fabs(x); }
+
 DEVICE_EXTERN_C_INLINE
 double log(double x) { return __devicelib_log(x); }
 
@@ -460,4 +464,4 @@ double _Sinh(double x, double y) { // compute y * sinh(x), |y| <= 1
   }
 }
 #endif // defined(_WIN32)
-#endif // __SPIR__ || __NVPTX__
+#endif // __SPIR__ || __SPIRV__ || __NVPTX__

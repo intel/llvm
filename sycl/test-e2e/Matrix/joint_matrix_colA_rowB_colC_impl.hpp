@@ -1,5 +1,14 @@
+//===---joint_matrix_colA_rowB_colC_impl.hpp - DPC++ joint_matrix----------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #include <iostream>
 #include <random>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
@@ -19,19 +28,22 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
 
-  auto pA = address_space_cast<sycl::access::address_space::global_space,
-                               sycl::access::decorated::no>(A);
-  auto pB = address_space_cast<sycl::access::address_space::global_space,
-                               sycl::access::decorated::no>(B);
-  auto pC = address_space_cast<sycl::access::address_space::global_space,
-                               sycl::access::decorated::no>(C);
-
   q.submit([&](handler &cgh) {
      cgh.parallel_for(
          nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
          [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]]
 
          {
+           auto pA =
+               address_space_cast<sycl::access::address_space::global_space,
+                                  sycl::access::decorated::no>(A);
+           auto pB =
+               address_space_cast<sycl::access::address_space::global_space,
+                                  sycl::access::decorated::no>(B);
+           auto pC =
+               address_space_cast<sycl::access::address_space::global_space,
+                                  sycl::access::decorated::no>(C);
+
            // The submatrix API has to be accessed by all the workitems in a
            // subgroup these functions will be called once by the subgroup no
            // code divergence between the workitems

@@ -1,12 +1,12 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 //
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env UR_L0_LEAKS_DEBUG=1 %{run} %t.out wait 2>&1 | FileCheck %s
-// RUN: env UR_L0_LEAKS_DEBUG=1 %{run} %t.out nowait 2>&1 | FileCheck %s
+// RUN: %{l0_leak_check} %{run} %t.out wait 2>&1 | FileCheck %s
+// RUN: %{l0_leak_check} %{run} %t.out nowait 2>&1 | FileCheck %s
 //
 // RUN: %{build} %level_zero_options -DCHECK_INORDER -o %t.inorder.out
-// RUN: env UR_L0_LEAKS_DEBUG=1 %{run} %t.inorder.out wait 2>&1 | FileCheck %s
-// RUN: env UR_L0_LEAKS_DEBUG=1 %{run} %t.inorder.out nowait 2>&1 | FileCheck %s
+// RUN: %{l0_leak_check} %{run} %t.inorder.out wait 2>&1 | FileCheck %s
+// RUN: %{l0_leak_check} %{run} %t.inorder.out nowait 2>&1 | FileCheck %s
 //
 // CHECK-NOT: LEAK
 

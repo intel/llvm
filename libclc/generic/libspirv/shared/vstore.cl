@@ -58,10 +58,18 @@
            *)(&mem[16 * offset])) = vec;                                       \
   }
 
+#if _CLC_GENERIC_AS_SUPPORTED
+#define VSTORE_VECTORIZE_GENERIC VSTORE_VECTORIZE
+#else
+// The generic address space isn't available, so make the macro do nothing
+#define VSTORE_VECTORIZE_GENERIC(X,Y)
+#endif
+
 #define VSTORE_ADDR_SPACES(__CLC_SCALAR___CLC_GENTYPE)                         \
   VSTORE_VECTORIZE(__CLC_SCALAR___CLC_GENTYPE, __private)                      \
   VSTORE_VECTORIZE(__CLC_SCALAR___CLC_GENTYPE, __local)                        \
-  VSTORE_VECTORIZE(__CLC_SCALAR___CLC_GENTYPE, __global)
+  VSTORE_VECTORIZE(__CLC_SCALAR___CLC_GENTYPE, __global)                       \
+  VSTORE_VECTORIZE_GENERIC(__CLC_SCALAR___CLC_GENTYPE, __generic)
 
 VSTORE_ADDR_SPACES(schar)
 VSTORE_ADDR_SPACES(uchar)
@@ -97,11 +105,17 @@ VSTORE_ADDR_SPACES(half)
 DECLARE_HELPER(float, __private, __builtin_store_halff);
 DECLARE_HELPER(float, __global, __builtin_store_halff);
 DECLARE_HELPER(float, __local, __builtin_store_halff);
+#if _CLC_GENERIC_AS_SUPPORTED
+DECLARE_HELPER(float, __generic, __builtin_store_halff);
+#endif
 
 #ifdef cl_khr_fp64
 DECLARE_HELPER(double, __private, __builtin_store_half);
 DECLARE_HELPER(double, __global, __builtin_store_half);
 DECLARE_HELPER(double, __local, __builtin_store_half);
+#if _CLC_GENERIC_AS_SUPPORTED
+DECLARE_HELPER(double, __generic, __builtin_store_half);
+#endif
 #endif
 
 #define VEC_STORE1(STYPE, AS, val, ROUNDF)                                     \

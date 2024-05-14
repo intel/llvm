@@ -5,8 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Use -O2 to avoid huge stack usage under -O0.
-// RUN: %{build} -O2 -I%S/.. -o %t.out
+// RUN: %{build} -I%S/.. -o %t.out
 // RUN: %{run} %t.out
 
 // Smoke test for simd_mask API functionality.

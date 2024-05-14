@@ -37,8 +37,8 @@ source_filename = "t.c"
 ;target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64"
 
-@t1 = global i32 1, align 4, !dbg !0
-@t2 = global i32 0, align 4, !dbg !6
+@t1 = addrspace(1) global i32 1, align 4, !dbg !0
+@t2 = addrspace(1) global i32 0, align 4, !dbg !6
 
 !llvm.dbg.cu = !{!2}
 !llvm.module.flags = !{!11, !12, !13}

@@ -14,10 +14,11 @@
 // RUN:          -target x86_64-unknown-linux-gnu \
 // RUN:          --sysroot=%S/Inputs/SYCL %t.o -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefixes=CHECK_FORCE_TARGET,CHECK_FORCE_TARGET_CPU
+// CHECK_FORCE_TARGET: clang-offload-bundler{{.*}} "-type=o" "-targets=host-{{.*}},sycl-spir64-unknown-unknown" "-input={{.*}}" "-output={{.*}}" "-output=[[DEVICEOBJECTOUTx:.+]]" "-unbundle" "-allow-missing-bundles"
 // CHECK_FORCE_TARGET: clang-offload-bundler{{.*}} "-type=o" "-targets=host-{{.*}},sycl-spir64-unknown-unknown" "-input={{.*}}" "-output={{.*}}" "-output=[[DEVICEOBJECTOUT:.+]]" "-unbundle" "-allow-missing-bundles"
 // CHECK_FORCE_TARGET: spirv-to-ir-wrapper{{.*}} "[[DEVICEOBJECTOUT]]" "-o" "[[DEVICEOBJECTBC:.+\.bc]]"
 // CHECK_FORCE_TARGET: llvm-link{{.*}} "[[DEVICEOBJECTBC]]"{{.*}} "-o" "[[DEVICEOBJLINKED:.+\.bc]]" "--suppress-warnings"
-// CHECK_FORCE_TARGET: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-complex{{.*}}" "-output={{.*}}libsycl-complex-{{.*}}" "-unbundle"
+// CHECK_FORCE_TARGET: llvm-link{{.*}} "{{.*}}libsycl-complex{{.*}}"
 // CHECK_FORCE_TARGET_GEN: llvm-foreach{{.*}} {{.*}}ocloc{{.*}}
 // CHECK_FORCE_TARGET_CPU: llvm-foreach{{.*}} {{.*}}opencl-aot{{.*}}
 

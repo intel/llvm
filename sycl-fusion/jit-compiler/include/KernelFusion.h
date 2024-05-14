@@ -9,63 +9,67 @@
 #ifndef SYCL_FUSION_JIT_COMPILER_KERNELFUSION_H
 #define SYCL_FUSION_JIT_COMPILER_KERNELFUSION_H
 
-#include "JITContext.h"
 #include "Kernel.h"
 #include "Options.h"
 #include "Parameter.h"
+#include "View.h"
+#include "sycl/detail/string.hpp"
+
 #include <cassert>
-#include <string>
-#include <variant>
-#include <vector>
 
 namespace jit_compiler {
 
 class FusionResult {
 public:
-  explicit FusionResult(std::string &&ErrorMessage)
-      : Type{FusionResultType::FAILED}, Value{std::move(ErrorMessage)} {}
+  explicit FusionResult(const char *ErrorMessage)
+      : Type{FusionResultType::FAILED}, KernelInfo{},
+        ErrorMessage{ErrorMessage} {}
 
-  explicit FusionResult(SYCLKernelInfo KernelInfo, bool Cached = false)
+  explicit FusionResult(const SYCLKernelInfo &KernelInfo, bool Cached = false)
       : Type{(Cached) ? FusionResultType::CACHED : FusionResultType::NEW},
-        Value{std::forward<SYCLKernelInfo>(KernelInfo)} {}
+        KernelInfo(KernelInfo), ErrorMessage{} {}
 
   bool failed() const { return Type == FusionResultType::FAILED; }
 
   bool cached() const { return Type == FusionResultType::CACHED; }
 
-  const std::string &getErrorMessage() const {
-    assert(failed() && std::holds_alternative<std::string>(Value) &&
-           "No error message present");
-    return std::get<std::string>(Value);
+  const char *getErrorMessage() const {
+    assert(failed() && "No error message present");
+    return ErrorMessage.c_str();
   }
 
   const SYCLKernelInfo &getKernelInfo() const {
-    assert(!failed() && std::holds_alternative<SYCLKernelInfo>(Value) &&
-           "No kernel info");
-    return std::get<SYCLKernelInfo>(Value);
+    assert(!failed() && "No kernel info");
+    return KernelInfo;
   }
 
 private:
   enum class FusionResultType { FAILED, CACHED, NEW };
+
   FusionResultType Type;
-
-  std::variant<std::string, SYCLKernelInfo> Value;
+  SYCLKernelInfo KernelInfo;
+  sycl::detail::string ErrorMessage;
 };
 
-class KernelFusion {
+extern "C" {
 
-public:
-  static FusionResult
-  fuseKernels(JITContext &JITCtx, Config &&JITConfig,
-              const std::vector<SYCLKernelInfo> &KernelInformation,
-              const std::vector<std::string> &KernelsToFuse,
-              const std::string &FusedKernelName,
-              jit_compiler::ParamIdentList &Identities,
-              BarrierFlags BarriersFlags,
-              const std::vector<jit_compiler::ParameterInternalization>
-                  &Internalization,
-              const std::vector<jit_compiler::JITConstant> &JITConstants);
-};
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wreturn-type-c-linkage"
+#endif // __clang__
+FusionResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
+                         const char *FusedKernelName,
+                         View<ParameterIdentity> Identities,
+                         BarrierFlags BarriersFlags,
+                         View<ParameterInternalization> Internalization,
+                         View<jit_compiler::JITConstant> JITConstants);
+
+/// Clear all previously set options.
+void resetJITConfiguration();
+
+/// Add an option to the configuration.
+void addToJITConfiguration(OptionStorage &&Opt);
+
+} // end of extern "C"
 
 } // namespace jit_compiler
 

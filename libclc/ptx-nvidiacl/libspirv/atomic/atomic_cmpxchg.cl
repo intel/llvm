@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <atomic_helpers.h>
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 
@@ -86,7 +87,7 @@ SemanticsMask4FlagES##SUBSTITUTION2##_##TYPE_MANGLED##TYPE_MANGLED(            \
       enum MemorySemanticsMask semantics2, TYPE cmp, TYPE value) {             \
     /* Semantics mask may include memory order, storage class and other info   \
 Memory order is stored in the lowest 5 bits */                                 \
-    unsigned int order = (semantics1 | semantics2) & 0x1F;                     \
+    unsigned int order = semantics1 & 0x1F;                                    \
     switch (order) {                                                           \
     case None:                                                                 \
       __CLC_NVVM_ATOMIC_CAS_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,     \
@@ -120,6 +121,13 @@ Memory order is stored in the lowest 5 bits */                                 \
             TYPE, TYPE_NV, TYPE_MANGLED_NV, OP, ADDR_SPACE, ADDR_SPACE_NV)     \
       }                                                                        \
       break;                                                                   \
+    case SequentiallyConsistent:                                               \
+      if (__clc_nvvm_reflect_arch() >= 700) {                                  \
+        __CLC_NVVM_FENCE_SC_SM70()                                             \
+        __CLC_NVVM_ATOMIC_CAS_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,   \
+                                         ADDR_SPACE, ADDR_SPACE_NV, _acq_rel)  \
+        break;                                                                 \
+      }                                                                        \
     }                                                                          \
     __builtin_trap();                                                          \
     __builtin_unreachable();                                                   \

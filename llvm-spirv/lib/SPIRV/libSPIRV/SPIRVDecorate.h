@@ -89,21 +89,22 @@ public:
     }
   }
 
-  SPIRVWord getRequiredSPIRVVersion() const override {
+  VersionNumber getRequiredSPIRVVersion() const override {
     switch (Dec) {
     case DecorationSpecId:
       if (getModule()->hasCapability(CapabilityKernel))
-        return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_1);
+        return VersionNumber::SPIRV_1_1;
       else
-        return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0);
+        return VersionNumber::SPIRV_1_0;
 
     case DecorationMaxByteOffset:
-      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_1);
+      return VersionNumber::SPIRV_1_1;
     case DecorationUserSemantic:
-      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_4);
+    case DecorationCounterBuffer:
+      return VersionNumber::SPIRV_1_4;
 
     default:
-      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0);
+      return VersionNumber::SPIRV_1_0;
     }
   }
 
@@ -173,6 +174,8 @@ public:
       return ExtensionID::SPV_INTEL_float_controls2;
     case DecorationStallEnableINTEL:
       return ExtensionID::SPV_INTEL_fpga_cluster_attributes;
+    case DecorationStallFreeINTEL:
+      return ExtensionID::SPV_INTEL_fpga_cluster_attributes;
     case DecorationFuseLoopsInFunctionINTEL:
       return ExtensionID::SPV_INTEL_loop_fuse;
     case internal::DecorationCallableFunctionINTEL:
@@ -212,8 +215,8 @@ public:
       return ExtensionID::SPV_INTEL_fpga_latency_control;
     case DecorationFPMaxErrorDecorationINTEL:
       return ExtensionID::SPV_INTEL_fp_max_error;
-    case internal::DecorationCacheControlLoadINTEL:
-    case internal::DecorationCacheControlStoreINTEL:
+    case DecorationCacheControlLoadINTEL:
+    case DecorationCacheControlStoreINTEL:
       return ExtensionID::SPV_INTEL_cache_controls;
     default:
       return {};
@@ -693,6 +696,12 @@ public:
       : SPIRVDecorate(spv::DecorationStallEnableINTEL, TheTarget) {}
 };
 
+class SPIRVDecorateStallFreeINTEL : public SPIRVDecorate {
+public:
+  SPIRVDecorateStallFreeINTEL(SPIRVEntry *TheTarget)
+      : SPIRVDecorate(spv::DecorationStallFreeINTEL, TheTarget) {}
+};
+
 class SPIRVDecorateFuseLoopsInFunctionINTEL : public SPIRVDecorate {
 public:
   // Complete constructor for SPIRVDecorateFuseLoopsInFunctionINTEL
@@ -933,32 +942,31 @@ public:
 class SPIRVDecorateCacheControlLoadINTEL : public SPIRVDecorate {
 public:
   // Complete constructor for SPIRVDecorateCacheControlLoadINTEL
-  SPIRVDecorateCacheControlLoadINTEL(
-      SPIRVEntry *TheTarget, SPIRVWord CacheLevel,
-      spv::internal::LoadCacheControlINTEL CacheControl)
-      : SPIRVDecorate(spv::internal::DecorationCacheControlLoadINTEL, TheTarget,
-                      CacheLevel, static_cast<SPIRVWord>(CacheControl)){};
+  SPIRVDecorateCacheControlLoadINTEL(SPIRVEntry *TheTarget,
+                                     SPIRVWord CacheLevel,
+                                     LoadCacheControl CacheControl)
+      : SPIRVDecorate(DecorationCacheControlLoadINTEL, TheTarget, CacheLevel,
+                      static_cast<SPIRVWord>(CacheControl)) {}
 
-  SPIRVWord getCacheLevel() const { return Literals.at(0); };
-  spv::internal::LoadCacheControlINTEL getCacheControl() const {
-    return static_cast<spv::internal::LoadCacheControlINTEL>(Literals.at(1));
-  };
+  SPIRVWord getCacheLevel() const { return Literals.at(0); }
+  LoadCacheControl getCacheControl() const {
+    return static_cast<LoadCacheControl>(Literals.at(1));
+  }
 };
 
 class SPIRVDecorateCacheControlStoreINTEL : public SPIRVDecorate {
 public:
   // Complete constructor for SPIRVDecorateCacheControlStoreINTEL
-  SPIRVDecorateCacheControlStoreINTEL(
-      SPIRVEntry *TheTarget, SPIRVWord CacheLevel,
-      spv::internal::StoreCacheControlINTEL CacheControl)
-      : SPIRVDecorate(spv::internal::DecorationCacheControlStoreINTEL,
-                      TheTarget, CacheLevel,
-                      static_cast<SPIRVWord>(CacheControl)){};
+  SPIRVDecorateCacheControlStoreINTEL(SPIRVEntry *TheTarget,
+                                      SPIRVWord CacheLevel,
+                                      StoreCacheControl CacheControl)
+      : SPIRVDecorate(DecorationCacheControlStoreINTEL, TheTarget, CacheLevel,
+                      static_cast<SPIRVWord>(CacheControl)) {}
 
-  SPIRVWord getCacheLevel() const { return Literals.at(0); };
-  spv::internal::StoreCacheControlINTEL getCacheControl() const {
-    return static_cast<spv::internal::StoreCacheControlINTEL>(Literals.at(1));
-  };
+  SPIRVWord getCacheLevel() const { return Literals.at(0); }
+  StoreCacheControl getCacheControl() const {
+    return static_cast<StoreCacheControl>(Literals.at(1));
+  }
 };
 
 } // namespace SPIRV

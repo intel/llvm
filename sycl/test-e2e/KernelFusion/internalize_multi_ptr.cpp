@@ -1,11 +1,12 @@
-// REQUIRES: fusion
 // RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
 // RUN: %{run} %t.out
 
 // Test complete fusion with private internalization specified on the
 // accessors for a device kernel using multi_ptr to global address space.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 using namespace sycl;
 

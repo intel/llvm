@@ -26,14 +26,14 @@ target triple = "spir64-unknown-unknown"
 ;CHECK-NEXT: DW_AT_decl_line
 ;CHECK-NEXT: DW_AT_type
 
-@dfm = external global i32, align 4
+@dfm = external addrspace(1) global i32, align 4
 
 declare void @llvm.dbg.declare(metadata, metadata, metadata) nounwind readnone
 
 define i32 @foo(i32 %dev, i64 %cmd, ptr %data, i32 %data2) nounwind optsize ssp !dbg !0 {
 entry:
   call void @llvm.dbg.value(metadata i32 %dev, metadata !12, metadata !DIExpression()), !dbg !13
-  %tmp.i = load i32, ptr @dfm, align 4, !dbg !14
+  %tmp.i = load i32, ptr addrspace(1) @dfm, align 4, !dbg !14
   %cmp.i = icmp eq i32 %tmp.i, 0, !dbg !14
   br i1 %cmp.i, label %if.else, label %if.end.i, !dbg !14
 

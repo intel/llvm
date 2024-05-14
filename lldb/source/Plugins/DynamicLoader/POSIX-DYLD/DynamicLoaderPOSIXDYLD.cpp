@@ -53,7 +53,8 @@ DynamicLoader *DynamicLoaderPOSIXDYLD::CreateInstance(Process *process,
         process->GetTarget().GetArchitecture().GetTriple();
     if (triple_ref.getOS() == llvm::Triple::FreeBSD ||
         triple_ref.getOS() == llvm::Triple::Linux ||
-        triple_ref.getOS() == llvm::Triple::NetBSD)
+        triple_ref.getOS() == llvm::Triple::NetBSD ||
+        triple_ref.getOS() == llvm::Triple::OpenBSD)
       create = true;
   }
 
@@ -570,10 +571,17 @@ ModuleSP DynamicLoaderPOSIXDYLD::LoadInterpreterModule() {
   FileSpec file(info.GetName().GetCString());
   ModuleSpec module_spec(file, target.GetArchitecture());
 
-  if (ModuleSP module_sp = target.GetOrCreateModule(module_spec,
-                                                    true /* notify */)) {
+  // Don't notify that module is added here because its loading section
+  // addresses are not updated yet. We manually notify it below.
+  if (ModuleSP module_sp =
+          target.GetOrCreateModule(module_spec, /*notify=*/false)) {
     UpdateLoadedSections(module_sp, LLDB_INVALID_ADDRESS, m_interpreter_base,
                          false);
+    // Manually notify that dynamic linker is loaded after updating load section
+    // addersses so that breakpoints can be resolved.
+    ModuleList module_list;
+    module_list.Append(module_sp);
+    target.ModulesDidLoad(module_list);
     m_interpreter_module = module_sp;
     return module_sp;
   }

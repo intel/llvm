@@ -3,11 +3,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
-
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
+  queue Queue{};
 
   using T = int;
 
@@ -42,14 +38,12 @@ int main() {
 
   // Execute several iterations of the graph using the different shortcuts
   event Event = Queue.ext_oneapi_graph(GraphExec);
-  Event.wait();
 
   assert(Iterations > 2);
   const size_t LoopIterations = Iterations - 2;
   std::vector<event> Events(LoopIterations);
   for (unsigned n = 0; n < LoopIterations; n++) {
     Events[n] = Queue.ext_oneapi_graph(GraphExec, Event);
-    Events[n].wait();
   }
 
   Queue.ext_oneapi_graph(GraphExec, Events).wait();

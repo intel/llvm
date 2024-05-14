@@ -15,7 +15,6 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/detail/type_traits.hpp>
-#include <sycl/stl.hpp>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting traces using the trace framework
@@ -188,7 +187,9 @@ public:
       CorrelationID = pi::emitFunctionBeginTrace(PIFnName);
       CorrelationIDAvailable = true;
     }
-    unsigned char *ArgsDataPtr = nullptr;
+    using PackCallArgumentsTy =
+        decltype(packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...));
+    std::unique_ptr<PackCallArgumentsTy> ArgsDataPtr = nullptr;
     // If subscribers are listening to Pi debug call stream, only then prepare
     // the data for the notifications and emit notifications. Even though the
     // function emitFunctionWithArgsBeginTrace() checks for the trqace typoe
@@ -197,16 +198,14 @@ public:
     if (xptiCheckTraceEnabled(
             PiDebugCallStreamID,
             (uint16_t)xpti::trace_point_type_t::function_with_args_begin)) {
-      using PackCallArgumentsTy = decltype(packCallArguments<PiApiOffset>(
-          std::forward<ArgsT>(Args)...));
-      auto ArgsData =
+      // TODO check if stream is observed when corresponding API is present.
+      ArgsDataPtr = std::make_unique<PackCallArgumentsTy>(
           xptiTraceEnabled()
               ? packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...)
-              : PackCallArgumentsTy{};
-      // TODO check if stream is observed when corresponding API is present.
-      ArgsDataPtr = ArgsData.data();
+              : PackCallArgumentsTy{});
       CorrelationIDWithArgs = pi::emitFunctionWithArgsBeginTrace(
-          static_cast<uint32_t>(PiApiOffset), PIFnName, ArgsDataPtr, *MPlugin);
+          static_cast<uint32_t>(PiApiOffset), PIFnName, ArgsDataPtr->data(),
+          *MPlugin);
       CorrelationIDWithArgsAvailable = true;
     }
 #endif
@@ -241,9 +240,9 @@ public:
       pi::emitFunctionEndTrace(CorrelationID, PIFnName);
     }
     if (CorrelationIDWithArgsAvailable) {
-      pi::emitFunctionWithArgsEndTrace(CorrelationIDWithArgs,
-                                       static_cast<uint32_t>(PiApiOffset),
-                                       PIFnName, ArgsDataPtr, R, *MPlugin);
+      pi::emitFunctionWithArgsEndTrace(
+          CorrelationIDWithArgs, static_cast<uint32_t>(PiApiOffset), PIFnName,
+          ArgsDataPtr->data(), R, *MPlugin);
     }
 #endif
     return R;

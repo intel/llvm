@@ -1,7 +1,6 @@
 ; REQUIRES: hip_amd
 ; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext \
-; RUN:   -passes=sycl-kernel-fusion --sycl-info-path %S/check-remapping.yaml \
-; RUN:   -S %s | FileCheck %s
+; RUN:   -passes=sycl-kernel-fusion -S %s | FileCheck %s
 
 ; This tests checks that kernel fusion fails when a not-remappable AMDGPU
 ; intrinsic is called inside a kernel.
@@ -38,3 +37,12 @@ attributes #0 = { nounwind }
 !11 = !{i32 1, !12, !7, !8}
 !12 = !{i64 48, i64 1, i64 1}
 !13 = !{i32 3, !12, !7, !8}
+!14 = !{
+  !"KernelOne",
+  !{!"Accessor", !"StdLayout", !"StdLayout", !"StdLayout", !"Accessor",
+    !"StdLayout", !"StdLayout", !"StdLayout", !"Accessor", !"StdLayout",
+    !"StdLayout", !"StdLayout"},
+  !{i8 1, i8 0, i8 0, i8 1, i8 1, i8 0, i8 0, i8 1, i8 1, i8 0, i8 0, i8 1},
+  !{!"work_group_size_hint", i32 1, i32 1, i32 64}
+}
+!sycl.moduleinfo = !{!14}

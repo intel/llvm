@@ -17,7 +17,7 @@
 #include "ResourceVisitor.h"
 
 #include "llvm/ADT/BitVector.h"
-#include "llvm/ADT/StringSet.h"
+#include "llvm/ADT/StringMap.h"
 
 namespace llvm {
 namespace rc {
@@ -991,6 +991,19 @@ public:
   raw_ostream &log(raw_ostream &) const override;
   Twine getResourceTypeName() const override { return "EXSTYLE"; }
   Error visit(Visitor *V) const override { return V->visitExStyleStmt(this); }
+};
+
+// MENU optional statement.
+//
+// Ref: https://learn.microsoft.com/en-us/windows/win32/menurc/menu-statement
+class MenuStmt : public OptionalStmt {
+public:
+  IntOrString Value;
+
+  MenuStmt(IntOrString NameOrId) : Value(NameOrId) {}
+  raw_ostream &log(raw_ostream &) const override;
+  Twine getResourceTypeName() const override { return "MENU"; }
+  Error visit(Visitor *V) const override { return V->visitMenuStmt(this); }
 };
 
 // CLASS optional statement.

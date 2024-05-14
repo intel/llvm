@@ -19,18 +19,18 @@ int main() {
   auto Q = queue{gpu_selector_v};
   esimd_test::printTestLabel(Q);
 
-  constexpr bool TestPVCFeatures = true;
+  constexpr auto TestFeatures = TestFeatures::Generic;
   bool Passed = true;
 
-  Passed &= test_block_store_usm<int8_t, !TestPVCFeatures>(Q);
-  Passed &= test_block_store_usm<int16_t, !TestPVCFeatures>(Q);
+  Passed &= test_block_store_usm<int8_t, TestFeatures>(Q);
+  Passed &= test_block_store_usm<int16_t, TestFeatures>(Q);
   if (Q.get_device().has(sycl::aspect::fp16))
-    Passed &= test_block_store_usm<sycl::half, !TestPVCFeatures>(Q);
-  Passed &= test_block_store_usm<uint32_t, !TestPVCFeatures>(Q);
-  Passed &= test_block_store_usm<float, !TestPVCFeatures>(Q);
-  Passed &= test_block_store_usm<int64_t, !TestPVCFeatures>(Q);
+    Passed &= test_block_store_usm<sycl::half, TestFeatures>(Q);
+  Passed &= test_block_store_usm<uint32_t, TestFeatures>(Q);
+  Passed &= test_block_store_usm<float, TestFeatures>(Q);
+  Passed &= test_block_store_usm<int64_t, TestFeatures>(Q);
   if (Q.get_device().has(sycl::aspect::fp64))
-    Passed &= test_block_store_usm<double, !TestPVCFeatures>(Q);
+    Passed &= test_block_store_usm<double, TestFeatures>(Q);
 
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;

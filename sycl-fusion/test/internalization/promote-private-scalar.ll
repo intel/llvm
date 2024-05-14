@@ -1,5 +1,5 @@
 ; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext\
-; RUN: -passes=sycl-internalization --sycl-info-path %S/../kernel-fusion/kernel-info.yaml -S %s | FileCheck %s
+; RUN: -passes=sycl-internalization -S %s | FileCheck %s
 
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v24:32:32-v32:32:32-v48:64:64-v64:64:64-v96:128:128-v128:128:128-v192:256:256-v256:256:256-v512:512:512-v1024:1024:1024"
 target triple = "spir64-unknown-unknown"
@@ -35,7 +35,7 @@ declare spir_func void @__itt_offload_wi_finish_stub(ptr addrspace(4) %group_id,
 declare spir_func void @__itt_offload_wi_start_stub(ptr addrspace(4) %group_id, i64 %wi_id, i32 %wg_size) #4
 
 
-define spir_kernel void @fused_0(ptr addrspace(1) align 4 %KernelOne_accTmp, ptr byval(%0) align 8 %KernelOne_accTmp3, ptr addrspace(1) align 4 %KernelOne_accIn1, ptr byval(%0) align 8 %KernelOne_accIn16, ptr addrspace(1) align 4 %KernelOne_accIn2, ptr addrspace(1) align 4 %KernelTwo_accOut, ptr addrspace(1) align 4 %KernelTwo_accIn3) !kernel_arg_addr_space !12 !kernel_arg_access_qual !13 !kernel_arg_type !14 !kernel_arg_type_qual !15 !kernel_arg_base_type !14 !kernel_arg_name !16 !sycl.kernel.promote !17 !sycl.kernel.promote.localsize !18 {
+define spir_kernel void @fused_0(ptr addrspace(1) align 4 %KernelOne_accTmp, ptr byval(%0) align 8 %KernelOne_accTmp3, ptr addrspace(1) align 4 %KernelOne_accIn1, ptr byval(%0) align 8 %KernelOne_accIn16, ptr addrspace(1) align 4 %KernelOne_accIn2, ptr addrspace(1) align 4 %KernelTwo_accOut, ptr addrspace(1) align 4 %KernelTwo_accIn3) !kernel_arg_addr_space !12 !kernel_arg_access_qual !13 !kernel_arg_type !14 !kernel_arg_type_qual !15 !kernel_arg_base_type !14 !kernel_arg_name !16 !sycl.kernel.promote !17 !sycl.kernel.promote.localsize !18 !sycl.kernel.promote.elemsize !19 {
 ; Scenario: Test the successful private internalization of the first pointer
 ; argument. This means, the first pointer argument has been replaced by a 
 ; function-local alloca and all accesses have been updated to use this alloca
@@ -44,13 +44,12 @@ define spir_kernel void @fused_0(ptr addrspace(1) align 4 %KernelOne_accTmp, ptr
 ; CHECK-LABEL: define {{[^@]+}}@fused_0
 ; CHECK-SAME: (ptr byval([[TYPE0:%.*]]) align 8 [[KERNELONE_ACCTMP3:%.*]], ptr addrspace(1) align 4 [[KERNELONE_ACCIN1:%.*]], ptr byval([[TYPE0]]) align 8 [[KERNELONE_ACCIN16:%.*]], ptr addrspace(1) align 4 [[KERNELONE_ACCIN2:%.*]], ptr addrspace(1) align 4 [[KERNELTWO_ACCOUT:%.*]], ptr addrspace(1) align 4 [[KERNELTWO_ACCIN3:%.*]])
 ; CHECK:  entry:
-; CHECK:    [[TMP0:%.*]] = alloca [1 x float], align 4
-; CHECK:    [[TMP1:%.*]] = getelementptr inbounds [1 x float], ptr [[TMP0]], i64 0, i64 0
-; CHECK:    [[ADD_PTR_I_I:%.*]] = getelementptr inbounds float, ptr [[TMP1]], i64 0
+; CHECK:    [[TMP0:%.*]] = alloca i8, i64 4, align 4
+; CHECK:    [[ADD_PTR_I_I:%.*]] = getelementptr inbounds float, ptr [[TMP0]], i64 0
 ; CHECK:    [[ADD_I_I:%.*]] = fadd float
 ; CHECK:    [[ARRAYIDX_I13_I_I:%.*]] = getelementptr inbounds float, ptr [[ADD_PTR_I_I]], i64 0
 ; CHECK:    store float [[ADD_I_I]], ptr [[ARRAYIDX_I13_I_I]], align 4
-; CHECK:    [[ADD_PTR_I39_I8:%.*]] = getelementptr inbounds float, ptr [[TMP1]], i64 0
+; CHECK:    [[ADD_PTR_I39_I8:%.*]] = getelementptr inbounds float, ptr [[TMP0]], i64 0
 ; CHECK:    [[ARRAYIDX_I_I_I11:%.*]] = getelementptr inbounds float, ptr [[ADD_PTR_I39_I8]], i64 0
 ; CHECK:    [[TMP16:%.*]] = load float, ptr [[ARRAYIDX_I_I_I11]], align 4
 ; CHECK:    [[MUL_I_I:%.*]] = fmul float [[TMP16]]
@@ -129,3 +128,4 @@ attributes #5 = { nounwind }
 !16 = !{!"KernelOne_accTmp", !"KernelOne_accTmp3", !"KernelOne_accIn1", !"KernelOne_accIn16", !"KernelOne_accIn2", !"KernelTwo_accOut", !"KernelTwo_accIn3"}
 !17 = !{!"private", !"none", !"none", !"none", !"none", !"none", !"none"}
 !18 = !{i64 1, !"", !"", !"", !"", !"", !""}
+!19 = !{i64 4, !"", !"", !"", !"", !"", !""}

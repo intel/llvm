@@ -1,15 +1,13 @@
 // REQUIRES: level_zero
 
-// https://github.com/intel/llvm/issues/11434
-// XFAIL: gpu-intel-dg2
-
 // RUN: %{build} -o %t.out
 
-// RUN: env UR_L0_LEAKS_DEBUG=1 %{run} %t.out u 2>&1 | FileCheck %s --check-prefix CHECK-USM
-// RUN: env UR_L0_LEAKS_DEBUG=1 %{run} %t.out s 2>&1 | FileCheck %s --check-prefix CHECK-SMALL-BUF
-// RUN: env UR_L0_LEAKS_DEBUG=1 %{run} %t.out l 2>&1 | FileCheck %s --check-prefix CHECK-LARGE-BUF
+// RUN: %{l0_leak_check} %{run} %t.out u 2>&1 | FileCheck %s --implicit-check-not=LEAK
+// RUN: %{l0_leak_check} %{run} %t.out s 2>&1 | FileCheck %s --implicit-check-not=LEAK
+// RUN: %{l0_leak_check} %{run} %t.out l 2>&1 | FileCheck %s --implicit-check-not=LEAK
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 using namespace sycl;
 
 #include <array>
@@ -79,23 +77,3 @@ int main(int argc, char *argv[]) {
 
   return 0;
 }
-
-// Account for 4 extra allocations made by UMF to query page sizes
-
-// CHECK-USM: GPU will use {{zeMemAllocHost|zeMemAllocDevice}}
-// CHECK-USM: zeMemAllocDevice = 2
-// CHECK-USM:   zeMemAllocHost = 2
-// CHECK-USM: zeMemAllocShared = 3
-// CHECK-USM-SAME:   zeMemFree = 7
-
-// CHECK-SMALL-BUF: GPU will use [[API:zeMemAllocHost|zeMemAllocDevice]]
-// CHECK-SMALL-BUF: zeMemAllocDevice = {{1|2}}
-// CHECK-SMALL-BUF: zeMemAllocHost = {{1|2}}
-// CHECK-SMALL-BUF: zeMemAllocShared = 2
-// CHECK-SMALL-BUF-SAME: zeMemFree = 5
-
-// CHECK-LARGE-BUF: GPU will use [[API:zeMemAllocHost|zeMemAllocDevice]]
-// CHECK-LARGE-BUF: zeMemAllocDevice = {{1|4}}
-// CHECK-LARGE-BUF: zeMemAllocHost = {{1|4}}
-// CHECK-LARGE-BUF: zeMemAllocShared = 2
-// CHECK-LARGE-BUF-SAME: zeMemFree = 7

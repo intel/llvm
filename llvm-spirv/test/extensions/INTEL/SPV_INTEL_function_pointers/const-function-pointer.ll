@@ -23,15 +23,15 @@
 ; CHECK-SPIRV: Load {{[0-9]+}} [[FuncPtr:[0-9]+]] [[GEP]]
 ; CHECK-SPIRV: FunctionPointerCallINTEL [[Int32]] {{[0-9]+}} [[FuncPtr]] [[XArg]] [[YArg]]
 
-; CHECK-LLVM: @__const.main.funcs = internal constant [2 x ptr] [ptr @f1, ptr @f2], align 16
-; CHECK-LLVM:   %[[Idx:[a-z0-9]+]] = getelementptr inbounds [2 x ptr], ptr @__const.main.funcs, i64 0, i64 %{{[a-z0-9]+}}
-; CHECK-LLVM:   %[[FuncPtr:[a-z0-9]+]] = load ptr, ptr %[[Idx]], align 8
+; CHECK-LLVM: @__const.main.funcs = internal addrspace(1) constant [2 x ptr] [ptr @f1, ptr @f2], align 16
+; CHECK-LLVM:   %[[Idx:[a-z0-9]+]] = getelementptr inbounds [2 x ptr], ptr addrspace(1) @__const.main.funcs, i64 0, i64 %{{[a-z0-9]+}}
+; CHECK-LLVM:   %[[FuncPtr:[a-z0-9]+]] = load ptr, ptr addrspace(1) %[[Idx]], align 8
 ; CHECK-LLVM:   %{{[a-z0-9]+}} = call spir_func i32 %[[FuncPtr]](i32 32, i32 2)
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir-unknown-unknown"
 
-@__const.main.funcs = private unnamed_addr constant [2 x ptr] [ptr @f1, ptr @f2], align 16
+@__const.main.funcs = private unnamed_addr addrspace(1) constant [2 x ptr] [ptr @f1, ptr @f2], align 16
 
 ; Function Attrs: norecurse nounwind readnone uwtable
 define dso_local i32 @f1(i32 %a, i32 %b) #0 {
@@ -53,8 +53,8 @@ entry:
   %call = tail call i32 @rand() #3
   %rem = srem i32 %call, 2
   %idxprom = sext i32 %rem to i64
-  %arrayidx = getelementptr inbounds [2 x ptr], ptr @__const.main.funcs, i64 0, i64 %idxprom
-  %0 = load ptr, ptr %arrayidx, align 8
+  %arrayidx = getelementptr inbounds [2 x ptr], ptr addrspace(1) @__const.main.funcs, i64 0, i64 %idxprom
+  %0 = load ptr, ptr addrspace(1) %arrayidx, align 8
   %call1 = tail call i32 %0(i32 32, i32 2) #3
   ret i32 %call1
 }

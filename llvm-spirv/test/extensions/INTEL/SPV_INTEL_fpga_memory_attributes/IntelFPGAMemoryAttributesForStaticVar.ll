@@ -66,15 +66,15 @@ target triple = "spir"
 ; CHECK-LLVM: @llvm.global.annotations
 ; CHECK-LLVM-SAME: _ZZ13numbanks_statiE5a_one{{.*}}[[STR_NMB_STAT]]{{.*}}_ZZ11memory_statcE5b_one{{.*}}[[STR_MEM_STAT]]{{.*}}_ZZ13annotate_statiE5c_one{{.*}}[[STR_ANN_STAT]]{{.*}}_ZZ21force_pow2_depth_statiE9fp2d_stat{{.*}}[[STR_FP2_STAT]]
 @_ZZ13numbanks_statiE5a_one = internal addrspace(1) constant i32 1, align 4
-@.str = private unnamed_addr constant [41 x i8] c"{memory:DEFAULT}{sizeinfo:4}{numbanks:2}\00", section "llvm.metadata"
-@.str.1 = private unnamed_addr constant [28 x i8] c"intel-fpga-local-static.cpp\00", section "llvm.metadata"
+@.str = private unnamed_addr addrspace(1) constant [41 x i8] c"{memory:DEFAULT}{sizeinfo:4}{numbanks:2}\00", section "llvm.metadata"
+@.str.1 = private unnamed_addr addrspace(1) constant [28 x i8] c"intel-fpga-local-static.cpp\00", section "llvm.metadata"
 @_ZZ11memory_statcE5b_one = internal addrspace(1) constant i8 2, align 1
-@.str.2 = private unnamed_addr constant [26 x i8] c"{memory:MLAB}{sizeinfo:1}\00", section "llvm.metadata"
+@.str.2 = private unnamed_addr addrspace(1) constant [26 x i8] c"{memory:MLAB}{sizeinfo:1}\00", section "llvm.metadata"
 @_ZZ13annotate_statiE5c_one = internal addrspace(1) constant i32 3, align 4
-@.str.3 = private unnamed_addr constant [10 x i8] c"foobarbaz\00", section "llvm.metadata"
+@.str.3 = private unnamed_addr addrspace(1) constant [10 x i8] c"foobarbaz\00", section "llvm.metadata"
 @_ZZ21force_pow2_depth_statiE9fp2d_stat = internal addrspace(1) constant i32 4, align 4
-@.str.4 = private unnamed_addr constant [49 x i8] c"{memory:DEFAULT}{sizeinfo:4}{force_pow2_depth:0}\00", section "llvm.metadata"
-@llvm.global.annotations = appending global [4 x { ptr, ptr, ptr, i32 }] [{ ptr, ptr, ptr, i32 } { ptr addrspacecast (ptr addrspace(1) @_ZZ13numbanks_statiE5a_one to ptr), ptr @.str, ptr @.str.1, i32 2 }, { ptr, ptr, ptr, i32 } { ptr addrspacecast (ptr addrspace(1) @_ZZ11memory_statcE5b_one to ptr), ptr @.str.2, ptr @.str.1, i32 7 }, { ptr, ptr, ptr, i32 } { ptr addrspacecast (ptr addrspace(1) @_ZZ13annotate_statiE5c_one to ptr), ptr @.str.3, ptr @.str.1, i32 12 }, { ptr, ptr, ptr, i32 } { ptr addrspacecast (ptr addrspace(1) @_ZZ21force_pow2_depth_statiE9fp2d_stat to ptr), ptr @.str.4, ptr @.str.1, i32 17 }], section "llvm.metadata"
+@.str.4 = private unnamed_addr addrspace(1) constant [49 x i8] c"{memory:DEFAULT}{sizeinfo:4}{force_pow2_depth:0}\00", section "llvm.metadata"
+@llvm.global.annotations = appending addrspace(1) global [4 x { ptr addrspace(1), ptr addrspace(1), ptr addrspace(1), i32 }] [{ ptr addrspace(1), ptr addrspace(1), ptr addrspace(1), i32 } { ptr addrspace(1) @_ZZ13numbanks_statiE5a_one, ptr addrspace(1) @.str, ptr addrspace(1) @.str.1, i32 2 }, { ptr addrspace(1), ptr addrspace(1), ptr addrspace(1), i32 } { ptr addrspace(1) @_ZZ11memory_statcE5b_one, ptr addrspace(1) @.str.2, ptr addrspace(1) @.str.1, i32 7 }, { ptr addrspace(1), ptr addrspace(1), ptr addrspace(1), i32 } { ptr addrspace(1) @_ZZ13annotate_statiE5c_one, ptr addrspace(1) @.str.3, ptr addrspace(1) @.str.1, i32 12 }, { ptr addrspace(1), ptr addrspace(1), ptr addrspace(1), i32 } { ptr addrspace(1) @_ZZ21force_pow2_depth_statiE9fp2d_stat, ptr addrspace(1) @.str.4, ptr addrspace(1) @.str.1, i32 17 }], section "llvm.metadata"
 
 ; Function Attrs: norecurse nounwind
 define spir_kernel void @_ZTSZ4mainE15kernel_function() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 {

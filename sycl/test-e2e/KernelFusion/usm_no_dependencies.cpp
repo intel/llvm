@@ -1,11 +1,13 @@
-// REQUIRES: fusion
 // REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -fsycl-embed-ir -o %t.out
 // RUN: %{run} %t.out
 
 // Test complete fusion using USM pointers.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 

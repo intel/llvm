@@ -10,6 +10,7 @@
 #define SYCL_FUSION_JIT_COMPILER_FUSION_FUSIONPIPELINE_H
 
 #include "Kernel.h"
+#include "ModuleInfo.h"
 #include "llvm/IR/Module.h"
 
 namespace jit_compiler {

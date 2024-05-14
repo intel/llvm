@@ -111,8 +111,10 @@ public:
 
   void setType(SPIRVType *Ty) {
     Type = Ty;
-    assert(!Ty || !Ty->isTypeVoid() || OpCode == OpFunction);
-    if (Ty && (!Ty->isTypeVoid() || OpCode == OpFunction))
+    assert(!Ty || !Ty->isTypeVoid() || OpCode == OpFunction ||
+           OpCode == internal::OpTaskSequenceGetINTEL);
+    if (Ty && (!Ty->isTypeVoid() || OpCode == OpFunction ||
+               OpCode == internal::OpTaskSequenceGetINTEL))
       setHasType();
     else
       setHasNoType();
@@ -269,7 +271,8 @@ public:
 protected:
   void validate() const override {
     SPIRVConstantEmpty::validate();
-    assert((Type->isTypeComposite() || Type->isTypeOpaque() ||
+    assert((Type->isTypeBool() || Type->isTypeInt() || Type->isTypeFloat() ||
+            Type->isTypeComposite() || Type->isTypeOpaque() ||
             Type->isTypeEvent() || Type->isTypePointer() ||
             Type->isTypeReserveId() || Type->isTypeDeviceEvent() ||
             (Type->isTypeSubgroupAvcINTEL() &&

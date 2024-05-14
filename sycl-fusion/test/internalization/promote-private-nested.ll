@@ -1,5 +1,5 @@
 ; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext \
-; RUN: -passes=sycl-internalization --sycl-info-path %S/../kernel-fusion/kernel-info.yaml -S %s | FileCheck %s
+; RUN: -passes=sycl-internalization -S %s | FileCheck %s
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v24:32:32-v32:32:32-v48:64:64-v64:64:64-v96:128:128-v128:128:128-v192:256:256-v256:256:256-v512:512:512-v1024:1024:1024"
 target triple = "spir64-unknown-unknown"
 
@@ -22,7 +22,7 @@ declare void @llvm.assume(i1 noundef) #1
 ; Function Attrs: nounwind willreturn memory(none)
 declare spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32) #2
 
-define spir_kernel void @fused_0(ptr addrspace(1) align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn1, ptr byval(%"class.sycl::_V1::range") align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn13, ptr addrspace(1) align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn2, ptr byval(%"class.sycl::_V1::range") align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn26, ptr addrspace(1) align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp, ptr byval(%"class.sycl::_V1::range") align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp9, ptr addrspace(1) align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accIn3, ptr byval(%"class.sycl::_V1::range") align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accIn36, ptr addrspace(1) align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut, ptr byval(%"class.sycl::_V1::range") align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut9) !kernel_arg_addr_space !6 !kernel_arg_access_qual !7 !kernel_arg_type !8 !kernel_arg_type_qual !9 !kernel_arg_base_type !8 !kernel_arg_name !10 !sycl.kernel.promote !11 !sycl.kernel.promote.localsize !12 !sycl.kernel.constants !13 {
+define spir_kernel void @fused_0(ptr addrspace(1) align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn1, ptr byval(%"class.sycl::_V1::range") align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn13, ptr addrspace(1) align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn2, ptr byval(%"class.sycl::_V1::range") align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn26, ptr addrspace(1) align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp, ptr byval(%"class.sycl::_V1::range") align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp9, ptr addrspace(1) align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accIn3, ptr byval(%"class.sycl::_V1::range") align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accIn36, ptr addrspace(1) align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut, ptr byval(%"class.sycl::_V1::range") align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut9) !kernel_arg_addr_space !6 !kernel_arg_access_qual !7 !kernel_arg_type !8 !kernel_arg_type_qual !9 !kernel_arg_base_type !8 !kernel_arg_name !10 !sycl.kernel.promote !11 !sycl.kernel.promote.localsize !12 !sycl.kernel.promote.elemsize !13 !sycl.kernel.constants !14 {
 ; Scenario: Test the successful private internalization of the pointer argument
 ; `...KernelOne__arg_accTmp`. This means the pointer argument has been replaced
 ; by a function-local alloca and all accesses have been updated to use this
@@ -32,9 +32,8 @@ define spir_kernel void @fused_0(ptr addrspace(1) align 8 %_ZTSZZ4mainENKUlRN4sy
 ; CHECK-LABEL: define spir_kernel void @fused_0
 ; CHECK-SAME: (ptr addrspace(1) align 8 [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCIN1:%.*]], ptr byval(%"class.sycl::_V1::range") align 8 [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCIN13:%.*]], ptr addrspace(1) align 8 [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCIN2:%.*]], ptr byval(%"class.sycl::_V1::range") align 8 [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCIN26:%.*]], ptr byval(%"class.sycl::_V1::range") align 8 [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP9:%.*]], ptr addrspace(1) align 8 [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE0_CLES2_E9KERNELTWO__ARG_ACCIN3:%.*]], ptr byval(%"class.sycl::_V1::range") align 8 [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE0_CLES2_E9KERNELTWO__ARG_ACCIN36:%.*]], ptr addrspace(1) align 8 [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE0_CLES2_E9KERNELTWO__ARG_ACCOUT:%.*]], ptr byval(%"class.sycl::_V1::range") align 8 [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE0_CLES2_E9KERNELTWO__ARG_ACCOUT9:%.*]]) !kernel_arg_addr_space !6 !kernel_arg_access_qual !7 !kernel_arg_type !8 !kernel_arg_type_qual !9 !kernel_arg_base_type !8 !kernel_arg_name !10 !sycl.kernel.constants !11 {
 ; CHECK-NEXT:  entry:
-; CHECK:         [[TMP0:%.*]] = alloca [1 x %struct.array_wrapper], align 8
-; CHECK:         [[TMP1:%.*]] = getelementptr inbounds [1 x %struct.array_wrapper], ptr [[TMP0]], i64 0, i64 0
-; CHECK:         [[ADD_PTR_I43_I:%.*]] = getelementptr inbounds %struct.array_wrapper, ptr [[TMP1]], i64 0
+; CHECK:         [[TMP0:%.*]] = alloca i8, i64 32, align 8
+; CHECK:         [[ADD_PTR_I43_I:%.*]] = getelementptr inbounds %struct.array_wrapper, ptr [[TMP0]], i64 0
 ; CHECK:         [[ARRAYIDX_I34_I_I:%.*]] = getelementptr inbounds %struct.array_wrapper, ptr [[ADD_PTR_I43_I]], i64 0
 ; CHECK:         store <2 x i32> {{.*}}, ptr [[ARRAYIDX_I34_I_I]], align 8
 ; CHECK:         [[ARRAYIDX_I_I39_I_I_1:%.*]] = getelementptr inbounds [2 x %"class.sycl::_V1::vec"], ptr [[ARRAYIDX_I34_I_I]], i64 0, i64 1
@@ -43,7 +42,7 @@ define spir_kernel void @fused_0(ptr addrspace(1) align 8 %_ZTSZZ4mainENKUlRN4sy
 ; CHECK:         store <2 x i32> {{.*}}, ptr [[ARRAYIDX_I_I_I37_I_I_1]], align 8
 ; CHECK:         [[ARRAYIDX_I_I39_I_I_1_1:%.*]] = getelementptr inbounds [2 x %"class.sycl::_V1::vec"], ptr [[ARRAYIDX_I_I_I37_I_I_1]], i64 0, i64 1
 ; CHECK:         store <2 x i32> {{.*}}, ptr [[ARRAYIDX_I_I39_I_I_1_1]], align 8
-; CHECK:         [[ADD_PTR_I_I7:%.*]] = getelementptr inbounds %struct.array_wrapper, ptr [[TMP1]], i64 0
+; CHECK:         [[ADD_PTR_I_I7:%.*]] = getelementptr inbounds %struct.array_wrapper, ptr [[TMP0]], i64 0
 ; CHECK:         [[ARRAYIDX_I_I_I11:%.*]] = getelementptr inbounds %struct.array_wrapper, ptr [[ADD_PTR_I_I7]], i64 0
 ; CHECK:         [[TMP12:%.*]] = load <2 x i32>, ptr [[ARRAYIDX_I_I_I11]], align 8
 ; CHECK:         [[ARRAYIDX_I_I_I_I27_1:%.*]] = getelementptr inbounds [2 x %"class.sycl::_V1::vec"], ptr [[ARRAYIDX_I_I_I11]], i64 0, i64 1
@@ -168,4 +167,5 @@ attributes #4 = { nocallback nofree nosync nounwind willreturn memory(argmem: re
 !10 = !{!"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn1", !"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn13", !"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn2", !"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn26", !"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp", !"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp9", !"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accIn3", !"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accIn36", !"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut", !"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut9"}
 !11 = !{!"none", !"none", !"none", !"none", !"private", !"none", !"none", !"none", !"none", !"none"}
 !12 = !{!"", !"", !"", !"", i64 1, !"", !"", !"", !"", !""}
-!13 = !{!"", !"\00\00\00\00\00\00\00\00", !"", !"\00\00\00\00\00\00\00\00", !"", !"", !"", !"\00\00\00\00\00\00\00\00", !"", !"\00\00\00\00\00\00\00\00"}
+!13 = !{!"", !"", !"", !"", i64 32, !"", !"", !"", !"", !""}
+!14 = !{!"", !"\00\00\00\00\00\00\00\00", !"", !"\00\00\00\00\00\00\00\00", !"", !"", !"", !"\00\00\00\00\00\00\00\00", !"", !"\00\00\00\00\00\00\00\00"}

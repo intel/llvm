@@ -1,11 +1,15 @@
 // REQUIRES: cuda
 // RUN: %if any-device-is-cuda %{ %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_61 -o %t.out %}
-// RUN: %if ext_oneapi_cuda %{ %{run} %t.out %}
+// RUN: %if cuda %{ %{run} %t.out %}
 
 #include <cassert>
 #include <numeric>
-#include <sycl/sycl.hpp>
 #include <vector>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/atomic_ref.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 

@@ -22,6 +22,7 @@
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Scope.h"
+#include "clang/Sema/SemaOpenMP.h"
 #include "clang/Sema/TypoCorrection.h"
 #include "llvm/ADT/STLExtras.h"
 #include <optional>
@@ -441,6 +442,14 @@ Retry:
     ProhibitAttributes(CXX11Attrs);
     ProhibitAttributes(GNUAttrs);
     Diag(Tok, diag::err_pragma_file_or_compound_scope) << "STDC FENV_ROUND";
+    ConsumeAnnotationToken();
+    return StmtError();
+
+  case tok::annot_pragma_cx_limited_range:
+    ProhibitAttributes(CXX11Attrs);
+    ProhibitAttributes(GNUAttrs);
+    Diag(Tok, diag::err_pragma_file_or_compound_scope)
+        << "STDC CX_LIMITED_RANGE";
     ConsumeAnnotationToken();
     return StmtError();
 
@@ -1065,6 +1074,9 @@ void Parser::ParseCompoundStatementLeadingPragmas() {
       break;
     case tok::annot_pragma_fenv_round:
       HandlePragmaFEnvRound();
+      break;
+    case tok::annot_pragma_cx_limited_range:
+      HandlePragmaCXLimitedRange();
       break;
     case tok::annot_pragma_float_control:
       HandlePragmaFloatControl();
@@ -2277,11 +2289,11 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc) {
     ForRangeStmt = Actions.ActOnCXXForRangeStmt(
         getCurScope(), ForLoc, CoawaitLoc, FirstPart.get(),
         ForRangeInfo.LoopVar.get(), ForRangeInfo.ColonLoc, CorrectedRange.get(),
-        T.getCloseLocation(), Sema::BFRK_Build);
-
-  // Similarly, we need to do the semantic analysis for a for-range
-  // statement immediately in order to close over temporaries correctly.
+        T.getCloseLocation(), Sema::BFRK_Build,
+        ForRangeInfo.LifetimeExtendTemps);
   } else if (ForEach) {
+    // Similarly, we need to do the semantic analysis for a for-range
+    // statement immediately in order to close over temporaries correctly.
     ForEachStmt = Actions.ActOnObjCForCollectionStmt(ForLoc,
                                                      FirstPart.get(),
                                                      Collection.get(),
@@ -2290,7 +2302,7 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc) {
     // In OpenMP loop region loop control variable must be captured and be
     // private. Perform analysis of first part (if any).
     if (getLangOpts().OpenMP && FirstPart.isUsable()) {
-      Actions.ActOnOpenMPLoopInitialization(ForLoc, FirstPart.get());
+      Actions.OpenMP().ActOnOpenMPLoopInitialization(ForLoc, FirstPart.get());
     }
   }
 

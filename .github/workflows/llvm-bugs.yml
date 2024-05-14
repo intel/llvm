@@ -14,13 +14,13 @@ jobs:
     runs-on: ubuntu-latest
     if: github.repository == 'llvm/llvm-project'
     steps:
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: 18
           check-latest: true
       - run: npm install mailgun.js form-data
       - name: Send notification
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         env:
           MAILGUN_API_KEY: ${{ secrets.LLVM_BUGS_KEY }}
         with:

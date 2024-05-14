@@ -5,9 +5,11 @@
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 
 #include <iostream>
-#include <sycl/sycl.hpp>
-
 #include <cassert>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
 
 namespace s = sycl;
 using namespace std;
@@ -48,14 +50,12 @@ template <typename T, typename R> void check_vec_nan(s::queue &Queue) {
 }
 
 int main() {
-  test_nan_call<unsigned short, s::half>();
-  test_nan_call<unsigned int, float>();
-  test_nan_call<unsigned long, double>();
-  test_nan_call<unsigned long long, double>();
-  test_nan_call<s::ushort2, s::half2>();
-  test_nan_call<s::uint2, s::float2>();
-  test_nan_call<s::ulong2, s::double2>();
-  test_nan_call<s::vec<unsigned long long, 2>, s::double2>();
+  test_nan_call<uint16_t, s::half>();
+  test_nan_call<uint32_t, float>();
+  test_nan_call<uint64_t, double>();
+  test_nan_call<s::vec<uint16_t, 2>, s::half2>();
+  test_nan_call<s::vec<uint32_t, 2>, s::float2>();
+  test_nan_call<s::vec<uint64_t, 2>, s::double2>();
 
   s::queue Queue([](sycl::exception_list ExceptionList) {
     for (std::exception_ptr ExceptionPtr : ExceptionList) {
@@ -70,17 +70,16 @@ int main() {
   });
 
   if (Queue.get_device().has(sycl::aspect::fp16)) {
-    check_scalar_nan<unsigned short, s::half>(Queue);
+    check_scalar_nan<uint16_t, s::half>(Queue);
     check_vec_nan<uint16_t, s::half>(Queue);
   }
 
-  check_scalar_nan<unsigned int, float>(Queue);
+  check_scalar_nan<uint32_t, float>(Queue);
   check_vec_nan<uint32_t, float>(Queue);
+
   if (Queue.get_device().has(sycl::aspect::fp64)) {
-    check_scalar_nan<unsigned long, double>(Queue);
-    check_scalar_nan<unsigned long long, double>(Queue);
+    check_scalar_nan<uint64_t, double>(Queue);
     check_vec_nan<uint64_t, double>(Queue);
-    check_vec_nan<unsigned long long, double>(Queue);
   }
   return 0;
 }

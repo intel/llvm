@@ -1,9 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// Inconsistently fails on HIP AMD, HIP Nvidia.
-// UNSUPPORTED: hip_amd || hip_nvidia
-
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
 

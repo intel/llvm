@@ -26,12 +26,20 @@
   typedef PRIM_TYPE##16 less_aligned_##ADDR_SPACE##PRIM_TYPE##16 __attribute__ ((aligned (sizeof(PRIM_TYPE))));\
   _CLC_OVERLOAD _CLC_DEF void vstore16(PRIM_TYPE##16 vec, size_t offset, ADDR_SPACE PRIM_TYPE *mem) { \
     *((ADDR_SPACE less_aligned_##ADDR_SPACE##PRIM_TYPE##16*) (&mem[16*offset])) = vec; \
-  } \
+  }
 
-#define VSTORE_ADDR_SPACES(__CLC_SCALAR___CLC_GENTYPE) \
-    VSTORE_VECTORIZE(__CLC_SCALAR___CLC_GENTYPE, __private) \
-    VSTORE_VECTORIZE(__CLC_SCALAR___CLC_GENTYPE, __local) \
-    VSTORE_VECTORIZE(__CLC_SCALAR___CLC_GENTYPE, __global) \
+#if _CLC_GENERIC_AS_SUPPORTED
+#define VSTORE_VECTORIZE_GENERIC VSTORE_VECTORIZE
+#else
+// The generic address space isn't available, so make the macro do nothing
+#define VSTORE_VECTORIZE_GENERIC(X,Y)
+#endif
+
+#define VSTORE_ADDR_SPACES(__CLC_SCALAR___CLC_GENTYPE)                         \
+  VSTORE_VECTORIZE(__CLC_SCALAR___CLC_GENTYPE, __private)                      \
+  VSTORE_VECTORIZE(__CLC_SCALAR___CLC_GENTYPE, __local)                        \
+  VSTORE_VECTORIZE(__CLC_SCALAR___CLC_GENTYPE, __global)                       \
+  VSTORE_VECTORIZE_GENERIC(__CLC_SCALAR___CLC_GENTYPE, __generic)
 
 VSTORE_ADDR_SPACES(char)
 VSTORE_ADDR_SPACES(uchar)
@@ -42,7 +50,6 @@ VSTORE_ADDR_SPACES(uint)
 VSTORE_ADDR_SPACES(long)
 VSTORE_ADDR_SPACES(ulong)
 VSTORE_ADDR_SPACES(float)
-
 
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
@@ -68,11 +75,17 @@ _CLC_DEF void __clc_vstore_half_##STYPE##_helper##AS(STYPE s, AS half *d) \
 DECLARE_HELPER(float, __private, __builtin_store_halff);
 DECLARE_HELPER(float, __global, __builtin_store_halff);
 DECLARE_HELPER(float, __local, __builtin_store_halff);
+#if _CLC_GENERIC_AS_SUPPORTED
+DECLARE_HELPER(float, __generic, __builtin_store_halff);
+#endif
 
 #ifdef cl_khr_fp64
 DECLARE_HELPER(double, __private, __builtin_store_half);
 DECLARE_HELPER(double, __global, __builtin_store_half);
 DECLARE_HELPER(double, __local, __builtin_store_half);
+#if _CLC_GENERIC_AS_SUPPORTED
+DECLARE_HELPER(double, __generic, __builtin_store_half);
+#endif
 #endif
 
 #define VEC_STORE1(STYPE, AS, val, ROUNDF) __clc_vstore_half_##STYPE##_helper##AS (ROUNDF(val), &mem[offset++]);
@@ -261,3 +274,4 @@ _CLC_DEF _CLC_OVERLOAD double __clc_rte(double x)
 #undef DECLARE_HELPER
 #undef VSTORE_ADDR_SPACES
 #undef VSTORE_VECTORIZE
+#undef VSTORE_VECTORIZE_GENERIC

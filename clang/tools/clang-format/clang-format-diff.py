@@ -25,7 +25,6 @@ from __future__ import absolute_import, division, print_function
 
 import argparse
 import difflib
-import os
 import re
 import subprocess
 import sys
@@ -37,9 +36,8 @@ else:
 
 
 def main():
-    basename = os.path.basename(sys.argv[0])
     parser = argparse.ArgumentParser(
-        description=__doc__.format(clang_format_diff=basename),
+        description=__doc__.format(clang_format_diff="%(prog)s"),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
@@ -140,6 +138,7 @@ def main():
             )
 
     # Reformat files containing changes in place.
+    has_diff = False
     for filename, lines in lines_by_file.items():
         if args.i and args.verbose:
             print("Formatting {}".format(filename))
@@ -171,7 +170,7 @@ def main():
 
         stdout, stderr = p.communicate()
         if p.returncode != 0:
-            sys.exit(p.returncode)
+            return p.returncode
 
         if not args.i:
             with open(filename) as f:
@@ -187,9 +186,12 @@ def main():
             )
             diff_string = "".join(diff)
             if len(diff_string) > 0:
+                has_diff = True
                 sys.stdout.write(diff_string)
-                sys.exit(1)
+
+    if has_diff:
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -93,9 +93,9 @@ struct isComplex<T, std::enable_if_t<std::is_same_v<T, std::complex<float>> ||
 
 // NOTE: std::complex<long double> not yet supported by group algorithms.
 template <typename T>
-struct is_complex<T, std::enable_if_t<std::is_same_v<T, std::complex<half>> ||
-                                      std::is_same_v<T, std::complex<float>> ||
-                                      std::is_same_v<T, std::complex<double>>>>
+struct is_complex<T, std::enable_if_t<std::is_same_v<std::remove_cv_t<T>, std::complex<half>> ||
+                                      std::is_same_v<std::remove_cv_t<T>, std::complex<float>> ||
+                                      std::is_same_v<std::remove_cv_t<T>, std::complex<double>>>>
     : public std::true_type {};
 
 #ifdef __SYCL_DEVICE_ONLY__

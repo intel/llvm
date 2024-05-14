@@ -21,17 +21,13 @@
 
 namespace sycl {
 inline namespace _V1 {
+
 namespace detail {
 class Builder;
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernel;
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernelWithKH;
-
-namespace reduction {
-template <int Dims>
-item<Dims, false> getDelinearizedItem(range<Dims> Range, id<Dims> Id);
-} // namespace reduction
 } // namespace detail
 
 /// Identifies an instance of the function object executing at each point
@@ -133,35 +129,7 @@ protected:
   friend class detail::Builder;
 
 private:
-  template <int Dims>
-  friend item<Dims, false>
-  detail::reduction::getDelinearizedItem(range<Dims> Range, id<Dims> Id);
-
   detail::ItemBase<Dimensions, with_offset> MImpl;
 };
-
-template <int Dims>
-__SYCL_DEPRECATED("use sycl::ext::oneapi::experimental::this_item() instead")
-item<Dims> this_item() {
-#ifdef __SYCL_DEVICE_ONLY__
-  return detail::Builder::getElement(detail::declptr<item<Dims>>());
-#else
-  throw sycl::exception(
-      sycl::make_error_code(sycl::errc::feature_not_supported),
-      "Free function calls are not supported on host");
-#endif
-}
-
-namespace ext::oneapi::experimental {
-template <int Dims> item<Dims> this_item() {
-#ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::Builder::getElement(sycl::detail::declptr<item<Dims>>());
-#else
-  throw sycl::exception(
-      sycl::make_error_code(sycl::errc::feature_not_supported),
-      "Free function calls are not supported on host");
-#endif
-}
-} // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl
