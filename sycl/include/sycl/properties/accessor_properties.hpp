@@ -8,16 +8,15 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>                     // for mode, target
-#include <sycl/detail/common.hpp>                     // for __SYCL_EBO
-#include <sycl/detail/defines.hpp>                    // for __SYCL_TYPE
-#include <sycl/detail/defines_elementary.hpp>         // for __SYCL2020_DEP...
-#include <sycl/detail/property_helper.hpp>            // for DataLessPropKind
-#include <sycl/ext/oneapi/accessor_property_list.hpp> // for IsCompileTimeP...
-#include <sycl/image.hpp>                             // for image_accessor
-#include <sycl/properties/property_traits.hpp>        // for is_property_of
+#include <sycl/access/access.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/property_helper.hpp>
+#include <sycl/ext/oneapi/accessor_property_list.hpp>
+#include <sycl/properties/property_traits.hpp>
 
-#include <type_traits> // for true_type, fal...
+#include <type_traits>
 
 namespace sycl {
 inline namespace _V1 {

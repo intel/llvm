@@ -119,6 +119,77 @@ std::pair<const char *, int> vmax() {
   return {nullptr, 0};
 }
 
+template <typename Tp> struct scale {
+  Tp operator()(Tp val, Tp scaler) { return val * scaler; }
+};
+
+template <typename Tp> struct noop {
+  Tp operator()(Tp val, Tp /*scaler*/) { return val; }
+};
+
+std::pair<const char *, int> shl_clamp() {
+  CHECK(syclcompat::extend_shl_clamp<int32_t>(3, 4), 48);
+  CHECK(syclcompat::extend_shl_clamp<int32_t>(6, 33), 0);
+  CHECK(syclcompat::extend_shl_clamp<int32_t>(3, 4, 4, scale<int32_t>()), 192);
+  CHECK(syclcompat::extend_shl_clamp<int32_t>(3, 4, 4, noop<int32_t>()), 48);
+  CHECK(syclcompat::extend_shl_sat_clamp<int8_t>(9, 5), 127);
+  CHECK(syclcompat::extend_shl_sat_clamp<int8_t>(-9, 5), -128);
+  CHECK(syclcompat::extend_shl_sat_clamp<int8_t>(9, 5, -1, scale<int8_t>()),
+        -127);
+  CHECK(syclcompat::extend_shl_sat_clamp<int8_t>(9, 5, -1, noop<int8_t>()),
+        127);
+
+  return {nullptr, 0};
+}
+
+std::pair<const char *, int> shl_wrap() {
+  CHECK(syclcompat::extend_shl_wrap<int32_t>(3, 4), 48);
+  CHECK(syclcompat::extend_shl_wrap<int32_t>(6, 32), 6);
+  CHECK(syclcompat::extend_shl_wrap<int32_t>(6, 33), 12);
+  CHECK(syclcompat::extend_shl_wrap<int32_t>(6, 64), 6);
+  CHECK(syclcompat::extend_shl_wrap<int32_t>(3, 4, 4, scale<int32_t>()), 192);
+  CHECK(syclcompat::extend_shl_wrap<int32_t>(6, 32, 4, noop<int32_t>()), 6);
+  CHECK(syclcompat::extend_shl_sat_wrap<int8_t>(9, 5), 127);
+  CHECK(syclcompat::extend_shl_sat_wrap<int8_t>(-9, 5), -128);
+  CHECK(syclcompat::extend_shl_sat_wrap<int8_t>(9, 5, -1, scale<int8_t>()),
+        -127);
+  CHECK(syclcompat::extend_shl_sat_wrap<int8_t>(9, 5, -1, noop<int8_t>()), 127);
+
+  return {nullptr, 0};
+}
+
+std::pair<const char *, int> shr_clamp() {
+  CHECK(syclcompat::extend_shr_clamp<int32_t>(128, 5), 4);
+  CHECK(syclcompat::extend_shr_clamp<int32_t>(INT32MAX, 33), 0);
+  CHECK(syclcompat::extend_shr_clamp<int32_t>(128, 5, 4, scale<int32_t>()), 16);
+  CHECK(syclcompat::extend_shr_clamp<int32_t>(128, 5, 4, noop<int32_t>()), 4);
+  CHECK(syclcompat::extend_shr_sat_clamp<int8_t>(512, 1), 127);
+  CHECK(syclcompat::extend_shr_sat_clamp<int8_t>(-512, 1), -128);
+  CHECK(syclcompat::extend_shr_sat_clamp<int8_t>(512, 1, -1, scale<int8_t>()),
+        -127);
+  CHECK(syclcompat::extend_shr_sat_clamp<int8_t>(512, 1, -1, noop<int8_t>()),
+        127);
+
+  return {nullptr, 0};
+}
+
+std::pair<const char *, int> shr_wrap() {
+  CHECK(syclcompat::extend_shr_wrap<int32_t>(128, 5), 4);
+  CHECK(syclcompat::extend_shr_wrap<int32_t>(128, 32), 128);
+  CHECK(syclcompat::extend_shr_wrap<int32_t>(128, 33), 64);
+  CHECK(syclcompat::extend_shr_wrap<int32_t>(128, 64), 128);
+  CHECK(syclcompat::extend_shr_wrap<int32_t>(128, 5, 4, scale<int32_t>()), 16);
+  CHECK(syclcompat::extend_shr_wrap<int32_t>(128, 5, 4, noop<int32_t>()), 4);
+  CHECK(syclcompat::extend_shr_sat_wrap<int8_t>(512, 1), 127);
+  CHECK(syclcompat::extend_shr_sat_wrap<int8_t>(-512, 1), -128);
+  CHECK(syclcompat::extend_shr_sat_wrap<int8_t>(512, 1, -1, scale<int8_t>()),
+        -127);
+  CHECK(syclcompat::extend_shr_sat_wrap<int8_t>(512, 1, -1, noop<int8_t>()),
+        127);
+
+  return {nullptr, 0};
+}
+
 void test(const sycl::stream &s, int *ec) {
   {
     auto res = vadd();
@@ -164,6 +235,42 @@ void test(const sycl::stream &s, int *ec) {
       return;
     }
     s << "vmax check passed!\n";
+  }
+  {
+    auto res = shl_clamp();
+    if (res.first) {
+      s << res.first << " = " << res.second << " check failed!\n";
+      *ec = 6;
+      return;
+    }
+    s << "shl_clamp check passed!\n";
+  }
+  {
+    auto res = shl_wrap();
+    if (res.first) {
+      s << res.first << " = " << res.second << " check failed!\n";
+      *ec = 7;
+      return;
+    }
+    s << "shl_wrap check passed!\n";
+  }
+  {
+    auto res = shr_clamp();
+    if (res.first) {
+      s << res.first << " = " << res.second << " check failed!\n";
+      *ec = 8;
+      return;
+    }
+    s << "shr_clamp check passed!\n";
+  }
+  {
+    auto res = shr_wrap();
+    if (res.first) {
+      s << res.first << " = " << res.second << " check failed!\n";
+      *ec = 9;
+      return;
+    }
+    s << "shr_wrap check passed!\n";
   }
   *ec = 0;
 }

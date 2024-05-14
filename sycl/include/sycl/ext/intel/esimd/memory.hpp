@@ -706,15 +706,17 @@ scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
     addrs = addrs + byte_offsets_i;
     if constexpr (sizeof(T) == 1) {
       detail::check_wrregion_params<N * 4, N, /*VS*/ 0, N, 4>();
-      simd<T, N * 4> D = __esimd_wrregion<Tx, N * 4, N, /*VS*/ 0, N, 4>(
-          D.data(), vals.data(), 0);
+      simd<T, N * 4> D; // Intentionally undefined.
+      D = __esimd_wrregion<Tx, N * 4, N, /*VS*/ 0, N, 4>(D.data(), vals.data(),
+                                                         0);
       __esimd_svm_scatter<Tx, N, detail::ElemsPerAddrEncoding<4>(),
                           detail::ElemsPerAddrEncoding<1>()>(
           addrs.data(), D.data(), mask.data());
     } else if constexpr (sizeof(T) == 2) {
       detail::check_wrregion_params<N * 2, N, /*VS*/ 0, N, 2>();
-      simd<Tx, N * 2> D = __esimd_wrregion<Tx, N * 2, N, /*VS*/ 0, N, 2>(
-          D.data(), vals.data(), 0);
+      simd<Tx, N * 2> D; // Intentionally undefined.
+      D = __esimd_wrregion<Tx, N * 2, N, /*VS*/ 0, N, 2>(D.data(), vals.data(),
+                                                         0);
       __esimd_svm_scatter<Tx, N, detail::ElemsPerAddrEncoding<2>(),
                           detail::ElemsPerAddrEncoding<2>()>(
           addrs.data(), D.data(), mask.data());
@@ -8043,6 +8045,7 @@ __ESIMD_API simd<T, m * N> media_block_load(AccessorTy acc, unsigned x,
   static_assert(Width <= 64u, "valid block width is in range [1, 64]");
   static_assert(m <= 64u, "valid block height is in range [1, 64]");
   static_assert(plane <= 3u, "valid plane index is in range [0, 3]");
+  static_assert(detail::isPowerOf2(N), "N must be a power of 2");
 
   const auto si = __ESIMD_NS::get_surface_index(acc);
   using SurfIndTy = decltype(si);
@@ -9769,6 +9772,55 @@ __ESIMD_API void raw_send(__ESIMD_NS::simd<T1, n1> msg_src0, uint32_t ex_desc,
 }
 
 /// @} sycl_esimd_raw_send
+
+/// @defgroup sycl_esimd_memory_nbarrier Named barrier APIs.
+/// @ingroup sycl_esimd_memory
+
+/// @addtogroup sycl_esimd_memory_nbarrier
+/// @{
+
+/// Wait on a named barrier
+/// Available only on PVC
+///
+/// @param id  - named barrier id
+__ESIMD_API void named_barrier_wait(uint8_t id) {
+  __esimd_nbarrier(0 /*wait*/, id, 0 /*thread count*/);
+}
+
+/// Initialize number of named barriers for a kernel
+/// Available only on PVC
+///
+/// @tparam NbarCount  - number of named barriers
+template <uint8_t NbarCount> __ESIMD_API void named_barrier_init() {
+  __esimd_nbarrier_init(NbarCount);
+}
+
+/// Perform signal operation for the given named barrier
+/// Available only on PVC
+///
+/// @tparam Fence - fence before signaling
+///
+/// @param barrier_id  - named barrier id
+///
+/// @param producer_consumer_mode  - 2-bit flag to indicate if it's producer
+/// mode (0x1) or consumer mode (0x2). User must ensure the input value is set
+/// correctly and higher order bits are cleared.
+///
+/// @param num_producers  - number of producers
+///
+/// @param num_consumers  - number of consumers
+template <bool Fence = true>
+__ESIMD_API void
+named_barrier_signal(uint8_t barrier_id, uint8_t producer_consumer_mode,
+                     uint32_t num_producers, uint32_t num_consumers) {
+  if constexpr (Fence)
+    __esimd_fence(fence_mask::global_coherent_fence |
+                  fence_mask::local_barrier);
+  __esimd_nbarrier_arrive(barrier_id, producer_consumer_mode, num_producers,
+                          num_consumers);
+}
+
+/// @} sycl_esimd_memory_nbarrier
 
 /// @} sycl_esimd_memory
 
