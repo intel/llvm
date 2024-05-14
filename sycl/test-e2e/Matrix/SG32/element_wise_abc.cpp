@@ -11,7 +11,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <cstddef>
+#include "../common.hpp"
 
 constexpr size_t SG_SZ = 32;
 constexpr size_t TN = 16;
