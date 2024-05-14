@@ -529,6 +529,7 @@ ur_result_t migrateImageToDevice(ur_mem_handle_t Mem,
   if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE2D) {
     memset(&CpyDesc2D, 0, sizeof(CpyDesc2D));
     CpyDesc2D.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
+    CpyDesc2D.srcHost = Image.HostPtr;
     CpyDesc2D.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
     CpyDesc2D.dstArray = ImageArray;
     CpyDesc2D.WidthInBytes = PixelSizeBytes * Image.ImageDesc.width;
@@ -537,6 +538,7 @@ ur_result_t migrateImageToDevice(ur_mem_handle_t Mem,
   } else if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE3D) {
     memset(&CpyDesc3D, 0, sizeof(CpyDesc3D));
     CpyDesc3D.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
+    CpyDesc3D.srcHost = Image.HostPtr;
     CpyDesc3D.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
     CpyDesc3D.dstArray = ImageArray;
     CpyDesc3D.WidthInBytes = PixelSizeBytes * Image.ImageDesc.width;
