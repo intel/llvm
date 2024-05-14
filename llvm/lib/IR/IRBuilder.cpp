@@ -1175,8 +1175,7 @@ Value *IRBuilderBase::CreateVectorReverse(Value *V, const Twine &Name) {
   auto *Ty = cast<VectorType>(V->getType());
   if (isa<ScalableVectorType>(Ty)) {
     Module *M = BB->getParent()->getParent();
-    Function *F = Intrinsic::getDeclaration(
-        M, Intrinsic::experimental_vector_reverse, Ty);
+    Function *F = Intrinsic::getDeclaration(M, Intrinsic::vector_reverse, Ty);
     return Insert(CallInst::Create(F, V), Name);
   }
   // Keep the original behaviour for fixed vector
@@ -1195,8 +1194,7 @@ Value *IRBuilderBase::CreateVectorSplice(Value *V1, Value *V2, int64_t Imm,
 
   if (auto *VTy = dyn_cast<ScalableVectorType>(V1->getType())) {
     Module *M = BB->getParent()->getParent();
-    Function *F = Intrinsic::getDeclaration(
-        M, Intrinsic::experimental_vector_splice, VTy);
+    Function *F = Intrinsic::getDeclaration(M, Intrinsic::vector_splice, VTy);
 
     Value *Ops[] = {V1, V2, getInt32(Imm)};
     return Insert(CallInst::Create(F, Ops), Name);

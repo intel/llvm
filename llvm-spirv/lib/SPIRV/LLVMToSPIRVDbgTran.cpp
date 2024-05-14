@@ -248,6 +248,8 @@ void LLVMToSPIRVDbgTran::transLocationInfo() {
                         Col);
         }
       } // Instructions
+      // Reset current debug line at end of basic block.
+      BM->setCurrentDebugLine(nullptr);
     }   // Basic Blocks
   }     // Functions
 }

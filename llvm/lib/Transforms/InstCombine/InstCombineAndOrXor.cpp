@@ -3141,20 +3141,20 @@ Value *InstCombinerImpl::getSelectCondition(Value *A, Value *B,
   return nullptr;
 }
 
-/// We have an expression of the form (A & C) | (B & D). Try to simplify this
-/// to "A' ? C : D", where A' is a boolean or vector of booleans.
+/// We have an expression of the form (A & B) | (C & D). Try to simplify this
+/// to "A' ? B : D", where A' is a boolean or vector of booleans.
 /// When InvertFalseVal is set to true, we try to match the pattern
-/// where we have peeked through a 'not' op and A and B are the same:
-/// (A & C) | ~(A | D) --> (A & C) | (~A & ~D) --> A' ? C : ~D
-Value *InstCombinerImpl::matchSelectFromAndOr(Value *A, Value *C, Value *B,
+/// where we have peeked through a 'not' op and A and C are the same:
+/// (A & B) | ~(A | D) --> (A & B) | (~A & ~D) --> A' ? B : ~D
+Value *InstCombinerImpl::matchSelectFromAndOr(Value *A, Value *B, Value *C,
                                               Value *D, bool InvertFalseVal) {
   // The potential condition of the select may be bitcasted. In that case, look
   // through its bitcast and the corresponding bitcast of the 'not' condition.
   Type *OrigType = A->getType();
   A = peekThroughBitcast(A, true);
-  B = peekThroughBitcast(B, true);
-  if (Value *Cond = getSelectCondition(A, B, InvertFalseVal)) {
-    // ((bc Cond) & C) | ((bc ~Cond) & D) --> bc (select Cond, (bc C), (bc D))
+  C = peekThroughBitcast(C, true);
+  if (Value *Cond = getSelectCondition(A, C, InvertFalseVal)) {
+    // ((bc Cond) & B) | ((bc ~Cond) & D) --> bc (select Cond, (bc B), (bc D))
     // If this is a vector, we may need to cast to match the condition's length.
     // The bitcasts will either all exist or all not exist. The builder will
     // not create unnecessary casts if the types already match.
@@ -3168,11 +3168,11 @@ Value *InstCombinerImpl::matchSelectFromAndOr(Value *A, Value *C, Value *B,
       Type *EltTy = Builder.getIntNTy(SelEltSize / Elts);
       SelTy = VectorType::get(EltTy, VecTy->getElementCount());
     }
-    Value *BitcastC = Builder.CreateBitCast(C, SelTy);
+    Value *BitcastB = Builder.CreateBitCast(B, SelTy);
     if (InvertFalseVal)
       D = Builder.CreateNot(D);
     Value *BitcastD = Builder.CreateBitCast(D, SelTy);
-    Value *Select = Builder.CreateSelect(Cond, BitcastC, BitcastD);
+    Value *Select = Builder.CreateSelect(Cond, BitcastB, BitcastD);
     return Builder.CreateBitCast(Select, OrigType);
   }
 
@@ -3958,6 +3958,10 @@ Instruction *InstCombinerImpl::visitOr(BinaryOperator &I) {
                                       /*SimplifyOnly*/ false, *this))
     return BinaryOperator::CreateOr(Op0, V);
 
+  if (cast<PossiblyDisjointInst>(I).isDisjoint())
+    if (Value *V = SimplifyAddWithRemainder(I))
+      return replaceInstUsesWith(I, V);
+
   return nullptr;
 }
 
@@ -4433,23 +4437,13 @@ Instruction *InstCombinerImpl::foldNot(BinaryOperator &I) {
     // ~(C >>s Y) --> ~C >>u Y (when inverting the replicated sign bits)
     Constant *C;
     if (match(NotVal, m_AShr(m_Constant(C), m_Value(Y))) &&
-        match(C, m_Negative())) {
-      // We matched a negative constant, so propagating undef is unsafe.
-      // Clamp undef elements to -1.
-      Type *EltTy = Ty->getScalarType();
-      C = Constant::replaceUndefsWith(C, ConstantInt::getAllOnesValue(EltTy));
+        match(C, m_Negative()))
       return BinaryOperator::CreateLShr(ConstantExpr::getNot(C), Y);
-    }
 
     // ~(C >>u Y) --> ~C >>s Y (when inverting the replicated sign bits)
     if (match(NotVal, m_LShr(m_Constant(C), m_Value(Y))) &&
-        match(C, m_NonNegative())) {
-      // We matched a non-negative constant, so propagating undef is unsafe.
-      // Clamp undef elements to 0.
-      Type *EltTy = Ty->getScalarType();
-      C = Constant::replaceUndefsWith(C, ConstantInt::getNullValue(EltTy));
+        match(C, m_NonNegative()))
       return BinaryOperator::CreateAShr(ConstantExpr::getNot(C), Y);
-    }
 
     // ~(X + C) --> ~C - X
     if (match(NotVal, m_Add(m_Value(X), m_ImmConstant(C))))

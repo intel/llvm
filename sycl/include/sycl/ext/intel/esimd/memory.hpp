@@ -706,15 +706,17 @@ scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
     addrs = addrs + byte_offsets_i;
     if constexpr (sizeof(T) == 1) {
       detail::check_wrregion_params<N * 4, N, /*VS*/ 0, N, 4>();
-      simd<T, N * 4> D = __esimd_wrregion<Tx, N * 4, N, /*VS*/ 0, N, 4>(
-          D.data(), vals.data(), 0);
+      simd<T, N * 4> D; // Intentionally undefined.
+      D = __esimd_wrregion<Tx, N * 4, N, /*VS*/ 0, N, 4>(D.data(), vals.data(),
+                                                         0);
       __esimd_svm_scatter<Tx, N, detail::ElemsPerAddrEncoding<4>(),
                           detail::ElemsPerAddrEncoding<1>()>(
           addrs.data(), D.data(), mask.data());
     } else if constexpr (sizeof(T) == 2) {
       detail::check_wrregion_params<N * 2, N, /*VS*/ 0, N, 2>();
-      simd<Tx, N * 2> D = __esimd_wrregion<Tx, N * 2, N, /*VS*/ 0, N, 2>(
-          D.data(), vals.data(), 0);
+      simd<Tx, N * 2> D; // Intentionally undefined.
+      D = __esimd_wrregion<Tx, N * 2, N, /*VS*/ 0, N, 2>(D.data(), vals.data(),
+                                                         0);
       __esimd_svm_scatter<Tx, N, detail::ElemsPerAddrEncoding<2>(),
                           detail::ElemsPerAddrEncoding<2>()>(
           addrs.data(), D.data(), mask.data());
@@ -3085,7 +3087,7 @@ __ESIMD_API simd<T, N> load_2d_impl(const T *Ptr, unsigned SurfaceWidth,
   constexpr int DstElements = DstBlockElements * NBlocks;
 
   static_assert(N == ActualN || N == DstElements, "Incorrect element count");
-  simd_mask<ActualN> Mask = 1;
+  simd_mask<1> Mask = 1;
   constexpr lsc_data_size DS =
       finalize_data_size<RawT, lsc_data_size::default_size>();
   uintptr_t Addr = reinterpret_cast<uintptr_t>(Ptr);
@@ -3174,7 +3176,7 @@ __ESIMD_API void prefetch_2d_impl(const T *Ptr, unsigned SurfaceWidth,
       finalize_data_size<RawT, lsc_data_size::default_size>();
   uintptr_t Addr = reinterpret_cast<uintptr_t>(Ptr);
   constexpr lsc_data_order Transpose = lsc_data_order::nontranspose;
-  simd_mask<N> Mask = 1;
+  simd_mask<1> Mask = 1;
   __esimd_lsc_prefetch2d_stateless<RawT, L1H, L2H, DS, Transpose, NBlocks,
                                    BlockWidth, BlockHeight, false, N>(
       Mask.data(), Addr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y);
@@ -3226,7 +3228,7 @@ __ESIMD_API void store_2d_impl(T *Ptr, unsigned SurfaceWidth,
   constexpr int Pitch = getNextPowerOf2<BlockWidth>();
   constexpr int NElts = BlockHeight * Pitch;
   simd<RawT, NElts> Raw;
-  simd_mask<NElts> Mask = 1;
+  simd_mask<1> Mask = 1;
 
   if constexpr (NElts == N) {
     Raw = Vals;
@@ -5823,7 +5825,7 @@ slm_atomic_update_impl(simd<uint32_t, N> offsets, simd<T, N> src0,
   constexpr lsc_vector_size VS = to_lsc_vector_size<1>();
   constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
   constexpr int IOp = lsc_to_internal_atomic_op<T, Op>();
-  if constexpr (std::is_same_v<T, double>) {
+  if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>) {
     return __esimd_lsc_xatomic_slm_1<T, IOp, cache_hint::none, cache_hint::none,
                                      AddressScale, ImmOffset, EDS, VS,
                                      Transposed, N>(pred.data(), offsets.data(),
@@ -5867,7 +5869,7 @@ __ESIMD_API simd<T, N> slm_atomic_update_impl(simd<uint32_t, N> offsets,
   constexpr lsc_vector_size VS = to_lsc_vector_size<1>();
   constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
   constexpr int IOp = lsc_to_internal_atomic_op<T, Op>();
-  if constexpr (std::is_same_v<T, double>) {
+  if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>) {
     return __esimd_lsc_xatomic_slm_2<T, IOp, cache_hint::none, cache_hint::none,
                                      AddressScale, ImmOffset, EDS, VS,
                                      Transposed, N>(pred.data(), offsets.data(),
@@ -6007,11 +6009,11 @@ template <atomic_op Op, typename T, int N>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
                   simd_mask<N> mask = 1) {
-  // 2 byte, 8 byte types, non-power of two, and operations wider than
-  // 32 are supported only by LSC.
-  if constexpr (sizeof(T) == 2 || sizeof(T) == 8 ||
-                !__ESIMD_DNS::isPowerOf2(N, 32)) {
-    // half and short are supported in LSC.
+  // Non-LSC atomic_update supports only 4-byte int vector operations with
+  // 1,2,4,8,16,32 vector length. Non-LSC supports only 'store' for FP types.
+  if constexpr (Op == atomic_op::fmin || Op == atomic_op::fmax ||
+                Op == atomic_op::fadd || Op == atomic_op::fsub ||
+                sizeof(T) != 4 || !__ESIMD_DNS::isPowerOf2(N, 32)) {
     return slm_atomic_update_impl<Op, T, N,
                                   detail::lsc_data_size::default_size>(
         byte_offset, src0, mask);
@@ -6096,9 +6098,9 @@ template <atomic_op Op, typename T, int N>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
                   simd<T, N> src1, simd_mask<N> mask = 1) {
-  // 2 byte, 8 byte types, non-power of two, and operations wider than
-  // 32 are supported only by LSC.
-  if constexpr (sizeof(T) == 2 || sizeof(T) == 8 ||
+  // Non-LSC atomic_update supports only 4-byte int vector operations with
+  // 1,2,4,8,16,32 vector length.
+  if constexpr (sizeof(T) != 4 || Op == atomic_op::fcmpxchg ||
                 !__ESIMD_DNS::isPowerOf2(N, 32)) {
     // 2-argument lsc_atomic_update arguments order matches the standard one -
     // expected value first, then new value. But atomic_update uses reverse
@@ -8043,6 +8045,7 @@ __ESIMD_API simd<T, m * N> media_block_load(AccessorTy acc, unsigned x,
   static_assert(Width <= 64u, "valid block width is in range [1, 64]");
   static_assert(m <= 64u, "valid block height is in range [1, 64]");
   static_assert(plane <= 3u, "valid plane index is in range [0, 3]");
+  static_assert(detail::isPowerOf2(N), "N must be a power of 2");
 
   const auto si = __ESIMD_NS::get_surface_index(acc);
   using SurfIndTy = decltype(si);
@@ -9769,6 +9772,55 @@ __ESIMD_API void raw_send(__ESIMD_NS::simd<T1, n1> msg_src0, uint32_t ex_desc,
 }
 
 /// @} sycl_esimd_raw_send
+
+/// @defgroup sycl_esimd_memory_nbarrier Named barrier APIs.
+/// @ingroup sycl_esimd_memory
+
+/// @addtogroup sycl_esimd_memory_nbarrier
+/// @{
+
+/// Wait on a named barrier
+/// Available only on PVC
+///
+/// @param id  - named barrier id
+__ESIMD_API void named_barrier_wait(uint8_t id) {
+  __esimd_nbarrier(0 /*wait*/, id, 0 /*thread count*/);
+}
+
+/// Initialize number of named barriers for a kernel
+/// Available only on PVC
+///
+/// @tparam NbarCount  - number of named barriers
+template <uint8_t NbarCount> __ESIMD_API void named_barrier_init() {
+  __esimd_nbarrier_init(NbarCount);
+}
+
+/// Perform signal operation for the given named barrier
+/// Available only on PVC
+///
+/// @tparam Fence - fence before signaling
+///
+/// @param barrier_id  - named barrier id
+///
+/// @param producer_consumer_mode  - 2-bit flag to indicate if it's producer
+/// mode (0x1) or consumer mode (0x2). User must ensure the input value is set
+/// correctly and higher order bits are cleared.
+///
+/// @param num_producers  - number of producers
+///
+/// @param num_consumers  - number of consumers
+template <bool Fence = true>
+__ESIMD_API void
+named_barrier_signal(uint8_t barrier_id, uint8_t producer_consumer_mode,
+                     uint32_t num_producers, uint32_t num_consumers) {
+  if constexpr (Fence)
+    __esimd_fence(fence_mask::global_coherent_fence |
+                  fence_mask::local_barrier);
+  __esimd_nbarrier_arrive(barrier_id, producer_consumer_mode, num_producers,
+                          num_consumers);
+}
+
+/// @} sycl_esimd_memory_nbarrier
 
 /// @} sycl_esimd_memory
 

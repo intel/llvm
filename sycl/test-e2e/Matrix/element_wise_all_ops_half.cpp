@@ -12,14 +12,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <iostream>
-#include <random>
-#include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/matrix/matrix.hpp>
-
-using namespace sycl;
-using namespace sycl::ext::intel;
-using namespace sycl::ext::oneapi::experimental::matrix;
+#include "common.hpp"
 
 #define SG_SZ 16
 constexpr size_t TN = 16;

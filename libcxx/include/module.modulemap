@@ -1124,6 +1124,7 @@ module std_private_chrono_high_resolution_clock  [system] {
 }
 module std_private_chrono_leap_second            [system] { header "__chrono/leap_second.h" }
 module std_private_chrono_literals               [system] { header "__chrono/literals.h" }
+module std_private_chrono_local_info             [system] { header "__chrono/local_info.h" }
 module std_private_chrono_month                  [system] { header "__chrono/month.h" }
 module std_private_chrono_month_weekday          [system] { header "__chrono/month_weekday.h" }
 module std_private_chrono_monthday               [system] { header "__chrono/monthday.h" }
@@ -1535,7 +1536,10 @@ module std_private_memory_shared_ptr                      [system] {
 }
 module std_private_memory_swap_allocator                  [system] { header "__memory/swap_allocator.h" }
 module std_private_memory_temp_value                      [system] { header "__memory/temp_value.h" }
-module std_private_memory_temporary_buffer                [system] { header "__memory/temporary_buffer.h" }
+module std_private_memory_temporary_buffer                [system] {
+  header "__memory/temporary_buffer.h"
+  export std_private_utility_pair
+}
 module std_private_memory_uninitialized_algorithms        [system] {
   header "__memory/uninitialized_algorithms.h"
   export std_private_algorithm_copy

@@ -130,8 +130,10 @@ int main() {
 
     KernelGraph.end_recording(Queue);
 
-    auto CopyGraphExec = CopyGraph.finalize();
-    auto KernelGraphExec = KernelGraph.finalize();
+    auto CopyGraphExec =
+        CopyGraph.finalize({exp_ext::property::graph::enable_profiling{}});
+    auto KernelGraphExec =
+        KernelGraph.finalize({exp_ext::property::graph::enable_profiling{}});
 
     event CopyEvent, KernelEvent1, KernelEvent2;
     // Run graphs

@@ -8,9 +8,9 @@
 //    TODO: the second part of the check should be added to this test when
 //    DAE (Dead Arguments Elimination) optimization is enabled for ESIMD.
 
-#include <CL/sycl.hpp>
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 constexpr sycl::specialization_id<int> Spec;
 

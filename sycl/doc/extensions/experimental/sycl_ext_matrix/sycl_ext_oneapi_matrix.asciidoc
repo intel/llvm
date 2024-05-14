@@ -20,7 +20,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (c) 2021-2023 Intel Corporation.  All rights reserved.
+Copyright (c) 2021-2024 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -1011,9 +1011,9 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
 `architecture::intel_gpu_pvc`
 |8| `architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
-.4+|  `matrix_type::bf16`       .4+|  `matrix_type::bf16`   .4+|
-`matrix_type::fp32`  | 16 | 16 | 16 .3+|`architecture::intel_gpu_pvc`
-|32 | 64 | 16
+.5+|  `matrix_type::bf16`       .5+|  `matrix_type::bf16`   .5+|
+`matrix_type::fp32`  | 16 | 16 | 16 .4+|`architecture::intel_gpu_pvc`
+| 1 | 64 | 16 | 32 | 64 | 16
 .2+|  +<=+ 8 |  16   .2+|  16
 |8 | `architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
@@ -1131,6 +1131,8 @@ and Intel XMX
 |8   |2023-10-05 |Mahmoud Moadeli |Add AMD Matrix Core supported combinations
 |9   |2023-11-13 |Dounia Khaldi |Add Granite Rapids Intel AMX
 supported combinations
-|9   |2023-12-04 |Dounia Khaldi |Add prefetch and `annotated_ptr`
+|10   |2023-12-04 |Dounia Khaldi |Add prefetch and `annotated_ptr`
 load/store overloads
+|11  |2024-04-29 |Yury Plyakhin | Add 1x64x16 supported combination for
+Intel XMX (intel_gpu_pvc)
 |======================

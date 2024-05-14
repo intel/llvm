@@ -666,6 +666,14 @@ operation as the runtime can perform optimizations based on the graph
 structure. After finalization the graph can be submitted for execution on a
 queue one or more times with reduced overhead.
 
+A `command_graph` can be submitted to both in-order and out-of-order queues. Any
+dependencies between the graph and other command-groups submitted to the same 
+queue will be respected. However, the in-order and out-of-order properties of the
+queue have no effect on how the nodes within the graph are executed (e.g. the graph
+nodes without dependency edges may execute out-of-order even when using an in-order
+queue). For further information about how the properties of a queue affect graphs
+<<Queue Properties, see the section on Queue Properties>>
+
 ==== Graph State
 
 An instance of a `command_graph` object can be in one of two states:
@@ -814,6 +822,25 @@ when passed on finalization of a modifiable `command_graph`. For further
 information see <<executable-graph-update, the section on Executable Graph
 Update>>.
 
+==== Enable-Profiling Property [[enable-profiling]]
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::property::graph {
+class enable_profiling {
+  public:
+    enable_profiling() = default;
+};
+}
+----
+
+The `property::graph::enable_profiling` property enables profiling events
+returned from submissions of the executable graph. Passing this property
+implies disabling certain optimizations. As a result, the execution time of a
+graph finalized with profiling enabled is longer than that of a graph without
+profiling capability. An error will be thrown when attempting to profile an
+event from a graph submission that was created without this property.
+
 ==== Graph Member Functions
 
 Table {counter: tableNumber}. Constructor of the `command_graph` class.
@@ -876,7 +903,9 @@ Parameters:
 
 * `syclQueue` - Queue which provides the SYCL device and context for the graph,
   which are immutable characteristics of the graph. All other properties of the
-  queue are ignored for the purposes of graph creation.
+  queue are ignored for the purposes of graph creation. See the
+  <<Queue Properties, Queue Properties>> section for more general information
+  about how queue properties interact with command_graph objects.
 
 * `propList` - Optional parameter for passing properties. Valid `command_graph`
   constructor properties are listed in Section <<graph-properties, Graph Properties>>.
@@ -1345,9 +1374,12 @@ ways:
 2. `property::queue::enable_profiling` - This property has no effect on graph
    recording. When set on the queue a graph is submitted to however, it allows
    profiling information to be obtained from the event returned by a graph
-   submission. As it is not defined how a submitted graph will be split up for
-   scheduling at runtime, the `uint64_t` timestamp reported from a profiling
-   query on a graph execution event has the following semantics, which may be
+   submission. The executable graph used for this submission must have been
+   created with the `enable_profiling` property, see
+   <<enable-profiling, Enable-Profiling>> for more details. As it is not
+   defined how a submitted graph will be split up for scheduling at runtime,
+   the `uint64_t` timestamp reported from a profiling query on a graph
+   execution event has the following semantics, which may be
    pessimistic about execution time on device.
 
    * `info::event_profiling::command_submit` - Timestamp when the graph is
@@ -1570,6 +1602,19 @@ As a result, users don't need to manually wrap queue recording code in a
 `try` / `catch` block to reset the state of recording queues on an exception
 back to the executing state. Instead, an uncaught exception destroying the
 modifiable graph will perform this action, useful in RAII pattern usage.
+
+=== Command-Group Function Limitations
+
+While not disallowed by the SYCL specification it should be noted that it is not
+possible to capture arbitrary C++ code which is inside a CGF (Command-Group
+Function) used to create a graph node. This code will be evaluated once during
+the call to `queue::submit()` or `command_graph::add()` along with the calls to
+handler functions and this will not be reflected on future executions of the
+graph.
+
+Any code like this should be moved to a separate host-task and added to the
+graph via the recording or explicit APIs in order to be compatible with this
+extension.
 
 === Host Tasks
 

@@ -282,6 +282,28 @@ requirements for these new accessors to correctly trigger allocations before
 updating. This is similar to how individual graph commands are enqueued when
 accessors are used in a graph node.
 
+## Optimizations
+### Interactions with Profiling
+
+Enabling profiling on a graph may disable optimizations from being performed on
+the graph if they are incompatible with profiling. For example, enabling
+profiling prevents the in-order optimization since the removal of events would
+prevent collecting profiling information.
+
+### In-Order Graph Partitions
+
+On finalization graph partitions are checked to see if they are in-order, i.e.
+the graph follows a single path where each node depends on the previous node. If
+so a hint is provided to the backend that it may create the command-buffers in
+an in-order fashion. Support for this is backend specific but it may provide
+benefits through the removal of the need for synchronization primitives between
+kernels.
+
+This optimization is only performed in this very limited case where it can be
+safely assumed to be more performant. It is not likely we'll try to allow
+in-order execution in more scenarios through a complicated (and imperfect)
+heuristic but rather expose this as a hint the user can provide.
+
 ## Backend Implementation
 
 Implementation of UR command-buffers for each of the supported SYCL 2020
