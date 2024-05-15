@@ -105,7 +105,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit b14af4bbd5cabc4e6c3c7ae738f5f6d886d9102b
+    # Merge: 1ff111c1 ece1e2cd
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed May 15 14:01:05 2024 +0100
+    #     Merge pull request #1592 from nrspruit/fix_event_use_after_delete
+    #     [L0] Fix timestamp event evict after delete
+    b14af4bbd5cabc4e6c3c7ae738f5f6d886d9102b
   )
 
   fetch_adapter_source(opencl
