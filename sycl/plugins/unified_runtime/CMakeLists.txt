@@ -104,14 +104,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   set(UNIFIED_RUNTIME_TAG 1e1f577262747d67fcb5c513de4a11bec67ea5db)
 
   fetch_adapter_source(level_zero
-    ${UNIFIED_RUNTIME_REPO}
-    # commit b14af4bbd5cabc4e6c3c7ae738f5f6d886d9102b
-    # Merge: 1ff111c1 ece1e2cd
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed May 15 14:01:05 2024 +0100
-    #     Merge pull request #1592 from nrspruit/fix_event_use_after_delete
-    #     [L0] Fix timestamp event evict after delete
-    b14af4bbd5cabc4e6c3c7ae738f5f6d886d9102b
+    https://github.com/nrspruit/unified-runtime.git
+    f67122c0ed95ff45e680ee439bb47acfc9886326
   )
 
   fetch_adapter_source(opencl
