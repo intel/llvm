@@ -29,6 +29,10 @@
 // RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s
 
 // RUN: %clang -### -fsycl \
+// RUN:    -fsycl-targets=spir64_gen -Xs "-device pvc,mtl-s" %s 2>&1 \
+// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s
+
+// RUN: %clang -### -fsycl \
 // RUN:    -fsycl-targets=spir64_gen -ftarget-register-alloc-mode=pvc:small,pvc:large %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=MULTIPLE_ARGS_AOT %s
 
@@ -68,6 +72,14 @@
 // RUN:   | FileCheck -check-prefix=BAD_BOTH %s
 
 // RUN: %clangxx -### -fsycl -fsycl-targets=spir64_gen -Xs "-device bdw" \
+// RUN:          %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=NO_PVC %s
+
+// RUN: %clangxx -### -fsycl -fsycl-targets=spir64_gen -Xs "-device *" \
+// RUN:          %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=NO_PVC %s
+
+// RUN: %clangxx -### -fsycl -fsycl-targets=spir64_gen -Xs "-device pvc:mtl-s" \
 // RUN:          %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=NO_PVC %s
 
