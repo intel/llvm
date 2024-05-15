@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/CodeGen/BackendUtil.h"
+#include "BackendConsumer.h"
+#include "LinkInModulesPass.h"
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LangOptions.h"
@@ -133,11 +135,6 @@ static cl::opt<PGOOptions::ColdFuncOpt> ClPGOColdFuncAttr(
 
 extern cl::opt<InstrProfCorrelator::ProfCorrelatorKind> ProfileCorrelate;
 
-// Re-link builtin bitcodes after optimization
-cl::opt<bool> ClRelinkBuiltinBitcodePostop(
-    "relink-builtin-bitcode-postop", cl::Optional,
-    cl::desc("Re-link builtin bitcodes after optimization."), cl::init(false));
-
 static cl::opt<bool> SYCLNativeCPUBackend(
     "sycl-native-cpu-backend", cl::init(false),
     cl::desc("Re-link builtin bitcodes after optimization."));
@@ -158,7 +155,7 @@ class EmitAssemblyHelper {
   const CodeGenOptions &CodeGenOpts;
   const clang::TargetOptions &TargetOpts;
   const LangOptions &LangOpts;
-  Module *TheModule;
+  llvm::Module *TheModule;
   IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS;
 
   Timer CodeGenerationTime;
@@ -201,10 +198,9 @@ class EmitAssemblyHelper {
     return F;
   }
 
-  void
-  RunOptimizationPipeline(BackendAction Action,
-                          std::unique_ptr<raw_pwrite_stream> &OS,
-                          std::unique_ptr<llvm::ToolOutputFile> &ThinLinkOS);
+  void RunOptimizationPipeline(
+      BackendAction Action, std::unique_ptr<raw_pwrite_stream> &OS,
+      std::unique_ptr<llvm::ToolOutputFile> &ThinLinkOS, BackendConsumer *BC);
   void RunCodegenPipeline(BackendAction Action,
                           std::unique_ptr<raw_pwrite_stream> &OS,
                           std::unique_ptr<llvm::ToolOutputFile> &DwoOS);
@@ -232,7 +228,7 @@ public:
                      const HeaderSearchOptions &HeaderSearchOpts,
                      const CodeGenOptions &CGOpts,
                      const clang::TargetOptions &TOpts,
-                     const LangOptions &LOpts, Module *M,
+                     const LangOptions &LOpts, llvm::Module *M,
                      IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS)
       : Diags(_Diags), HSOpts(HeaderSearchOpts), CodeGenOpts(CGOpts),
         TargetOpts(TOpts), LangOpts(LOpts), TheModule(M), VFS(std::move(VFS)),
@@ -247,8 +243,8 @@ public:
   std::unique_ptr<TargetMachine> TM;
 
   // Emit output using the new pass manager for the optimization pipeline.
-  void EmitAssembly(BackendAction Action,
-                    std::unique_ptr<raw_pwrite_stream> OS);
+  void EmitAssembly(BackendAction Action, std::unique_ptr<raw_pwrite_stream> OS,
+                    BackendConsumer *BC);
 };
 } // namespace
 
@@ -460,6 +456,7 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
   Options.UniqueSectionNames = CodeGenOpts.UniqueSectionNames;
   Options.UniqueBasicBlockSectionNames =
       CodeGenOpts.UniqueBasicBlockSectionNames;
+  Options.SeparateNamedSections = CodeGenOpts.SeparateNamedSections;
   Options.TLSSize = CodeGenOpts.TLSSize;
   Options.EnableTLSDESC = CodeGenOpts.EnableTLSDESC;
   Options.EmulatedTLS = CodeGenOpts.EmulatedTLS;
@@ -730,7 +727,7 @@ static void addSanitizers(const Triple &TargetTriple,
           // the logic of the original code, but operates on "shadow" values. It
           // can benefit from re-running some general purpose optimization
           // passes.
-          MPM.addPass(RequireAnalysisPass<GlobalsAA, Module>());
+          MPM.addPass(RequireAnalysisPass<GlobalsAA, llvm::Module>());
           FunctionPassManager FPM;
           FPM.addPass(EarlyCSEPass(true /* Enable mem-ssa. */));
           FPM.addPass(InstCombinePass());
@@ -789,7 +786,7 @@ static void addSanitizers(const Triple &TargetTriple,
           SanitizersCallback(NewMPM, Level);
           if (!NewMPM.isEmpty()) {
             // Sanitizers can abandon<GlobalsAA>.
-            NewMPM.addPass(RequireAnalysisPass<GlobalsAA, Module>());
+            NewMPM.addPass(RequireAnalysisPass<GlobalsAA, llvm::Module>());
             MPM.addPass(std::move(NewMPM));
           }
         });
@@ -811,7 +808,7 @@ static void addSanitizers(const Triple &TargetTriple,
 
 void EmitAssemblyHelper::RunOptimizationPipeline(
     BackendAction Action, std::unique_ptr<raw_pwrite_stream> &OS,
-    std::unique_ptr<llvm::ToolOutputFile> &ThinLinkOS) {
+    std::unique_ptr<llvm::ToolOutputFile> &ThinLinkOS, BackendConsumer *BC) {
   std::optional<PGOOptions> PGOOpt;
 
   if (CodeGenOpts.hasProfileIRInstr())
@@ -1162,6 +1159,10 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     }
   }
 
+  // Link against bitcodes supplied via the -mlink-builtin-bitcode option
+  if (CodeGenOpts.LinkBitcodePostopt)
+    MPM.addPass(LinkInModulesPass(BC, false));
+
   // Add a verifier pass if requested. We don't have to do this if the action
   // requires code generation because there will already be a verifier pass in
   // the code-generation pipeline.
@@ -1174,7 +1175,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       CodeGenOpts.FatLTO) {
     if (CodeGenOpts.PrepareForThinLTO && !CodeGenOpts.DisableLLVMPasses) {
       if (!TheModule->getModuleFlag("EnableSplitLTOUnit"))
-        TheModule->addModuleFlag(Module::Error, "EnableSplitLTOUnit",
+        TheModule->addModuleFlag(llvm::Module::Error, "EnableSplitLTOUnit",
                                  CodeGenOpts.EnableSplitLTOUnit);
       if (Action == Backend_EmitBC) {
         if (!CodeGenOpts.ThinLinkBitcodeFile.empty()) {
@@ -1194,9 +1195,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       bool EmitLTOSummary = shouldEmitRegularLTOSummary();
       if (EmitLTOSummary) {
         if (!TheModule->getModuleFlag("ThinLTO") && !CodeGenOpts.UnifiedLTO)
-          TheModule->addModuleFlag(Module::Error, "ThinLTO", uint32_t(0));
+          TheModule->addModuleFlag(llvm::Module::Error, "ThinLTO", uint32_t(0));
         if (!TheModule->getModuleFlag("EnableSplitLTOUnit"))
-          TheModule->addModuleFlag(Module::Error, "EnableSplitLTOUnit",
+          TheModule->addModuleFlag(llvm::Module::Error, "EnableSplitLTOUnit",
                                    uint32_t(1));
       }
       if (Action == Backend_EmitBC) {
@@ -1279,7 +1280,8 @@ void EmitAssemblyHelper::RunCodegenPipeline(
 }
 
 void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
-                                      std::unique_ptr<raw_pwrite_stream> OS) {
+                                      std::unique_ptr<raw_pwrite_stream> OS,
+                                      BackendConsumer *BC) {
   TimeRegion Region(CodeGenOpts.TimePasses ? &CodeGenerationTime : nullptr);
   setCommandLineOpts(CodeGenOpts);
 
@@ -1295,7 +1297,7 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
   cl::PrintOptionValues();
 
   std::unique_ptr<llvm::ToolOutputFile> ThinLinkOS, DwoOS;
-  RunOptimizationPipeline(Action, OS, ThinLinkOS);
+  RunOptimizationPipeline(Action, OS, ThinLinkOS, BC);
   RunCodegenPipeline(Action, OS, DwoOS);
 
   if (ThinLinkOS)
@@ -1305,11 +1307,12 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
 }
 
 static void runThinLTOBackend(
-    DiagnosticsEngine &Diags, ModuleSummaryIndex *CombinedIndex, Module *M,
-    const HeaderSearchOptions &HeaderOpts, const CodeGenOptions &CGOpts,
-    const clang::TargetOptions &TOpts, const LangOptions &LOpts,
-    std::unique_ptr<raw_pwrite_stream> OS, std::string SampleProfile,
-    std::string ProfileRemapping, BackendAction Action) {
+    DiagnosticsEngine &Diags, ModuleSummaryIndex *CombinedIndex,
+    llvm::Module *M, const HeaderSearchOptions &HeaderOpts,
+    const CodeGenOptions &CGOpts, const clang::TargetOptions &TOpts,
+    const LangOptions &LOpts, std::unique_ptr<raw_pwrite_stream> OS,
+    std::string SampleProfile, std::string ProfileRemapping,
+    BackendAction Action) {
   DenseMap<StringRef, DenseMap<GlobalValue::GUID, GlobalValueSummary *>>
       ModuleToDefinedGVSummaries;
   CombinedIndex->collectDefinedGVSummariesPerModule(ModuleToDefinedGVSummaries);
@@ -1378,18 +1381,18 @@ static void runThinLTOBackend(
   Conf.SplitDwarfOutput = CGOpts.SplitDwarfOutput;
   switch (Action) {
   case Backend_EmitNothing:
-    Conf.PreCodeGenModuleHook = [](size_t Task, const Module &Mod) {
+    Conf.PreCodeGenModuleHook = [](size_t Task, const llvm::Module &Mod) {
       return false;
     };
     break;
   case Backend_EmitLL:
-    Conf.PreCodeGenModuleHook = [&](size_t Task, const Module &Mod) {
+    Conf.PreCodeGenModuleHook = [&](size_t Task, const llvm::Module &Mod) {
       M->print(*OS, nullptr, CGOpts.EmitLLVMUseLists);
       return false;
     };
     break;
   case Backend_EmitBC:
-    Conf.PreCodeGenModuleHook = [&](size_t Task, const Module &Mod) {
+    Conf.PreCodeGenModuleHook = [&](size_t Task, const llvm::Module &Mod) {
       WriteBitcodeToFile(*M, *OS, CGOpts.EmitLLVMUseLists);
       return false;
     };
@@ -1408,14 +1411,12 @@ static void runThinLTOBackend(
   }
 }
 
-void clang::EmitBackendOutput(DiagnosticsEngine &Diags,
-                              const HeaderSearchOptions &HeaderOpts,
-                              const CodeGenOptions &CGOpts,
-                              const clang::TargetOptions &TOpts,
-                              const LangOptions &LOpts, StringRef TDesc,
-                              Module *M, BackendAction Action,
-                              IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS,
-                              std::unique_ptr<raw_pwrite_stream> OS) {
+void clang::EmitBackendOutput(
+    DiagnosticsEngine &Diags, const HeaderSearchOptions &HeaderOpts,
+    const CodeGenOptions &CGOpts, const clang::TargetOptions &TOpts,
+    const LangOptions &LOpts, StringRef TDesc, llvm::Module *M,
+    BackendAction Action, IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS,
+    std::unique_ptr<raw_pwrite_stream> OS, BackendConsumer *BC) {
 
   llvm::TimeTraceScope TimeScope("Backend");
 
@@ -1458,7 +1459,7 @@ void clang::EmitBackendOutput(DiagnosticsEngine &Diags,
   }
 
   EmitAssemblyHelper AsmHelper(Diags, HeaderOpts, CGOpts, TOpts, LOpts, M, VFS);
-  AsmHelper.EmitAssembly(Action, std::move(OS));
+  AsmHelper.EmitAssembly(Action, std::move(OS), BC);
 
   // Verify clang's TargetInfo DataLayout against the LLVM TargetMachine's
   // DataLayout.
