@@ -114,8 +114,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(cuda
-    "https://github.com/Bensuo/unified-runtime.git"
-    "cuda_bool"
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 1ff111c12ea5bcb7b524dc377237c997fd884b8f
+    # Merge: 50452b75 28393448
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed May 15 13:30:30 2024 +0100
+    #     Merge pull request #1596 from Bensuo/cuda_bool
+    #     [CUDA] Change `bool` variable type to `unsigned int`
+    1ff111c12ea5bcb7b524dc377237c997fd884b8f
   )
 
   fetch_adapter_source(hip
