@@ -845,7 +845,6 @@ static void PrintIncludeFooter(Preprocessor &PP, SourceLocation Loc,
   StringRef FooterContentBuffer = SourceMgr.getBufferData(FooterFileID);
   // print out the name of the integration footer.
   Callbacks->WriteFooterInfo(Footer);
-  std::string StrippedFooterContentBuffer;
   SmallVector<StringRef, 8> FooterContentArr;
   FooterContentBuffer.split(FooterContentArr, '\r');
   // print out the content of the integration footer.
