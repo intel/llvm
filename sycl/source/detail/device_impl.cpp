@@ -883,10 +883,10 @@ device_impl::getProgressGuarantee(
   // between root_group and threadScope and then return the weakest of these.
   // Counterintuitively, this corresponds to taking the max of the enum values
   // because of how the forward_progress_guarantee enum values are declared.
-  int guaranteeNum = static_cast<int>(
-      getImmediateProgressGuarantee(execution_scope::root_group));
-  for (int currentScope = coordinationScope; currentScope > threadScopeNum;
-       --currentScope) {
+  int guaranteeNum =
+      static_cast<int>(getImmediateProgressGuarantee(coordinationScope));
+  for (int currentScope = static_cast<int>(coordinationScope) - 1;
+       currentScope > threadScopeNum; --currentScope) {
     guaranteeNum = std::max(guaranteeNum,
                             static_cast<int>(getImmediateProgressGuarantee(
                                 static_cast<execution_scope>(currentScope))));
