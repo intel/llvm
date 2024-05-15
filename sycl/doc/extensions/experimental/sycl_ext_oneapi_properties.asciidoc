@@ -598,10 +598,10 @@ This section provides more detailed information for implementers. It is non-norm
 
 === Interface Guidelines for `properties` consumers
 
-Adding a new compile-time constant property requires to introduce the following:
+Adding a new compile-time constant property requires the following:
 
 * A new class representing the property key
-* Specializations of `sycl::is_property_key_of` for the new property class
+* Specializations of `sycl::is_property_key_of` for the new property class (if desired)
 * A global variable that represents an object of the property value
 
 === Example of a Compile-time Constant Property
