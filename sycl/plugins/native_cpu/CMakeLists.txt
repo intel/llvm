@@ -86,13 +86,6 @@ if(NATIVECPU_USE_OCK)
   install(TARGETS multi_llvm EXPORT;LLVMExports)
   set_property(GLOBAL APPEND PROPERTY LLVM_EXPORTS multi_llvm)
   target_compile_definitions(LLVMSYCLNativeCPUUtils PRIVATE  NATIVECPU_USE_OCK)
-  target_compile_definitions(LLVMSYCLLowerIR PRIVATE  NATIVECPU_USE_OCK)
-  target_include_directories(LLVMSYCLLowerIR PRIVATE 
-    ${oneapi-ck_SOURCE_DIR}/modules/compiler/multi_llvm/include
-    ${oneapi-ck_SOURCE_DIR}/modules/cargo/include
-    ${oneapi-ck_SOURCE_DIR}/modules/compiler/vecz/include
-    ${oneapi-ck_SOURCE_DIR}/modules/compiler/compiler_pipeline/include
-    ${oneapi-ck_SOURCE_DIR}/modules/compiler/utils/include)
   target_include_directories(LLVMSYCLNativeCPUUtils PRIVATE 
     ${oneapi-ck_SOURCE_DIR}/modules/compiler/multi_llvm/include
     ${oneapi-ck_SOURCE_DIR}/modules/cargo/include
