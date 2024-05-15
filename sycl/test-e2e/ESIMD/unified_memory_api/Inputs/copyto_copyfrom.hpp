@@ -56,6 +56,7 @@ bool testUSM(queue Q, uint32_t Groups, uint32_t Threads,
          uint32_t ElemOff = GlobalID * N;
          simd<T, N> Vals(ElemOff, 1);
          simd<T, N> Input;
+         simd<int32_t, N> ByteOffsets(ElemOff * sizeof(T), sizeof(T));
          if constexpr (UseProperties) {
            Vals.copy_to(Out + ElemOff, PropertiesT{});
            Input.copy_from(In + ElemOff, PropertiesT{});
@@ -63,6 +64,7 @@ bool testUSM(queue Q, uint32_t Groups, uint32_t Threads,
            Vals.copy_to(Out + ElemOff);
            Input.copy_from(In + ElemOff);
          }
+         Vals = gather<T, N>(Out, ByteOffsets);
          Vals += Input;
          constexpr int ChunkSize = sizeof(T) * N < 4 ? 2 : 16;
 
@@ -118,7 +120,7 @@ bool testACC(queue Q, uint32_t Groups, uint32_t Threads,
          uint32_t ElemOff = GlobalID * N;
          simd<T, N> Vals(ElemOff, 1);
          simd<T, N> Input;
-
+         simd<int32_t, N> ByteOffsets(ElemOff * sizeof(T), sizeof(T));
          if constexpr (UseProperties) {
            Vals.copy_to(OutAcc, ElemOff * sizeof(T), PropertiesT{});
            Input.copy_from(InAcc, ElemOff * sizeof(T), PropertiesT{});
@@ -126,6 +128,7 @@ bool testACC(queue Q, uint32_t Groups, uint32_t Threads,
            Vals.copy_to(OutAcc, ElemOff * sizeof(T));
            Input.copy_from(InAcc, ElemOff * sizeof(T));
          }
+         Vals = gather<T, N>(OutAcc, ByteOffsets);
          Vals += Input;
          constexpr int ChunkSize = sizeof(T) * N < 4 ? 2 : 16;
 
@@ -179,35 +182,33 @@ bool testLocalAccSLM(queue Q, uint32_t Groups, PropertiesT Properties) {
          uint32_t LocalElemOffset = LocalID * N * sizeof(T);
          uint32_t ElemOff = GlobalID * N;
          simd<T, N> Vals(ElemOff, 1);
-
+         simd<int32_t, N> ByteOffsets(LocalElemOffset, sizeof(T));
          if (LocalID == 0) {
            for (int I = 0; I < Size; I++) {
-             simd<T, 1> InVec(OutVal);
-             InVec.copy_to(LocalAcc, I * sizeof(T));
+             simd<T, 1> InVec(I + ElemOff);
+             if (GlobalID % GroupSize)
+               scatter(LocalAcc, simd<uint32_t, 1>(I * sizeof(T)), InVec);
+             else
+               InVec.copy_to(LocalAcc, I * sizeof(T));
            }
          }
          barrier();
-         if constexpr (UseProperties) {
-           Vals.copy_to(LocalAcc, LocalElemOffset, PropertiesT{});
-           Vals.copy_from(LocalAcc, LocalElemOffset, PropertiesT{});
-         } else {
-           Vals.copy_to(LocalAcc, LocalElemOffset);
-           Vals.copy_from(LocalAcc, LocalElemOffset);
-         }
-         Vals *= 2;
          constexpr int ChunkSize = sizeof(T) * N < 4 ? 2 : 16;
 
          if constexpr (UseProperties) {
-           Vals.template copy_to<decltype(LocalAcc), ChunkSize>(
-               LocalAcc, LocalElemOffset, PropertiesT{});
-           Vals.template copy_from<decltype(LocalAcc), ChunkSize>(
-               LocalAcc, LocalElemOffset, PropertiesT{});
+           if (GlobalID % GroupSize)
+             Vals.template copy_from<decltype(LocalAcc), ChunkSize>(
+                 LocalAcc, LocalElemOffset, PropertiesT{});
+           else
+             Vals = gather<T, N>(LocalAcc, ByteOffsets, PropertiesT{});
          } else {
-           Vals.template copy_to<decltype(LocalAcc), ChunkSize>(
-               LocalAcc, LocalElemOffset);
-           Vals.template copy_from<decltype(LocalAcc), ChunkSize>(
-               LocalAcc, LocalElemOffset);
+           if (GlobalID % GroupSize)
+             Vals.template copy_from(LocalAcc, LocalElemOffset);
+           else
+             Vals = gather<T, N>(LocalAcc, ByteOffsets);
          }
+
+         Vals *= 2;
          Vals.copy_to(OutPtr + ElemOff);
        });
      }).wait();
