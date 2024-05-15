@@ -224,14 +224,11 @@ public:
     return createSyclObjFromImpl<context>(MContext);
   }
 
-  /// \return the Plugin associated with the context of this program.
-  const PluginPtr &getPlugin() const {
-    assert(!is_host() && "Plugin is not available for Host.");
-    return MContext->getPlugin();
-  }
-
   /// \return the Plugin associated with the context of this program
-  const UrPluginPtr &getUrPlugin() const { return MContext->getUrPlugin(); }
+  const UrPluginPtr &getUrPlugin() const {
+    assert(!is_host() && "Plugin is not available for Host.");
+    return MContext->getUrPlugin();
+  }
 
   ContextImplPtr getContextImplPtr() const { return MContext; }
 

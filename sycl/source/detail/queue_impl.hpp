@@ -361,8 +361,6 @@ public:
     return createSyclObjFromImpl<context>(MContext);
   }
 
-  const PluginPtr &getPlugin() const { return MContext->getPlugin(); }
-
   const UrPluginPtr &getUrPlugin() const { return MContext->getUrPlugin(); }
 
   const ContextImplPtr &getContextImplPtr() const { return MContext; }

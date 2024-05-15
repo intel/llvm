@@ -123,8 +123,6 @@ public:
   /// \return true if this SYCL kernel is a host kernel.
   bool is_host() const { return MContext->is_host(); }
 
-  const PluginPtr &getPlugin() const { return MContext->getPlugin(); }
-
   const UrPluginPtr &getUrPlugin() const { return MContext->getUrPlugin(); }
 
   /// Query information from the kernel object using the info::kernel_info

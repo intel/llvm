@@ -152,10 +152,6 @@ public:
 
   /// \return the Plugin associated with the context of this event.
   /// Should be called when this is not a Host Event.
-  const PluginPtr &getPlugin();
-
-  /// \return the Plugin associated with the context of this event.
-  /// Should be called when this is not a Host Event.
   const UrPluginPtr &getUrPlugin();
 
   /// Associate event with the context.

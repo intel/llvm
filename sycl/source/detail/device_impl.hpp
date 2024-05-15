@@ -127,7 +127,6 @@ public:
   platform get_platform() const;
 
   /// \return the associated plugin with this device.
-  const PluginPtr &getPlugin() const { return MPlatform->getPlugin(); }
   const UrPluginPtr &getUrPlugin() const { return MPlatform->getUrPlugin(); }
 
   /// Check SYCL extension support by device

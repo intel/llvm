@@ -30,7 +30,6 @@ class ThreadPool;
 
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
 using ContextImplPtr = std::shared_ptr<context_impl>;
-using PluginPtr = std::shared_ptr<plugin>;
 using UrPluginPtr = std::shared_ptr<urPlugin>;
 
 /// Wrapper class for global data structures with non-trivial destructors.
@@ -70,7 +69,6 @@ public:
   std::mutex &getPlatformToDefaultContextCacheMutex();
   std::mutex &getPlatformMapMutex();
   std::mutex &getFilterMutex();
-  std::vector<PluginPtr> &getPlugins();
   std::vector<UrPluginPtr> &getUrPlugins();
   ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
@@ -127,7 +125,6 @@ private:
   InstWithLock<std::mutex> MPlatformToDefaultContextCacheMutex;
   InstWithLock<std::mutex> MPlatformMapMutex;
   InstWithLock<std::mutex> MFilterMutex;
-  InstWithLock<std::vector<PluginPtr>> MPlugins;
   InstWithLock<std::vector<UrPluginPtr>> MUrPlugins;
   InstWithLock<ods_target_list> MOneapiDeviceSelectorTargets;
   InstWithLock<XPTIRegistry> MXPTIRegistry;

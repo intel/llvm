@@ -315,7 +315,6 @@ private:
   friend class ::MockKernelProgramCache;
 
   const UrPluginPtr &getUrPlugin();
-  const PluginPtr &getPlugin();
 };
 } // namespace detail
 } // namespace _V1

@@ -144,7 +144,6 @@ std::vector<platform> platform_impl::get_platforms() {
   // There should be just one plugin serving each backend.
   // this is where piPluginInit currently ends up getting called,
   // and it's where LoaderInit and AdapterGet will happen
-  // std::vector<PluginPtr> &Plugins = sycl::detail::pi::initialize();
   std::vector<UrPluginPtr> &Plugins = sycl::detail::pi::initializeUr();
   std::vector<std::pair<platform, UrPluginPtr>> PlatformsWithPlugin;
 

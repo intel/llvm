@@ -49,9 +49,6 @@ enum class UrApiKind {
 #include <sycl/detail/ur.def>
 };
 
-class plugin;
-using PluginPtr = std::shared_ptr<plugin>;
-
 class urPlugin;
 using UrPluginPtr = std::shared_ptr<urPlugin>;
 
@@ -192,18 +189,10 @@ std::string platformInfoToString(pi_platform_info info);
 // Want all the needed casts be explicit, do not define conversion operators.
 template <class To, class From> To cast(From value);
 
-// Holds the PluginInformation for the plugin that is bound.
-// Currently a global variable is used to store OpenCL plugin information to be
-// used with SYCL Interoperability Constructors.
-// TODO: GlobalPlugin does not seem to be needed anymore. Consider removing it!
-extern std::shared_ptr<plugin> GlobalPlugin;
-
 // Performs PI one-time initialization.
-std::vector<PluginPtr> &initialize();
 std::vector<UrPluginPtr> &initializeUr();
 
 // Get the plugin serving given backend.
-template <backend BE> __SYCL_EXPORT const PluginPtr &getPlugin();
 template <backend BE> __SYCL_EXPORT const UrPluginPtr &getUrPlugin();
 
 // Utility Functions to get Function Name for a PI Api.

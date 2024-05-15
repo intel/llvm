@@ -126,11 +126,6 @@ const ContextImplPtr &event_impl::getContextImpl() {
   return MContext;
 }
 
-const PluginPtr &event_impl::getPlugin() {
-  ensureContextInitialized();
-  return MContext->getPlugin();
-}
-
 const UrPluginPtr &event_impl::getUrPlugin() {
   ensureContextInitialized();
   return MContext->getUrPlugin();

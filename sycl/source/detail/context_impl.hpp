@@ -108,9 +108,6 @@ public:
   const async_handler &get_async_handler() const;
 
   /// \return the Plugin associated with the platform of this context.
-  const PluginPtr &getPlugin() const { return MPlatform->getPlugin(); }
-
-  /// \return the Plugin associated with the platform of this context.
   const UrPluginPtr &getUrPlugin() const { return MPlatform->getUrPlugin(); }
 
   /// \return the PlatformImpl associated with this context.

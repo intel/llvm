@@ -127,22 +127,9 @@ public:
   /// \return a vector of all available SYCL platforms.
   static std::vector<platform> get_platforms();
 
-  // \return the Plugin associated with this platform.
-  const PluginPtr &getPlugin() const {
+  const UrPluginPtr &getUrPlugin() const {
     assert(!MHostPlatform && "Plugin is not available for Host.");
-    return MPlugin;
-  }
-
-  const UrPluginPtr &getUrPlugin() const { return MUrPlugin; }
-
-  /// Sets the platform implementation to use another plugin.
-  ///
-  /// \param PluginPtr is a pointer to a plugin instance
-  /// \param Backend is the backend that we want this platform to use
-  void setPlugin(PluginPtr &PluginPtr, backend Backend) {
-    assert(!MHostPlatform && "Plugin is not available for Host");
-    MPlugin = PluginPtr;
-    MBackend = Backend;
+    return MUrPlugin;
   }
 
   /// Gets the native handle of the SYCL platform.
@@ -231,7 +218,6 @@ private:
   ur_platform_handle_t MUrPlatform = 0;
   backend MBackend;
 
-  PluginPtr MPlugin;
   UrPluginPtr MUrPlugin;
 
   std::vector<std::weak_ptr<device_impl>> MDeviceCache;

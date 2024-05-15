@@ -75,8 +75,6 @@ getPluginOpaqueData<sycl::backend::ext_intel_esimd_emulator>(void *);
 
 namespace pi {
 
-static void initializePlugins(std::vector<PluginPtr> &Plugins);
-
 static void initializeUrPlugins(std::vector<UrPluginPtr> &Plugins);
 
 bool XPTIInitDone = false;
@@ -372,21 +370,6 @@ bool trace(TraceLevel Level) {
 }
 
 // Initializes all available Plugins.
-std::vector<PluginPtr> &initialize() {
-  // This uses static variable initialization to work around a gcc bug with
-  // std::call_once and exceptions.
-  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66146
-  auto initializeHelper = []() {
-    initializePlugins(GlobalHandler::instance().getPlugins());
-    return true;
-  };
-  static bool Initialized = initializeHelper();
-  std::ignore = Initialized;
-
-  return GlobalHandler::instance().getPlugins();
-}
-
-// Initializes all available Plugins.
 std::vector<UrPluginPtr> &initializeUr() {
   static std::once_flag PluginsInitDone;
   // std::call_once is blocking all other threads if a thread is already
@@ -450,127 +433,6 @@ for (const auto &adapter : adapters) {
 }
 } // namespace pi
 
-static void initializePlugins(std::vector<PluginPtr> &Plugins) {
-  const std::vector<std::pair<std::string, backend>> PluginNames =
-      findPlugins();
-
-  if (PluginNames.empty() && trace(PI_TRACE_ALL))
-    std::cerr << "SYCL_PI_TRACE[all]: "
-              << "No Plugins Found." << std::endl;
-
-  // Get library handles for the list of plugins.
-  std::vector<std::tuple<std::string, backend, void *>> LoadedPlugins =
-      loadPlugins(std::move(PluginNames));
-
-  bool IsAsanUsed = ProgramManager::getInstance().kernelUsesAsan();
-
-  for (auto &[Name, Backend, Library] : LoadedPlugins) {
-    std::shared_ptr<PiPlugin> PluginInformation =
-        std::make_shared<PiPlugin>(PiPlugin{
-            _PI_H_VERSION_STRING, _PI_H_VERSION_STRING,
-            /*Targets=*/nullptr, /*FunctionPointers=*/{},
-            /*IsAsanUsed*/
-            IsAsanUsed ? _PI_SANITIZE_TYPE_ADDRESS : _PI_SANITIZE_TYPE_NONE});
-
-    if (!Library) {
-      if (trace(PI_TRACE_ALL)) {
-        std::cerr << "SYCL_PI_TRACE[all]: "
-                  << "Check if plugin is present. "
-                  << "Failed to load plugin: " << Name << std::endl;
-      }
-      continue;
-    }
-
-    if (!bindPlugin(Library, PluginInformation)) {
-      if (trace(PI_TRACE_ALL)) {
-        std::cerr << "SYCL_PI_TRACE[all]: "
-                  << "Failed to bind PI APIs to the plugin: " << Name
-                  << std::endl;
-      }
-      continue;
-    }
-    PluginPtr &NewPlugin = Plugins.emplace_back(
-        std::make_shared<plugin>(PluginInformation, Backend, Library));
-    if (trace(TraceLevel::PI_TRACE_BASIC))
-      std::cerr << "SYCL_PI_TRACE[basic]: "
-                << "Plugin found and successfully loaded: " << Name
-                << " [ PluginVersion: "
-                << NewPlugin->getPiPlugin().PluginVersion << " ]" << std::endl;
-  }
-
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  GlobalHandler::instance().getXPTIRegistry().initializeFrameworkOnce();
-
-  if (!(xptiTraceEnabled() && !XPTIInitDone))
-    return;
-  // Not sure this is the best place to initialize the framework; SYCL runtime
-  // team needs to advise on the right place, until then we piggy-back on the
-  // initialization of the PI layer.
-
-  // Initialize the global events just once, in the case pi::initialize() is
-  // called multiple times
-  XPTIInitDone = true;
-  // Registers a new stream for 'sycl' and any plugin that wants to listen to
-  // this stream will register itself using this string or stream ID for this
-  // string.
-  uint8_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
-  //  Let all tool plugins know that a stream by the name of 'sycl' has been
-  //  initialized and will be generating the trace stream.
-  GlobalHandler::instance().getXPTIRegistry().initializeStream(
-      SYCL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
-  // Create a tracepoint to indicate the graph creation
-  xpti::payload_t GraphPayload("application_graph");
-  uint64_t GraphInstanceNo;
-  GSYCLGraphEvent =
-      xptiMakeEvent("application_graph", &GraphPayload, xpti::trace_graph_event,
-                    xpti_at::active, &GraphInstanceNo);
-  if (GSYCLGraphEvent) {
-    // The graph event is a global event and will be used as the parent for
-    // all nodes (command groups)
-    xptiNotifySubscribers(StreamID, xpti::trace_graph_create, nullptr,
-                          GSYCLGraphEvent, GraphInstanceNo, nullptr);
-  }
-
-  // Let subscribers know a new stream is being initialized
-  GlobalHandler::instance().getXPTIRegistry().initializeStream(
-      SYCL_PICALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
-  xpti::payload_t PIPayload("Plugin Interface Layer");
-  uint64_t PiInstanceNo;
-  GPICallEvent =
-      xptiMakeEvent("PI Layer", &PIPayload, xpti::trace_algorithm_event,
-                    xpti_at::active, &PiInstanceNo);
-
-  GlobalHandler::instance().getXPTIRegistry().initializeStream(
-      SYCL_PIDEBUGCALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
-  xpti::payload_t PIArgPayload(
-      "Plugin Interface Layer (with function arguments)");
-  uint64_t PiArgInstanceNo;
-  GPIArgCallEvent = xptiMakeEvent("PI Layer with arguments", &PIArgPayload,
-                                  xpti::trace_algorithm_event, xpti_at::active,
-                                  &PiArgInstanceNo);
-
-  PiCallStreamID = xptiRegisterStream(SYCL_PICALL_STREAM_NAME);
-  PiDebugCallStreamID = xptiRegisterStream(SYCL_PIDEBUGCALL_STREAM_NAME);
-#endif
-}
-
-// Get the plugin serving given backend.
-template <backend BE> const PluginPtr &getPlugin() {
-  static PluginPtr *Plugin = nullptr;
-  if (Plugin)
-    return *Plugin;
-
-  std::vector<PluginPtr> &Plugins = pi::initialize();
-  for (auto &P : Plugins)
-    if (P->hasBackend(BE)) {
-      Plugin = &P;
-      return *Plugin;
-    }
-
-  throw runtime_error("pi::getPlugin couldn't find plugin",
-                      PI_ERROR_INVALID_OPERATION);
-}
-
 // Get the plugin serving given backend.
 template <backend BE> const UrPluginPtr &getUrPlugin() {
   static UrPluginPtr *Plugin = nullptr;
@@ -587,14 +449,6 @@ template <backend BE> const UrPluginPtr &getUrPlugin() {
   throw runtime_error("pi::getUrPlugin couldn't find plugin",
                       PI_ERROR_INVALID_OPERATION);
 }
-
-template __SYCL_EXPORT const PluginPtr &getPlugin<backend::opencl>();
-template __SYCL_EXPORT const PluginPtr &
-getPlugin<backend::ext_oneapi_level_zero>();
-template __SYCL_EXPORT const PluginPtr &
-getPlugin<backend::ext_intel_esimd_emulator>();
-template __SYCL_EXPORT const PluginPtr &getPlugin<backend::ext_oneapi_cuda>();
-template __SYCL_EXPORT const PluginPtr &getPlugin<backend::ext_oneapi_hip>();
 
 template __SYCL_EXPORT const UrPluginPtr &getUrPlugin<backend::opencl>();
 template __SYCL_EXPORT const UrPluginPtr &

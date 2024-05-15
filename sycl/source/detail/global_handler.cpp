@@ -203,10 +203,7 @@ std::mutex &GlobalHandler::getPlatformMapMutex() {
 std::mutex &GlobalHandler::getFilterMutex() {
   return getOrCreate(MFilterMutex);
 }
-std::vector<PluginPtr> &GlobalHandler::getPlugins() {
-  enableOnCrashStackPrinting();
-  return getOrCreate(MPlugins);
-}
+
 std::vector<UrPluginPtr> &GlobalHandler::getUrPlugins() {
   enableOnCrashStackPrinting();
   return getOrCreate(MUrPlugins);
@@ -261,18 +258,6 @@ void GlobalHandler::unloadPlugins() {
   // Call to GlobalHandler::instance().getPlugins() initializes plugins. If
   // user application has loaded SYCL runtime, and never called any APIs,
   // there's no need to load and unload plugins.
-  if (MPlugins.Inst) {
-    for (const PluginPtr &Plugin : getPlugins()) {
-      // PluginParameter for Teardown is the boolean tracking if a
-      // given plugin has been teardown successfully.
-      // This tracking prevents usage of this plugin after teardown
-      // has been completed to avoid invalid resource access.
-      Plugin->call<PiApiKind::piTearDown>(&Plugin->pluginReleased);
-      Plugin->unload();
-    }
-  }
-  // Clear after unload to avoid uses after unload.
-  getPlugins().clear();
   if (MUrPlugins.Inst) {
     for (const auto &Plugin : getUrPlugins()) {
       Plugin->release();
@@ -344,8 +329,8 @@ void shutdown_late() {
 
   // Clear the plugins and reset the instance if it was there.
   Handler->unloadPlugins();
-  if (Handler->MPlugins.Inst)
-    Handler->MPlugins.Inst.reset(nullptr);
+  if (Handler->MUrPlugins.Inst)
+    Handler->MUrPlugins.Inst.reset(nullptr);
 
   Handler->MXPTIRegistry.Inst.reset(nullptr);
 
