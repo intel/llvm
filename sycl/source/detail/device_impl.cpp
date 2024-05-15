@@ -880,9 +880,10 @@ device_impl::getProgressGuarantee(
   using execution_scope = ext::oneapi::experimental::execution_scope;
   int threadScopeNum = static_cast<int>(threadScope);
   // we get the immediate progress guarantee that is provided by each scope
-  // between coordinationScope and threadScope and then return the weakest of these.
-  // Counterintuitively, this corresponds to taking the max of the enum values
-  // because of how the forward_progress_guarantee enum values are declared.
+  // between coordinationScope and threadScope and then return the weakest of
+  // these. Counterintuitively, this corresponds to taking the max of the enum
+  // values because of how the forward_progress_guarantee enum values are
+  // declared.
   int guaranteeNum =
       static_cast<int>(getImmediateProgressGuarantee(coordinationScope));
   for (int currentScope = static_cast<int>(coordinationScope) - 1;
