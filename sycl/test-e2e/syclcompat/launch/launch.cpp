@@ -384,31 +384,32 @@ template <typename T> void test_reqd_sg_size() {
 
   int SubgroupSize = 16;
   const int modifier_val = 9;
+  const int num_elements = 1024;
 
-  T *h_a = (T *)syclcompat::malloc_host(ltt.memsize_ * sizeof(T));
-  T *d_a = (T *)syclcompat::malloc(ltt.memsize_ * sizeof(T));
+  T *h_a = (T *)syclcompat::malloc_host(num_elements * sizeof(T));
+  T *d_a = (T *)syclcompat::malloc(num_elements * sizeof(T));
   auto sg_sizes = syclcompat::get_default_queue()
                       .get_device()
                       .get_info<sycl::info::device::sub_group_sizes>();
 
   if (std::find(sg_sizes.begin(), sg_sizes.end(), 16) != sg_sizes.end()) {
     syclc_exp::launch<reqd_sg_size_kernel<T>, 16>(
-        ltt.grid_, ltt.thread_, modifier_val, static_cast<int>(ltt.memsize_),
+        ltt.grid_, ltt.thread_, modifier_val, static_cast<int>(num_elements),
         d_a);
   } else {
     SubgroupSize = 32;
     syclc_exp::launch<reqd_sg_size_kernel<T>, 32>(
-        ltt.grid_, ltt.thread_, modifier_val, static_cast<int>(ltt.memsize_),
+        ltt.grid_, ltt.thread_, modifier_val, static_cast<int>(num_elements),
         d_a);
   }
 
   syclcompat::wait_and_throw();
-  syclcompat::memcpy<T>(h_a, d_a, ltt.memsize_);
+  syclcompat::memcpy<T>(h_a, d_a, num_elements);
   syclcompat::free(d_a);
 
-  for (int i = 0; i < static_cast<int>(ltt.memsize_); i++) {
+  for (int i = 0; i < static_cast<int>(num_elements); i++) {
     T result;
-    if (i < (static_cast<int>(ltt.memsize_) - modifier_val)) {
+    if (i < (static_cast<int>(num_elements) - modifier_val)) {
       result = static_cast<T>((i + modifier_val - SubgroupSize) < 0
                                   ? 0
                                   : (i + modifier_val - SubgroupSize));
@@ -431,30 +432,30 @@ template <typename T> void test_reqd_sg_size_q() {
   int SubgroupSize = 16;
   const int modifier_val = 9;
   auto &q = ltt.in_order_q_;
+  const int num_elements = 1024;
 
-  T *h_a = (T *)syclcompat::malloc_host(ltt.memsize_ * sizeof(T), q);
-  T *d_a = (T *)syclcompat::malloc(ltt.memsize_ * sizeof(T), q);
-
+  T *h_a = (T *)syclcompat::malloc_host(num_elements * sizeof(T), q);
+  T *d_a = (T *)syclcompat::malloc(num_elements * sizeof(T), q);
+  sycl::nd_range<3> launch_range(sycl::range<3>(ltt.grid_ * ltt.thread_),
+                                 sycl::range<3>(ltt.thread_));
   auto sg_sizes =
       q.get_device().template get_info<sycl::info::device::sub_group_sizes>();
   if (std::find(sg_sizes.begin(), sg_sizes.end(), 16) != sg_sizes.end()) {
     syclc_exp::launch<reqd_sg_size_kernel<T>, 16>(
-        ltt.grid_, ltt.thread_, modifier_val, static_cast<int>(ltt.memsize_),
-        d_a);
+        launch_range, q, modifier_val, static_cast<int>(num_elements), d_a);
   } else {
     SubgroupSize = 32;
     syclc_exp::launch<reqd_sg_size_kernel<T>, 32>(
-        ltt.grid_, ltt.thread_, modifier_val, static_cast<int>(ltt.memsize_),
-        d_a);
+        launch_range, q, modifier_val, static_cast<int>(num_elements), d_a);
   }
 
   syclcompat::wait_and_throw();
-  syclcompat::memcpy<T>(h_a, d_a, ltt.memsize_, q);
+  syclcompat::memcpy<T>(h_a, d_a, num_elements, q);
   syclcompat::free(d_a, q);
 
-  for (int i = 0; i < static_cast<int>(ltt.memsize_); i++) {
+  for (int i = 0; i < static_cast<int>(num_elements); i++) {
     T result;
-    if (i < (static_cast<int>(ltt.memsize_) - modifier_val)) {
+    if (i < (static_cast<int>(num_elements) - modifier_val)) {
       result = static_cast<T>((i + modifier_val - SubgroupSize) < 0
                                   ? 0
                                   : (i + modifier_val - SubgroupSize));
