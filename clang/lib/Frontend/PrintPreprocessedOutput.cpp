@@ -147,7 +147,6 @@ public:
   /// MoveToLine(/*...*/, /*RequireStartOfLine=*/true).
   void startNewLineIfNeeded();
 
-  void AddFooter(SourceLocation Lo, std::string Footer);
   void FileChanged(SourceLocation Loc, FileChangeReason Reason,
                    SrcMgr::CharacteristicKind FileType,
                    FileID PrevFID) override;
@@ -340,14 +339,6 @@ void PrintPPOutputPPCallbacks::startNewLineIfNeeded() {
     EmittedTokensOnThisLine = false;
     EmittedDirectiveOnThisLine = false;
   }
-}
-void PrintPPOutputPPCallbacks::AddFooter(SourceLocation Loc,
-                                         std::string Footer) {
-  PresumedLoc UserLoc = SM.getPresumedLoc(Loc);
-  if (UserLoc.isInvalid())
-    return;
-
-  WriteFooterInfo(Footer);
 }
 
 /// FileChanged - Whenever the preprocessor enters or exits a #include file
@@ -1103,6 +1094,8 @@ void clang::DoPrintPreprocessedInput(Preprocessor &PP, raw_ostream *OS,
   *OS << '\n';
 
   if (!PP.getPreprocessorOpts().IncludeFooter.empty()) {
+    assert(PP.getLangOpts().SYCLIsHost &&
+           "The 'include-footer' is expected in host compilation only");
     SourceLocation Loc = Tok.getLocation();
     PrintIncludeFooter(PP, Loc, PP.getPreprocessorOpts().IncludeFooter,
                        Callbacks);
