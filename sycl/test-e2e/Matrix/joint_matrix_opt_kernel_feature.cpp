@@ -15,7 +15,4 @@
 // incompatible on the current device
 
 #include "common.hpp"
-
-static constexpr size_t SN = 16;
-
 #include "joint_matrix_opt_kernel_feature_impl.hpp"

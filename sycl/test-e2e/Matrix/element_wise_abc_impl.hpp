@@ -15,7 +15,7 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 
 #define TM 8
 #define TK 32
-class add;
+// class add;
 
 template <typename T1, typename T2, size_t M, size_t N, size_t K,
           int vnniFactor>
@@ -28,15 +28,13 @@ void matrix_elem_wise_ops(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
   buffer<T1, 2> bufC(C.get_data(), range<2>(M, N));
 
   queue q;
-  std::cout << "Artem: before get_sg_size()\n";
-  size_t sg_size = get_sg_size<add>(q);
-  std::cout << "Artem: after get_sg_size()\n";
+  size_t sg_size = get_sg_size<class add>(q);
   q.submit([&](handler &cgh) {
      accessor accC{bufC, cgh};
      accessor accA{bufA, cgh};
      accessor accB{bufB, cgh};
 
-     cgh.parallel_for(
+     cgh.parallel_for<class add>(
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
          [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
