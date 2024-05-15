@@ -177,9 +177,6 @@ struct nd_range_kernel_key {
 template<int Dims>
 inline constexpr nd_range_kernel_key::value_t<Dims> nd_range_kernel;
 
-template<>
-struct is_property_key<nd_range_kernel_key> : std::true_type {};
-
 } // namespace sycl::ext::oneapi::experimental
 ----
 !====
@@ -218,9 +215,6 @@ struct single_task_kernel_key {
 };
 
 inline constexpr single_task_kernel_key::value_t single_task_kernel;
-
-template<>
-struct is_property_key<single_task_kernel_key> : std::true_type {};
 
 } // namespace sycl::ext::oneapi::experimental
 ----
