@@ -7,4 +7,6 @@
 
 #define GRAPH_E2E_RECORD_REPLAY
 
+// UNSUPPORTED: cuda
+
 #include "../../Inputs/whole_update_double_buffer.cpp"

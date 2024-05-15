@@ -261,6 +261,7 @@ void exec_graph_impl::makePartitions() {
     }
     if (Partition->MRoots.size() > 0) {
       Partition->schedule();
+      Partition->MIsInOrderGraph = Partition->checkIfGraphIsSinglePath();
       MPartitions.push_back(Partition);
       PartitionFinalNum++;
     }
@@ -698,7 +699,9 @@ void exec_graph_impl::createCommandBuffers(
   sycl::detail::pi::PiExtCommandBuffer OutCommandBuffer;
   sycl::detail::pi::PiExtCommandBufferDesc Desc{
       pi_ext_structure_type::PI_EXT_STRUCTURE_TYPE_COMMAND_BUFFER_DESC, nullptr,
-      MIsUpdatable};
+      pi_bool(Partition->MIsInOrderGraph && !MEnableProfiling),
+      pi_bool(MEnableProfiling), pi_bool(MIsUpdatable)};
+
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(Device);
@@ -760,7 +763,9 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
     : MSchedule(), MGraphImpl(GraphImpl), MPiSyncPoints(),
       MDevice(GraphImpl->getDevice()), MContext(Context), MRequirements(),
       MExecutionEvents(),
-      MIsUpdatable(PropList.has_property<property::graph::updatable>()) {
+      MIsUpdatable(PropList.has_property<property::graph::updatable>()),
+      MEnableProfiling(
+          PropList.has_property<property::graph::enable_profiling>()) {
 
   // If the graph has been marked as updatable then check if the backend
   // actually supports that. Devices supporting aspect::ext_oneapi_graph must
@@ -999,6 +1004,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       NewEvent->attachEventToComplete(Elem.second);
     }
   }
+  NewEvent->setProfilingEnabled(MEnableProfiling);
   sycl::event QueueEvent =
       sycl::detail::createSyclObjFromImpl<sycl::event>(NewEvent);
   return QueueEvent;
@@ -1275,6 +1281,8 @@ void exec_graph_impl::update(
   // Rebuild cached requirements for this graph with updated nodes
   MRequirements.clear();
   for (auto &Node : MNodeStorage) {
+    if (!Node->MCommandGroup)
+      continue;
     MRequirements.insert(MRequirements.end(),
                          Node->MCommandGroup->getRequirements().begin(),
                          Node->MCommandGroup->getRequirements().end());
@@ -1691,22 +1699,22 @@ node node::get_node_from_event(event nodeEvent) {
       GraphImpl->getNodeForEvent(EventImpl));
 }
 
-template <> void node::update_nd_range<1>(nd_range<1> NDRange) {
+template <> __SYCL_EXPORT void node::update_nd_range<1>(nd_range<1> NDRange) {
   impl->updateNDRange(NDRange);
 }
-template <> void node::update_nd_range<2>(nd_range<2> NDRange) {
+template <> __SYCL_EXPORT void node::update_nd_range<2>(nd_range<2> NDRange) {
   impl->updateNDRange(NDRange);
 }
-template <> void node::update_nd_range<3>(nd_range<3> NDRange) {
+template <> __SYCL_EXPORT void node::update_nd_range<3>(nd_range<3> NDRange) {
   impl->updateNDRange(NDRange);
 }
-template <> void node::update_range<1>(range<1> Range) {
+template <> __SYCL_EXPORT void node::update_range<1>(range<1> Range) {
   impl->updateRange(Range);
 }
-template <> void node::update_range<2>(range<2> Range) {
+template <> __SYCL_EXPORT void node::update_range<2>(range<2> Range) {
   impl->updateRange(Range);
 }
-template <> void node::update_range<3>(range<3> Range) {
+template <> __SYCL_EXPORT void node::update_range<3>(range<3> Range) {
   impl->updateRange(Range);
 }
 } // namespace experimental
