@@ -39,7 +39,7 @@ void matrix_sum_rows(big_matrix<T1, M, N> &C, float *sum_rows) {
 #ifdef SG_SZ
              [[intel::reqd_sub_group_size(SG_SZ)]]
 #endif
-           {
+         {
            // The submatrix API has to be accessed by all the workitems in a
            // subgroup these functions will be called once by the subgroup no
            // code divergence between the workitems

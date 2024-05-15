@@ -69,8 +69,8 @@ int main() {
 
   matrix_verify_add<bfloat16, MATRIX_M, MATRIX_N, class add>(
       MA, 7.0, [=](bfloat16 &x) { x = x + bfloat16(2); });
-  matrix_verify_add<bfloat16, MATRIX_M, MATRIX_N, class func_add>(MA, 7.0,
-                                                  apply_add<bfloat16>());
+  matrix_verify_add<bfloat16, MATRIX_M, MATRIX_N, class func_add>(
+      MA, 7.0, apply_add<bfloat16>());
   std::cout << "Passed\n";
   return 0;
 }

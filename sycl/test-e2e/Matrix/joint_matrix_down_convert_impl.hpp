@@ -30,11 +30,11 @@ void matrix_copy(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A) {
 
      cgh.parallel_for<class copy>(
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
-         [=](nd_item<2> spmd_item) 
+         [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
              [[intel::reqd_sub_group_size(SG_SZ)]]
 #endif
-          {
+         {
            // The submatrix API has to be accessed by all the workitems in a
            // subgroup these functions will be called once by the subgroup no
            // code divergence between the workitems
