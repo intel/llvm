@@ -2725,6 +2725,10 @@ __ESIMD_API int32_t get_subdevice_id() {
 
 /// @} sycl_esimd_hw_thread_queries
 
+template <uint8_t NbarCount> __ESIMD_API uint8_t named_barrier_allocate() {
+  return __esimd_named_barrier_allocate(NbarCount);
+}
+
 } // namespace experimental::esimd
 
 namespace esimd {
