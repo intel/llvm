@@ -58,14 +58,16 @@ uint8_t PiDebugCallStreamID = 0;
 
 #endif // XPTI_ENABLE_INSTRUMENTATION
 
-template <sycl::backend BE> void *getPluginOpaqueData(void *OpaqueDataParam) {
-  void *ReturnOpaqueData = nullptr;
-  const PluginPtr &Plugin = pi::getPlugin<BE>();
-
-  Plugin->call<sycl::detail::PiApiKind::piextPluginGetOpaqueData>(
-      OpaqueDataParam, &ReturnOpaqueData);
-
-  return ReturnOpaqueData;
+template <sycl::backend BE>
+void *getPluginOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
+  // This was formerly a call to piextPluginGetOpaqueData, a deprecated PI entry
+  // point introduced for the now deleted ESIMD plugin. All calls to this entry
+  // point returned a similar error code to INVALID_OPERATION and would have
+  // resulted in a similar throw to this one
+  throw runtime_error(
+      "This operation is not supported by any existing backends.",
+      UR_RESULT_ERROR_INVALID_OPERATION);
+  return nullptr;
 }
 
 template __SYCL_EXPORT void *
