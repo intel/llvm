@@ -846,7 +846,7 @@ inline pi_result piextPlatformGetNativeHandle(pi_platform Platform,
   ur_native_handle_t UrNativeHandle{};
   HANDLE_ERRORS(urPlatformGetNativeHandle(UrPlatform, &UrNativeHandle));
 
-  *NativeHandle = reinterpret_cast<pi_native_handle>(UrNativeHandle);
+  *NativeHandle = UrNativeHandle;
 
   return PI_SUCCESS;
 }
@@ -865,8 +865,7 @@ piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   (void)adapter;
 
   ur_platform_handle_t UrPlatform{};
-  ur_native_handle_t UrNativeHandle =
-      reinterpret_cast<ur_native_handle_t>(NativeHandle);
+  ur_native_handle_t UrNativeHandle = NativeHandle;
   ur_platform_native_properties_t UrProperties{};
   urPlatformCreateWithNativeHandle(UrNativeHandle, &UrProperties, &UrPlatform);
 
@@ -1342,7 +1341,7 @@ inline pi_result piextDeviceGetNativeHandle(pi_device Device,
 
   ur_native_handle_t UrNativeHandle{};
   HANDLE_ERRORS(urDeviceGetNativeHandle(UrDevice, &UrNativeHandle));
-  *NativeHandle = reinterpret_cast<pi_native_handle>(UrNativeHandle);
+  *NativeHandle = UrNativeHandle;
   return PI_SUCCESS;
 }
 
@@ -1359,8 +1358,7 @@ piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
   }
   (void)adapter;
 
-  ur_native_handle_t UrNativeDevice =
-      reinterpret_cast<ur_native_handle_t>(NativeHandle);
+  ur_native_handle_t UrNativeDevice = NativeHandle;
   ur_platform_handle_t UrPlatform =
       reinterpret_cast<ur_platform_handle_t>(Platform);
   auto UrDevice = reinterpret_cast<ur_device_handle_t *>(Device);
@@ -1550,7 +1548,7 @@ inline pi_result piextContextGetNativeHandle(pi_context Context,
       reinterpret_cast<ur_context_handle_t>(Context);
   ur_native_handle_t UrNativeHandle{};
   HANDLE_ERRORS(urContextGetNativeHandle(UrContext, &UrNativeHandle));
-  *NativeHandle = reinterpret_cast<pi_native_handle>(UrNativeHandle);
+  *NativeHandle = UrNativeHandle;
   return PI_SUCCESS;
 }
 
@@ -1566,8 +1564,7 @@ inline pi_result piextContextCreateWithNativeHandle(
   }
   (void)adapter;
 
-  ur_native_handle_t NativeContext =
-      reinterpret_cast<ur_native_handle_t>(NativeHandle);
+  ur_native_handle_t NativeContext = NativeHandle;
   const ur_device_handle_t *UrDevices =
       reinterpret_cast<const ur_device_handle_t *>(Devices);
   ur_context_handle_t *UrContext =
@@ -1744,8 +1741,7 @@ inline pi_result piextQueueCreateWithNativeHandle(
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
   ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  ur_native_handle_t UrNativeHandle =
-      reinterpret_cast<ur_native_handle_t>(NativeHandle);
+  ur_native_handle_t UrNativeHandle = NativeHandle;
   ur_queue_handle_t *UrQueue = reinterpret_cast<ur_queue_handle_t *>(Queue);
   ur_queue_native_properties_t UrNativeProperties{};
   UrNativeProperties.isNativeHandleOwned = OwnNativeHandle;
@@ -1794,7 +1790,7 @@ inline pi_result piextQueueGetNativeHandle(pi_queue Queue,
   ur_native_handle_t UrNativeQueue{};
   HANDLE_ERRORS(urQueueGetNativeHandle(UrQueue, &UrNativeDesc, &UrNativeQueue));
 
-  *NativeHandle = reinterpret_cast<pi_native_handle>(UrNativeQueue);
+  *NativeHandle = UrNativeQueue;
 
   return PI_SUCCESS;
 }
@@ -2299,8 +2295,7 @@ piextKernelCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Kernel, PI_ERROR_INVALID_KERNEL);
 
-  ur_native_handle_t UrNativeKernel =
-      reinterpret_cast<ur_native_handle_t>(NativeHandle);
+  ur_native_handle_t UrNativeKernel = NativeHandle;
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
   ur_program_handle_t UrProgram =
@@ -2380,7 +2375,7 @@ inline pi_result piextProgramGetNativeHandle(pi_program Program,
   ur_native_handle_t NativeProgram{};
   HANDLE_ERRORS(urProgramGetNativeHandle(UrProgram, &NativeProgram));
 
-  *NativeHandle = reinterpret_cast<pi_native_handle>(NativeProgram);
+  *NativeHandle = NativeProgram;
 
   return PI_SUCCESS;
 }
@@ -2393,8 +2388,7 @@ piextProgramCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
 
-  ur_native_handle_t NativeProgram =
-      reinterpret_cast<ur_native_handle_t>(NativeHandle);
+  ur_native_handle_t NativeProgram = NativeHandle;
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
   ur_program_handle_t *UrProgram =
@@ -2642,7 +2636,7 @@ inline pi_result piextKernelGetNativeHandle(pi_kernel Kernel,
   ur_native_handle_t NativeKernel{};
   HANDLE_ERRORS(urKernelGetNativeHandle(UrKernel, &NativeKernel));
 
-  *NativeHandle = reinterpret_cast<pi_native_handle>(NativeKernel);
+  *NativeHandle = NativeKernel;
 
   return PI_SUCCESS;
 }
@@ -3125,8 +3119,7 @@ inline pi_result piextMemImageCreateWithNativeHandle(
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
 
-  ur_native_handle_t UrNativeMem =
-      reinterpret_cast<ur_native_handle_t>(NativeHandle);
+  ur_native_handle_t UrNativeMem = NativeHandle;
 
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
@@ -3201,7 +3194,7 @@ inline pi_result piextMemGetNativeHandle(pi_mem Mem, pi_device Dev,
   ur_native_handle_t NativeMem{};
   HANDLE_ERRORS(urMemGetNativeHandle(UrMem, UrDev, &NativeMem));
 
-  *NativeHandle = reinterpret_cast<pi_native_handle>(NativeMem);
+  *NativeHandle = NativeMem;
 
   return PI_SUCCESS;
 }
@@ -3246,8 +3239,7 @@ inline pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
 
-  ur_native_handle_t UrNativeMem =
-      reinterpret_cast<ur_native_handle_t>(NativeHandle);
+  ur_native_handle_t UrNativeMem = NativeHandle;
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
   ur_mem_handle_t *UrMem = reinterpret_cast<ur_mem_handle_t *>(Mem);
@@ -4295,7 +4287,7 @@ inline pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
   // as urEventCreate
   ur_event_native_properties_t Properties{};
   HANDLE_ERRORS(
-      urEventCreateWithNativeHandle(nullptr, UrContext, &Properties, UREvent));
+      urEventCreateWithNativeHandle(NULL, UrContext, &Properties, UREvent));
 
   return PI_SUCCESS;
 }
@@ -4309,8 +4301,7 @@ inline pi_result piextEventCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
 
-  ur_native_handle_t UrNativeKernel =
-      reinterpret_cast<ur_native_handle_t>(NativeHandle);
+  ur_native_handle_t UrNativeKernel = NativeHandle;
 
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
