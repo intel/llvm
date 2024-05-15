@@ -12,7 +12,4 @@
 // RUN: %{run} %t.out
 
 #include "common.hpp"
-
-#define SG_SZ 16
-
 #include "element_wise_all_sizes_impl.hpp"
