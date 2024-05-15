@@ -19,18 +19,32 @@ struct BufferFillCommandTest
                                          &buffer));
 
         // First argument is buffer to fill
-        ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, 0, nullptr, buffer));
-
-        // second arg is hidden accessor
-        struct {
-            size_t offsets[1] = {0};
-        } accessor;
-        ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(accessor), nullptr,
-                                           &accessor));
-
-        // Second argument is scalar to fill with.
+        unsigned current_arg_index = 0;
         ASSERT_SUCCESS(
-            urKernelSetArgValue(kernel, 2, sizeof(val), nullptr, &val));
+            urKernelSetArgMemObj(kernel, current_arg_index++, nullptr, buffer));
+
+        // Add accessor arguments depending on backend.
+        // HIP has 3 offset parameters and other backends only have 1.
+        if (backend == UR_PLATFORM_BACKEND_HIP) {
+            size_t val = 0;
+            ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++,
+                                               sizeof(size_t), nullptr, &val));
+            ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++,
+                                               sizeof(size_t), nullptr, &val));
+            ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++,
+                                               sizeof(size_t), nullptr, &val));
+        } else {
+            struct {
+                size_t offsets[1] = {0};
+            } accessor;
+            ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++,
+                                               sizeof(accessor), nullptr,
+                                               &accessor));
+        }
+
+        // Second user defined argument is scalar to fill with.
+        ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++,
+                                           sizeof(val), nullptr, &val));
 
         // Append kernel command to command-buffer and close command-buffer
         ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
