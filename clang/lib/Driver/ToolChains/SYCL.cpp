@@ -1500,7 +1500,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     Args.AddAllArgValues(TargArgs, options::OPT_Xs, options::OPT_Xs_separate);
     Args.AddAllArgValues(TargArgs, options::OPT_Xsycl_backend);
     // Check for any -device settings.
-    if (IsJit || Device == "pvc" || hasPVCDevice(TargArgs)) {
+    if (IsJIT || Device == "pvc" || hasPVCDevice(TargArgs)) {
       StringRef DeviceName = "pvc";
       StringRef BackendOptName = SYCL::gen::getGenGRFFlag("auto");
       if (IsGen)
