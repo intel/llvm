@@ -434,8 +434,9 @@ AtomicExpandImpl::convertAtomicXchgToIntegerType(AtomicRMWInst *RMWI) {
                       ? Builder.CreatePtrToInt(Val, NewTy)
                       : Builder.CreateBitCast(Val, NewTy);
 
-  auto *NewRMWI = Builder.CreateAtomicRMW(
-      AtomicRMWInst::Xchg, Addr, NewVal, RMWI->getAlign(), RMWI->getOrdering());
+  auto *NewRMWI = Builder.CreateAtomicRMW(AtomicRMWInst::Xchg, Addr, NewVal,
+                                          RMWI->getAlign(), RMWI->getOrdering(),
+                                          RMWI->getSyncScopeID());
   NewRMWI->setVolatile(RMWI->isVolatile());
   LLVM_DEBUG(dbgs() << "Replaced " << *RMWI << " with " << *NewRMWI << "\n");
 
@@ -908,9 +909,10 @@ void AtomicExpandImpl::expandPartwordAtomicRMW(
   Value *ValOperand_Shifted = nullptr;
   if (Op == AtomicRMWInst::Xchg || Op == AtomicRMWInst::Add ||
       Op == AtomicRMWInst::Sub || Op == AtomicRMWInst::Nand) {
+    Value *ValOp = Builder.CreateBitCast(AI->getValOperand(), PMV.IntValueType);
     ValOperand_Shifted =
-        Builder.CreateShl(Builder.CreateZExt(AI->getValOperand(), PMV.WordType),
-                          PMV.ShiftAmt, "ValOperand_Shifted");
+        Builder.CreateShl(Builder.CreateZExt(ValOp, PMV.WordType), PMV.ShiftAmt,
+                          "ValOperand_Shifted");
   }
 
   auto PerformPartwordOp = [&](IRBuilderBase &Builder, Value *Loaded) {

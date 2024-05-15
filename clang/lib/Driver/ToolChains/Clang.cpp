@@ -869,46 +869,6 @@ static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
   }
 }
 
-/// Check whether the given input tree contains any compilation actions.
-static bool ContainsCompileAction(const Action *A) {
-  if (isa<CompileJobAction>(A) || isa<BackendJobAction>(A))
-    return true;
-
-  return llvm::any_of(A->inputs(), ContainsCompileAction);
-}
-
-/// Check if -relax-all should be passed to the internal assembler.
-/// This is done by default when compiling non-assembler source with -O0.
-static bool UseRelaxAll(Compilation &C, const ArgList &Args) {
-  bool RelaxDefault = true;
-
-  if (Arg *A = Args.getLastArg(options::OPT_O_Group))
-    RelaxDefault = A->getOption().matches(options::OPT_O0);
-
-  // RISC-V requires an indirect jump for offsets larger than 1MiB. This cannot
-  // be done by assembler branch relaxation as it needs a free temporary
-  // register. Because of this, branch relaxation is handled by a MachineIR
-  // pass before the assembler. Forcing assembler branch relaxation for -O0
-  // makes the MachineIR branch relaxation inaccurate and it will miss cases
-  // where an indirect branch is necessary. To avoid this issue we are
-  // sacrificing the compile time improvement of using -mrelax-all for -O0.
-  if (C.getDefaultToolChain().getTriple().isRISCV())
-    RelaxDefault = false;
-
-  if (RelaxDefault) {
-    RelaxDefault = false;
-    for (const auto &Act : C.getActions()) {
-      if (ContainsCompileAction(Act)) {
-        RelaxDefault = true;
-        break;
-      }
-    }
-  }
-
-  return Args.hasFlag(options::OPT_mrelax_all, options::OPT_mno_relax_all,
-                      RelaxDefault);
-}
-
 static void
 RenderDebugEnablingArgs(const ArgList &Args, ArgStringList &CmdArgs,
                         llvm::codegenoptions::DebugInfoKind DebugInfoKind,
@@ -2604,8 +2564,16 @@ static void CollectArgsForIntegratedAssembler(Compilation &C,
                                               const ArgList &Args,
                                               ArgStringList &CmdArgs,
                                               const Driver &D) {
-  if (UseRelaxAll(C, Args))
-    CmdArgs.push_back("-mrelax-all");
+  // Default to -mno-relax-all.
+  //
+  // Note: RISC-V requires an indirect jump for offsets larger than 1MiB. This
+  // cannot be done by assembler branch relaxation as it needs a free temporary
+  // register. Because of this, branch relaxation is handled by a MachineIR pass
+  // before the assembler. Forcing assembler branch relaxation for -O0 makes the
+  // MachineIR branch relaxation inaccurate and it will miss cases where an
+  // indirect branch is necessary.
+  Args.addOptInFlag(CmdArgs, options::OPT_mrelax_all,
+                    options::OPT_mno_relax_all);
 
   // Only default to -mincremental-linker-compatible if we think we are
   // targeting the MSVC linker.
@@ -2900,20 +2868,17 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   bool TrappingMathPresent = false; // Is trapping-math in args, and not
                                     // overriden by ffp-exception-behavior?
   bool RoundingFPMath = false;
-  bool RoundingMathPresent = false; // Is rounding-math in args?
   // -ffp-model values: strict, fast, precise
   StringRef FPModel = "";
   // -ffp-exception-behavior options: strict, maytrap, ignore
   StringRef FPExceptionBehavior = "";
   // -ffp-eval-method options: double, extended, source
   StringRef FPEvalMethod = "";
-  const llvm::DenormalMode DefaultDenormalFPMath =
+  llvm::DenormalMode DenormalFPMath =
       TC.getDefaultDenormalModeForType(Args, JA);
-  const llvm::DenormalMode DefaultDenormalFP32Math =
+  llvm::DenormalMode DenormalFP32Math =
       TC.getDefaultDenormalModeForType(Args, JA, &llvm::APFloat::IEEEsingle());
 
-  llvm::DenormalMode DenormalFPMath = DefaultDenormalFPMath;
-  llvm::DenormalMode DenormalFP32Math = DefaultDenormalFP32Math;
   // CUDA and HIP don't rely on the frontend to pass an ffp-contract option.
   // If one wasn't given by the user, don't pass it here.
   StringRef FPContract;
@@ -2966,16 +2931,10 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   }
 
   for (const Arg *A : Args) {
-    auto optID = A->getOption().getID();
-    bool PreciseFPModel = false;
-    switch (optID) {
-    default:
-      break;
-    case options::OPT_ffp_accuracy_EQ: {
-      StringRef Val = A->getValue();
-      FPAccuracy = Val;
-      break;
-    }
+    switch (A->getOption().getID()) {
+    // If this isn't an FP option skip the claim below
+    default: continue;
+
     case options::OPT_fcx_limited_range:
       if (GccRangeComplexOption.empty()) {
         if (Range != LangOptions::ComplexRangeKind::CX_Basic)
@@ -3057,6 +3016,11 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       Range = RangeVal;
       break;
     }
+    case options::OPT_ffp_accuracy_EQ: {
+      StringRef Val = A->getValue();
+      FPAccuracy = Val;
+      break;
+    }
     case options::OPT_ffp_model_EQ: {
       // If -ffp-model= is seen, reset to fno-fast-math
       HonorINFs = true;
@@ -3069,13 +3033,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       AssociativeMath = false;
       ReciprocalMath = false;
       SignedZeros = true;
-      // -fno_fast_math restores default denormal and fpcontract handling
       FPContract = "on";
-      DenormalFPMath = llvm::DenormalMode::getIEEE();
-
-      // FIXME: The target may have picked a non-IEEE default mode here based on
-      // -cl-denorms-are-zero. Should the target consider -fp-model interaction?
-      DenormalFP32Math = llvm::DenormalMode::getIEEE();
 
       StringRef Val = A->getValue();
       if (OFastEnabled && !Val.equals("fast")) {
@@ -3085,10 +3043,6 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
         break;
       }
       StrictFPModel = false;
-      PreciseFPModel = true;
-      // ffp-model= is a Driver option, it is entirely rewritten into more
-      // granular options before being passed into cc1.
-      // Use the gcc option in the switch below.
       if (!FPModel.empty() && !FPModel.equals(Val))
         D.Diag(clang::diag::warn_drv_overriding_option)
             << Args.MakeArgString("-ffp-model=" + FPModel)
@@ -3097,27 +3051,20 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
         FPModel = Val;
         applyFastMath();
       } else if (Val.equals("precise")) {
-        optID = options::OPT_ffp_contract;
         FPModel = Val;
         FPContract = "on";
-        PreciseFPModel = true;
       } else if (Val.equals("strict")) {
         StrictFPModel = true;
-        optID = options::OPT_frounding_math;
         FPExceptionBehavior = "strict";
         FPModel = Val;
         FPContract = "off";
         TrappingMath = true;
+        RoundingFPMath = true;
       } else
         D.Diag(diag::err_drv_unsupported_option_argument)
             << A->getSpelling() << Val;
       break;
     }
-    }
-
-    switch (optID) {
-    // If this isn't an FP option skip the claim below
-    default: continue;
 
     // Options controlling individual features
     case options::OPT_fhonor_infinities:    HonorINFs = true;         break;
@@ -3161,12 +3108,10 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
 
     case options::OPT_frounding_math:
       RoundingFPMath = true;
-      RoundingMathPresent = true;
       break;
 
     case options::OPT_fno_rounding_math:
       RoundingFPMath = false;
-      RoundingMathPresent = false;
       break;
 
     case options::OPT_fcuda_flush_denormals_to_zero:
@@ -3194,13 +3139,8 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     // Validate and pass through -ffp-contract option.
     case options::OPT_ffp_contract: {
       StringRef Val = A->getValue();
-      if (PreciseFPModel) {
-        // -ffp-model=precise enables ffp-contract=on.
-        // -ffp-model=precise sets PreciseFPModel to on and Val to
-        // "precise". FPContract is set.
-        ;
-      } else if (Val.equals("fast") || Val.equals("on") || Val.equals("off") ||
-                 Val.equals("fast-honor-pragmas")) {
+      if (Val.equals("fast") || Val.equals("on") || Val.equals("off") ||
+          Val.equals("fast-honor-pragmas")) {
         FPContract = Val;
         LastSeenFfpContractOption = Val;
       } else
@@ -3208,13 +3148,6 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
             << A->getSpelling() << Val;
       break;
     }
-
-    // Validate and pass through -ffp-model option.
-    case options::OPT_ffp_model_EQ:
-      // This should only occur in the error case
-      // since the optID has been replaced by a more granular
-      // floating point option.
-      break;
 
     // Validate and pass through -ffp-exception-behavior option.
     case options::OPT_ffp_exception_behavior_EQ: {
@@ -3296,12 +3229,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       ReciprocalMath = false;
       SignedZeros = true;
       ApproxFunc = false;
-      TrappingMath = true;
-      FPExceptionBehavior = "strict";
 
-      // The target may have opted to flush by default, so force IEEE.
-      DenormalFPMath = llvm::DenormalMode::getIEEE();
-      DenormalFP32Math = llvm::DenormalMode::getIEEE();
       if (!JA.isDeviceOffloading(Action::OFK_Cuda) &&
           !JA.isOffloading(Action::OFK_HIP)) {
         if (LastSeenFfpContractOption != "") {
@@ -3332,9 +3260,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       ReciprocalMath = false;
       ApproxFunc = false;
       SignedZeros = true;
-      // -fno_fast_math restores default denormal and fpcontract handling
-      DenormalFPMath = DefaultDenormalFPMath;
-      DenormalFP32Math = llvm::DenormalMode::getIEEE();
+      // -fno_fast_math restores default fpcontract handling
       if (!JA.isDeviceOffloading(Action::OFK_Cuda) &&
           !JA.isOffloading(Action::OFK_HIP)) {
         if (LastSeenFfpContractOption != "") {
@@ -3344,13 +3270,17 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       }
       break;
     }
+    // The StrictFPModel local variable is needed to report warnings
+    // in the way we intend. If -ffp-model=strict has been used, we
+    // want to report a warning for the next option encountered that
+    // takes us out of the settings described by fp-model=strict, but
+    // we don't want to continue issuing warnings for other conflicting
+    // options after that.
     if (StrictFPModel) {
       // If -ffp-model=strict has been specified on command line but
       // subsequent options conflict then emit warning diagnostic.
       if (HonorINFs && HonorNaNs && !AssociativeMath && !ReciprocalMath &&
           SignedZeros && TrappingMath && RoundingFPMath && !ApproxFunc &&
-          DenormalFPMath == llvm::DenormalMode::getIEEE() &&
-          DenormalFP32Math == llvm::DenormalMode::getIEEE() &&
           FPContract.equals("off"))
         // OK: Current Arg doesn't conflict with -ffp-model=strict
         ;
@@ -3419,11 +3349,10 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   if (!FPContract.empty())
     CmdArgs.push_back(Args.MakeArgString("-ffp-contract=" + FPContract));
 
-  if (!RoundingFPMath)
-    CmdArgs.push_back(Args.MakeArgString("-fno-rounding-math"));
-
-  if (RoundingFPMath && RoundingMathPresent)
+  if (RoundingFPMath)
     CmdArgs.push_back(Args.MakeArgString("-frounding-math"));
+  else
+    CmdArgs.push_back(Args.MakeArgString("-fno-rounding-math"));
 
   if (!FPExceptionBehavior.empty())
     CmdArgs.push_back(Args.MakeArgString("-ffp-exception-behavior=" +
@@ -7346,7 +7275,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (const Arg *A =
           Args.getLastArg(options::OPT_fvisibility_global_new_delete_hidden)) {
     D.Diag(diag::warn_drv_deprecated_arg)
-        << A->getAsString(Args)
+        << A->getAsString(Args) << /*hasReplacement=*/true
         << "-fvisibility-global-new-delete=force-hidden";
   }
 
@@ -8081,11 +8010,15 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.addOptOutFlag(CmdArgs, options::OPT_fassume_unique_vtables,
                      options::OPT_fno_assume_unique_vtables);
 
-  // -frelaxed-template-template-args is off by default, as it is a severe
-  // breaking change until a corresponding change to template partial ordering
-  // is provided.
-  Args.addOptInFlag(CmdArgs, options::OPT_frelaxed_template_template_args,
-                    options::OPT_fno_relaxed_template_template_args);
+  // -frelaxed-template-template-args is deprecated.
+  if (Arg *A =
+          Args.getLastArg(options::OPT_frelaxed_template_template_args,
+                          options::OPT_fno_relaxed_template_template_args)) {
+    D.Diag(diag::warn_drv_deprecated_arg)
+        << A->getAsString(Args) << /*hasReplacement=*/false;
+    if (A->getOption().matches(options::OPT_fno_relaxed_template_template_args))
+      CmdArgs.push_back("-fno-relaxed-template-template-args");
+  }
 
   // -fsized-deallocation is off by default, as it is an ABI-breaking change for
   // most platforms.
@@ -8328,6 +8261,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.addOptInFlag(CmdArgs, options::OPT_fsafe_buffer_usage_suggestions,
                     options::OPT_fno_safe_buffer_usage_suggestions);
+
+  Args.addOptInFlag(CmdArgs, options::OPT_fexperimental_late_parse_attributes,
+                    options::OPT_fno_experimental_late_parse_attributes);
 
   // Setup statistics file output.
   SmallString<128> StatsFile = getStatsFileName(Args, Output, Input, D);
@@ -8961,7 +8897,7 @@ static EHFlags parseClangCLEHFlags(const Driver &D, const ArgList &Args,
 
   std::vector<std::string> EHArgs =
       Args.getAllArgValues(options::OPT__SLASH_EH);
-  for (auto EHVal : EHArgs) {
+  for (const auto &EHVal : EHArgs) {
     for (size_t I = 0, E = EHVal.size(); I != E; ++I) {
       switch (EHVal[I]) {
       case 'a':
@@ -10404,7 +10340,7 @@ static void getOtherSPIRVTransOpts(Compilation &C,
       C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
       TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
           .equals_insensitive("spirv") &&
-      !TCArgs.hasArg(options::OPT_fsycl_device_only);
+      !C.getDriver().offloadDeviceOnly();
   bool ShouldPreserveMetadataInFinalImage =
       TCArgs.hasArg(options::OPT_fsycl_preserve_device_nonsemantic_metadata);
   bool ShouldPreserveMetadata =
@@ -10558,13 +10494,6 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     C.addCommand(std::move(Cmd));
 }
 
-static void addArgs(ArgStringList &DstArgs, const llvm::opt::ArgList &Alloc,
-                    ArrayRef<StringRef> SrcArgs) {
-  for (const auto Arg : SrcArgs) {
-    DstArgs.push_back(Alloc.MakeArgString(Arg));
-  }
-}
-
 // Partially copied from clang/lib/Frontend/CompilerInvocation.cpp
 static std::string getSYCLPostLinkOptimizationLevel(const ArgList &Args) {
   if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
@@ -10594,40 +10523,65 @@ static std::string getSYCLPostLinkOptimizationLevel(const ArgList &Args) {
   return "-O2";
 }
 
-// sycl-post-link tool normally outputs a file table (see the tool sources for
-// format description) which lists all the other output files associated with
-// the device LLVMIR bitcode. This is basically a triple of bitcode, symbols
-// and specialization constant files. Single LLVM IR output can be generated as
-// well under an option.
-//
-void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
-                             const InputInfo &Output,
-                             const InputInfoList &Inputs,
-                             const llvm::opt::ArgList &TCArgs,
-                             const char *LinkingOutput) const {
-  const SYCLPostLinkJobAction *SYCLPostLink =
-      dyn_cast<SYCLPostLinkJobAction>(&JA);
-  // Construct sycl-post-link command.
-  assert(SYCLPostLink && "Expecting SYCL post link job!");
-  ArgStringList CmdArgs;
+static void addArgs(ArgStringList &DstArgs, const llvm::opt::ArgList &Alloc,
+                    ArrayRef<StringRef> SrcArgs) {
+  for (const auto Arg : SrcArgs) {
+    DstArgs.push_back(Alloc.MakeArgString(Arg));
+  }
+}
 
-  llvm::Triple T = getToolChain().getTriple();
+static void getOtherSYCLPostLinkOpts(const ToolChain &TC, const JobAction &JA,
+                                     const llvm::opt::ArgList &TCArgs,
+                                     ArgStringList &PostLinkArgs,
+                                     bool SpecConsts, types::ID OutputType) {
   // See if device code splitting is requested
   if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_device_code_split_EQ)) {
     auto CodeSplitValue = StringRef(A->getValue());
     if (CodeSplitValue == "per_kernel")
-      addArgs(CmdArgs, TCArgs, {"-split=kernel"});
+      addArgs(PostLinkArgs, TCArgs, {"-split=kernel"});
     else if (CodeSplitValue == "per_source")
-      addArgs(CmdArgs, TCArgs, {"-split=source"});
+      addArgs(PostLinkArgs, TCArgs, {"-split=source"});
     else if (CodeSplitValue == "auto")
-      addArgs(CmdArgs, TCArgs, {"-split=auto"});
+      addArgs(PostLinkArgs, TCArgs, {"-split=auto"});
     else { // Device code split is off
     }
-  } else if (T.getArchName() != "spir64_fpga") {
-    // for FPGA targets, off is the default split mode,
-    // otherwise auto is the default split mode
-    addArgs(CmdArgs, TCArgs, {"-split=auto"});
   }
+  if (OutputType == types::TY_LLVM_BC) {
+    // single file output requested - this means only perform necessary IR
+    // transformations (like specialization constant intrinsic lowering) and
+    // output LLVMIR
+    addArgs(PostLinkArgs, TCArgs, {"-ir-output-only"});
+  }
+  addArgs(PostLinkArgs, TCArgs,
+          {StringRef(getSYCLPostLinkOptimizationLevel(TCArgs))});
+  // specialization constants processing is mandatory
+  if (SpecConsts)
+    addArgs(PostLinkArgs, TCArgs, {"-spec-const=native"});
+  else
+    addArgs(PostLinkArgs, TCArgs, {"-spec-const=emulation"});
+
+  // Process device-globals.
+  addArgs(PostLinkArgs, TCArgs, {"-device-globals"});
+
+  // Make ESIMD accessors use stateless memory accesses.
+  if (TCArgs.hasFlag(options::OPT_fno_sycl_esimd_force_stateless_mem,
+                     options::OPT_fsycl_esimd_force_stateless_mem, false))
+    addArgs(PostLinkArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
+}
+
+// Add any sycl-post-link options that rely on a specific Triple.
+static void
+getTripleBasedSYCLPostLinkOpts(const ToolChain &TC, const JobAction &JA,
+                               const llvm::opt::ArgList &TCArgs,
+                               llvm::Triple Triple, ArgStringList &PostLinkArgs,
+                               bool SpecConsts, types::ID OutputType) {
+
+  // See if device code splitting is requested.  The logic here works along side
+  // the behavior in setOtherSYCLPostLinkOpts, where the option is added based
+  // on the user setting of-fsycl-device-code-split.
+  if (!(TCArgs.hasArg(options::OPT_fsycl_device_code_split_EQ) ||
+        Triple.getArchName() == "spir64_fpga"))
+    addArgs(PostLinkArgs, TCArgs, {"-split=auto"});
 
   // On Intel targets we don't need non-kernel functions as entry points,
   // because it only increases amount of code for device compiler to handle,
@@ -10635,62 +10589,64 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // TODO: Try to extend this feature for non-Intel GPUs.
   if (!TCArgs.hasFlag(options::OPT_fno_sycl_remove_unused_external_funcs,
                       options::OPT_fsycl_remove_unused_external_funcs, false) &&
-      !T.isNVPTX() && !T.isAMDGPU() &&
-      !isSYCLNativeCPU(getToolChain()))
-    addArgs(CmdArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
+      !Triple.isNVPTX() && !Triple.isAMDGPU() && !isSYCLNativeCPU(TC))
+    addArgs(PostLinkArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 
-  // OPT_fsycl_device_code_split is not checked as it is an alias to
-  // -fsycl-device-code-split=auto
-
-  if (!(T.isAMDGCN()))
-    addArgs(CmdArgs, TCArgs, {"-emit-param-info"});
+  if (!(Triple.isAMDGCN()))
+    addArgs(PostLinkArgs, TCArgs, {"-emit-param-info"});
   // Enable PI program metadata
-  if (T.isNVPTX() || T.isAMDGCN() || isSYCLNativeCPU(getToolChain()))
-    addArgs(CmdArgs, TCArgs, {"-emit-program-metadata"});
-  if (SYCLPostLink->getTrueType() == types::TY_LLVM_BC) {
-    // single file output requested - this means only perform necessary IR
-    // transformations (like specialization constant intrinsic lowering) and
-    // output LLVMIR
-    addArgs(CmdArgs, TCArgs, {"-ir-output-only"});
-  } else {
-    assert(SYCLPostLink->getTrueType() == types::TY_Tempfiletable);
-    bool SplitEsimdByDefault = T.isSPIROrSPIRV();
+  if (Triple.isNVPTX() || Triple.isAMDGCN() || isSYCLNativeCPU(TC))
+    addArgs(PostLinkArgs, TCArgs, {"-emit-program-metadata"});
+  if (OutputType != types::TY_LLVM_BC) {
+    assert(OutputType == types::TY_Tempfiletable);
+    bool SplitEsimdByDefault = Triple.isSPIROrSPIRV();
     bool SplitEsimd = TCArgs.hasFlag(
         options::OPT_fsycl_device_code_split_esimd,
         options::OPT_fno_sycl_device_code_split_esimd, SplitEsimdByDefault);
     // Symbol file and specialization constant info generation is mandatory -
     // add options unconditionally
-    addArgs(CmdArgs, TCArgs, {"-symbols"});
-    addArgs(CmdArgs, TCArgs, {"-emit-exported-symbols"});
+    addArgs(PostLinkArgs, TCArgs, {"-symbols"});
+    addArgs(PostLinkArgs, TCArgs, {"-emit-exported-symbols"});
     if (SplitEsimd)
-      addArgs(CmdArgs, TCArgs, {"-split-esimd"});
-    addArgs(CmdArgs, TCArgs, {"-lower-esimd"});
+      addArgs(PostLinkArgs, TCArgs, {"-split-esimd"});
+    addArgs(PostLinkArgs, TCArgs, {"-lower-esimd"});
   }
-  addArgs(CmdArgs, TCArgs,
-          {StringRef(getSYCLPostLinkOptimizationLevel(TCArgs))});
-  // specialization constants processing is mandatory
-  if (SYCLPostLink->getRTSetsSpecConstants())
-    addArgs(CmdArgs, TCArgs, {"-spec-const=native"});
-  else
-    addArgs(CmdArgs, TCArgs, {"-spec-const=emulation"});
-
-  bool isAOT = T.isNVPTX() || T.isAMDGCN() ||
-               T.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
-               T.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
-               T.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
+  bool isAOT = Triple.isNVPTX() || Triple.isAMDGCN() ||
+               Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
+               Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
+               Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
   if (TCArgs.hasFlag(options::OPT_fsycl_add_default_spec_consts_image,
                      options::OPT_fno_sycl_add_default_spec_consts_image,
                      false) &&
       isAOT)
-    addArgs(CmdArgs, TCArgs, {"-generate-device-image-default-spec-consts"});
+    addArgs(PostLinkArgs, TCArgs,
+            {"-generate-device-image-default-spec-consts"});
+}
 
-  // Process device-globals.
-  addArgs(CmdArgs, TCArgs, {"-device-globals"});
+// sycl-post-link tool normally outputs a file table (see the tool sources for
+// format description) which lists all the other output files associated with
+// the device LLVMIR bitcode. This is basically a triple of bitcode, symbols
+// and specialization constant files. Single LLVM IR output can be generated as
+// well under an option.
+//
+void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
+                                const InputInfo &Output,
+                                const InputInfoList &Inputs,
+                                const llvm::opt::ArgList &TCArgs,
+                                const char *LinkingOutput) const {
+  const SYCLPostLinkJobAction *SYCLPostLink =
+      dyn_cast<SYCLPostLinkJobAction>(&JA);
+  // Construct sycl-post-link command.
+  assert(SYCLPostLink && "Expecting SYCL post link job!");
+  ArgStringList CmdArgs;
 
-  // Make ESIMD accessors use stateless memory accesses.
-  if (TCArgs.hasFlag(options::OPT_fno_sycl_esimd_force_stateless_mem,
-                     options::OPT_fsycl_esimd_force_stateless_mem, false))
-    addArgs(CmdArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
+  llvm::Triple T = getToolChain().getTriple();
+  getOtherSYCLPostLinkOpts(getToolChain(), JA, TCArgs, CmdArgs,
+                           SYCLPostLink->getRTSetsSpecConstants(),
+                           SYCLPostLink->getTrueType());
+  getTripleBasedSYCLPostLinkOpts(getToolChain(), JA, TCArgs, T, CmdArgs,
+                                 SYCLPostLink->getRTSetsSpecConstants(),
+                                 SYCLPostLink->getTrueType());
 
   // Add output file table file option
   assert(Output.isFilename() && "output must be a filename");
@@ -11049,7 +11005,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     SYCLInstallationDetector SYCLInstallation(D);
     SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
     SmallString<128> LibName("libsycl-crt");
-    StringRef LibSuffix = TheTriple.isWindowsMSVCEnvironment() ? ".obj" : ".o";
+    bool IsNewOffload = D.getUseNewOffloadingDriver();
+    StringRef LibSuffix = TheTriple.isWindowsMSVCEnvironment()
+                              ? (IsNewOffload ? ".new.obj" : ".obj")
+                              : (IsNewOffload ? ".new.o" : ".o");
     llvm::sys::path::replace_extension(LibName, LibSuffix);
     for (const auto &LibLoc : LibLocCandidates) {
       SmallString<128> FullLibName(LibLoc);
@@ -11069,13 +11028,30 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     };
     // --sycl-post-link-options="options" provides a string of options to be
     // passed along to the sycl-post-link tool during device link.
+    SmallString<128> PostLinkOptString;
     if (Args.hasArg(options::OPT_Xdevice_post_link)) {
-      SmallString<128> OptString;
       for (const auto &A : Args.getAllArgValues(options::OPT_Xdevice_post_link))
-        appendOption(OptString, A);
-      CmdArgs.push_back(
-          Args.MakeArgString("--sycl-post-link-options=" + OptString));
+        appendOption(PostLinkOptString, A);
     }
+    ArgStringList PostLinkArgs;
+    bool IsSYCLNativeCPU = driver::isSYCLNativeCPU(Args);
+    types::ID OutputType = TargetTriple.isSPIROrSPIRV() || IsSYCLNativeCPU
+                               ? types::TY_Tempfiletable
+                               : types::TY_LLVM_BC;
+    // TODO: Items like native_cpu and Specialization Constants behaviors are
+    // dependent on each toolchain.  Passing these along as 'general settings'
+    // for the clang-linker-wrapper causes for potential inconsistencies and
+    // would need to handled more at the device linking level.
+    bool SpecConsts = TargetTriple.isSPIROrSPIRV();
+    getOtherSYCLPostLinkOpts(getToolChain(), JA, Args, PostLinkArgs, SpecConsts,
+                             OutputType);
+    getTripleBasedSYCLPostLinkOpts(getToolChain(), JA, Args, TargetTriple,
+                                   PostLinkArgs, SpecConsts, OutputType);
+    for (const auto &A : PostLinkArgs)
+      appendOption(PostLinkOptString, A);
+    if (!PostLinkOptString.empty())
+      CmdArgs.push_back(
+          Args.MakeArgString("--sycl-post-link-options=" + PostLinkOptString));
 
     // --llvm-spirv-options="options" provides a string of options to be passed
     // along to the llvm-spirv (translation) step during device link.

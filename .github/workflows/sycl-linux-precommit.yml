@@ -46,7 +46,6 @@ jobs:
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
       changes: ${{ needs.detect_changes.outputs.filters }}
-      build_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest-cc1dd89176dd35522d57022a57204b41ae2611a9"
 
   determine_arc_tests:
     name: Decide which Arc tests to run
@@ -60,7 +59,9 @@ jobs:
       - name: Determine Arc tests
         id: arc_tests
         run: |
-          if [ "${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}" == "true" ]; then
+          if [ "${{ contains(needs.detect_changes.outputs.filters, 'devigccfg') }}" == "true" ]; then
+            echo 'arc_tests="(ESIMD|InvokeSimd|Matrix)/"' >> "$GITHUB_OUTPUT"
+          elif [ "${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}" == "true" ]; then
              echo 'arc_tests=""' >> "$GITHUB_OUTPUT"
           elif [ "${{ contains(needs.detect_changes.outputs.filters, 'esimd') }}" == "true" ]; then
             echo 'arc_tests="(ESIMD|InvokeSimd|Matrix)/"' >> "$GITHUB_OUTPUT"
@@ -76,7 +77,7 @@ jobs:
         include:
           - name: AMD/HIP
             runner: '["Linux", "amdgpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_build:latest-cc1dd89176dd35522d57022a57204b41ae2611a9
+            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: ext_oneapi_hip:gpu
           - name: Intel
@@ -93,12 +94,22 @@ jobs:
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
             reset_gpu: true
+            install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
+            extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
+            env: '{"LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
+          - name: E2E tests with dev igc on Intel Arc A-Series Graphics
+            runner: '["Linux", "arc"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:${{ contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') && 'latest' || 'devigc' }}
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
+            reset_gpu: true
             install_drivers: >-
               ${{ contains(needs.detect_changes.outputs.filters, 'drivers') ||
               contains(needs.detect_changes.outputs.filters, 'devigccfg') }}
             use_dev_igc: ${{ contains(needs.detect_changes.outputs.filters, 'devigccfg') }}
             extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
             env: '{"LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
+
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}

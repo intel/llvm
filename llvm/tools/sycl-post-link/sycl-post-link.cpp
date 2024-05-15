@@ -1019,7 +1019,7 @@ bool isTargetCompatibleWithModule(const std::optional<std::string> &Target,
 
     // Make the set of aspects values the target supports.
     SmallSet<int64_t, 32> TargetAspectValueSet;
-    for (auto Aspect : TargetInfo.aspects) {
+    for (const auto &Aspect : TargetInfo.aspects) {
       auto It = AspectNameToValue.find(Aspect);
       assert(It != AspectNameToValue.end() && "Aspect value mapping unknown!");
       TargetAspectValueSet.insert(It->second);
@@ -1027,7 +1027,7 @@ bool isTargetCompatibleWithModule(const std::optional<std::string> &Target,
 
     // Now check to see if all the requirements of the input module
     // are compatbile with the target.
-    for (auto Aspect : ModuleReqs.Aspects) {
+    for (const auto &Aspect : ModuleReqs.Aspects) {
       if (!TargetAspectValueSet.contains(Aspect))
         return false;
     }
@@ -1054,8 +1054,7 @@ processInputModule(std::unique_ptr<Module> M) {
       util::SimpleTable::create(ColumnTitles);
   CHECK_AND_EXIT(TableE.takeError());
   std::vector<std::unique_ptr<util::SimpleTable>> Tables;
-  for (auto OutputFile : OutputFiles) {
-    std::ignore = OutputFile;
+  for (size_t i = 0; i < OutputFiles.size(); ++i) {
     Expected<std::unique_ptr<util::SimpleTable>> TableE =
         util::SimpleTable::create(ColumnTitles);
     CHECK_AND_EXIT(TableE.takeError());

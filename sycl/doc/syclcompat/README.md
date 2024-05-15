@@ -1121,7 +1121,7 @@ However, they provide an optional argument to represent the `logical_group` size
 
 `int_as_queue_ptr` helps with translation of code by reinterpret casting an
 address to `sycl::queue *`, or returning a pointer to Syclcompat's default queue
-if the address is <= 2. 
+if the address is <= 2.
 `args_selector` is a helper class for extracting arguments from an array of
 pointers to arguments or buffer of arguments to pass to a kernel function.
 The class allows users to exclude parameters such as `sycl::nd_item`.
@@ -1235,8 +1235,8 @@ types.
 namespace syclcompat {
 namespace experimental {
 
-#if defined(__AMDGPU__)
-// seq_cst currently not working for AMD
+#if defined(__AMDGPU__) || defined(__NVPTX__)
+// seq_cst currently not working for AMD nor Nvidia
 constexpr sycl::memory_order barrier_memory_order = sycl::memory_order::acq_rel;
 #else
 constexpr sycl::memory_order barrier_memory_order = sycl::memory_order::seq_cst;
@@ -1323,7 +1323,6 @@ If a `std::runtime_error` exception is caught,
 
 `syclcompat::error_code::DEFAULT_ERROR` is returned instead. For both cases, it
 prints the error message to the standard error stream.
-
 
 ``` c++
 namespace syclcompat {

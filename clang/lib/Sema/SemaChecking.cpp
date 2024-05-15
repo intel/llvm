@@ -2350,10 +2350,8 @@ static bool BuiltinCpu(Sema &S, const TargetInfo &TI, CallExpr *TheCall,
   if (!SupportsBI(&TI) && SupportsBI(AuxTI))
     TheTI = AuxTI;
 
-  if (IsCPUSupports && !TheTI->supportsCpuSupports())
-    return S.Diag(TheCall->getBeginLoc(), diag::err_builtin_target_unsupported)
-           << SourceRange(TheCall->getBeginLoc(), TheCall->getEndLoc());
-  if (!IsCPUSupports && !TheTI->supportsCpuIs())
+  if ((!IsCPUSupports && !TheTI->supportsCpuIs()) ||
+      (IsCPUSupports && !TheTI->supportsCpuSupports()))
     return S.Diag(TheCall->getBeginLoc(),
                   TI.getTriple().isOSAIX()
                       ? diag::err_builtin_aix_os_unsupported
@@ -2539,18 +2537,18 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
   case Builtin::BI_bittestandset64:
   case Builtin::BI_interlockedbittestandreset64:
   case Builtin::BI_interlockedbittestandset64:
-    if (CheckBuiltinTargetInSupported(*this, BuiltinID, TheCall,
-                                      {llvm::Triple::x86_64, llvm::Triple::arm,
-                                       llvm::Triple::thumb,
-                                       llvm::Triple::aarch64}))
+    if (CheckBuiltinTargetInSupported(
+            *this, BuiltinID, TheCall,
+            {llvm::Triple::x86_64, llvm::Triple::arm, llvm::Triple::thumb,
+             llvm::Triple::aarch64, llvm::Triple::amdgcn}))
       return ExprError();
     break;
 
   case Builtin::BI__builtin_set_flt_rounds:
-    if (CheckBuiltinTargetInSupported(*this, BuiltinID, TheCall,
-                                      {llvm::Triple::x86, llvm::Triple::x86_64,
-                                       llvm::Triple::arm, llvm::Triple::thumb,
-                                       llvm::Triple::aarch64}))
+    if (CheckBuiltinTargetInSupported(
+            *this, BuiltinID, TheCall,
+            {llvm::Triple::x86, llvm::Triple::x86_64, llvm::Triple::arm,
+             llvm::Triple::thumb, llvm::Triple::aarch64, llvm::Triple::amdgcn}))
       return ExprError();
     break;
 
@@ -3102,6 +3100,7 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
   case Builtin::BI__builtin_elementwise_nearbyint:
   case Builtin::BI__builtin_elementwise_sin:
   case Builtin::BI__builtin_elementwise_sqrt:
+  case Builtin::BI__builtin_elementwise_tan:
   case Builtin::BI__builtin_elementwise_trunc:
   case Builtin::BI__builtin_elementwise_canonicalize: {
     if (PrepareBuiltinElementwiseMathOneArgCall(TheCall))
@@ -3217,13 +3216,20 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
 
     const Expr *Arg = TheCall->getArg(0);
     const auto *TyA = Arg->getType()->getAs<VectorType>();
-    if (!TyA) {
+
+    QualType ElTy;
+    if (TyA)
+      ElTy = TyA->getElementType();
+    else if (Arg->getType()->isSizelessVectorType())
+      ElTy = Arg->getType()->getSizelessVectorEltType(Context);
+
+    if (ElTy.isNull()) {
       Diag(Arg->getBeginLoc(), diag::err_builtin_invalid_arg_type)
           << 1 << /* vector ty*/ 4 << Arg->getType();
       return ExprError();
     }
 
-    TheCall->setType(TyA->getElementType());
+    TheCall->setType(ElTy);
     break;
   }
 
@@ -3239,12 +3245,20 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
 
     const Expr *Arg = TheCall->getArg(0);
     const auto *TyA = Arg->getType()->getAs<VectorType>();
-    if (!TyA || !TyA->getElementType()->isIntegerType()) {
+
+    QualType ElTy;
+    if (TyA)
+      ElTy = TyA->getElementType();
+    else if (Arg->getType()->isSizelessVectorType())
+      ElTy = Arg->getType()->getSizelessVectorEltType(Context);
+
+    if (ElTy.isNull() || !ElTy->isIntegerType()) {
       Diag(Arg->getBeginLoc(), diag::err_builtin_invalid_arg_type)
           << 1  << /* vector of integers */ 6 << Arg->getType();
       return ExprError();
     }
-    TheCall->setType(TyA->getElementType());
+
+    TheCall->setType(ElTy);
     break;
   }
 
@@ -5722,6 +5736,7 @@ bool Sema::CheckHLSLBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
   case Builtin::BI__builtin_elementwise_roundeven:
   case Builtin::BI__builtin_elementwise_sin:
   case Builtin::BI__builtin_elementwise_sqrt:
+  case Builtin::BI__builtin_elementwise_tan:
   case Builtin::BI__builtin_elementwise_trunc: {
     if (CheckFloatOrHalfRepresentations(this, TheCall))
       return true;
@@ -12918,6 +12933,17 @@ CheckPrintfHandler::checkFormatExpr(const analyze_printf::PrintfSpecifier &FS,
     return true;
   }
 
+  // Diagnose attempts to use '%P' with ObjC object types, which will result in
+  // dumping raw class data (like is-a pointer), not actual data.
+  if (FS.getConversionSpecifier().getKind() == ConversionSpecifier::PArg &&
+      ExprTy->isObjCObjectPointerType()) {
+    const CharSourceRange &CSR =
+        getSpecifierRange(StartSpecifier, SpecifierLen);
+    EmitFormatDiagnostic(S.PDiag(diag::warn_format_P_with_objc_pointer),
+                         E->getExprLoc(), false, CSR);
+    return true;
+  }
+
   ArgType::MatchKind ImplicitMatch = ArgType::NoMatch;
   ArgType::MatchKind Match = AT.matchesType(S.Context, ExprTy);
   ArgType::MatchKind OrigMatch = Match;
@@ -19115,8 +19141,10 @@ void Sema::CheckArrayAccess(const Expr *expr) {
         expr = cast<MemberExpr>(expr)->getBase();
         break;
       }
-      case Stmt::OMPArraySectionExprClass: {
-        const OMPArraySectionExpr *ASE = cast<OMPArraySectionExpr>(expr);
+      case Stmt::ArraySectionExprClass: {
+        const ArraySectionExpr *ASE = cast<ArraySectionExpr>(expr);
+        // FIXME: We should probably be checking all of the elements to the
+        // 'length' here as well.
         if (ASE->getLowerBound())
           CheckArrayAccess(ASE->getBase(), ASE->getLowerBound(),
                            /*ASE=*/nullptr, AllowOnePastEnd > 0);
