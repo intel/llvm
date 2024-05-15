@@ -5872,8 +5872,13 @@ class OffloadingActionBuilder final {
         llvm::sys::path::append(WithInstallPath, Twine("../../../share/clc"));
         LibraryPaths.emplace_back(WithInstallPath.c_str());
 
-        // Select libclc variant based on target triple
-        std::string LibSpirvTargetName = "libspirv-";
+        // Select libclc variant based on target triple.
+        // On Windows long is 32 bits, so we have to select the right remangled
+        // libclc version.
+        std::string LibSpirvTargetName =
+            (TC->getAuxTriple()->isOSWindows())
+                ? "remangled-l32-signed_char.libspirv-"
+                : "remangled-l64-signed_char.libspirv-";
         LibSpirvTargetName.append(TC->getTripleString() + ".bc");
 
         for (StringRef LibraryPath : LibraryPaths) {
