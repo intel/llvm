@@ -38,17 +38,23 @@ template <typename T> T reverse_bits(T v) {
 
 int main() {
   queue q;
-  auto in_out = malloc_shared<uint16_t>(6, q);
+  std::vector<uint16_t> in_out(6);
   in_out[0] = 0x1234;
   in_out[1] = 0x2;
   in_out[2] = 0b01001011;
   const uint16_t expected_out[] = {0x3412, 0x1, 0b11010010};
 
-  q.single_task([=]() {
-     in_out[3] = reverse_2bytes(in_out[0]);
-     in_out[4] = reverse_2bits(in_out[1]);
-     in_out[5] = reverse_bits<uint8_t>(in_out[2]);
-   }).wait();
+  {
+    buffer<uint16_t, 1> in_out_buf(in_out);
+    q.submit([&](handler &cgh) {
+       accessor acc{in_out_buf, cgh, read_write};
+       cgh.single_task([=]() {
+         acc[3] = reverse_2bytes(acc[0]);
+         acc[4] = reverse_2bits(acc[1]);
+         acc[5] = reverse_bits<uint8_t>(acc[2]);
+       });
+     }).wait();
+  }
 
   bool pass = true;
   for (int i = 0; i < 3; i++) {
@@ -57,6 +63,5 @@ int main() {
     pass &= in_out[i + 3] == expected_out[i];
   }
   std::cout << "Test " << (pass ? "Passed" : "Failed") << std::endl;
-  free(in_out, q);
   return !pass;
 }
