@@ -436,7 +436,6 @@ ur_result_t bindlessImagesCreateImpl(
   if (hSampler) {
     ZeSamplerDesc = hSampler->ZeSamplerDesc;
     BindlessDesc.pNext = &ZeSamplerDesc;
-    constexpr int ZE_IMAGE_BINDLESS_EXP_FLAG_SAMPLED_IMAGE = 2;
     BindlessDesc.flags |= ZE_IMAGE_BINDLESS_EXP_FLAG_SAMPLED_IMAGE;
   }
 
