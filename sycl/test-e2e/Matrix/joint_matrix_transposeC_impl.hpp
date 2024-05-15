@@ -11,8 +11,7 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-template <size_t TM>
-class LS;
+template <size_t TM> class LS;
 
 template <size_t TM, size_t TN, typename T1, size_t NUM_ROWS, size_t NUM_COLS>
 void matrix_load_and_store(T1 *input, T1 *out_col_major, T1 *out_row_major,

@@ -102,8 +102,8 @@ int init_and_multiply() {
   big_matrix<Ta, MATRIX_K / vnni_factor, MATRIX_N * vnni_factor> MBvnni(
       (Ta *)&Bvnni);
 
-  matrix_multiply<Tc, Ta, MATRIX_M, MATRIX_N, MATRIX_K, vnni_factor, tM, tN,
-                  tK, kernel_name>(MC, MA, MBvnni);
+  matrix_multiply<Tc, Ta, MATRIX_M, MATRIX_N, MATRIX_K, vnni_factor, tM, tN, tK,
+                  kernel_name>(MC, MA, MBvnni);
   matrix_multiply_ref((Ta *)A, (Ta *)B, (Tc *)D, MATRIX_M, MATRIX_N, MATRIX_K);
 
   bool res = matrix_compare(MATRIX_M, MATRIX_N, (Tc *)C, (Tc *)D);
