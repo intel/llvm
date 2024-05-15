@@ -919,7 +919,7 @@ static bool hasPVCDevice(const ArgStringList &CmdArgs) {
     // Handle shortened versions.
     bool CheckShortVersion = true;
     for (auto Char : SingleArg.str()) {
-      if (!(std::isdigit(Char) || Char == '.')) {
+      if (!std::isdigit(Char) && Char != '.') {
         CheckShortVersion = false;
         break;
       }
@@ -1500,7 +1500,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     Args.AddAllArgValues(TargArgs, options::OPT_Xs, options::OPT_Xs_separate);
     Args.AddAllArgValues(TargArgs, options::OPT_Xsycl_backend);
     // Check for any -device settings.
-    if (hasPVCDevice(TargArgs) || Device == "pvc" || IsJIT) {
+    if (IsJit || Device == "pvc" || hasPVCDevice(TargArgs)) {
       StringRef DeviceName = "pvc";
       StringRef BackendOptName = SYCL::gen::getGenGRFFlag("auto");
       if (IsGen)
