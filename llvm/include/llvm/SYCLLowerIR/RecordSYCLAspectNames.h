@@ -1,4 +1,4 @@
-//===--------------- AddAspectNames.h - AddAspectNames Pass ---------------===//
+//===-------- RecordSYCLAspectNames.h - RecordSYCLAspectNames Pass --------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,18 +15,19 @@
 // !sycl_used_aspects metadata to include the aspect names.
 //===----------------------------------------------------------------------===//
 //
-#ifndef LLVM_ADD_ASPECT_NAMES
-#define LLVM_ADD_ASPECT_NAMES
+#ifndef LLVM_RECORD_SYCL_ASPECT_NAMES
+#define LLVM_RECORD_SYCL_ASPECT_NAMES
 
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
 
-class AddAspectNamesPass : public PassInfoMixin<AddAspectNamesPass> {
+class RecordSYCLAspectNamesPass
+    : public PassInfoMixin<RecordSYCLAspectNamesPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };
 
 } // namespace llvm
 
-#endif // LLVM_ADD_ASPECT_NAMES
+#endif // LLVM_RECORD_SYCL_ASPECT_NAMES

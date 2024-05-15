@@ -1,4 +1,4 @@
-//===--------------- AddAspectNames.cpp - AddAspectNames Pass -------------===//
+//===-------- RecordSYCLAspectNames.cpp - RecordSYCLAspectNames Pass ------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,15 +16,15 @@
 //===----------------------------------------------------------------------===//
 //
 
-#include "llvm/SYCLLowerIR/AddAspectNames.h"
+#include "llvm/SYCLLowerIR/RecordSYCLAspectNames.h"
 
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Module.h"
 
 using namespace llvm;
 
-PreservedAnalyses AddAspectNamesPass::run(Module &M,
-                                          ModuleAnalysisManager &MAM) {
+PreservedAnalyses RecordSYCLAspectNamesPass::run(Module &M,
+                                                 ModuleAnalysisManager &MAM) {
   SmallDenseMap<int64_t, Metadata *, 128> ValueToNameValuePairMD;
   if (NamedMDNode *Node = M.getNamedMetadata("sycl_aspects")) {
     for (MDNode *N : Node->operands()) {
