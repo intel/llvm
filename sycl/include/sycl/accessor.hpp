@@ -27,7 +27,6 @@
 #include <sycl/detail/property_list_base.hpp>         // for PropertyListBase
 #include <sycl/detail/type_list.hpp>                  // for is_contained
 #include <sycl/detail/type_traits.hpp>                // for const_if_const_AS
-#include <sycl/device.hpp>                            // for device
 #include <sycl/exception.hpp>                         // for make_error_code
 #include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_prope...
 #include <sycl/ext/oneapi/weak_object_base.hpp>       // for getSyclWeakObj...
@@ -39,7 +38,6 @@
 #include <sycl/property_list.hpp>                     // for property_list
 #include <sycl/range.hpp>                             // for range
 #include <sycl/sampler.hpp>                           // for addressing_mode
-#include <sycl/types.hpp>                             // for vec
 
 #include <cstddef>     // for size_t
 #include <functional>  // for hash
@@ -608,45 +606,6 @@ protected:
 
   LocalAccessorImplPtr impl;
 };
-
-template <int Dim, typename T> struct IsValidCoordDataT;
-template <typename T> struct IsValidCoordDataT<1, T> {
-  constexpr static bool value = detail::is_contained<
-      T, detail::type_list<opencl::cl_int, opencl::cl_float>>::type::value;
-};
-template <typename T> struct IsValidCoordDataT<2, T> {
-  constexpr static bool value = detail::is_contained<
-      T, detail::type_list<vec<opencl::cl_int, 2>,
-                           vec<opencl::cl_float, 2>>>::type::value;
-};
-template <typename T> struct IsValidCoordDataT<3, T> {
-  constexpr static bool value = detail::is_contained<
-      T, detail::type_list<vec<opencl::cl_int, 4>,
-                           vec<opencl::cl_float, 4>>>::type::value;
-};
-
-template <int Dim, typename T> struct IsValidUnsampledCoord2020DataT;
-template <typename T> struct IsValidUnsampledCoord2020DataT<1, T> {
-  constexpr static bool value = std::is_same_v<T, int>;
-};
-template <typename T> struct IsValidUnsampledCoord2020DataT<2, T> {
-  constexpr static bool value = std::is_same_v<T, int2>;
-};
-template <typename T> struct IsValidUnsampledCoord2020DataT<3, T> {
-  constexpr static bool value = std::is_same_v<T, int4>;
-};
-
-template <int Dim, typename T> struct IsValidSampledCoord2020DataT;
-template <typename T> struct IsValidSampledCoord2020DataT<1, T> {
-  constexpr static bool value = std::is_same_v<T, float>;
-};
-template <typename T> struct IsValidSampledCoord2020DataT<2, T> {
-  constexpr static bool value = std::is_same_v<T, float2>;
-};
-template <typename T> struct IsValidSampledCoord2020DataT<3, T> {
-  constexpr static bool value = std::is_same_v<T, float4>;
-};
-
 } // namespace detail
 
 /// Buffer accessor.
@@ -2630,11 +2589,21 @@ public:
   __SYCL2020_DEPRECATED(
       "local_accessor::get_pointer() is deprecated, please use get_multi_ptr()")
   local_ptr<DataT> get_pointer() const noexcept {
+#ifndef __SYCL_DEVICE_ONLY__
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "get_pointer must not be called on the host for a local accessor");
+#endif
     return local_ptr<DataT>(local_acc::getQualifiedPtr());
   }
 
   template <access::decorated IsDecorated>
   accessor_ptr<IsDecorated> get_multi_ptr() const noexcept {
+#ifndef __SYCL_DEVICE_ONLY__
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "get_multi_ptr must not be called on the host for a local accessor");
+#endif
     return accessor_ptr<IsDecorated>(local_acc::getQualifiedPtr());
   }
 

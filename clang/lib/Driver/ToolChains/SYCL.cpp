@@ -291,12 +291,18 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   const SYCLDeviceLibsList SYCLDeviceSanitizerLibs = {
       {"libsycl-sanitizer", "internal"}};
 #endif
+  bool IsWindowsMSVCEnv =
+      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
+  bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
   StringRef LibSuffix = ".bc";
-  if (TargetTriple.isNVPTX())
-    // For NVidia, we are unbundling objects.
-    LibSuffix = C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment()
-                    ? ".obj"
-                    : ".o";
+  if (TargetTriple.isNVPTX() ||
+      (TargetTriple.isSPIR() &&
+       TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga))
+    // For NVidia or FPGA, we are unbundling objects.
+    LibSuffix = IsWindowsMSVCEnv ? ".obj" : ".o";
+  if (IsNewOffload)
+    // For new offload model, we use packaged .bc files.
+    LibSuffix = IsWindowsMSVCEnv ? ".new.obj" : ".new.o";
   auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
     for (const DeviceLibOptInfo &Lib : LibsList) {
       if (!DeviceLibLinkInfo[Lib.DeviceLibOption])
@@ -434,13 +440,20 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     auto isSYCLDeviceLib = [&](const InputInfo &II) {
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
+      const bool IsFPGA = this->getToolChain().getTriple().isSPIR() &&
+                          this->getToolChain().getTriple().getSubArch() ==
+                              llvm::Triple::SPIRSubArch_fpga;
       StringRef LibPostfix = ".bc";
-      if (IsNVPTX) {
+      if (IsNVPTX || IsFPGA) {
         LibPostfix = ".o";
         if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
             C.getDriver().IsCLMode())
           LibPostfix = ".obj";
       }
+      StringRef NewLibPostfix = ".new.o";
+      if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
+          C.getDriver().IsCLMode())
+        NewLibPostfix = ".new.obj";
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
       if (IsNVPTX || IsSYCLNativeCPU) {
@@ -448,12 +461,15 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
         if ((InputFilename.find("libspirv") != InputFilename.npos ||
              InputFilename.find("libdevice") != InputFilename.npos))
           return true;
-        if (IsNVPTX)
+        if (IsNVPTX) {
           LibPostfix = ".cubin";
+          NewLibPostfix = ".new.cubin";
+        }
       }
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
-          !InputFilename.ends_with(LibPostfix))
+          !InputFilename.ends_with(LibPostfix) ||
+          InputFilename.ends_with(NewLibPostfix))
         return false;
       // Skip the prefix "libsycl-"
       std::string PureLibName =
@@ -1408,6 +1424,14 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
              Triple.getSubArch() == llvm::Triple::NoSubArch) {
       BeArgs.push_back(Args.MakeArgString(RegAllocModeOptName + DeviceName +
                                           ":" + BackendOptName));
+    }
+  }
+  // only pass -vpfp-relaxed for aoc with -fintelfpga and -fp-model=fast
+  if (Args.hasArg(options::OPT_fintelfpga) && getDriver().IsFPGAHWMode() &&
+      Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
+    if (Arg *A = Args.getLastArg(options::OPT_ffp_model_EQ)) {
+      if (StringRef(A->getValue()).equals("fast"))
+        BeArgs.push_back("-vpfp-relaxed");
     }
   }
   if (IsGen) {

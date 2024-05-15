@@ -13,6 +13,8 @@
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/handler.hpp>
 
+#include <sycl/detail/host_task_impl.hpp>
+
 #include <detail/accessor_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/kernel_impl.hpp>
@@ -181,6 +183,9 @@ public:
   /// @param IncomingReq Incoming requirement.
   /// @return True if a dependency is needed, false if not.
   bool hasRequirementDependency(sycl::detail::AccessorImplHost *IncomingReq) {
+    if (!MCommandGroup)
+      return false;
+
     access_mode InMode = IncomingReq->MAccessMode;
     switch (InMode) {
     case access_mode::read:
