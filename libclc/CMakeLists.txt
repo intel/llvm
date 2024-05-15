@@ -384,7 +384,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     file( MAKE_DIRECTORY ${LIBCLC_ARCH_OBJFILE_DIR} )
 
     # OpenCL 3.0 extensions
-    list( APPEND flags -cl-std=CL3.0 "-Xclang" )
     string(CONCAT CL_3_0_EXTENSIONS
       "-cl-ext="
       "+cl_khr_fp64,"
@@ -395,7 +394,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     if( supports_generic_addrspace )
       string( APPEND CL_3_0_EXTENSIONS ",+__opencl_c_generic_address_space" )
       if( has_distinct_generic_addrspace )
-        list(APPEND flags -DLIBCLC_DISTINCT_GENERIC_ADDRSPACE)
+        list( APPEND flags -D__CLC_DISTINCT_GENERIC_ADDRSPACE__ )
       endif()
     else()
       # Explictly disable opencl_c_generic_address_space (it may be enabled
@@ -405,7 +404,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       string( APPEND CL_3_0_EXTENSIONS ",-__opencl_c_pipes" )
       string( APPEND CL_3_0_EXTENSIONS ",-__opencl_c_device_enqueue" )
     endif()
-    list( APPEND flags ${CL_3_0_EXTENSIONS})
+    list( APPEND flags -cl-std=CL3.0 "-Xclang" ${CL_3_0_EXTENSIONS} )
 
     # Add platform specific flags
     if(WIN32)
