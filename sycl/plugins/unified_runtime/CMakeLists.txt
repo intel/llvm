@@ -98,14 +98,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   set(UNIFIED_RUNTIME_TAG e51150d49d1ef852c68be0260254564d5060df9b)
 
   fetch_adapter_source(level_zero
-    "https://github.com/oneapi-src/unified-runtime.git"
-    # commit f3c551963d0612bfac252bc5c82796289939ebeb
-    # Merge: ebf873fb 987c422c
+    ${UNIFIED_RUNTIME_REPO}
+    # commit e25ada9c815f0e812672b9590e86771e17a6f853
+    # Merge: b14af4bb d367bd72
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu May 2 15:26:34 2024 +0100
-    #     Merge pull request #1526 from nrspruit/event_signal_optional
-    #     [L0] Enable Batching out of order commands without signal events
-    f3c551963d0612bfac252bc5c82796289939ebeb
+    # Date:   Wed May 15 16:01:21 2024 +0100
+    #     Merge pull request #1545 from lbushi25/lbushi/flushQueue
+    #     Implement Queue Flush operation
+    e25ada9c815f0e812672b9590e86771e17a6f853
   )
 
   fetch_adapter_source(opencl
