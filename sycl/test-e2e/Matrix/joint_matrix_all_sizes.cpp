@@ -15,7 +15,6 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-#define SG_SZ 16
 // Sub-matrix N dimension
 static constexpr size_t SN = 16;
 

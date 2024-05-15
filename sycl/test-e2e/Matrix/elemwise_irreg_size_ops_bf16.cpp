@@ -22,8 +22,6 @@ using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 
-#define SG_SZ 16
-
 // 10x12 is not multiply the sg size, slicing implementation will have to insert
 // padding
 #define TM 10
