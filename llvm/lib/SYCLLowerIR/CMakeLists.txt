@@ -65,8 +65,6 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LocalAccessorToSharedMemory.cpp
   GlobalOffset.cpp
   TargetHelpers.cpp
-  RenameKernelSYCLNativeCPU.cpp
-  ConvertToMuxBuiltinsSYCLNativeCPU.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR
