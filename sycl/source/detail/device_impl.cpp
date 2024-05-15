@@ -945,5 +945,4 @@ device_impl::getImmediateProgressGuarantee(
 
 } // namespace detail
 } // namespace _V1
-B B
 } // namespace sycl
