@@ -125,7 +125,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 50452b75f0d1d7434f5beb4febd642af59a994ff
+    # Merge: 78b8e3e3 fa084d0a
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed May 15 10:37:42 2024 +0100
+    #     Merge pull request #1477 from PietroGhg/pietro/reqd_work_group_size
+    #     [NATIVECPU] Support reqd_work_group_size on Native CPU
+    50452b75f0d1d7434f5beb4febd642af59a994ff
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)

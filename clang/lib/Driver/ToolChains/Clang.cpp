@@ -10595,7 +10595,7 @@ getTripleBasedSYCLPostLinkOpts(const ToolChain &TC, const JobAction &JA,
   if (!(Triple.isAMDGCN()))
     addArgs(PostLinkArgs, TCArgs, {"-emit-param-info"});
   // Enable PI program metadata
-  if (Triple.isNVPTX() || Triple.isAMDGCN())
+  if (Triple.isNVPTX() || Triple.isAMDGCN() || isSYCLNativeCPU(TC))
     addArgs(PostLinkArgs, TCArgs, {"-emit-program-metadata"});
   if (OutputType != types::TY_LLVM_BC) {
     assert(OutputType == types::TY_Tempfiletable);
