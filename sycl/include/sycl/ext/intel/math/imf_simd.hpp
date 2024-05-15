@@ -95,6 +95,7 @@ unsigned int __imf_vsads2(unsigned int, unsigned int);
 unsigned int __imf_vsads4(unsigned int, unsigned int);
 unsigned int __imf_vsadu2(unsigned int, unsigned int);
 unsigned int __imf_vsadu4(unsigned int, unsigned int);
+unsigned int __imf_viaddmax_s16x2(unsigned int, unsigned int, unsigned int);
 };
 
 namespace sycl {
@@ -583,6 +584,12 @@ template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int> vsadu4(Tp x,
                                                                         Tp y) {
   return __imf_vsadu4(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
+viaddmax_s16x2(Tp x, Tp y, Tp z) {
+  return __imf_viaddmax_s16x2(x, y, z);
 }
 } // namespace ext::intel::math
 } // namespace _V1

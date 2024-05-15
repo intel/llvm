@@ -5,11 +5,9 @@
 // RUN: %{run} %t.out
 //
 // UNSUPPORTED: cuda || hip
-
-#include <cassert>
-#include <iostream>
-#include <sycl/ext/intel/math.hpp>
+#include "imf_utils.hpp"
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/intel/math.hpp>
 
 namespace s = sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
@@ -1811,6 +1809,21 @@ void run_vgtle_2_4_test(s::queue &queue) {
   std::cout << "sycl::ext::intel::math::vgtle_2_4 test pass." << std::endl;
 }
 
+void run_viaddmax_s16x2_test(s::queue &device_q) {
+  std::initializer_list<unsigned> input_vals1 = {
+      0, 0xffd23211, 0x6b8b4567, 0x66334873, 0x2eb141f2, 0x71f32454, 0xb03e0c6};
+  std::initializer_list<unsigned> input_vals2 = {
+      0, 0x99233, 0x327b23c6, 0x74b0dc51, 0x41b71efb, 0x2ca88611, 0x189a769b,
+  };
+  std::initializer_list<unsigned> input_vals3 = {
+      0, 0x81ffff77, 0x643c9869, 0x19495cff, 0x79e2a9e3, 0x836c40e, 0x54e49eb4};
+  std::initializer_list<unsigned> ref_vals = {
+      0, 0xffdbff77, 0x643c692d, 0x19495cff, 0x79e260ed, 0x836c40e, 0x54e45761};
+  test3(device_q, input_vals1, input_vals2, input_vals3, ref_vals,
+        F3(s::ext::intel::math::viaddmax_s16x2));
+  std::cout << "sycl::ext::intel::math::viaddmax_s16x2 test pass." << std::endl;
+}
+
 int main(int, char **) {
   s::queue device_queue(s::default_selector_v);
   std::cout << "Running on "
@@ -1834,4 +1847,5 @@ int main(int, char **) {
   run_vgelt_2_4_test(device_queue);
   run_vgtle_2_4_test(device_queue);
   run_vavgs_2_4_test(device_queue);
+  run_viaddmax_s16x2_test(device_queue);
 }

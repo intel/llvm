@@ -563,6 +563,8 @@ extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vsadu2(unsigned int x,
                                                        unsigned int y);
 extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vsadu4(unsigned int x,
                                                        unsigned int y);
+extern __DPCPP_SYCL_EXTERNAL unsigned int
+__imf_viaddmax_s16x2(unsigned int x, unsigned int y, unsigned int z);
 }
 #ifdef __GLIBC__
 extern "C" {

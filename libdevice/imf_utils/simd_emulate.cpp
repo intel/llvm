@@ -360,6 +360,40 @@ static inline unsigned int __internal_v_binary_op(unsigned int x,
   return __assemble_integral_value<unsigned, UTp, N>(res_buf);
 }
 
+template <typename Tp> class __iaddmax_op {
+  static_assert(std::is_same<int16_t, Tp>::value,
+                "Tp can only accept int16_t for iaddmax op.");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y, const Tp &z) {
+    return __imax<Tp>(x + y, z);
+  }
+};
+
+template <typename Tp, size_t N, template <typename> class TernaryOp>
+static inline unsigned int
+__internal_v_ternary_op(unsigned int x, unsigned int y, unsigned int z) {
+  static_assert(std::is_integral<Tp>::value &&
+                    (sizeof(Tp) == 1 || sizeof(Tp) == 2),
+                "__internal_v_ternary_op accepts 1/2 byte integer type.");
+  static_assert(sizeof(Tp) * N == sizeof(unsigned int),
+                "__internal_v_ternary_op size mismatch");
+  typedef typename std::make_unsigned<Tp>::type UTp;
+  UTp res_buf[N] = {
+      0,
+  };
+  Tp x_tmp, y_tmp, z_tmp;
+  TernaryOp<Tp> t_op;
+  for (size_t idx = 0; idx < N; ++idx) {
+    x_tmp = static_cast<Tp>(__get_bytes_by_index<unsigned int, UTp>(x, idx));
+    y_tmp = static_cast<Tp>(__get_bytes_by_index<unsigned int, UTp>(y, idx));
+    z_tmp = static_cast<Tp>(__get_bytes_by_index<unsigned int, UTp>(z, idx));
+    res_buf[idx] = t_op(x_tmp, y_tmp, z_tmp);
+  }
+
+  return __assemble_integral_value<unsigned, UTp, N>(res_buf);
+}
+
 // Split 32-bit into 2 parts, each consisting of 16 bits, compute absolute
 // value for each part and assemble the results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
@@ -1027,5 +1061,14 @@ unsigned int __devicelib_imf_vsadu2(unsigned int x, unsigned int y) {
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsadu4(unsigned int x, unsigned int y) {
   return __internal_v_sad_op<uint8_t, 4>(x, y);
+}
+
+// Split 32-bit value into 2 16-bit parts, interpret each part as singed short.
+// For corresponding part, perform and add and compare operation:
+// max(x_part + y_part, z_part), partial results are combined as return value.
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmax_s16x2(unsigned int x, unsigned int y,
+                                            unsigned int z) {
+  return __internal_v_ternary_op<int16_t, 2, __iaddmax_op>(x, y, z);
 }
 #endif
