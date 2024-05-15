@@ -49,9 +49,11 @@ using HasBufferLocation = HasProperty<buffer_location_key, PropertyListT>;
 template <typename PropKey, typename ConstType, typename DefaultPropVal,
           typename PropertyListT>
 struct GetPropertyValueFromPropList {
-   using V = detail::mp11::mp_map_find<detail::mp11::mp_first<PropertyListT>, PropKey>;
-   using prop_val_t = detail::mp11::mp_if<std::is_same<V, void>, DefaultPropVal, V>;
-   static constexpr ConstType value =
+  using V =
+      detail::mp11::mp_map_find<detail::mp11::mp_first<PropertyListT>, PropKey>;
+  using prop_val_t =
+      detail::mp11::mp_if<std::is_same<V, void>, DefaultPropVal, V>;
+  static constexpr ConstType value =
       detail::PropertyMetaInfo<std::remove_const_t<prop_val_t>>::value;
 };
 

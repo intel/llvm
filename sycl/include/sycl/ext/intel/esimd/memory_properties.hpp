@@ -312,7 +312,8 @@ struct property_value<__ESIMD_NS::cache_hint_L3_key,
 
 // Declare that esimd::properties is a property_list.
 template <typename... PropertyValueTs>
-struct is_property_list<__ESIMD_NS::properties<detail::type_list<PropertyValueTs...>>>
+struct is_property_list<
+    __ESIMD_NS::properties<detail::type_list<PropertyValueTs...>>>
     : is_property_list<properties<detail::type_list<PropertyValueTs...>>> {};
 
 namespace detail {

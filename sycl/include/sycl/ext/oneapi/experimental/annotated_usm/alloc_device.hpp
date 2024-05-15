@@ -43,10 +43,10 @@ template <typename propertyListA = empty_properties_t,
 std::enable_if_t<
     CheckDevicePtrTAndPropLists<void, propertyListA, propertyListB>::value,
     annotated_ptr<void, propertyListB>>
-aligned_alloc_device_annotated(size_t alignment, size_t numBytes,
-                               const device &syclDevice,
-                               const context &syclContext,
-                               const propertyListA &propList = propertyListA{}) {
+aligned_alloc_device_annotated(
+    size_t alignment, size_t numBytes, const device &syclDevice,
+    const context &syclContext,
+    const propertyListA &propList = propertyListA{}) {
   auto tmp =
       aligned_alloc_annotated(alignment, numBytes, syclDevice, syclContext,
                               sycl::usm::alloc::device, propList);
@@ -59,10 +59,10 @@ template <typename T, typename propertyListA = empty_properties_t,
 std::enable_if_t<
     CheckDevicePtrTAndPropLists<T, propertyListA, propertyListB>::value,
     annotated_ptr<T, propertyListB>>
-aligned_alloc_device_annotated(size_t alignment, size_t count,
-                               const device &syclDevice,
-                               const context &syclContext,
-                               const propertyListA &propList = propertyListA{}) {
+aligned_alloc_device_annotated(
+    size_t alignment, size_t count, const device &syclDevice,
+    const context &syclContext,
+    const propertyListA &propList = propertyListA{}) {
   auto tmp =
       aligned_alloc_annotated<T>(alignment, count, syclDevice, syclContext,
                                  sycl::usm::alloc::device, propList);
@@ -75,9 +75,9 @@ template <typename propertyListA = empty_properties_t,
 std::enable_if_t<
     CheckDevicePtrTAndPropLists<void, propertyListA, propertyListB>::value,
     annotated_ptr<void, propertyListB>>
-aligned_alloc_device_annotated(size_t alignment, size_t numBytes,
-                               const queue &syclQueue,
-                               const propertyListA &propList = propertyListA{}) {
+aligned_alloc_device_annotated(
+    size_t alignment, size_t numBytes, const queue &syclQueue,
+    const propertyListA &propList = propertyListA{}) {
   return aligned_alloc_device_annotated(alignment, numBytes,
                                         syclQueue.get_device(),
                                         syclQueue.get_context(), propList);
@@ -89,9 +89,9 @@ template <typename T, typename propertyListA = empty_properties_t,
 std::enable_if_t<
     CheckDevicePtrTAndPropLists<T, propertyListA, propertyListB>::value,
     annotated_ptr<T, propertyListB>>
-aligned_alloc_device_annotated(size_t alignment, size_t count,
-                               const queue &syclQueue,
-                               const propertyListA &propList = propertyListA{}) {
+aligned_alloc_device_annotated(
+    size_t alignment, size_t count, const queue &syclQueue,
+    const propertyListA &propList = propertyListA{}) {
   return aligned_alloc_device_annotated<T>(alignment, count,
                                            syclQueue.get_device(),
                                            syclQueue.get_context(), propList);

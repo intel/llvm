@@ -119,8 +119,9 @@ using properties_t = properties<detail::type_list<PropertyValueTs...>>;
 
 template <typename SyclT, typename PropertiesT>
 using all_props_are_keys_of = detail::mp11::mp_all_of_q<
-    detail::mp11::mp_first<PropertiesT>, detail::mp11::mp_bind_back<
-                     ext::oneapi::experimental::is_property_value_of, SyclT>>;
+    detail::mp11::mp_first<PropertiesT>,
+    detail::mp11::mp_bind_back<ext::oneapi::experimental::is_property_value_of,
+                               SyclT>>;
 
 // Helper for merging property lists
 template <typename PropA, typename PropB> struct merged_properties {
@@ -130,11 +131,13 @@ template <typename PropA, typename PropB> struct merged_properties {
   using val_equal = std::is_same<detail::mp11::mp_map_find<A, K>,
                                  detail::mp11::mp_map_find<B, K>>;
   static_assert(
-      detail::mp11::mp_all_of<detail::mp11::mp_set_intersection<detail::mp11::mp_map_keys<A>,
-                                                  detail::mp11::mp_map_keys<B>>,
-                val_equal>(),
+      detail::mp11::mp_all_of<
+          detail::mp11::mp_set_intersection<detail::mp11::mp_map_keys<A>,
+                                            detail::mp11::mp_map_keys<B>>,
+          val_equal>(),
       "Failed to merge property lists due to conflicting properties.");
-  using type = detail::sort_properties<properties<detail::mp11::mp_set_union<A,B>>>;
+  using type =
+      detail::sort_properties<properties<detail::mp11::mp_set_union<A, B>>>;
 };
 template <typename... PropertiesT>
 using merged_properties_t = typename merged_properties<PropertiesT...>::type;

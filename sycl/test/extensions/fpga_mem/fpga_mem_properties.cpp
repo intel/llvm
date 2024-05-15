@@ -39,7 +39,7 @@ template <typename T> void checkIsPropertyOf() {
 }
 
 int main() {
-   // Check that only the property that are expected are associated with obj
+  // Check that only the property that are expected are associated with obj
   checkIsPropertyOf<decltype(mem_num)>();
   static_assert(mem_num.has_property<intel::num_banks_key>());
   static_assert(!mem_num.has_property<intel::word_size_key>());
