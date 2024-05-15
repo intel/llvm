@@ -19,7 +19,7 @@
 //     key. The variable should have the same type as `value_t` of the property
 //     class, e.g. for a property `foo`, there should be a definition
 //     `inline constexpr foo_key::value_t foo`.
-//  4. Specialize `sycl::ext::oneapi::experimental::is_property_key` and
+//  4. Specialize
 //     `sycl::ext::oneapi::experimental::is_property_key_of` for the property
 //     key class.
 //  5. Specialize `sycl::ext::oneapi::experimental::detail::PropertyToKind` for

@@ -39,47 +39,7 @@ template <typename T> void checkIsPropertyOf() {
 }
 
 int main() {
-  // Are all keys usable
-  static_assert(oneapi::is_property_key<intel::resource_key>::value);
-  static_assert(oneapi::is_property_key<intel::num_banks_key>::value);
-  static_assert(oneapi::is_property_key<intel::stride_size_key>::value);
-  static_assert(oneapi::is_property_key<intel::word_size_key>::value);
-  static_assert(
-      oneapi::is_property_key<intel::bi_directional_ports_key>::value);
-  static_assert(oneapi::is_property_key<intel::clock_2x_key>::value);
-  static_assert(oneapi::is_property_key<intel::ram_stitching_key>::value);
-  static_assert(oneapi::is_property_key<intel::max_private_copies_key>::value);
-  static_assert(oneapi::is_property_key<intel::num_replicates_key>::value);
-
-  // Are all common values usable
-  static_assert(
-      oneapi::is_property_value<decltype(intel::resource_mlab)>::value);
-  static_assert(
-      oneapi::is_property_value<decltype(intel::resource_block_ram)>::value);
-  static_assert(
-      oneapi::is_property_value<decltype(intel::num_banks<8>)>::value);
-  static_assert(
-      oneapi::is_property_value<decltype(intel::stride_size<8>)>::value);
-  static_assert(
-      oneapi::is_property_value<decltype(intel::word_size<32>)>::value);
-  static_assert(oneapi::is_property_value<
-                decltype(intel::bi_directional_ports_false)>::value);
-  static_assert(oneapi::is_property_value<
-                decltype(intel::bi_directional_ports_true)>::value);
-  static_assert(
-      oneapi::is_property_value<decltype(intel::clock_2x_false)>::value);
-  static_assert(
-      oneapi::is_property_value<decltype(intel::clock_2x_true)>::value);
-  static_assert(
-      oneapi::is_property_value<decltype(intel::ram_stitching_min_ram)>::value);
-  static_assert(oneapi::is_property_value<
-                decltype(intel::ram_stitching_max_fmax)>::value);
-  static_assert(
-      oneapi::is_property_value<decltype(intel::max_private_copies<8>)>::value);
-  static_assert(
-      oneapi::is_property_value<decltype(intel::num_replicates<8>)>::value);
-
-  // Check that only the property that are expected are associated with obj
+   // Check that only the property that are expected are associated with obj
   checkIsPropertyOf<decltype(mem_num)>();
   static_assert(mem_num.has_property<intel::num_banks_key>());
   static_assert(!mem_num.has_property<intel::word_size_key>());

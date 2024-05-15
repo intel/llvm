@@ -52,7 +52,7 @@ constexpr bool is_ann_ref_v =
 
 template <typename... Ts>
 using contains_alignment =
-    detail::ContainsProperty<alignment_key, std::tuple<Ts...>>;
+    detail::ContainsProperty<alignment_key, detail::type_list<Ts...>>;
 
 // properties filter
 template <typename property_list, template <class...> typename filter>
@@ -62,7 +62,7 @@ using PropertiesFilter =
 // filter properties that are applied on annotations
 template <typename... Props>
 using annotation_filter = properties<
-    PropertiesFilter<std::tuple<Props...>, propagateToPtrAnnotation>>;
+    PropertiesFilter<detail::type_list<Props...>, propagateToPtrAnnotation>>;
 } // namespace detail
 
 template <typename I, typename P> struct annotationHelper {};
@@ -245,7 +245,7 @@ annotated_ptr(T *, Args...)
     -> annotated_ptr<T, typename detail::DeducedProperties<Args...>::type>;
 
 template <typename T, typename old, typename... ArgT>
-annotated_ptr(annotated_ptr<T, old>, properties<std::tuple<ArgT...>>)
+annotated_ptr(annotated_ptr<T, old>, detail::properties_t<ArgT...>)
     -> annotated_ptr<
         T, detail::merged_properties_t<old, detail::properties_t<ArgT...>>>;
 #endif // __cpp_deduction_guides

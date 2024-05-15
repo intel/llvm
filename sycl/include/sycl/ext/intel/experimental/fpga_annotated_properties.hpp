@@ -320,7 +320,7 @@ struct propagateToPtrAnnotation<buffer_location_key> : std::true_type {};
 //
 namespace detail {
 template <typename... Args> struct checkValidFPGAPropertySet {
-  using list = std::tuple<Args...>;
+  using list = detail::type_list<Args...>;
   static constexpr bool has_BufferLocation =
       ContainsProperty<buffer_location_key, list>::value;
 
@@ -336,7 +336,7 @@ template <typename... Args> struct checkValidFPGAPropertySet {
 };
 
 template <typename... Args> struct checkHasConduitAndRegisterMap {
-  using list = std::tuple<Args...>;
+  using list = detail::type_list<Args...>;
   static constexpr bool has_Conduit =
       ContainsProperty<conduit_key, list>::value;
   static constexpr bool has_RegisterMap =

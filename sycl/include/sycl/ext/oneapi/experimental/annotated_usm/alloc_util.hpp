@@ -36,7 +36,7 @@ template <typename PropKey, typename PropertyListT> struct HasProperty {};
 
 template <typename PropKey, typename... Props>
 struct HasProperty<PropKey, detail::properties_t<Props...>>
-    : detail::ContainsProperty<PropKey, std::tuple<Props...>> {};
+    : detail::ContainsProperty<PropKey, detail::type_list<Props...>> {};
 
 template <typename PropertyListT>
 using HasAlign = HasProperty<alignment_key, PropertyListT>;
@@ -49,10 +49,9 @@ using HasBufferLocation = HasProperty<buffer_location_key, PropertyListT>;
 template <typename PropKey, typename ConstType, typename DefaultPropVal,
           typename PropertyListT>
 struct GetPropertyValueFromPropList {
-  using prop_val_t =
-      decltype(detail::ValueOrDefault<PropertyListT, PropKey>::get(
-          DefaultPropVal()));
-  static constexpr ConstType value =
+   using V = detail::mp11::mp_map_find<detail::mp11::mp_first<PropertyListT>, PropKey>;
+   using prop_val_t = detail::mp11::mp_if<std::is_same<V, void>, DefaultPropVal, V>;
+   static constexpr ConstType value =
       detail::PropertyMetaInfo<std::remove_const_t<prop_val_t>>::value;
 };
 

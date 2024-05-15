@@ -21,12 +21,6 @@ int main() {
   assert(Props2.get_property<cache_config>() == large_data);
 
   // Check that duplicate cache_config can't be specified.
-  // TODO: Do we want the base class error?
-  // Pro: tells user which runtime property is duplicated and allows property
-  // list to be zero-sized if it doesn't contain any runtime properties. Cons:
-  // error might be confusing If we don't want it the storage needs to be moved
-  // from base class to member.
-  // expected-error@sycl/ext/oneapi/properties/properties.hpp:* {{base class 'sycl::ext::intel::experimental::cache_config' specified more than once as a direct base class}}
   // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Duplicate properties in property list.}}
   sycl::ext::oneapi::experimental::properties Props3(cache_config{large_data},
                                                      cache_config{large_slm});

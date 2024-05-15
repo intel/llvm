@@ -54,9 +54,6 @@ template <typename T> void checkIsValidPropertyOfNonPtr() {
 }
 
 int main() {
-  static_assert(is_property_key<register_map_key>::value);
-  static_assert(is_property_key<buffer_location_key>::value);
-
   checkIsPropertyOf<decltype(AnnotatedPtr1)>();
   static_assert(!AnnotatedPtr1.has_property<register_map_key>());
   static_assert(!AnnotatedPtr1.has_property<buffer_location_key>());

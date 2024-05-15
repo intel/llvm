@@ -119,20 +119,32 @@ using properties_t = properties<detail::type_list<PropertyValueTs...>>;
 
 template <typename SyclT, typename PropertiesT>
 using all_props_are_keys_of = detail::mp11::mp_all_of_q<
-    PropertiesT, detail::mp11::mp_bind_back<
-                     ext::oneapi::experimental::is_property_key_of, SyclT>>;
+    detail::mp11::mp_first<PropertiesT>, detail::mp11::mp_bind_back<
+                     ext::oneapi::experimental::is_property_value_of, SyclT>>;
 
 // Helper for merging property lists
+template <typename PropA, typename PropB> struct merged_properties {
+  using A = detail::mp11::mp_first<PropA>;
+  using B = detail::mp11::mp_first<PropB>;
+  template <class K>
+  using val_equal = std::is_same<detail::mp11::mp_map_find<A, K>,
+                                 detail::mp11::mp_map_find<B, K>>;
+  static_assert(
+      detail::mp11::mp_all_of<detail::mp11::mp_set_intersection<detail::mp11::mp_map_keys<A>,
+                                                  detail::mp11::mp_map_keys<B>>,
+                val_equal>(),
+      "Failed to merge property lists due to conflicting properties.");
+  using type = detail::sort_properties<properties<detail::mp11::mp_set_union<A,B>>>;
+};
 template <typename... PropertiesT>
-using merged_properties_t =
-    detail::sort_properties<detail::mp11::mp_append<PropertiesT...>>;
+using merged_properties_t = typename merged_properties<PropertiesT...>::type;
 
 template <typename Properties, typename PropertyKey>
 struct ValueOrDefault { // TODO: this should be a normal function (no wrapping
                         // in struct) and properties should be passed by value
   template <typename ValT> static constexpr auto get(ValT Default) {
     if constexpr (Properties::template has_property<PropertyKey>())
-      return Properties::template get_property<PropertyKey>();
+      return Properties::template get_property<PropertyKey>().value;
     else
       return Default;
   }
@@ -140,7 +152,7 @@ struct ValueOrDefault { // TODO: this should be a normal function (no wrapping
 // Checks if a list of properties contains a property.
 template <typename PropT, typename PropertiesT>
 using ContainsProperty =
-    std::bool_constant<properties<PropertiesT>::template has_property<PropT>()>;
+    mp11::mp_map_contains<mp11::mp_transform<make_entry_t, PropertiesT>, PropT>;
 
 } // namespace detail
 

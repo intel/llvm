@@ -46,7 +46,7 @@ std::enable_if_t<
 aligned_alloc_shared_annotated(size_t alignment, size_t numBytes,
                                const device &syclDevice,
                                const context &syclContext,
-                               const propertyListA &propList = properties{}) {
+                               const propertyListA &propList = propertyListA{}) {
   auto tmp =
       aligned_alloc_annotated(alignment, numBytes, syclDevice, syclContext,
                               sycl::usm::alloc::shared, propList);
@@ -62,7 +62,7 @@ std::enable_if_t<
 aligned_alloc_shared_annotated(size_t alignment, size_t count,
                                const device &syclDevice,
                                const context &syclContext,
-                               const propertyListA &propList = properties{}) {
+                               const propertyListA &propList = propertyListA{}) {
   auto tmp =
       aligned_alloc_annotated<T>(alignment, count, syclDevice, syclContext,
                                  sycl::usm::alloc::shared, propList);
@@ -77,7 +77,7 @@ std::enable_if_t<
     annotated_ptr<void, propertyListB>>
 aligned_alloc_shared_annotated(size_t alignment, size_t numBytes,
                                const queue &syclQueue,
-                               const propertyListA &propList = properties{}) {
+                               const propertyListA &propList = propertyListA{}) {
   return aligned_alloc_shared_annotated(alignment, numBytes,
                                         syclQueue.get_device(),
                                         syclQueue.get_context(), propList);
@@ -91,7 +91,7 @@ std::enable_if_t<
     annotated_ptr<T, propertyListB>>
 aligned_alloc_shared_annotated(size_t alignment, size_t count,
                                const queue &syclQueue,
-                               const propertyListA &propList = properties{}) {
+                               const propertyListA &propList = propertyListA{}) {
   return aligned_alloc_shared_annotated<T>(alignment, count,
                                            syclQueue.get_device(),
                                            syclQueue.get_context(), propList);
@@ -112,7 +112,7 @@ std::enable_if_t<
     annotated_ptr<void, propertyListB>>
 malloc_shared_annotated(size_t numBytes, const device &syclDevice,
                         const context &syclContext,
-                        const propertyListA &propList = properties{}) {
+                        const propertyListA &propList = propertyListA{}) {
   return aligned_alloc_shared_annotated(0, numBytes, syclDevice, syclContext,
                                         propList);
 }
@@ -125,7 +125,7 @@ std::enable_if_t<
     annotated_ptr<T, propertyListB>>
 malloc_shared_annotated(size_t count, const device &syclDevice,
                         const context &syclContext,
-                        const propertyListA &propList = properties{}) {
+                        const propertyListA &propList = propertyListA{}) {
   return aligned_alloc_shared_annotated<T>(0, count, syclDevice, syclContext,
                                            propList);
 }
@@ -137,7 +137,7 @@ std::enable_if_t<
     CheckSharedPtrTAndPropLists<void, propertyListA, propertyListB>::value,
     annotated_ptr<void, propertyListB>>
 malloc_shared_annotated(size_t numBytes, const queue &syclQueue,
-                        const propertyListA &propList = properties{}) {
+                        const propertyListA &propList = propertyListA{}) {
   return malloc_shared_annotated(numBytes, syclQueue.get_device(),
                                  syclQueue.get_context(), propList);
 }
@@ -149,7 +149,7 @@ std::enable_if_t<
     CheckSharedPtrTAndPropLists<T, propertyListA, propertyListB>::value,
     annotated_ptr<T, propertyListB>>
 malloc_shared_annotated(size_t count, const queue &syclQueue,
-                        const propertyListA &propList = properties{}) {
+                        const propertyListA &propList = propertyListA{}) {
   return malloc_shared_annotated<T>(count, syclQueue.get_device(),
                                     syclQueue.get_context(), propList);
 }

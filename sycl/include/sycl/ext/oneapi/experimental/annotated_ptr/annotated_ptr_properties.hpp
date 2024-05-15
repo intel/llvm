@@ -59,19 +59,19 @@ template <typename PropertyListT> struct IsUsmKindDevice : std::false_type {};
 template <typename... Props>
 struct IsUsmKindDevice<detail::properties_t<Props...>>
     : detail::ContainsProperty<std::remove_const_t<decltype(usm_kind_device)>,
-                               std::tuple<Props...>> {};
+                               detail::type_list<Props...>> {};
 
 template <typename PropertyListT> struct IsUsmKindHost : std::false_type {};
 template <typename... Props>
 struct IsUsmKindHost<detail::properties_t<Props...>>
     : detail::ContainsProperty<std::remove_const_t<decltype(usm_kind_host)>,
-                               std::tuple<Props...>> {};
+                               detail::type_list<Props...>> {};
 
 template <typename PropertyListT> struct IsUsmKindShared : std::false_type {};
 template <typename... Props>
 struct IsUsmKindShared<detail::properties_t<Props...>>
     : detail::ContainsProperty<std::remove_const_t<decltype(usm_kind_shared)>,
-                               std::tuple<Props...>> {};
+                               detail::type_list<Props...>> {};
 
 } // namespace detail
 
