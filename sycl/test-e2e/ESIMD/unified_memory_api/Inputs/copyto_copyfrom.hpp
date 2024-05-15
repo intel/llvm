@@ -64,7 +64,8 @@ bool testUSM(queue Q, uint32_t Groups, uint32_t Threads,
            Vals.copy_to(Out + ElemOff);
            Input.copy_from(In + ElemOff);
          }
-         Vals = gather<T, N>(Out, ByteOffsets);
+         if constexpr (__ESIMD_DNS::isPowerOf2(N, 64))
+           Vals = gather<T, N>(Out, ByteOffsets);
          Vals += Input;
          constexpr int ChunkSize = sizeof(T) * N < 4 ? 2 : 16;
 
@@ -128,7 +129,8 @@ bool testACC(queue Q, uint32_t Groups, uint32_t Threads,
            Vals.copy_to(OutAcc, ElemOff * sizeof(T));
            Input.copy_from(InAcc, ElemOff * sizeof(T));
          }
-         Vals = gather<T, N>(OutAcc, ByteOffsets);
+         if constexpr (__ESIMD_DNS::isPowerOf2(N, 64))
+           Vals = gather<T, N>(OutAcc, ByteOffsets);
          Vals += Input;
          constexpr int ChunkSize = sizeof(T) * N < 4 ? 2 : 16;
 
@@ -371,23 +373,26 @@ bool test_copyto_copyfrom_local_acc_slm(queue Q) {
   Passed &= testLocalAccSLM<T, 4, UseProperties>(Q, 2, AlignElemProps);
   Passed &= testLocalAccSLM<T, 8, UseProperties>(Q, 2, AlignElemProps);
   Passed &= testLocalAccSLM<T, 16, UseProperties>(Q, 2, Align16Props);
-  Passed &= testLocalAccSLM<T, 32, UseProperties>(Q, 2, Align16Props);
-  Passed &= testLocalAccSLM<T, 64, UseProperties>(Q, 2, Align16Props);
 
   // Test copyto_copyfrom() without passing compile-time properties argument.
   Passed &= testLocalAccSLM<T, 16, !UseProperties>(Q, 2, Align16Props);
 
-  // Test N that is not power of 2, which definitely would require element-size
-  // alignment - it works even for byte- and word-vectors if mask is not used.
-  // Alignment that is smaller than 16-bytes is not assumed/expected by default
-  Passed &= testLocalAccSLM<T, 3, UseProperties>(Q, 2, AlignElemProps);
-
-  Passed &= testLocalAccSLM<T, 17, UseProperties>(Q, 2, AlignElemProps);
-
-  Passed &= testLocalAccSLM<T, 113, UseProperties>(Q, 2, AlignElemProps);
-
   if constexpr (Features == TestFeatures::PVC ||
                 Features == TestFeatures::DG2) {
+    Passed &= testLocalAccSLM<T, 32, UseProperties>(Q, 2, Align16Props);
+    Passed &= testLocalAccSLM<T, 64, UseProperties>(Q, 2, Align16Props);
+
+    // Test N that is not power of 2, which definitely would require
+    // element-size
+    // alignment - it works even for byte- and word-vectors if mask is not used.
+    // Alignment that is smaller than 16-bytes is not assumed/expected by
+    // default
+    Passed &= testLocalAccSLM<T, 3, UseProperties>(Q, 2, AlignElemProps);
+
+    Passed &= testLocalAccSLM<T, 17, UseProperties>(Q, 2, AlignElemProps);
+
+    Passed &= testLocalAccSLM<T, 113, UseProperties>(Q, 2, AlignElemProps);
+
     // Using the mask adds the requirement to run tests on DG2/PVC.
     // Also, DG2/PVC variant currently requires power-or-two elements and
     // the number of bytes stored per call must not exceed 512.

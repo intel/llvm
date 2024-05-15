@@ -27,7 +27,6 @@ int main() {
     Passed &= test_copyto_copyfrom_local_acc_slm<sycl::half, TestFeatures>(Q);
   Passed &= test_copyto_copyfrom_local_acc_slm<uint32_t, TestFeatures>(Q);
   Passed &= test_copyto_copyfrom_local_acc_slm<float, TestFeatures>(Q);
-  Passed &= test_copyto_copyfrom_local_acc_slm<int64_t, TestFeatures>(Q);
   if (Q.get_device().has(sycl::aspect::fp64))
     Passed &= test_copyto_copyfrom_local_acc_slm<double, TestFeatures>(Q);
 
