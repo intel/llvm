@@ -40,9 +40,9 @@ PreservedAnalyses RecordSYCLAspectNamesPass::run(Module &M,
   }
 
   auto &Ctx = M.getContext();
+  const char *MetadataToProcess[] = {"sycl_used_aspects",
+                                     "sycl_declared_aspects"};
   for (Function &F : M.functions()) {
-    const char *MetadataToProcess[] = {"sycl_used_aspects",
-                                       "sycl_declared_aspects"};
     for (auto MetadataName : MetadataToProcess) {
       auto *MDNode = F.getMetadata(MetadataName);
       if (!MDNode)
