@@ -10,9 +10,14 @@
 
 #include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_usm/alloc_util.hpp>
+#include <sycl/queue.hpp>
+#include <sycl/usm.hpp>
 
 namespace sycl {
 inline namespace _V1 {
+class device;
+class context;
+
 namespace ext {
 namespace oneapi {
 namespace experimental {

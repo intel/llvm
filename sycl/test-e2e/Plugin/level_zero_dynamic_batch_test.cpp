@@ -40,7 +40,7 @@
 // CKALL: Test Pass
 // CKALL: Test Pass
 
-#include "CL/sycl.hpp"
+#include "sycl/sycl.hpp"
 #include <chrono>
 #include <cmath>
 #include <iostream>

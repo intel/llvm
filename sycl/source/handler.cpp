@@ -29,6 +29,7 @@
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stream.hpp>
 
+#include <sycl/ext/oneapi/bindless_images_memory.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
 
 namespace sycl {
@@ -352,6 +353,7 @@ event handler::finalize() {
                               PI_ERROR_INVALID_OPERATION);
         else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
           NewEvent->setComplete();
+        NewEvent->setEnqueued();
 
         MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
       }
@@ -1168,6 +1170,57 @@ void handler::ext_oneapi_copy(
 }
 
 void handler::ext_oneapi_copy(
+    ext::oneapi::experimental::image_mem_handle Src,
+    ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &ImageDesc) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  ImageDesc.verify();
+
+  MSrcPtr = Src.raw_handle;
+  MDstPtr = Dest.raw_handle;
+
+  sycl::detail::pi::PiMemImageDesc PiDesc = {};
+  PiDesc.image_width = ImageDesc.width;
+  PiDesc.image_height = ImageDesc.height;
+  PiDesc.image_depth = ImageDesc.depth;
+  PiDesc.image_array_size = ImageDesc.array_size;
+  if (ImageDesc.array_size > 1) {
+    // Image Array.
+    PiDesc.image_type = ImageDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
+                                             : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        ImageDesc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
+  } else {
+    PiDesc.image_type = ImageDesc.depth > 0
+                            ? PI_MEM_TYPE_IMAGE3D
+                            : (ImageDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                    : PI_MEM_TYPE_IMAGE1D);
+  }
+
+  sycl::detail::pi::PiMemImageFormat PiFormat;
+  PiFormat.image_channel_data_type =
+      sycl::_V1::detail::convertChannelType(ImageDesc.channel_type);
+  PiFormat.image_channel_order =
+      sycl::_V1::detail::convertChannelOrder(ImageDesc.channel_order);
+
+  MImpl->MSrcOffset = {0, 0, 0};
+  MImpl->MDestOffset = {0, 0, 0};
+  MImpl->MCopyExtent = {ImageDesc.width, ImageDesc.height, ImageDesc.depth};
+  MImpl->MHostExtent = {ImageDesc.width, ImageDesc.height, ImageDesc.depth};
+  MImpl->MImageDesc = PiDesc;
+  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageCopyFlags =
+      sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_DEVICE;
+  setType(detail::CG::CopyImage);
+}
+
+void handler::ext_oneapi_copy(
     ext::oneapi::experimental::image_mem_handle Src, sycl::range<3> SrcOffset,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
     sycl::range<3> DestOffset, sycl::range<3> DestExtent,
@@ -1375,6 +1428,18 @@ void handler::use_kernel_bundle(
 
 void handler::depends_on(event Event) {
   auto EventImpl = detail::getSyclObjImpl(Event);
+  depends_on(EventImpl);
+}
+
+void handler::depends_on(const std::vector<event> &Events) {
+  for (const event &Event : Events) {
+    depends_on(Event);
+  }
+}
+
+void handler::depends_on(const detail::EventImplPtr &EventImpl) {
+  if (!EventImpl)
+    return;
   if (EventImpl->isDiscarded()) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Queue operation cannot depend on discarded event.");
@@ -1395,8 +1460,8 @@ void handler::depends_on(event Event) {
   CGData.MEvents.push_back(EventImpl);
 }
 
-void handler::depends_on(const std::vector<event> &Events) {
-  for (const event &Event : Events) {
+void handler::depends_on(const std::vector<detail::EventImplPtr> &Events) {
+  for (const EventImplPtr &Event : Events) {
     depends_on(Event);
   }
 }

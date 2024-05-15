@@ -8,15 +8,16 @@
 
 #pragma once
 
-#include <sycl/aliases.hpp>       // for half
-#include <sycl/detail/common.hpp> // for ArrayCreator
-#include <sycl/half_type.hpp>     // for half
+#include <sycl/aliases.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/is_device_copyable.hpp>
+#include <sycl/half_type.hpp>
 
-#include <array>       // for array
-#include <cstddef>     // for size_t
-#include <cstdint>     // for int64_t, int8_t, uint64_t, int16_t
-#include <type_traits> // for enable_if_t, remove_const, is_conv...
-#include <utility>     // for index_sequence, make_index_sequence
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <type_traits>
+#include <utility>
 
 namespace sycl {
 inline namespace _V1 {
@@ -312,11 +313,36 @@ public:
 #endif
 
 #define __SYCL_UOP(UOP, OPASSIGN)                                              \
-  friend marray &operator UOP(marray &Lhs) {                                   \
+  template <typename T = DataT>                                                \
+  friend std::enable_if_t<                                                     \
+      !std::is_same_v<typename std::remove_cv<T>::type, bool>, marray>         \
+      &operator UOP(marray & Lhs) {                                            \
     Lhs OPASSIGN 1;                                                            \
     return Lhs;                                                                \
   }                                                                            \
-  friend marray operator UOP(marray &Lhs, int) {                               \
+  template <typename T = DataT>                                                \
+  friend std::enable_if_t<                                                     \
+      !std::is_same_v<typename std::remove_cv<T>::type, bool>, marray>         \
+  operator UOP(marray & Lhs, int) {                                            \
+    marray Ret(Lhs);                                                           \
+    Lhs OPASSIGN 1;                                                            \
+    return Ret;                                                                \
+  }                                                                            \
+  template <typename T = DataT>                                                \
+  __SYCL_DEPRECATED(                                                           \
+      "++ and -- operators are deprecated for marray<bool, ...>")              \
+  friend std::enable_if_t<                                                     \
+      std::is_same_v<typename std::remove_cv<T>::type, bool>, marray>          \
+      &operator UOP(marray & Lhs) {                                            \
+    Lhs OPASSIGN 1;                                                            \
+    return Lhs;                                                                \
+  }                                                                            \
+  template <typename T = DataT>                                                \
+  __SYCL_DEPRECATED(                                                           \
+      "++ and -- operators are deprecated for marray<bool, ...>")              \
+  friend std::enable_if_t<                                                     \
+      std::is_same_v<typename std::remove_cv<T>::type, bool>, marray>          \
+  operator UOP(marray & Lhs, int) {                                            \
     marray Ret(Lhs);                                                           \
     Lhs OPASSIGN 1;                                                            \
     return Ret;                                                                \
@@ -362,6 +388,10 @@ public:
     return Ret;
   }
 };
+
+// marray is device copyable if element type is device copyable.
+template <typename T, std::size_t N>
+struct is_device_copyable<sycl::marray<T, N>> : is_device_copyable<T> {};
 
 #define __SYCL_MAKE_MARRAY_ALIAS(ALIAS, TYPE, N)                               \
   using ALIAS##N = sycl::marray<TYPE, N>;

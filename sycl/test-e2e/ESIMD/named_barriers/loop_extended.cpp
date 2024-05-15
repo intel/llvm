@@ -9,6 +9,8 @@
 // REQUIRES: gpu-intel-pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// RUN: %{build} -o %t1.out -DEXP
+// RUN: %{run} %t1.out
 //
 // Test checks support of named barrier in a loop in ESIMD kernel.
 // First iteration has 1 barrier and 1 producer, second - 2 barriers and 2
@@ -20,6 +22,12 @@
 #include <sycl/sycl.hpp>
 
 #include "../esimd_test_utils.hpp"
+
+#ifdef EXP
+#define NS __ESIMD_ENS
+#else
+#define NS __ESIMD_NS
+#endif
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -58,7 +66,7 @@ bool test(QueueTY q) {
             constexpr unsigned SlmSize = Size / 2;     // 32
             constexpr unsigned VL = SlmSize / Threads; // 4
 
-            named_barrier_init<bnum>();
+            NS::named_barrier_init<bnum>();
 
             unsigned int idx = ndi.get_local_id(0);
             unsigned int off = idx * VL * sizeof(int);
@@ -95,10 +103,10 @@ bool test(QueueTY q) {
                 lsc_slm_block_store<int, SlmSize / 2>(p_off, init);
               }
 
-              named_barrier_signal(b, flag, producers, consumers);
+              NS::named_barrier_signal(b, flag, producers, consumers);
 
               if (is_consumer)
-                named_barrier_wait(b); // consumers waiting for signal
+                NS::named_barrier_wait(b); // consumers waiting for signal
 
               auto val = lsc_slm_block_load<int, VL>(off); // reading SLM
               // and storing it to output surface

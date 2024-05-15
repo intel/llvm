@@ -1,6 +1,6 @@
 // This test checks for some basic Front End features for Native CPU:
 // * is-native-cpu module flag
-// RUN: %clang_cc1 -fsycl-is-device -S -emit-llvm -internal-isystem %S/Inputs -fsycl-is-native-cpu -o %t.ll %s 
+// RUN: %clang_cc1 -fsycl-is-device -emit-llvm -internal-isystem %S/Inputs -fsycl-is-native-cpu -o %t.ll %s 
 // RUN: FileCheck -input-file=%t.ll %s 
 
 #include "sycl.hpp"

@@ -1,6 +1,5 @@
 // REQUIRES: linux
 // REQUIRES: cuda
-// XFAIL: *
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -9,6 +8,7 @@
 #include <limits>
 #include <sycl/detail/core.hpp>
 
+#include "bindless_helpers.hpp"
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
@@ -27,7 +27,6 @@ bool run_test(sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
   auto ctxt = q.get_context();
 
   size_t numElems = globalSize.size();
-
   constexpr auto dtypeMaxVal = std::numeric_limits<DType>::max();
 
   std::vector<InputType> dataIn(numElems, InputType((DType)dtypeMaxVal));
@@ -46,7 +45,7 @@ bool run_test(sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
     syclexp::image_mem_handle imgMemOut = syclexp::alloc_image_mem(descOut, q);
 
     syclexp::bindless_image_sampler sampler{
-        sycl::addressing_mode::repeat,
+        sycl::addressing_mode::clamp,
         sycl::coordinate_normalization_mode::normalized,
         sycl::filtering_mode::nearest};
 
@@ -60,28 +59,35 @@ bool run_test(sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
       cgh.parallel_for<KernelName>(
           sycl::nd_range<NDims>{globalSize, localSize},
           [=](sycl::nd_item<NDims> it) {
-            size_t dim0 = it.get_global_id(0);
-            size_t dim1 = it.get_global_id(1);
-            size_t dim2 = it.get_global_id(2);
-
             if constexpr (NDims == 1) {
+              size_t dim0 = it.get_global_id(0);
+              float fdim0 = dim0 / globalSize[0];
               OutputType pixel =
-                  syclexp::sample_image<OutputType>(imgIn, float(dim0));
+                  syclexp::sample_image<OutputType>(imgIn, fdim0);
               syclexp::write_image(imgOut, int(dim0), pixel);
             } else if constexpr (NDims == 2) {
+              size_t dim0 = it.get_global_id(0);
+              size_t dim1 = it.get_global_id(1);
+              float fdim0 = dim0 / globalSize[0];
+              float fdim1 = dim1 / globalSize[1];
               OutputType pixel = syclexp::sample_image<OutputType>(
-                  imgIn, sycl::float2(dim0, dim1));
+                  imgIn, sycl::float2(fdim0, fdim1));
               syclexp::write_image(imgOut, sycl::int2(dim0, dim1), pixel);
             } else if constexpr (NDims == 3) {
+              size_t dim0 = it.get_global_id(0);
+              size_t dim1 = it.get_global_id(1);
+              size_t dim2 = it.get_global_id(2);
+              float fdim0 = dim0 / globalSize[0];
+              float fdim1 = dim1 / globalSize[1];
+              float fdim2 = dim2 / globalSize[2];
               OutputType pixel = syclexp::sample_image<OutputType>(
-                  imgIn, sycl::float3(dim0, dim1, dim2));
+                  imgIn, sycl::float3(fdim0, fdim1, fdim2));
               syclexp::write_image(imgOut, sycl::int3(dim0, dim1, dim2), pixel);
             }
           });
     });
 
     q.wait_and_throw();
-
     q.ext_oneapi_copy(imgMemOut, dataOut.data(), descOut);
     q.wait_and_throw();
 
@@ -91,7 +97,6 @@ bool run_test(sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
     syclexp::free_image_mem(imgMemIn, syclexp::image_type::standard, dev, ctxt);
     syclexp::free_image_mem(imgMemOut, syclexp::image_type::standard, dev,
                             ctxt);
-
   } catch (sycl::exception e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";
     return false;
@@ -102,13 +107,13 @@ bool run_test(sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
 
   // collect and validate output
   bool validated = true;
-  for (int i = 0; i < localSize[0]; i++) {
+  for (int i = 0; i < globalSize.size(); i++) {
     bool mismatch = false;
-    if (dataOut[i][0] != expected[i][0]) {
+    if (!bindless_helpers::equal_vec<float, NChannels>(dataOut[i],
+                                                       expected[i])) {
       mismatch = true;
       validated = false;
     }
-
     if (mismatch) {
 #ifdef VERBOSE_PRINT
       std::cout << "Result mismatch! Expected: " << expected[i][0]
@@ -192,7 +197,6 @@ int main() {
                                                                          {2});
 
   // 2D tests
-
   verbose_println("Running kernel unorm_int8_2d_1c");
   validated &= run_test<2, uint8_t, 1, sycl::image_channel_type::unorm_int8,
                         sycl::image_channel_order::r, class unorm_int8_2d_1c>(
@@ -249,7 +253,6 @@ int main() {
           {32, 32}, {16, 16});
 
   // 3D tests
-
   verbose_println("Running kernel unorm_int8_3d_1c");
   validated &= run_test<3, uint8_t, 1, sycl::image_channel_type::unorm_int8,
                         sycl::image_channel_order::r, class unorm_int8_3d_1c>(

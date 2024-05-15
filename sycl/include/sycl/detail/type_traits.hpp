@@ -11,7 +11,6 @@
 #include <sycl/access/access.hpp>             // for decorated, address_space
 #include <sycl/detail/generic_type_lists.hpp> // for vec, marray, integer_list
 #include <sycl/detail/type_list.hpp>          // for is_contained, find_twi...
-#include <sycl/half_type.hpp>                 // for half
 
 #include <array>       // for array
 #include <cstddef>     // for size_t
