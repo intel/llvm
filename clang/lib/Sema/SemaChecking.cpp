@@ -2350,10 +2350,8 @@ static bool BuiltinCpu(Sema &S, const TargetInfo &TI, CallExpr *TheCall,
   if (!SupportsBI(&TI) && SupportsBI(AuxTI))
     TheTI = AuxTI;
 
-  if (IsCPUSupports && !TheTI->supportsCpuSupports())
-    return S.Diag(TheCall->getBeginLoc(), diag::err_builtin_target_unsupported)
-           << SourceRange(TheCall->getBeginLoc(), TheCall->getEndLoc());
-  if (!IsCPUSupports && !TheTI->supportsCpuIs())
+  if ((!IsCPUSupports && !TheTI->supportsCpuIs()) ||
+      (IsCPUSupports && !TheTI->supportsCpuSupports()))
     return S.Diag(TheCall->getBeginLoc(),
                   TI.getTriple().isOSAIX()
                       ? diag::err_builtin_aix_os_unsupported
@@ -2539,18 +2537,18 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
   case Builtin::BI_bittestandset64:
   case Builtin::BI_interlockedbittestandreset64:
   case Builtin::BI_interlockedbittestandset64:
-    if (CheckBuiltinTargetInSupported(*this, BuiltinID, TheCall,
-                                      {llvm::Triple::x86_64, llvm::Triple::arm,
-                                       llvm::Triple::thumb,
-                                       llvm::Triple::aarch64}))
+    if (CheckBuiltinTargetInSupported(
+            *this, BuiltinID, TheCall,
+            {llvm::Triple::x86_64, llvm::Triple::arm, llvm::Triple::thumb,
+             llvm::Triple::aarch64, llvm::Triple::amdgcn}))
       return ExprError();
     break;
 
   case Builtin::BI__builtin_set_flt_rounds:
-    if (CheckBuiltinTargetInSupported(*this, BuiltinID, TheCall,
-                                      {llvm::Triple::x86, llvm::Triple::x86_64,
-                                       llvm::Triple::arm, llvm::Triple::thumb,
-                                       llvm::Triple::aarch64}))
+    if (CheckBuiltinTargetInSupported(
+            *this, BuiltinID, TheCall,
+            {llvm::Triple::x86, llvm::Triple::x86_64, llvm::Triple::arm,
+             llvm::Triple::thumb, llvm::Triple::aarch64, llvm::Triple::amdgcn}))
       return ExprError();
     break;
 
@@ -3102,6 +3100,7 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
   case Builtin::BI__builtin_elementwise_nearbyint:
   case Builtin::BI__builtin_elementwise_sin:
   case Builtin::BI__builtin_elementwise_sqrt:
+  case Builtin::BI__builtin_elementwise_tan:
   case Builtin::BI__builtin_elementwise_trunc:
   case Builtin::BI__builtin_elementwise_canonicalize: {
     if (PrepareBuiltinElementwiseMathOneArgCall(TheCall))
@@ -5737,6 +5736,7 @@ bool Sema::CheckHLSLBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
   case Builtin::BI__builtin_elementwise_roundeven:
   case Builtin::BI__builtin_elementwise_sin:
   case Builtin::BI__builtin_elementwise_sqrt:
+  case Builtin::BI__builtin_elementwise_tan:
   case Builtin::BI__builtin_elementwise_trunc: {
     if (CheckFloatOrHalfRepresentations(this, TheCall))
       return true;
