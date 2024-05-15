@@ -1941,6 +1941,11 @@ public:
     Attrs = Attrs.addDereferenceableRetAttr(getContext(), Bytes);
   }
 
+  /// adds the range attribute to the list of attributes.
+  void addRangeRetAttr(const ConstantRange &CR) {
+    Attrs = Attrs.addRangeRetAttr(getContext(), CR);
+  }
+
   /// Determine whether the return value has the given attribute.
   bool hasRetAttr(Attribute::AttrKind Kind) const {
     return hasRetAttrImpl(Kind);
@@ -2608,6 +2613,11 @@ public:
   /// instance allocated in this User's descriptor.
   op_iterator populateBundleOperandInfos(ArrayRef<OperandBundleDef> Bundles,
                                          const unsigned BeginIndex);
+
+  /// Return true if the call has deopt state bundle.
+  bool hasDeoptState() const {
+    return getOperandBundle(LLVMContext::OB_deopt).has_value();
+  }
 
 public:
   /// Return the BundleOpInfo for the operand at index OpIdx.

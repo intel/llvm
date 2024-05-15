@@ -31,13 +31,13 @@ option(NATIVECPU_OCK_USE_FETCHCONTENT "Use FetchContent to acquire oneAPI Constr
 if(NATIVECPU_USE_OCK)
   if(NATIVECPU_OCK_USE_FETCHCONTENT)
     set(OCK_GIT_INTERNAL_REPO "https://github.com/codeplaysoftware/oneapi-construction-kit.git")
-    # commit 85dfbf7e8c70e01b37daea0dee20e89ccd7af5f7
-    # Merge: 96ae65b1 86ac90a5
-    # Author: Harald van Dijk <harald.vandijk@codeplay.com>
-    # Date:   Wed Mar 27 09:46:31 2024 +0000
-    # Merge pull request #417 from hvdijk/aarch64-suitofp-scalarize
-    # [AArch64] Scalarize vector int-to-fp conversions.
-    set(OCK_GIT_INTERNAL_TAG  85dfbf7e8c70e01b37daea0dee20e89ccd7af5f7)
+    # commit bd7eadaf7ffc7d74c88dd309119e858b7ffae0cf
+    # Merge: e4f71dc16 792461086
+    # Author: Colin Davidson <colin.davidson@codeplay.com>
+    # Date:   Tue May 7 09:40:38 2024 +0100
+    #     Merge pull request #448 from coldav/colin/support_compiler_passes_only
+    #     Add top level directory which can be used to just build compiler passes
+    set(OCK_GIT_INTERNAL_TAG bd7eadaf7ffc7d74c88dd309119e858b7ffae0cf)
 
     # Overwrite OCK_GIT_INTERNAL_REPO/OCK_GIT_INTERNAL_TAG if the corresponding options are set
     if(OCK_GIT_REPO)
@@ -56,11 +56,11 @@ if(NATIVECPU_USE_OCK)
       message(STATUS "Cloning oneAPI Construction Kit from ${OCK_GIT_INTERNAL_REPO}, tag ${OCK_GIT_INTERNAL_TAG}")
       FetchContent_Populate(oneapi-ck)
       message(STATUS "oneAPI Construction Kit cloned in ${oneapi-ck_SOURCE_DIR}")
-      set(OCK_SOURCE_DIR_INTERNAL ${oneapi-ck_SOURCE_DIR})
+      set(OCK_SOURCE_DIR_INTERNAL ${oneapi-ck_SOURCE_DIR}/compiler_passes)
       set(OCK_BINARY_DIR_INTERNAL ${oneapi-ck_BINARY_DIR})
     endif()
   elseif(OCK_SOURCE_DIR)
-    set(OCK_SOURCE_DIR_INTERNAL "${OCK_SOURCE_DIR}")
+    set(OCK_SOURCE_DIR_INTERNAL "${OCK_SOURCE_DIR}/compiler_passes")
     set(OCK_BINARY_DIR_INTERNAL "${CMAKE_CURRENT_BINARY_DIR}/oneapi-construction-kit")
   else()
     message(FATAL_ERROR "NATIVECPU_OCK_USE_FETCHCONTENT is Off and OCK_SOURCE_DIR not set")

@@ -291,6 +291,8 @@ const static char Float[] = "float";
 const static char Half[] = "half";
 const static char Int[] = "int";
 const static char UInt[] = "uint";
+const static char Long[] = "long";
+const static char ULong[] = "ulong";
 const static char Void[] = "void";
 } // namespace kSPIRVImageSampledTypeName
 

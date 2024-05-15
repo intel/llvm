@@ -3349,6 +3349,7 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
   case OpCooperativeMatrixLoadKHR:
   case internal::OpCooperativeMatrixLoadCheckedINTEL:
   case internal::OpTaskSequenceCreateINTEL:
+  case internal::OpConvertHandleToImageINTEL:
     AddRetTypePostfix = true;
     break;
   default: {
@@ -5051,6 +5052,10 @@ llvm::convertSpirvToLLVM(LLVMContext &C, SPIRVModule &BM,
                          const SPIRV::TranslatorOpts &Opts,
                          std::string &ErrMsg) {
   std::unique_ptr<Module> M(new Module("", C));
+  // TODO: Migrate to the new debug record format.  Until then, keep using the
+  // old format.
+  M->setNewDbgInfoFormatFlag(false);
+
   SPIRVToLLVM BTL(M.get(), &BM);
 
   if (!BTL.translate()) {
