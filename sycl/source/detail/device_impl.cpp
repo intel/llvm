@@ -862,6 +862,8 @@ sycl::ext::oneapi::experimental::forward_progress_guarantee
 device_impl::getHostProgressGuarantee(
     ext::oneapi::experimental::execution_scope threadScope,
     ext::oneapi::experimental::execution_scope coordinationScope) {
+  std::ignore = threadScope;
+  std::ignore = coordinationScope;
   return sycl::ext::oneapi::experimental::forward_progress_guarantee::
       weakly_parallel;
 }
@@ -876,7 +878,6 @@ device_impl::getProgressGuarantee(
   using forward_progress_guarantee =
       ext::oneapi::experimental::forward_progress_guarantee;
   using execution_scope = ext::oneapi::experimental::execution_scope;
-  const int executionScopeSize = 4;
   int threadScopeNum = static_cast<int>(threadScope);
   // we get the immediate progress guarantee that is provided by each scope
   // between root_group and threadScope and then return the weakest of these.
@@ -884,7 +885,7 @@ device_impl::getProgressGuarantee(
   // because of how the forward_progress_guarantee enum values are declared.
   int guaranteeNum = static_cast<int>(
       getImmediateProgressGuarantee(execution_scope::root_group));
-  for (int currentScope = executionScopeSize - 2; currentScope > threadScopeNum;
+  for (int currentScope = coordinationScope; currentScope > threadScopeNum;
        --currentScope) {
     guaranteeNum = std::max(guaranteeNum,
                             static_cast<int>(getImmediateProgressGuarantee(
@@ -944,4 +945,5 @@ device_impl::getImmediateProgressGuarantee(
 
 } // namespace detail
 } // namespace _V1
+B B
 } // namespace sycl
