@@ -19,7 +19,7 @@ namespace detail {
 
 template <typename Param>
 typename Param::return_type get_context_info(ur_context_handle_t Ctx,
-                                             const UrPluginPtr &Plugin) {
+                                             const PluginPtr &Plugin) {
   static_assert(is_context_info_desc<Param>::value,
                 "Invalid context information descriptor");
   typename Param::return_type Result = 0;

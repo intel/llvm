@@ -106,13 +106,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 633ec4081c2ede6e94530d2c762535f1f7718f52
-  # Merge: e8225146 2727e8af
+  # commit 905804c2e93dd046140057fd07a5d6191063bedc
+  # Merge: 0a11fb44 d3d3f6e5
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Apr 30 21:17:45 2024 +0100
-  #     Merge pull request #1412 from konradkusiak97/memsetLargePatternL0
-  #     [L0][OpenCL] Emulate Fill with copy when patternSize is not a power of 2
-  set(UNIFIED_RUNTIME_TAG 633ec4081c2ede6e94530d2c762535f1f7718f52)
+  # Date:   Mon May 27 10:34:13 2024 +0100
+  #     Merge pull request #1581 from 0x12CC/l0_cooperative_kernels
+  #     Implement L0 cooperative kernel functions
+  set(UNIFIED_RUNTIME_TAG 905804c2e93dd046140057fd07a5d6191063bedc)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

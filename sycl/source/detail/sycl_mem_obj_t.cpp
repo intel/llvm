@@ -42,7 +42,7 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
         UR_RESULT_ERROR_INVALID_CONTEXT);
 
   ur_context_handle_t Context = nullptr;
-  const UrPluginPtr &Plugin = getPlugin();
+  const PluginPtr &Plugin = getPlugin();
 
   ur_mem_native_properties_t MemProperties = {
       UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES, nullptr, OwnNativeHandle};
@@ -94,7 +94,7 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
         UR_RESULT_ERROR_INVALID_CONTEXT);
 
   ur_context_handle_t Context = nullptr;
-  const UrPluginPtr &Plugin = getPlugin();
+  const PluginPtr &Plugin = getPlugin();
 
   ur_image_desc_t Desc = {};
   Desc.type = getImageType(Dimensions);
@@ -165,20 +165,20 @@ void SYCLMemObjT::updateHostMemory() {
   releaseHostMem(MShadowCopy);
 
   if (MOpenCLInterop) {
-    const UrPluginPtr &Plugin = getPlugin();
+    const PluginPtr &Plugin = getPlugin();
     Plugin->call(urMemRelease, MInteropMemObject);
   }
 }
-const UrPluginPtr &SYCLMemObjT::getPlugin() const {
+const PluginPtr &SYCLMemObjT::getPlugin() const {
   assert((MInteropContext != nullptr) &&
          "Trying to get Plugin from SYCLMemObjT with nullptr ContextImpl.");
-  return (MInteropContext->getUrPlugin());
+  return (MInteropContext->getPlugin());
 }
 
 size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
                                          ur_native_handle_t MemObject) {
   size_t BufSize = 0;
-  const UrPluginPtr &Plugin = Context->getUrPlugin();
+  const PluginPtr &Plugin = Context->getPlugin();
   // TODO is there something required to support non-OpenCL backends?
   Plugin->call(urMemGetInfo, detail::pi::cast<ur_mem_handle_t>(MemObject),
                UR_MEM_INFO_SIZE, sizeof(size_t), &BufSize, nullptr);

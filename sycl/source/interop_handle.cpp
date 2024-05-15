@@ -33,7 +33,7 @@ interop_handle::getNativeMem(detail::Requirement *Req) const {
                                PI_ERROR_INVALID_MEM_OBJECT);
   }
 
-  auto Plugin = MQueue->getUrPlugin();
+  auto Plugin = MQueue->getPlugin();
   ur_native_handle_t Handle;
   Plugin->call(urMemGetNativeHandle, Iter->second, MDevice->getUrHandleRef(),
                &Handle);

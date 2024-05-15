@@ -41,8 +41,8 @@ public:
   /// \param APlatform is a raw plug-in platform handle.
   /// \param APlugin is a plug-in handle.
   explicit platform_impl(ur_platform_handle_t APlatform,
-                         const std::shared_ptr<urPlugin> &APlugin)
-      : MUrPlatform(APlatform), MUrPlugin(APlugin) {
+                         const std::shared_ptr<plugin> &APlugin)
+      : MUrPlatform(APlatform), MPlugin(APlugin) {
     // Find out backend of the platform
     ur_platform_backend_t UrBackend = UR_PLATFORM_BACKEND_UNKNOWN;
     APlugin->call_nocheck(urPlatformGetInfo, APlatform,
@@ -97,7 +97,7 @@ public:
   /// Get backend option.
   void getBackendOption(const char *frontend_option,
                         const char **backend_option) const {
-    const auto &Plugin = getUrPlugin();
+    const auto &Plugin = getPlugin();
     ur_result_t Err =
         Plugin->call_nocheck(urPlatformGetBackendOption, MUrPlatform,
                              frontend_option, backend_option);
@@ -112,7 +112,7 @@ public:
           PI_ERROR_INVALID_PLATFORM);
     }
     ur_native_handle_t nativeHandle = nullptr;
-    getUrPlugin()->call(urPlatformGetNativeHandle, MUrPlatform, &nativeHandle);
+    getPlugin()->call(urPlatformGetNativeHandle, MUrPlatform, &nativeHandle);
     return pi::cast<cl_platform_id>(nativeHandle);
   }
 
@@ -127,9 +127,9 @@ public:
   /// \return a vector of all available SYCL platforms.
   static std::vector<platform> get_platforms();
 
-  const UrPluginPtr &getUrPlugin() const {
+  const PluginPtr &getPlugin() const {
     assert(!MHostPlatform && "Plugin is not available for Host.");
-    return MUrPlugin;
+    return MPlugin;
   }
 
   /// Gets the native handle of the SYCL platform.
@@ -186,7 +186,7 @@ public:
   /// \param Plugin is the PI plugin providing the backend for the platform
   /// \return the platform_impl representing the PI platform
   static std::shared_ptr<platform_impl>
-  getOrMakePlatformImpl(ur_platform_handle_t, const UrPluginPtr &Plugin);
+  getOrMakePlatformImpl(ur_platform_handle_t, const PluginPtr &Plugin);
 
   /// Queries the cache for the specified platform based on an input device.
   /// If found, returns the the cached platform_impl, otherwise creates a new
@@ -198,8 +198,7 @@ public:
   /// platform
   /// \return the platform_impl that contains the input device
   static std::shared_ptr<platform_impl>
-  getPlatformFromUrDevice(ur_device_handle_t UrDevice,
-                          const UrPluginPtr &Plugin);
+  getPlatformFromUrDevice(ur_device_handle_t UrDevice, const PluginPtr &Plugin);
 
   // when getting sub-devices for ONEAPI_DEVICE_SELECTOR we may temporarily
   // ensure every device is a root one.
@@ -218,7 +217,7 @@ private:
   ur_platform_handle_t MUrPlatform = 0;
   backend MBackend;
 
-  UrPluginPtr MUrPlugin;
+  PluginPtr MPlugin;
 
   std::vector<std::weak_ptr<device_impl>> MDeviceCache;
   std::mutex MDeviceMapMutex;

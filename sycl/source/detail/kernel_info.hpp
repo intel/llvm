@@ -25,7 +25,7 @@ template <typename Param>
 typename std::enable_if<
     std::is_same<typename Param::return_type, std::string>::value,
     std::string>::type
-get_kernel_info(ur_kernel_handle_t Kernel, const UrPluginPtr &Plugin) {
+get_kernel_info(ur_kernel_handle_t Kernel, const PluginPtr &Plugin) {
   static_assert(detail::is_kernel_info_desc<Param>::value,
                 "Invalid kernel information descriptor");
   size_t ResultSize = 0;
@@ -46,7 +46,7 @@ get_kernel_info(ur_kernel_handle_t Kernel, const UrPluginPtr &Plugin) {
 template <typename Param>
 typename std::enable_if<
     std::is_same<typename Param::return_type, uint32_t>::value, uint32_t>::type
-get_kernel_info(ur_kernel_handle_t Kernel, const UrPluginPtr &Plugin) {
+get_kernel_info(ur_kernel_handle_t Kernel, const PluginPtr &Plugin) {
   ur_result_t Result = UR_RESULT_SUCCESS;
 
   // TODO catch an exception and put it to list of asynchronous exceptions
@@ -60,7 +60,7 @@ template <typename Param>
 typename std::enable_if<IsSubGroupInfo<Param>::value>::type
 get_kernel_device_specific_info_helper(ur_kernel_handle_t Kernel,
                                        ur_device_handle_t Device,
-                                       const UrPluginPtr &Plugin, void *Result,
+                                       const PluginPtr &Plugin, void *Result,
                                        size_t Size) {
   Plugin->call(urKernelGetSubGroupInfo, Kernel, Device,
                UrInfoCode<Param>::value, Size, Result, nullptr);
@@ -70,7 +70,7 @@ template <typename Param>
 typename std::enable_if<!IsSubGroupInfo<Param>::value>::type
 get_kernel_device_specific_info_helper(ur_kernel_handle_t Kernel,
                                        ur_device_handle_t Device,
-                                       const UrPluginPtr &Plugin, void *Result,
+                                       const PluginPtr &Plugin, void *Result,
                                        size_t Size) {
   ur_result_t Error =
       Plugin->call_nocheck(urKernelGetGroupInfo, Kernel, Device,
@@ -86,7 +86,7 @@ typename std::enable_if<
     typename Param::return_type>::type
 get_kernel_device_specific_info(ur_kernel_handle_t Kernel,
                                 ur_device_handle_t Device,
-                                const UrPluginPtr &Plugin) {
+                                const PluginPtr &Plugin) {
   static_assert(is_kernel_device_specific_info_desc<Param>::value,
                 "Unexpected kernel_device_specific information descriptor");
   typename Param::return_type Result = {};
@@ -102,7 +102,7 @@ typename std::enable_if<
     sycl::range<3>>::type
 get_kernel_device_specific_info(ur_kernel_handle_t Kernel,
                                 ur_device_handle_t Device,
-                                const UrPluginPtr &Plugin) {
+                                const PluginPtr &Plugin) {
   static_assert(is_kernel_device_specific_info_desc<Param>::value,
                 "Unexpected kernel_device_specific information descriptor");
   size_t Result[3] = {0, 0, 0};
@@ -119,7 +119,7 @@ template <typename Param>
 uint32_t get_kernel_device_specific_info_with_input(ur_kernel_handle_t Kernel,
                                                     ur_device_handle_t Device,
                                                     sycl::range<3>,
-                                                    const UrPluginPtr &Plugin) {
+                                                    const PluginPtr &Plugin) {
   static_assert(is_kernel_device_specific_info_desc<Param>::value,
                 "Unexpected kernel_device_specific information descriptor");
   static_assert(std::is_same<typename Param::return_type, uint32_t>::value,

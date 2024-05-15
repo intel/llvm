@@ -62,15 +62,14 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
     DeviceIds.push_back(getSyclObjImpl(D)->getUrHandleRef());
   }
 
-  getUrPlugin()->call(urContextCreate, DeviceIds.size(), DeviceIds.data(),
-                      nullptr, &MUrContext);
+  getPlugin()->call(urContextCreate, DeviceIds.size(), DeviceIds.data(),
+                    nullptr, &MUrContext);
 
   MKernelProgramCache.setContextPtr(this);
 }
 
 context_impl::context_impl(ur_context_handle_t UrContext,
-                           async_handler AsyncHandler,
-                           const UrPluginPtr &Plugin,
+                           async_handler AsyncHandler, const PluginPtr &Plugin,
                            const std::vector<sycl::device> &DeviceList,
                            bool OwnedByRuntime)
     : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(AsyncHandler),
@@ -111,7 +110,7 @@ context_impl::context_impl(ur_context_handle_t UrContext,
   // TODO: Move this backend-specific retain of the context to SYCL-2020 style
   //       make_context<backend::opencl> interop, when that is created.
   if (getBackend() == sycl::backend::opencl) {
-    getUrPlugin()->call(urContextRetain, MUrContext);
+    getPlugin()->call(urContextRetain, MUrContext);
   }
   MKernelProgramCache.setContextPtr(this);
 }
@@ -123,9 +122,9 @@ cl_context context_impl::get() const {
         PI_ERROR_INVALID_CONTEXT);
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
-  getUrPlugin()->call(urContextRetain, MUrContext);
+  getPlugin()->call(urContextRetain, MUrContext);
   ur_native_handle_t nativeHandle = nullptr;
-  getUrPlugin()->call(urContextGetNativeHandle, MUrContext, &nativeHandle);
+  getPlugin()->call(urContextGetNativeHandle, MUrContext, &nativeHandle);
   return pi::cast<cl_context>(nativeHandle);
 }
 
@@ -134,7 +133,7 @@ bool context_impl::is_host() const { return MHostContext; }
 context_impl::~context_impl() {
   // Free all events associated with the initialization of device globals.
   for (auto &DeviceGlobalInitializer : MDeviceGlobalInitializers)
-    DeviceGlobalInitializer.second.ClearEvents(getUrPlugin());
+    DeviceGlobalInitializer.second.ClearEvents(getPlugin());
   // Free all device_global USM allocations associated with this context.
   for (const void *DeviceGlobal : MAssociatedDeviceGlobals) {
     DeviceGlobalMapEntry *DGEntry =
@@ -144,11 +143,11 @@ context_impl::~context_impl() {
   }
   for (auto LibProg : MCachedLibPrograms) {
     assert(LibProg.second && "Null program must not be kept in the cache");
-    getUrPlugin()->call(urProgramRelease, LibProg.second);
+    getPlugin()->call(urProgramRelease, LibProg.second);
   }
   if (!MHostContext) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    getUrPlugin()->call_nocheck(urContextRelease, MUrContext);
+    getPlugin()->call_nocheck(urContextRelease, MUrContext);
   }
 }
 
@@ -161,7 +160,7 @@ uint32_t context_impl::get_info<info::context::reference_count>() const {
   if (is_host())
     return 0;
   return get_context_info<info::context::reference_count>(
-      this->getUrHandleRef(), this->getUrPlugin());
+      this->getUrHandleRef(), this->getPlugin());
 }
 template <> platform context_impl::get_info<info::context::platform>() const {
   if (is_host())
@@ -313,7 +312,7 @@ context_impl::findMatchingDeviceImpl(ur_device_handle_t &DeviceUR) const {
 }
 
 ur_native_handle_t context_impl::getNative() const {
-  const auto &Plugin = getUrPlugin();
+  const auto &Plugin = getPlugin();
   if (getBackend() == backend::opencl)
     Plugin->call(urContextRetain, getUrHandleRef());
   ur_native_handle_t Handle;
@@ -353,7 +352,7 @@ void context_impl::addDeviceGlobalInitializer(
 std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
     ur_program_handle_t NativePrg,
     const std::shared_ptr<queue_impl> &QueueImpl) {
-  const UrPluginPtr &Plugin = getUrPlugin();
+  const PluginPtr &Plugin = getPlugin();
   const DeviceImplPtr &DeviceImpl = QueueImpl->getDeviceImplPtr();
   std::lock_guard<std::mutex> NativeProgramLock(MDeviceGlobalInitializersMutex);
   auto ImgIt = MDeviceGlobalInitializers.find(
@@ -449,7 +448,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
 }
 
 void context_impl::DeviceGlobalInitializer::ClearEvents(
-    const UrPluginPtr &Plugin) {
+    const PluginPtr &Plugin) {
   for (const ur_event_handle_t &Event : MDeviceGlobalInitEvents)
     Plugin->call(urEventRelease, Event);
   MDeviceGlobalInitEvents.clear();

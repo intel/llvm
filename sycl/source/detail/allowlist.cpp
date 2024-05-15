@@ -344,8 +344,7 @@ bool deviceIsAllowed(const DeviceDescT &DeviceDesc,
 }
 
 void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
-                    ur_platform_handle_t UrPlatform,
-                    const UrPluginPtr &Plugin) {
+                    ur_platform_handle_t UrPlatform, const PluginPtr &Plugin) {
 
   AllowListParsedT AllowListParsed =
       parseAllowList(SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get());

@@ -19,8 +19,8 @@ inline namespace _V1 {
 namespace detail {
 
 template <typename Param>
-typename Param::return_type
-get_event_profiling_info(ur_event_handle_t Event, const UrPluginPtr &Plugin) {
+typename Param::return_type get_event_profiling_info(ur_event_handle_t Event,
+                                                     const PluginPtr &Plugin) {
   static_assert(is_event_profiling_info_desc<Param>::value,
                 "Unexpected event profiling info descriptor");
   typename Param::return_type Result{0};
@@ -32,7 +32,7 @@ get_event_profiling_info(ur_event_handle_t Event, const UrPluginPtr &Plugin) {
 
 template <typename Param>
 typename Param::return_type get_event_info(ur_event_handle_t Event,
-                                           const UrPluginPtr &Plugin) {
+                                           const PluginPtr &Plugin) {
   static_assert(is_event_info_desc<Param>::value,
                 "Unexpected event info descriptor");
   typename Param::return_type Result{0};

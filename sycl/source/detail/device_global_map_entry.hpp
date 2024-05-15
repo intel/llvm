@@ -39,7 +39,7 @@ struct DeviceGlobalUSMMem {
 
   // Gets the initialization event if it exists. If not the OwnedPiEvent
   // will contain no event.
-  OwnedUrEvent getInitEvent(const UrPluginPtr &Plugin);
+  OwnedUrEvent getInitEvent(const PluginPtr &Plugin);
 
 private:
   void *MPtr;

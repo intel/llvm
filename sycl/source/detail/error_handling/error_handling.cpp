@@ -95,7 +95,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
     IsLevelZero = true;
   }
 
-  const UrPluginPtr &Plugin = DeviceImpl.getUrPlugin();
+  const PluginPtr &Plugin = DeviceImpl.getPlugin();
   ur_device_handle_t Device = DeviceImpl.getUrHandleRef();
 
   size_t CompileWGSize[3] = {0};
@@ -310,7 +310,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
 void handleInvalidWorkItemSize(const device_impl &DeviceImpl,
                                const NDRDescT &NDRDesc) {
 
-  const UrPluginPtr &Plugin = DeviceImpl.getUrPlugin();
+  const PluginPtr &Plugin = DeviceImpl.getPlugin();
   ur_device_handle_t Device = DeviceImpl.getUrHandleRef();
 
   size_t MaxWISize[] = {0, 0, 0};
@@ -329,7 +329,7 @@ void handleInvalidWorkItemSize(const device_impl &DeviceImpl,
 
 void handleInvalidValue(const device_impl &DeviceImpl,
                         const NDRDescT &NDRDesc) {
-  const UrPluginPtr &Plugin = DeviceImpl.getUrPlugin();
+  const PluginPtr &Plugin = DeviceImpl.getPlugin();
   ur_device_handle_t Device = DeviceImpl.getUrHandleRef();
 
   size_t MaxNWGs[] = {0, 0, 0};
@@ -412,7 +412,7 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
     // depending on whether PI_ERROR_PLUGIN_SPECIFIC_ERROR contains an error or
     // a warning. It also ensures that the contents of the error message buffer
     // (used only by PI_ERROR_PLUGIN_SPECIFIC_ERROR) get handled correctly.
-    return DeviceImpl.getUrPlugin()->checkUrResult(Error);
+    return DeviceImpl.getPlugin()->checkUrResult(Error);
 
     // TODO: Handle other error codes
 
@@ -426,7 +426,7 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
 
 namespace detail::kernel_get_group_info {
 void handleErrorOrWarning(ur_result_t Error, ur_kernel_group_info_t Descriptor,
-                          const UrPluginPtr &Plugin) {
+                          const PluginPtr &Plugin) {
   assert(Error != UR_RESULT_SUCCESS &&
          "Success is expected to be handled on caller side");
   switch (Error) {

@@ -363,7 +363,7 @@ public:
 
     using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
     ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
-    const UrPluginPtr &Plugin = ContextImpl->getUrPlugin();
+    const PluginPtr &Plugin = ContextImpl->getPlugin();
 
     std::vector<ur_device_handle_t> DeviceVec;
     DeviceVec.reserve(Devices.size());
@@ -466,7 +466,7 @@ public:
         detail::getSyclObjImpl(MDeviceImages[0]);
     ur_program_handle_t UrProgram = DeviceImageImpl->get_ur_program_ref();
     ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
-    const UrPluginPtr &Plugin = ContextImpl->getUrPlugin();
+    const PluginPtr &Plugin = ContextImpl->getPlugin();
     ur_kernel_handle_t UrKernel = nullptr;
     Plugin->call(urKernelCreate, UrProgram, Name.c_str(), &UrKernel);
     // Kernel created by piKernelCreate is implicitly retained.

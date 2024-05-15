@@ -23,14 +23,14 @@ class Scheduler;
 class ProgramManager;
 class Sync;
 class plugin;
-class urPlugin;
+class plugin;
 class ods_target_list;
 class XPTIRegistry;
 class ThreadPool;
 
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
 using ContextImplPtr = std::shared_ptr<context_impl>;
-using UrPluginPtr = std::shared_ptr<urPlugin>;
+using PluginPtr = std::shared_ptr<plugin>;
 
 /// Wrapper class for global data structures with non-trivial destructors.
 ///
@@ -69,7 +69,7 @@ public:
   std::mutex &getPlatformToDefaultContextCacheMutex();
   std::mutex &getPlatformMapMutex();
   std::mutex &getFilterMutex();
-  std::vector<UrPluginPtr> &getUrPlugins();
+  std::vector<PluginPtr> &getPlugins();
   ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
   ThreadPool &getHostTaskThreadPool();
@@ -125,7 +125,7 @@ private:
   InstWithLock<std::mutex> MPlatformToDefaultContextCacheMutex;
   InstWithLock<std::mutex> MPlatformMapMutex;
   InstWithLock<std::mutex> MFilterMutex;
-  InstWithLock<std::vector<UrPluginPtr>> MUrPlugins;
+  InstWithLock<std::vector<PluginPtr>> MPlugins;
   InstWithLock<ods_target_list> MOneapiDeviceSelectorTargets;
   InstWithLock<XPTIRegistry> MXPTIRegistry;
   // Thread pool for host task and event callbacks execution

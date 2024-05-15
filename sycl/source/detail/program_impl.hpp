@@ -225,9 +225,9 @@ public:
   }
 
   /// \return the Plugin associated with the context of this program
-  const UrPluginPtr &getUrPlugin() const {
+  const PluginPtr &getPlugin() const {
     assert(!is_host() && "Plugin is not available for Host.");
-    return MContext->getUrPlugin();
+    return MContext->getPlugin();
   }
 
   ContextImplPtr getContextImplPtr() const { return MContext; }

@@ -13,8 +13,8 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-const UrPluginPtr &KernelProgramCache::getUrPlugin() {
-  return MParentContext->getUrPlugin();
+const PluginPtr &KernelProgramCache::getPlugin() {
+  return MParentContext->getPlugin();
 }
 } // namespace detail
 } // namespace _V1

@@ -102,7 +102,7 @@ void PersistentDeviceCodeCache::putItemToDisc(
   if (DirName.empty())
     return;
 
-  auto Plugin = detail::getSyclObjImpl(Device)->getUrPlugin();
+  auto Plugin = detail::getSyclObjImpl(Device)->getPlugin();
 
   unsigned int DeviceNum = 0;
 

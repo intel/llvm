@@ -40,7 +40,7 @@ PlatformImplPtr platform_impl::getHostPlatformImpl() {
 
 PlatformImplPtr
 platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
-                                     const UrPluginPtr &Plugin) {
+                                     const PluginPtr &Plugin) {
   PlatformImplPtr Result;
   {
     const std::lock_guard<std::mutex> Guard(
@@ -65,7 +65,7 @@ platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
 
 PlatformImplPtr
 platform_impl::getPlatformFromUrDevice(ur_device_handle_t UrDevice,
-                                       const UrPluginPtr &Plugin) {
+                                       const PluginPtr &Plugin) {
   ur_platform_handle_t Plt =
       nullptr; // TODO catch an exception and put it to list
   // of asynchronous exceptions
@@ -113,7 +113,7 @@ std::vector<platform> platform_impl::get_platforms() {
   // replace uses of this with with a helper in plugin object, the plugin
   // objects will own the ur adapter handles and they'll need to pass them to
   // urPlatformsGet - so urPlatformsGet will need to be wrapped with a helper
-  auto getPluginPlatforms = [](UrPluginPtr &Plugin) {
+  auto getPluginPlatforms = [](PluginPtr &Plugin) {
     std::vector<platform> Platforms;
 
     auto UrPlatforms = Plugin->getUrPlatforms();
@@ -144,8 +144,8 @@ std::vector<platform> platform_impl::get_platforms() {
   // There should be just one plugin serving each backend.
   // this is where piPluginInit currently ends up getting called,
   // and it's where LoaderInit and AdapterGet will happen
-  std::vector<UrPluginPtr> &Plugins = sycl::detail::pi::initializeUr();
-  std::vector<std::pair<platform, UrPluginPtr>> PlatformsWithPlugin;
+  std::vector<PluginPtr> &Plugins = sycl::detail::pi::initializeUr();
+  std::vector<std::pair<platform, PluginPtr>> PlatformsWithPlugin;
 
   // Then check backend-specific plugins
   for (auto &Plugin : Plugins) {
@@ -212,19 +212,19 @@ platform_impl::filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
 
   // Find out backend of the platform
   ur_platform_backend_t UrBackend = UR_PLATFORM_BACKEND_UNKNOWN;
-  MUrPlugin->call(urPlatformGetInfo, MUrPlatform, UR_PLATFORM_INFO_BACKEND,
-                  sizeof(ur_platform_backend_t), &UrBackend, nullptr);
+  MPlugin->call(urPlatformGetInfo, MUrPlatform, UR_PLATFORM_INFO_BACKEND,
+                sizeof(ur_platform_backend_t), &UrBackend, nullptr);
   backend Backend = convertUrBackend(UrBackend);
 
   int InsertIDx = 0;
   // DeviceIds should be given consecutive numbers across platforms in the same
   // backend
-  std::lock_guard<std::mutex> Guard(*MUrPlugin->getPluginMutex());
-  int DeviceNum = MUrPlugin->getStartingDeviceId(MUrPlatform);
+  std::lock_guard<std::mutex> Guard(*MPlugin->getPluginMutex());
+  int DeviceNum = MPlugin->getStartingDeviceId(MUrPlatform);
   for (ur_device_handle_t Device : UrDevices) {
     ur_device_type_t UrDevType = UR_DEVICE_TYPE_ALL;
-    MUrPlugin->call(urDeviceGetInfo, Device, UR_DEVICE_INFO_TYPE,
-                    sizeof(ur_device_type_t), &UrDevType, nullptr);
+    MPlugin->call(urDeviceGetInfo, Device, UR_DEVICE_INFO_TYPE,
+                  sizeof(ur_device_type_t), &UrDevType, nullptr);
     // Assumption here is that there is 1-to-1 mapping between PiDevType and
     // Sycl device type for GPU, CPU, and ACC.
     info::device_type DeviceType = info::device_type::all;
@@ -283,7 +283,7 @@ platform_impl::filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
   // remember the last backend that has gone through this filter function
   // to assign a unique device id number across platforms that belong to
   // the same backend. For example, opencl:cpu:0, opencl:acc:1, opencl:gpu:2
-  MUrPlugin->setLastDeviceId(MUrPlatform, DeviceNum);
+  MPlugin->setLastDeviceId(MUrPlatform, DeviceNum);
   return original_indices;
 }
 
@@ -483,9 +483,9 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   }
 
   pi_uint32 NumDevices = 0;
-  MUrPlugin->call(urDeviceGet, MUrPlatform, UrDeviceType,
-                  0, // CP info::device_type::all
-                  nullptr, &NumDevices);
+  MPlugin->call(urDeviceGet, MUrPlatform, UrDeviceType,
+                0, // CP info::device_type::all
+                nullptr, &NumDevices);
   const backend Backend = getBackend();
 
   if (NumDevices == 0) {
@@ -494,13 +494,13 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     // analysis. Doing adjustment by simple copy of last device num from
     // previous platform.
     // Needs non const plugin reference.
-    std::vector<UrPluginPtr> &Plugins = sycl::detail::pi::initializeUr();
+    std::vector<PluginPtr> &Plugins = sycl::detail::pi::initializeUr();
     auto It = std::find_if(Plugins.begin(), Plugins.end(),
-                           [&Platform = MUrPlatform](UrPluginPtr &Plugin) {
+                           [&Platform = MUrPlatform](PluginPtr &Plugin) {
                              return Plugin->containsUrPlatform(Platform);
                            });
     if (It != Plugins.end()) {
-      UrPluginPtr &Plugin = *It;
+      PluginPtr &Plugin = *It;
       std::lock_guard<std::mutex> Guard(*Plugin->getPluginMutex());
       Plugin->adjustLastDeviceId(MUrPlatform);
     }
@@ -509,9 +509,9 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   std::vector<ur_device_handle_t> PiDevices(NumDevices);
   // TODO catch an exception and put it to list of asynchronous exceptions
-  MUrPlugin->call(urDeviceGet, MUrPlatform,
-                  UrDeviceType, // CP info::device_type::all
-                  NumDevices, PiDevices.data(), nullptr);
+  MPlugin->call(urDeviceGet, MUrPlatform,
+                UrDeviceType, // CP info::device_type::all
+                NumDevices, PiDevices.data(), nullptr);
 
   // Some elements of PiDevices vector might be filtered out, so make a copy of
   // handles to do a cleanup later
@@ -519,7 +519,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   // Filter out devices that are not present in the SYCL_DEVICE_ALLOWLIST
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
-    applyAllowList(PiDevices, MUrPlatform, MUrPlugin);
+    applyAllowList(PiDevices, MUrPlatform, MPlugin);
 
   // The first step is to filter out devices that are not compatible with
   // ONEAPI_DEVICE_SELECTOR. This is also the mechanism by which top level
@@ -532,7 +532,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   // The next step is to inflate the filtered PIDevices into SYCL Device
   // objects.
-  PlatformImplPtr PlatformImpl = getOrMakePlatformImpl(MUrPlatform, MUrPlugin);
+  PlatformImplPtr PlatformImpl = getOrMakePlatformImpl(MUrPlatform, MPlugin);
   std::transform(
       PiDevices.begin(), PiDevices.end(), std::back_inserter(Res),
       [PlatformImpl](const ur_device_handle_t UrDevice) -> device {
@@ -543,7 +543,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   // The reference counter for handles, that we used to create sycl objects, is
   // incremented, so we need to call release here.
   for (ur_device_handle_t &UrDev : PiDevicesToCleanUp)
-    MUrPlugin->call(urDeviceRelease, UrDev);
+    MPlugin->call(urDeviceRelease, UrDev);
 
   // If we aren't using ONEAPI_DEVICE_SELECTOR, then we are done.
   // and if there are no devices so far, there won't be any need to replace them
@@ -562,7 +562,7 @@ bool platform_impl::has_extension(const std::string &ExtensionName) const {
     return false;
 
   std::string AllExtensionNames = get_platform_info_string_impl(
-      MUrPlatform, getUrPlugin(),
+      MUrPlatform, getPlugin(),
       detail::UrInfoCode<info::platform::extensions>::value);
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }
@@ -573,7 +573,7 @@ bool platform_impl::supports_usm() const {
 }
 
 ur_native_handle_t platform_impl::getNative() const {
-  const auto &Plugin = getUrPlugin();
+  const auto &Plugin = getPlugin();
   ur_native_handle_t Handle = nullptr;
   Plugin->call(urPlatformGetNativeHandle, getUrHandleRef(), &Handle);
   return Handle;
@@ -584,7 +584,7 @@ typename Param::return_type platform_impl::get_info() const {
   if (is_host())
     return get_platform_info_host<Param>();
 
-  return get_platform_info<Param>(this->getUrHandleRef(), getUrPlugin());
+  return get_platform_info<Param>(this->getUrHandleRef(), getPlugin());
 }
 
 template <>

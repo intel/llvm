@@ -69,7 +69,7 @@ public:
   /// \param OwnedByRuntime is the flag if ownership is kept by user or
   /// transferred to runtime
   context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
-               const UrPluginPtr &Plugin,
+               const PluginPtr &Plugin,
                const std::vector<sycl::device> &DeviceList = {},
                bool OwnedByRuntime = true);
 
@@ -108,7 +108,7 @@ public:
   const async_handler &get_async_handler() const;
 
   /// \return the Plugin associated with the platform of this context.
-  const UrPluginPtr &getUrPlugin() const { return MPlatform->getUrPlugin(); }
+  const PluginPtr &getPlugin() const { return MPlatform->getPlugin(); }
 
   /// \return the PlatformImpl associated with this context.
   PlatformImplPtr getPlatformImpl() const { return MPlatform; }
@@ -295,7 +295,7 @@ private:
     }
 
     /// Clears all events of the initializer. This will not acquire the lock.
-    void ClearEvents(const UrPluginPtr &Plugin);
+    void ClearEvents(const PluginPtr &Plugin);
 
     /// The binary image of the program.
     const RTDeviceBinaryImage *MBinImage = nullptr;

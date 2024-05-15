@@ -702,7 +702,7 @@ void exec_graph_impl::createCommandBuffers(
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC, nullptr, MIsUpdatable,
       Partition->MIsInOrderGraph && !MEnableProfiling, MEnableProfiling};
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
-  const sycl::detail::UrPluginPtr &Plugin = ContextImpl->getUrPlugin();
+  const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(Device);
   ur_result_t Res = Plugin->call_nocheck(
       urCommandBufferCreateExp, ContextImpl->getUrHandleRef(),
@@ -778,8 +778,8 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
 }
 
 exec_graph_impl::~exec_graph_impl() {
-  const sycl::detail::UrPluginPtr &Plugin =
-      sycl::detail::getSyclObjImpl(MContext)->getUrPlugin();
+  const sycl::detail::PluginPtr &Plugin =
+      sycl::detail::getSyclObjImpl(MContext)->getPlugin();
   MSchedule.clear();
   // We need to wait on all command buffer executions before we can release
   // them.
@@ -900,7 +900,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       if (CGData.MRequirements.empty() && CGData.MEvents.empty()) {
         if (NewEvent != nullptr)
           NewEvent->setHostEnqueueTime();
-        ur_result_t Res = Queue->getUrPlugin()->call_nocheck(
+        ur_result_t Res = Queue->getPlugin()->call_nocheck(
             urCommandBufferEnqueueExp, CommandBuffer, Queue->getUrHandleRef(),
             0, nullptr, OutEvent);
         if (Res == UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES) {
@@ -1285,7 +1285,7 @@ void exec_graph_impl::update(
 
 void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
-  const sycl::detail::UrPluginPtr &Plugin = ContextImpl->getUrPlugin();
+  const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(MGraphImpl->getDevice());
 
   // Gather arg information from Node

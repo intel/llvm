@@ -57,9 +57,9 @@ template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
   ur_result_t result = UR_RESULT_SUCCESS;
   if (!is_host())
-    getUrPlugin()->call(urQueueGetInfo,
-        MUrQueues[0], UR_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
-        nullptr);
+    getPlugin()->call(urQueueGetInfo, MUrQueues[0],
+                      UR_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
+                      nullptr);
   return result;
 }
 
@@ -602,7 +602,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
     }
   }
   if (SupportsPiFinish) {
-    const UrPluginPtr &Plugin = getUrPlugin();
+    const PluginPtr &Plugin = getPlugin();
     Plugin->call(urQueueFinish, getUrHandleRef());
     assert(SharedEvents.empty() && "Queues that support calling piQueueFinish "
                                    "shouldn't have shared events");
@@ -625,7 +625,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 }
 
 ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
-  const UrPluginPtr &Plugin = getUrPlugin();
+  const PluginPtr &Plugin = getPlugin();
   if (getContextImplPtr()->getBackend() == backend::opencl)
     Plugin->call(urQueueRetain, MUrQueues[0]);
   ur_native_handle_t Handle{};
@@ -657,9 +657,8 @@ bool queue_impl::ext_oneapi_empty() const {
   // Check the status of the backend queue if this is not a host queue.
   if (!is_host()) {
     ur_bool_t IsReady = false;
-    getUrPlugin()->call(urQueueGetInfo,
-        MUrQueues[0], UR_QUEUE_INFO_EMPTY, sizeof(IsReady), &IsReady,
-        nullptr);
+    getPlugin()->call(urQueueGetInfo, MUrQueues[0], UR_QUEUE_INFO_EMPTY,
+                      sizeof(IsReady), &IsReady, nullptr);
     if (!IsReady)
       return false;
   }

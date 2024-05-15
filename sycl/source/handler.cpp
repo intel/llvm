@@ -286,10 +286,10 @@ event handler::finalize() {
               NewEvent->setHostEnqueueTime();
             [&](auto... Args) {
               if (MImpl->MKernelIsCooperative) {
-                MQueue->getUrPlugin()->call(urEnqueueCooperativeKernelLaunchExp,
-                                            Args...);
+                MQueue->getPlugin()->call(urEnqueueCooperativeKernelLaunchExp,
+                                          Args...);
               } else {
-                MQueue->getUrPlugin()->call(urEnqueueKernelLaunch, Args...);
+                MQueue->getPlugin()->call(urEnqueueKernelLaunch, Args...);
               }
             }(/* queue */
               nullptr,
@@ -1474,7 +1474,7 @@ void handler::depends_on(const std::vector<detail::EventImplPtr> &Events) {
 static bool
 checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
                      ur_context_info_t InfoQuery) {
-  auto &Plugin = ContextImpl->getUrPlugin();
+  auto &Plugin = ContextImpl->getPlugin();
   ur_bool_t SupportsOp = false;
   Plugin->call(urContextGetInfo, ContextImpl->getUrHandleRef(), InfoQuery,
                sizeof(ur_bool_t), &SupportsOp, nullptr);
@@ -1688,7 +1688,7 @@ void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
 std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
   auto Dev = detail::getSyclObjImpl(detail::getDeviceFromHandler(*this));
   std::array<size_t, 3> UrResult = {};
-  auto Ret = Dev->getUrPlugin()->call_nocheck(
+  auto Ret = Dev->getPlugin()->call_nocheck(
       urDeviceGetInfo, Dev->getUrHandleRef(),
       UrInfoCode<
           ext::oneapi::experimental::info::device::max_work_groups<3>>::value,

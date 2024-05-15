@@ -112,9 +112,9 @@ public:
           "This instance of kernel doesn't support OpenCL interoperability.",
           UR_RESULT_ERROR_INVALID_KERNEL);
     }
-    getUrPlugin()->call(urKernelRetain, MURKernel);
+    getPlugin()->call(urKernelRetain, MURKernel);
     ur_native_handle_t nativeHandle = nullptr;
-    getUrPlugin()->call(urKernelGetNativeHandle, MURKernel, &nativeHandle);
+    getPlugin()->call(urKernelGetNativeHandle, MURKernel, &nativeHandle);
     return pi::cast<cl_kernel>(nativeHandle);
   }
 
@@ -123,7 +123,7 @@ public:
   /// \return true if this SYCL kernel is a host kernel.
   bool is_host() const { return MContext->is_host(); }
 
-  const UrPluginPtr &getUrPlugin() const { return MContext->getUrPlugin(); }
+  const PluginPtr &getPlugin() const { return MContext->getPlugin(); }
 
   /// Query information from the kernel object using the info::kernel_info
   /// descriptor.
@@ -174,7 +174,7 @@ public:
   const DeviceImageImplPtr &getDeviceImage() const { return MDeviceImageImpl; }
 
   ur_native_handle_t getNative() const {
-    const UrPluginPtr &Plugin = MContext->getUrPlugin();
+    const PluginPtr &Plugin = MContext->getPlugin();
 
     if (MContext->getBackend() == backend::opencl)
       Plugin->call(urKernelRetain, MURKernel);
@@ -229,7 +229,7 @@ inline typename Param::return_type kernel_impl::get_info() const {
   if constexpr (std::is_same_v<Param, info::kernel::num_args>)
     checkIfValidForNumArgsInfoQuery();
 
-  return get_kernel_info<Param>(this->getUrHandleRef(), getUrPlugin());
+  return get_kernel_info<Param>(this->getUrHandleRef(), getPlugin());
 }
 
 template <>
@@ -257,7 +257,7 @@ kernel_impl::get_info(const device &Device) const {
   }
   return get_kernel_device_specific_info<Param>(
       this->getUrHandleRef(), getSyclObjImpl(Device)->getUrHandleRef(),
-      getUrPlugin());
+      getPlugin());
 }
 
 template <typename Param>
@@ -270,7 +270,7 @@ kernel_impl::get_info(const device &Device,
   }
   return get_kernel_device_specific_info_with_input<Param>(
       this->getUrHandleRef(), getSyclObjImpl(Device)->getUrHandleRef(), WGSize,
-      getUrPlugin());
+      getPlugin());
 }
 
 template <>
@@ -279,7 +279,7 @@ inline typename ext::oneapi::experimental::info::kernel_queue_specific::
     kernel_impl::ext_oneapi_get_info<
         ext::oneapi::experimental::info::kernel_queue_specific::
             max_num_work_group_sync>(const queue &Queue) const {
-  const auto &Plugin = getUrPlugin();
+  const auto &Plugin = getPlugin();
   const auto &Handle = getUrHandleRef();
   const auto MaxWorkGroupSize =
       Queue.get_device().get_info<info::device::max_work_group_size>();

@@ -20,9 +20,9 @@ namespace detail {
 
 // RAII object for keeping ownership of a PI event.
 struct OwnedUrEvent {
-  OwnedUrEvent(const UrPluginPtr &Plugin)
+  OwnedUrEvent(const PluginPtr &Plugin)
       : MEvent{std::nullopt}, MPlugin{Plugin} {}
-  OwnedUrEvent(ur_event_handle_t Event, const UrPluginPtr &Plugin,
+  OwnedUrEvent(ur_event_handle_t Event, const PluginPtr &Plugin,
                bool TakeOwnership = false)
       : MEvent(Event), MPlugin(Plugin) {
     // If it is not instructed to take ownership, retain the event to share
@@ -59,7 +59,7 @@ struct OwnedUrEvent {
 
 private:
   std::optional<ur_event_handle_t> MEvent;
-  const UrPluginPtr &MPlugin;
+  const PluginPtr &MPlugin;
 };
 
 } // namespace detail

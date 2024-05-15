@@ -36,7 +36,7 @@ device::device(cl_device_id DeviceId) {
   // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
   // TODO(pi2ur): Don't cast from cl below, use urGetNativeHandle
   ur_device_handle_t Device;
-  auto Plugin = sycl::detail::pi::getUrPlugin<backend::opencl>();
+  auto Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
   Plugin->call(urDeviceCreateWithNativeHandle,
                detail::pi::cast<ur_native_handle_t>(DeviceId), nullptr, nullptr,
                &Device);
@@ -224,7 +224,7 @@ void device::ext_oneapi_enable_peer_access(const device &peer) {
   ur_device_handle_t Device = impl->getUrHandleRef();
   ur_device_handle_t Peer = peer.impl->getUrHandleRef();
   if (Device != Peer) {
-    auto Plugin = impl->getUrPlugin();
+    auto Plugin = impl->getPlugin();
     Plugin->call(urUsmP2PEnablePeerAccessExp, Device, Peer);
   }
 }
@@ -233,7 +233,7 @@ void device::ext_oneapi_disable_peer_access(const device &peer) {
   ur_device_handle_t Device = impl->getUrHandleRef();
   ur_device_handle_t Peer = peer.impl->getUrHandleRef();
   if (Device != Peer) {
-    auto Plugin = impl->getUrPlugin();
+    auto Plugin = impl->getPlugin();
     Plugin->call(urUsmP2PDisablePeerAccessExp, Device, Peer);
   }
 }
@@ -260,7 +260,7 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
     throw sycl::exception(make_error_code(errc::invalid),
                           "Unrecognized peer access attribute.");
   }();
-  auto Plugin = impl->getUrPlugin();
+  auto Plugin = impl->getPlugin();
   Plugin->call(urUsmP2PPeerAccessGetInfoExp, Device, Peer, UrAttr, sizeof(int),
                &value, &returnSize);
 
@@ -285,7 +285,7 @@ bool device::ext_oneapi_can_compile(
 
 bool device::ext_oneapi_supports_cl_c_feature(const std::string &Feature) {
   ur_device_handle_t Device = impl->getUrHandleRef();
-  auto Plugin = impl->getUrPlugin();
+  auto Plugin = impl->getPlugin();
   uint32_t ipVersion = 0;
   auto res =
       Plugin->call_nocheck(urDeviceGetInfo, Device, UR_DEVICE_INFO_IP_VERSION,
@@ -300,7 +300,7 @@ bool device::ext_oneapi_supports_cl_c_feature(const std::string &Feature) {
 bool device::ext_oneapi_supports_cl_c_version(
     const ext::oneapi::experimental::cl_version &Version) const {
   ur_device_handle_t Device = impl->getUrHandleRef();
-  auto Plugin = impl->getUrPlugin();
+  auto Plugin = impl->getPlugin();
   uint32_t ipVersion = 0;
   auto res =
       Plugin->call_nocheck(urDeviceGetInfo, Device, UR_DEVICE_INFO_IP_VERSION,
@@ -316,7 +316,7 @@ bool device::ext_oneapi_supports_cl_extension(
     const std::string &Name,
     ext::oneapi::experimental::cl_version *VersionPtr) const {
   ur_device_handle_t Device = impl->getUrHandleRef();
-  auto Plugin = impl->getUrPlugin();
+  auto Plugin = impl->getPlugin();
   uint32_t ipVersion = 0;
   auto res =
       Plugin->call_nocheck(urDeviceGetInfo, Device, UR_DEVICE_INFO_IP_VERSION,
@@ -330,12 +330,12 @@ bool device::ext_oneapi_supports_cl_extension(
 
 std::string device::ext_oneapi_cl_profile() const {
   ur_device_handle_t Device = impl->getUrHandleRef();
-  auto Plugin = impl->getUrPlugin();
+  auto Plugin = impl->getPlugin();
   uint32_t ipVersion = 0;
   auto res =
       Plugin->call_nocheck(urDeviceGetInfo, Device, UR_DEVICE_INFO_IP_VERSION,
                            sizeof(uint32_t), &ipVersion, nullptr);
-  if (res != PI_SUCCESS)
+  if (res != UR_RESULT_SUCCESS)
     return "";
 
   return ext::oneapi::experimental::detail::OpenCLC_Profile(ipVersion);

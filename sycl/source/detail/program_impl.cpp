@@ -106,7 +106,7 @@ program_impl::program_impl(
       NonInterOpToLink |= !Prg->MLinkable;
       Programs.push_back(Prg->MURProgram);
     }
-    const UrPluginPtr &Plugin = getUrPlugin();
+    const PluginPtr &Plugin = getPlugin();
     ur_result_t Err = Plugin->call_nocheck(
         urProgramLink, MContext->getUrHandleRef(), Programs.size(),
         Programs.data(), LinkOptions.c_str(), &MURProgram);
@@ -124,7 +124,7 @@ program_impl::program_impl(ContextImplPtr Context,
                            ur_native_handle_t InteropProgram,
                            ur_program_handle_t Program)
     : MURProgram(Program), MContext(Context), MLinkable(true) {
-  const UrPluginPtr &Plugin = getUrPlugin();
+  const PluginPtr &Plugin = getPlugin();
   if (MURProgram == nullptr) {
     assert(InteropProgram &&
            "No InteropProgram/PiProgram defined with piextProgramFromNative");
@@ -206,7 +206,7 @@ program_impl::program_impl(ContextImplPtr Context, ur_kernel_handle_t Kernel)
 program_impl::~program_impl() {
   // TODO catch an exception and put it to list of asynchronous exceptions
   if (!is_host() && MURProgram != nullptr) {
-    const UrPluginPtr &Plugin = getUrPlugin();
+    const PluginPtr &Plugin = getPlugin();
     Plugin->call(urProgramRelease, MURProgram);
   }
 }
@@ -218,9 +218,9 @@ cl_program program_impl::get() const {
         "This instance of program doesn't support OpenCL interoperability.",
         UR_RESULT_ERROR_INVALID_PROGRAM);
   }
-  getUrPlugin()->call(urProgramRetain, MURProgram);
+  getPlugin()->call(urProgramRetain, MURProgram);
   ur_native_handle_t nativeHandle = nullptr;
-  getUrPlugin()->call(urProgramGetNativeHandle, MURProgram, &nativeHandle);
+  getPlugin()->call(urProgramGetNativeHandle, MURProgram, &nativeHandle);
   return pi::cast<cl_program>(nativeHandle);
 }
 
@@ -243,7 +243,7 @@ void program_impl::link(std::string LinkOptions) {
   if (!is_host()) {
     check_device_feature_support<info::device::is_linker_available>(MDevices);
     std::vector<ur_device_handle_t> Devices(get_ur_devices());
-    const UrPluginPtr &Plugin = getUrPlugin();
+    const PluginPtr &Plugin = getPlugin();
     const char *LinkOpts = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
     if (!LinkOpts) {
       LinkOpts = LinkOptions.c_str();
@@ -280,7 +280,7 @@ bool program_impl::has_kernel(std::string KernelName,
 
   std::vector<ur_device_handle_t> Devices(get_ur_devices());
   void *function_ptr;
-  const UrPluginPtr &Plugin = getUrPlugin();
+  const PluginPtr &Plugin = getPlugin();
 
   ur_result_t Err = UR_RESULT_SUCCESS;
   for (ur_device_handle_t Device : Devices) {
@@ -323,7 +323,7 @@ std::vector<std::vector<char>> program_impl::get_binaries() const {
     return {};
 
   std::vector<std::vector<char>> Result;
-  const UrPluginPtr &Plugin = getUrPlugin();
+  const PluginPtr &Plugin = getPlugin();
   std::vector<size_t> BinarySizes(MDevices.size());
   Plugin->call(urProgramGetInfo, MURProgram, UR_PROGRAM_INFO_BINARY_SIZES,
                sizeof(size_t) * BinarySizes.size(), BinarySizes.data(),
@@ -343,7 +343,7 @@ std::vector<std::vector<char>> program_impl::get_binaries() const {
 void program_impl::compile(const std::string &Options) {
   check_device_feature_support<info::device::is_compiler_available>(MDevices);
   std::vector<ur_device_handle_t> Devices(get_ur_devices());
-  const UrPluginPtr &Plugin = getUrPlugin();
+  const PluginPtr &Plugin = getPlugin();
   const char *CompileOpts = SYCLConfig<SYCL_PROGRAM_COMPILE_OPTIONS>::get();
   if (!CompileOpts) {
     CompileOpts = Options.c_str();
@@ -365,7 +365,7 @@ void program_impl::compile(const std::string &Options) {
 void program_impl::build(const std::string &Options) {
   check_device_feature_support<info::device::is_compiler_available>(MDevices);
   std::vector<ur_device_handle_t> Devices(get_ur_devices());
-  const UrPluginPtr &Plugin = getUrPlugin();
+  const PluginPtr &Plugin = getPlugin();
   ProgramManager::getInstance().flushSpecConstants(*this);
   ur_result_t Err =
       Plugin->call_nocheck(urProgramBuildExp, MURProgram, Devices.size(),
@@ -397,7 +397,7 @@ std::pair<ur_kernel_handle_t, const KernelArgMask *>
 program_impl::get_ur_kernel_arg_mask_pair(const std::string &KernelName) const {
   std::pair<ur_kernel_handle_t, const KernelArgMask *> Result;
 
-  const UrPluginPtr &Plugin = getUrPlugin();
+  const PluginPtr &Plugin = getPlugin();
   ur_result_t Err = Plugin->call_nocheck(urKernelCreate, MURProgram,
                                          KernelName.c_str(), &Result.first);
   if (Err == UR_RESULT_ERROR_INVALID_KERNEL_NAME) {
@@ -486,14 +486,14 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
 
       ur_specialization_constant_info_t SpecConst = {Id, Size,
                                                      SC.getValuePtr() + Offset};
-      Ctx->getUrPlugin()->call(urProgramSetSpecializationConstants, NativePrg,
-                               1, &SpecConst);
+      Ctx->getPlugin()->call(urProgramSetSpecializationConstants, NativePrg, 1,
+                             &SpecConst);
     }
   }
 }
 
 ur_native_handle_t program_impl::getNative() const {
-  const auto &Plugin = getUrPlugin();
+  const auto &Plugin = getPlugin();
   if (getContextImplPtr()->getBackend() == backend::opencl)
     Plugin->call(urProgramRetain, MURProgram);
   ur_native_handle_t Handle = nullptr;

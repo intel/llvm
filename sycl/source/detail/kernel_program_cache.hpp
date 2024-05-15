@@ -89,8 +89,8 @@ public:
   };
 
   struct ProgramBuildResult : public BuildResult<ur_program_handle_t> {
-    UrPluginPtr Plugin;
-    ProgramBuildResult(const UrPluginPtr &Plugin) : Plugin(Plugin) {
+    PluginPtr Plugin;
+    ProgramBuildResult(const PluginPtr &Plugin) : Plugin(Plugin) {
       Val = nullptr;
     }
     ~ProgramBuildResult() {
@@ -122,8 +122,8 @@ public:
   using KernelArgMaskPairT =
       std::pair<ur_kernel_handle_t, const KernelArgMask *>;
   struct KernelBuildResult : public BuildResult<KernelArgMaskPairT> {
-    UrPluginPtr Plugin;
-    KernelBuildResult(const UrPluginPtr &Plugin) : Plugin(Plugin) {
+    PluginPtr Plugin;
+    KernelBuildResult(const PluginPtr &Plugin) : Plugin(Plugin) {
       Val.first = nullptr;
     }
     ~KernelBuildResult() {
@@ -171,7 +171,7 @@ public:
     auto &ProgCache = LockedCache.get();
     auto [It, DidInsert] = ProgCache.Cache.try_emplace(CacheKey, nullptr);
     if (DidInsert) {
-      It->second = std::make_shared<ProgramBuildResult>(getUrPlugin());
+      It->second = std::make_shared<ProgramBuildResult>(getPlugin());
       // Save reference between the common key and the full key.
       CommonProgramKeyT CommonKey =
           std::make_pair(CacheKey.first.second, CacheKey.second);
@@ -187,7 +187,7 @@ public:
     auto &Cache = LockedCache.get()[Program];
     auto [It, DidInsert] = Cache.try_emplace(KernelName, nullptr);
     if (DidInsert)
-      It->second = std::make_shared<KernelBuildResult>(getUrPlugin());
+      It->second = std::make_shared<KernelBuildResult>(getPlugin());
     return std::make_pair(It->second, DidInsert);
   }
 
@@ -314,7 +314,7 @@ private:
   KernelFastCacheT MKernelFastCache;
   friend class ::MockKernelProgramCache;
 
-  const UrPluginPtr &getUrPlugin();
+  const PluginPtr &getPlugin();
 };
 } // namespace detail
 } // namespace _V1

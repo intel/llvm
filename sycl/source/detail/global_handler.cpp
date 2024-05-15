@@ -204,9 +204,9 @@ std::mutex &GlobalHandler::getFilterMutex() {
   return getOrCreate(MFilterMutex);
 }
 
-std::vector<UrPluginPtr> &GlobalHandler::getUrPlugins() {
+std::vector<PluginPtr> &GlobalHandler::getPlugins() {
   enableOnCrashStackPrinting();
-  return getOrCreate(MUrPlugins);
+  return getOrCreate(MPlugins);
 }
 
 ods_target_list &
@@ -258,14 +258,14 @@ void GlobalHandler::unloadPlugins() {
   // Call to GlobalHandler::instance().getPlugins() initializes plugins. If
   // user application has loaded SYCL runtime, and never called any APIs,
   // there's no need to load and unload plugins.
-  if (MUrPlugins.Inst) {
-    for (const auto &Plugin : getUrPlugins()) {
+  if (MPlugins.Inst) {
+    for (const auto &Plugin : getPlugins()) {
       Plugin->release();
     }
   }
 
   // Clear after unload to avoid uses after unload.
-  getUrPlugins().clear();
+  getPlugins().clear();
 }
 
 void GlobalHandler::prepareSchedulerToRelease(bool Blocking) {
@@ -329,8 +329,8 @@ void shutdown_late() {
 
   // Clear the plugins and reset the instance if it was there.
   Handler->unloadPlugins();
-  if (Handler->MUrPlugins.Inst)
-    Handler->MUrPlugins.Inst.reset(nullptr);
+  if (Handler->MPlugins.Inst)
+    Handler->MPlugins.Inst.reset(nullptr);
 
   Handler->MXPTIRegistry.Inst.reset(nullptr);
 

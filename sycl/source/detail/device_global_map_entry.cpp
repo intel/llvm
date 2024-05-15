@@ -25,7 +25,7 @@ DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
   assert(!MInitEvent.has_value() && "MInitEvent has not been cleaned up.");
 }
 
-OwnedUrEvent DeviceGlobalUSMMem::getInitEvent(const UrPluginPtr &Plugin) {
+OwnedUrEvent DeviceGlobalUSMMem::getInitEvent(const PluginPtr &Plugin) {
   std::lock_guard<std::mutex> Lock(MInitEventMutex);
   // If there is a init event we can remove it if it is done.
   if (MInitEvent.has_value()) {
@@ -99,7 +99,7 @@ void DeviceGlobalMapEntry::removeAssociatedResources(
       DeviceGlobalUSMMem &USMMem = USMPtrIt->second;
       detail::usm::freeInternal(USMMem.MPtr, CtxImpl);
       if (USMMem.MInitEvent.has_value())
-        CtxImpl->getUrPlugin()->call(urEventRelease, *USMMem.MInitEvent);
+        CtxImpl->getPlugin()->call(urEventRelease, *USMMem.MInitEvent);
 #ifndef NDEBUG
       // For debugging we set the event and memory to some recognizable values
       // to allow us to check that this cleanup happens before erasure.

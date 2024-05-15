@@ -22,7 +22,7 @@ sampler_impl::sampler_impl(coordinate_normalization_mode normalizationMode,
       MFiltMode(filteringMode), MPropList(propList) {}
 
 sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
-  const UrPluginPtr &Plugin = getSyclObjImpl(syclContext)->getUrPlugin();
+  const PluginPtr &Plugin = getSyclObjImpl(syclContext)->getPlugin();
   ur_sampler_handle_t Sampler{};
   Plugin->call(urSamplerCreateWithNativeHandle,
                reinterpret_cast<ur_native_handle_t>(clSampler),
@@ -78,7 +78,7 @@ sampler_impl::~sampler_impl() {
   std::lock_guard<std::mutex> Lock(MMutex);
   for (auto &Iter : MContextToSampler) {
     // TODO catch an exception and add it to the list of asynchronous exceptions
-    const UrPluginPtr &Plugin = getSyclObjImpl(Iter.first)->getUrPlugin();
+    const PluginPtr &Plugin = getSyclObjImpl(Iter.first)->getPlugin();
     Plugin->call(urSamplerRelease, Iter.second);
   }
 }
@@ -123,7 +123,7 @@ ur_sampler_handle_t sampler_impl::getOrCreateSampler(const context &Context) {
 
   ur_result_t errcode_ret = UR_RESULT_SUCCESS;
   ur_sampler_handle_t resultSampler = nullptr;
-  const UrPluginPtr &Plugin = getSyclObjImpl(Context)->getUrPlugin();
+  const PluginPtr &Plugin = getSyclObjImpl(Context)->getPlugin();
 
   errcode_ret = Plugin->call_nocheck(urSamplerCreate,
                                      getSyclObjImpl(Context)->getUrHandleRef(),

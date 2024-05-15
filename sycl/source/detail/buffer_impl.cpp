@@ -51,7 +51,7 @@ void buffer_impl::addInteropObject(
     if (std::find(Handles.begin(), Handles.end(),
                   pi::cast<ur_native_handle_t>(MInteropMemObject)) ==
         Handles.end()) {
-      const UrPluginPtr &Plugin = getPlugin();
+      const PluginPtr &Plugin = getPlugin();
       Plugin->call(urMemRetain, pi::cast<ur_mem_handle_t>(MInteropMemObject));
       Handles.push_back(pi::cast<ur_native_handle_t>(MInteropMemObject));
     }
@@ -76,7 +76,7 @@ buffer_impl::getNativeVector(backend BackendName) const {
     if (!Platform || (Platform->getBackend() != BackendName))
       continue;
 
-    auto Plugin = Platform->getUrPlugin();
+    auto Plugin = Platform->getPlugin();
 
     if (Platform->getBackend() == backend::opencl) {
       Plugin->call(urMemRetain, NativeMem);

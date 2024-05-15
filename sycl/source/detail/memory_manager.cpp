@@ -121,7 +121,7 @@ static void waitForEvents(const std::vector<EventImplPtr> &Events) {
   // Assuming all events will be on the same device or
   // devices associated with the same Backend.
   if (!Events.empty()) {
-    const UrPluginPtr &Plugin = Events[0]->getUrPlugin();
+    const PluginPtr &Plugin = Events[0]->getPlugin();
     std::vector<ur_event_handle_t> UrEvents(Events.size());
     std::transform(Events.begin(), Events.end(), UrEvents.begin(),
                    [](const EventImplPtr &EventImpl) {
@@ -131,7 +131,7 @@ static void waitForEvents(const std::vector<EventImplPtr> &Events) {
   }
 }
 
-void memBufferCreateHelper(const UrPluginPtr &Plugin, ur_context_handle_t Ctx,
+void memBufferCreateHelper(const PluginPtr &Plugin, ur_context_handle_t Ctx,
                            ur_mem_flags_t Flags, size_t Size,
                            ur_mem_handle_t *RetMem,
                            const ur_buffer_properties_t *Props) {
@@ -164,7 +164,7 @@ void memBufferCreateHelper(const UrPluginPtr &Plugin, ur_context_handle_t Ctx,
   }
 }
 
-void memReleaseHelper(const UrPluginPtr &Plugin, ur_mem_handle_t Mem) {
+void memReleaseHelper(const PluginPtr &Plugin, ur_mem_handle_t Mem) {
   // FIXME urMemRelease does not guarante memory release. It is only true if
   // reference counter is 1. However, SYCL runtime currently only calls
   // urMemRetain only for OpenCL interop
@@ -194,7 +194,7 @@ void memReleaseHelper(const UrPluginPtr &Plugin, ur_mem_handle_t Mem) {
   }
 }
 
-void memBufferMapHelper(const UrPluginPtr &Plugin, ur_queue_handle_t Queue,
+void memBufferMapHelper(const PluginPtr &Plugin, ur_queue_handle_t Queue,
                         ur_mem_handle_t Buffer, bool Blocking,
                         ur_map_flags_t Flags, size_t Offset, size_t Size,
                         uint32_t NumEvents, const ur_event_handle_t *WaitList,
@@ -216,7 +216,7 @@ void memBufferMapHelper(const UrPluginPtr &Plugin, ur_queue_handle_t Queue,
                Size, NumEvents, WaitList, Event, RetMap);
 }
 
-void memUnmapHelper(const UrPluginPtr &Plugin, ur_queue_handle_t Queue,
+void memUnmapHelper(const PluginPtr &Plugin, ur_queue_handle_t Queue,
                     ur_mem_handle_t Mem, void *MappedPtr, uint32_t NumEvents,
                     const ur_event_handle_t *WaitList,
                     ur_event_handle_t *Event) {
@@ -270,7 +270,7 @@ void MemoryManager::releaseMemObj(ContextImplPtr TargetContext,
     return;
   }
 
-  const UrPluginPtr &Plugin = TargetContext->getUrPlugin();
+  const PluginPtr &Plugin = TargetContext->getPlugin();
   memReleaseHelper(Plugin, pi::cast<ur_mem_handle_t>(MemAllocation));
 }
 
@@ -313,7 +313,7 @@ void *MemoryManager::allocateInteropMemObject(
   // Retain the event since it will be released during alloca command
   // destruction
   if (nullptr != OutEventToWait) {
-    const UrPluginPtr &Plugin = InteropEvent->getUrPlugin();
+    const PluginPtr &Plugin = InteropEvent->getPlugin();
     Plugin->call(urEventRetain, OutEventToWait);
   }
   return UserPtr;
@@ -338,7 +338,7 @@ void *MemoryManager::allocateImageObject(ContextImplPtr TargetContext,
       getMemObjCreationFlags(UserPtr, HostPtrReadOnly);
 
   ur_mem_handle_t NewMem = nullptr;
-  const UrPluginPtr &Plugin = TargetContext->getUrPlugin();
+  const PluginPtr &Plugin = TargetContext->getPlugin();
   Plugin->call(urMemImageCreate, TargetContext->getUrHandleRef(), CreationFlags,
                &Format, &Desc, UserPtr, &NewMem);
   return NewMem;
@@ -355,7 +355,7 @@ MemoryManager::allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
     CreationFlags |= UR_MEM_FLAG_ALLOC_HOST_POINTER;
 
   ur_mem_handle_t NewMem = nullptr;
-  const UrPluginPtr &Plugin = TargetContext->getUrPlugin();
+  const PluginPtr &Plugin = TargetContext->getPlugin();
 
   ur_buffer_properties_t AllocProps = {UR_STRUCTURE_TYPE_BUFFER_PROPERTIES,
                                        nullptr, UserPtr};
@@ -442,7 +442,7 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
   ur_buffer_region_t Region = {UR_STRUCTURE_TYPE_BUFFER_REGION, nullptr, Offset,
                                SizeInBytes};
   ur_mem_handle_t NewMem;
-  const UrPluginPtr &Plugin = TargetContext->getUrPlugin();
+  const PluginPtr &Plugin = TargetContext->getPlugin();
   Error = Plugin->call_nocheck(
       urMemBufferPartition, pi::cast<ur_mem_handle_t>(ParentMemObj),
       UR_MEM_FLAG_READ_WRITE, UR_BUFFER_CREATE_TYPE_REGION, &Region, &NewMem);
@@ -502,7 +502,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const ur_queue_handle_t Queue = TgtQueue->getUrHandleRef();
-  const UrPluginPtr &Plugin = TgtQueue->getUrPlugin();
+  const PluginPtr &Plugin = TgtQueue->getPlugin();
 
   detail::SYCLMemObjI::MemObjType MemType = SYCLMemObj->getType();
   TermPositions SrcPos, DstPos;
@@ -578,7 +578,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, ur_mem_handle_t SrcMem,
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const ur_queue_handle_t Queue = SrcQueue->getUrHandleRef();
-  const UrPluginPtr &Plugin = SrcQueue->getUrPlugin();
+  const PluginPtr &Plugin = SrcQueue->getPlugin();
 
   detail::SYCLMemObjI::MemObjType MemType = SYCLMemObj->getType();
   TermPositions SrcPos, DstPos;
@@ -658,7 +658,7 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, ur_mem_handle_t SrcMem,
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const ur_queue_handle_t Queue = SrcQueue->getUrHandleRef();
-  const UrPluginPtr &Plugin = SrcQueue->getUrPlugin();
+  const PluginPtr &Plugin = SrcQueue->getPlugin();
 
   detail::SYCLMemObjI::MemObjType MemType = SYCLMemObj->getType();
   TermPositions SrcPos, DstPos;
@@ -813,7 +813,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                          const detail::EventImplPtr &OutEventImpl) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
-  const UrPluginPtr &Plugin = Queue->getUrPlugin();
+  const PluginPtr &Plugin = Queue->getPlugin();
 
   if (SYCLMemObj->getType() == detail::SYCLMemObjI::MemObjType::Buffer) {
     if (OutEventImpl != nullptr)
@@ -899,7 +899,7 @@ void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
 
   void *MappedPtr = nullptr;
   const size_t BytesToMap = AccessRange[0] * AccessRange[1] * AccessRange[2];
-  const UrPluginPtr &Plugin = Queue->getUrPlugin();
+  const PluginPtr &Plugin = Queue->getPlugin();
   memBufferMapHelper(Plugin, Queue->getUrHandleRef(),
                      pi::cast<ur_mem_handle_t>(Mem), false, Flags,
                      AccessOffset[0], BytesToMap, DepEvents.size(),
@@ -916,7 +916,7 @@ void MemoryManager::unmap(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
   // All DepEvents are to the same Context.
   // Using the plugin of the Queue.
 
-  const UrPluginPtr &Plugin = Queue->getUrPlugin();
+  const PluginPtr &Plugin = Queue->getPlugin();
   memUnmapHelper(Plugin, Queue->getUrHandleRef(),
                  pi::cast<ur_mem_handle_t>(Mem), MappedPtr, DepEvents.size(),
                  DepEvents.data(), &OutEvent);
@@ -934,9 +934,9 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
     if (!DepEvents.empty()) {
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
-      SrcQueue->getUrPlugin()->call(
-          urEnqueueEventsWait, SrcQueue->getUrHandleRef(), DepEvents.size(),
-          DepEvents.data(), OutEvent);
+      SrcQueue->getPlugin()->call(urEnqueueEventsWait,
+                                  SrcQueue->getUrHandleRef(), DepEvents.size(),
+                                  DepEvents.data(), OutEvent);
     }
     return;
   }
@@ -945,7 +945,7 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
     throw runtime_error("NULL pointer argument in memory copy operation.",
                         UR_RESULT_ERROR_INVALID_VALUE);
 
-  const UrPluginPtr &Plugin = SrcQueue->getUrPlugin();
+  const PluginPtr &Plugin = SrcQueue->getPlugin();
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   Plugin->call(urEnqueueUSMMemcpy, SrcQueue->getUrHandleRef(),
@@ -974,8 +974,8 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
     if (!DepEvents.empty()) {
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
-      Queue->getUrPlugin()->call(urEnqueueEventsWait, Queue->getUrHandleRef(),
-                                 DepEvents.size(), DepEvents.data(), OutEvent);
+      Queue->getPlugin()->call(urEnqueueEventsWait, Queue->getUrHandleRef(),
+                               DepEvents.size(), DepEvents.data(), OutEvent);
     }
     return;
   }
@@ -985,7 +985,7 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                         UR_RESULT_ERROR_INVALID_VALUE);
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
-  const UrPluginPtr &Plugin = Queue->getUrPlugin();
+  const PluginPtr &Plugin = Queue->getPlugin();
   unsigned char FillByte = static_cast<unsigned char>(Pattern);
   Plugin->call(urEnqueueUSMFill, Queue->getUrHandleRef(), Mem, sizeof(FillByte),
                &FillByte, Length, DepEvents.size(), DepEvents.data(), OutEvent);
@@ -1007,7 +1007,7 @@ void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   assert(!Queue->getContextImplPtr()->is_host() &&
          "Host queue not supported in prefetch_usm.");
 
-  const UrPluginPtr &Plugin = Queue->getUrPlugin();
+  const PluginPtr &Plugin = Queue->getPlugin();
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   Plugin->call(urEnqueueUSMPrefetch, Queue->getUrHandleRef(), Mem, Length, 0,
@@ -1029,7 +1029,7 @@ void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
   assert(!Queue->getContextImplPtr()->is_host() &&
          "Host queue not supported in advise_usm.");
 
-  const UrPluginPtr &Plugin = Queue->getUrPlugin();
+  const PluginPtr &Plugin = Queue->getPlugin();
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   Plugin->call(urEnqueueUSMAdvise, Queue->getUrHandleRef(), Mem, Length, Advice,
@@ -1059,8 +1059,8 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
     if (!DepEvents.empty()) {
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
-      Queue->getUrPlugin()->call(urEnqueueEventsWait, Queue->getUrHandleRef(),
-                                 DepEvents.size(), DepEvents.data(), OutEvent);
+      Queue->getPlugin()->call(urEnqueueEventsWait, Queue->getUrHandleRef(),
+                               DepEvents.size(), DepEvents.data(), OutEvent);
     }
     return;
   }
@@ -1069,7 +1069,7 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "NULL pointer argument in 2D memory copy operation.");
 
-  const UrPluginPtr &Plugin = Queue->getUrPlugin();
+  const PluginPtr &Plugin = Queue->getPlugin();
 
   bool SupportsUSMMemcpy2D = false;
   Plugin->call(urContextGetInfo, Queue->getContextImplPtr()->getUrHandleRef(),
@@ -1119,8 +1119,8 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
 if (OutEventImpl != nullptr)
 OutEventImpl->setHostEnqueueTime();
 // Then insert a wait to coalesce the copy events.
-Queue->getUrPlugin()->call(urEnqueueEventsWait, Queue->getUrHandleRef(),
-                           CopyEvents.size(), CopyEvents.data(), OutEvent);
+Queue->getPlugin()->call(urEnqueueEventsWait, Queue->getUrHandleRef(),
+                         CopyEvents.size(), CopyEvents.data(), OutEvent);
 }
 
 // TODO: This function will remain until ABI-breaking change
@@ -1147,8 +1147,8 @@ if (Width == 0 || Height == 0) {
 if (!DepEvents.empty()) {
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
-      Queue->getUrPlugin()->call(urEnqueueEventsWait, Queue->getUrHandleRef(),
-                                 DepEvents.size(), DepEvents.data(), OutEvent);
+      Queue->getPlugin()->call(urEnqueueEventsWait, Queue->getUrHandleRef(),
+                               DepEvents.size(), DepEvents.data(), OutEvent);
 }
     return;
 }
@@ -1158,7 +1158,7 @@ if (!DepEvents.empty()) {
                           "NULL pointer argument in 2D memory fill operation.");
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
-  const UrPluginPtr &Plugin = Queue->getUrPlugin();
+  const PluginPtr &Plugin = Queue->getPlugin();
   Plugin->call(urEnqueueUSMFill2D, Queue->getUrHandleRef(), DstMem, Pitch,
                Pattern.size(), Pattern.data(), Width, Height, DepEvents.size(),
                DepEvents.data(), OutEvent);
@@ -1188,8 +1188,8 @@ void MemoryManager::memset_2d_usm(void *DstMem, QueueImplPtr Queue,
     if (!DepEvents.empty()) {
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
-      Queue->getUrPlugin()->call(urEnqueueEventsWait, Queue->getUrHandleRef(),
-                                 DepEvents.size(), DepEvents.data(), OutEvent);
+      Queue->getPlugin()->call(urEnqueueEventsWait, Queue->getUrHandleRef(),
+                               DepEvents.size(), DepEvents.data(), OutEvent);
     }
     return;
   }
@@ -1229,7 +1229,7 @@ static void memcpyToDeviceGlobalUSM(
 
   // OwnedPiEvent will keep the initialization event alive for the duration
   // of this function call.
-  OwnedUrEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Queue->getUrPlugin());
+  OwnedUrEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Queue->getPlugin());
 
   // We may need addtional events, so create a non-const dependency events list
   // to use if we need to modify it.
@@ -1262,7 +1262,7 @@ static void memcpyFromDeviceGlobalUSM(
 
   // OwnedPiEvent will keep the initialization event alive for the duration
   // of this function call.
-  OwnedUrEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Queue->getUrPlugin());
+  OwnedUrEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Queue->getPlugin());
 
   // We may need addtional events, so create a non-const dependency events list
   // to use if we need to modify it.
@@ -1325,7 +1325,7 @@ memcpyToDeviceGlobalDirect(QueueImplPtr Queue,
                            ur_event_handle_t *OutEvent) {
   ur_program_handle_t Program =
       getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry);
-  const UrPluginPtr &Plugin = Queue->getUrPlugin();
+  const PluginPtr &Plugin = Queue->getPlugin();
   Plugin->call(urEnqueueDeviceGlobalVariableWrite, Queue->getUrHandleRef(),
                Program, DeviceGlobalEntry->MUniqueId.c_str(), false, NumBytes,
                Offset, Src, DepEvents.size(), DepEvents.data(), OutEvent);
@@ -1339,7 +1339,7 @@ memcpyFromDeviceGlobalDirect(QueueImplPtr Queue,
                              ur_event_handle_t *OutEvent) {
   ur_program_handle_t Program =
       getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry);
-  const UrPluginPtr &Plugin = Queue->getUrPlugin();
+  const PluginPtr &Plugin = Queue->getPlugin();
   Plugin->call(urEnqueueDeviceGlobalVariableRead, Queue->getUrHandleRef(),
                Program, DeviceGlobalEntry->MUniqueId.c_str(), false, NumBytes,
                Offset, Dest, DepEvents.size(), DepEvents.data(), OutEvent);
@@ -1423,7 +1423,7 @@ void MemoryManager::ext_oneapi_copyD2D_cmd_buffer(
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
   (void)DstAccessRange;
 
-  const UrPluginPtr &Plugin = Context->getUrPlugin();
+  const PluginPtr &Plugin = Context->getPlugin();
 
   detail::SYCLMemObjI::MemObjType MemType = SYCLMemObj->getType();
   TermPositions SrcPos, DstPos;
@@ -1487,7 +1487,7 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
     ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
-  const UrPluginPtr &Plugin = Context->getUrPlugin();
+  const PluginPtr &Plugin = Context->getPlugin();
 
   detail::SYCLMemObjI::MemObjType MemType = SYCLMemObj->getType();
   TermPositions SrcPos, DstPos;
@@ -1561,7 +1561,7 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
     ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
-  const UrPluginPtr &Plugin = Context->getUrPlugin();
+  const PluginPtr &Plugin = Context->getPlugin();
 
   detail::SYCLMemObjI::MemObjType MemType = SYCLMemObj->getType();
   TermPositions SrcPos, DstPos;
@@ -1634,7 +1634,7 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
     throw runtime_error("NULL pointer argument in memory copy operation.",
                         UR_RESULT_ERROR_INVALID_VALUE);
 
-  const UrPluginPtr &Plugin = Context->getUrPlugin();
+  const PluginPtr &Plugin = Context->getPlugin();
   ur_result_t Result = Plugin->call_nocheck(
       urCommandBufferAppendUSMMemcpyExp, CommandBuffer, DstMem, SrcMem, Len,
       Deps.size(), Deps.data(), OutSyncPoint);
@@ -1657,7 +1657,7 @@ void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
     throw runtime_error("NULL pointer argument in memory fill operation.",
                         PI_ERROR_INVALID_VALUE);
 
-  const UrPluginPtr &Plugin = Context->getUrPlugin();
+  const PluginPtr &Plugin = Context->getPlugin();
   // Pattern is interpreted as an unsigned char so pattern size is always 1.
   size_t PatternSize = 1;
   Plugin->call(urCommandBufferAppendUSMFillExp, CommandBuffer, DstMem, &Pattern,
@@ -1674,7 +1674,7 @@ void MemoryManager::ext_oneapi_fill_cmd_buffer(
     ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
-  const UrPluginPtr &Plugin = Context->getUrPlugin();
+  const PluginPtr &Plugin = Context->getPlugin();
   if (SYCLMemObj->getType() != detail::SYCLMemObjI::MemObjType::Buffer) {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Images are not supported in Graphs");
@@ -1708,7 +1708,7 @@ void MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(
     ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
   assert(!Context->is_host() && "Host queue not supported in prefetch_usm.");
 
-  const UrPluginPtr &Plugin = Context->getUrPlugin();
+  const PluginPtr &Plugin = Context->getPlugin();
   Plugin->call(urCommandBufferAppendUSMPrefetchExp, CommandBuffer, Mem, Length,
                _pi_usm_migration_flags(0), Deps.size(), Deps.data(),
                OutSyncPoint);
@@ -1722,7 +1722,7 @@ void MemoryManager::ext_oneapi_advise_usm_cmd_buffer(
     ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
   assert(!Context->is_host() && "Host queue not supported in advise_usm.");
 
-  const UrPluginPtr &Plugin = Context->getUrPlugin();
+  const PluginPtr &Plugin = Context->getPlugin();
   Plugin->call(urCommandBufferAppendUSMAdviseExp, CommandBuffer, Mem, Length,
                Advice, Deps.size(), Deps.data(), OutSyncPoint);
 }
@@ -1746,7 +1746,7 @@ void MemoryManager::copy_image_bindless(
         sycl::make_error_code(errc::invalid),
         "NULL pointer argument in bindless image copy operation.");
 
-  const detail::UrPluginPtr &Plugin = Queue->getUrPlugin();
+  const detail::PluginPtr &Plugin = Queue->getPlugin();
   Plugin->call(urBindlessImagesImageCopyExp, Queue->getUrHandleRef(), Dst, Src,
                &Format, &Desc, Flags, SrcOffset, DstOffset, CopyExtent,
                HostExtent, DepEvents.size(), DepEvents.data(), OutEvent);

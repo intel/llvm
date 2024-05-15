@@ -228,7 +228,7 @@ private:
     MUrQueues.push_back(UrQueue);
 
     ur_device_handle_t DeviceUr {};
-    const UrPluginPtr &Plugin = getUrPlugin();
+    const PluginPtr &Plugin = getPlugin();
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin->call(urQueueGetInfo,
         MUrQueues[0], UR_QUEUE_INFO_DEVICE, sizeof(DeviceUr), &DeviceUr, nullptr);
@@ -338,7 +338,7 @@ public:
     throw_asynchronous();
     if (!MHostQueue) {
       cleanup_fusion_cmd();
-      getUrPlugin()->call(urQueueRelease, MUrQueues[0]);
+      getPlugin()->call(urQueueRelease, MUrQueues[0]);
     }
   }
 
@@ -350,9 +350,10 @@ public:
           "This instance of queue doesn't support OpenCL interoperability",
           PI_ERROR_INVALID_QUEUE);
     }
-    getUrPlugin()->call(urQueueRetain, MUrQueues[0]);
+    getPlugin()->call(urQueueRetain, MUrQueues[0]);
     ur_native_handle_t nativeHandle = nullptr;
-    getUrPlugin()->call(urQueueGetNativeHandle, MUrQueues[0], nullptr, &nativeHandle);
+    getPlugin()->call(urQueueGetNativeHandle, MUrQueues[0], nullptr,
+                      &nativeHandle);
     return pi::cast<cl_command_queue>(nativeHandle);
   }
 
@@ -361,7 +362,7 @@ public:
     return createSyclObjFromImpl<context>(MContext);
   }
 
-  const UrPluginPtr &getUrPlugin() const { return MContext->getUrPlugin(); }
+  const PluginPtr &getPlugin() const { return MContext->getPlugin(); }
 
   const ContextImplPtr &getContextImplPtr() const { return MContext; }
 
@@ -401,7 +402,7 @@ public:
                             "recording to a command graph.");
     }
     for (const auto &queue : MUrQueues) {
-      getUrPlugin()->call(urQueueFlush, queue);
+      getPlugin()->call(urQueueFlush, queue);
     }
   }
 
@@ -566,11 +567,11 @@ public:
     ur_queue_handle_t Queue{};
     ur_context_handle_t Context = MContext->getUrHandleRef();
     ur_device_handle_t Device = MDevice->getUrHandleRef();
-    const UrPluginPtr &Plugin = getUrPlugin();
-/*
-    sycl::detail::pi::PiQueueProperties Properties[] = {
-        PI_QUEUE_FLAGS, createPiQueueProperties(MPropList, Order), 0, 0, 0};
-    */
+    const PluginPtr &Plugin = getPlugin();
+    /*
+        sycl::detail::pi::PiQueueProperties Properties[] = {
+            PI_QUEUE_FLAGS, createPiQueueProperties(MPropList, Order), 0, 0, 0};
+        */
     ur_queue_properties_t Properties = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr, 0};
     Properties.flags = createUrQueueFlags(MPropList, Order);
     ur_queue_index_properties_t IndexProperties = {UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES, nullptr, 0};
@@ -621,7 +622,7 @@ public:
     if (!ReuseQueue)
       *PIQ = createQueue(QueueOrder::Ordered);
     else
-      getUrPlugin()->call(urQueueFinish, *PIQ);
+      getPlugin()->call(urQueueFinish, *PIQ);
 
     return *PIQ;
   }

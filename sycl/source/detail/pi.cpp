@@ -75,7 +75,7 @@ getPluginOpaqueData<sycl::backend::ext_intel_esimd_emulator>(void *);
 
 namespace pi {
 
-static void initializeUrPlugins(std::vector<UrPluginPtr> &Plugins);
+static void initializePlugins(std::vector<PluginPtr> &Plugins);
 
 bool XPTIInitDone = false;
 
@@ -197,7 +197,7 @@ void contextSetExtendedDeleter(const sycl::context &context,
                                void *user_data) {
   auto impl = getSyclObjImpl(context);
   auto contextHandle = impl->getUrHandleRef();
-  const auto &Plugin = impl->getUrPlugin();
+  const auto &Plugin = impl->getPlugin();
   Plugin->call(urContextSetExtendedDeleter, contextHandle, func, user_data);
 }
 
@@ -277,11 +277,6 @@ std::string memFlagsToString(pi_mem_flags Flags) {
 
   return Sstream.str();
 }
-
-// GlobalPlugin is a global Plugin used with Interoperability constructors that
-// use OpenCL objects to construct SYCL class objects.
-// TODO: GlobalPlugin does not seem to be needed anymore. Consider removing it!
-std::shared_ptr<plugin> GlobalPlugin;
 
 // Find the plugin at the appropriate location and return the location.
 std::vector<std::pair<std::string, backend>> findPlugins() {
@@ -370,14 +365,14 @@ bool trace(TraceLevel Level) {
 }
 
 // Initializes all available Plugins.
-std::vector<UrPluginPtr> &initializeUr() {
+std::vector<PluginPtr> &initializeUr() {
   static std::once_flag PluginsInitDone;
   // std::call_once is blocking all other threads if a thread is already
   // creating a vector of plugins. So, no additional lock is needed.
   std::call_once(PluginsInitDone, [&]() {
-    initializeUrPlugins(GlobalHandler::instance().getUrPlugins());
+    initializePlugins(GlobalHandler::instance().getPlugins());
   });
-  return GlobalHandler::instance().getUrPlugins();
+  return GlobalHandler::instance().getPlugins();
 }
 
 // Implementation of this function is OS specific. Please see windows_pi.cpp and
@@ -387,7 +382,7 @@ std::vector<UrPluginPtr> &initializeUr() {
 std::vector<std::tuple<std::string, backend, void *>>
 loadPlugins(const std::vector<std::pair<std::string, backend>> &&PluginNames);
 
-static void initializeUrPlugins(std::vector<UrPluginPtr> &Plugins) {
+static void initializePlugins(std::vector<PluginPtr> &Plugins) {
   // TODO: error handling, could/should this throw?
   ur_loader_config_handle_t config = nullptr;
   if (urLoaderConfigCreate(&config) == UR_RESULT_SUCCESS) {
@@ -429,36 +424,34 @@ for (const auto &adapter : adapters) {
   if (syclBackend == backend::all) {
     // kaboom??
   }
-  Plugins.emplace_back(std::make_shared<urPlugin>(adapter, syclBackend));
+  Plugins.emplace_back(std::make_shared<plugin>(adapter, syclBackend));
 }
 } // namespace pi
 
 // Get the plugin serving given backend.
-template <backend BE> const UrPluginPtr &getUrPlugin() {
-  static UrPluginPtr *Plugin = nullptr;
+template <backend BE> const PluginPtr &getPlugin() {
+  static PluginPtr *Plugin = nullptr;
   if (Plugin)
     return *Plugin;
 
-  std::vector<UrPluginPtr> &Plugins = pi::initializeUr();
+  std::vector<PluginPtr> &Plugins = pi::initializeUr();
   for (auto &P : Plugins)
     if (P->hasBackend(BE)) {
       Plugin = &P;
       return *Plugin;
     }
 
-  throw runtime_error("pi::getUrPlugin couldn't find plugin",
+  throw runtime_error("pi::getPlugin couldn't find plugin",
                       PI_ERROR_INVALID_OPERATION);
 }
 
-template __SYCL_EXPORT const UrPluginPtr &getUrPlugin<backend::opencl>();
-template __SYCL_EXPORT const UrPluginPtr &
-getUrPlugin<backend::ext_oneapi_level_zero>();
-template __SYCL_EXPORT const UrPluginPtr &
-getUrPlugin<backend::ext_intel_esimd_emulator>();
-template __SYCL_EXPORT const UrPluginPtr &
-getUrPlugin<backend::ext_oneapi_cuda>();
-template __SYCL_EXPORT const UrPluginPtr &
-getUrPlugin<backend::ext_oneapi_hip>();
+template __SYCL_EXPORT const PluginPtr &getPlugin<backend::opencl>();
+template __SYCL_EXPORT const PluginPtr &
+getPlugin<backend::ext_oneapi_level_zero>();
+template __SYCL_EXPORT const PluginPtr &
+getPlugin<backend::ext_intel_esimd_emulator>();
+template __SYCL_EXPORT const PluginPtr &getPlugin<backend::ext_oneapi_cuda>();
+template __SYCL_EXPORT const PluginPtr &getPlugin<backend::ext_oneapi_hip>();
 
 // Report error and no return (keeps compiler from printing warnings).
 // TODO: Probably change that to throw a catchable exception,

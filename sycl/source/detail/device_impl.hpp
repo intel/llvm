@@ -39,7 +39,7 @@ public:
   device_impl();
 
   /// Constructs a SYCL device instance using the provided raw device handle.
-  explicit device_impl(ur_native_handle_t, const UrPluginPtr &Plugin);
+  explicit device_impl(ur_native_handle_t, const PluginPtr &Plugin);
 
   /// Constructs a SYCL device instance using the provided
   /// PI device instance.
@@ -47,7 +47,7 @@ public:
 
   /// Constructs a SYCL device instance using the provided
   /// PI device instance.
-  explicit device_impl(ur_device_handle_t Device, const UrPluginPtr &Plugin);
+  explicit device_impl(ur_device_handle_t Device, const PluginPtr &Plugin);
 
   ~device_impl();
 
@@ -127,7 +127,7 @@ public:
   platform get_platform() const;
 
   /// \return the associated plugin with this device.
-  const UrPluginPtr &getUrPlugin() const { return MPlatform->getUrPlugin(); }
+  const PluginPtr &getPlugin() const { return MPlatform->getPlugin(); }
 
   /// Check SYCL extension support by device
   ///
@@ -327,7 +327,7 @@ public:
 private:
   explicit device_impl(ur_native_handle_t InteropDevice,
                        ur_device_handle_t Device, PlatformImplPtr Platform,
-                       const UrPluginPtr &Plugin);
+                       const PluginPtr &Plugin);
 
   ur_device_handle_t MUrDevice = 0;
   ur_device_type_t MUrType;

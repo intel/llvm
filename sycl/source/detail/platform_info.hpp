@@ -20,7 +20,7 @@ inline namespace _V1 {
 namespace detail {
 
 inline std::string get_platform_info_string_impl(ur_platform_handle_t Plt,
-                                                 const UrPluginPtr &Plugin,
+                                                 const PluginPtr &Plugin,
                                                  ur_platform_info_t UrCode) {
   size_t ResultSize = 0;
   // TODO catch an exception and put it to list of asynchronous exceptions
@@ -39,7 +39,7 @@ template <typename Param>
 typename std::enable_if<
     std::is_same<typename Param::return_type, std::string>::value,
     std::string>::type
-get_platform_info(ur_platform_handle_t Plt, const UrPluginPtr &Plugin) {
+get_platform_info(ur_platform_handle_t Plt, const PluginPtr &Plugin) {
   static_assert(is_platform_info_desc<Param>::value,
                 "Invalid platform information descriptor");
   return get_platform_info_string_impl(Plt, Plugin,
@@ -49,7 +49,7 @@ get_platform_info(ur_platform_handle_t Plt, const UrPluginPtr &Plugin) {
 template <typename Param>
 typename std::enable_if<std::is_same<Param, info::platform::extensions>::value,
                         std::vector<std::string>>::type
-get_platform_info(ur_platform_handle_t Plt, const UrPluginPtr &Plugin) {
+get_platform_info(ur_platform_handle_t Plt, const PluginPtr &Plugin) {
   static_assert(is_platform_info_desc<Param>::value,
                 "Invalid platform information descriptor");
   std::string Result = get_platform_info_string_impl(

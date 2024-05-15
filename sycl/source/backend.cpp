@@ -30,19 +30,19 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-static const UrPluginPtr &getUrPlugin(backend Backend) {
+static const PluginPtr &getPlugin(backend Backend) {
   switch (Backend) {
   case backend::opencl:
-    return pi::getUrPlugin<backend::opencl>();
+    return pi::getPlugin<backend::opencl>();
   case backend::ext_oneapi_level_zero:
-    return pi::getUrPlugin<backend::ext_oneapi_level_zero>();
+    return pi::getPlugin<backend::ext_oneapi_level_zero>();
   case backend::ext_oneapi_cuda:
-    return pi::getUrPlugin<backend::ext_oneapi_cuda>();
+    return pi::getPlugin<backend::ext_oneapi_cuda>();
   case backend::ext_oneapi_hip:
-    return pi::getUrPlugin<backend::ext_oneapi_hip>();
+    return pi::getPlugin<backend::ext_oneapi_hip>();
   default:
     throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                          "getUrPlugin: Unsupported backend " +
+                          "getPlugin: Unsupported backend " +
                               detail::codeToString(PI_ERROR_INVALID_OPERATION));
   }
 }
@@ -87,7 +87,7 @@ backend convertUrBackend(ur_platform_backend_t UrBackend) {
 }
 
 platform make_platform(ur_native_handle_t NativeHandle, backend Backend) {
-  const auto &Plugin = getUrPlugin(Backend);
+  const auto &Plugin = getPlugin(Backend);
 
   // Create UR platform first.
   ur_platform_handle_t UrPlatform = nullptr;
@@ -100,7 +100,7 @@ platform make_platform(ur_native_handle_t NativeHandle, backend Backend) {
 
 __SYCL_EXPORT device make_device(ur_native_handle_t NativeHandle,
                                  backend Backend) {
-  const auto &Plugin = getUrPlugin(Backend);
+  const auto &Plugin = getPlugin(Backend);
 
   ur_device_handle_t UrDevice = nullptr;
   Plugin->call(urDeviceCreateWithNativeHandle, NativeHandle, nullptr, nullptr,
@@ -113,7 +113,7 @@ __SYCL_EXPORT device make_device(ur_native_handle_t NativeHandle,
 __SYCL_EXPORT context make_context(ur_native_handle_t NativeHandle,
                                    const async_handler &Handler,
                                    backend Backend) {
-  const auto &Plugin = getUrPlugin(Backend);
+  const auto &Plugin = getPlugin(Backend);
 
   ur_context_handle_t UrContext = nullptr;
   ur_context_native_properties_t Properties{};
@@ -133,7 +133,7 @@ __SYCL_EXPORT queue make_queue(ur_native_handle_t NativeHandle,
                                const async_handler &Handler, backend Backend) {
   ur_device_handle_t UrDevice =
       Device ? getSyclObjImpl(*Device)->getUrHandleRef() : nullptr;
-  const auto &Plugin = getUrPlugin(Backend);
+  const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(Context);
 
   if (PropList.has_property<ext::intel::property::queue::compute_index>()) {
@@ -179,7 +179,7 @@ __SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,
 __SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,
                                const context &Context, bool KeepOwnership,
                                backend Backend) {
-  const auto &Plugin = getUrPlugin(Backend);
+  const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(Context);
 
   ur_event_handle_t UrEvent = nullptr;
@@ -201,7 +201,7 @@ std::shared_ptr<detail::kernel_bundle_impl>
 make_kernel_bundle(ur_native_handle_t NativeHandle,
                    const context &TargetContext, bool KeepOwnership,
                    bundle_state State, backend Backend) {
-  const auto &Plugin = getUrPlugin(Backend);
+  const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(TargetContext);
 
   ur_program_handle_t UrProgram = nullptr;
@@ -319,7 +319,7 @@ kernel make_kernel(const context &TargetContext,
                    const kernel_bundle<bundle_state::executable> &KernelBundle,
                    ur_native_handle_t NativeHandle, bool KeepOwnership,
                    backend Backend) {
-  const auto &Plugin = getUrPlugin(Backend);
+  const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(TargetContext);
   const auto KernelBundleImpl = getSyclObjImpl(KernelBundle);
 

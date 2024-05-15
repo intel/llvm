@@ -88,7 +88,7 @@ public:
 
   virtual ~SYCLMemObjT() = default;
 
-  const UrPluginPtr &getPlugin() const;
+  const PluginPtr &getPlugin() const;
 
   size_t getSizeInBytes() const noexcept override { return MSizeInBytes; }
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")

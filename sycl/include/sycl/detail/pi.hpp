@@ -49,8 +49,8 @@ enum class UrApiKind {
 #include <sycl/detail/ur.def>
 };
 
-class urPlugin;
-using UrPluginPtr = std::shared_ptr<urPlugin>;
+class plugin;
+using PluginPtr = std::shared_ptr<plugin>;
 
 template <sycl::backend BE>
 __SYCL_EXPORT void *getPluginOpaqueData(void *opaquedata_arg);
@@ -190,36 +190,13 @@ std::string platformInfoToString(pi_platform_info info);
 template <class To, class From> To cast(From value);
 
 // Performs PI one-time initialization.
-std::vector<UrPluginPtr> &initializeUr();
+std::vector<PluginPtr> &initializeUr();
 
 // Get the plugin serving given backend.
-template <backend BE> __SYCL_EXPORT const UrPluginPtr &getUrPlugin();
+template <backend BE> __SYCL_EXPORT const PluginPtr &getPlugin();
 
 // Utility Functions to get Function Name for a PI Api.
 template <PiApiKind PiApiOffset> struct PiFuncInfo {};
-
-#define _PI_API(api)                                                           \
-  template <> struct PiFuncInfo<PiApiKind::api> {                              \
-    using FuncPtrT = decltype(&::api);                                         \
-    inline const char *getFuncName() { return #api; }                          \
-    inline FuncPtrT getFuncPtr(PiPlugin MPlugin) {                             \
-      return MPlugin.PiFunctionTable.api;                                      \
-    }                                                                          \
-  };
-#include <sycl/detail/pi.def>
-/*
-// Utility Functions to get Function Name for a PI Api.
-template <UrApiKind UrApiOffset> struct UrFuncInfo {};
-
-#define _UR_API(api)                                                           \
-  template <> struct UrFuncInfo<UrApiKind::api> {                              \
-    inline const char *getFuncName() { return #api; }                          \
-    //inline FuncPtrT getFuncPtr(UrPlugin MPlugin) {                           \
-    //  return MPlugin.PiFunctionTable.api;                                    \
-    //}                                                                        \
-  };
-#include <sycl/detail/ur.def>
-*/
 
 /// Emits an XPTI trace before a PI API call is made
 /// \param FName The name of the PI API call

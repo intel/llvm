@@ -28,7 +28,7 @@ bool deviceIsAllowed(const DeviceDescT &DeviceDesc,
                      const AllowListParsedT &AllowListParsed);
 
 void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
-                    ur_platform_handle_t UrPlatform, const UrPluginPtr &Plugin);
+                    ur_platform_handle_t UrPlatform, const PluginPtr &Plugin);
 
 } // namespace detail
 } // namespace _V1

@@ -322,11 +322,11 @@ class DispatchHostTask {
   std::vector<interop_handle::ReqToMem> MReqToMem;
 
   pi_result waitForEvents() const {
-    std::map<const UrPluginPtr, std::vector<EventImplPtr>>
+    std::map<const PluginPtr, std::vector<EventImplPtr>>
         RequiredEventsPerPlugin;
 
     for (const EventImplPtr &Event : MThisCmd->MPreparedDepsEvents) {
-      const UrPluginPtr &Plugin = Event->getUrPlugin();
+      const PluginPtr &Plugin = Event->getPlugin();
       RequiredEventsPerPlugin[Plugin].push_back(Event);
     }
 
@@ -484,8 +484,8 @@ void Command::waitForEvents(QueueImplPtr Queue,
       for (auto &CtxWithEvents : RequiredEventsPerContext) {
         std::vector<ur_event_handle_t> RawEvents =
             getUrEvents(CtxWithEvents.second);
-        CtxWithEvents.first->getUrPlugin()->call(urEventWait, RawEvents.size(),
-                                                 RawEvents.data());
+        CtxWithEvents.first->getPlugin()->call(urEventWait, RawEvents.size(),
+                                               RawEvents.data());
       }
     } else {
 #ifndef NDEBUG
@@ -496,7 +496,7 @@ void Command::waitForEvents(QueueImplPtr Queue,
 
       std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
       flushCrossQueueDeps(EventImpls, getWorkerQueue());
-      const UrPluginPtr &Plugin = Queue->getUrPlugin();
+      const PluginPtr &Plugin = Queue->getPlugin();
 
       if (MEvent != nullptr)
         MEvent->setHostEnqueueTime();
@@ -2242,7 +2242,7 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, ur_kernel_handle_t Kernel,
   // avoid get_kernel_work_group_info on every kernel run
   range<3> WGSize = get_kernel_device_specific_info<
       sycl::info::kernel_device_specific::compile_work_group_size>(
-      Kernel, DeviceImpl.getUrHandleRef(), DeviceImpl.getUrPlugin());
+      Kernel, DeviceImpl.getUrHandleRef(), DeviceImpl.getPlugin());
 
   if (WGSize[0] == 0) {
     WGSize = {1, 1, 1};
@@ -2280,7 +2280,7 @@ ur_mem_flags_t AccessModeToUr(access::mode AccessorMode) {
 }
 
 void SetArgBasedOnType(
-    const UrPluginPtr &Plugin, ur_kernel_handle_t Kernel,
+    const PluginPtr &Plugin, ur_kernel_handle_t Kernel,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     const sycl::context &Context, bool IsHost, detail::ArgDesc &Arg,
@@ -2381,7 +2381,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative) {
-  const UrPluginPtr &Plugin = Queue->getUrPlugin();
+  const PluginPtr &Plugin = Queue->getPlugin();
 
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
                   &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
@@ -2468,7 +2468,7 @@ ur_result_t enqueueImpCommandBufferKernel(
     ur_exp_command_buffer_command_handle_t *OutCommand,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
   auto ContextImpl = sycl::detail::getSyclObjImpl(Ctx);
-  const sycl::detail::UrPluginPtr &Plugin = ContextImpl->getUrPlugin();
+  const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   ur_kernel_handle_t UrKernel = nullptr;
   ur_program_handle_t UrProgram = nullptr;
   std::shared_ptr<kernel_impl> SyclKernelImpl = nullptr;
@@ -2652,7 +2652,7 @@ ur_result_t enqueueImpKernel(
     // provided.
     if (KernelCacheConfig == UR_KERNEL_CACHE_CONFIG_LARGE_SLM ||
         KernelCacheConfig == UR_KERNEL_CACHE_CONFIG_LARGE_DATA) {
-      const UrPluginPtr &Plugin = Queue->getUrPlugin();
+      const PluginPtr &Plugin = Queue->getPlugin();
       Plugin->call(
           urKernelSetExecInfo, Kernel, UR_KERNEL_EXEC_INFO_CACHE_CONFIG,
           sizeof(ur_kernel_cache_config_t), nullptr, &KernelCacheConfig);
@@ -2663,7 +2663,7 @@ ur_result_t enqueueImpKernel(
                                      EliminatedArgMask, getMemAllocationFunc,
                                      KernelIsCooperative);
 
-    const UrPluginPtr &Plugin = Queue->getUrPlugin();
+    const PluginPtr &Plugin = Queue->getPlugin();
     if (!SyclKernelImpl && !MSyclKernel) {
       Plugin->call(urKernelRelease, Kernel);
       Plugin->call(urProgramRelease, Program);
@@ -2708,7 +2708,7 @@ ur_result_t enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
   }
   assert(Program && "Program for this hostpipe is not compiled.");
 
-  const UrPluginPtr &Plugin = Queue->getUrPlugin();
+  const PluginPtr &Plugin = Queue->getPlugin();
 
   ur_queue_handle_t ur_q = Queue->getUrHandleRef();
   ur_result_t Error;
@@ -2742,7 +2742,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
   if (!RawEvents.empty()) {
-    MQueue->getUrPlugin()->call(urEventWait, RawEvents.size(), &RawEvents[0]);
+    MQueue->getPlugin()->call(urEventWait, RawEvents.size(), &RawEvents[0]);
   }
 
   ur_event_handle_t *Event = (MQueue->supportsDiscardingPiEvents() &&
@@ -2986,7 +2986,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         }
       if (!RawEvents.empty()) {
         // Assuming that the events are for devices to the same Plugin.
-        const UrPluginPtr &Plugin = EventImpls[0]->getUrPlugin();
+        const PluginPtr &Plugin = EventImpls[0]->getPlugin();
         Plugin->call(urEventWait, RawEvents.size(), &RawEvents[0]);
       }
 
@@ -2998,12 +2998,12 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
                backend::ext_intel_esimd_emulator);
         if (MEvent != nullptr)
           MEvent->setHostEnqueueTime();
-        MQueue->getUrPlugin()->call(urEnqueueKernelLaunch, nullptr,
-                                    reinterpret_cast<ur_kernel_handle_t>(
-                                        ExecKernel->MHostKernel->getPtr()),
-                                    NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
-                                    &NDRDesc.GlobalSize[0],
-                                    &NDRDesc.LocalSize[0], 0, nullptr, nullptr);
+        MQueue->getPlugin()->call(urEnqueueKernelLaunch, nullptr,
+                                  reinterpret_cast<ur_kernel_handle_t>(
+                                      ExecKernel->MHostKernel->getPtr()),
+                                  NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
+                                  &NDRDesc.GlobalSize[0], &NDRDesc.LocalSize[0],
+                                  0, nullptr, nullptr);
       }
       return UR_RESULT_SUCCESS;
     }
@@ -3158,7 +3158,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       // NOP for host device.
       return UR_RESULT_SUCCESS;
     }
-    const UrPluginPtr &Plugin = MQueue->getUrPlugin();
+    const PluginPtr &Plugin = MQueue->getPlugin();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
     Plugin->call(urEnqueueEventsWaitWithBarrier, MQueue->getUrHandleRef(), 0,
@@ -3175,7 +3175,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       // If Events is empty, then the barrier has no effect.
       return UR_RESULT_SUCCESS;
     }
-    const UrPluginPtr &Plugin = MQueue->getUrPlugin();
+    const PluginPtr &Plugin = MQueue->getPlugin();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
     Plugin->call(urEnqueueEventsWaitWithBarrier, MQueue->getUrHandleRef(),
@@ -3239,7 +3239,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         static_cast<CGExecCommandBuffer *>(MCommandGroup.get());
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
-    return MQueue->getUrPlugin()->call_nocheck(
+    return MQueue->getPlugin()->call_nocheck(
         urCommandBufferEnqueueExp, CmdBufferCG->MCommandBuffer,
         MQueue->getUrHandleRef(), RawEvents.size(),
         RawEvents.empty() ? nullptr : &RawEvents[0], Event);
@@ -3262,7 +3262,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       return UR_RESULT_SUCCESS;
     }
 
-    const detail::UrPluginPtr &Plugin = MQueue->getUrPlugin();
+    const detail::PluginPtr &Plugin = MQueue->getPlugin();
     Plugin->call(urBindlessImagesWaitExternalSemaphoreExp,
                  MQueue->getUrHandleRef(), SemWait->getInteropSemaphoreHandle(),
                  0, nullptr, nullptr);
@@ -3276,7 +3276,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       return UR_RESULT_SUCCESS;
     }
 
-    const detail::UrPluginPtr &Plugin = MQueue->getUrPlugin();
+    const detail::PluginPtr &Plugin = MQueue->getPlugin();
     Plugin->call(urBindlessImagesWaitExternalSemaphoreExp,
                  MQueue->getUrHandleRef(),
                  SemSignal->getInteropSemaphoreHandle(), 0, nullptr, nullptr);

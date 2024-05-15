@@ -28,7 +28,7 @@ __SYCL_EXPORT platform make_platform(ur_native_handle_t NativeHandle) {
 // Implementation of level_zero::make<device>
 __SYCL_EXPORT device make_device(const platform &Platform,
                                  ur_native_handle_t NativeHandle) {
-  const auto &Plugin = pi::getUrPlugin<backend::ext_oneapi_level_zero>();
+  const auto &Plugin = pi::getPlugin<backend::ext_oneapi_level_zero>();
   const auto &PlatformImpl = getSyclObjImpl(Platform);
   // Create PI device first.
   ur_device_handle_t UrDevice;
@@ -44,7 +44,7 @@ __SYCL_EXPORT device make_device(const platform &Platform,
 __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
                                    ur_native_handle_t NativeHandle,
                                    bool KeepOwnership) {
-  const auto &Plugin = pi::getUrPlugin<backend::ext_oneapi_level_zero>();
+  const auto &Plugin = pi::getPlugin<backend::ext_oneapi_level_zero>();
   // Create PI context first.
   ur_context_handle_t UrContext;
   std::vector<ur_device_handle_t> DeviceHandles;

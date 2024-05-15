@@ -266,7 +266,7 @@ public:
   ur_mem_handle_t &get_spec_const_buffer_ref() noexcept {
     std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
     if (nullptr == MSpecConstsBuffer && !MSpecConstsBlob.empty()) {
-      const UrPluginPtr &Plugin = getSyclObjImpl(MContext)->getUrPlugin();
+      const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
       //  Uses PI_MEM_FLAGS_HOST_PTR_COPY instead of PI_MEM_FLAGS_HOST_PTR_USE
       //  since post-enqueue cleanup might trigger destruction of
       //  device_image_impl and, as a result, destruction of MSpecConstsBlob
@@ -293,7 +293,7 @@ public:
   ur_native_handle_t getNative() const {
     assert(MProgram);
     const auto &ContextImplPtr = detail::getSyclObjImpl(MContext);
-    const UrPluginPtr &Plugin = ContextImplPtr->getUrPlugin();
+    const PluginPtr &Plugin = ContextImplPtr->getPlugin();
 
     if (ContextImplPtr->getBackend() == backend::opencl)
       Plugin->call(urProgramRetain, MURProgram);
@@ -306,12 +306,12 @@ public:
   ~device_image_impl() {
 
     if (MURProgram) {
-      const UrPluginPtr &Plugin = getSyclObjImpl(MContext)->getUrPlugin();
+      const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
       Plugin->call(urProgramRelease, MURProgram);
     }
     if (MSpecConstsBuffer) {
       std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
-      const UrPluginPtr &Plugin = getSyclObjImpl(MContext)->getUrPlugin();
+      const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
       memReleaseHelper(Plugin, MSpecConstsBuffer);
     }
   }

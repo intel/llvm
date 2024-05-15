@@ -117,7 +117,7 @@ __SYCL_EXPORT void destroy_image_handle(unsampled_image_handle &imageHandle,
   std::shared_ptr<sycl::detail::device_impl> DevImpl =
       sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t Device = DevImpl->getUrHandleRef();
-  const sycl::detail::UrPluginPtr &Plugin = CtxImpl->getUrPlugin();
+  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
   ur_exp_image_handle_t urImageHandle = imageHandle.raw_handle;
 
   Plugin->call<sycl::errc::runtime>(
@@ -139,7 +139,7 @@ __SYCL_EXPORT void destroy_image_handle(sampled_image_handle &imageHandle,
   std::shared_ptr<sycl::detail::device_impl> DevImpl =
       sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t Device = DevImpl->getUrHandleRef();
-  const sycl::detail::UrPluginPtr &Plugin = CtxImpl->getUrPlugin();
+  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
   ur_exp_image_handle_t piImageHandle = imageHandle.raw_handle;
 
   Plugin->call<sycl::errc::runtime>(
@@ -163,7 +163,7 @@ alloc_image_mem(const image_descriptor &desc, const sycl::device &syclDevice,
   std::shared_ptr<sycl::detail::device_impl> DevImpl =
       sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t Device = DevImpl->getUrHandleRef();
-  const sycl::detail::UrPluginPtr &Plugin = CtxImpl->getUrPlugin();
+  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
   ur_image_desc_t urDesc;
   ur_image_format_t urFormat;
@@ -197,7 +197,7 @@ image_mem_handle alloc_mipmap_mem(const image_descriptor &desc,
   std::shared_ptr<sycl::detail::device_impl> DevImpl =
       sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t Device = DevImpl->getUrHandleRef();
-  const sycl::detail::UrPluginPtr &Plugin = CtxImpl->getUrPlugin();
+  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
   ur_image_desc_t urDesc;
   ur_image_format_t urFormat;
@@ -230,7 +230,7 @@ __SYCL_EXPORT image_mem_handle get_mip_level_mem_handle(
   std::shared_ptr<sycl::detail::device_impl> DevImpl =
       sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t Device = DevImpl->getUrHandleRef();
-  const sycl::detail::UrPluginPtr &Plugin = CtxImpl->getUrPlugin();
+  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
   // Call impl.
   image_mem_handle individual_image;
@@ -260,7 +260,7 @@ __SYCL_EXPORT void free_image_mem(image_mem_handle memHandle,
   std::shared_ptr<sycl::detail::device_impl> DevImpl =
       sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t Device = DevImpl->getUrHandleRef();
-  const sycl::detail::UrPluginPtr &Plugin = CtxImpl->getUrPlugin();
+  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
   if (memHandle.raw_handle != nullptr) {
     if (imageType == image_type::mipmap) {
@@ -313,7 +313,7 @@ void free_mipmap_mem(image_mem_handle memoryHandle,
   std::shared_ptr<sycl::detail::device_impl> DevImpl =
       sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t Device = DevImpl->getUrHandleRef();
-  const sycl::detail::UrPluginPtr &Plugin = CtxImpl->getUrPlugin();
+  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
   Plugin->call<sycl::errc::memory_allocation>(
       urBindlessImagesMipmapFreeExp, C, Device,
@@ -353,7 +353,7 @@ create_image(image_mem_handle memHandle, const image_descriptor &desc,
   std::shared_ptr<sycl::detail::device_impl> DevImpl =
       sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t Device = DevImpl->getUrHandleRef();
-  const sycl::detail::UrPluginPtr &Plugin = CtxImpl->getUrPlugin();
+  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
   ur_image_desc_t urDesc;
   ur_image_format_t urFormat;
@@ -364,7 +364,7 @@ create_image(image_mem_handle memHandle, const image_descriptor &desc,
   Plugin->call<sycl::errc::runtime>(
       urBindlessImagesUnsampledImageCreateExp, C, Device,
       reinterpret_cast<ur_exp_image_mem_handle_t>(memHandle.raw_handle),
-      &urFormat, &urDesc, nullptr, &urImageHandle);
+      &urFormat, &urDesc, &urImageHandle);
 
   return unsampled_image_handle{urImageHandle};
 }
@@ -457,7 +457,7 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
   std::shared_ptr<sycl::detail::device_impl> DevImpl =
       sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t Device = DevImpl->getUrHandleRef();
-  const sycl::detail::UrPluginPtr &Plugin = CtxImpl->getUrPlugin();
+  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
   ur_sampler_desc_t UrSamplerProps{
       UR_STRUCTURE_TYPE_SAMPLER_DESC, nullptr,
@@ -500,7 +500,7 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
   Plugin->call<sycl::errc::runtime>(
       urBindlessImagesSampledImageCreateExp, C, Device,
       static_cast<ur_exp_image_mem_handle_t>(devPtr), &urFormat, &urDesc,
-      urSampler, nullptr, &urImageHandle);
+      urSampler, &urImageHandle);
 
   return sampled_image_handle{urImageHandle};
 }
@@ -522,7 +522,7 @@ __SYCL_EXPORT interop_mem_handle import_external_memory<resource_fd>(
   std::shared_ptr<sycl::detail::device_impl> DevImpl =
       sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t Device = DevImpl->getUrHandleRef();
-  const sycl::detail::UrPluginPtr &Plugin = CtxImpl->getUrPlugin();
+  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
   ur_exp_file_descriptor_t PosixFD{};
   PosixFD.stype = UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR;
@@ -587,7 +587,7 @@ image_mem_handle map_external_image_memory(interop_mem_handle memHandle,
   std::shared_ptr<sycl::detail::device_impl> DevImpl =
       sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t Device = DevImpl->getUrHandleRef();
-  const sycl::detail::UrPluginPtr &Plugin = CtxImpl->getUrPlugin();
+  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
   ur_image_desc_t urDesc;
   ur_image_format_t urFormat;
@@ -639,7 +639,7 @@ __SYCL_EXPORT void release_external_memory(interop_mem_handle interopMem,
   std::shared_ptr<sycl::detail::device_impl> DevImpl =
       sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t Device = DevImpl->getUrHandleRef();
-  const sycl::detail::UrPluginPtr &Plugin = CtxImpl->getUrPlugin();
+  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
   Plugin->call<sycl::errc::invalid>(urBindlessImagesReleaseInteropExp, C,
                                     Device, interopMem.raw_handle);
@@ -657,7 +657,7 @@ __SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
     const sycl::device &syclDevice, const sycl::context &syclContext) {
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
-  const sycl::detail::UrPluginPtr &Plugin = CtxImpl->getUrPlugin();
+  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
   ur_context_handle_t C = CtxImpl->getUrHandleRef();
   std::shared_ptr<sycl::detail::device_impl> DevImpl =
       sycl::detail::getSyclObjImpl(syclDevice);
@@ -718,7 +718,7 @@ destroy_external_semaphore(interop_semaphore_handle semaphoreHandle,
                            const sycl::context &syclContext) {
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
-  const sycl::detail::UrPluginPtr &Plugin = CtxImpl->getUrPlugin();
+  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
   ur_context_handle_t C = CtxImpl->getUrHandleRef();
   std::shared_ptr<sycl::detail::device_impl> DevImpl =
       sycl::detail::getSyclObjImpl(syclDevice);
@@ -741,7 +741,7 @@ __SYCL_EXPORT sycl::range<3> get_image_range(const image_mem_handle memHandle,
   std::ignore = syclDevice;
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
-  const sycl::detail::UrPluginPtr &Plugin = CtxImpl->getUrPlugin();
+  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
   size_t Width = 0, Height = 0, Depth = 0;
 
@@ -776,7 +776,7 @@ get_image_channel_type(const image_mem_handle memHandle,
   std::ignore = syclDevice;
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
-  const sycl::detail::UrPluginPtr &Plugin = CtxImpl->getUrPlugin();
+  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
   ur_image_format_t URFormat;
 
@@ -817,7 +817,7 @@ __SYCL_EXPORT void *pitched_alloc_device(size_t *resultPitch,
   }
 
   ur_context_handle_t UrContext = CtxImpl->getUrHandleRef();
-  const sycl::detail::UrPluginPtr &Plugin = CtxImpl->getUrPlugin();
+  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
   ur_device_handle_t UrDevice =
       sycl::detail::getSyclObjImpl(syclDevice)->getUrHandleRef();
 
@@ -866,7 +866,7 @@ get_image_num_channels(const image_mem_handle memHandle,
 
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
-  const sycl::detail::UrPluginPtr &Plugin = CtxImpl->getUrPlugin();
+  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
   ur_image_format_t URFormat = {};
 
   Plugin->call<sycl::errc::runtime>(

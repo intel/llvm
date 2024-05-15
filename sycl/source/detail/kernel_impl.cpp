@@ -27,9 +27,9 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr Context,
   // Some PI Plugins (like OpenCL) require this call to enable USM
   // For others, PI will turn this into a NOP.
   if (Context->getPlatformImpl()->supports_usm())
-    getUrPlugin()->call(urKernelSetExecInfo, MURKernel,
-                        UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS,
-                        sizeof(ur_bool_t), nullptr, &PI_TRUE);
+    getPlugin()->call(urKernelSetExecInfo, MURKernel,
+                      UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS,
+                      sizeof(ur_bool_t), nullptr, &PI_TRUE);
 
   // This constructor is only called in the interoperability kernel constructor.
   MIsInterop = true;
@@ -47,8 +47,8 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
 
   ur_context_handle_t Context = nullptr;
   // Using the plugin from the passed ContextImpl
-  getUrPlugin()->call(urKernelGetInfo, MURKernel, UR_KERNEL_INFO_CONTEXT,
-                      sizeof(Context), &Context, nullptr);
+  getPlugin()->call(urKernelGetInfo, MURKernel, UR_KERNEL_INFO_CONTEXT,
+                    sizeof(Context), &Context, nullptr);
   if (ContextImpl->getUrHandleRef() != Context)
     throw sycl::invalid_parameter_error(
         "Input context must be the same as the context of cl_kernel",
@@ -76,7 +76,7 @@ kernel_impl::kernel_impl(ContextImplPtr Context, ProgramImplPtr ProgramImpl)
 kernel_impl::~kernel_impl() {
   // TODO catch an exception and put it to list of asynchronous exceptions
   if (!is_host()) {
-    getUrPlugin()->call(urKernelRelease, MURKernel);
+    getPlugin()->call(urKernelRelease, MURKernel);
   }
 }
 

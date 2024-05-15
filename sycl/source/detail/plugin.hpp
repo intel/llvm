@@ -130,22 +130,22 @@ auto packCallArguments(ArgsT &&...Args) {
 /// runtimes for the device-agnostic SYCL runtime.
 ///
 /// \ingroup sycl_pi
-class urPlugin {
+class plugin {
 public:
-  urPlugin() = delete;
+  plugin() = delete;
 
-  urPlugin(ur_adapter_handle_t adapter, backend UseBackend)
+  plugin(ur_adapter_handle_t adapter, backend UseBackend)
       : MAdapter(adapter), MBackend(UseBackend),
         TracingMutex(std::make_shared<std::mutex>()),
         MPluginMutex(std::make_shared<std::mutex>()) {}
 
   // Disallow accidental copies of plugins
-  urPlugin &operator=(const urPlugin &) = delete;
-  urPlugin(const urPlugin &) = delete;
-  urPlugin &operator=(urPlugin &&other) noexcept = delete;
-  urPlugin(urPlugin &&other) noexcept = delete;
+  plugin &operator=(const plugin &) = delete;
+  plugin(const plugin &) = delete;
+  plugin &operator=(plugin &&other) noexcept = delete;
+  plugin(plugin &&other) noexcept = delete;
 
-  ~urPlugin() = default;
+  ~plugin() = default;
 
   /// Checks return value from PI calls.
   ///
@@ -323,7 +323,7 @@ private:
   std::vector<int> LastDeviceIds;
 }; // class plugin
 
-using UrPluginPtr = std::shared_ptr<urPlugin>;
+using PluginPtr = std::shared_ptr<plugin>;
 
 } // namespace detail
 } // namespace _V1

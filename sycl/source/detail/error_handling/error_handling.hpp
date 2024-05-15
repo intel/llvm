@@ -32,7 +32,7 @@ void handleErrorOrWarning(ur_result_t, const device_impl &, ur_kernel_handle_t,
 namespace kernel_get_group_info {
 /// Analyzes error code of piKernelGetGroupInfo.
 void handleErrorOrWarning(ur_result_t, ur_kernel_group_info_t,
-                          const UrPluginPtr &);
+                          const PluginPtr &);
 } // namespace kernel_get_group_info
 
 } // namespace detail
