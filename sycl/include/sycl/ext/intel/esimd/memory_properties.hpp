@@ -238,14 +238,14 @@ template <typename PropertyListT> struct remove_alignment_property {
   using type = PropertyListT;
 };
 template <size_t Alignment, typename... LastTs>
-struct remove_alignment_property<
-    properties<std::tuple<alignment_key::value_t<Alignment>, LastTs...>>> {
-  using type = properties<std::tuple<LastTs...>>;
+struct remove_alignment_property<properties<
+    sycl::detail::type_list<alignment_key::value_t<Alignment>, LastTs...>>> {
+  using type = properties<sycl::detail::type_list<LastTs...>>;
 };
 template <typename FirstT, size_t Alignment, typename... LastTs>
-struct remove_alignment_property<properties<
-    std::tuple<FirstT, alignment_key::value_t<Alignment>, LastTs...>>> {
-  using type = properties<std::tuple<FirstT, LastTs...>>;
+struct remove_alignment_property<properties<sycl::detail::type_list<
+    FirstT, alignment_key::value_t<Alignment>, LastTs...>>> {
+  using type = properties<sycl::detail::type_list<FirstT, LastTs...>>;
 };
 template <typename PropertyListT>
 using remove_alignment_property_t =
