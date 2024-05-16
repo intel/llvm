@@ -104,14 +104,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   set(UNIFIED_RUNTIME_TAG 4c69624c3f651819210148ad11d0e1e5c9af12de)
 
   fetch_adapter_source(level_zero
-    ${UNIFIED_RUNTIME_REPO}
-    # commit 65c39c8a0cc17ebb43686230f91e1c3560764494
-    # Merge: 09467b8d f67122c0
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu May 16 11:11:37 2024 +0100
-    #     Merge pull request #1611 from nrspruit/fix_interop_wg_max_size
-    #     [L0] ensure a valid kernel handle for the device when reading max wg
-    65c39c8a0cc17ebb43686230f91e1c3560764494
+    "https://github.com/ph0b/unified-runtime.git"
+    00edaab959c0386798a1963298b34bf31eaccf2c
   )
 
   fetch_adapter_source(opencl
