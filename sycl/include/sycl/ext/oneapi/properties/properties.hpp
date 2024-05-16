@@ -83,9 +83,7 @@ public:
   template <class P> static constexpr bool has_property() {
     return detail::mp11::mp_map_contains<M, P>();
   }
-  template <class P,
-            class = std::enable_if_t<detail::is_empty_or_incomplete_v<P>>>
-  static constexpr auto get_property() {
+  template <class P> static constexpr auto get_property(int = 0) {
     using T = detail::mp11::mp_map_find<M, P>;
     static_assert(!std::is_same_v<T, void>,
                   "Property list does not contain the requested property.");
