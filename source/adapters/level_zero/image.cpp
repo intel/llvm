@@ -753,12 +753,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
-    ur_queue_handle_t hQueue, void *pDst, void *pSrc,
+    ur_queue_handle_t hUrQueue, void *pDst, void *pSrc,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
     ur_exp_image_copy_flags_t imageCopyFlags, ur_rect_offset_t srcOffset,
     ur_rect_offset_t dstOffset, ur_rect_region_t copyExtent,
     ur_rect_region_t hostExtent, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  auto hQueue = Legacy(hUrQueue);
   std::scoped_lock<ur_shared_mutex> Lock(hQueue->Mutex);
 
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
