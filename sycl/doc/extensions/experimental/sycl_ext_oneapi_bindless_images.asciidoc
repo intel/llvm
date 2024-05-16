@@ -1506,13 +1506,13 @@ sampling depends on the sampler attributes passed upon creation of the cubemap.
 
 ```c++
 // Unsampled cubemap read 
-template <typename DataT>
+template <typename DataT, typename HintT = DataT>
 DataT fetch_cubemap(const unsampled_image_handle &ImageHandle,
                     const int2 &Coords,
                     const int Face);
 
 // Sampled cubemap read
-template <typename DataT>
+template <typename DataT, typename HintT = DataT>
 DataT sample_cubemap(const sampled_image_handle &ImageHandle,
                      const float3 &Vec);
 
@@ -2684,4 +2684,6 @@ These features still need to be handled:
                    parameter. 
 |5.7|2024-04-09| - Allow fetching of sampled image data through the 
                    `fetch_image` API.
+|5.8|2024-05-09| - Add missing cubemap `HintT` template parameter to 
+                   `fetch_cubemap` and `sample_cubemap`.
 |======================

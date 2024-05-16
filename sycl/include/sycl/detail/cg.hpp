@@ -299,7 +299,7 @@ public:
         MPattern(std::move(Pattern)), MDst(DstPtr), MLength(Length) {}
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
-  const std::vector<char> &getPattern() { return MPattern; }
+  int getFill() { return MPattern[0]; }
 };
 
 /// "Prefetch USM" command group class.
@@ -331,25 +331,6 @@ public:
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
   pi_mem_advice getAdvice() { return MAdvice; }
-};
-
-class CGHostTask : public CG {
-public:
-  std::unique_ptr<HostTask> MHostTask;
-  // queue for host-interop task
-  std::shared_ptr<detail::queue_impl> MQueue;
-  // context for host-interop task
-  std::shared_ptr<detail::context_impl> MContext;
-  std::vector<ArgDesc> MArgs;
-
-  CGHostTask(std::unique_ptr<HostTask> HostTask,
-             std::shared_ptr<detail::queue_impl> Queue,
-             std::shared_ptr<detail::context_impl> Context,
-             std::vector<ArgDesc> Args, CG::StorageInitHelper CGData,
-             CGTYPE Type, detail::code_location loc = {})
-      : CG(Type, std::move(CGData), std::move(loc)),
-        MHostTask(std::move(HostTask)), MQueue(Queue), MContext(Context),
-        MArgs(std::move(Args)) {}
 };
 
 class CGBarrier : public CG {
