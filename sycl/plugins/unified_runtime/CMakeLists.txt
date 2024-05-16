@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1e1f577262747d67fcb5c513de4a11bec67ea5db
-  # Merge: dd212f3f 0b405a12
+  # commit 4c69624c3f651819210148ad11d0e1e5c9af12de
+  # Merge: ea009363 f04b44c3
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu May 9 18:00:36 2024 +0100
-  #    Merge pull request #1591 from nrspruit/disable_driver_in_order_lists_default
-  #    [L0] Disable Usage of Driver In order Lists by default
-  set(UNIFIED_RUNTIME_TAG 1e1f577262747d67fcb5c513de4a11bec67ea5db)
+  # Date:   Mon May 13 11:56:12 2024 +0100
+  #     Merge pull request #1532 from AllanZyne/review/yang/local_accessor
+  #     [DeviceSanitizer] Check out-of-bounds on sycl::local_accessor
+  set(UNIFIED_RUNTIME_TAG 4c69624c3f651819210148ad11d0e1e5c9af12de)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
