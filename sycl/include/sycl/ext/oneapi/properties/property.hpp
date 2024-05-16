@@ -200,8 +200,11 @@ enum PropKind : uint32_t {
   ContiguousMemory = 59,
   FullGroup = 60,
   Naive = 61,
+  WorkGroupProgress = 62,
+  SubGroupProgress = 63,
+  WorkItemProgress = 64,
   // PropKindSize must always be the last value.
-  PropKindSize = 62,
+  PropKindSize = 65,
 };
 
 struct property_key_base_tag {};
