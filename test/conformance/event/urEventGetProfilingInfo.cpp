@@ -30,8 +30,57 @@ UUR_TEST_SUITE_P(urEventGetProfilingInfoTest,
                  ::testing::Values(UR_PROFILING_INFO_COMMAND_QUEUED,
                                    UR_PROFILING_INFO_COMMAND_SUBMIT,
                                    UR_PROFILING_INFO_COMMAND_START,
-                                   UR_PROFILING_INFO_COMMAND_END),
+                                   UR_PROFILING_INFO_COMMAND_END,
+                                   UR_PROFILING_INFO_COMMAND_COMPLETE),
                  uur::deviceTestWithParamPrinter<ur_profiling_info_t>);
+
+using urEventGetProfilingInfoWithTimingComparisonTest = uur::event::urEventTest;
+
+TEST_P(urEventGetProfilingInfoWithTimingComparisonTest, Success) {
+    uint8_t size = 8;
+
+    std::vector<uint8_t> queued_data(size);
+    ASSERT_SUCCESS(urEventGetProfilingInfo(event,
+                                           UR_PROFILING_INFO_COMMAND_QUEUED,
+                                           size, queued_data.data(), nullptr));
+    auto queued_timing = reinterpret_cast<size_t *>(queued_data.data());
+    ASSERT_NE(*queued_timing, 0);
+
+    std::vector<uint8_t> submit_data(size);
+    ASSERT_SUCCESS(urEventGetProfilingInfo(event,
+                                           UR_PROFILING_INFO_COMMAND_SUBMIT,
+                                           size, submit_data.data(), nullptr));
+    auto submit_timing = reinterpret_cast<size_t *>(submit_data.data());
+    ASSERT_NE(*submit_timing, 0);
+
+    std::vector<uint8_t> start_data(size);
+    ASSERT_SUCCESS(urEventGetProfilingInfo(event,
+                                           UR_PROFILING_INFO_COMMAND_START,
+                                           size, start_data.data(), nullptr));
+    auto start_timing = reinterpret_cast<size_t *>(start_data.data());
+    ASSERT_NE(*start_timing, 0);
+
+    std::vector<uint8_t> end_data(size);
+    ASSERT_SUCCESS(urEventGetProfilingInfo(event, UR_PROFILING_INFO_COMMAND_END,
+                                           size, end_data.data(), nullptr));
+    auto end_timing = reinterpret_cast<size_t *>(end_data.data());
+    ASSERT_NE(*end_timing, 0);
+
+    std::vector<uint8_t> complete_data(size);
+    ASSERT_SUCCESS(
+        urEventGetProfilingInfo(event, UR_PROFILING_INFO_COMMAND_COMPLETE, size,
+                                complete_data.data(), nullptr));
+    auto complete_timing = reinterpret_cast<size_t *>(complete_data.data());
+    ASSERT_NE(*complete_timing, 0);
+
+    ASSERT_LE(*queued_timing, *submit_timing);
+    ASSERT_LT(*submit_timing, *start_timing);
+    ASSERT_LT(*start_timing, *end_timing);
+    ASSERT_LE(*end_timing, *complete_timing);
+}
+
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(
+    urEventGetProfilingInfoWithTimingComparisonTest);
 
 using urEventGetProfilingInfoNegativeTest = uur::event::urEventTest;
 

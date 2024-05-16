@@ -1,0 +1,2 @@
+urEventGetProfilingInfoTest.Success/Intel_R__OpenCL___{{.*}}___UR_PROFILING_INFO_COMMAND_COMPLETE
+urEventGetProfilingInfoWithTimingComparisonTest.Success/Intel_R__OpenCL___{{.*}}_
