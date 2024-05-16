@@ -586,15 +586,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetGroupInfo(
 
     ZeStruct<ze_kernel_properties_t> kernelProperties;
     kernelProperties.pNext = &workGroupProperties;
-
-    auto ZeResult = ZE_CALL_NOCHECK(
-        zeKernelGetProperties,
-        (Kernel->ZeKernelMap[Device->ZeDevice], &kernelProperties));
-    if (ZeResult || workGroupProperties.maxGroupSize == 0) {
+    // Set the Kernel to use as the ZeKernel initally for native handle support.
+    // This makes the assumption that this device is the same device where this
+    // kernel was created.
+    auto ZeKernelDevice = Kernel->ZeKernel;
+    auto It = Kernel->ZeKernelMap.find(Device->ZeDevice);
+    if (It != Kernel->ZeKernelMap.end()) {
+      ZeKernelDevice = Kernel->ZeKernelMap[Device->ZeDevice];
+    }
+    if (ZeKernelDevice) {
+      auto ZeResult = ZE_CALL_NOCHECK(zeKernelGetProperties,
+                                      (ZeKernelDevice, &kernelProperties));
+      if (ZeResult || workGroupProperties.maxGroupSize == 0) {
+        return ReturnValue(
+            uint64_t{Device->ZeDeviceComputeProperties->maxTotalGroupSize});
+      }
+      return ReturnValue(workGroupProperties.maxGroupSize);
+    } else {
       return ReturnValue(
           uint64_t{Device->ZeDeviceComputeProperties->maxTotalGroupSize});
     }
-    return ReturnValue(workGroupProperties.maxGroupSize);
   }
   case UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
     struct {
