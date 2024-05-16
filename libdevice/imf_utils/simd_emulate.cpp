@@ -360,6 +360,9 @@ static inline unsigned int __internal_v_binary_op(unsigned int x,
   return __assemble_integral_value<unsigned, UTp, N>(res_buf);
 }
 
+// __iaddmax op doesn't work correctly on Gen12 devices, there should be some
+// issue in GPU runtime, disable clang optimizer here avoid blocking pre-ci.
+#pragma clang optimize off
 template <typename Tp> class __iaddmax_op {
   static_assert(std::is_same<int16_t, Tp>::value,
                 "Tp can only accept int16_t for iaddmax op.");
@@ -369,6 +372,7 @@ public:
     return __imax<Tp>(x + y, z);
   }
 };
+#pragma clang optimize on
 
 template <typename Tp, size_t N, template <typename> class TernaryOp>
 static inline unsigned int
