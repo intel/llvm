@@ -7,7 +7,7 @@
 int main() {
   auto EmptyPropertyList = sycl::ext::oneapi::experimental::properties();
   // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Property list does not contain the requested property.}}
-  // expected-error@sycl/detail/boost/mp11/list.hpp:* {{no type named 'type' in 'sycl::detail::boost::mp11::detail::mp_second_impl<void>'}}
+  // expected-error@+1 {{variable has incomplete type 'const T' (aka 'const void')}}
   constexpr auto boo_val1 = decltype(EmptyPropertyList)::get_property<
       sycl::ext::oneapi::experimental::boo_key>();
   // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Property list does not contain the requested property.}}
@@ -21,7 +21,7 @@ int main() {
       sycl::ext::oneapi::experimental::foz{.0f, true},
       sycl::ext::oneapi::experimental::bar);
   // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Property list does not contain the requested property.}}
-  // expected-error@sycl/detail/boost/mp11/list.hpp:* {{no type named 'type' in 'sycl::detail::boost::mp11::detail::mp_second_impl<void>'}}
+  // expected-error@+1 {{variable has incomplete type 'const T' (aka 'const void')}}
   constexpr auto boo_val2 = decltype(PopulatedPropertyList)::get_property<
       sycl::ext::oneapi::experimental::boo_key>();
   // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Property list does not contain the requested property.}}

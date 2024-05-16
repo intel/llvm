@@ -28,15 +28,16 @@ using sycl::detail::type_list;
 
 namespace detail {
 template <class V> struct make_entry {
-  using type = type_list<V, V>;
-}; // for runtime property: key&value same type
-template <class P, class... T>
-struct make_entry<property_value<P, T...>> // for type compile-time property:
-                                           // key: P, value: P<T...>
-{
-  using type = type_list<P, property_value<P, T...>>;
+  // for runtime property: list containing key/value (is same)
+  using type = type_list<V>;
+};
+template <class... T> struct make_entry<property_value<T...>> {
+  // for type compile-time property: property value already is type-list
+  using type = property_value<T...>;
 };
 template <class V> using make_entry_t = typename make_entry<V>::type;
+template <class P>
+using property_map = mp11::mp_transform<make_entry_t, mp11::mp_front<P>>;
 template <class T, class = void>
 struct is_empty_or_incomplete : std::true_type {};
 template <class T>
@@ -64,7 +65,7 @@ class properties<TL<V...>,
                                   detail::mp11::mp_is_set<TL<V...>>::value>>
     : V... {
 private:
-  using M = detail::type_list<detail::make_entry_t<V>...>; // map of properties
+  using M = detail::property_map<properties>; // map of properties
   static_assert(detail::mp11::mp_is_map<M>(),
                 "Duplicate properties in property list.");
   using K = detail::mp11::mp_map_keys<M>;
@@ -87,7 +88,7 @@ public:
     using T = detail::mp11::mp_map_find<M, P>;
     static_assert(!std::is_same_v<T, void>,
                   "Property list does not contain the requested property.");
-    return detail::mp11::mp_second<T>();
+    return T();
   }
   template <class P,
             class = std::enable_if_t<!detail::is_empty_or_incomplete_v<P>>>
@@ -123,8 +124,8 @@ using all_props_are_keys_of = detail::mp11::mp_all_of_q<
 
 // Helper for merging property lists
 template <typename PropA, typename PropB> struct merged_properties {
-  using A = detail::mp11::mp_first<PropA>;
-  using B = detail::mp11::mp_first<PropB>;
+  using A = property_map<PropA>;
+  using B = property_map<PropB>;
   template <class K>
   using val_equal = std::is_same<detail::mp11::mp_map_find<A, K>,
                                  detail::mp11::mp_map_find<B, K>>;
@@ -134,8 +135,8 @@ template <typename PropA, typename PropB> struct merged_properties {
                                             detail::mp11::mp_map_keys<B>>,
           val_equal>(),
       "Failed to merge property lists due to conflicting properties.");
-  using type =
-      detail::sort_properties<properties<detail::mp11::mp_set_union<A, B>>>;
+  using type = properties<detail::sort_properties<detail::mp11::mp_set_union<
+      detail::mp11::mp_front<PropA>, detail::mp11::mp_front<PropB>>>>;
 };
 template <typename... PropertiesT>
 using merged_properties_t = typename merged_properties<PropertiesT...>::type;
@@ -153,16 +154,16 @@ struct ValueOrDefault { // TODO: this should be a normal function (no wrapping
 // Checks if a list of properties contains a property.
 template <typename PropT, typename PropertiesT>
 using ContainsProperty =
-    mp11::mp_map_contains<mp11::mp_transform<make_entry_t, PropertiesT>, PropT>;
+    mp11::mp_map_contains<property_map<type_list<PropertiesT>>, PropT>;
 
 } // namespace detail
 
 // Property list traits
 template <typename propertiesT> struct is_property_list : std::false_type {};
-template <typename... PropertyValueTs>
-struct is_property_list<properties<PropertyValueTs...>>
-    : std::is_same<properties<PropertyValueTs...>,
-                   detail::sort_properties<properties<PropertyValueTs...>>> {};
+template <typename PropertyValueTs>
+struct is_property_list<properties<PropertyValueTs>>
+    : std::is_same<properties<PropertyValueTs>,
+                   properties<detail::sort_properties<PropertyValueTs>>> {};
 
 #if __cplusplus > 201402L
 template <typename propertiesT>
