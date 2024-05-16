@@ -633,12 +633,15 @@ public:
     store(Offset, MultiPtr);
   }
 
+#ifdef __SYCL_DEVICE_ONLY__
+  // Require only for std::bool.
   void ConvertToDataT() {
     for (size_t i = 0; i < NumElements; ++i) {
       DataT tmp = getValue(i);
       setValue(i, tmp);
     }
   }
+#endif
 
   /******************* sycl::vec math operations ***********************/
 
@@ -802,8 +805,6 @@ public:
       Ret = vec<rel_t, NumElements>(                                           \
           (typename vec<rel_t, NumElements>::vector_t)(                        \
               ExtVecLhs RELLOGOP ExtVecRhs));                                  \
-      if (NumElements == 1) /*Scalar 0/1 logic was applied, invert*/           \
-        Ret *= -1;                                                             \
     }                                                                          \
     return Ret;                                                                \
   }
@@ -888,7 +889,7 @@ public:
 #else
     vec Ret{};
     for (size_t I = 0; I < NumElements; ++I) {
-      Ret.setValue(I, static_cast<DataT>(~Rhs.getValue(I)));
+      Ret[I] = ~Rhs[I];
     }
     return Ret;
 #endif
