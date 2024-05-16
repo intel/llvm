@@ -876,7 +876,7 @@ device_impl::getProgressGuarantee(
     ext::oneapi::experimental::execution_scope threadScope,
     ext::oneapi::experimental::execution_scope coordinationScope) const {
   using execution_scope = ext::oneapi::experimental::execution_scope;
-  return  getImmediateProgressGuarantee(execution_scope::root_group));
+  return  getImmediateProgressGuarantee(execution_scope::root_group);
 }
 
 bool device_impl::supportsForwardProgress(
