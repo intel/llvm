@@ -36,15 +36,15 @@ struct USMSaxpyKernelTestBase
 
         // Index 0 is output
         ASSERT_SUCCESS(
-            urKernelSetArgPointer(kernel, 0, nullptr, &shared_ptrs[0]));
+            urKernelSetArgPointer(kernel, 0, nullptr, shared_ptrs[0]));
         // Index 1 is A
         ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(A), nullptr, &A));
         // Index 2 is X
         ASSERT_SUCCESS(
-            urKernelSetArgPointer(kernel, 2, nullptr, &shared_ptrs[1]));
+            urKernelSetArgPointer(kernel, 2, nullptr, shared_ptrs[1]));
         // Index 3 is Y
         ASSERT_SUCCESS(
-            urKernelSetArgPointer(kernel, 3, nullptr, &shared_ptrs[2]));
+            urKernelSetArgPointer(kernel, 3, nullptr, shared_ptrs[2]));
     }
 
     void Validate(uint32_t *output, uint32_t *X, uint32_t *Y, uint32_t A,

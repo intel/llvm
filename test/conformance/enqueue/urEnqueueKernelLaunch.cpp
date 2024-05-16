@@ -516,7 +516,7 @@ TEST_P(urEnqueueKernelLaunchUSMLinkedList, Success) {
     }
 
     // Run kernel which will iterate the list and modify the values
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, &list_head));
+    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, list_head));
     ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &global_offset,
                                          &global_size, nullptr, 0, nullptr,
                                          nullptr));

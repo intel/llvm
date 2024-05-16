@@ -28,7 +28,7 @@ struct NDRangeUpdateTest
         ASSERT_NE(shared_ptr, nullptr);
         std::memset(shared_ptr, 0, allocation_size);
 
-        ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, &shared_ptr));
+        ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, shared_ptr));
 
         // Add a 3 dimension kernel command to command-buffer and close
         // command-buffer
