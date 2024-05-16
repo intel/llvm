@@ -885,7 +885,8 @@ device_impl::getProgressGuarantee(
   // because of how the forward_progress_guarantee enum values are declared.
   int guaranteeNum = static_cast<int>(
       getImmediateProgressGuarantee(coordinationScope));
-  for (int currentScope = static_cast<int>(coordinationScope) - 1; currentScope > threadScopeNum;
+  int coordinationScopeNum = static_cast<int>(coordinationScope);
+  for (int currentScope = coordinationScopeNum - 1; currentScope > threadScopeNum;
        --currentScope) {
     guaranteeNum = std::max(guaranteeNum,
                             static_cast<int>(getImmediateProgressGuarantee(
