@@ -1055,7 +1055,8 @@ static uint64_t getNbarrierArgValue(CallInst &CI) {
   return NewVal;
 }
 
-static void calculateNBarrierUse(Module &M) {
+static void translateNBarrierAllocations(Module &M) {
+  // Translate named_barrier_init first to populate the metadata
   for (auto &F : M) {
     if (!llvm::esimd::isNbarrierInit(F))
       continue;
@@ -1073,6 +1074,8 @@ static void calculateNBarrierUse(Module &M) {
       }
     }
   }
+
+  // Build kernel function to metadata node mapping to simplify processing.
   DenseMap<const Function *, MDNode *> Kernel2NBarrierMD;
   llvm::NamedMDNode *GenXKernelMD =
       M.getNamedMetadata(esimd::GENX_KERNEL_METADATA);
@@ -1097,7 +1100,9 @@ static void calculateNBarrierUse(Module &M) {
         uint64_t BarrierCount = getNbarrierArgValue(*FCall);
         Function *GenF = FCall->getFunction();
         uint64_t LastBarrierId = 0;
-
+        // Get current named barrier count for the kernel which calls
+        // named_barrier_allocate to calculate the barrier Id to be used after
+        // allocation.
         sycl::utils::traverseCallgraphUp(GenF, [&](Function *GraphNode) {
           auto KernelNodeIterator = Kernel2NBarrierMD.find(GraphNode);
           if (KernelNodeIterator != Kernel2NBarrierMD.end()) {
@@ -1109,8 +1114,8 @@ static void calculateNBarrierUse(Module &M) {
           }
         });
         auto LastBarrierIdValue =
-            llvm::ConstantInt::get(FCall->getType(), LastBarrierId + 1);
-
+            llvm::ConstantInt::get(FCall->getType(), LastBarrierId);
+        // replace the use
         FCall->replaceAllUsesWith(LastBarrierIdValue);
         esimd::UpdateUint64MetaDataToMaxValue SetMaxNBarrierCnt{
             M, genx::KernelMDOp::NBarrierCnt, BarrierCount + LastBarrierId};
@@ -2083,7 +2088,9 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
   SmallPtrSet<Type *, 4> GVTS = collectGenXVolatileTypes(M);
   lowerGlobalStores(M, GVTS);
   lowerGlobalsToVector(M);
-  calculateNBarrierUse(M);
+  // translate named barrier allocations. This function needs to be run after
+  // generateKernelMetadata, as it uses the generated metadata
+  translateNBarrierAllocations(M);
   for (auto &F : M.functions()) {
     AmountOfESIMDIntrCalls += this->runOnFunction(F, GVTS);
   }
@@ -2182,6 +2189,7 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
         continue;
       }
 
+      // Remove the functions as the calls has been translated at this point.
       if (Name.starts_with("__esimd_nbarrier_init") ||
           Name.starts_with("__esimd_named_barrier_allocate")) {
         ToErase.push_back(CI);
