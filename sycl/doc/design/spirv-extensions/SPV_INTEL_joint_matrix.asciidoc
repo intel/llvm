@@ -274,9 +274,9 @@ Note: To specify cache level for *OpCooperativeMatrixStoreKHR* one
 can use *CacheControlStoreINTEL* decoration from {cache_control_url}[SPV_INTEL_cache_controls extension]. +
  +
 
-[cols="1,1,9*3",width="100%"]
+[cols="1,1,7*3",width="100%"]
 |=====
-10+|[[OpCooperativeMatrixPrefetchINTEL]]*OpCooperativeMatrixPrefetchINTEL* +
+8+|[[OpCooperativeMatrixPrefetchINTEL]]*OpCooperativeMatrixPrefetchINTEL* +
  +
 The instruction does not modify the behaviour of the program. The instruction
 prefetches 'Rows' X 'Columns' block of data. +
@@ -285,12 +285,6 @@ prefetches 'Rows' X 'Columns' block of data. +
 whose 'Type' operand is a scalar or vector type. If the *Shader* capability was
 declared, 'Pointer' must point into an array and any *ArrayStride* decoration on
 'Pointer' is ignored. +
- +
-'X offset' must be a scalar 32-bit integer type. It specifies offset in number of elements
-along X axis from the 'Pointer' where the prefetched memory region starts from. +
- +
-'Y offset' must be a scalar 32-bit integer type. It specifies offset in number of elements
-along Y axis from the 'Pointer' where the prefetched memory region starts from. +
  +
 'Rows' must be a constant instruction with scalar 32-bit integer type. +
  +
@@ -317,10 +311,8 @@ instance of the 'Scope' of the cooperative matrix. +
  +
 1+|Capability: +
 *{capability_prefetch_name}*
-1+| 8+variable | {OpCooperativeMatrixPrefetchINTEL_token} | '<id>' +
+1+| 6+variable | {OpCooperativeMatrixPrefetchINTEL_token} | '<id>' +
 'Pointer' | '<id>' +
-'X offset' | '<id>' +
-'Y offset' | '<id>' +
 'Rows' | '<id>' +
 'Columns' | Literal +
 'Cache Level' | '<id>' +
