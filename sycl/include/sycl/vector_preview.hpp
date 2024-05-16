@@ -124,15 +124,6 @@ class RoundedRangeKernel;
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernelWithKH;
 
-template <typename T>
-using GetEquivalentFundamentalType = typename std::conditional_t<std::is_same_v<T, bool>, int8_t,
-                                      typename std::conditional_t<
-#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-                                          std::is_same_v<T, std::byte>, uint8_t, T>>;
-#else
-                                          false, T, T>>;
-#endif
-
 // OpenCL data type to convert to.
 template <typename T>
 using element_type_for_vector_t = typename std::conditional_t<
@@ -162,12 +153,14 @@ template <typename DataT, int NumElements> class vec {
 
   // This represent type of underlying value. There should be only one field
   // in the class, so vec<float, 16> should be equal to float16 in memory.
-  using DataType = typename std::conditional_t<
-    std::is_same_v<DataT, bool>, std::array<int8_t, AdjustedNum>, std::array<DataT, AdjustedNum>>;
+  using DataType =
+      std::array<std::conditional_t<std::is_same_v<DataT, bool>, int8_t, DataT>,
+                 AdjustedNum>;
 
 public:
 #ifdef __SYCL_DEVICE_ONLY__
-  // Type used for passing sycl::vec to SPIRV builtins.
+  // Type used for passing sycl::vec to SPIRV builtins. Frontend treats
+  // ext_vector_type(1) as a scalar.
   using vector_t = detail::element_type_for_vector_t<DataT> __attribute__((ext_vector_type(NumElements)));
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -354,18 +347,23 @@ public:
   /****************** Assignment Operators **************/
   constexpr vec &operator=(const vec &Rhs) = default;
 
-  vec& operator=(const DataT &Rhs) {
-    for (int i = 0; i < NumElements; ++i) {
-      setValue(i, Rhs);
-    }
+  // Template required to prevent ambiguous overload with the copy assignment
+  // when NumElements == 1. The template prevents implicit conversion from
+  // vec<_, 1> to DataT.
+  template <typename Ty = DataT>
+  typename std::enable_if_t<
+      std::is_fundamental_v<Ty> ||
+          detail::is_half_or_bf16_v<typename std::remove_const_t<Ty>>,
+      vec &>
+  operator=(const DataT &Rhs) {
+    *this = vec{Rhs};
     return *this;
   }
 
   // W/o this, things like "vec<char,*> = vec<signed char, *>" doesn't work.
   template <typename Ty = DataT>
-  typename std::enable_if_t<!std::is_same_v<Ty, rel_t> &&
-                                std::is_convertible_v<detail::GetEquivalentFundamentalType<Ty>, rel_t>,
-                            vec &>
+  typename std::enable_if_t<
+      !std::is_same_v<Ty, rel_t> && std::is_convertible_v<Ty, rel_t>, vec &>
   operator=(const vec<rel_t, NumElements> &Rhs) {
     *this = Rhs.template as<vec>();
     return *this;
@@ -402,14 +400,26 @@ public:
   static constexpr size_t get_size() { return byte_size(); }
   static constexpr size_t byte_size() noexcept { return sizeof(m_Data); }
 
+  // We interpret bool as int8_t, std::byte as uint8_t for onversion to other
+  // types.
+  template <typename T>
+  using ConvertBoolAndByteT = typename std::conditional_t<
+      std::is_same_v<T, bool>, int8_t,
+      typename std::conditional_t<
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+          std::is_same_v<T, std::byte>, uint8_t, T>>;
+#else
+          false, T, T>>;
+#endif
+
   // convertImpl can't be called with the same From and To types and therefore
   // we need this version of convert which is mostly no-op.
   template <typename convertT,
             rounding_mode roundingMode = rounding_mode::automatic>
   vec<convertT, NumElements> convert() const {
 
-    using T = detail::GetEquivalentFundamentalType<DataT>;
-    using R = detail::GetEquivalentFundamentalType<convertT>;
+    using T = ConvertBoolAndByteT<DataT>;
+    using R = ConvertBoolAndByteT<convertT>;
     static_assert(std::is_integral_v<R> ||
                   detail::is_floating_point<R>::value,
                   "Unsupported convertT");
@@ -739,7 +749,7 @@ public:
       const vec & Lhs, int shift) {                                            \
     vec Ret;                                                                   \
     for (size_t I = 0; I < NumElements; ++I) {                                 \
-      Ret.setValue(I, Lhs[I] OP shift);                                        \
+      Ret[I] = Lhs[I] OP shift;                                                \
     }                                                                          \
     return Ret;                                                                \
   }                                                                            \
@@ -1273,7 +1283,7 @@ public:
 
   template <typename T = DataT>
   friend typename std::enable_if_t<
-      std::is_same_v<T, DataT> && std::is_integral_v<detail::GetEquivalentFundamentalType<T>>, vec_t>
+      std::is_same_v<T, DataT> && !detail::is_vgenfloat_v<T>, vec_t>
   operator~(const SwizzleOp &Rhs) {
     vec_t Tmp = Rhs;
     return ~Tmp;

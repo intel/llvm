@@ -457,7 +457,6 @@ template <typename T> static constexpr T max_v() {
 template <typename T> static constexpr T min_v() {
   return (std::numeric_limits<T>::min)();
 }
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
