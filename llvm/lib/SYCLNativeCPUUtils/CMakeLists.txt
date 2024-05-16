@@ -23,6 +23,7 @@ set(OCK_SOURCE_DIR "" CACHE PATH "Root of the local checkout of the oneAPI Const
 set(OCK_GIT_REPO "" CACHE STRING "Git repository for the oneAPI Construction Kit FetchContent")
 set(OCK_GIT_TAG "" CACHE STRING "Git tag for the oneAPI Construction Kit FetchContent")
 option(NATIVECPU_OCK_USE_FETCHCONTENT "Use FetchContent to acquire oneAPI Construction Kit source code" On)
+option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 
 if(NATIVECPU_USE_OCK)
   if(NATIVECPU_OCK_USE_FETCHCONTENT)
