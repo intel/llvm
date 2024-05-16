@@ -132,7 +132,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 09467b8d370f304d24bf093d37ee4554b3db2da0
+    # Merge: 1c1fa634 4cbf2106
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu May 16 11:04:05 2024 +0100
+    #     Merge pull request #1553 from hdelan/get-device-from-queue
+    #     [HIP] Get device from queue, not event
+    09467b8d370f304d24bf093d37ee4554b3db2da0
   )
 
   fetch_adapter_source(native_cpu
