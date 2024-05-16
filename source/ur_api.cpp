@@ -7047,6 +7047,8 @@ ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     bool
