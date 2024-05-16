@@ -295,8 +295,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
   bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
   StringRef LibSuffix = ".bc";
-  if (TargetTriple.isNVPTX() ||
-      (TargetTriple.isSPIR() &&
+  if ((TargetTriple.isSPIR() &&
        TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga))
     // For NVidia or FPGA, we are unbundling objects.
     LibSuffix = IsWindowsMSVCEnv ? ".obj" : ".o";
@@ -444,7 +443,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
                           this->getToolChain().getTriple().getSubArch() ==
                               llvm::Triple::SPIRSubArch_fpga;
       StringRef LibPostfix = ".bc";
-      if (IsNVPTX || IsFPGA) {
+      if (IsFPGA) {
         LibPostfix = ".o";
         if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
             C.getDriver().IsCLMode())
