@@ -29,7 +29,7 @@ struct USMFillCommandTest
         std::memset(shared_ptr, 0, allocation_size);
 
         // Index 0 is output
-        ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, &shared_ptr));
+        ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, shared_ptr));
         // Index 1 is input scalar
         ASSERT_SUCCESS(
             urKernelSetArgValue(kernel, 1, sizeof(val), nullptr, &val));
@@ -223,7 +223,7 @@ struct USMMultipleFillCommandTest
             // kernel output.
             void *offset_ptr = (uint32_t *)shared_ptr + (k * elements);
             ASSERT_SUCCESS(
-                urKernelSetArgPointer(kernel, 0, nullptr, &offset_ptr));
+                urKernelSetArgPointer(kernel, 0, nullptr, offset_ptr));
 
             // Each kernel has a unique fill value
             uint32_t fill_val = val + k;
