@@ -28,6 +28,6 @@ jobs:
       unit: "gpu"
       trigger: "${{github.event_name}}"
       # Failing tests
-      xfail: "Basic/device-selectors.cpp;ESIMD/preemption.cpp;syclcompat/atomic/atomic_class.cpp;ProgramManager/uneven_kernel_split.cpp;Plugin/level_zero_ext_intel_queue_index.cpp;Plugin/level_zero_ext_intel_cslice.cpp;Matrix/joint_matrix_rowmajorA_rowmajorB.cpp;Matrix/element_wise_ops.cpp;Matrix/element_wise_all_ops.cpp;Matrix/SG32/element_wise_all_ops.cpp"
+      xfail: "ESIMD/preemption.cpp;syclcompat/atomic/atomic_class.cpp;ProgramManager/uneven_kernel_split.cpp;Plugin/level_zero_ext_intel_queue_index.cpp;Plugin/level_zero_ext_intel_cslice.cpp;Matrix/joint_matrix_rowmajorA_rowmajorB.cpp;Matrix/element_wise_ops.cpp;Matrix/element_wise_all_ops.cpp;Matrix/SG32/element_wise_all_ops.cpp"
       # Flaky tests
       filter_out: "GroupAlgorithm/root_group.cpp|Basic/exceptions-SYCL-2020.cpp|Graph/UnsupportedDevice/device_query.cpp|Graph/RecordReplay/exception_inconsistent_contexts.cpp"
