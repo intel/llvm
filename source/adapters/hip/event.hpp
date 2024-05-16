@@ -80,8 +80,20 @@ public:
   static ur_event_handle_t
   makeNative(ur_command_t Type, ur_queue_handle_t Queue, hipStream_t Stream,
              uint32_t StreamToken = std::numeric_limits<uint32_t>::max()) {
-    return new ur_event_handle_t_(Type, Queue->getContext(), Queue, Stream,
-                                  StreamToken);
+    const bool RequiresTimings =
+        Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE ||
+        Type == UR_COMMAND_TIMESTAMP_RECORDING_EXP;
+    native_type EvEnd{nullptr}, EvQueued{nullptr}, EvStart{nullptr};
+    UR_CHECK_ERROR(hipEventCreateWithFlags(
+        &EvEnd, RequiresTimings ? hipEventDefault : hipEventDisableTiming));
+
+    if (RequiresTimings) {
+      UR_CHECK_ERROR(hipEventCreateWithFlags(&EvQueued, hipEventDefault));
+      UR_CHECK_ERROR(hipEventCreateWithFlags(&EvStart, hipEventDefault));
+    }
+
+    return new ur_event_handle_t_(Type, Queue->getContext(), Queue, EvEnd,
+                                  EvQueued, EvStart, Stream, StreamToken);
   }
 
   static ur_event_handle_t makeWithNative(ur_context_handle_t context,
