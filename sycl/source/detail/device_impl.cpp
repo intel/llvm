@@ -860,10 +860,8 @@ bool device_impl::extOneapiCanCompile(
 // coordinationScope
 sycl::ext::oneapi::experimental::forward_progress_guarantee
 device_impl::getHostProgressGuarantee(
-    ext::oneapi::experimental::execution_scope threadScope,
-    ext::oneapi::experimental::execution_scope coordinationScope) {
-  (void)threadScope;
-  (void)coordinationScope;
+    ext::oneapi::experimental::execution_scope,
+    ext::oneapi::experimental::execution_scope) {
   return sycl::ext::oneapi::experimental::forward_progress_guarantee::
       weakly_parallel;
 }
