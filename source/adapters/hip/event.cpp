@@ -16,23 +16,13 @@
 ur_event_handle_t_::ur_event_handle_t_(ur_command_t Type,
                                        ur_context_handle_t Context,
                                        ur_queue_handle_t Queue,
-                                       hipStream_t Stream, uint32_t StreamToken)
+                                       hipEvent_t EvEnd, hipEvent_t EvQueued,
+                                       hipEvent_t EvStart, hipStream_t Stream,
+                                       uint32_t StreamToken)
     : CommandType{Type}, RefCount{1}, HasOwnership{true},
       HasBeenWaitedOn{false}, IsRecorded{false}, IsStarted{false},
-      StreamToken{StreamToken}, EventId{0}, EvEnd{nullptr}, EvStart{nullptr},
-      EvQueued{nullptr}, Queue{Queue}, Stream{Stream}, Context{Context} {
-
-  bool ProfilingEnabled =
-      Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE || isTimestampEvent();
-
-  UR_CHECK_ERROR(hipEventCreateWithFlags(
-      &EvEnd, ProfilingEnabled ? hipEventDefault : hipEventDisableTiming));
-
-  if (ProfilingEnabled) {
-    UR_CHECK_ERROR(hipEventCreateWithFlags(&EvQueued, hipEventDefault));
-    UR_CHECK_ERROR(hipEventCreateWithFlags(&EvStart, hipEventDefault));
-  }
-
+      StreamToken{StreamToken}, EventId{0}, EvEnd{EvEnd}, EvQueued{EvQueued},
+      EvStart{EvStart}, Queue{Queue}, Stream{Stream}, Context{Context} {
   urQueueRetain(Queue);
   urContextRetain(Context);
 }
@@ -62,7 +52,7 @@ ur_result_t ur_event_handle_t_::start() {
     if (Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE || isTimestampEvent()) {
       // NOTE: This relies on the default stream to be unused.
       UR_CHECK_ERROR(hipEventRecord(EvQueued, 0));
-      UR_CHECK_ERROR(hipEventRecord(EvStart, Queue->get()));
+      UR_CHECK_ERROR(hipEventRecord(EvStart, Stream));
     }
   } catch (ur_result_t Error) {
     Result = Error;
