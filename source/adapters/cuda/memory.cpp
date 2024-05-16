@@ -528,35 +528,35 @@ ur_result_t migrateImageToDevice(ur_mem_handle_t Mem,
   // dimensionality
   if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE2D) {
     memset(&CpyDesc2D, 0, sizeof(CpyDesc2D));
-    CpyDesc2D.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
     CpyDesc2D.srcHost = Image.HostPtr;
     CpyDesc2D.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
     CpyDesc2D.dstArray = ImageArray;
     CpyDesc2D.WidthInBytes = PixelSizeBytes * Image.ImageDesc.width;
     CpyDesc2D.Height = Image.ImageDesc.height;
-    UR_CHECK_ERROR(cuMemcpy2D(&CpyDesc2D));
   } else if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE3D) {
     memset(&CpyDesc3D, 0, sizeof(CpyDesc3D));
-    CpyDesc3D.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
     CpyDesc3D.srcHost = Image.HostPtr;
     CpyDesc3D.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
     CpyDesc3D.dstArray = ImageArray;
     CpyDesc3D.WidthInBytes = PixelSizeBytes * Image.ImageDesc.width;
     CpyDesc3D.Height = Image.ImageDesc.height;
     CpyDesc3D.Depth = Image.ImageDesc.depth;
-    UR_CHECK_ERROR(cuMemcpy3D(&CpyDesc3D));
   }
 
   if (Mem->LastEventWritingToMemObj == nullptr) {
-    if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE1D) {
-      UR_CHECK_ERROR(
-          cuMemcpyHtoA(ImageArray, 0, Image.HostPtr, ImageSizeBytes));
-    } else if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE2D) {
-      CpyDesc2D.srcHost = Image.HostPtr;
-      UR_CHECK_ERROR(cuMemcpy2D(&CpyDesc2D));
-    } else if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE3D) {
-      CpyDesc3D.srcHost = Image.HostPtr;
-      UR_CHECK_ERROR(cuMemcpy3D(&CpyDesc3D));
+    if (Image.HostPtr) {
+      if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE1D) {
+        UR_CHECK_ERROR(
+            cuMemcpyHtoA(ImageArray, 0, Image.HostPtr, ImageSizeBytes));
+      } else if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE2D) {
+        CpyDesc2D.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
+        CpyDesc2D.srcHost = Image.HostPtr;
+        UR_CHECK_ERROR(cuMemcpy2D(&CpyDesc2D));
+      } else if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE3D) {
+        CpyDesc3D.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
+        CpyDesc3D.srcHost = Image.HostPtr;
+        UR_CHECK_ERROR(cuMemcpy3D(&CpyDesc3D));
+      }
     }
   } else if (Mem->LastEventWritingToMemObj->getQueue()->getDevice() !=
              hDevice) {

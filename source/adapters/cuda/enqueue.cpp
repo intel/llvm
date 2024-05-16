@@ -1098,6 +1098,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
   std::ignore = slicePitch;
 
   UR_ASSERT(hImage->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+  auto &Image = std::get<SurfaceMem>(hImage->Mem);
+  // FIXME: We are assuming that the lifetime of host ptr lives as long as the
+  // image
+  if (!Image.HostPtr)
+    Image.HostPtr = pSrc;
 
   ur_result_t Result = UR_RESULT_SUCCESS;
 
@@ -1107,8 +1112,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     Result = enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
                                phEventWaitList);
 
-    CUarray Array =
-        std::get<SurfaceMem>(hImage->Mem).getArray(hQueue->getDevice());
+    CUarray Array = Image.getArray(hQueue->getDevice());
 
     CUDA_ARRAY_DESCRIPTOR ArrayDesc;
     UR_CHECK_ERROR(cuArrayGetDescriptor(&ArrayDesc, Array));
@@ -1126,7 +1130,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    ur_mem_type_t ImgType = std::get<SurfaceMem>(hImage->Mem).getType();
+    ur_mem_type_t ImgType = Image.getType();
     if (ImgType == UR_MEM_TYPE_IMAGE1D) {
       UR_CHECK_ERROR(
           cuMemcpyHtoAAsync(Array, ByteOffsetX, pSrc, BytesToCopy, CuStream));
