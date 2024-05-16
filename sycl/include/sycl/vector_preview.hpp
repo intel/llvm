@@ -128,14 +128,17 @@ class RoundedRangeKernelWithKH;
 template <typename T>
 using element_type_for_vector_t = typename std::conditional_t<
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-      std::is_same_v<T, std::byte>, std::uint8_t,
+    std::is_same_v<T, std::byte>, std::uint8_t,
 #else
-      false, T,
+    false, T,
 #endif
-      typename std::conditional_t<std::is_same_v<T, bool>, std::int8_t,
-      typename std::conditional_t<std::is_same_v<T, sycl::half>, sycl::detail::half_impl::StorageT,
-      typename std::conditional_t<std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
-      sycl::ext::oneapi::detail::Bfloat16StorageT, T>>>>;
+    typename std::conditional_t<
+        std::is_same_v<T, bool>, std::int8_t,
+        typename std::conditional_t<
+            std::is_same_v<T, sycl::half>, sycl::detail::half_impl::StorageT,
+            typename std::conditional_t<
+                std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
+                sycl::ext::oneapi::detail::Bfloat16StorageT, T>>>>;
 } // namespace detail
 
 ///////////////////////// class sycl::vec /////////////////////////
@@ -161,7 +164,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
   // Type used for passing sycl::vec to SPIRV builtins. Frontend treats
   // ext_vector_type(1) as a scalar.
-  using vector_t = detail::element_type_for_vector_t<DataT> __attribute__((ext_vector_type(NumElements)));
+  using vector_t = detail::element_type_for_vector_t<DataT> __attribute__((
+      ext_vector_type(NumElements)));
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
@@ -370,9 +374,9 @@ public:
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
-  template <typename vector_t_ = vector_t,
-            typename =
-                typename std::enable_if_t<std::is_same_v<vector_t_, vector_t>>>
+  template <
+      typename vector_t_ = vector_t,
+      typename = typename std::enable_if_t<std::is_same_v<vector_t_, vector_t>>>
   constexpr vec(vector_t_ openclVector) {
     m_Data = sycl::bit_cast<DataType>(openclVector);
   }
@@ -420,8 +424,7 @@ public:
 
     using T = ConvertBoolAndByteT<DataT>;
     using R = ConvertBoolAndByteT<convertT>;
-    static_assert(std::is_integral_v<R> ||
-                  detail::is_floating_point<R>::value,
+    static_assert(std::is_integral_v<R> || detail::is_floating_point<R>::value,
                   "Unsupported convertT");
 
     using OpenCLT = detail::ConvertToOpenCLType_t<T>;
@@ -429,7 +432,8 @@ public:
     vec<convertT, NumElements> Result;
 
     // For conversion between bool -> signed char and byte -> uint8_t.
-    if constexpr (!std::is_same_v<DataT, convertT> && (std::is_same_v<OpenCLT, OpenCLR> || std::is_same_v<T, R>)) {
+    if constexpr (!std::is_same_v<DataT, convertT> &&
+                  (std::is_same_v<OpenCLT, OpenCLR> || std::is_same_v<T, R>)) {
       for (size_t I = 0; I < NumElements; ++I)
         Result.setValue(I, static_cast<convertT>(getValue(I)));
       return Result;
@@ -451,7 +455,8 @@ public:
           false &&
 #endif
           NumElements > 1 &&
-          // - vec storage has an equivalent OpenCL native vector it is implicitly
+          // - vec storage has an equivalent OpenCL native vector it is
+          // implicitly
           //   convertible to. There are some corner cases where it is not the
           //   case with char, long and long long types.
           std::is_convertible_v<vector_t, OpenCLVecT> &&
@@ -460,10 +465,10 @@ public:
           //   see comments within 'convertImpl' for more details;
           !detail::is_sint_to_from_uint<T, R>::value &&
           // - destination type is not bool. bool is stored as integer under the
-          //   hood and therefore conversion to bool looks like conversion between
-          //   two integer types. Since bit pattern for true and false is not
-          //   defined, there is no guarantee that integer conversion yields
-          //   right results here;
+          //   hood and therefore conversion to bool looks like conversion
+          //   between two integer types. Since bit pattern for true and false
+          //   is not defined, there is no guarantee that integer conversion
+          //   yields right results here;
           !std::is_same_v<convertT, bool>;
 
       if constexpr (canUseNativeVectorConvert) {
@@ -475,8 +480,9 @@ public:
       {
         // Otherwise, we fallback to per-element conversion:
         for (size_t I = 0; I < NumElements; ++I) {
-          auto val = detail::convertImpl<T, R, roundingMode, 1, OpenCLT, OpenCLR>(
-                getValue(I));
+          auto val =
+              detail::convertImpl<T, R, roundingMode, 1, OpenCLT, OpenCLR>(
+                  getValue(I));
           if constexpr (IsByte<convertT>::value)
             Result.setValue(I, static_cast<std::byte>(val));
           else
@@ -683,7 +689,6 @@ public:
     return Ret;                                                                \
   }
 #endif // __SYCL_DEVICE_ONLY__
-
 
 #define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT, COND)                           \
   BINOP_BASE(BINOP, OPASSIGN, CONVERT, COND)                                   \
@@ -905,8 +910,9 @@ public:
     {
       vec<detail::rel_t<DataT>, NumElements> Ret{};
       for (size_t I = 0; I < NumElements; ++I) {
-        // static_cast will work here as the output of ! operator is either 0 or -1.
-        Ret[I] = static_cast<detail::rel_t<DataT>>(-1*(!Rhs[I]));
+        // static_cast will work here as the output of ! operator is either 0 or
+        // -1.
+        Ret[I] = static_cast<detail::rel_t<DataT>>(-1 * (!Rhs[I]));
       }
       return Ret;
     }
@@ -965,10 +971,12 @@ private:
       return m_Data[Index];
 #else
 
-  if constexpr (std::is_same_v<DataT, sycl::ext::oneapi::bfloat16>)
-    return sycl::bit_cast<detail::element_type_for_vector_t<DataT>>(m_Data[Index]);
-  else
-    return static_cast<detail::element_type_for_vector_t<DataT>>(m_Data[Index]);
+    if constexpr (std::is_same_v<DataT, sycl::ext::oneapi::bfloat16>)
+      return sycl::bit_cast<detail::element_type_for_vector_t<DataT>>(
+          m_Data[Index]);
+    else
+      return static_cast<detail::element_type_for_vector_t<DataT>>(
+          m_Data[Index]);
 #endif
   }
 
@@ -989,7 +997,8 @@ private:
 
   // fields
   // Alignment is the same as size, to a maximum size of 64.
-  alignas(std::min((size_t)64, sizeof(DataType))) DataType m_Data;
+  static constexpr int alignment = std::min((size_t)64, sizeof(DataType));
+  alignas(alignment) DataType m_Data;
 
   // friends
   template <typename T1, typename T2, typename T3, template <typename> class T4,
@@ -1763,7 +1772,8 @@ private:
       return m_Vector->getValue(Idxs[Index]);
     }
     auto Op = OperationCurrentT<CommonDataT>();
-    return Op(m_LeftOperation.getValue(Index), m_RightOperation.getValue(Index));
+    return Op(m_LeftOperation.getValue(Index),
+              m_RightOperation.getValue(Index));
   }
 
   template <int IdxNum = getNumElements()>
@@ -1775,7 +1785,7 @@ private:
     }
     auto Op = OperationCurrentT<DataT>();
     return Op(m_LeftOperation.getValue(Index),
-           m_RightOperation.getValue(Index));
+              m_RightOperation.getValue(Index));
   }
 
   template <template <typename> class Operation, typename RhsOperation>
