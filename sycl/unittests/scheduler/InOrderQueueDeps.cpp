@@ -88,9 +88,9 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
   buffer<int, 1> Buf(&val, range<1>(1));
   detail::Requirement Req = getMockRequirement(Buf);
 
-  std::vector<detail::Command *> AuxCmds;
   detail::MemObjRecord *Record =
-      MS.getOrInsertMemObjRecord(InOrderQueueImpl, &Req, AuxCmds);
+      MS.getOrInsertMemObjRecord(InOrderQueueImpl, &Req);
+  std::vector<detail::Command *> AuxCmds;
   MS.getOrCreateAllocaForReq(Record, &Req, InOrderQueueImpl, AuxCmds);
   MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue, AuxCmds);
 

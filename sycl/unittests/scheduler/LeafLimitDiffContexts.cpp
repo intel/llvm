@@ -52,12 +52,12 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
           AllocaCmd(nullptr) {}
 
     void InitializeUtils(detail::Requirement &MockReq, MockScheduler &MS) {
-      std::vector<detail::Command *> ToEnqueue;
-      Rec = MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(Queue), &MockReq,
-                                       ToEnqueue);
+
+      Rec = MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(Queue), &MockReq);
       // Creating Alloca on both - device and host contexts (will be created in
       // real case in insertMemMove for example) It is done to avoid extra
       // AllocCmd insertion during ConnectCmd insertion
+      std::vector<detail::Command *> ToEnqueue;
       AllocaCmd = MS.getOrCreateAllocaForReq(
           Rec, &MockReq, detail::getSyclObjImpl(Queue), ToEnqueue);
       std::ignore = MS.getOrCreateAllocaForReq(
