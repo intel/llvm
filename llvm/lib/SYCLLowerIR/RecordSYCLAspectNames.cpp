@@ -32,10 +32,8 @@ PreservedAnalyses RecordSYCLAspectNamesPass::run(Module &M,
              "Each operand of sycl_aspects must be a pair.");
 
       // The aspect's integral value is the second operand.
-      const auto *AspectCAM = cast<ConstantAsMetadata>(N->getOperand(1));
-      const Constant *AspectC = AspectCAM->getValue();
-
-      ValueToNameValuePairMD[cast<ConstantInt>(AspectC)->getSExtValue()] = N;
+      auto *C = mdconst::extract<ConstantInt>(N->getOperand(1));
+      ValueToNameValuePairMD[C->getSExtValue()] = N;
     }
   }
 
@@ -52,8 +50,8 @@ PreservedAnalyses RecordSYCLAspectNamesPass::run(Module &M,
       // a format like {{"cpu", 1}, {"gpu", 2}}
       SmallVector<Metadata *, 8> AspectNameValuePairs;
       for (const auto &MDOp : MDNode->operands()) {
-        const Constant *C = cast<ConstantAsMetadata>(MDOp)->getValue();
-        int64_t AspectValue = cast<ConstantInt>(C)->getSExtValue();
+        auto *C = mdconst::extract<ConstantInt>(MDOp);
+        int64_t AspectValue = C->getSExtValue();
         if (auto it = ValueToNameValuePairMD.find(AspectValue);
             it != ValueToNameValuePairMD.end())
           AspectNameValuePairs.push_back(it->second);
