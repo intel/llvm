@@ -940,13 +940,15 @@ static void combineAccessModesOfReqs(std::vector<Requirement *> &Reqs) {
 Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
     std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
     std::vector<Command *> &ToEnqueue,
+    bool EventNeeded,
     sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
     const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies) {
   std::vector<Requirement *> &Reqs = CommandGroup->getRequirements();
   std::vector<detail::EventImplPtr> &Events = CommandGroup->getEvents();
 
-  auto NewCmd = std::make_unique<ExecCGCommand>(
-      std::move(CommandGroup), Queue, CommandBuffer, std::move(Dependencies));
+  auto NewCmd = std::make_unique<ExecCGCommand>(std::move(CommandGroup), Queue,
+                                                EventNeeded, CommandBuffer,
+                                                std::move(Dependencies));
 
   if (!NewCmd)
     throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
@@ -1345,7 +1347,8 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
         CG::CodeplayHostTask,
         /* Payload */ {}));
     ConnectCmd = new ExecCGCommand(
-        std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());
+        std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue(),
+        /*EventNeeded=*/true);
   } catch (const std::bad_alloc &) {
     throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
   }
@@ -1619,8 +1622,8 @@ Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
                      }),
       FusedEventDeps.end());
 
-  auto FusedKernelCmd =
-      std::make_unique<ExecCGCommand>(std::move(FusedCG), Queue);
+  auto FusedKernelCmd = std::make_unique<ExecCGCommand>(
+      std::move(FusedCG), Queue, /*EventNeeded=*/true);
 
   // Inherit auxiliary resources from fused command groups
   Scheduler::getInstance().takeAuxiliaryResources(FusedKernelCmd->getEvent(),

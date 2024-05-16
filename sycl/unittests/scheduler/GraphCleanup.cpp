@@ -107,7 +107,8 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
                              /*SharedPtrStorage*/ {},
                              /*Requirements*/ {&MockReq},
                              /*Events*/ {}))};
-  detail::EventImplPtr Event = MS.addCG(std::move(CG), QueueImpl);
+  detail::EventImplPtr Event =
+      MS.addCG(std::move(CG), QueueImpl, /*EventNeeded=*/true);
   auto *Cmd = static_cast<detail::Command *>(Event->getCommand());
   verifyCleanup(Record, AllocaCmd, MockCmd, CommandDeleted);
 
@@ -332,7 +333,8 @@ TEST_F(SchedulerTest, StreamBufferDeallocation) {
   AttachSchedulerWrapper AttachScheduler{MSPtr};
   detail::EventImplPtr EventImplPtr;
   {
-    MockHandlerCustomFinalize MockCGH(QueueImplPtr, false);
+    MockHandlerCustomFinalize MockCGH(QueueImplPtr, false,
+                                      /*CallerNeedsEvent=*/true);
     kernel_bundle KernelBundle =
         sycl::get_kernel_bundle<sycl::bundle_state::input>(
             QueueImplPtr->get_context());
@@ -343,7 +345,8 @@ TEST_F(SchedulerTest, StreamBufferDeallocation) {
     MockCGH.single_task<TestKernel<>>([] {});
     std::unique_ptr<detail::CG> CG = MockCGH.finalize();
 
-    EventImplPtr = MSPtr->addCG(std::move(CG), QueueImplPtr);
+    EventImplPtr =
+        MSPtr->addCG(std::move(CG), QueueImplPtr, /*EventNeeded=*/true);
   }
 
   // The buffers should have been released with graph cleanup once the work is
@@ -393,7 +396,8 @@ TEST_F(SchedulerTest, AuxiliaryResourcesDeallocation) {
   detail::EventImplPtr EventImplPtr;
   bool MockAuxResourceDeleted = false;
   {
-    MockHandlerCustomFinalize MockCGH(QueueImplPtr, false);
+    MockHandlerCustomFinalize MockCGH(QueueImplPtr, false,
+                                      /*CallerNeedsEvent=*/true);
     kernel_bundle KernelBundle =
         sycl::get_kernel_bundle<sycl::bundle_state::input>(
             QueueImplPtr->get_context());
@@ -413,7 +417,8 @@ TEST_F(SchedulerTest, AuxiliaryResourcesDeallocation) {
     MockCGH.single_task<TestKernel<>>([] {});
     std::unique_ptr<detail::CG> CG = MockCGH.finalize();
 
-    EventImplPtr = MSPtr->addCG(std::move(CG), QueueImplPtr);
+    EventImplPtr =
+        MSPtr->addCG(std::move(CG), QueueImplPtr, /*EventNeeded=*/true);
   }
 
   EventCompleted = false;

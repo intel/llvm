@@ -463,6 +463,7 @@ private:
   ///
   /// \param Queue is a SYCL queue.
   /// \param IsHost indicates if this handler is created for SYCL host device.
+  /// TODO: Unused. Remove with ABI break.
   handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost);
 
   /// Constructs SYCL handler from the associated queue and the submission's
@@ -474,9 +475,35 @@ private:
   /// \param SecondaryQueue is the secondary SYCL queue of the submission. This
   ///        is null if no secondary queue is associated with the submission.
   /// \param IsHost indicates if this handler is created for SYCL host device.
+  /// TODO: Unused. Remove with ABI break.
   handler(std::shared_ptr<detail::queue_impl> Queue,
           std::shared_ptr<detail::queue_impl> PrimaryQueue,
           std::shared_ptr<detail::queue_impl> SecondaryQueue, bool IsHost);
+
+  /// Constructs SYCL handler from queue.
+  ///
+  /// \param Queue is a SYCL queue.
+  /// \param IsHost indicates if this handler is created for SYCL host device.
+  /// \param CallerNeedsEvent indicates if the event resulting from this handler
+  ///        is needed by the caller.
+  handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost,
+          bool CallerNeedsEvent);
+
+  /// Constructs SYCL handler from the associated queue and the submission's
+  /// primary and secondary queue.
+  ///
+  /// \param Queue is a SYCL queue. This is equal to either PrimaryQueue or
+  ///        SecondaryQueue.
+  /// \param PrimaryQueue is the primary SYCL queue of the submission.
+  /// \param SecondaryQueue is the secondary SYCL queue of the submission. This
+  ///        is null if no secondary queue is associated with the submission.
+  /// \param IsHost indicates if this handler is created for SYCL host device.
+  /// \param CallerNeedsEvent indicates if the event resulting from this handler
+///          is needed by the caller.
+  handler(std::shared_ptr<detail::queue_impl> Queue,
+          std::shared_ptr<detail::queue_impl> PrimaryQueue,
+          std::shared_ptr<detail::queue_impl> SecondaryQueue, bool IsHost,
+          bool CallerNeedsEvent);
 
   /// Constructs SYCL handler from Graph.
   ///
@@ -498,7 +525,7 @@ private:
 
   void setType(detail::CG::CGTYPE Type) { MCGType = Type; }
 
-  detail::CG::CGTYPE getType() { return MCGType; }
+  detail::CG::CGTYPE getType() const { return MCGType; }
 
   void throwIfActionIsCreated() {
     if (detail::CG::None != getType())
@@ -574,6 +601,16 @@ private:
   ///
   /// \return a SYCL event object representing the command group
   event finalize();
+
+  /// Constructs CG object of specific type, passes it to Scheduler and
+  /// returns sycl::event object representing the command group.
+  /// It's expected that the method is the latest method executed before
+  /// object destruction.
+  /// \param CallerNeedsEvent Specifies if the caller needs an event
+  /// representing the work related to this handler.
+  ///
+  /// \return a SYCL event object representing the command group
+  event finalize(bool CallerNeedsEvent);
 
   /// Saves streams associated with this handler.
   ///
@@ -1179,6 +1216,8 @@ private:
     return Size == 1 || Size == 2 || Size == 4 || Size == 8 || Size == 16 ||
            Size == 32 || Size == 64 || Size == 128;
   }
+
+  bool eventNeeded() const;
 
   template <int Dims, typename LambdaArgType> struct TransformUserItemType {
     using type = std::conditional_t<

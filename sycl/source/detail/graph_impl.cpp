@@ -689,7 +689,8 @@ sycl::detail::pi::PiExtSyncPoint exec_graph_impl::enqueueNode(
 
   sycl::detail::EventImplPtr Event =
       sycl::detail::Scheduler::getInstance().addCG(
-          Node->getCGCopy(), AllocaQueue, CommandBuffer, Deps);
+          Node->getCGCopy(), AllocaQueue, /*EventNeeded=*/true, CommandBuffer,
+          Deps);
 
   MCommandMap[Node] = Event->getCommandBufferCommand();
   return Event->getSyncPoint();
@@ -927,7 +928,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
                 CommandBuffer, nullptr, std::move(CGData));
 
         NewEvent = sycl::detail::Scheduler::getInstance().addCG(
-            std::move(CommandGroup), Queue);
+            std::move(CommandGroup), Queue, /*EventNeeded=*/true);
       }
       NewEvent->setEventFromSubmittedExecCommandBuffer(true);
     } else if ((CurrentPartition->MSchedule.size() > 0) &&
@@ -945,7 +946,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
           .MQueue = Queue;
 
       NewEvent = sycl::detail::Scheduler::getInstance().addCG(
-          NodeImpl->getCGCopy(), Queue);
+          NodeImpl->getCGCopy(), Queue, /*EventNeeded=*/true);
     } else {
       std::vector<std::shared_ptr<sycl::detail::event_impl>> ScheduledEvents;
       for (auto &NodeImpl : CurrentPartition->MSchedule) {
@@ -981,7 +982,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
           // dependencies are propagated in findRealDeps
           sycl::detail::EventImplPtr EventImpl =
               sycl::detail::Scheduler::getInstance().addCG(
-                  NodeImpl->getCGCopy(), Queue);
+                  NodeImpl->getCGCopy(), Queue, /*EventNeeded=*/true);
 
           ScheduledEvents.push_back(EventImpl);
         }

@@ -648,6 +648,7 @@ class ExecCGCommand : public Command {
 public:
   ExecCGCommand(
       std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue,
+      bool EventNeeded,
       sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
       const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies = {});
 
@@ -671,6 +672,11 @@ public:
   // and allows to refer back to the corresponding KernelFusionCommand if
   // necessary.
   KernelFusionCommand *MFusionCmd = nullptr;
+
+  // MEventNeeded is true if the command needs to produce a valid event. The
+  // implementation may elect to not produce events (native or SYCL) if this
+  // is false.
+  bool MEventNeeded = true;
 
   bool producesPiEvent() const final;
 

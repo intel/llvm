@@ -32,6 +32,10 @@ public:
         std::make_shared<detail::event_impl>();
     return sycl::detail::createSyclObjFromImpl<sycl::event>(NewEvent);
   }
+
+  sycl::detail::CG::CGTYPE getType() const {
+    return sycl::detail::CG::CGTYPE::None;
+  }
 };
 
 // Needed to use EXPECT_CALL to verify depends_on that originally appends lst

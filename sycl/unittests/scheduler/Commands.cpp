@@ -81,6 +81,7 @@ TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
     std::unique_ptr<detail::CG> CommandGroup(new detail::CGBarrier(
         std::move(Arg), detail::CG::StorageInitHelper({}, {}, {}, {}, {}),
         detail::CG::CGTYPE::BarrierWaitlist, {}));
-    MS.Scheduler::addCG(std::move(CommandGroup), QueueImpl);
+    MS.Scheduler::addCG(std::move(CommandGroup), QueueImpl,
+                        /*EventNeeded=*/true);
   }
 }

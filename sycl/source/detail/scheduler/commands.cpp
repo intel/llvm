@@ -1925,11 +1925,11 @@ static std::string_view cgTypeToString(detail::CG::CGTYPE Type) {
 
 ExecCGCommand::ExecCGCommand(
     std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue,
-    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+    bool EventNeeded, sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
     const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies)
     : Command(CommandType::RUN_CG, std::move(Queue), CommandBuffer,
               Dependencies),
-      MCommandGroup(std::move(CommandGroup)) {
+      MEventNeeded(EventNeeded), MCommandGroup(std::move(CommandGroup)) {
   if (MCommandGroup->getType() == detail::CG::CodeplayHostTask) {
     MEvent->setSubmittedQueue(
         static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue);
@@ -2744,11 +2744,15 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
     Plugin->call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
   }
 
+  // We can omit creating a PI event and create a "discarded" event if either
+  // the queue has the discard property or the command has been explicitly
+  // marked as not needing an event, e.g. if the user did not ask for one, and
+  // if the queue supports discarded PI event and there are no requirements.
+  bool DiscardPiEvent = (MQueue->MDiscardEvents || !MEventNeeded) &&
+                        MQueue->supportsDiscardingPiEvents() &&
+                        MCommandGroup->getRequirements().size() == 0;
   sycl::detail::pi::PiEvent *Event =
-      (MQueue->supportsDiscardingPiEvents() &&
-       MCommandGroup->getRequirements().size() == 0)
-          ? nullptr
-          : &MEvent->getHandleRef();
+      DiscardPiEvent ? nullptr : &MEvent->getHandleRef();
   sycl::detail::pi::PiExtSyncPoint OutSyncPoint;
   sycl::detail::pi::PiExtCommandBufferCommand OutCommand = nullptr;
   switch (MCommandGroup->getType()) {
@@ -2895,8 +2899,13 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   auto RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
-  bool DiscardPiEvent = (MQueue->supportsDiscardingPiEvents() &&
-                         MCommandGroup->getRequirements().size() == 0);
+  // We can omit creating a PI event and create a "discarded" event if either
+  // the queue has the discard property or the command has been explicitly
+  // marked as not needing an event, e.g. if the user did not ask for one, and
+  // if the queue supports discarded PI event and there are no requirements.
+  bool DiscardPiEvent = (MQueue->MDiscardEvents || !MEventNeeded) &&
+                        MQueue->supportsDiscardingPiEvents() &&
+                        MCommandGroup->getRequirements().size() == 0;
   sycl::detail::pi::PiEvent *Event =
       DiscardPiEvent ? nullptr : &MEvent->getHandleRef();
   detail::EventImplPtr EventImpl = DiscardPiEvent ? nullptr : MEvent;

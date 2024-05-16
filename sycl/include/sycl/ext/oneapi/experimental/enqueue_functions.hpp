@@ -8,8 +8,9 @@
 
 #pragma once
 
-#include <utility> // for std::forward
+#include <utility>
 
+#include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/handler.hpp>
@@ -75,8 +76,7 @@ template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
 
 template <typename CommandGroupFunc>
 void submit(queue Q, CommandGroupFunc &&CGF) {
-  // TODO: Use new submit without Events.
-  Q.submit(std::forward<CommandGroupFunc>(CGF));
+  Q.submit_without_event(std::forward<CommandGroupFunc>(CGF));
 }
 
 template <typename CommandGroupFunc>
@@ -261,9 +261,9 @@ inline void memcpy(handler &CGH, void *Dest, const void *Src, size_t NumBytes) {
   CGH.memcpy(Dest, Src, NumBytes);
 }
 
-inline void memcpy(queue Q, void *Dest, const void *Src, size_t NumBytes) {
-  submit(Q, [&](handler &CGH) { memcpy(CGH, Dest, Src, NumBytes); });
-}
+__SYCL_EXPORT void memcpy(queue Q, void *Dest, const void *Src, size_t NumBytes,
+                          const sycl::detail::code_location &CodeLoc =
+                              sycl::detail::code_location::current());
 
 template <typename T>
 void copy(handler &CGH, const T *Src, T *Dest, size_t Count) {
@@ -278,9 +278,7 @@ inline void memset(handler &CGH, void *Ptr, int Value, size_t NumBytes) {
   CGH.memset(Ptr, Value, NumBytes);
 }
 
-inline void memset(queue Q, void *Ptr, int Value, size_t NumBytes) {
-  submit(Q, [&](handler &CGH) { memset(CGH, Ptr, Value, NumBytes); });
-}
+__SYCL_EXPORT void memset(queue Q, void *Ptr, int Value, size_t NumBytes);
 
 template <typename T>
 void fill(sycl::handler &CGH, T *Ptr, const T &Pattern, size_t Count) {
@@ -304,9 +302,7 @@ inline void mem_advise(handler &CGH, void *Ptr, size_t NumBytes, int Advice) {
   CGH.mem_advise(Ptr, NumBytes, Advice);
 }
 
-inline void mem_advise(queue Q, void *Ptr, size_t NumBytes, int Advice) {
-  submit(Q, [&](handler &CGH) { mem_advise(CGH, Ptr, NumBytes, Advice); });
-}
+__SYCL_EXPORT void mem_advise(queue Q, void *Ptr, size_t NumBytes, int Advice);
 
 inline void barrier(handler &CGH) { CGH.ext_oneapi_barrier(); }
 
