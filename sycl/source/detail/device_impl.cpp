@@ -877,7 +877,7 @@ device_impl::getProgressGuarantee(
     ext::oneapi::experimental::execution_scope coordinationScope) const {
   using forward_progress_guarantee =
      ext::oneapi::experimental::forward_progress_guarantee;
-  //using execution_scope = ext::oneapi::experimental::execution_scope;
+  using execution_scope = ext::oneapi::experimental::execution_scope;
   //int threadScopeNum = static_cast<int>(threadScope);
   // we get the immediate progress guarantee that is provided by each scope
   // between coordinationScope and threadScope and then return the weakest of these.
