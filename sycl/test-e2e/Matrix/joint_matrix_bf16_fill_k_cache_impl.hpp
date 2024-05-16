@@ -83,7 +83,7 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
   std::chrono::high_resolution_clock::time_point start =
       std::chrono::high_resolution_clock::now();
 
-  static auto work = [&](handler &h) {
+  q.submit([&](handler &h) {
     h.parallel_for<class MatMul>( // cache layer#1
         nd_range<2>{global, cachelocal},
         // loop global
@@ -275,8 +275,7 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
           } // m
 #endif
         }); // parallel_for
-  }; // queue.submit
-  q.submit(work);
+  });       // queue.submit
 
   if (i == testIterations - 1)
     q.wait();
