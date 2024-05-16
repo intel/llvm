@@ -17,9 +17,6 @@
 
 #include "common.hpp"
 
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-
 constexpr size_t TN = 16;
 
 #include "joint_matrix_bfloat16_colmajorA_colmajorB_impl.hpp"

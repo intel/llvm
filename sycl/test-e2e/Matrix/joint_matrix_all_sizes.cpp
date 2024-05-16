@@ -12,9 +12,6 @@
 
 #include "common.hpp"
 
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-
 // Sub-matrix N dimension
 static constexpr size_t SN = 16;
 
