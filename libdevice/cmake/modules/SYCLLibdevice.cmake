@@ -217,6 +217,11 @@ set(imf_bf16_fallback_src ${imf_fallback_src_dir}/imf_bf16_fallback.cpp)
 set(imf_host_cxx_flags -c
   -D__LIBDEVICE_HOST_IMPL__
 )
+
+if (NOT WIN32)
+  list(APPEND imf_host_cxx_flags -fPIC)
+endif()
+
 add_custom_command(OUTPUT ${imf_fp32_fallback_src}
                    COMMAND ${CMAKE_COMMAND} -D SRC_DIR=${imf_src_dir}
                                             -D DEST_DIR=${imf_fallback_src_dir}
