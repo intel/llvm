@@ -860,8 +860,8 @@ bool device_impl::extOneapiCanCompile(
 // coordinationScope
 sycl::ext::oneapi::experimental::forward_progress_guarantee
 device_impl::getHostProgressGuarantee(
-    ext::oneapi::experimental::execution_scope threadScope,
-    ext::oneapi::experimental::execution_scope coordinationScope) {
+    ext::oneapi::experimental::execution_scope,
+    ext::oneapi::experimental::execution_scope) {
   return sycl::ext::oneapi::experimental::forward_progress_guarantee::
       weakly_parallel;
 }
@@ -877,6 +877,7 @@ device_impl::getProgressGuarantee(
       ext::oneapi::experimental::forward_progress_guarantee;
   using execution_scope = ext::oneapi::experimental::execution_scope;
   const int executionScopeSize = 4;
+  (void)coordinationScope;
   int threadScopeNum = static_cast<int>(threadScope);
   // we get the immediate progress guarantee that is provided by each scope
   // between root_group and threadScope and then return the weakest of these.
