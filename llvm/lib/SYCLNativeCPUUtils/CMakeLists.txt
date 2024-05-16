@@ -15,5 +15,6 @@ add_llvm_component_library(LLVMSYCLNativeCPUUtils
   Passes
   Target
   TargetParser
+  TransformUtils
   ipo
   )
