@@ -1124,8 +1124,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       MPM.addPass(SYCLPropagateAspectsUsagePass(/*ExcludeAspects=*/{},
                                                 /*ValidateAspects=*/false));
 
-      MPM.addPass(RecordSYCLAspectNamesPass());
-
       // Add attribute corresponding to optimization level.
       MPM.addPass(SYCLAddOptLevelAttributePass(CodeGenOpts.OptimizationLevel));
 
@@ -1145,6 +1143,10 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
       // Process properties and annotations
       MPM.addPass(CompileTimePropertiesPass());
+
+      // Record SYCL aspect names (this should come after propagating aspects
+      // and before cleaning up metadata)
+      MPM.addPass(RecordSYCLAspectNamesPass());
 
       // Remove SYCL metadata added by the frontend, like sycl_aspects
       // Note, this pass should be at the end of the pipeline
