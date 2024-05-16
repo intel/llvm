@@ -131,9 +131,6 @@ int main() {
 
   big_matrix<int8_t, MATRIX_M, MATRIX_K> MA((int8_t *)&A);
 
-  size_t NDRangeM = MATRIX_M / TM;
-  size_t NDRangeK = MATRIX_K / TK;
-
   for (int i = 0; i < MATRIX_M; i++) {
     for (int j = 0; j < MATRIX_K; j++) {
       A[i][j] = i + j;

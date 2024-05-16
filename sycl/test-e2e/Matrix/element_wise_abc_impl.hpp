@@ -15,7 +15,6 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 
 #define TM 8
 #define TK 32
-// class add;
 
 template <typename T1, typename T2, size_t M, size_t N, size_t K,
           int vnniFactor>

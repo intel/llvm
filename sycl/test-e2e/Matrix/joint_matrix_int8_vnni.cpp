@@ -12,9 +12,6 @@
 
 #include "common.hpp"
 
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-
 constexpr size_t TN = 16;
 
 #include "joint_matrix_int8_vnni_impl.hpp"
