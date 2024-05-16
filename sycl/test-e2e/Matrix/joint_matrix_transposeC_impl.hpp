@@ -26,49 +26,50 @@ void matrix_load_and_store(T1 *input, T1 *out_col_major, T1 *out_row_major,
   size_t NDRangeN = N / TN;
   size_t sg_size = get_sg_size<class LS<TM>>(q);
 
-  static auto work = [&](handler &cgh) {
-    cgh.parallel_for<class LS<TM>>(
-        nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
-        [=](nd_item<2> spmd_item)
+  q.submit([&](handler &cgh) {
+     cgh.parallel_for<class LS<TM>>(
+         nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
+         [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
-            [[intel::reqd_sub_group_size(SG_SZ)]]
+             [[intel::reqd_sub_group_size(SG_SZ)]]
 #endif
-        {
-          auto p_input =
-              address_space_cast<sycl::access::address_space::global_space,
-                                 sycl::access::decorated::no>(input);
+         {
+           auto p_input =
+               address_space_cast<sycl::access::address_space::global_space,
+                                  sycl::access::decorated::no>(input);
 
-          auto p_out_col_major =
-              address_space_cast<sycl::access::address_space::global_space,
-                                 sycl::access::decorated::no>(out_col_major);
-          auto p_out_row_major =
-              address_space_cast<sycl::access::address_space::global_space,
-                                 sycl::access::decorated::no>(out_row_major);
+           auto p_out_col_major =
+               address_space_cast<sycl::access::address_space::global_space,
+                                  sycl::access::decorated::no>(out_col_major);
+           auto p_out_row_major =
+               address_space_cast<sycl::access::address_space::global_space,
+                                  sycl::access::decorated::no>(out_row_major);
 
-          const auto global_idx = spmd_item.get_global_id(0);
-          const auto global_idy = spmd_item.get_global_id(1);
-          const auto sg_startx = global_idx - spmd_item.get_local_id(0);
-          const auto sg_starty = global_idy - spmd_item.get_local_id(1);
+           const auto global_idx = spmd_item.get_global_id(0);
+           const auto global_idy = spmd_item.get_global_id(1);
+           const auto sg_startx = global_idx - spmd_item.get_local_id(0);
+           const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
-          sub_group sg = spmd_item.get_sub_group();
-          joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_matrix;
+           sub_group sg = spmd_item.get_sub_group();
+           joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_matrix;
 
-          auto row_major_offset =
-              (sg_startx * TM) * N + (sg_starty / sg_size * TN);
-          auto col_major_offset =
-              (sg_startx * TM) + (sg_starty / sg_size * TN) * M;
+           auto row_major_offset =
+               (sg_startx * TM) * N + (sg_starty / sg_size * TN);
+           auto col_major_offset =
+               (sg_startx * TM) + (sg_starty / sg_size * TN) * M;
 
-          joint_matrix_load(sg, sub_matrix, p_input + col_major_offset, M,
-                            layout::col_major);
+           joint_matrix_load(sg, sub_matrix, p_input + col_major_offset, M,
+                             layout::col_major);
 
-          joint_matrix_store(sg, sub_matrix, p_out_col_major + row_major_offset,
-                             N, layout::row_major);
+           joint_matrix_store(sg, sub_matrix,
+                              p_out_col_major + row_major_offset, N,
+                              layout::row_major);
 
-          joint_matrix_store(sg, sub_matrix, p_out_row_major + col_major_offset,
-                             M, layout::col_major);
-        }); // parallel for
-  };
-  q.submit(work).wait();
+           joint_matrix_store(sg, sub_matrix,
+                              p_out_row_major + col_major_offset, M,
+                              layout::col_major);
+         }); // parallel for
+   }).wait();
 }
 
 template <size_t TM> void run_matrix_test() {
