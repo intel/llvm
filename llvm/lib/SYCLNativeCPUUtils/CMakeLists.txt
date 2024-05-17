@@ -28,13 +28,13 @@ option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 if(NATIVECPU_USE_OCK)
   if(NATIVECPU_OCK_USE_FETCHCONTENT)
     set(OCK_GIT_INTERNAL_REPO "https://github.com/codeplaysoftware/oneapi-construction-kit.git")
-    # commit bd7eadaf7ffc7d74c88dd309119e858b7ffae0cf
-    # Merge: e4f71dc16 792461086
-    # Author: Colin Davidson <colin.davidson@codeplay.com>
-    # Date:   Tue May 7 09:40:38 2024 +0100
-    #     Merge pull request #448 from coldav/colin/support_compiler_passes_only
-    #     Add top level directory which can be used to just build compiler passes
-    set(OCK_GIT_INTERNAL_TAG bd7eadaf7ffc7d74c88dd309119e858b7ffae0cf)
+    # commit 05e6e1b211704224fbdc6394d85d637f57fafdaf
+    # Merge: 256027e8 fbc2e567
+    # Author: Pietro Ghiglio <pietro.ghiglio@codeplay.com>
+    # Date:   Fri May 17 13:08:15 2024 +0200
+    # Merge pull request #458 from PietroGhg/pietro/link_aggressiveinstcombine
+    # Link vecz to aggressiveinstcombine
+    set(OCK_GIT_INTERNAL_TAG 05e6e1b211704224fbdc6394d85d637f57fafdaf)
 
     # Overwrite OCK_GIT_INTERNAL_REPO/OCK_GIT_INTERNAL_TAG if the corresponding options are set
     if(OCK_GIT_REPO)
