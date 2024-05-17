@@ -351,7 +351,9 @@ public:
           PI_ERROR_INVALID_QUEUE);
     }
     getUrPlugin()->call(urQueueRetain, MUrQueues[0]);
-    return pi::cast<cl_command_queue>(MUrQueues[0]);
+    ur_native_handle_t nativeHandle = nullptr;
+    getUrPlugin()->call(urQueueGetNativeHandle, MUrQueues[0], nullptr, &nativeHandle);
+    return pi::cast<cl_command_queue>(nativeHandle);
   }
 
   /// \return an associated SYCL context.

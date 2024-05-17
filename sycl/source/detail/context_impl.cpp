@@ -124,8 +124,9 @@ cl_context context_impl::get() const {
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
   getUrPlugin()->call(urContextRetain, MUrContext);
-  // TODO(pi2ur): This should be done with getnativehandle?
-  return pi::cast<cl_context>(MUrContext);
+  ur_native_handle_t nativeHandle = nullptr;
+  getUrPlugin()->call(urContextGetNativeHandle, MUrContext, &nativeHandle);
+  return pi::cast<cl_context>(nativeHandle);
 }
 
 bool context_impl::is_host() const { return MHostContext; }

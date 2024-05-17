@@ -104,7 +104,6 @@ cl_device_id device_impl::get() const {
         PI_ERROR_INVALID_DEVICE);
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
-  // TODO(pi2ur): Use GetNativeHandle
   getUrPlugin()->call(urDeviceRetain, MUrDevice);
   return pi::cast<cl_device_id>(getNative());
 }

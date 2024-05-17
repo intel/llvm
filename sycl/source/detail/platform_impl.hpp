@@ -111,7 +111,9 @@ public:
           "This instance of platform doesn't support OpenCL interoperability.",
           PI_ERROR_INVALID_PLATFORM);
     }
-    return pi::cast<cl_platform_id>(MUrPlatform); // TODO(pi2ur)
+    ur_native_handle_t nativeHandle = nullptr;
+    getUrPlugin()->call(urPlatformGetNativeHandle, MUrPlatform, &nativeHandle);
+    return pi::cast<cl_platform_id>(nativeHandle);
   }
 
   const ur_platform_handle_t &getUrHandleRef() const { return MUrPlatform; }

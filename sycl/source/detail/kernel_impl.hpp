@@ -113,7 +113,9 @@ public:
           UR_RESULT_ERROR_INVALID_KERNEL);
     }
     getUrPlugin()->call(urKernelRetain, MURKernel);
-    return pi::cast<cl_kernel>(MURKernel);
+    ur_native_handle_t nativeHandle = nullptr;
+    getUrPlugin()->call(urKernelGetNativeHandle, MURKernel, &nativeHandle);
+    return pi::cast<cl_kernel>(nativeHandle);
   }
 
   /// Check if the associated SYCL context is a SYCL host context.

@@ -218,9 +218,10 @@ cl_program program_impl::get() const {
         "This instance of program doesn't support OpenCL interoperability.",
         UR_RESULT_ERROR_INVALID_PROGRAM);
   }
-  // FIXME: this will likely need to involve a call to GetNativeHandle
   getUrPlugin()->call(urProgramRetain, MURProgram);
-  return pi::cast<cl_program>(MURProgram);
+  ur_native_handle_t nativeHandle = nullptr;
+  getUrPlugin()->call(urProgramGetNativeHandle, MURProgram, &nativeHandle);
+  return pi::cast<cl_program>(nativeHandle);
 }
 
 void program_impl::compile_with_kernel_name(std::string KernelName,
