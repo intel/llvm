@@ -938,6 +938,11 @@ private:
     }
   }
 
+  void verifyDeviceHasProgressGuarantee(
+      sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
+      sycl::ext::oneapi::experimental::execution_scope threadScope,
+      sycl::ext::oneapi::experimental::execution_scope coordinationScope);
+
   /// Process kernel properties.
   ///
   /// Stores information about kernel properties into the handler.
@@ -972,6 +977,36 @@ private:
     constexpr bool UsesRootSync = PropertiesT::template has_property<
         sycl::ext::oneapi::experimental::use_root_sync_key>();
     setKernelIsCooperative(UsesRootSync);
+    if constexpr (PropertiesT::template has_property<
+                      sycl::ext::oneapi::experimental::
+                          work_group_progress_key>()) {
+      auto prop = Props.template get_property<
+          sycl::ext::oneapi::experimental::work_group_progress_key>();
+      verifyDeviceHasProgressGuarantee(
+          prop.guarantee,
+          sycl::ext::oneapi::experimental::execution_scope::work_group,
+          prop.coordinationScope);
+    }
+    if constexpr (PropertiesT::template has_property<
+                      sycl::ext::oneapi::experimental::
+                          sub_group_progress_key>()) {
+      auto prop = Props.template get_property<
+          sycl::ext::oneapi::experimental::sub_group_progress_key>();
+      verifyDeviceHasProgressGuarantee(
+          prop.guarantee,
+          sycl::ext::oneapi::experimental::execution_scope::sub_group,
+          prop.coordinationScope);
+    }
+    if constexpr (PropertiesT::template has_property<
+                      sycl::ext::oneapi::experimental::
+                          work_item_progress_key>()) {
+      auto prop = Props.template get_property<
+          sycl::ext::oneapi::experimental::work_item_progress_key>();
+      verifyDeviceHasProgressGuarantee(
+          prop.guarantee,
+          sycl::ext::oneapi::experimental::execution_scope::work_item,
+          prop.coordinationScope);
+    }
   }
 
   /// Checks whether it is possible to copy the source shape to the destination
