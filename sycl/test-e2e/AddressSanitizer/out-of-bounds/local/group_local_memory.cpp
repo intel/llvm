@@ -1,7 +1,10 @@
 // REQUIRES: linux, cpu
-// RUN: %{build} %device_asan_flags -g -o %t.out
+// RUN: %{build} %device_asan_flags -g -O0 -o %t.out
 // RUN: env SYCL_PREFER_UR=1 %{run} not %t.out 2>&1 | FileCheck %s
-
+// RUN: %{build} %device_asan_flags -g -O1 -o %t.out
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t.out 2>&1 | FileCheck %s
+// RUN: %{build} %device_asan_flags -g -O2 -o %t.out
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t.out 2>&1 | FileCheck %s
 #include <sycl/detail/core.hpp>
 
 #include <sycl/ext/oneapi/group_local_memory.hpp>
@@ -12,7 +15,6 @@ constexpr std::size_t group_size = 8;
 
 int main() {
   sycl::queue Q;
-  auto *data = sycl::malloc_host<int>(1, Q);
 
   Q.submit([&](sycl::handler &h) {
     h.parallel_for<class MyKernel>(
@@ -23,8 +25,8 @@ int main() {
           auto &ref = *ptr;
           ref[item.get_local_linear_id() * 2 + 4] = 42;
           // CHECK: ERROR: DeviceSanitizer: out-of-bounds-access on Local Memory
-          // CHECK: {{WRITE of size 4 at kernel <.*MyKernel> LID\(6, 0, 0\) GID\(.*, 0, 0\)}}
-          // CHECK: {{  #0 .* .*local-overflow-1.cpp:}}[[@LINE-3]]
+          // CHECK: WRITE of size 4 at kernel {{<.*MyKernel>}} LID(6, 0, 0) GID({{.*}}, 0, 0)
+          // CHECK:   #0 {{.*}} {{.*group_local_memory.cpp}}:[[@LINE-3]]
         });
   });
 
