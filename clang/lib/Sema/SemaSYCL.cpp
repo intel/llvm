@@ -1075,14 +1075,25 @@ static target getAccessTarget(QualType FieldTy,
       AccTy->getTemplateArgs()[3].getAsIntegral().getExtValue());
 }
 
+// FIXME: Free functions must have void return type, be declared at file scope,
+// outside any namespaces, and with the SYCL_DEVICE attribute. If the
+// SYCL_DEVICE attribute is not specified this function is not entered since the
+// possibility of the function being a free function is ruled out already.
 static bool isFreeFunction(SemaSYCL &SemaSYCLRef, const FunctionDecl *FD) {
   for (auto *IRAttr : FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
     SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
         IRAttr->getAttributeNameValuePairs(SemaSYCLRef.getASTContext());
     for (const auto &NameValuePair : NameValuePairs) {
       if (NameValuePair.first == "sycl-nd-range-kernel" ||
-          NameValuePair.first == "sycl-single-task-kernel")
+          NameValuePair.first == "sycl-single-task-kernel") {
+        if (!FD->getReturnType()->isVoidType()) {
+          llvm::report_fatal_error(
+              "Only functions at file scope with void return "
+              "type are permitted as free functions");
+          return false;
+        }
         return true;
+      }
     }
   }
   return false;
@@ -1144,25 +1155,36 @@ static FunctionDecl *createNewFunctionDecl(ASTContext &Ctx,
 }
 
 // Creates a name for the free function kernel function.
-// We add __sycl_kernel_ to the original function name and then use the mangled
-// name as the kernel name. The renaming allows a normal device function to
-// coexist with the kernel function.
+// Consider a free function named "MyFunction". The normal device function will
+// be given its mangled name, say "_Z10MyFunctionIiEvPT_S0_". The corresponding
+// kernel function for this free function will be named
+// "_Z24__sycl_kernel_MyFunctionIiEvPT_S0_". This is the mangled name of a
+// fictitious function that has the same template and function parameters as the
+// original free function but with identifier prefixed with __sycl_kernel_.
+// We generate this name by starting with the mangled name of the free function
+// and adjusting it textually to simulate the __sycl_kernel_ prefix.
+// Because free functions are allowed only at file scope and cannot be within
+// namespaces the mangled name has the format _Z<length><identifier>... where
+// length is the identifier's length. The text manipulation inserts the prefix
+// __sycl_kernel_ and adjusts the length, leaving the rest of the name as-is.
 static std::pair<std::string, std::string> constructFreeFunctionKernelName(
     SemaSYCL &SemaSYCLRef, const FunctionDecl *FreeFunc, MangleContext &MC) {
   SmallString<256> Result;
   llvm::raw_svector_ostream Out(Result);
-  std::string MangledName;
   std::string StableName;
 
-  ASTContext &Ctx = SemaSYCLRef.getASTContext();
-  std::string NewName =
-      (Twine("__sycl_kernel_") + FreeFunc->getIdentifier()->getName()).str();
-  const IdentifierInfo *NewIdent = &Ctx.Idents.get(NewName);
-  FunctionDecl *NewFD = createNewFunctionDecl(Ctx, FreeFunc, {}, NewIdent);
-  MC.mangleName(NewFD, Out);
-  MangledName = Out.str();
-  StableName = MangledName;
-  return {MangledName, StableName};
+  MC.mangleName(FreeFunc, Out);
+  std::string MangledName(Out.str());
+  size_t StartNums = MangledName.find_first_of("0123456789");
+  size_t EndNums = MangledName.find_first_not_of("0123456789", StartNums);
+  size_t NameLength =
+      std::stoi(MangledName.substr(StartNums, EndNums - StartNums));
+  size_t NewNameLength = 14 /*length of __sycl_kernel_*/ + NameLength;
+  std::string NewName = MangledName.substr(0, StartNums) +
+                        std::to_string(NewNameLength) + "__sycl_kernel_" +
+                        MangledName.substr(EndNums);
+  StableName = NewName;
+  return {NewName, StableName};
 }
 
 // The first template argument to the kernel caller function is used to identify

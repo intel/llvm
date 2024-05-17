@@ -9,6 +9,7 @@
 #include <condition_variable>
 
 #include <sycl/detail/core.hpp>
+#include <sycl/detail/host_task_impl.hpp>
 
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/usm.hpp>

@@ -9,6 +9,8 @@
 // REQUIRES: gpu-intel-pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// RUN: %{build} -o %t1.out -DEXP
+// RUN: %{run} %t1.out
 //
 // Test checks support of named barrier in ESIMD kernel.
 // Threads are executed in ascending order of their local ID and each thread
@@ -20,6 +22,12 @@
 #include <sycl/sycl.hpp>
 
 #include "../esimd_test_utils.hpp"
+
+#ifdef EXP
+#define NS __ESIMD_ENS
+#else
+#define NS __ESIMD_NS
+#endif
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -64,7 +72,7 @@ bool test(QueueTY q) {
           Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
             // Threads - 1 named barriers required
             // but id 0 reserved for unnamed
-            named_barrier_init<Threads>();
+            NS::named_barrier_init<Threads>();
 
             unsigned int idx = ndi.get_local_id(0);
             // overlaping offset
@@ -92,8 +100,8 @@ bool test(QueueTY q) {
             // and so on
             if (idx > 0) {
               int barrier_id = idx;
-              named_barrier_signal(barrier_id, flag, producers, consumers);
-              named_barrier_wait(barrier_id);
+              NS::named_barrier_signal(barrier_id, flag, producers, consumers);
+              NS::named_barrier_wait(barrier_id);
             }
 
             if constexpr (UseSLM)
@@ -109,8 +117,8 @@ bool test(QueueTY q) {
             // and so on, but last thread skipped this block
             if (idx < Threads - 1) {
               int barrier_id = idx + 1;
-              named_barrier_signal(barrier_id, flag, producers, consumers);
-              named_barrier_wait(barrier_id);
+              NS::named_barrier_signal(barrier_id, flag, producers, consumers);
+              NS::named_barrier_wait(barrier_id);
             }
 
             barrier();

@@ -292,6 +292,39 @@ This `launch` interface allows users to define an internal memory pool, or
 scratchpad, that can then be reinterpreted as the datatype required by the user
 within the kernel function.
 
+To launch a kernel with a specified sub-group size, overloads similar to above `launch`
+functions are present in the `syclcompat::experimental` namespace, which accept SubgroupSize
+as a template parameter and can be called as  `launch<Function, SubgroupSize>`
+
+```cpp
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(sycl::nd_range<3> launch_range, std::size_t local_memory_size,
+       sycl::queue queue, Args... args);
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(sycl::nd_range<Dim> launch_range, std::size_t local_memory_size,
+       Args... args);
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(::syclcompat::dim3 grid_dim, ::syclcompat::dim3 block_dim,
+       std::size_t local_memory_size, Args... args);
+
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(sycl::nd_range<3> launch_range, sycl::queue queue, 
+       Args... args);
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(sycl::nd_range<Dim> launch_range,
+       Args... args);
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(::syclcompat::dim3 grid_dim, ::syclcompat::dim3 block_dim,
+       Args... args);
+
+```
+
 ### Utilities
 
 SYCLcompat introduces a set of utility functions designed to streamline the
