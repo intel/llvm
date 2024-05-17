@@ -13,6 +13,7 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
+#include <sycl/detail/string_view.hpp>
 #include <sycl/feature_test.hpp>
 #include <sycl/queue.hpp>
 
@@ -1604,8 +1605,9 @@ void modifiable_command_graph::end_recording(
   }
 }
 
-void modifiable_command_graph::print_graph(std::string path,
+void modifiable_command_graph::print_graph(sycl::detail::string_view pathstr,
                                            bool verbose) const {
+  std::string path{pathstr.data()};
   graph_impl::ReadLock Lock(impl->MMutex);
   if (path.substr(path.find_last_of(".") + 1) == "dot") {
     impl->printGraphAsDot(path, verbose);
