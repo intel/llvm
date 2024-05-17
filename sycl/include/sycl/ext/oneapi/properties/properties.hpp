@@ -76,7 +76,8 @@ private:
       detail::mp11::mp_transform<detail::ConflictingProperties, keys>>;
   static_assert(
       !detail::mp11::mp_any_of_q<
-          conflicting, detail::mp11::mp_bind_front<detail::mp11::mp_set_contains, keys>>(),
+          conflicting,
+          detail::mp11::mp_bind_front<detail::mp11::mp_set_contains, keys>>(),
       "Conflicting properties in property list.");
 
 public:
