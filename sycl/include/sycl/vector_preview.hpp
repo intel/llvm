@@ -903,11 +903,10 @@ public:
                                    vec<detail::rel_t<DataT>, NumElements>>
   operator!(const vec &Rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
-    if constexpr (!std::is_same_v<DataT, sycl::ext::oneapi::bfloat16> &&
-                  !std::is_same_v<DataT, sycl::detail::half_impl::half> &&
-                  !std::is_same_v<DataT, bool>) {
+    if constexpr (!std::is_same_v<DataT, sycl::ext::oneapi::bfloat16>) {
       auto extVec = static_cast<vector_t>(Rhs);
-      return vec<detail::rel_t<DataT>, NumElements>{!extVec};
+      vec<detail::rel_t<DataT>, NumElements> Ret{(typename vec<rel_t, NumElements>::vector_t)!extVec};
+      return Ret;
     } else
 #endif // __SYCL_DEVICE_ONLY__
     {
