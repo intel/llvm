@@ -41,113 +41,6 @@ using plain_global_ptr = typename sycl::detail::DecoratedType<
 template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
     sycl::sub_group, int, plain_global_ptr<int>, naive_blocked>(
     sycl::sub_group, const int &, plain_global_ptr<int>, naive_blocked);
-
-// Check that optimized implementation is selected.
-template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
-    sycl::sub_group, int, plain_global_ptr<int>, opt_blocked>(
-    sycl::sub_group, const int &, plain_global_ptr<int>, opt_blocked);
-
-// Check that contiguous_memory can be auto-detected.
-template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
-    sycl::sub_group, int, plain_global_ptr<int>, full_group_blocked>(
-    sycl::sub_group, const int &, plain_global_ptr<int>, full_group_blocked);
-
-// SYCL 2020's accessor can't be statically known to be contiguous.
-using accessor_iter_t = accessor<int, 1, access_mode::write, target::device,
-                                 access::placeholder::false_t>::iterator;
-// Can't be optimized.
-template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
-    sycl::sub_group, int, accessor_iter_t, full_group_blocked>(
-    sycl::sub_group, const int &, accessor_iter_t, full_group_blocked);
-
-// Explicit property - optimize.
-template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
-    sycl::sub_group, int, accessor_iter_t, opt_blocked>(sycl::sub_group,
-                                                        const int &,
-                                                        accessor_iter_t,
-                                                        opt_blocked);
-
-// Four shorts in blocked data layout could be stored as a single 64-bit
-// integer.
-template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
-    sycl::sub_group, short, 4, plain_global_ptr<short>, opt_blocked>(
-    sycl::sub_group, span<short, 4>, plain_global_ptr<short>, opt_blocked);
-
-// Same, but make it `const short`.
-template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
-    sycl::sub_group, const short, 4, plain_global_ptr<short>, opt_blocked>(
-    sycl::sub_group, span<const short, 4>, plain_global_ptr<short>,
-    opt_blocked);
-
-// Check for non-power-of-two size.
-template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
-    sycl::sub_group, int, 3, plain_global_ptr<int>, opt_blocked>(
-    sycl::sub_group, span<int, 3>, plain_global_ptr<int>, opt_blocked);
-
-// Four int elements in blocked data layout don't map directly to any BlockWrite
-// API.
-template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
-    sycl::sub_group, int, 4, plain_global_ptr<int>, opt_blocked>(
-    sycl::sub_group, span<int, 4>, plain_global_ptr<int>, opt_blocked);
-
-// Similar to four elements case but more complex to optimize.
-template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
-    sycl::sub_group, int, 7, plain_global_ptr<int>, opt_blocked>(
-    sycl::sub_group, span<int, 7>, plain_global_ptr<int>, opt_blocked);
-
-// Striped data layout with one element per work item isn't different from
-// blocked data layout, so use span version only in the checks below.
-
-// Ensure `detail::naive` always results in no block loads/stores.
-template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
-    sycl::sub_group, int, 2, plain_global_ptr<int>, naive_striped>(
-    sycl::sub_group, span<int, 2>, plain_global_ptr<int>, naive_striped);
-
-// Check that optimized implementation is selected.
-template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
-    sycl::sub_group, int, 2, plain_global_ptr<int>, opt_striped>(
-    sycl::sub_group, span<int, 2>, plain_global_ptr<int>, opt_striped);
-
-// Check that contiguous_memory can be auto-detected.
-template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
-    sycl::sub_group, int, 2, plain_global_ptr<int>, full_group_striped>(
-    sycl::sub_group, span<int, 2>, plain_global_ptr<int>, full_group_striped);
-
-// SYCL 2020's accessor can't be statically known to be contiguous.
-using accessor_iter_t = accessor<int, 1, access_mode::write, target::device,
-                                 access::placeholder::false_t>::iterator;
-// Can't be optimized.
-template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
-    sycl::sub_group, int, 2, accessor_iter_t, full_group_striped>(
-    sycl::sub_group, span<int, 2>, accessor_iter_t, full_group_striped);
-
-// Explicit property - optimize.
-template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
-    sycl::sub_group, int, 2, accessor_iter_t, opt_striped>(sycl::sub_group,
-                                                           span<int, 2>,
-                                                           accessor_iter_t,
-                                                           opt_striped);
-
-// Just because there is a blocked data layout testcase, nothing inherently
-// useful here.
-template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
-    sycl::sub_group, short, 4, plain_global_ptr<short>, opt_striped>(
-    sycl::sub_group, span<short, 4>, plain_global_ptr<short>, opt_striped);
-
-// Check for non-power-of-two size.
-template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
-    sycl::sub_group, int, 3, plain_global_ptr<int>, opt_striped>(
-    sycl::sub_group, span<int, 3>, plain_global_ptr<int>, opt_striped);
-
-// Even though power of two, still too many to map directly onto BloadRead API.
-template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
-    sycl::sub_group, int, 16, plain_global_ptr<int>, opt_striped>(
-    sycl::sub_group, span<int, 16>, plain_global_ptr<int>, opt_striped);
-
-// Non-power of two case bigger than max natively supported power of two case.
-template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
-    sycl::sub_group, int, 11, plain_global_ptr<int>, opt_striped>(
-    sycl::sub_group, span<int, 11>, plain_global_ptr<int>, opt_striped);
 // CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiPU3AS1iNS3_10propertiesINS0_6detail9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_6detail9naive_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T1_Esr6detailE18is_generic_group_vIT_EEvE4typeESO_RKSM_SN_T2_(
 // CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr addrspace(4) noundef align 4 dereferenceable(4) [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties") align 1 [[PROPERTIES:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] comdat !srcloc [[META5:![0-9]+]] !sycl_fixed_targets [[META6:![0-9]+]] {
 // CHECK-NEXT:  entry:
@@ -159,8 +52,11 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    store i32 [[TMP1]], ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
-//
-//
+
+// Check that optimized implementation is selected.
+template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
+    sycl::sub_group, int, plain_global_ptr<int>, opt_blocked>(
+    sycl::sub_group, const int &, plain_global_ptr<int>, opt_blocked);
 // CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiPU3AS1iNS3_10propertiesINS0_6detail9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T1_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_RKSN_SO_T2_(
 // CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr addrspace(4) noundef align 4 dereferenceable(4) [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.2") align 1 [[PROPERTIES:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META5]] !sycl_fixed_targets [[META6]] {
 // CHECK-NEXT:  entry:
@@ -185,8 +81,11 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEKILM1EPU3AS1INS3_10PROPERTIESINS0_6DETAIL9TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSC_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSC_INS3_14FULL_GROUP_KEYEJEEEEEEVEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESQ_NS0_4SPANISO_XT1_EEESP_T3__EXIT]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEKiLm1EPU3AS1iNS3_10propertiesINS0_6detail9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSC_INS3_21contiguous_memory_keyEJEEENSC_INS3_14full_group_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESQ_NS0_4spanISO_XT1_EEESP_T3_.exit:
 // CHECK-NEXT:    ret void
-//
-//
+
+// Check that contiguous_memory can be auto-detected.
+template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
+    sycl::sub_group, int, plain_global_ptr<int>, full_group_blocked>(
+    sycl::sub_group, const int &, plain_global_ptr<int>, full_group_blocked);
 // CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiPU3AS1iNS3_10propertiesINS0_6detail9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_14full_group_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T1_Esr6detailE18is_generic_group_vIT_EEvE4typeESN_RKSL_SM_T2_(
 // CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr addrspace(4) noundef align 4 dereferenceable(4) [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.6") align 1 [[PROPERTIES:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META5]] !sycl_fixed_targets [[META6]] {
 // CHECK-NEXT:  entry:
@@ -211,8 +110,14 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEKILM1EPU3AS1INS3_10PROPERTIESINS0_6DETAIL9TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSC_INS3_14FULL_GROUP_KEYEJEEEEEEVEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESO_NS0_4SPANISM_XT1_EEESN_T3__EXIT]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEKiLm1EPU3AS1iNS3_10propertiesINS0_6detail9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSC_INS3_14full_group_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESO_NS0_4spanISM_XT1_EEESN_T3_.exit:
 // CHECK-NEXT:    ret void
-//
-//
+
+// SYCL 2020's accessor can't be statically known to be contiguous.
+using accessor_iter_t = accessor<int, 1, access_mode::write, target::device,
+                                 access::placeholder::false_t>::iterator;
+// Can't be optimized.
+template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
+    sycl::sub_group, int, accessor_iter_t, full_group_blocked>(
+    sycl::sub_group, const int &, accessor_iter_t, full_group_blocked);
 // CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiNS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesINS6_9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_14full_group_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T1_Esr6detailE18is_generic_group_vIT_EEvE4typeESN_RKSL_SM_T2_(
 // CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr addrspace(4) noundef align 4 dereferenceable(4) [[IN:%.*]], ptr noundef byval(%"class.sycl::_V1::detail::accessor_iterator") align 8 [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.6") align 1 [[PROPERTIES:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META5]] !sycl_fixed_targets [[META6]] {
 // CHECK-NEXT:  entry:
@@ -228,8 +133,13 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    store i32 [[TMP2]], ptr addrspace(4) [[ADD_PTR_I_I_I_I]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
-//
-//
+
+// Explicit property - optimize.
+template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
+    sycl::sub_group, int, accessor_iter_t, opt_blocked>(sycl::sub_group,
+                                                        const int &,
+                                                        accessor_iter_t,
+                                                        opt_blocked);
 // CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiNS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesINS6_9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T1_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_RKSN_SO_T2_(
 // CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr addrspace(4) noundef align 4 dereferenceable(4) [[IN:%.*]], ptr noundef byval(%"class.sycl::_V1::detail::accessor_iterator") align 8 [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.2") align 1 [[PROPERTIES:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META5]] !sycl_fixed_targets [[META6]] {
 // CHECK-NEXT:  entry:
@@ -262,8 +172,12 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEKILM1ENS0_6DETAIL17ACCESSOR_ITERATORIILI1EEENS3_10PROPERTIESINS7_9TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSC_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSC_INS3_14FULL_GROUP_KEYEJEEEEEEVEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESQ_NS0_4SPANISO_XT1_EEESP_T3__EXIT]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEKiLm1ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesINS7_9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSC_INS3_21contiguous_memory_keyEJEEENSC_INS3_14full_group_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESQ_NS0_4spanISO_XT1_EEESP_T3_.exit:
 // CHECK-NEXT:    ret void
-//
-//
+
+// Four shorts in blocked data layout could be stored as a single 64-bit
+// integer.
+template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
+    sycl::sub_group, short, 4, plain_global_ptr<short>, opt_blocked>(
+    sycl::sub_group, span<short, 4>, plain_global_ptr<short>, opt_blocked);
 // CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEsLm4EPU3AS1sNS3_10propertiesINS0_6detail9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_(
 // CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.8") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.2") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15:![0-9]+]] !sycl_fixed_targets [[META6]] {
 // CHECK-NEXT:  entry:
@@ -321,8 +235,12 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND]], !llvm.loop [[LOOP26:![0-9]+]]
 // CHECK:       cleanup:
 // CHECK-NEXT:    ret void
-//
-//
+
+// Same, but make it `const short`.
+template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
+    sycl::sub_group, const short, 4, plain_global_ptr<short>, opt_blocked>(
+    sycl::sub_group, span<const short, 4>, plain_global_ptr<short>,
+    opt_blocked);
 // CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEKsLm4EPU3AS1sNS3_10propertiesINS0_6detail9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSC_INS3_21contiguous_memory_keyEJEEENSC_INS3_14full_group_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESQ_NS0_4spanISO_XT1_EEESP_T3_(
 // CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.9") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.2") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
 // CHECK-NEXT:  entry:
@@ -380,8 +298,11 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND]], !llvm.loop [[LOOP33:![0-9]+]]
 // CHECK:       cleanup:
 // CHECK-NEXT:    ret void
-//
-//
+
+// Check for non-power-of-two size.
+template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
+    sycl::sub_group, int, 3, plain_global_ptr<int>, opt_blocked>(
+    sycl::sub_group, span<int, 3>, plain_global_ptr<int>, opt_blocked);
 // CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm3EPU3AS1iNS3_10propertiesINS0_6detail9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_(
 // CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.10") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.2") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
 // CHECK-NEXT:  entry:
@@ -408,8 +329,12 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm3EPU3AS1iNS3_10propertiesINS0_6detail9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS3_6detail9naive_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESS_NS0_4spanISQ_XT1_EEESR_T3_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
-//
-//
+
+// Four int elements in blocked data layout don't map directly to any BlockWrite
+// API.
+template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
+    sycl::sub_group, int, 4, plain_global_ptr<int>, opt_blocked>(
+    sycl::sub_group, span<int, 4>, plain_global_ptr<int>, opt_blocked);
 // CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm4EPU3AS1iNS3_10propertiesINS0_6detail9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_(
 // CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.11") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.2") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
 // CHECK-NEXT:  entry:
@@ -436,8 +361,11 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm4EPU3AS1iNS3_10propertiesINS0_6detail9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS3_6detail9naive_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESS_NS0_4spanISQ_XT1_EEESR_T3_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
-//
-//
+
+// Similar to four elements case but more complex to optimize.
+template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
+    sycl::sub_group, int, 7, plain_global_ptr<int>, opt_blocked>(
+    sycl::sub_group, span<int, 7>, plain_global_ptr<int>, opt_blocked);
 // CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm7EPU3AS1iNS3_10propertiesINS0_6detail9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_(
 // CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.12") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.2") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
 // CHECK-NEXT:  entry:
@@ -464,8 +392,14 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm7EPU3AS1iNS3_10propertiesINS0_6detail9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS3_6detail9naive_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESS_NS0_4spanISQ_XT1_EEESR_T3_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
-//
-//
+
+// Striped data layout with one element per work item isn't different from
+// blocked data layout, so use span version only in the checks below.
+
+// Ensure `detail::naive` always results in no block loads/stores.
+template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
+    sycl::sub_group, int, 2, plain_global_ptr<int>, naive_striped>(
+    sycl::sub_group, span<int, 2>, plain_global_ptr<int>, naive_striped);
 // CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2EPU3AS1iNS3_10propertiesINS0_6detail9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_6detail9naive_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESO_NS0_4spanISM_XT1_EEESN_T3_(
 // CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.13") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.14") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
 // CHECK-NEXT:  entry:
@@ -492,8 +426,11 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    store i32 [[TMP3]], ptr addrspace(1) [[ARRAYIDX]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[INC]] = add nuw nsw i32 [[I_0]], 1
 // CHECK-NEXT:    br label [[FOR_COND]], !llvm.loop [[LOOP54:![0-9]+]]
-//
-//
+
+// Check that optimized implementation is selected.
+template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
+    sycl::sub_group, int, 2, plain_global_ptr<int>, opt_striped>(
+    sycl::sub_group, span<int, 2>, plain_global_ptr<int>, opt_striped);
 // CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2EPU3AS1iNS3_10propertiesINS0_6detail9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_(
 // CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.13") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.18") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
 // CHECK-NEXT:  entry:
@@ -552,8 +489,11 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND]], !llvm.loop [[LOOP62:![0-9]+]]
 // CHECK:       cleanup:
 // CHECK-NEXT:    ret void
-//
-//
+
+// Check that contiguous_memory can be auto-detected.
+template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
+    sycl::sub_group, int, 2, plain_global_ptr<int>, full_group_striped>(
+    sycl::sub_group, span<int, 2>, plain_global_ptr<int>, full_group_striped);
 // CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2EPU3AS1iNS3_10propertiesINS0_6detail9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_14full_group_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESN_NS0_4spanISL_XT1_EEESM_T3_(
 // CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.13") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.20") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
 // CHECK-NEXT:  entry:
@@ -612,8 +552,14 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND]], !llvm.loop [[LOOP70:![0-9]+]]
 // CHECK:       cleanup:
 // CHECK-NEXT:    ret void
-//
-//
+
+// SYCL 2020's accessor can't be statically known to be contiguous.
+using accessor_iter_t = accessor<int, 1, access_mode::write, target::device,
+                                 access::placeholder::false_t>::iterator;
+// Can't be optimized.
+template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
+    sycl::sub_group, int, 2, accessor_iter_t, full_group_striped>(
+    sycl::sub_group, span<int, 2>, accessor_iter_t, full_group_striped);
 // CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesINS6_9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_14full_group_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESN_NS0_4spanISL_XT1_EEESM_T3_(
 // CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.13") align 8 [[IN:%.*]], ptr noundef byval(%"class.sycl::_V1::detail::accessor_iterator") align 8 [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.20") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
 // CHECK-NEXT:  entry:
@@ -645,8 +591,13 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesINS6_9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_14full_group_keyEJEEENSB_INS3_6detail9naive_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESQ_NS0_4spanISO_XT1_EEESP_T3_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
-//
-//
+
+// Explicit property - optimize.
+template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
+    sycl::sub_group, int, 2, accessor_iter_t, opt_striped>(sycl::sub_group,
+                                                           span<int, 2>,
+                                                           accessor_iter_t,
+                                                           opt_striped);
 // CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesINS6_9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_(
 // CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.13") align 8 [[IN:%.*]], ptr noundef byval(%"class.sycl::_V1::detail::accessor_iterator") align 8 [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.18") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
 // CHECK-NEXT:  entry:
@@ -713,8 +664,12 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND]], !llvm.loop [[LOOP85:![0-9]+]]
 // CHECK:       cleanup:
 // CHECK-NEXT:    ret void
-//
-//
+
+// Just because there is a blocked data layout testcase, nothing inherently
+// useful here.
+template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
+    sycl::sub_group, short, 4, plain_global_ptr<short>, opt_striped>(
+    sycl::sub_group, span<short, 4>, plain_global_ptr<short>, opt_striped);
 // CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEsLm4EPU3AS1sNS3_10propertiesINS0_6detail9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_(
 // CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.8") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.18") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
 // CHECK-NEXT:  entry:
@@ -773,8 +728,11 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND]], !llvm.loop [[LOOP93:![0-9]+]]
 // CHECK:       cleanup:
 // CHECK-NEXT:    ret void
-//
-//
+
+// Check for non-power-of-two size.
+template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
+    sycl::sub_group, int, 3, plain_global_ptr<int>, opt_striped>(
+    sycl::sub_group, span<int, 3>, plain_global_ptr<int>, opt_striped);
 // CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm3EPU3AS1iNS3_10propertiesINS0_6detail9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_(
 // CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.10") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.18") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
 // CHECK-NEXT:  entry:
@@ -802,8 +760,11 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm3EPU3AS1iNS3_10propertiesINS0_6detail9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS3_6detail9naive_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESS_NS0_4spanISQ_XT1_EEESR_T3_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
-//
-//
+
+// Even though power of two, still too many to map directly onto BloadRead API.
+template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
+    sycl::sub_group, int, 16, plain_global_ptr<int>, opt_striped>(
+    sycl::sub_group, span<int, 16>, plain_global_ptr<int>, opt_striped);
 // CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm16EPU3AS1iNS3_10propertiesINS0_6detail9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_(
 // CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.22") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.18") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
 // CHECK-NEXT:  entry:
@@ -831,8 +792,11 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm16EPU3AS1iNS3_10propertiesINS0_6detail9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS3_6detail9naive_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESS_NS0_4spanISQ_XT1_EEESR_T3_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
-//
-//
+
+// Non-power of two case bigger than max natively supported power of two case.
+template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
+    sycl::sub_group, int, 11, plain_global_ptr<int>, opt_striped>(
+    sycl::sub_group, span<int, 11>, plain_global_ptr<int>, opt_striped);
 // CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm11EPU3AS1iNS3_10propertiesINS0_6detail9type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEvEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_(
 // CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.23") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.18") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
 // CHECK-NEXT:  entry:
