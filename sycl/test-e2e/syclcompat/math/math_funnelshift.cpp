@@ -27,13 +27,13 @@
 #include <syclcompat/math.hpp>
 #include <syclcompat/memory.hpp>
 
-void testFunnelShiftKernel(int * const TestResults) {
+void testFunnelShiftKernel(int *const TestResults) {
   TestResults[0] = (syclcompat::funnelshift_l(0xAA000000, 0xBB, 8) == 0xBBAA);
-  TestResults[1] = (syclcompat::funnelshift_lc(0xAA000000, 0xBB, 16) == 0xBBAA00);
+  TestResults[1] =
+      (syclcompat::funnelshift_lc(0xAA000000, 0xBB, 16) == 0xBBAA00);
   TestResults[2] = (syclcompat::funnelshift_r(0xAA00, 0xBB, 8) == 0xBB0000AA);
   TestResults[3] = (syclcompat::funnelshift_rc(0xAA0000, 0xBB, 16) == 0xBB00AA);
 }
-
 
 int main() {
   constexpr int nTests = 4;
@@ -44,9 +44,9 @@ int main() {
   syclcompat::fill<int>(testResults, 0, nTests, q);
 
   q.submit([&](sycl::handler &cgh) {
-    sycl::stream out(1024, 256, cgh);
-    cgh.parallel_for(1, [=](sycl::item<1> it) { testFunnelShiftKernel(testResults); });
-  }).wait_and_throw();
+     cgh.parallel_for(
+         1, [=](sycl::item<1> it) { testFunnelShiftKernel(testResults); });
+   }).wait_and_throw();
 
   syclcompat::memcpy<int>(testResultsHost, testResults, nTests, q);
 
