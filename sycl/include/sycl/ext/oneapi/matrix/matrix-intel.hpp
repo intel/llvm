@@ -532,7 +532,7 @@ public:
                             spv_matrix_use_traits<Use>::value,                 \
                             spv_scope_traits<Group>::value>(&rhs.M.spvm,       \
                                                             rhs.idx);          \
-    return type{static_cast<float>(*ExtractP) op static_cast<float>(lhs)};    \
+    return type{static_cast<float>(*ExtractP) op static_cast<float>(lhs)};     \
   }
 #endif // __SPIRV_USE_COOPERATIVE_MATRIX
   OP(bool, ==)
