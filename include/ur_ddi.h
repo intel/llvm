@@ -1523,7 +1523,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesUnsampledImageCreateExp_t)(
     ur_exp_image_mem_handle_t,
     const ur_image_format_t *,
     const ur_image_desc_t *,
-    ur_mem_handle_t *,
     ur_exp_image_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1535,7 +1534,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesSampledImageCreateExp_t)(
     const ur_image_format_t *,
     const ur_image_desc_t *,
     ur_sampler_handle_t,
-    ur_mem_handle_t *,
     ur_exp_image_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
