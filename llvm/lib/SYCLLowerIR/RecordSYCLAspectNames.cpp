@@ -52,9 +52,9 @@ PreservedAnalyses RecordSYCLAspectNamesPass::run(Module &M,
       for (const auto &MDOp : MDNode->operands()) {
         auto *C = mdconst::extract<ConstantInt>(MDOp);
         int64_t AspectValue = C->getSExtValue();
-        if (auto it = ValueToNameValuePairMD.find(AspectValue);
-            it != ValueToNameValuePairMD.end())
-          AspectNameValuePairs.push_back(it->second);
+        if (auto It = ValueToNameValuePairMD.find(AspectValue);
+            It != ValueToNameValuePairMD.end())
+          AspectNameValuePairs.push_back(It->second);
         else
           AspectNameValuePairs.push_back(MDOp);
       }
