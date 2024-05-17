@@ -357,7 +357,7 @@ class.
 [source,c++]
 ----
 #include <sycl/sycl.hpp>
-namespace syclex = sycl::ext::oneapi::experimental;
+namespace syclexp = sycl::ext::oneapi::experimental;
 
 constexpr size_t SIZE = 4096;
 constexpr size_t WGSIZE = 256;
@@ -367,7 +367,7 @@ int main() {
 
   q.submit([&](sycl::handler &cgh) {
     // Allocate one element for each work-item in the work-group.
-    syclex::work_group_memory<int[WGSIZE]> mem{cgh};
+    syclexp::work_group_memory<int[WGSIZE]> mem{cgh};
 
     sycl::nd_range ndr{{SIZE}, {WGSIZE}};
     cgh.parallel_for(ndr, [=](sycl::nd_item<> it) {
@@ -388,7 +388,7 @@ The following example illustrates various operations that can be done with the
 [source,c++]
 ----
 #include <sycl/sycl.hpp>
-namespace syclex = sycl::ext::oneapi::experimental;
+namespace syclexp = sycl::ext::oneapi::experimental;
 
 constexpr size_t SIZE = 4096;
 constexpr size_t WGSIZE = 256;
@@ -402,11 +402,11 @@ int main() {
   sycl::queue q;
 
   q.submit([&](sycl::handler &cgh) {
-    syclex::work_group_memory<int>       mem1{cgh};    // scalar
-    syclex::work_group_memory<int[10]>   mem2{cgh};    // bounded array
-    syclex::work_group_memory<int[]>     mem3{5, cgh}; // unbounded array
-    syclex::work_group_memory<int[][10]> mem4{2, cgh}; // multi-dimensional array
-    syclex::work_group_memory<point[10]> mem5{cgh};    // array of struct
+    syclexp::work_group_memory<int>       mem1{cgh};    // scalar
+    syclexp::work_group_memory<int[10]>   mem2{cgh};    // bounded array
+    syclexp::work_group_memory<int[]>     mem3{5, cgh}; // unbounded array
+    syclexp::work_group_memory<int[][10]> mem4{2, cgh}; // multi-dimensional array
+    syclexp::work_group_memory<point[10]> mem5{cgh};    // array of struct
 
     sycl::nd_range ndr{{SIZE}, {WGSIZE}};
     cgh.parallel_for(ndr, [=](sycl::nd_item<> it) {
@@ -435,6 +435,50 @@ int main() {
         mem5[1].y = mem5[1].y + 1;
       }
     });
+  }).wait();
+}
+----
+
+=== Usage with a free function kernel
+
+The following example illustrates usage of `work_group_memory` in a free
+function kernel.
+
+[source,c++]
+----
+#include <sycl/sycl.hpp>
+namespace syclexp = sycl::ext::oneapi::experimental;
+namespace syclext = sycl::ext::oneapi;
+
+constexpr size_t SIZE = 4096;
+constexpr size_t WGSIZE = 256;
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void mykernel(syclexp::work_group_memory<int[WGSIZE]> mem) {
+  size_t id = syclext::this_work_item::get_nd_item().get_local_linear_id();
+
+  // Each work-item has its own dedicated element of the device local memory
+  // array.
+  mem[id] = /*...*/;
+}
+
+int main() {
+  sycl::queue q;
+  sycl::context ctxt = q.get_context();
+
+  // Get the kernel object for the "mykernel" kernel.
+  auto exe_bndl =
+    syclexp::get_kernel_bundle<mykernel, sycl::bundle_state::executable>(ctxt);
+  sycl::kernel k_mykernel = exe_bndl.ext_oneapi_get_kernel<mykernel>();
+
+  q.submit([&](sycl::handler &cgh) {
+    // Allocate an array of device local memory with one element for each
+    // work-item in the work-group.
+    syclexp::work_group_memory<int[WGSIZE]> mem{cgh};
+    cgh.set_args(mem);
+
+    sycl::nd_range ndr{{NUM}, {WGSIZE}};
+    cgh.parallel_for(ndr, k_mykernel);
   }).wait();
 }
 ----
@@ -474,7 +518,7 @@ Usage would be like:
 +
 [source,c++]
 ----
-syclex::work_group_memory mem{syclex::type<int[10]>, cgh, props};
+syclexp::work_group_memory mem{syclexp::type<int[10]>, cgh, props};
 ----
 +
 Another option is to add a factory function like:
@@ -490,7 +534,7 @@ In which case, usage would be like:
 +
 [source,c++]
 ----
-auto mem = syclex::make_work_group_memory<int[10]>(cgh, props);
+auto mem = syclexp::make_work_group_memory<int[10]>(cgh, props);
 ----
 +
 We decided to defer this decision for now because we don't have any properties
