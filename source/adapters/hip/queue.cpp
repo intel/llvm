@@ -222,6 +222,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
       UR_CHECK_ERROR(hipStreamDestroy(S));
     });
 
+    if (hQueue->ProfStreamCreated) {
+      UR_CHECK_ERROR(hipStreamSynchronize(ProfStream));
+      UR_CHECK_ERROR(hipStreamDestroy(ProfStream));
+    }
+
     return UR_RESULT_SUCCESS;
   } catch (ur_result_t Err) {
     return Err;
