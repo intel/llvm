@@ -961,6 +961,10 @@ unsigned int __devicelib_imf_viaddmax_s16x2(unsigned int, unsigned int,
                                             unsigned int);
 
 DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmax_s16x2_relu(unsigned int, unsigned int,
+                                                 unsigned int);
+
+DEVICE_EXTERN_C_INLINE
 unsigned int __imf_vabs2(unsigned int x) { return __devicelib_imf_vabs2(x); }
 
 DEVICE_EXTERN_C_INLINE
@@ -1366,6 +1370,12 @@ DEVICE_EXTERN_C_INLINE
 unsigned int __imf_viaddmax_s16x2(unsigned int x, unsigned int y,
                                   unsigned int z) {
   return __devicelib_imf_viaddmax_s16x2(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_viaddmax_s16x2_relu(unsigned int x, unsigned int y,
+                                       unsigned int z) {
+  return __devicelib_imf_viaddmax_s16x2_relu(x, y, z);
 }
 
 // FP16 type cast functions

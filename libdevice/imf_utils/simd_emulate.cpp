@@ -372,6 +372,17 @@ public:
     return __imax<Tp>(x + y, z);
   }
 };
+
+template <typename Tp> class __iaddmax_relu_op {
+  static_assert(std::is_same<int16_t, Tp>::value,
+                "Tp can only accept int16_t for iaddmax_relu op.");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y, const Tp &z) {
+    Tp t = __imax<Tp>(x + y, z);
+    return __imax<Tp>(t, 0);
+  }
+};
 #pragma clang optimize on
 
 template <typename Tp, size_t N, template <typename> class TernaryOp>
@@ -1074,5 +1085,15 @@ DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_viaddmax_s16x2(unsigned int x, unsigned int y,
                                             unsigned int z) {
   return __internal_v_ternary_op<int16_t, 2, __iaddmax_op>(x, y, z);
+}
+
+// Split 32-bit value into 2 16-bit parts, interpret each part as singed short.
+// For corresponding part, perform and add and compare operation:
+// max(max(x_part + y_part, z_part), 0), partial results are combined for
+// return.
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmax_s16x2_relu(unsigned int x, unsigned int y,
+                                                 unsigned int z) {
+  return __internal_v_ternary_op<int16_t, 2, __iaddmax_relu_op>(x, y, z);
 }
 #endif

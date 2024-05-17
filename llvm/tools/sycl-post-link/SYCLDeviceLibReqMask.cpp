@@ -437,6 +437,7 @@ SYCLDeviceLibFuncMap SDLMap = {
     {"__devicelib_imf_vsadu2", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_vsadu4", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_viaddmax_s16x2", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_viaddmax_s16x2_relu", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_double2half", DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_double2bfloat16",
      DeviceLibExt::cl_intel_devicelib_imf_fp64},
