@@ -56,19 +56,9 @@ void matrix_verify_add(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 static constexpr size_t MATRIX_M = TM * 2;
 static constexpr size_t MATRIX_N = TN * 2;
 bfloat16 A[MATRIX_M][MATRIX_N];
-float D[MATRIX_M][MATRIX_N];
-
-void matrix_ops_ref(float *D, int M, int N) {
-  for (int m = 0; m < M; m++)
-    for (int n = 0; n < N; n++) {
-      *(D + m * N + n) = 0;
-      *(D + m * N + n) *= 2;
-    }
-}
 
 int main() {
 
-  big_matrix<float, MATRIX_M, MATRIX_N> MD((float *)&D);
   big_matrix<bfloat16, MATRIX_M, MATRIX_N> MA((bfloat16 *)&A);
 
   size_t NDRangeM = MATRIX_M / TM;
