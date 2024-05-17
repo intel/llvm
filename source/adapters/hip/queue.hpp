@@ -22,6 +22,10 @@ struct ur_queue_handle_t_ {
 
   std::vector<native_type> ComputeStreams;
   std::vector<native_type> TransferStreams;
+  // Stream used solely when profiling is enabled
+  native_type ProfStream;
+  static std::once_flag ProfStreamFlag;
+  bool ProfStreamCreated;
   // DelayCompute keeps track of which streams have been recently reused and
   // their next use should be delayed. If a stream has been recently reused it
   // will be skipped the next time it would be selected round-robin style. When
@@ -59,8 +63,8 @@ struct ur_queue_handle_t_ {
                      ur_context_handle_t Context, ur_device_handle_t Device,
                      unsigned int Flags, ur_queue_flags_t URFlags, int Priority,
                      bool BackendOwns = true)
-      : ComputeStreams{std::move(ComputeStreams)}, TransferStreams{std::move(
-                                                       TransferStreams)},
+      : ComputeStreams{std::move(ComputeStreams)},
+        TransferStreams{std::move(TransferStreams)},
         DelayCompute(this->ComputeStreams.size(), false),
         ComputeAppliedBarrier(this->ComputeStreams.size()),
         TransferAppliedBarrier(this->TransferStreams.size()), Context{Context},
@@ -94,6 +98,17 @@ struct ur_queue_handle_t_ {
                                    uint32_t *StreamToken = nullptr);
   native_type getNextTransferStream();
   native_type get() { return getNextComputeStream(); };
+
+  // Function which creates the profiling stream. Called only from makeNative
+  // in event handle, if the profiling is enabled.
+  void createProfilingStream() {
+    std::call_once(ProfStreamFlag, []() {
+      UR_CHECK_ERROR(
+          hipEventCreateWithFlags(&ProfStream, hipStreamNonBlocking));
+      ProfStreamCreated = true;
+    });
+  }
+  native_type getProfilingStream() { return ProfStream; }
 
   bool hasBeenSynchronized(uint32_t StreamToken) {
     // stream token not associated with one of the compute streams

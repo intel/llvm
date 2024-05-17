@@ -83,6 +83,9 @@ public:
     const bool RequiresTimings =
         Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE ||
         Type == UR_COMMAND_TIMESTAMP_RECORDING_EXP;
+    if (RequiresTimings) {
+      Queue->createProfilingStream();
+    }
     native_type EvEnd{nullptr}, EvQueued{nullptr}, EvStart{nullptr};
     UR_CHECK_ERROR(hipEventCreateWithFlags(
         &EvEnd, RequiresTimings ? hipEventDefault : hipEventDisableTiming));
