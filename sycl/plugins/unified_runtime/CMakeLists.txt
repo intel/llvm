@@ -94,14 +94,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/DBDuncan/unified-runtime.git")
-  # commit bbb04b65b59696697bcf04c7a6d843a9ea330b52
-  # Author: Duncan Brawley <duncan.brawley@codeplay.com>
-  # Date:   Thu, 21 Mar 2024 16:35:42 +0000
-  #    [Bindless][Exp] Remove phMem argument from bindless image creation functions
-  #     Remove phMem argument from bindless image creation functions.
-  #     It not used outside of UR and is currently causing a minor memory leak.
-  set(UNIFIED_RUNTIME_TAG bbb04b65b59696697bcf04c7a6d843a9ea330b52)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 056d653264034e546d8b8f493e1d9f65c697829b
+  # Merge: b7c89302 bbb04b65
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Fri May 17 15:11:12 2024 +0100
+  #     Merge pull request #1512 from DBDuncan/duncan/fix_pi_mem_leak
+  #     [Bindless][Exp] Remove phMem argument from bindless image creation functions
+  set(UNIFIED_RUNTIME_TAG 056d653264034e546d8b8f493e1d9f65c697829b)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
