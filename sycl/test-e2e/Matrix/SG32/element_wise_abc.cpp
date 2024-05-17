@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix
+// REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
 // RUN: %{build} -o %t.out
@@ -14,6 +14,5 @@
 #include "../common.hpp"
 
 #define SG_SZ 32
-constexpr size_t TN = 16;
 
 #include "../element_wise_abc_impl.hpp"
