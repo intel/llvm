@@ -787,11 +787,13 @@ The interface to the kernel in the native device code module is only guaranteed
 when the kernel adheres to the following restrictions:
 
 * The kernel is written in the free function kernel syntax;
-* The kernel function is declared as `extern "C"`; and
+* The kernel function is declared as `extern "C"`;
 * Each formal argument to the kernel is either a {cpp} trivially copyable type
   or the `work_group_memory` type (see
   link:../proposed/sycl_ext_oneapi_work_group_memory.asciidoc[
-  sycl_ext_oneapi_work_group_memory]).
+  sycl_ext_oneapi_work_group_memory]); and
+* The translation unit containing the kernel is compiled with the
+  `-fno-sycl-dead-args-optimization` option.
 
 Both Level Zero and OpenCL identify a kernel via a _name_ string.
 (See `zeKernelCreate` and `clCreateKernel` in their respective specifications.)
