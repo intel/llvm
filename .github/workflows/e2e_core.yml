@@ -168,7 +168,8 @@ jobs:
         -DCMAKE_CXX_COMPILER="$(which clang++)"
         -DLLVM_LIT="${{github.workspace}}/sycl-repo/llvm/utils/lit/lit.py"
 
-    - name: Set test filters
+    - name: Set test filters for L0
+      if: matrix.adapter.name == 'L0'
       run: |
         echo "LIT_XFAIL_NOT=${{inputs.xfail_not}}" >> $GITHUB_ENV
         echo "LIT_XFAIL=${{inputs.xfail}}" >> $GITHUB_ENV
