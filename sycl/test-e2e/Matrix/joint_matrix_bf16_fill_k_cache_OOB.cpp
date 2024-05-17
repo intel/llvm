@@ -9,7 +9,7 @@
 // UNSUPPORTED: gpu-intel-dg2
 
 // RUN: %{build} -o %t_gpu.out -ffp-model=precise -DOOB
-// RUN: %if gpu %{ %{run} %t_gpu.out %}
+// RUN: %{run} %t_gpu.out
 
 // XFAIL: gpu
 
