@@ -95,18 +95,23 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ebf873fb5996c9ddca32bbb7c9330d3ffe15473c
-  # Merge: 633ec408 8f375039
+  # commit 4c69624c3f651819210148ad11d0e1e5c9af12de
+  # Merge: ea009363 f04b44c3
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu May 2 10:56:55 2024 +0100
-  #    Merge pull request #1535 from przemektmalon/przemek/sampled-image-fetch
-  #    
-  #    [Bindless][Exp] Add device queries for sampled image fetch
-  set(UNIFIED_RUNTIME_TAG ebf873fb5996c9ddca32bbb7c9330d3ffe15473c)
+  # Date:   Mon May 13 11:56:12 2024 +0100
+  #     Merge pull request #1532 from AllanZyne/review/yang/local_accessor
+  #     [DeviceSanitizer] Check out-of-bounds on sycl::local_accessor
+  set(UNIFIED_RUNTIME_TAG 4c69624c3f651819210148ad11d0e1e5c9af12de)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit b14af4bbd5cabc4e6c3c7ae738f5f6d886d9102b
+    # Merge: 1ff111c1 ece1e2cd
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed May 15 14:01:05 2024 +0100
+    #     Merge pull request #1592 from nrspruit/fix_event_use_after_delete
+    #     [L0] Fix timestamp event evict after delete
+    b14af4bbd5cabc4e6c3c7ae738f5f6d886d9102b
   )
 
   fetch_adapter_source(opencl
@@ -116,7 +121,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 1ff111c12ea5bcb7b524dc377237c997fd884b8f
+    # Merge: 50452b75 28393448
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed May 15 13:30:30 2024 +0100
+    #     Merge pull request #1596 from Bensuo/cuda_bool
+    #     [CUDA] Change `bool` variable type to `unsigned int`
+    1ff111c12ea5bcb7b524dc377237c997fd884b8f
   )
 
   fetch_adapter_source(hip
@@ -126,7 +137,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 50452b75f0d1d7434f5beb4febd642af59a994ff
+    # Merge: 78b8e3e3 fa084d0a
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed May 15 10:37:42 2024 +0100
+    #     Merge pull request #1477 from PietroGhg/pietro/reqd_work_group_size
+    #     [NATIVECPU] Support reqd_work_group_size on Native CPU
+    50452b75f0d1d7434f5beb4febd642af59a994ff
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)

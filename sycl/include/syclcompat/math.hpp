@@ -31,12 +31,11 @@
 
 #pragma once
 
-#include <sycl/sycl.hpp>
-
 #ifndef SYCL_EXT_ONEAPI_COMPLEX
 #define SYCL_EXT_ONEAPI_COMPLEX
 #endif
 
+#include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
 #include <sycl/ext/oneapi/experimental/complex/complex.hpp>
 
 namespace syclcompat {
@@ -424,38 +423,40 @@ cbrt(ValueT val) {
 // `std::int64_t` type arguments are acceptable.
 // sycl::half supported as well.
 template <typename ValueT, typename ValueU>
-std::enable_if_t<std::is_integral_v<ValueT> && std::is_integral_v<ValueU>,
-                 std::common_type_t<ValueT, ValueU>>
+inline std::enable_if_t<std::is_integral_v<ValueT> &&
+                            std::is_integral_v<ValueU>,
+                        std::common_type_t<ValueT, ValueU>>
 min(ValueT a, ValueU b) {
   return sycl::min(static_cast<std::common_type_t<ValueT, ValueU>>(a),
                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
 }
 template <typename ValueT, typename ValueU>
-std::enable_if_t<std::is_floating_point_v<ValueT> &&
-                     std::is_floating_point_v<ValueU>,
-                 std::common_type_t<ValueT, ValueU>>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> &&
+                            std::is_floating_point_v<ValueU>,
+                        std::common_type_t<ValueT, ValueU>>
 min(ValueT a, ValueU b) {
   return sycl::fmin(static_cast<std::common_type_t<ValueT, ValueU>>(a),
                     static_cast<std::common_type_t<ValueT, ValueU>>(b));
 }
-sycl::half min(sycl::half a, sycl::half b) { return sycl::fmin(a, b); }
+inline sycl::half min(sycl::half a, sycl::half b) { return sycl::fmin(a, b); }
 
 template <typename ValueT, typename ValueU>
-std::enable_if_t<std::is_integral_v<ValueT> && std::is_integral_v<ValueU>,
-                 std::common_type_t<ValueT, ValueU>>
+inline std::enable_if_t<std::is_integral_v<ValueT> &&
+                            std::is_integral_v<ValueU>,
+                        std::common_type_t<ValueT, ValueU>>
 max(ValueT a, ValueU b) {
   return sycl::max(static_cast<std::common_type_t<ValueT, ValueU>>(a),
                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
 }
 template <typename ValueT, typename ValueU>
-std::enable_if_t<std::is_floating_point_v<ValueT> &&
-                     std::is_floating_point_v<ValueU>,
-                 std::common_type_t<ValueT, ValueU>>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> &&
+                            std::is_floating_point_v<ValueU>,
+                        std::common_type_t<ValueT, ValueU>>
 max(ValueT a, ValueU b) {
   return sycl::fmax(static_cast<std::common_type_t<ValueT, ValueU>>(a),
                     static_cast<std::common_type_t<ValueT, ValueU>>(b));
 }
-sycl::half max(sycl::half a, sycl::half b) { return sycl::fmax(a, b); }
+inline sycl::half max(sycl::half a, sycl::half b) { return sycl::fmax(a, b); }
 
 /// Performs 2 elements comparison and returns the bigger one. If either of
 /// inputs is NaN, then return NaN.
@@ -672,6 +673,22 @@ struct sub_sat {
     return sycl::sub_sat(x, y);
   }
 };
+
+namespace detail {
+struct shift_left {
+  template <typename T>
+  auto operator()(const T x, const uint32_t offset) const {
+    return x << offset;
+  }
+};
+
+struct shift_right {
+  template <typename T>
+  auto operator()(const T x, const uint32_t offset) const {
+    return x >> offset;
+  }
+};
+} // namespace detail
 
 /// Compute vectorized binary operation value for two values, with each value
 /// treated as a vector type \p VecT.
@@ -999,6 +1016,186 @@ template <typename RetT, typename AT, typename BT, typename CT,
 inline constexpr RetT extend_max_sat(AT a, BT b, CT c,
                                      BinaryOperation second_op) {
   return detail::extend_binary<RetT, true>(a, b, c, maximum(), second_op);
+}
+
+/// Extend \p a and \p b to 33 bit and return a << clamp(b, 0, 32).
+/// \param [in] a The source value
+/// \param [in] b The offset to shift
+/// \returns a << clamp(b, 0, 32)
+template <typename RetT, typename T>
+inline constexpr RetT extend_shl_clamp(T a, uint32_t b) {
+  return detail::extend_binary<RetT, false>(a, sycl::clamp(b, 0u, 32u),
+                                            detail::shift_left());
+}
+
+/// Extend Inputs to 33 bit, and return second_op(a << clamp(b, 0, 32), c).
+/// \param [in] a The source value
+/// \param [in] b The offset to shift
+/// \param [in] c The value to merge
+/// \param [in] second_op The operation to do with the third value
+/// \returns second_op(a << clamp(b, 0, 32), c)
+template <typename RetT, typename T, typename BinaryOperation>
+inline constexpr RetT extend_shl_clamp(T a, uint32_t b, uint32_t c,
+                                       BinaryOperation second_op) {
+  return detail::extend_binary<RetT, false>(a, sycl::clamp(b, 0u, 32u), c,
+                                            detail::shift_left(), second_op);
+}
+
+/// Extend \p a and \p b to 33 bit and return sat(a << clamp(b, 0, 32)).
+/// \param [in] a The source value
+/// \param [in] b The offset to shift
+/// \returns sat(a << clamp(b, 0, 32))
+template <typename RetT, typename T>
+inline constexpr RetT extend_shl_sat_clamp(T a, uint32_t b) {
+  return detail::extend_binary<RetT, true>(a, sycl::clamp(b, 0u, 32u),
+                                           detail::shift_left());
+}
+
+/// Extend Inputs to 33 bit, and return second_op(sat(a << clamp(b, 0, 32)), c).
+/// \param [in] a The source value
+/// \param [in] b The offset to shift
+/// \param [in] c The value to merge
+/// \param [in] second_op The operation to do with the third value
+/// \returns second_op(sat(a << clamp(b, 0, 32)), c)
+template <typename RetT, typename T, typename BinaryOperation>
+inline constexpr RetT extend_shl_sat_clamp(T a, uint32_t b, uint32_t c,
+                                           BinaryOperation second_op) {
+  return detail::extend_binary<RetT, true>(a, sycl::clamp(b, 0u, 32u), c,
+                                           detail::shift_left(), second_op);
+}
+
+/// Extend \p a and \p b to 33 bit and return a << (b & 0x1F).
+/// \param [in] a The source value
+/// \param [in] b The offset to shift
+/// \returns a << (b & 0x1F)
+template <typename RetT, typename T>
+inline constexpr RetT extend_shl_wrap(T a, uint32_t b) {
+  return detail::extend_binary<RetT, false>(a, b & 0x1F, detail::shift_left());
+}
+
+/// Extend Inputs to 33 bit, and return second_op(a << (b & 0x1F), c).
+/// \param [in] a The source value
+/// \param [in] b The offset to shift
+/// \param [in] c The value to merge
+/// \param [in] second_op The operation to do with the third value
+/// \returns second_op(a << (b & 0x1F), c)
+template <typename RetT, typename T, typename BinaryOperation>
+inline constexpr RetT extend_shl_wrap(T a, uint32_t b, uint32_t c,
+                                      BinaryOperation second_op) {
+  return detail::extend_binary<RetT, false>(a, b & 0x1F, c,
+                                            detail::shift_left(), second_op);
+}
+
+/// Extend \p a and \p b to 33 bit and return sat(a << (b & 0x1F)).
+/// \param [in] a The source value
+/// \param [in] b The offset to shift
+/// \returns sat(a << (b & 0x1F))
+template <typename RetT, typename T>
+inline constexpr RetT extend_shl_sat_wrap(T a, uint32_t b) {
+  return detail::extend_binary<RetT, true>(a, b & 0x1F, detail::shift_left());
+}
+
+/// Extend Inputs to 33 bit, and return second_op(sat(a << (b & 0x1F)), c).
+/// \param [in] a The source value
+/// \param [in] b The offset to shift
+/// \param [in] c The value to merge
+/// \param [in] second_op The operation to do with the third value
+/// \returns second_op(sat(a << (b & 0x1F)), c)
+template <typename RetT, typename T, typename BinaryOperation>
+inline constexpr RetT extend_shl_sat_wrap(T a, uint32_t b, uint32_t c,
+                                          BinaryOperation second_op) {
+  return detail::extend_binary<RetT, true>(a, b & 0x1F, c, detail::shift_left(),
+                                           second_op);
+}
+
+/// Extend \p a and \p b to 33 bit and return a >> clamp(b, 0, 32).
+/// \param [in] a The source value
+/// \param [in] b The offset to shift
+/// \returns a >> clamp(b, 0, 32)
+template <typename RetT, typename T>
+inline constexpr RetT extend_shr_clamp(T a, uint32_t b) {
+  return detail::extend_binary<RetT, false>(a, sycl::clamp(b, 0u, 32u),
+                                            detail::shift_right());
+}
+
+/// Extend Inputs to 33 bit, and return second_op(a >> clamp(b, 0, 32), c).
+/// \param [in] a The source value
+/// \param [in] b The offset to shift
+/// \param [in] c The value to merge
+/// \param [in] second_op The operation to do with the third value
+/// \returns second_op(a >> clamp(b, 0, 32), c)
+template <typename RetT, typename T, typename BinaryOperation>
+inline constexpr RetT extend_shr_clamp(T a, uint32_t b, uint32_t c,
+                                       BinaryOperation second_op) {
+  return detail::extend_binary<RetT, false>(a, sycl::clamp(b, 0u, 32u), c,
+                                            detail::shift_right(), second_op);
+}
+
+/// Extend \p a and \p b to 33 bit and return sat(a >> clamp(b, 0, 32)).
+/// \param [in] a The source value
+/// \param [in] b The offset to shift
+/// \returns sat(a >> clamp(b, 0, 32))
+template <typename RetT, typename T>
+inline constexpr RetT extend_shr_sat_clamp(T a, uint32_t b) {
+  return detail::extend_binary<RetT, true>(a, sycl::clamp(b, 0u, 32u),
+                                           detail::shift_right());
+}
+
+/// Extend Inputs to 33 bit, and return second_op(sat(a >> clamp(b, 0, 32)), c).
+/// \param [in] a The source value
+/// \param [in] b The offset to shift
+/// \param [in] c The value to merge
+/// \param [in] second_op The operation to do with the third value
+/// \returns second_op(sat(a >> clamp(b, 0, 32)), c)
+template <typename RetT, typename T, typename BinaryOperation>
+inline constexpr RetT extend_shr_sat_clamp(T a, uint32_t b, uint32_t c,
+                                           BinaryOperation second_op) {
+  return detail::extend_binary<RetT, true>(a, sycl::clamp(b, 0u, 32u), c,
+                                           detail::shift_right(), second_op);
+}
+
+/// Extend \p a and \p b to 33 bit and return a >> (b & 0x1F).
+/// \param [in] a The source value
+/// \param [in] b The offset to shift
+/// \returns a >> (b & 0x1F)
+template <typename RetT, typename T>
+inline constexpr RetT extend_shr_wrap(T a, uint32_t b) {
+  return detail::extend_binary<RetT, false>(a, b & 0x1F, detail::shift_right());
+}
+
+/// Extend Inputs to 33 bit, and return second_op(a >> (b & 0x1F), c).
+/// \param [in] a The source value
+/// \param [in] b The offset to shift
+/// \param [in] c The value to merge
+/// \param [in] second_op The operation to do with the third value
+/// \returns second_op(a >> (b & 0x1F), c)
+template <typename RetT, typename T, typename BinaryOperation>
+inline constexpr RetT extend_shr_wrap(T a, uint32_t b, uint32_t c,
+                                      BinaryOperation second_op) {
+  return detail::extend_binary<RetT, false>(a, b & 0x1F, c,
+                                            detail::shift_right(), second_op);
+}
+
+/// Extend \p a and \p b to 33 bit and return sat(a >> (b & 0x1F)).
+/// \param [in] a The source value
+/// \param [in] b The offset to shift
+/// \returns sat(a >> (b & 0x1F))
+template <typename RetT, typename T>
+inline constexpr RetT extend_shr_sat_wrap(T a, uint32_t b) {
+  return detail::extend_binary<RetT, true>(a, b & 0x1F, detail::shift_right());
+}
+
+/// Extend Inputs to 33 bit, and return second_op(sat(a >> (b & 0x1F)), c).
+/// \param [in] a The source value
+/// \param [in] b The offset to shift
+/// \param [in] c The value to merge
+/// \param [in] second_op The operation to do with the third value
+/// \returns second_op(sat(a >> (b & 0x1F)), c)
+template <typename RetT, typename T, typename BinaryOperation>
+inline constexpr RetT extend_shr_sat_wrap(T a, uint32_t b, uint32_t c,
+                                          BinaryOperation second_op) {
+  return detail::extend_binary<RetT, true>(a, b & 0x1F, c,
+                                           detail::shift_right(), second_op);
 }
 
 } // namespace syclcompat

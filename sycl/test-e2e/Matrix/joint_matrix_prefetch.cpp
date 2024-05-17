@@ -5,10 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES: aspect-ext_intel_matrix
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL:*
+// XFAIL: gpu
 
 #include "common.hpp"
 
