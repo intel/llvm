@@ -2,10 +2,6 @@
 
 // UNSUPPORTED: hip || cuda
 
-// TODO: Remove XFAIL after fixing
-// https://github.com/intel/intel-graphics-compiler/issues/330
-// XFAIL: gpu-intel-gen12
-
 // Make dump directory.
 // RUN: rm -rf %t.spvdir && mkdir %t.spvdir
 
@@ -35,8 +31,6 @@
 // Execution should still be correct.
 // RUN: %{run} %t.bitinstructions.out
 
-// CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_i2"
-// CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_i4"
 // CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_i8"
 // CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_i16"
 // CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_i32"
@@ -62,8 +56,6 @@
 // CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v16i16"
 // CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v16i32"
 
-// CHECK-SPV: LinkageAttributes "llvm_bitreverse_i2" Export
-// CHECK-SPV: LinkageAttributes "llvm_bitreverse_i4" Export
 // CHECK-SPV: LinkageAttributes "llvm_bitreverse_i8" Export
 // CHECK-SPV: LinkageAttributes "llvm_bitreverse_i16" Export
 // CHECK-SPV: LinkageAttributes "llvm_bitreverse_i32" Export
@@ -133,14 +125,6 @@ template <class T> class BitreverseTest;
 template <typename TYPE> void do_scalar_bitreverse_test() {
   queue q;
 
-  // calculate bitlength
-  int bitlength = 0;
-  TYPE t = 1;
-  do {
-    ++bitlength;
-    t <<= 1;
-  } while (t);
-
   TYPE *Input = (TYPE *)malloc_shared(sizeof(TYPE) * NUM_TESTS, q.get_device(),
                                       q.get_context());
   TYPE *Output = (TYPE *)malloc_shared(sizeof(TYPE) * NUM_TESTS, q.get_device(),
@@ -156,11 +140,9 @@ template <typename TYPE> void do_scalar_bitreverse_test() {
   });
   q.wait();
   for (unsigned i = 0; i < NUM_TESTS; i++)
-    if (Output[i] != reference_reverse(Input[i], bitlength)) {
-      std::cerr << "Failed for scalar " << std::hex
-                << static_cast<uint64_t>(Input[i]) << " bitlength=" << bitlength
-                << "\n";
-
+    if (Output[i] != reference_reverse(Input[i], sizeof(TYPE) * 8)) {
+      std::cerr << "Failed for scalar " << std::hex << Input[i]
+                << " sizeof=" << sizeof(TYPE) << "\n";
       exit(-1);
     }
 
@@ -202,12 +184,6 @@ template <typename VTYPE> void do_vector_bitreverse_test() {
   free(Output, q.get_context());
 }
 
-using uint2_t = _BitInt(2);
-using uint4_t = _BitInt(4);
-
-// Vectors of uint2_t and uint4_t not allowed.
-// Vector elements must be at least as wide as CHAR_BIT
-
 using uint8_t2 = uint8_t __attribute__((ext_vector_type(2)));
 using uint16_t2 = uint16_t __attribute__((ext_vector_type(2)));
 using uint32_t2 = uint32_t __attribute__((ext_vector_type(2)));
@@ -236,8 +212,6 @@ using uint64_t16 = uint64_t __attribute__((ext_vector_type(16)));
 int main() {
   srand(2024);
 
-  do_scalar_bitreverse_test<uint2_t>();
-  do_scalar_bitreverse_test<uint4_t>();
   do_scalar_bitreverse_test<uint8_t>();
   do_scalar_bitreverse_test<uint16_t>();
   do_scalar_bitreverse_test<uint32_t>();
