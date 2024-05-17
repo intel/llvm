@@ -33,6 +33,12 @@ namespace precision {
 class tf32 {
   tf32() = delete;
 };
+class sint4 {
+  sint4() = delete;
+};
+class uint4 {
+  uint4() = delete;
+};
 } // namespace precision
 
 } // namespace matrix

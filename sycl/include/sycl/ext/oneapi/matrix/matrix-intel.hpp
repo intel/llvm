@@ -92,6 +92,22 @@ struct jm_type_interpretation_helper_trait<
   using storage_element_type = float;
 };
 
+template <>
+struct jm_type_interpretation_helper_trait<
+    sycl::ext::oneapi::experimental::matrix::precision::sint4> {
+  using element_type =
+      sycl::ext::oneapi::experimental::matrix::precision::sint4;
+  using storage_element_type = int32_t;
+};
+
+template <>
+struct jm_type_interpretation_helper_trait<
+    sycl::ext::oneapi::experimental::matrix::precision::uint4> {
+  using element_type =
+      sycl::ext::oneapi::experimental::matrix::precision::uint4;
+  using storage_element_type = int32_t;
+};
+
 using namespace sycl::ext::oneapi::experimental::matrix;
 // Begin wi_element definition
 
@@ -673,14 +689,18 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
-template <
-    typename Group, typename S, typename T, use Use, size_t NumRows,
-    size_t NumCols, layout Layout, access::address_space Space,
-    access::decorated IsDecorated,
-    std::enable_if_t<std::is_same<S, std::remove_const_t<T>>::value ||
-                         (std::is_same<S, precision::tf32>::value &&
-                          std::is_same<std::remove_const_t<T>, float>::value),
-                     bool> = true>
+template <typename Group, typename S, typename T, use Use, size_t NumRows,
+          size_t NumCols, layout Layout, access::address_space Space,
+          access::decorated IsDecorated,
+          std::enable_if_t<
+              std::is_same<S, std::remove_const_t<T>>::value ||
+                  (std::is_same<S, precision::tf32>::value &&
+                   std::is_same<std::remove_const_t<T>, float>::value) ||
+                  (std::is_same<S, precision::sint4>::value &&
+                   std::is_same<std::remove_const_t<T>, int32_t>::value) ||
+                  (std::is_same<S, precision::uint4>::value &&
+                   std::is_same<std::remove_const_t<T>, int32_t>::value),
+              bool> = true>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
     Group sg, joint_matrix<Group, S, Use, NumRows, NumCols, Layout> &Res,
     multi_ptr<T, Space, IsDecorated> Src, size_t Stride, size_t Height,
@@ -813,13 +833,17 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
-template <
-    typename Group, typename S, typename T, use Use, size_t NumRows,
-    size_t NumCols, layout Layout, typename PropertyListT,
-    std::enable_if_t<std::is_same<S, std::remove_const_t<T>>::value ||
-                         (std::is_same<S, precision::tf32>::value &&
-                          std::is_same<std::remove_const_t<T>, float>::value),
-                     bool> = true>
+template <typename Group, typename S, typename T, use Use, size_t NumRows,
+          size_t NumCols, layout Layout, typename PropertyListT,
+          std::enable_if_t<
+              std::is_same<S, std::remove_const_t<T>>::value ||
+                  (std::is_same<S, precision::tf32>::value &&
+                   std::is_same<std::remove_const_t<T>, float>::value) ||
+                  (std::is_same<S, precision::sint4>::value &&
+                   std::is_same<std::remove_const_t<T>, int32_t>::value) ||
+                  (std::is_same<S, precision::uint4>::value &&
+                   std::is_same<std::remove_const_t<T>, int32_t>::value),
+              bool> = true>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
     Group sg, joint_matrix<Group, S, Use, NumRows, NumCols, Layout> &Res,
     ext::oneapi::experimental::annotated_ptr<T, PropertyListT> Src,

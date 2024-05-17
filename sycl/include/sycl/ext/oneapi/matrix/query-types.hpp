@@ -21,10 +21,12 @@ enum class matrix_type {
   tf32,
   fp32,
   fp64,
+  sint4,
   sint8,
   sint16,
   sint32,
   sint64,
+  uint4,
   uint8,
   uint16,
   uint32,
@@ -58,6 +60,16 @@ convertTypeToMatrixTypeString<sycl::ext::oneapi::bfloat16>() {
 }
 template <> constexpr const char *convertTypeToMatrixTypeString<sycl::half>() {
   return "matrix_type::fp16";
+}
+template <>
+constexpr const char *convertTypeToMatrixTypeString<
+    sycl::ext::oneapi::experimental::matrix::precision::sint4>() {
+  return "matrix_type::sint4";
+}
+template <>
+constexpr const char *convertTypeToMatrixTypeString<
+    sycl::ext::oneapi::experimental::matrix::precision::uint4>() {
+  return "matrix_type::uint4";
 }
 template <>
 constexpr const char *convertTypeToMatrixTypeString<
