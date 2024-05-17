@@ -6707,7 +6707,7 @@ size_t TypeSystemClang::GetIndexOfChildMemberWithName(
               return child_indexes.size();
             child_indexes.pop_back();
 
-          } else if (field_name.equals(name)) {
+          } else if (field_name == name) {
             // We have to add on the number of base classes to this index!
             child_indexes.push_back(
                 child_idx + TypeSystemClang::GetNumBaseClasses(
@@ -6794,7 +6794,7 @@ size_t TypeSystemClang::GetIndexOfChildMemberWithName(
                  ivar_pos != ivar_end; ++ivar_pos, ++child_idx) {
               const clang::ObjCIvarDecl *ivar_decl = *ivar_pos;
 
-              if (ivar_decl->getName().equals(name_sref)) {
+              if (ivar_decl->getName() == name_sref) {
                 if ((!omit_empty_base_classes && superclass_interface_decl) ||
                     (omit_empty_base_classes &&
                      ObjCDeclHasIVars(superclass_interface_decl, true)))
@@ -6963,7 +6963,7 @@ TypeSystemClang::GetIndexOfChildWithName(lldb::opaque_compiler_type_t type,
         for (field = record_decl->field_begin(),
             field_end = record_decl->field_end();
              field != field_end; ++field, ++child_idx) {
-          if (field->getName().equals(name))
+          if (field->getName() == name)
             return child_idx;
         }
       }
@@ -6990,7 +6990,7 @@ TypeSystemClang::GetIndexOfChildWithName(lldb::opaque_compiler_type_t type,
                  ivar_pos != ivar_end; ++ivar_pos, ++child_idx) {
               const clang::ObjCIvarDecl *ivar_decl = *ivar_pos;
 
-              if (ivar_decl->getName().equals(name)) {
+              if (ivar_decl->getName() == name) {
                 if ((!omit_empty_base_classes && superclass_interface_decl) ||
                     (omit_empty_base_classes &&
                      ObjCDeclHasIVars(superclass_interface_decl, true)))
@@ -7001,7 +7001,7 @@ TypeSystemClang::GetIndexOfChildWithName(lldb::opaque_compiler_type_t type,
             }
 
             if (superclass_interface_decl) {
-              if (superclass_interface_decl->getName().equals(name))
+              if (superclass_interface_decl->getName() == name)
                 return 0;
             }
           }
@@ -9246,15 +9246,14 @@ std::vector<CompilerDecl> TypeSystemClang::DeclContextFindDeclByName(
               if (clang::NamedDecl *nd =
                       llvm::dyn_cast<clang::NamedDecl>(target)) {
                 IdentifierInfo *ii = nd->getIdentifier();
-                if (ii != nullptr &&
-                    ii->getName().equals(name.AsCString(nullptr)))
+                if (ii != nullptr && ii->getName() == name.AsCString(nullptr))
                   found_decls.push_back(GetCompilerDecl(nd));
               }
             }
           } else if (clang::NamedDecl *nd =
                          llvm::dyn_cast<clang::NamedDecl>(child)) {
             IdentifierInfo *ii = nd->getIdentifier();
-            if (ii != nullptr && ii->getName().equals(name.AsCString(nullptr)))
+            if (ii != nullptr && ii->getName() == name.AsCString(nullptr))
               found_decls.push_back(GetCompilerDecl(nd));
           }
         }
@@ -9364,7 +9363,7 @@ uint32_t TypeSystemClang::CountDeclLevels(clang::DeclContext *frame_decl_ctx,
                 // Check names.
                 IdentifierInfo *ii = nd->getIdentifier();
                 if (ii == nullptr ||
-                    !ii->getName().equals(child_name->AsCString(nullptr)))
+                    ii->getName() != child_name->AsCString(nullptr))
                   continue;
                 // Check types, if one was provided.
                 if (child_type) {

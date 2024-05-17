@@ -8476,6 +8476,12 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
         << SemaSYCL::KernelCallVariadicFunction;
 }
 
+void Sema::CheckConstrainedAuto(const AutoType *AutoT, SourceLocation Loc) {
+  if (ConceptDecl *Decl = AutoT->getTypeConstraintConcept()) {
+    DiagnoseUseOfDecl(Decl, Loc);
+  }
+}
+
 /// CheckConstructorCall - Check a constructor call for correctness and safety
 /// properties not enforced by the C type system.
 void Sema::CheckConstructorCall(FunctionDecl *FDecl, QualType ThisType,

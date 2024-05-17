@@ -56,6 +56,9 @@ C++ Specific Potentially Breaking Changes
 
 - Clang now rejects pointer to member from parenthesized expression in unevaluated context such as ``decltype(&(foo::bar))``. (#GH40906).
 
+- Clang now performs semantic analysis for unary operators with dependent operands
+  that are known to be of non-class non-enumeration type prior to instantiation.
+
 ABI Changes in This Version
 ---------------------------
 - Fixed Microsoft name mangling of implicitly defined variables used for thread
@@ -222,6 +225,9 @@ Resolutions to C++ Defect Reports
 
 - Clang now diagnoses declarative nested-name-specifiers with pack-index-specifiers.
   (`CWG2858: Declarative nested-name-specifiers and pack-index-specifiers <https://cplusplus.github.io/CWG/issues/2858.html>`_).
+
+- Clang now allows attributes on concepts.
+  (`CWG2428: Deprecating a concept <https://cplusplus.github.io/CWG/issues/2428.html>`_).
 
 - P0522 implementation is enabled by default in all language versions, and
   provisional wording for CWG2398 is implemented.
@@ -397,6 +403,10 @@ Attribute Changes in Clang
 - Clang now warns that the ``exclude_from_explicit_instantiation`` attribute
   is ignored when applied to a local class or a member thereof.
 
+- The ``clspv_libclc_builtin`` attribute has been added to allow clspv
+  (`OpenCL-C to Vulkan SPIR-V compiler <https://github.com/google/clspv>`_) to identify functions coming from libclc
+  (`OpenCL-C builtin library <https://libclc.llvm.org>`_).
+
 Improvements to Clang's diagnostics
 -----------------------------------
 - Clang now applies syntax highlighting to the code snippets it
@@ -488,8 +498,14 @@ Improvements to Clang's diagnostics
        }
      };
 
+- Clang emits a ``-Wparentheses`` warning for expressions with consecutive comparisons like ``x < y < z``.
+  Fixes #GH20456.
+
 Improvements to Clang's time-trace
 ----------------------------------
+
+- Clang now specifies that using ``auto`` in a lambda parameter is a C++14 extension when
+  appropriate. (`#46059: <https://github.com/llvm/llvm-project/issues/46059>`_).
 
 Bug Fixes in This Version
 -------------------------
@@ -566,6 +582,9 @@ Bug Fixes in This Version
 
 - Clang will no longer emit a duplicate -Wunused-value warning for an expression
   `(A, B)` which evaluates to glvalue `B` that can be converted to non ODR-use. (#GH45783)
+
+- Clang now correctly disallows VLA type compound literals, e.g. ``(int[size]){}``,
+  as the C standard mandates. (#GH89835)
 
 Bug Fixes to Compiler Builtins
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -717,6 +736,7 @@ Bug Fixes to C++ Support
 - Clang now ignores template parameters only used within the exception specification of candidate function
   templates during partial ordering when deducing template arguments from a function declaration or when
   taking the address of a function template.
+- Fix a bug with checking constrained non-type template parameters for equivalence. Fixes (#GH77377).
 
 Bug Fixes to AST Handling
 ^^^^^^^^^^^^^^^^^^^^^^^^^

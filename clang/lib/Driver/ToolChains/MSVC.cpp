@@ -206,6 +206,10 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
           Args.MakeArgString(std::string("-libpath:") + WindowsSdkLibPath));
   }
 
+  if (!C.getDriver().IsCLMode() && Args.hasArg(options::OPT_L))
+    for (const auto &LibPath : Args.getAllArgValues(options::OPT_L))
+      CmdArgs.push_back(Args.MakeArgString("-libpath:" + LibPath));
+
   if (C.getDriver().IsFlangMode()) {
     addFortranRuntimeLibraryPath(TC, Args, CmdArgs);
     addFortranRuntimeLibs(TC, Args, CmdArgs);
@@ -225,10 +229,6 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   auto CRTPath = TC.getCompilerRTPath();
   if (TC.getVFS().exists(CRTPath))
     CmdArgs.push_back(Args.MakeArgString("-libpath:" + CRTPath));
-
-  if (!C.getDriver().IsCLMode() && Args.hasArg(options::OPT_L))
-    for (const auto &LibPath : Args.getAllArgValues(options::OPT_L))
-      CmdArgs.push_back(Args.MakeArgString("-libpath:" + LibPath));
 
   CmdArgs.push_back("-nologo");
 
