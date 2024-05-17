@@ -162,8 +162,7 @@ using ContainsProperty =
 template <typename propertiesT> struct is_property_list : std::false_type {};
 template <typename PropertyValueTs>
 struct is_property_list<properties<PropertyValueTs>>
-    : std::is_same<properties<PropertyValueTs>,
-                   properties<detail::sort_properties<PropertyValueTs>>> {};
+    : detail::properties_are_sorted<PropertyValueTs> {};
 
 #if __cplusplus > 201402L
 template <typename propertiesT>

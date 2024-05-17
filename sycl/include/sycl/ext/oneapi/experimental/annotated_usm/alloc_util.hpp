@@ -45,7 +45,7 @@ using HasUsmKind = HasProperty<usm_kind_key, PropertyListT>;
 template <typename PropertyListT>
 using HasBufferLocation = HasProperty<buffer_location_key, PropertyListT>;
 
-// Get the value of a property from a property list
+// Get the value of a compile-time property from a property list
 template <typename PropKey, typename ConstType, typename DefaultPropVal,
           typename PropertyListT>
 struct GetPropertyValueFromPropList {

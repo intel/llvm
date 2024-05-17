@@ -28,6 +28,9 @@ template <class P1, class P2>
 using compare_property = mp11::mp_less<PropertyToKind<P1>, PropertyToKind<P2>>;
 
 template <class P> using sort_properties = mp11::mp_sort<P, compare_property>;
+template <class P>
+using properties_are_sorted =
+    mp11::mp_apply<mp11::mp_all, mp11::mp_pairwise_fold<P, compare_property>>;
 
 //******************************************************************************
 // Property value tooling
