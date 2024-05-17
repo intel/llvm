@@ -162,8 +162,10 @@ template <typename DataT, int NumElements> class vec {
 
 public:
 #ifdef __SYCL_DEVICE_ONLY__
-  // Type used for passing sycl::vec to SPIRV builtins. Frontend treats
-  // ext_vector_type(1) as a scalar.
+  // Type used for passing sycl::vec to SPIRV builtins. Optimizer treats
+  // ext_vector_type(1) as a scalar type, except for logical operations.
+  // Logical operations on ext_vector_type(1) results in 0 or -1, while
+  // on scalar types it results in 0 or 1. 
   using vector_t = detail::element_type_for_vector_t<DataT> __attribute__((
       ext_vector_type(NumElements)));
 #endif // __SYCL_DEVICE_ONLY__
