@@ -1,4 +1,5 @@
-// Test that llvm.bitreverse is lowered correctly by llvm-spirv for 2/4-bit types.
+// Test that llvm.bitreverse is lowered correctly by llvm-spirv for 2/4-bit
+// types.
 
 // UNSUPPORTED: hip || cuda
 
