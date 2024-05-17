@@ -27,6 +27,7 @@ using sycl::detail::type_list;
 }
 
 namespace detail {
+// create map entry for property value
 template <class V> struct make_entry {
   // for runtime property: list containing key/value (is same)
   using type = type_list<V>;
@@ -36,6 +37,7 @@ template <class... T> struct make_entry<property_value<T...>> {
   using type = property_value<T...>;
 };
 template <class V> using make_entry_t = typename make_entry<V>::type;
+// create property map from properties type
 template <class P>
 using property_map = mp11::mp_transform<make_entry_t, mp11::mp_front<P>>;
 template <class T, class = void>
@@ -65,16 +67,16 @@ class properties<TL<V...>,
                                   detail::mp11::mp_is_set<TL<V...>>::value>>
     : V... {
 private:
-  using M = detail::property_map<properties>; // map of properties
-  static_assert(detail::mp11::mp_is_map<M>(),
+  using map = detail::property_map<properties>; // map of properties
+  static_assert(detail::mp11::mp_is_map<map>(),
                 "Duplicate properties in property list.");
-  using K = detail::mp11::mp_map_keys<M>;
-  using C = detail::mp11::mp_apply<
+  using keys = detail::mp11::mp_map_keys<map>;
+  using conflicting = detail::mp11::mp_apply<
       detail::mp11::mp_append,
-      detail::mp11::mp_transform<detail::ConflictingProperties, K>>;
+      detail::mp11::mp_transform<detail::ConflictingProperties, keys>>;
   static_assert(
       !detail::mp11::mp_any_of_q<
-          C, detail::mp11::mp_bind_front<detail::mp11::mp_set_contains, K>>(),
+          conflicting, detail::mp11::mp_bind_front<detail::mp11::mp_set_contains, keys>>(),
       "Conflicting properties in property list.");
 
 public:
@@ -82,10 +84,10 @@ public:
   constexpr properties(T... v)
       : T(v)... {} // T might have different ordering than V
   template <class P> static constexpr bool has_property() {
-    return detail::mp11::mp_map_contains<M, P>();
+    return detail::mp11::mp_map_contains<map, P>();
   }
   template <class P> static constexpr auto get_property(int = 0) {
-    using T = detail::mp11::mp_map_find<M, P>;
+    using T = detail::mp11::mp_map_find<map, P>;
     static_assert(!std::is_same_v<T, void>,
                   "Property list does not contain the requested property.");
     return T();
