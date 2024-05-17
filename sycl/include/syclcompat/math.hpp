@@ -128,6 +128,143 @@ inline bool isnan(const sycl::ext::oneapi::bfloat16 a) {
 
 } // namespace detail
 
+/// Bitfield-extract.
+///
+/// \tparam T The type of \param source value, must be an integer.
+/// \param source The source value to extracting.
+/// \param bit_start The position to start extracting.
+/// \param num_bits The number of bits to extracting.
+template <typename T>
+inline std::enable_if_t<std::is_unsigned_v<T>, T>
+bfe(const T source, const uint32_t bit_start, const uint32_t num_bits) {
+  const T mask = (T{1} << num_bits) - 1;
+  return (source >> bit_start) & mask;
+}
+
+/// Bitfield-extract with boundary checking.
+///
+/// Extract bit field from \param source and return the zero or sign-extended
+/// result. Source \param bit_start gives the bit field starting bit position,
+/// and source \param num_bits gives the bit field length in bits.
+///
+/// The result is padded with the sign bit of the extracted field. If the start
+/// position is beyond the msb of the input, the result was filled with the
+/// replicated sign bit of the extracted field.
+///
+/// \tparam T The type of \param source value, must be an integer.
+/// \param source The source value to extracting.
+/// \param bit_start The position to start extracting.
+/// \param num_bits The number of bits to extracting.
+template <typename T>
+inline std::enable_if_t<std::is_integral_v<T>, T>
+bfe_safe(const T source, const uint32_t bit_start, const uint32_t num_bits) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  if constexpr (std::is_same_v<T, int8_t> || std::is_same_v<T, int16_t> ||
+                std::is_same_v<T, int32_t>) {
+    int32_t res{};
+    asm volatile("bfe.s32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"((int32_t)source), "r"(bit_start), "r"(num_bits));
+    return res;
+  } else if constexpr (std::is_same_v<T, uint8_t> ||
+                       std::is_same_v<T, uint16_t> ||
+                       std::is_same_v<T, uint32_t>) {
+    uint32_t res{};
+    asm volatile("bfe.u32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"((uint32_t)source), "r"(bit_start), "r"(num_bits));
+    return res;
+  } else if constexpr (std::is_same_v<T, int64_t>) {
+    T res{};
+    asm volatile("bfe.s64 %0, %1, %2, %3;"
+                 : "=l"(res)
+                 : "l"(source), "r"(bit_start), "r"(num_bits));
+    return res;
+  } else if constexpr (std::is_same_v<T, uint64_t>) {
+    T res{};
+    asm volatile("bfe.u64 %0, %1, %2, %3;"
+                 : "=l"(res)
+                 : "l"(source), "r"(bit_start), "r"(num_bits));
+    return res;
+  }
+#endif
+  const uint32_t bit_width = CHAR_BIT * sizeof(T);
+  const uint32_t pos = std::min(bit_start, bit_width);
+  const uint32_t len = std::min(pos + num_bits, bit_width) - pos;
+  if constexpr (std::is_signed_v<T>) {
+    const T mask = (T{1} << len) - 1;
+
+    // Find the sign-bit, the result is padded with the sign bit of the
+    // extracted field.
+    //
+    // sign_bit = len == 0 ? 0 : source[min(pos + len - 1, bit_width - 1)]
+    const uint32_t sign_bit_pos = std::min(pos + len - 1, bit_width - 1);
+    const T sign_bit = len != 0 && ((source >> sign_bit_pos) & 1);
+    const T sign_bit_padding = (-sign_bit & ~mask);
+    return ((source >> pos) & mask) | sign_bit_padding;
+  } else {
+    return syclcompat::bfe(source, pos, len);
+  }
+}
+
+/// Bitfield-insert.
+///
+/// \tparam T The type of \param x and \param y , must be an unsigned integer.
+/// \param x The source of the bitfield.
+/// \param y The source where bitfield is inserted.
+/// \param bit_start The position to start insertion.
+/// \param num_bits The number of bits to insertion.
+template <typename T>
+inline std::enable_if_t<std::is_unsigned_v<T>, T>
+bfi(const T x, const T y, const uint32_t bit_start, const uint32_t num_bits) {
+  constexpr unsigned bit_width = CHAR_BIT * sizeof(T);
+
+  // if bit_start > bit_width || len == 0, should return y.
+  const uint32_t ignore_bfi = bit_start > bit_width || num_bits == 0;
+  T extract_bitfield_mask = (~(T{0}) >> (bit_width - num_bits)) << bit_start;
+  T clean_bitfield_mask = ~extract_bitfield_mask;
+  return (y & (-ignore_bfi | clean_bitfield_mask)) |
+         (~-ignore_bfi & ((x << bit_start) & extract_bitfield_mask));
+}
+
+/// Bitfield-insert with boundary checking.
+///
+/// Align and insert a bit field from \param x into \param y . Source \param
+/// bit_start gives the starting bit position for the insertion, and source
+/// \param num_bits gives the bit field length in bits.
+///
+/// \tparam T The type of \param x and \param y , must be an unsigned integer.
+/// \param x The source of the bitfield.
+/// \param y The source where bitfield is inserted.
+/// \param bit_start The position to start insertion.
+/// \param num_bits The number of bits to insertion.
+template <typename T>
+inline std::enable_if_t<std::is_unsigned_v<T>, T>
+bfi_safe(const T x, const T y, const uint32_t bit_start,
+         const uint32_t num_bits) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  if constexpr (std::is_same_v<T, uint8_t> || std::is_same_v<T, uint16_t> ||
+                std::is_same_v<T, uint32_t>) {
+    uint32_t res{};
+    asm volatile("bfi.b32 %0, %1, %2, %3, %4;"
+                 : "=r"(res)
+                 : "r"((uint32_t)x), "r"((uint32_t)y), "r"(bit_start),
+                   "r"(num_bits));
+    return res;
+  } else if constexpr (std::is_same_v<T, uint64_t>) {
+    uint64_t res{};
+    asm volatile("bfi.b64 %0, %1, %2, %3, %4;"
+                 : "=l"(res)
+                 : "l"(x), "l"(y), "r"(bit_start), "r"(num_bits));
+    return res;
+  }
+#endif
+  constexpr unsigned bit_width = CHAR_BIT * sizeof(T);
+  const uint32_t pos = std::min(bit_start, bit_width);
+  const uint32_t len = std::min(pos + num_bits, bit_width) - pos;
+  return syclcompat::bfi(x, y, pos, len);
+}
+
 /// Compute fast_length for variable-length array
 /// \param [in] a The array
 /// \param [in] len Length of the array
