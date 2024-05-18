@@ -45,6 +45,38 @@ TEST_P(urUSMGetMemAllocInfoTest, Success) {
     std::vector<uint8_t> info_data(size);
     ASSERT_SUCCESS(urUSMGetMemAllocInfo(context, ptr, alloc_info, size,
                                         info_data.data(), nullptr));
+    switch (alloc_info) {
+    case UR_USM_ALLOC_INFO_DEVICE: {
+        auto returned_device =
+            reinterpret_cast<ur_device_handle_t *>(info_data.data());
+        ASSERT_EQ(*returned_device, device);
+        break;
+    }
+    case UR_USM_ALLOC_INFO_SIZE: {
+        auto returned_size = reinterpret_cast<size_t *>(info_data.data());
+        ASSERT_GE(*returned_size, allocation_size);
+        break;
+    }
+    case UR_USM_ALLOC_INFO_BASE_PTR: {
+        auto returned_ptr = reinterpret_cast<void **>(info_data.data());
+        ASSERT_EQ(*returned_ptr, ptr);
+        break;
+    }
+    case UR_USM_ALLOC_INFO_POOL: {
+        auto returned_pool =
+            reinterpret_cast<ur_usm_pool_handle_t *>(info_data.data());
+        ASSERT_EQ(*returned_pool, pool);
+        break;
+    }
+    case UR_USM_ALLOC_INFO_TYPE: {
+        auto returned_type =
+            reinterpret_cast<ur_usm_type_t *>(info_data.data());
+        ASSERT_EQ(*returned_type, UR_USM_TYPE_DEVICE);
+        break;
+    }
+    default:
+        break;
+    }
 }
 
 using urUSMGetMemAllocInfoNegativeTest = uur::urUSMDeviceAllocTest;

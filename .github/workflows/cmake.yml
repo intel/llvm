@@ -104,7 +104,7 @@ jobs:
     - name: Generate source from spec, check for uncommitted diff
       if: matrix.os == 'ubuntu-22.04'
       run: cmake --build ${{github.workspace}}/build --target check-generated
-    
+
     - name: Verify that each source file contains a license
       run: cmake --build ${{github.workspace}}/build --target verify-licenses
 
@@ -160,127 +160,41 @@ jobs:
       working-directory: ${{github.workspace}}/build
       run: ctest -C ${{matrix.build_type}} --output-on-failure -L "fuzz-short" --verbose
 
-  adapter-build-hw:
-    name: Build - Adapters on HW
-    if: github.repository == 'oneapi-src/unified-runtime'  # run only on upstream; forks won't have the HW
-    strategy:
-      matrix:
-        adapter: [
-          {name: CUDA, platform: ""},
-          {name: HIP, platform: ""},
-          {name: L0, platform: ""},
-          {name: OPENCL, platform: "Intel(R) OpenCL"},
-          {name: NATIVE_CPU, platform: ""}
-        ]
-        build_type: [Debug, Release]
-        compiler: [{c: gcc, cxx: g++}, {c: clang, cxx: clang++}]
-        # TODO: The latest L0 loader segfaults when built with clang.
-        exclude:
-         - adapter: {name: L0, platform: ""}
-           compiler: {c: clang, cxx: clang++}
+  level-zero:
+    if: github.repository == 'oneapi-src/unified-runtime'
+    name: Level Zero
+    uses: ./.github/workflows/build-hw-reusable.yml
+    with:
+      name: L0
 
-    runs-on: ${{matrix.adapter.name}}
+  opencl:
+    if: github.repository == 'oneapi-src/unified-runtime'
+    name: OpenCL
+    uses: ./.github/workflows/build-hw-reusable.yml
+    with:
+      name: OPENCL
+      platform: "Intel(R) OpenCL"
 
-    steps:
-    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+  cuda:
+    if: github.repository == 'oneapi-src/unified-runtime'
+    name: CUDA
+    uses: ./.github/workflows/build-hw-reusable.yml
+    with:
+      name: CUDA
 
-    - name: Install pip packages
-      run: pip install -r third_party/requirements.txt
+  hip:
+    if: github.repository == 'oneapi-src/unified-runtime'
+    name: HIP
+    uses: ./.github/workflows/build-hw-reusable.yml
+    with:
+      name: HIP
 
-    - name: Download DPC++
-      run: |
-        wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2024-01-29/sycl_linux.tar.gz
-        mkdir dpcpp_compiler
-        tar -xvf ${{github.workspace}}/dpcpp_compiler.tar.gz -C dpcpp_compiler
-
-    - name: Configure CMake
-      run: >
-        cmake
-        -B${{github.workspace}}/build
-        -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
-        -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
-        -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
-        -DUR_ENABLE_TRACING=ON
-        -DUR_DEVELOPER_MODE=ON
-        -DUR_BUILD_TESTS=ON
-        -DUR_BUILD_ADAPTER_${{matrix.adapter.name}}=ON
-        -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
-        -DUR_SYCL_LIBRARY_DIR=${{github.workspace}}/dpcpp_compiler/lib
-        ${{ matrix.adapter.name == 'HIP' && '-DUR_CONFORMANCE_AMD_ARCH=gfx1030' || '' }} 
-        ${{ matrix.adapter.name == 'HIP' && '-DUR_HIP_PLATFORM=AMD' || '' }}
-
-    - name: Build
-      # This is so that device binaries can find the sycl runtime library
-      run: cmake --build ${{github.workspace}}/build -j $(nproc)
-
-    - name: Test adapter specific
-      working-directory: ${{github.workspace}}/build
-      run: ctest -C ${{matrix.build_type}} --output-on-failure -L "adapter-specific" --timeout 180
-
-    - name: Test adapters
-      working-directory: ${{github.workspace}}/build
-      run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --output-on-failure -L "conformance" --timeout 180
-
-    - name: Get information about platform
-      if: ${{ always() }}
-      run: .github/scripts/get_system_info.sh
-
-  examples-build-hw:
-    name: Build - examples on HW
-    # if: github.repository == 'oneapi-src/unified-runtime'  # run only on upstream; forks won't have the HW
-    if: false  # temporaily disabled due to conda env setup issues
-    strategy:
-      matrix:
-        adapter: [
-          {name: L0}
-        ]
-        build_type: [Debug, Release]
-        compiler: [{c: gcc, cxx: g++}, {c: clang, cxx: clang++}]
-
-    runs-on: ${{matrix.adapter.name}}
-
-    steps:
-    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-
-    - name: Install pip packages
-      run: pip install -r third_party/requirements.txt
-    
-    - name: Init conda env
-      uses: conda-incubator/setup-miniconda@9f54435e0e72c53962ee863144e47a4b094bfd35 # v2.3.0
-      with:
-          miniconda-version: "latest"
-          activate-environment: examples
-          environment-file: third_party/deps.yml
-          auto-activate-base: false
-
-    - name: Configure CMake
-      shell: bash -el {0}
-      run: >
-        cmake
-        -B${{github.workspace}}/build
-        -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
-        -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
-        -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
-        -DUR_BUILD_ADAPTER_${{matrix.adapter.name}}=ON
-        -DUR_BUILD_EXAMPLE_CODEGEN=ON
-        -DUR_DEVELOPER_MODE=ON
-
-    - name: Build
-      run: cmake --build ${{github.workspace}}/build -j $(nproc)
-
-    - name: Test codegen example
-      working-directory: ${{github.workspace}}/build
-      run: bin/codegen
-
-    # conda init adds content to user's profile making it failing (if conda is gone)
-    - name: Cleanup after conda init
-      run: |
-        cat ${HOME}/.profile || true
-        rm ${HOME}/.profile || true
-
-    - name: Get information about platform
-      if: ${{ always() }}
-      run: .github/scripts/get_system_info.sh
+  native-cpu:
+    if: github.repository == 'oneapi-src/unified-runtime'
+    name: Native CPU
+    uses: ./.github/workflows/build-hw-reusable.yml
+    with:
+      name: NATIVE_CPU
 
   windows-build:
     name: Build - Windows

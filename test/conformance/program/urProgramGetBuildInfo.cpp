@@ -21,6 +21,14 @@ UUR_TEST_SUITE_P(urProgramGetBuildInfoTest,
                                    UR_PROGRAM_BUILD_INFO_BINARY_TYPE),
                  uur::deviceTestWithParamPrinter<ur_program_build_info_t>);
 
+struct urProgramGetBuildInfoSingleTest : uur::urProgramTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
+        ASSERT_SUCCESS(urProgramBuild(this->context, program, nullptr));
+    }
+};
+UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramGetBuildInfoSingleTest);
+
 TEST_P(urProgramGetBuildInfoTest, Success) {
     auto property_name = getParam();
     size_t property_size = 0;
@@ -59,4 +67,18 @@ TEST_P(urProgramGetBuildInfoTest, InvalidEnumeration) {
                      urProgramGetBuildInfo(program, device,
                                            UR_PROGRAM_BUILD_INFO_FORCE_UINT32,
                                            0, nullptr, &propSizeOut));
+}
+
+TEST_P(urProgramGetBuildInfoSingleTest, LogIsNullTerminated) {
+    size_t logSize;
+    std::vector<char> log;
+
+    ASSERT_SUCCESS(urProgramGetBuildInfo(
+        program, device, UR_PROGRAM_BUILD_INFO_LOG, 0, nullptr, &logSize));
+    log.resize(logSize);
+    log[logSize - 1] = 'x';
+    ASSERT_SUCCESS(urProgramGetBuildInfo(program, device,
+                                         UR_PROGRAM_BUILD_INFO_LOG, logSize,
+                                         log.data(), nullptr));
+    ASSERT_EQ(log[logSize - 1], '\0');
 }

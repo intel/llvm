@@ -7,7 +7,7 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  * @file ur_ddi.h
- * @version v0.9-r0
+ * @version v0.10-r0
  *
  */
 #ifndef UR_DDI_H_INCLUDED
@@ -1449,9 +1449,19 @@ typedef ur_result_t(UR_APICALL *ur_pfnEnqueueCooperativeKernelLaunchExp_t)(
     ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueTimestampRecordingExp
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueTimestampRecordingExp_t)(
+    ur_queue_handle_t,
+    bool,
+    uint32_t,
+    const ur_event_handle_t *,
+    ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of EnqueueExp functions pointers
 typedef struct ur_enqueue_exp_dditable_t {
     ur_pfnEnqueueCooperativeKernelLaunchExp_t pfnCooperativeKernelLaunchExp;
+    ur_pfnEnqueueTimestampRecordingExp_t pfnTimestampRecordingExp;
 } ur_enqueue_exp_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1513,7 +1523,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesUnsampledImageCreateExp_t)(
     ur_exp_image_mem_handle_t,
     const ur_image_format_t *,
     const ur_image_desc_t *,
-    ur_mem_handle_t *,
     ur_exp_image_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1525,7 +1534,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesSampledImageCreateExp_t)(
     const ur_image_format_t *,
     const ur_image_desc_t *,
     ur_sampler_handle_t,
-    ur_mem_handle_t *,
     ur_exp_image_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////

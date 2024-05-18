@@ -22,8 +22,6 @@ namespace ur_sanitizer_layer {
 
 namespace {
 
-constexpr auto kSPIR_DeviceSanitizerReportMem = "__DeviceSanitizerReportMem";
-
 uptr MemToShadow_CPU(uptr USM_SHADOW_BASE, uptr UPtr) {
     return USM_SHADOW_BASE + (UPtr >> 3);
 }
@@ -155,6 +153,35 @@ SanitizerInterceptor::SanitizerInterceptor() {
         cl_Debug = Value == "1" || Value == "true" ? 1 : 0;
     }
 
+    KV = Options->find("redzone");
+    if (KV != Options->end()) {
+        auto Value = KV->second.front();
+        try {
+            cl_MinRZSize = std::stoul(Value);
+            if (cl_MinRZSize < 16) {
+                cl_MinRZSize = 16;
+                context.logger.warning("Trying to set redzone size to a value "
+                                       "less than 16 is ignored");
+            }
+        } catch (...) {
+            die("<SANITIZER>[ERROR]: \"redzone\" should be an integer");
+        }
+    }
+    KV = Options->find("max_redzone");
+    if (KV != Options->end()) {
+        auto Value = KV->second.front();
+        try {
+            cl_MaxRZSize = std::stoul(Value);
+            if (cl_MaxRZSize > 2048) {
+                cl_MaxRZSize = 2048;
+                context.logger.warning("Trying to set max redzone size to a "
+                                       "value greater than 2048 is ignored");
+            }
+        } catch (...) {
+            die("<SANITIZER>[ERROR]: \"max_redzone\" should be an integer");
+        }
+    }
+
     KV = Options->find("quarantine_size_mb");
     if (KV != Options->end()) {
         auto Value = KV->second.front();
@@ -213,7 +240,7 @@ ur_result_t SanitizerInterceptor::allocateMemory(
         Alignment = MinAlignment;
     }
 
-    uptr RZLog = ComputeRZLog(Size);
+    uptr RZLog = ComputeRZLog(Size, cl_MinRZSize, cl_MaxRZSize);
     uptr RZSize = RZLog2Size(RZLog);
     uptr RoundedSize = RoundUpTo(Size, Alignment);
     uptr NeededSize = RoundedSize + RZSize * 2;
@@ -348,11 +375,14 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
 
 ur_result_t SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
                                                   ur_queue_handle_t Queue,
-                                                  LaunchInfo &LaunchInfo) {
+                                                  USMLaunchInfo &LaunchInfo) {
     auto Context = GetContext(Queue);
     auto Device = GetDevice(Queue);
     auto ContextInfo = getContextInfo(Context);
     auto DeviceInfo = getDeviceInfo(Device);
+    auto KernelInfo = getKernelInfo(Kernel);
+
+    UR_CALL(LaunchInfo.updateKernelInfo(*KernelInfo.get()));
 
     ManagedQueue InternalQueue(Context, Device);
     if (!InternalQueue) {
@@ -370,23 +400,12 @@ ur_result_t SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
 ur_result_t SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
                                                    ur_queue_handle_t Queue,
-                                                   ur_event_handle_t &Event,
-                                                   LaunchInfo &LaunchInfo) {
-    auto Program = GetProgram(Kernel);
-    ur_event_handle_t ReadEvent{};
-
-    // If kernel has defined SPIR_DeviceSanitizerReportMem, then we try to read it
-    // to host, but it's okay that it isn't defined
+                                                   USMLaunchInfo &LaunchInfo) {
     // FIXME: We must use block operation here, until we support urEventSetCallback
-    auto Result = context.urDdiTable.Enqueue.pfnDeviceGlobalVariableRead(
-        Queue, Program, kSPIR_DeviceSanitizerReportMem, true,
-        sizeof(LaunchInfo.SPIR_DeviceSanitizerReportMem), 0,
-        &LaunchInfo.SPIR_DeviceSanitizerReportMem, 1, &Event, &ReadEvent);
+    auto Result = context.urDdiTable.Queue.pfnFinish(Queue);
 
     if (Result == UR_RESULT_SUCCESS) {
-        Event = ReadEvent;
-
-        const auto &AH = LaunchInfo.SPIR_DeviceSanitizerReportMem;
+        const auto &AH = LaunchInfo.Data->SanitizerReport;
         if (!AH.Flag) {
             return UR_RESULT_SUCCESS;
         }
@@ -627,13 +646,44 @@ ur_result_t SanitizerInterceptor::eraseDevice(ur_device_handle_t Device) {
     return UR_RESULT_SUCCESS;
 }
 
+ur_result_t SanitizerInterceptor::insertKernel(ur_kernel_handle_t Kernel) {
+    std::scoped_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
+    if (m_KernelMap.find(Kernel) != m_KernelMap.end()) {
+        return UR_RESULT_SUCCESS;
+    }
+    m_KernelMap.emplace(Kernel, std::make_shared<KernelInfo>(Kernel));
+    return UR_RESULT_SUCCESS;
+}
+
+ur_result_t SanitizerInterceptor::eraseKernel(ur_kernel_handle_t Kernel) {
+    std::scoped_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
+    assert(m_KernelMap.find(Kernel) != m_KernelMap.end());
+    m_KernelMap.erase(Kernel);
+    return UR_RESULT_SUCCESS;
+}
+
 ur_result_t SanitizerInterceptor::prepareLaunch(
     ur_context_handle_t Context, std::shared_ptr<DeviceInfo> &DeviceInfo,
     ur_queue_handle_t Queue, ur_kernel_handle_t Kernel,
-    LaunchInfo &LaunchInfo) {
+    USMLaunchInfo &LaunchInfo) {
     auto Program = GetProgram(Kernel);
 
     do {
+        // Set launch info argument
+        auto ArgNums = GetKernelNumArgs(Kernel);
+        if (ArgNums) {
+            context.logger.debug(
+                "launch_info {} (numLocalArgs={}, localArgs={})",
+                (void *)LaunchInfo.Data, LaunchInfo.Data->NumLocalArgs,
+                (void *)LaunchInfo.Data->LocalArgs);
+            ur_result_t URes = context.urDdiTable.Kernel.pfnSetArgPointer(
+                Kernel, ArgNums - 1, nullptr, &LaunchInfo.Data);
+            if (URes != UR_RESULT_SUCCESS) {
+                context.logger.error("Failed to set launch info: {}", URes);
+                return URes;
+            }
+        }
+
         // Write global variable to program
         auto EnqueueWriteGlobal = [Queue, Program](const char *Name,
                                                    const void *Value,
@@ -723,15 +773,17 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
                     "LocalShadowMemorySize={})",
                     NumWG, LocalMemorySize, LocalShadowMemorySize);
 
-                UR_CALL(EnqueueAllocateDevice(LocalShadowMemorySize,
-                                              LaunchInfo.LocalShadowOffset));
+                UR_CALL(EnqueueAllocateDevice(
+                    LocalShadowMemorySize, LaunchInfo.Data->LocalShadowOffset));
 
-                LaunchInfo.LocalShadowOffsetEnd =
-                    LaunchInfo.LocalShadowOffset + LocalShadowMemorySize - 1;
+                LaunchInfo.Data->LocalShadowOffsetEnd =
+                    LaunchInfo.Data->LocalShadowOffset + LocalShadowMemorySize -
+                    1;
 
-                context.logger.info("ShadowMemory(Local, {} - {})",
-                                    (void *)LaunchInfo.LocalShadowOffset,
-                                    (void *)LaunchInfo.LocalShadowOffsetEnd);
+                context.logger.info(
+                    "ShadowMemory(Local, {} - {})",
+                    (void *)LaunchInfo.Data->LocalShadowOffset,
+                    (void *)LaunchInfo.Data->LocalShadowOffsetEnd);
             }
         }
     } while (false);
@@ -749,14 +801,60 @@ SanitizerInterceptor::findAllocInfoByAddress(uptr Address) {
     return --It;
 }
 
-LaunchInfo::~LaunchInfo() {
+ur_result_t USMLaunchInfo::initialize() {
+    UR_CALL(context.urDdiTable.Context.pfnRetain(Context));
+    UR_CALL(context.urDdiTable.Device.pfnRetain(Device));
+    UR_CALL(context.urDdiTable.USM.pfnSharedAlloc(
+        Context, Device, nullptr, nullptr, sizeof(LaunchInfo), (void **)&Data));
+    *Data = LaunchInfo{};
+    return UR_RESULT_SUCCESS;
+}
+
+ur_result_t USMLaunchInfo::updateKernelInfo(const KernelInfo &KI) {
+    auto NumArgs = KI.LocalArgs.size();
+    if (NumArgs) {
+        Data->NumLocalArgs = NumArgs;
+        UR_CALL(context.urDdiTable.USM.pfnSharedAlloc(
+            Context, Device, nullptr, nullptr, sizeof(LocalArgsInfo) * NumArgs,
+            (void **)&Data->LocalArgs));
+        uint32_t i = 0;
+        for (auto [ArgIndex, ArgInfo] : KI.LocalArgs) {
+            Data->LocalArgs[i++] = ArgInfo;
+            context.logger.debug(
+                "local_args (argIndex={}, size={}, sizeWithRZ={})", ArgIndex,
+                ArgInfo.Size, ArgInfo.SizeWithRedZone);
+        }
+    }
+    return UR_RESULT_SUCCESS;
+}
+
+USMLaunchInfo::~USMLaunchInfo() {
     [[maybe_unused]] ur_result_t Result;
-    if (LocalShadowOffset) {
-        Result =
-            context.urDdiTable.USM.pfnFree(Context, (void *)LocalShadowOffset);
+    if (Data) {
+        auto Type = GetDeviceType(Device);
+        if (Type == DeviceType::GPU_PVC) {
+            if (Data->PrivateShadowOffset) {
+                Result = context.urDdiTable.USM.pfnFree(
+                    Context, (void *)Data->PrivateShadowOffset);
+                assert(Result == UR_RESULT_SUCCESS);
+            }
+            if (Data->LocalShadowOffset) {
+                Result = context.urDdiTable.USM.pfnFree(
+                    Context, (void *)Data->LocalShadowOffset);
+                assert(Result == UR_RESULT_SUCCESS);
+            }
+        }
+        if (Data->LocalArgs) {
+            Result = context.urDdiTable.USM.pfnFree(Context,
+                                                    (void *)Data->LocalArgs);
+            assert(Result == UR_RESULT_SUCCESS);
+        }
+        Result = context.urDdiTable.USM.pfnFree(Context, (void *)Data);
         assert(Result == UR_RESULT_SUCCESS);
     }
     Result = context.urDdiTable.Context.pfnRelease(Context);
+    assert(Result == UR_RESULT_SUCCESS);
+    Result = context.urDdiTable.Device.pfnRelease(Device);
     assert(Result == UR_RESULT_SUCCESS);
 }
 

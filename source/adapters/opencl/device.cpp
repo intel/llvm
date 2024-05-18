@@ -507,7 +507,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
           cl_adapter::cast<cl_device_id>(hDevice), {"cl_khr_fp16"}, Supported));
 
       if (!Supported) {
-        return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
       }
     }
 
@@ -797,6 +797,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(Supported);
   }
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED: {

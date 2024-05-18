@@ -8,7 +8,7 @@
 
 using namespace sycl;
 
-constexpr specialization_id<uint32_t> spec_const;
+constexpr specialization_id<uint32_t> spec_const{1000};
 
 int main() {
     queue myQueue;

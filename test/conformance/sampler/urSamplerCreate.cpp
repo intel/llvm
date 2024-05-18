@@ -6,29 +6,9 @@
 #include "uur/fixtures.h"
 #include "uur/raii.h"
 
-using SamplerCreateParamTy =
-    std::tuple<bool, ur_sampler_addressing_mode_t, ur_sampler_filter_mode_t>;
-
 struct urSamplerCreateTestWithParam
-    : uur::urContextTestWithParam<SamplerCreateParamTy> {};
+    : uur::urContextTestWithParam<uur::SamplerCreateParamT> {};
 
-namespace uur {
-template <>
-std::string deviceTestWithParamPrinter(
-    const ::testing::TestParamInfo<
-        std::tuple<ur_device_handle_t, SamplerCreateParamTy>> &info) {
-    auto device = std::get<0>(info.param);
-    auto param = std::get<1>(info.param);
-
-    const auto normalized = std::get<0>(param);
-    const auto addr_mode = std::get<1>(param);
-    const auto filter_mode = std::get<2>(param);
-
-    std::stringstream ss;
-    ss << normalized << "_" << addr_mode << "_" << filter_mode;
-    return uur::GetPlatformAndDeviceName(device) + "__" + ss.str();
-}
-} // namespace uur
 UUR_TEST_SUITE_P(
     urSamplerCreateTestWithParam,
     ::testing::Combine(
@@ -40,7 +20,7 @@ UUR_TEST_SUITE_P(
                           UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT),
         ::testing::Values(UR_SAMPLER_FILTER_MODE_NEAREST,
                           UR_SAMPLER_FILTER_MODE_LINEAR)),
-    uur::deviceTestWithParamPrinter<SamplerCreateParamTy>);
+    uur::deviceTestWithParamPrinter<uur::SamplerCreateParamT>);
 
 TEST_P(urSamplerCreateTestWithParam, Success) {
 

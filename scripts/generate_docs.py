@@ -10,6 +10,7 @@ import os
 import subprocess
 import util
 import re
+from parse_specs import Version
 
 RE_ENABLE   = r"^\#\#\s*\-\-validate\s*\=\s*on$"
 RE_DISABLE  = r"^\#\#\s*\-\-validate\s*\=\s*off$"
@@ -86,8 +87,8 @@ def _make_ref(symbol, symbol_type, meta):
 """
     generate a valid reStructuredText file
 """
-def _generate_valid_rst(fin, fout, namespace, tags, ver, rev, meta):
-    ver=float(ver)
+def _generate_valid_rst(fin, fout, namespace, tags, ver, rev, meta, fast_mode):
+    ver = Version(ver)
     enable = True
     code_block = False
 
@@ -185,13 +186,14 @@ def _generate_valid_rst(fin, fout, namespace, tags, ver, rev, meta):
                           ver=ver,
                           namespace=namespace,
                           tags=tags,
-                          meta=meta)
+                          meta=meta,
+                          fast_mode=fast_mode)
 
 """
 Entry-point:
     generate restructuredtext documents from templates
 """
-def generate_rst(docpath, section, namespace, tags, ver, rev, specs, meta):
+def generate_rst(docpath, section, namespace, tags, ver, rev, specs, meta, fast_mode):
     srcpath = os.path.join("./", section)
     dstpath = os.path.join(docpath, "source", section)
 
@@ -200,7 +202,7 @@ def generate_rst(docpath, section, namespace, tags, ver, rev, specs, meta):
     util.removeFiles(dstpath, "*.rst")
     for fin in util.findFiles(srcpath, "*.rst"):
         fout = os.path.join(dstpath, os.path.basename(fin))
-        loc += _generate_valid_rst(os.path.abspath(fin), fout, namespace, tags, ver, rev, meta)
+        loc += _generate_valid_rst(os.path.abspath(fin), fout, namespace, tags, ver, rev, meta, fast_mode)
 
     print("Generated %s lines of reStructuredText (rst).\n"%loc)
 
@@ -215,7 +217,8 @@ def generate_rst(docpath, section, namespace, tags, ver, rev, specs, meta):
             rev=rev,
             tags=tags,
             meta=meta,
-            specs=specs)
+            specs=specs,
+            fast_mode=fast_mode)
 
 """
 Entry-point:

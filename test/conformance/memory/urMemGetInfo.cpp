@@ -31,6 +31,22 @@ TEST_P(urMemGetInfoTest, Success) {
 
     std::vector<uint8_t> info_data(size);
     ASSERT_SUCCESS(urMemGetInfo(buffer, info, size, info_data.data(), nullptr));
+
+    switch (info) {
+    case UR_MEM_INFO_CONTEXT: {
+        auto returned_context =
+            reinterpret_cast<ur_context_handle_t *>(info_data.data());
+        ASSERT_EQ(context, *returned_context);
+        break;
+    }
+    case UR_MEM_INFO_SIZE: {
+        auto returned_size = reinterpret_cast<size_t *>(info_data.data());
+        ASSERT_GE(*returned_size, allocation_size);
+        break;
+    }
+    default:
+        break;
+    }
 }
 
 TEST_P(urMemGetInfoTest, InvalidNullHandleMemory) {

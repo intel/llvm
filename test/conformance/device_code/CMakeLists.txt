@@ -10,6 +10,10 @@ else()
     set(AMD_ARCH "${UR_CONFORMANCE_AMD_ARCH}")
 endif()
 
+cmake_path(GET UR_DPCXX EXTENSION EXE)
+cmake_path(REPLACE_FILENAME UR_DPCXX "clang-offload-extract${EXE}" OUTPUT_VARIABLE DEFAULT_EXTRACTOR_NAME)
+set(UR_DEVICE_CODE_EXTRACTOR "${DEFAULT_EXTRACTOR_NAME}" CACHE PATH "Path to clang-offload-extract")
+
 if("${AMD_ARCH}" STREQUAL "" AND "${TARGET_TRIPLES}" MATCHES "amd")
     find_package(RocmAgentEnumerator)
     if(NOT ROCM_AGENT_ENUMERATOR_FOUND)
@@ -52,8 +56,15 @@ macro(add_device_binary SOURCE_FILE)
             set(EXTRA_ENV DYLD_FALLBACK_LIBRARY_PATH=${UR_SYCL_LIBRARY_DIR})
         endif()
     endif()
+
+    # Convert build flags to a regular CMake list, splitting by unquoted white
+    # space as necessary.
+    separate_arguments(DPCXX_BUILD_FLAGS_LIST NATIVE_COMMAND "${UR_DPCXX_BUILD_FLAGS}")
+
     foreach(TRIPLE ${TARGET_TRIPLES})
         set(EXE_PATH "${DEVICE_BINARY_DIR}/${KERNEL_NAME}_${TRIPLE}")
+        set(BIN_PATH "${DEVICE_BINARY_DIR}/${TRIPLE}.bin.0")
+
         if(${TRIPLE} MATCHES "amd")
             set(AMD_TARGET_BACKEND -Xsycl-target-backend=${TRIPLE})
             set(AMD_OFFLOAD_ARCH  --offload-arch=${AMD_ARCH})
@@ -67,17 +78,26 @@ macro(add_device_binary SOURCE_FILE)
         if(${TRIPLE} MATCHES "amd" AND ${KERNEL_NAME} MATCHES "image_copy")
             continue()
         endif()
-        add_custom_command(OUTPUT ${EXE_PATH}
+
+        # This seems to fail to build the SYCL binary due to the invalid asm
+        if(${TRIPLE} MATCHES "cuda" AND ${KERNEL_NAME} MATCHES "build_failure")
+            continue()
+        endif()
+        if(${TRIPLE} MATCHES "amd" AND ${KERNEL_NAME} MATCHES "build_failure")
+            continue()
+        endif()
+
+        add_custom_command(OUTPUT "${BIN_PATH}"
             COMMAND ${UR_DPCXX} -fsycl -fsycl-targets=${TRIPLE} -fsycl-device-code-split=off 
             ${AMD_TARGET_BACKEND} ${AMD_OFFLOAD_ARCH} ${AMD_NOGPULIB}
-            ${SOURCE_FILE} -o ${EXE_PATH}
+            ${DPCXX_BUILD_FLAGS_LIST} ${SOURCE_FILE} -o ${EXE_PATH}
 
-            COMMAND ${CMAKE_COMMAND} -E env ${EXTRA_ENV} SYCL_DUMP_IMAGES=true
-            ${EXE_PATH} || exit 0
+            COMMAND ${CMAKE_COMMAND} -E env ${EXTRA_ENV} ${UR_DEVICE_CODE_EXTRACTOR} --stem="${TRIPLE}.bin" ${EXE_PATH}
+
             WORKING_DIRECTORY "${DEVICE_BINARY_DIR}"
             DEPENDS ${SOURCE_FILE}
         )
-        add_custom_target(generate_${KERNEL_NAME}_${TRIPLE} DEPENDS ${EXE_PATH})
+        add_custom_target(generate_${KERNEL_NAME}_${TRIPLE} DEPENDS ${BIN_PATH})
         add_dependencies(generate_device_binaries generate_${KERNEL_NAME}_${TRIPLE})
     endforeach()
     list(APPEND DEVICE_CODE_SOURCES ${SOURCE_FILE})
@@ -92,11 +112,16 @@ add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/fill_usm.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/foo.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/image_copy.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/mean.cpp)
+add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/cpy_and_mult.cpp)
+add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/cpy_and_mult_usm.cpp)
+add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/multiply.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/spec_constant.cpp)
+add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/spec_constant_multiple.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/usm_ll.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/saxpy.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/saxpy_usm.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/indexers_usm.cpp)
+add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/build_failure.cpp)
 
 set(KERNEL_HEADER ${UR_CONFORMANCE_DEVICE_BINARIES_DIR}/kernel_entry_points.h)
 add_custom_command(OUTPUT ${KERNEL_HEADER}
