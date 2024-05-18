@@ -84,8 +84,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
 
     // Get a new command list to be used on this call
     ur_command_list_ptr_t CommandList{};
-    UR_CALL(Queue->Context->getAvailableCommandList(Queue, CommandList,
-                                                    UseCopyEngine));
+    UR_CALL(Queue->Context->getAvailableCommandList(
+        Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList));
 
     ze_event_handle_t ZeEvent = nullptr;
     ur_event_handle_t InternalEvent;
@@ -256,7 +256,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     // Get an arbitrary command-list in the queue.
     ur_command_list_ptr_t CmdList;
     UR_CALL(Queue->Context->getAvailableCommandList(
-        Queue, CmdList, false /*UseCopyEngine=*/, OkToBatch));
+        Queue, CmdList, false /*UseCopyEngine=*/, NumEventsInWaitList,
+        EventWaitList, OkToBatch));
 
     // Insert the barrier into the command-list and execute.
     UR_CALL(insertBarrierIntoCmdList(CmdList, TmpWaitList, *Event, IsInternal));
@@ -311,7 +312,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
           if (ZeQueue) {
             ur_command_list_ptr_t CmdList;
             UR_CALL(Queue->Context->getAvailableCommandList(
-                Queue, CmdList, UseCopyEngine, OkToBatch, &ZeQueue));
+                Queue, CmdList, UseCopyEngine, NumEventsInWaitList,
+                EventWaitList, OkToBatch, &ZeQueue));
             CmdLists.push_back(CmdList);
           }
         }
@@ -324,7 +326,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     // Get any available command list.
     ur_command_list_ptr_t CmdList;
     UR_CALL(Queue->Context->getAvailableCommandList(
-        Queue, CmdList, false /*UseCopyEngine=*/, OkToBatch));
+        Queue, CmdList, false /*UseCopyEngine=*/, NumEventsInWaitList,
+        EventWaitList, OkToBatch));
     CmdLists.push_back(CmdList);
   }
 
@@ -365,8 +368,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
   }
 
   // Execute each command list so the barriers can be encountered.
-  for (ur_command_list_ptr_t &CmdList : CmdLists)
+  for (ur_command_list_ptr_t &CmdList : CmdLists) {
+    bool IsCopy =
+        CmdList->second.isCopy(reinterpret_cast<ur_queue_handle_t>(Queue));
+    const auto &CommandBatch =
+        (IsCopy) ? Queue->CopyCommandBatch : Queue->ComputeCommandBatch;
+    // Only batch if the matching CmdList is already open.
+    OkToBatch = CommandBatch.OpenCommandList == CmdList;
+
     UR_CALL(Queue->executeCommandList(CmdList, false, OkToBatch));
+  }
 
   UR_CALL(Queue->ActiveBarriers.clear());
   auto UREvent = reinterpret_cast<ur_event_handle_t>(*Event);
@@ -469,8 +480,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
 ) {
   std::shared_lock<ur_shared_mutex> EventLock(Event->Mutex);
 
-  if (Event->UrQueue &&
-      (Event->UrQueue->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE) == 0) {
+  // The event must either have profiling enabled or be recording timestamps.
+  bool isTimestampedEvent = Event->isTimestamped();
+  if (!Event->isProfilingEnabled() && !isTimestampedEvent) {
     return UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE;
   }
 
@@ -482,6 +494,61 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
       ((1ULL << Device->ZeDeviceProperties->kernelTimestampValidBits) - 1ULL);
 
   UrReturnHelper ReturnValue(PropValueSize, PropValue, PropValueSizeRet);
+
+  // For timestamped events we have the timestamps ready directly on the event
+  // handle, so we short-circuit the return.
+  if (isTimestampedEvent) {
+    uint64_t ContextStartTime = Event->RecordEventStartTimestamp;
+    switch (PropName) {
+    case UR_PROFILING_INFO_COMMAND_QUEUED:
+    case UR_PROFILING_INFO_COMMAND_SUBMIT:
+      return ReturnValue(ContextStartTime);
+    case UR_PROFILING_INFO_COMMAND_END:
+    case UR_PROFILING_INFO_COMMAND_START: {
+      // If RecordEventEndTimestamp on the event is non-zero it means it has
+      // collected the result of the queue already. In that case it has been
+      // adjusted and is ready for immediate return.
+      if (Event->RecordEventEndTimestamp)
+        return ReturnValue(Event->RecordEventEndTimestamp);
+
+      // Otherwise we need to collect it from the queue.
+      auto Entry = Event->UrQueue->EndTimeRecordings.find(Event);
+
+      // Unexpected state if there is no end-time record.
+      if (Entry == Event->UrQueue->EndTimeRecordings.end())
+        return UR_RESULT_ERROR_UNKNOWN;
+      auto &EndTimeRecording = Entry->second;
+
+      // End time needs to be adjusted for resolution and valid bits.
+      uint64_t ContextEndTime =
+          (EndTimeRecording.RecordEventEndTimestamp & TimestampMaxValue) *
+          ZeTimerResolution;
+
+      // If the result is 0, we have not yet gotten results back and so we just
+      // return it.
+      if (ContextEndTime == 0)
+        return ReturnValue(ContextEndTime);
+
+      // Handle a possible wrap-around (the underlying HW counter is < 64-bit).
+      // Note, it will not report correct time if there were multiple wrap
+      // arounds, and the longer term plan is to enlarge the capacity of the
+      // HW timestamps.
+      if (ContextEndTime < ContextStartTime)
+        ContextEndTime += TimestampMaxValue * ZeTimerResolution;
+
+      // Now that we have the result, there is no need to keep it in the queue
+      // anymore, so we cache it on the event and evict the record from the
+      // queue.
+      Event->RecordEventEndTimestamp = ContextEndTime;
+      Event->UrQueue->EndTimeRecordings.erase(Entry);
+
+      return ReturnValue(ContextEndTime);
+    }
+    default:
+      logger::error("urEventGetProfilingInfo: not supported ParamName");
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
+  }
 
   ze_kernel_timestamp_result_t tsResult;
 
@@ -591,6 +658,63 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
   return UR_RESULT_SUCCESS;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
+    ur_queue_handle_t Queue,      ///< [in] handle of the queue object
+    bool Blocking,                ///< [in] blocking or non-blocking enqueue
+    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t
+        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
+                        ///< pointer to a list of events that must be complete
+                        ///< before this command can be executed. If nullptr,
+                        ///< the numEventsInWaitList must be 0, indicating
+                        ///< that this command does not wait on any event to
+                        ///< complete.
+    ur_event_handle_t
+        *OutEvent ///< [in,out] return an event object that identifies
+                  ///< this particular command instance.
+) {
+  // Lock automatically releases when this goes out of scope.
+  std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
+
+  ur_device_handle_t Device = Queue->Device;
+
+  bool UseCopyEngine = false;
+  _ur_ze_event_list_t TmpWaitList;
+  UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
+      NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
+
+  // Get a new command list to be used on this call
+  ur_command_list_ptr_t CommandList{};
+  UR_CALL(Queue->Context->getAvailableCommandList(
+      Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
+      /* AllowBatching */ false));
+
+  UR_CALL(createEventAndAssociateQueue(
+      Queue, OutEvent, UR_COMMAND_TIMESTAMP_RECORDING_EXP, CommandList,
+      /* IsInternal */ false, /* HostVisible */ true));
+  ze_event_handle_t ZeEvent = (*OutEvent)->ZeEvent;
+  (*OutEvent)->WaitList = TmpWaitList;
+
+  uint64_t DeviceStartTimestamp = 0;
+  UR_CALL(urDeviceGetGlobalTimestamps(Device, &DeviceStartTimestamp, nullptr));
+  (*OutEvent)->RecordEventStartTimestamp = DeviceStartTimestamp;
+
+  // Create a new entry in the queue's recordings.
+  Queue->EndTimeRecordings[*OutEvent] =
+      ur_queue_handle_t_::end_time_recording{};
+
+  ZE2UR_CALL(zeCommandListAppendWriteGlobalTimestamp,
+             (CommandList->first,
+              &Queue->EndTimeRecordings[*OutEvent].RecordEventEndTimestamp,
+              ZeEvent, (*OutEvent)->WaitList.Length,
+              (*OutEvent)->WaitList.ZeEventList));
+
+  UR_CALL(
+      Queue->executeCommandList(CommandList, Blocking, /* OkToBatch */ false));
+
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
     ze_event_handle_t &ZeHostVisibleEvent) {
 
@@ -598,6 +722,7 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
                                                           this->Mutex);
 
   if (!HostVisibleEvent) {
+    this->IsCreatingHostProxyEvent = true;
     if (UrQueue->ZeEventsScope != OnDemandHostVisibleProxy)
       die("getOrCreateHostVisibleEvent: missing host-visible event");
 
@@ -612,7 +737,7 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
 
     ur_command_list_ptr_t CommandList{};
     UR_CALL(UrQueue->Context->getAvailableCommandList(
-        UrQueue, CommandList, false /* UseCopyEngine */, OkToBatch))
+        UrQueue, CommandList, false /* UseCopyEngine */, 0, nullptr, OkToBatch))
 
     // Create a "proxy" host-visible event.
     UR_CALL(createEventAndAssociateQueue(
@@ -620,12 +745,18 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
         /* IsInternal */ false, /* IsMultiDevice */ false,
         /* HostVisible */ true));
 
-    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-               (CommandList->first, 1, &ZeEvent));
+    if (this->IsInnerBatchedEvent) {
+      ZE2UR_CALL(zeCommandListAppendBarrier,
+                 (CommandList->first, ZeEvent, 0, nullptr));
+    } else {
+      ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+                 (CommandList->first, 1, &ZeEvent));
+    }
     ZE2UR_CALL(zeCommandListAppendSignalEvent,
                (CommandList->first, HostVisibleEvent->ZeEvent));
 
     UR_CALL(UrQueue->executeCommandList(CommandList, false, OkToBatch))
+    this->IsCreatingHostProxyEvent = false;
   }
 
   ZeHostVisibleEvent = HostVisibleEvent->ZeEvent;
@@ -682,7 +813,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventWait(
 
           ze_event_handle_t ZeEvent = HostVisibleEvent->ZeEvent;
           logger::debug("ZeEvent = {}", ur_cast<std::uintptr_t>(ZeEvent));
-          ZE2UR_CALL(zeHostSynchronize, (ZeEvent));
+          // If this event was an inner batched event, then sync with
+          // the Queue instead of waiting on the event.
+          if (HostVisibleEvent->IsInnerBatchedEvent && Event->ZeBatchedQueue) {
+            ZE2UR_CALL(zeHostSynchronize, (Event->ZeBatchedQueue));
+          } else {
+            ZE2UR_CALL(zeHostSynchronize, (ZeEvent));
+          }
           Event->Completed = true;
         }
       }
@@ -877,10 +1014,28 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   }
 
   // Save pointer to the queue before deleting/resetting event.
+  auto Queue = Event->UrQueue;
+
+  // If the event was a timestamp recording, we try to evict its entry in the
+  // queue.
+  if (Event->isTimestamped()) {
+    auto Entry = Queue->EndTimeRecordings.find(Event);
+    if (Entry != Queue->EndTimeRecordings.end()) {
+      auto &EndTimeRecording = Entry->second;
+      if (EndTimeRecording.RecordEventEndTimestamp == 0) {
+        // If the end time recording has not finished, we tell the queue that
+        // the event is no longer alive to avoid invalid write-backs.
+        EndTimeRecording.EventHasDied = true;
+      } else {
+        // Otherwise we evict the entry.
+        Event->UrQueue->EndTimeRecordings.erase(Entry);
+      }
+    }
+  }
+
   // When we add an event to the cache we need to check whether profiling is
   // enabled or not, so we access properties of the queue and that's why queue
   // must released later.
-  auto Queue = Event->UrQueue;
   if (DisableEventsCaching || !Event->OwnNativeHandle) {
     delete Event;
   } else {
@@ -938,7 +1093,12 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
   std::list<ur_event_handle_t> EventsToBeReleased;
   ur_queue_handle_t AssociatedQueue = nullptr;
   {
-    std::scoped_lock<ur_shared_mutex> EventLock(Event->Mutex);
+    // If the Event is already locked, then continue with the cleanup, otherwise
+    // block on locking the event.
+    std::unique_lock<ur_shared_mutex> EventLock(Event->Mutex, std::try_to_lock);
+    if (!EventLock.owns_lock() && !Event->IsCreatingHostProxyEvent) {
+      EventLock.lock();
+    }
     if (SetEventCompleted)
       Event->Completed = true;
     // Exit early of event was already cleanedup.
@@ -1268,16 +1428,26 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
         }
 
         auto Queue = EventList[I]->UrQueue;
-        if (Queue) {
-          // The caller of createAndRetainUrZeEventList must already hold
-          // a lock of the CurQueue. Additionally lock the Queue if it
-          // is different from CurQueue.
-          // TODO: rework this to avoid deadlock when another thread is
-          //       locking the same queues but in a different order.
-          auto Lock = ((Queue == CurQueue)
-                           ? std::unique_lock<ur_shared_mutex>()
-                           : std::unique_lock<ur_shared_mutex>(Queue->Mutex));
 
+        auto CurQueueDevice = CurQueue->Device;
+        std::optional<std::unique_lock<ur_shared_mutex>> QueueLock =
+            std::nullopt;
+        // The caller of createAndRetainUrZeEventList must already hold
+        // a lock of the CurQueue. However, if the CurQueue is different
+        // then the Event's Queue, we need to drop that lock and
+        // acquire the Event's Queue lock. This is done to avoid a lock
+        // ordering issue.
+        // For the rest of this scope, CurQueue cannot be accessed.
+        // TODO: This solution is very error-prone. This requires a refactor
+        // to either have fine-granularity locks inside of the queues or
+        // to move any operations on queues other than CurQueue out
+        // of this scope.
+        if (Queue && Queue != CurQueue) {
+          CurQueue->Mutex.unlock();
+          QueueLock = std::unique_lock<ur_shared_mutex>(Queue->Mutex);
+        }
+
+        if (Queue) {
           // If the event that is going to be waited is in an open batch
           // different from where this next command is going to be added,
           // then we have to force execute of that open command-list
@@ -1320,17 +1490,17 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
         }
 
         ur_command_list_ptr_t CommandList;
-        if (Queue && Queue->Device != CurQueue->Device) {
+        if (Queue && Queue->Device != CurQueueDevice) {
           // Get a command list prior to acquiring an event lock.
           // This prevents a potential deadlock with recursive
           // event locks.
-          UR_CALL(Queue->Context->getAvailableCommandList(Queue, CommandList,
-                                                          false, true));
+          UR_CALL(Queue->Context->getAvailableCommandList(
+              Queue, CommandList, false, 0, nullptr, true));
         }
 
         std::shared_lock<ur_shared_mutex> Lock(EventList[I]->Mutex);
 
-        if (Queue && Queue->Device != CurQueue->Device &&
+        if (Queue && Queue->Device != CurQueueDevice &&
             !EventList[I]->IsMultiDevice) {
           ze_event_handle_t MultiDeviceZeEvent = nullptr;
           ur_event_handle_t MultiDeviceEvent;
@@ -1365,6 +1535,10 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
           this->UrEventList[TmpListLength]->RefCount.increment();
         }
 
+        if (QueueLock.has_value()) {
+          QueueLock.reset();
+          CurQueue->Mutex.lock();
+        }
         TmpListLength += 1;
       }
     }
@@ -1442,4 +1616,13 @@ ur_result_t _ur_ze_event_list_t::collectEventsForReleaseAndDestroyUrZeEventList(
 bool ur_event_handle_t_::isProfilingEnabled() const {
   return !UrQueue || // tentatively assume user events are profiling enabled
          (UrQueue->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0;
+}
+
+// Tells if this event was created as a timestamp event, allowing profiling
+// info even if profiling is not enabled.
+bool ur_event_handle_t_::isTimestamped() const {
+  // If we are recording, the start time of the event will be non-zero. The
+  // end time might still be missing, depending on whether the corresponding
+  // enqueue is still running.
+  return RecordEventStartTimestamp != 0;
 }

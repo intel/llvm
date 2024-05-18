@@ -23,6 +23,14 @@ UUR_TEST_SUITE_P(
                       UR_PROGRAM_INFO_KERNEL_NAMES),
     uur::deviceTestWithParamPrinter<ur_program_info_t>);
 
+struct urProgramGetInfoSingleTest : uur::urProgramTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
+        ASSERT_SUCCESS(urProgramBuild(this->context, program, nullptr));
+    }
+};
+UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramGetInfoSingleTest);
+
 TEST_P(urProgramGetInfoTest, Success) {
     auto property_name = getParam();
     size_t property_size = 0;
@@ -32,6 +40,54 @@ TEST_P(urProgramGetInfoTest, Success) {
     property_value.resize(property_size);
     ASSERT_SUCCESS(urProgramGetInfo(program, property_name, property_size,
                                     property_value.data(), nullptr));
+    switch (property_name) {
+    case UR_PROGRAM_INFO_REFERENCE_COUNT: {
+        auto returned_reference_count =
+            reinterpret_cast<uint32_t *>(property_value.data());
+        ASSERT_GT(*returned_reference_count, 0U);
+        break;
+    }
+    case UR_PROGRAM_INFO_CONTEXT: {
+        auto returned_context =
+            reinterpret_cast<ur_context_handle_t *>(property_value.data());
+        ASSERT_EQ(context, *returned_context);
+        break;
+    }
+    case UR_PROGRAM_INFO_NUM_DEVICES: {
+        auto returned_num_of_devices =
+            reinterpret_cast<uint32_t *>(property_value.data());
+        ASSERT_GE(uur::DevicesEnvironment::instance->devices.size(),
+                  *returned_num_of_devices);
+        break;
+    }
+    case UR_PROGRAM_INFO_DEVICES: {
+        auto returned_devices =
+            reinterpret_cast<ur_device_handle_t *>(property_value.data());
+        size_t devices_count = property_size / sizeof(ur_device_handle_t);
+        ASSERT_GT(devices_count, 0);
+        for (uint32_t i = 0; i < devices_count; i++) {
+            auto &devices = uur::DevicesEnvironment::instance->devices;
+            auto queried_device =
+                std::find(devices.begin(), devices.end(), returned_devices[i]);
+            EXPECT_TRUE(queried_device != devices.end());
+        }
+        break;
+    }
+    case UR_PROGRAM_INFO_NUM_KERNELS: {
+        auto returned_num_of_kernels =
+            reinterpret_cast<uint32_t *>(property_value.data());
+        ASSERT_GT(*returned_num_of_kernels, 0U);
+        break;
+    }
+    case UR_PROGRAM_INFO_KERNEL_NAMES: {
+        auto returned_kernel_names =
+            reinterpret_cast<char *>(property_value.data());
+        ASSERT_STRNE(returned_kernel_names, "");
+        break;
+    }
+    default:
+        break;
+    }
 }
 
 TEST_P(urProgramGetInfoTest, InvalidNullHandleProgram) {
@@ -73,4 +129,36 @@ TEST_P(urProgramGetInfoTest, InvalidNullPointerPropValueRet) {
     ASSERT_EQ_RESULT(urProgramGetInfo(program, UR_PROGRAM_INFO_REFERENCE_COUNT,
                                       0, nullptr, nullptr),
                      UR_RESULT_ERROR_INVALID_NULL_POINTER);
+}
+
+TEST_P(urProgramGetInfoSingleTest, NumDevicesIsNonzero) {
+    uint32_t count;
+    ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_NUM_DEVICES,
+                                    sizeof(uint32_t), &count, nullptr));
+    ASSERT_GE(count, 1);
+}
+
+TEST_P(urProgramGetInfoSingleTest, NumDevicesMatchesDeviceArray) {
+    uint32_t count;
+    ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_NUM_DEVICES,
+                                    sizeof(uint32_t), &count, nullptr));
+
+    size_t info_devices_size;
+    ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_DEVICES, 0,
+                                    nullptr, &info_devices_size));
+    ASSERT_EQ(count, info_devices_size / sizeof(ur_device_handle_t));
+}
+
+TEST_P(urProgramGetInfoSingleTest, NumDevicesMatchesContextNumDevices) {
+    uint32_t count;
+    ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_NUM_DEVICES,
+                                    sizeof(uint32_t), &count, nullptr));
+
+    // The device count either matches the number of devices in the context or
+    // is 1, depending on how it was built
+    uint32_t info_context_devices_count;
+    ASSERT_SUCCESS(urContextGetInfo(context, UR_CONTEXT_INFO_NUM_DEVICES,
+                                    sizeof(uint32_t),
+                                    &info_context_devices_count, nullptr));
+    ASSERT_TRUE(count == 1 || count == info_context_devices_count);
 }

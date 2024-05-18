@@ -20,7 +20,7 @@
 
 extern size_t imageElementByteSize(hipArray_Format ArrayFormat);
 
-ur_result_t enqueueEventsWait(ur_queue_handle_t, hipStream_t Stream,
+ur_result_t enqueueEventsWait(ur_queue_handle_t Queue, hipStream_t Stream,
                               uint32_t NumEventsInWaitList,
                               const ur_event_handle_t *EventWaitList) {
   if (!EventWaitList) {
@@ -29,8 +29,8 @@ ur_result_t enqueueEventsWait(ur_queue_handle_t, hipStream_t Stream,
   try {
     auto Result = forLatestEvents(
         EventWaitList, NumEventsInWaitList,
-        [Stream](ur_event_handle_t Event) -> ur_result_t {
-          ScopedContext Active(Event->getDevice());
+        [Stream, Queue](ur_event_handle_t Event) -> ur_result_t {
+          ScopedContext Active(Queue->getDevice());
           if (Event->isCompleted() || Event->getStream() == Stream) {
             return UR_RESULT_SUCCESS;
           } else {
@@ -218,8 +218,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
     // last queue to write to the MemBuffer, meaning we must perform the copy
     // from a different device
     if (hBuffer->LastEventWritingToMemObj &&
-        hBuffer->LastEventWritingToMemObj->getDevice() != hQueue->getDevice()) {
-      Device = hBuffer->LastEventWritingToMemObj->getDevice();
+        hBuffer->LastEventWritingToMemObj->getQueue()->getDevice() !=
+            hQueue->getDevice()) {
+      // This event is never created with interop so getQueue is never null
+      hQueue = hBuffer->LastEventWritingToMemObj->getQueue();
+      Device = hQueue->getDevice();
       ScopedContext Active(Device);
       HIPStream = hipStream_t{0}; // Default stream for different device
       // We may have to wait for an event on another queue if it is the last
@@ -584,8 +587,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     // last queue to write to the MemBuffer, meaning we must perform the copy
     // from a different device
     if (hBuffer->LastEventWritingToMemObj &&
-        hBuffer->LastEventWritingToMemObj->getDevice() != hQueue->getDevice()) {
-      Device = hBuffer->LastEventWritingToMemObj->getDevice();
+        hBuffer->LastEventWritingToMemObj->getQueue()->getDevice() !=
+            hQueue->getDevice()) {
+      // This event is never created with interop so getQueue is never null
+      hQueue = hBuffer->LastEventWritingToMemObj->getQueue();
+      Device = hQueue->getDevice();
       ScopedContext Active(Device);
       HIPStream = hipStream_t{0}; // Default stream for different device
       // We may have to wait for an event on another queue if it is the last
@@ -1017,8 +1023,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     // last queue to write to the MemBuffer, meaning we must perform the copy
     // from a different device
     if (hImage->LastEventWritingToMemObj &&
-        hImage->LastEventWritingToMemObj->getDevice() != hQueue->getDevice()) {
-      Device = hImage->LastEventWritingToMemObj->getDevice();
+        hImage->LastEventWritingToMemObj->getQueue()->getDevice() !=
+            hQueue->getDevice()) {
+      hQueue = hImage->LastEventWritingToMemObj->getQueue();
+      Device = hQueue->getDevice();
       ScopedContext Active(Device);
       HIPStream = hipStream_t{0}; // Default stream for different device
       // We may have to wait for an event on another queue if it is the last
@@ -1966,4 +1974,37 @@ void setCopyRectParams(ur_rect_region_t Region, const void *SrcPtr,
                                                        : hipMemcpyDeviceToHost)
                      : (DstType == hipMemoryTypeDevice ? hipMemcpyHostToDevice
                                                        : hipMemcpyHostToHost));
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
+    ur_queue_handle_t hQueue, bool blocking, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
+  try {
+    ScopedContext Active(hQueue->getDevice());
+
+    uint32_t StreamToken;
+    ur_stream_quard Guard;
+    hipStream_t HIPStream = hQueue->getNextComputeStream(
+        numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
+                                     phEventWaitList));
+
+    RetImplEvent =
+        std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+            UR_COMMAND_TIMESTAMP_RECORDING_EXP, hQueue, HIPStream));
+    UR_CHECK_ERROR(RetImplEvent->start());
+    UR_CHECK_ERROR(RetImplEvent->record());
+
+    if (blocking) {
+      UR_CHECK_ERROR(hipStreamSynchronize(HIPStream));
+    }
+
+    *phEvent = RetImplEvent.release();
+  } catch (ur_result_t Err) {
+    Result = Err;
+  }
+  return Result;
 }

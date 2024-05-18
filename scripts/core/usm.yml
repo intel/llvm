@@ -248,7 +248,7 @@ params:
       desc: "[in][optional] Pointer to a pool created using urUSMPoolCreate"
     - type: "size_t"
       name: size
-      desc: "[in] size in bytes of the USM memory object to be allocated"
+      desc: "[in] minimum size in bytes of the USM memory object to be allocated"
     - type: void**
       name: ppMem
       desc: "[out] pointer to USM host memory object"
@@ -293,7 +293,7 @@ params:
       desc: "[in][optional] Pointer to a pool created using urUSMPoolCreate"
     - type: "size_t"
       name: size
-      desc: "[in] size in bytes of the USM memory object to be allocated"
+      desc: "[in] minimum size in bytes of the USM memory object to be allocated"
     - type: void**
       name: ppMem
       desc: "[out] pointer to USM device memory object"
@@ -339,7 +339,7 @@ params:
       desc: "[in][optional] Pointer to a pool created using urUSMPoolCreate"
     - type: "size_t"
       name: size
-      desc: "[in] size in bytes of the USM memory object to be allocated"
+      desc: "[in] minimum size in bytes of the USM memory object to be allocated"
     - type: void**
       name: ppMem
       desc: "[out] pointer to USM shared memory object"

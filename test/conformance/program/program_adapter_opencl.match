@@ -1,3 +1,4 @@
+urProgramCreateWithILTest.BuildInvalidProgram/Intel_R__OpenCL___{{.*}}_
 urProgramGetFunctionPointerTest.InvalidFunctionName/Intel_R__OpenCL___{{.*}}_
 urProgramGetInfoTest.Success/Intel_R__OpenCL___{{.*}}___UR_PROGRAM_INFO_SOURCE
 urProgramGetInfoTest.Success/Intel_R__OpenCL___{{.*}}___UR_PROGRAM_INFO_BINARIES

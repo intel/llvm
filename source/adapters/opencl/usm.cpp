@@ -8,6 +8,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <ur/ur.hpp>
+
 #include "common.hpp"
 
 inline cl_mem_alloc_flags_intel
@@ -239,7 +241,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     return mapCLErrorToUR(CLErr);
   }
 
-  if (patternSize <= 128) {
+  if (patternSize <= 128 && isPowerOf2(patternSize)) {
     clEnqueueMemFillINTEL_fn EnqueueMemFill = nullptr;
     UR_RETURN_ON_FAILURE(
         cl_ext::getExtFuncFromContext<clEnqueueMemFillINTEL_fn>(

@@ -842,7 +842,7 @@ ur_result_t UR_APICALL urDeviceGetSelected(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP < propName`
+///         + `::UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -2204,7 +2204,7 @@ ur_result_t UR_APICALL urUSMHostAlloc(
     ur_usm_pool_handle_t
         pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t
-        size, ///< [in] size in bytes of the USM memory object to be allocated
+        size, ///< [in] minimum size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM host memory object
     ) try {
     auto pfnHostAlloc = ur_lib::context->urDdiTable.USM.pfnHostAlloc;
@@ -2263,7 +2263,7 @@ ur_result_t UR_APICALL urUSMDeviceAlloc(
     ur_usm_pool_handle_t
         pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t
-        size, ///< [in] size in bytes of the USM memory object to be allocated
+        size, ///< [in] minimum size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM device memory object
     ) try {
     auto pfnDeviceAlloc = ur_lib::context->urDdiTable.USM.pfnDeviceAlloc;
@@ -2323,7 +2323,7 @@ ur_result_t UR_APICALL urUSMSharedAlloc(
     ur_usm_pool_handle_t
         pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t
-        size, ///< [in] size in bytes of the USM memory object to be allocated
+        size, ///< [in] minimum size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM shared memory object
     ) try {
     auto pfnSharedAlloc = ur_lib::context->urDdiTable.USM.pfnSharedAlloc;
@@ -2890,6 +2890,8 @@ ur_result_t UR_APICALL urPhysicalMemRelease(
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
+///     - The adapter may (but is not required to) perform validation of the
+///       provided module during this call.
 ///
 /// @remarks
 ///   _Analogues_
@@ -2940,6 +2942,10 @@ ur_result_t UR_APICALL urProgramCreateWithIL(
 ///     - Following a successful call to this entry point, `phProgram` will
 ///       contain a binary of type ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT or
 ///       ::UR_PROGRAM_BINARY_TYPE_LIBRARY for `hDevice`.
+///     - The device specified by `hDevice` must be device associated with
+///       context.
+///     - The adapter may (but is not required to) perform validation of the
+///       provided module during this call.
 ///
 /// @remarks
 ///   _Analogues_
@@ -6596,7 +6602,6 @@ ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
-///         + `NULL == phMem`
 ///         + `NULL == phImage`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -6612,7 +6617,6 @@ ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
-    ur_mem_handle_t *phMem, ///< [out] pointer to handle of image object created
     ur_exp_image_handle_t
         *phImage ///< [out] pointer to handle of image object created
     ) try {
@@ -6624,7 +6628,7 @@ ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     }
 
     return pfnUnsampledImageCreateExp(hContext, hDevice, hImageMem,
-                                      pImageFormat, pImageDesc, phMem, phImage);
+                                      pImageFormat, pImageDesc, phImage);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -6649,7 +6653,6 @@ ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
-///         + `NULL == phMem`
 ///         + `NULL == phImage`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -6667,7 +6670,6 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_sampler_handle_t hSampler,      ///< [in] sampler to be used
-    ur_mem_handle_t *phMem, ///< [out] pointer to handle of image object created
     ur_exp_image_handle_t
         *phImage ///< [out] pointer to handle of image object created
     ) try {
@@ -6678,7 +6680,7 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     }
 
     return pfnSampledImageCreateExp(hContext, hDevice, hImageMem, pImageFormat,
-                                    pImageDesc, hSampler, phMem, phImage);
+                                    pImageDesc, hSampler, phImage);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -8305,6 +8307,52 @@ ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
 
     return pfnSuggestMaxCooperativeGroupCountExp(
         hKernel, localWorkSize, dynamicSharedMemorySize, pGroupCountRet);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue a command for recording the device timestamp
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phEvent`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    bool
+        blocking, ///< [in] indicates whether the call to this function should block until
+    ///< until the device timestamp recording command has executed on the
+    ///< device.
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the kernel execution.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    ///< events.
+    ur_event_handle_t *
+        phEvent ///< [in,out] return an event object that identifies this particular kernel
+                ///< execution instance. Profiling information can be queried
+    ///< from this event as if `hQueue` had profiling enabled. Querying
+    ///< `UR_PROFILING_INFO_COMMAND_QUEUED` or `UR_PROFILING_INFO_COMMAND_SUBMIT`
+    ///< reports the timestamp at the time of the call to this function.
+    ///< Querying `UR_PROFILING_INFO_COMMAND_START` or `UR_PROFILING_INFO_COMMAND_END`
+    ///< reports the timestamp recorded when the command is executed on the device.
+    ) try {
+    auto pfnTimestampRecordingExp =
+        ur_lib::context->urDdiTable.EnqueueExp.pfnTimestampRecordingExp;
+    if (nullptr == pfnTimestampRecordingExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnTimestampRecordingExp(hQueue, blocking, numEventsInWaitList,
+                                    phEventWaitList, phEvent);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }

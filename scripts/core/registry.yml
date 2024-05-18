@@ -580,6 +580,9 @@ etors:
 - name: COMMAND_BUFFER_COMMAND_GET_INFO_EXP
   desc: Enumerator for $xCommandBufferCommandGetInfoExp
   value: '222'
+- name: ENQUEUE_TIMESTAMP_RECORDING_EXP
+  desc: Enumerator for $xEnqueueTimestampRecordingExp
+  value: '223'
 ---
 type: enum
 desc: Defines structure types

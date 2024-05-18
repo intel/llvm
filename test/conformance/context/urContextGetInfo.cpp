@@ -37,7 +37,8 @@ UUR_TEST_SUITE_P(urContextGetInfoTestWithInfoParam,
                      UR_CONTEXT_INFO_NUM_DEVICES,          //
                      UR_CONTEXT_INFO_DEVICES,              //
                      UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT, //
-                     UR_CONTEXT_INFO_USM_FILL2D_SUPPORT    //
+                     UR_CONTEXT_INFO_USM_FILL2D_SUPPORT,   //
+                     UR_CONTEXT_INFO_REFERENCE_COUNT       //
 
                      ),
                  uur::deviceTestWithParamPrinter<ur_context_info_t>);
@@ -56,6 +57,38 @@ TEST_P(urContextGetInfoTestWithInfoParam, Success) {
     std::vector<uint8_t> info_data(info_size);
     ASSERT_SUCCESS(
         urContextGetInfo(context, info, info_size, info_data.data(), nullptr));
+
+    switch (info) {
+    case UR_CONTEXT_INFO_NUM_DEVICES: {
+        auto returned_num_of_devices =
+            reinterpret_cast<uint32_t *>(info_data.data());
+        ASSERT_GE(uur::DevicesEnvironment::instance->devices.size(),
+                  *returned_num_of_devices);
+        break;
+    }
+    case UR_CONTEXT_INFO_DEVICES: {
+        auto returned_devices =
+            reinterpret_cast<ur_device_handle_t *>(info_data.data());
+        size_t devices_count = info_size / sizeof(ur_device_handle_t);
+        ASSERT_GT(devices_count, 0);
+        for (uint32_t i = 0; i < devices_count; i++) {
+            auto &devices = uur::DevicesEnvironment::instance->devices;
+            auto queried_device =
+                std::find(devices.begin(), devices.end(), returned_devices[i]);
+            EXPECT_TRUE(queried_device != devices.end())
+                << "device associated with the context is not valid";
+        }
+        break;
+    }
+    case UR_CONTEXT_INFO_REFERENCE_COUNT: {
+        auto returned_reference_count =
+            reinterpret_cast<uint32_t *>(info_data.data());
+        ASSERT_GT(*returned_reference_count, 0U);
+        break;
+    }
+    default:
+        break;
+    }
 }
 
 using urContextGetInfoTest = uur::urContextTest;

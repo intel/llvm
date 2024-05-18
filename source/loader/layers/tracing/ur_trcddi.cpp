@@ -1331,7 +1331,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
     ur_usm_pool_handle_t
         pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t
-        size, ///< [in] size in bytes of the USM memory object to be allocated
+        size, ///< [in] minimum size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM host memory object
 ) {
     auto pfnHostAlloc = context.urDdiTable.USM.pfnHostAlloc;
@@ -1363,7 +1363,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
     ur_usm_pool_handle_t
         pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t
-        size, ///< [in] size in bytes of the USM memory object to be allocated
+        size, ///< [in] minimum size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM device memory object
 ) {
     auto pfnDeviceAlloc = context.urDdiTable.USM.pfnDeviceAlloc;
@@ -1396,7 +1396,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
     ur_usm_pool_handle_t
         pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t
-        size, ///< [in] size in bytes of the USM memory object to be allocated
+        size, ///< [in] minimum size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM shared memory object
 ) {
     auto pfnSharedAlloc = context.urDdiTable.USM.pfnSharedAlloc;
@@ -4606,7 +4606,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
-    ur_mem_handle_t *phMem, ///< [out] pointer to handle of image object created
     ur_exp_image_handle_t
         *phImage ///< [out] pointer to handle of image object created
 ) {
@@ -4618,14 +4617,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     }
 
     ur_bindless_images_unsampled_image_create_exp_params_t params = {
-        &hContext,   &hDevice, &hImageMem, &pImageFormat,
-        &pImageDesc, &phMem,   &phImage};
+        &hContext, &hDevice, &hImageMem, &pImageFormat, &pImageDesc, &phImage};
     uint64_t instance = context.notify_begin(
         UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP,
         "urBindlessImagesUnsampledImageCreateExp", &params);
 
     ur_result_t result = pfnUnsampledImageCreateExp(
-        hContext, hDevice, hImageMem, pImageFormat, pImageDesc, phMem, phImage);
+        hContext, hDevice, hImageMem, pImageFormat, pImageDesc, phImage);
 
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP,
                        "urBindlessImagesUnsampledImageCreateExp", &params,
@@ -4645,7 +4643,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_sampler_handle_t hSampler,      ///< [in] sampler to be used
-    ur_mem_handle_t *phMem, ///< [out] pointer to handle of image object created
     ur_exp_image_handle_t
         *phImage ///< [out] pointer to handle of image object created
 ) {
@@ -4658,14 +4655,14 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 
     ur_bindless_images_sampled_image_create_exp_params_t params = {
         &hContext,   &hDevice,  &hImageMem, &pImageFormat,
-        &pImageDesc, &hSampler, &phMem,     &phImage};
+        &pImageDesc, &hSampler, &phImage};
     uint64_t instance = context.notify_begin(
         UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP,
         "urBindlessImagesSampledImageCreateExp", &params);
 
     ur_result_t result =
         pfnSampledImageCreateExp(hContext, hDevice, hImageMem, pImageFormat,
-                                 pImageDesc, hSampler, phMem, phImage);
+                                 pImageDesc, hSampler, phImage);
 
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP,
                        "urBindlessImagesSampledImageCreateExp", &params,
@@ -6122,6 +6119,52 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueTimestampRecordingExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    bool
+        blocking, ///< [in] indicates whether the call to this function should block until
+    ///< until the device timestamp recording command has executed on the
+    ///< device.
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the kernel execution.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    ///< events.
+    ur_event_handle_t *
+        phEvent ///< [in,out] return an event object that identifies this particular kernel
+                ///< execution instance. Profiling information can be queried
+    ///< from this event as if `hQueue` had profiling enabled. Querying
+    ///< `UR_PROFILING_INFO_COMMAND_QUEUED` or `UR_PROFILING_INFO_COMMAND_SUBMIT`
+    ///< reports the timestamp at the time of the call to this function.
+    ///< Querying `UR_PROFILING_INFO_COMMAND_START` or `UR_PROFILING_INFO_COMMAND_END`
+    ///< reports the timestamp recorded when the command is executed on the device.
+) {
+    auto pfnTimestampRecordingExp =
+        context.urDdiTable.EnqueueExp.pfnTimestampRecordingExp;
+
+    if (nullptr == pfnTimestampRecordingExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_enqueue_timestamp_recording_exp_params_t params = {
+        &hQueue, &blocking, &numEventsInWaitList, &phEventWaitList, &phEvent};
+    uint64_t instance =
+        context.notify_begin(UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP,
+                             "urEnqueueTimestampRecordingExp", &params);
+
+    ur_result_t result = pfnTimestampRecordingExp(
+        hQueue, blocking, numEventsInWaitList, phEventWaitList, phEvent);
+
+    context.notify_end(UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP,
+                       "urEnqueueTimestampRecordingExp", &params, &result,
+                       instance);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramBuildExp
 __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     ur_program_handle_t hProgram, ///< [in] Handle of the program to build.
@@ -6827,6 +6870,10 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
         pDdiTable->pfnCooperativeKernelLaunchExp;
     pDdiTable->pfnCooperativeKernelLaunchExp =
         ur_tracing_layer::urEnqueueCooperativeKernelLaunchExp;
+
+    dditable.pfnTimestampRecordingExp = pDdiTable->pfnTimestampRecordingExp;
+    pDdiTable->pfnTimestampRecordingExp =
+        ur_tracing_layer::urEnqueueTimestampRecordingExp;
 
     return result;
 }

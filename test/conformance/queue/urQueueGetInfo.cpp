@@ -42,6 +42,29 @@ TEST_P(urQueueGetInfoTestWithInfoParam, Success) {
         std::vector<uint8_t> data(size);
         ASSERT_SUCCESS(
             urQueueGetInfo(queue, info_type, size, data.data(), nullptr));
+
+        switch (info_type) {
+        case UR_QUEUE_INFO_CONTEXT: {
+            auto returned_context =
+                reinterpret_cast<ur_context_handle_t *>(data.data());
+            ASSERT_EQ(context, *returned_context);
+            break;
+        }
+        case UR_QUEUE_INFO_DEVICE: {
+            auto returned_device =
+                reinterpret_cast<ur_device_handle_t *>(data.data());
+            ASSERT_EQ(*returned_device, device);
+            break;
+        }
+        case UR_QUEUE_INFO_REFERENCE_COUNT: {
+            auto returned_reference_count =
+                reinterpret_cast<uint32_t *>(data.data());
+            ASSERT_GT(*returned_reference_count, 0U);
+            break;
+        }
+        default:
+            break;
+        }
     } else {
         ASSERT_EQ_RESULT(result, UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION);
     }
