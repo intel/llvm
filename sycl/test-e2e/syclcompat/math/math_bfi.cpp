@@ -75,8 +75,12 @@ template <typename T> bool test(const char *Msg, int N) {
 
   std::mt19937 gen(seed);
   std::uniform_int_distribution<T> rd_source(min_value, max_value);
-  std::uniform_int_distribution<uint32_t> rd_start(0, UINT_MAX),
-      rd_length(0, UINT_MAX);
+  // Define a small overshoot so that we adequately test out-of-range cases
+  // without sacrificing depth of testing of valid start+length combinations
+  constexpr uint32_t overshoot = 2;
+  std::uniform_int_distribution<uint32_t> rd_start(0, bit_width + overshoot);
+  std::uniform_int_distribution<uint32_t> rd_length(0, bit_width + overshoot);
+
   std::vector<T> x(N, 0);
   std::vector<T> y(N, 0);
   std::vector<T> compat_results(N, 0);
@@ -91,7 +95,7 @@ template <typename T> bool test(const char *Msg, int N) {
   }
 
   sycl::buffer<T, 1> x_buffer(x.data(), N);
-  sycl::buffer<T, 1> y_buffer(x.data(), N);
+  sycl::buffer<T, 1> y_buffer(y.data(), N);
   sycl::buffer<T, 1> compat_results_buffer(compat_results.data(), N);
   sycl::buffer<T, 1> slow_results_buffer(slow_results.data(), N);
   sycl::buffer<uint32_t, 1> starts_buffer(starts.data(), N);
@@ -131,7 +135,7 @@ template <typename T> bool test(const char *Msg, int N) {
   sycl::host_accessor length_accessor(lengths_buffer, sycl::read_only);
   sycl::host_accessor compat_result_accessor(compat_results_buffer,
                                              sycl::read_only);
-  sycl::host_accessor slow_result_accessor(compat_results_buffer,
+  sycl::host_accessor slow_result_accessor(slow_results_buffer,
                                            sycl::read_only);
 
   int failed = 0;
@@ -156,8 +160,8 @@ template <typename T> bool test(const char *Msg, int N) {
 
 int main() {
   const int N = 1000;
-  test<uint16_t>("uint16", N);
-  test<uint32_t>("uint32", N);
-  test<uint64_t>("uint64", N);
+  assert(test<uint16_t>("uint16", N));
+  assert(test<uint32_t>("uint32", N));
+  assert(test<uint64_t>("uint64", N));
   return 0;
 }

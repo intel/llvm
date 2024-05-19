@@ -220,8 +220,8 @@ bfi(const T x, const T y, const uint32_t bit_start, const uint32_t num_bits) {
   constexpr unsigned bit_width = CHAR_BIT * sizeof(T);
 
   // if bit_start > bit_width || len == 0, should return y.
-  const uint32_t ignore_bfi = bit_start > bit_width || num_bits == 0;
-  T extract_bitfield_mask = (~(T{0}) >> (bit_width - num_bits)) << bit_start;
+  const T ignore_bfi = static_cast<T>(bit_start > bit_width || num_bits == 0);
+  T extract_bitfield_mask = (static_cast<T>(~T{0}) >> (bit_width - num_bits)) << bit_start;
   T clean_bitfield_mask = ~extract_bitfield_mask;
   return (y & (-ignore_bfi | clean_bitfield_mask)) |
          (~-ignore_bfi & ((x << bit_start) & extract_bitfield_mask));
