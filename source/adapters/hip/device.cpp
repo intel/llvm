@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "device.hpp"
+#include "adapter.hpp"
 #include "context.hpp"
 #include "event.hpp"
 
@@ -950,8 +951,57 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
-    ur_native_handle_t, ur_platform_handle_t,
-    const ur_device_native_properties_t *, ur_device_handle_t *) {
+    ur_native_handle_t hNativeDevice, ur_platform_handle_t hPlatform,
+    [[maybe_unused]] const ur_device_native_properties_t *pProperties,
+    ur_device_handle_t *phDevice) {
+  // We can't cast between ur_native_handle_t and hipDevice_t, so memcpy the
+  // bits instead
+  hipDevice_t HIPDevice = 0;
+  memcpy(&HIPDevice, &hNativeDevice, sizeof(hipDevice_t));
+
+  auto IsDevice = [=](std::unique_ptr<ur_device_handle_t_> &Dev) {
+    return Dev->get() == HIPDevice;
+  };
+
+  // If a platform is provided just check if the device is in it
+  if (hPlatform) {
+    auto SearchRes = std::find_if(begin(hPlatform->Devices),
+                                  end(hPlatform->Devices), IsDevice);
+    if (SearchRes != end(hPlatform->Devices)) {
+      *phDevice = SearchRes->get();
+      return UR_RESULT_SUCCESS;
+    }
+  }
+
+  // Get list of platforms
+  uint32_t NumPlatforms = 0;
+  ur_adapter_handle_t AdapterHandle = &adapter;
+  ur_result_t Result =
+      urPlatformGet(&AdapterHandle, 1, 0, nullptr, &NumPlatforms);
+  if (Result != UR_RESULT_SUCCESS)
+    return Result;
+
+  // We can only have a maximum of one platform.
+  if (NumPlatforms != 1)
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+
+  ur_platform_handle_t Platform = nullptr;
+
+  Result = urPlatformGet(&AdapterHandle, 1, NumPlatforms, &Platform, nullptr);
+  if (Result != UR_RESULT_SUCCESS)
+    return Result;
+
+  // Iterate through the platform's devices to find the device that matches
+  // nativeHandle
+  auto SearchRes = std::find_if(std::begin(Platform->Devices),
+                                std::end(Platform->Devices), IsDevice);
+  if (SearchRes != end(Platform->Devices)) {
+    *phDevice = static_cast<ur_device_handle_t>((*SearchRes).get());
+    return UR_RESULT_SUCCESS;
+  }
+
+  // If the provided nativeHandle cannot be matched to an
+  // existing device return error
   return UR_RESULT_ERROR_INVALID_OPERATION;
 }
 
