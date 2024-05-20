@@ -9,10 +9,12 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include "common.hpp"
 #include <ur/ur.hpp>
 
 #include <algorithm>
 #include <cuda.h>
+#include <mutex>
 #include <vector>
 
 using ur_stream_guard_ = std::unique_lock<std::mutex>;
@@ -27,6 +29,9 @@ struct ur_queue_handle_t_ {
 
   std::vector<native_type> ComputeStreams;
   std::vector<native_type> TransferStreams;
+  // Stream used solely when profiling is enabled
+  native_type ProfStream;
+  bool IsProfStreamCreated{false};
   // delay_compute_ keeps track of which streams have been recently reused and
   // their next use should be delayed. If a stream has been recently reused it
   // will be skipped the next time it would be selected round-robin style. When
@@ -64,8 +69,8 @@ struct ur_queue_handle_t_ {
                      ur_context_handle_t_ *Context, ur_device_handle_t_ *Device,
                      unsigned int Flags, ur_queue_flags_t URFlags, int Priority,
                      bool BackendOwns = true)
-      : ComputeStreams{std::move(ComputeStreams)}, TransferStreams{std::move(
-                                                       TransferStreams)},
+      : ComputeStreams{std::move(ComputeStreams)},
+        TransferStreams{std::move(TransferStreams)},
         DelayCompute(this->ComputeStreams.size(), false),
         ComputeAppliedBarrier(this->ComputeStreams.size()),
         TransferAppliedBarrier(this->TransferStreams.size()), Context{Context},
@@ -98,6 +103,19 @@ struct ur_queue_handle_t_ {
   native_type getNextTransferStream();
   native_type get() { return getNextComputeStream(); };
   ur_device_handle_t getDevice() const noexcept { return Device; };
+
+  // Function which creates the profiling stream. Called only if profiling is
+  // enabled.
+  void createProfilingStream() {
+    static std::once_flag ProfStreamFlag;
+    std::call_once(ProfStreamFlag, [&]() {
+      UR_CHECK_ERROR(
+          cuStreamCreateWithPriority(&ProfStream, CU_STREAM_NON_BLOCKING, 0));
+      IsProfStreamCreated = true;
+    });
+  }
+
+  native_type getProfilingStream() { return ProfStream; }
 
   bool hasBeenSynchronized(uint32_t StreamToken) {
     // stream token not associated with one of the compute streams
