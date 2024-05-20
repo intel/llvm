@@ -25,6 +25,11 @@ set(OCK_GIT_TAG "" CACHE STRING "Git tag for the oneAPI Construction Kit FetchCo
 option(NATIVECPU_OCK_USE_FETCHCONTENT "Use FetchContent to acquire oneAPI Construction Kit source code" On)
 option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 
+# Don't fetch OCK if Native CPU is not enabled.
+if(NOT "native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(NATIVECPU_USE_OCK Off)
+endif()
+
 if(NATIVECPU_USE_OCK)
   if(NATIVECPU_OCK_USE_FETCHCONTENT)
     set(OCK_GIT_INTERNAL_REPO "https://github.com/codeplaysoftware/oneapi-construction-kit.git")
