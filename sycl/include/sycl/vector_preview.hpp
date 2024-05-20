@@ -126,19 +126,17 @@ class RoundedRangeKernelWithKH;
 
 // OpenCL data type to convert to.
 template <typename T>
-using element_type_for_vector_t = typename std::conditional_t<
+// clang-format off
+using element_type_for_vector_t = typename map_type<
+    T,
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-    std::is_same_v<T, std::byte>, std::uint8_t,
-#else
-    false, T,
+    std::byte, /*->*/ std::uint8_t,
 #endif
-    typename std::conditional_t<
-        std::is_same_v<T, bool>, std::int8_t,
-        typename std::conditional_t<
-            std::is_same_v<T, sycl::half>, sycl::detail::half_impl::StorageT,
-            typename std::conditional_t<
-                std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
-                sycl::ext::oneapi::detail::Bfloat16StorageT, T>>>>;
+    bool, /*->*/ std::int8_t,
+    sycl::half, /*->*/ sycl::detail::half_impl::StorageT,
+    sycl::ext::oneapi::bfloat16, /*->*/ sycl::ext::oneapi::detail::Bfloat16StorageT,
+    T, /*->*/ T>::type;
+// clang-format on
 } // namespace detail
 
 ///////////////////////// class sycl::vec /////////////////////////
@@ -333,11 +331,14 @@ public:
   constexpr vec(const vec &Rhs) = default;
   constexpr vec(vec &&Rhs) = default;
 
+private:
+  // Implementation detail for the next public ctor.
   template <size_t... Is>
   constexpr vec(const std::array<DataT, NumElements> &Arr,
                 std::index_sequence<Is...>)
-      : m_Data{([&](DataT v) constexpr { return v; })(Arr[Is])...} {}
+      : m_Data{Arr[Is]...} {}
 
+public:
   explicit constexpr vec(const DataT &arg)
       : vec{detail::RepeatValue<NumElements>(arg),
             std::make_index_sequence<NumElements>()} {}
@@ -792,6 +793,13 @@ public:
   friend typename std::enable_if_t<(COND), vec<rel_t, NumElements>>            \
   operator RELLOGOP(const vec & Lhs, const vec & Rhs) {                        \
                                                                                \
+    /* Asserts to verify that logical operations on ext_vector_type(1) */      \
+    /* results in 0 or -1. SYCL Spec (Table 143) requires logical operations */\
+    /* on sycl::vec to result in 0 or -1, similar to OpenCL vectors.*/         \
+    using SingleIntVecType = int __attribute__((ext_vector_type(1)));          \
+    assert(sycl::bit_cast<int>(static_cast<SingleIntVecType>(1) == static_cast<SingleIntVecType>(1)) == -1); \
+    assert(sycl::bit_cast<int>(static_cast<SingleIntVecType>(1) != static_cast<SingleIntVecType>(1)) == 0); \
+                                                                               \
     vec<rel_t, NumElements> Ret{};                                             \
     /* ext_vector_type does not support bfloat16, so for these   */            \
     /* we do element-by-element operation on the underlying std::array.  */    \
@@ -802,8 +810,8 @@ public:
         Ret[I] = static_cast<rel_t>(-(Lhs[I] RELLOGOP Rhs[I]));                \
       }                                                                        \
     } else {                                                                   \
-      vector_t ExtVecLhs = sycl::bit_cast<vector_t>(Lhs);                         \
-      vector_t ExtVecRhs = sycl::bit_cast<vector_t>(Rhs);                         \
+      vector_t ExtVecLhs = sycl::bit_cast<vector_t>(Lhs);                      \
+      vector_t ExtVecRhs = sycl::bit_cast<vector_t>(Rhs);                      \
       Ret = vec<rel_t, NumElements>(                                           \
           (typename vec<rel_t, NumElements>::vector_t)(                        \
               ExtVecLhs RELLOGOP ExtVecRhs));                                  \
@@ -998,7 +1006,10 @@ private:
   }
 
   // fields
-  // Alignment is the same as size, to a maximum size of 64.
+  // Alignment is the same as size, to a maximum size of 64. SPEC requires
+  // "The elements of an instance of the SYCL vec class template are stored
+  // in memory sequentially and contiguously and are aligned to the size of
+  // the element type in bytes multiplied by the number of elements."
   static constexpr int alignment = std::min((size_t)64, sizeof(DataType));
   alignas(alignment) DataType m_Data;
 
