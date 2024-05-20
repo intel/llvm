@@ -77,3 +77,9 @@
 // DEVICE_ONLY: 2: compiler, {1}, ir, (device-sycl)
 // DEVICE_ONLY: 3: backend, {2}, ir, (device-sycl)
 // DEVICE_ONLY: 4: offload, "device-sycl (spir64-unknown-unknown)" {3}, none
+
+/// check for -shared transmission to clang-linker-wrapper tool
+// RUN: %clangxx -### -fsycl --offload-new-driver -target x86_64-unknown-linux-gnu \
+// RUN:          -shared %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHECK_SHARED %s
+// CHECK_SHARED: clang-linker-wrapper{{.*}} "-shared"

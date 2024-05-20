@@ -8,6 +8,14 @@
 // RUN: %{build} -L%T -o %t.out -l%basename_t -Wl,-rpath=%T
 // RUN: %{run} %t.out
 
+// RUN: %{build} --offload-new-driver -DBUILD_LIB -fPIC -shared -o %T/lib%basename_t.so
+
+// RUN: %{build} --offload-new-driver -DFOO_FIRST -L%T -o %t.out -l%basename_t -Wl,-rpath=%T
+// RUN: %{run} %t.out
+
+// RUN: %{build} --offload-new-driver -L%T -o %t.out -l%basename_t -Wl,-rpath=%T
+// RUN: %{run} %t.out
+
 #include <sycl/detail/core.hpp>
 
 #include <iostream>
