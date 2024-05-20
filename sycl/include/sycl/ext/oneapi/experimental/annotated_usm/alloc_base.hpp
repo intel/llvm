@@ -35,7 +35,7 @@ namespace experimental {
 //  3. "xxx_alloc_host_annotated"   (defined in alloc_host.hpp)
 //  4. "xxx_alloc_shared_annotated" (defined in alloc_shared.hpp)
 ////
-template <typename propertyListA = detail::empty_properties_t,
+template <typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename detail::GetCompileTimeProperties<propertyListA>::type>
 std::enable_if_t<
@@ -77,7 +77,7 @@ aligned_alloc_annotated(size_t alignment, size_t numBytes,
   return annotated_ptr<void, propertyListB>(rawPtr);
 }
 
-template <typename T, typename propertyListA = detail::empty_properties_t,
+template <typename T, typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename detail::GetCompileTimeProperties<propertyListA>::type>
 std::enable_if_t<
@@ -119,7 +119,7 @@ aligned_alloc_annotated(size_t alignment, size_t count,
   return annotated_ptr<T, propertyListB>(rawPtr);
 }
 
-template <typename propertyListA = detail::empty_properties_t,
+template <typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename detail::GetCompileTimeProperties<propertyListA>::type>
 std::enable_if_t<
@@ -132,7 +132,7 @@ aligned_alloc_annotated(size_t alignment, size_t numBytes,
                                  syclQueue.get_context(), kind, propList);
 }
 
-template <typename T, typename propertyListA = detail::empty_properties_t,
+template <typename T, typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename detail::GetCompileTimeProperties<propertyListA>::type>
 std::enable_if_t<
@@ -145,7 +145,7 @@ aligned_alloc_annotated(size_t alignment, size_t count, const queue &syclQueue,
                                     syclQueue.get_context(), kind, propList);
 }
 
-template <typename propertyListA = detail::empty_properties_t,
+template <typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename detail::GetCompileTimeProperties<propertyListA>::type>
 std::enable_if_t<
@@ -158,7 +158,7 @@ malloc_annotated(size_t numBytes, const device &syclDevice,
                                  propList);
 }
 
-template <typename T, typename propertyListA = detail::empty_properties_t,
+template <typename T, typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename detail::GetCompileTimeProperties<propertyListA>::type>
 std::enable_if_t<
@@ -171,7 +171,7 @@ malloc_annotated(size_t count, const device &syclDevice,
                                     propList);
 }
 
-template <typename propertyListA = detail::empty_properties_t,
+template <typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename detail::GetCompileTimeProperties<propertyListA>::type>
 std::enable_if_t<
@@ -183,7 +183,7 @@ malloc_annotated(size_t numBytes, const queue &syclQueue, sycl::usm::alloc kind,
                           syclQueue.get_context(), kind, propList);
 }
 
-template <typename T, typename propertyListA = detail::empty_properties_t,
+template <typename T, typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename detail::GetCompileTimeProperties<propertyListA>::type>
 std::enable_if_t<

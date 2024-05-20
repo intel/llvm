@@ -361,11 +361,9 @@ create_image(image_mem_handle memHandle, const image_descriptor &desc,
 
   // Call impl.
   pi_image_handle piImageHandle;
-  pi_mem piImage;
   Plugin->call<sycl::errc::runtime,
                sycl::detail::PiApiKind::piextMemUnsampledImageCreate>(
-      C, Device, memHandle.raw_handle, &piFormat, &piDesc, &piImage,
-      &piImageHandle);
+      C, Device, memHandle.raw_handle, &piFormat, &piDesc, &piImageHandle);
 
   return unsampled_image_handle{piImageHandle};
 }
@@ -449,12 +447,10 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
   populate_pi_structs(desc, piDesc, piFormat, pitch);
 
   // Call impl.
-  pi_mem piImage;
   pi_image_handle piImageHandle;
   Plugin->call<sycl::errc::runtime,
                sycl::detail::PiApiKind::piextMemSampledImageCreate>(
-      C, Device, devPtr, &piFormat, &piDesc, piSampler, &piImage,
-      &piImageHandle);
+      C, Device, devPtr, &piFormat, &piDesc, piSampler, &piImageHandle);
 
   return sampled_image_handle{piImageHandle};
 }

@@ -43,6 +43,7 @@
 #include "clang/Sema/SemaHLSL.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/SemaSYCL.h"
+#include "clang/Sema/SemaObjC.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/STLForwardCompat.h"
 #include "llvm/ADT/StringExtras.h"
@@ -5040,13 +5041,6 @@ bool Sema::checkTargetAttr(SourceLocation LiteralLoc, StringRef AttrStr) {
   return false;
 }
 
-static bool hasArmStreamingInterface(const FunctionDecl *FD) {
-  if (const auto *T = FD->getType()->getAs<FunctionProtoType>())
-    if (T->getAArch64SMEAttributes() & FunctionType::SME_PStateSMEnabledMask)
-      return true;
-  return false;
-}
-
 // Check Target Version attrs
 bool Sema::checkTargetVersionAttr(SourceLocation LiteralLoc, Decl *D,
                                   StringRef &AttrStr, bool &isDefault) {
@@ -5065,7 +5059,8 @@ bool Sema::checkTargetVersionAttr(SourceLocation LiteralLoc, Decl *D,
       return Diag(LiteralLoc, diag::warn_unsupported_target_attribute)
              << Unsupported << None << CurFeature << TargetVersion;
   }
-  if (hasArmStreamingInterface(cast<FunctionDecl>(D)))
+  if (IsArmStreamingFunction(cast<FunctionDecl>(D),
+                             /*IncludeLocallyStreaming=*/false))
     return Diag(LiteralLoc, diag::err_sme_streaming_cannot_be_multiversioned);
   return false;
 }
@@ -5167,7 +5162,8 @@ bool Sema::checkTargetClonesAttrString(
           HasNotDefault = true;
         }
       }
-      if (hasArmStreamingInterface(cast<FunctionDecl>(D)))
+      if (IsArmStreamingFunction(cast<FunctionDecl>(D),
+                                 /*IncludeLocallyStreaming=*/false))
         return Diag(LiteralLoc,
                     diag::err_sme_streaming_cannot_be_multiversioned);
     } else {
@@ -9487,13 +9483,13 @@ static bool isErrorParameter(Sema &S, QualType QT) {
   // Check for NSError**.
   if (const auto *OPT = Pointee->getAs<ObjCObjectPointerType>())
     if (const auto *ID = OPT->getInterfaceDecl())
-      if (ID->getIdentifier() == S.getNSErrorIdent())
+      if (ID->getIdentifier() == S.ObjC().getNSErrorIdent())
         return true;
 
   // Check for CFError**.
   if (const auto *PT = Pointee->getAs<PointerType>())
     if (const auto *RT = PT->getPointeeType()->getAs<RecordType>())
-      if (S.isCFError(RT->getDecl()))
+      if (S.ObjC().isCFError(RT->getDecl()))
         return true;
 
   return false;
@@ -9624,7 +9620,7 @@ static void checkSwiftAsyncErrorBlock(Sema &S, Decl *D,
       // Check for NSError *.
       if (const auto *ObjCPtrTy = Param->getAs<ObjCObjectPointerType>()) {
         if (const auto *ID = ObjCPtrTy->getInterfaceDecl()) {
-          if (ID->getIdentifier() == S.getNSErrorIdent()) {
+          if (ID->getIdentifier() == S.ObjC().getNSErrorIdent()) {
             AnyErrorParams = true;
             break;
           }
@@ -9633,7 +9629,7 @@ static void checkSwiftAsyncErrorBlock(Sema &S, Decl *D,
       // Check for CFError *.
       if (const auto *PtrTy = Param->getAs<PointerType>()) {
         if (const auto *RT = PtrTy->getPointeeType()->getAs<RecordType>()) {
-          if (S.isCFError(RT->getDecl())) {
+          if (S.ObjC().isCFError(RT->getDecl())) {
             AnyErrorParams = true;
             break;
           }
@@ -10234,6 +10230,55 @@ static void handleHLSLSV_DispatchThreadIDAttr(Sema &S, Decl *D,
   }
 
   D->addAttr(::new (S.Context) HLSLSV_DispatchThreadIDAttr(S.Context, AL));
+}
+
+static void handleHLSLPackOffsetAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (!isa<VarDecl>(D) || !isa<HLSLBufferDecl>(D->getDeclContext())) {
+    S.Diag(AL.getLoc(), diag::err_hlsl_attr_invalid_ast_node)
+        << AL << "shader constant in a constant buffer";
+    return;
+  }
+
+  uint32_t SubComponent;
+  if (!checkUInt32Argument(S, AL, AL.getArgAsExpr(0), SubComponent))
+    return;
+  uint32_t Component;
+  if (!checkUInt32Argument(S, AL, AL.getArgAsExpr(1), Component))
+    return;
+
+  QualType T = cast<VarDecl>(D)->getType().getCanonicalType();
+  // Check if T is an array or struct type.
+  // TODO: mark matrix type as aggregate type.
+  bool IsAggregateTy = (T->isArrayType() || T->isStructureType());
+
+  // Check Component is valid for T.
+  if (Component) {
+    unsigned Size = S.getASTContext().getTypeSize(T);
+    if (IsAggregateTy || Size > 128) {
+      S.Diag(AL.getLoc(), diag::err_hlsl_packoffset_cross_reg_boundary);
+      return;
+    } else {
+      // Make sure Component + sizeof(T) <= 4.
+      if ((Component * 32 + Size) > 128) {
+        S.Diag(AL.getLoc(), diag::err_hlsl_packoffset_cross_reg_boundary);
+        return;
+      }
+      QualType EltTy = T;
+      if (const auto *VT = T->getAs<VectorType>())
+        EltTy = VT->getElementType();
+      unsigned Align = S.getASTContext().getTypeAlign(EltTy);
+      if (Align > 32 && Component == 1) {
+        // NOTE: Component 3 will hit err_hlsl_packoffset_cross_reg_boundary.
+        // So we only need to check Component 1 here.
+        S.Diag(AL.getLoc(), diag::err_hlsl_packoffset_alignment_mismatch)
+            << Align << EltTy;
+        return;
+      }
+    }
+  }
+
+  D->addAttr(::new (S.Context)
+                 HLSLPackOffsetAttr(S.Context, AL, SubComponent, Component));
 }
 
 static void handleHLSLShaderAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -11852,7 +11897,7 @@ static bool tryMakeVariablePseudoStrong(Sema &S, VarDecl *VD,
 
   Qualifiers::ObjCLifetime LifetimeQual = Ty.getQualifiers().getObjCLifetime();
 
-  // Sema::inferObjCARCLifetime must run after processing decl attributes
+  // SemaObjC::inferObjCARCLifetime must run after processing decl attributes
   // (because __block lowers to an attribute), so if the lifetime hasn't been
   // explicitly specified, infer it locally now.
   if (LifetimeQual == Qualifiers::OCL_None)
@@ -12864,6 +12909,9 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     break;
   case ParsedAttr::AT_HLSLSV_DispatchThreadID:
     handleHLSLSV_DispatchThreadIDAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_HLSLPackOffset:
+    handleHLSLPackOffsetAttr(S, D, AL);
     break;
   case ParsedAttr::AT_HLSLShader:
     handleHLSLShaderAttr(S, D, AL);
