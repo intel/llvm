@@ -1457,12 +1457,14 @@ static void invoke_kernel_function(kernel_function &function,
 
 ### Math Functions
 
-The `funnelshift_*` APIs take two unsigned integer arguments (`low` and `high`),
-concatenate them, bit-shift the 64-bit result by `shift` bits and return either
-the most or least significant 32-bits. The `_l*` variants shift left and return
-the most significant 32 bits, while the `_r*` variants shift right and return
-the least significant 32 bits. The `_l`/`_r` APIs differ from the `_lc`/`_rc`
-APIs in how they clamp the `shift` argument: `funnelshift_l` and `funnelshift_r`
+The `funnelshift_*` APIs perform a concatenate-shift operation on two 32-bit
+values, and return a 32-bit result. The two unsigned integer arguments (`low`
+and `high`) are concatenated to a 64-bit value which is then shifted left or
+right by `shift` bits. The functions then return either the least- or
+most-significant 32 bits. The `_l*` variants shift *left* and return the *most*
+significant 32 bits, while the `_r*` variants shift *right* and return the
+*least* significant 32 bits. The `_l`/`_r` APIs differ from the `_lc`/`_rc` APIs
+in how they clamp the `shift` argument: `funnelshift_l` and `funnelshift_r`
 shift the result by `shift & 31` bits, whereas `funnelshift_lc` and
 `funnelshift_rc` shift the result by `min(shift, 32)` bits.
 
