@@ -22,4 +22,3 @@
 {{OPT}}urKernelSetSpecializationConstantsTest.InvalidNullHandleKernel/AMD_HIP_BACKEND___{{.*}}_
 {{OPT}}urKernelSetSpecializationConstantsTest.InvalidNullPointerSpecConstants/AMD_HIP_BACKEND___{{.*}}_
 {{OPT}}urKernelSetSpecializationConstantsTest.InvalidSizeCount/AMD_HIP_BACKEND___{{.*}}_
-{{OPT}}{{Segmentation fault|Aborted}}
