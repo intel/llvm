@@ -208,8 +208,9 @@ enum PropKind : uint32_t {
   IndirectlyCallable = 67,
   CallsIndirectly = 68,
   IncludeFiles = 69,
+  RegisteredKernelNames = 70,
   // PropKindSize must always be the last value.
-  PropKindSize = 70,
+  PropKindSize = 71,
 };
 
 struct property_key_base_tag {};

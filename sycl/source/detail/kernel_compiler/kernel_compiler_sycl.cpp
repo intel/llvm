@@ -65,14 +65,16 @@ void output_preamble(std::ofstream &os, const std::filesystem::path &file_path,
                      const std::vector<std::string> &UserArgs) {
 
   os << "/*\n  clang++ -fsycl -o " << id << ".bin "
-     << user_args_as_string(UserArgs) << " -fsycl-dump-device-code=./ " << id
+     << user_args_as_string(UserArgs)
+     << "-fno-sycl-dead-args-optimization -fsycl-dump-device-code=./ " << id
      << ".cpp \n */" << std::endl;
 }
 
-std::filesystem::path output_cpp(const std::filesystem::path &parent_dir,
-                                 const std::string &id,
-                                 std::string raw_code_string,
-                                 const std::vector<std::string> &UserArgs) {
+std::filesystem::path
+output_cpp(const std::filesystem::path &parent_dir, const std::string &id,
+           std::string raw_code_string,
+           const std::vector<std::string> &UserArgs,
+           const std::vector<std::string> &RegisteredKernelNames) {
   std::filesystem::path file_path = parent_dir / (id + ".cpp");
   std::ofstream outfile(file_path, std::ios::out | std::ios::trunc);
 
@@ -81,7 +83,11 @@ std::filesystem::path output_cpp(const std::filesystem::path &parent_dir,
     outfile << raw_code_string << std::endl;
 
     // temporarily needed until -c works with -fsycl-dump-spirv
-    outfile << "int main(){ return 0; }" << std::endl;
+    outfile << "int main(){\n";
+    for (std::string nm : RegisteredKernelNames) {
+      outfile << "  " << nm << ";\n";
+    }
+    outfile << " return 0;\n}" << std::endl;
 
     outfile.close(); // Close the file when finished
   } else {
@@ -133,7 +139,8 @@ void invoke_compiler(const std::filesystem::path &fpath,
   std::string command =
       compiler + " -fsycl -o " + target_path.make_preferred().string() + " " +
       user_args_as_string(UserArgs) +
-      " -fsycl-dump-device-code=" + parent_dir.make_preferred().string() + " " +
+      " -fno-sycl-dead-args-optimization -fsycl-dump-device-code=" +
+      parent_dir.make_preferred().string() + " " +
       file_path.make_preferred().string() + " 2> " +
       log_path.make_preferred().string();
 
@@ -192,14 +199,14 @@ spirv_vec_t load_spv_from_file(std::filesystem::path file_name) {
   return spv;
 }
 
-spirv_vec_t SYCL_to_SPIRV(const std::string &SYCLSource,
-                          include_pairs_t IncludePairs,
-                          const std::vector<std::string> &UserArgs,
-                          std::string *LogPtr) {
+spirv_vec_t
+SYCL_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
+              const std::vector<std::string> &UserArgs, std::string *LogPtr,
+              const std::vector<std::string> &RegisteredKernelNames) {
   // clang-format off
   const std::string id                    = generate_semi_unique_id();
   const std::filesystem::path parent_dir  = prepare_ws(id);
-  std::filesystem::path file_path         = output_cpp(parent_dir, id, SYCLSource, UserArgs);
+  std::filesystem::path file_path         = output_cpp(parent_dir, id, SYCLSource, UserArgs, RegisteredKernelNames);
                                             output_include_files(parent_dir, IncludePairs);
                                             invoke_compiler(file_path, parent_dir, id, UserArgs, LogPtr);
   std::filesystem::path spv_path          = find_spv(parent_dir, id);

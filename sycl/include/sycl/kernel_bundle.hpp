@@ -865,6 +865,23 @@ struct is_property_key_of<save_log_key,
                           sycl::kernel_bundle<bundle_state::ext_oneapi_source>>
     : std::true_type {};
 
+/////////////////////////
+// PropertyT syclex::registered_kernel_names
+/////////////////////////
+struct registered_kernel_names
+    : detail::run_time_property_key<detail::PropKind::RegisteredKernelNames> {
+  std::vector<std::string> kernel_names;
+  registered_kernel_names(const std::string &knArg) : kernel_names{knArg} {}
+  registered_kernel_names(const std::vector<std::string> &knsArg)
+      : kernel_names(knsArg) {}
+};
+using registered_kernel_names_key = registered_kernel_names;
+
+template <>
+struct is_property_key_of<registered_kernel_names_key,
+                          sycl::kernel_bundle<bundle_state::ext_oneapi_source>>
+    : std::true_type{};
+
 namespace detail {
 // forward decls
 __SYCL_EXPORT bool is_source_kernel_bundle_supported(backend BE,
@@ -886,7 +903,8 @@ __SYCL_EXPORT kernel_bundle<bundle_state::executable>
 build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
                   const std::vector<device> &Devices,
                   const std::vector<std::string> &BuildOptions,
-                  std::string *LogPtr);
+                  std::string *LogPtr,
+                  const std::vector<std::string> &RegisteredKernelNames);
 
 } // namespace detail
 
@@ -947,13 +965,19 @@ build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
       const std::vector<device> &Devices, PropertyListT props = {}) {
   std::vector<std::string> BuildOptionsVec;
   std::string *LogPtr = nullptr;
+  std::vector<std::string> RegisteredKernelNamesVec;
   if constexpr (props.template has_property<build_options>()) {
     BuildOptionsVec = props.template get_property<build_options>().opts;
   }
   if constexpr (props.template has_property<save_log>()) {
     LogPtr = props.template get_property<save_log>().log;
   }
-  return detail::build_from_source(SourceKB, Devices, BuildOptionsVec, LogPtr);
+  if constexpr (props.template has_property<registered_kernel_names>()) {
+    RegisteredKernelNamesVec =
+        props.template get_property<registered_kernel_names>().kernel_names;
+  }
+  return detail::build_from_source(SourceKB, Devices, BuildOptionsVec, LogPtr,
+                                   RegisteredKernelNamesVec);
 }
 
 template <typename PropertyListT = empty_properties_t,

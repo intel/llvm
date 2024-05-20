@@ -361,7 +361,8 @@ public:
   std::shared_ptr<kernel_bundle_impl>
   build_from_source(const std::vector<device> Devices,
                     const std::vector<std::string> &BuildOptions,
-                    std::string *LogPtr) {
+                    std::string *LogPtr,
+                    const std::vector<std::string> &RegisteredKernelNames) {
     assert(MState == bundle_state::ext_oneapi_source &&
            "bundle_state::ext_oneapi_source required");
 
@@ -404,7 +405,8 @@ public:
       if (Language == syclex::source_language::sycl) {
         const auto &SourceStr = std::get<std::string>(this->Source);
         return syclex::detail::SYCL_to_SPIRV(SourceStr, IncludePairs,
-                                             BuildOptions, LogPtr);
+                                             BuildOptions, LogPtr,
+                                             RegisteredKernelNames);
       }
       throw sycl::exception(
           make_error_code(errc::invalid),
