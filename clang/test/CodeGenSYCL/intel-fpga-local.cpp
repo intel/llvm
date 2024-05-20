@@ -29,12 +29,12 @@
 // CHECK-DEVICE:  [[ANN_max_replicates_4:@.str.[0-9]*]] = {{.*}}{max_replicates:4}
 
 // CHECK-BOTH: @llvm.global.annotations
-// CHECK-DEVICE-SAME: { ptr addrspacecast (ptr addrspace(1) @_ZZ15attrs_on_staticvE15static_numbanks to ptr)
+// CHECK-DEVICE-SAME: { ptr addrspace(1) @_ZZ15attrs_on_staticvE15static_numbanks
 // CHECK-DEVICE-SAME: [[ANN_numbanks_4]]{{.*}} i32 43
-// CHECK-DEVICE-SAME: { ptr addrspacecast (ptr addrspace(1) @_ZZ15attrs_on_staticvE15static_annotate to ptr)
+// CHECK-DEVICE-SAME: { ptr addrspace(1) @_ZZ15attrs_on_staticvE15static_annotate
 // CHECK-HOST-SAME: { ptr @_ZZ15attrs_on_staticvE15static_annotate
 // CHECK-BOTH-SAME: [[ANN_annotate]]{{.*}} i32 44
-// CHECK-DEVICE-SAME: { ptr addrspacecast (ptr addrspace(1) @_ZZ15attrs_on_staticvE16static_force_p2d to ptr)
+// CHECK-DEVICE-SAME: { ptr addrspace(1) @_ZZ15attrs_on_staticvE16static_force_p2d
 // CHECK-DEVICE-SAME: [[ANN_force_pow2_depth_0]]{{.*}} i32 45
 // CHECK-HOST-NOT: llvm.var.annotation
 // CHECK-HOST-NOT: llvm.ptr.annotation
