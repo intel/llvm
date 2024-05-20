@@ -13,6 +13,8 @@
 
 #include "../graph_common.hpp"
 
+#include <sycl/properties/all_properties.hpp>
+
 #define GRAPH_TESTS_VERBOSE_PRINT 0
 
 #if GRAPH_TESTS_VERBOSE_PRINT
