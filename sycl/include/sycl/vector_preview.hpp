@@ -447,7 +447,7 @@ public:
       using OpenCLVecT = OpenCLT __attribute__((ext_vector_type(NumElements)));
       using OpenCLVecR = OpenCLR __attribute__((ext_vector_type(NumElements)));
 
-      auto NativeVector = static_cast<vector_t>(*this);
+      auto NativeVector = sycl::bit_cast<vector_t>(*this);
       using ConvertTVecType = typename vec<convertT, NumElements>::vector_t;
 
       // Whole vector conversion can only be done, if:
@@ -670,8 +670,8 @@ public:
         Ret[I] = Lhs[I] BINOP Rhs[I];                                          \
       }                                                                        \
     } else {                                                                   \
-      vector_t ExtVecLhs = static_cast<vector_t>(Lhs);                         \
-      vector_t ExtVecRhs = static_cast<vector_t>(Rhs);                         \
+      vector_t ExtVecLhs = sycl::bit_cast<vector_t>(Lhs);                         \
+      vector_t ExtVecRhs = sycl::bit_cast<vector_t>(Rhs);                         \
       Ret = vec<DataT, NumElements>(                                           \
           (typename vec<DataT, NumElements>::vector_t)(                        \
               ExtVecLhs BINOP ExtVecRhs));                                     \
@@ -802,8 +802,8 @@ public:
         Ret[I] = static_cast<rel_t>(-(Lhs[I] RELLOGOP Rhs[I]));                \
       }                                                                        \
     } else {                                                                   \
-      vector_t ExtVecLhs = static_cast<vector_t>(Lhs);                         \
-      vector_t ExtVecRhs = static_cast<vector_t>(Rhs);                         \
+      vector_t ExtVecLhs = sycl::bit_cast<vector_t>(Lhs);                         \
+      vector_t ExtVecRhs = sycl::bit_cast<vector_t>(Rhs);                         \
       Ret = vec<rel_t, NumElements>(                                           \
           (typename vec<rel_t, NumElements>::vector_t)(                        \
               ExtVecLhs RELLOGOP ExtVecRhs));                                  \
@@ -882,7 +882,7 @@ public:
   friend typename std::enable_if_t<!detail::is_vgenfloat_v<T>, vec>
   operator~(const vec &Rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
-    auto extVec = static_cast<vector_t>(Rhs);
+    auto extVec = sycl::bit_cast<vector_t>(Rhs);
     vec Ret{~extVec};
     if constexpr (std::is_same_v<DataT, bool>) {
       Ret.ConvertToDataT();
@@ -904,7 +904,7 @@ public:
   operator!(const vec &Rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
     if constexpr (!std::is_same_v<DataT, sycl::ext::oneapi::bfloat16>) {
-      auto extVec = static_cast<vector_t>(Rhs);
+      auto extVec = sycl::bit_cast<vector_t>(Rhs);
       vec<detail::rel_t<DataT>, NumElements> Ret{(typename vec<rel_t, NumElements>::vector_t)!extVec};
       return Ret;
     } else
@@ -925,7 +925,7 @@ public:
   friend typename std::enable_if_t<(!IsByte<T>::value), vec>
   operator+(const vec &Lhs) {
 #ifdef __SYCL_DEVICE_ONLY__
-    auto extVec = static_cast<vector_t>(Lhs);
+    auto extVec = sycl::bit_cast<vector_t>(Lhs);
     return vec{+extVec};
 #else
     vec Ret{};
@@ -949,7 +949,7 @@ public:
       for (size_t I = 0; I < NumElements; ++I)
         Ret[I] = -Lhs[I];
 #else
-      auto extVec = static_cast<vector_t>(Lhs);
+      auto extVec = sycl::bit_cast<vector_t>(Lhs);
       Ret = vec{-extVec};
       if constexpr (std::is_same_v<DataT, bool>) {
         Ret.ConvertToDataT();
