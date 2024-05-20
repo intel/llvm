@@ -19,169 +19,107 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 
-#ifdef MARRAY_CPLX_MATH_OP_ONE_PARAM
-#error "Multiple definition of MARRAY_CPLX_MATH_OP_ONE_PARAM"
+#ifdef ONE_ARG_MARRAY_TYPE
+#error "Multiple definition of ONE_ARG_MARRAY_TYPE"
+#endif
+#ifdef TWO_ARGS_MARRAY_TYPE
+#error "Multiple definition of TWO_ARGS_MARRAY_TYPE"
 #endif
 
-#define MARRAY_CPLX_MATH_OP_ONE_PARAM(math_func, rtn_type, arg_type)           \
-  template <typename T, std::size_t NumElements>                               \
-  _SYCL_EXT_CPLX_INLINE_VISIBILITY                                             \
-      typename std::enable_if_t<is_genfloat<T>::value ||                       \
-                                    is_gencomplex<T>::value,                   \
-                                sycl::marray<rtn_type, NumElements>>           \
-      math_func(const sycl::marray<arg_type, NumElements> &x) {                \
-    sycl::marray<rtn_type, NumElements> rtn;                                   \
-    for (std::size_t i = 0; i < NumElements; ++i) {                            \
-      rtn[i] = math_func(x[i]);                                                \
-    }                                                                          \
-    return rtn;                                                                \
-  }
-
-MARRAY_CPLX_MATH_OP_ONE_PARAM(abs, T, complex<T>);
-MARRAY_CPLX_MATH_OP_ONE_PARAM(acos, complex<T>, complex<T>);
-MARRAY_CPLX_MATH_OP_ONE_PARAM(asin, complex<T>, complex<T>);
-MARRAY_CPLX_MATH_OP_ONE_PARAM(atan, complex<T>, complex<T>);
-MARRAY_CPLX_MATH_OP_ONE_PARAM(acosh, complex<T>, complex<T>);
-MARRAY_CPLX_MATH_OP_ONE_PARAM(asinh, complex<T>, complex<T>);
-MARRAY_CPLX_MATH_OP_ONE_PARAM(atanh, complex<T>, complex<T>);
-MARRAY_CPLX_MATH_OP_ONE_PARAM(arg, T, complex<T>);
-MARRAY_CPLX_MATH_OP_ONE_PARAM(conj, complex<T>, complex<T>);
-MARRAY_CPLX_MATH_OP_ONE_PARAM(cos, complex<T>, complex<T>);
-MARRAY_CPLX_MATH_OP_ONE_PARAM(cosh, complex<T>, complex<T>);
-MARRAY_CPLX_MATH_OP_ONE_PARAM(exp, complex<T>, complex<T>);
-MARRAY_CPLX_MATH_OP_ONE_PARAM(log, complex<T>, complex<T>);
-MARRAY_CPLX_MATH_OP_ONE_PARAM(log10, complex<T>, complex<T>);
-MARRAY_CPLX_MATH_OP_ONE_PARAM(norm, T, complex<T>);
-MARRAY_CPLX_MATH_OP_ONE_PARAM(proj, complex<T>, complex<T>);
-MARRAY_CPLX_MATH_OP_ONE_PARAM(proj, complex<T>, T);
-MARRAY_CPLX_MATH_OP_ONE_PARAM(sin, complex<T>, complex<T>);
-MARRAY_CPLX_MATH_OP_ONE_PARAM(sinh, complex<T>, complex<T>);
-MARRAY_CPLX_MATH_OP_ONE_PARAM(sqrt, complex<T>, complex<T>);
-MARRAY_CPLX_MATH_OP_ONE_PARAM(tan, complex<T>, complex<T>);
-MARRAY_CPLX_MATH_OP_ONE_PARAM(tanh, complex<T>, complex<T>);
-
-#undef MARRAY_CPLX_MATH_OP_ONE_PARAM
-
-#ifdef MARRAY_CPLX_MATH_OP_TWO_PARAM
-#error "Multiple definition of MARRAY_CPLX_MATH_OP_TWO_PARAM"
+#ifdef TWO_ARGS_POLAR_S1_MARRAY_TYPE
+#error "Multiple definition of TWO_ARGS_POLAR_S1_MARRAY_TYPE"
+#endif
+#ifdef TWO_ARGS_POLAR_S2_MARRAY_TYPE
+#error "Multiple definition of TWO_ARGS_POLAR_S2_MARRAY_TYPE"
 #endif
 
-#define MARRAY_CPLX_MATH_OP_TWO_PARAM(math_func, rtn_type, arg_type1,          \
-                                      arg_type2)                               \
-  template <typename T, std::size_t NumElements>                               \
-  _SYCL_EXT_CPLX_INLINE_VISIBILITY                                             \
-      typename std::enable_if_t<is_genfloat<T>::value ||                       \
-                                    is_gencomplex<T>::value,                   \
-                                sycl::marray<rtn_type, NumElements>>           \
-      math_func(const sycl::marray<arg_type1, NumElements> &x,                 \
-                const sycl::marray<arg_type2, NumElements> &y) {               \
-    sycl::marray<rtn_type, NumElements> rtn;                                   \
-    for (std::size_t i = 0; i < NumElements; ++i) {                            \
-      rtn[i] = math_func(x[i], y[i]);                                          \
-    }                                                                          \
-    return rtn;                                                                \
-  }                                                                            \
-                                                                               \
-  template <typename T, std::size_t NumElements>                               \
-  _SYCL_EXT_CPLX_INLINE_VISIBILITY                                             \
-      typename std::enable_if_t<is_genfloat<T>::value ||                       \
-                                    is_gencomplex<T>::value,                   \
-                                sycl::marray<rtn_type, NumElements>>           \
-      math_func(const sycl::marray<arg_type1, NumElements> &x,                 \
-                const arg_type2 &y) {                                          \
-    sycl::marray<rtn_type, NumElements> rtn;                                   \
-    for (std::size_t i = 0; i < NumElements; ++i) {                            \
-      rtn[i] = math_func(x[i], y);                                             \
-    }                                                                          \
-    return rtn;                                                                \
-  }                                                                            \
-                                                                               \
-  template <typename T, std::size_t NumElements>                               \
-  _SYCL_EXT_CPLX_INLINE_VISIBILITY                                             \
-      typename std::enable_if_t<is_genfloat<T>::value ||                       \
-                                    is_gencomplex<T>::value,                   \
-                                sycl::marray<rtn_type, NumElements>>           \
-      math_func(const arg_type1 &x,                                            \
-                const sycl::marray<arg_type2, NumElements> &y) {               \
-    sycl::marray<rtn_type, NumElements> rtn;                                   \
-    for (std::size_t i = 0; i < NumElements; ++i) {                            \
-      rtn[i] = math_func(x, y[i]);                                             \
-    }                                                                          \
-    return rtn;                                                                \
-  }
+#ifdef TWO_ARGS_POW_S1_MARRAY_TYPE
+#error "Multiple definition of TWO_ARGS_POW_S1_MARRAY_TYPE"
+#endif
+#ifdef TWO_ARGS_POW_S2_MARRAY_TYPE
+#error "Multiple definition of TWO_ARGS_POW_S2_MARRAY_TYPE"
+#endif
 
-MARRAY_CPLX_MATH_OP_TWO_PARAM(pow, complex<T>, complex<T>, T);
-MARRAY_CPLX_MATH_OP_TWO_PARAM(pow, complex<T>, complex<T>, complex<T>);
-MARRAY_CPLX_MATH_OP_TWO_PARAM(pow, complex<T>, T, complex<T>);
+#ifdef MARRAY_CPLX_MATH_OP
+#error "Multiple definition of MARRAY_CPLX_MATH_OP"
+#endif
 
-#undef MARRAY_CPLX_MATH_OP_TWO_PARAM
+// clang-format off
+#define ONE_ARG_MARRAY_TYPE(TYPE) const sycl::marray<TYPE, NumElements> &x
+#define TWO_ARGS_MARRAY_TYPE(TYPE1, TYPE2) const sycl::marray<TYPE1, NumElements> &x, const sycl::marray<TYPE2, NumElements> &y
 
-// Special definition as polar requires default argument
+#define TWO_ARGS_POLAR_S1_MARRAY_TYPE(TYPE1, TYPE2) const sycl::marray<TYPE1, NumElements> &x, const TYPE2 &y = 0
+#define TWO_ARGS_POLAR_S2_MARRAY_TYPE(TYPE1, TYPE2) const TYPE1 &x, const sycl::marray<TYPE2, NumElements> &y
 
-template <typename T, std::size_t NumElements>
-_SYCL_EXT_CPLX_INLINE_VISIBILITY
-    typename std::enable_if_t<is_genfloat<T>::value,
-                              sycl::marray<complex<T>, NumElements>>
-    polar(const sycl::marray<T, NumElements> &rho,
-          const sycl::marray<T, NumElements> &theta) {
-  sycl::marray<complex<T>, NumElements> rtn;
-  for (std::size_t i = 0; i < NumElements; ++i) {
-    rtn[i] = polar(rho[i], theta[i]);
-  }
-  return rtn;
+#define TWO_ARGS_POW_S1_MARRAY_TYPE(TYPE1, TYPE2) const sycl::marray<TYPE1, NumElements> &x, const TYPE2 &y
+#define TWO_ARGS_POW_S2_MARRAY_TYPE(TYPE1, TYPE2) const TYPE1 &x, const sycl::marray<TYPE2, NumElements> &y
+
+#define MARRAY_CPLX_MATH_OP(NUM_ARGS, RTN_TYPE, NAME, F, ...)                         \
+template<typename T, std::size_t NumElements>                                         \
+_SYCL_EXT_CPLX_INLINE_VISIBILITY                                                      \
+typename std::enable_if_t<is_genfloat<T>::value, sycl::marray<RTN_TYPE, NumElements>> \
+NAME(NUM_ARGS##_MARRAY_TYPE(__VA_ARGS__)) {                                           \
+  sycl::marray<RTN_TYPE, NumElements> rtn;                                            \
+  for (std::size_t i = 0; i < NumElements; ++i) {                                     \
+    rtn[i] = F;                                                                       \
+  }                                                                                   \
+  return rtn;                                                                         \
 }
 
-template <typename T, std::size_t NumElements>
-_SYCL_EXT_CPLX_INLINE_VISIBILITY
-    typename std::enable_if_t<is_genfloat<T>::value,
-                              sycl::marray<complex<T>, NumElements>>
-    polar(const sycl::marray<T, NumElements> &rho, const T &theta = 0) {
-  sycl::marray<complex<T>, NumElements> rtn;
-  for (std::size_t i = 0; i < NumElements; ++i) {
-    rtn[i] = polar(rho[i], theta);
-  }
-  return rtn;
-}
+// MARRAY_CPLX_MATH_OP(NUMBER_OF_ARGUMENTS, RETURN_TYPE, FUNCTION_NAME, FUNCTION_LOGIC,    ARGUMENTS ...
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             T,           abs,           abs(x[i]),         complex<T>);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             T,           arg,           arg(x[i]),         complex<T>);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             T,           arg,           arg(x[i]),         T);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             T,           norm,          norm(x[i]),        complex<T>);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             T,           norm,          norm(x[i]),        T);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             complex<T>,  conj,          conj(x[i]),        complex<T>);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             complex<T>,  conj,          conj(x[i]),        T);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             complex<T>,  proj,          proj(x[i]),        complex<T>);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             complex<T>,  proj,          proj(x[i]),        T);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             complex<T>,  log,           log(x[i]),         complex<T>);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             complex<T>,  log10,         log10(x[i]),       complex<T>);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             complex<T>,  sqrt,          sqrt(x[i]),        complex<T>);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             complex<T>,  exp,           exp(x[i]),         complex<T>);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             complex<T>,  asinh,         asinh(x[i]),       complex<T>);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             complex<T>,  acosh,         acosh(x[i]),       complex<T>);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             complex<T>,  atanh,         atanh(x[i]),       complex<T>);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             complex<T>,  sinh,          sinh(x[i]),        complex<T>);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             complex<T>,  cosh,          cosh(x[i]),        complex<T>);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             complex<T>,  tanh,          tanh(x[i]),        complex<T>);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             complex<T>,  asin,          asin(x[i]),        complex<T>);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             complex<T>,  acos,          acos(x[i]),        complex<T>);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             complex<T>,  atan,          atan(x[i]),        complex<T>);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             complex<T>,  sin,           sin(x[i]),         complex<T>);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             complex<T>,  cos,           cos(x[i]),         complex<T>);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             complex<T>,  tan,           tan(x[i]),         complex<T>);
 
-template <typename T, std::size_t NumElements>
-_SYCL_EXT_CPLX_INLINE_VISIBILITY
-    typename std::enable_if_t<is_genfloat<T>::value,
-                              sycl::marray<complex<T>, NumElements>>
-    polar(const T &rho, const sycl::marray<T, NumElements> &theta) {
-  sycl::marray<complex<T>, NumElements> rtn;
-  for (std::size_t i = 0; i < NumElements; ++i) {
-    rtn[i] = polar(rho, theta[i]);
-  }
-  return rtn;
-}
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             T,           real,          x[i].real(),       complex<T>);
+MARRAY_CPLX_MATH_OP(   ONE_ARG,             T,           imag,          x[i].imag(),       complex<T>);
 
-// real
+MARRAY_CPLX_MATH_OP(   TWO_ARGS,            complex<T>,  polar,         polar(x[i], y[i]), T,          T);
+MARRAY_CPLX_MATH_OP(   TWO_ARGS_POLAR_S1,   complex<T>,  polar,         polar(x[i], y),    T,          T);
+MARRAY_CPLX_MATH_OP(   TWO_ARGS_POLAR_S2,   complex<T>,  polar,         polar(x, y[i]),    T,          T);
 
-template <typename T, std::size_t NumElements>
-_SYCL_EXT_CPLX_INLINE_VISIBILITY
-    typename std::enable_if_t<is_genfloat<T>::value,
-                              sycl::marray<T, NumElements>>
-    real(const marray<complex<T>, NumElements> &z) {
-  sycl::marray<T, NumElements> rtn;
-  for (std::size_t i = 0; i < NumElements; ++i) {
-    rtn[i] = z[i].real();
-  }
-  return rtn;
-}
+MARRAY_CPLX_MATH_OP(   TWO_ARGS,            complex<T>,  pow,           pow(x[i], y[i]),   complex<T>, T);
+MARRAY_CPLX_MATH_OP(   TWO_ARGS,            complex<T>,  pow,           pow(x[i], y[i]),   complex<T>, complex<T>);
+MARRAY_CPLX_MATH_OP(   TWO_ARGS,            complex<T>,  pow,           pow(x[i], y[i]),   T,          complex<T>);
 
-// imag
+MARRAY_CPLX_MATH_OP(   TWO_ARGS_POW_S1,     complex<T>,  pow,           pow(x[i], y),      complex<T>, T);
+MARRAY_CPLX_MATH_OP(   TWO_ARGS_POW_S1,     complex<T>,  pow,           pow(x[i], y),      complex<T>, complex<T>);
+MARRAY_CPLX_MATH_OP(   TWO_ARGS_POW_S1,     complex<T>,  pow,           pow(x[i], y),      T,          complex<T>);
 
-template <typename T, std::size_t NumElements>
-_SYCL_EXT_CPLX_INLINE_VISIBILITY
-    typename std::enable_if_t<is_genfloat<T>::value,
-                              sycl::marray<T, NumElements>>
-    imag(const marray<complex<T>, NumElements> &z) {
-  sycl::marray<T, NumElements> rtn;
-  for (std::size_t i = 0; i < NumElements; ++i) {
-    rtn[i] = z[i].imag();
-  }
-  return rtn;
-}
+MARRAY_CPLX_MATH_OP(   TWO_ARGS_POW_S2,     complex<T>,  pow,           pow(x, y[i]),      complex<T>, T);
+MARRAY_CPLX_MATH_OP(   TWO_ARGS_POW_S2,     complex<T>,  pow,           pow(x, y[i]),      complex<T>, complex<T>);
+MARRAY_CPLX_MATH_OP(   TWO_ARGS_POW_S2,     complex<T>,  pow,           pow(x, y[i]),      T,          complex<T>);
+// clang-format on
+
+#undef ONE_ARG_MARRAY_TYPE
+#undef TWO_ARGS_MARRAY_TYPE
+#undef TWO_ARGS_POLAR_S1_MARRAY_TYPE
+#undef TWO_ARGS_POLAR_S2_MARRAY_TYPE
+#undef TWO_ARGS_POW_S1_MARRAY_TYPE
+#undef TWO_ARGS_POW_S2_MARRAY_TYPE
+#undef MARRAY_CPLX_MATH_OP
 
 } // namespace experimental
 } // namespace oneapi

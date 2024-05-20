@@ -36,6 +36,8 @@ void test_valid_types() {
   };
 
 TEST_MATH_FUNC_TYPE(abs)
+TEST_MATH_FUNC_TYPE(arg)
+TEST_MATH_FUNC_TYPE(norm)
 #undef TEST_MATH_FUNC_TYPE
 
 // Define math function tests - marray<complex<T>> -> marray<complex<T>>
