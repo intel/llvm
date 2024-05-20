@@ -55,8 +55,7 @@ ur_result_t ur_event_handle_t_::start() {
 
   try {
     if (Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE || isTimestampEvent()) {
-      // NOTE: This relies on the default stream to be unused.
-      UR_CHECK_ERROR(cuEventRecord(EvQueued, 0));
+      UR_CHECK_ERROR(cuEventRecord(EvQueued, Queue->getProfilingStream()));
       UR_CHECK_ERROR(cuEventRecord(EvStart, Stream));
     }
   } catch (ur_result_t Err) {

@@ -21,8 +21,8 @@ ur_event_handle_t_::ur_event_handle_t_(ur_command_t Type,
                                        uint32_t StreamToken)
     : CommandType{Type}, RefCount{1}, HasOwnership{true},
       HasBeenWaitedOn{false}, IsRecorded{false}, IsStarted{false},
-      StreamToken{StreamToken}, EventId{0}, EvEnd{EvEnd}, EvQueued{EvQueued},
-      EvStart{EvStart}, Queue{Queue}, Stream{Stream}, Context{Context} {
+      StreamToken{StreamToken}, EventId{0}, EvEnd{EvEnd}, EvStart{EvStart},
+      EvQueued{EvQueued}, Queue{Queue}, Stream{Stream}, Context{Context} {
   urQueueRetain(Queue);
   urContextRetain(Context);
 }
@@ -50,7 +50,6 @@ ur_result_t ur_event_handle_t_::start() {
 
   try {
     if (Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE || isTimestampEvent()) {
-      // NOTE: This relies on the default stream to be unused.
       UR_CHECK_ERROR(hipEventRecord(EvQueued, Queue->getProfilingStream()));
       UR_CHECK_ERROR(hipEventRecord(EvStart, Stream));
     }

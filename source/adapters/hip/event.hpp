@@ -112,8 +112,9 @@ private:
   // This constructor is private to force programmers to use the makeNative /
   // make_user static members in order to create a ur_event_handle_t for HIP.
   ur_event_handle_t_(ur_command_t Type, ur_context_handle_t Context,
-                     ur_queue_handle_t Queue, hipStream_t Stream,
-                     uint32_t StreamToken);
+                     ur_queue_handle_t Queue, native_type EvEnd,
+                     native_type EvQueued, native_type EvStart,
+                     hipStream_t Stream, uint32_t StreamToken);
 
   // This constructor is private to force programmers to use the
   // makeWithNative for event interop

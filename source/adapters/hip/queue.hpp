@@ -10,6 +10,9 @@
 #pragma once
 
 #include "common.hpp"
+#include <hip/hip_runtime.h>
+#include <mutex>
+#include <vector>
 
 using ur_stream_quard = std::unique_lock<std::mutex>;
 
@@ -24,8 +27,7 @@ struct ur_queue_handle_t_ {
   std::vector<native_type> TransferStreams;
   // Stream used solely when profiling is enabled
   native_type ProfStream;
-  static std::once_flag ProfStreamFlag;
-  bool ProfStreamCreated;
+  bool IsProfStreamCreated{false};
   // DelayCompute keeps track of which streams have been recently reused and
   // their next use should be delayed. If a stream has been recently reused it
   // will be skipped the next time it would be selected round-robin style. When
@@ -99,13 +101,14 @@ struct ur_queue_handle_t_ {
   native_type getNextTransferStream();
   native_type get() { return getNextComputeStream(); };
 
-  // Function which creates the profiling stream. Called only from makeNative
-  // in event handle, if the profiling is enabled.
+  // Function which creates the profiling stream. Called only if profiling is
+  // enabled.
   void createProfilingStream() {
-    std::call_once(ProfStreamFlag, []() {
+    static std::once_flag ProfStreamFlag;
+    std::call_once(ProfStreamFlag, [&]() {
       UR_CHECK_ERROR(
-          hipEventCreateWithFlags(&ProfStream, hipStreamNonBlocking));
-      ProfStreamCreated = true;
+          hipStreamCreateWithFlags(&ProfStream, hipStreamNonBlocking));
+      IsProfStreamCreated = true;
     });
   }
   native_type getProfilingStream() { return ProfStream; }
