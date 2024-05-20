@@ -40,6 +40,7 @@
 #include "clang/Basic/DarwinSDKInfo.h"
 #include "clang/Basic/DiagnosticSema.h"
 #include "clang/Basic/ExpressionTraits.h"
+#include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/Module.h"
 #include "clang/Basic/OpenCLOptions.h"
 #include "clang/Basic/PragmaKinds.h"
@@ -3590,13 +3591,13 @@ public:
   bool CheckAttrTarget(const ParsedAttr &CurrAttr);
   bool CheckAttrNoArgs(const ParsedAttr &CurrAttr);
 
-  AvailabilityAttr *
-  mergeAvailabilityAttr(NamedDecl *D, const AttributeCommonInfo &CI,
-                        IdentifierInfo *Platform, bool Implicit,
-                        VersionTuple Introduced, VersionTuple Deprecated,
-                        VersionTuple Obsoleted, bool IsUnavailable,
-                        StringRef Message, bool IsStrict, StringRef Replacement,
-                        AvailabilityMergeKind AMK, int Priority);
+  AvailabilityAttr *mergeAvailabilityAttr(
+      NamedDecl *D, const AttributeCommonInfo &CI, IdentifierInfo *Platform,
+      bool Implicit, VersionTuple Introduced, VersionTuple Deprecated,
+      VersionTuple Obsoleted, bool IsUnavailable, StringRef Message,
+      bool IsStrict, StringRef Replacement, AvailabilityMergeKind AMK,
+      int Priority, IdentifierInfo *IIEnvironment);
+
   TypeVisibilityAttr *
   mergeTypeVisibilityAttr(Decl *D, const AttributeCommonInfo &CI,
                           TypeVisibilityAttr::VisibilityType Vis);
