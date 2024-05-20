@@ -31,3 +31,6 @@ jobs:
       xfail: "ESIMD/preemption.cpp;syclcompat/atomic/atomic_class.cpp;ProgramManager/uneven_kernel_split.cpp;Plugin/level_zero_ext_intel_queue_index.cpp;Plugin/level_zero_ext_intel_cslice.cpp;Matrix/joint_matrix_rowmajorA_rowmajorB.cpp;Matrix/element_wise_ops.cpp;Matrix/element_wise_all_ops.cpp;Matrix/SG32/element_wise_all_ops.cpp"
       # Flaky tests
       filter_out: "GroupAlgorithm/root_group.cpp|Basic/exceptions-SYCL-2020.cpp|Graph/UnsupportedDevice/device_query.cpp|Graph/RecordReplay/exception_inconsistent_contexts.cpp"
+      # These runners by default spawn upwards of 260 workers. That's too much for the GPU.
+      # We also add a time out just in case some test hangs
+      extra_lit_flags: "-j 50;--max-time 600"
