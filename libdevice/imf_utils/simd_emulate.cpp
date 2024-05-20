@@ -364,8 +364,9 @@ static inline unsigned int __internal_v_binary_op(unsigned int x,
 // issue in GPU runtime, disable clang optimizer here avoid blocking pre-ci.
 #pragma clang optimize off
 template <typename Tp> class __iaddmax_op {
-  static_assert(std::is_same<int16_t, Tp>::value,
-                "Tp can only accept int16_t for iaddmax op.");
+  static_assert(std::is_same<int16_t, Tp>::value ||
+                    std::is_same<uint16_t, Tp>::value,
+                "Tp can only accept 16-bit integer for iaddmax op.");
 
 public:
   Tp operator()(const Tp &x, const Tp &y, const Tp &z) {
@@ -1108,5 +1109,21 @@ DEVICE_EXTERN_C_INLINE
 int __devicelib_imf_viaddmax_s32_relu(int x, int y, int z) {
   int r = __imax<int>((x + y), z);
   return (r > 0) ? r : 0;
+}
+
+// Split 32-bit value into 2 16-bit parts, interpret each part as unsinged
+// short. For corresponding part, perform and add and compare operation:
+// max(x_part + y_part, z_part), partial results are combined as return value.
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmax_u16x2(unsigned int x, unsigned int y,
+                                            unsigned int z) {
+  return __internal_v_ternary_op<uint16_t, 2, __iaddmax_op>(x, y, z);
+}
+
+// max(x + y, z) for unsigned int
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmax_u32(unsigned int x, unsigned int y,
+                                          unsigned int z) {
+  return __imax<unsigned int>((x + y), z);
 }
 #endif
