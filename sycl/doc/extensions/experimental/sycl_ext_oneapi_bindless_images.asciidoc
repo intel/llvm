@@ -1275,8 +1275,6 @@ function is used, and the sampler attributes passed upon creation of the
 mipmap.
 
 ```c++
-namespace sycl::ext::oneapi::experimental {
-
 // Nearest/linear filtering between mip levels
 template <typename DataT, typename HintT = DataT, typename CoordT>
 DataT sample_mipmap(const sampled_image_handle &ImageHandle,
@@ -1288,8 +1286,6 @@ template <typename DataT, typename HintT = DataT, typename CoordT>
 DataT sample_mipmap(const sampled_image_handle &ImageHandle,
                     const CoordT &Coords,
                     const CoordT &Dx, const CoordT &Dy);
-
-}
 ```
 
 Reading a mipmap follows the same restrictions on what coordinate types may be 
