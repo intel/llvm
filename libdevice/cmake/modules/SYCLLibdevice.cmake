@@ -49,10 +49,13 @@ endif()
 if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   string(APPEND sycl_targets_opt ",nvptx64-nvidia-cuda")
   list(APPEND compile_opts
+    "-Xsycl-target-backend=nvptx64-nvidia-cuda"
     "-fno-sycl-libspirv"
+    "-Wno-no-libspirv-hip-cuda"
     "-fno-bundle-offload-arch"
     "-nocudalib"
-    "--cuda-gpu-arch=sm_50")
+    "--cuda-gpu-arch=sm_50"
+    "-Wno-unused-command-line-argument")
 endif()
 
 if (WIN32)
