@@ -603,14 +603,13 @@ viaddmax_s16x2_relu(Tp x, Tp y, Tp z) {
 }
 
 template <typename Tp>
-std::enable_if_t<std::is_same_v<Tp, int>, int>
-viaddmax_s32(Tp x, Tp y, Tp z) {
+std::enable_if_t<std::is_same_v<Tp, int>, int> viaddmax_s32(Tp x, Tp y, Tp z) {
   return __imf_viaddmax_s32(x, y, z);
 }
 
 template <typename Tp>
-std::enable_if_t<std::is_same_v<Tp, int>, int>
-viaddmax_s32_relu(Tp x, Tp y, Tp z) {
+std::enable_if_t<std::is_same_v<Tp, int>, int> viaddmax_s32_relu(Tp x, Tp y,
+                                                                 Tp z) {
   return __imf_viaddmax_s32_relu(x, y, z);
 }
 } // namespace ext::intel::math
