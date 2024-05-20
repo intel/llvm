@@ -80,6 +80,10 @@ static __SYCL_CONSTANT__ const char __generic_to[] =
 static __SYCL_CONSTANT__ const char __generic_to_fail[] =
     "[kernel] %p(4) - unknown address space\n";
 
+static __SYCL_CONSTANT__ const char __mem_launch_info[] =
+    "[kernel] launch_info: %p (local_shadow=%p~%p, numLocalArgs=%d, "
+    "localArgs=%p)\n";
+
 #define ASAN_REPORT_NONE 0
 #define ASAN_REPORT_START 1
 #define ASAN_REPORT_FINISH 2
@@ -153,22 +157,35 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
         __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
         __spirv_BuiltInWorkgroupId.z;
 
-    return __AsanShadowMemoryLocalStart + ((wg_lid * slm_size) >> 3) +
-           ((addr & (slm_size - 1)) >> 3);
+    auto launch_info = (__SYCL_GLOBAL__ const LaunchInfo *)__AsanLaunchInfo;
+    const auto shadow_offset = launch_info->LocalShadowOffset;
+    const auto shadow_offset_end = launch_info->LocalShadowOffsetEnd;
+
+    if (shadow_offset == 0) {
+      return 0;
+    }
+
+    if (__AsanDebug)
+      __spirv_ocl_printf(__mem_launch_info, launch_info,
+                         launch_info->LocalShadowOffset,
+                         launch_info->LocalShadowOffsetEnd,
+                         launch_info->NumLocalArgs, launch_info->LocalArgs);
+
+    auto shadow_ptr = shadow_offset + ((wg_lid * slm_size) >> 3) +
+                      ((addr & (slm_size - 1)) >> 3);
+
+    if (shadow_ptr > shadow_offset_end) {
+      if (__asan_report_out_of_shadow_bounds() && __AsanDebug) {
+        __spirv_ocl_printf(__local_shadow_out_of_bound, addr, shadow_ptr,
+                           wg_lid, (uptr)shadow_offset);
+      }
+      return 0;
+    }
+    return shadow_ptr;
   }
 
   return 0;
 }
-
-static __SYCL_CONSTANT__ const char __mem_launch_info[] =
-    "[kernel] launch_info: %p (local_shadow=%p~%p, numLocalArgs=%d, "
-    "localArgs=%p)\n";
-
-static __SYCL_CONSTANT__ const char __generic_to[] =
-    "[kernel] %p(4) - %p(%d)\n";
-
-static __SYCL_CONSTANT__ const char __generic_to_fail[] =
-    "[kernel] %p(4) - unknown address space\n";
 
 inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
   if (as == ADDRESS_SPACE_GENERIC) {
