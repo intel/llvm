@@ -91,7 +91,7 @@ params:
     - type: uint32_t
       name: numAttrsInLaunchAttrList
       desc: "[in] size of the launch attr list"
-    - type: $x_exp_launch_attribute_t*
+    - type: const $x_exp_launch_attribute_t*
       name: launchAttrList
       desc: "[in][range(0, numAttrsInLaunchAttrList)] pointer to a list of launch attributes"
     - type: uint32_t
