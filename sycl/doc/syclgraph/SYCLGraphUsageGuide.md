@@ -8,6 +8,12 @@ scenarios.
 The specification for the `sycl_ext_oneapi_graph` extension can be found
 [here](../extensions/experimental/sycl_ext_oneapi_graph.asciidoc).
 
+The examples in this document are based on the extension specification and may
+illustrate features which are not yet implemented. Please refer to the
+[`sycl_ext_oneapi_graph`
+specification](../extensions/experimental/sycl_ext_oneapi_graph.asciidoc) for
+the current feature implementation status.
+
 ## General Usage Guidelines
 
 The following section provides some general usage guidelines when working
@@ -512,4 +518,132 @@ execMainGraph.update(updateGraph);
 // Execute execMainGraph again, which will now be operating on ptrB instead of
 // ptrA
 myQueue.ext_oneapi_graph(execMainGraph);
+```
+
+### External Graph Dependencies Using Dynamic Event Update
+
+A simplified example which shows how to create a dependency between eager SYCL
+operations and a node in a graph using dynamic events which are then updated
+between executions.
+
+```c++
+...
+
+using namespace sycl;
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+
+queue myQueue;
+auto myContext = myQueue.get_context();
+auto myDevice = myQueue.get_device();
+
+// Create the graph
+sycl_ext::command_graph graph(myContext, myDevice);
+
+// Create a dynamic event which will represent the eager SYCL operations
+sycl_ext::dynamic_event externalDep {event{}};
+
+// Add some nodes to the graph
+sycl_ext::node nodeA = graph.add((handler& CGH){
+    CGH.parallel_for(...);
+});
+
+// Add a node to graph which depends on externalDep and nodeA
+sycl_ext::node nodeB = graph.add((handler& CGH){
+    CGH.depends_on(externalDep);
+    CGH.parallel_for(...);
+}, , {sycl_ext::property::node::depends_on{nodeA}});
+
+sycl_ext::command_graph<sycl_ext::graph_state::executable> execGraph = 
+  graph.finalize();
+
+// Submit a SYCL operation which the graph will be updated to depend on
+event eagerEvent = myQueue.submit(...);
+
+// Update the dynamic event to reference the new event, this change will be
+// immediately reflected in nodeB
+externalDep.update(eagerEvent);
+
+// Update execGraph to reflect the updated state/dependencies of nodeB and
+// submit for execution
+execGraph.update(nodeB);
+myQueue.ext_oneapi_graph(execGraph);
+
+// Update the dynamic event with a new event from another SYCL operation, then
+// update and execute the graph again, nodeB will now only execute once
+// eagerEvent2 is complete in addition to its other dependencies
+event eagerEvent2 = myQueue.submit(...);
+externalDep.update(eagerEvent);
+execGraph.update(nodeB);
+myQueue.ext_oneapi_graph(execGraph);
+
+myQueue.wait_and_throw();
+```
+
+### Using Graph Execution Events
+
+This example shows how to obtain an execution event for an individual node in a
+graph with `command_graph::get_event()` and uses that event to synchronize with
+an eager SYCL operation. This can be useful if you want to perform operations on
+some intermediate results of the graph, but do not want to capture that as part
+of the graph itself.
+
+```c++
+...
+
+using namespace sycl;
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+
+queue myQueue;
+auto myContext = myQueue.get_context();
+auto myDevice = myQueue.get_device();
+
+// Create the graph
+sycl_ext::command_graph graph(myContext, myDevice);
+
+// Add some nodes to the graph
+sycl_ext::node nodeA = graph.add((handler& CGH){
+    CGH.parallel_for(...);
+});
+
+// nodeB depends on nodeA but also adds the requires_execution_event property
+// to signal that we will be obtaining an execution event for this node
+sycl_ext::node nodeB = graph.add((handler& CGH){
+    CGH.parallel_for(...);
+    }, {sycl_ext::property::node::depends_on{nodeA},
+        sycl_ext::property::graph::requires_execution_event{}}
+);
+
+sycl_ext::node nodeA = graph.add((handler& CGH){
+    CGH.parallel_for(...);
+}, {sycl_ext::property::node::depends_on{nodeB}});
+
+sycl_ext::command_graph<sycl_ext::graph_state::executable> execGraph = 
+    graph.finalize();
+
+// Obtain the execution event for nodeB from execGraph
+event nodeExecEvent = execGraph.get_event(nodeB);
+
+// Use nodeExecEvent as a dependency to an eager SYCL operation, the operation
+// will not execute on device until nodeExecEvent is complete
+myQueue.submit((handler& CGH){
+    CGH.depends_on(nodeExecEvent);
+    CGH.parallel_for(...);
+});
+
+// Execute the graph which will allow the previous operation to execute once
+// nodeB has finished executing
+myQueue.ext_oneapi_graph(execGraph);
+
+myQueue.wait_and_throw();
+
+// Repeat obtaining an event and submitting both the eager operation and graph
+// for execution again
+nodeExecEvent = execGraph.get_event(nodeB);
+myQueue.submit((handler& CGH){
+    CGH.depends_on(nodeExecEvent);
+    CGH.parallel_for(...);
+});
+
+myQueue.ext_oneapi_graph(execGraph);
+myQueue.wait_and_throw();
 ```
