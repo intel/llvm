@@ -722,7 +722,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
                 (void *)LaunchInfo.Data, LaunchInfo.Data->NumLocalArgs,
                 (void *)LaunchInfo.Data->LocalArgs);
             ur_result_t URes = context.urDdiTable.Kernel.pfnSetArgPointer(
-                Kernel, ArgNums - 1, nullptr, &LaunchInfo.Data);
+                Kernel, ArgNums - 1, nullptr, LaunchInfo.Data);
             if (URes != UR_RESULT_SUCCESS) {
                 context.logger.error("Failed to set launch info: {}", URes);
                 return URes;
