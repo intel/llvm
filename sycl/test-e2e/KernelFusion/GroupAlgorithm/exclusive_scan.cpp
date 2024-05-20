@@ -11,6 +11,7 @@
 #include <numeric>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/group_algorithm.hpp>
 #include <sycl/properties/all_properties.hpp>
 #include <vector>
 using namespace sycl;
