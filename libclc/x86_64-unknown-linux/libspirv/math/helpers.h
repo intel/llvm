@@ -1,7 +1,7 @@
 #include "func.h"
 #include "types.h"
 
-#pragma OPENCL EXTENSION cl_khr_fp16: enable                                    
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
 #ifndef IS_NATIVE
 #define GETNAME(ID) __spirv_ocl_##ID
