@@ -7881,14 +7881,6 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
               C, Args, Arch, TC->getTriple(), SuppressError);
           if (ArchStr.empty())
             return Archs;
-
-          // Remove CUDA/AMD arch option from Native CPU invocation to
-          // prevent invalid argyments like "-target-cpu sm_50"
-          const auto cu_arch = StringToCudaArch(ArchStr);
-          if (IsNVIDIAGpuArch(cu_arch) || IsAMDGpuArch(cu_arch))
-            if (driver::isSYCLNativeCPU(*TC))
-              return Archs;
-
           Archs.insert(ArchStr);
         }
       }
