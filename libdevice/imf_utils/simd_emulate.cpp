@@ -1096,4 +1096,17 @@ unsigned int __devicelib_imf_viaddmax_s16x2_relu(unsigned int x, unsigned int y,
                                                  unsigned int z) {
   return __internal_v_ternary_op<int16_t, 2, __iaddmax_relu_op>(x, y, z);
 }
+
+// max(x + y, z)
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_viaddmax_s32(int x, int y, int z) {
+  return __imax<int>((x + y), z);
+}
+
+// max(max(x + y, z), 0)
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_viaddmax_s32_relu(int x, int y, int z) {
+  int r = __imax<int>((x + y), z);
+  return (r > 0) ? r : 0;
+}
 #endif

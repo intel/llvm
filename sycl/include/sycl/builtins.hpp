@@ -567,6 +567,8 @@ extern __DPCPP_SYCL_EXTERNAL unsigned int
 __imf_viaddmax_s16x2(unsigned int x, unsigned int y, unsigned int z);
 extern __DPCPP_SYCL_EXTERNAL unsigned int
 __imf_viaddmax_s16x2_relu(unsigned int x, unsigned int y, unsigned int z);
+extern __DPCPP_SYCL_EXTERNAL int __imf_viaddmax_s32(int x, int y, int z);
+extern __DPCPP_SYCL_EXTERNAL int __imf_viaddmax_s32_relu(int x, int y, int z);
 }
 #ifdef __GLIBC__
 extern "C" {
