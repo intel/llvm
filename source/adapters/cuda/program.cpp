@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "program.hpp"
+#include "ur_util.hpp"
 
 bool getMaxRegistersJitOptionValue(const std::string &BuildOptions,
                                    unsigned int &Value) {
@@ -51,15 +52,6 @@ ur_program_handle_t_::ur_program_handle_t_(ur_context_handle_t Context)
 }
 
 ur_program_handle_t_::~ur_program_handle_t_() { urContextRelease(Context); }
-
-std::pair<std::string, std::string>
-splitMetadataName(const std::string &metadataName) {
-  size_t splitPos = metadataName.rfind('@');
-  if (splitPos == std::string::npos)
-    return std::make_pair(metadataName, std::string{});
-  return std::make_pair(metadataName.substr(0, splitPos),
-                        metadataName.substr(splitPos, metadataName.length()));
-}
 
 ur_result_t
 ur_program_handle_t_::setMetadata(const ur_program_metadata_t *Metadata,
