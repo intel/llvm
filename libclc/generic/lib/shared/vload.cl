@@ -27,9 +27,7 @@
     return *((const ADDR_SPACE less_aligned_##ADDR_SPACE##PRIM_TYPE##16*) (&x[16*offset])); \
   }
 
-#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
-    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
-     defined(__opencl_c_generic_address_space))
+#if _CLC_GENERIC_AS_SUPPORTED
 #define VLOAD_VECTORIZE_GENERIC VLOAD_VECTORIZE
 #else
 // The generic address space isn't available, so make the macro do nothing
@@ -72,9 +70,7 @@ float __clc_vload_half_float_helper__constant(const __constant half *);
 float __clc_vload_half_float_helper__global(const __global half *);
 float __clc_vload_half_float_helper__local(const __local half *);
 float __clc_vload_half_float_helper__private(const __private half *);
-#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
-    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
-     defined(__opencl_c_generic_address_space))
+#if _CLC_GENERIC_AS_SUPPORTED
 float __clc_vload_half_float_helper__generic(const __generic half *);
 #endif
 

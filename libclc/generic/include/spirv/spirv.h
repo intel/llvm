@@ -20,6 +20,14 @@
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 #endif
 
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+#define _CLC_GENERIC_AS_SUPPORTED 1
+#else
+#define _CLC_GENERIC_AS_SUPPORTED 0
+#endif
+
 /* Function Attributes */
 #include <func.h>
 

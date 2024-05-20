@@ -370,12 +370,16 @@ bool trace(TraceLevel Level) {
 
 // Initializes all available Plugins.
 std::vector<PluginPtr> &initialize() {
-  static std::once_flag PluginsInitDone;
-  // std::call_once is blocking all other threads if a thread is already
-  // creating a vector of plugins. So, no additional lock is needed.
-  std::call_once(PluginsInitDone, [&]() {
+  // This uses static variable initialization to work around a gcc bug with
+  // std::call_once and exceptions.
+  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66146
+  auto initializeHelper = []() {
     initializePlugins(GlobalHandler::instance().getPlugins());
-  });
+    return true;
+  };
+  static bool Initialized = initializeHelper();
+  std::ignore = Initialized;
+
   return GlobalHandler::instance().getPlugins();
 }
 

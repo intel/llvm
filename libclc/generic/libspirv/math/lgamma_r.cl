@@ -563,7 +563,7 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_lgamma_r(double x, private int *ip) {
       r += __spirv_ocl_fma(-0.5, y, p / q);
     }
   } else if (absx < 8.0) {
-    int i = absx;
+    int i = (int)(long)absx;
     double y = absx - (double)i;
     double p =
         y *
@@ -659,9 +659,7 @@ _CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_lgamma_r, half,
 #include <clc/math/gentype.inc>
 #undef __CLC_ADDRSPACE
 
-#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
-    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
-     defined(__opencl_c_generic_address_space))
+#if _CLC_GENERIC_AS_SUPPORTED
 #define __CLC_ADDRSPACE generic
 #define __CLC_BODY <lgamma_r.inc>
 #include <clc/math/gentype.inc>
