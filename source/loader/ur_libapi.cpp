@@ -8117,7 +8117,9 @@ ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Update a kernel launch command in a finalized command-buffer.
+/// @brief Update a kernel launch command in a finalized command-buffer. This
+///        entry-point is synchronous and may block if the command-buffer is
+///        executing when the entry-point is called.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
