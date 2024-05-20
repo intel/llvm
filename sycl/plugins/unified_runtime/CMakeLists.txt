@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 3b7f35b1907d1acd35204c6d9472037383566a33
-  # Merge: 65c39c8a 3ec0dde6
+  # commit 056d653264034e546d8b8f493e1d9f65c697829b
+  # Merge: b7c89302 bbb04b65
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri May 17 09:26:05 2024 +0100
-  #     Merge pull request #1534 from zhaomaosu/config-red-zone-size
-  #     [DeviceSanitizer] Add options to allow user to customize red zone size
-  set(UNIFIED_RUNTIME_TAG 3b7f35b1907d1acd35204c6d9472037383566a33)
+  # Date:   Fri May 17 15:11:12 2024 +0100
+  #     Merge pull request #1512 from DBDuncan/duncan/fix_pi_mem_leak
+  #     [Bindless][Exp] Remove phMem argument from bindless image creation functions
+  set(UNIFIED_RUNTIME_TAG 056d653264034e546d8b8f493e1d9f65c697829b)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
