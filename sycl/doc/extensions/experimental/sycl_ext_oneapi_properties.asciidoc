@@ -185,8 +185,7 @@ inline constexpr property_value<struct boo_key, Ts...> boo;
 
 === Property traits
 
-All properties must have a specialization of `is_property_key_of`
-and `is_property_value_of`
+Properties may add a specialization of `is_property_key_of`
 that inherits from `std::true_type` for each SYCL runtime class that the
 property can be applied to. All have a base case which inherits from `std::false_type`.
 
@@ -213,7 +212,7 @@ template<typename K, typename O, typename...A> struct is_property_value_of<prope
 === Property value class
 
 The `property_value` class has the property key as the first template argument,
-followed by the property parameters. In
+followed by additional implementation-defined template arguments that convey the property parameters. In
 the common case when the property has a single parameter, it provides a member
 variable named `value` and a type alias named `value_t` to retrieve the value
 and type of the parameter. When a property has more than one parameter, the
