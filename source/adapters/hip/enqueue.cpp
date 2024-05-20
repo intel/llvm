@@ -1850,10 +1850,14 @@ setKernelParams(const ur_device_handle_t Device, const uint32_t WorkDim,
           static_cast<size_t>(Device->getMaxBlockDimY()),
           static_cast<size_t>(Device->getMaxBlockDimZ())};
 
+      auto &ReqdThreadsPerBlock = Kernel->ReqdThreadsPerBlock;
       MaxWorkGroupSize = Device->getMaxWorkGroupSize();
 
       if (LocalWorkSize != nullptr) {
         auto isValid = [&](int dim) {
+          UR_ASSERT(ReqdThreadsPerBlock[dim] == 0 ||
+                        LocalWorkSize[dim] == ReqdThreadsPerBlock[dim],
+                    UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
           UR_ASSERT(LocalWorkSize[dim] <= MaxThreadsPerBlock[dim],
                     UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
           // Checks that local work sizes are a divisor of the global work sizes
