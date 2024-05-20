@@ -58,8 +58,8 @@
 
 // checks that the device and host triple is correct in the generated actions when it is set explicitly
 //CHECK_ACTIONS-AARCH64:            +- 6: offload, "host-sycl (aarch64-unknown-linux-gnu)" {2}, "device-sycl (aarch64-unknown-linux-gnu)" {5}, c++-cpp-output
-//CHECK_ACTIONS-AARCH64:|- 15: offload, "device-sycl (aarch64-unknown-linux-gnu)" {14}, object
-//CHECK_ACTIONS-AARCH64:|- 18: offload, "device-sycl (aarch64-unknown-linux-gnu)" {17}, object
+//CHECK_ACTIONS-AARCH64:|- 13: offload, "device-sycl (aarch64-unknown-linux-gnu)" {12}, object
+//CHECK_ACTIONS-AARCH64:|- 16: offload, "device-sycl (aarch64-unknown-linux-gnu)" {15}, object
 
 // checks that bindings are correct when linking together multiple TUs on native cpu
 //CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "offload bundler", inputs: ["{{.*}}.o"], outputs: ["[[FILE1HOST:.*]].o", "[[FILE1DEV:.*]].o"] 
