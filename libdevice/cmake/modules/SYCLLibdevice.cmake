@@ -126,17 +126,26 @@ function(add_devicelib_spv spv_filename)
 endfunction()
 
 function(add_devicelib_bc bc_filename)
-  cmake_parse_arguments(BC  "" "" "SRC;DEP;EXTRA_ARGS" ${ARGN})
+  cmake_parse_arguments(BC  "CUDA" "" "SRC;DEP;EXTRA_ARGS" ${ARGN})
+  list(APPEND compile_opts "-fsycl-device-only" "-fsycl-device-obj=llvmir")
+
+  if(${BC_CUDA})
+  list(APPEND compile_opts "-fsycl-targets=nvptx64-nvidia-cuda")
+  set (bc_filename ${bc_filename}--cuda)
+  endif()
+
   set(devicelib-bc-file ${bc_binary_dir}/${bc_filename}.bc)
+
   add_custom_command(OUTPUT ${devicelib-bc-file}
-                     COMMAND ${clang} -fsycl-device-only
-                             -fsycl-device-obj=llvmir ${compile_opts}
+                     COMMAND ${clang}
+                             ${compile_opts}
                              ${BC_EXTRA_ARGS}
                              ${CMAKE_CURRENT_SOURCE_DIR}/${BC_SRC}
                              -o ${devicelib-bc-file}
                      MAIN_DEPENDENCY ${BC_SRC}
                      DEPENDS ${BC_DEP}
                      VERBATIM)
+
   set(devicelib-bc-target ${bc_filename}-bc)
   add_custom_target(${devicelib-bc-target} DEPENDS ${devicelib-bc-file})
   add_dependencies(libsycldevice-bc ${devicelib-bc-target})
@@ -150,6 +159,7 @@ function(add_devicelib filename)
   add_devicelib_spv(${filename} SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
   add_devicelib_bc(${filename} SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
   add_devicelib_obj(${filename} SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
+  add_devicelib_bc(${filename} CUDA SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
 endfunction()
 
 set(crt_obj_deps wrapper.h device.h spirv_vars.h sycl-compiler)

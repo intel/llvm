@@ -295,6 +295,8 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
   bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
   StringRef LibSuffix = ".bc";
+  if (TargetTriple.isNVPTX())
+      LibSuffix = "--cuda.bc";
   if ((TargetTriple.isSPIR() &&
        TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga))
     // For NVidia or FPGA, we are unbundling objects.
