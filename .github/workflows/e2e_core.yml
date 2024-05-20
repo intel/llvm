@@ -46,7 +46,11 @@ on:
         description: Tests to filter out completely
         type: string
         required: false
-  
+      extra_lit_flags:
+        description: Additional llvm-lit flags to use
+        type: string
+        required: false
+
 permissions:
   contents: read
   pull-requests: write
@@ -62,7 +66,8 @@ jobs:
           str_name: "${{inputs.str_name}}",
           prefix: "${{inputs.prefix}}",
           config: "${{inputs.config}}",
-          unit: "${{inputs.unit}}"}
+          unit: "${{inputs.unit}}",
+          extra_lit_flags: "${{inputs.extra_lit_flags}}"},
         ]
         build_type: [Release]
         compiler: [{c: clang, cxx: clang++}]
@@ -167,6 +172,7 @@ jobs:
         -DSYCL_TEST_E2E_TARGETS="${{matrix.adapter.prefix}}${{matrix.adapter.str_name}}:${{matrix.adapter.unit}}"
         -DCMAKE_CXX_COMPILER="$(which clang++)"
         -DLLVM_LIT="${{github.workspace}}/sycl-repo/llvm/utils/lit/lit.py"
+        -DSYCL_E2E_TESTS_LIT_FLAGS="-sv;${{matrix.adapter.extra_lit_flags}}"
 
     - name: Set test filters for L0
       if: matrix.adapter.name == 'L0'
