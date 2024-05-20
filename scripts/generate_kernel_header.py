@@ -12,9 +12,7 @@ import re
 import subprocess
 import sys
 
-from mako.template import Template
-
-HEADER_TEMPLATE = Template("""/*
+HEADER_TEMPLATE = """/*
  *
  * Copyright (C) 2023 Intel Corporation
  *
@@ -22,7 +20,7 @@ HEADER_TEMPLATE = Template("""/*
  * See LICENSE.TXT
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
- * @file ${file_name}.h
+ * @file %s.h
  *
  */
 
@@ -33,26 +31,33 @@ HEADER_TEMPLATE = Template("""/*
 namespace uur {
 namespace device_binaries {
     std::map<std::string, std::vector<std::string>> program_kernel_map = {
-% for program, entry_points in kernel_name_dict.items():
-        {"${program}", {
-  % for entry_point in entry_points:
-            "${entry_point}",
-  % endfor
-        }},
-% endfor
+%s
     };
 }
 }
-""")
+"""
 
+PROGRAM_TEMPLATE = """\
+        {"%s", {
+%s
+        }},
+"""
+
+ENTRY_POINT_TEMPLATE = """\
+            "%s",
+"""
 
 def generate_header(output_file, kernel_name_dict):
     """Render the template and write it to the output file."""
     file_name = os.path.basename(output_file)
-    rendered = HEADER_TEMPLATE.render(file_name=file_name,
-                                      kernel_name_dict=kernel_name_dict)
+    device_binaries = ""
+    for program, entry_points in kernel_name_dict.items():
+        content = ""
+        for entry_point in entry_points:
+            content += ENTRY_POINT_TEMPLATE % entry_point
+        device_binaries += PROGRAM_TEMPLATE % (program, content)
+    rendered = HEADER_TEMPLATE % (file_name, device_binaries)
     rendered = re.sub(r"\r\n", r"\n", rendered)
-
     with open(output_file, "w") as fout:
         fout.write(rendered)
 
@@ -81,7 +86,9 @@ def get_mangled_names(dpcxx_path, source_file, output_header):
     for line in definition_lines:
         if kernel_name_regex.search(line) is None:
             continue
-        kernel_name = kernel_name_regex.search(line).group(1)
+        match = kernel_name_regex.search(line)
+        assert isinstance(match, re.Match)
+        kernel_name = match.group(1)
         if "kernel_wrapper" not in kernel_name and "with_offset" not in kernel_name:
             entry_point_names.append(kernel_name)
 
