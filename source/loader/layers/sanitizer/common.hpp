@@ -16,6 +16,7 @@
 #include "ur_ddi.h"
 
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <string>
 
@@ -53,7 +54,17 @@ inline constexpr uptr RZLog2Size(uptr rz_log) {
     return 16 << rz_log;
 }
 
-inline constexpr uptr ComputeRZLog(uptr user_requested_size) {
+inline constexpr uptr RZSize2Log(uptr rz_size) {
+    assert(rz_size >= 16);
+    assert(rz_size <= 2048);
+    assert(IsPowerOfTwo(rz_size));
+    uptr res = log2(rz_size) - 4;
+    assert(rz_size == RZLog2Size(res));
+    return res;
+}
+
+inline constexpr uptr ComputeRZLog(uptr user_requested_size, uptr min_size,
+                                   uptr max_size) {
     uptr rz_log = user_requested_size <= 64 - 16            ? 0
                   : user_requested_size <= 128 - 32         ? 1
                   : user_requested_size <= 512 - 64         ? 2
@@ -62,7 +73,44 @@ inline constexpr uptr ComputeRZLog(uptr user_requested_size) {
                   : user_requested_size <= (1 << 15) - 512  ? 5
                   : user_requested_size <= (1 << 16) - 1024 ? 6
                                                             : 7;
-    return rz_log;
+    uptr min_log = RZSize2Log(min_size);
+    uptr max_log = RZSize2Log(max_size);
+    return std::min(std::max(rz_log, min_log), max_log);
+}
+
+/// Returns the next integer (mod 2**64) that is greater than or equal to
+/// \p Value and is a multiple of \p Align. \p Align must be non-zero.
+///
+/// Examples:
+/// \code
+///   alignTo(5, 8) = 8
+///   alignTo(17, 8) = 24
+///   alignTo(~0LL, 8) = 0
+///   alignTo(321, 255) = 510
+/// \endcode
+inline uint64_t AlignTo(uint64_t Value, uint64_t Align) {
+    assert(Align != 0u && "Align can't be 0.");
+    return (Value + Align - 1) / Align * Align;
+}
+
+inline uint64_t GetSizeAndRedzoneSizeForLocal(uint64_t Size,
+                                              uint64_t Granularity,
+                                              uint64_t Alignment) {
+    uint64_t Res = 0;
+    if (Size <= 4) {
+        Res = 16;
+    } else if (Size <= 16) {
+        Res = 32;
+    } else if (Size <= 128) {
+        Res = Size + 32;
+    } else if (Size <= 512) {
+        Res = Size + 64;
+    } else if (Size <= 4096) {
+        Res = Size + 128;
+    } else {
+        Res = Size + 256;
+    }
+    return AlignTo(std::max(Res, 2 * Granularity), Alignment);
 }
 
 // ================================================================

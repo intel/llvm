@@ -13,9 +13,12 @@ import util
 import parse_specs
 import generate_code
 import generate_docs
-import os, sys, platform
+import os
+import sys
+import platform
 import time
 import subprocess
+from version import Version
 
 """
     helper for adding mutually-exclusive boolean arguments "--name" and "--!name"
@@ -95,7 +98,7 @@ def get_version_from_cmakelists():
         for line in cmakelists_file.readlines():
             line = line.strip()
             if line.startswith('project('):
-                return re.findall(r'\d+\.\d+', line)[0]
+                return Version(re.findall(r'\d+\.\d+', line)[0])
     raise Exception(f'unable to read project version from {cmakelists_path}')
 
 
@@ -117,8 +120,13 @@ def main():
     add_argument(parser, "pdf", "generation of PDF file.")
     add_argument(parser, "rst", "generation of reStructuredText files.", True)
     parser.add_argument("--update_spec", type=str, help="root of integrated spec directory to update")
-    parser.add_argument("--ver", type=str, default=get_version_from_cmakelists(),
-                        required=False, help="specification version to generate.")
+    parser.add_argument(
+        "--ver",
+        type=parse_specs.Version,
+        default=get_version_from_cmakelists(),
+        required=False,
+        help="specification version to generate.",
+    )
     parser.add_argument("--api-json", type=str, default="unified_runtime.json", required=False, help="json output file for the spec")
     parser.add_argument("--clang-format", type=str, default="clang-format", required=False, help="path to clang-format executable")
     parser.add_argument('--fast-mode', action='store_true', help='Disable sections which are slow to render')
@@ -136,82 +144,75 @@ def main():
         'meta'   : {},
         'ref'    : {}
         }
-    
-    try:
 
-        for section in configParser.sections():
-            input['configs'].append({
-                'name'     : section,
-                'namespace': configParser.get(section,'namespace'),
-                'tags'     : {'$'+key : configParser.get(section,key) for key in configParser.get(section,'tags').split(",")},
-                })
+    for section in configParser.sections():
+        input['configs'].append({
+            'name'     : section,
+            'namespace': configParser.get(section,'namespace'),
+            'tags'     : {'$'+key : configParser.get(section,key) for key in configParser.get(section,'tags').split(",")},
+            })
 
-        # phase 2: parse specs
-        for config in input['configs']:
-            specs, input['meta'], input['ref'] = parse_specs.parse(config['name'], args['ver'], config['tags'], input['meta'], input['ref'])
-            input['specs'].append(specs)
+    # phase 2: parse specs
+    for config in input['configs']:
+        specs, input['meta'], input['ref'] = parse_specs.parse(config['name'], args['ver'], config['tags'], input['meta'], input['ref'])
+        input['specs'].append(specs)
 
-        util.jsonWrite(args['api_json'], input)
+    util.jsonWrite(args['api_json'], input)
 
-        # phase 3: generate files
-        if args['clean']:
-            clean()
+    # phase 3: generate files
+    if args['clean']:
+        clean()
 
-        incpath = os.path.join("../include/")
-        srcpath = os.path.join("../source/")
-        docpath = os.path.join("../docs/")
+    incpath = os.path.join("../include/")
+    srcpath = os.path.join("../source/")
+    docpath = os.path.join("../docs/")
 
-        generate_docs.prepare(docpath, args['rst'], args['html'], args['ver'])
+    generate_docs.prepare(docpath, args['rst'], args['html'], args['ver'])
 
-        for idx, specs in enumerate(input['specs']):
-            config = input['configs'][idx]
-            if args[config['name']]:
+    for idx, specs in enumerate(input['specs']):
+        config = input['configs'][idx]
+        if args[config['name']]:
 
-                generate_code.generate_api(incpath, srcpath, config['namespace'], config['tags'], args['ver'], args['rev'], specs, input['meta'])
+            generate_code.generate_api(incpath, srcpath, config['namespace'], config['tags'], args['ver'], args['rev'], specs, input['meta'])
 
-                # clang-format ur_api.h
-                proc = subprocess.run([args['clang_format'], "--style=file", "-i" , "ur_api.h"], stderr=subprocess.PIPE, cwd=incpath)
-                if proc.returncode != 0:
-                    print("-- clang-format failed with non-zero return code. --")
-                    print(proc.stderr.decode())
-                    raise Exception("Failed to format ur_api.h")
+            # clang-format ur_api.h
+            proc = subprocess.run([args['clang_format'], "--style=file", "-i" , "ur_api.h"], stderr=subprocess.PIPE, cwd=incpath)
+            if proc.returncode != 0:
+                print("-- clang-format failed with non-zero return code. --")
+                print(proc.stderr.decode())
+                raise Exception("Failed to format ur_api.h")
 
-                if args['rst']:
-                    generate_docs.generate_rst(docpath, config['name'], config['namespace'], config['tags'], args['ver'], args['rev'], specs, input['meta'], args['fast_mode'])
+            if args['rst']:
+                generate_docs.generate_rst(docpath, config['name'], config['namespace'], config['tags'], args['ver'], args['rev'], specs, input['meta'], args['fast_mode'])
 
-            if util.makeErrorCount():
-                print("\n%s Errors found during generation, stopping execution!"%util.makeErrorCount())
-                return
+        if util.makeErrorCount():
+            print("\n%s Errors found during generation, stopping execution!"%util.makeErrorCount())
+            return
 
-        if args['debug']:
-            util.makoFileListWrite("generated.json")
+    if args['debug']:
+        util.makoFileListWrite("generated.json")
 
-        # phase 4: build code
-        if args['build']:
-            if not build():
-                print("\nBuild failed, stopping execution!")
-                return
+    # phase 4: build code
+    if args['build']:
+        if not build():
+            print("\nBuild failed, stopping execution!")
+            return
 
-        # phase 5: prep for publication of html or pdf
-        if args['html'] or args['pdf']:
-            generate_docs.generate_common(docpath, configParser.sections(), args['ver'], args['rev'])
+    # phase 5: prep for publication of html or pdf
+    if args['html'] or args['pdf']:
+        generate_docs.generate_common(docpath, configParser.sections(), args['ver'], args['rev'])
 
-        # phase 5: publish documentation
-        if args['html']:
-            generate_docs.generate_html(docpath)
+    # phase 5: publish documentation
+    if args['html']:
+        generate_docs.generate_html(docpath)
 
-        if args['pdf']:
-            generate_docs.generate_pdf(docpath)
+    if args['pdf']:
+        generate_docs.generate_pdf(docpath)
 
-        if args['update_spec']:
-            update_spec(args['update_spec'])
+    if args['update_spec']:
+        update_spec(args['update_spec'])
 
-        print("\nCompleted in %.1f seconds!"%(time.time() - start))
-
-    except BaseException as e:
-        print("Failed to generate specification.")
-        print(e)
-        return sys.exit(1)
+    print("\nCompleted in %.1f seconds!"%(time.time() - start))
 
 
 if __name__ == '__main__':
