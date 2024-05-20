@@ -154,10 +154,16 @@ struct ValueOrDefault { // TODO: this should be a normal function (no wrapping
       return Default;
   }
 };
-// Checks if a list of properties contains a property.
+// Checks if a list of properties contains a property (key).
+// PropertiesT: the list of properties (not property_t!)
 template <typename PropT, typename PropertiesT>
 using ContainsProperty =
     mp11::mp_map_contains<property_map<type_list<PropertiesT>>, PropT>;
+
+// PropertiesT: property_t (list of list)
+template <typename PropT, typename PropertiesT>
+using ContainsPropertyValue =
+    mp11::mp_set_contains<mp11::mp_first<PropertiesT>, PropT>;
 
 } // namespace detail
 

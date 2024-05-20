@@ -55,24 +55,20 @@ struct PropertyMetaInfo<usm_kind_key::value_t<Kind>> {
   static constexpr sycl::usm::alloc value = Kind;
 };
 
-template <typename PropertyListT> struct IsUsmKindDevice : std::false_type {};
-template <typename... Props>
-struct IsUsmKindDevice<detail::properties_t<Props...>>
-    : detail::ContainsProperty<std::remove_const_t<decltype(usm_kind_device)>,
-                               detail::type_list<Props...>> {};
+template <typename PropertyListT>
+using IsUsmKindDevice =
+    detail::ContainsPropertyValue<std::remove_const_t<decltype(usm_kind_device)>,
+                             PropertyListT>;
 
-template <typename PropertyListT> struct IsUsmKindHost : std::false_type {};
-template <typename... Props>
-struct IsUsmKindHost<detail::properties_t<Props...>>
-    : detail::ContainsProperty<std::remove_const_t<decltype(usm_kind_host)>,
-                               detail::type_list<Props...>> {};
-
-template <typename PropertyListT> struct IsUsmKindShared : std::false_type {};
-template <typename... Props>
-struct IsUsmKindShared<detail::properties_t<Props...>>
-    : detail::ContainsProperty<std::remove_const_t<decltype(usm_kind_shared)>,
-                               detail::type_list<Props...>> {};
-
+template <typename PropertyListT>
+using IsUsmKindHost =
+    detail::ContainsPropertyValue<std::remove_const_t<decltype(usm_kind_host)>,
+                             PropertyListT>;
+                             
+template <typename PropertyListT>
+using IsUsmKindShared =
+    detail::ContainsPropertyValue<std::remove_const_t<decltype(usm_kind_shared)>,
+                             PropertyListT>;
 } // namespace detail
 
 } // namespace experimental
