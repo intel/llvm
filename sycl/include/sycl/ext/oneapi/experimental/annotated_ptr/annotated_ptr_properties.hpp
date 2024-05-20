@@ -56,19 +56,17 @@ struct PropertyMetaInfo<usm_kind_key::value_t<Kind>> {
 };
 
 template <typename PropertyListT>
-using IsUsmKindDevice =
-    detail::ContainsPropertyValue<std::remove_const_t<decltype(usm_kind_device)>,
-                             PropertyListT>;
+using IsUsmKindDevice = detail::ContainsPropertyValue<
+    std::remove_const_t<decltype(usm_kind_device)>, PropertyListT>;
 
 template <typename PropertyListT>
 using IsUsmKindHost =
     detail::ContainsPropertyValue<std::remove_const_t<decltype(usm_kind_host)>,
-                             PropertyListT>;
-                             
+                                  PropertyListT>;
+
 template <typename PropertyListT>
-using IsUsmKindShared =
-    detail::ContainsPropertyValue<std::remove_const_t<decltype(usm_kind_shared)>,
-                             PropertyListT>;
+using IsUsmKindShared = detail::ContainsPropertyValue<
+    std::remove_const_t<decltype(usm_kind_shared)>, PropertyListT>;
 } // namespace detail
 
 } // namespace experimental
