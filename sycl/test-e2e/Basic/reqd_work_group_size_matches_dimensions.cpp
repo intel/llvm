@@ -4,7 +4,7 @@
 // https://github.com/intel/llvm/issues/9353
 // UNSUPPORTED: hip
 
-#include "sycl/sycl.hpp"
+#include "sycl/detail/core.hpp"
 
 using namespace sycl;
 

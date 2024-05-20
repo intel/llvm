@@ -21,6 +21,9 @@
 
 #include "../../helpers.hpp"
 
+#include <sycl/accessor_image.hpp>
+#include <sycl/image.hpp>
+
 int main() {
   const sycl::image_channel_order ChanOrder = sycl::image_channel_order::rgba;
   const sycl::image_channel_type ChanType = sycl::image_channel_type::fp32;
