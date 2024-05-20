@@ -14,6 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/accessor_image.hpp>
 #include <sycl/detail/core.hpp>
 
 #include <iostream>
