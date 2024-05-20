@@ -187,7 +187,7 @@ properties(PropertyValueTs... props)
     -> properties<typename detail::Sorted<PropertyValueTs...>::type>;
 #endif
 
-using empty_properties_t = decltype(properties{});
+using empty_properties_t = properties<std::tuple<>>;
 
 // Property list traits
 template <typename propertiesT> struct is_property_list : std::false_type {};
@@ -203,8 +203,6 @@ inline constexpr bool is_property_list_v = is_property_list<propertiesT>::value;
 #endif
 
 namespace detail {
-// Helper for default properties when deduction guides are not enabled.
-using empty_properties_t = properties<std::tuple<>>;
 
 // Helper for reconstructing a properties type. This assumes that
 // PropertyValueTs is sorted and contains only valid properties.
@@ -247,8 +245,8 @@ template <typename SyclT, typename PropertiesT>
 struct all_props_are_keys_of : std::true_type {};
 
 template <typename SyclT>
-struct all_props_are_keys_of<
-    SyclT, ext::oneapi::experimental::detail::empty_properties_t>
+struct all_props_are_keys_of<SyclT,
+                             ext::oneapi::experimental::empty_properties_t>
     : std::true_type {};
 
 template <typename SyclT, typename PropT>
