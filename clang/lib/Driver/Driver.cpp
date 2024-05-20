@@ -6352,7 +6352,7 @@ class OffloadingActionBuilder final {
       // Gather information about the SYCL Ahead of Time targets.  The targets
       // are determined on the SubArch values passed along in the triple.
       Arg *SYCLTargets =
-              C.getInputArgs().getLastArg(options::OPT_fsycl_targets_EQ);
+          C.getInputArgs().getLastArg(options::OPT_fsycl_targets_EQ);
       Arg *SYCLfpga = C.getInputArgs().getLastArg(options::OPT_fintelfpga);
       bool HasValidSYCLRuntime = C.getInputArgs().hasFlag(
           options::OPT_fsycl, options::OPT_fno_sycl, false);
