@@ -12,8 +12,7 @@
 constexpr size_t TM = 8;
 constexpr size_t TK = 16;
 
-template <layout B_layout, unsigned int vnniFactor>
-class mult;
+template <layout B_layout, unsigned int vnniFactor> class mult;
 
 template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
           size_t NUM_ROWS_B, size_t NUM_COLS_B, size_t NUM_ROWS_C,
@@ -32,7 +31,7 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
   q.submit([&](handler &cgh) {
      cgh.parallel_for<mult<B_layout, vnniFactor>>(
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
-         [=](nd_item<2> spmd_item) 
+         [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
              [[intel::reqd_sub_group_size(SG_SZ)]]
 #endif

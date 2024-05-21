@@ -11,8 +11,7 @@
 #define TM 8
 #define TK 16
 
-template <layout B_layout, layout C_layout, unsigned int vnniFactor>
-class mult;
+template <layout B_layout, layout C_layout, unsigned int vnniFactor> class mult;
 
 template <typename T1, typename T2, typename T, size_t M, size_t N, size_t K,
           layout B_layout, layout C_layout, unsigned int vnniFactor>
@@ -43,7 +42,7 @@ void joint_matrix_gemm_vnni(sub_group sg, size_t sg_startx, size_t sg_starty,
     joint_matrix_prefetch<TM, TN>(
         sg, C + (sg_startx * TM) * N + sg_starty / sg_size * TN, N, C_layout,
         syclex::properties{syclex::prefetch_hint_L1});
-            
+
   joint_matrix_fill(sg, sub_c, 1);
   for (int k = 0; k < K; k += TK) {
     joint_matrix_load(sg, sub_a, pA + (sg_startx * TM) * K + k, K);
@@ -55,8 +54,8 @@ void joint_matrix_gemm_vnni(sub_group sg, size_t sg_startx, size_t sg_starty,
 
   if constexpr (C_layout == layout::col_major)
     joint_matrix_store(sg, sub_c,
-                       pC + (sg_starty / sg_size * TN) * M + (sg_startx * TM), M,
-                       C_layout);
+                       pC + (sg_starty / sg_size * TN) * M + (sg_startx * TM),
+                       M, C_layout);
   else
     joint_matrix_store(sg, sub_c,
                        pC + (sg_startx * TM) * N + sg_starty / sg_size * TN, N,
@@ -73,7 +72,7 @@ void matrix_multiply(T *C, T1 *A, T2 *B, queue q) {
   q.submit([&](handler &cgh) {
      cgh.parallel_for<mult<B_layout, C_layout, vnniFactor>>(
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
-         [=](nd_item<2> spmd_item) 
+         [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
              [[intel::reqd_sub_group_size(SG_SZ)]]
 #endif
@@ -85,8 +84,8 @@ void matrix_multiply(T *C, T1 *A, T2 *B, queue q) {
 
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix_gemm_vnni<T1, T2, T, M, N, K, B_layout, C_layout,
-                                  vnniFactor>(sg, sg_startx, sg_starty, sg_size, A, B,
-                                              C);
+                                  vnniFactor>(sg, sg_startx, sg_starty, sg_size,
+                                              A, B, C);
          }); // parallel for
    }).wait();
 }

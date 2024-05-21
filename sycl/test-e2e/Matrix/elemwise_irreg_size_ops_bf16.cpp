@@ -14,9 +14,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+#include "common.hpp"
 #include <iostream>
 #include <sycl/sycl.hpp>
-#include "common.hpp"
 
 // 10x12 is not multiply the sg size, slicing implementation will have to insert
 // padding

@@ -11,8 +11,7 @@
 #define TM 8
 #define TK 16
 
-template <unsigned int vnniFactor>
-class mult;
+template <unsigned int vnniFactor> class mult;
 
 template <typename T1, typename T2, size_t M, size_t N, size_t K,
           unsigned int vnniFactor>
@@ -58,15 +57,17 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue &q) {
                syclex::properties{syclintelex::read_hint<
                    syclintelex::cache_control<syclintelex::cache_mode::cached,
                                               syclex::cache_level::L2>>}};
-           joint_matrix_load(
-               sg, sub_c, C_ptr + (sg_startx * TM) * N + sg_starty / sg_size * TN,
-               N, layout::row_major);
+           joint_matrix_load(sg, sub_c,
+                             C_ptr + (sg_startx * TM) * N +
+                                 sg_starty / sg_size * TN,
+                             N, layout::row_major);
            for (int k = 0; k < K / TK; k += 1) {
              joint_matrix_load(sg, sub_a, A_ptr + (sg_startx * TM) * K + k * TK,
                                K);
              if constexpr (vnniFactor == 0) {
                joint_matrix_load(
-                   sg, sub_b, B_ptr + (k * TK) * N + sg_starty / sg_size * TN, N);
+                   sg, sub_b, B_ptr + (k * TK) * N + sg_starty / sg_size * TN,
+                   N);
                joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
              } else {
                joint_matrix_load(sg, sub_bp,
