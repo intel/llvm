@@ -10,6 +10,7 @@ import os
 import subprocess
 import util
 import re
+from parse_specs import Version
 
 RE_ENABLE   = r"^\#\#\s*\-\-validate\s*\=\s*on$"
 RE_DISABLE  = r"^\#\#\s*\-\-validate\s*\=\s*off$"
@@ -87,7 +88,7 @@ def _make_ref(symbol, symbol_type, meta):
     generate a valid reStructuredText file
 """
 def _generate_valid_rst(fin, fout, namespace, tags, ver, rev, meta, fast_mode):
-    ver=float(ver)
+    ver = Version(ver)
     enable = True
     code_block = False
 
