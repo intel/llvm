@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 056d653264034e546d8b8f493e1d9f65c697829b
-  # Merge: b7c89302 bbb04b65
+  # commit 8cdd099ae3d1a34d3bcd7cbed7f5745c3dc8e112
+  # Merge: fc9bb61b c893a3c4
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri May 17 15:11:12 2024 +0100
-  #     Merge pull request #1512 from DBDuncan/duncan/fix_pi_mem_leak
-  #     [Bindless][Exp] Remove phMem argument from bindless image creation functions
-  set(UNIFIED_RUNTIME_TAG 056d653264034e546d8b8f493e1d9f65c697829b)
+  # Date:   Mon May 20 15:50:02 2024 +0100
+  #     Merge pull request #954 from jchlanda/jakub/rqwgs_hip
+  #     [HIP] Handle required wg size attribute in HIP
+  set(UNIFIED_RUNTIME_TAG 8cdd099ae3d1a34d3bcd7cbed7f5745c3dc8e112)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
