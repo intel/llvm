@@ -338,6 +338,8 @@ class DispatchHostTask {
     for (auto &PluginWithEvents : RequiredEventsPerPlugin) {
       std::vector<sycl::detail::pi::PiEvent> RawEvents =
           MThisCmd->getPiEvents(PluginWithEvents.second);
+      if (RawEvents.size() == 0)
+        continue;
       try {
         PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
                                                               RawEvents.data());
