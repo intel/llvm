@@ -5879,10 +5879,18 @@ class OffloadingActionBuilder final {
           SmallString<128> LibName(LLCandidate);
           llvm::sys::path::append(LibName, DeviceLib);
           if (llvm::sys::fs::exists(LibName)) {
+
+            // NativeCPU currently only needs libsycl-nativecpu_utils and
+            // libclc, so temporarily skip other device libs in invocation.
+            // Todo: remove once NativeCPU tests the other libraries.
+            if (isNativeCPU &&
+                !LibName.str().contains("libsycl-nativecpu_utils"))
+              continue;
+
             ++NumOfDeviceLibLinked;
             Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
                                          Args.MakeArgString(LibName));
-            if (TC->getTriple().isNVPTX() || isNativeCPU ||
+            if (TC->getTriple().isNVPTX() ||
                 (TC->getTriple().isSPIR() &&
                  TC->getTriple().getSubArch() ==
                      llvm::Triple::SPIRSubArch_fpga)) {
@@ -5917,7 +5925,7 @@ class OffloadingActionBuilder final {
             // source code. Since libsycl-nativecpu_utils contains such symbols
             // which are later needed by the NativeCPU backend passes we link
             // that library separately afterwards without --only-needed.
-            if (isNativeCPU && LibName.str().contains("libsycl-nativecpu_utils")) {
+            if (isNativeCPU) {
               assert(!NativeCPULib);
               NativeCPULib = DeviceLinkObjects.back();
               DeviceLinkObjects.pop_back();
@@ -5986,8 +5994,10 @@ class OffloadingActionBuilder final {
           DeviceLinkObjects.push_back(SYCLLibClcInputAction);
         }
 
-        if (isNativeCPU)
+        if (isNativeCPU) {
+          // return here to not generate cuda actions
           return NumOfDeviceLibLinked != 0;
+        }
 
         const toolchains::CudaToolChain *CudaTC =
             static_cast<const toolchains::CudaToolChain *>(TC);

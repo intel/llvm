@@ -20,19 +20,17 @@
 //CHECK_ACTIONS:      +- 8: backend, {7}, assembler, (host-sycl)
 //CHECK_ACTIONS:   +- 9: assembler, {8}, object, (host-sycl)
 //CHECK_ACTIONS:        +- 10: linker, {5}, ir, (device-sycl)
-//CHECK_ACTIONS:        |- [[SRIRVLINK:.*]]: input, "{{.*}}libspirv{{.*}}", ir, (device-sycl)
+//CHECK_ACTIONS:        |- [[SPIRVLIB:.*]]: input, "{{.*}}libspirv{{.*}}", ir, (device-sycl)
 //different libraries may be linked on different platforms, so just check the common stages
-//CHECK_ACTIONS_TODO:     +- [[LINKALL:.*]]: linker, {[0-9, ]* [[SRIRVLINK]]}, ir, (device-sycl)
-//CHECK_ACTIONS:        +- [[NCPUINP:.*]]: input, "{{.*}}nativecpu{{.*}}", object
-//CHECK_ACTIONS:      +- [[NCPUUNB:.*]]: clang-offload-unbundler, {[[NCPUINP]]}, object
-//CHECK_ACTIONS:     |- [[NCPUOFFLOAD:.*]]: offload, " ({{.*}})" {[[NCPUUNB]]}, object
-//CHECK_ACTIONS:    +- [[NCPULINK:.*]]: linker, {[[ALLLINK:.*]], [[NCPUOFFLOAD]]}, ir, (device-sycl)
+//CHECK_ACTIONS:      +- [[LINKALL:.*]]: linker, {10, [[SPIRVLIB]]}, ir, (device-sycl)
+//CHECK_ACTIONS:      |- [[NCPUINP:.*]]: input, "{{.*}}nativecpu{{.*}}", ir, (device-sycl)
+//CHECK_ACTIONS:    +- [[NCPULINK:.*]]: linker, {[[LINKALL]], [[NCPUINP]]}, ir, (device-sycl)
 //this is where we compile the device code to a shared lib, and we link the host shared lib and the device shared lib
 //CHECK_ACTIONS:|  +- [[VAL81:.*]]: backend, {[[NCPULINK]]}, assembler, (device-sycl)
 //CHECK_ACTIONS:| +- [[VAL82:.*]]: assembler, {[[VAL81]]}, object, (device-sycl)
 //CHECK_ACTIONS:|- [[VAL822:.*]]: offload, "device-sycl ({{.*}})" {[[VAL82]]}, object
 //call sycl-post-link and clang-offload-wrapper
-//CHECK_ACTIONS:|  +- [[VAL83:.*]]: sycl-post-link, {[[ALLLINK]]}, tempfiletable, (device-sycl)
+//CHECK_ACTIONS:|  +- [[VAL83:.*]]: sycl-post-link, {[[LINKALL]]}, tempfiletable, (device-sycl)
 //CHECK_ACTIONS:| +- [[VAL84:.*]]: clang-offload-wrapper, {[[VAL83]]}, object, (device-sycl)
 //CHECK_ACTIONS:|- [[VAL85:.*]]: offload, "device-sycl ({{.*}})" {[[VAL84]]}, object
 //CHECK_ACTIONS:[[VAL86:.*]]: linker, {9, [[VAL822]], [[VAL85]]}, image, (host-sycl)
@@ -42,8 +40,7 @@
 //CHECK_BINDINGS:# "{{.*}}" - "clang", inputs: ["[[SRCWFOOTER]].cpp", "[[KERNELIR]].bc"], output: "[[HOSTOBJ:.*]].o"
 //CHECK_BINDINGS:# "{{.*}}" - "SYCL::Linker", inputs: ["[[KERNELIR]].bc"], output: "[[KERNELLINK:.*]].bc"
 //CHECK_BINDINGS:# "{{.*}}" - "SYCL::Linker", inputs: ["[[KERNELLINK]].bc", "{{.*}}.bc"], output: "[[KERNELLINKWLIB:.*]].bc"
-//CHECK_BINDINGS:# "{{.*}}" - "offload bundler", inputs: ["{{.*}}nativecpu_utils.{{.*}}"], outputs: ["[[UNBUNDLEDNCPU:.*]].o"]
-//CHECK_BINDINGS:# "{{.*}}" - "SYCL::Linker", inputs: ["[[KERNELLINKWLIB]].bc", "[[UNBUNDLEDNCPU]].o"], output: "[[KERNELLINKWLIB12:.*]].bc"
+//CHECK_BINDINGS:# "{{.*}}" - "SYCL::Linker", inputs: ["[[KERNELLINKWLIB]].bc", "[[UNBUNDLEDNCPU:.*]].bc"], output: "[[KERNELLINKWLIB12:.*]].bc"
 //CHECK_BINDINGS:# "{{.*}}" - "clang", inputs: ["[[KERNELLINKWLIB12]].bc"], output: "[[KERNELOBJ:.*]].o"
 //CHECK_BINDINGS:# "{{.*}}" - "SYCL post link", inputs: ["[[KERNELLINKWLIB]].bc"], output: "[[TABLEFILE:.*]].table"
 //CHECK_BINDINGS:# "{{.*}}" - "offload wrapper", inputs: ["[[TABLEFILE]].table"], output: "[[WRAPPEROBJ:.*]].o"
@@ -57,8 +54,8 @@
 
 // checks that the device and host triple is correct in the generated actions when it is set explicitly
 //CHECK_ACTIONS-AARCH64:            +- 6: offload, "host-sycl (aarch64-unknown-linux-gnu)" {2}, "device-sycl (aarch64-unknown-linux-gnu)" {5}, c++-cpp-output
-//CHECK_ACTIONS-AARCH64:|- 13: offload, "device-sycl (aarch64-unknown-linux-gnu)" {12}, object
-//CHECK_ACTIONS-AARCH64:|- 16: offload, "device-sycl (aarch64-unknown-linux-gnu)" {15}, object
+//CHECK_ACTIONS-AARCH64:|- 17: offload, "device-sycl (aarch64-unknown-linux-gnu)" {16}, object
+//CHECK_ACTIONS-AARCH64:|- 20: offload, "device-sycl (aarch64-unknown-linux-gnu)" {19}, object
 
 // checks that bindings are correct when linking together multiple TUs on native cpu
 //CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "offload bundler", inputs: ["{{.*}}.o"], outputs: ["[[FILE1HOST:.*]].o", "[[FILE1DEV:.*]].o"] 
