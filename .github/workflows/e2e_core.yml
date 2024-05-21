@@ -146,11 +146,14 @@ jobs:
     - name: Build SYCL
       run: cmake --build ${{github.workspace}}/sycl_build -j
 
+    - name: Set extra llvm-lit options
+      run: echo "LIT_OPTS=\"-sv \${{matrix.adapter.extra_lit_flags}}\"" >> $GITHUB_ENV
+
     - name: Run check-sycl
       # Remove after fixing SYCL test :: abi/layout_handler.cpp
       # This issue does not affect further execution of e2e with UR.
       continue-on-error: true
-      run: cmake --build ${{github.workspace}}/sycl_build --target check-sycl -j6
+      run: cmake --build ${{github.workspace}}/sycl_build --target check-sycl
 
     - name: Set additional env. vars
       run: |
@@ -172,7 +175,6 @@ jobs:
         -DSYCL_TEST_E2E_TARGETS="${{matrix.adapter.prefix}}${{matrix.adapter.str_name}}:${{matrix.adapter.unit}}"
         -DCMAKE_CXX_COMPILER="$(which clang++)"
         -DLLVM_LIT="${{github.workspace}}/sycl-repo/llvm/utils/lit/lit.py"
-        -DSYCL_E2E_TESTS_LIT_FLAGS="-sv;${{matrix.adapter.extra_lit_flags}}"
 
     - name: Set test filters for L0
       if: matrix.adapter.name == 'L0'
