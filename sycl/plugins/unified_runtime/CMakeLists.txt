@@ -103,6 +103,9 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   #     [HIP] Handle required wg size attribute in HIP
   set(UNIFIED_RUNTIME_TAG 8cdd099ae3d1a34d3bcd7cbed7f5745c3dc8e112)
 
+  set(MY_UNIFIED_RUNTIME_REPO "https://github.com/konradkusiak97/unified-runtime.git")
+  set(MY_UNIFIED_RUNTIME_TAG RefactorHIPBaseEvent)
+
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
     ${UNIFIED_RUNTIME_TAG}
@@ -114,13 +117,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(cuda
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    ${MY_UNIFIED_RUNTIME_REPO}
+    ${MY_UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(hip
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    ${MY_UNIFIED_RUNTIME_REPO}
+    ${MY_UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(native_cpu
