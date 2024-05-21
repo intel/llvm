@@ -363,13 +363,13 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
     }
   }
   // get PlatformVersion value and put it to DeviceDesc
-  // DeviceDesc.emplace(PlatformVersionKeyName,
-  //                   sycl::detail::get_platform_info<info::platform::version>(
-  //                       PiPlatform, Plugin));
+  DeviceDesc.emplace(PlatformVersionKeyName,
+                    sycl::detail::get_platform_info<info::platform::version>(
+                        UrPlatform, Plugin));
   // get PlatformName value and put it to DeviceDesc
-  // DeviceDesc.emplace(PlatformNameKeyName,
-  //                   sycl::detail::get_platform_info<info::platform::name>(
-  //                      PiPlatform, Plugin));
+  DeviceDesc.emplace(PlatformNameKeyName,
+                    sycl::detail::get_platform_info<info::platform::name>(
+                       UrPlatform, Plugin));
 
   int InsertIDx = 0;
   for (ur_device_handle_t Device : UrDevices) {
