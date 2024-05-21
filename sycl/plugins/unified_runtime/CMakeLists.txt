@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1e1f577262747d67fcb5c513de4a11bec67ea5db
-  # Merge: dd212f3f 0b405a12
+  # commit 8cdd099ae3d1a34d3bcd7cbed7f5745c3dc8e112
+  # Merge: fc9bb61b c893a3c4
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu May 9 18:00:36 2024 +0100
-  #    Merge pull request #1591 from nrspruit/disable_driver_in_order_lists_default
-  #    [L0] Disable Usage of Driver In order Lists by default
-  set(UNIFIED_RUNTIME_TAG 1e1f577262747d67fcb5c513de4a11bec67ea5db)
+  # Date:   Mon May 20 15:50:02 2024 +0100
+  #     Merge pull request #954 from jchlanda/jakub/rqwgs_hip
+  #     [HIP] Handle required wg size attribute in HIP
+  set(UNIFIED_RUNTIME_TAG 8cdd099ae3d1a34d3bcd7cbed7f5745c3dc8e112)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

@@ -650,7 +650,7 @@ template <atomic_op Op, typename T, int N, typename Toffset, typename PropertyLi
 
 // Similar to (usm-au0-1,2), but `byte_offset` is `simd_view`.
 template <atomic_op Op, typename T, int N, typename OffsetSimdViewT,
-          typename PropertyListT = detail::empty_properties_t>
+          typename PropertyListT = empty_properties_t>
 /*usm-au0-3*/ simd<T, N> atomic_update(T *p, OffsetSimdViewT byte_offset, simd_mask<N> mask, props = {});
 /*usm-au0-4*/ simd<T, N> atomic_update(T *p, OffsetSimdViewT byte_offset, props = {});
 

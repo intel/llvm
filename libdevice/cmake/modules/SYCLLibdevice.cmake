@@ -159,7 +159,7 @@ set(imf_obj_deps device_imf.hpp imf_half.hpp imf_bf16.hpp imf_rounding_op.hpp im
 set(itt_obj_deps device_itt.h spirv_vars.h device.h sycl-compiler)
 set(bfloat16_obj_deps sycl-headers sycl-compiler)
 if (NOT MSVC)
-  set(sanitizer_obj_deps device.h atomic.hpp spirv_vars.h include/sanitizer_device_utils.hpp include/spir_global_var.hpp sycl-compiler)
+  set(sanitizer_obj_deps device.h atomic.hpp spirv_vars.h include/sanitizer_utils.hpp include/spir_global_var.hpp sycl-compiler)
 endif()
 
 add_devicelib(libsycl-itt-stubs SRC itt_stubs.cpp DEP ${itt_obj_deps})
@@ -217,6 +217,11 @@ set(imf_bf16_fallback_src ${imf_fallback_src_dir}/imf_bf16_fallback.cpp)
 set(imf_host_cxx_flags -c
   -D__LIBDEVICE_HOST_IMPL__
 )
+
+if (NOT WIN32)
+  list(APPEND imf_host_cxx_flags -fPIC)
+endif()
+
 add_custom_command(OUTPUT ${imf_fp32_fallback_src}
                    COMMAND ${CMAKE_COMMAND} -D SRC_DIR=${imf_src_dir}
                                             -D DEST_DIR=${imf_fallback_src_dir}
