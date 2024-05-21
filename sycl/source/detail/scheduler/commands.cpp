@@ -2298,24 +2298,18 @@ void SetArgBasedOnType(
     ur_mem_handle_t MemArg = getMemAllocationFunc
                                  ? (ur_mem_handle_t)getMemAllocationFunc(Req)
                                  : nullptr;
-    if (Context.get_backend() == backend::opencl) {
-      // clSetKernelArg (corresponding to piKernelSetArg) returns an error
-      // when MemArg is null, which is the case when zero-sized buffers are
-      // handled. Below assignment provides later call to clSetKernelArg with
-      // acceptable arguments.
-      if (!MemArg)
-        MemArg = ur_mem_handle_t();
-      // TODO(pi2ur): Check this
-      Plugin->call(urKernelSetArgValue, Kernel, NextTrueIndex,
-                   sizeof(ur_mem_handle_t), nullptr, MemArg);
-    } else {
-      ur_kernel_arg_mem_obj_properties_t MemObjProps{};
-      MemObjProps.pNext = nullptr;
-      MemObjProps.stype = UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES;
-      MemObjProps.memoryAccess = AccessModeToUr(Req->MAccessMode);
-      Plugin->call(urKernelSetArgMemObj, Kernel, NextTrueIndex, &MemObjProps,
-                   MemArg);
-    }
+    // FIXME: This "if" was in the original path because: "clSetKernelArg ...
+    // returns an error when MemArg is null, which is the case when zero-sized
+    // buffers are handled". Surely just trying to default init a handle
+    // doesn't do anything useful, needs investigation
+    if (!MemArg)
+      MemArg = ur_mem_handle_t();
+    ur_kernel_arg_mem_obj_properties_t MemObjProps{};
+    MemObjProps.pNext = nullptr;
+    MemObjProps.stype = UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES;
+    MemObjProps.memoryAccess = AccessModeToUr(Req->MAccessMode);
+    Plugin->call(urKernelSetArgMemObj, Kernel, NextTrueIndex, &MemObjProps,
+                 MemArg);
     break;
   }
   case kernel_param_kind_t::kind_std_layout: {

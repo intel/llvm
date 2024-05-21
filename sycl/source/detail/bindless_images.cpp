@@ -234,11 +234,9 @@ __SYCL_EXPORT image_mem_handle get_mip_level_mem_handle(
 
   // Call impl.
   image_mem_handle individual_image;
-  Plugin->call<sycl::errc::runtime>(
-      urBindlessImagesMipmapGetLevelExp, C, Device,
-      reinterpret_cast<ur_exp_image_mem_handle_t>(mipMem.raw_handle), level,
-      reinterpret_cast<ur_exp_image_mem_handle_t *>(
-          &individual_image.raw_handle));
+  Plugin->call<sycl::errc::runtime>(urBindlessImagesMipmapGetLevelExp, C,
+                                    Device, mipMem.raw_handle, level,
+                                    &individual_image.raw_handle);
 
   return individual_image;
 }
@@ -265,14 +263,12 @@ __SYCL_EXPORT void free_image_mem(image_mem_handle memHandle,
   if (memHandle.raw_handle != nullptr) {
     if (imageType == image_type::mipmap) {
       Plugin->call<sycl::errc::memory_allocation>(
-          urBindlessImagesMipmapFreeExp, C, Device,
-          reinterpret_cast<ur_exp_image_mem_handle_t>(memHandle.raw_handle));
+          urBindlessImagesMipmapFreeExp, C, Device, memHandle.raw_handle);
     } else if (imageType == image_type::standard ||
                imageType == image_type::array ||
                imageType == image_type::cubemap) {
       Plugin->call<sycl::errc::memory_allocation>(
-          urBindlessImagesImageFreeExp, C, Device,
-          reinterpret_cast<ur_exp_image_mem_handle_t>(memHandle.raw_handle));
+          urBindlessImagesImageFreeExp, C, Device, memHandle.raw_handle);
     } else {
       throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                             "Invalid image type to free");
@@ -315,9 +311,8 @@ void free_mipmap_mem(image_mem_handle memoryHandle,
   ur_device_handle_t Device = DevImpl->getUrHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
-  Plugin->call<sycl::errc::memory_allocation>(
-      urBindlessImagesMipmapFreeExp, C, Device,
-      reinterpret_cast<ur_exp_image_mem_handle_t>(memoryHandle.raw_handle));
+  Plugin->call<sycl::errc::memory_allocation>(urBindlessImagesMipmapFreeExp, C,
+                                              Device, memoryHandle.raw_handle);
 }
 
 __SYCL_EXPORT_DEPRECATED(
@@ -361,10 +356,9 @@ create_image(image_mem_handle memHandle, const image_descriptor &desc,
 
   // Call impl.
   ur_exp_image_handle_t urImageHandle = nullptr;
-  Plugin->call<sycl::errc::runtime>(
-      urBindlessImagesUnsampledImageCreateExp, C, Device,
-      reinterpret_cast<ur_exp_image_mem_handle_t>(memHandle.raw_handle),
-      &urFormat, &urDesc, &urImageHandle);
+  Plugin->call<sycl::errc::runtime>(urBindlessImagesUnsampledImageCreateExp, C,
+                                    Device, memHandle.raw_handle, &urFormat,
+                                    &urDesc, &urImageHandle);
 
   return unsampled_image_handle{urImageHandle};
 }
@@ -745,20 +739,17 @@ __SYCL_EXPORT sycl::range<3> get_image_range(const image_mem_handle memHandle,
 
   size_t Width = 0, Height = 0, Depth = 0;
 
-  Plugin->call<sycl::errc::invalid>(
-      urBindlessImagesImageGetInfoExp,
-      reinterpret_cast<ur_exp_image_mem_handle_t>(memHandle.raw_handle),
-      UR_IMAGE_INFO_WIDTH, &Width, nullptr);
+  Plugin->call<sycl::errc::invalid>(urBindlessImagesImageGetInfoExp,
+                                    memHandle.raw_handle, UR_IMAGE_INFO_WIDTH,
+                                    &Width, nullptr);
 
-  Plugin->call<sycl::errc::invalid>(
-      urBindlessImagesImageGetInfoExp,
-      reinterpret_cast<ur_exp_image_mem_handle_t>(memHandle.raw_handle),
-      UR_IMAGE_INFO_HEIGHT, &Height, nullptr);
+  Plugin->call<sycl::errc::invalid>(urBindlessImagesImageGetInfoExp,
+                                    memHandle.raw_handle, UR_IMAGE_INFO_HEIGHT,
+                                    &Height, nullptr);
 
-  Plugin->call<sycl::errc::invalid>(
-      urBindlessImagesImageGetInfoExp,
-      reinterpret_cast<ur_exp_image_mem_handle_t>(memHandle.raw_handle),
-      UR_IMAGE_INFO_DEPTH, &Depth, nullptr);
+  Plugin->call<sycl::errc::invalid>(urBindlessImagesImageGetInfoExp,
+                                    memHandle.raw_handle, UR_IMAGE_INFO_DEPTH,
+                                    &Depth, nullptr);
 
   return {Width, Height, Depth};
 }
@@ -780,10 +771,9 @@ get_image_channel_type(const image_mem_handle memHandle,
 
   ur_image_format_t URFormat;
 
-  Plugin->call<sycl::errc::invalid>(
-      urBindlessImagesImageGetInfoExp,
-      reinterpret_cast<ur_exp_image_mem_handle_t>(memHandle.raw_handle),
-      UR_IMAGE_INFO_FORMAT, &URFormat, nullptr);
+  Plugin->call<sycl::errc::invalid>(urBindlessImagesImageGetInfoExp,
+                                    memHandle.raw_handle, UR_IMAGE_INFO_FORMAT,
+                                    &URFormat, nullptr);
 
   image_channel_type ChannelType =
       sycl::detail::convertChannelType(URFormat.channelType);
