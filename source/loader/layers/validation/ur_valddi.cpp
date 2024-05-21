@@ -6961,7 +6961,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
-    ur_mem_handle_t *phMem, ///< [out] pointer to handle of image object created
     ur_exp_image_handle_t
         *phImage ///< [out] pointer to handle of image object created
 ) {
@@ -6993,10 +6992,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (NULL == phMem) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-
         if (NULL == phImage) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
@@ -7017,7 +7012,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     }
 
     ur_result_t result = pfnUnsampledImageCreateExp(
-        hContext, hDevice, hImageMem, pImageFormat, pImageDesc, phMem, phImage);
+        hContext, hDevice, hImageMem, pImageFormat, pImageDesc, phImage);
 
     return result;
 }
@@ -7033,7 +7028,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_sampler_handle_t hSampler,      ///< [in] sampler to be used
-    ur_mem_handle_t *phMem, ///< [out] pointer to handle of image object created
     ur_exp_image_handle_t
         *phImage ///< [out] pointer to handle of image object created
 ) {
@@ -7069,10 +7063,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (NULL == phMem) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-
         if (NULL == phImage) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
@@ -7099,7 +7089,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 
     ur_result_t result =
         pfnSampledImageCreateExp(hContext, hDevice, hImageMem, pImageFormat,
-                                 pImageDesc, hSampler, phMem, phImage);
+                                 pImageDesc, hSampler, phImage);
 
     return result;
 }

@@ -99,7 +99,7 @@ ur_result_t USMFreeImpl(ur_context_handle_t Context, void *Pointer) {
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     ScopedContext Active(Context);
-    bool IsManaged;
+    unsigned int IsManaged;
     unsigned int Type;
     void *AttributeValues[2] = {&IsManaged, &Type};
     CUpointer_attribute Attributes[2] = {CU_POINTER_ATTRIBUTE_IS_MANAGED,

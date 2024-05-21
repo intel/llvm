@@ -14,6 +14,7 @@
 
 #include "common/ur_util.hpp"
 #include "ur/ur.hpp"
+#include "ur_sanitizer_layer.hpp"
 
 #include <cstdint>
 
@@ -31,6 +32,9 @@ struct AsanOptions {
 
     // We use "uint64_t" here because EnqueueWriteGlobal will fail when it's "uint32_t"
     uint64_t Debug = 0;
+
+    uint64_t MinRZSize = 16;
+    uint64_t MaxRZSize = 2048;
     uint32_t MaxQuarantineSizeMB = 0;
     bool DetectLocals = true;
 
@@ -54,7 +58,7 @@ struct AsanOptions {
                 MaxQuarantineSizeMB = std::stoul(Value);
             } catch (...) {
                 die("<SANITIZER>[ERROR]: \"quarantine_size_mb\" should be "
-                    "an positive integer");
+                    "an integer");
             }
         }
 
@@ -62,6 +66,37 @@ struct AsanOptions {
         if (KV != OptionsEnvMap->end()) {
             auto Value = KV->second.front();
             DetectLocals = Value == "1" || Value == "true" ? true : false;
+        }
+
+        KV = OptionsEnvMap->find("redzone");
+        if (KV != OptionsEnvMap->end()) {
+            auto Value = KV->second.front();
+            try {
+                MinRZSize = std::stoul(Value);
+                if (MinRZSize < 16) {
+                    MinRZSize = 16;
+                    context.logger.warning("Trying to set redzone size to a "
+                                           "value less than 16 is ignored");
+                }
+            } catch (...) {
+                die("<SANITIZER>[ERROR]: \"redzone\" should be an integer");
+            }
+        }
+
+        KV = OptionsEnvMap->find("max_redzone");
+        if (KV != OptionsEnvMap->end()) {
+            auto Value = KV->second.front();
+            try {
+                MaxRZSize = std::stoul(Value);
+                if (MaxRZSize > 2048) {
+                    MaxRZSize = 2048;
+                    context.logger.warning(
+                        "Trying to set max redzone size to a "
+                        "value greater than 2048 is ignored");
+                }
+            } catch (...) {
+                die("<SANITIZER>[ERROR]: \"max_redzone\" should be an integer");
+            }
         }
     }
 };
