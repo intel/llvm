@@ -5,9 +5,16 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
-#define TM 8
-#define TK 16
+template <size_t TileM, size_t TileN, size_t TileK>
+class add;
+template <size_t TileM, size_t TileN, size_t TileK>
+class sub;
+template <size_t TileM, size_t TileN, size_t TileK>
+class mult;
+template <size_t TileM, size_t TileN, size_t TileK>
+class divide;
+template <size_t TileM, size_t TileN, size_t TileK>
+class logic;
 
 template <typename T, size_t M, size_t N, typename R>
 void assert_ops_ref(host_accessor<T, 2, access::mode::read> C,
@@ -60,31 +67,31 @@ void matrix_verify_op(big_matrix<T, M, N> &A, const R ref, OP op) {
   assert_ops_ref<T, M, N, R>(bufA.get_host_access(read_only), ref);
 }
 
-int main() {
+template <typename Ta, typename Tc, size_t TM, size_t TN, size_t TK>
+void test() {
+  constexpr size_t MATRIX_M = TM * 2;
+  constexpr size_t MATRIX_N = TN * 2;
+  Ta A[MATRIX_M][MATRIX_N];
+  big_matrix<Ta, MATRIX_M, MATRIX_N> MA((Ta *)&A);
 
-  static constexpr size_t MATRIX_M = TM * 2;
-  static constexpr size_t MATRIX_N = TN * 2;
-  half A[MATRIX_M][MATRIX_N];
-  big_matrix<half, MATRIX_M, MATRIX_N> MA((half *)&A);
-
-  matrix_verify_op<half, MATRIX_M, MATRIX_N, TM, TN, TK, class add, float>(
-      MA, 7.0, [=](auto &x) { x = x + static_cast<half>(2); });
-  matrix_verify_op<half, MATRIX_M, MATRIX_N, TM, TN, TK, class sub, float>(
-      MA, 3.0, [=](auto &x) { x = x - static_cast<half>(2); });
-  matrix_verify_op<half, MATRIX_M, MATRIX_N, TM, TN, TK, class mult, float>(
-      MA, 15.0, [=](auto &x) { x = x * static_cast<half>(3.0); });
-  matrix_verify_op<half, MATRIX_M, MATRIX_N, TM, TN, TK, class div, float>(
-      MA, 2.5, [=](auto &x) { x = x / static_cast<half>(2.0); });
-  matrix_verify_op<half, MATRIX_M, MATRIX_N, TM, TN, TK, class logic, float>(
+  matrix_verify_op<Ta, MATRIX_M, MATRIX_N, TM, TN, TK, add<TM, TN, TK>, Tc>(
+      MA, 7.0, [=](auto &x) { x = x + static_cast<Ta>(2); });
+  matrix_verify_op<Ta, MATRIX_M, MATRIX_N, TM, TN, TK, sub<TM, TN, TK>, Tc>(
+      MA, 3.0, [=](auto &x) { x = x - static_cast<Ta>(2); });
+  matrix_verify_op<Ta, MATRIX_M, MATRIX_N, TM, TN, TK, mult<TM, TN, TK>, Tc>(
+      MA, 15.0, [=](auto &x) { x = x * static_cast<Ta>(3.0); });
+  matrix_verify_op<Ta, MATRIX_M, MATRIX_N, TM, TN, TK, divide<TM, TN, TK>, Tc>(
+      MA, 2.5, [=](auto &x) { x = x / static_cast<Ta>(2.0); });
+  matrix_verify_op<Ta, MATRIX_M, MATRIX_N, TM, TN, TK, logic<TM, TN, TK>, Tc>(
       MA, 7.0, [=](auto &x) {
         if (x) {
-          if (x > static_cast<half>(2.0) || x >= static_cast<half>(2.0) ||
-              x < static_cast<half>(2.0) || x <= static_cast<half>(2.0)) {
-            half val =
-                (x != static_cast<half>(2.0)) ? x : static_cast<half>(2.0);
+          if (x > static_cast<Ta>(2.0) || x >= static_cast<Ta>(2.0) ||
+              x < static_cast<Ta>(2.0) || x <= static_cast<Ta>(2.0)) {
+            Ta val =
+                (x != static_cast<Ta>(2.0)) ? x : static_cast<Ta>(2.0);
             val--;
             val++;
-            if (x == static_cast<half>(2.0)) {
+            if (x == static_cast<Ta>(2.0)) {
               val -= 2;
               val *= 3;
               val /= 2;
@@ -95,6 +102,31 @@ int main() {
           }
         }
       });
+}
+
+int main() {
+  queue q;
+  std::vector<combination> combinations =
+      q.get_device()
+          .get_info<sycl::ext::oneapi::experimental::info::device::
+                        matrix_combinations>();
+
+  for (unsigned int i = 0; i < combinations.size(); i++) {
+    if (combinations[i].nsize == 0) { // Intel AMX
+      test<half, float, 16, 16, 32>();
+      break;
+    }
+
+    if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
+      test<half, float, 8, 16, 16>();
+      break;
+    }
+
+    if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
+      test<half, float, 8, 8, 16>();
+      break;
+    }
+  }
 
   return 0;
 }
