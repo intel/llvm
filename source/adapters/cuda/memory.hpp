@@ -104,7 +104,8 @@ public:
       throw Err;
     }
     return reinterpret_cast<native_type>(
-        reinterpret_cast<uint8_t *>(Ptrs[Device->getIndex()]) + Offset);
+        reinterpret_cast<uint8_t *>(Ptrs[Device->getIndex() % Ptrs.size()]) +
+        Offset);
   }
 
   native_type getPtr(const ur_device_handle_t Device) {
@@ -274,7 +275,7 @@ public:
         Err != UR_RESULT_SUCCESS) {
       throw Err;
     }
-    return Arrays[Device->getIndex()];
+    return Arrays[Device->getIndex() % Arrays.size()];
   }
   // Will allocate a new surface on device if not already allocated
   CUsurfObject getSurface(const ur_device_handle_t Device) {
@@ -283,7 +284,7 @@ public:
         Err != UR_RESULT_SUCCESS) {
       throw Err;
     }
-    return SurfObjs[Device->getIndex()];
+    return SurfObjs[Device->getIndex() % SurfObjs.size()];
   }
 
   ur_mem_type_t getType() { return ImageDesc.type; }
@@ -514,8 +515,9 @@ struct ur_mem_handle_t_ {
     for (const auto &Device : Context->getDevices()) {
       // This event is never an interop event so will always have an associated
       // queue
-      HaveMigratedToDeviceSinceLastWrite[Device->getIndex()] =
-          Device == NewEvent->getQueue()->getDevice();
+      HaveMigratedToDeviceSinceLastWrite
+          [Device->getIndex() % HaveMigratedToDeviceSinceLastWrite.size()] =
+              Device == NewEvent->getQueue()->getDevice();
     }
   }
 };
