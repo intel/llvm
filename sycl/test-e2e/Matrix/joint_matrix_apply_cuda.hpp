@@ -8,13 +8,9 @@
 
 // cuda backend test for joint_matrix_apply (and joint_matrix_fill)
 
-#include <sycl/sycl.hpp>
+#include "common.hpp"
 
 #include <cmath>
-
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-using sycl::ext::oneapi::bfloat16;
 
 #define SG_SZ 32
 
@@ -23,15 +19,6 @@ nd_range<2> r({nWGperDim, nWGperDim *SG_SZ}, {1, 1 * SG_SZ});
 
 template <typename T1, typename T2, size_t M, size_t K, size_t N>
 class KernelApply;
-
-template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
-public:
-  T *mat;
-
-  T *get_data() { return mat; }
-  void set_data(T *data) { mat = data; }
-  big_matrix(T *data) : mat(data) {}
-};
 
 template <typename T, size_t M, size_t N>
 void assert_ref(T *C, const float ref) {

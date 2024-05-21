@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8438b8a1de1ddc6e05e3bc012fb6be74d2e830e4
-  # Merge: 6076b0622452 847b3ace28b8
-  # Author: Fábio <fabio.mestre@codeplay.com>
-  # Date:   Mon May 6 18:00:46 2024 +0100
-  #    Merge branch 'main' into fabio/command-buffer-refactor
-  #    [EXP][Command-Buffer] Remove duplicated code from headers
-  set(UNIFIED_RUNTIME_TAG 8438b8a1de1ddc6e05e3bc012fb6be74d2e830e4)
+  # commit 8cdd099ae3d1a34d3bcd7cbed7f5745c3dc8e112
+  # Merge: fc9bb61b c893a3c4
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Mon May 20 15:50:02 2024 +0100
+  #     Merge pull request #954 from jchlanda/jakub/rqwgs_hip
+  #     [HIP] Handle required wg size attribute in HIP
+  set(UNIFIED_RUNTIME_TAG 8cdd099ae3d1a34d3bcd7cbed7f5745c3dc8e112)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

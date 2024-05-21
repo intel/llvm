@@ -9,6 +9,8 @@
 // REQUIRES: gpu-intel-pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// RUN: %{build} -o %t1.out -DEXP
+// RUN: %{run} %t1.out
 //
 // Test checks support of named barrier in a loop in ESIMD kernel.
 // SLM and surface size is 32 bytes, 16 bytes per iteration.
@@ -20,6 +22,12 @@
 #include <sycl/sycl.hpp>
 
 #include "../esimd_test_utils.hpp"
+
+#ifdef EXP
+#define NS __ESIMD_ENS
+#else
+#define NS __ESIMD_NS
+#endif
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -62,7 +70,7 @@ bool test(QueueTY q) {
             // number of ints read/written by single thread
             constexpr unsigned VL = SlmSize / Threads;
 
-            named_barrier_init<bnum>();
+            NS::named_barrier_init<bnum>();
 
             unsigned int idx = ndi.get_local_id(0);
             unsigned int off = idx * VL * sizeof(int);
@@ -91,8 +99,8 @@ bool test(QueueTY q) {
                 lsc_slm_block_store<int, SlmSize / 2>(prod_off, init);
               }
 
-              named_barrier_signal(b, flag, producers, consumers);
-              named_barrier_wait(b); // consumers waiting for signal
+              NS::named_barrier_signal(b, flag, producers, consumers);
+              NS::named_barrier_wait(b); // consumers waiting for signal
 
               // reading SLM
               auto val = lsc_slm_block_load<int, VL>(off);
