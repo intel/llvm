@@ -902,10 +902,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(
     ur_queue_handle_t Queue ///< [in] handle of the queue to be flushed.
 ) {
-  // Flushing cross-queue dependencies is covered by
-  // createAndRetainUrZeEventList, so this can be left as a no-op.
-  std::ignore = Queue;
-  return UR_RESULT_SUCCESS;
+  std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
+  return Queue->executeAllOpenCommandLists();
 }
 
 // Configuration of the command-list batching.
@@ -1541,6 +1539,34 @@ ur_result_t ur_queue_handle_t_::active_barriers::clear() {
   return UR_RESULT_SUCCESS;
 }
 
+void ur_queue_handle_t_::clearEndTimeRecordings() {
+  uint64_t ZeTimerResolution = Device->ZeDeviceProperties->timerResolution;
+  const uint64_t TimestampMaxValue =
+      ((1ULL << Device->ZeDeviceProperties->kernelTimestampValidBits) - 1ULL);
+
+  for (auto Entry : EndTimeRecordings) {
+    auto &Event = Entry.first;
+    auto &EndTimeRecording = Entry.second;
+    if (!Entry.second.EventHasDied) {
+      // Write the result back to the event if it is not dead.
+      uint64_t ContextEndTime =
+          (EndTimeRecording.RecordEventEndTimestamp & TimestampMaxValue) *
+          ZeTimerResolution;
+
+      // Handle a possible wrap-around (the underlying HW counter is < 64-bit).
+      // Note, it will not report correct time if there were multiple wrap
+      // arounds, and the longer term plan is to enlarge the capacity of the
+      // HW timestamps.
+      if (ContextEndTime < Event->RecordEventStartTimestamp)
+        ContextEndTime += TimestampMaxValue * ZeTimerResolution;
+
+      // Store it in the event.
+      Event->RecordEventEndTimestamp = ContextEndTime;
+    }
+  }
+  EndTimeRecordings.clear();
+}
+
 ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
   ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
 
@@ -1565,6 +1591,8 @@ ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
               return ze2urResult(ZeResult);
           }
   }
+
+  Queue->clearEndTimeRecordings();
 
   logger::debug("urQueueRelease(compute) NumTimesClosedFull {}, "
                 "NumTimesClosedEarly {}",
@@ -1718,6 +1746,11 @@ ur_result_t ur_queue_handle_t_::synchronize() {
     }
     LastCommandEvent = nullptr;
   }
+
+  // Since all timestamp recordings should have finished with the
+  // synchronizations, we can clear the map and write the results to the owning
+  // events.
+  clearEndTimeRecordings();
 
   // With the entire queue synchronized, the active barriers must be done so we
   // can remove them.

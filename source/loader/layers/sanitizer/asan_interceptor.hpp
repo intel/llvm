@@ -86,6 +86,9 @@ struct KernelInfo {
     std::atomic<int32_t> RefCount = 1;
     std::unordered_map<uint32_t, std::shared_ptr<MemBuffer>> BufferArgs;
 
+    // Need preserve the order of local arguments
+    std::map<uint32_t, LocalArgsInfo> LocalArgs;
+
     explicit KernelInfo(ur_kernel_handle_t Kernel) : Handle(Kernel) {
         [[maybe_unused]] auto Result =
             context.urDdiTable.Kernel.pfnRetain(Kernel);
@@ -127,31 +130,30 @@ struct ContextInfo {
     }
 };
 
-struct LaunchInfo {
-    uptr LocalShadowOffset = 0;
-    uptr LocalShadowOffsetEnd = 0;
-    DeviceSanitizerReport SPIR_DeviceSanitizerReportMem;
+struct USMLaunchInfo {
+    LaunchInfo *Data;
 
     ur_context_handle_t Context = nullptr;
+    ur_device_handle_t Device = nullptr;
     const size_t *GlobalWorkSize = nullptr;
     const size_t *GlobalWorkOffset = nullptr;
     std::vector<size_t> LocalWorkSize;
     uint32_t WorkDim = 0;
 
-    LaunchInfo(ur_context_handle_t Context, const size_t *GlobalWorkSize,
-               const size_t *LocalWorkSize, const size_t *GlobalWorkOffset,
-               uint32_t WorkDim)
-        : Context(Context), GlobalWorkSize(GlobalWorkSize),
+    USMLaunchInfo(ur_context_handle_t Context, ur_device_handle_t Device,
+                  const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+                  const size_t *GlobalWorkOffset, uint32_t WorkDim)
+        : Context(Context), Device(Device), GlobalWorkSize(GlobalWorkSize),
           GlobalWorkOffset(GlobalWorkOffset), WorkDim(WorkDim) {
-        [[maybe_unused]] auto Result =
-            context.urDdiTable.Context.pfnRetain(Context);
-        assert(Result == UR_RESULT_SUCCESS);
         if (LocalWorkSize) {
             this->LocalWorkSize =
                 std::vector<size_t>(LocalWorkSize, LocalWorkSize + WorkDim);
         }
     }
-    ~LaunchInfo();
+    ~USMLaunchInfo();
+
+    ur_result_t initialize();
+    ur_result_t updateKernelInfo(const KernelInfo &KI);
 };
 
 struct DeviceGlobalInfo {
@@ -178,12 +180,11 @@ class SanitizerInterceptor {
 
     ur_result_t preLaunchKernel(ur_kernel_handle_t Kernel,
                                 ur_queue_handle_t Queue,
-                                LaunchInfo &LaunchInfo);
+                                USMLaunchInfo &LaunchInfo);
 
     ur_result_t postLaunchKernel(ur_kernel_handle_t Kernel,
                                  ur_queue_handle_t Queue,
-                                 ur_event_handle_t &Event,
-                                 LaunchInfo &LaunchInfo);
+                                 USMLaunchInfo &LaunchInfo);
 
     ur_result_t insertContext(ur_context_handle_t Context,
                               std::shared_ptr<ContextInfo> &CI);
@@ -208,6 +209,12 @@ class SanitizerInterceptor {
         return m_ContextMap[Context];
     }
 
+    std::shared_ptr<DeviceInfo> getDeviceInfo(ur_device_handle_t Device) {
+        std::shared_lock<ur_shared_mutex> Guard(m_DeviceMapMutex);
+        assert(m_DeviceMap.find(Device) != m_DeviceMap.end());
+        return m_DeviceMap[Device];
+    }
+
     std::shared_ptr<KernelInfo> getKernelInfo(ur_kernel_handle_t Kernel) {
         std::shared_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
         assert(m_KernelMap.find(Kernel) != m_KernelMap.end());
@@ -228,16 +235,10 @@ class SanitizerInterceptor {
                               std::shared_ptr<DeviceInfo> &DeviceInfo,
                               ur_queue_handle_t Queue,
                               ur_kernel_handle_t Kernel,
-                              LaunchInfo &LaunchInfo);
+                              USMLaunchInfo &LaunchInfo);
 
     ur_result_t allocShadowMemory(ur_context_handle_t Context,
                                   std::shared_ptr<DeviceInfo> &DeviceInfo);
-
-    std::shared_ptr<DeviceInfo> getDeviceInfo(ur_device_handle_t Device) {
-        std::shared_lock<ur_shared_mutex> Guard(m_DeviceMapMutex);
-        assert(m_DeviceMap.find(Device) != m_DeviceMap.end());
-        return m_DeviceMap[Device];
-    }
 
   private:
     std::unordered_map<ur_context_handle_t, std::shared_ptr<ContextInfo>>
@@ -261,6 +262,8 @@ class SanitizerInterceptor {
 
     // We use "uint64_t" here because EnqueueWriteGlobal will fail when it's "uint32_t"
     uint64_t cl_Debug = 0;
+    uint64_t cl_MinRZSize = 16;
+    uint64_t cl_MaxRZSize = 2048;
     uint32_t cl_MaxQuarantineSizeMB = 0;
     bool cl_DetectLocals = true;
 

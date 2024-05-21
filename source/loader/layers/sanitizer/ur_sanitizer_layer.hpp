@@ -32,8 +32,8 @@ enum class SanitizerType {
 class __urdlllocal context_t : public proxy_layer_context_t {
   public:
     ur_dditable_t urDdiTable = {};
-    std::unique_ptr<SanitizerInterceptor> interceptor;
     logger::Logger logger;
+    std::unique_ptr<SanitizerInterceptor> interceptor;
     SanitizerType enabledType = SanitizerType::None;
 
     context_t();

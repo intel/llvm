@@ -272,8 +272,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
     context.logger.debug("==== urEnqueueKernelLaunch");
 
-    LaunchInfo LaunchInfo(GetContext(hQueue), pGlobalWorkSize, pLocalWorkSize,
-                          pGlobalWorkOffset, workDim);
+    USMLaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue),
+                             pGlobalWorkSize, pLocalWorkSize, pGlobalWorkOffset,
+                             workDim);
+    UR_CALL(LaunchInfo.initialize());
 
     UR_CALL(context.interceptor->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
@@ -283,8 +285,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
         pLocalWorkSize, numEventsInWaitList, phEventWaitList, &hEvent);
 
     if (result == UR_RESULT_SUCCESS) {
-        UR_CALL(context.interceptor->postLaunchKernel(hKernel, hQueue, hEvent,
-                                                      LaunchInfo));
+        UR_CALL(
+            context.interceptor->postLaunchKernel(hKernel, hQueue, LaunchInfo));
     }
 
     if (phEvent) {
@@ -1229,6 +1231,41 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetArgLocal
+__urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
+    uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
+    size_t
+        argSize, ///< [in] size of the local buffer to be allocated by the runtime
+    const ur_kernel_arg_local_properties_t
+        *pProperties ///< [in][optional] pointer to local buffer properties.
+) {
+    auto pfnSetArgLocal = context.urDdiTable.Kernel.pfnSetArgLocal;
+
+    if (nullptr == pfnSetArgLocal) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    context.logger.debug("==== urKernelSetArgLocal (argIndex={}, argSize={})",
+                         argIndex, argSize);
+
+    {
+        auto KI = context.interceptor->getKernelInfo(hKernel);
+        std::scoped_lock<ur_shared_mutex> Guard(KI->Mutex);
+        // TODO: get local variable alignment
+        auto argSizeWithRZ = GetSizeAndRedzoneSizeForLocal(
+            argSize, ASAN_SHADOW_GRANULARITY, ASAN_SHADOW_GRANULARITY);
+        KI->LocalArgs[argIndex] = LocalArgsInfo{argSize, argSizeWithRZ};
+        argSize = argSizeWithRZ;
+    }
+
+    ur_result_t result =
+        pfnSetArgLocal(hKernel, argIndex, argSize, pProperties);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Context table
 ///        with current process' addresses
 ///
@@ -1323,6 +1360,7 @@ __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
     pDdiTable->pfnRelease = ur_sanitizer_layer::urKernelRelease;
     pDdiTable->pfnSetArgValue = ur_sanitizer_layer::urKernelSetArgValue;
     pDdiTable->pfnSetArgMemObj = ur_sanitizer_layer::urKernelSetArgMemObj;
+    pDdiTable->pfnSetArgLocal = ur_sanitizer_layer::urKernelSetArgLocal;
 
     return result;
 }
@@ -1391,7 +1429,6 @@ __urdlllocal ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
 
     return result;
 }
-
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Enqueue table
 ///        with current process' addresses
@@ -1502,6 +1539,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
     if (UR_RESULT_SUCCESS == result) {
         result = ur_sanitizer_layer::urGetContextProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Context);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        result = ur_sanitizer_layer::urGetKernelProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Kernel);
     }
 
     if (UR_RESULT_SUCCESS == result) {

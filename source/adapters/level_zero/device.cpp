@@ -855,6 +855,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
+  case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
+    return ReturnValue(static_cast<uint32_t>(true));
+  }
 
   case UR_DEVICE_INFO_ESIMD_SUPPORT: {
     // ESIMD is only supported by Intel GPUs.
@@ -1082,7 +1085,7 @@ bool ur_device_handle_t_::useDriverInOrderLists() {
   static const bool UseDriverInOrderLists = [] {
     const char *UrRet = std::getenv("UR_L0_USE_DRIVER_INORDER_LISTS");
     if (!UrRet)
-      return true;
+      return false;
     return std::atoi(UrRet) != 0;
   }();
 
