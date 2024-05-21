@@ -1489,7 +1489,7 @@ void write_cubemap(unsampled_image_handle imageHandle, const sycl::int2 &coords,
 } // namespace ext::oneapi::experimental
 
 inline event queue::ext_oneapi_copy(
-    void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+    const void *Src, ext::oneapi::experimental::image_mem_handle Dest,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1499,7 +1499,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+    const void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
     ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     sycl::range<3> CopyExtent, const detail::code_location &CodeLoc) {
@@ -1513,7 +1513,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+    const void *Src, ext::oneapi::experimental::image_mem_handle Dest,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     event DepEvent, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1526,7 +1526,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+    const void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
     ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     sycl::range<3> CopyExtent, event DepEvent,
@@ -1542,7 +1542,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+    const void *Src, ext::oneapi::experimental::image_mem_handle Dest,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1555,7 +1555,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+    const void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
     ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
@@ -1571,7 +1571,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+    const ext::oneapi::experimental::image_mem_handle Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1581,7 +1581,8 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
     sycl::range<3> DestOffset, sycl::range<3> DestExtent,
     sycl::range<3> CopyExtent, const detail::code_location &CodeLoc) {
@@ -1595,7 +1596,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+    const ext::oneapi::experimental::image_mem_handle Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
     event DepEvent, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1608,7 +1609,8 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
     sycl::range<3> DestOffset, sycl::range<3> DestExtent,
     sycl::range<3> CopyExtent, event DepEvent,
@@ -1624,7 +1626,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+    const ext::oneapi::experimental::image_mem_handle Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
     const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1637,7 +1639,8 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
     sycl::range<3> DestOffset, sycl::range<3> DestExtent,
     sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
@@ -1653,7 +1656,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, void *Dest,
+    const void *Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
     size_t DeviceRowPitch, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1665,7 +1668,8 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, sycl::range<3> SrcOffset, void *Dest, sycl::range<3> DestOffset,
+    const void *Src, sycl::range<3> SrcOffset, void *Dest,
+    sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
     size_t DeviceRowPitch, sycl::range<3> HostExtent, sycl::range<3> CopyExtent,
     const detail::code_location &CodeLoc) {
@@ -1679,7 +1683,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, void *Dest,
+    const void *Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
     size_t DeviceRowPitch, event DepEvent,
     const detail::code_location &CodeLoc) {
@@ -1693,7 +1697,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_mem_handle Src,
     ext::oneapi::experimental::image_mem_handle Dest,
     const ext::oneapi::experimental::image_descriptor &ImageDesc,
     event DepEvent, const detail::code_location &CodeLoc) {
@@ -1707,7 +1711,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_mem_handle Src,
     ext::oneapi::experimental::image_mem_handle Dest,
     const ext::oneapi::experimental::image_descriptor &ImageDesc,
     const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
@@ -1721,7 +1725,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_mem_handle Src,
     ext::oneapi::experimental::image_mem_handle Dest,
     const ext::oneapi::experimental::image_descriptor &ImageDesc,
     const detail::code_location &CodeLoc) {
@@ -1732,7 +1736,8 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, sycl::range<3> SrcOffset, void *Dest, sycl::range<3> DestOffset,
+    const void *Src, sycl::range<3> SrcOffset, void *Dest,
+    sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
     size_t DeviceRowPitch, sycl::range<3> HostExtent, sycl::range<3> CopyExtent,
     event DepEvent, const detail::code_location &CodeLoc) {
@@ -1747,7 +1752,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, void *Dest,
+    const void *Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
     size_t DeviceRowPitch, const std::vector<event> &DepEvents,
     const detail::code_location &CodeLoc) {
@@ -1761,7 +1766,8 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, sycl::range<3> SrcOffset, void *Dest, sycl::range<3> DestOffset,
+    const void *Src, sycl::range<3> SrcOffset, void *Dest,
+    sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
     size_t DeviceRowPitch, sycl::range<3> HostExtent, sycl::range<3> CopyExtent,
     const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
