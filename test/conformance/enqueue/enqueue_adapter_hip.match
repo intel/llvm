@@ -87,4 +87,3 @@
 {{OPT}}urEnqueueUSMMemcpy2DNegativeTest.InvalidSize/AMD_HIP_BACKEND___{{.*}}___pitch__1__width__1__height__1__src__Device__dst__Device
 {{OPT}}urEnqueueUSMPrefetchWithParamTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_USM_MIGRATION_FLAG_DEFAULT
 {{OPT}}urEnqueueUSMPrefetchWithParamTest.CheckWaitEvent/AMD_HIP_BACKEND___{{.*}}___UR_USM_MIGRATION_FLAG_DEFAULT
-{{OPT}}{{Segmentation fault|Aborted}}
