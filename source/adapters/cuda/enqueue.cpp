@@ -625,6 +625,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
 
   ur_lock MemoryMigrationLock{hBuffer->MemoryMigrationMutex};
   auto Device = hQueue->getDevice();
+  ScopedContext Active(Device);
   CUstream Stream = hQueue->getNextTransferStream();
 
   try {
@@ -643,8 +644,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
       UR_CHECK_ERROR(enqueueEventsWait(hQueue, Stream, 1,
                                        &hBuffer->LastEventWritingToMemObj));
     }
-
-    ScopedContext Active(Device);
 
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, Stream, numEventsInWaitList,
                                      phEventWaitList));
@@ -1640,6 +1639,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
   ur_lock MemoryMigrationLock{hBuffer->MemoryMigrationMutex};
   auto Device = hQueue->getDevice();
+  ScopedContext Active(Device);
   CUstream Stream = hQueue->getNextTransferStream();
 
   try {
@@ -1658,8 +1658,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
       UR_CHECK_ERROR(enqueueEventsWait(hQueue, Stream, 1,
                                        &hBuffer->LastEventWritingToMemObj));
     }
-
-    ScopedContext Active(Device);
 
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, Stream, numEventsInWaitList,
                                      phEventWaitList));
