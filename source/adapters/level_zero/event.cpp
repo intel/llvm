@@ -368,8 +368,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
   }
 
   // Execute each command list so the barriers can be encountered.
-  for (ur_command_list_ptr_t &CmdList : CmdLists)
+  for (ur_command_list_ptr_t &CmdList : CmdLists) {
+    bool IsCopy =
+        CmdList->second.isCopy(reinterpret_cast<ur_queue_handle_t>(Queue));
+    const auto &CommandBatch =
+        (IsCopy) ? Queue->CopyCommandBatch : Queue->ComputeCommandBatch;
+    // Only batch if the matching CmdList is already open.
+    OkToBatch = CommandBatch.OpenCommandList == CmdList;
+
     UR_CALL(Queue->executeCommandList(CmdList, false, OkToBatch));
+  }
 
   UR_CALL(Queue->ActiveBarriers.clear());
   auto UREvent = reinterpret_cast<ur_event_handle_t>(*Event);
@@ -1006,15 +1014,7 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   }
 
   // Save pointer to the queue before deleting/resetting event.
-  // When we add an event to the cache we need to check whether profiling is
-  // enabled or not, so we access properties of the queue and that's why queue
-  // must released later.
   auto Queue = Event->UrQueue;
-  if (DisableEventsCaching || !Event->OwnNativeHandle) {
-    delete Event;
-  } else {
-    Event->Context->addEventToContextCache(Event);
-  }
 
   // If the event was a timestamp recording, we try to evict its entry in the
   // queue.
@@ -1031,6 +1031,15 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
         Event->UrQueue->EndTimeRecordings.erase(Entry);
       }
     }
+  }
+
+  // When we add an event to the cache we need to check whether profiling is
+  // enabled or not, so we access properties of the queue and that's why queue
+  // must released later.
+  if (DisableEventsCaching || !Event->OwnNativeHandle) {
+    delete Event;
+  } else {
+    Event->Context->addEventToContextCache(Event);
   }
 
   // We intentionally incremented the reference counter when an event is

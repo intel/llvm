@@ -6,20 +6,23 @@
  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 """
+
 import os
 import generate_ids
 import util
 import re
 import hashlib
 import json
-import yaml
 import copy
 from templates.helper import param_traits, type_traits, value_traits
 import ctypes
 import itertools
+from typing import Dict, List, Optional
+from version import Version
 
-default_version = "0.9"
-all_versions = ["0.6", "0.7", "0.8", "0.9"]
+
+default_version = Version("0.10")
+all_versions = [Version(ver) for ver in ["0.6", "0.7", "0.8", "0.9", "0.10"]]
 
 """
     preprocess object
@@ -105,14 +108,14 @@ def _validate_doc(f, d, tags, line_num, meta):
                 raise Exception(prefix+"'version' must be a string: '%s'"%type(d['version']))
 
             try:
-                version = str(float(d['version']))
+                version = str(d['version'])
             except:
                 version = None
 
             if version != d['version']:
                 raise Exception(prefix+"'version' invalid value: '%s'"%d['version'])
 
-        return float(d.get('version', base_version))
+        return Version(d.get('version', base_version))
 
     def __validate_tag(d, key, tags, case):
         for x in tags:
@@ -127,7 +130,7 @@ def _validate_doc(f, d, tags, line_num, meta):
                     raise Exception(prefix+"'version' must be a string: '%s'"%type(k))
 
                 try:
-                    version = str(float(k))
+                    version = str(k)
                 except:
                     version = None
 
@@ -212,8 +215,8 @@ def _validate_doc(f, d, tags, line_num, meta):
         typed = d.get('typed_etors', False)
 
         value = -1
-        d_ver = d.get('version', default_version)
-        max_ver = float(d_ver)
+        d_ver = Version(d.get('version', default_version))
+        max_ver = d_ver
         for i, item in enumerate(d['etors']):
             prefix="'etors'[%s] "%i
             if not isinstance(item, dict):
@@ -300,8 +303,8 @@ def _validate_doc(f, d, tags, line_num, meta):
         if not isinstance(d['members'], list):
             raise Exception("'members' must be a sequence: '%s'"%type(d['members']))
 
-        d_ver = d.get('version', default_version)
-        max_ver = float(d_ver)
+        d_ver = Version(d.get('version', default_version))
+        max_ver = d_ver
         for i, item in enumerate(d['members']):
             prefix="'members'[%s] "%i
             if not isinstance(item, dict):
@@ -342,8 +345,8 @@ def _validate_doc(f, d, tags, line_num, meta):
         if not isinstance(d['params'], list):
             raise Exception("'params' must be a sequence: '%s'"%type(d['params']))
 
-        d_ver = d.get('version', default_version)
-        max_ver = float(d_ver)
+        d_ver = Version(d.get('version', default_version))
+        max_ver = d_ver
         min = {'[in]': None, '[out]': None, '[in,out]': None}
         for i, item in enumerate(d['params']):
             prefix="'params'[%s] "%i
@@ -501,24 +504,23 @@ def _validate_doc(f, d, tags, line_num, meta):
 """
     filters object by version
 """
-def _filter_version(d, max_ver):
-    ver = float(d.get('version', default_version))
+def _filter_version(d, max_ver: Version) -> Optional[Dict]:
+    ver = Version(d.get('version', default_version))
     if ver > max_ver:
         return None
 
-    def __filter_desc(d):
+    def __filter_desc(d) -> dict:
         if 'desc' in d and isinstance(d['desc'], dict):
             for k, v in d['desc'].items():
-                if float(k) <= max_ver:
-                    desc = v
-            d['desc'] = desc
+                if Version(k) <= max_ver:
+                    d['desc'] = v
         return d
 
     flt = []
     type = d['type']
     if 'enum' == type:
         for e in d['etors']:
-            ver = float(e.get('version', default_version))
+            ver = Version(e.get('version', default_version))
             if ver <= max_ver:
                 flt.append(__filter_desc(e))
         if d['name'].endswith('version_t'):
@@ -531,14 +533,14 @@ def _filter_version(d, max_ver):
 
     elif 'function' == type:
         for p in d['params']:
-            ver = float(p.get('version', default_version))
+            ver = Version(p.get('version', default_version))
             if ver <= max_ver:
                 flt.append(__filter_desc(p))
         d['params'] = flt
 
     elif 'struct' == type or 'union' == type or 'class' == type:
         for m in d.get('members',[]):
-            ver = float(m.get('version', default_version))
+            ver = Version(m.get('version', default_version))
             if ver <= max_ver:
                 flt.append(__filter_desc(m))
         d['members'] = flt
@@ -548,15 +550,15 @@ def _filter_version(d, max_ver):
 """
     creates docs per version
 """
-def _make_versions(d, max_ver):
+def _make_versions(d, max_ver : Version) -> List[Version]:
     docs = []
     type = d['type']
     if 'function' == type or 'struct' == type:
         for ver in all_versions:
-            if float(ver) > max_ver:
+            if ver > max_ver:
                 break
 
-            dv = _filter_version(copy.deepcopy(d), float(ver))
+            dv = _filter_version(copy.deepcopy(d), ver)
             if not dv:
                 continue
 
@@ -936,7 +938,7 @@ def parse(section, version, tags, meta, ref):
             if not _validate_doc(f, d, tags, line_nums[i], meta):
                 continue
 
-            d = _filter_version(d, float(version))
+            d = _filter_version(d, version)
             if not d:
                 continue
 
@@ -948,7 +950,10 @@ def parse(section, version, tags, meta, ref):
             # extract header from objects
             if re.match(r"header", d['type']):
                 header = d
-                header['ordinal'] = int(int(header.get('ordinal',"1000")) * float(header.get('version',"1.0")))
+                header["ordinal"] = int(
+                    int(header.get("ordinal", "1000"))
+                    * Version(header.get("version", "1.0")).major
+                )
                 header['ordinal'] *= 1000 if re.match(r"extension", header.get('desc',"").lower()) else 1
                 header['ordinal'] *= 1000 if re.match(r"experimental", header.get('desc',"").lower()) else 1
                 basename = os.path.splitext(os.path.basename(f))[0]
@@ -961,7 +966,7 @@ def parse(section, version, tags, meta, ref):
                 for c in '_-':
                     name = name.replace(c, ' ')
             elif header:
-                for d in _make_versions(d, float(version)):
+                for d in _make_versions(d, version):
                     objects.append(d)
                     meta = _generate_meta(d, header['ordinal'], meta)
 
