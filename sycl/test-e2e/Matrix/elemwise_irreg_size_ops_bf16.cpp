@@ -14,29 +14,18 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+#include "common.hpp"
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
 
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::bfloat16;
+#define SG_SZ 16
 
 // 10x12 is not multiply the sg size, slicing implementation will have to insert
 // padding
 #define TM 10
 #define TN 12
 #define TK 16
-
-template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
-public:
-  T *mat;
-
-public:
-  T *get_data() { return mat; }
-  void set_data(T *data) { mat = data; }
-  big_matrix(T *data) : mat(data) {}
-};
 
 template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
           size_t NUM_ROWS_B, size_t NUM_COLS_B, size_t NUM_ROWS_C,
@@ -119,13 +108,6 @@ bfloat16 A[MATRIX_M][MATRIX_K];
 bfloat16 B[MATRIX_K / 2][MATRIX_N * 2];
 float C[MATRIX_M][MATRIX_N];
 float D[MATRIX_M][MATRIX_N];
-
-float make_fp32(bfloat16 x) {
-  unsigned int y = *((int *)&x);
-  y = y << 16;
-  float *res = reinterpret_cast<float *>(&y);
-  return *res;
-}
 
 void matrix_multiply_ref(int *A_mem, int *B_mem, int *C_mem, int M, int N,
                          int K) {
