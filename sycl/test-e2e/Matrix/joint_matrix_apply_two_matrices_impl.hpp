@@ -113,6 +113,11 @@ bool test() {
   else if constexpr (std::is_same_v<Ta, int8_t>)
     std::cout << "int8_t " << TM << "x" << TN << "x" << TK << ": "
               << (res ? "passed" : "failed") << std::endl;
+  free(C, q);
+  free(D, q);
+  free(A, q);
+  free(Ar, q);
+
   return res;
 }
 
