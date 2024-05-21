@@ -6,7 +6,7 @@
 // RUN: %{build} %device_asan_flags -O2 -g -o %t.out
 // RUN: %force_device_asan_rt %{run} not %t.out 2>&1 | FileCheck %s
 
-#include "sycl/sycl.hpp"
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 
