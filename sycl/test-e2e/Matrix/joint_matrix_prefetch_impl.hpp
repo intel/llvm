@@ -11,10 +11,13 @@
 #define TM 8
 #define TK 16
 
+template <unsigned int vnniFactor>
+class mult;
+
 template <typename T1, typename T2, typename T, size_t M, size_t N, size_t K,
           layout B_layout, unsigned int vnniFactor>
 void joint_matrix_gemm_vnni(sub_group sg, size_t sg_startx, size_t sg_starty,
-                            T1 *A, T2 *B, T *C) {
+                            size_t sg_size, T1 *A, T2 *B, T *C) {
   auto pA = address_space_cast<sycl::access::address_space::global_space,
                                access::decorated::no>(A);
   auto pB = address_space_cast<sycl::access::address_space::global_space,
@@ -29,22 +32,22 @@ void joint_matrix_gemm_vnni(sub_group sg, size_t sg_startx, size_t sg_starty,
                                 layout::row_major,
                                 syclex::properties{syclex::prefetch_hint_L1});
   joint_matrix_prefetch<TK / vnniFactor, TN * vnniFactor>(
-      sg, B + sg_starty / SG_SZ * TN * vnniFactor, N * vnniFactor, B_layout,
+      sg, B + sg_starty / sg_size * TN * vnniFactor, N * vnniFactor, B_layout,
 
       syclex::properties{syclex::prefetch_hint_L1});
   joint_matrix_prefetch<TM, TN>(
-      sg, C + (sg_startx * TM) * N + sg_starty / SG_SZ * TN, N,
+      sg, C + (sg_startx * TM) * N + sg_starty / sg_size * TN, N,
       layout::row_major, syclex::properties{syclex::prefetch_hint_L1});
   joint_matrix_fill(sg, sub_c, 1);
   for (int k = 0; k < K; k += TK) {
     joint_matrix_load(sg, sub_a, pA + (sg_startx * TM) * K + k, K);
     joint_matrix_load(sg, sub_b,
-                      pB + k * N + sg_starty / SG_SZ * TN * vnniFactor,
+                      pB + k * N + sg_starty / sg_size * TN * vnniFactor,
                       N * vnniFactor);
     joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
   }
   joint_matrix_store(sg, sub_c,
-                     pC + (sg_startx * TM) * N + sg_starty / SG_SZ * TN, N,
+                     pC + (sg_startx * TM) * N + sg_starty / sg_size * TN, N,
                      layout::row_major);
 }
 
@@ -54,11 +57,14 @@ void matrix_multiply(T *C, T1 *A, T2 *B, queue q) {
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
 
+  size_t sg_size = get_sg_size<mult<vnniFactor>>(q);
   q.submit([&](handler &cgh) {
-     cgh.parallel_for(
-         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]]
-
+     cgh.parallel_for<mult<vnniFactor>>(
+         nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
+         [=](nd_item<2> spmd_item) 
+#ifdef SG_SZ
+             [[intel::reqd_sub_group_size(SG_SZ)]]
+#endif
          {
            const auto global_idx = spmd_item.get_global_id(0);
            const auto global_idy = spmd_item.get_global_id(1);
@@ -67,7 +73,7 @@ void matrix_multiply(T *C, T1 *A, T2 *B, queue q) {
 
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix_gemm_vnni<T1, T2, T, M, N, K, B_layout, vnniFactor>(
-               sg, sg_startx, sg_starty, A, B, C);
+               sg, sg_startx, sg_starty, sg_size, A, B, C);
          }); // parallel for
    }).wait();
 }
