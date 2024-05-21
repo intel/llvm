@@ -147,7 +147,7 @@ jobs:
       run: cmake --build ${{github.workspace}}/sycl_build -j
 
     - name: Set extra llvm-lit options
-      run: echo "LIT_OPTS=\"-sv \${{matrix.adapter.extra_lit_flags}}\"" >> $GITHUB_ENV
+      run: echo "LIT_OPTS=\"-sv ${{matrix.adapter.extra_lit_flags}}\"" >> $GITHUB_ENV
 
     - name: Run check-sycl
       # Remove after fixing SYCL test :: abi/layout_handler.cpp
