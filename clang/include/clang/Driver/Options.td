@@ -4140,7 +4140,8 @@ def fsycl_remove_unused_external_funcs : Flag<["-"], "fsycl-remove-unused-extern
   Group<sycl_Group>, HelpText<"Allow removal of unused `SYCL_EXTERNAL` functions (default)">;
 def fno_sycl_remove_unused_external_funcs : Flag<["-"], "fno-sycl-remove-unused-external-funcs">,
   Group<sycl_Group>, HelpText<"Prevent removal of unused `SYCL_EXTERNAL` functions">;
-
+def fsycl_fp64_conv_emu : Flag<["-"], "fsycl-fp64-conv-emu">,
+  Group<sycl_Group>, HelpText<"Turn on fp64 partial emulation for kernels with only fp64 conversion operations and no fp64 computation operations (requires Intel GPU backend supporting fp64 partial emulation)">;
 def fsave_optimization_record : Flag<["-"], "fsave-optimization-record">,
   Visibility<[ClangOption, FlangOption]>,
   Group<f_Group>, HelpText<"Generate a YAML optimization record file">;
