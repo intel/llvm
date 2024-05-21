@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1e1f577262747d67fcb5c513de4a11bec67ea5db
-  # Merge: dd212f3f 0b405a12
+  # commit 8cdd099ae3d1a34d3bcd7cbed7f5745c3dc8e112
+  # Merge: fc9bb61b c893a3c4
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu May 9 18:00:36 2024 +0100
-  #    Merge pull request #1591 from nrspruit/disable_driver_in_order_lists_default
-  #    [L0] Disable Usage of Driver In order Lists by default
-  set(UNIFIED_RUNTIME_TAG 1e1f577262747d67fcb5c513de4a11bec67ea5db)
+  # Date:   Mon May 20 15:50:02 2024 +0100
+  #     Merge pull request #954 from jchlanda/jakub/rqwgs_hip
+  #     [HIP] Handle required wg size attribute in HIP
+  set(UNIFIED_RUNTIME_TAG 8cdd099ae3d1a34d3bcd7cbed7f5745c3dc8e112)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -115,13 +115,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit 1ff111c12ea5bcb7b524dc377237c997fd884b8f
-    # Merge: 50452b75 28393448
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed May 15 13:30:30 2024 +0100
-    #     Merge pull request #1596 from Bensuo/cuda_bool
-    #     [CUDA] Change `bool` variable type to `unsigned int`
-    1ff111c12ea5bcb7b524dc377237c997fd884b8f
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(hip
@@ -131,13 +125,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    # commit 50452b75f0d1d7434f5beb4febd642af59a994ff
-    # Merge: 78b8e3e3 fa084d0a
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed May 15 10:37:42 2024 +0100
-    #     Merge pull request #1477 from PietroGhg/pietro/reqd_work_group_size
-    #     [NATIVECPU] Support reqd_work_group_size on Native CPU
-    50452b75f0d1d7434f5beb4febd642af59a994ff
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)

@@ -1,9 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// https://github.com/intel/llvm/issues/9353
-// UNSUPPORTED: hip
-
 #include "sycl/sycl.hpp"
 
 using namespace sycl;
