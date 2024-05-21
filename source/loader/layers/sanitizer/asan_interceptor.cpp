@@ -12,6 +12,7 @@
  */
 
 #include "asan_interceptor.hpp"
+#include "asan_options.hpp"
 #include "asan_quarantine.hpp"
 #include "asan_report.hpp"
 #include "asan_shadow_setup.hpp"
@@ -144,36 +145,9 @@ ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
 } // namespace
 
 SanitizerInterceptor::SanitizerInterceptor() {
-    auto Options = getenv_to_map("UR_LAYER_ASAN_OPTIONS");
-    if (!Options.has_value()) {
-        return;
-    }
-
-    auto KV = Options->find("debug");
-    if (KV != Options->end()) {
-        auto Value = KV->second.front();
-        cl_Debug = Value == "1" || Value == "true" ? 1 : 0;
-    }
-
-    KV = Options->find("quarantine_size_mb");
-    if (KV != Options->end()) {
-        auto Value = KV->second.front();
-        try {
-            cl_MaxQuarantineSizeMB = std::stoul(Value);
-        } catch (...) {
-            die("<SANITIZER>[ERROR]: \"cl_MaxQuarantineSizeMB\" should be an "
-                "integer");
-        }
-    }
-    if (cl_MaxQuarantineSizeMB) {
-        m_Quarantine =
-            std::make_unique<Quarantine>(cl_MaxQuarantineSizeMB * 1024 * 1024);
-    }
-
-    KV = Options->find("detect_locals");
-    if (KV != Options->end()) {
-        auto Value = KV->second.front();
-        cl_DetectLocals = Value == "1" || Value == "true" ? true : false;
+    if (Options().MaxQuarantineSizeMB) {
+        m_Quarantine = std::make_unique<Quarantine>(
+            Options().MaxQuarantineSizeMB * 1024 * 1024);
     }
 }
 
@@ -651,7 +625,8 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         };
 
         // Write debug
-        EnqueueWriteGlobal(kSPIR_AsanDebug, &cl_Debug, sizeof(cl_Debug));
+        EnqueueWriteGlobal(kSPIR_AsanDebug, &(Options().Debug),
+                           sizeof(Options().Debug));
 
         // Write shadow memory offset for global memory
         EnqueueWriteGlobal(kSPIR_AsanShadowMemoryGlobalStart,
@@ -711,7 +686,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         };
 
         // Write shadow memory offset for local memory
-        if (cl_DetectLocals) {
+        if (Options().DetectLocals) {
             // CPU needn't this
             if (DeviceInfo->Type == DeviceType::GPU_PVC) {
                 size_t LocalMemorySize = GetLocalMemorySize(DeviceInfo->Handle);
@@ -746,7 +721,12 @@ SanitizerInterceptor::findAllocInfoByAddress(uptr Address) {
     if (It == m_AllocationMap.begin()) {
         return std::optional<AllocationIterator>{};
     }
-    return --It;
+    --It;
+    auto &AI = It->second;
+    // Make sure we got the right AllocInfo
+    assert(Address >= AI->AllocBegin &&
+           Address < AI->AllocBegin + AI->AllocSize);
+    return It;
 }
 
 LaunchInfo::~LaunchInfo() {
