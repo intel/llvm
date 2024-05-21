@@ -4,6 +4,8 @@
 
 #include "esimd_test_utils.hpp"
 
+#include <sycl/specialization_id.hpp>
+
 using namespace sycl;
 
 template <typename AccessorTy>

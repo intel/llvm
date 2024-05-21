@@ -7,11 +7,6 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// XFAIL: *
-
-// Vector BE bug.
-// Memory access via a pointer type argument is broken if the function was not
-// inlined.
 
 #include "../esimd_test_utils.hpp"
 
