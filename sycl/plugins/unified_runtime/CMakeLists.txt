@@ -135,6 +135,9 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     set(UNIFIED_RUNTIME_TAG "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG}")
   endif()
 
+  set(UNIFIED_RUNTIME_REPO "https://github.com/yingcong-wu/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG "yingcong-wu:yc/devicesan/fix-free-problems-0517")
+
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
     GIT_REPOSITORY    ${UNIFIED_RUNTIME_REPO}
