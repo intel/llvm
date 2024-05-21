@@ -10,7 +10,6 @@
 #include <random>
 #include <sycl/usm.hpp>
 
-
 constexpr size_t TM = 8;
 constexpr size_t TK = 16;
 
@@ -30,7 +29,7 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
   q.submit([&](handler &cgh) {
      cgh.parallel_for<class mult>(
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
-         [=](nd_item<2> spmd_item) 
+         [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
              [[intel::reqd_sub_group_size(SG_SZ)]]
 #endif
@@ -67,8 +66,8 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
              joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(
-               sg, sub_c, pC + (sg_startx * TM) * N + sg_starty / sg_size * TN, N,
-               layout::col_major);
+               sg, sub_c, pC + (sg_startx * TM) * N + sg_starty / sg_size * TN,
+               N, layout::col_major);
          }); // parallel for
    }).wait();
 }
