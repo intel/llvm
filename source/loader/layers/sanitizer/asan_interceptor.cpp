@@ -745,10 +745,9 @@ SanitizerInterceptor::findAllocInfoByAddress(uptr Address) {
         return std::optional<AllocationIterator>{};
     }
     --It;
-    auto &AI = It->second;
     // Make sure we got the right AllocInfo
-    assert(Address >= AI->AllocBegin &&
-           Address < AI->AllocBegin + AI->AllocSize);
+    assert(Address >= It->second->AllocBegin &&
+           Address < It->second->AllocBegin + It->second->AllocSize);
     return It;
 }
 
