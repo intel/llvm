@@ -30,7 +30,7 @@ void nestedSubmitParallelFor(sycl::queue &q) {
 
 void nestedSubmitMemset(sycl::queue &q) {
   uint32_t n = 1024;
-  int *data = sycl::malloc_shared<int>(n, q);
+  int *data = sycl::malloc_device<int>(n, q);
   try {
     q.submit([&](sycl::handler &h) { q.memset(data, 0, n * sizeof(int)); });
   } catch (...) {
