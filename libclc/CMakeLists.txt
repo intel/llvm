@@ -91,7 +91,7 @@ if( EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
   # the variable name is used to cache the result of find_program. If we used
   # the same name, a user wouldn't be able to switch a build between default
   # and custom tools.
-  foreach( tool IN ITEMS clang llvm-as llvm-link opt )
+  foreach( tool IN ITEMS clang llvm-as llvm-link opt llvm-spirv libclc-remangler )
     find_program( LLVM_CUSTOM_TOOL_${tool} ${tool}
       PATHS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
     add_executable( libclc::${tool} IMPORTED GLOBAL )
@@ -115,7 +115,7 @@ endforeach()
 # llvm-spirv is an optional dependency, used to build spirv-* targets.
 find_program( LLVM_SPIRV llvm-spirv PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
 
-if( LLVM_SPIRV )
+if( LLVM_SPIRV AND NOT TARGET libclc::llvm-spirv )
   add_executable( libclc::llvm-spirv IMPORTED GLOBAL )
   set_target_properties( libclc::llvm-spirv PROPERTIES IMPORTED_LOCATION ${LLVM_SPIRV} )
 endif()
