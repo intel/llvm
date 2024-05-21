@@ -60,8 +60,7 @@ using OCLSampledImageTy = typename sycl::detail::sampled_opencl_image_type<
     OCLImageTyRead<NDims>>::type;
 #endif
 
-template <typename ReturnT>
-ReturnT handleToImage(const unsigned long &imageHandle) {
+template <typename ReturnT> ReturnT handleToImage(const uint64_t &imageHandle) {
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__SPIR__)
   return __spirv_ConvertHandleToImageINTEL<ReturnT>(imageHandle);
@@ -72,7 +71,7 @@ ReturnT handleToImage(const unsigned long &imageHandle) {
 }
 
 template <typename ReturnT>
-ReturnT handleToSampler(const unsigned long &samplerHandle) {
+ReturnT handleToSampler(const uint64_t &samplerHandle) {
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__SPIR__)
   return __spirv_ConvertHandleToSamplerINTEL<ReturnT>(samplerHandle);
@@ -83,10 +82,10 @@ ReturnT handleToSampler(const unsigned long &samplerHandle) {
 }
 
 template <typename ReturnT>
-ReturnT handleToSampledImage(const unsigned long &imageHandle) {
+ReturnT handleToSampledImage(const uint64_t &sampledImageHandle) {
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__SPIR__)
-  return __spirv_ConvertHandleToSampledImageINTEL<ReturnT>(imageHandle);
+  return __spirv_ConvertHandleToSampledImageINTEL<ReturnT>(sampledImageHandle);
 #endif
 #else
   assert(false); // Bindless images not yet implemented on host.
