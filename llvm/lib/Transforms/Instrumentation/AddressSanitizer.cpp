@@ -2650,16 +2650,15 @@ void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB,
                                                     Module &M) {
   auto &DL = M.getDataLayout();
   SmallVector<GlobalVariable *, 8> GlobalsToRemove;
-  SmallVector<GlobalVariable *, 8> NewDeviceGlobals;
   SmallVector<Constant *, 8> DeviceGlobalMetadata;
 
-  Type *IntTy = Type::getIntNTy(M.getContext(), DL.getPointerSizeInBits());
+  Type *IntptrTy = Type::getIntNTy(M.getContext(), DL.getPointerSizeInBits());
 
   // Device global meta data is described by a structure
   //  size_t device_global_size
   //  size_t device_global_size_with_red_zone
   //  size_t beginning address of the device global
-  StructType *StructTy = StructType::get(IntTy, IntTy, IntTy);
+  StructType *StructTy = StructType::get(IntptrTy, IntptrTy, IntptrTy);
 
   for (auto &G : M.globals()) {
     // Non image scope device globals are implemented by device USM, and the
@@ -2693,18 +2692,17 @@ void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB,
         ConstantExpr::getGetElementPtr(NewTy, NewGlobal, Indices2, true));
     NewGlobal->takeName(&G);
     GlobalsToRemove.push_back(&G);
-    NewDeviceGlobals.push_back(NewGlobal);
     DeviceGlobalMetadata.push_back(ConstantStruct::get(
-        StructTy, ConstantInt::get(IntTy, SizeInBytes),
-        ConstantInt::get(IntTy, SizeInBytes + RightRedzoneSize),
-        ConstantExpr::getPointerCast(NewGlobal, IntTy)));
+        StructTy, ConstantInt::get(IntptrTy, SizeInBytes),
+        ConstantInt::get(IntptrTy, SizeInBytes + RightRedzoneSize),
+        ConstantExpr::getPointerCast(NewGlobal, IntptrTy)));
   }
 
   if (GlobalsToRemove.empty())
     return;
 
   // Create meta data global to record device globals' information
-  ArrayType *ArrayTy = ArrayType::get(StructTy, NewDeviceGlobals.size());
+  ArrayType *ArrayTy = ArrayType::get(StructTy, DeviceGlobalMetadata.size());
   Constant *MetadataInitializer =
       ConstantArray::get(ArrayTy, DeviceGlobalMetadata);
   GlobalVariable *AsanDeviceGlobalMetadata = new GlobalVariable(
