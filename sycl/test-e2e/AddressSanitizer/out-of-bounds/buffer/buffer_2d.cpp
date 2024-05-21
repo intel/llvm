@@ -19,12 +19,16 @@ int main() {
   q.submit([&](sycl::handler &cgh) {
      auto accessor = buf.get_access<sycl::access::mode::read_write>(cgh);
      cgh.parallel_for<class Test>(
-         sycl::range<2>(size_x, size_y + 1),
-         [=](sycl::id<2> idx) { accessor[idx] = idx[0] + idx[1]; });
+         sycl::nd_range<2>({size_x, size_y + 1}, {1, 1}),
+         [=](sycl::nd_item<2> item) {
+           accessor[item.get_global_id()] =
+               item.get_global_id(0) * item.get_global_range(1) +
+               item.get_global_id(1);
+         });
    }).wait();
   // CHECK: ERROR: DeviceSanitizer: out-of-bounds-access on Memory Buffer
   // CHECK: {{WRITE of size 4 at kernel <.*Test> LID\(0, 0, 0\) GID\(6, 4, 0\)}}
-  // CHECK: {{#0 .* .*buffer_2d.cpp:}}[[@LINE-4]]
+  // CHECK: {{#0 .* .*buffer_2d.cpp:}}[[@LINE-7]]
 
   return 0;
 }

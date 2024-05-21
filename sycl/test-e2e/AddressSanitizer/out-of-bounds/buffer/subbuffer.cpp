@@ -23,8 +23,8 @@ int main() {
     q.submit([&](sycl::handler &cgh) {
        auto accessor = sub_buf.get_access<sycl::access::mode::read_write>(cgh);
        cgh.parallel_for<class Test>(
-           sycl::range<1>(size_x / 2 + 1),
-           [=](sycl::id<1> idx) { accessor[idx] *= 2; });
+           sycl::nd_range<1>(size_x / 2 + 1, 1),
+           [=](sycl::nd_item<1> item) { accessor[item.get_global_id()] *= 2; });
      }).wait();
     // CHECK: ERROR: DeviceSanitizer: out-of-bounds-access on Memory Buffer
     // CHECK: {{READ of size 4 at kernel <.*Test> LID\(0, 0, 0\) GID\(8, 0, 0\)}}

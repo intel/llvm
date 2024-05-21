@@ -8,28 +8,28 @@
 
 #include <sycl/detail/core.hpp>
 
-using namespace sycl;
-
 static const int N = 16;
 
 int main() {
-  queue q;
+  sycl::queue q;
 
   std::vector<int> v(N);
   for (int i = 0; i < N; i++)
     v[i] = i;
 
   {
-    buffer<int, 1> buf(v.size());
+    sycl::buffer<int, 1> buf(v.size());
 
-    q.submit([&](handler &h) {
-       auto A = buf.get_access<access::mode::write>(h);
+    q.submit([&](sycl::handler &h) {
+       auto A = buf.get_access<sycl::access::mode::write>(h);
        h.copy(&v[0], A);
      }).wait();
 
-    q.submit([&](handler &h) {
-       auto A = buf.get_access<access::mode::read_write>(h);
-       h.parallel_for<class Test>(range<1>(N + 1), [=](id<1> i) { A[i] *= 2; });
+    q.submit([&](sycl::handler &h) {
+       auto A = buf.get_access<sycl::access::mode::read_write>(h);
+       h.parallel_for<class Test>(
+           sycl::nd_range<1>(N + 1, 1),
+           [=](sycl::nd_item<1> item) { A[item.get_global_id()] *= 2; });
      }).wait();
     // CHECK: ERROR: DeviceSanitizer: out-of-bounds-access on Memory Buffer
     // CHECK: {{READ of size 4 at kernel <.*Test> LID\(0, 0, 0\) GID\(16, 0, 0\)}}
