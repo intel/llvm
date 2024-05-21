@@ -95,17 +95,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8cdd099ae3d1a34d3bcd7cbed7f5745c3dc8e112
-  # Merge: fc9bb61b c893a3c4
+  # commit 85771876a5c2a13e3b24c048f0c0d81720d47ccc
+  # Merge: 42d72b66 00edaab9
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon May 20 15:50:02 2024 +0100
-  #     Merge pull request #954 from jchlanda/jakub/rqwgs_hip
-  #     [HIP] Handle required wg size attribute in HIP
-  set(UNIFIED_RUNTIME_TAG 8cdd099ae3d1a34d3bcd7cbed7f5745c3dc8e112)
+  # Date:   Tue May 21 10:15:03 2024 +0100
+  #     Merge pull request #1401 from ph0b/patch-1
+  #     [UR][L0] Return device version based on DeviceIpVersion
+  set(UNIFIED_RUNTIME_TAG 85771876a5c2a13e3b24c048f0c0d81720d47ccc)
 
   fetch_adapter_source(level_zero
-    "https://github.com/ph0b/unified-runtime.git"
-    00edaab959c0386798a1963298b34bf31eaccf2c
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
