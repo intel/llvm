@@ -95,23 +95,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ebf873fb5996c9ddca32bbb7c9330d3ffe15473c
-  # Merge: 633ec408 8f375039
+  # commit 8cdd099ae3d1a34d3bcd7cbed7f5745c3dc8e112
+  # Merge: fc9bb61b c893a3c4
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu May 2 10:56:55 2024 +0100
-  #    Merge pull request #1535 from przemektmalon/przemek/sampled-image-fetch
-  #    [Bindless][Exp] Add device queries for sampled image fetch
-  set(UNIFIED_RUNTIME_TAG ebf873fb5996c9ddca32bbb7c9330d3ffe15473c)
+  # Date:   Mon May 20 15:50:02 2024 +0100
+  #     Merge pull request #954 from jchlanda/jakub/rqwgs_hip
+  #     [HIP] Handle required wg size attribute in HIP
+  set(UNIFIED_RUNTIME_TAG 8cdd099ae3d1a34d3bcd7cbed7f5745c3dc8e112)
 
   fetch_adapter_source(level_zero
-    "https://github.com/oneapi-src/unified-runtime.git"
-    # commit fb342f06e1ac244c5995b7be458d0c32a1ba17ab
-    # Merge: a44e81b5 7186d6ce
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri May 3 11:55:26 2024 +0100
-    #     Merge pull request #1549 from igchor/event_fix
-    #     Fix adding event to queue cache
-    fb342f06e1ac244c5995b7be458d0c32a1ba17ab
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl

@@ -1,3 +1,10 @@
+//===---joint_matrix_tensorcores_sm80.cpp - DPC++ joint_matrix-------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 
 // REQUIRES: cuda
 // RUN: %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_80 -o %t.out

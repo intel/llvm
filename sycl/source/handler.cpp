@@ -353,6 +353,7 @@ event handler::finalize() {
                               PI_ERROR_INVALID_OPERATION);
         else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
           NewEvent->setComplete();
+        NewEvent->setEnqueued();
 
         MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
       }
@@ -976,17 +977,6 @@ void handler::mem_advise(const void *Ptr, size_t Count, int Advice) {
   setType(detail::CG::AdviseUSM);
 }
 
-void handler::fill_impl(void *Dest, const void *Value, size_t ValueSize,
-                        size_t Count) {
-  throwIfActionIsCreated();
-  MDstPtr = Dest;
-  MPattern.resize(ValueSize);
-  std::memcpy(MPattern.data(), Value, ValueSize);
-  MLength = Count * ValueSize;
-  setUserFacingNodeType(ext::oneapi::experimental::node_type::memfill);
-  setType(detail::CG::FillUSM);
-}
-
 void handler::ext_oneapi_memcpy2d_impl(void *Dest, size_t DestPitch,
                                        const void *Src, size_t SrcPitch,
                                        size_t Width, size_t Height) {
@@ -1438,6 +1428,18 @@ void handler::use_kernel_bundle(
 
 void handler::depends_on(event Event) {
   auto EventImpl = detail::getSyclObjImpl(Event);
+  depends_on(EventImpl);
+}
+
+void handler::depends_on(const std::vector<event> &Events) {
+  for (const event &Event : Events) {
+    depends_on(Event);
+  }
+}
+
+void handler::depends_on(const detail::EventImplPtr &EventImpl) {
+  if (!EventImpl)
+    return;
   if (EventImpl->isDiscarded()) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Queue operation cannot depend on discarded event.");
@@ -1458,8 +1460,8 @@ void handler::depends_on(event Event) {
   CGData.MEvents.push_back(EventImpl);
 }
 
-void handler::depends_on(const std::vector<event> &Events) {
-  for (const event &Event : Events) {
+void handler::depends_on(const std::vector<detail::EventImplPtr> &Events) {
+  for (const EventImplPtr &Event : Events) {
     depends_on(Event);
   }
 }
@@ -1473,6 +1475,53 @@ checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
                                                     InfoQuery, sizeof(pi_bool),
                                                     &SupportsOp, nullptr);
   return SupportsOp;
+}
+
+void handler::verifyDeviceHasProgressGuarantee(
+    sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
+    sycl::ext::oneapi::experimental::execution_scope threadScope,
+    sycl::ext::oneapi::experimental::execution_scope coordinationScope) {
+  using execution_scope = sycl::ext::oneapi::experimental::execution_scope;
+  using forward_progress =
+      sycl::ext::oneapi::experimental::forward_progress_guarantee;
+  auto deviceImplPtr = MQueue->getDeviceImplPtr();
+  const bool supported = deviceImplPtr->supportsForwardProgress(
+      guarantee, threadScope, coordinationScope);
+  if (threadScope == execution_scope::work_group) {
+    if (!supported) {
+      throw sycl::exception(
+          sycl::errc::feature_not_supported,
+          "Required progress guarantee for work groups is not "
+          "supported by this device.");
+    }
+    // If we are here, the device supports the guarantee required but there is a
+    // caveat in that if the guarantee required is a concurrent guarantee, then
+    // we most likely also need to enable cooperative launch of the kernel. That
+    // is, although the device supports the required guarantee, some setup work
+    // is needed to truly make the device provide that guarantee at runtime.
+    // Otherwise, we will get the default guarantee which is weaker than
+    // concurrent. Same reasoning applies for sub_group but not for work_item.
+    // TODO: Further design work is probably needed to reflect this behavior in
+    // Unified Runtime.
+    if (guarantee == forward_progress::concurrent)
+      setKernelIsCooperative(true);
+  } else if (threadScope == execution_scope::sub_group) {
+    if (!supported) {
+      throw sycl::exception(sycl::errc::feature_not_supported,
+                            "Required progress guarantee for sub groups is not "
+                            "supported by this device.");
+    }
+    // Same reasoning as above.
+    if (guarantee == forward_progress::concurrent)
+      setKernelIsCooperative(true);
+  } else { // threadScope is execution_scope::work_item otherwise undefined
+           // behavior
+    if (!supported) {
+      throw sycl::exception(sycl::errc::feature_not_supported,
+                            "Required progress guarantee for work items is not "
+                            "supported by this device.");
+    }
+  }
 }
 
 bool handler::supportsUSMMemcpy2D() {
