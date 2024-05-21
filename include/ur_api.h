@@ -7,7 +7,7 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  * @file ur_api.h
- * @version v0.9-r0
+ * @version v0.10-r0
  *
  */
 #ifndef UR_API_H_INCLUDED
@@ -222,6 +222,7 @@ typedef enum ur_function_t {
     UR_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP = 220,                 ///< Enumerator for ::urCommandBufferUpdateKernelLaunchExp
     UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP = 221,                             ///< Enumerator for ::urCommandBufferGetInfoExp
     UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP = 222,                     ///< Enumerator for ::urCommandBufferCommandGetInfoExp
+    UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP = 223,                         ///< Enumerator for ::urEnqueueTimestampRecordingExp
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1097,11 +1098,12 @@ urPlatformGetInfo(
 ///     - API versions contain major and minor attributes, use
 ///       ::UR_MAJOR_VERSION and ::UR_MINOR_VERSION
 typedef enum ur_api_version_t {
-    UR_API_VERSION_0_6 = UR_MAKE_VERSION(0, 6),     ///< version 0.6
-    UR_API_VERSION_0_7 = UR_MAKE_VERSION(0, 7),     ///< version 0.7
-    UR_API_VERSION_0_8 = UR_MAKE_VERSION(0, 8),     ///< version 0.8
-    UR_API_VERSION_0_9 = UR_MAKE_VERSION(0, 9),     ///< version 0.9
-    UR_API_VERSION_CURRENT = UR_MAKE_VERSION(0, 9), ///< latest known version
+    UR_API_VERSION_0_6 = UR_MAKE_VERSION(0, 6),      ///< version 0.6
+    UR_API_VERSION_0_7 = UR_MAKE_VERSION(0, 7),      ///< version 0.7
+    UR_API_VERSION_0_8 = UR_MAKE_VERSION(0, 8),      ///< version 0.8
+    UR_API_VERSION_0_9 = UR_MAKE_VERSION(0, 9),      ///< version 0.9
+    UR_API_VERSION_0_10 = UR_MAKE_VERSION(0, 10),    ///< version 0.10
+    UR_API_VERSION_CURRENT = UR_MAKE_VERSION(0, 10), ///< latest known version
     /// @cond
     UR_API_VERSION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1641,6 +1643,7 @@ typedef enum ur_device_info_t {
                                                                      ///< backed 3D sampled image data.
     UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP = 0x2017,     ///< [::ur_bool_t] returns true if the device is capable of fetching
                                                                      ///< non-USM backed 3D sampled image data.
+    UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP = 0x2018,         ///< [::ur_bool_t] returns true if the device supports timestamp recording
     /// @cond
     UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1666,7 +1669,7 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP < propName`
+///         + `::UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -5618,6 +5621,7 @@ typedef enum ur_command_t {
     UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP = 0x1000,   ///< Event created by ::urCommandBufferEnqueueExp
     UR_COMMAND_INTEROP_SEMAPHORE_WAIT_EXP = 0x2000,   ///< Event created by ::urBindlessImagesWaitExternalSemaphoreExp
     UR_COMMAND_INTEROP_SEMAPHORE_SIGNAL_EXP = 0x2001, ///< Event created by ::urBindlessImagesSignalExternalSemaphoreExp
+    UR_COMMAND_TIMESTAMP_RECORDING_EXP = 0x2002,      ///< Event created by ::urEnqueueTimestampRecordingExp
     /// @cond
     UR_COMMAND_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -7547,7 +7551,6 @@ urBindlessImagesImageFreeExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
-///         + `NULL == phMem`
 ///         + `NULL == phImage`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -7562,7 +7565,6 @@ urBindlessImagesUnsampledImageCreateExp(
     ur_exp_image_mem_handle_t hImageMem,   ///< [in] handle to memory from which to create the image
     const ur_image_format_t *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc,     ///< [in] pointer to image description
-    ur_mem_handle_t *phMem,                ///< [out] pointer to handle of image object created
     ur_exp_image_handle_t *phImage         ///< [out] pointer to handle of image object created
 );
 
@@ -7586,7 +7588,6 @@ urBindlessImagesUnsampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
-///         + `NULL == phMem`
 ///         + `NULL == phImage`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -7603,7 +7604,6 @@ urBindlessImagesSampledImageCreateExp(
     const ur_image_format_t *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc,     ///< [in] pointer to image description
     ur_sampler_handle_t hSampler,          ///< [in] sampler to be used
-    ur_mem_handle_t *phMem,                ///< [out] pointer to handle of image object created
     ur_exp_image_handle_t *phImage         ///< [out] pointer to handle of image object created
 );
 
@@ -8888,6 +8888,46 @@ urKernelSuggestMaxCooperativeGroupCountExp(
     size_t dynamicSharedMemorySize, ///< [in] size of dynamic shared memory, for each work-group, in bytes,
                                     ///< that will be used when the kernel is launched
     uint32_t *pGroupCountRet        ///< [out] pointer to maximum number of groups
+);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
+// Intel 'oneAPI' Unified Runtime Experimental APIs for enqueuing timestamp recordings
+#if !defined(__GNUC__)
+#pragma region enqueue timestamp recording(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue a command for recording the device timestamp
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phEvent`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+UR_APIEXPORT ur_result_t UR_APICALL
+urEnqueueTimestampRecordingExp(
+    ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
+    bool blocking,                            ///< [in] indicates whether the call to this function should block until
+                                              ///< until the device timestamp recording command has executed on the
+                                              ///< device.
+    uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
+    const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                              ///< events that must be complete before the kernel execution.
+                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait
+                                              ///< events.
+    ur_event_handle_t *phEvent                ///< [in,out] return an event object that identifies this particular kernel
+                                              ///< execution instance. Profiling information can be queried
+                                              ///< from this event as if `hQueue` had profiling enabled. Querying
+                                              ///< `UR_PROFILING_INFO_COMMAND_QUEUED` or `UR_PROFILING_INFO_COMMAND_SUBMIT`
+                                              ///< reports the timestamp at the time of the call to this function.
+                                              ///< Querying `UR_PROFILING_INFO_COMMAND_START` or `UR_PROFILING_INFO_COMMAND_END`
+                                              ///< reports the timestamp recorded when the command is executed on the device.
 );
 
 #if !defined(__GNUC__)
@@ -10601,6 +10641,18 @@ typedef struct ur_enqueue_cooperative_kernel_launch_exp_params_t {
 } ur_enqueue_cooperative_kernel_launch_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEnqueueTimestampRecordingExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_timestamp_recording_exp_params_t {
+    ur_queue_handle_t *phQueue;
+    bool *pblocking;
+    uint32_t *pnumEventsInWaitList;
+    const ur_event_handle_t **pphEventWaitList;
+    ur_event_handle_t **pphEvent;
+} ur_enqueue_timestamp_recording_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urBindlessImagesUnsampledImageHandleDestroyExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -10652,7 +10704,6 @@ typedef struct ur_bindless_images_unsampled_image_create_exp_params_t {
     ur_exp_image_mem_handle_t *phImageMem;
     const ur_image_format_t **ppImageFormat;
     const ur_image_desc_t **ppImageDesc;
-    ur_mem_handle_t **pphMem;
     ur_exp_image_handle_t **pphImage;
 } ur_bindless_images_unsampled_image_create_exp_params_t;
 
@@ -10667,7 +10718,6 @@ typedef struct ur_bindless_images_sampled_image_create_exp_params_t {
     const ur_image_format_t **ppImageFormat;
     const ur_image_desc_t **ppImageDesc;
     ur_sampler_handle_t *phSampler;
-    ur_mem_handle_t **pphMem;
     ur_exp_image_handle_t **pphImage;
 } ur_bindless_images_sampled_image_create_exp_params_t;
 

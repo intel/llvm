@@ -12,6 +12,7 @@ import util
 
 # allow imports from top-level scripts directory
 sys.path.append("..")
+from version import Version
 
 """
     Extracts traits from a spec object
@@ -1081,15 +1082,20 @@ Public:
 def get_class_function_objs(specs, cname, version = None):
     objects = []
     for s in specs:
-        for obj in s['objects']:
+        for obj in s["objects"]:
             is_function = obj_traits.is_function(obj)
             match_cls = cname == obj_traits.class_name(obj)
             if is_function and match_cls:
                 if version is None:
                     objects.append(obj)
-                elif float(obj.get('version',"1.0")) <= version:
+                elif Version(obj.get("version", "1.0")) <= version:
                     objects.append(obj)
-    return sorted(objects, key=lambda obj: (float(obj.get('version',"1.0"))*10000) + int(obj.get('ordinal',"100")))
+    return sorted(
+        objects,
+        key=lambda obj: (Version(obj.get("version", "1.0")).major * 10000)
+        + int(obj.get("ordinal", "100")),
+    )
+
 
 """
 Public:
@@ -1107,8 +1113,16 @@ def get_class_function_objs_exp(specs, cname):
                     exp_objects.append(obj)
                 else:
                     objects.append(obj)
-    objects = sorted(objects, key=lambda obj: (float(obj.get('version',"1.0"))*10000) + int(obj.get('ordinal',"100")))
-    exp_objects = sorted(exp_objects, key=lambda obj: (float(obj.get('version',"1.0"))*10000) + int(obj.get('ordinal',"100")))
+    objects = sorted(
+        objects,
+        key=lambda obj: (Version(obj.get("version", "1.0")).major * 10000)
+        + int(obj.get("ordinal", "100")),
+    )
+    exp_objects = sorted(
+        exp_objects,
+        key=lambda obj: (Version(obj.get("version", "1.0")).major * 10000)
+        + int(obj.get("ordinal", "100")),
+    )
     return objects, exp_objects
 
 """
@@ -1222,7 +1236,7 @@ Public:
 def get_pfncbtables(specs, meta, namespace, tags):
     tables = []
     for cname in sorted(meta['class'], key=lambda x: meta['class'][x]['ordinal']):
-        objs = get_class_function_objs(specs, cname, 1.0)
+        objs = get_class_function_objs(specs, cname, Version('1.0'))
         if len(objs) > 0:
             name = get_table_name(namespace, tags, {'class': cname})
             print(name)

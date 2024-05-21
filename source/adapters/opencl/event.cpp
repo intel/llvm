@@ -257,3 +257,9 @@ urEventSetCallback(ur_event_handle_t hEvent, ur_execution_info_t execStatus,
                                           CallbackType, ClCallback, Callback));
   return UR_RESULT_SUCCESS;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urEnqueueTimestampRecordingExp(ur_queue_handle_t, bool, uint32_t,
+                               const ur_event_handle_t *, ur_event_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}

@@ -492,7 +492,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_mem_handle_t hImageMem, const ur_image_format_t *pImageFormat,
-    const ur_image_desc_t *pImageDesc, ur_mem_handle_t *phMem,
+    [[maybe_unused]] const ur_image_desc_t *pImageDesc,
     ur_exp_image_handle_t *phImage) {
   UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
@@ -523,15 +523,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     UR_CHECK_ERROR(cuSurfObjectCreate(&surface, &image_res_desc));
     *phImage = (ur_exp_image_handle_t)surface;
 
-    auto urMemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_mem_handle_t_{
-        hContext, (CUarray)hImageMem, surface, pImageDesc->type});
-
-    if (urMemObj == nullptr) {
-      return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
-    *phMem = urMemObj.release();
-
   } catch (ur_result_t Err) {
     return Err;
   } catch (...) {
@@ -545,7 +536,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_mem_handle_t hImageMem, const ur_image_format_t *pImageFormat,
     const ur_image_desc_t *pImageDesc, ur_sampler_handle_t hSampler,
-    ur_mem_handle_t *phMem, ur_exp_image_handle_t *phImage) {
+    ur_exp_image_handle_t *phImage) {
   UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
 
@@ -611,15 +602,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     UR_CHECK_ERROR(
         urTextureCreate(hSampler, pImageDesc, image_res_desc, phImage));
 
-    auto urMemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_mem_handle_t_{
-        hContext, (CUarray)hImageMem, (CUtexObject)*phImage, hSampler,
-        pImageDesc->type});
-
-    if (urMemObj == nullptr) {
-      return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
-    *phMem = urMemObj.release();
   } catch (ur_result_t Err) {
     return Err;
   } catch (...) {

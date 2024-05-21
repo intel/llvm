@@ -28,8 +28,6 @@ public:
 
   ur_queue_handle_t getQueue() const noexcept { return Queue; }
 
-  ur_device_handle_t getDevice() const noexcept { return Queue->getDevice(); }
-
   hipStream_t getStream() const noexcept { return Stream; }
 
   uint32_t getComputeStreamToken() const noexcept { return StreamToken; }
@@ -53,6 +51,10 @@ public:
       return UR_EVENT_STATUS_RUNNING;
     }
     return UR_EVENT_STATUS_COMPLETE;
+  }
+
+  bool isTimestampEvent() const noexcept {
+    return getCommandType() == UR_COMMAND_TIMESTAMP_RECORDING_EXP;
   }
 
   ur_context_handle_t getContext() const noexcept { return Context; };
