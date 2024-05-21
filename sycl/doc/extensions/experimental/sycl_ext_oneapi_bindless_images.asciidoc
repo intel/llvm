@@ -182,14 +182,16 @@ enum class image_type : /* unspecified */ {
 };
 
 struct image_descriptor {
-  size_t width;
-  size_t height;
-  size_t depth;
-  unsigned int num_channels;
-  image_channel_type channel_type;
-  image_type type;
-  unsigned int num_levels;
-  unsigned int array_size;
+  size_t width{0};
+  size_t height{0};
+  size_t depth{0};
+  unsigned int num_channels{4};
+  image_channel_type channel_type{image_channel_type::fp32};
+  image_type type{image_type::standard};
+  unsigned int num_levels{1};
+  unsigned int array_size{1};
+
+  image_descriptor() = default;
 
   image_descriptor(sycl::range<1> dims, unsigned int num_channels,
                    image_channel_type channel_type, 
@@ -2670,7 +2672,8 @@ These features still need to be handled:
                    `fetch_image` API.
 |5.8|2024-05-09| - Add missing cubemap `HintT` template parameter to 
                    `fetch_cubemap` and `sample_cubemap`.
-|5.9|2024-05-20| - Removed `get_channel_order` function from `image_mem`.
+|5.9|2024-05-14| - Default constructor for `image_descriptor`.
+|5.10|2024-05-20| - Removed `get_channel_order` function from `image_mem`.
                    This function is redundant since images don't have a notion
                    of channel order outwith kernel image accesses, only the
                    channel size. Use `get_num_channels` instead.

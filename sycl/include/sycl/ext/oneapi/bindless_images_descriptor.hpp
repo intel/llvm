@@ -50,14 +50,14 @@ enum class image_type : unsigned int {
 
 /// A struct to describe the properties of an image.
 struct image_descriptor {
-  size_t width;
-  size_t height;
-  size_t depth;
-  unsigned int num_channels;
-  image_channel_type channel_type;
-  image_type type;
-  unsigned int num_levels;
-  unsigned int array_size;
+  size_t width{0};
+  size_t height{0};
+  size_t depth{0};
+  unsigned int num_channels{4};
+  image_channel_type channel_type{image_channel_type::fp32};
+  image_type type{image_type::standard};
+  unsigned int num_levels{1};
+  unsigned int array_size{1};
 
   image_descriptor() = default;
 
