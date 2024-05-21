@@ -20,10 +20,45 @@ protected:
   explicit OptionPtrBase(OptionID Id) : Id(Id) {}
 
 public:
+  virtual ~OptionPtrBase() = default;
+
   const OptionID Id;
 };
 
-template <OptionID ID, typename T> struct OptionBase : public OptionPtrBase {
+class OptionStorage {
+public:
+  ~OptionStorage() { delete Storage; }
+
+  OptionStorage() : Storage{nullptr} {}
+
+  OptionStorage(const OptionStorage &) = delete;
+  OptionStorage &operator=(const OptionStorage &) = delete;
+
+  OptionStorage(OptionStorage &&Other) : Storage{Other.Storage} {
+    Other.Storage = nullptr;
+  }
+
+  OptionStorage &operator=(OptionStorage &&Other) {
+    Storage = Other.Storage;
+    Other.Storage = nullptr;
+    return *this;
+  }
+
+  OptionPtrBase *get() const { return Storage; }
+
+  template <typename OptionT, typename... Args>
+  static OptionStorage makeOption(Args &&...As) {
+    return OptionStorage(new OptionT(std::forward<Args>(As)...));
+  }
+
+private:
+  OptionPtrBase *Storage;
+
+  OptionStorage(OptionPtrBase *Store) : Storage{Store} {}
+};
+
+template <typename OptionT, OptionID ID, typename T>
+struct OptionBase : public OptionPtrBase {
   static constexpr OptionID Id = ID;
   using ValueType = T;
 
@@ -31,21 +66,27 @@ template <OptionID ID, typename T> struct OptionBase : public OptionPtrBase {
   explicit OptionBase(Args &&...As)
       : OptionPtrBase{ID}, Value{std::forward<Args>(As)...} {}
 
+  template <typename... Args> static OptionStorage set(Args &&...As) {
+    return OptionStorage::makeOption<OptionT>(std::forward<Args>(As)...);
+  }
+
   T Value;
 };
 
 namespace option {
 
-struct JITEnableVerbose : public OptionBase<OptionID::VerboseOutput, bool> {
+struct JITEnableVerbose
+    : public OptionBase<JITEnableVerbose, OptionID::VerboseOutput, bool> {
   using OptionBase::OptionBase;
 };
 
-struct JITEnableCaching : public OptionBase<OptionID::EnableCaching, bool> {
+struct JITEnableCaching
+    : public OptionBase<JITEnableCaching, OptionID::EnableCaching, bool> {
   using OptionBase::OptionBase;
 };
 
 struct JITTargetInfo
-    : public OptionBase<OptionID::TargetDeviceInfo, TargetInfo> {
+    : public OptionBase<JITTargetInfo, OptionID::TargetDeviceInfo, TargetInfo> {
   using OptionBase::OptionBase;
 };
 

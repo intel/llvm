@@ -582,6 +582,57 @@ bool device_impl::has(aspect Aspect) const {
             sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
     return call_successful && support;
   }
+  case aspect::ext_oneapi_bindless_sampled_image_fetch_1d_usm: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice,
+            PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_bindless_sampled_image_fetch_1d: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_bindless_sampled_image_fetch_2d_usm: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice,
+            PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_bindless_sampled_image_fetch_2d: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_bindless_sampled_image_fetch_3d_usm: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice,
+            PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_bindless_sampled_image_fetch_3d: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
   case aspect::ext_oneapi_cubemap: {
     pi_bool support = PI_FALSE;
     bool call_successful =
@@ -802,6 +853,94 @@ bool device_impl::extOneapiCanCompile(
   } catch (sycl::exception &) {
     return false;
   }
+}
+
+// Returns the strongest guarantee that can be provided by the host device for
+// threads created at threadScope from a coordination scope given by
+// coordinationScope
+sycl::ext::oneapi::experimental::forward_progress_guarantee
+device_impl::getHostProgressGuarantee(
+    ext::oneapi::experimental::execution_scope,
+    ext::oneapi::experimental::execution_scope) {
+  return sycl::ext::oneapi::experimental::forward_progress_guarantee::
+      weakly_parallel;
+}
+
+// Returns the strongest progress guarantee that can be provided by this device
+// for threads created at threadScope from the coordination scope given by
+// coordinationScope.
+sycl::ext::oneapi::experimental::forward_progress_guarantee
+device_impl::getProgressGuarantee(
+    ext::oneapi::experimental::execution_scope threadScope,
+    ext::oneapi::experimental::execution_scope coordinationScope) const {
+  using forward_progress_guarantee =
+      ext::oneapi::experimental::forward_progress_guarantee;
+  using execution_scope = ext::oneapi::experimental::execution_scope;
+  const int executionScopeSize = 4;
+  (void)coordinationScope;
+  int threadScopeNum = static_cast<int>(threadScope);
+  // we get the immediate progress guarantee that is provided by each scope
+  // between root_group and threadScope and then return the weakest of these.
+  // Counterintuitively, this corresponds to taking the max of the enum values
+  // because of how the forward_progress_guarantee enum values are declared.
+  int guaranteeNum = static_cast<int>(
+      getImmediateProgressGuarantee(execution_scope::root_group));
+  for (int currentScope = executionScopeSize - 2; currentScope > threadScopeNum;
+       --currentScope) {
+    guaranteeNum = std::max(guaranteeNum,
+                            static_cast<int>(getImmediateProgressGuarantee(
+                                static_cast<execution_scope>(currentScope))));
+  }
+  return static_cast<forward_progress_guarantee>(guaranteeNum);
+}
+
+bool device_impl::supportsForwardProgress(
+    ext::oneapi::experimental::forward_progress_guarantee guarantee,
+    ext::oneapi::experimental::execution_scope threadScope,
+    ext::oneapi::experimental::execution_scope coordinationScope) const {
+  using ReturnT =
+      std::vector<ext::oneapi::experimental::forward_progress_guarantee>;
+  auto guarantees = getProgressGuaranteesUpTo<ReturnT>(
+      getProgressGuarantee(threadScope, coordinationScope));
+  return std::find(guarantees.begin(), guarantees.end(), guarantee) !=
+         guarantees.end();
+}
+
+// Returns the progress guarantee provided for a coordination scope
+// given by coordination_scope for threads created at a scope
+// immediately below coordination_scope. For example, for root_group
+// coordination scope it returns the progress guarantee provided
+// at root_group for threads created at work_group.
+ext::oneapi::experimental::forward_progress_guarantee
+device_impl::getImmediateProgressGuarantee(
+    ext::oneapi::experimental::execution_scope coordination_scope) const {
+  using forward_progress_guarantee =
+      ext::oneapi::experimental::forward_progress_guarantee;
+  using execution_scope = ext::oneapi::experimental::execution_scope;
+  if (is_cpu() && getBackend() == backend::opencl) {
+    switch (coordination_scope) {
+    case execution_scope::root_group:
+      return forward_progress_guarantee::parallel;
+    case execution_scope::work_group:
+    case execution_scope::sub_group:
+      return forward_progress_guarantee::weakly_parallel;
+    default:
+      throw sycl::exception(sycl::errc::invalid,
+                            "Work item is not a valid coordination scope!");
+    }
+  } else if (is_gpu() && getBackend() == backend::ext_oneapi_level_zero) {
+    switch (coordination_scope) {
+    case execution_scope::root_group:
+    case execution_scope::work_group:
+      return forward_progress_guarantee::concurrent;
+    case execution_scope::sub_group:
+      return forward_progress_guarantee::weakly_parallel;
+    default:
+      throw sycl::exception(sycl::errc::invalid,
+                            "Work item is not a valid coordination scope!");
+    }
+  }
+  return forward_progress_guarantee::weakly_parallel;
 }
 
 } // namespace detail

@@ -257,8 +257,16 @@ TEST_F(CommandGraphTest, InOrderQueueWithPreviousHostTask) {
   experimental::command_graph<experimental::graph_state::modifiable>
       InOrderGraph{InOrderQueue.get_context(), InOrderQueue.get_device()};
 
-  auto EventInitial =
-      InOrderQueue.submit([&](handler &CGH) { CGH.host_task([=]() {}); });
+  // Event dependency build depends on host task completion. Making it
+  // predictable with mutex in host task.
+  std::mutex HostTaskMutex;
+  std::unique_lock<std::mutex> Lock(HostTaskMutex, std::defer_lock);
+  Lock.lock();
+  auto EventInitial = InOrderQueue.submit([&](handler &CGH) {
+    CGH.host_task([&HostTaskMutex]() {
+      std::lock_guard<std::mutex> HostTaskLock(HostTaskMutex);
+    });
+  });
   auto EventInitialImpl = sycl::detail::getSyclObjImpl(EventInitial);
 
   // Record in-order queue with three nodes.
@@ -305,10 +313,12 @@ TEST_F(CommandGraphTest, InOrderQueueWithPreviousHostTask) {
 
   auto EventLastImpl = sycl::detail::getSyclObjImpl(EventLast);
   auto WaitList = EventLastImpl->getWaitList();
+  Lock.unlock();
   // Previous task is a host task. Explicit dependency is needed to enforce the
   // execution order.
   ASSERT_EQ(WaitList.size(), 1lu);
   ASSERT_EQ(WaitList[0], EventInitialImpl);
+  InOrderQueue.wait();
 }
 
 TEST_F(CommandGraphTest, InOrderQueueHostTaskAndGraph) {

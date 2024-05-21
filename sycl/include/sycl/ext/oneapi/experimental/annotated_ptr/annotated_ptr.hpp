@@ -17,6 +17,7 @@
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
+#include <sycl/pointers.hpp>
 
 #include <cstddef>
 #include <string_view>

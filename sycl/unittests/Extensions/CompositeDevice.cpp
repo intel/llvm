@@ -79,7 +79,7 @@ pi_result after_piContextCreate(const pi_context_properties *,
 
 } // namespace
 
-TEST(CompositeDeviceTest, DescendentDeviceSupport) {
+TEST(CompositeDeviceTest, DescendentDeviceSupportInContext) {
   sycl::unittest::PiMock Mock(sycl::backend::ext_oneapi_level_zero);
   Mock.redefine<sycl::detail::PiApiKind::piDevicesGet>(redefine_piDevicesGet);
   Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
@@ -118,4 +118,26 @@ TEST(CompositeDeviceTest, DescendentDeviceSupport) {
   // by user to the context constructor.
   ASSERT_EQ(CompositeDevContext.get_devices().size(), 1u);
   ASSERT_EQ(CompositeDevContext.get_devices().front(), CompositeDevice);
+}
+
+TEST(CompositeDeviceTest, DescendentDeviceSupportInQueue) {
+  sycl::unittest::PiMock Mock(sycl::backend::ext_oneapi_level_zero);
+  Mock.redefine<sycl::detail::PiApiKind::piDevicesGet>(redefine_piDevicesGet);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+      after_piDeviceGetInfo);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piContextCreate>(
+      after_piContextCreate);
+
+  sycl::platform Plt = Mock.getPlatform();
+  ASSERT_EQ(Plt.get_backend(), sycl::backend::ext_oneapi_level_zero);
+
+  sycl::device ComponentDevice = Plt.get_devices()[0];
+  ASSERT_TRUE(ComponentDevice.has(sycl::aspect::ext_oneapi_is_component));
+
+  auto CompositeDevice = ComponentDevice.get_info<
+      sycl::ext::oneapi::experimental::info::device::composite_device>();
+  sycl::context CompositeDevContext(CompositeDevice);
+  // Component device should be implicitly usable as part of composite context,
+  // so there should be no errors during queue creation below.
+  sycl::queue Queue(CompositeDevContext, ComponentDevice);
 }

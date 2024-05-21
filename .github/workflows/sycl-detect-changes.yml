@@ -57,6 +57,8 @@ jobs:
             drivers:
               - devops/dependencies.json
               - devops/scripts/install_drivers.sh
+            devigccfg:
+              - devops/dependencies-igc-dev.json
             perf-tests:
               - sycl/test-e2e/PerformanceTests/**
             esimd:
