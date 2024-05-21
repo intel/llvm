@@ -6,8 +6,6 @@
 #include <vector>
 
 void checkExceptionFields(const sycl::exception &e) {
-  std::cout << "e.code() = " << e.code() << " message = " << e.what()
-            << std::endl;
   assert(e.code() == sycl::errc::invalid && "Invalid error code");
   assert(std::string(e.what()) ==
              "Calls to sycl::queue::submit cannot be nested. Command group "
