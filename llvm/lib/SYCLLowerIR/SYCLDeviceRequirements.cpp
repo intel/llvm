@@ -57,6 +57,12 @@ llvm::computeDeviceRequirements(const module_split::ModuleDesc &MD) {
       }
     }
 
+    if (auto *MDN = F.getMetadata("work_group_num_dim")) {
+      uint32_t WGND = ExtractUnsignedIntegerFromMDNodeOperand(MDN, 0);
+      if (!Reqs.ReqdWorkGroupSize.has_value())
+        Reqs.WorkGroupNumDim = WGND;
+    }
+
     if (auto *MDN = F.getMetadata("reqd_work_group_size")) {
       llvm::SmallVector<uint64_t, 3> NewReqdWorkGroupSize;
       for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I)
@@ -132,6 +138,9 @@ std::map<StringRef, util::PropertyValue> SYCLDeviceRequirements::asMap() const {
 
   if (SubGroupSize.has_value())
     Requirements["reqd_sub_group_size"] = *SubGroupSize;
+
+  if (WorkGroupNumDim.has_value())
+    Requirements["work_group_num_dim"] = *WorkGroupNumDim;
 
   return Requirements;
 }

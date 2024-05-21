@@ -17,7 +17,19 @@
 // RUN:   | FileCheck -check-prefix=DEFAULT_AOT %s
 
 // RUN: %clang -### -fsycl \
-// RUN:    -fsycl-targets=spir64_gen %s 2>&1 \
+// RUN:    -fsycl-targets=spir64_gen -Xs "-device pvc" %s 2>&1 \
+// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s
+
+// RUN: %clang -### -fsycl \
+// RUN:    -fsycl-targets=spir64_gen -Xs "-device 0x0BD5" %s 2>&1 \
+// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s
+
+// RUN: %clang -### -fsycl \
+// RUN:    -fsycl-targets=spir64_gen -Xs "-device 12.60.7" %s 2>&1 \
+// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s
+
+// RUN: %clang -### -fsycl \
+// RUN:    -fsycl-targets=spir64_gen -Xs "-device pvc,mtl-s" %s 2>&1 \
 // RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s
 
 // RUN: %clang -### -fsycl \
@@ -58,6 +70,21 @@
 // RUN: not %clang -### -fsycl \
 // RUN:    -fsycl-targets=spir64_gen -ftarget-register-alloc-mode=dg2:superlarge %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=BAD_BOTH %s
+
+// RUN: %clangxx -### -fsycl -fsycl-targets=spir64_gen -Xs "-device bdw" \
+// RUN:          %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=NO_PVC %s
+
+// RUN: %clangxx -### -fsycl -fsycl-targets=spir64_gen -Xs "-device *" \
+// RUN:          %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=NO_PVC %s
+
+// RUN: %clangxx -### -fsycl -fsycl-targets=spir64_gen -Xs "-device pvc:mtl-s" \
+// RUN:          %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=NO_PVC %s
+
+// NO_PVC-NOT: -device_options
+// NO_PVC-NOT: -ze-opt-large-register-file
 
 // AUTO_AOT: ocloc{{.*}} "-output"
 // AUTO_AOT: -device_options

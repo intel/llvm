@@ -172,10 +172,12 @@
 //         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D
 //         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM
 //         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D
-// 16.51 Replaced piextUSMEnqueueMemset with piextUSMEnqueueFill
+// 15.51 Removed ret_mem argument from piextMemUnsampledImageCreate and
+// piextMemSampledImageCreate
+// 16.52 Replaced piextUSMEnqueueMemset with piextUSMEnqueueFill
 
 #define _PI_H_VERSION_MAJOR 16
-#define _PI_H_VERSION_MINOR 51
+#define _PI_H_VERSION_MINOR 52
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -438,7 +440,12 @@ typedef enum {
   // The number of max registers per block (device specific)
   PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP = 0x20009,
   PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT = 0x2000A,
-
+  PI_EXT_ONEAPI_DEVICE_INFO_WORK_GROUP_PROGRESS_AT_ROOT_GROUP_LEVEL = 0x2000B,
+  PI_EXT_ONEAPI_DEVICE_INFO_SUB_GROUP_PROGRESS_AT_ROOT_GROUP_LEVEL = 0x2000C,
+  PI_EXT_ONEAPI_DEVICE_INFO_SUB_GROUP_PROGRESS_AT_WORK_GROUP_LEVEL = 0x2000D,
+  PI_EXT_ONEAPI_DEVICE_INFO_WORK_ITEM_PROGRESS_AT_ROOT_GROUP_LEVEL = 0x2000E,
+  PI_EXT_ONEAPI_DEVICE_INFO_WORK_ITEM_PROGRESS_AT_WORK_GROUP_LEVEL = 0x2000F,
+  PI_EXT_ONEAPI_DEVICE_INFO_WORK_ITEM_PROGRESS_AT_SUB_GROUP_LEVEL = 0x20010,
   // Bindless images, mipmaps, interop
   PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT = 0x20100,
   PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT = 0x20101,
@@ -2776,7 +2783,7 @@ __SYCL_EXPORT pi_result piextMemMipmapFree(pi_context context, pi_device device,
 /// \param ret_handle is the returning memory handle to newly allocated memory
 __SYCL_EXPORT pi_result piextMemUnsampledImageCreate(
     pi_context context, pi_device device, pi_image_mem_handle img_mem,
-    pi_image_format *image_format, pi_image_desc *image_desc, pi_mem *ret_mem,
+    pi_image_format *image_format, pi_image_desc *image_desc,
     pi_image_handle *ret_handle);
 
 /// API to create sampled bindless image handles.
@@ -2792,7 +2799,7 @@ __SYCL_EXPORT pi_result piextMemUnsampledImageCreate(
 __SYCL_EXPORT pi_result piextMemSampledImageCreate(
     pi_context context, pi_device device, pi_image_mem_handle img_mem,
     pi_image_format *image_format, pi_image_desc *image_desc,
-    pi_sampler sampler, pi_mem *ret_mem, pi_image_handle *ret_handle);
+    pi_sampler sampler, pi_image_handle *ret_handle);
 
 /// API to create samplers for bindless images.
 ///

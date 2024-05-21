@@ -77,6 +77,7 @@
 // CHECK-NEXT: range.hpp
 // CHECK-NEXT: info/info_desc.hpp
 // CHECK-NEXT: ext/oneapi/experimental/device_architecture.hpp
+// CHECK-NEXT: ext/oneapi/experimental/forward_progress.hpp
 // CHECK-NEXT: ext/oneapi/matrix/query-types.hpp
 // CHECK-NEXT: ext/oneapi/bfloat16.hpp
 // CHECK-NEXT: ext/oneapi/matrix/matrix-unified-utils.hpp
@@ -142,6 +143,19 @@
 // CHECK-NEXT: detail/spirv.hpp
 // CHECK-NEXT: ext/oneapi/experimental/non_uniform_groups.hpp
 // CHECK-NEXT: ext/oneapi/sub_group_mask.hpp
+// CHECK-NEXT: builtins.hpp
+// CHECK-NEXT: detail/builtins/builtins.hpp
+// CHECK-NEXT: builtins_utils_vec.hpp
+// CHECK-NEXT: builtins_utils_scalar.hpp
+// CHECK-NEXT: detail/boolean.hpp
+// CHECK-NEXT: detail/builtins/common_functions.inc
+// CHECK-NEXT: detail/builtins/helper_macros.hpp
+// CHECK-NEXT: detail/builtins/geometric_functions.inc
+// CHECK-NEXT: detail/builtins/half_precision_math_functions.inc
+// CHECK-NEXT: detail/builtins/integer_functions.inc
+// CHECK-NEXT: detail/builtins/math_functions.inc
+// CHECK-NEXT: detail/builtins/native_math_functions.inc
+// CHECK-NEXT: detail/builtins/relational_functions.inc
 // CHECK-NEXT: feature_test.hpp
 // CHECK-NEXT: functional.hpp
 // CHECK-NEXT: device.hpp

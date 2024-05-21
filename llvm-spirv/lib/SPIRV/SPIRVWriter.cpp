@@ -5785,7 +5785,12 @@ void LLVMToSPIRVBase::oclGetMutatedArgumentTypesByBuiltin(
   StringRef Demangled;
   if (!oclIsBuiltin(F->getName(), Demangled))
     return;
-  if (Demangled.find(kSPIRVName::SampledImage) == std::string::npos)
+  // Note: kSPIRVName::ConvertHandleToSampledImageINTEL contains
+  // kSPIRVName::SampledImage as a substring, but we still want to return in
+  // this case.
+  if (Demangled.find(kSPIRVName::SampledImage) == std::string::npos ||
+      Demangled.find(kSPIRVName::ConvertHandleToSampledImageINTEL) !=
+          std::string::npos)
     return;
   if (FT->getParamType(1)->isIntegerTy())
     ChangedType[1] = getSPIRVType(OpTypeSampler, true);
