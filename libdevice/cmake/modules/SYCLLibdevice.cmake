@@ -56,9 +56,6 @@ if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
 endif()
 
 option(LIBDEVICE_NATIVE_CPU "Enable native cpu" On)
-if(LIBDEVICE_NATIVE_CPU)
-  string(APPEND sycl_targets_opt ",native_cpu")
-endif()
 
 if (WIN32)
   list(APPEND compile_opts -D_ALLOW_RUNTIME_LIBRARY_MISMATCH)
