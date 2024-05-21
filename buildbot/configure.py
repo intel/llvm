@@ -41,6 +41,7 @@ def do_configure(args):
     fusion_dir = os.path.join(abs_src_dir, "sycl-fusion")
     llvm_targets_to_build = args.host_target
     llvm_enable_projects = 'clang;' + llvm_external_projects
+    libclc_build_native = 'OFF'
     libclc_targets_to_build = ''
     libclc_gen_remangled_variants = 'OFF'
     sycl_build_pi_hip_platform = 'AMD'
@@ -88,10 +89,10 @@ def do_configure(args):
         sycl_enabled_plugins.append("hip")
 
     if args.native_cpu:
-        #Todo: we should set whatever targets we support for native cpu
-        libclc_targets_to_build += ';x86_64-unknown-linux-gnu'
         if args.native_cpu_libclc_targets:
             libclc_targets_to_build += ';' + args.native_cpu_libclc_targets
+        else:
+            libclc_build_native = 'ON'
         libclc_gen_remangled_variants = "ON"
         sycl_enabled_plugins.append("native_cpu")
 
@@ -193,6 +194,7 @@ def do_configure(args):
                 "-DLIBCLC_GENERATE_REMANGLED_VARIANTS={}".format(
                     libclc_gen_remangled_variants
                 ),
+                "-DLIBCLC_NATIVECPU_HOST_TARGET={}".format(libclc_build_native),
             ]
         )
 

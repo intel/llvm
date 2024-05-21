@@ -156,6 +156,12 @@ if( LIBCLC_TARGETS_TO_BUILD STREQUAL "all" )
   set( LIBCLC_TARGETS_TO_BUILD ${LIBCLC_TARGETS_ALL} )
 endif()
 
+option( LIBCLC_NATIVECPU_HOST_TARGET "Build libclc for Native CPU using the host triple." Off)
+
+if( LIBCLC_NATIVECPU_HOST_TARGET )
+  list(APPEND LIBCLC_TARGETS_TO_BUILD ${LLVM_TARGET_TRIPLE})
+endif()
+
 list( SORT LIBCLC_TARGETS_TO_BUILD )
 
 # Verify that the user hasn't requested mesa3d targets without an available
@@ -298,7 +304,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     set( DARCH ${ARCH} )
   endif()
 
-  if( (${ARCH}  STREQUAL x86_64 OR ${ARCH}  STREQUAL aarch64) AND ${OS} STREQUAL "linux")
+  if( (ARCH  STREQUAL x86_64 OR ARCH  STREQUAL aarch64) AND OS STREQUAL "linux")
     LIST( APPEND dirs native_cpu-unknown-linux )
   endif()
 
