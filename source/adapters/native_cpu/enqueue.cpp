@@ -31,7 +31,7 @@ struct NDRDescT {
     for (uint32_t I = 0; I < WorkDim; I++) {
       GlobalOffset[I] = GlobalWorkOffset[I];
       GlobalSize[I] = GlobalWorkSize[I];
-      LocalSize[I] = LocalWorkSize[I];
+      LocalSize[I] = LocalWorkSize ? LocalWorkSize[I] : 1;
     }
     for (uint32_t I = WorkDim; I < 3; I++) {
       GlobalSize[I] = 1;
@@ -79,6 +79,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   if (*pGlobalWorkSize == 0) {
     DIE_NO_IMPLEMENTATION;
+  }
+
+  // Check reqd_work_group_size
+  if (hKernel->hasReqdWGSize() && pLocalWorkSize != nullptr) {
+    const auto &Reqd = hKernel->getReqdWGSize();
+    for (uint32_t Dim = 0; Dim < workDim; Dim++) {
+      if (pLocalWorkSize[Dim] != Reqd[Dim]) {
+        return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+      }
+    }
   }
 
   // TODO: add proper error checking
