@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "sycl/detail/core.hpp"
+#include <sycl/detail/core.hpp>
 #include <cassert>
 
 using namespace sycl;
