@@ -433,7 +433,7 @@ ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
 
   if (Mem->isBuffer()) {
     auto &Buffer = std::get<BufferMem>(Mem->Mem);
-    auto &DevPtr = Buffer.Ptrs[hDevice->getIndex()];
+    auto &DevPtr = Buffer.Ptrs[hDevice->getIndex() % Buffer.Ptrs.size()];
 
     // Allocation has already been made
     if (DevPtr != BufferMem::native_type{0}) {
@@ -456,11 +456,11 @@ ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
     try {
       auto &Image = std::get<SurfaceMem>(Mem->Mem);
       // Allocation has already been made
-      if (Image.Arrays[hDevice->getIndex()]) {
+      if (Image.Arrays[hDevice->getIndex() % Image.Arrays.size()]) {
         return UR_RESULT_SUCCESS;
       }
       UR_CHECK_ERROR(cuArray3DCreate(&ImageArray, &Image.ArrayDesc));
-      Image.Arrays[hDevice->getIndex()] = ImageArray;
+      Image.Arrays[hDevice->getIndex() % Image.Arrays.size()] = ImageArray;
 
       // CUDA_RESOURCE_DESC is a union of different structs, shown here
       // https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__TEXOBJECT.html
@@ -475,7 +475,7 @@ ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
       ImageResDesc.flags = 0;
 
       UR_CHECK_ERROR(cuSurfObjectCreate(&Surface, &ImageResDesc));
-      Image.SurfObjs[hDevice->getIndex()] = Surface;
+      Image.SurfObjs[hDevice->getIndex() % Image.SurfObjs.size()] = Surface;
     } catch (ur_result_t Err) {
       if (ImageArray) {
         UR_CHECK_ERROR(cuArrayDestroy(ImageArray));
@@ -590,7 +590,9 @@ ur_result_t migrateMemoryToDeviceIfNeeded(ur_mem_handle_t Mem,
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   // Device allocation has already been initialized with most up to date
   // data in buffer
-  if (Mem->HaveMigratedToDeviceSinceLastWrite[hDevice->getIndex()]) {
+  if (Mem->HaveMigratedToDeviceSinceLastWrite
+          [hDevice->getIndex() %
+           Mem->HaveMigratedToDeviceSinceLastWrite.size()]) {
     return UR_RESULT_SUCCESS;
   }
 
@@ -601,6 +603,8 @@ ur_result_t migrateMemoryToDeviceIfNeeded(ur_mem_handle_t Mem,
     UR_CHECK_ERROR(migrateImageToDevice(Mem, hDevice));
   }
 
-  Mem->HaveMigratedToDeviceSinceLastWrite[hDevice->getIndex()] = true;
+  Mem->HaveMigratedToDeviceSinceLastWrite
+      [hDevice->getIndex() % Mem->HaveMigratedToDeviceSinceLastWrite.size()] =
+      true;
   return UR_RESULT_SUCCESS;
 }
