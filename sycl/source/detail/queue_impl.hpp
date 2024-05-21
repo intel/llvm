@@ -388,6 +388,20 @@ public:
   template <typename Param>
   typename Param::return_type get_backend_info() const;
 
+  /// Provides a hint to the backend to execute previously issued commands on
+  /// this queue. Overrides normal batching behaviour. Note that this is merely
+  /// a hint and not a guarantee.
+  void flush() {
+    if (MGraph.lock()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "flush cannot be called for a queue which is "
+                            "recording to a command graph.");
+    }
+    for (const auto &queue : MQueues) {
+      getPlugin()->call<PiApiKind::piQueueFlush>(queue);
+    }
+  }
+
   using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
 
   /// Submits a command group function object to the queue, in order to be
