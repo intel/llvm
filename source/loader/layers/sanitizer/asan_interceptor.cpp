@@ -553,6 +553,8 @@ SanitizerInterceptor::registerDeviceGlobals(ur_context_handle_t Context,
 
         const uint64_t NumOfDeviceGlobal =
             MetadataSize / sizeof(DeviceGlobalInfo);
+        assert((MetadataSize % sizeof(DeviceGlobalInfo) == 0) &&
+               "DeviceGlobal metadata size is not correct");
         std::vector<DeviceGlobalInfo> GVInfos(NumOfDeviceGlobal);
         Result = context.urDdiTable.Enqueue.pfnUSMMemcpy(
             Queue, true, &GVInfos[0], MetadataPtr,
