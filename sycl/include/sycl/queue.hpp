@@ -1851,7 +1851,7 @@ public:
       const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Instruct the queue with a non-blocking wait on an external semaphore.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the 
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
   /// type of semaphore requires an explicit value to wait upon.
   ///
   /// \param SemaphoreHandle is an opaque external interop semaphore handle.
