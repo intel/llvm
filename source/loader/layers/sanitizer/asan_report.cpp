@@ -11,6 +11,7 @@
  */
 
 #include "asan_report.hpp"
+#include "asan_options.hpp"
 
 #include "asan_allocator.hpp"
 #include "asan_interceptor.hpp"
@@ -131,27 +132,35 @@ void ReportUseAfterFree(const DeviceSanitizerReport &Report,
     context.logger.always("  #0 {} {}:{}", Func, File, Report.Line);
     context.logger.always("");
 
-    auto AllocInfoItOp =
-        context.interceptor->findAllocInfoByAddress(Report.Address);
-    if (!AllocInfoItOp) {
-        context.logger.always("Failed to find which chunck {} is allocated",
-                              (void *)Report.Address);
-    } else {
-        auto &AllocInfo = (*AllocInfoItOp)->second;
-        if (AllocInfo->Context != Context) {
+    if (Options().MaxQuarantineSizeMB > 0) {
+        auto AllocInfoItOp =
+            context.interceptor->findAllocInfoByAddress(Report.Address);
+
+        if (!AllocInfoItOp) {
             context.logger.always("Failed to find which chunck {} is allocated",
                                   (void *)Report.Address);
-        }
-        assert(AllocInfo->IsReleased);
+        } else {
+            auto &AllocInfo = (*AllocInfoItOp)->second;
+            if (AllocInfo->Context != Context) {
+                context.logger.always(
+                    "Failed to find which chunck {} is allocated",
+                    (void *)Report.Address);
+            }
+            assert(AllocInfo->IsReleased);
 
-        context.logger.always("{} is located inside of {} region [{}, {})",
-                              (void *)Report.Address, ToString(AllocInfo->Type),
-                              (void *)AllocInfo->UserBegin,
-                              (void *)AllocInfo->UserEnd);
-        context.logger.always("allocated here:");
-        AllocInfo->AllocStack.print();
-        context.logger.always("released here:");
-        AllocInfo->ReleaseStack.print();
+            context.logger.always(
+                "{} is located inside of {} region [{}, {})",
+                (void *)Report.Address, ToString(AllocInfo->Type),
+                (void *)AllocInfo->UserBegin, (void *)AllocInfo->UserEnd);
+            context.logger.always("allocated here:");
+            AllocInfo->AllocStack.print();
+            context.logger.always("released here:");
+            AllocInfo->ReleaseStack.print();
+        }
+    } else {
+        context.logger.always(
+            "Please enable quarantine to get more information like memory "
+            "chunck's kind and where the chunck was allocated and released.");
     }
 
     exit(1);
