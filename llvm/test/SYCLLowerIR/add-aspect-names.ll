@@ -1,4 +1,4 @@
-; RUN: opt -passes=add-aspect-names -S < %s | FileCheck %s
+; RUN: opt -passes=record-sycl-aspect-names -S < %s | FileCheck %s
 ;
 ; Basic add-aspect-names functionality test. Checks that 
 ; the !sycl_used_apsects metadata is updated from just being
