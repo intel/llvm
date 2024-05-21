@@ -38,7 +38,6 @@
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group.hpp>
 #include <sycl/id.hpp>
-#include <sycl/interop_handle.hpp>
 #include <sycl/item.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -939,6 +938,11 @@ private:
     }
   }
 
+  void verifyDeviceHasProgressGuarantee(
+      sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
+      sycl::ext::oneapi::experimental::execution_scope threadScope,
+      sycl::ext::oneapi::experimental::execution_scope coordinationScope);
+
   /// Process kernel properties.
   ///
   /// Stores information about kernel properties into the handler.
@@ -973,6 +977,36 @@ private:
     constexpr bool UsesRootSync = PropertiesT::template has_property<
         sycl::ext::oneapi::experimental::use_root_sync_key>();
     setKernelIsCooperative(UsesRootSync);
+    if constexpr (PropertiesT::template has_property<
+                      sycl::ext::oneapi::experimental::
+                          work_group_progress_key>()) {
+      auto prop = Props.template get_property<
+          sycl::ext::oneapi::experimental::work_group_progress_key>();
+      verifyDeviceHasProgressGuarantee(
+          prop.guarantee,
+          sycl::ext::oneapi::experimental::execution_scope::work_group,
+          prop.coordinationScope);
+    }
+    if constexpr (PropertiesT::template has_property<
+                      sycl::ext::oneapi::experimental::
+                          sub_group_progress_key>()) {
+      auto prop = Props.template get_property<
+          sycl::ext::oneapi::experimental::sub_group_progress_key>();
+      verifyDeviceHasProgressGuarantee(
+          prop.guarantee,
+          sycl::ext::oneapi::experimental::execution_scope::sub_group,
+          prop.coordinationScope);
+    }
+    if constexpr (PropertiesT::template has_property<
+                      sycl::ext::oneapi::experimental::
+                          work_item_progress_key>()) {
+      auto prop = Props.template get_property<
+          sycl::ext::oneapi::experimental::work_item_progress_key>();
+      verifyDeviceHasProgressGuarantee(
+          prop.guarantee,
+          sycl::ext::oneapi::experimental::execution_scope::work_item,
+          prop.coordinationScope);
+    }
   }
 
   /// Checks whether it is possible to copy the source shape to the destination
@@ -1558,8 +1592,7 @@ private:
       nullptr,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void
-  kernel_single_task(_KERNELFUNCPARAM(KernelFunc)) {
+  __SYCL_KERNEL_ATTR__ void kernel_single_task(_KERNELFUNCPARAM(KernelFunc)) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc();
 #else
@@ -1577,8 +1610,8 @@ private:
       nullptr,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void
-  kernel_single_task(_KERNELFUNCPARAM(KernelFunc), kernel_handler KH) {
+  __SYCL_KERNEL_ATTR__ void kernel_single_task(_KERNELFUNCPARAM(KernelFunc),
+                                               kernel_handler KH) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(KH);
 #else
@@ -1596,8 +1629,7 @@ private:
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void
-  kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc)) {
+  __SYCL_KERNEL_ATTR__ void kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc)) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
 #else
@@ -1614,8 +1646,8 @@ private:
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void
-  kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc), kernel_handler KH) {
+  __SYCL_KERNEL_ATTR__ void kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc),
+                                                kernel_handler KH) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
 #else
@@ -1828,18 +1860,7 @@ private:
                                               void()>::value ||
                    detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void(interop_handle)>::value>
-  host_task_impl(FuncT &&Func) {
-    throwIfActionIsCreated();
-
-    MNDRDesc.set(range<1>(1));
-    // Need to copy these rather than move so that we can check associated
-    // accessors during finalize
-    MArgs = MAssociatedAccesors;
-
-    MHostTask.reset(new detail::HostTask(std::move(Func)));
-
-    setType(detail::CG::CodeplayHostTask);
-  }
+  host_task_impl(FuncT &&Func);
 
   /// @brief Get the command graph if any associated with this handler. It can
   /// come from either the associated queue or from being set explicitly through
@@ -3654,6 +3675,26 @@ private:
 
   // Set that an ND Range was used during a call to parallel_for
   void setNDRangeUsed(bool Value);
+
+protected:
+  /// Registers event dependencies in this command group.
+  void depends_on(const detail::EventImplPtr &Event);
+  /// Registers event dependencies in this command group.
+  void depends_on(const std::vector<detail::EventImplPtr> &Events);
 };
 } // namespace _V1
 } // namespace sycl
+
+#ifdef __SYCL_BUILD_SYCL_DLL
+// The following fails (somewhat expectedly) when compiled with MSVC:
+//
+//   #include <memory>
+//   struct __declspec(dllexport) handler {
+//      std::unique_ptr<struct Incomplete> Member;
+//   };
+//
+// We do __SYCL_EXPORT sycl::handler class and it has an
+// std::unique_ptr<detail::HostTask> member. As such, ensure the type is
+// complete if we're building the SYCL shared library.
+#include <sycl/detail/host_task_impl.hpp>
+#endif
