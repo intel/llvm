@@ -44,26 +44,28 @@ void doValidCall(sycl::queue &q) {
   q.submit([&](sycl::handler &h) {});
 }
 
-template <typename CommandSubmitterT> void test(CommandSubmitterT QueueSubmit) {
-  sycl::queue q{};
+template <typename CommandSubmitterT>
+void test(sycl::queue &Queue, CommandSubmitterT QueueSubmit) {
   bool ExceptionHappened = false;
   try {
-    QueueSubmit(q);
+    QueueSubmit(Queue);
   } catch (const sycl::exception &e) {
     checkExceptionFields(e);
     ExceptionHappened = true;
   }
   assert(ExceptionHappened);
   // Checks that queue is in a valid state and we could submit new commands.
-  doValidCall(q);
-  q.wait();
+  doValidCall(Queue);
+  Queue.wait();
 }
 
 int main() {
-  test(nestedSubmitParallelFor);
+  sycl::queue q{};
+  test(q, nestedSubmitParallelFor);
   // All shortcut functions has a common part where nested call detection
   // happens. Testing only one of them is enough.
-  test(nestedSubmitMemset);
+  if (q.get_device().get_info<sycl::info::device::usm_device_allocations>())
+    test(q, nestedSubmitMemset);
 
   return EXIT_SUCCESS;
 }
