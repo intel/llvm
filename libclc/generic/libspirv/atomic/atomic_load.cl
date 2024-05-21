@@ -42,7 +42,7 @@ IMPL_AS(long, l, , 8)
 IMPL_AS(unsigned long, m, u, 8)
 #endif
 
-#ifdef _CLC_GENERIC_AS_SUPPORTED
+#if _CLC_GENERIC_AS_SUPPORTED
 
 #define IMPL_GENERIC(TYPE, TYPE_MANGLED, PREFIX, BYTE_SIZE)                    \
   IMPL(TYPE, TYPE_MANGLED, , , PREFIX, BYTE_SIZE)
