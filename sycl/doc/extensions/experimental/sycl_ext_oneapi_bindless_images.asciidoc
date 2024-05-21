@@ -2673,7 +2673,7 @@ These features still need to be handled:
 |5.8|2024-05-09| - Add missing cubemap `HintT` template parameter to 
                    `fetch_cubemap` and `sample_cubemap`.
 |5.9|2024-05-14| - Default constructor for `image_descriptor`.
-|5.10|2024-05-20| - Replace `channel_order` field in `image_descriptor` with
+|5.10|2024-05-20| - Replaced `channel_order` field in `image_descriptor` with
                    `num_channels`.
                   - Renamed `image_mem` functions `get_image_channel_type()`
                     to `get_channel_type()` and `get_image_num_channels()` to
