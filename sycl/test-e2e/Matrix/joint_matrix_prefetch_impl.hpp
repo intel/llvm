@@ -11,7 +11,7 @@
 #define TM 8
 #define TK 16
 
-template <unsigned int vnniFactor>
+template <layout B_layout, layout C_layout, unsigned int vnniFactor>
 class mult;
 
 template <typename T1, typename T2, typename T, size_t M, size_t N, size_t K,
@@ -69,9 +69,9 @@ void matrix_multiply(T *C, T1 *A, T2 *B, queue q) {
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
 
-  size_t sg_size = get_sg_size<mult<vnniFactor>>(q);
+  size_t sg_size = get_sg_size<mult<B_layout, C_layout, vnniFactor>>(q);
   q.submit([&](handler &cgh) {
-     cgh.parallel_for<mult<vnniFactor>>(
+     cgh.parallel_for<mult<B_layout, C_layout, vnniFactor>>(
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
          [=](nd_item<2> spmd_item) 
 #ifdef SG_SZ
