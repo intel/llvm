@@ -16,26 +16,13 @@
 
 #include <iostream>
 #include <sycl/sycl.hpp>
-
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::bfloat16;
+#include "common.hpp"
 
 // 10x12 is not multiply the sg size, slicing implementation will have to insert
 // padding
 #define TM 10
 #define TN 12
 #define TK 16
-
-template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
-public:
-  T *mat;
-
-public:
-  T *get_data() { return mat; }
-  void set_data(T *data) { mat = data; }
-  big_matrix(T *data) : mat(data) {}
-};
 
 template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
           size_t NUM_ROWS_B, size_t NUM_COLS_B, size_t NUM_ROWS_C,
@@ -55,16 +42,18 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
   buffer<float, 2> bufC((float *)C.get_data(), range<2>(M, N));
 
   queue q;
+  size_t sg_size = get_sg_size<class imatrix>(q);
   q.submit([&](handler &cgh) {
      auto accC = bufC.get_access<access::mode::read_write>(cgh);
      auto accA = bufA.get_access<access::mode::read_write>(cgh);
      auto accB = bufB.get_access<access::mode::read_write>(cgh);
 
      cgh.parallel_for<class imatrix>(
-         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [accA, accB, accC, M, N, K](nd_item<2> spmd_item)
+         nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
+         [=](nd_item<2> spmd_item)
+#ifdef SG_SZ
              [[intel::reqd_sub_group_size(SG_SZ)]]
-
+#endif
          {
            // The submatrix API has to be accessed by all the workitems in a
            // subgroup these functions will be called once by the subgroup no
@@ -85,7 +74,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            joint_matrix_load(
                sg, sub_c,
                accC.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+                   (sg_startx * TM) * N + sg_starty / sg_size * TN,
                N, layout::row_major);
            for (int k = 0; k < K; k += TK) {
              joint_matrix_load(
@@ -97,7 +86,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
              joint_matrix_load(
                  sg, sub_b,
                  accB.template get_multi_ptr<access::decorated::no>() +
-                     (k) * (N) + sg_starty / SG_SZ * TN * 2,
+                     (k) * (N) + sg_starty / sg_size * TN * 2,
                  N * 2);
              joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
@@ -105,7 +94,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            joint_matrix_store(
                sg, sub_c,
                accC.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+                   (sg_startx * TM) * N + sg_starty / sg_size * TN,
                N, layout::row_major);
          }); // parallel for
    }).wait();
@@ -118,13 +107,6 @@ bfloat16 A[MATRIX_M][MATRIX_K];
 bfloat16 B[MATRIX_K / 2][MATRIX_N * 2];
 float C[MATRIX_M][MATRIX_N];
 float D[MATRIX_M][MATRIX_N];
-
-float make_fp32(bfloat16 x) {
-  unsigned int y = *((int *)&x);
-  y = y << 16;
-  float *res = reinterpret_cast<float *>(&y);
-  return *res;
-}
 
 void matrix_multiply_ref(int *A_mem, int *B_mem, int *C_mem, int M, int N,
                          int K) {
