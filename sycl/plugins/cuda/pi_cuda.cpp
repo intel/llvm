@@ -456,9 +456,9 @@ __SYCL_EXPORT pi_result piextMemImageGetInfo(pi_image_mem_handle MemHandle,
 
 __SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
                          "`piextImportExternalMemory`")
-pi_result
-piextMemImportOpaqueFD(pi_context Context, pi_device Device, size_t Size,
-                       int FileDescriptor, pi_interop_mem_handle *RetHandle) {
+pi_result piextMemImportOpaqueFD(pi_context Context, pi_device Device,
+                                 size_t Size, int FileDescriptor,
+                                 pi_interop_mem_handle *RetHandle) {
   return pi2ur::piextMemImportOpaqueFD(Context, Device, Size, FileDescriptor,
                                        RetHandle);
 }
@@ -483,12 +483,12 @@ __SYCL_EXPORT pi_result piextMemReleaseInterop(pi_context Context,
   return pi2ur::piextMemReleaseInterop(Context, Device, ExtMem);
 }
 
-
 __SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
                          "`piextImportExternalSemaphore`")
-pi_result piextImportExternalSemaphoreOpaqueFD(
-    pi_context Context, pi_device Device, int FileDescriptor,
-    pi_interop_semaphore_handle *RetHandle) {
+pi_result
+piextImportExternalSemaphoreOpaqueFD(pi_context Context, pi_device Device,
+                                     int FileDescriptor,
+                                     pi_interop_semaphore_handle *RetHandle) {
   return pi2ur::piextImportExternalSemaphoreOpaqueFD(Context, Device,
                                                      FileDescriptor, RetHandle);
 }

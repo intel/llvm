@@ -492,9 +492,10 @@ __SYCL_EXPORT pi_result piextMemReleaseInterop(pi_context Context,
 
 __SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
                          "`piextImportExternalSemaphore`")
-pi_result piextImportExternalSemaphoreOpaqueFD(
-    pi_context Context, pi_device Device, int FileDescriptor,
-    pi_interop_semaphore_handle *RetHandle) {
+pi_result
+piextImportExternalSemaphoreOpaqueFD(pi_context Context, pi_device Device,
+                                     int FileDescriptor,
+                                     pi_interop_semaphore_handle *RetHandle) {
   return pi2ur::piextImportExternalSemaphoreOpaqueFD(Context, Device,
                                                      FileDescriptor, RetHandle);
 }

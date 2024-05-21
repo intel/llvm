@@ -3292,7 +3292,7 @@ public:
 
   /// Submit a non-blocking device-side wait on an external
   //  semaphore to the queue.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the 
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
   /// type of semaphore requires an explicit value to wait upon.
   ///
   /// \param SemaphoreHandle is an opaque external interop semaphore handle
@@ -3301,7 +3301,7 @@ public:
 
   /// Submit a non-blocking device-side wait on an external
   //  semaphore to the queue.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the 
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
   /// type of semaphore does not support waiting on an explicitly passed value.
   ///
   /// \param SemaphoreHandle is an opaque external interop semaphore handle
@@ -3313,7 +3313,7 @@ public:
 
   /// Instruct the queue to signal the external semaphore once all previous
   /// commands submitted to the queue have completed execution.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the 
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
   /// type of semaphore requires an explicit value to signal.
   ///
   /// \param SemaphoreHandle is an opaque external interop semaphore handle
@@ -3323,7 +3323,7 @@ public:
   /// Instruct the queue to set the state of the external semaphore to
   /// \p SignalValue once all previous commands submitted to the queue have
   /// completed execution.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the 
+  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
   /// type of semaphore does not support signalling an explicitly passed value.
   ///
   /// \param SemaphoreHandle is an opaque external interop semaphore handle
