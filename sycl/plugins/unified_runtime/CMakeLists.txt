@@ -94,14 +94,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 056d653264034e546d8b8f493e1d9f65c697829b
-  # Merge: b7c89302 bbb04b65
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri May 17 15:11:12 2024 +0100
-  #     Merge pull request #1512 from DBDuncan/duncan/fix_pi_mem_leak
-  #     [Bindless][Exp] Remove phMem argument from bindless image creation functions
-  set(UNIFIED_RUNTIME_TAG 056d653264034e546d8b8f493e1d9f65c697829b)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/zhaomaosu/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG asan-shadow-scale-4)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

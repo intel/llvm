@@ -109,17 +109,17 @@ __SYCL_PRIVATE__ void *ToPrivate(void *ptr) {
 }
 
 inline uptr MemToShadow_CPU(uptr addr) {
-  return __AsanShadowMemoryGlobalStart + (addr >> 3);
+  return __AsanShadowMemoryGlobalStart + (addr >> ASAN_SHADOW_SCALE);
 }
 
 inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
   uptr shadow_ptr = 0;
   if (addr & (~0xffffffffffff)) {
-    shadow_ptr =
-        (((addr & 0xffffffffffff) >> 3) + __AsanShadowMemoryGlobalStart) |
-        (~0xffffffffffff);
+    shadow_ptr = (((addr & 0xffffffffffff) >> ASAN_SHADOW_SCALE) +
+                  __AsanShadowMemoryGlobalStart) |
+                 (~0xffffffffffff);
   } else {
-    shadow_ptr = (addr >> 3) + __AsanShadowMemoryGlobalStart;
+    shadow_ptr = (addr >> ASAN_SHADOW_SCALE) + __AsanShadowMemoryGlobalStart;
   }
 
   if (shadow_ptr > __AsanShadowMemoryGlobalEnd) {
@@ -164,7 +164,7 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
     uptr shadow_ptr;
     if (addr & 0xFF00000000000000) { // Device USM
       shadow_ptr = __AsanShadowMemoryGlobalStart + 0x200000000000 +
-                   ((addr & 0xFFFFFFFFFFFF) >> 3);
+                   ((addr & 0xFFFFFFFFFFFF) >> ASAN_SHADOW_SCALE);
     } else { // Only consider 47bit VA
       shadow_ptr = __AsanShadowMemoryGlobalStart +
                    ((addr & 0x7FFFFFFFFFFF) >> ASAN_SHADOW_SCALE);
@@ -204,7 +204,7 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
 
     uptr shadow_ptr = shadow_offset +
                       ((wg_lid * SLM_SIZE) >> ASAN_SHADOW_SCALE) +
-                      ((addr & (SLM_SIZE - 1)) >> 3);
+                      ((addr & (SLM_SIZE - 1)) >> ASAN_SHADOW_SCALE);
 
     if (shadow_ptr > shadow_offset_end) {
       if (__asan_report_out_of_shadow_bounds() && __AsanDebug) {
@@ -564,9 +564,11 @@ inline uptr __asan_region_is_poisoned(uptr beg, uint32_t as, size_t size) {
 ASAN_REPORT_ERROR(load, false, 1)
 ASAN_REPORT_ERROR(load, false, 2)
 ASAN_REPORT_ERROR(load, false, 4)
+ASAN_REPORT_ERROR(load, false, 8)
 ASAN_REPORT_ERROR(store, true, 1)
 ASAN_REPORT_ERROR(store, true, 2)
 ASAN_REPORT_ERROR(store, true, 4)
+ASAN_REPORT_ERROR(store, true, 8)
 
 #define ASAN_REPORT_ERROR_BYTE(type, is_write, size)                           \
   DEVICE_EXTERN_C_NOINLINE void __asan_##type##size(                           \
@@ -588,9 +590,7 @@ ASAN_REPORT_ERROR(store, true, 4)
     }                                                                          \
   }
 
-ASAN_REPORT_ERROR_BYTE(load, false, 8)
 ASAN_REPORT_ERROR_BYTE(load, false, 16)
-ASAN_REPORT_ERROR_BYTE(store, true, 8)
 ASAN_REPORT_ERROR_BYTE(store, true, 16)
 
 #define ASAN_REPORT_ERROR_N(type, is_write)                                    \
