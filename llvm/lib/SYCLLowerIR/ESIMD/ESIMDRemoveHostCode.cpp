@@ -50,8 +50,8 @@ PreservedAnalyses ESIMDRemoveHostCodePass::run(Module &M,
     id::OutputBuffer NameBuf;
     NameNode->print(NameBuf);
     StringRef Name(NameBuf.getBuffer(), NameBuf.getCurrentPosition());
-    if (!Name.startswith("sycl::_V1::ext::intel::esimd::") &&
-        !Name.startswith("sycl::_V1::ext::intel::experimental::esimd::"))
+    if (!Name.starts_with("sycl::_V1::ext::intel::esimd::") &&
+        !Name.starts_with("sycl::_V1::ext::intel::experimental::esimd::"))
       continue;
     SmallVector<BasicBlock *> BBV;
     for (BasicBlock &BB : F) {

@@ -19,8 +19,6 @@ bool test(uint32_t PMask = ~0) {
   }
 
   static_assert(DS != lsc_data_size::u16u32h, "D16U32h not supported in HW");
-  static_assert(sizeof(T) >= 4,
-                "D8 and D16 are valid only in 2D block load/store");
 
   if constexpr (!Transpose && NChannels > 1) {
     static_assert(VL == 16 || VL == 32,

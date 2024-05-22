@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: gpu-intel-pvc || gpu-intel-dg2
 // RUN: %{build} -fsycl-esimd-force-stateless-mem -o %t.out
 // RUN: %{run} %t.out
 

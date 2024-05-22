@@ -14,38 +14,18 @@
 // Same as above but all mismatches are printed
 // #define VERBOSE_LV3
 
+#include "bindless_helpers.hpp"
 #include <cassert>
 #include <iostream>
 #include <random>
-#include <sycl/sycl.hpp>
+#include <sycl/accessor_image.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
 namespace util {
-template <typename DType, int NChannels>
-static void fillRand(std::vector<sycl::vec<DType, NChannels>> &v, int seed) {
-  std::default_random_engine generator;
-  generator.seed(seed);
-  auto distribution = [&]() {
-    if constexpr (std::is_same_v<DType, sycl::half>) {
-      return std::uniform_real_distribution<float>(0.0, 100.0);
-    } else if constexpr (std::is_floating_point_v<DType>) {
-      return std::uniform_real_distribution<DType>(0.0, 100.0);
-    } else {
-      return std::uniform_int_distribution<DType>(0, 100);
-    }
-  }();
-  for (int i = 0; i < v.size(); ++i) {
-    sycl::vec<DType, NChannels> temp;
-
-    for (int j = 0; j < NChannels; j++) {
-      temp[j] = distribution(generator);
-    }
-
-    v[i] = temp;
-  }
-}
-
 static bool isNumberWithinPercentOfNumber(float firstN, float percent,
                                           float secondN, float &diff,
                                           float &percDiff) {
@@ -158,7 +138,7 @@ static int repeatWrap(int i, int dimSize) {
 
 static void printTestInfo(syclexp::bindless_image_sampler &samp, float offset) {
 
-  sycl::addressing_mode SampAddrMode = samp.addressing;
+  sycl::addressing_mode SampAddrMode = samp.addressing[0];
   sycl::coordinate_normalization_mode SampNormMode = samp.coordinate;
   sycl::filtering_mode SampFiltMode = samp.filtering;
 
@@ -626,7 +606,7 @@ read(sycl::range<2> globalSize, sycl::vec<float, 2> coords, float offset,
   sycl::filtering_mode SampFiltMode = samp.filtering;
   if (SampFiltMode == sycl::filtering_mode::nearest) {
 
-    sycl::addressing_mode SampAddrMode = samp.addressing;
+    sycl::addressing_mode SampAddrMode = samp.addressing[0];
     if (SampAddrMode == sycl::addressing_mode::clamp) {
       return util::clampNearest<VecType>(coords, globalSize, inputImage);
     }
@@ -669,7 +649,7 @@ read(sycl::range<2> globalSize, sycl::vec<float, 2> coords, float offset,
     }
 
   } else { // linear
-    sycl::addressing_mode SampAddrMode = samp.addressing;
+    sycl::addressing_mode SampAddrMode = samp.addressing[0];
     if (SampAddrMode == sycl::addressing_mode::clamp) {
       return util::clampLinear<DType, NChannels>(coords, globalSize,
                                                  inputImage);
@@ -795,7 +775,7 @@ runNDimTestDevice(sycl::queue &q, sycl::range<NDims> globalSize,
               accessorCoords[i] = it.get_global_id(NDims - i - 1);
             }
 
-            VecType px1 = syclexp::read_image<VecType>(inputImage, coords);
+            VecType px1 = syclexp::sample_image<VecType>(inputImage, coords);
 
             outAcc[accessorCoords] = px1;
           });
@@ -829,7 +809,7 @@ static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   std::vector<VecType> actual(numElems);
 
   std::srand(seed);
-  util::fillRand(input, seed);
+  bindless_helpers::fill_rand(input, seed);
 
   {
     sycl::range<NDims> globalSize = dims;
@@ -838,10 +818,20 @@ static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   }
 
   try {
-
-    syclexp::image_descriptor desc(dims, COrder, CType);
+    // Check default constructor for image_descriptor
+    syclexp::image_descriptor desc;
+    desc = syclexp::image_descriptor(dims, COrder, CType);
 
     syclexp::image_mem imgMem(desc, q);
+
+    // Check that image_mem_handle can be constructed from raw_handle_type
+    syclexp::image_mem_handle img_mem_handle_copy{
+        static_cast<syclexp::image_mem_handle::raw_handle_type>(
+            imgMem.get_handle().raw_handle)};
+    if (img_mem_handle_copy.raw_handle != imgMem.get_handle().raw_handle) {
+      std::cerr << "Failed to copy raw_handle_type" << std::endl;
+      return false;
+    }
 
     auto img_input = syclexp::create_image(imgMem, samp, desc, q);
 

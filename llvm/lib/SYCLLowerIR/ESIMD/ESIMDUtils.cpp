@@ -33,31 +33,31 @@ constexpr char SLM_ALLOCATOR_DTOR_SUFFIX[] = "EED2Ev";
 
 bool isSlmAllocatorConstructor(const Function &F) {
   auto Name = F.getName();
-  return Name.startswith(SLM_ALLOCATOR_CTOR_DTOR_PREFIX) &&
-         Name.endswith(SLM_ALLOCATOR_CTOR_SUFFIX);
+  return Name.starts_with(SLM_ALLOCATOR_CTOR_DTOR_PREFIX) &&
+         Name.ends_with(SLM_ALLOCATOR_CTOR_SUFFIX);
 }
 
 bool isSlmAllocatorDestructor(const Function &F) {
   auto Name = F.getName();
-  return Name.startswith(SLM_ALLOCATOR_CTOR_DTOR_PREFIX) &&
-         Name.endswith(SLM_ALLOCATOR_DTOR_SUFFIX);
+  return Name.starts_with(SLM_ALLOCATOR_CTOR_DTOR_PREFIX) &&
+         Name.ends_with(SLM_ALLOCATOR_DTOR_SUFFIX);
 }
 
 bool isSlmInit(const Function &F) {
-  return F.getName().startswith(SLM_INIT_PREFIX);
+  return F.getName().starts_with(SLM_INIT_PREFIX);
 }
 
 bool isSlmAlloc(const Function &F) {
-  return F.getName().startswith(SLM_ALLOC_PREFIX);
+  return F.getName().starts_with(SLM_ALLOC_PREFIX);
 }
 
 bool isSlmFree(const Function &F) {
-  return F.getName().startswith(SLM_FREE_PREFIX);
+  return F.getName().starts_with(SLM_FREE_PREFIX);
 }
 
 bool isAssertFail(const Function &F) {
-  return F.getName().startswith("__assert_fail") ||
-         F.getName().startswith("__devicelib_assert_fail");
+  return F.getName().starts_with("__assert_fail") ||
+         F.getName().starts_with("__devicelib_assert_fail");
 }
 
 bool isESIMD(const Function &F) {

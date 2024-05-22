@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifdef __SPIR__
+#if defined(__SPIR__) || defined(__SPIRV__)
 
 #include "device.h"
 #include <math.h>

@@ -1,3 +1,5 @@
+// REQUIRES: nvptx-registered-target, amdgpu-registered-target
+
 // RUN: %clangxx -### -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx906 -fsycl-dead-args-optimization -nogpulib %s 2> %t.rocm.out
 // RUN: FileCheck %s --input-file %t.rocm.out
 // CHECK-NOT: -fenable-sycl-dae

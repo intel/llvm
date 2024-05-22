@@ -10,8 +10,8 @@
 //===----------------------------------------------------------------------===//
 #include <fstream>
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/fpga_extensions.hpp>
-#include <sycl/sycl.hpp>
 
 #include "io_pipe_def.h"
 

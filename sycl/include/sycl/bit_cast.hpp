@@ -29,21 +29,22 @@
 #if __cpp_lib_bit_cast
 // first choice std::bit_cast
 #include <bit>
-#define __SYCL_BC_CONSTEXPR constexpr
+#define __SYCL_BITCAST_IS_CONSTEXPR 1
 #elif __SYCL_HAS_BUILTIN_BIT_CAST
 // second choice __builtin_bit_cast
-#define __SYCL_BC_CONSTEXPR constexpr
+#define __SYCL_BITCAST_IS_CONSTEXPR 1
 #else
 // fallback memcpy
 #include <sycl/detail/memcpy.hpp>
-#define __SYCL_BC_CONSTEXPR
 #endif
 
 namespace sycl {
 inline namespace _V1 {
 
 template <typename To, typename From>
-__SYCL_BC_CONSTEXPR
+#if defined(__SYCL_BITCAST_IS_CONSTEXPR)
+constexpr
+#endif
     std::enable_if_t<sizeof(To) == sizeof(From) &&
                          std::is_trivially_copyable<From>::value &&
                          std::is_trivially_copyable<To>::value,

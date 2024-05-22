@@ -10,6 +10,7 @@
 :encoding: utf-8
 :lang: en
 :dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
@@ -54,10 +55,20 @@ specification.*
 While {dpcpp} has support for `std::complex` in device code, it limits the
 complex interface and operations to the existing C++ standard. This proposal
 defines a SYCL complex extension based on but independent of the `std::complex`
-interface. This framework would allow for further development of complex math
-within oneAPI. Possible areas for deviation with `std::complex` include adding
-complex support for `marray` and `vec` and overloading mathematical
-functions to handle the element-wise operations.
+interface.
+
+The proposed framework not only encompasses complex support for traditional use
+cases but also accommodates for advanced mathematical features and data
+structures.
+
+Specifically, we propose to incorporate complex support for `sycl::marray`.
+This addition will empower developers to store complex numbers seamlessly
+within a `sycl::marray`, opening up new possibilities for data manipulation and
+computation.
+
+Furthermore, this extension involves overloading existing mathematical
+functions to facilitate scalar operation on complex numbers as well as
+element-wise operations on complex marrays.
 
 == Specification
 
@@ -91,8 +102,8 @@ available only in host code as noted below.
 The complex type is trivially copyable and type trait `is_device_copyable`
 should resolve to `std::true_type`.
 
-The `T` template parameter must be one of the types float, double, or
-sycl::half.
+_Constraints_: The `T` template parameter must be one of the types `float`,
+`double`, or `sycl::half`.
 
 Note: When performing operations between complex numbers and decimals,
 the decimal is treated as a complex number with a real component equal to
@@ -101,127 +112,239 @@ the decimal and an imaginary component equal to 0.
 ```C++
 namespace sycl::ext::oneapi::experimental {
 
-    template <typename T>
-    class complex {
-        public:
-            using value_type = T;
+template <typename T>
+class complex {
+public:
+  using value_type = T;
 
-            /// Constructs the complex number from real and imaginary parts.
-            constexpr complex(value_type __re = value_type(), value_type __im = value_type());
+  /// Constructs the complex number from real and imaginary parts.
+  constexpr complex(value_type __re = value_type(), value_type __im = value_type());
 
-            /// Converting constructor. Constructs the object from a complex number of a different type.
-            template <typename X>
-            constexpr complex(const complex<X> &);
+  /// Converting constructor. Constructs the object from a complex number of a different type.
+  template <typename X>
+  constexpr complex(const complex<X> &);
 
-            /// Converting constructor. Constructs the object from a std::complex number.
-            template <class X>
-            constexpr complex(const std::complex<X> &);
+  /// Converting constructor. Constructs the object from a std::complex number.
+  template <class X>
+  constexpr complex(const std::complex<X> &);
 
-            /// Constructs a std::complex number from a sycl::complex.
-            template <class X>
-            constexpr operator std::complex<X>() const;
+  /// Constructs a std::complex number from a sycl::complex.
+  template <class X>
+  constexpr operator std::complex<X>() const;
 
-            /// Returns the real part.
-            constexpr value_type real() const;
-            /// Returns the imaginary part.
-            constexpr value_type imag() const;
+  /// Returns the real part.
+  constexpr value_type real() const;
+  /// Returns the imaginary part.
+  constexpr value_type imag() const;
 
-            /// Sets the real part from value.
-            void real(value_type value);
-            /// Sets the imaginary part from value.
-            void imag(value_type value);
+  /// Sets the real part from value.
+  void real(value_type value);
+  /// Sets the imaginary part from value.
+  void imag(value_type value);
 
-            /// Assigns x to the real part of the complex number. Imaginary part is set to zero.
-            complex<value_type> &operator=(value_type x);
-            /// Adds and assigns real number y to complex number z.
-            friend complex<value_type> &operator+=(complex<value_type> &z, value_type y);
-            /// Subtracts and assigns real number y to complex number z.
-            friend complex<value_type> &operator-=(complex<value_type> &z, value_type y);
-            /// Multiplies and assigns real number y to complex number z.
-            friend complex<value_type> &operator*=(complex<value_type> &z, value_type y);
-            /// Divides and assigns real number y to complex number z.
-            friend complex<value_type> &operator/=(complex<value_type> &z, value_type y);
+  /// Assigns x to the real part of the complex number. Imaginary part is set to zero.
+  complex<value_type> &operator=(value_type x);
+  /// Adds and assigns real number y to complex number z.
+  friend complex<value_type> &operator+=(complex<value_type> &z, value_type y);
+  /// Subtracts and assigns real number y to complex number z.
+  friend complex<value_type> &operator-=(complex<value_type> &z, value_type y);
+  /// Multiplies and assigns real number y to complex number z.
+  friend complex<value_type> &operator*=(complex<value_type> &z, value_type y);
+  /// Divides and assigns real number y to complex number z.
+  friend complex<value_type> &operator/=(complex<value_type> &z, value_type y);
 
-            /// Assigns cx.real() and cx.imag() to the real and the imaginary parts of the complex number respectively.
-            complex<value_type> &operator=(const complex<value_type> &cx);
-            /// Adds and assigns complex number w to complex number z.
-            template <class X> friend complex<value_type> &operator+=(complex<value_type> &z, const complex<X> &w);
-            /// Subtracts and assigns complex number w to complex number z.
-            template <class X> friend complex<value_type> &operator-=(complex<value_type> &z, const complex<X> &w);
-            /// Multiplies and assigns complex number w to complex number z.
-            template <class X> friend complex<value_type> &operator*=(complex<value_type> &z, const complex<X> &w);
-            /// Divides and assigns complex number w to complex number z.
-            template <class X> friend complex<value_type> &operator/=(complex<value_type> &z, const complex<X> &w);
+  /// Assigns cx.real() and cx.imag() to the real and the imaginary parts of the complex number respectively.
+  complex<value_type> &operator=(const complex<value_type> &cx);
+  /// Adds and assigns complex number w to complex number z.
+  template <class X> friend complex<value_type> &operator+=(complex<value_type> &z, const complex<X> &w);
+  /// Subtracts and assigns complex number w to complex number z.
+  template <class X> friend complex<value_type> &operator-=(complex<value_type> &z, const complex<X> &w);
+  /// Multiplies and assigns complex number w to complex number z.
+  template <class X> friend complex<value_type> &operator*=(complex<value_type> &z, const complex<X> &w);
+  /// Divides and assigns complex number w to complex number z.
+  template <class X> friend complex<value_type> &operator/=(complex<value_type> &z, const complex<X> &w);
 
-            /// Adds complex numbers z and w and returns the value.
-            friend complex<value_type> operator+(const complex<value_type> &z, const complex<value_type> &w);
-            /// Adds complex number z and real y and returns the value.
-            friend complex<value_type> operator+(const complex<value_type> &z, value_type y);
-            /// Adds real x and complex number w and returns the value.
-            friend complex<value_type> operator+(value_type x, const complex<value_type> &w);
-            /// Returns the value of its argument.
-            friend complex<value_type> operator+(const complex<value_type> &);
+  /// Adds complex numbers z and w and returns the value.
+  friend complex<value_type> operator+(const complex<value_type> &z, const complex<value_type> &w);
+  /// Adds complex number z and real y and returns the value.
+  friend complex<value_type> operator+(const complex<value_type> &z, value_type y);
+  /// Adds real x and complex number w and returns the value.
+  friend complex<value_type> operator+(value_type x, const complex<value_type> &w);
+  /// Returns the value of its argument.
+  friend complex<value_type> operator+(const complex<value_type> &);
 
-            /// Subtracts complex numbers z and w and returns the value.
-            friend complex<value_type> operator-(const complex<value_type> &z, const complex<value_type> &w);
-            /// Subtracts complex number z and real y and returns the value.
-            friend complex<value_type> operator-(const complex<value_type> &z, value_type y);
-            /// Subtracts real x and complex number w and returns the value.
-            friend complex<value_type> operator-(value_type x, const complex<value_type> &w);
-            /// Negates the argument.
-            friend complex<value_type> operator-(const complex<value_type> &);
+  /// Subtracts complex numbers z and w and returns the value.
+  friend complex<value_type> operator-(const complex<value_type> &z, const complex<value_type> &w);
+  /// Subtracts complex number z and real y and returns the value.
+  friend complex<value_type> operator-(const complex<value_type> &z, value_type y);
+  /// Subtracts real x and complex number w and returns the value.
+  friend complex<value_type> operator-(value_type x, const complex<value_type> &w);
+  /// Negates the argument.
+  friend complex<value_type> operator-(const complex<value_type> &);
 
-            /// Multiplies complex numbers z and w and returns the value.
-            friend complex<value_type> operator*(const complex<value_type> &z, const complex<value_type> &w);
-            /// Multiplies complex number z and real y and returns the value.
-            friend complex<value_type> operator*(const complex<value_type> &z, value_type y);
-            /// Multiplies real x and complex number w and returns the value.
-            friend complex<value_type> operator*(value_type x, const complex<value_type> &w);
+  /// Multiplies complex numbers z and w and returns the value.
+  friend complex<value_type> operator*(const complex<value_type> &z, const complex<value_type> &w);
+  /// Multiplies complex number z and real y and returns the value.
+  friend complex<value_type> operator*(const complex<value_type> &z, value_type y);
+  /// Multiplies real x and complex number w and returns the value.
+  friend complex<value_type> operator*(value_type x, const complex<value_type> &w);
 
-            /// Divides complex numbers z and w and returns the value.
-            friend complex<value_type> operator/(const complex<value_type> &z, const complex<value_type> &w);
-            /// Divides complex number z and real y and returns the value.
-            friend complex<value_type> operator/(const complex<value_type> &z, value_type y);
-            /// Divides real x and complex number w and returns the value.
-            friend complex<value_type> operator/(value_type x, const complex<value_type> &w);
+  /// Divides complex numbers z and w and returns the value.
+  friend complex<value_type> operator/(const complex<value_type> &z, const complex<value_type> &w);
+  /// Divides complex number z and real y and returns the value.
+  friend complex<value_type> operator/(const complex<value_type> &z, value_type y);
+  /// Divides real x and complex number w and returns the value.
+  friend complex<value_type> operator/(value_type x, const complex<value_type> &w);
 
-            /// Compares complex numbers z and w and returns true if they are the same, otherwise false.
-            friend constexpr bool operator==(const complex<value_type> &z, const complex<value_type> &w);
-            /// Compares complex number z and real y and returns true if they are the same, otherwise false.
-            friend constexpr bool operator==(const complex<value_type> &z, value_type y);
-            /// Compares real x and complex number w and returns true if they are the same, otherwise false.
-            friend constexpr bool operator==(value_type x, const complex<value_type> &w);
+  /// Compares complex numbers z and w and returns true if they are the same, otherwise false.
+  friend constexpr bool operator==(const complex<value_type> &z, const complex<value_type> &w);
+  /// Compares complex number z and real y and returns true if they are the same, otherwise false.
+  friend constexpr bool operator==(const complex<value_type> &z, value_type y);
+  /// Compares real x and complex number w and returns true if they are the same, otherwise false.
+  friend constexpr bool operator==(value_type x, const complex<value_type> &w);
 
-            /// Compares complex numbers z and w and returns true if they are different, otherwise false.
-            friend constexpr bool operator!=(const complex<value_type> &z, const complex<value_type> &w);
-            ///Compares complex number z and real y and returns true if they are different, otherwise false.
-            friend constexpr bool operator!=(const complex<value_type> &z, value_type y);
-            /// Compares real x and complex number w and returns true if they are different, otherwise false.
-            friend constexpr bool operator!=(value_type x, const complex<value_type> &w);
+  /// Compares complex numbers z and w and returns true if they are different, otherwise false.
+  friend constexpr bool operator!=(const complex<value_type> &z, const complex<value_type> &w);
+  ///Compares complex number z and real y and returns true if they are different, otherwise false.
+  friend constexpr bool operator!=(const complex<value_type> &z, value_type y);
+  /// Compares real x and complex number w and returns true if they are different, otherwise false.
+  friend constexpr bool operator!=(value_type x, const complex<value_type> &w);
 
-            /// Reads a complex number from is.
-            /// Not allowed in device code.
-            template <class C, class T> friend std::basic_istream<C, T> &operator>>(std::basic_istream<C, T> &is, complex<value_type> &);
-            /// Writes to os the complex number z in the form (real,imaginary).
-            /// Not allowed in device code.
-            template <class C, class T> friend std::basic_ostream<C, T> &operator<<(std::basic_ostream<C, T> &os, const complex<value_type> &);
-            /// Streams the complex number z in the format "(real,imaginary)" into `sycl::stream` x and return the result.
-            friend const sycl::stream &operator<<(const sycl::stream &x, const complex<value_type> &z);
+  /// Reads a complex number from is.
+  /// Not allowed in device code.
+  template <class C, class T> friend std::basic_istream<C, T> &operator>>(std::basic_istream<C, T> &is, complex<value_type> &);
+  /// Writes to os the complex number z in the form (real,imaginary).
+  /// Not allowed in device code.
+  template <class C, class T> friend std::basic_ostream<C, T> &operator<<(std::basic_ostream<C, T> &os, const complex<value_type> &);
+  /// Streams the complex number z in the format "(real,imaginary)" into `sycl::stream` x and return the result.
+  friend const sycl::stream &operator<<(const sycl::stream &x, const complex<value_type> &z);
+};
 
 } // namespace sycl::ext::oneapi::experimental
 ```
 
-=== Mathematical operations
+=== Marray Complex Class Specialization
 
-This proposal adds to the `sycl::ext::oneapi::experimental` namespace, math
-functions accepting the complex types `complex<sycl::half>`, `complex<float>`,
-`complex<double>` as well as the scalar types `sycl::half`, `float` and `double`
-for the SYCL math functions, `abs`, `acos`, `asin`, `atan`, `acosh`, `asinh`,
-`atanh`, `arg`, `conj`, `cos`, `cosh`, `exp`, `log`, `log10`, `norm`, `polar`,
-`pow`, `proj`, `sin`, `sinh`, `sqrt`, `tan`, and `tanh`.
+This proposal also introduces the specialization of the `sycl::marray` class to
+support SYCL `complex`. The `marray` class undergoes slight modification for
+this specialization, primarily involving the removal of operators that are
+inapplicable. No new functions or operators are introduced to the `marray`
+class.
+
+The `complex`'s `marray` specialization maintains the principles of trivial
+copyability (as seen in the <<Complex Class, `complex` class description>>),
+with the `is_device_copyable` type trait resolving to `std::true_type`.
+
+The `marray` specialization for `complex<T>` deletes any operator that is not
+supported by `complex<T>`.
+
+```C++
+namespace sycl {
+
+// Specialization of the existing `marray` class for `sycl::ext::oneapi::experimental::complex`
+template <typename T, std::size_t NumElements>
+class marray<sycl::ext::oneapi::experimental::complex<T>, NumElements> {
+public:
+
+  /* ... */
+
+  friend marray operator %(const marray &lhs, const marray &rhs) = delete;
+  friend marray operator %(const marray &lhs, const value_type &rhs) = delete;
+  friend marray operator %(const value_type &lhs, const marray &rhs) = delete;
+
+  friend marray &operator %=(marray &lhs, const marray &rhs) = delete;
+  friend marray &operator %=(marray &lhs, const value_type &rhs) = delete;
+  friend marray &operator %=(value_type &lhs, const marray &rhs) = delete;
+
+  friend marray operator ++(marray &lhs, int) = delete;
+  friend marray &operator ++(marray & rhs) = delete;
+
+  friend marray operator --(marray &lhs, int) = delete;
+  friend marray &operator --(marray & rhs) = delete;
+
+  friend marray operator &(const marray &lhs, const marray &rhs) = delete;
+  friend marray operator &(const marray &lhs, const value_type &rhs) = delete;
+
+  friend marray operator |(const marray &lhs, const marray &rhs) = delete;
+  friend marray operator |(const marray &lhs, const value_type &rhs) = delete;
+
+  friend marray operator ^(const marray &lhs, const marray &rhs) = delete;
+  friend marray operator ^(const marray &lhs, const value_type &rhs) = delete;
+
+  friend marray &operator &=(marray & lhs, const marray & rhs) = delete;
+  friend marray &operator &=(marray & lhs, const value_type & rhs) = delete;
+  friend marray &operator &=(value_type & lhs, const marray & rhs) = delete;
+
+  friend marray &operator |=(marray & lhs, const marray & rhs) = delete;
+  friend marray &operator |=(marray & lhs, const value_type & rhs) = delete;
+  friend marray &operator |=(value_type & lhs, const marray & rhs) = delete;
+
+  friend marray &operator ^=(marray & lhs, const marray & rhs) = delete;
+  friend marray &operator ^=(marray & lhs, const value_type & rhs) = delete;
+  friend marray &operator ^=(value_type & lhs, const marray & rhs) = delete;
+
+  friend marray<bool, NumElements> operator <<(const marray & lhs, const marray & rhs) = delete;
+  friend marray<bool, NumElements> operator <<(const marray & lhs, const value_type & rhs) = delete;
+  friend marray<bool, NumElements> operator <<(const value_type & lhs, const marray & rhs) = delete;
+
+  friend marray<bool, NumElements> operator >>(const marray & lhs, const marray & rhs) = delete;
+  friend marray<bool, NumElements> operator >>(const marray & lhs, const value_type & rhs) = delete;
+  friend marray<bool, NumElements> operator >>(const value_type & lhs, const marray & rhs) = delete;
+
+  friend marray &operator <<=(marray & lhs, const marray & rhs) = delete;
+  friend marray &operator <<=(marray & lhs, const value_type & rhs) = delete;
+
+  friend marray &operator >>=(marray & lhs, const marray & rhs) = delete;
+  friend marray &operator >>=(marray & lhs, const value_type & rhs) = delete;
+
+  friend marray<bool, NumElements> operator <(const marray & lhs, const marray & rhs) = delete;
+  friend marray<bool, NumElements> operator <(const marray & lhs, const value_type & rhs) = delete;
+  friend marray<bool, NumElements> operator <(const value_type & lhs, const marray & rhs) = delete;
+
+  friend marray<bool, NumElements> operator >(const marray & lhs, const marray & rhs) = delete;
+  friend marray<bool, NumElements> operator >(const marray & lhs, const value_type & rhs) = delete;
+  friend marray<bool, NumElements> operator >(const value_type & lhs, const marray & rhs) = delete;
+
+  friend marray<bool, NumElements> operator <=(const marray & lhs, const marray & rhs) = delete;
+  friend marray<bool, NumElements> operator <=(const marray & lhs, const value_type & rhs) = delete;
+  friend marray<bool, NumElements> operator <=(const value_type & lhs, const marray & rhs) = delete;
+
+  friend marray<bool, NumElements> operator >=(const marray & lhs, const marray & rhs) = delete;
+  friend marray<bool, NumElements> operator >=(const marray & lhs, const value_type & rhs) = delete;
+  friend marray<bool, NumElements> operator >=(const value_type & lhs, const marray & rhs) = delete;
+
+  friend marray operator ~(const marray &v) = delete;
+
+  friend marray<bool, NumElements> operator !(const marray &v) = delete;
+};
+
+} // namespace sycl
+```
+
+=== Scalar Mathematical operations
+
+This proposal extends the `sycl::ext::oneapi::experimental` namespace math
+functions to accept `complex<sycl::half>`, `complex<float>`, `complex<double>`
+as well as the scalar types `sycl::half`, `float` and `double` for a range of
+SYCL math functions.
+
+Specifically, it adds support for `abs`, `acos`, `asin`, `atan`, `acosh`,
+`asinh`, `atanh`, `arg`, `conj`, `cos`, `cosh`, `exp`, `log`, `log10`, `norm`,
+`polar`, `pow`, `proj`, `sin`, `sinh`, `sqrt`, `tan`, and `tanh`.
+
+Additionally, this extension introduces support for the `real` and `imag` free
+functions, which returns the real and imaginary component of a number,
+respectively.
+
+[_Note:_ The overloads of the functions `real(T)` and `imag(T)` match the
+behavior in ISO C++ where `T` would be treated as a complex number with a zero
+imaginary component. This is subject to the constraint that `T` must be one of
+the types `float`, `double`, `sycl::half`, or evaluate to `true` for
+`std::is_integral`.
+_{endnote}_]
 
 These functions are available in both host and device code, and each math
-function should follow the C++ standard for handling NaN's and Inf values.
+function should follow the C++ standard for handling `NaN` and `Inf` values.
 
 Note: In the case of the `pow` function, additional overloads have been added
 to ensure that for their first argument `base` and second argument `exponent`:
@@ -241,80 +364,197 @@ to ensure that for their first argument `base` and second argument `exponent`:
 ```C++
 namespace sycl::ext::oneapi::experimental {
 
-    /// VALUES:
-    /// Returns the real component of the complex number z.
-    template <class T> constexpr T real(const complex<T> &);
-    /// Returns the real component of the number y, treated as complex numbers with zero imaginary component.
-    template <class T> constexpr T real(T);
-    /// Returns the imaginary component of the complex number z.
-    template <class T> constexpr T imag(const complex<T> &);
-    /// Returns the imaginary component of the number y, treated as complex numbers with zero imaginary component.
-    template <class T> constexpr T imag(T);
+/// VALUES:
+/// Returns the real component of the complex number z.
+template <class T> constexpr T real(const complex<T> &);
+/// Returns the real component of the number y, treated as complex numbers with zero imaginary component.
+template <class T> constexpr T real(T);
+/// Returns the imaginary component of the complex number z.
+template <class T> constexpr T imag(const complex<T> &);
+/// Returns the imaginary component of the number y, treated as complex numbers with zero imaginary component.
+template <class T> constexpr T imag(T);
 
-    /// Compute the magnitude of complex number x.
-    template <class T> T abs(const complex<T> &);
-    /// Compute phase angle in radians of complex number x.
-    template <class T> T arg(const complex<T> &);
-    /// Compute phase angle in radians of complex number x, treated as complex number with positive zero imaginary component.
-    template <class T> T arg(T);
-    /// Compute the squared magnitude of complex number x.
-    template <class T> T norm(const complex<T> &);
-    /// Compute the squared magnitude of number x, treated as complex number with positive zero imaginary component.
-    template <class T> T norm(T);
-    /// Compute the conjugate of complex number x.
-    template <class T> complex<T> conj(const complex<T> &);
-    /// Compute the conjugate of number y, treated as complex number with positive zero imaginary component.
-    template <class T> complex<T> conj(T);
-    /// Compute the projection of complex number x.
-    template <class T> complex<T> proj(const complex<T> &);
-    /// Compute the projection of number y, treated as complex number with positive zero imaginary component.
-    template <class T> complex<T> proj(T);
-    /// Construct a complex number from polar coordinates with mangitude rho and angle theta.
-    template <class T> complex<T> polar(const T &rho, const T &theta = T());
+/// Compute the magnitude of complex number x.
+template <class T> T abs(const complex<T> &);
+/// Compute phase angle in radians of complex number x.
+template <class T> T arg(const complex<T> &);
+/// Compute phase angle in radians of complex number x, treated as complex number with positive zero imaginary component.
+template <class T> T arg(T);
+/// Compute the squared magnitude of complex number x.
+template <class T> T norm(const complex<T> &);
+/// Compute the squared magnitude of number x, treated as complex number with positive zero imaginary component.
+template <class T> T norm(T);
+/// Compute the conjugate of complex number x.
+template <class T> complex<T> conj(const complex<T> &);
+/// Compute the conjugate of number y, treated as complex number with positive zero imaginary component.
+template <class T> complex<T> conj(T);
+/// Compute the projection of complex number x.
+template <class T> complex<T> proj(const complex<T> &);
+/// Compute the projection of number y, treated as complex number with positive zero imaginary component.
+template <class T> complex<T> proj(T);
+/// Construct a complex number from polar coordinates with mangitude rho and angle theta.
+template <class T> complex<T> polar(const T &rho, const T &theta = T());
 
-    /// TRANSCENDENTALS:
-    /// Compute the natural log of complex number x.
-    template <class T> complex<T> log(const complex<T> &);
-    /// Compute the base-10 log of complex number x.
-    template <class T> complex<T> log10(const complex<T> &);
-    /// Compute the square root of complex number x.
-    template <class T> complex<T> sqrt(const complex<T> &);
-    /// Compute the base-e exponent of complex number x.
-    template <class T> complex<T> exp(const complex<T> &);
+/// TRANSCENDENTALS:
+/// Compute the natural log of complex number x.
+template <class T> complex<T> log(const complex<T> &);
+/// Compute the base-10 log of complex number x.
+template <class T> complex<T> log10(const complex<T> &);
+/// Compute the square root of complex number x.
+template <class T> complex<T> sqrt(const complex<T> &);
+/// Compute the base-e exponent of complex number x.
+template <class T> complex<T> exp(const complex<T> &);
 
-    /// Compute complex number z raised to the power of complex number y.
-    template <class T> complex<T> pow(const complex<T> &, const complex<T> &);
-    /// Compute complex number z raised to the power of complex number y.
-    template <class T, class U> complex</*Promoted*/> pow(const complex<T> &, const complex<U> &);
-    /// Compute complex number z raised to the power of real number y.
-    template <class T, class U> complex</*Promoted*/> pow(const complex<T> &, const U &);
-    /// Compute real number x raised to the power of complex number y.
-    template <class T, class U> complex</*Promoted*/> pow(const T &, const complex<U> &);
+/// Compute complex number z raised to the power of complex number y.
+template <class T> complex<T> pow(const complex<T> &, const complex<T> &);
+/// Compute complex number z raised to the power of complex number y.
+template <class T, class U> complex</*Promoted*/> pow(const complex<T> &, const complex<U> &);
+/// Compute complex number z raised to the power of real number y.
+template <class T, class U> complex</*Promoted*/> pow(const complex<T> &, const U &);
+/// Compute real number x raised to the power of complex number y.
+template <class T, class U> complex</*Promoted*/> pow(const T &, const complex<U> &);
 
-    /// Compute the inverse hyperbolic sine of complex number x.
-    template <class T> complex<T> asinh(const complex<T> &);
-    /// Compute the inverse hyperbolic cosine of complex number x.
-    template <class T> complex<T> acosh(const complex<T> &);
-    /// Compute the inverse hyperbolic tangent of complex number x.
-    template <class T> complex<T> atanh(const complex<T> &);
-    /// Compute the hyperbolic sine of complex number x.
-    template <class T> complex<T> sinh(const complex<T> &);
-    /// Compute the hyperbolic cosine of complex number x.
-    template <class T> complex<T> cosh(const complex<T> &);
-    /// Compute the hyperbolic tangent of complex number x.
-    template <class T> complex<T> tanh(const complex<T> &);
-    /// Compute the inverse sine of complex number x.
-    template <class T> complex<T> asin(const complex<T> &);
-    /// Compute the inverse cosine of complex number x.
-    template <class T> complex<T> acos(const complex<T> &);
-    /// Compute the inverse tangent of complex number x.
-    template <class T> complex<T> atan(const complex<T> &);
-    /// Compute the sine of complex number x.
-    template <class T> complex<T> sin(const complex<T> &);
-    /// Compute the cosine of complex number x.
-    template <class T> complex<T> cos(const complex<T> &);
-    // Compute the tangent of complex number x.
-    template <class T> complex<T> tan(const complex<T> &);
+/// Compute the inverse hyperbolic sine of complex number x.
+template <class T> complex<T> asinh(const complex<T> &);
+/// Compute the inverse hyperbolic cosine of complex number x.
+template <class T> complex<T> acosh(const complex<T> &);
+/// Compute the inverse hyperbolic tangent of complex number x.
+template <class T> complex<T> atanh(const complex<T> &);
+/// Compute the hyperbolic sine of complex number x.
+template <class T> complex<T> sinh(const complex<T> &);
+/// Compute the hyperbolic cosine of complex number x.
+template <class T> complex<T> cosh(const complex<T> &);
+/// Compute the hyperbolic tangent of complex number x.
+template <class T> complex<T> tanh(const complex<T> &);
+/// Compute the inverse sine of complex number x.
+template <class T> complex<T> asin(const complex<T> &);
+/// Compute the inverse cosine of complex number x.
+template <class T> complex<T> acos(const complex<T> &);
+/// Compute the inverse tangent of complex number x.
+template <class T> complex<T> atan(const complex<T> &);
+/// Compute the sine of complex number x.
+template <class T> complex<T> sin(const complex<T> &);
+/// Compute the cosine of complex number x.
+template <class T> complex<T> cos(const complex<T> &);
+// Compute the tangent of complex number x.
+template <class T> complex<T> tan(const complex<T> &);
+
+} // namespace sycl::ext::oneapi::experimental
+```
+
+=== Element-Wise Mathematical operations
+
+In harmony with the `complex` scalar operations, this proposal extends
+furthermore the `sycl::ext::oneapi::experimental` namespace math functions
+to accept `sycl::marray<complex<T>>` for a range of SYCL math functions.
+
+Specifically, it adds support for `abs`, `acos`, `asin`, `atan`, `acosh`,
+`asinh`, `atanh`, `arg`, `conj`, `cos`, `cosh`, `exp`, `log`, `log10`, `norm`,
+`polar`, `pow`, `proj`, `sin`, `sinh`, `sqrt`, `tan`, and `tanh`.
+
+Additionally, this extension introduces support for the `real` and `imag` free
+functions, which return a `sycl::marray` of scalar values representing the real
+and imaginary components, respectively.
+
+In scenarios where mathematical functions involve both `marray` and scalar
+parameters, two sets of overloads are introduced marray-scalar and
+scalar-marray.
+
+These mathematical operations are designed to execute element-wise across the
+`marray`, ensuring that each operation is applied to every element within the
+`sycl::marray`.
+
+Moreover, this proposal includes overloads for mathematical functions between
+`marray` and scalar inputs. In these cases, the operations are executed across
+the entire `marray`, with the scalar value held constant.
+
+For consistency, these functions are available in both host and device code,
+and each math function should follow the C++ standard for handling `NaN` and
+`Inf` values.
+
+```C++
+namespace sycl/ext/oneapi/experimental {
+
+/// VALUES:
+/// Returns an marray of real components from the marray x.
+template <typename T, std::size_t NumElements>
+sycl::marray<T, NumElements> real(const marray<complex<T>, NumElements> &x);
+/// Returns an marray of imaginary components from the marray x.
+template <typename T, std::size_t NumElements>
+sycl::marray<T, NumElements> imag(const marray<complex<T>, NumElements> &x);
+
+/// Compute the magnitude for each complex number in marray x.
+template <typename T, std::size_t NumElements> marray<T, NumElements> abs(const marray<complex<T>, NumElements> &x);
+/// Compute phase angle in radians for each complex number in marray x.
+template <typename T, std::size_t NumElements> marray<T, NumElements> arg(const marray<complex<T>, NumElements> &x);
+/// Compute the squared magnitude for each complex number in marray x.
+template <typename T, std::size_t NumElements> marray<T, NumElements> norm(const marray<complex<T>, NumElements> &x);
+/// Compute the conjugate for each complex number in marray x.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> conj(const marray<complex<T>, NumElements> &x);
+/// Compute the projection for each complex number in marray x.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> proj(const marray<complex<T>, NumElements> &x);
+/// Compute the projection for each real number in marray x.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> proj(const marray<T, NumElements> &x);
+/// Construct an marray, elementwise, of complex numbers from each polar coordinate in marray rho and scalar theta.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> polar(const marray<T, NumElements> &rho, T theta = 0);
+/// Construct an marray, elementwise, of complex numbers from each polar coordinate in marray rho and marray theta.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> polar(const marray<T, NumElements> &rho, const marray<T, NumElements> &theta);
+/// Construct an marray, elementwise, of complex numbers from each polar coordinate in scalar rho and marray theta.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> polar(T rho, const marray<T, NumElements> &theta);
+
+/// TRANSCENDENTALS:
+/// Compute the natural log for each complex number in marray x.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> log(const marray<complex<T>, NumElements> &x);
+/// Compute the base-10 log for each complex number in marray x.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> log10(const marray<complex<T>, NumElements> &x);
+/// Compute the square root for each complex number in marray x.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> sqrt(const marray<complex<T>, NumElements> &x);
+/// Compute the base-e exponent for each complex number in marray x.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> exp(const marray<complex<T>, NumElements> &x);
+
+/// Raise each complex element in x to the power of the corresponding decimal element in y.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> pow(const marray<complex<T>, NumElements> &x, const marray<T, NumElements> &y);
+/// Raise each complex element in x to the power of the decimal number y.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> pow(const marray<complex<T>, NumElements> &x, T y);
+/// Raise complex number x to the power of each decimal element in y.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> pow(const marray<complex<T>, NumElements> &x, const marray<T, NumElements> &y);
+/// Raise each complex element in x to the power of the corresponding complex element in y.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> pow(const marray<complex<T>, NumElements> &x, const marray<complex<T>, NumElements> &y);
+/// Raise each complex element in x to the power of the complex number y.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> pow(const marray<complex<T>, NumElements> &x, const marray<complex<T>, NumElements> &y);
+/// Raise complex number x to the power of each complex element in y.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> pow(const marray<complex<T>, NumElements> &x, const marray<complex<T>, NumElements> &y);
+/// Raise each decimal element in x to the power of the corresponding complex element in y.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> pow(const marray<T, NumElements> &x, const marray<complex<T>, NumElements> &y);
+/// Raise each decimal element in x to the power of the complex number y.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> pow(const marray<T, NumElements> &x, const marray<complex<T>, NumElements> &y);
+/// Raise decimal number x to the power of each complex element in y.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> pow(T x, const marray<complex<T>, NumElements> &y);
+
+/// Compute the inverse hyperbolic sine for each complex number in marray x.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> asinh(const marray<complex<T>, NumElements> &x);
+/// Compute the inverse hyperbolic cosine for each complex number in marray x.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> acosh(const marray<complex<T>, NumElements> &x);
+/// Compute the inverse hyperbolic tangent for each complex number in marray x.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> atanh(const marray<complex<T>, NumElements> &x);
+/// Compute the hyperbolic sine for each complex number in marray x.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> sinh(const marray<complex<T>, NumElements> &x);
+/// Compute the hyperbolic cosine for each complex number in marray x.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> cosh(const marray<complex<T>, NumElements> &x);
+/// Compute the hyperbolic tangent for each complex number in marray x.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> tanh(const marray<complex<T>, NumElements> &x);
+/// Compute the inverse sine for each complex number in marray x.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> asin(const marray<complex<T>, NumElements> &x);
+/// Compute the inverse cosine for each complex number in marray x.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> acos(const marray<complex<T>, NumElements> &x);
+/// Compute the inverse tangent for each complex number in marray x.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> atan(const marray<complex<T>, NumElements> &x);
+/// Compute the sine for each complex number in marray x.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> sin(const marray<complex<T>, NumElements> &x);
+/// Compute the cosine for each complex number in marray x.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> cos(const marray<complex<T>, NumElements> &x);
+/// Compute the tangent for each complex number in marray x.
+template <typename T, std::size_t NumElements> marray<complex<T>, NumElements> tan(const marray<complex<T>, NumElements> &x);
 
 } // namespace sycl::ext::oneapi::experimental
 ```

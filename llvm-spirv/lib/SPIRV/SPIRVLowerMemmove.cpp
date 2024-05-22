@@ -72,9 +72,14 @@ void SPIRVLowerMemmoveBase::LowerMemMoveInst(MemMoveInst &I) {
       ArrayType::get(IntegerType::getInt8Ty(*Context), Length->getZExtValue());
   MaybeAlign SrcAlign = I.getSourceAlign();
 
-  auto *Alloca = Builder.CreateAlloca(AllocaTy);
-  if (SrcAlign.has_value())
-    Alloca->setAlignment(SrcAlign.value());
+  AllocaInst *Alloca;
+  {
+    IRBuilderBase::InsertPointGuard IG(Builder);
+    Builder.SetInsertPointPastAllocas(I.getParent()->getParent());
+    Alloca = Builder.CreateAlloca(AllocaTy);
+    if (SrcAlign.has_value())
+      Alloca->setAlignment(SrcAlign.value());
+  }
 
   // FIXME: Do we need to pass the size of alloca here? From LangRef:
   // > The first argument is a constant integer representing the size of the

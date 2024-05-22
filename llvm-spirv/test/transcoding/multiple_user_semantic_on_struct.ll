@@ -108,9 +108,9 @@ define dso_local noundef i32 @main() #0 {
   ; CHECK-LLVM: %[[#GepMultiDec:]] = getelementptr inbounds %class.A, ptr %[[#ObjClassA]], i32 0, i32 1
   ; CHECK-LLVM: %[[#PtrAnnMultiDec:]] = call ptr @llvm.ptr.annotation{{.*}}(ptr %[[#GepMultiDec]], ptr @[[#Dec1]]
   ; CHECK-LLVM: %[[#PtrAnn2MultiDec:]] = call ptr @llvm.ptr.annotation{{.*}}(ptr %[[#PtrAnnMultiDec]], ptr @[[#Dec2]]
-  ; CHECK-LLVM: %[[#PtrAnn3MultiDec:]] = call ptr @llvm.ptr.annotation{{.*}}(ptr %[[#PtrAnnMultiDec]], ptr @[[#Dec3]]
+  ; CHECK-LLVM: %[[#PtrAnn3MultiDec:]] = call ptr @llvm.ptr.annotation{{.*}}(ptr %[[#PtrAnn2MultiDec]], ptr @[[#Dec3]]
   %15 = load i32, ptr %14, align 4
-  ; CHECK-LLVM: %[[#LoadMultiDec:]] = bitcast ptr %[[#PtrAnnMultiDec]] to ptr
+  ; CHECK-LLVM: %[[#LoadMultiDec:]] = bitcast ptr %[[#PtrAnn3MultiDec]] to ptr
   ; CHECK-LLVM: %[[#LoadMultiDec2:]] = bitcast ptr %[[#LoadMultiDec]] to ptr
   ; CHECK-LLVM: %[[#CallClassAMultiDec:]] = load i32, ptr %[[#LoadMultiDec2]], align 4
   call void @_Z3fooi(i32 noundef %15)
@@ -120,7 +120,7 @@ define dso_local noundef i32 @main() #0 {
   ; CHECK-LLVM: %[[#PtrAnnClassAFieldB:]] = call ptr @llvm.ptr.annotation{{.*}}(ptr %[[#GepClassAFieldB]], ptr @[[#StrAfieldB]]
   %18 = getelementptr inbounds %class.B, ptr %17, i32 0, i32 0
   %19 = call ptr @llvm.ptr.annotation.p0.p1(ptr %18, ptr addrspace(1) @.str.6, ptr addrspace(1) @.str.1, i32 5, ptr addrspace(1) null)
-  ; CHECK-LLVM: %[[#CastGepClassAFieldB:]] = bitcast ptr %[[#GepClassAFieldB]] to ptr
+  ; CHECK-LLVM: %[[#CastGepClassAFieldB:]] = bitcast ptr %[[#PtrAnnClassAFieldB]] to ptr
   ; CHECK-LLVM: %[[#CastGepClassAFieldB2:]] = bitcast ptr %[[#CastGepClassAFieldB]] to ptr
   ; CHECK-LLVM: %[[#GEPClassB:]] = getelementptr inbounds %class.B, ptr %[[#CastGepClassAFieldB2]], i32 0, i32 0
   ; CHECK-LLVM: %[[#PtrAnnClassB:]] = call ptr @llvm.ptr.annotation{{.*}}(ptr %[[#GEPClassB]], ptr @[[#StrStructB]]

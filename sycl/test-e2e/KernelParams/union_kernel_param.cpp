@@ -4,7 +4,7 @@
 // RUN: %{run} %t.out
 
 #include <cstdio>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 union TestUnion {
 public:

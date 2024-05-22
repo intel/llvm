@@ -8,8 +8,12 @@
 #include <cassert>
 #include <iostream>
 #include <numeric>
-#include <sycl/sycl.hpp>
 #include <vector>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/atomic_ref.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 
@@ -114,6 +118,50 @@ void compare_exchange_global_test(queue q, size_t N) {
   }
 }
 
+template <template <typename, memory_order, memory_scope, access::address_space>
+          class AtomicRef,
+          access::address_space space, typename T,
+          memory_order order = memory_order::relaxed,
+          memory_scope scope = memory_scope::device>
+void compare_exchange_global_test_usm_shared(queue q, size_t N) {
+  const T initial = T(N);
+  T *exc = malloc_shared<T>(1, q);
+  exc[0] = initial;
+  T *output = malloc_shared<T>(N, q);
+  T *output_begin = &output[0], *output_end = &output[N];
+  std::fill(output_begin, output_end, T(0));
+  {
+    q.submit([&](handler &cgh) {
+       cgh.parallel_for(range<1>(N), [=](item<1> it) {
+         size_t gid = it.get_id(0);
+         auto atm = AtomicRef < T,
+              (order == memory_order::acquire || order == memory_order::release)
+                  ? memory_order::relaxed
+                  : order,
+              scope, space > (exc[0]);
+         T result = initial; // Avoid copying pointer
+         bool success = atm.compare_exchange_strong(result, (T)gid, order);
+         if (success) {
+           output[gid] = result;
+         } else {
+           output[gid] = T(gid);
+         }
+       });
+     }).wait_and_throw();
+  }
+
+  // Only one work-item should have received the initial sentinel value.
+  assert(std::count(output_begin, output_end, initial) == 1);
+
+  // All other values should be the index itself or the sentinel value.
+  for (size_t i = 0; i < N; ++i) {
+    assert(output[i] == T(i) || output[i] == initial);
+  }
+
+  free(exc, q);
+  free(output, q);
+}
+
 template <access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -125,6 +173,7 @@ void compare_exchange_test(queue q, size_t N) {
       space == access::address_space::global_space ||
       (space == access::address_space::generic_space && !TEST_GENERIC_IN_LOCAL);
   constexpr bool do_ext_tests = space != access::address_space::generic_space;
+  bool do_usm_tests = q.get_device().has(aspect::usm_shared_allocations);
   if constexpr (do_local_tests) {
 #ifdef RUN_DEPRECATED
     if constexpr (do_ext_tests) {
@@ -141,10 +190,18 @@ void compare_exchange_test(queue q, size_t N) {
     if constexpr (do_ext_tests) {
       compare_exchange_global_test<::sycl::ext::oneapi::atomic_ref, space, T,
                                    order, scope>(q, N);
+      if (do_usm_tests) {
+        compare_exchange_global_test_usm_shared<::sycl::ext::oneapi::atomic_ref,
+                                                space, T, order, scope>(q, N);
+      }
     }
 #else
     compare_exchange_global_test<::sycl::atomic_ref, space, T, order, scope>(q,
                                                                              N);
+    if (do_usm_tests) {
+      compare_exchange_global_test_usm_shared<::sycl::atomic_ref, space, T,
+                                              order, scope>(q, N);
+    }
 #endif
   }
 }

@@ -8,7 +8,7 @@
 // Test interoperability buffer for the Level Zer backend
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 // clang-format off
 #include <level_zero/ze_api.h>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>

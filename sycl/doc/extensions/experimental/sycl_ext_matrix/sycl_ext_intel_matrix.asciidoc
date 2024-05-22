@@ -148,14 +148,28 @@ template <typename Group, typename T, size_t Rows, size_t Cols,
           access::decorated IsDecorated>
 void joint_matrix_store(Group g,
     const joint_matrix<Group, T, use::a, Rows, Cols, Layout> &res,
-    multi_ptr<T, Space, IsDecorated> src, size_t stride);
+    multi_ptr<T, Space, IsDecorated> dest, size_t stride);
 
 template <typename Group, typename T, size_t Rows, size_t Cols,
           layout Layout, access::address_space Space,
           access::decorated IsDecorated>
 void joint_matrix_store(Group g,
     const joint_matrix<Group, T, use::b, Rows, Cols, Layout> &res,
-    multi_ptr<T, Space, IsDecorated> src, size_t stride);
+    multi_ptr<T, Space, IsDecorated> dest, size_t stride);
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          layout Layout, typename PropertyListT>
+void joint_matrix_store(Group g,
+    const joint_matrix<Group, T, use::a, Rows, Cols, Layout> &res,
+    ext::oneapi::experimental::annotated_ptr<T, PropertyListT> dest,
+    size_t stride);
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          layout Layout, typename PropertyListT>
+void joint_matrix_store(Group g,
+    const joint_matrix<Group, T, use::b, Rows, Cols, Layout> &res,
+    ext::oneapi::experimental::annotated_ptr<T, PropertyListT> dest,
+    size_t stride);
 
 } // namespace sycl::ext::intel::experimental::matrix
 ```
@@ -202,6 +216,261 @@ joint_matrix_apply(sg, A, [=](T &val, size_t row, size_t  col) {
 In the case of `ext_intel_packed` matrix memory layout, `row` and
 `col` represent the coordinates in the logical matrix before VNNI
 transformation.
+
+=== Load/Store/Fill With Out-of-Bounds Checks
+The APIs in this section may be used only on a device that has
+`aspect::ext_intel_matrix_checked`. The application must check that
+the device has this aspect before submitting a kernel using any of the
+APIs in this section. If the application fails to do this, the
+implementation throws a synchronous exception with the
+`errc::kernel_not_supported` error code when the kernel is submitted
+to the queue.
+
+==== New Aspect for Checked Matrix APIs
+This extension adds a new device aspect:
+```c++
+namespace sycl {
+
+enum class aspect : /*unspecified*/ {
+  ext_intel_matrix_checked
+};
+
+} // namespace sycl
+```
+The `ext_intel_matrix_checked` aspect indicates that the device is capable of
+supporting the out of bounds checked APIs that are defined in this section.
+
+==== Introduction
+In this section, we refer to the memory buffer where a `joint_matrix`
+is loaded from or stored to as the global matrix. This global matrix
+is also interpreted as a two-dimensional memory region as follows, where
+`GlobalRows` is number of rows in the global matrix, `GlobalCols` is number of
+columns in the global matrix, `Stride` is number of columns that include
+the out of bounds data (depicted as x here).
+
+```
+  GlobalCols
+ <----------->
+ dddddddddddddxxx  ^
+ dddddddddddddxxx  | GlobalRows
+ dddddddddddddxxx  v
+ xxxxxxxxxxxxxxxx
+ <-------------->
+      Stride
+```
+
+In the diagram above, the global matrix has 13 columns and 3
+rows. This is padded out to be evenly divisible by a joint matrix with
+8 columns and 2 rows, which results in a stride of 16.
+
+Note that joint matrix shape `Rows` and `Cols` represents a sub-block
+of the picture above. The out of bounds data results when the global
+matrix size is not evenly divisible by the joint matrix size.
+
+==== Checked APIs
+When an algorithm iterates over the global matrix, it loads or stores
+elements that correspond to a joint matrix. When the global matrix
+size does not evenly divide by the joint matrix size, some of these
+loads or stores access the extra elements marked "x" in the diagram
+above. The standard joint matrix functions (`joint_matrix_load`,
+`joint_matrix_store` and `joint_matrix_fill`) do not do any bounds
+checking in this case, so they simply load or store to these extra
+elements. This could cause unexpected values to be loaded into the
+joint matrix for these elements. These functions could also cause a
+memory fault if the extra elements are not valid addresses.
+
+The checked APIs described below do not attempt to access the extra
+memory. The checked load is guaranteed to return 0 for the extra
+elements, and the checked store simply ignores stores to the extra
+elements. Neither function will cause a memory fault if the extra
+elements correspond to invalid addresses.
+
+These functions are similar to the existing ones without bounds
+checking, namely `joint_matrix_fill`, `joint_matrix_load`, and
+`joint_matrix_store`. But they are different in three ways:
+
+* The pointer `base_src` or `base_dest` designates the base pointer of
+the global memory matrix, which is different from the APIs that do not
+do bounds checking. Those non-bounds-checking APIs take a pointer to
+the base of the joint matrix.
+* The coordinates `RowIndex` and `ColIndex` into the global matrix to
+calculate the  pointer offset to load/store are given as separate
+arguments.
+* These variants take extra arguments to determine the global bounds
+`GlobalRows` and `GlobalCols` of the global matrix.
+
+To illustrate the out-of-bounds checking, consider the global matrix
+shown above which has 13 columns and 3 rows (`GlobalRows=3` and
+`GlobalCols=13`), where the joint matrix size is 8 columns by 2 rows defined as
+```
+joint_matrix<sub_group, bfloat16, use::b, 2, 8, layout::row_major> sub_b;
+```
+The load of the joint matrix at coordinate [8, 2] (column number 8,
+row number 2 in the global matrix), overlaps the extra elements in
+both dimensions. This is shown below, where capital letters correspond
+to the elements that are accessed by this joint matrix load:
+
+```
+  GlobalCols
+ <----------->
+ dddddddddddddxxx  ^
+ dddddddddddddxxx  | GlobalRows
+ ddddddddDDDDDXXX  v
+ xxxxxxxxXXXXXXXX
+ <-------------->
+      Stride
+```
+
+If the joint matrix is loaded via `joint_matrix_load_checked` using
+```
+joint_matrix_load_checked(sg, sub_b, base_src, 16, 3, 13, 2, 8);
+```
+the extra elements that are shown with capital `X` are not accessed in
+memory, and those elements are guaranteed to have the value zero in
+the joint matrix after the load operation completes.
+
+```c++
+namespace sycl::ext::intel::experimental::matrix {
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          use Use, layout Layout, typename Tv>
+void joint_matrix_fill_checked(Group g, joint_matrix<Group, T, Use, Rows,
+          Cols, Layout> &m, Tv v, size_t GlobalRows, size_t GlobalCols,
+          size_t RowIndex, size_t ColIndex);
+
+// Only available when std::is_same_v<T1, std::remove_const_t<T2>>
+template <typename Group, typename T1, typename T2,
+          size_t Rows, size_t Cols,
+          access::address_space Space, access::decorated IsDecorated>
+void joint_matrix_load_checked(Group g,
+   joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
+   multi_ptr<T2, Space, IsDecorated> base_src, size_t Stride,
+   layout Layout, size_t GlobalRows, size_t GlobalCols,
+   size_t RowIndex, size_t ColIndex);
+
+// Only available when Layout != layout::dynamic
+// and when std::is_same_v<T1, std::remove_const_t<T2>>
+template <typename Group, typename T1, typename T2,
+          size_t Rows, size_t Cols,
+          use Use, layout Layout,
+          access::address_space Space, access::decorated IsDecorated>
+void joint_matrix_load_checked(Group g,
+   joint_matrix<Group, T1, Use, Rows, Cols, Layout> &res,
+   multi_ptr<T2, Space, IsDecorated> base_src, size_t Stride,
+   size_t GlobalRows, size_t GlobalCols, size_t RowIndex, size_t ColIndex);
+
+// Only available when std::is_same_v<T1, std::remove_const_t<T2>>
+template <typename Group, typename T1, typename T2,
+          size_t Rows, size_t Cols, typename PropertyListT>
+void joint_matrix_load_checked(Group g,
+   joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
+   ext::oneapi::experimental::annotated_ptr<T2, PropertyListT> base_src,
+   size_t Stride, layout Layout, size_t GlobalRows, size_t GlobalCols,
+   size_t RowIndex, size_t ColIndex);
+
+// Only available when Layout != layout::dynamic
+// and when std::is_same_v<T1, std::remove_const_t<T2>>
+template <typename Group, typename T1, typename T2, size_t Rows,
+          size_t Cols, use Use, layout Layout, typename PropertyListT>
+void joint_matrix_load_checked(Group g,
+   joint_matrix<Group, T1, Use, Rows, Cols, Layout> &res,
+   ext::oneapi::experimental::annotated_ptr<T2, PropertyListT> base_src,
+   size_t Stride, size_t GlobalRows, size_t GlobalCols,
+   size_t RowIndex, size_t ColIndex);
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          access::address_space Space, access::decorated IsDecorated>
+void joint_matrix_store_checked(Group g,
+   const joint_matrix<Group, T, use::accumulator, Rows, Cols, layout::dynamic> &res, 
+   multi_ptr<T, Space, IsDecorated> base_dest, size_t Stride, layout Layout,
+   size_t GlobalRows, size_t GlobalCols, size_t RowIndex, size_t ColIndex);
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          layout Layout, access::address_space Space,
+          access::decorated IsDecorated>
+void joint_matrix_store_checked(Group g,
+   const joint_matrix<Group, T, use::a, Rows, Cols, Layout> &res,
+   multi_ptr<T, Space, IsDecorated> base_dest, size_t Stride,
+   size_t GlobalRows, size_t GlobalCols, size_t RowIndex, size_t ColIndex);
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          layout Layout, access::address_space Space,
+          access::decorated IsDecorated>
+void joint_matrix_store_checked(Group g,
+   const joint_matrix<Group, T, use::b, Rows, Cols, Layout> &res,
+   multi_ptr<T, Space, IsDecorated> base_dest, size_t Stride,
+   size_t GlobalRows, size_t GlobalCols, size_t RowIndex, size_t ColIndex);
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          typename PropertyListT>
+void joint_matrix_store_checked(Group g,
+   const joint_matrix<Group, T, use::accumulator, Rows, Cols, layout::dynamic> &res, 
+   ext::oneapi::experimental::annotated_ptr<T, PropertyListT> base_dest,
+   size_t Stride, layout Layout, size_t GlobalRows, size_t GlobalCols,
+   size_t RowIndex, size_t ColIndex);
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          layout Layout, typename PropertyListT>
+void joint_matrix_store_checked(Group g,
+   const joint_matrix<Group, T, use::a, Rows, Cols, Layout> &res,
+   ext::oneapi::experimental::annotated_ptr<T, PropertyListT> base_dest,
+   size_t Stride, size_t GlobalRows, size_t GlobalCols,
+   size_t RowIndex, size_t ColIndex);
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          layout Layout, typename PropertyListT>
+void joint_matrix_store_checked(Group g,
+   const joint_matrix<Group, T, use::b, Rows, Cols, Layout> &res,
+   ext::oneapi::experimental::annotated_ptr<T, PropertyListT> base_dest,
+   size_t Stride, size_t GlobalRows, size_t GlobalCols,
+   size_t RowIndex, size_t ColIndex);
+
+} // namespace sycl::ext::intel::experimental::matrix
+```
+
+The property list associated with the `annotated_ptr` argument
+represents the compile-time constant properties for cache control included
+in the SYCL extenion
+link:../../proposed/sycl_ext_intel_cache_controls.asciidoc[sycl_ext_intel_cache_controls].
+
+==== Restrictions and Device Information Descriptors
+Applications must adhere to certain alignment restrictions when using
+the checked APIs described in this section. This extension provides
+the following queries to get these requirements:
+
+[frame="none",options="header"]
+|======================
+| Device descriptors | Return type| Description
+|`ext::intel::experimental::info::device::matrix_checked_alignment`| `size_t`
+|Tells the required alignment (in bytes) of the base pointer for
+`joint_matrix_load_checked` and `joint_matrix_store_checked`.
+|`ext::intel::experimental::info::device::matrix_checked_rowindex_multiple_of<T>`|
+`size_t`|Returns a value, of which `RowIndex` must be multiple of;
+where `T` is the element type of the matrix. When using the matrices
+with the machine learning types, `T` should be the element type
+(e.g. `precision::tf32`) not the storage type.
+|`ext::intel::experimental::info::device::matrix_checked_globalcols_multiple_of<T>`|
+`size_t` | Returns a value, of which `GlobalCols` must be multiple of;
+where `T` is the element type of the matrix. When using the matrices
+with the machine learning types, `T` should be the element type
+(e.g. `precision::tf32`) not the storage type.
+|======================
+
+==== Appendix: Restrictions Per Hardware
+===== Intel XMX
+The checked APIs are currently available in devices with the architecture
+`architecture::intel_gpu_pvc`. The following restrictions apply to
+these checked APIs:
+
+- The base pointer must be 4 bytes aligned.
+
+- For 8 bits data type, `RowIndex` must be a multiple of 4. For 16 bits
+data type, `RowIndex` must be a multiple of 2. So `RowIndex` must be a
+multiple of 4 divided by size of the element type (`4/sizeof(T)`).
+
+- For 8 bits data type, `GlobalCols` must be a multiple of 4. For 16 bits
+data type, `GlobalCols` must be a multiple of 2. So `GlobalCols` must be a
+multiple of 4 divided by size of the element type (`4/sizeof(T)`).
 
 === New Device Information Descriptor
 Besides the query we provide in
@@ -327,6 +596,7 @@ q.submit([&](sycl::handler& cgh) {
 });
 q.wait();
 ```
+
 == Revision History
 
 [frame="none",options="header"]
@@ -334,4 +604,6 @@ q.wait();
 |Rev |Date       |Author     |Changes
 |1   |2022-11-07 |Dounia Khaldi |Add Intel-specific store API,
 layout information, and `joint_matrix_apply` with coordinates API
+|2   |2023-10-19 |Dounia Khaldi |Add Intel-specific out-of-bounds
+load/store/fill APIs
 |======================

@@ -173,7 +173,7 @@ int main(int argc, const char **argv) {
       // possibly reusing ClangOffloadBundler's 'OffloadTargetInfo'.
       for (const std::string &Target : Targets) {
         std::string Prefix = Target + ".";
-        if (Symbol.startswith(Prefix))
+        if (Symbol.starts_with(Prefix))
           Target2Symbols[Target].insert(
               Symbol.substr(Prefix.size(), Len - Prefix.size()));
       }

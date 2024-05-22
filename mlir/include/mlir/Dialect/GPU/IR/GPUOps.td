@@ -22,7 +22,9 @@ include "mlir/Dialect/GPU/TransformOps/GPUDeviceMappingAttr.td"
 include "mlir/IR/CommonTypeConstraints.td"
 include "mlir/IR/EnumAttr.td"
 include "mlir/IR/SymbolInterfaces.td"
+include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/DataLayoutInterfaces.td"
+include "mlir/IR/OpAsmInterface.td"
 include "mlir/Interfaces/FunctionInterfaces.td"
 include "mlir/Interfaces/InferIntRangeInterface.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
@@ -49,9 +51,21 @@ def GPU_DimensionAttr : EnumAttr<GPU_Dialect, GPU_Dimension, "dim">;
 
 class GPU_IndexOp<string mnemonic, list<Trait> traits = []> :
     GPU_Op<mnemonic, !listconcat(traits, [
-        Pure, DeclareOpInterfaceMethods<InferIntRangeInterface>])>,
+        Pure,
+        DeclareOpInterfaceMethods<InferIntRangeInterface>,
+        DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>])>,
     Arguments<(ins GPU_DimensionAttr:$dimension)>, Results<(outs Index)> {
   let assemblyFormat = "$dimension attr-dict";
+  let extraClassDefinition = [{
+    void $cppClass::getAsmResultNames(
+        llvm::function_ref<void(mlir::Value, mlir::StringRef)> setNameFn) {
+      auto dimStr = stringifyDimension(getDimensionAttr().getValue());
+      auto opName = getOperationName();
+      opName.consume_front("gpu.");
+      SmallString<8> resultName({opName, "_", dimStr});
+      setNameFn(getResult(),resultName);
+    }
+  }];
 }
 
 def GPU_ClusterDimOp : GPU_IndexOp<"cluster_dim"> {
@@ -147,7 +161,7 @@ def GPU_SubgroupIdOp : GPU_Op<"subgroup_id", [
       Pure, DeclareOpInterfaceMethods<InferIntRangeInterface>]>,
     Arguments<(ins)>, Results<(outs Index:$result)> {
   let description = [{
-    Returns the subgroup id, i.e. the index of the current subgroup within the
+    Returns the subgroup id, i.e., the index of the current subgroup within the
     workgroup.
 
     Example:
@@ -961,7 +975,7 @@ def GPU_TerminatorOp : GPU_Op<"terminator", [HasParent<"LaunchOp">,
   let assemblyFormat = "attr-dict";
 }
 
-def GPU_YieldOp : GPU_Op<"yield", [Pure, Terminator]>,
+def GPU_YieldOp : GPU_Op<"yield", [Pure, ReturnLike, Terminator]>,
     Arguments<(ins Variadic<AnyType>:$values)> {
   let summary = "GPU yield operation";
   let description = [{
@@ -974,6 +988,8 @@ def GPU_YieldOp : GPU_Op<"yield", [Pure, Terminator]>,
     gpu.yield %f0, %f1 : f32, f32
     ```
   }];
+
+  let assemblyFormat = "attr-dict ($values^ `:` type($values))?";
 }
 
 // These mirror the reduction combining kinds from the vector dialect.
@@ -1073,8 +1089,8 @@ def AnyIntegerOrFloatOr1DVector :
 def GPU_SubgroupReduceOp : GPU_Op<"subgroup_reduce", [SameOperandsAndResultType]> {
   let summary = "Reduce values among subgroup.";
   let description = [{
-    The `subgroup_reduce` op reduces the value of every work item across a
-    subgroup. The result is equal for all work items of a subgroup.
+    The `subgroup_reduce` op reduces the value of every lane (work item) across
+    a subgroup. The result is equal for all lanes.
 
     When the reduced value is of a vector type, each vector element is reduced
     independently. Only 1-d vector types are allowed.
@@ -1086,8 +1102,8 @@ def GPU_SubgroupReduceOp : GPU_Op<"subgroup_reduce", [SameOperandsAndResultType]
     %2 = gpu.subgroup_reduce add %b : (vector<4xf16>) -> (vector<4xf16>)
     ```
 
-    If `uniform` flag is set either none or all work items of a subgroup
-    need to execute this op in convergence. The reduction operation must be one
+    If `uniform` flag is set either none or all lanes of a subgroup need to execute
+    this op in convergence. The reduction operation must be one
     of:
     *  Integer types: `add`, `mul`, `minui`, `minsi`, `maxui`, `maxsi`, `and`,
        `or`, `xor`
@@ -1139,30 +1155,64 @@ def GPU_ShuffleOp : GPU_Op<
     Results<(outs I32I64F32OrF64:$shuffleResult, I1:$valid)> {
   let summary = "Shuffles values within a subgroup.";
   let description = [{
-    The "shuffle" op moves values to a different invocation within the same
-    subgroup.
+    The "shuffle" op moves values to a across lanes (a.k.a., invocations,
+    work items) within the same subgroup. The `width` argument specifies the
+    number of lanes that participate in the shuffle, and must be uniform
+    across all lanes. Further, the first `width` lanes of the subgroup must
+    be active.
 
-    Example:
+    The intepretation of the `offset` arguments depends on the selected
+    `mode`.
+
+    Returns the `shuffleResult` and `true` if the current lane id is smaller
+    than `width`, and an unspecified value and `false` otherwise.
+
+    `xor` example:
 
     ```mlir
-    %1, %2 = gpu.shuffle %0, %offset, %width xor : f32
+    %1, %2 = gpu.shuffle xor %0, %offset, %width : f32
     ```
 
-    For lane k returns the value from lane `k ^ offset` and `true` if that lane
-    is smaller than %width. Otherwise it returns an unspecified value and
-    `false`. A lane is the index of an invocation relative to its subgroup.
+    For lane `k`, returns the value `%0` from lane `k ^ offset`. Every lane
+    trades value with exactly one other lane.
 
-    The width specifies the number of invocations that participate in the
-    shuffle. The width needs to be the same for all invocations that participate
-    in the shuffle. Exactly the first `width` invocations of a subgroup need to
-    execute this op in convergence.
+    `down` example:
+
+    ```mlir
+    %cst1 = arith.constant 1 : i32
+    %3, %4 = gpu.shuffle down %0, %cst1, %width : f32
+    ```
+
+    For lane `k`, returns the value from lane `(k + 1) % width`.
+
+    `up` example:
+
+    ```mlir
+    %cst1 = arith.constant 1 : i32
+    %5, %6 = gpu.shuffle up %0, %cst1, %width : f32
+    ```
+
+    For lane `k`, returns the value from lane `(k - 1) % width`.
+
+    `idx` example:
+
+    ```mlir
+    %cst0 = arith.constant 0 : i32
+    %7, %8 = gpu.shuffle idx %0, %cst0, %width : f32
+    ```
+
+    Broadcasts the value from lane 0 to all lanes.
   }];
+
+  let assemblyFormat = [{
+    $mode $value `,` $offset `,` $width attr-dict `:` type($value)
+  }];
+
   let builders = [
     // Helper function that creates a shuffle with constant offset/width.
     OpBuilder<(ins "Value":$value, "int32_t":$offset, "int32_t":$width,
                    "ShuffleMode":$mode)>
   ];
-  let assemblyFormat = "$mode $value `,` $offset `,` $width attr-dict `:` type($value)";
 }
 
 def GPU_BarrierOp : GPU_Op<"barrier"> {
@@ -1191,7 +1241,9 @@ def GPU_BarrierOp : GPU_Op<"barrier"> {
 def GPU_GPUModuleOp : GPU_Op<"module", [
       DataLayoutOpInterface, HasDefaultDLTIDataLayout, IsolatedFromAbove,
       SymbolTable, Symbol, SingleBlockImplicitTerminator<"ModuleEndOp">
-    ]>, Arguments<(ins OptionalAttr<GPUNonEmptyTargetArrayAttr>:$targets)> {
+    ]>, Arguments<(ins
+          OptionalAttr<GPUNonEmptyTargetArrayAttr>:$targets,
+          OptionalAttr<OffloadingTranslationAttr>:$offloadingHandler)> {
   let summary = "A top level compilation unit containing code to be run on a GPU.";
   let description = [{
     GPU module contains code that is intended to be run on a GPU. A host device
@@ -1212,13 +1264,20 @@ def GPU_GPUModuleOp : GPU_Op<"module", [
     how to transform modules into binary strings and are used by the
     `gpu-module-to-binary` pass to transform modules into GPU binaries.
 
+    Modules can contain an optional `OffloadingTranslationAttr` attribute. This
+    attribute will be used during the `gpu-module-to-binary` pass to specify the
+    `OffloadingTranslationAttr` used when creating the `gpu.binary` operation.
+
     ```
     gpu.module @symbol_name {
       gpu.func {}
         ...
       gpu.module_end
     }
-    gpu.module @symbol_name2 [#nvvm.target, #rocdl.target<chip = "gfx90a">] {
+    // Module with offloading handler and target attributes.
+    gpu.module @symbol_name2 <#gpu.select_object<1>> [
+        #nvvm.target,
+        #rocdl.target<chip = "gfx90a">] {
       gpu.func {}
         ...
       gpu.module_end
@@ -1226,8 +1285,12 @@ def GPU_GPUModuleOp : GPU_Op<"module", [
     ```
   }];
   let builders = [
-    OpBuilder<(ins "StringRef":$name, CArg<"ArrayAttr", "{}">:$targets)>,
-    OpBuilder<(ins "StringRef":$name, "ArrayRef<Attribute>":$targets)>
+    OpBuilder<(ins "StringRef":$name,
+                   CArg<"ArrayAttr", "{}">:$targets,
+                   CArg<"Attribute", "{}">:$handler)>,
+    OpBuilder<(ins "StringRef":$name,
+                   "ArrayRef<Attribute>":$targets,
+                   CArg<"Attribute", "{}">:$handler)>
   ];
   let regions = (region SizedRegion<1>:$bodyRegion);
   let hasCustomAssemblyFormat = 1;

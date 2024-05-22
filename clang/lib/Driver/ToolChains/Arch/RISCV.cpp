@@ -15,9 +15,9 @@
 #include "clang/Driver/Options.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/RISCVISAInfo.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/RISCVISAInfo.h"
 #include "llvm/TargetParser/RISCVTargetParser.h"
 
 using namespace clang::driver;
@@ -68,8 +68,10 @@ static void getRISCFeaturesFromMcpu(const Driver &D, const Arg *A,
           << A->getSpelling() << Mcpu;
   }
 
-  if (llvm::RISCV::hasFastUnalignedAccess(Mcpu))
-    Features.push_back("+fast-unaligned-access");
+  if (llvm::RISCV::hasFastUnalignedAccess(Mcpu)) {
+    Features.push_back("+unaligned-scalar-mem");
+    Features.push_back("+unaligned-vector-mem");
+  }
 }
 
 void riscv::getRISCVTargetFeatures(const Driver &D, const llvm::Triple &Triple,
@@ -167,9 +169,17 @@ void riscv::getRISCVTargetFeatures(const Driver &D, const llvm::Triple &Triple,
     Features.push_back("-relax");
   }
 
-  // -mno-unaligned-access is default, unless -munaligned-access is specified.
-  AddTargetFeature(Args, Features, options::OPT_munaligned_access,
-                   options::OPT_mno_unaligned_access, "fast-unaligned-access");
+  // Android requires fast unaligned access on RISCV64.
+  if (Triple.isAndroid()) {
+    Features.push_back("+unaligned-scalar-mem");
+    Features.push_back("+unaligned-vector-mem");
+  }
+
+  // -mstrict-align is default, unless -mno-strict-align is specified.
+  AddTargetFeature(Args, Features, options::OPT_mno_strict_align,
+                   options::OPT_mstrict_align, "unaligned-scalar-mem");
+  AddTargetFeature(Args, Features, options::OPT_mno_strict_align,
+                   options::OPT_mstrict_align, "unaligned-vector-mem");
 
   // Now add any that the user explicitly requested on the command line,
   // which may override the defaults.
@@ -210,6 +220,7 @@ StringRef riscv::getRISCVABI(const ArgList &Args, const llvm::Triple &Triple) {
   // rv32e -> ilp32e
   // rv32* -> ilp32
   // rv64g | rv64*d -> lp64d
+  // rv64e -> lp64e
   // rv64* -> lp64
   StringRef Arch = getRISCVArch(Args, Triple);
 
@@ -285,6 +296,7 @@ StringRef riscv::getRISCVArch(const llvm::opt::ArgList &Args,
   // 3. Choose a default based on `-mabi=`
   //
   // ilp32e -> rv32e
+  // lp64e -> rv64e
   // ilp32 | ilp32f | ilp32d -> rv32imafdc
   // lp64 | lp64f | lp64d -> rv64imafdc
   if (const Arg *A = Args.getLastArg(options::OPT_mabi_EQ)) {
@@ -292,6 +304,8 @@ StringRef riscv::getRISCVArch(const llvm::opt::ArgList &Args,
 
     if (MABI.equals_insensitive("ilp32e"))
       return "rv32e";
+    else if (MABI.equals_insensitive("lp64e"))
+      return "rv64e";
     else if (MABI.starts_with_insensitive("ilp32"))
       return "rv32imafdc";
     else if (MABI.starts_with_insensitive("lp64")) {

@@ -190,17 +190,23 @@ AArch64LoopIdiomTransformPass::run(Loop &L, LoopAnalysisManager &AM,
 bool AArch64LoopIdiomTransform::run(Loop *L) {
   CurLoop = L;
 
-  if (DisableAll || L->getHeader()->getParent()->hasOptSize())
+  Function &F = *L->getHeader()->getParent();
+  if (DisableAll || F.hasOptSize())
     return false;
+
+  if (F.hasFnAttribute(Attribute::NoImplicitFloat)) {
+    LLVM_DEBUG(dbgs() << DEBUG_TYPE << " is disabled on " << F.getName()
+                      << " due to its NoImplicitFloat attribute");
+    return false;
+  }
 
   // If the loop could not be converted to canonical form, it must have an
   // indirectbr in it, just give up.
   if (!L->getLoopPreheader())
     return false;
 
-  LLVM_DEBUG(dbgs() << DEBUG_TYPE " Scanning: F["
-                    << CurLoop->getHeader()->getParent()->getName()
-                    << "] Loop %" << CurLoop->getHeader()->getName() << "\n");
+  LLVM_DEBUG(dbgs() << DEBUG_TYPE " Scanning: F[" << F.getName() << "] Loop %"
+                    << CurLoop->getHeader()->getName() << "\n");
 
   return recognizeByteCompare();
 }
@@ -367,11 +373,12 @@ bool AArch64LoopIdiomTransform::recognizeByteCompare() {
       Value *WhileBodyVal = EndPN.getIncomingValueForBlock(WhileBB);
 
       // The value of the index when leaving the while.cond block is always the
-      // same as the end value (MaxLen) so we permit either. Otherwise for any
-      // other value defined outside the loop we only allow values that are the
-      // same as the exit value for while.body.
-      if (WhileCondVal != Index && WhileCondVal != MaxLen &&
-          WhileCondVal != WhileBodyVal)
+      // same as the end value (MaxLen) so we permit either. The value when
+      // leaving the while.body block should only be the index. Otherwise for
+      // any other values we only allow ones that are same for both blocks.
+      if (WhileCondVal != WhileBodyVal &&
+          ((WhileCondVal != Index && WhileCondVal != MaxLen) ||
+           (WhileBodyVal != Index)))
         return false;
     }
   }

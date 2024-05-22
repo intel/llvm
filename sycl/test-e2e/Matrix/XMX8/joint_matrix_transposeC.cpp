@@ -6,15 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix-xmx8
+// REQUIRES-INTEL-DRIVER: lin: 28267
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL:gpu
-
 #include "../common.hpp"
 
-constexpr size_t SG_SZ = 8;
 constexpr size_t TN = 8;
 
 #include "../joint_matrix_transposeC_impl.hpp"

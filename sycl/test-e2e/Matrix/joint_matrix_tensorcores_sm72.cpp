@@ -1,3 +1,10 @@
+//===----joint_matrix_tensorcores_sm72.cpp - DPC++ joint_matrix------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 
 // REQUIRES: cuda
 // RUN: %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_72 -o %t.out
@@ -50,12 +57,27 @@ int main() {
     test<const uint8_t, const int32_t, int32_t, SUB_TILES_M, SUB_TILES_K,
          SUB_TILES_N, 32, 16, 8>(Q);
 
+    // test different layout combinations for one case
+
+    test<const uint8_t, const int32_t, int32_t, SUB_TILES_M, SUB_TILES_K,
+         SUB_TILES_N, 32, 16, 8, layout::row_major, layout::row_major,
+         layout::col_major>(Q);
+    test<const uint8_t, const int32_t, int32_t, SUB_TILES_M, SUB_TILES_K,
+         SUB_TILES_N, 32, 16, 8, layout::col_major, layout::row_major,
+         layout::row_major>(Q);
+    test<const uint8_t, const int32_t, int32_t, SUB_TILES_M, SUB_TILES_K,
+         SUB_TILES_N, 32, 16, 8, layout::row_major, layout::col_major,
+         layout::row_major>(Q);
+    test<const uint8_t, const int32_t, int32_t, SUB_TILES_M, SUB_TILES_K,
+         SUB_TILES_N, 32, 16, 8, layout::col_major, layout::col_major,
+         layout::row_major>(Q);
+
+    // joint_matrix_apply tests
+
     auto apply_add = [](auto &x) { x = x + 2; };
 
     int32_t D_i[MATRIX_M][MATRIX_N];
     big_matrix<int32_t, MATRIX_M, MATRIX_N> MD_i((int32_t *)&D_i);
-
-    // joint_matrix_apply tests
 
     matrix_verify_lambda<uint8_t, int32_t, M, 16, N>(Q, MD_i, 0, apply_add);
     matrix_verify_lambda<int8_t, int32_t, M, 16, N>(Q, MD_i, 0, apply_add);

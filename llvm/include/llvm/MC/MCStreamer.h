@@ -245,8 +245,6 @@ class MCStreamer {
   /// requires.
   unsigned NextWinCFIID = 0;
 
-  bool UseAssemblerInfoForParsing;
-
   /// Is the assembler allowed to insert padding automatically?  For
   /// correctness reasons, we sometimes need to ensure instructions aren't
   /// separated in unexpected ways.  At the moment, this feature is only
@@ -296,10 +294,9 @@ public:
 
   MCContext &getContext() const { return Context; }
 
+  // MCObjectStreamer has an MCAssembler and allows more expression folding at
+  // parse time.
   virtual MCAssembler *getAssemblerPtr() { return nullptr; }
-
-  void setUseAssemblerInfoForParsing(bool v) { UseAssemblerInfoForParsing = v; }
-  bool getUseAssemblerInfoForParsing() { return UseAssemblerInfoForParsing; }
 
   MCTargetStreamer *getTargetStreamer() {
     return TargetStreamer.get();
@@ -740,7 +737,7 @@ public:
   /// Special case of EmitValue that avoids the client having
   /// to pass in a MCExpr for constant integers.
   virtual void emitIntValue(uint64_t Value, unsigned Size);
-  virtual void emitIntValue(APInt Value);
+  virtual void emitIntValue(const APInt &Value);
 
   /// Special case of EmitValue that avoids the client having to pass
   /// in a MCExpr for constant integers & prints in Hex format for certain
@@ -903,7 +900,7 @@ public:
   virtual void emitFileDirective(StringRef Filename);
 
   /// Emit ".file assembler diretive with additioal info.
-  virtual void emitFileDirective(StringRef Filename, StringRef CompilerVerion,
+  virtual void emitFileDirective(StringRef Filename, StringRef CompilerVersion,
                                  StringRef TimeStamp, StringRef Description);
 
   /// Emit the "identifiers" directive.  This implements the

@@ -30,7 +30,7 @@ The translator can be built with the latest(nightly) package of LLVM. For Ubuntu
 wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
 sudo add-apt-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial main"
 sudo apt-get update
-sudo apt-get install llvm-18-dev llvm-18-tools clang-18 libclang-18-dev
+sudo apt-get install llvm-19-dev llvm-19-tools clang-19 libclang-19-dev
 ```
 The installed version of LLVM will be used by default for out-of-tree build of the translator.
 ```
@@ -154,7 +154,7 @@ make test
 ```
 This requires that the `-DLLVM_SPIRV_INCLUDE_TESTS=ON` argument is
 passed to CMake during the build step. Additionally,
-`-DLLVM_EXTERNAL_LIT="/usr/lib/llvm-18/build/utils/lit/lit.py"` is
+`-DLLVM_EXTERNAL_LIT="/usr/lib/llvm-19/build/utils/lit/lit.py"` is
 needed when building with a pre-installed version of LLVM.
 
 The translator test suite can be disabled by passing
@@ -203,7 +203,7 @@ the version of the SPIR-V file which is being generated/consumed.
   the input file and emit an error if the SPIR-V version in it is higher than
   one specified via this option.
 
-Allowed values are `1.0`, `1.1`, `1.2`, `1.3`, and `1.4`.
+Allowed values are `1.0`, `1.1`, `1.2`, `1.3`, `1.4`, and `1.5`.
 
 More information can be found in
 [SPIR-V versions and extensions handling](docs/SPIRVVersionsAndExtensionsHandling.rst)

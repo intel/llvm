@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix-xmx8
+// REQUIRES-INTEL-DRIVER: lin: 28267
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -17,7 +18,6 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-constexpr size_t SG_SZ = 8;
 constexpr size_t TN = 8;
 
 #include "../get_coord_int8_matA_impl.hpp"

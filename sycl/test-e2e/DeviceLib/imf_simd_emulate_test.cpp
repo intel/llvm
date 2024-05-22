@@ -9,7 +9,7 @@
 #include <cassert>
 #include <iostream>
 #include <sycl/ext/intel/math.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 namespace s = sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;

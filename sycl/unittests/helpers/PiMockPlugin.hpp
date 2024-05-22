@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <cstddef>
 #include <sycl/detail/pi.hpp>
 
 #include <atomic>
@@ -203,10 +204,13 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
   }
   case PI_DEVICE_INFO_USM_HOST_SUPPORT:
   case PI_DEVICE_INFO_USM_DEVICE_SUPPORT:
+  case PI_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT:
   case PI_DEVICE_INFO_HOST_UNIFIED_MEMORY:
   case PI_DEVICE_INFO_AVAILABLE:
   case PI_DEVICE_INFO_LINKER_AVAILABLE:
-  case PI_DEVICE_INFO_COMPILER_AVAILABLE: {
+  case PI_DEVICE_INFO_COMPILER_AVAILABLE:
+  case PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_SUPPORT:
+  case PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT: {
     if (param_value)
       *static_cast<pi_bool *>(param_value) = PI_TRUE;
     if (param_value_size_ret)
@@ -235,8 +239,22 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
     }
     return PI_SUCCESS;
   }
-  default:
+  default: {
+    // In the default case we fill the return value with 0's. This may not be
+    // valid for all device queries, but it will mean a consistent return value
+    // for the query.
+    // Any tests that need special return values should either add behavior
+    // the this function or use redefineAfter with a function that adds the
+    // intended behavior.
+    if (param_value && param_value_size != 0)
+      std::memset(param_value, 0, param_value_size);
+    // Likewise, if the device info query asks for the size of the return value
+    // we tell it there is a single byte to avoid cases where the runtime tries
+    // to allocate some random amount of memory for the return value.
+    if (param_value_size_ret)
+      *param_value_size_ret = 1;
     return PI_SUCCESS;
+  }
   }
 }
 
@@ -276,6 +294,12 @@ inline pi_result
 mock_piextGetDeviceFunctionPointer(pi_device device, pi_program program,
                                    const char *function_name,
                                    pi_uint64 *function_pointer_ret) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextGetGlobalVariablePointer(
+    pi_device device, pi_program program, const char *global_variable_name,
+    size_t *global_variable_size, void **global_variable_size_ret) {
   return PI_SUCCESS;
 }
 
@@ -473,7 +497,7 @@ inline pi_result mock_piextMemMipmapFree(pi_context context, pi_device device,
 
 inline pi_result mock_piextMemUnsampledImageCreate(
     pi_context context, pi_device device, pi_image_mem_handle img_mem,
-    pi_image_format *image_format, pi_image_desc *desc, pi_mem *ret_mem,
+    pi_image_format *image_format, pi_image_desc *desc,
     pi_image_handle *ret_handle) {
   return PI_SUCCESS;
 }
@@ -543,7 +567,7 @@ inline pi_result mock_piextMemSampledImageCreateInterop(
 inline pi_result mock_piextMemSampledImageCreate(
     pi_context context, pi_device device, pi_image_mem_handle img_mem,
     pi_image_format *image_format, pi_image_desc *desc, pi_sampler sampler,
-    pi_mem *ret_mem, pi_image_handle *ret_handle) {
+    pi_image_handle *ret_handle) {
   return PI_SUCCESS;
 }
 
@@ -613,7 +637,7 @@ mock_piMemBufferPartition(pi_mem buffer, pi_mem_flags flags,
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piextMemGetNativeHandle(pi_mem mem,
+inline pi_result mock_piextMemGetNativeHandle(pi_mem mem, pi_device dev,
                                               pi_native_handle *nativeHandle) {
   *nativeHandle = reinterpret_cast<pi_native_handle>(mem);
   return PI_SUCCESS;
@@ -853,6 +877,13 @@ mock_piextKernelGetNativeHandle(pi_kernel kernel,
   return PI_SUCCESS;
 }
 
+inline pi_result mock_piextKernelSuggestMaxCooperativeGroupCount(
+    pi_kernel kernel, size_t local_work_size, size_t dynamic_shared_memory_size,
+    pi_uint32 *group_count_ret) {
+  *group_count_ret = 1;
+  return PI_SUCCESS;
+}
+
 //
 // Events
 //
@@ -962,6 +993,15 @@ inline pi_result mock_piSamplerRelease(pi_sampler sampler) {
 // Queue Commands
 //
 inline pi_result mock_piEnqueueKernelLaunch(
+    pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,
+    const size_t *global_work_offset, const size_t *global_work_size,
+    const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextEnqueueCooperativeKernelLaunch(
     pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,
     const size_t *global_work_offset, const size_t *global_work_size,
     const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
@@ -1299,7 +1339,7 @@ inline pi_result mock_piextCommandBufferNDRangeKernel(
     const size_t *global_work_offset, const size_t *global_work_size,
     const size_t *local_work_size, pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
-    pi_ext_sync_point *sync_point) {
+    pi_ext_sync_point *sync_point, pi_ext_command_buffer_command *command) {
   return PI_SUCCESS;
 }
 
@@ -1356,6 +1396,22 @@ inline pi_result mock_piextEnqueueCommandBuffer(
   return PI_SUCCESS;
 }
 
+inline pi_result mock_piextCommandBufferUpdateKernelLaunch(
+    pi_ext_command_buffer_command Command,
+    pi_ext_command_buffer_update_kernel_launch_desc *Desc) {
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextCommandBufferRetainCommand(pi_ext_command_buffer_command Command) {
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextCommandBufferReleaseCommand(pi_ext_command_buffer_command Command) {
+  return PI_SUCCESS;
+}
+
 inline pi_result mock_piextCommandBufferMemBufferCopy(
     pi_ext_command_buffer command_buffer, pi_mem src_buffer, pi_mem dst_buffer,
     size_t src_offset, size_t dst_offset, size_t size,
@@ -1388,6 +1444,22 @@ inline pi_result mock_piextCommandBufferMemBufferFill(
 inline pi_result mock_piextCommandBufferFillUSM(
     pi_ext_command_buffer command_buffer, void *ptr, const void *pattern,
     size_t pattern_size, size_t size, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextCommandBufferPrefetchUSM(
+    pi_ext_command_buffer command_buffer, const void *ptr, size_t size,
+    pi_usm_migration_flags flags, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextCommandBufferAdviseUSM(
+    pi_ext_command_buffer command_buffer, const void *ptr, size_t length,
+    pi_mem_advice advice, pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
     pi_ext_sync_point *sync_point) {
   return PI_SUCCESS;

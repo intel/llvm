@@ -5,7 +5,7 @@
 
 #include <cassert>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <utility>
 
 using namespace sycl;

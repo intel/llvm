@@ -10,7 +10,7 @@
 #include <cassert>
 #include <complex>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include "math_utils.hpp"
 

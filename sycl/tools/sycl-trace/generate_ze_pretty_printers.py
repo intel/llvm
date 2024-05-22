@@ -33,7 +33,7 @@ def generate_ze_pretty_printers(header):
 
             param_type = "ze_" + camel_to_snake(api_name_tail) + "_params_t"
 
-            search_str = "typedef struct _{}\n{{\n([0-9\sa-zA-Z_\*;\n]*)}}".format(
+            search_str = r"typedef struct _{}\n{{\n([0-9\sa-zA-Z_\*;\n]*)}}".format(
                 param_type
             )
             args = re.search(search_str, header)

@@ -31,7 +31,6 @@
 #include <sycl/properties/queue_properties.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/queue.hpp>
-#include <sycl/stl.hpp>
 
 #include "detail/graph_impl.hpp"
 
@@ -108,13 +107,12 @@ public:
              const async_handler &AsyncHandler, const property_list &PropList)
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList), MHostQueue(MDevice->is_host()),
-        MAssertHappenedBuffer(range<1>{1}),
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MHasDiscardEventsSupport(MDiscardEvents &&
-                                 (MHostQueue ? true : MIsInorder)),
+        MSupportsDiscardingPiEvents(MDiscardEvents &&
+                                    (MHostQueue ? true : MIsInorder)),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
     if (has_property<property::queue::enable_profiling>()) {
@@ -175,13 +173,16 @@ public:
       // This section is the second part of the instrumentation that uses the
       // tracepoint information and notifies
     }
+
     // We enable XPTI tracing events using the TLS mechanism; if the code
     // location data is available, then the tracing data will be rich.
 #if XPTI_ENABLE_INSTRUMENTATION
     constexpr uint16_t NotificationTraceType =
         static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
+    // Using the instance override constructor for use with queues as queues
+    // maintain instance IDs in the object
     XPTIScope PrepareNotify((void *)this, NotificationTraceType,
-                            SYCL_STREAM_NAME, "queue_create");
+                            SYCL_STREAM_NAME, MQueueID, "queue_create");
     // Cache the trace event, stream id and instance IDs for the destructor
     if (xptiCheckTraceEnabled(PrepareNotify.streamID(),
                               NotificationTraceType)) {
@@ -206,12 +207,14 @@ public:
           xpti::addMetadata(TEvent, "queue_handle",
                             reinterpret_cast<size_t>(getHandleRef()));
       });
+      // Also publish to TLS
+      xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
       PrepareNotify.notify();
     }
 #endif
   }
 
-  event getLastEvent() const;
+  event getLastEvent();
 
 private:
   void queue_impl_interop(sycl::detail::pi::PiQueue PiQueue) {
@@ -243,7 +246,7 @@ private:
     constexpr uint16_t NotificationTraceType =
         static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
     XPTIScope PrepareNotify((void *)this, NotificationTraceType,
-                            SYCL_STREAM_NAME, "queue_create");
+                            SYCL_STREAM_NAME, MQueueID, "queue_create");
     if (xptiCheckTraceEnabled(PrepareNotify.streamID(),
                               NotificationTraceType)) {
       // Cache the trace event, stream id and instance IDs for the destructor
@@ -268,6 +271,8 @@ private:
         if (!MHostQueue)
           xpti::addMetadata(TEvent, "queue_handle", getHandleRef());
       });
+      // Also publish to TLS before notification
+      xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
       PrepareNotify.notify();
     }
 #endif
@@ -283,13 +288,12 @@ public:
   queue_impl(sycl::detail::pi::PiQueue PiQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler)
       : MContext(Context), MAsyncHandler(AsyncHandler), MHostQueue(false),
-        MAssertHappenedBuffer(range<1>{1}),
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MHasDiscardEventsSupport(MDiscardEvents &&
-                                 (MHostQueue ? true : MIsInorder)),
+        MSupportsDiscardingPiEvents(MDiscardEvents &&
+                                    (MHostQueue ? true : MIsInorder)),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
     queue_impl_interop(PiQueue);
@@ -305,13 +309,13 @@ public:
   queue_impl(sycl::detail::pi::PiQueue PiQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler, const property_list &PropList)
       : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(PropList),
-        MHostQueue(false), MAssertHappenedBuffer(range<1>{1}),
+        MHostQueue(false),
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MHasDiscardEventsSupport(MDiscardEvents &&
-                                 (MHostQueue ? true : MIsInorder)) {
+        MSupportsDiscardingPiEvents(MDiscardEvents &&
+                                    (MHostQueue ? true : MIsInorder)) {
     queue_impl_interop(PiQueue);
   }
 
@@ -367,7 +371,9 @@ public:
   bool is_host() const { return MHostQueue; }
 
   /// \return true if this queue has discard_events support.
-  bool has_discard_events_support() const { return MHasDiscardEventsSupport; }
+  bool supportsDiscardingPiEvents() const {
+    return MSupportsDiscardingPiEvents;
+  }
 
   bool isInOrder() const { return MIsInorder; }
 
@@ -375,6 +381,26 @@ public:
   ///
   /// The return type depends on information being queried.
   template <typename Param> typename Param::return_type get_info() const;
+
+  /// Queries SYCL queue for SYCL backend-specific information.
+  ///
+  /// The return type depends on information being queried.
+  template <typename Param>
+  typename Param::return_type get_backend_info() const;
+
+  /// Provides a hint to the backend to execute previously issued commands on
+  /// this queue. Overrides normal batching behaviour. Note that this is merely
+  /// a hint and not a guarantee.
+  void flush() {
+    if (MGraph.lock()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "flush cannot be called for a queue which is "
+                            "recording to a command graph.");
+    }
+    for (const auto &queue : MQueues) {
+      getPlugin()->call<PiApiKind::piQueueFlush>(queue);
+    }
+  }
 
   using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
 
@@ -396,12 +422,14 @@ public:
                const std::shared_ptr<queue_impl> &SecondQueue,
                const detail::code_location &Loc,
                const SubmitPostProcessF *PostProcess = nullptr) {
+    event ResEvent;
     try {
-      return submit_impl(CGF, Self, Self, SecondQueue, Loc, PostProcess);
+      ResEvent = submit_impl(CGF, Self, Self, SecondQueue, Loc, PostProcess);
     } catch (...) {
-      return SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue, Loc,
-                                      PostProcess);
+      ResEvent = SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue,
+                                          Loc, PostProcess);
     }
+    return discard_or_return(ResEvent);
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -416,7 +444,8 @@ public:
                const std::shared_ptr<queue_impl> &Self,
                const detail::code_location &Loc,
                const SubmitPostProcessF *PostProcess = nullptr) {
-    return submit_impl(CGF, Self, Self, nullptr, Loc, PostProcess);
+    auto ResEvent = submit_impl(CGF, Self, Self, nullptr, Loc, PostProcess);
+    return discard_or_return(ResEvent);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -670,12 +699,8 @@ public:
   /// \return a native handle.
   pi_native_handle getNative(int32_t &NativeHandleDesc) const;
 
-  buffer<AssertHappened, 1> &getAssertHappenedBuffer() {
-    return MAssertHappenedBuffer;
-  }
-
   void registerStreamServiceEvent(const EventImplPtr &Event) {
-    std::lock_guard<std::mutex> Lock(MMutex);
+    std::lock_guard<std::mutex> Lock(MStreamsServiceEventsMutex);
     MStreamsServiceEvents.push_back(Event);
   }
 
@@ -707,6 +732,7 @@ public:
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
     std::lock_guard<std::mutex> Lock(MMutex);
     MGraph = Graph;
+    MExtGraphDeps.LastEventPtr = nullptr;
   }
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
@@ -730,9 +756,23 @@ public:
 
   const std::vector<event> &
   getExtendDependencyList(const std::vector<event> &DepEvents,
-                          std::vector<event> &MutableVec);
+                          std::vector<event> &MutableVec,
+                          std::unique_lock<std::mutex> &QueueLock);
+
+  // Helps to manage host tasks presence in scenario with barrier usage.
+  // Approach that tracks almost all tasks to provide barrier sync for both pi
+  // tasks and host tasks is applicable for out of order queues only. No-op
+  // for in order ones.
+  void tryToResetEnqueuedBarrierDep(const EventImplPtr &EnqueuedBarrierEvent);
+
+  // Called on host task completion that could block some kernels from enqueue.
+  // Approach that tracks almost all tasks to provide barrier sync for both pi
+  // tasks and host tasks is applicable for out of order queues only. Not neede
+  // for in order ones.
+  void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
 
 protected:
+  event discard_or_return(const event &Event);
   // Hook to the scheduler to clean up any fusion command held on destruction.
   void cleanup_fusion_cmd();
 
@@ -741,24 +781,21 @@ protected:
   void finalizeHandler(HandlerType &Handler, const CG::CGTYPE &Type,
                        event &EventRet) {
     if (MIsInorder) {
-
-      auto IsExpDepManaged = [](const CG::CGTYPE &Type) {
-        return Type == CG::CGTYPE::CodeplayHostTask;
-      };
-
       // Accessing and changing of an event isn't atomic operation.
-      // Hence, here is are locks for thread-safety.
-      std::lock_guard<std::mutex> LastEventLock{MLastEventMtx};
+      // Hence, here is the lock for thread-safety.
+      std::lock_guard<std::mutex> Lock{MMutex};
+      // This dependency is needed for the following purposes:
+      //    - host tasks are handled by the runtime and cannot be implicitly
+      //    synchronized by the backend.
+      //    - to prevent the 2nd kernel enqueue when the 1st kernel is blocked
+      //    by a host task. This dependency allows to build the enqueue order in
+      //    the RT but will not be passed to the backend. See getPIEvents in
+      //    Command.
 
-      if (MLastCGType == CG::CGTYPE::None)
-        MLastCGType = Type;
-      // Also handles case when sync model changes. E.g. Last is host, new is
-      // kernel.
-      bool NeedSeparateDependencyMgmt =
-          IsExpDepManaged(Type) || IsExpDepManaged(MLastCGType);
-
-      if (NeedSeparateDependencyMgmt)
-        Handler.depends_on(MLastEvent);
+      auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
+                                                : MExtGraphDeps.LastEventPtr;
+      if (EventToBuildDeps)
+        Handler.depends_on(EventToBuildDeps);
 
       // If there is an external event set, add it as a dependency and clear it.
       // We do not need to hold the lock as MLastEventMtx will ensure the last
@@ -768,14 +805,34 @@ protected:
         Handler.depends_on(*ExternalEvent);
 
       EventRet = Handler.finalize();
-
-      MLastEvent = EventRet;
-      MLastCGType = Type;
-    } else
+      EventToBuildDeps = getSyclObjImpl(EventRet);
+    } else {
+      // The following code supports barrier synchronization if host task is
+      // involved in the scenario. Native barriers cannot handle host task
+      // dependency so in the case where some commands were not enqueued
+      // (blocked), we track them to prevent barrier from being enqueued
+      // earlier.
+      std::lock_guard<std::mutex> Lock{MMutex};
+      auto &Deps = MGraph.expired() ? MDefaultGraphDeps : MExtGraphDeps;
+      if (Type == CG::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
+        Handler.depends_on(Deps.UnenqueuedCmdEvents);
+      }
+      if (Deps.LastBarrier)
+        Handler.depends_on(Deps.LastBarrier);
       EventRet = Handler.finalize();
+      EventImplPtr EventRetImpl = getSyclObjImpl(EventRet);
+      if (Type == CG::CodeplayHostTask)
+        Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
+      else if (!EventRetImpl->isEnqueued()) {
+        if (Type == CG::Barrier || Type == CG::BarrierWaitlist) {
+          Deps.LastBarrier = EventRetImpl;
+          Deps.UnenqueuedCmdEvents.clear();
+        } else
+          Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
+      }
+    }
   }
 
-protected:
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
@@ -826,10 +883,9 @@ protected:
 
       if (IsKernel)
         // Kernel only uses assert if it's non interop one
-        KernelUsesAssert =
-            !(Handler.MKernel && Handler.MKernel->isInterop()) &&
-            ProgramManager::getInstance().kernelUsesAssert(Handler.MKernelName);
-
+        KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
+                           ProgramManager::getInstance().kernelUsesAssert(
+                               Handler.MKernelName.c_str());
       finalizeHandler(Handler, Type, Event);
 
       (*PostProcess)(IsKernel, KernelUsesAssert, Event);
@@ -839,6 +895,36 @@ protected:
     addEvent(Event);
     return Event;
   }
+
+  /// Helper function for submitting a memory operation with a handler.
+  /// \param Self is a shared_ptr to this queue.
+  /// \param DepEvents is a vector of dependencies of the operation.
+  /// \param HandlerFunc is a function that submits the operation with a
+  ///        handler.
+  template <typename HandlerFuncT>
+  event submitWithHandler(const std::shared_ptr<queue_impl> &Self,
+                          const std::vector<event> &DepEvents,
+                          HandlerFuncT HandlerFunc);
+
+  /// Performs submission of a memory operation directly if scheduler can be
+  /// bypassed, or with a handler otherwise.
+  ///
+  /// \param Self is a shared_ptr to this queue.
+  /// \param DepEvents is a vector of dependencies of the operation.
+  /// \param HandlerFunc is a function that submits the operation with a
+  ///        handler.
+  /// \param MemMngrFunc is a function that forwards its arguments to the
+  ///        appropriate memory manager function.
+  /// \param MemMngrArgs are all the arguments that need to be passed to memory
+  ///        manager except the last three: dependencies, PI event and
+  ///        EventImplPtr are filled out by this helper.
+  /// \return an event representing the submitted operation.
+  template <typename HandlerFuncT, typename MemMngrFuncT,
+            typename... MemMngrArgTs>
+  event submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
+                          const std::vector<event> &DepEvents,
+                          HandlerFuncT HandlerFunc, MemMngrFuncT MemMngrFunc,
+                          MemMngrArgTs... MemOpArgs);
 
   // When instrumentation is enabled emits trace event for wait begin and
   // returns the telemetry event generated for the wait
@@ -888,21 +974,21 @@ protected:
   /// need to emulate it with multiple native in-order queues.
   bool MEmulateOOO = false;
 
-  // Buffer to store assert failure descriptor
-  buffer<AssertHappened, 1> MAssertHappenedBuffer;
-
-  // This event is employed for enhanced dependency tracking with in-order queue
-  // Access to the event should be guarded with MLastEventMtx
-  event MLastEvent;
-  mutable std::mutex MLastEventMtx;
-  // Used for in-order queues in pair with MLastEvent
-  // Host tasks are explicitly synchronized in RT, pi tasks - implicitly by
-  // backend. Using type to setup explicit sync between host and pi tasks.
-  CG::CGTYPE MLastCGType = CG::CGTYPE::None;
+  // Access should be guarded with MMutex
+  struct DependencyTrackingItems {
+    // This event is employed for enhanced dependency tracking with in-order
+    // queue
+    EventImplPtr LastEventPtr;
+    // The following two items are employed for proper out of order enqueue
+    // ordering
+    std::vector<EventImplPtr> UnenqueuedCmdEvents;
+    EventImplPtr LastBarrier;
+  } MDefaultGraphDeps, MExtGraphDeps;
 
   const bool MIsInorder;
 
   std::vector<EventImplPtr> MStreamsServiceEvents;
+  std::mutex MStreamsServiceEventsMutex;
 
   // All member variable defined here  are needed for the SYCL instrumentation
   // layer. Do not guard these variables below with XPTI_ENABLE_INSTRUMENTATION
@@ -930,12 +1016,11 @@ public:
   const bool MIsProfilingEnabled;
 
 protected:
-  // This flag says if we can discard events based on a queue "setup" which will
-  // be common for all operations submitted to the queue. This is a must
-  // condition for discarding, but even if it's true, in some cases, we won't be
-  // able to discard events, because the final decision is made right before the
-  // operation itself.
-  const bool MHasDiscardEventsSupport;
+  // Indicates whether the queue supports discarding PI events for tasks
+  // submitted to it. This condition is necessary but not sufficient, PI events
+  // should be discarded only if they also don't represent potential implicit
+  // dependencies for future tasks in other queues.
+  const bool MSupportsDiscardingPiEvents;
 
   // Command graph which is associated with this queue for the purposes of
   // recording commands to it.

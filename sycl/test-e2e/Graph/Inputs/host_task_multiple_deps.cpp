@@ -4,17 +4,9 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
-
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
+  queue Queue{};
 
   using T = int;
-
-  if (!Queue.get_device().has(sycl::aspect::usm_shared_allocations)) {
-    return 0;
-  }
 
   const T ModValue = T{7};
   std::vector<T> DataA(Size), DataB(Size), DataC(Size);

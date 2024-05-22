@@ -16,7 +16,7 @@
 // 1) Correct results after usage of different type of accessors to sub buffer
 // 2) Exceptions if we trying to create sub buffer not according to spec
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <algorithm>
 #include <iostream>

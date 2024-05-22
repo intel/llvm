@@ -218,17 +218,28 @@ bool YAMLProfileReader::parseFunctionProfile(
         continue;
       }
 
-      BinaryBasicBlock &SuccessorBB = *Order[YamlSI.Index];
-      if (!BB.getSuccessor(SuccessorBB.getLabel())) {
-        if (opts::Verbosity >= 1)
-          errs() << "BOLT-WARNING: no successor for block " << BB.getName()
-                 << " that matches index " << YamlSI.Index << " or block "
-                 << SuccessorBB.getName() << '\n';
-        ++MismatchedEdges;
-        continue;
+      BinaryBasicBlock *ToBB = Order[YamlSI.Index];
+      if (!BB.getSuccessor(ToBB->getLabel())) {
+        // Allow passthrough blocks.
+        BinaryBasicBlock *FTSuccessor = BB.getConditionalSuccessor(false);
+        if (FTSuccessor && FTSuccessor->succ_size() == 1 &&
+            FTSuccessor->getSuccessor(ToBB->getLabel())) {
+          BinaryBasicBlock::BinaryBranchInfo &FTBI =
+              FTSuccessor->getBranchInfo(*ToBB);
+          FTBI.Count += YamlSI.Count;
+          FTBI.MispredictedCount += YamlSI.Mispreds;
+          ToBB = FTSuccessor;
+        } else {
+          if (opts::Verbosity >= 1)
+            errs() << "BOLT-WARNING: no successor for block " << BB.getName()
+                   << " that matches index " << YamlSI.Index << " or block "
+                   << ToBB->getName() << '\n';
+          ++MismatchedEdges;
+          continue;
+        }
       }
 
-      BinaryBasicBlock::BinaryBranchInfo &BI = BB.getBranchInfo(SuccessorBB);
+      BinaryBasicBlock::BinaryBranchInfo &BI = BB.getBranchInfo(*ToBB);
       BI.Count += YamlSI.Count;
       BI.MispredictedCount += YamlSI.Mispreds;
     }
@@ -246,20 +257,20 @@ bool YAMLProfileReader::parseFunctionProfile(
 
   ProfileMatched &= !MismatchedBlocks && !MismatchedCalls && !MismatchedEdges;
 
+  if (!ProfileMatched) {
+    if (opts::Verbosity >= 1)
+      errs() << "BOLT-WARNING: " << MismatchedBlocks << " blocks, "
+             << MismatchedCalls << " calls, and " << MismatchedEdges
+             << " edges in profile did not match function " << BF << '\n';
+
+    if (YamlBF.NumBasicBlocks != BF.size())
+      ++BC.Stats.NumStaleFuncsWithEqualBlockCount;
+
+    if (opts::InferStaleProfile && inferStaleProfile(BF, YamlBF))
+      ProfileMatched = true;
+  }
   if (ProfileMatched)
     BF.markProfiled(YamlBP.Header.Flags);
-
-  if (!ProfileMatched && opts::Verbosity >= 1)
-    errs() << "BOLT-WARNING: " << MismatchedBlocks << " blocks, "
-           << MismatchedCalls << " calls, and " << MismatchedEdges
-           << " edges in profile did not match function " << BF << '\n';
-
-  if (!ProfileMatched && opts::InferStaleProfile) {
-    if (inferStaleProfile(BF, YamlBF)) {
-      ProfileMatched = true;
-      BF.markProfiled(YamlBP.Header.Flags);
-    }
-  }
 
   return ProfileMatched;
 }

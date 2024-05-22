@@ -13,15 +13,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <iostream>
-#include <random>
-#include <sycl/sycl.hpp>
+#include "../common.hpp"
 
-using namespace sycl;
-using namespace sycl::ext::intel;
-using namespace sycl::ext::oneapi::experimental::matrix;
-
-constexpr size_t SG_SZ = 32;
+#define SG_SZ 32
 constexpr size_t TN = 16;
 
 #include "../element_wise_all_ops_half_impl.hpp"

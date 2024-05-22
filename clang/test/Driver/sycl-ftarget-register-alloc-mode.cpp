@@ -17,7 +17,19 @@
 // RUN:   | FileCheck -check-prefix=DEFAULT_AOT %s
 
 // RUN: %clang -### -fsycl \
-// RUN:    -fsycl-targets=spir64_gen %s 2>&1 \
+// RUN:    -fsycl-targets=spir64_gen -Xs "-device pvc" %s 2>&1 \
+// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s
+
+// RUN: %clang -### -fsycl \
+// RUN:    -fsycl-targets=spir64_gen -Xs "-device 0x0BD5" %s 2>&1 \
+// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s
+
+// RUN: %clang -### -fsycl \
+// RUN:    -fsycl-targets=spir64_gen -Xs "-device 12.60.7" %s 2>&1 \
+// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s
+
+// RUN: %clang -### -fsycl \
+// RUN:    -fsycl-targets=spir64_gen -Xs "-device pvc,mtl-s" %s 2>&1 \
 // RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s
 
 // RUN: %clang -### -fsycl \
@@ -59,30 +71,45 @@
 // RUN:    -fsycl-targets=spir64_gen -ftarget-register-alloc-mode=dg2:superlarge %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=BAD_BOTH %s
 
+// RUN: %clangxx -### -fsycl -fsycl-targets=spir64_gen -Xs "-device bdw" \
+// RUN:          %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=NO_PVC %s
+
+// RUN: %clangxx -### -fsycl -fsycl-targets=spir64_gen -Xs "-device *" \
+// RUN:          %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=NO_PVC %s
+
+// RUN: %clangxx -### -fsycl -fsycl-targets=spir64_gen -Xs "-device pvc:mtl-s" \
+// RUN:          %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=NO_PVC %s
+
+// NO_PVC-NOT: -device_options
+// NO_PVC-NOT: -ze-opt-large-register-file
+
 // AUTO_AOT: ocloc{{.*}} "-output"
 // AUTO_AOT: -device_options
 // AUTO_AOT: pvc
-// AUTO_AOT: "-options -ze-intel-enable-auto-large-GRF-mode"
+// AUTO_AOT: "-ze-intel-enable-auto-large-GRF-mode"
 
 // LARGE_AOT: ocloc{{.*}} "-output"
 // LARGE_AOT: -device_options
 // LARGE_AOT: pvc
-// LARGE_AOT: "-options -ze-opt-large-register-file"
+// LARGE_AOT: "-ze-opt-large-register-file"
 
 // SMALL_AOT: ocloc{{.*}} "-output"
 // SMALL_AOT: -device_options
 // SMALL_AOT: pvc
-// SMALL_AOT: "-options -ze-intel-128-GRF-per-thread"
+// SMALL_AOT: "-ze-intel-128-GRF-per-thread"
 
 // DEFAULT_AOT-NOT: -device_options
 
 // MULTIPLE_ARGS_AOT: ocloc{{.*}} "-output"
 // MULTIPLE_ARGS_AOT: -device_options
 // MULTIPLE_ARGS_AOT: pvc
-// MULTIPLE_ARGS_AOT: "-options -ze-intel-128-GRF-per-thread"
+// MULTIPLE_ARGS_AOT: "-ze-intel-128-GRF-per-thread"
 // MULTIPLE_ARGS_AOT: -device_options
 // MULTIPLE_ARGS_AOT: pvc
-// MULTIPLE_ARGS_AOT: "-options -ze-opt-large-register-file"
+// MULTIPLE_ARGS_AOT: "-ze-opt-large-register-file"
 
 // AUTO_JIT: clang-offload-wrapper{{.*}} "-compile-opts=-ftarget-register-alloc-mode=pvc:-ze-intel-enable-auto-large-GRF-mode"
 

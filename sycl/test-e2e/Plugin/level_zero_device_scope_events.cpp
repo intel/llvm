@@ -30,7 +30,7 @@
 // clang-format on
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main(int argc, char **argv) {
   sycl::queue queue(sycl::gpu_selector_v);

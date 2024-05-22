@@ -1,7 +1,7 @@
-// Failing due to old driver
-// REQUIRES-INTEL-DRIVER: lin: 27202, win: 101.4677
 // RUN: %{build} -o %t.out
-// RUN: %{run-unfiltered-devices} %t.out
+// FPGA RT returns random CL_INVALID_CONTEXT in some configurations, tracked
+// internally. Avoid FPGA devices until that is fixed.
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu;*:cpu" %{run-unfiltered-devices} %t.out
 //
 //==----------------- get_backend.cpp ------------------------==//
 // This is a test of get_backend().
@@ -11,7 +11,7 @@
 
 #include <iostream>
 #include <sycl/backend_types.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

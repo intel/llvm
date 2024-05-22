@@ -457,12 +457,3 @@ bool inline check_value(const size_t index, const T &Ref, const T &Got,
 
   return true;
 }
-
-bool are_graphs_supported(queue &Queue) {
-  auto Device = Queue.get_device();
-
-  exp_ext::graph_support_level SupportsGraphs =
-      Device.get_info<exp_ext::info::device::graph_support>();
-
-  return SupportsGraphs != exp_ext::graph_support_level::unsupported;
-}

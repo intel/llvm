@@ -1,5 +1,6 @@
 import lit
 import lit.formats
+import platform
 
 from lit.BooleanExpression import BooleanExpression
 from lit.TestRunner import (
@@ -170,8 +171,20 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         # -that new tests by default would runnable there (unless they have
         # -other restrictions).
         substitutions.append(
-            ("%{build}", "%clangxx -fsycl -fsycl-targets=%{sycl_triple} %s")
+            (
+                "%{build}",
+                "%clangxx -fsycl -fsycl-targets=%{sycl_triple} %verbose_print %s",
+            )
         )
+        if platform.system() == "Windows":
+            substitutions.append(
+                (
+                    "%{l0_leak_check}",
+                    "env UR_L0_LEAKS_DEBUG=1 SYCL_ENABLE_DEFAULT_CONTEXTS=0",
+                )
+            )
+        else:
+            substitutions.append(("%{l0_leak_check}", "env UR_L0_LEAKS_DEBUG=1"))
 
         compilation_cmd_pthread = (
             "%clangxx -pthread -fsycl -fsycl-targets=%{sycl_triple} %s"

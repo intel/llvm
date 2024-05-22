@@ -1,4 +1,5 @@
-// RUN: %clangxx -fsycl-device-only  -O2 -g -fexceptions -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -S -emit-llvm  -o - %s | FileCheck %s
+// RUN: %clangxx -fsycl-device-only -O2 -g -fexceptions  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -S -emit-llvm  -o %t_temp.ll %s
+// RUN: %clangxx -mllvm -sycl-native-cpu-backend -S -emit-llvm -o - %t_temp.ll | FileCheck %s
 
 // Checks that the subhandler is correctly emitted in the module
 #include <sycl/sycl.hpp>
@@ -32,7 +33,7 @@ __attribute__((sycl_kernel)) void launch(const Func &kernelFunc) {
 void test() {
   queue q;
   gen_test<int>(q);
-  //CHECK:  define void @_ZTS6init_aIiE(ptr %{{.*}}, ptr addrspace(1) {{.*}}) #{{.*}} {
+  //CHECK:  define void @_ZTS6init_aIiE.SYCLNCPU(ptr %{{.*}}, ptr addrspace(1) {{.*}}) #{{.*}} {
   //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
   //CHECK:  %{{.*}} = load ptr addrspace(1), ptr %{{.*}}
   //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
@@ -44,7 +45,7 @@ void test() {
   //CHECK:  ret void
   //CHECK:}
   gen_test<float>(q);
-  //CHECK:  define void @_ZTS6init_aIfE(ptr %{{.*}}, ptr addrspace(1) {{.*}}) #{{.*}} {
+  //CHECK:  define void @_ZTS6init_aIfE.SYCLNCPU(ptr %{{.*}}, ptr addrspace(1) {{.*}}) #{{.*}} {
   //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
   //CHECK:  %{{.*}} = load ptr addrspace(1), ptr %{{.*}}
   //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
@@ -64,13 +65,13 @@ void test() {
       acc[id[0]]; // all kernel arguments are removed
     });
   });
-  //CHECK:define void @_ZTS5Test1(ptr %{{.*}}, ptr addrspace(1) %[[STATE2:.*]]) #{{.*}} {
+  //CHECK:define void @_ZTS5Test1.SYCLNCPU(ptr %{{.*}}, ptr addrspace(1) %[[STATE2:.*]]) #{{.*}} {
   //CHECK:       call void @_ZTS5Test1.NativeCPUKernel(ptr addrspace(1) %[[STATE2]])
   //CHECK-NEXT:  ret void
   //CHECK-NEXT:}
 
   launch<class TestKernel>([]() {});
-  //CHECK:define void @_ZTSZ4testvE10TestKernel(ptr %{{.*}}, ptr addrspace(1) %[[STATE3:.*]]) #{{.*}} {
+  //CHECK:define void @_ZTSZ4testvE10TestKernel.SYCLNCPU(ptr %{{.*}}, ptr addrspace(1) %[[STATE3:.*]]) #{{.*}} {
   //CHECK:       call void @_ZTSZ4testvE10TestKernel.NativeCPUKernel(ptr addrspace(1) %[[STATE3]])
   //CHECK-NEXT:  ret void
   //CHECK-NEXT:}

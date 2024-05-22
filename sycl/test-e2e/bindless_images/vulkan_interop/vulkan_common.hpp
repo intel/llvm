@@ -270,13 +270,14 @@ VkBuffer createBuffer(size_t size, VkBufferUsageFlags usage) {
 }
 
 VkImage createImage(VkImageType type, VkFormat format, VkExtent3D extent,
-                    VkImageUsageFlags usage, bool exportable = true) {
+                    VkImageUsageFlags usage, size_t mipLevels,
+                    bool exportable = true) {
   VkImageCreateInfo ici = {};
   ici.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
   ici.imageType = type;
   ici.format = format;
   ici.extent = extent;
-  ici.mipLevels = 1;
+  ici.mipLevels = mipLevels;
   ici.arrayLayers = 1;
   // ici.tiling = VK_IMAGE_TILING_LINEAR;
   ici.usage = usage;
@@ -323,8 +324,8 @@ VkDeviceMemory allocateDeviceMemory(size_t size, uint32_t memoryTypeIndex,
   return memory;
 }
 
-uint32_t getImageMemoryTypeIndex(VkImage image, VkMemoryPropertyFlags flags) {
-  VkMemoryRequirements memRequirements;
+uint32_t getImageMemoryTypeIndex(VkImage image, VkMemoryPropertyFlags flags,
+                                 VkMemoryRequirements &memRequirements) {
   vkGetImageMemoryRequirements(vk_device, image, &memRequirements);
 
   VkPhysicalDeviceMemoryProperties memProperties;
@@ -404,7 +405,7 @@ int getSemaphoreOpaqueFD(VkSemaphore semaphore) {
   return fd;
 }
 
-auto createImageMemoryBarrier(VkImage &img) {
+auto createImageMemoryBarrier(VkImage &img, size_t mipLevels) {
   VkImageMemoryBarrier barrierInput = {};
   barrierInput.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
   barrierInput.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -413,7 +414,7 @@ auto createImageMemoryBarrier(VkImage &img) {
   barrierInput.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   barrierInput.image = img;
   barrierInput.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-  barrierInput.subresourceRange.levelCount = 1;
+  barrierInput.subresourceRange.levelCount = mipLevels;
   barrierInput.subresourceRange.layerCount = 1;
   barrierInput.srcAccessMask = 0;
   barrierInput.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -431,9 +432,11 @@ struct vulkan_image_test_resources_t {
     vkImage = vkutil::createImage(imgType, format, ext,
                                   VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                                       VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                      VK_IMAGE_USAGE_STORAGE_BIT);
+                                      VK_IMAGE_USAGE_STORAGE_BIT,
+                                  1);
+    VkMemoryRequirements memRequirements;
     auto inputImageMemoryTypeIndex = vkutil::getImageMemoryTypeIndex(
-        vkImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        vkImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memRequirements);
     imageMemory =
         vkutil::allocateDeviceMemory(imageSizeBytes, inputImageMemoryTypeIndex);
     VK_CHECK_CALL(

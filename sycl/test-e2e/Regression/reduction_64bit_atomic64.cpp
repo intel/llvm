@@ -2,7 +2,6 @@
 // RUN: %{build} -o %t.out
 //
 // RUN: %{run} %t.out
-
 // Tests that a previously known case for reduction doesn't cause a requirement
 // for atomic64.
 // TODO: When aspect requirements are added to testing, this test could be set
@@ -10,7 +9,9 @@
 //       test is run. However, it should work on devices that support atomic64
 //       as well.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/reduction.hpp>
 
 #include <iostream>
 
@@ -19,7 +20,7 @@ using namespace sycl;
 int main() {
   queue Q;
 
-  long long *Out = malloc_shared<long long>(1, Q);
+  long long *Out = malloc_device<long long>(1, Q);
 
   // Case 1: nd_range reduction with 64-bit integer and either sycl::plus,
   // sycl::minimum or sycl::maximum. group_reduce_and_atomic_cross_wg strategy

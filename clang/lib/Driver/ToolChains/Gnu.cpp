@@ -30,8 +30,8 @@
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/RISCVISAInfo.h"
 #include "llvm/Support/VirtualFileSystem.h"
+#include "llvm/TargetParser/RISCVISAInfo.h"
 #include "llvm/TargetParser/TargetParser.h"
 #include <system_error>
 
@@ -465,8 +465,12 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     D.Diag(diag::err_target_unknown_triple) << Triple.str();
     return;
   }
-  if (Triple.isRISCV())
+
+  if (Triple.isRISCV()) {
     CmdArgs.push_back("-X");
+    if (Args.hasArg(options::OPT_mno_relax))
+      CmdArgs.push_back("--no-relax");
+  }
 
   const bool IsShared = Args.hasArg(options::OPT_shared);
   if (IsShared)
@@ -550,6 +554,11 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Add crtfastmath.o if available and fast math is enabled.
     ToolChain.addFastMathRuntimeIfAvailable(Args, CmdArgs);
+
+    if (isAndroid && Args.hasFlag(options::OPT_fandroid_pad_segment,
+                                  options::OPT_fno_android_pad_segment, false))
+      CmdArgs.push_back(
+          Args.MakeArgString(ToolChain.GetFilePath("crt_pad_segment.o")));
   }
 
   // Performing link for dependency file information, undefined symbols are OK.
@@ -715,7 +724,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
       // FIXME: Only pass GompNeedsRT = true for platforms with libgomp that
       // require librt. Most modern Linux platforms do, but some may not.
-      if (addOpenMPRuntime(CmdArgs, ToolChain, Args, StaticOpenMP,
+      if (addOpenMPRuntime(C, CmdArgs, ToolChain, Args, StaticOpenMP,
                            JA.isHostOffloading(Action::OFK_OpenMP),
                            /* GompNeedsRT= */ true))
         // OpenMP runtimes implies pthreads when using the GNU toolchain.
@@ -1926,9 +1935,7 @@ selectRISCVMultilib(const MultilibSet &RISCVMultilibSet, StringRef Arch,
       }
       auto &MLConfigISAInfo = *MLConfigParseResult;
 
-      const llvm::RISCVISAInfo::OrderedExtensionMap &MLConfigArchExts =
-          MLConfigISAInfo->getExtensions();
-      for (auto MLConfigArchExt : MLConfigArchExts) {
+      for (auto &MLConfigArchExt : MLConfigISAInfo->getExtensions()) {
         auto ExtName = MLConfigArchExt.first;
         NewMultilib.flag(Twine("-", ExtName).str());
 
@@ -2415,7 +2422,7 @@ void Generic_GCC::GCCInstallationDetector::init(
     }
 
     // Then look for gcc installed alongside clang.
-    Prefixes.push_back(D.InstalledDir + "/..");
+    Prefixes.push_back(D.Dir + "/..");
 
     // Next, look for prefix(es) that correspond to distribution-supplied gcc
     // installations.
@@ -2624,7 +2631,7 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
   static const char *const X86Triples[] = {
       "i586-linux-gnu",      "i686-linux-gnu",        "i686-pc-linux-gnu",
       "i386-redhat-linux6E", "i686-redhat-linux",     "i386-redhat-linux",
-      "i586-suse-linux",     "i686-montavista-linux", "i686-gnu",
+      "i586-suse-linux",     "i686-montavista-linux",
   };
 
   static const char *const LoongArch64LibDirs[] = {"/lib64", "/lib"};
@@ -2783,6 +2790,23 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
       BiarchLibDirs.append(begin(X86_64LibDirs), end(X86_64LibDirs));
       BiarchTripleAliases.append(begin(X86_64AndroidTriples),
                                  end(X86_64AndroidTriples));
+      break;
+    default:
+      break;
+    }
+
+    return;
+  }
+
+  if (TargetTriple.isOSHurd()) {
+    switch (TargetTriple.getArch()) {
+    case llvm::Triple::x86_64:
+      LibDirs.append(begin(X86_64LibDirs), end(X86_64LibDirs));
+      TripleAliases.push_back("x86_64-gnu");
+      break;
+    case llvm::Triple::x86:
+      LibDirs.append(begin(X86LibDirs), end(X86LibDirs));
+      TripleAliases.push_back("i686-gnu");
       break;
     default:
       break;
@@ -3167,9 +3191,7 @@ Generic_GCC::Generic_GCC(const Driver &D, const llvm::Triple &Triple,
                          const ArgList &Args)
     : ToolChain(D, Triple, Args), GCCInstallation(D),
       CudaInstallation(D, Triple, Args), RocmInstallation(D, Triple, Args) {
-  getProgramPaths().push_back(getDriver().getInstalledDir());
-  if (getDriver().getInstalledDir() != getDriver().Dir)
-    getProgramPaths().push_back(getDriver().Dir);
+  getProgramPaths().push_back(getDriver().Dir);
 }
 
 Generic_GCC::~Generic_GCC() {}

@@ -328,9 +328,10 @@ bool X86_64::relaxOnce(int pass) const {
         if (rel.expr != R_RELAX_GOT_PC)
           continue;
 
-        uint64_t v = sec->getRelocTargetVA(
-            sec->file, rel.type, rel.addend,
-            sec->getOutputSection()->addr + rel.offset, *rel.sym, rel.expr);
+        uint64_t v = sec->getRelocTargetVA(sec->file, rel.type, rel.addend,
+                                           sec->getOutputSection()->addr +
+                                               sec->outSecOff + rel.offset,
+                                           *rel.sym, rel.expr);
         if (isInt<32>(v))
           continue;
         if (rel.sym->auxIdx == 0) {
@@ -403,10 +404,10 @@ RelExpr X86_64::getRelExpr(RelType type, const Symbol &s,
 }
 
 void X86_64::writeGotPltHeader(uint8_t *buf) const {
-  // The first entry holds the value of _DYNAMIC. It is not clear why that is
-  // required, but it is documented in the psabi and the glibc dynamic linker
-  // seems to use it (note that this is relevant for linking ld.so, not any
-  // other program).
+  // The first entry holds the link-time address of _DYNAMIC. It is documented
+  // in the psABI and glibc before Aug 2021 used the entry to compute run-time
+  // load address of the shared object (note that this is relevant for linking
+  // ld.so, not any other program).
   write64le(buf, mainPart->dynamic->getVA());
 }
 

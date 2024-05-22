@@ -62,6 +62,10 @@ XPTI_CALLBACK_API void syclCallback(uint16_t TraceType,
                                     xpti::trace_event_data_t *,
                                     xpti::trace_event_data_t *Event, uint64_t,
                                     const void *UserData) {
+  char *Key = 0;
+  uint64_t Value;
+  bool HaveKeyValue =
+      (xptiGetStashedTuple(&Key, Value) == xpti::result_t::XPTI_RESULT_SUCCESS);
   std::lock_guard Lock{GMutex};
   auto Type = static_cast<xpti::trace_point_type_t>(TraceType);
   switch (Type) {
@@ -99,6 +103,9 @@ XPTI_CALLBACK_API void syclCallback(uint16_t TraceType,
     std::cout << "Unknown tracepoint\n";
   }
 
+  if (HaveKeyValue) {
+    std::cout << "  " << Key << " : " << Value << "\n";
+  }
   xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
   for (auto &Item : *Metadata) {
     std::cout << "  " << xptiLookupString(Item.first) << " : "

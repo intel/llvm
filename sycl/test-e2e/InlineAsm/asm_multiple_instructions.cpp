@@ -1,5 +1,5 @@
 // UNSUPPORTED: cuda || hip
-// REQUIRES: gpu,linux
+// REQUIRES: gpu,linux,sg-16
 // RUN: %{build} -DTO_PASS -o %t.out.pass
 // RUN: %{run} %t.out.pass
 // RUN: %{build} -o %t.out
@@ -9,7 +9,6 @@
 // XFAIL: gpu
 #include "include/asmhelper.h"
 #include <iostream>
-#include <sycl/sycl.hpp>
 #include <vector>
 
 using dataType = sycl::opencl::cl_int;
@@ -36,7 +35,7 @@ struct KernelFunctor : WithInputBuffers<T, 3>, WithOutputBuffer<T> {
 
     cgh.parallel_for<KernelFunctor<T>>(
         sycl::range<1>{this->getOutputBufferSize()},
-        [=](sycl::id<1> wiID) [[intel::reqd_sub_group_size(16)]] {
+        [=](sycl::id<1> wiID) [[sycl::reqd_sub_group_size(16)]] {
 #if defined(TO_PASS)
           // The code below passing verification
           volatile int output = -1;
@@ -85,7 +84,7 @@ int main() {
   }
 
   KernelFunctor<> f(inputA, inputB, inputC);
-  if (!launchInlineASMTest(f))
+  if (!launchInlineASMTest(f, {16}))
     return 0;
 
   if (verify_all_the_same(f.getOutputBufferData(),

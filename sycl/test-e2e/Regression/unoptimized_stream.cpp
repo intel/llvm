@@ -6,7 +6,9 @@
 
 // UNSUPPORTED: accelerator
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/stream.hpp>
 
 int main() {
   sycl::queue q;

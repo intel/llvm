@@ -15,7 +15,6 @@
 #include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/queue.hpp>
-#include <sycl/stl.hpp>
 
 #include <algorithm>
 
@@ -80,6 +79,20 @@ ext::oneapi::experimental::queue_state queue::ext_oneapi_get_state() const {
   return impl->getCommandGraph()
              ? ext::oneapi::experimental::queue_state::recording
              : ext::oneapi::experimental::queue_state::executing;
+}
+
+ext::oneapi::experimental::command_graph<
+    ext::oneapi::experimental::graph_state::modifiable>
+queue::ext_oneapi_get_graph() const {
+  auto Graph = impl->getCommandGraph();
+  if (!Graph)
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "ext_oneapi_get_graph() can only be called on recording queues.");
+
+  return sycl::detail::createSyclObjFromImpl<
+      ext::oneapi::experimental::command_graph<
+          ext::oneapi::experimental::graph_state::modifiable>>(Graph);
 }
 
 bool queue::is_host() const {
@@ -192,6 +205,33 @@ void queue::wait_and_throw_proxy(const detail::code_location &CodeLoc) {
   impl->wait_and_throw(CodeLoc);
 }
 
+static event
+getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
+  // This function should not be called when a queue is recording to a graph,
+  // as a graph can record from multiple queues and we cannot guarantee the
+  // last node added by an in-order queue will be the last node added to the
+  // graph.
+  assert(!QueueImpl->getCommandGraph() &&
+         "Should not be called in on graph recording.");
+
+  auto LastEvent = QueueImpl->getLastEvent();
+  if (QueueImpl->MDiscardEvents) {
+    std::cout << "Discard event enabled" << std::endl;
+    return LastEvent;
+  }
+
+  auto LastEventImpl = detail::getSyclObjImpl(LastEvent);
+  // If last event is default constructed event then we want to associate it
+  // with the queue and record submission time if profiling is enabled. Such
+  // event corresponds to NOP and its submit time is same as start time and
+  // end time.
+  if (!LastEventImpl->isContextInitialized()) {
+    LastEventImpl->associateWithQueue(QueueImpl);
+    LastEventImpl->setSubmissionTime();
+  }
+  return detail::createSyclObjFromImpl<event>(LastEventImpl);
+}
+
 /// Prevents any commands submitted afterward to this queue from executing
 /// until all commands previously submitted to this queue have entered the
 /// complete state.
@@ -200,8 +240,8 @@ void queue::wait_and_throw_proxy(const detail::code_location &CodeLoc) {
 /// \return a SYCL event object, which corresponds to the queue the command
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
-  if (is_in_order())
-    return impl->getLastEvent();
+  if (is_in_order() && !impl->getCommandGraph())
+    return getBarrierEventForInorderQueueHelper(impl);
 
   return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
 }
@@ -217,8 +257,13 @@ event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
                                        const detail::code_location &CodeLoc) {
-  if (is_in_order() && WaitList.empty())
-    return impl->getLastEvent();
+  bool AllEventsEmptyOrNop = std::all_of(
+      begin(WaitList), end(WaitList), [&](const event &Event) -> bool {
+        auto EventImpl = detail::getSyclObjImpl(Event);
+        return !EventImpl->isContextInitialized() || EventImpl->isNOP();
+      });
+  if (is_in_order() && !impl->getCommandGraph() && AllEventsEmptyOrNop)
+    return getBarrierEventForInorderQueueHelper(impl);
 
   return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
                 CodeLoc);
@@ -234,6 +279,20 @@ queue::get_info() const {
   template __SYCL_EXPORT ReturnT queue::get_info<info::queue::Desc>() const;
 
 #include <sycl/info/queue_traits.def>
+
+#undef __SYCL_PARAM_TRAITS_SPEC
+
+template <typename Param>
+typename detail::is_backend_info_desc<Param>::return_type
+queue::get_backend_info() const {
+  return impl->get_backend_info<Param>();
+}
+
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
+  template __SYCL_EXPORT ReturnT                                               \
+  queue::get_backend_info<info::DescType::Desc>() const;
+
+#include <sycl/info/sycl_backend_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
@@ -264,12 +323,10 @@ backend queue::get_backend() const noexcept { return getImplBackend(impl); }
 
 bool queue::ext_oneapi_empty() const { return impl->ext_oneapi_empty(); }
 
+void queue::ext_oneapi_prod() { impl->flush(); }
+
 pi_native_handle queue::getNative(int32_t &NativeHandleDesc) const {
   return impl->getNative(NativeHandleDesc);
-}
-
-buffer<detail::AssertHappened, 1> &queue::getAssertHappenedBuffer() {
-  return impl->getAssertHappenedBuffer();
 }
 
 event queue::memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
@@ -328,3 +385,10 @@ void queue::ext_oneapi_set_external_event(const event &external_event) {
 
 } // namespace _V1
 } // namespace sycl
+
+size_t std::hash<sycl::queue>::operator()(const sycl::queue &Q) const {
+  // Compared to using the impl pointer, the unique ID helps avoid hash
+  // collisions with previously destroyed queues.
+  return std::hash<unsigned long long>()(
+      sycl::detail::getSyclObjImpl(Q)->getQueueID());
+}

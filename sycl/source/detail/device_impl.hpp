@@ -12,8 +12,9 @@
 #include <sycl/aspects.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/pi.hpp>
+#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
+#include <sycl/ext/oneapi/experimental/forward_progress.hpp>
 #include <sycl/kernel_bundle.hpp>
-#include <sycl/stl.hpp>
 
 #include <memory>
 #include <mutex>
@@ -201,6 +202,12 @@ public:
   /// \return device info of type described in Table 4.20.
   template <typename Param> typename Param::return_type get_info() const;
 
+  /// Queries SYCL queue for SYCL backend-specific information.
+  ///
+  /// The return type depends on information being queried.
+  template <typename Param>
+  typename Param::return_type get_backend_info() const;
+
   /// Check if affinity partitioning by specified domain is supported by
   /// device
   ///
@@ -234,9 +241,62 @@ public:
 
   std::string getDeviceName() const;
 
-  bool extOneapiArchitectureIs(ext::oneapi::experimental::architecture Arch) {
+  bool
+  extOneapiArchitectureIs(ext::oneapi::experimental::architecture Arch) const {
     return Arch == getDeviceArch();
   }
+
+  bool extOneapiArchitectureIs(
+      ext::oneapi::experimental::arch_category Category) const {
+    std::optional<ext::oneapi::experimental::architecture> CategoryMinArch =
+        get_category_min_architecture(Category);
+    std::optional<ext::oneapi::experimental::architecture> CategoryMaxArch =
+        get_category_max_architecture(Category);
+    if (CategoryMinArch.has_value() && CategoryMaxArch.has_value())
+      return CategoryMinArch <= getDeviceArch() &&
+             getDeviceArch() <= CategoryMaxArch;
+    return false;
+  }
+
+  bool extOneapiCanCompile(ext::oneapi::experimental::source_language Language);
+
+  // Returns all guarantees that are either equal to guarantee or weaker than
+  // it. E.g if guarantee == parallel, it returns the vector {weakly_parallel,
+  // parallel}.
+  template <typename ReturnT>
+  static ReturnT getProgressGuaranteesUpTo(
+      ext::oneapi::experimental::forward_progress_guarantee guarantee) {
+    const int forwardProgressGuaranteeSize = 3;
+    int guaranteeVal = static_cast<int>(guarantee);
+    ReturnT res;
+    res.reserve(forwardProgressGuaranteeSize - guaranteeVal);
+    for (int currentGuarantee = forwardProgressGuaranteeSize - 1;
+         currentGuarantee >= guaranteeVal; --currentGuarantee) {
+      res.emplace_back(
+          static_cast<ext::oneapi::experimental::forward_progress_guarantee>(
+              currentGuarantee));
+    }
+    return res;
+  }
+
+  static sycl::ext::oneapi::experimental::forward_progress_guarantee
+  getHostProgressGuarantee(
+      sycl::ext::oneapi::experimental::execution_scope threadScope,
+      sycl::ext::oneapi::experimental::execution_scope coordinationScope);
+
+  sycl::ext::oneapi::experimental::forward_progress_guarantee
+  getProgressGuarantee(
+      ext::oneapi::experimental::execution_scope threadScope,
+      ext::oneapi::experimental::execution_scope coordinationScope) const;
+
+  bool supportsForwardProgress(
+      ext::oneapi::experimental::forward_progress_guarantee guarantee,
+      ext::oneapi::experimental::execution_scope threadScope,
+      ext::oneapi::experimental::execution_scope coordinationScope) const;
+
+  ext::oneapi::experimental::forward_progress_guarantee
+  getImmediateProgressGuarantee(
+      ext::oneapi::experimental::execution_scope coordination_scope) const;
 
   /// Gets the current device timestamp
   /// @throw sycl::feature_not_supported if feature is not supported on device

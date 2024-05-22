@@ -22,6 +22,8 @@
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Scope.h"
+#include "clang/Sema/SemaObjC.h"
+#include "clang/Sema/SemaOpenMP.h"
 #include "clang/Sema/TypoCorrection.h"
 #include "llvm/ADT/STLExtras.h"
 #include <optional>
@@ -2288,20 +2290,18 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc) {
     ForRangeStmt = Actions.ActOnCXXForRangeStmt(
         getCurScope(), ForLoc, CoawaitLoc, FirstPart.get(),
         ForRangeInfo.LoopVar.get(), ForRangeInfo.ColonLoc, CorrectedRange.get(),
-        T.getCloseLocation(), Sema::BFRK_Build);
-
-  // Similarly, we need to do the semantic analysis for a for-range
-  // statement immediately in order to close over temporaries correctly.
+        T.getCloseLocation(), Sema::BFRK_Build,
+        ForRangeInfo.LifetimeExtendTemps);
   } else if (ForEach) {
-    ForEachStmt = Actions.ActOnObjCForCollectionStmt(ForLoc,
-                                                     FirstPart.get(),
-                                                     Collection.get(),
-                                                     T.getCloseLocation());
+    // Similarly, we need to do the semantic analysis for a for-range
+    // statement immediately in order to close over temporaries correctly.
+    ForEachStmt = Actions.ObjC().ActOnObjCForCollectionStmt(
+        ForLoc, FirstPart.get(), Collection.get(), T.getCloseLocation());
   } else {
     // In OpenMP loop region loop control variable must be captured and be
     // private. Perform analysis of first part (if any).
     if (getLangOpts().OpenMP && FirstPart.isUsable()) {
-      Actions.ActOnOpenMPLoopInitialization(ForLoc, FirstPart.get());
+      Actions.OpenMP().ActOnOpenMPLoopInitialization(ForLoc, FirstPart.get());
     }
   }
 
@@ -2344,8 +2344,8 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc) {
     return StmtError();
 
   if (ForEach)
-   return Actions.FinishObjCForCollectionStmt(ForEachStmt.get(),
-                                              Body.get());
+    return Actions.ObjC().FinishObjCForCollectionStmt(ForEachStmt.get(),
+                                                      Body.get());
 
   if (ForRangeInfo.ParsedForRangeDecl())
     return Actions.FinishCXXForRangeStmt(ForRangeStmt.get(), Body.get());

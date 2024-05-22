@@ -900,6 +900,7 @@ SPIRAddressSpace getOCLOpaqueTypeAddrSpace(Op OpCode) {
   case internal::OpTypeJointMatrixINTEL:
   case internal::OpTypeJointMatrixINTELv2:
   case OpTypeCooperativeMatrixKHR:
+  case internal::OpTypeTaskSequenceINTEL:
     return SPIRAS_Global;
   default:
     if (isSubgroupAvcINTELTypeOpCode(OpCode))

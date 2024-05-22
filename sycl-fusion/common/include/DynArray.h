@@ -55,6 +55,14 @@ public:
   const T &operator[](int Idx) const { return Values[Idx]; }
   T &operator[](int Idx) { return Values[Idx]; }
 
+  friend bool operator==(const DynArray<T> &A, const DynArray<T> &B) {
+    return std::equal(A.begin(), A.end(), B.begin(), B.end());
+  }
+
+  friend bool operator!=(const DynArray<T> &A, const DynArray<T> &B) {
+    return !(A == B);
+  }
+
 private:
   T *Values = nullptr;
   size_t Size = 0;

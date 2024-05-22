@@ -356,8 +356,11 @@ class ReturnValueSlot {
   Address Addr = Address::invalid();
 
   // Return value slot flags
+  LLVM_PREFERRED_TYPE(bool)
   unsigned IsVolatile : 1;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned IsUnused : 1;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned IsExternallyDestructed : 1;
 
 public:
@@ -373,6 +376,7 @@ public:
   Address getValue() const { return Addr; }
   bool isUnused() const { return IsUnused; }
   bool isExternallyDestructed() const { return IsExternallyDestructed; }
+  Address getAddress() const { return Addr; }
 };
 
 /// Adds attributes to \p F according to our \p CodeGenOpts and \p LangOpts, as

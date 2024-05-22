@@ -10,18 +10,22 @@
 
 #pragma once
 
+#include <cstdint>
+
 // _iml_half_internal is internal representation for fp16 type used in intel
 // math device library. The definition here should align with definition in
 // https://github.com/intel/llvm/blob/sycl/libdevice/imf_half.hpp
-#if defined(__SPIR__)
+#if defined(__SPIR__) || defined(__SPIRV__)
 using _iml_half_internal = _Float16;
 #else
 using _iml_half_internal = uint16_t;
 #endif
 
+#include <sycl/bit_cast.hpp>
 #include <sycl/builtins.hpp>
 #include <sycl/ext/intel/math/imf_fp_conversions.hpp>
 #include <sycl/ext/intel/math/imf_half_trivial.hpp>
+#include <sycl/ext/intel/math/imf_integer_utils.hpp>
 #include <sycl/ext/intel/math/imf_rounding_math.hpp>
 #include <sycl/ext/intel/math/imf_simd.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
@@ -54,6 +58,7 @@ _iml_half_internal __imf_rsqrtf16(_iml_half_internal);
 float __imf_truncf(float);
 double __imf_trunc(double);
 _iml_half_internal __imf_truncf16(_iml_half_internal);
+double __imf_rcp64h(double);
 };
 
 namespace sycl {
@@ -81,9 +86,9 @@ std::enable_if_t<std::is_same_v<Tp, double>, double> copysign(Tp x, Tp y) {
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, sycl::half>, sycl::half> copysign(Tp x,
                                                                       Tp y) {
-  _iml_half_internal xi = __builtin_bit_cast(_iml_half_internal, x);
-  _iml_half_internal yi = __builtin_bit_cast(_iml_half_internal, y);
-  return __builtin_bit_cast(sycl::half, __imf_copysignf16(xi, yi));
+  _iml_half_internal xi = sycl::bit_cast<_iml_half_internal>(x);
+  _iml_half_internal yi = sycl::bit_cast<_iml_half_internal>(y);
+  return sycl::bit_cast<sycl::half>(__imf_copysignf16(xi, yi));
 }
 
 template <typename Tp>
@@ -98,8 +103,8 @@ std::enable_if_t<std::is_same_v<Tp, double>, double> ceil(Tp x) {
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, sycl::half>, sycl::half> ceil(Tp x) {
-  _iml_half_internal xi = __builtin_bit_cast(_iml_half_internal, x);
-  return __builtin_bit_cast(sycl::half, __imf_ceilf16(xi));
+  _iml_half_internal xi = sycl::bit_cast<_iml_half_internal>(x);
+  return sycl::bit_cast<sycl::half>(__imf_ceilf16(xi));
 }
 
 template <typename Tp>
@@ -119,8 +124,8 @@ std::enable_if_t<std::is_same_v<Tp, double>, double> floor(Tp x) {
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, sycl::half>, sycl::half> floor(Tp x) {
-  _iml_half_internal xi = __builtin_bit_cast(_iml_half_internal, x);
-  return __builtin_bit_cast(sycl::half, __imf_floorf16(xi));
+  _iml_half_internal xi = sycl::bit_cast<_iml_half_internal>(x);
+  return sycl::bit_cast<sycl::half>(__imf_floorf16(xi));
 }
 
 template <typename Tp>
@@ -140,8 +145,8 @@ std::enable_if_t<std::is_same_v<Tp, double>, double> inv(Tp x) {
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, sycl::half>, sycl::half> inv(Tp x) {
-  _iml_half_internal xi = __builtin_bit_cast(_iml_half_internal, x);
-  return __builtin_bit_cast(sycl::half, __imf_invf16(xi));
+  _iml_half_internal xi = sycl::bit_cast<_iml_half_internal>(x);
+  return sycl::bit_cast<sycl::half>(__imf_invf16(xi));
 }
 
 template <typename Tp>
@@ -161,8 +166,8 @@ std::enable_if_t<std::is_same_v<Tp, double>, double> rint(Tp x) {
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, sycl::half>, sycl::half> rint(Tp x) {
-  _iml_half_internal xi = __builtin_bit_cast(_iml_half_internal, x);
-  return __builtin_bit_cast(sycl::half, __imf_rintf16(xi));
+  _iml_half_internal xi = sycl::bit_cast<_iml_half_internal>(x);
+  return sycl::bit_cast<sycl::half>(__imf_rintf16(xi));
 }
 
 template <typename Tp>
@@ -182,8 +187,8 @@ std::enable_if_t<std::is_same_v<Tp, double>, double> sqrt(Tp x) {
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, sycl::half>, sycl::half> sqrt(Tp x) {
-  _iml_half_internal xi = __builtin_bit_cast(_iml_half_internal, x);
-  return __builtin_bit_cast(sycl::half, __imf_sqrtf16(xi));
+  _iml_half_internal xi = sycl::bit_cast<_iml_half_internal>(x);
+  return sycl::bit_cast<sycl::half>(__imf_sqrtf16(xi));
 }
 
 template <typename Tp>
@@ -203,8 +208,8 @@ std::enable_if_t<std::is_same_v<Tp, double>, double> rsqrt(Tp x) {
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, sycl::half>, sycl::half> rsqrt(Tp x) {
-  _iml_half_internal xi = __builtin_bit_cast(_iml_half_internal, x);
-  return __builtin_bit_cast(sycl::half, __imf_rsqrtf16(xi));
+  _iml_half_internal xi = sycl::bit_cast<_iml_half_internal>(x);
+  return sycl::bit_cast<sycl::half>(__imf_rsqrtf16(xi));
 }
 
 template <typename Tp>
@@ -224,13 +229,18 @@ std::enable_if_t<std::is_same_v<Tp, double>, double> trunc(Tp x) {
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, sycl::half>, sycl::half> trunc(Tp x) {
-  _iml_half_internal xi = __builtin_bit_cast(_iml_half_internal, x);
-  return __builtin_bit_cast(sycl::half, __imf_truncf16(xi));
+  _iml_half_internal xi = sycl::bit_cast<_iml_half_internal>(x);
+  return sycl::bit_cast<sycl::half>(__imf_truncf16(xi));
 }
 
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, sycl::half2>, sycl::half2> trunc(Tp x) {
   return sycl::half2{trunc(x.s0()), trunc(x.s1())};
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, double>, double> rcp64h(Tp x) {
+  return __imf_rcp64h(x);
 }
 
 } // namespace ext::intel::math

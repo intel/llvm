@@ -8,10 +8,14 @@
 
 // Issue with OpenCL CPU runtime implementation of OpGenericCastToPtrExplicit
 // OpGenericCastToPtr* intrinsics not implemented on AMD or NVIDIA
-// UNSUPPORTED: cpu, hip, cuda
+// FPGA emulator affected by same issue as OpenCL CPU runtime
+// UNSUPPORTED: cpu, hip, cuda, accelerator
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/experimental/address_cast.hpp>
 
 int main() {
 

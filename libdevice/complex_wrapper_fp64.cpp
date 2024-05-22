@@ -9,7 +9,7 @@
 
 #include "device_complex.h"
 
-#ifdef __SPIR__
+#if defined(__SPIR__) || defined(__SPIRV__)
 
 DEVICE_EXTERN_C_INLINE
 double cimag(double __complex__ z) { return __devicelib_cimag(z); }
@@ -100,4 +100,4 @@ DEVICE_EXTERN_C_INLINE
 double __complex__ __divdc3(double __a, double __b, double __c, double __d) {
   return __devicelib___divdc3(__a, __b, __c, __d);
 }
-#endif // __SPIR__
+#endif // __SPIR__ || __SPIRV__

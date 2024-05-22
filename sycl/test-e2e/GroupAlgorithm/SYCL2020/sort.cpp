@@ -25,7 +25,11 @@
 // TODO: Consider using USM instead of buffers
 // TODO: Add support for sorting over workgroup for CUDA and HIP BE
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
+#include <sycl/ext/oneapi/experimental/group_sort.hpp>
+#include <sycl/group_algorithm.hpp>
 
 #include <algorithm>
 #include <iostream>

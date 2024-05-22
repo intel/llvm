@@ -7,13 +7,14 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <sycl/detail/helpers.hpp>     // for Builder
-#include <sycl/detail/memcpy.hpp>      // detail::memcpy
-#include <sycl/exception.hpp>          // for errc, exception
-#include <sycl/feature_test.hpp>       // for SYCL_EXT_ONEAPI_SUB_GROUP_MASK
-#include <sycl/id.hpp>                 // for id
-#include <sycl/marray.hpp>             // for marray
-#include <sycl/types.hpp>              // for vec
+#include <sycl/builtins.hpp>       // for assert
+#include <sycl/detail/helpers.hpp> // for Builder
+#include <sycl/detail/memcpy.hpp>  // detail::memcpy
+#include <sycl/exception.hpp>      // for errc, exception
+#include <sycl/feature_test.hpp>   // for SYCL_EXT_ONEAPI_SUB_GROUP_MASK
+#include <sycl/id.hpp>             // for id
+#include <sycl/marray.hpp>         // for marray
+#include <sycl/types.hpp>          // for vec
 
 #include <assert.h>     // for assert
 #include <climits>      // for CHAR_BIT
@@ -138,10 +139,9 @@ struct sub_group_mask {
     for (int i = 0; i < 4; ++i) {
       MemberMask[i] = TmpMArray[i];
     }
-    auto OCLMask =
-        sycl::detail::ConvertToOpenCLType_t<sycl::vec<unsigned, 4>>(MemberMask);
     return __spirv_GroupNonUniformBallotBitCount(
-        __spv::Scope::Subgroup, (int)__spv::GroupOperation::Reduce, OCLMask);
+        __spv::Scope::Subgroup, (int)__spv::GroupOperation::Reduce,
+        sycl::detail::convertToOpenCLType(MemberMask));
 #else
     unsigned int count = 0;
     auto word = (Bits & valuable_bits(bits_num));

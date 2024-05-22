@@ -5,7 +5,10 @@
 // RUN: %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/usm.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -98,12 +101,12 @@ int main() {
             float fdim0 = float(dim0 + 0.5f) / (float)width;
             float fdim1 = float(dim1 + 0.5f) / (float)height;
 
-            // Extension: read image data from handle
+            // Extension: sample image data from handle
             sycl::float4 px1 =
-                sycl::ext::oneapi::experimental::read_image<sycl::float4>(
+                sycl::ext::oneapi::experimental::sample_image<sycl::float4>(
                     imgHandle1, sycl::float2(fdim0, fdim1));
             sycl::float4 px2 =
-                sycl::ext::oneapi::experimental::read_image<sycl::float4>(
+                sycl::ext::oneapi::experimental::sample_image<sycl::float4>(
                     imgHandle2, sycl::float2(fdim0, fdim1));
 
             outAcc[sycl::id<2>{dim1, dim0}] = px1[0] + px2[0];

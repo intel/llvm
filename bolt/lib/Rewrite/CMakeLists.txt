@@ -1,12 +1,13 @@
 set(LLVM_LINK_COMPONENTS
+  Core
   DebugInfoDWARF
   DWP
   JITLink
   MC
   Object
   Support
-  DWARFLinkerBase
   DWARFLinker
+  DWARFLinkerClassic
   AsmPrinter
   TargetParser
   )

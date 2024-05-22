@@ -6,7 +6,11 @@
 // RUN: | FileCheck %s
 // RUN: env ZE_DEBUG=-6 SYCL_PI_TRACE=-1 %{run} %t.out \
 // RUN: | FileCheck %s --check-prefixes=CHECK-CACHE
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/specialization_id.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 
@@ -74,7 +78,7 @@ int main() {
   // CHECK-CACHE: piKernelRelease
   // CHECK-CACHE: piProgramRelease
   // CHECK-CACHE: piEventsWait
-  auto *p = malloc_shared<int>(1, q);
+  auto *p = malloc_device<int>(1, q);
   for (int i = 0; i < 2; ++i)
     q.submit([&](handler &cgh) {
        cgh.set_specialization_constant<spec_id>(i);

@@ -19,6 +19,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <unordered_map>
 #include <vector>
 
@@ -40,6 +41,9 @@ static_assert(
     std::is_trivially_destructible<xpti::utils::PlatformHelper>::value,
     "PlatformHelper is not trivial");
 
+// TLS variables to support stashing tupples and universal IDs
+using stash_tuple_t = std::tuple<const char *, uint64_t>;
+static thread_local stash_tuple_t g_tls_stash_tuple = stash_tuple_t(nullptr, 0);
 static thread_local uint64_t g_tls_uid = xpti::invalid_uid;
 
 namespace xpti {
@@ -359,12 +363,16 @@ public:
 
     // Protect simultaneous insert operations on the metadata tables
     {
+      xpti::result_t res;
       std::lock_guard<std::mutex> HashLock(MMetadataMutex);
       if (Event->reserved.metadata.count(KeyID)) {
-        return xpti::result_t::XPTI_RESULT_DUPLICATE;
+        // One already existed, but we overwrote it
+        res = xpti::result_t::XPTI_RESULT_DUPLICATE;
+      } else {
+        res = xpti::result_t::XPTI_RESULT_SUCCESS;
       }
       Event->reserved.metadata[KeyID] = ValueID;
-      return xpti::result_t::XPTI_RESULT_SUCCESS;
+      return res;
     }
   }
 
@@ -818,6 +826,38 @@ public:
 
   void setUniversalID(uint64_t uid) noexcept { g_tls_uid = uid; }
 
+  xpti::result_t stashTuple(const char *key, uint64_t value) {
+    if (!key)
+      return xpti::result_t::XPTI_RESULT_FAIL;
+
+    std::get<0>(g_tls_stash_tuple) = key;
+    std::get<1>(g_tls_stash_tuple) = value;
+    return xpti::result_t::XPTI_RESULT_SUCCESS;
+  }
+
+  xpti::result_t getStashedTuple(char **key, uint64_t &value) {
+    if (!key)
+      return xpti::result_t::XPTI_RESULT_INVALIDARG;
+
+    const char *tls_key = std::get<0>(g_tls_stash_tuple);
+    if (!tls_key)
+      return xpti::result_t::XPTI_RESULT_NOTFOUND;
+
+    (*key) = const_cast<char *>(tls_key);
+    value = std::get<1>(g_tls_stash_tuple);
+    return xpti::result_t::XPTI_RESULT_SUCCESS;
+  }
+
+  void unstashTuple() {
+    if (!std::get<0>(g_tls_stash_tuple))
+      return;
+
+    // std::get<0>(g_tls_stash_tuple) = nullptr;
+    // std::get<1>(g_tls_stash_tuple) = 0;
+    // We will use the actual unstash code when we implement a stack to allow
+    // multiple stashes/thread
+  }
+
   bool checkTraceEnabled(uint16_t stream, uint16_t type) {
     if (MTraceEnabled) {
       return MNotifier.checkSubscribed(stream, type);
@@ -1084,6 +1124,19 @@ XPTI_EXPORT_API uint64_t xptiGetUniversalId() {
 
 XPTI_EXPORT_API void xptiSetUniversalId(uint64_t uid) {
   xpti::Framework::instance().setUniversalID(uid);
+}
+
+XPTI_EXPORT_API xpti::result_t xptiStashTuple(const char *key, uint64_t value) {
+  return xpti::Framework::instance().stashTuple(key, value);
+}
+
+XPTI_EXPORT_API xpti::result_t xptiGetStashedTuple(char **key,
+                                                   uint64_t &value) {
+  return xpti::Framework::instance().getStashedTuple(key, value);
+}
+
+XPTI_EXPORT_API void xptiUnstashTuple() {
+  xpti::Framework::instance().unstashTuple();
 }
 
 XPTI_EXPORT_API uint16_t

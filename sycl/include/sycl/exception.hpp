@@ -16,6 +16,9 @@
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/pi.h>                   // for pi_int32
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#include <sycl/detail/string.hpp>
+#endif
 
 #include <exception>    // for exception
 #include <memory>       // for allocator, shared_ptr, make...
@@ -74,14 +77,20 @@ public:
 
   exception(std::error_code, const char *Msg);
 
-  exception(std::error_code, const std::string &Msg);
+  exception(std::error_code Ec, const std::string &Msg)
+      : exception(Ec, nullptr, Msg.c_str()) {}
 
   // new SYCL 2020 constructors
   exception(std::error_code);
-  exception(int, const std::error_category &, const std::string &);
+  exception(int EV, const std::error_category &ECat, const std::string &WhatArg)
+      : exception(EV, ECat, WhatArg.c_str()) {}
   exception(int, const std::error_category &, const char *);
   exception(int, const std::error_category &);
 
+  // context.hpp depends on exception.hpp but we can't define these ctors in
+  // exception.hpp while context is still an incomplete type.
+  // So, definition of ctors that require a context parameter are moved to
+  // context.hpp.
   exception(context, std::error_code, const std::string &);
   exception(context, std::error_code, const char *);
   exception(context, std::error_code);
@@ -104,31 +113,44 @@ public:
 private:
   // Exceptions must be noexcept copy constructible, so cannot use std::string
   // directly.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  std::shared_ptr<detail::string> MMsg;
+#else
   std::shared_ptr<std::string> MMsg;
+#endif
   pi_int32 MPIErr = 0;
   std::shared_ptr<context> MContext;
   std::error_code MErrC = make_error_code(sycl::errc::invalid);
 
 protected:
   // base constructors used by SYCL 1.2.1 exception subclasses
-  exception(std::error_code ec, const char *Msg, const pi_int32 PIErr,
+  exception(std::error_code Ec, const char *Msg, const pi_int32 PIErr,
             std::shared_ptr<context> Context = nullptr)
-      : exception(ec, std::string(Msg), PIErr, Context) {}
+      : exception(Ec, std::string(Msg), PIErr, Context) {}
 
-  exception(std::error_code ec, const std::string &Msg, const pi_int32 PIErr,
+  exception(std::error_code Ec, const std::string &Msg, const pi_int32 PIErr,
             std::shared_ptr<context> Context = nullptr)
-      : exception(ec, Context, Msg + " " + detail::codeToString(PIErr)) {
+      : exception(Ec, Context, Msg + " " + detail::codeToString(PIErr)) {
     MPIErr = PIErr;
   }
 
   exception(const std::string &Msg)
-      : MMsg(std::make_shared<std::string>(Msg)), MContext(nullptr) {}
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      : MMsg(std::make_shared<detail::string>(Msg)), MContext(nullptr){}
+#else
+      : MMsg(std::make_shared<std::string>(Msg)), MContext(nullptr) {
+  }
+#endif
 
-  // base constructor for all SYCL 2020 constructors
-  // exception(context *ctxPtr, std::error_code ec, const std::string
-  // &what_arg);
-  exception(std::error_code ec, std::shared_ptr<context> SharedPtrCtx,
-            const std::string &what_arg);
+        // base constructor for all SYCL 2020 constructors
+        // exception(context *ctxPtr, std::error_code Ec, const std::string
+        // &what_arg);
+        exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
+                  const std::string &what_arg)
+      : exception(Ec, SharedPtrCtx, what_arg.c_str()) {
+  }
+  exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
+            const char *WhatArg);
 };
 
 class __SYCL2020_DEPRECATED(
@@ -143,12 +165,12 @@ public:
   runtime_error(const std::string &Msg, pi_int32 Err)
       : exception(make_error_code(errc::runtime), Msg, Err) {}
 
-  runtime_error(std::error_code ec, const std::string &Msg,
+  runtime_error(std::error_code Ec, const std::string &Msg,
                 const pi_int32 PIErr)
-      : exception(ec, Msg, PIErr) {}
+      : exception(Ec, Msg, PIErr) {}
 
 protected:
-  runtime_error(std::error_code ec) : exception(ec) {}
+  runtime_error(std::error_code Ec) : exception(Ec) {}
 };
 
 class __SYCL2020_DEPRECATED("use sycl::exception with sycl::errc::kernel or "
@@ -230,10 +252,10 @@ public:
       : exception(make_error_code(errc::invalid), Msg, Err) {}
 
 protected:
-  device_error(std::error_code ec) : exception(ec) {}
+  device_error(std::error_code Ec) : exception(Ec) {}
 
-  device_error(std::error_code ec, const std::string &Msg, const pi_int32 PIErr)
-      : exception(ec, Msg, PIErr) {}
+  device_error(std::error_code Ec, const std::string &Msg, const pi_int32 PIErr)
+      : exception(Ec, Msg, PIErr) {}
 };
 
 class __SYCL2020_DEPRECATED(

@@ -85,7 +85,6 @@ def loongarch_sll_w : SDNode<"LoongArchISD::SLL_W", SDT_LoongArchIntBinOpW>;
 def loongarch_sra_w : SDNode<"LoongArchISD::SRA_W", SDT_LoongArchIntBinOpW>;
 def loongarch_srl_w : SDNode<"LoongArchISD::SRL_W", SDT_LoongArchIntBinOpW>;
 def loongarch_rotr_w : SDNode<"LoongArchISD::ROTR_W", SDT_LoongArchIntBinOpW>;
-def loongarch_rotl_w : SDNode<"LoongArchISD::ROTL_W", SDT_LoongArchIntBinOpW>;
 def loongarch_crc_w_b_w
     : SDNode<"LoongArchISD::CRC_W_B_W", SDT_LoongArchIntBinOpW, [SDNPHasChain]>;
 def loongarch_crc_w_h_w
@@ -218,6 +217,9 @@ def GPRMemAtomic : RegisterOperand<GPR> {
 def grlenimm : Operand<GRLenVT>;
 def imm32 : Operand<GRLenVT> {
   let ParserMatchClass = ImmAsmOperand<"", 32, "">;
+}
+def imm64 : Operand<i64> {
+  let ParserMatchClass = ImmAsmOperand<"", 64, "">;
 }
 
 def uimm1 : Operand<GRLenVT>, ImmLeaf<GRLenVT, [{return isUInt<1>(Imm);}]>{
@@ -694,15 +696,24 @@ class AM_3R<bits<32> op>
     : Fmt3R<op, (outs GPR:$rd), (ins GPR:$rk, GPRMemAtomic:$rj),
             "$rd, $rk, $rj">;
 
-let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
+let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in {
 class LLBase<bits<32> op>
     : Fmt2RI14<op, (outs GPR:$rd), (ins GPR:$rj, simm14_lsl2:$imm14),
                "$rd, $rj, $imm14">;
+class LLBase_ACQ<bits<32> op>
+    : Fmt2R<op, (outs GPR:$rd), (ins GPR:$rj), "$rd, $rj">;
+}
 
-let hasSideEffects = 0, mayLoad = 0, mayStore = 1, Constraints = "$rd = $dst" in
+let hasSideEffects = 0, mayLoad = 0, mayStore = 1, Constraints = "$rd = $dst" in {
 class SCBase<bits<32> op>
     : Fmt2RI14<op, (outs GPR:$dst), (ins GPR:$rd, GPR:$rj, simm14_lsl2:$imm14),
                "$rd, $rj, $imm14">;
+class SCBase_128<bits<32> op>
+    : Fmt3R<op, (outs GPR:$dst), (ins GPR:$rd, GPR:$rk, GPR:$rj),
+               "$rd, $rk, $rj">;
+class SCBase_REL<bits<32> op>
+    : Fmt2R<op, (outs GPR:$dst), (ins GPR:$rd, GPR:$rj), "$rd, $rj">;
+}
 
 let hasSideEffects = 1 in
 class IOCSRRD<bits<32> op>
@@ -814,6 +825,8 @@ def PRELD : FmtPRELD<(outs), (ins uimm5:$imm5, GPR:$rj, simm12:$imm12),
 // Atomic Memory Access Instructions
 def LL_W : LLBase<0x20000000>;
 def SC_W : SCBase<0x21000000>;
+def LLACQ_W : LLBase_ACQ<0x38578000>;
+def SCREL_W : SCBase_REL<0x38578400>;
 
 // Barrier Instructions
 def DBAR : MISC_I15<0x38720000>;
@@ -935,8 +948,12 @@ def STLE_W : STORE_3R<0x387f0000>;
 def STLE_D : STORE_3R<0x387f8000>;
 
 // Atomic Memory Access Instructions for 64-bits
+def AMSWAP_B     : AM_3R<0x385c0000>;
+def AMSWAP_H     : AM_3R<0x385c8000>;
 def AMSWAP_W     : AM_3R<0x38600000>;
 def AMSWAP_D     : AM_3R<0x38608000>;
+def AMADD_B      : AM_3R<0x385d0000>;
+def AMADD_H      : AM_3R<0x385d8000>;
 def AMADD_W      : AM_3R<0x38610000>;
 def AMADD_D      : AM_3R<0x38618000>;
 def AMAND_W      : AM_3R<0x38620000>;
@@ -953,8 +970,12 @@ def AMMAX_WU     : AM_3R<0x38670000>;
 def AMMAX_DU     : AM_3R<0x38678000>;
 def AMMIN_WU     : AM_3R<0x38680000>;
 def AMMIN_DU     : AM_3R<0x38688000>;
+def AMSWAP__DB_B : AM_3R<0x385e0000>;
+def AMSWAP__DB_H : AM_3R<0x385e8000>;
 def AMSWAP__DB_W : AM_3R<0x38690000>;
 def AMSWAP__DB_D : AM_3R<0x38698000>;
+def AMADD__DB_B  : AM_3R<0x385f0000>;
+def AMADD__DB_H  : AM_3R<0x385f8000>;
 def AMADD__DB_W  : AM_3R<0x386a0000>;
 def AMADD__DB_D  : AM_3R<0x386a8000>;
 def AMAND__DB_W  : AM_3R<0x386b0000>;
@@ -971,8 +992,19 @@ def AMMAX__DB_WU : AM_3R<0x38700000>;
 def AMMAX__DB_DU : AM_3R<0x38708000>;
 def AMMIN__DB_WU : AM_3R<0x38710000>;
 def AMMIN__DB_DU : AM_3R<0x38718000>;
+def AMCAS_B     : AM_3R<0x38580000>;
+def AMCAS_H     : AM_3R<0x38588000>;
+def AMCAS_W     : AM_3R<0x38590000>;
+def AMCAS_D     : AM_3R<0x38598000>;
+def AMCAS__DB_B     : AM_3R<0x385a0000>;
+def AMCAS__DB_H     : AM_3R<0x385a8000>;
+def AMCAS__DB_W     : AM_3R<0x385b0000>;
+def AMCAS__DB_D     : AM_3R<0x385b8000>;
 def LL_D : LLBase<0x22000000>;
 def SC_D : SCBase<0x23000000>;
+def SC_Q : SCBase_128<0x38570000>;
+def LLACQ_D : LLBase_ACQ<0x38578800>;
+def SCREL_D : SCBase_REL<0x38578C00>;
 
 // CRC Check Instructions
 def CRC_W_B_W  : ALU_3R<0x00240000>;
@@ -1018,7 +1050,7 @@ class PatGprImm_32<SDPatternOperator OpNode, LAInst Inst, Operand ImmOpnd>
 /// Predicates
 def AddLike: PatFrags<(ops node:$A, node:$B),
                       [(add node:$A, node:$B), (or node:$A, node:$B)], [{
-    return N->getOpcode() == ISD::ADD || isOrEquivalentToAdd(N);
+    return CurDAG->isBaseWithConstantOffset(SDValue(N, 0));
 }]>;
 
 /// Simple arithmetic operations
@@ -1083,12 +1115,10 @@ def : PatGprGpr<srem, MOD_D>;
 def : PatGprGpr<urem, MOD_DU>;
 def : PatGprGpr<rotr, ROTR_D>;
 def : PatGprGpr<loongarch_rotr_w, ROTR_W>;
+def : PatGprGpr_32<rotr, ROTR_W>;
 def : PatGprImm<rotr, ROTRI_D, uimm6>;
 def : PatGprImm_32<rotr, ROTRI_W, uimm5>;
-def : Pat<(loongarch_rotl_w GPR:$rj, uimm5:$imm),
-          (ROTRI_W GPR:$rj, (ImmSubFrom32 uimm5:$imm))>;
-def : Pat<(sext_inreg (loongarch_rotl_w GPR:$rj, uimm5:$imm), i32),
-          (ROTRI_W GPR:$rj, (ImmSubFrom32 uimm5:$imm))>;
+def : PatGprImm<loongarch_rotr_w, ROTRI_W, uimm5>;
 // TODO: Select "_W[U]" instructions for i32xi32 if only lower 32 bits of the
 // product are used.
 def : PatGprGpr<mul, MUL_D>;
@@ -1573,6 +1603,34 @@ def PseudoLA_TLS_GD_LARGE : Pseudo<(outs GPR:$dst),
                             Requires<[IsLA64]>;
 } // Defs = [R20], Size = 20
 }
+
+// Used for expand PseudoLA_TLS_DESC_* instructions.
+let isCall = 1, isBarrier = 1, hasSideEffects = 0, mayStore = 0, mayLoad = 0,
+    Defs = [R4], Uses = [R4] in
+def PseudoDESC_CALL : Pseudo<(outs GPR:$rd), (ins GPR:$rj, simm16_lsl2:$imm16)>,
+                      PseudoInstExpansion<(JIRL GPR:$rd, GPR:$rj,
+                                           simm16_lsl2:$imm16)>;
+
+// TLSDESC
+let hasSideEffects = 0, mayLoad = 1, mayStore = 0, isCodeGenOnly = 0,
+    isAsmParserOnly = 1, Defs = [R1] in {
+def PseudoLA_TLS_DESC_ABS : Pseudo<(outs GPR:$dst), (ins bare_symbol:$src),
+                                   [], "la.tls.desc", "$dst, $src">,
+                                   Requires<[IsLA32, HasLaGlobalWithAbs]>;
+def PseudoLA_TLS_DESC_ABS_LARGE : Pseudo<(outs GPR:$dst),
+                                         (ins GPR:$tmp, bare_symbol:$src), [],
+                                         "la.tls.desc", "$dst, $src">,
+                                  Requires<[IsLA64, HasLaGlobalWithAbs]>;
+def PseudoLA_TLS_DESC_PC : Pseudo<(outs GPR:$dst), (ins bare_symbol:$src), [],
+                                  "la.tls.desc", "$dst, $src">;
+}
+
+let isCall = 1, isBarrier = 1, hasSideEffects = 0, mayStore = 0, mayLoad = 0,
+    isCodeGenOnly = 0, isAsmParserOnly = 1, Defs = [R1, R4, R20], Size = 32 in
+def PseudoLA_TLS_DESC_PC_LARGE : Pseudo<(outs GPR:$dst),
+                                        (ins GPR:$tmp, bare_symbol:$src), [],
+                                        "la.tls.desc", "$dst, $tmp, $src">,
+                                 Requires<[IsLA64]>;
 
 // Load address inst alias: "la", "la.global" and "la.local".
 // Default:
@@ -2149,7 +2207,7 @@ let hasSideEffects = 0, mayLoad = 0, mayStore = 0, isCodeGenOnly = 0,
     isAsmParserOnly = 1 in {
 def PseudoLI_W : Pseudo<(outs GPR:$rd), (ins imm32:$imm), [],
                         "li.w", "$rd, $imm">;
-def PseudoLI_D : Pseudo<(outs GPR:$rd), (ins grlenimm:$imm), [],
+def PseudoLI_D : Pseudo<(outs GPR:$rd), (ins imm64:$imm), [],
                         "li.d", "$rd, $imm">, Requires<[IsLA64]>;
 }
 

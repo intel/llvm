@@ -65,7 +65,7 @@
 #ifdef B_CPP
 // -----------------------------------------------------------------------------
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int run_test_b(int v) {
   int arr[] = {v};
@@ -84,7 +84,7 @@ int run_test_b(int v) {
 
 // -----------------------------------------------------------------------------
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace std;
 

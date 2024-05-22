@@ -5,7 +5,8 @@
 // Test to check that we don't insert unnecessary L0 commands for
 // queue::ext_oneapi_submit_barrier() when we have in-order queue.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 class TestKernel;
 sycl::event submitKernel(sycl::queue &Q) {
@@ -54,7 +55,7 @@ int main() {
 
     // CHECK: Test2
     // CHECK: ---> piEnqueueEventsWaitWithBarrier(
-    // CHECK: ZE ---> zeEventCreate
+    // CHECK: ZE ---> {{zeEventCreate|zeEventHostReset}}
     // CHECK: ZE ---> zeCommandListAppendWaitOnEvents
     // CHECK: ZE ---> zeCommandListAppendSignalEvent
     // CHECK: ) ---> 	pi_result : PI_SUCCESS

@@ -1,7 +1,5 @@
-// Test not intended to run on PVC
-// UNSUPPORTED: gpu-intel-pvc
-//
 // REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
+// REQUIRES: sg-8
 //
 // Check that full compilation works:
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out

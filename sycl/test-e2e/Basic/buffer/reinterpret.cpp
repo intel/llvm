@@ -13,7 +13,7 @@
 
 #include <climits>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 // This tests verifies basic cases of using sycl::buffer::reinterpret
 // functionality - changing buffer type and range. This test checks that

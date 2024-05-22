@@ -57,14 +57,14 @@
 // COMMON-PHASES: [[#OFFLOAD+1]]: compiler, {[[#OFFLOAD]]}, ir, (host-sycl)
 // COMMON-PHASES: [[#OFFLOAD+2]]: backend, {[[#OFFLOAD+1]]}, assembler, (host-sycl)
 // COMMON-PHASES: [[#OFFLOAD+3]]: assembler, {[[#OFFLOAD+2]]}, object, (host-sycl)
-// COMMON-PHASES: [[#OFFLOAD+4]]: linker, {[[#OFFLOAD+3]]}, image, (host-sycl)
-// COMMON-PHASES: [[#OFFLOAD+5]]: linker, {[[#DEVICE_IR]]}, ir, (device-sycl)
-// COMMON-PHASES: [[#OFFLOAD+6]]: sycl-post-link, {[[#OFFLOAD+5]]}, tempfiletable, (device-sycl)
-// COMMON-PHASES: [[#OFFLOAD+7]]: file-table-tform, {[[#OFFLOAD+6]]}, tempfilelist, (device-sycl)
-// COMMON-PHASES: [[#OFFLOAD+8]]: llvm-spirv, {[[#OFFLOAD+7]]}, tempfilelist, (device-sycl)
-// COMMON-PHASES: [[#OFFLOAD+9]]: file-table-tform, {[[#OFFLOAD+6]], [[#OFFLOAD+8]]}, tempfiletable, (device-sycl)
-// COMMON-PHASES: [[#OFFLOAD+10]]: clang-offload-wrapper, {[[#OFFLOAD+9]]}, object, (device-sycl)
-// COMMON-PHASES: [[#OFFLOAD+11]]: offload, "host-sycl (x86_64-{{.*}})" {[[#OFFLOAD+4]]}, "device-sycl (spir64-unknown-unknown)" {[[#OFFLOAD+10]]}, image
+// COMMON-PHASES: [[#OFFLOAD+4]]: linker, {[[#DEVICE_IR]]}, ir, (device-sycl)
+// COMMON-PHASES: [[#OFFLOAD+5]]: sycl-post-link, {[[#OFFLOAD+4]]}, tempfiletable, (device-sycl)
+// COMMON-PHASES: [[#OFFLOAD+6]]: file-table-tform, {[[#OFFLOAD+5]]}, tempfilelist, (device-sycl)
+// COMMON-PHASES: [[#OFFLOAD+7]]: llvm-spirv, {[[#OFFLOAD+6]]}, tempfilelist, (device-sycl)
+// COMMON-PHASES: [[#OFFLOAD+8]]: file-table-tform, {[[#OFFLOAD+5]], [[#OFFLOAD+7]]}, tempfiletable, (device-sycl)
+// COMMON-PHASES: [[#OFFLOAD+9]]: clang-offload-wrapper, {[[#OFFLOAD+8]]}, object, (device-sycl)
+// COMMON-PHASES: [[#OFFLOAD+10]]: offload, "device-sycl (spir64-unknown-unknown)" {[[#OFFLOAD+9]]}, object
+// COMMON-PHASES: [[#OFFLOAD+11]]: linker, {[[#OFFLOAD+3]], [[#OFFLOAD+10]]}, image, (host-sycl)
 
 /// Test for -fsycl-footer-path=<dir>
 // RUN:  %clangxx -fsycl -fsycl-footer-path=dummy_dir %s -### 2>&1 \
@@ -76,8 +76,7 @@
 /// Check behaviors for dependency generation
 // RUN:  %clangxx -fsycl -MD -c %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix DEP_GEN %s
-// DEP_GEN:  clang{{.*}} "-fsycl-is-host"
-// DEP_GEN-SAME: "-Eonly"
+// DEP_GEN:  clang{{.*}} "-fsycl-is-device"
 // DEP_GEN-SAME: "-dependency-file"
 // DEP_GEN-SAME: "-MT"
 // DEP_GEN-SAME: "-internal-isystem" "{{.*}}{{[/\\]+}}include{{[/\\]+}}sycl"
@@ -88,19 +87,18 @@
 /// Dependency generation phases
 // RUN:  %clangxx -target x86_64-unknown-linux-gnu -fsycl -MD -c %s -ccc-print-phases 2>&1 \
 // RUN:   | FileCheck -check-prefix DEP_GEN_PHASES %s
-// DEP_GEN_PHASES: 0: input, "[[INPUTFILE:.+\.cpp]]", c++, (host-sycl)
-// DEP_GEN_PHASES: 1: preprocessor, {0}, dependencies
-// DEP_GEN_PHASES: 2: input, "[[INPUTFILE]]", c++, (device-sycl)
-// DEP_GEN_PHASES: 3: preprocessor, {2}, c++-cpp-output, (device-sycl)
-// DEP_GEN_PHASES: 4: compiler, {3}, ir, (device-sycl)
-// DEP_GEN_PHASES: 5: offload, "device-sycl (spir64-unknown-unknown)" {4}, ir
-// DEP_GEN_PHASES: 6: append-footer, {0}, c++, (host-sycl)
-// DEP_GEN_PHASES: 7: preprocessor, {6}, c++-cpp-output, (host-sycl)
-// DEP_GEN_PHASES: 8: offload, "host-sycl (x86_64-unknown-linux-gnu)" {7}, "device-sycl (spir64-unknown-unknown)" {4}, c++-cpp-output
-// DEP_GEN_PHASES: 9: compiler, {8}, ir, (host-sycl)
-// DEP_GEN_PHASES: 10: backend, {9}, assembler, (host-sycl)
-// DEP_GEN_PHASES: 11: assembler, {10}, object, (host-sycl)
-// DEP_GEN_PHASES: 12: clang-offload-bundler, {5, 11}, object, (host-sycl)
+// DEP_GEN_PHASES: 0: input, "[[INPUTFILE:.+\.cpp]]", c++, (device-sycl)
+// DEP_GEN_PHASES: 1: preprocessor, {0}, c++-cpp-output, (device-sycl)
+// DEP_GEN_PHASES: 2: compiler, {1}, ir, (device-sycl)
+// DEP_GEN_PHASES: 3: offload, "device-sycl (spir64-unknown-unknown)" {2}, ir
+// DEP_GEN_PHASES: 4: input, "[[INPUTFILE]]", c++, (host-sycl)
+// DEP_GEN_PHASES: 5: append-footer, {4}, c++, (host-sycl)
+// DEP_GEN_PHASES: 6: preprocessor, {5}, c++-cpp-output, (host-sycl)
+// DEP_GEN_PHASES: 7: offload, "host-sycl (x86_64-unknown-linux-gnu)" {6}, "device-sycl (spir64-unknown-unknown)" {2}, c++-cpp-output
+// DEP_GEN_PHASES: 8: compiler, {7}, ir, (host-sycl)
+// DEP_GEN_PHASES: 9: backend, {8}, assembler, (host-sycl)
+// DEP_GEN_PHASES: 10: assembler, {9}, object, (host-sycl)
+// DEP_GEN_PHASES: 11: clang-offload-bundler, {3, 10}, object, (host-sycl)
 
 /// Allow for -o and preprocessing
 // RUN:  %clangxx -fsycl -MD -c %s -o dummy -### 2>&1 \

@@ -9,7 +9,6 @@
 #pragma once
 
 #include <sycl/detail/pi.hpp>
-#include <sycl/stl.hpp>
 
 namespace sycl {
 inline namespace _V1 {

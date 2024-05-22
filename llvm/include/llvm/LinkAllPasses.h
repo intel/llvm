@@ -21,7 +21,6 @@
 #include "llvm/Analysis/CallPrinter.h"
 #include "llvm/Analysis/DomPrinter.h"
 #include "llvm/Analysis/GlobalsModRef.h"
-#include "llvm/Analysis/IntervalPartition.h"
 #include "llvm/Analysis/Passes.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/RegionPass.h"
@@ -63,6 +62,7 @@ namespace {
       if (std::getenv("bar") != (char*) -1)
         return;
 
+      (void)llvm::createAtomicExpandLegacyPass();
       (void) llvm::createBasicAAWrapperPass();
       (void) llvm::createSCEVAAWrapperPass();
       (void) llvm::createTypeBasedAAWrapperPass();
@@ -93,7 +93,6 @@ namespace {
       (void) llvm::createLoopSimplifyPass();
       (void) llvm::createLoopStrengthReducePass();
       (void) llvm::createLoopUnrollPass();
-      (void) llvm::createLoopRotatePass();
       (void) llvm::createLowerConstantIntrinsicsPass();
       (void) llvm::createLowerGlobalDtorsLegacyPass();
       (void) llvm::createLowerInvokePass();
@@ -145,7 +144,6 @@ namespace {
       (void) llvm::createFixIrreduciblePass();
       (void)llvm::createSelectOptimizePass();
 
-      (void)new llvm::IntervalPartition();
       (void)new llvm::ScalarEvolutionWrapperPass();
       llvm::Function::Create(nullptr, llvm::GlobalValue::ExternalLinkage)->viewCFGOnly();
       llvm::RGPassManager RGM;

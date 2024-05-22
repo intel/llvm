@@ -1,4 +1,5 @@
 ;; Ensure that DIExpressions are preserved in DIGlobalVariableExpressions
+;; if nonsemantic debug info is enabled
 ;; when a Static Member Declaration is also needed.
 ;; This utilizes SPIRV DebugGlobalVariable's Variable field to hold the
 ;; DIExpression.
@@ -37,6 +38,15 @@
 ; CHECK-LLVM: ![[#SCOPE]] = {{.*}}!DICompositeType(tag: DW_TAG_structure_type, name: "A", file: ![[#]], line: 1, size: 8, flags: DIFlagTypePassByValue, elements: ![[#ELEMENTS:]], identifier: "_ZTS1A")
 ; CHECK-LLVM: ![[#ELEMENTS]] = !{![[#DECLARATION]]}
 ; CHECK-LLVM: ![[#BASETYPE]] = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
+
+;; Ensure SPIR-V DebugGlobalVariable's Variable field does not hold a DIExpression if nonsemantic debug info is not enabled
+
+; RUN: llvm-spirv -o %t.spt %t.bc -spirv-text
+; RUN: FileCheck %s --input-file %t.spt --check-prefix CHECK-NONE-SPIRV
+
+; CHECK-NONE-SPIRV-DAG: [[TYPE_MEMBER:[0-9]+]] [[#]] DebugTypeMember [[#]] [[#]] [[#]] [[#]]
+; CHECK-NONE-SPIRV-DAG: [[DEBUG_INFO_NONE:[0-9]+]] [[#]] DebugInfoNone
+; CHECK-NONE-SPIRV: [[#]] [[#]] DebugGlobalVariable [[#]] [[#]] [[#]] [[#]] [[#]] [[#]] [[#]] [[DEBUG_INFO_NONE]] [[#]] [[TYPE_MEMBER]] {{$}}
 
 !llvm.module.flags = !{!0, !1}
 !llvm.dbg.cu = !{!2}

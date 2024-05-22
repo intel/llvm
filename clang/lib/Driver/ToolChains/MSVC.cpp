@@ -121,6 +121,11 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(
         Args.MakeArgString(std::string("-out:") + Output.getFilename()));
 
+  if (Args.hasArg(options::OPT_marm64x))
+    CmdArgs.push_back("-machine:arm64x");
+  else if (TC.getTriple().isWindowsArm64EC())
+    CmdArgs.push_back("-machine:arm64ec");
+
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles) &&
       !C.getDriver().IsCLMode() && !C.getDriver().IsFlangMode()) {
     if (Args.hasArg(options::OPT_fsycl) && !Args.hasArg(options::OPT_nolibsycl))
@@ -145,13 +150,6 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     }
     CmdArgs.push_back("-defaultlib:sycl-devicelib-host.lib");
   }
-
-  for (const auto *A : Args.filtered(options::OPT_foffload_static_lib_EQ))
-    CmdArgs.push_back(
-        Args.MakeArgString(Twine("-defaultlib:") + A->getValue()));
-  for (const auto *A : Args.filtered(options::OPT_foffload_whole_static_lib_EQ))
-    CmdArgs.push_back(
-        Args.MakeArgString(Twine("-wholearchive:") + A->getValue()));
 
   // Suppress multiple section warning LNK4078
   if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
@@ -510,9 +508,7 @@ MSVCToolChain::MSVCToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ArgList &Args)
     : ToolChain(D, Triple, Args), CudaInstallation(D, Triple, Args),
       RocmInstallation(D, Triple, Args) {
-  getProgramPaths().push_back(getDriver().getInstalledDir());
-  if (getDriver().getInstalledDir() != getDriver().Dir)
-    getProgramPaths().push_back(getDriver().Dir);
+  getProgramPaths().push_back(getDriver().Dir);
 
   std::optional<llvm::StringRef> VCToolsDir, VCToolsVersion;
   if (Arg *A = Args.getLastArg(options::OPT__SLASH_vctoolsdir))
@@ -582,24 +578,24 @@ bool MSVCToolChain::isPICDefaultForced() const {
 
 void MSVCToolChain::AddCudaIncludeArgs(const ArgList &DriverArgs,
                                        ArgStringList &CC1Args) const {
-  CudaInstallation.AddCudaIncludeArgs(DriverArgs, CC1Args);
+  CudaInstallation->AddCudaIncludeArgs(DriverArgs, CC1Args);
 }
 
 void MSVCToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
                                       ArgStringList &CC1Args) const {
-  RocmInstallation.AddHIPIncludeArgs(DriverArgs, CC1Args);
+  RocmInstallation->AddHIPIncludeArgs(DriverArgs, CC1Args);
 }
 
 void MSVCToolChain::AddHIPRuntimeLibArgs(const ArgList &Args,
                                          ArgStringList &CmdArgs) const {
   CmdArgs.append({Args.MakeArgString(StringRef("-libpath:") +
-                                     RocmInstallation.getLibPath()),
+                                     RocmInstallation->getLibPath()),
                   "amdhip64.lib"});
 }
 
 void MSVCToolChain::printVerboseInfo(raw_ostream &OS) const {
-  CudaInstallation.print(OS);
-  RocmInstallation.print(OS);
+  CudaInstallation->print(OS);
+  RocmInstallation->print(OS);
 }
 
 std::string
@@ -672,7 +668,7 @@ bool MSVCToolChain::getUniversalCRTLibraryPath(const ArgList &Args,
   llvm::SmallString<128> LibPath(UniversalCRTSdkPath);
   llvm::sys::path::append(LibPath, "Lib", UCRTVersion, "ucrt", ArchName);
 
-  Path = std::string(LibPath.str());
+  Path = std::string(LibPath);
   return true;
 }
 
@@ -930,6 +926,7 @@ static void TranslateOptArg(Arg *A, llvm::opt::DerivedArgList &DAL,
       break;
     case '1':
     case '2':
+    case '3':
     case 'x':
     case 'd':
       // Ignore /O[12xd] flags that aren't the last one on the command line.
@@ -946,11 +943,14 @@ static void TranslateOptArg(Arg *A, llvm::opt::DerivedArgList &DAL,
         } else if (OptChar == '2' || OptChar == 'x') {
           DAL.AddFlagArg(A, Opts.getOption(options::OPT_fbuiltin));
           DAL.AddJoinedArg(A, Opts.getOption(options::OPT_O), "2");
+        } else if (OptChar == '3') {
+          DAL.AddFlagArg(A, Opts.getOption(options::OPT_fbuiltin));
+          DAL.AddJoinedArg(A, Opts.getOption(options::OPT_O), "3");
         }
         if (SupportsForcingFramePointer &&
             !DAL.hasArgNoClaim(options::OPT_fno_omit_frame_pointer))
           DAL.AddFlagArg(A, Opts.getOption(options::OPT_fomit_frame_pointer));
-        if (OptChar == '1' || OptChar == '2')
+        if (OptChar == '1' || OptChar == '2' || OptChar == '3')
           DAL.AddFlagArg(A, Opts.getOption(options::OPT_ffunction_sections));
       }
       break;
@@ -1070,7 +1070,8 @@ MSVCToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
         // OptChar does not expand; it's an argument to the previous char.
         continue;
       }
-      if (OptChar == '1' || OptChar == '2' || OptChar == 'x' || OptChar == 'd')
+      if (OptChar == '1' || OptChar == '2' || OptChar == 'x' ||
+          OptChar == 'd' || OptChar == '3')
         ExpandChar = OptStr.data() + I;
     }
   }
@@ -1106,4 +1107,7 @@ void MSVCToolChain::addClangTargetOptions(
   if (DriverArgs.hasFlag(options::OPT_fno_rtti, options::OPT_frtti,
                          /*Default=*/false))
     CC1Args.push_back("-D_HAS_STATIC_RTTI=0");
+
+  if (Arg *A = DriverArgs.getLastArgNoClaim(options::OPT_marm64x))
+    A->ignoreTargetSpecific();
 }

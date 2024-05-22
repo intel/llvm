@@ -2,7 +2,7 @@
 // RUN: %{run} %t.out
 
 #include <cstdlib>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <vector>
 
 void nestedSubmit() {

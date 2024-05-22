@@ -3,7 +3,7 @@
 // RUN: %{run} %t.out 2>&1 | FileCheck %s
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 // Check for queries of USM capabilities.
 // All supported L0 devices have these capabilities currently:
@@ -13,7 +13,7 @@
 // CHECK:  usm_shared_allocations: 1
 // CHECK:  usm_system_allocations: 0
 // CHECK:  usm_atomic_host_allocations: 0
-// CHECK:  usm_atomic_shared_allocations: 0
+// usm_atomic_shared_allocations is device and driver version dependent.
 
 using namespace sycl;
 

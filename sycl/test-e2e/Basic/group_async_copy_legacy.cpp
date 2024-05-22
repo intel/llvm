@@ -5,7 +5,7 @@
 // deprecated async_work_group_copy interfaces.
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <typeinfo>
 
 using namespace sycl;

@@ -12,6 +12,7 @@
 #include <detail/platform_impl.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
+#include <sycl/image.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
 
@@ -57,9 +58,10 @@ std::vector<platform> platform::get_platforms() {
 backend platform::get_backend() const noexcept { return impl->getBackend(); }
 
 template <typename Param>
-typename detail::is_platform_info_desc<Param>::return_type
-platform::get_info() const {
-  return impl->get_info<Param>();
+detail::ABINeutralT_t<
+    typename detail::is_platform_info_desc<Param>::return_type>
+platform::get_info_impl() const {
+  return detail::convert_to_abi_neutral(impl->template get_info<Param>());
 }
 
 pi_native_handle platform::getNative() const { return impl->getNative(); }
@@ -67,10 +69,24 @@ pi_native_handle platform::getNative() const { return impl->getNative(); }
 bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
 
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template __SYCL_EXPORT ReturnT platform::get_info<info::platform::Desc>()    \
-      const;
+  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
+  platform::get_info_impl<info::platform::Desc>() const;
 
 #include <sycl/info/platform_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC
+
+template <typename Param>
+typename detail::is_backend_info_desc<Param>::return_type
+platform::get_backend_info() const {
+  return impl->get_backend_info<Param>();
+}
+
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
+  template __SYCL_EXPORT ReturnT                                               \
+  platform::get_backend_info<info::DescType::Desc>() const;
+
+#include <sycl/info/sycl_backend_traits.def>
+
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 context platform::ext_oneapi_get_default_context() const {
@@ -93,6 +109,41 @@ context platform::ext_oneapi_get_default_context() const {
         {impl, detail::getSyclObjImpl(context{get_devices()})});
 
   return detail::createSyclObjFromImpl<context>(It->second);
+}
+
+std::vector<device> platform::ext_oneapi_get_composite_devices() const {
+  // Only GPU architectures can be composite devices.
+  auto GPUDevices = get_devices(info::device_type::gpu);
+  // Using ZE_FLAT_DEVICE_HIERARCHY=COMBINED, we receive tiles as devices, which
+  // are component devices. Thus, we need to get the composite device for each
+  // of the component devices, and filter out duplicates.
+  std::vector<device> Composites;
+  std::vector<device> Result;
+  for (auto &Dev : GPUDevices) {
+    if (!Dev.has(sycl::aspect::ext_oneapi_is_component))
+      continue;
+
+    auto Composite = Dev.get_info<
+        sycl::ext::oneapi::experimental::info::device::composite_device>();
+    if (std::find(Result.begin(), Result.end(), Composite) == Result.end())
+      Composites.push_back(Composite);
+  }
+  for (const auto &Composite : Composites) {
+    auto Components = Composite.get_info<
+        sycl::ext::oneapi::experimental::info::device::component_devices>();
+    // Checking whether Components are GPU device is not enough, we need to
+    // check if they are in the list of available devices returned by
+    // `get_devices()`, because we cannot return a Composite device unless all
+    // of its components are available too.
+    size_t ComponentsFound = std::count_if(
+        Components.begin(), Components.end(), [&](const device &d) {
+          return std::find(GPUDevices.begin(), GPUDevices.end(), d) !=
+                 GPUDevices.end();
+        });
+    if (ComponentsFound == Components.size())
+      Result.push_back(Composite);
+  }
+  return Result;
 }
 
 namespace detail {

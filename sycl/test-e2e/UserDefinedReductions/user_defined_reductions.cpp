@@ -1,13 +1,11 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
-// UNSUPPORTED: cuda || hip
 
 #include <complex>
 #include <numeric>
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/user_defined_reductions.hpp>
-#include <sycl/sycl.hpp>
 
 template <typename T> struct UserDefinedSum {
   T operator()(T a, T b) { return a + b; }

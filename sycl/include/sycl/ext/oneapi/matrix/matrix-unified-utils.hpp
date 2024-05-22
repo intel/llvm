@@ -7,6 +7,12 @@
 // ===--------------------------------------------------------------------=== //
 
 #pragma once
+
+#include <CL/__spirv/spirv_types.hpp> // __spv namespace
+#include <optional>                   // std::optional
+#include <string_view>                // std::string_view
+#include <utility>                    // std::pair
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext {

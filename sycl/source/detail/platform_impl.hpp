@@ -16,7 +16,6 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/info/info_desc.hpp>
-#include <sycl/stl.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -61,6 +60,12 @@ public:
   /// \return true if platform supports specified extension.
   bool has_extension(const std::string &ExtensionName) const;
 
+  /// Checks if this platform supports usm.
+  /// Non opencl backends are assumed to support it.
+  ///
+  /// \return true if platform supports usm.
+  bool supports_usm() const;
+
   /// Returns all SYCL devices associated with this platform.
   ///
   /// If this platform is a host platform and device type requested is either
@@ -77,6 +82,12 @@ public:
   ///
   /// The return type depends on information being queried.
   template <typename Param> typename Param::return_type get_info() const;
+
+  /// Queries this SYCL platform for SYCL backend-specific information.
+  ///
+  /// The return type depends on information being queried.
+  template <typename Param>
+  typename Param::return_type get_backend_info() const;
 
   /// \return true if this SYCL platform is a host platform.
   bool is_host() const { return MHostPlatform; };

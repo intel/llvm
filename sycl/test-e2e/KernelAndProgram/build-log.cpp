@@ -14,7 +14,7 @@
 //===--------------------------------------------------------------===//
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 SYCL_EXTERNAL
 void symbol_that_does_not_exist();
 

@@ -235,9 +235,9 @@ bool DeadArgumentEliminationPass::deleteDeadVarargs(Function &F) {
     CallBase *NewCB = nullptr;
     if (InvokeInst *II = dyn_cast<InvokeInst>(CB)) {
       NewCB = InvokeInst::Create(NF, II->getNormalDest(), II->getUnwindDest(),
-                                 Args, OpBundles, "", CB);
+                                 Args, OpBundles, "", CB->getIterator());
     } else {
-      NewCB = CallInst::Create(NF, Args, OpBundles, "", CB);
+      NewCB = CallInst::Create(NF, Args, OpBundles, "", CB->getIterator());
       cast<CallInst>(NewCB)->setTailCallKind(
           cast<CallInst>(CB)->getTailCallKind());
     }
@@ -536,6 +536,14 @@ void DeadArgumentEliminationPass::surveyFunction(const Function &F) {
   // otherwise rely on the frame layout in a way that this analysis will not
   // see.
   if (F.hasFnAttribute(Attribute::Naked)) {
+    markLive(F);
+    return;
+  }
+
+  // Don't touch sanitized functions. The "__asan_launch" argument needs to be
+  // present at all times, even if it's not used.
+  if (F.getCallingConv() == CallingConv::SPIR_KERNEL &&
+      F.hasFnAttribute(Attribute::SanitizeAddress)) {
     markLive(F);
     return;
   }
@@ -1026,7 +1034,7 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
       NewCB = InvokeInst::Create(NF, II->getNormalDest(), II->getUnwindDest(),
                                  Args, OpBundles, "", CB.getParent());
     } else {
-      NewCB = CallInst::Create(NFTy, NF, Args, OpBundles, "", &CB);
+      NewCB = CallInst::Create(NFTy, NF, Args, OpBundles, "", CB.getIterator());
       cast<CallInst>(NewCB)->setTailCallKind(
           cast<CallInst>(&CB)->getTailCallKind());
     }
@@ -1150,7 +1158,8 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
         }
         // Replace the return instruction with one returning the new return
         // value (possibly 0 if we became void).
-        auto *NewRet = ReturnInst::Create(F->getContext(), RetVal, RI);
+        auto *NewRet =
+            ReturnInst::Create(F->getContext(), RetVal, RI->getIterator());
         NewRet->setDebugLoc(RI->getDebugLoc());
         RI->eraseFromParent();
       }

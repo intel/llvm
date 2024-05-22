@@ -1,13 +1,14 @@
-// RUN: %clangxx -O0 -fsycl -fsycl-device-only -fno-sycl-esimd-force-stateless-mem -Xclang -emit-llvm %s -o %t
+// RUN: %clangxx %clang_O0 -fsycl -fsycl-device-only -fno-sycl-esimd-force-stateless-mem -Xclang -emit-llvm %s -o %t
 // RUN: sycl-post-link -split-esimd -lower-esimd -lower-esimd-force-stateless-mem=false -O0 -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATEFUL
 
-// RUN: %clangxx -O0 -fsycl -fsycl-device-only -fsycl-esimd-force-stateless-mem -Xclang -emit-llvm %s -o %t
+// RUN: %clangxx %clang_O0 -fsycl -fsycl-device-only -fsycl-esimd-force-stateless-mem -Xclang -emit-llvm %s -o %t
 // RUN: sycl-post-link -split-esimd -lower-esimd -lower-esimd-force-stateless-mem=true -O0 -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATELESS
 
 // Checks ESIMD intrinsic translation with opaque pointers.
-// NOTE: must be run in -O0, as optimizer optimizes away some of the code
+// NOTE: must be run with %clang_O0, as optimizer optimizes away some of the
+// code
 
 #include <sycl/detail/image_ocl_types.hpp>
 #include <sycl/ext/intel/esimd.hpp>
@@ -304,13 +305,25 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
     // CHECK-STATEFUL: call void @llvm.genx.scatter.scaled.v8i1.v8i32.v8i32(<8 x i1> %{{[0-9a-zA-Z_.]+}}, i32 2, i16 0, i32 %[[SI4]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}})
     // CHECK-STATELESS: call void @llvm.genx.svm.scatter.v8i1.v8i64.v8i32(<8 x i1> %{{[0-9a-zA-Z_.]+}}, i32 0, <8 x i64> %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}})
 
-    // 1-byte element gather
+    // 1-byte element gather: same code with and without mask
     simd<unsigned char, 8> v1 = gather<unsigned char, 8>(acc, offsets, 100);
     // CHECK-STATEFUL: %[[SI5_VAL:[0-9a-zA-Z_.]+]] = call spir_func noundef i32 @_Z21__spirv_ConvertPtrToU{{.*}}(ptr addrspace(1) noundef %{{[0-9a-zA-Z_.]+}})
     // CHECK-STATEFUL: store i32 %[[SI5_VAL]], ptr addrspace(4) %[[SI5_ADDR:[0-9a-zA-Z_.]+]]
     // CHECK-STATEFUL: %[[SI5:[0-9a-zA-Z_.]+]] = load i32, ptr addrspace(4) %[[SI5_ADDR]]
     // CHECK-STATEFUL: call <8 x i32> @llvm.genx.gather.masked.scaled2.v8i32.v8i32.v8i1(i32 0, i16 0, i32 %[[SI5]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i1> %{{[0-9a-zA-Z_.]+}})
     // CHECK-STATELESS: call <32 x i8> @llvm.genx.svm.gather.v32i8.v8i1.v8i64(<8 x i1> %{{[0-9a-zA-Z_.]+}}, i32 0, <8 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i8> undef)
+
+    // 1-byte element gather using the mask
+    v1 = gather<unsigned char, 8>(acc, offsets, 100, pred);
+    // CHECK-STATEFUL: call <8 x i32> @llvm.genx.gather.masked.scaled2.v8i32.v8i32.v8i1(i32 0, i16 0, i32 {{[^)]+}}, i32 {{[^)]+}}, <8 x i32> {{[^)]+}}, <8 x i1> {{[^)]+}})
+    // CHECK-STATELESS: call <32 x i8> @llvm.genx.svm.gather.v32i8.v8i1.v8i64(<8 x i1> {{[^)]+}}, i32 0, <8 x i64> {{[^)]+}}, <32 x i8> undef)
+
+    // 1-byte element gather using the mask - the mask is signed, which may
+    // expose different issues/conflicts in gather API.
+    simd<int32_t, 8> ioffsets = 1;
+    v1 = gather<unsigned char, 8>(acc, ioffsets, 0, pred);
+    // CHECK-STATEFUL: call <8 x i32> @llvm.genx.gather.masked.scaled2.v8i32.v8i32.v8i1(i32 0, i16 0, i32 {{[^)]+}}, i32 {{[^)]+}}, <8 x i32> {{[^)]+}}, <8 x i1> {{[^)]+}})
+    // CHECK-STATELESS: call <32 x i8> @llvm.genx.svm.gather.v32i8.v8i1.v8i64(<8 x i1> {{[^)]+}}, i32 0, <8 x i64> {{[^)]+}}, <32 x i8> undef)
 
     // 1-byte element scatter
     scatter<unsigned char, 8>(acc, offsets, v1, 100, pred);

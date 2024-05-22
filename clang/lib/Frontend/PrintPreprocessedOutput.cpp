@@ -11,15 +11,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Frontend/Utils.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Frontend/PreprocessorOutputOptions.h"
+#include "clang/Frontend/Utils.h"
 #include "clang/Lex/MacroInfo.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Pragma.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Lex/TokenConcatenation.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
@@ -153,7 +154,8 @@ public:
                           StringRef FileName, bool IsAngled,
                           CharSourceRange FilenameRange,
                           OptionalFileEntryRef File, StringRef SearchPath,
-                          StringRef RelativePath, const Module *Imported,
+                          StringRef RelativePath, const Module *SuggestedModule,
+                          bool ModuleImported,
                           SrcMgr::CharacteristicKind FileType) override;
   void Ident(SourceLocation Loc, StringRef str) override;
   void PragmaMessage(SourceLocation Loc, StringRef Namespace,
@@ -215,6 +217,8 @@ public:
                    const Token &Tok) {
     return ConcatInfo.AvoidConcat(PrevPrevTok, PrevTok, Tok);
   }
+  void WriteFooterInfo(StringRef Footer);
+  void WriteFooterContent(StringRef CodeFooter);
   void WriteLineInfo(unsigned LineNo, const char *Extra=nullptr,
                      unsigned ExtraLen=0);
   bool LineMarkersAreDisabled() const { return DisableLineMarkers; }
@@ -233,6 +237,19 @@ public:
   void EndModule(const Module *M);
 };
 }  // end anonymous namespace
+
+void PrintPPOutputPPCallbacks::WriteFooterInfo(StringRef Footer) {
+  *OS << '#' << ' ' << 1 << ' ' << '"';
+  *OS << "<built-in>" << '"' << ' ' << "1";
+  *OS << '\n';
+  *OS << Twine("# 1 ") + "\"" + Footer + "\"" + Twine(" 1");
+  *OS << '\n';
+}
+
+void PrintPPOutputPPCallbacks::WriteFooterContent(StringRef CodeFooter) {
+  *OS << CodeFooter;
+  *OS << '\n';
+}
 
 void PrintPPOutputPPCallbacks::WriteLineInfo(unsigned LineNo,
                                              const char *Extra,
@@ -401,8 +418,8 @@ void PrintPPOutputPPCallbacks::FileChanged(SourceLocation Loc,
 void PrintPPOutputPPCallbacks::InclusionDirective(
     SourceLocation HashLoc, const Token &IncludeTok, StringRef FileName,
     bool IsAngled, CharSourceRange FilenameRange, OptionalFileEntryRef File,
-    StringRef SearchPath, StringRef RelativePath, const Module *Imported,
-    SrcMgr::CharacteristicKind FileType) {
+    StringRef SearchPath, StringRef RelativePath, const Module *SuggestedModule,
+    bool ModuleImported, SrcMgr::CharacteristicKind FileType) {
   // In -dI mode, dump #include directives prior to dumping their content or
   // interpretation. Similar for -fkeep-system-includes.
   if (DumpIncludeDirectives || (KeepSystemIncludes && isSystem(FileType))) {
@@ -418,14 +435,14 @@ void PrintPPOutputPPCallbacks::InclusionDirective(
   }
 
   // When preprocessing, turn implicit imports into module import pragmas.
-  if (Imported) {
+  if (ModuleImported) {
     switch (IncludeTok.getIdentifierInfo()->getPPKeywordID()) {
     case tok::pp_include:
     case tok::pp_import:
     case tok::pp_include_next:
       MoveToLine(HashLoc, /*RequireStartOfLine=*/true);
       *OS << "#pragma clang module import "
-          << Imported->getFullModuleName(true)
+          << SuggestedModule->getFullModuleName(true)
           << " /* clang -E: implicit import for "
           << "#" << PP.getSpelling(IncludeTok) << " "
           << (IsAngled ? '<' : '"') << FileName << (IsAngled ? '>' : '"')
@@ -805,6 +822,38 @@ struct UnknownPragmaHandler : public PragmaHandler {
 };
 } // end anonymous namespace
 
+FileID ComputeValidFooterFileID(SourceManager &SM, StringRef Footer) {
+  FileID FooterFileID;
+  llvm::Expected<FileEntryRef> ExpectedFileRef =
+      SM.getFileManager().getFileRef(Footer);
+  if (ExpectedFileRef) {
+    FooterFileID = SM.getOrCreateFileID(ExpectedFileRef.get(),
+                                        SrcMgr::CharacteristicKind::C_User);
+  }
+  assert(FooterFileID.isValid() && "expecting a valid footer FileID");
+  return FooterFileID;
+}
+
+static void PrintIncludeFooter(Preprocessor &PP, SourceLocation Loc,
+                               std::string Footer,
+                               PrintPPOutputPPCallbacks *Callbacks) {
+  SourceManager &SourceMgr = PP.getSourceManager();
+  PresumedLoc UserLoc = SourceMgr.getPresumedLoc(Loc);
+  if (UserLoc.isInvalid())
+    return;
+  FileID FooterFileID = ComputeValidFooterFileID(SourceMgr, Footer);
+  StringRef FooterContentBuffer = SourceMgr.getBufferData(FooterFileID);
+  // print out the name of the integration footer.
+  Callbacks->WriteFooterInfo(Footer);
+  SmallVector<StringRef, 8> FooterContentArr;
+  FooterContentBuffer.split(FooterContentArr, '\r');
+  // print out the content of the integration footer.
+  for (auto &Val : FooterContentArr) {
+    Val.consume_front("\n");
+    if (!Val.empty())
+      Callbacks->WriteFooterContent(Val);
+  }
+}
 
 static void PrintPreprocessedTokens(Preprocessor &PP, Token &Tok,
                                     PrintPPOutputPPCallbacks *Callbacks) {
@@ -1042,6 +1091,14 @@ void clang::DoPrintPreprocessedInput(Preprocessor &PP, raw_ostream *OS,
   // Read all the preprocessed tokens, printing them out to the stream.
   PrintPreprocessedTokens(PP, Tok, Callbacks);
   *OS << '\n';
+
+  if (!PP.getPreprocessorOpts().IncludeFooter.empty()) {
+    assert(PP.getLangOpts().SYCLIsHost &&
+           "The 'include-footer' is expected in host compilation only");
+    SourceLocation Loc = Tok.getLocation();
+    PrintIncludeFooter(PP, Loc, PP.getPreprocessorOpts().IncludeFooter,
+                       Callbacks);
+  }
 
   // Remove the handlers we just added to leave the preprocessor in a sane state
   // so that it can be reused (for example by a clang::Parser instance).

@@ -3,13 +3,15 @@
 // UNSUPPORTED: windows
 //
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR="level_zero:*" UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env ONEAPI_DEVICE_SELECTOR="level_zero:*" %{l0_leak_check}  %{run} %t.out 2>&1 | FileCheck %s
 //
 // CHECK-NOT: LEAK
 
 // Tests that additional resources required by USM reductions do not leak.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/reduction.hpp>
 
 using namespace sycl;
 

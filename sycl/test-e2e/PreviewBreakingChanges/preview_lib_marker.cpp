@@ -6,7 +6,7 @@
 // Test to help identify that E2E testing correctly detects and uses the preview
 // library.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 namespace sycl {
 inline namespace _V1 {

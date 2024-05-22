@@ -12,7 +12,7 @@
 #include "helper.hpp"
 #include <limits>
 #include <numeric>
-#include <sycl/sycl.hpp>
+#include <sycl/group_barrier.hpp>
 
 template <typename T, bool UseNewSyntax> class sycl_subgr;
 using namespace sycl;

@@ -5,7 +5,9 @@
 // RUN: %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -83,9 +85,10 @@ int main() {
             // Sum each image by reading their handle
             float sum = 0;
             for (int i = 0; i < numImages; i++) {
-              // Extension: read image data from handle
-              sum += (sycl::ext::oneapi::experimental::read_image<sycl::float4>(
-                  imgHandleAcc[i], sycl::int2(dim0, dim1)))[0];
+              // Extension: fetch image data from handle
+              sum +=
+                  (sycl::ext::oneapi::experimental::fetch_image<sycl::float4>(
+                      imgHandleAcc[i], sycl::int2(dim0, dim1)))[0];
             }
             outAcc[sycl::id<2>{dim1, dim0}] = sum;
           });

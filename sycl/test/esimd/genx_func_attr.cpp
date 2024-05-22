@@ -1,5 +1,5 @@
 // RUN: %clangxx -O2 -fsycl -fsycl-device-only -Xclang -emit-llvm %s -o %t
-// RUN: sycl-post-link -split-esimd -lower-esimd -O2 -S %t -o %t.table
+// RUN: sycl-post-link -lower-esimd -O2 -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll
 
 // Checks ESIMD intrinsic translation.
@@ -18,7 +18,7 @@ __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
 
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL ESIMD_NOINLINE void callee(int x) {
   slm_allocator<1234> alloc;
-  named_barrier_init<13>();
+  __ESIMD_NS::named_barrier_init<13>();
 }
 
 // inherits SLMSize and NBarrierCount from callee
