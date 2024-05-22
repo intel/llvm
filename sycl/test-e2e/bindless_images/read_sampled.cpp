@@ -818,10 +818,20 @@ static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   }
 
   try {
-
-    syclexp::image_descriptor desc(dims, COrder, CType);
+    // Check default constructor for image_descriptor
+    syclexp::image_descriptor desc;
+    desc = syclexp::image_descriptor(dims, COrder, CType);
 
     syclexp::image_mem imgMem(desc, q);
+
+    // Check that image_mem_handle can be constructed from raw_handle_type
+    syclexp::image_mem_handle img_mem_handle_copy{
+        static_cast<syclexp::image_mem_handle::raw_handle_type>(
+            imgMem.get_handle().raw_handle)};
+    if (img_mem_handle_copy.raw_handle != imgMem.get_handle().raw_handle) {
+      std::cerr << "Failed to copy raw_handle_type" << std::endl;
+      return false;
+    }
 
     auto img_input = syclexp::create_image(imgMem, samp, desc, q);
 

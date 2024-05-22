@@ -3512,10 +3512,6 @@ def fobjc_nonfragile_abi : Flag<["-"], "fobjc-nonfragile-abi">, Group<f_Group>;
 def fno_objc_nonfragile_abi : Flag<["-"], "fno-objc-nonfragile-abi">, Group<f_Group>;
 
 def fobjc_sender_dependent_dispatch : Flag<["-"], "fobjc-sender-dependent-dispatch">, Group<f_Group>;
-def foffload_static_lib_EQ : CommaJoined<["-"], "foffload-static-lib=">, Flags<[NoXarchOption]>,
-  Visibility<[ClangOption, CLOption, DXCOption]>, Group<offload_lib_Group>;
-def foffload_whole_static_lib_EQ : CommaJoined<["-"], "foffload-whole-static-lib=">, Flags<[NoXarchOption]>,
-  Visibility<[ClangOption, CLOption, DXCOption]>, Group<offload_lib_Group>;
 def fobjc_disable_direct_methods_for_testing :
   Flag<["-"], "fobjc-disable-direct-methods-for-testing">,
   Group<f_Group>, Visibility<[ClangOption, CC1Option]>,
@@ -4719,6 +4715,10 @@ def image__base : Separate<["-"], "image_base">;
 def include_ : JoinedOrSeparate<["-", "--"], "include">, Group<clang_i_Group>, EnumName<"include">,
     MetaVarName<"<file>">, HelpText<"Include file before parsing">,
     Visibility<[ClangOption, CC1Option]>;
+def include_footer : Separate<["-"], "include-footer">, Group<clang_i_Group>,
+    Visibility<[CC1Option]>,
+    HelpText<"Name of the footer integration file">,  MetaVarName<"<file>">,
+    MarshallingInfoString<PreprocessorOpts<"IncludeFooter">>;
 def include_pch : Separate<["-"], "include-pch">, Group<clang_i_Group>,
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"Include precompiled header file">, MetaVarName<"<file>">,

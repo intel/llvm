@@ -199,14 +199,16 @@ enum class image_type : /* unspecified */ {
 };
 
 struct image_descriptor {
-  size_t width;
-  size_t height;
-  size_t depth;
-  image_channel_type channel_type;
-  image_channel_order channel_order;
-  image_type type;
-  unsigned int num_levels;
-  unsigned int array_size;
+  size_t width{0};
+  size_t height{0};
+  size_t depth{0};
+  image_channel_order channel_order{image_channel_order::rgba};
+  image_channel_type channel_type{image_channel_type::fp32};
+  image_type type{image_type::standard};
+  unsigned int num_levels{1};
+  unsigned int array_size{1};
+
+  image_descriptor() = default;
 
   image_descriptor(sycl::range<1> dims, image_channel_order channel_order,
                    image_channel_type channel_type, 
@@ -2765,15 +2767,16 @@ These features still need to be handled:
                    `fetch_image` API.
 |5.8|2024-05-09| - Add missing cubemap `HintT` template parameter to 
                    `fetch_cubemap` and `sample_cubemap`.
-|5.9|2024-05-21| - Added `external_mem_handle_type` and 
-                   `external_semaphore_handle_type` enums. These will allow 
-                   multiple handle types to be consumed by the same interop API.
-                 - Added `handle_type` field to the `external_mem_descriptor`
-                   and `external_semaphore_descriptor` structs. This allows
-                   multiple handle types to be consumed by the API, such as 
-                   file descriptors, Windows NT handles, and other handles in 
-                   the future.
-                 - Added semaphore operations which can accept values. These
-                   are only supported for certain semaphore types 
-                   (e.g. `win32_nt_dx12_fence`).
+|5.9|2024-05-14| - Default constructor for `image_descriptor`.
+|5.10|2024-05-22| - Added `external_mem_handle_type` and 
+                    `external_semaphore_handle_type` enums. These will allow 
+                    multiple handle types to be consumed by the same interop API.
+                  - Added `handle_type` field to the `external_mem_descriptor`
+                    and `external_semaphore_descriptor` structs. This allows
+                    multiple handle types to be consumed by the API, such as 
+                    file descriptors, Windows NT handles, and other handles in 
+                    the future.
+                  - Added semaphore operations which can accept values. These
+                    are only supported for certain semaphore types 
+                    (e.g. `win32_nt_dx12_fence`).
 |======================

@@ -15,8 +15,4 @@
 // incompatible on the current device
 
 #include "common.hpp"
-
-#define SG_SZ 16
-static constexpr size_t SN = 16;
-
 #include "joint_matrix_opt_kernel_feature_impl.hpp"

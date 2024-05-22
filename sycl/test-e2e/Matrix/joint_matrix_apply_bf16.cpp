@@ -12,7 +12,6 @@
 
 #include "common.hpp"
 
-#define SG_SZ 16
 constexpr size_t TN = 16;
 
 #include "joint_matrix_apply_bf16_impl.hpp"
