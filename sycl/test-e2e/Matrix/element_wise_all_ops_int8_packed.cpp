@@ -13,7 +13,4 @@
 // This test stores the matrix B that is VNNIed (packed).
 
 #include "common.hpp"
-
-constexpr size_t TN = 16;
-
 #include "element_wise_all_ops_int8_packed_impl.hpp"
