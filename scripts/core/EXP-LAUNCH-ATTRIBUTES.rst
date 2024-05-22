@@ -35,17 +35,17 @@ dimension over which the shared memory is accessible. Additionally some
 applications require specification of kernel attributes at runtime.
 
 This extension is a future-proof and portable solution that supports these two requirements.
-Instead of using a fixed set of kernel arguments, the approach is to introduce 
-"exp_launch_attribute_t" that enables a more flexible approach.
-Each exp_launch_attr_t corresponds to a specific kernel launch attribute.
-One new function is introduced. "urEnqueueKernelLaunchCustomExp" takes an
-array of launch_attribute_t as an argument, and launches a kernel using these
-attributes. "urEnqueueKernelLaunchCustomExp" corresponds to the CUDA Driver API
-"cuLaunchKernelEx".
+Instead of using a fixed set of kernel arguments, the approach is to introduce the
+`exp_launch_attribute_t` type that enables a more flexible approach.
+Each `exp_launch_attribute_t` instance corresponds to a specific kernel launch attribute.
+One new function is introduced; `urEnqueueKernelLaunchCustomExp` takes an
+array of `exp_launch_attribute_t` as an argument, and launches a kernel using these
+attributes. `urEnqueueKernelLaunchCustomExp` corresponds closely to the CUDA Driver API
+`cuLaunchKernelEx`.
 
-Many kernel properties could be supported, such as cooperative kernels. As such,
+Many kernel properties can be supported, such as cooperative kernels. As such,
 eventually this extension should be able to replace the cooperative kernels
-UR extension. 
+UR extension.
 
 API
 --------------------------------------------------------------------------------
