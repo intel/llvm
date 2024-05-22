@@ -1783,7 +1783,7 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
       for (unsigned I = 0; I < Value.getArrayInitializedElts(); ++I) {
         const APValue &ArrayElem = Value.getArrayInitializedElt(I);
         char C = static_cast<char>(ArrayElem.getInt().getExtValue());
-        if (C == 0)
+        if (C == '\0')
           break;
         StrBuffer += C;
       }
@@ -1844,7 +1844,7 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
       for (unsigned I = 0; I < Value.getArrayInitializedElts(); ++I) {
         const APValue &ArrayElem = Value.getArrayInitializedElt(I);
         char C = static_cast<char>(ArrayElem.getInt().getExtValue());
-        if (C == 0)
+        if (C == '\0')
           break;
         StrBuffer += C;
       }
@@ -1884,7 +1884,7 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
       SmallString<10> StrBuffer;
       for (const auto *InitE : InitListE->inits()) {
         const Expr *InitNoImpCastE = InitE->IgnoreParenImpCasts();
-        char C = 0;
+        char C = '\0';
         if (const auto *CharacterVal =
               dyn_cast<CharacterLiteral>(InitNoImpCastE))
           C = static_cast<char>(CharacterVal->getValue());
@@ -1895,7 +1895,7 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
           return std::nullopt;
 
         // Null terminator will end the string reading.
-        if (C == 0)
+        if (C == '\0')
           break;
 
         StrBuffer += C;
