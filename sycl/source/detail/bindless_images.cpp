@@ -30,9 +30,11 @@ void populate_pi_structs(const image_descriptor &desc, pi_image_desc &piDesc,
   piDesc.image_depth = desc.depth;
 
   if (desc.array_size > 1) {
-    // Image array.
-    piDesc.image_type =
-        desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+    // Image array or cubemap
+    piDesc.image_type = desc.type == image_type::cubemap
+                            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+                        : desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
+                                          : PI_MEM_TYPE_IMAGE1D_ARRAY;
   } else {
     piDesc.image_type =
         desc.depth > 0
@@ -266,7 +268,8 @@ __SYCL_EXPORT void free_image_mem(image_mem_handle memHandle,
                    sycl::detail::PiApiKind::piextMemMipmapFree>(
           C, Device, memHandle.raw_handle);
     } else if (imageType == image_type::standard ||
-               imageType == image_type::array) {
+               imageType == image_type::array ||
+               imageType == image_type::cubemap) {
       Plugin->call<sycl::errc::memory_allocation,
                    sycl::detail::PiApiKind::piextMemImageFree>(
           C, Device, memHandle.raw_handle);
@@ -358,11 +361,9 @@ create_image(image_mem_handle memHandle, const image_descriptor &desc,
 
   // Call impl.
   pi_image_handle piImageHandle;
-  pi_mem piImage;
   Plugin->call<sycl::errc::runtime,
                sycl::detail::PiApiKind::piextMemUnsampledImageCreate>(
-      C, Device, memHandle.raw_handle, &piFormat, &piDesc, &piImage,
-      &piImageHandle);
+      C, Device, memHandle.raw_handle, &piFormat, &piDesc, &piImageHandle);
 
   return unsampled_image_handle{piImageHandle};
 }
@@ -431,6 +432,8 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
       static_cast<pi_sampler_properties>(sampler.filtering),
       PI_SAMPLER_PROPERTIES_MIP_FILTER_MODE,
       static_cast<pi_sampler_properties>(sampler.mipmap_filtering),
+      PI_SAMPLER_PROPERTIES_CUBEMAP_FILTER_MODE,
+      static_cast<pi_sampler_properties>(sampler.cubemap_filtering),
       0};
 
   pi_sampler piSampler = {};
@@ -444,12 +447,10 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
   populate_pi_structs(desc, piDesc, piFormat, pitch);
 
   // Call impl.
-  pi_mem piImage;
   pi_image_handle piImageHandle;
   Plugin->call<sycl::errc::runtime,
                sycl::detail::PiApiKind::piextMemSampledImageCreate>(
-      C, Device, devPtr, &piFormat, &piDesc, piSampler, &piImage,
-      &piImageHandle);
+      C, Device, devPtr, &piFormat, &piDesc, piSampler, &piImageHandle);
 
   return sampled_image_handle{piImageHandle};
 }

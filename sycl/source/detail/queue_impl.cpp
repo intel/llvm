@@ -115,8 +115,8 @@ queue_impl::getExtendDependencyList(const std::vector<event> &DepEvents,
     return DepEvents;
 
   QueueLock.lock();
-  EventImplPtr ExtraEvent =
-      MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
+  EventImplPtr ExtraEvent = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
+                                             : MExtGraphDeps.LastEventPtr;
   std::optional<event> ExternalEvent = popExternalEvent();
 
   if (!ExternalEvent && !ExtraEvent)
@@ -260,14 +260,22 @@ event queue_impl::memcpyFromDeviceGlobal(
 }
 
 event queue_impl::getLastEvent() {
+  {
+    // The external event is required to finish last if set, so it is considered
+    // the last event if present.
+    std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
+    if (MInOrderExternalEvent)
+      return *MInOrderExternalEvent;
+  }
+
   std::lock_guard<std::mutex> Lock{MMutex};
   if (MDiscardEvents)
     return createDiscardedEvent();
-  if (!MGraph.expired() && MGraphLastEventPtr)
-    return detail::createSyclObjFromImpl<event>(MGraphLastEventPtr);
-  if (!MLastEventPtr)
-    MLastEventPtr = std::make_shared<event_impl>(std::nullopt);
-  return detail::createSyclObjFromImpl<event>(MLastEventPtr);
+  if (!MGraph.expired() && MExtGraphDeps.LastEventPtr)
+    return detail::createSyclObjFromImpl<event>(MExtGraphDeps.LastEventPtr);
+  if (!MDefaultGraphDeps.LastEventPtr)
+    MDefaultGraphDeps.LastEventPtr = std::make_shared<event_impl>(std::nullopt);
+  return detail::createSyclObjFromImpl<event>(MDefaultGraphDeps.LastEventPtr);
 }
 
 void queue_impl::addEvent(const event &Event) {
@@ -322,37 +330,6 @@ void queue_impl::addSharedEvent(const event &Event) {
   MEventsShared.push_back(Event);
 }
 
-static bool
-areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
-                                ContextImplPtr Context) {
-  auto CheckEvent = [&Context](const sycl::event &Event) {
-    const EventImplPtr &SyclEventImplPtr = detail::getSyclObjImpl(Event);
-    // Events that don't have an initialized context are throwaway events that
-    // don't represent actual dependencies. Calling getContextImpl() would set
-    // their context, which we wish to avoid as it is expensive.
-    // NOP events also don't represent actual dependencies.
-    if ((!SyclEventImplPtr->isContextInitialized() &&
-         !SyclEventImplPtr->is_host()) ||
-        SyclEventImplPtr->isNOP()) {
-      return true;
-    }
-    if (SyclEventImplPtr->is_host()) {
-      return SyclEventImplPtr->isCompleted();
-    }
-    // Cross-context dependencies can't be passed to the backend directly.
-    if (SyclEventImplPtr->getContextImpl() != Context)
-      return false;
-
-    // A nullptr here means that the commmand does not produce a PI event or it
-    // hasn't been enqueued yet.
-    return SyclEventImplPtr->getHandleRef() != nullptr;
-  };
-
-  return std::all_of(
-      DepEvents.begin(), DepEvents.end(),
-      [&CheckEvent](const sycl::event &Event) { return CheckEvent(Event); });
-}
-
 template <typename HandlerFuncT>
 event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,
                                     const std::vector<event> &DepEvents,
@@ -382,8 +359,8 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
 
     // If we have a command graph set we need to capture the op through the
     // handler rather than by-passing the scheduler.
-    if (MGraph.expired() &&
-        areEventsSafeForSchedulerBypass(ExpandedDepEvents, MContext)) {
+    if (MGraph.expired() && Scheduler::areEventsSafeForSchedulerBypass(
+                                ExpandedDepEvents, MContext)) {
       if (MSupportsDiscardingPiEvents) {
         MemOpFunc(MemOpArgs..., getPIEvents(ExpandedDepEvents),
                   /*PiEvent*/ nullptr, /*EventImplPtr*/ nullptr);
@@ -399,8 +376,8 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
         return MDiscardEvents ? createDiscardedEvent() : event();
 
       if (isInOrder()) {
-        auto &EventToStoreIn =
-            MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
+        auto &EventToStoreIn = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
+                                                : MExtGraphDeps.LastEventPtr;
         EventToStoreIn = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
@@ -516,6 +493,26 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
                           "recording to a command graph.");
   }
 
+  // If there is an external event set, we know we are using an in-order queue
+  // and the event is required to finish after the last event in the queue. As
+  // such, we can just wait for it and finish.
+  std::optional<event> ExternalEvent = popExternalEvent();
+  if (ExternalEvent) {
+    ExternalEvent->wait();
+
+    // Additionally, we can clean up the event lists that we would have
+    // otherwise cleared.
+    if (!MEventsWeak.empty() || !MEventsShared.empty()) {
+      std::lock_guard<std::mutex> Lock(MMutex);
+      MEventsWeak.clear();
+      MEventsShared.clear();
+    }
+    if (!MStreamsServiceEvents.empty()) {
+      std::lock_guard<std::mutex> Lock(MStreamsServiceEventsMutex);
+      MStreamsServiceEvents.clear();
+    }
+  }
+
   std::vector<std::weak_ptr<event_impl>> WeakEvents;
   std::vector<event> SharedEvents;
   {
@@ -558,11 +555,6 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   for (const EventImplPtr &Event : StreamsServiceEvents)
     Event->wait(Event);
 
-  // If there is an external event set, we need to wait on it.
-  std::optional<event> ExternalEvent = popExternalEvent();
-  if (ExternalEvent)
-    ExternalEvent->wait();
-
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
 #endif
@@ -589,8 +581,9 @@ bool queue_impl::ext_oneapi_empty() const {
   // the status of the last event.
   if (isInOrder() && !MDiscardEvents) {
     std::lock_guard<std::mutex> Lock(MMutex);
-    return !MLastEventPtr ||
-           MLastEventPtr->get_info<info::event::command_execution_status>() ==
+    return !MDefaultGraphDeps.LastEventPtr ||
+           MDefaultGraphDeps.LastEventPtr
+                   ->get_info<info::event::command_execution_status>() ==
                info::event_command_status::complete;
   }
 
@@ -631,6 +624,38 @@ event queue_impl::discard_or_return(const event &Event) {
   if (!(MDiscardEvents))
     return Event;
   return createDiscardedEvent();
+}
+
+void queue_impl::revisitUnenqueuedCommandsState(
+    const EventImplPtr &CompletedHostTask) {
+  if (MIsInorder)
+    return;
+  auto tryToCleanup = [](DependencyTrackingItems &Deps) {
+    if (Deps.LastBarrier && Deps.LastBarrier->isEnqueued()) {
+      Deps.LastBarrier = nullptr;
+      Deps.UnenqueuedCmdEvents.clear();
+    } else {
+      if (Deps.UnenqueuedCmdEvents.empty())
+        return;
+      Deps.UnenqueuedCmdEvents.erase(
+          std::remove_if(
+              Deps.UnenqueuedCmdEvents.begin(), Deps.UnenqueuedCmdEvents.end(),
+              [](const EventImplPtr &CommandEvent) {
+                return (CommandEvent->is_host() ? CommandEvent->isCompleted()
+                                                : CommandEvent->isEnqueued());
+              }),
+          Deps.UnenqueuedCmdEvents.end());
+    }
+  };
+  std::lock_guard<std::mutex> Lock{MMutex};
+  // Barrier enqueue could be significantly postponed due to host task
+  // dependency if any. No guarantee that it will happen while same graph deps
+  // are still recording.
+  if (auto Graph = CompletedHostTask->getCommandGraph()) {
+    if (Graph == getCommandGraph())
+      tryToCleanup(MExtGraphDeps);
+  } else
+    tryToCleanup(MDefaultGraphDeps);
 }
 
 } // namespace detail

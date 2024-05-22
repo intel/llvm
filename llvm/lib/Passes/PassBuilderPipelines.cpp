@@ -74,6 +74,7 @@
 #include "llvm/Transforms/Instrumentation/InstrOrderFile.h"
 #include "llvm/Transforms/Instrumentation/InstrProfiling.h"
 #include "llvm/Transforms/Instrumentation/MemProfiler.h"
+#include "llvm/Transforms/Instrumentation/PGOCtxProfLowering.h"
 #include "llvm/Transforms/Instrumentation/PGOForceFunctionAttrs.h"
 #include "llvm/Transforms/Instrumentation/PGOInstrumentation.h"
 #include "llvm/Transforms/Scalar/ADCE.h"
@@ -668,7 +669,14 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
     LPM2.addPass(LoopIdiomRecognizePass());
     LPM2.addPass(IndVarSimplifyPass());
 
-   invokeLateLoopOptimizationsEPCallbacks(LPM2, Level);
+  {
+    ExtraSimpleLoopUnswitchPassManager ExtraPasses;
+    ExtraPasses.addPass(SimpleLoopUnswitchPass(/* NonTrivial */ Level ==
+                                               OptimizationLevel::O3));
+    LPM2.addPass(std::move(ExtraPasses));
+  }
+
+  invokeLateLoopOptimizationsEPCallbacks(LPM2, Level);
 
     LPM2.addPass(LoopDeletionPass());
 
@@ -850,6 +858,10 @@ void PassBuilder::addPGOInstrPasses(ModulePassManager &MPM,
         PTO.EagerlyInvalidateAnalyses));
   }
 
+  if (PGOCtxProfLoweringPass::isContextualIRPGOEnabled()) {
+    MPM.addPass(PGOCtxProfLoweringPass());
+    return;
+  }
   // Add the profile lowering pass.
   InstrProfOptions Options;
   if (!ProfileFile.empty())
@@ -1185,7 +1197,7 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
   if (EnableSyntheticCounts && !PGOOpt)
     MPM.addPass(SyntheticCountsPropagation());
 
-  if (EnablePGOForceFunctionAttrs)
+  if (EnablePGOForceFunctionAttrs && PGOOpt)
     MPM.addPass(PGOForceFunctionAttrsPass(PGOOpt->ColdOptType));
 
   MPM.addPass(AlwaysInlinerPass(/*InsertLifetimeIntrinsics=*/true));

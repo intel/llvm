@@ -26,19 +26,19 @@ enum class image_type : unsigned int {
   standard = 0,
   mipmap = 1,
   array = 2,
-  cubemap = 3, /* Not implemented */
+  cubemap = 3,
 };
 
 /// A struct to describe the properties of an image.
 struct image_descriptor {
-  size_t width;
-  size_t height;
-  size_t depth;
-  image_channel_order channel_order;
-  image_channel_type channel_type;
-  image_type type;
-  unsigned int num_levels;
-  unsigned int array_size;
+  size_t width{0};
+  size_t height{0};
+  size_t depth{0};
+  image_channel_order channel_order{image_channel_order::rgba};
+  image_channel_type channel_type{image_channel_type::fp32};
+  image_type type{image_type::standard};
+  unsigned int num_levels{1};
+  unsigned int array_size{1};
 
   image_descriptor() = default;
 
@@ -156,10 +156,28 @@ struct image_descriptor {
       }
       return;
 
-    default:
-      // Invalid image type.
-      throw sycl::exception(sycl::errc::invalid,
-                            "Invalid image descriptor image type");
+    case image_type::cubemap:
+      if (this->array_size != 6) {
+        // Cubemaps must have an array size of 6.
+        throw sycl::exception(sycl::errc::invalid,
+                              "Cubemap images must have array_size of 6 only! "
+                              "Use image_type::array instead.");
+      }
+      if (this->depth != 0 || this->height == 0 ||
+          this->width != this->height) {
+        // Cubemaps must be 2D
+        throw sycl::exception(
+            sycl::errc::invalid,
+            "Cubemap images must be square with valid and equivalent width and "
+            "height! Use image_type::array instead.");
+      }
+      if (this->num_levels != 1) {
+        // Cubemaps cannot be mipmaps.
+        throw sycl::exception(sycl::errc::invalid,
+                              "Cannot have mipmap cubemaps! Either num_levels "
+                              "or array_size must be 1.");
+      }
+      return;
     }
   }
 };

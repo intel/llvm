@@ -102,7 +102,7 @@ private:
   }
 
   static float to_float(const detail::Bfloat16StorageT &a) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
     return __devicelib_ConvertBF16ToFINTEL(a);
 #else
     union {
@@ -155,7 +155,7 @@ public:
     detail::Bfloat16StorageT res;
     asm("neg.bf16 %0, %1;" : "=h"(res) : "h"(lhs.value));
     return detail::bitsToBfloat16(res);
-#elif defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+#elif defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
     return bfloat16{-__devicelib_ConvertBF16ToFINTEL(lhs.value)};
 #else
     return bfloat16{-to_float(lhs.value)};

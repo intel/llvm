@@ -10,16 +10,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <iostream>
-#include <random>
-#include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/matrix/matrix.hpp>
+#include "common.hpp"
 
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::bfloat16;
-
-#define SG_SZ 16
 constexpr size_t TN = 16;
 
 #include "joint_matrix_apply_bf16_impl.hpp"

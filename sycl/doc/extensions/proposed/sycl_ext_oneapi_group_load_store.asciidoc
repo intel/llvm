@@ -1,0 +1,599 @@
+= sycl_ext_oneapi_group_load_store
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:language: {basebackend@docbook:c++:cpp}
+
+== Notice
+
+[%hardbreaks]
+Copyright (c) 2024 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 8 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
+  sycl_ext_oneapi_properties].
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+== Overview
+
+This extension defines free functions for load/store operations within the
+group scope.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_GROUP_LOAD_STORE` to one of the values defined in the
+table below. Applications can test for the existence of this macro to determine
+if the implementation supports this feature, or applications can test the
+macro's value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Load API
+
+==== Single Value Overload
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+// Load scalar
+template<typename Group, typename InputIteratorT,
+         typename OutputT, typename Properties = empty_properties_t>
+void group_load(Group g, InputIteratorT in_iter,
+                      OutputT& out, Properties = {});
+}
+----
+
+_Preconditions_: `in_iter` must be the same for all work-items
+in the group.
+
+._Constraints_:
+* Only available if `Group` is a work-group or sub-group.
+* `InputIteratorT` suppose to be a random access iterator.
+* Value type of `InputIteratorT` must be convertible to `OutputT`.
+* Value type of `InputIteratorT` and `OutputT` must be trivially copyable
+ and default constructible.
+
+_Effects_: Loads single element from `in_iter` to `out` by using the `g` group
+object to identify memory location as `in_iter` + `g.get_local_linear_id()`.
+
+Properties may provide xref:optimization_properties[assertions] which can
+enable better optimizations.
+
+==== `sycl::vec` Overload
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+// Load API sycl::vec overload
+template<typename Group, typename InputIteratorT,
+         typename OutputT, int N, typename Properties = empty_properties_t>
+void group_load(Group g, InputIteratorT in_iter,
+                      sycl::vec<OutputT, N>& out, Properties = {});
+}
+----
+
+_Preconditions_: `in_iter` must be the same for all work-items
+in the group.
+
+._Constraints_:
+* Only available if `Group` is a work-group or sub-group.
+* `InputIteratorT` suppose to be a random access iterator.
+* Value type of `InputIteratorT` must be convertible to `OutputT`.
+* Value type of `InputIteratorT` and `OutputT` must be trivially copyable
+ and default constructible.
+
+_Effects_: Loads `N` elements from `in_iter` to `out`
+using the `g` group object.
+Properties may specify xref:data_placement[data placement].
+Default data placement is a blocked one:
+`out[i]` = `in_iter[g.get_local_linear_id() * N + i];`
+in striped case:
+`out[i]` = `in_iter[g.get_local_linear_id() + g.get_local_linear_range() * i];`
+for `i` between `0` and `N`.
+Properties may also provide xref:optimization_properties[assertions] which can
+enable better optimizations.
+
+==== Fixed-size Array Overload
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+// Load API
+template<typename Group, typename InputIteratorT, typename OutputT,
+        std::size_t ElementsPerWorkItem, typename Properties = empty_properties_t>
+void group_load(Group g, InputIteratorT in_iter,
+                sycl::span<OutputT, ElementsPerWorkItem> out, Properties = {});
+}
+----
+
+._Preconditions_:
+* `in_iter` must be the same for all work-items in the group.
+
+._Constraints_:
+* Only available if `Group` is a
+work-group or sub-group.
+* `InputIteratorT` suppose to be a random access iterator.
+* Value type of `InputIteratorT` must be convertible to `OutputT`.
+* Value type of `InputIteratorT` and `OutputT` must be trivially copyable
+ and default constructible.
+
+_Effects_: Loads `ElementsPerWorkItem` elements from `in_iter` to `out`
+using the `g` group object.
+Properties may specify xref:data_placement[data placement].
+Default placement is a blocked one:
+`out[i]` = `in_iter[g.get_local_linear_id() * ElementsPerWorkItem + i];`
+in striped case:
+`out[i]` = `in_iter[g.get_local_linear_id() + g.get_local_linear_range() * i];`
+for `i` between `0` and `ElementsPerWorkItem`.
+Properties may also provide xref:optimization_properties[assertions] which can
+enable better optimizations.
+
+
+=== Store API
+
+==== Single Value Overload
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+// Store API scalar
+template<typename Group, typename InputT,
+         typename OutputIteratorT, typename Properties = empty_properties_t>
+void group_store(Group g, const InputT& in,
+                      OutputIteratorT out_iter, Properties = {});
+
+}
+----
+
+_Preconditions_: `out_iter` must be the same for all work-items
+in the group.
+
+._Constraints_:
+* Only available if `Group` is a work-group or sub-group.
+* `OutputIteratorT` suppose to be a random access iterator.
+* `InputT` must be convertible to value type of `OutputIteratorT`.
+* `InputT` and value type of `OutputIteratorT` must be trivially copyable
+ and default constructible.
+
+_Effects_: Stores single element `in` to `out_iter` by using the `g` group
+object to identify memory location as `out_iter` + `g.get_local_linear_id()`
+
+Properties may provide xref:optimization_properties[assertions] which can
+enable better optimizations.
+
+
+==== `sycl::vec` Overload
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+// Store API sycl::vec overload
+template<typename Group, typename InputT, int N,
+         typename OutputIteratorT, typename Properties = empty_properties_t>
+void group_store(Group g, const sycl::vec<InputT, N>& in,
+                      OutputIteratorT out_iter, Properties = {});
+}
+----
+
+_Preconditions_: `out_iter` must be the same for all work-items
+in the group.
+
+._Constraints_:
+* Only available if `Group` is a work-group or sub-group.
+* `OutputIteratorT` suppose to be a random access iterator.
+* `InputT` must be convertible to value type of `OutputIteratorT`.
+* `InputT` and value type of `OutputIteratorT` must be trivially copyable
+ and default constructible.
+
+_Effects_: Stores `N` elements from `in` vec to `out_iter`
+using the `g` group object.
+Properties may specify xref:data_placement[data placement].
+Default placement is a blocked one:
+`out_iter[g.get_local_linear_id() * N + i]` = `in[i];`
+in striped case:
+`out_iter[g.get_local_linear_id() + g.get_local_linear_range() * i]` = `in[i];`
+for `i` between `0` and `N`.
+Properties may also provide xref:optimization_properties[assertions] which can
+enable better optimizations.
+
+
+==== Fixed-size Array Overload
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+// Store API
+template<typename Group, typename OutputIteratorT, typename InputT,
+        std::size_t ElementsPerWorkItem, typename Properties = empty_properties_t>
+void group_store(Group g, sycl::span<InputT, ItemsPerWorkItem> in,
+                 OutputIteratorT out_iter,  Properties = {});
+
+}
+----
+
+._Preconditions_:
+* `out_iter` must be the same for all work-items in the group.
+
+._Constraints_:
+* Only available if `Group` is a
+work-group or sub-group.
+* `OutputIteratorT` suppose to be a random access iterator.
+* `InputT` must be convertible to value type of `OutputIteratorT`.
+* `InputT` and value type of `OutputIteratorT` must be trivially copyable
+ and default constructible.
+
+_Effects_: Stores `ElementsPerWorkItem` elements from `in` span to `out_iter`
+using the `g` group object.
+
+Properties may specify xref:data_placement[data placement].
+Default placement is a blocked one:
+`out_iter[g.get_local_linear_id() * ItemsPerWorkItem + i]` = `in[i];`
+in striped case:
+`out_iter[g.get_local_linear_id() + g.get_local_linear_range() * i]` = `in[i];`
+for `i` between `0` and `ItemsPerWorkItem`.
+Properties may also provide xref:optimization_properties[assertions] which can
+enable better optimizations.
+
+=== Data Placement
+
+anchor:data_placement[]
+
+To specify a correct data placement for placing of resulting data
+there is a enum
+(proposed also in link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc[`group_sort extension`]):
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+// Properties:
+enum class data_placement_enum {
+  blocked,
+  striped
+};
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+Data placement layout example on group_load:
+
+* ElementsPerWorkItem = 4
+* 3 work-items in the group
+* input is: in_iter[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}
+
+Consider 2 layouts:
+
+1.`sycl::ext::oneapi::experimental::data_placement_enum::blocked`.
+
+|===
+|Work-item id|Output stored in a fixed-size array
+
+|0
+|{0, 1, 2, 3}
+|1
+|{4, 5, 6, 7}
+|2
+|{8, 9, 10, 11}
+|===
+
+2.`sycl::ext::oneapi::experimental::data_placement_enum::striped`.
+
+|===
+|Work-item id|Output stored in a fixed-size array
+
+|0
+|{0, 3, 6, 9}
+|1
+|{1, 4, 7, 10}
+|2
+|{2, 5, 8, 11}
+|===
+
+This extension adds a property that satisfies
+link:../experimental/sycl_ext_oneapi_properties.asciidoc[SYCL Properties Extension]
+requirements to identify data_placement similar to
+link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc[`group_sort extension`]
+`input_data_placement` and `output_data_placement`:
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct data_placement_key {
+  template <data_placement_enum Type>
+  using value_t =
+      property_value<data_placement_key,
+                     std::integral_constant<data_placement_enum, Type>>;
+};
+
+template <data_placement_enum Type>
+inline constexpr data_placement_key::value_t<Type> data_placement;
+
+inline constexpr data_placement_key::value_t<data_placement_enum::blocked> data_placement_blocked;
+inline constexpr data_placement_key::value_t<data_placement_enum::striped> data_placement_striped;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+Specifies data layout used in group_load/store for `sycl::vec` or fixed-size
+arrays functions.
+
+Example:
+`group_load(g, input, output_span, data_placement_blocked);`
+
+=== Optimization Properties
+
+anchor:optimization_properties[]
+
+==== Contiguous memory
+
+As `InputIteratorT` and `OutputIteratorT` are permitted to be random access
+iterators they are not guaranteed to be contiguous.
+The following property is introduced to be used
+as an assertion to the implementation that can improve performance:
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct contiguous_memory_key {
+  using value_t =
+      property_value<contiguous_memory_key>;
+};
+
+inline constexpr contiguous_memory_key::value_t contiguous_memory;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+For example, we can assert that `input` is a contiguous iterator:
+`group_load(g, input, output_span, contiguous_memory);`
+
+If `input` isn't a contiguous iterator, the behavior is undefined.
+
+==== Groups partitioning
+
+The following property can be used as an assertion that
+`get_local_range()` is equal to `get_max_local_range()`,
+which may enable more aggressive optimizations for some
+implementations.
+
+[NOTE]
+====
+Using `full_group` is necessary to generate SPIR-V block read
+and block write instructions, because these instructions are
+defined to use the maximum group size as the stride.
+====
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct full_group_key {
+  using value_t =
+      property_value<full_group_key>;
+};
+
+inline constexpr full_group_key::value_t full_group;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+For example, we can assert that there is no uneven group partition,
+so the implementation can rely on `get_max_local_range()` range size:
+`group_load(sg, input, output_span, full_group);`
+
+If partition is uneven the behavior is undefined.
+
+== Usage Example
+
+Example shows the simplest case without local memory usage of blocked load
+of global memory from `input` to the array `data` and store it back to
+`output`
+
+[source,c++]
+----
+namespace sycl_exp = sycl::ext::oneapi::experimental;
+
+constexpr std::size_t block_size = 32;
+constexpr std::size_t items_per_thread = 4;
+constexpr std::size_t block_count = 2;
+constexpr std::size_t size = block_count * block_size * items_per_thread;
+
+sycl::queue q;
+T* input = sycl::malloc_device<T>(size, q);
+T* output = sycl::malloc_device<T>(size, q);
+
+q.submit([&](sycl::handler& cgh) {
+    cgh.parallel_for(
+        sycl::nd_range<1>(size, block_size),
+        [=](sycl::nd_item<1> item) {
+            T data[items_per_thread];
+
+            auto g = item.get_group();
+
+            auto offset = g.get_group_id(0) * g.get_local_range(0) *
+                                       items_per_thread;
+
+            sycl_exp::group_load(g, input + offset, sycl::span{ data }, sycl_exp::contiguous_memory);
+
+            // Work with data...
+
+            sycl_exp::group_store(g, output + offset, sycl::span{ data }, sycl_exp::contiguous_memory);
+        });
+});
+----
+
+== Future Directions
+
+As a future extension load/store can be used with temporary memory buffer,
+which can be passed via `Group` such as `group_with_scratchpad`.
+Support function determining memory size required for scratch space in
+`group_with_scratchpad` can be the following:
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+// Support memory function to define the needed amount of temporary memory
+// needed (name TBD)
+
+template<typename T, std::size_t ElementsPerWorkItem>
+constexpr std::size_t memory_required(sycl::memory_scope scope,
+                                      std::size_t block_size);
+
+}
+----
+
+_Effects_: Returns size of temporary memory (in bytes) that is required for
+scratch space in `Group`. Result depends on type `T`, `ElementsPerWorkItem`
+and the scope parameter: use `sycl::memory_scope::work_group` to get memory size
+required for each work-group; use `sycl::memory_scope::sub_group` to get memory
+size required for each sub-group. If other scope values are passed, behavior is
+unspecified.
+`block_size` represents the a range size for load/store, e.g. work group size.
+
+=== Dependency:
+
+* link:../proposed/sycl_ext_oneapi_group_sort.asciidoc[
+  sycl_ext_oneapi_group_sort] (`group_with_scratchpad` class used as `Group` or
+  `GroupHelper`).
+
+
+=== Examples for `group_with_scratchpad`
+
+1.Example shows the simple case of blocked load of global memory from `input` to
+the private array `data` and store it back to `output`
+The temporary memory is allocated via `sycl::local_accessor`
+
+[source,c++]
+----
+namespace sycl_exp = sycl::ext::oneapi::experimental;
+
+constexpr std::size_t block_size = 32;
+constexpr std::size_t items_per_thread = 4;
+constexpr std::size_t block_count = 2;
+constexpr std::size_t size = block_count * block_size * items_per_thread;
+
+sycl::queue q;
+T* input = sycl::malloc_device<T>(size, q);
+T* output = sycl::malloc_device<T>(size, q);
+
+q.submit([&](sycl::handler& cgh) {
+    constexpr auto temp_memory_size = sycl_exp::memory_required<T, items_per_thread>(
+        sycl::memory_scope::work_group, block_size);
+    sycl::local_accessor<std::byte> buf(temp_memory_size, cgh);
+    cgh.parallel_for(
+        sycl::nd_range<1>(block_count * block_size, block_size),
+        [=](sycl::nd_item<1> item) {
+            auto g = item.get_group();
+
+            auto offset = g.get_group_id(0) * g.get_local_range(0) * items_per_thread;
+
+            T data[items_per_thread];
+            std::byte* buf_ptr = buf.get_pointer().get();
+            sycl_exp::group_with_scratchpad gh{ g,
+                                                sycl::span{ buf_ptr, temp_memory_size } };
+
+            sycl_exp::group_load(gh, input + offset, sycl::span{ data }, sycl_exp::contiguous_memory);
+
+            // Work with data...
+
+            sycl_exp::group_store(gh, output + offset, sycl::span{ data }, sycl_exp::contiguous_memory);
+        });
+});
+----
+
+2.Example shows the case of striped load of global memory from `input` to
+the private array `data` and store it back to `output`
+The temporary memory is allocated via `group_local_memory` API, described in
+link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_oneapi_local_memory.asciidoc[sycl_ext_oneapi_local_memory]
+
+[source,c++]
+----
+namespace sycl_exp = sycl::ext::oneapi::experimental;
+
+// Same input/output as in Example 1
+
+q.submit([&](sycl::handler& cgh) {
+    constexpr auto temp_memory_size = sycl_exp::memory_required<T, items_per_thread>(
+        sycl::memory_scope::work_group, block_size);
+    cgh.parallel_for(
+        sycl::nd_range<1>(block_count * block_size, block_size),
+        [=](sycl::nd_item<1> item) {
+            auto g = item.get_group();
+
+            auto offset = g.get_group_id(0) * g.get_local_range(0) * items_per_thread;
+            T data[items_per_thread];
+            auto scratch =
+                sycl::ext::oneapi::group_local_memory<std::byte[temp_memory_size]>(g);
+            std::byte* buf_ptr = (std::byte*)(scratch.get());
+
+            sycl_exp::group_with_scratchpad gh{ g,
+                                                sycl::span{ buf_ptr, temp_memory_size } };
+
+            sycl_exp::group_load(gh, input + offset, sycl::span{ data }, sycl_exp::data_placement_striped);
+
+            // Work with data...
+
+            sycl_exp::group_store(gh, output + offset, sycl::span{ data }, sycl_exp::data_placement_striped);
+        });
+});
+----
+
+== Design Considerations
+
+* consider extending `sycl::span` to `std::mdspan` for C++23 for 2d and 3d kernels
+
+* TODO: consider adding extra properties for setting boundary values or limiting
+number of work-items

@@ -10,6 +10,7 @@
 
 #include <sycl/detail/impl_utils.hpp> // for getSyclObjImpl
 
+#include <memory>  // for weak_ptr
 #include <utility> // for declval
 
 namespace sycl {

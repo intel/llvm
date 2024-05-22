@@ -486,7 +486,7 @@
 // RUN: %clang -fsycl -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL %s
 // RUN: %clang_cl -fsycl %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-CL %s
 // CHECK-LINK-SYCL-CL: "--dependent-lib=sycl{{[0-9]*}}"
-// CHECK-LINK-SYCL-CL: "-defaultlib:sycl{{[0-9]*}}.lib"
+// CHECK-LINK-SYCL-CL-NOT: "-defaultlib:sycl{{[0-9]*}}.lib"
 // CHECK-LINK-SYCL: "-defaultlib:sycl{{[0-9]*}}.lib"
 
 /// Check no SYCL runtime is linked with -nolibsycl
@@ -837,16 +837,3 @@
 // FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK: --dependent-lib=sycl{{[0-9]*}}-previewd
 // FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK-NOT: -defaultlib:sycl{{[0-9]*}}.lib
 // FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK-NOT: -defaultlib:sycl{{[0-9]*}}-preview.lib
-
-
-/// Check that at link step of "clang-cl -fsycl" we pull in sycl.lib even if at the compilation step sycl libraries were not provided (this is possible if user compiles manually without -fsycl by provided paths to the headers).
-// RUN: %clang_cl -### -fsycl -nolibsycl -target x86_64-unknown-windows-msvc -c %s 2>&1 | FileCheck -check-prefix FSYCL-CL-COMPILE-NOLIBS-CHECK %s
-// RUN: %clang_cl -### -fsycl %s 2>&1 | FileCheck -check-prefix FSYCL-CL-LINK-CHECK %s
-// FSYCL-CL-COMPILE-NOLIBS-CHECK-NOT: "--dependent-lib=sycl{{[0-9]*}}"
-// FSYCL-CL-LINK-CHECK: "-defaultlib:sycl{{[0-9]*}}.lib"
-
-/// Check that at link step of "clang-cl -fsycl /MDd" we pull in sycld.lib even if at the compilation step sycl libraries were not provided (this is possible if user compiles manually without -fsycl by provided paths to the headers).
-// RUN: %clang_cl -### -fsycl -nolibsycl /MDd -target x86_64-unknown-windows-msvc -c %s 2>&1 | FileCheck -check-prefix FSYCL-CL-COMPILE-NOLIBS-MDd-CHECK %s
-// RUN: %clang_cl -### -fsycl /MDd %s 2>&1 | FileCheck -check-prefix FSYCL-CL-LINK--MDd-CHECK %s
-// FSYCL-CL-COMPILE-NOLIBS-MDd-CHECK-NOT: "--dependent-lib=sycl{{[0-9]*}}d"
-// FSYCL-CL-LINK--MDd-CHECK: "-defaultlib:sycl{{[0-9]*}}d.lib"

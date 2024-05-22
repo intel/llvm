@@ -184,8 +184,10 @@ Defaults to AMD if no value is given. Supported values are:
  - **AMD**    - for HIP to target AMD GPUs
  - **NVIDIA** - for HIP to target NVIDIA GPUs
  
- ***AMD_ARCH*** - flag must be set for when using HIP AMD triple.
- For example it may be set to "gfx906".
+***AMD_ARCH*** - flag may be set for when using HIP AMD triple. For example it
+may be set to "gfx906". Otherwise must be provided via the ***amd_arch*** LIT
+parameter (e.g., ***--param amd_arch=gfx906***) at runtime via the command line
+or via the ***LIT_OPTS*** environment variable.
 
 ***GPU_AOT_TARGET_OPTS*** - defines additional options which are passed to AOT
 compilation command line for GPU device. If not specified "-device *" value
@@ -225,6 +227,7 @@ unavailable.
  * **gpu-intel-dg1** - Intel GPU DG1 availability;
  * **gpu-intel-dg2** - Intel GPU DG2 availability;
  * **gpu-intel-pvc** - Intel GPU PVC availability;
+ * **gpu-intel-pvc-vg** - Intel GPU PVC-VG availability;
  * **dump_ir**: - compiler can / cannot dump IR;
  * **llvm-spirv** - llvm-spirv tool availability;
  * **llvm-link** - llvm-link tool availability;

@@ -982,6 +982,7 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
     Categorizer.registerSimpleStringAttributeRule("sycl-grf-size");
     Categorizer.registerListOfIntegersInMetadataSortedRule("sycl_used_aspects");
     Categorizer.registerListOfIntegersInMetadataRule("reqd_work_group_size");
+    Categorizer.registerListOfIntegersInMetadataRule("work_group_num_dim");
     Categorizer.registerListOfIntegersInMetadataRule(
         "intel_reqd_sub_group_size");
     Categorizer.registerSimpleStringAttributeRule(

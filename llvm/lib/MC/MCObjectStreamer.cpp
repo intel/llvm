@@ -34,18 +34,13 @@ MCObjectStreamer::MCObjectStreamer(MCContext &Context,
       EmitEHFrame(true), EmitDebugFrame(false) {
   if (Assembler->getBackendPtr())
     setAllowAutoPadding(Assembler->getBackend().allowAutoPadding());
+  if (Context.getTargetOptions() && Context.getTargetOptions()->MCRelaxAll)
+    Assembler->setRelaxAll(true);
 }
 
 MCObjectStreamer::~MCObjectStreamer() = default;
 
-// AssemblerPtr is used for evaluation of expressions and causes
-// difference between asm and object outputs. Return nullptr to in
-// inline asm mode to limit divergence to assembly inputs.
-MCAssembler *MCObjectStreamer::getAssemblerPtr() {
-  if (getUseAssemblerInfoForParsing())
-    return Assembler.get();
-  return nullptr;
-}
+MCAssembler *MCObjectStreamer::getAssemblerPtr() { return Assembler.get(); }
 
 void MCObjectStreamer::addPendingLabel(MCSymbol* S) {
   MCSection *CurSection = getCurrentSectionOnly();

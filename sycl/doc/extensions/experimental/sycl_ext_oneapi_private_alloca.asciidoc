@@ -51,6 +51,9 @@ change incompatibly in future versions of {dpcpp} without prior notice.
 *Shipping software products should not rely on APIs defined in this
 specification.*
 
+The {dpcpp} implementation of this experimental extension cannot be used in AOT
+mode as it requires JIT specialization of kernels.
+
 == Backend support status
 
 The APIs in this extension may be used only on a device that has
@@ -292,4 +295,5 @@ private_alloca(const specialization_constant<std::size_t> &size);
 |========================================
 |Rev|Date|Authors|Changes
 |1|2024-02-08|Victor Lomüller, Lukas Sommer, Victor Perez, Julian Oppermann, Tadej Ciglaric, Romain Biessy|*Initial draft*
+|2|2024-04-22|Victor Lomüller, Lukas Sommer, Victor Perez, Julian Oppermann, Tadej Ciglaric, Romain Biessy|*Add AOT clarification*
 |========================================

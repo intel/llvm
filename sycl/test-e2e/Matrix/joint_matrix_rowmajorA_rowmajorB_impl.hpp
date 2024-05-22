@@ -70,11 +70,9 @@ void matrix_multiply(big_matrix<TC, M, N> &C, big_matrix<TA, M, K> &A,
    }).wait();
 }
 
-template <size_t TN, size_t TK, class kernel_name, typename TA, typename TB,
-          typename TC>
+template <size_t TM, size_t TN, size_t TK, class kernel_name, typename TA,
+          typename TB, typename TC>
 int gemm_row_major() {
-  static constexpr size_t TM = 8;
-
   static constexpr size_t MATRIX_M = TM * 2;
   static constexpr size_t MATRIX_N = TN * 2;
   static constexpr size_t MATRIX_K = TK * 2;
@@ -98,6 +96,7 @@ int gemm_row_major() {
   matrix_multiply_ref((TA *)A, (TB *)B, (TC *)D, MATRIX_M, MATRIX_N, MATRIX_K);
 
   bool res = matrix_compare(MATRIX_M, MATRIX_N, (TC *)C, (TC *)D);
+  std::cout << TM << "x" << TN << "x" << TK << ": ";
   std::cout << (res ? "passed" : "failed") << std::endl;
   return !res;
 }
@@ -108,42 +107,43 @@ int main() {
       q.get_device()
           .get_info<sycl::ext::oneapi::experimental::info::device::
                         matrix_combinations>();
-  for (unsigned int i = 0; i < combinations.size(); i++) {
-    if (combinations[i].atype == matrix_type::bf16) {
-      if (combinations[i].nsize == 0 ||
-          (combinations[i].nsize == 16 && combinations[i].max_msize == 8 &&
-           combinations[i].ksize == 16)) {
-        gemm_row_major<16, 16, class gemm_bfloat16_16, bfloat16, bfloat16,
-                       float>();
+  int res = 0;
+  for (auto &combination : combinations) {
+    if (combination.nsize == 0 ||
+        combination.nsize == 16) { // Intel AMX or architecture::intel_gpu_pvc
+      res += gemm_row_major<8, 16, 16, class bf16_8x16x16, bfloat16, bfloat16,
+                            float>();
+      res += gemm_row_major<8, 16, 32, class ss_8x16x32, int8_t, int8_t,
+                            int32_t>();
+      res += gemm_row_major<8, 16, 32, class us_8x16x32, uint8_t, int8_t,
+                            int32_t>();
+      res += gemm_row_major<8, 16, 32, class su_8x16x32, int8_t, uint8_t,
+                            int32_t>();
+      res += gemm_row_major<8, 16, 32, class uu_8x16x32, uint8_t, uint8_t,
+                            int32_t>();
+
+      if (combination.nsize == 16) { // architecture::intel_gpu_pvc
+        res += gemm_row_major<1, 64, 16, class bf16_1x64x16, bfloat16, bfloat16,
+                              float>();
+        res += gemm_row_major<32, 64, 16, class bf16_32x64x16, bfloat16,
+                              bfloat16, float>();
       }
-      if (combinations[i].nsize == 8 && combinations[i].max_msize == 8 &&
-          combinations[i].ksize == 16) {
-        gemm_row_major<8, 16, class gemm_bfloat16_8, bfloat16, bfloat16,
-                       float>();
-      }
+      break;
     }
-    if (combinations[i].atype == matrix_type::sint8 &&
-        combinations[i].btype == matrix_type::sint8) {
-      if (combinations[i].nsize == 0 ||
-          (combinations[i].nsize == 16 && combinations[i].max_msize == 8 &&
-           combinations[i].ksize == 32)) {
-        gemm_row_major<16, 32, class gemm_int8_16, int8_t, int8_t, int32_t>();
-        gemm_row_major<16, 32, class gemm_us_int8_16, uint8_t, int8_t,
-                       int32_t>();
-        gemm_row_major<16, 32, class gemm_su_int8_16, int8_t, uint8_t,
-                       int32_t>();
-        gemm_row_major<16, 32, class gemm_uu_int8_16, uint8_t, uint8_t,
-                       int32_t>();
-      }
-      if (combinations[i].nsize == 8 && combinations[i].max_msize == 8 &&
-          combinations[i].ksize == 32) {
-        gemm_row_major<8, 32, class gemm_int8_8, int8_t, int8_t, int32_t>();
-        gemm_row_major<8, 32, class gemm_us_int8_8, uint8_t, int8_t, int32_t>();
-        gemm_row_major<8, 32, class gemm_su_int8_8, int8_t, uint8_t, int32_t>();
-        gemm_row_major<8, 32, class gemm_uu_int8_8, uint8_t, uint8_t,
-                       int32_t>();
-      }
+
+    if (combination.nsize == 8) { // architecture::intel_gpu_dg2*
+      res += gemm_row_major<8, 8, 16, class bf16_8x8x16, bfloat16, bfloat16,
+                            float>();
+      res +=
+          gemm_row_major<8, 8, 32, class ss_8x8x32, int8_t, int8_t, int32_t>();
+      res +=
+          gemm_row_major<8, 8, 32, class us_8x8x32, uint8_t, int8_t, int32_t>();
+      res +=
+          gemm_row_major<8, 8, 32, class su_8x8x32, int8_t, uint8_t, int32_t>();
+      res += gemm_row_major<8, 8, 32, class uu_8x8x32, uint8_t, uint8_t,
+                            int32_t>();
+      break;
     }
   }
-  return 0;
+  return res;
 }
