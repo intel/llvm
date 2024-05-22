@@ -21,7 +21,9 @@
 #include <cassert>
 #include <iostream>
 #include <numeric>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 
 static constexpr int MAGIC_NUM1 = 2;
 

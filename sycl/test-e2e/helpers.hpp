@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 template <class VecT, int EndIdx = VecT::size(), int StartIdx = 0>
 class VecPrinter {

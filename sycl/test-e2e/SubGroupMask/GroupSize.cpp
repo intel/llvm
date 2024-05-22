@@ -15,8 +15,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/sub_group_mask.hpp>
+
 #include <iostream>
-#include <sycl/sycl.hpp>
+
 using namespace sycl;
 #ifdef SYCL_EXT_ONEAPI_SUB_GROUP_MASK
 constexpr int global_size = 128;
