@@ -36,7 +36,7 @@ template <typename PropKey, typename PropertyListT> struct HasProperty {};
 
 template <typename PropKey, typename... Props>
 struct HasProperty<PropKey, detail::properties_t<Props...>>
-    : detail::ContainsProperty<PropKey, std::tuple<Props...>> {};
+    : detail::ContainsProperty<PropKey, detail::type_list<Props...>> {};
 
 template <typename PropertyListT>
 using HasAlign = HasProperty<alignment_key, PropertyListT>;
@@ -45,20 +45,14 @@ using HasUsmKind = HasProperty<usm_kind_key, PropertyListT>;
 template <typename PropertyListT>
 using HasBufferLocation = HasProperty<buffer_location_key, PropertyListT>;
 
-// Get the value of a property from a property list
+// Get the value of a compile-time property from a property list
 template <typename PropKey, typename ConstType, typename DefaultPropVal,
           typename PropertyListT>
-struct GetPropertyValueFromPropList {};
-
-template <typename PropKey, typename ConstType, typename DefaultPropVal,
-          typename... Props>
-struct GetPropertyValueFromPropList<PropKey, ConstType, DefaultPropVal,
-                                    detail::properties_t<Props...>> {
-  using prop_val_t = std::conditional_t<
-      detail::ContainsProperty<PropKey, std::tuple<Props...>>::value,
-      typename detail::FindCompileTimePropertyValueType<
-          PropKey, std::tuple<Props...>>::type,
-      DefaultPropVal>;
+struct GetPropertyValueFromPropList {
+  using V =
+      detail::mp11::mp_map_find<detail::mp11::mp_first<PropertyListT>, PropKey>;
+  using prop_val_t =
+      detail::mp11::mp_if<std::is_same<V, void>, DefaultPropVal, V>;
   static constexpr ConstType value =
       detail::PropertyMetaInfo<std::remove_const_t<prop_val_t>>::value;
 };

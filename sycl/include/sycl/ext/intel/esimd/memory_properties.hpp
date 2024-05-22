@@ -77,8 +77,9 @@ public:
 // Deduction guides
 template <typename... PropertyValueTs>
 properties(PropertyValueTs... props)
-    -> properties<typename sycl::ext::oneapi::experimental::detail::Sorted<
-        PropertyValueTs...>::type>;
+    -> properties<sycl::ext::oneapi::experimental::detail::sort_properties<
+        sycl::ext::oneapi::experimental::detail::type_list<
+            PropertyValueTs...>>>;
 #endif
 
 /// The 'alignment' property is used to specify the alignment of memory
@@ -237,14 +238,14 @@ template <typename PropertyListT> struct remove_alignment_property {
   using type = PropertyListT;
 };
 template <size_t Alignment, typename... LastTs>
-struct remove_alignment_property<
-    properties<std::tuple<alignment_key::value_t<Alignment>, LastTs...>>> {
-  using type = properties<std::tuple<LastTs...>>;
+struct remove_alignment_property<properties<
+    sycl::detail::type_list<alignment_key::value_t<Alignment>, LastTs...>>> {
+  using type = properties<sycl::detail::type_list<LastTs...>>;
 };
 template <typename FirstT, size_t Alignment, typename... LastTs>
-struct remove_alignment_property<properties<
-    std::tuple<FirstT, alignment_key::value_t<Alignment>, LastTs...>>> {
-  using type = properties<std::tuple<FirstT, LastTs...>>;
+struct remove_alignment_property<properties<sycl::detail::type_list<
+    FirstT, alignment_key::value_t<Alignment>, LastTs...>>> {
+  using type = properties<sycl::detail::type_list<FirstT, LastTs...>>;
 };
 template <typename PropertyListT>
 using remove_alignment_property_t =
@@ -311,8 +312,9 @@ struct property_value<__ESIMD_NS::cache_hint_L3_key,
 
 // Declare that esimd::properties is a property_list.
 template <typename... PropertyValueTs>
-struct is_property_list<__ESIMD_NS::properties<std::tuple<PropertyValueTs...>>>
-    : is_property_list<properties<std::tuple<PropertyValueTs...>>> {};
+struct is_property_list<
+    __ESIMD_NS::properties<detail::type_list<PropertyValueTs...>>>
+    : is_property_list<properties<detail::type_list<PropertyValueTs...>>> {};
 
 namespace detail {
 // We do not override the class ConflictingProperties for cache_hint properties

@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
 // expected-no-diagnostics
 
-#include <sycl/sycl.hpp>
+#include <sycl/ext/oneapi/properties/properties.hpp>
 
 #include "mock_compile_time_properties.hpp"
 

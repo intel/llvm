@@ -48,8 +48,6 @@ inline constexpr prefetch_hint_key::value_t<cache_level::L4, nontemporal>
     prefetch_hint_L4_nt;
 
 namespace detail {
-template <> struct IsCompileTimeProperty<prefetch_hint_key> : std::true_type {};
-
 template <cache_level Level, typename Hint>
 struct PropertyMetaInfo<prefetch_hint_key::value_t<Level, Hint>> {
   static constexpr const char *name = std::is_same_v<Hint, nontemporal>

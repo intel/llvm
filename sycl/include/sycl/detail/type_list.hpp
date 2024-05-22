@@ -19,7 +19,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-template <class... T> using type_list = boost::mp11::mp_list<T...>;
+template <class... T> struct type_list;
 
 using empty_type_list = type_list<>;
 

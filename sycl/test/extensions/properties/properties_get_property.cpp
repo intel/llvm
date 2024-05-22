@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/ext/oneapi/properties/properties.hpp>
 
 #include "mock_compile_time_properties.hpp"
 

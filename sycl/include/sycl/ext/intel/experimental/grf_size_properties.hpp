@@ -52,33 +52,17 @@ struct PropertyMetaInfo<
   static constexpr unsigned int value = 0;
 };
 
-template <typename Properties>
-struct ConflictingProperties<sycl::ext::intel::experimental::grf_size_key,
-                             Properties>
-    : std::bool_constant<
-          ContainsProperty<
-              sycl::ext::intel::experimental::grf_size_automatic_key,
-              Properties>::value ||
-          ContainsProperty<sycl::detail::register_alloc_mode_key,
-                           Properties>::value> {};
+template <>
+struct ConflictingPropertiesImpl<sycl::ext::intel::experimental::grf_size_key> {
+  using type = type_list<sycl::ext::intel::experimental::grf_size_automatic_key,
+                         sycl::detail::register_alloc_mode_key>;
+};
 
-template <typename Properties>
-struct ConflictingProperties<
-    sycl::ext::intel::experimental::grf_size_automatic_key, Properties>
-    : std::bool_constant<
-          ContainsProperty<sycl::ext::intel::experimental::grf_size_key,
-                           Properties>::value ||
-          ContainsProperty<sycl::detail::register_alloc_mode_key,
-                           Properties>::value> {};
-
-template <typename Properties>
-struct ConflictingProperties<sycl::detail::register_alloc_mode_key, Properties>
-    : std::bool_constant<
-          ContainsProperty<sycl::ext::intel::experimental::grf_size_key,
-                           Properties>::value ||
-          ContainsProperty<
-              sycl::ext::intel::experimental::grf_size_automatic_key,
-              Properties>::value> {};
+template <>
+struct ConflictingPropertiesImpl<
+    sycl::ext::intel::experimental::grf_size_automatic_key> {
+  using type = type_list<sycl::detail::register_alloc_mode_key>;
+};
 
 } // namespace ext::oneapi::experimental::detail
 } // namespace _V1

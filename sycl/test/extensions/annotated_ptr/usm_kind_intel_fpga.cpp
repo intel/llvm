@@ -25,6 +25,11 @@ using annotated_ptr_t3 =
     annotated_ptr<int,
                   decltype(properties(buffer_location<2>, usm_kind_shared))>;
 
+namespace exp_detail = ext::oneapi::experimental::detail;
+using L =
+    exp_detail::properties_t<std::remove_const_t<decltype(usm_kind_device)>>;
+static_assert(exp_detail::IsUsmKindDevice<L>::value);
+
 struct MyIP {
 
   // CHECK-IR: spir_kernel void @_ZTS4MyIP(ptr addrspace(5) {{.*}} %_arg_a, ptr addrspace(6) {{.*}} %_arg_b, ptr addrspace(1) {{.*}} %_arg_c)
