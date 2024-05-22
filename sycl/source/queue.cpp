@@ -96,9 +96,8 @@ queue::ext_oneapi_get_graph() const {
 }
 
 bool queue::is_host() const {
-  bool IsHost = impl->is_host();
-  assert(!IsHost && "queue::is_host should not be called in implementation.");
-  return IsHost;
+  assert(true && "queue::is_host should not be called in implementation.");
+  return false;
 }
 
 void queue::throw_asynchronous() { impl->throw_asynchronous(); }
