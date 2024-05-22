@@ -1082,7 +1082,7 @@ static void translateNBarrierAllocations(Module &M) {
   llvm::esimd::assert_and_diag(GenXKernelMD, "invalid genx.kernels metadata");
 
   for (MDNode *Node : GenXKernelMD->operands()) {
-    if (Node->getNumOperands() <= (unsigned)genx::KernelMDOp::NBarrierCnt) {
+    if (Node->getNumOperands() <= genx::KernelMDOp::NBarrierCnt) {
       continue;
     }
 
@@ -2088,8 +2088,8 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
   SmallPtrSet<Type *, 4> GVTS = collectGenXVolatileTypes(M);
   lowerGlobalStores(M, GVTS);
   lowerGlobalsToVector(M);
-  // translate named barrier allocations. This function needs to be run after
-  // generateKernelMetadata, as it uses the generated metadata
+  // Translate named barrier allocations. This function needs to be run after
+  // generateKernelMetadata, as it uses the generated metadata.
   translateNBarrierAllocations(M);
   for (auto &F : M.functions()) {
     AmountOfESIMDIntrCalls += this->runOnFunction(F, GVTS);
