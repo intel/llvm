@@ -272,7 +272,6 @@ private:
   sycl::detail::pi::PiContext MContext;
   PlatformImplPtr MPlatform;
   property_list MPropList;
-  bool MHostContext;
   CachedLibProgramsT MCachedLibPrograms;
   std::mutex MCachedLibProgramsMutex;
   mutable KernelProgramCache MKernelProgramCache;

@@ -34,7 +34,6 @@ context_impl::context_impl(const device &Device, async_handler AsyncHandler,
       MContext(nullptr),
       MPlatform(detail::getSyclObjImpl(Device.get_platform())),
       MPropList(PropList),
-      MHostContext(detail::getSyclObjImpl(Device)->is_host()),
       MSupportBufferLocationByDevices(NotChecked) {
   MKernelProgramCache.setContextPtr(this);
 }
@@ -43,7 +42,7 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
                            async_handler AsyncHandler,
                            const property_list &PropList)
     : MOwnedByRuntime(true), MAsyncHandler(AsyncHandler), MDevices(Devices),
-      MContext(nullptr), MPlatform(), MPropList(PropList), MHostContext(false),
+      MContext(nullptr), MPlatform(), MPropList(PropList),
       MSupportBufferLocationByDevices(NotChecked) {
   MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   std::vector<sycl::detail::pi::PiDevice> DeviceIds;
@@ -88,7 +87,7 @@ context_impl::context_impl(sycl::detail::pi::PiContext PiContext,
                            bool OwnedByRuntime)
     : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(AsyncHandler),
       MDevices(DeviceList), MContext(PiContext), MPlatform(),
-      MHostContext(false), MSupportBufferLocationByDevices(NotChecked) {
+      MSupportBufferLocationByDevices(NotChecked) {
   if (!MDevices.empty()) {
     MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   } else {
@@ -132,17 +131,10 @@ context_impl::context_impl(sycl::detail::pi::PiContext PiContext,
 }
 
 cl_context context_impl::get() const {
-  if (MHostContext) {
-    throw invalid_object_error(
-        "This instance of context doesn't support OpenCL interoperability.",
-        PI_ERROR_INVALID_CONTEXT);
-  }
   // TODO catch an exception and put it to list of asynchronous exceptions
   getPlugin()->call<PiApiKind::piContextRetain>(MContext);
   return pi::cast<cl_context>(MContext);
 }
-
-bool context_impl::is_host() const { return MHostContext; }
 
 context_impl::~context_impl() {
   // Free all events associated with the initialization of device globals.
@@ -159,10 +151,9 @@ context_impl::~context_impl() {
     assert(LibProg.second && "Null program must not be kept in the cache");
     getPlugin()->call<PiApiKind::piProgramRelease>(LibProg.second);
   }
-  if (!MHostContext) {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin()->call_nocheck<PiApiKind::piContextRelease>(MContext);
-  }
+
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  getPlugin()->call_nocheck<PiApiKind::piContextRelease>(MContext);
 }
 
 const async_handler &context_impl::get_async_handler() const {
