@@ -65,10 +65,6 @@ public:
   ///
   /// \return non-constant reference to PI device
   sycl::detail::pi::PiDevice &getHandleRef() {
-    if (MIsHostDevice)
-      throw invalid_object_error("This instance of device is a host instance",
-                                 PI_ERROR_INVALID_DEVICE);
-
     return MDevice;
   }
 
@@ -78,17 +74,8 @@ public:
   ///
   /// \return constant reference to PI device
   const sycl::detail::pi::PiDevice &getHandleRef() const {
-    if (MIsHostDevice)
-      throw invalid_object_error("This instance of device is a host instance",
-                                 PI_ERROR_INVALID_DEVICE);
-
     return MDevice;
   }
-
-  /// Check if SYCL device is a host device
-  ///
-  /// \return true if SYCL device is a host device
-  bool is_host() const { return MIsHostDevice; }
 
   /// Check if device is a CPU device
   ///
@@ -327,7 +314,6 @@ private:
   sycl::detail::pi::PiDevice MDevice = 0;
   sycl::detail::pi::PiDeviceType MType;
   sycl::detail::pi::PiDevice MRootDevice = nullptr;
-  bool MIsHostDevice;
   PlatformImplPtr MPlatform;
   bool MIsAssertFailSupported = false;
   mutable std::string MDeviceName;
