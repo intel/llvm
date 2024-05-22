@@ -222,9 +222,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
       UR_CHECK_ERROR(hipStreamDestroy(S));
     });
 
-    if (hQueue->IsProfStreamCreated) {
-      UR_CHECK_ERROR(hipStreamSynchronize(hQueue->getProfilingStream()));
-      UR_CHECK_ERROR(hipStreamDestroy(hQueue->getProfilingStream()));
+    if (hQueue->getHostSubmitTimeStream() != hipStream_t{0}) {
+      UR_CHECK_ERROR(hipStreamSynchronize(hQueue->getHostSubmitTimeStream()));
+      UR_CHECK_ERROR(hipStreamDestroy(hQueue->getHostSubmitTimeStream()));
     }
 
     return UR_RESULT_SUCCESS;
