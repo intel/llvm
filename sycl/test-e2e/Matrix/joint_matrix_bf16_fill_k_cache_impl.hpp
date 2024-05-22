@@ -199,11 +199,17 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
 #else
               for (unsigned int m = 0; m < MCACHE1 / tM; m++) {
 #endif
+#ifdef OOB
+                ext::intel::experimental::matrix::joint_matrix_load_checked(
+                    sg, tA[m][k1], pA, colsA, rowsA, colsA,
+                    m2 * MCACHE2 + m1 * MCACHE1 + m * tM, k * tK);
+#else
                 joint_matrix_load(
                     sg, tA[m][k1],
                     pA + (m2 * MCACHE2 + m1 * MCACHE1 + m * tM) * colsA +
                         k * tK,
                     colsA);
+#endif
 #ifdef MANUAL_UNROLL
               }); // m
 #else
@@ -214,11 +220,18 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
 #else
               for (unsigned int n = 0; n < NCACHE1 / tN; n++) {
 #endif
+#ifdef OOB
+                ext::intel::experimental::matrix::joint_matrix_load_checked(
+                    sg, tB[n][k1], pB, colsB * vnniFactor, rowsB / vnniFactor,
+                    colsB * vnniFactor, k * tK / vnniFactor,
+                    (n2 * NCACHE2 + n1 * NCACHE1 + n * tN) * vnniFactor);
+#else
                 joint_matrix_load(
                     sg, tB[n][k1],
                     pB + (k * tK / vnniFactor) * (colsB * vnniFactor) +
                         (n2 * NCACHE2 + n1 * NCACHE1 + n * tN) * vnniFactor,
                     colsB * vnniFactor);
+#endif
 #ifdef MANUAL_UNROLL
               });
 #else
@@ -243,8 +256,8 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
             });     // for k1
 #else
                 } // n
-              }   // m
-            }     // k1
+              } // m
+            } // k1
 #endif
           } // for k2
 #ifdef MANUAL_UNROLL
@@ -257,17 +270,24 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
 #else
             for (unsigned int n = 0; n < NCACHE1 / tN; n++) {
 #endif
+#ifdef OOB
+              ext::intel::experimental::matrix::joint_matrix_store_checked(
+                  sg, tC[m][n], pC, colsB, layout::row_major, rowsA, colsB,
+                  m2 * MCACHE2 + m1 * MCACHE1 + m * tM,
+                  n2 * NCACHE2 + n1 * NCACHE1 + n * tN);
+#else
               joint_matrix_store(
                   sg, tC[m][n],
                   pC + (m2 * MCACHE2 + m1 * MCACHE1 + m * tM) * colsB +
                       (n2 * NCACHE2 + n1 * NCACHE1 + n * tN),
                   colsB, layout::row_major);
+#endif
 #ifdef MANUAL_UNROLL
             }); // n
           });   // m
 #else
             } // n
-          }   // m
+          } // m
 #endif
         }); // parallel_for
   });       // queue.submit
