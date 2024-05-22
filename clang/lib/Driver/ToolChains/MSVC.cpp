@@ -151,13 +151,6 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-defaultlib:sycl-devicelib-host.lib");
   }
 
-  for (const auto *A : Args.filtered(options::OPT_foffload_static_lib_EQ))
-    CmdArgs.push_back(
-        Args.MakeArgString(Twine("-defaultlib:") + A->getValue()));
-  for (const auto *A : Args.filtered(options::OPT_foffload_whole_static_lib_EQ))
-    CmdArgs.push_back(
-        Args.MakeArgString(Twine("-wholearchive:") + A->getValue()));
-
   // Suppress multiple section warning LNK4078
   if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
     CmdArgs.push_back("/IGNORE:4078");
