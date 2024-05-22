@@ -55,6 +55,7 @@ jobs:
     timeout-minutes: 3
     outputs:
       arc_tests: ${{ steps.arc_tests.outputs.arc_tests }}
+      run_igc_dev_ci: ${{ steps.get_igc_dev_ci_control.outputs.run_igc_dev_ci }}
     steps:
       - name: Determine Arc tests
         id: arc_tests
@@ -68,6 +69,11 @@ jobs:
           else
             echo 'arc_tests="Matrix/"' >> "$GITHUB_OUTPUT"
           fi
+      - name: Determine IGC dev image
+        id: get_igc_dev_ci_control
+        run: |
+          echo 'run_igc_dev_ci=${{ secrets.ISSUE_WRITE_DOWNLOAD_ARTIFACT }}' >> "$GITHUB_OUTPUT"
+
   test:
     needs: [build, detect_changes, determine_arc_tests]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
@@ -99,7 +105,7 @@ jobs:
             env: '{"LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
           - name: E2E tests with dev igc on Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:${{ contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') && 'latest' || 'devigc' }}
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:${{ contains(needs.determine_arc_tests.outputs.run_igc_dev_ci, 'disable') && 'latest' || 'devigc' }}
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
             reset_gpu: true
