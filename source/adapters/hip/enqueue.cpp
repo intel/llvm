@@ -1248,36 +1248,34 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
   const bool IsPinned =
       BufferImpl.MemAllocMode == BufferMem::AllocMode::AllocHostPtr;
 
-  ur_result_t Result = UR_RESULT_SUCCESS;
-  if (!IsPinned &&
-      (mapFlags & (UR_MAP_FLAG_READ | UR_MAP_FLAG_WRITE)) {
-    // Pinned host memory is already on host so it doesn't need to be read.
-    Result = urEnqueueMemBufferRead(hQueue, hBuffer, blockingMap, offset, size,
-                                    MapPtr, numEventsInWaitList,
-                                    phEventWaitList, phEvent);
-  } else {
-    ScopedContext Active(hQueue->getDevice());
+  try {
+    if (!IsPinned && (mapFlags & (UR_MAP_FLAG_READ | UR_MAP_FLAG_WRITE))) {
+      // Pinned host memory is already on host so it doesn't need to be read.
+      UR_CHECK_ERROR(urEnqueueMemBufferRead(
+          hQueue, hBuffer, blockingMap, offset, size, MapPtr,
+          numEventsInWaitList, phEventWaitList, phEvent));
+    } else {
+      ScopedContext Active(hQueue->getDevice());
 
-    if (IsPinned) {
-      Result = urEnqueueEventsWait(hQueue, numEventsInWaitList, phEventWaitList,
-                                   nullptr);
-    }
+      if (IsPinned) {
+        UR_CHECK_ERROR(urEnqueueEventsWait(hQueue, numEventsInWaitList,
+                                           phEventWaitList, nullptr));
+      }
 
-    if (phEvent) {
-      try {
+      if (phEvent) {
         *phEvent = ur_event_handle_t_::makeNative(
             UR_COMMAND_MEM_BUFFER_MAP, hQueue, hQueue->getNextTransferStream());
         UR_CHECK_ERROR((*phEvent)->start());
         UR_CHECK_ERROR((*phEvent)->record());
-      } catch (ur_result_t Error) {
-        Result = Error;
       }
     }
+  } catch (ur_result_t Error) {
+    return Error;
   }
 
   *ppRetMap = MapPtr;
 
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 /// Implements the unmap from the host, using a BufferWrite operation.
@@ -1297,36 +1295,35 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
   const bool IsPinned =
       BufferImpl.MemAllocMode == BufferMem::AllocMode::AllocHostPtr;
 
-  ur_result_t Result = UR_RESULT_SUCCESS;
-  if (!IsPinned &&
-      (Map->getMapFlags() &
-       (UR_MAP_FLAG_WRITE | UR_MAP_FLAG_WRITE_INVALIDATE_REGION))) {
-    // Pinned host memory is only on host so it doesn't need to be written to.
-    Result = urEnqueueMemBufferWrite(
-        hQueue, hMem, true, Map->getMapOffset(), Map->getMapSize(), pMappedPtr,
-        numEventsInWaitList, phEventWaitList, phEvent);
-  } else {
-    ScopedContext Active(hQueue->getDevice());
+  try {
+    if (!IsPinned &&
+        (Map->getMapFlags() &
+         (UR_MAP_FLAG_WRITE | UR_MAP_FLAG_WRITE_INVALIDATE_REGION))) {
+      // Pinned host memory is only on host so it doesn't need to be written to.
+      UR_CHECK_ERROR(urEnqueueMemBufferWrite(
+          hQueue, hMem, true, Map->getMapOffset(), Map->getMapSize(),
+          pMappedPtr, numEventsInWaitList, phEventWaitList, phEvent));
+    } else {
+      ScopedContext Active(hQueue->getDevice());
 
-    if (IsPinned) {
-      Result = urEnqueueEventsWait(hQueue, numEventsInWaitList, phEventWaitList,
-                                   nullptr);
-    }
+      if (IsPinned) {
+        UR_CHECK_ERROR(urEnqueueEventsWait(hQueue, numEventsInWaitList,
+                                           phEventWaitList, nullptr));
+      }
 
-    if (phEvent) {
-      try {
+      if (phEvent) {
         *phEvent = ur_event_handle_t_::makeNative(
             UR_COMMAND_MEM_UNMAP, hQueue, hQueue->getNextTransferStream());
         UR_CHECK_ERROR((*phEvent)->start());
         UR_CHECK_ERROR((*phEvent)->record());
-      } catch (ur_result_t Error) {
-        Result = Error;
       }
     }
+  } catch (ur_result_t Error) {
+    return Error;
   }
 
   BufferImpl.unmap(pMappedPtr);
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
