@@ -877,7 +877,7 @@ BuiltinID CLBuiltinInfo::identifyBuiltin(const Function &F) const {
   const auto Version = getOpenCLVersion(*F.getParent());
   const StringRef DemangledName = Mangler.demangleName(Name);
   while (entry->ID != eBuiltinInvalid) {
-    if (Version >= entry->MinVer && DemangledName.equals(entry->OpenCLFnName)) {
+    if (Version >= entry->MinVer && DemangledName == entry->OpenCLFnName) {
       return entry->ID;
     }
     entry++;
@@ -1327,8 +1327,8 @@ Function *CLBuiltinInfo::getVectorEquivalent(const Builtin &B, unsigned Width,
   StringRef FirstChunk;
   Lexer L(BuiltinName);
   if (L.ConsumeUntil('_', FirstChunk)) {
-    const bool AsBuiltin = FirstChunk.equals("as");
-    const bool ConvertBuiltin = FirstChunk.equals("convert");
+    const bool AsBuiltin = FirstChunk == "as";
+    const bool ConvertBuiltin = FirstChunk == "convert";
     if (!L.Consume("_")) {
       return nullptr;
     }
@@ -1443,8 +1443,8 @@ Function *CLBuiltinInfo::getScalarEquivalent(const Builtin &B, Module *M) {
   StringRef FirstChunk;
   Lexer L(BuiltinName);
   if (L.ConsumeUntil('_', FirstChunk)) {
-    const bool AsBuiltin = FirstChunk.equals("as");
-    const bool ConvertBuiltin = FirstChunk.equals("convert");
+    const bool AsBuiltin = FirstChunk == "as";
+    const bool ConvertBuiltin = FirstChunk == "convert";
     if (!L.Consume("_")) {
       return nullptr;
     }
