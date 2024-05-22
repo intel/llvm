@@ -350,8 +350,6 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
                               const std::shared_ptr<queue_impl> &SecondaryQueue,
                               const detail::code_location &Loc,
                               const SubmitPostProcessF *PostProcess) {
-  // Flag used to detect nested calls to submit and report an error.
-
   handler Handler(Self, PrimaryQueue, SecondaryQueue, MHostQueue);
   Handler.saveCodeLoc(Loc);
 

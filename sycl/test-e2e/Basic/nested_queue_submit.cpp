@@ -38,7 +38,7 @@ void nestedSubmitMemset(sycl::queue &q) {
   sycl::free(data, q);
 }
 
-void doValidCall(sycl::queue &q) {
+void submitSimpleKernel(sycl::queue &q) {
   q.submit([&](sycl::handler &h) {});
 }
 
@@ -52,8 +52,9 @@ void test(sycl::queue &Queue, CommandSubmitterT QueueSubmit) {
     ExceptionHappened = true;
   }
   assert(ExceptionHappened);
-  // Checks that queue is in a valid state and we could submit new commands.
-  doValidCall(Queue);
+  // Checks that queue is in a valid state: nested call tracker was cleaned up
+  // after exception and does not prevent from submission of new commands.
+  submitSimpleKernel(Queue);
   Queue.wait();
 }
 
