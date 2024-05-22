@@ -1958,6 +1958,166 @@ void run_viaddmax_u16x2_test(s::queue &device_q) {
   std::cout << "sycl::ext::intel::math::viaddmax_u16x2 test pass." << std::endl;
 }
 
+void run_viaddmin_s16x2_test(s::queue &device_q) {
+  std::initializer_list<unsigned> input_vals1 = {
+      0,          0x6b8b4567, 0x66334873, 0x2ae8944a, 0x46e87ccd, 0x2eb141f2,
+      0x7545e146, 0x12200854, 0x1f16e9e8, 0x140e0f76, 0xded7263,  0x41a7c4c9,
+      0x25e45d32, 0x3f2dba31, 0x62bbd95a, 0x333ab105, 0x2d1d5ae9, 0x8edbdab,
+      0xb03e0c6,  0x71f32454, 0x2901d82};
+  std::initializer_list<unsigned> input_vals2 = {
+      0,          0x327b23c6, 0x74b0dc51, 0x625558ec, 0x3d1b58ba, 0x41b71efb,
+      0x515f007c, 0x4db127f8, 0x1190cde7, 0x3352255a, 0x7fdcc233, 0x6b68079a,
+      0x519b500d, 0x7c83e458, 0x436c6125, 0x721da317, 0x6763845e, 0x79838cb2,
+      0x189a769b, 0x2ca88611, 0x3a95f874};
+  std::initializer_list<unsigned> input_vals3 = {
+      0,          0x643c9869, 0x19495cff, 0x238e1f29, 0x507ed7ab, 0x79e2a9e3,
+      0x5bd062c2, 0x216231b,  0x66ef438d, 0x109cf92e, 0x1befd79f, 0x4e6afb66,
+      0x431bd7b7, 0x257130a3, 0x628c895d, 0x2443a858, 0x75a2a8d4, 0x4353d0cd,
+      0x54e49eb4, 0x836c40e,  0x8138641};
+  std::initializer_list<unsigned> ref_vals = {
+      0,          0x9e069869, 0xdae324c4, 0x8d3ded36, 0x8403d587, 0x7068a9e3,
+      0xc6a4e1c2, 0x216231b,  0x30a6b7cf, 0x109cf92e, 0x8dc9d79f, 0xad0fcc63,
+      0x431bad3f, 0xbbb09e89, 0xa627895d, 0xa557a858, 0x9480a8d4, 0x8270d0cd,
+      0x239d9eb4, 0x9e9baa65, 0x8138641};
+  test3(device_q, input_vals1, input_vals2, input_vals3, ref_vals,
+        F3(s::ext::intel::math::viaddmin_s16x2));
+  std::cout << "sycl::ext::intel::math::viaddmin_s16x2 test pass." << std::endl;
+}
+
+void run_viaddmin_s16x2_relu_test(s::queue &device_q) {
+  std::initializer_list<unsigned> input_vals1 = {
+      0,          0x6b8b4567, 0x66334873, 0x2ae8944a, 0x46e87ccd, 0x2eb141f2,
+      0x7545e146, 0x12200854, 0x1f16e9e8, 0x140e0f76, 0xded7263,  0x41a7c4c9,
+      0x25e45d32, 0x3f2dba31, 0x62bbd95a, 0x333ab105, 0x2d1d5ae9, 0x8edbdab,
+      0xb03e0c6,  0x71f32454, 0x2901d82};
+  std::initializer_list<unsigned> input_vals2 = {
+      0,          0x327b23c6, 0x74b0dc51, 0x625558ec, 0x3d1b58ba, 0x41b71efb,
+      0x515f007c, 0x4db127f8, 0x1190cde7, 0x3352255a, 0x7fdcc233, 0x6b68079a,
+      0x519b500d, 0x7c83e458, 0x436c6125, 0x721da317, 0x6763845e, 0x79838cb2,
+      0x189a769b, 0x2ca88611, 0x3a95f874};
+  std::initializer_list<unsigned> input_vals3 = {
+      0,          0x643c9869, 0x19495cff, 0x238e1f29, 0x507ed7ab, 0x79e2a9e3,
+      0x5bd062c2, 0x216231b,  0x66ef438d, 0x109cf92e, 0x1befd79f, 0x4e6afb66,
+      0x431bd7b7, 0x257130a3, 0x628c895d, 0x2443a858, 0x75a2a8d4, 0x4353d0cd,
+      0x54e49eb4, 0x836c40e,  0x8138641};
+  std::initializer_list<unsigned> ref_vals = {
+      0,          0x0,       0x24c4,     0x0,        0x0, 0x70680000,
+      0x0,        0x216231b, 0x30a60000, 0x109c0000, 0x0, 0x0,
+      0x431b0000, 0x0,       0x0,        0x0,        0x0, 0x0,
+      0x239d0000, 0x0,       0x8130000};
+  test3(device_q, input_vals1, input_vals2, input_vals3, ref_vals,
+        F3(s::ext::intel::math::viaddmin_s16x2_relu));
+  std::cout << "sycl::ext::intel::math::viaddmin_s16x2_relu test pass."
+            << std::endl;
+}
+
+void run_viaddmin_s32_test(s::queue &device_q) {
+  std::initializer_list<int> input_vals1 = {
+      0,          1804289383, 719885386,  -783368690, 304089172,   336465782,
+      1101513929, 1059961393, -859484421, 149798315,  -1911759956, -511702305,
+      -805750846, -939819582, 1374344043, 1780695788, 2053999932,  855636226,
+      2040651434, 1330573317, -402724286};
+  std::initializer_list<int> input_vals2 = {
+      0,           -1681692777, -596516649, 2044897763, 35005211,   -278722862,
+      1315634022,  628175011,   -608413784, 1129566413, 137806862,  -1937477084,
+      -1100661313, -1998898814, 1477171087, -491705403, 1411549676, -1469348094,
+      -317097467,  1687926652,  -1194953865};
+  std::initializer_list<int> input_vals3 = {
+      0,           -1957747793, -1025202362, 1365180540, -294702567,
+      -2145174067, -1369133069, -1131176229, 1734575198, 412776091,
+      -982906996,  -572660336,  -1141616124, 610515434,  945117276,
+      -752392754,  943947739,   1036140795,  1376710097, 959997301,
+      -364228444};
+  std::initializer_list<int> ref_vals = {
+      0,           -1957747793, -1025202362, 1261529073,  -294702567,
+      -2145174067, -1877819345, -1131176229, -1467898205, 412776091,
+      -1773953094, -572660336,  -1906412159, 610515434,   -1443452166,
+      -752392754,  -829417688,  -613711868,  1376710097,  -1276467327,
+      -1597678151};
+  test3(device_q, input_vals1, input_vals2, input_vals3, ref_vals,
+        F3(s::ext::intel::math::viaddmin_s32));
+  std::cout << "sycl::ext::intel::math::viaddmin_s32 test pass." << std::endl;
+}
+
+void run_viaddmin_s32_relu_test(s::queue &device_q) {
+  std::initializer_list<int> input_vals1 = {
+      0,          1804289383, 719885386,  -783368690, 304089172,   336465782,
+      1101513929, 1059961393, -859484421, 149798315,  -1911759956, -511702305,
+      -805750846, -939819582, 1374344043, 1780695788, 2053999932,  855636226,
+      2040651434, 1330573317, -402724286};
+  std::initializer_list<int> input_vals2 = {
+      0,           -1681692777, -596516649, 2044897763, 35005211,   -278722862,
+      1315634022,  628175011,   -608413784, 1129566413, 137806862,  -1937477084,
+      -1100661313, -1998898814, 1477171087, -491705403, 1411549676, -1469348094,
+      -317097467,  1687926652,  -1194953865};
+  std::initializer_list<int> input_vals3 = {
+      0,           -1957747793, -1025202362, 1365180540, -294702567,
+      -2145174067, -1369133069, -1131176229, 1734575198, 412776091,
+      -982906996,  -572660336,  -1141616124, 610515434,  945117276,
+      -752392754,  943947739,   1036140795,  1376710097, 959997301,
+      -364228444};
+  std::initializer_list<int> ref_vals = {
+      0, 0, 0,         1261529073, 0, 0, 0, 0,          0, 412776091, 0,
+      0, 0, 610515434, 0,          0, 0, 0, 1376710097, 0, 0,
+  };
+  test3(device_q, input_vals1, input_vals2, input_vals3, ref_vals,
+        F3(s::ext::intel::math::viaddmin_s32_relu));
+  std::cout << "sycl::ext::intel::math::viaddmin_s32_relu test pass."
+            << std::endl;
+}
+
+void run_viaddmin_u32_test(s::queue &device_q) {
+  std::initializer_list<unsigned> input_vals1 = {
+      0,          0x6b8b4567, 0x66334873, 0x2ae8944a, 0x46e87ccd, 0x2eb141f2,
+      0x7545e146, 0x12200854, 0x1f16e9e8, 0x140e0f76, 0xded7263,  0x41a7c4c9,
+      0x25e45d32, 0x3f2dba31, 0x62bbd95a, 0x333ab105, 0x2d1d5ae9, 0x8edbdab,
+      0xb03e0c6,  0x71f32454, 0x2901d82};
+  std::initializer_list<unsigned> input_vals2 = {
+      0,          0x327b23c6, 0x74b0dc51, 0x625558ec, 0x3d1b58ba, 0x41b71efb,
+      0x515f007c, 0x4db127f8, 0x1190cde7, 0x3352255a, 0x7fdcc233, 0x6b68079a,
+      0x519b500d, 0x7c83e458, 0x436c6125, 0x721da317, 0x6763845e, 0x79838cb2,
+      0x189a769b, 0x2ca88611, 0x3a95f874};
+  std::initializer_list<unsigned> input_vals3 = {
+      0,          0x643c9869, 0x19495cff, 0x238e1f29, 0x507ed7ab, 0x79e2a9e3,
+      0x5bd062c2, 0x216231b,  0x66ef438d, 0x109cf92e, 0x1befd79f, 0x4e6afb66,
+      0x431bd7b7, 0x257130a3, 0x628c895d, 0x2443a858, 0x75a2a8d4, 0x4353d0cd,
+      0x54e49eb4, 0x836c40e,  0x8138641};
+  std::initializer_list<unsigned> ref_vals = {
+      0,          0x643c9869, 0x19495cff, 0x238e1f29, 0x507ed7ab, 0x706860ed,
+      0x5bd062c2, 0x216231b,  0x30a7b7cf, 0x109cf92e, 0x1befd79f, 0x4e6afb66,
+      0x431bd7b7, 0x257130a3, 0x628c895d, 0x2443a858, 0x75a2a8d4, 0x4353d0cd,
+      0x239e5761, 0x836c40e,  0x8138641};
+  test3(device_q, input_vals1, input_vals2, input_vals3, ref_vals,
+        F3(s::ext::intel::math::viaddmin_u32));
+  std::cout << "sycl::ext::intel::math::viaddmin_u32 test pass." << std::endl;
+}
+
+void run_viaddmin_u16x2_test(s::queue &device_q) {
+  std::initializer_list<unsigned> input_vals1 = {
+      0,          0x6b8b4567, 0x66334873, 0x2ae8944a, 0x46e87ccd, 0x2eb141f2,
+      0x7545e146, 0x12200854, 0x1f16e9e8, 0x140e0f76, 0xded7263,  0x41a7c4c9,
+      0x25e45d32, 0x3f2dba31, 0x62bbd95a, 0x333ab105, 0x2d1d5ae9, 0x8edbdab,
+      0xb03e0c6,  0x71f32454, 0x2901d82};
+  std::initializer_list<unsigned> input_vals2 = {
+      0,          0x327b23c6, 0x74b0dc51, 0x625558ec, 0x3d1b58ba, 0x41b71efb,
+      0x515f007c, 0x4db127f8, 0x1190cde7, 0x3352255a, 0x7fdcc233, 0x6b68079a,
+      0x519b500d, 0x7c83e458, 0x436c6125, 0x721da317, 0x6763845e, 0x79838cb2,
+      0x189a769b, 0x2ca88611, 0x3a95f874};
+  std::initializer_list<unsigned> input_vals3 = {
+      0,          0x643c9869, 0x19495cff, 0x238e1f29, 0x507ed7ab, 0x79e2a9e3,
+      0x5bd062c2, 0x216231b,  0x66ef438d, 0x109cf92e, 0x1befd79f, 0x4e6afb66,
+      0x431bd7b7, 0x257130a3, 0x628c895d, 0x2443a858, 0x75a2a8d4, 0x4353d0cd,
+      0x54e49eb4, 0x836c40e,  0x8138641};
+  std::initializer_list<unsigned> ref_vals = {
+      0,          0x643c692d, 0x194924c4, 0x238e1f29, 0x507ed587, 0x706860ed,
+      0x5bd062c2, 0x216231b,  0x30a6438d, 0x109c34d0, 0x1bef3496, 0x4e6acc63,
+      0x431bad3f, 0x257130a3, 0x628c3a7f, 0x2443541c, 0x75a2a8d4, 0x43534a5d,
+      0x239d5761, 0x836aa65,  0x81315f6};
+  test3(device_q, input_vals1, input_vals2, input_vals3, ref_vals,
+        F3(s::ext::intel::math::viaddmin_u16x2));
+  std::cout << "sycl::ext::intel::math::viaddmin_u16x2 test pass." << std::endl;
+}
+
 int main(int, char **) {
   s::queue device_queue(s::default_selector_v);
   std::cout << "Running on "
@@ -1987,4 +2147,11 @@ int main(int, char **) {
   run_viaddmax_s32_relu_test(device_queue);
   run_viaddmax_u16x2_test(device_queue);
   run_viaddmax_u32_test(device_queue);
+  run_viaddmin_s16x2_test(device_queue);
+  run_viaddmin_s16x2_relu_test(device_queue);
+  run_viaddmin_s32_test(device_queue);
+  run_viaddmin_s32_relu_test(device_queue);
+  run_viaddmin_u16x2_test(device_queue);
+  run_viaddmin_u32_test(device_queue);
+  return 0;
 }

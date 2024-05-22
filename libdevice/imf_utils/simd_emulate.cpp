@@ -381,9 +381,32 @@ template <typename Tp> class __iaddmax_relu_op {
 public:
   Tp operator()(const Tp &x, const Tp &y, const Tp &z) {
     Tp t = __imax<Tp>(x + y, z);
-    return __imax<Tp>(t, 0);
+    return (t > 0) ? t : 0;
   }
 };
+
+template <typename Tp> class __iaddmin_op {
+  static_assert(std::is_same<int16_t, Tp>::value ||
+                    std::is_same<uint16_t, Tp>::value,
+                "Tp can only accept 16-bit integer for iaddmax op.");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y, const Tp &z) {
+    return __imin<Tp>(x + y, z);
+  }
+};
+
+template <typename Tp> class __iaddmin_relu_op {
+  static_assert(std::is_same<int16_t, Tp>::value,
+                "Tp can only accept int16_t for iaddmax_relu op.");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y, const Tp &z) {
+    Tp t = __imin<Tp>(x + y, z);
+    return (t > 0) ? t : 0;
+  }
+};
+
 #pragma clang optimize on
 
 template <typename Tp, size_t N, template <typename> class TernaryOp>
@@ -1125,5 +1148,53 @@ DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_viaddmax_u32(unsigned int x, unsigned int y,
                                           unsigned int z) {
   return __imax<unsigned int>((x + y), z);
+}
+
+// Split 32-bit value into 2 16-bit parts, interpret each part as singed short.
+// For corresponding part, perform and add and compare operation:
+// min(x_part + y_part, z_part), partial results are combined as return value.
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmin_s16x2(unsigned int x, unsigned int y,
+                                            unsigned int z) {
+  return __internal_v_ternary_op<int16_t, 2, __iaddmin_op>(x, y, z);
+}
+
+// Split 32-bit value into 2 16-bit parts, interpret each part as singed short.
+// For corresponding part, perform and add and compare operation:
+// max(min(x_part + y_part, z_part), 0), partial results are combined for
+// return.
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmin_s16x2_relu(unsigned int x, unsigned int y,
+                                                 unsigned int z) {
+  return __internal_v_ternary_op<int16_t, 2, __iaddmin_relu_op>(x, y, z);
+}
+
+// min(x + y, z)
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_viaddmin_s32(int x, int y, int z) {
+  return __imin<int>((x + y), z);
+}
+
+// max(min(x + y, z), 0)
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_viaddmin_s32_relu(int x, int y, int z) {
+  int r = __imin<int>((x + y), z);
+  return (r > 0) ? r : 0;
+}
+
+// Split 32-bit value into 2 16-bit parts, interpret each part as unsinged
+// short. For corresponding part, perform and add and compare operation:
+// min(x_part + y_part, z_part), partial results are combined as return value.
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmin_u16x2(unsigned int x, unsigned int y,
+                                            unsigned int z) {
+  return __internal_v_ternary_op<uint16_t, 2, __iaddmin_op>(x, y, z);
+}
+
+// min(x + y, z) for unsigned int
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmin_u32(unsigned int x, unsigned int y,
+                                          unsigned int z) {
+  return __imin<unsigned int>((x + y), z);
 }
 #endif
