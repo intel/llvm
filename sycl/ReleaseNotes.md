@@ -72,6 +72,7 @@ Release notes for commit range [f4e0d3177338](https://github.com/intel/llvm/comm
 - Made backend return a sorted list of platforms when `platform::get_platforms()` is called. [feb7722076]
 - Improved warning messages and added `-ignore-device-selector` flag to `sycl-ls` to ignore device selection environment variables. [6e3aa218]
 - Improved error handling when calling `matrix_combinations` query on platforms unsupported by [ext_oneapi_device_architecture](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) SYCL extension. [c00305b73]
+- Made default `sycl::queue` context reusable on Windows. [491e6e4ea] 
 
 
 ### Documentation
