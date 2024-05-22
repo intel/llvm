@@ -422,7 +422,7 @@ if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
     )
     sp = subprocess.check_output(cmd, text=True, shell=True)
     for line in sp.splitlines():
-        if "Max 1100" in line:
+        if "Intel(R) Data Center GPU Max 1100" in line:
             config.available_features.add("gpu-intel-pvc-1T")
         if "gfx90a" in line:
             config.available_features.add("gpu-amd-gfx90a")
