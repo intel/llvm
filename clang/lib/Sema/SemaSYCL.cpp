@@ -1099,6 +1099,61 @@ static bool isFreeFunction(SemaSYCL &SemaSYCLRef, const FunctionDecl *FD) {
   return false;
 }
 
+static int getFreeFunctionRangeDim(SemaSYCL &SemaSYCLRef,
+                                   const FunctionDecl *FD) {
+  for (auto *IRAttr : FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
+    SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+        IRAttr->getAttributeNameValuePairs(SemaSYCLRef.getASTContext());
+    for (const auto &NameValuePair : NameValuePairs) {
+      if (NameValuePair.first == "sycl-nd-range-kernel")
+        return std::stoi(NameValuePair.second);
+      if (NameValuePair.first == "sycl-single-task-kernel")
+        return 0;
+    }
+  }
+  return false;
+}
+
+static std::string constructFFKernelName(const FunctionDecl *FD) {
+  IdentifierInfo *Id = FD->getIdentifier();
+  std::string NewIdent = (Twine("__sycl_kernel_") + Id->getName()).str();
+  return NewIdent;
+}
+
+static FunctionDecl *createNewFunctionDecl(ASTContext &Ctx,
+                                           const FunctionDecl *FD,
+                                           SourceLocation Loc,
+                                           const IdentifierInfo *NewIdent) {
+  FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
+  QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, {}, Info);
+  FunctionDecl *NewFD = FunctionDecl::Create(
+      Ctx, Ctx.getTranslationUnitDecl(), Loc, Loc, DeclarationName(NewIdent),
+      FuncType, Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), SC_None);
+  llvm::SmallVector<ParmVarDecl *, 8> Params;
+  for (ParmVarDecl *Param : FD->parameters()) {
+    QualType Ty = Param->getType();
+    ParamDesc newParamDesc =
+        std::make_tuple(Ty, &Ctx.Idents.get(Param->getName()),
+                        Ctx.getTrivialTypeSourceInfo(Ty));
+    auto *NewParam = ParmVarDecl::Create(
+        Ctx, NewFD, SourceLocation(), SourceLocation(),
+        std::get<1>(newParamDesc), std::get<0>(newParamDesc),
+        std::get<2>(newParamDesc), SC_None, /*DefArg*/ nullptr);
+    NewParam->setScopeInfo(0, Params.size());
+    NewParam->setIsUsed();
+    Params.push_back(NewParam);
+  }
+  SmallVector<QualType, 8> ArgTys;
+  std::transform(std::begin(Params), std::end(Params),
+                 std::back_inserter(ArgTys),
+                 [](const ParmVarDecl *PVD) { return PVD->getType(); });
+
+  FuncType = Ctx.getFunctionType(Ctx.VoidTy, ArgTys, Info);
+  NewFD->setType(FuncType);
+  NewFD->setParams(Params);
+  return NewFD;
+}
+
 // Creates a name for the free function kernel function.
 // Consider a free function named "MyFunction". The normal device function will
 // be given its mangled name, say "_Z10MyFunctionIiEvPT_S0_". The corresponding
@@ -2491,8 +2546,10 @@ public:
 
 // A type to Create and own the FunctionDecl for the kernel.
 class SyclKernelDeclCreator : public SyclKernelFieldHandler {
+  SYCLIntegrationHeader &Header;
   bool IsFreeFunction = false;
   FunctionDecl *KernelDecl = nullptr;
+  FunctionDecl *FreeFunctionCDecl;
   llvm::SmallVector<ParmVarDecl *, 8> Params;
   Sema::ContextRAII FuncContext;
   // Holds the last handled field's first parameter. This doesn't store an
@@ -2681,6 +2738,25 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     return FD;
   }
 
+  static FunctionDecl *createFreeFunctionDecl(ASTContext &Ctx, FunctionDecl *FD,
+                                              SourceLocation Loc,
+                                              bool IsInline) {
+    // Create this with no prototype, and we can fix this up after we've seen
+    // all the params.
+    FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
+    QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, {}, Info);
+    const IdentifierInfo *NewIdent = &Ctx.Idents.get(constructFFKernelName(FD));
+    FD = FunctionDecl::Create(
+        Ctx, Ctx.getTranslationUnitDecl(), Loc, Loc, DeclarationName(NewIdent),
+        FuncType, Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), SC_None);
+    FD->setImplicitlyInline(IsInline);
+    setKernelImplicitAttrs(Ctx, FD, false);
+
+    // Add kernel to translation unit to see it in AST-dump.
+    Ctx.getTranslationUnitDecl()->addDecl(FD);
+    return FD;
+  }
+
   // If the record has been marked with SYCLGenerateNewTypeAttr,
   // it implies that it contains a pointer within. This function
   // defines a PointerHandler visitor which visits this record
@@ -2712,16 +2788,22 @@ public:
   static constexpr const bool VisitInsideSimpleContainers = false;
   SyclKernelDeclCreator(SemaSYCL &S, SourceLocation Loc, bool IsInline,
                         bool IsSIMDKernel, bool IsFreeFunction,
-                        FunctionDecl *SYCLKernel)
-      : SyclKernelFieldHandler(S), IsFreeFunction(IsFreeFunction),
-        KernelDecl(
-            createKernelDecl(S.getASTContext(), Loc, IsInline, IsSIMDKernel)),
+                        FunctionDecl *SYCLKernel, SYCLIntegrationHeader &H)
+      : SyclKernelFieldHandler(S), Header(H), IsFreeFunction(IsFreeFunction),
+        KernelDecl(IsFreeFunction
+                       ? createFreeFunctionDecl(S.getASTContext(), SYCLKernel,
+                                                Loc, IsInline)
+                       : createKernelDecl(S.getASTContext(), Loc, IsInline,
+                                          IsSIMDKernel)),
         FuncContext(SemaSYCLRef.SemaRef, KernelDecl) {
     S.addSyclOpenCLKernel(SYCLKernel, KernelDecl);
     for (const auto *IRAttr :
          SYCLKernel->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
       KernelDecl->addAttr(IRAttr->clone(SemaSYCLRef.getASTContext()));
     }
+    if (IsFreeFunction)
+      FreeFunctionCDecl = createNewFunctionDecl(
+          S.getASTContext(), SYCLKernel, Loc, SYCLKernel->getIdentifier());
   }
 
   ~SyclKernelDeclCreator() {
@@ -2736,6 +2818,8 @@ public:
     QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, ArgTys, Info);
     KernelDecl->setType(FuncType);
     KernelDecl->setParams(Params);
+    if (IsFreeFunction)
+      Header.setFreeFunctionCDecl(FreeFunctionCDecl);
 
     // Make sure that this is marked as a kernel so that the code-gen can make
     // decisions based on that. We cannot add this earlier, otherwise the call
@@ -4359,6 +4443,7 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
         SemaSYCLRef.getASTContext().getTypeSizeInChars(ParamTy).getQuantity();
     Header.addParamDesc(Kind, static_cast<unsigned>(Size),
                         static_cast<unsigned>(CurOffset + OffsetAdj));
+    Header.addParamType(ParamTy);
   }
 
 public:
@@ -4993,7 +5078,8 @@ void SemaSYCL::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
 
   SyclKernelDeclCreator kernel_decl(*this, KernelObj->getLocation(),
                                     KernelCallerFunc->isInlined(), IsSIMDKernel,
-                                    false /*IsFreeFunction*/, KernelCallerFunc);
+                                    false /*IsFreeFunction*/, KernelCallerFunc,
+                                    getSyclIntegrationHeader());
   SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelObj,
                                     KernelCallerFunc, IsSIMDKernel,
                                     CallOperator);
@@ -5037,9 +5123,9 @@ void SemaSYCL::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
 void ConstructFreeFunctionKernel(SemaSYCL &SemaSYCLRef, FunctionDecl *FD) {
   SyclKernelArgsSizeChecker argsSizeChecker(SemaSYCLRef, FD->getLocation(),
                                             false /*IsSIMDKernel*/);
-  SyclKernelDeclCreator kernel_decl(SemaSYCLRef, FD->getLocation(),
-                                    FD->isInlined(), false /*IsSIMDKernel */,
-                                    true /*IsFreeFunction*/, FD);
+  SyclKernelDeclCreator kernel_decl(
+      SemaSYCLRef, FD->getLocation(), FD->isInlined(), false /*IsSIMDKernel */,
+      true /*IsFreeFunction*/, FD, SemaSYCLRef.getSyclIntegrationHeader());
 
   FreeFunctionKernelBodyCreator kernel_body(SemaSYCLRef, kernel_decl, FD);
 
@@ -5914,6 +6000,222 @@ public:
   }
 };
 
+class FreeFunctionFwdDeclEmitter
+    : public TypeVisitor<FreeFunctionFwdDeclEmitter>,
+      public ConstTemplateArgumentVisitor<FreeFunctionFwdDeclEmitter> {
+  using InnerTypeVisitor = TypeVisitor<FreeFunctionFwdDeclEmitter>;
+  using InnerTemplArgVisitor =
+      ConstTemplateArgumentVisitor<FreeFunctionFwdDeclEmitter>;
+  raw_ostream &OS;
+  llvm::SmallPtrSet<const NamedDecl *, 4> Printed;
+  PrintingPolicy Policy;
+
+  void printForwardDecl(NamedDecl *D) {
+    // wrap the declaration into namespaces if needed
+    unsigned NamespaceCnt = 0;
+    std::string NSStr = "";
+    const DeclContext *DC = D->getDeclContext();
+
+    while (DC) {
+      if (const auto *NS = dyn_cast<NamespaceDecl>(DC)) {
+        ++NamespaceCnt;
+        StringRef NSInlinePrefix = NS->isInline() ? "inline " : "";
+        NSStr.insert(
+            0,
+            Twine(NSInlinePrefix + "namespace " + NS->getName() + " { ").str());
+        DC = NS->getDeclContext();
+      } else {
+        // We should be able to handle a subset of the decl-context types to
+        // make our namespaces for forward declarations as specific as possible,
+        // so just skip them here.  We can't use their names, since they would
+        // not be forward declarable, but we can try to make them as specific as
+        // possible.
+        // This permits things such as:
+        // namespace N1 { void foo() { kernel<class K>(...); }}
+        // and
+        // namespace N2 { void foo() { kernel<class K>(...); }}
+        // to co-exist, despite technically being against the SYCL rules.
+        // See SYCLKernelNameTypePrinter for the corresponding part that prints
+        // the kernel information for this type. These two must match.
+        if (isa<FunctionDecl, RecordDecl, LinkageSpecDecl>(DC)) {
+          DC = cast<Decl>(DC)->getDeclContext();
+        } else {
+          break;
+        }
+      }
+    }
+    OS << NSStr;
+    if (NamespaceCnt > 0)
+      OS << "\n";
+
+    D->print(OS, Policy);
+
+    if (const auto *ED = dyn_cast<EnumDecl>(D)) {
+      QualType T = ED->getIntegerType().getCanonicalType();
+      // Backup since getIntegerType() returns null for enum forward
+      // declaration with no fixed underlying type
+      if (T.isNull())
+        T = ED->getPromotionType();
+      OS << " : " << T.getAsString();
+    }
+
+    OS << ";\n";
+
+    // print closing braces for namespaces if needed
+    for (unsigned I = 0; I < NamespaceCnt; ++I)
+      OS << "}";
+    if (NamespaceCnt > 0)
+      OS << "\n";
+  }
+
+  // Checks if we've already printed forward declaration and prints it if not.
+  void checkAndEmitForwardDecl(NamedDecl *D) {
+    if (Printed.insert(D).second)
+      printForwardDecl(D);
+  }
+
+  void VisitTemplateArgs(ArrayRef<TemplateArgument> Args) {
+    for (size_t I = 0, E = Args.size(); I < E; ++I)
+      Visit(Args[I]);
+  }
+
+  void EmitAsString(QualType Ty) { OS << Ty.getAsString(); }
+
+public:
+  FreeFunctionFwdDeclEmitter(raw_ostream &OS, const LangOptions &LO)
+      : OS(OS), Policy(LO) {
+    Policy.adjustForCPlusPlusFwdDecl();
+    Policy.SuppressTypedefs = true;
+    Policy.SuppressUnwrittenScope = true;
+    Policy.PrintCanonicalTypes = true;
+    Policy.SkipCanonicalizationOfTemplateTypeParms = true;
+    Policy.SuppressFinalSpecifier = true;
+  }
+
+  void Visit(QualType T) {
+    if (T.isNull())
+      return;
+    InnerTypeVisitor::Visit(T.getTypePtr());
+  }
+
+  void VisitReferenceType(const ReferenceType *RT) {
+    // Our forward declarations don't care about references, so we should just
+    // ignore the reference and continue on.
+    Visit(RT->getPointeeType());
+  }
+
+  void Visit(const TemplateArgument &TA) {
+    if (TA.isNull())
+      return;
+    InnerTemplArgVisitor::Visit(TA);
+  }
+
+  void VisitPointerType(const PointerType *T) {
+    // Peel off the pointer types.
+    QualType PT = T->getPointeeType();
+    while (PT->isPointerType())
+      PT = PT->getPointeeType();
+    Visit(PT);
+  }
+
+  void VisitTagType(const TagType *T) {
+    TagDecl *TD = T->getDecl();
+    if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(TD)) {
+      // - first, recurse into template parameters and emit needed forward
+      //   declarations
+      ArrayRef<TemplateArgument> Args = TSD->getTemplateArgs().asArray();
+      VisitTemplateArgs(Args);
+      // - second, emit forward declaration for the template class being
+      //   specialized
+      ClassTemplateDecl *CTD = TSD->getSpecializedTemplate();
+      assert(CTD && "template declaration must be available");
+
+      checkAndEmitForwardDecl(CTD);
+      return;
+    }
+    checkAndEmitForwardDecl(TD);
+  }
+
+  void VisitTypeTemplateArgument(const TemplateArgument &TA) {
+    QualType T = TA.getAsType();
+    Visit(T);
+  }
+
+  void VisitIntegralTemplateArgument(const TemplateArgument &TA) {
+    QualType T = TA.getIntegralType();
+    if (const EnumType *ET = T->getAs<EnumType>())
+      VisitTagType(ET);
+  }
+
+  void VisitTemplateTemplateArgument(const TemplateArgument &TA) {
+    // recursion is not required, since the maximum possible nesting level
+    // equals two for template argument
+    //
+    // for example:
+    //   template <typename T> class Bar;
+    //   template <template <typename> class> class Baz;
+    //   template <template <template <typename> class> class T>
+    //   class Foo;
+    //
+    // The Baz is a template class. The Baz<Bar> is a class. The class Foo
+    // should be specialized with template class, not a class. The correct
+    // specialization of template class Foo is Foo<Baz>. The incorrect
+    // specialization of template class Foo is Foo<Baz<Bar>>. In this case
+    // template class Foo specialized by class Baz<Bar>, not a template
+    // class template <template <typename> class> class T as it should.
+    TemplateDecl *TD = TA.getAsTemplate().getAsTemplateDecl();
+    assert(TD && "template declaration must be available");
+    TemplateParameterList *TemplateParams = TD->getTemplateParameters();
+    for (NamedDecl *P : *TemplateParams) {
+      // If template template parameter type has an enum value template
+      // parameter, forward declaration of enum type is required. Only enum
+      // values (not types) need to be handled. For example, consider the
+      // following kernel name type:
+      //
+      // template <typename EnumTypeOut, template <EnumValueIn EnumValue,
+      // typename TypeIn> class T> class Foo;
+      //
+      // The correct specialization for Foo (with enum type) is:
+      // Foo<EnumTypeOut, Baz>, where Baz is a template class.
+      //
+      // Therefore the forward class declarations generated in the
+      // integration header are:
+      // template <EnumValueIn EnumValue, typename TypeIn> class Baz;
+      // template <typename EnumTypeOut, template <EnumValueIn EnumValue,
+      // typename EnumTypeIn> class T> class Foo;
+      //
+      // This requires the following enum forward declarations:
+      // enum class EnumTypeOut : int; (Used to template Foo)
+      // enum class EnumValueIn : int; (Used to template Baz)
+      if (NonTypeTemplateParmDecl *TemplateParam =
+              dyn_cast<NonTypeTemplateParmDecl>(P))
+        if (const EnumType *ET = TemplateParam->getType()->getAs<EnumType>())
+          VisitTagType(ET);
+    }
+    checkAndEmitForwardDecl(TD);
+  }
+
+  void VisitPackTemplateArgument(const TemplateArgument &TA) {
+    VisitTemplateArgs(TA.getPackAsArray());
+  }
+
+  void VisitRecordType(const RecordType *T) {
+    checkAndEmitForwardDecl(T->getDecl());
+  }
+
+  void VisitElaboratedType(const ElaboratedType *T) {
+    Visit(T->getNamedType());
+  }
+
+  void VisitFunctionDecl(const FunctionDecl *CFD) {
+    const NamedDecl *CND = cast<NamedDecl>(CFD);
+    NamedDecl *ND = const_cast<NamedDecl *>(CND);
+    checkAndEmitForwardDecl(ND);
+  }
+
+  void VisitFunctionPointerType(QualType FnPtrTy) { EmitAsString(FnPtrTy); }
+};
+
 static void OutputStableNameChar(raw_ostream &O, char C) {
   // If it is reliably printable, print in the integration header as a
   // character. Else just print it as the integral representation.
@@ -5939,6 +6241,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   O << "#include <sycl/detail/defines_elementary.hpp>\n";
   O << "#include <sycl/detail/kernel_desc.hpp>\n";
+  O << "#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>\n";
 
   O << "\n";
 
@@ -6188,7 +6491,68 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "} // namespace detail\n";
   O << "} // namespace _V1\n";
   O << "} // namespace sycl\n";
-  O << "\n";
+
+  FreeFunctionFwdDeclEmitter FFFwdDeclEmitter(O, S.getLangOpts());
+  unsigned ShimCounter = 1;
+  int FreeFunctionCount = 0;
+  for (const KernelDesc &K : KernelDescs) {
+    if (!isFreeFunction(S, K.SyclKernel))
+      continue;
+
+    ++FreeFunctionCount;
+    O << "\n// Definition of " << K.Name << " as a free function kernel\n";
+    if (K.ParamTypes.size() > 0) {
+      for (const auto &P : K.ParamTypes) {
+        FFFwdDeclEmitter.Visit(P);
+      }
+    }
+    FFFwdDeclEmitter.VisitFunctionDecl(K.FreeFunctionCDecl);
+    O << "static constexpr auto __sycl_shim" << ShimCounter << "() {\n";
+    O << "  return (";
+    FFFwdDeclEmitter.VisitFunctionPointerType(
+        S.getASTContext().getPointerType(K.SyclKernel->getType()));
+    O << ")" << K.SyclKernel->getIdentifier()->getName().data() << ";\n";
+    O << "}\n";
+    O << "namespace sycl {\n";
+    O << "template <>\n";
+    O << "struct ext::oneapi::experimental::is_kernel<__sycl_shim"
+      << ShimCounter << "()";
+    O << "> {\n";
+    O << "  static constexpr bool value = true;\n";
+    O << "};\n";
+    int Dim = getFreeFunctionRangeDim(S, K.SyclKernel);
+    O << "template <>\n";
+    if (Dim > 0)
+      O << "struct ext::oneapi::experimental::is_nd_range_kernel<__sycl_shim"
+        << ShimCounter << "(), " << Dim;
+    else
+      O << "struct "
+           "ext::oneapi::experimental::is_single_task_kernel<__sycl_shim"
+        << ShimCounter << "()";
+    O << "> {\n";
+    O << "  static constexpr bool value = true;\n";
+    O << "};\n";
+    O << "}\n";
+    ++ShimCounter;
+  }
+  if (FreeFunctionCount > 0) {
+    O << "\n#include <sycl/kernel_bundle.hpp>\n";
+  }
+  ShimCounter = 1;
+  for (const KernelDesc &K : KernelDescs) {
+    if (!isFreeFunction(S, K.SyclKernel))
+      continue;
+
+    O << "\n// Definition of kernel_id of " << K.Name << "\n";
+    O << "namespace sycl {\n";
+    O << "template <>\n";
+    O << "kernel_id get_kernel_id <__sycl_shim" << ShimCounter << "()>() {\n";
+    O << "  return sycl::detail::get_kernel_id_impl(std::string_view{\""
+      << K.Name << "\"});\n";
+    O << "}\n";
+    O << "}\n";
+    ++ShimCounter;
+  }
 }
 
 bool SYCLIntegrationHeader::emit(StringRef IntHeaderName) {
@@ -6225,6 +6589,18 @@ void SYCLIntegrationHeader::addParamDesc(kernel_param_kind_t Kind, int Info,
   PD.Kind = Kind;
   PD.Info = Info;
   PD.Offset = Offset;
+}
+
+void SYCLIntegrationHeader::addParamType(QualType Type) {
+  auto *K = getCurKernelDesc();
+  assert(K && "no kernels");
+  K->ParamTypes.push_back(Type);
+}
+
+void SYCLIntegrationHeader::setFreeFunctionCDecl(FunctionDecl *FFD) {
+  auto *K = getCurKernelDesc();
+  assert(K && "no kernels");
+  K->FreeFunctionCDecl = FFD;
 }
 
 void SYCLIntegrationHeader::endKernel() {

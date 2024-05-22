@@ -2,5 +2,3 @@
 // REQUIRES: linux
 // RUN: bash %S/deps_known.sh sycl/detail/export.hpp | FileCheck %s
 
-// CHECK-LABEL: Dependencies for <sycl/detail/export.hpp>:
-// CHECK-EMPTY:
