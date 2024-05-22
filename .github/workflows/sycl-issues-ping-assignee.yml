@@ -40,14 +40,16 @@ jobs:
 
           cat issues.json | jq -c '.[]' | while read -r issue; do
             assignees=$(echo "$issue" | jq '.assignees | length')
-            if [ "$assignees" -gt 0 ]; then
-              updated_at=$(echo "$issue" | jq -r '.updatedAt')
-              updated_at_seconds=$(date -d "$updated_at" +%s)
-              difference_days=$(( (current_time - updated_at_seconds) / 86400 ))
-              if [ "$difference_days" -gt $days_to_stale ]; then
-                issue_number=$(echo "$issue" | jq '.number')
-                assignee_logins=$(echo "$issue" | jq -r '.assignees[].login' | sed 's/^/@/' | paste -s -d ' ' -)
-                comment_body="Hi! There have been no updates for at least the last $days_to_stale days, though the issue has assignee(s).
+            [ "$assignees" -eq 0 ] && continue
+
+            updated_at=$(echo "$issue" | jq -r '.updatedAt')
+            updated_at_seconds=$(date -d "$updated_at" +%s)
+            difference_days=$(( (current_time - updated_at_seconds) / 86400 ))
+            [ "$difference_days" -lt $days_to_stale ] && continue
+
+            issue_number=$(echo "$issue" | jq '.number')
+            assignee_logins=$(echo "$issue" | jq -r '.assignees[].login' | sed 's/^/@/' | paste -s -d ' ' -)
+            comment_body="Hi! There have been no updates for at least the last $days_to_stale days, though the issue has assignee(s).
 
           $assignee_logins, could you please take one of the following actions:
           - provide an update if you have any
@@ -58,7 +60,5 @@ jobs:
 
           Thanks!"
 
-                gh issue comment $issue_number -R https://github.com/${{ env.REPO }}.git -b "$comment_body" >> $GITHUB_STEP_SUMMARY
-              fi
-            fi
+            gh issue comment $issue_number -R https://github.com/${{ env.REPO }}.git -b "$comment_body" >> $GITHUB_STEP_SUMMARY
           done
