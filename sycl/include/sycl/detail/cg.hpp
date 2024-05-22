@@ -535,8 +535,8 @@ public:
       std::optional<uint64_t> WaitValue, CG::StorageInitHelper CGData,
       detail::code_location loc = {})
       : CG(SemaphoreWait, std::move(CGData), std::move(loc)),
-        MInteropSemaphoreHandle(InteropSemaphoreHandle),
-        MWaitValue(WaitValue) {}
+        MInteropSemaphoreHandle(InteropSemaphoreHandle), MWaitValue(WaitValue) {
+  }
 
   sycl::detail::pi::PiInteropSemaphoreHandle getInteropSemaphoreHandle() const {
     return MInteropSemaphoreHandle;

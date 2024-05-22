@@ -1402,7 +1402,6 @@ void handler::ext_oneapi_wait_external_semaphore(
   }
   MImpl->MInteropSemaphoreHandle =
       (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
-  // MImpl->MHasWaitValue = false;
   MImpl->MWaitValue = {};
   setType(detail::CG::SemaphoreWait);
 }
@@ -1423,7 +1422,6 @@ void handler::ext_oneapi_wait_external_semaphore(
   }
   MImpl->MInteropSemaphoreHandle =
       (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
-  // MImpl->MHasWaitValue = true;
   MImpl->MWaitValue = WaitValue;
   setType(detail::CG::SemaphoreWait);
 }
@@ -1446,7 +1444,6 @@ void handler::ext_oneapi_signal_external_semaphore(
   }
   MImpl->MInteropSemaphoreHandle =
       (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
-  // MImpl->MHasSignalValue = false;
   MImpl->MSignalValue = {};
   setType(detail::CG::SemaphoreSignal);
 }
@@ -1467,7 +1464,6 @@ void handler::ext_oneapi_signal_external_semaphore(
   }
   MImpl->MInteropSemaphoreHandle =
       (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
-  // MImpl->MHasSignalValue = true;
   MImpl->MSignalValue = SignalValue;
   setType(detail::CG::SemaphoreSignal);
 }

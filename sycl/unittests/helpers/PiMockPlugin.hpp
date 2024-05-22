@@ -556,17 +556,15 @@ mock_piextDestroyExternalSemaphore(pi_context context, pi_device device,
 
 inline pi_result mock_piextWaitExternalSemaphore(
     pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
-    bool has_wait_value, pi_uint64 wait_value,
-    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
-    pi_event *event) {
+    std::optional<uint64_t> wait_value, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event) {
   return PI_SUCCESS;
 }
 
 inline pi_result mock_piextSignalExternalSemaphore(
     pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
-    bool has_signal_value, pi_uint64 signal_value,
-    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
-    pi_event *event) {
+    std::optional<uint64_t> signal_value, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event) {
   return PI_SUCCESS;
 }
 
