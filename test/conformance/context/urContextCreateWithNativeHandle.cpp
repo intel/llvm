@@ -10,8 +10,9 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urContextCreateWithNativeHandleTest);
 
 TEST_P(urContextCreateWithNativeHandleTest, Success) {
     ur_native_handle_t native_context = nullptr;
-    if (urContextGetNativeHandle(context, &native_context)) {
-        GTEST_SKIP();
+    {
+        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+            urContextGetNativeHandle(context, &native_context));
     }
 
     // We cannot assume anything about a native_handle, not even if it's
@@ -20,8 +21,8 @@ TEST_P(urContextCreateWithNativeHandleTest, Success) {
     // and perform some query on it to verify that it works.
     ur_context_handle_t ctx = nullptr;
     ur_context_native_properties_t props{};
-    ASSERT_SUCCESS(urContextCreateWithNativeHandle(native_context, 1, &device,
-                                                   &props, &ctx));
+    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urContextCreateWithNativeHandle(
+        native_context, 1, &device, &props, &ctx));
     ASSERT_NE(ctx, nullptr);
 
     uint32_t n_devices = 0;
@@ -29,4 +30,65 @@ TEST_P(urContextCreateWithNativeHandleTest, Success) {
                                     sizeof(uint32_t), &n_devices, nullptr));
 
     ASSERT_SUCCESS(urContextRelease(ctx));
+}
+
+TEST_P(urContextCreateWithNativeHandleTest, SuccessWithOwnedNativeHandle) {
+    ur_native_handle_t native_context = nullptr;
+    {
+        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+            urContextGetNativeHandle(context, &native_context));
+    }
+
+    ur_context_handle_t ctx = nullptr;
+    ur_context_native_properties_t props{
+        UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES, nullptr, true};
+    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urContextCreateWithNativeHandle(
+        native_context, 1, &device, &props, &ctx));
+    ASSERT_NE(ctx, nullptr);
+
+    uint32_t ref_count = 0;
+    ASSERT_SUCCESS(urContextGetInfo(ctx, UR_CONTEXT_INFO_REFERENCE_COUNT,
+                                    sizeof(uint32_t), &ref_count, nullptr));
+    ASSERT_EQ(ref_count, 1);
+}
+
+TEST_P(urContextCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
+    ur_native_handle_t native_context = nullptr;
+    {
+        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+            urContextGetNativeHandle(context, &native_context));
+    }
+
+    ur_context_handle_t ctx = nullptr;
+    ur_context_native_properties_t props{
+        UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES, nullptr, false};
+    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urContextCreateWithNativeHandle(
+        native_context, 1, &device, &props, &ctx));
+    ASSERT_NE(ctx, nullptr);
+
+    uint32_t ref_count = 0;
+    ASSERT_SUCCESS(urContextGetInfo(ctx, UR_CONTEXT_INFO_REFERENCE_COUNT,
+                                    sizeof(uint32_t), &ref_count, nullptr));
+    ASSERT_EQ(ref_count, 2);
+
+    ASSERT_SUCCESS(urContextRelease(ctx));
+}
+
+TEST_P(urContextCreateWithNativeHandleTest, InvalidNullPointerDevices) {
+    ur_native_handle_t native_context = nullptr;
+    ASSERT_SUCCESS(urContextGetNativeHandle(context, &native_context));
+
+    ur_context_handle_t ctx = nullptr;
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
+                     urContextCreateWithNativeHandle(native_context, 1, nullptr,
+                                                     nullptr, &ctx));
+}
+
+TEST_P(urContextCreateWithNativeHandleTest, InvalidNullPointerContext) {
+    ur_native_handle_t native_context = nullptr;
+    ASSERT_SUCCESS(urContextGetNativeHandle(context, &native_context));
+
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
+                     urContextCreateWithNativeHandle(native_context, 1, &device,
+                                                     nullptr, nullptr));
 }
