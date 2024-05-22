@@ -3,6 +3,43 @@ Release notes for commit range f4e0d3177338..f4ed132f243a
 
 ## New Features
 ### SYCL Compiler
+
+### SYCL Library
+
+### Documentation
+
+
+## Improvements
+### SYCL Compiler
+
+### SYCL Library
+
+### Documentation
+
+
+## Bug Fixes
+### SYCL Compiler
+
+### SYCL Library
+
+### Documentation
+
+
+## API/ABI breakages
+
+
+## Upcoming API/ABI breakages
+
+
+## Known Issues
+
+
+
+# Nov'23 release notes
+Release notes for commit range f4e0d3177338..f4ed132f243a
+
+## New Features
+### SYCL Compiler
 - Added `-fpreview-breaking-changes` option (see ["Upcoming API/ABI breakages"](#upcoming-apiabi-breakages) section for more details) [08febcfcb64a] [99b97eef4278]
 - Enabled early AOT abilities when creating objects [6f248088541c]
 - Added support for `-faltmathlib` [32c3e642d644]
