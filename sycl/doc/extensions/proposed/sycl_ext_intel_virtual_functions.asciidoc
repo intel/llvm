@@ -616,3 +616,22 @@ int main() {
   return 0;
 }
 ----
+
+== Issues
+
+=== Handling of `reqd_sub_group_size` attribute
+
+The extension allows virtual calls to be performed only from kernels with
+_primary_ sub-group size, which is quite limiting and doesn't allow you to rely
+on a particular sub-group size you want within a virtual function.
+
+This is more of an implementation limitation, rather than a language problem,
+because at both SPIR-V and SYCL levels we don't have a mechanism of assigning
+`reqd_sub_group_size` attribute to on-kernel SYCL functions and considering
+indirect nature of virtual functions, compiler may not be able to figure out
+which kernels use which exact virtual functions.
+
+By implementing some extra interfaces at SPIR-V and SYCL level we should be able
+to improve the situation and lift some of the limitations around
+`reqd_sub_group_size` attribute use together with virtual functions, but this
+won't be a part of the initial language specification and implementation.
