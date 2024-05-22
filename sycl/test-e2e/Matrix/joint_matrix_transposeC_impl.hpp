@@ -11,6 +11,8 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
+template <size_t TM> class LS;
+
 template <size_t TM, size_t TN, typename T1, size_t NUM_ROWS, size_t NUM_COLS>
 void matrix_load_and_store(T1 *input, T1 *out_col_major, T1 *out_row_major,
                            queue q) {
@@ -22,11 +24,16 @@ void matrix_load_and_store(T1 *input, T1 *out_col_major, T1 *out_row_major,
 
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
+  size_t sg_size = get_sg_size<class LS<TM>>(q);
 
   q.submit([&](handler &cgh) {
-     cgh.parallel_for(
-         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]] {
+     cgh.parallel_for<class LS<TM>>(
+         nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
+         [=](nd_item<2> spmd_item)
+#ifdef SG_SZ
+             [[intel::reqd_sub_group_size(SG_SZ)]]
+#endif
+         {
            auto p_input =
                address_space_cast<sycl::access::address_space::global_space,
                                   sycl::access::decorated::no>(input);
@@ -47,9 +54,9 @@ void matrix_load_and_store(T1 *input, T1 *out_col_major, T1 *out_row_major,
            joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_matrix;
 
            auto row_major_offset =
-               (sg_startx * TM) * N + (sg_starty / SG_SZ * TN);
+               (sg_startx * TM) * N + (sg_starty / sg_size * TN);
            auto col_major_offset =
-               (sg_startx * TM) + (sg_starty / SG_SZ * TN) * M;
+               (sg_startx * TM) + (sg_starty / sg_size * TN) * M;
 
            joint_matrix_load(sg, sub_matrix, p_input + col_major_offset, M,
                              layout::col_major);

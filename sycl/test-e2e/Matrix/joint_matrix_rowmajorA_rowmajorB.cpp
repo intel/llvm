@@ -18,8 +18,4 @@
 // transform. This is currently only available on AMX and XMX of PVC
 
 #include "common.hpp"
-
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-
 #include "joint_matrix_rowmajorA_rowmajorB_impl.hpp"

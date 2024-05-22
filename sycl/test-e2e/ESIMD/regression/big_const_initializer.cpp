@@ -5,18 +5,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %{build} -I%S/.. -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // This test checks that ESIMD program with big constant initializer list can
 // compile and run correctly.
 
-#include "esimd_test_utils.hpp"
-
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
-#include <iostream>
+#include "../esimd_test_utils.hpp"
 
 #define SIMD_WIDTH 16
 
