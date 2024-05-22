@@ -39,19 +39,58 @@ TEST_P(urEnqueueKernelLaunchCustomTest, Success) {
     GTEST_SKIP() << "EXP launch attributes feature is not supported.";
   }
 
+  std::vector<ur_exp_launch_attribute_t> attrs(1);
+  attrs[0].id = UR_EXP_LAUNCH_ATTRIBUTE_ID_IGNORE;
+
+  ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_PROFILE, 0, nullptr,
+                                 &returned_size));
+
+  std::unique_ptr<char[]> returned_backend(new char[returned_size]);
+
+  ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_PROFILE, returned_size,
+                                 returned_backend.get(), nullptr));
+
+  std::string_view backend_string(returned_backend.get());
+  const bool cuda_backend = backend_string.find("CUDA") != std::string::npos;
+
+  if (cuda_backend) {
+    ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_VERSION, 0, nullptr,
+                                   &returned_size));
+
+    std::unique_ptr<char[]> returned_compute_capability(
+        new char[returned_size]);
+
+    ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_VERSION,
+                                   returned_size,
+                                   returned_compute_capability.get(), nullptr));
+
+    auto compute_capability =
+        std::stof(std::string(returned_compute_capability.get()));
+
+    if (compute_capability >= 6.0) {
+      ur_exp_launch_attribute_t coop_attr;
+      coop_attr.id = UR_EXP_LAUNCH_ATTRIBUTE_ID_COOPERATIVE;
+      coop_attr.value.cooperative = 1;
+      attrs.push_back(coop_attr);
+    }
+
+    if (compute_capability >= 9.0) {
+      ur_exp_launch_attribute_t cluster_dims_attr;
+      cluster_dims_attr.id = UR_EXP_LAUNCH_ATTRIBUTE_ID_CLUSTER_DIMENSION;
+      cluster_dims_attr.value.clusterDim[0] = 32;
+      cluster_dims_attr.value.clusterDim[1] = 1;
+      cluster_dims_attr.value.clusterDim[2] = 1;
+
+      attrs.push_back(cluster_dims_attr);
+    }
+  }
   ur_mem_handle_t buffer = nullptr;
   AddBuffer1DArg(sizeof(val) * global_size, &buffer);
   AddPodArg(val);
 
-  ur_exp_launch_attribute_t attr[1];
-  attr[0].id = UR_EXP_LAUNCH_ATTRIBUTE_ID_CLUSTER_DIMENSION;
-  attr[0].value.clusterDim[0] = global_size;
-  attr[0].value.clusterDim[1] = 1;
-  attr[0].value.clusterDim[2] = 1;
-
-  ASSERT_SUCCESS(urEnqueueKernelLaunchCustomExp(queue, kernel, n_dimensions,
-                                                &global_size, nullptr, 1,
-                                                attr, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchCustomExp(
+      queue, kernel, n_dimensions, &global_size, nullptr, 1, &attrs[0], 0,
+      nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
   ValidateBuffer(buffer, sizeof(val) * global_size, val);
 }
