@@ -2355,7 +2355,7 @@ public:
 
   Value *CreateICmp(CmpInst::Predicate P, Value *LHS, Value *RHS,
                     const Twine &Name = "") {
-    if (auto *V = Folder.FoldICmp(P, LHS, RHS))
+    if (auto *V = Folder.FoldCmp(P, LHS, RHS))
       return V;
     return Insert(new ICmpInst(P, LHS, RHS), Name);
   }

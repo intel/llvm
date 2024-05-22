@@ -2860,6 +2860,10 @@ void OpenACCClauseEnqueue::VisitWaitClause(const OpenACCWaitClause &C) {
 }
 void OpenACCClauseEnqueue::VisitDeviceTypeClause(
     const OpenACCDeviceTypeClause &C) {}
+void OpenACCClauseEnqueue::VisitReductionClause(
+    const OpenACCReductionClause &C) {
+  VisitVarList(C);
+}
 } // namespace
 
 void EnqueueVisitor::EnqueueChildren(const OpenACCClause *C) {
