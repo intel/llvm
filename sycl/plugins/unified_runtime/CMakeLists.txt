@@ -104,8 +104,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   set(UNIFIED_RUNTIME_TAG 85771876a5c2a13e3b24c048f0c0d81720d47ccc)
 
   fetch_adapter_source(level_zero
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    https://github.com/aarongreig/unified-runtime.git
+    aaron/fixL0DeviceInfoSizes
   )
 
   fetch_adapter_source(opencl
