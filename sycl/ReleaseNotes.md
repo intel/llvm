@@ -102,16 +102,12 @@ Release notes for commit range [f4e0d3177338](https://github.com/intel/llvm/comm
 ### Documentation
 - Clarified [ext_oneapi_graph](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_graph.asciidoc) SYCL extension to make it illegal for graph nodes to depend on events from outside the graph. [2581123a1]
 
-## API/ABI breakages
-
-## Upcoming API/ABI breakages
-
-
 ## Known Issues
 - On Windows, the Unified Runtime's Level Zero leak check does not work correctly with
 the default contexts on Windows. This is because on Windows the release
 of the plugin DLLs races against the release of static global variables
 (like the default context).
+- Intel Graphic Compiler's Vector Compute backend does not support O0 code and often gets miscompiled, produces wrong answers and crashes. This issue directly affects ESIMD code at O0. As a temporary workaround, we have optimize ESIMD code even in O0 mode. [00749b1e8](https://github.com/intel/llvm/commit/00749b1e8e3085acfdc63108f073a255842533e2)
 
 
 # Nov'23 release notes
