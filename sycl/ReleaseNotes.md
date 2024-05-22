@@ -104,12 +104,11 @@ Release notes for commit range [f4e0d3177338](https://github.com/intel/llvm/comm
 
 ## API/ABI breakages
 
-
 ## Upcoming API/ABI breakages
 
 
 ## Known Issues
-- On Windows, the UR L0 Leak check does not work correctly with
+- On Windows, the Unified Runtime's Level Zero leak check does not work correctly with
 the default contexts on Windows. This is because on Windows the release
 of the plugin DLLs races against the release of static global variables
 (like the default context).
