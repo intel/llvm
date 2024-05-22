@@ -15,9 +15,6 @@
 // RUN: %{run} %t.out
 
 #include "common.hpp"
-#include <iostream>
-#include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/matrix/matrix.hpp>
 
 #define SG_SZ 16
 
@@ -109,23 +106,6 @@ bfloat16 B[MATRIX_K / 2][MATRIX_N * 2];
 float C[MATRIX_M][MATRIX_N];
 float D[MATRIX_M][MATRIX_N];
 
-void matrix_multiply_ref(int *A_mem, int *B_mem, int *C_mem, int M, int N,
-                         int K) {
-  for (int m = 0; m < M; m++)
-    for (int n = 0; n < N; n++) {
-      for (int k = 0; k < K; k++) {
-        bfloat16 *va = (bfloat16 *)(A_mem + m * K + k);
-        bfloat16 *vb = (bfloat16 *)(B_mem + k * N + n);
-        float acc = *((float *)(C_mem + m * N + n));
-        for (int i = 0; i < 2; i++) {
-          acc += (make_fp32(va[i]) * make_fp32(vb[i]));
-        }
-        *((float *)(C_mem + m * N + n)) = acc;
-      }
-      *((float *)(C_mem + m * N + n)) += 5.0;
-    }
-}
-
 int main() {
   for (int i = 0; i < MATRIX_M; i++) {
     for (int j = 0; j < MATRIX_K; j++) {
@@ -149,8 +129,9 @@ int main() {
   big_matrix<bfloat16, MATRIX_M, MATRIX_K> MA((bfloat16 *)&A);
   big_matrix<bfloat16, MATRIX_K / 2, MATRIX_N * 2> MB((bfloat16 *)&B);
   matrix_multiply(MC, MA, MB);
-  matrix_multiply_ref((int32_t *)A, (int32_t *)B, (int32_t *)D, MATRIX_M,
-                      MATRIX_N, MATRIX_K / 2);
+  matrix_multiply_ref<bfloat16, bfloat16, float, 2>(
+      (bfloat16 *)A, (bfloat16 *)B, (float *)D, MATRIX_M, MATRIX_N,
+      MATRIX_K / 2, false, false, false, [](float &x) { x = x + 5.0; });
 
   bool res = true;
   for (int i = 0; i < MATRIX_M; i++) {
