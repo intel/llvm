@@ -49,7 +49,7 @@ public:
   /// Normally constructs a host event, use std::nullopt to instead instantiate
   /// a device event.
   event_impl(std::optional<HostEventState> State = HES_Complete)
-      : MIsInitialized(false), MHostEvent(State), MIsFlushed(true),
+      : MIsInitialized(false), MIsFlushed(true),
         MState(State.value_or(HES_Complete)) {
     // Need to fail in event() constructor  if there are problems with the
     // ONEAPI_DEVICE_SELECTOR. Deferring may lead to conficts with noexcept
@@ -364,7 +364,6 @@ protected:
   uint64_t MSubmitTime = 0;
   uint64_t MHostBaseTime = 0;
   ContextImplPtr MContext;
-  bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;

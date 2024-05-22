@@ -37,20 +37,9 @@ void event_impl::ensureContextInitialized() {
   if (MIsContextInitialized)
     return;
 
-  if (MHostEvent) {
-    QueueImplPtr HostQueue = Scheduler::getInstance().getDefaultHostQueue();
-    this->setContextImpl(detail::getSyclObjImpl(HostQueue->get_context()));
-  } else {
-    const device SyclDevice;
-    this->setContextImpl(detail::queue_impl::getDefaultOrNew(
-        detail::getSyclObjImpl(SyclDevice)));
-  }
-}
-
-bool event_impl::is_host() {
-  // Treat all devices that don't support interoperability as host devices to
-  // avoid attempts to call method get on such events.
-  return MHostEvent;
+  const device SyclDevice;
+  this->setContextImpl(detail::queue_impl::getDefaultOrNew(
+      detail::getSyclObjImpl(SyclDevice)));
 }
 
 event_impl::~event_impl() {
@@ -59,7 +48,7 @@ event_impl::~event_impl() {
 }
 
 void event_impl::waitInternal(bool *Success) {
-  if (!MHostEvent && MEvent) {
+  if (MEvent) {
     // Wait for the native event
     sycl::detail::pi::PiResult Err =
         getPlugin()->call_nocheck<PiApiKind::piEventsWait>(1, &MEvent);
@@ -92,7 +81,7 @@ void event_impl::waitInternal(bool *Success) {
 }
 
 void event_impl::setComplete() {
-  if (MHostEvent || !MEvent) {
+  if (!MEvent) {
     {
       std::unique_lock<std::mutex> lock(MMutex);
 #ifndef NDEBUG
@@ -137,7 +126,6 @@ const PluginPtr &event_impl::getPlugin() {
 void event_impl::setStateIncomplete() { MState = HES_NotComplete; }
 
 void event_impl::setContextImpl(const ContextImplPtr &Context) {
-  MHostEvent = Context->is_host();
   MContext = Context;
   MIsContextInitialized = true;
 }
@@ -145,7 +133,7 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
 event_impl::event_impl(sycl::detail::pi::PiEvent Event,
                        const context &SyclContext)
     : MIsContextInitialized(true), MEvent(Event),
-      MContext(detail::getSyclObjImpl(SyclContext)), MHostEvent(false),
+      MContext(detail::getSyclObjImpl(SyclContext)),
       MIsFlushed(true), MState(HES_Complete) {
 
   if (MContext->is_host()) {
@@ -317,7 +305,7 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   // made by forcing the re-sync of submit time to start time is less than
   // 0.5ms. These timing values were obtained empirically using an integrated
   // Intel GPU).
-  if (MEventFromSubmittedExecCommandBuffer && !MHostEvent && MEvent) {
+  if (MEventFromSubmittedExecCommandBuffer && MEvent) {
     uint64_t StartTime =
         get_event_profiling_info<info::event_profiling::command_start>(
             this->getHandleRef(), this->getPlugin());
@@ -336,20 +324,19 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
   if (isNOP() && MSubmitTime)
     return MSubmitTime;
 
-  if (!MHostEvent) {
-    if (MEvent) {
-      auto StartTime =
-          get_event_profiling_info<info::event_profiling::command_start>(
+  if (MEvent) {
+    auto StartTime =
+        get_event_profiling_info<info::event_profiling::command_start>(
+            this->getHandleRef(), this->getPlugin());
+    if (!MFallbackProfiling) {
+      return StartTime;
+    } else {
+      auto DeviceBaseTime =
+          get_event_profiling_info<info::event_profiling::command_submit>(
               this->getHandleRef(), this->getPlugin());
-      if (!MFallbackProfiling) {
-        return StartTime;
-      } else {
-        auto DeviceBaseTime =
-            get_event_profiling_info<info::event_profiling::command_submit>(
-                this->getHandleRef(), this->getPlugin());
-        return MHostBaseTime - DeviceBaseTime + StartTime;
-      }
+      return MHostBaseTime - DeviceBaseTime + StartTime;
     }
+  
     return 0;
   }
   if (!MHostProfilingInfo)
@@ -368,19 +355,17 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   if (isNOP() && MSubmitTime)
     return MSubmitTime;
 
-  if (!MHostEvent) {
-    if (MEvent) {
-      auto EndTime =
-          get_event_profiling_info<info::event_profiling::command_end>(
+  if (MEvent) {
+    auto EndTime =
+        get_event_profiling_info<info::event_profiling::command_end>(
+            this->getHandleRef(), this->getPlugin());
+    if (!MFallbackProfiling) {
+      return EndTime;
+    } else {
+      auto DeviceBaseTime =
+          get_event_profiling_info<info::event_profiling::command_submit>(
               this->getHandleRef(), this->getPlugin());
-      if (!MFallbackProfiling) {
-        return EndTime;
-      } else {
-        auto DeviceBaseTime =
-            get_event_profiling_info<info::event_profiling::command_submit>(
-                this->getHandleRef(), this->getPlugin());
-        return MHostBaseTime - DeviceBaseTime + EndTime;
-      }
+      return MHostBaseTime - DeviceBaseTime + EndTime;
     }
     return 0;
   }
@@ -393,7 +378,7 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
 }
 
 template <> uint32_t event_impl::get_info<info::event::reference_count>() {
-  if (!MHostEvent && MEvent) {
+  if (MEvent) {
     return get_event_info<info::event::reference_count>(this->getHandleRef(),
                                                         this->getPlugin());
   }
@@ -406,17 +391,15 @@ event_impl::get_info<info::event::command_execution_status>() {
   if (MState == HES_Discarded)
     return info::event_command_status::ext_oneapi_unknown;
 
-  if (!MHostEvent) {
-    // Command is enqueued and PiEvent is ready
-    if (MEvent)
-      return get_event_info<info::event::command_execution_status>(
-          this->getHandleRef(), this->getPlugin());
-    // Command is blocked and not enqueued, PiEvent is not assigned yet
-    else if (MCommand)
-      return sycl::info::event_command_status::submitted;
-  }
+  // Command is enqueued and PiEvent is ready
+  if (MEvent)
+    return get_event_info<info::event::command_execution_status>(
+        this->getHandleRef(), this->getPlugin());
+  // Command is blocked and not enqueued, PiEvent is not assigned yet
+  else if (MCommand)
+    return sycl::info::event_command_status::submitted;
 
-  return MHostEvent && MState.load() != HES_Complete
+  return MState.load() != HES_Complete
              ? sycl::info::event_command_status::submitted
              : info::event_command_status::complete;
 }
