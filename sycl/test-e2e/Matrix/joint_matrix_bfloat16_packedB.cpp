@@ -12,6 +12,4 @@
 // RUN: %{run} %t.out
 
 #include "common.hpp"
-
-#define SG_SZ 16
 #include "joint_matrix_bfloat16_packedB_impl.hpp"

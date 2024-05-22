@@ -228,25 +228,6 @@ and not recommended to use in production environment.
     module that can be linked later by any standard host linker into the final
     fat binary.
 
-**`-foffload-static-lib=<lib>`** [DEPRECATED]
-
-    Link with fat static library.
-
-    Link with <lib>, which is a fat static archive containing fat objects which
-    correspond to the target device. When linking clang will extract the device
-    code from the objects contained in the library and link it with other
-    device objects coming from the individual fat objects passed on the command
-    line.
-    NOTE:  Any libraries that are passed on the command line which are not
-    specified with `-foffload-static-lib` are treated as host libraries and are
-    only used during the final host link.
-
-**`-foffload-whole-static-lib=<lib>`** [DEPRECATED]
-
-    Similar to `-foffload-static-lib` but uses the whole archive when
-    performing the device code extraction.  This is helpful when creating
-    shared objects from fat static archives.
-
 **`-fsycl-device-code-split=<mode>`**
 
     Specifies SYCL device code module assembly. Mode is one of the following:

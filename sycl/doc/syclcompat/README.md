@@ -1457,6 +1457,17 @@ static void invoke_kernel_function(kernel_function &function,
 
 ### Math Functions
 
+The `funnelshift_*` APIs perform a concatenate-shift operation on two 32-bit
+values, and return a 32-bit result. The two unsigned integer arguments (`low`
+and `high`) are concatenated to a 64-bit value which is then shifted left or
+right by `shift` bits. The functions then return either the least- or
+most-significant 32 bits. The `_l*` variants shift *left* and return the *most*
+significant 32 bits, while the `_r*` variants shift *right* and return the
+*least* significant 32 bits. The `_l`/`_r` APIs differ from the `_lc`/`_rc` APIs
+in how they clamp the `shift` argument: `funnelshift_l` and `funnelshift_r`
+shift the result by `shift & 31` bits, whereas `funnelshift_lc` and
+`funnelshift_rc` shift the result by `min(shift, 32)` bits.
+
 `syclcompat::fast_length` provides a wrapper to SYCL's
 `fast_length(sycl::vec<float,N>)` that accepts arguments for a C++ array and a
 length. `syclcompat::length` provides a templated version that wraps over
@@ -1480,6 +1491,18 @@ The functions `cmul`,`cdiv`,`cabs`, `cmul_add`, and `conj` define complex math o
 which accept `sycl::vec<T,2>` arguments representing complex values.
 
 ```cpp
+inline unsigned int funnelshift_l(unsigned int low, unsigned int high,
+                                  unsigned int shift); 
+
+inline unsigned int funnelshift_lc(unsigned int low, unsigned int high,
+                                   unsigned int shift); 
+
+inline unsigned int funnelshift_r(unsigned int low, unsigned int high,
+                                  unsigned int shift);
+
+inline unsigned int funnelshift_rc(unsigned int low, unsigned int high,
+                                   unsigned int shift);
+
 inline float fast_length(const float *a, int len);
 
 template <typename ValueT>

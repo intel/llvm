@@ -22,7 +22,9 @@
 #include <cmath>
 #include <iostream>
 #include <math.h>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 #include <unistd.h>
 
 using namespace sycl;
