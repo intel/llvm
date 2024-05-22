@@ -4,7 +4,8 @@
 // RUN: env ZE_FLAT_DEVICE_HIERARCHY=FLAT %{run} %t.out
 // UNSUPPORTED: (windows && level_zero)
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/composite_device.hpp>
 
 #ifdef SYCL_EXT_ONEAPI_COMPOSITE_DEVICE
 

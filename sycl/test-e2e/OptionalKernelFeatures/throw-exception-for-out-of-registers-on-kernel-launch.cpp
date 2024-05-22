@@ -7,7 +7,7 @@
 #include <string_view>
 #include <type_traits>
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 // The test aims to use more than 64 registers meaning that with the maximum
 // workgroup size (assumed 1024 on most CUDA SMs), will produce a launch

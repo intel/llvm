@@ -3,7 +3,8 @@
 // RUN: %{run} %t.out
 
 #include <level_zero/ze_api.h>
-#include <sycl/sycl.hpp>
+#include <sycl/backend.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 
