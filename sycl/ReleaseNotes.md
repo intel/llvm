@@ -1,12 +1,43 @@
-# Nov'23 release notes
-Release notes for commit range f4e0d3177338..f4ed132f243a
+# Mar'24 release notes
+Release notes for commit range [f4e0d3177338](https://github.com/intel/llvm/commit/f4ed132f243ab43816ebe826669d978139964df2).. [d2817d6d317db1](https://github.com/intel/llvm/commit/d2817d6d317db1143bb227168e85c409d5ab7c82)
 
 ## New Features
 ### SYCL Compiler
 
+- Added more available CPU for `-march` option in OpenCL AOT compiler. [7911773c]
+- Added support for additional AMD GPU targets. [c1ce15944]
+- Added C++11 ABI=0 support. [459e122a]
+- Created an additional version-agnostic copy of the SYCL import library during compiler build. [2d2e418c]
+
 ### SYCL Library
 
+- Implemented [ext_oneapi_kernel_compiler](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler.asciidoc) SYCL extension.  [096676e8] [e5826540] [67086100]
+- Implemented [ext_intel_fp_control] (https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_intel_fp_control.asciidoc) SYCL extension. [bf8ea96f]
+- Implemented [ext_oneapi_kernel_compiler_opencl](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler_opencl.asciidoc) SYCL extension. [6344ead19]
+- Enabled kernel fusion with heterogenous ND ranges for HIP targets. [e44888873]
+- Enabled [ext_oneapi_graph](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_graph.asciidoc) SYCL extension for OpenCL and HIP backend. [5d7524543] [897b27076]
+- Supported graph partitioning for host task dependencies in [ext_oneapi_graph](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_graph.asciidoc) SYCL extension. [d53f123a]
+- Added ESIMD APIs for stochastic rounding, property-based gather, masked-gather, and ReaD timestamp counting. [aa4e87801] [3eca2d473] [1261e0518]
+- Added out-of-bounds `load`,`store`,`fill` and overloads accepting annotated pointers in [ext_oneapi_matrix](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_matrix/sycl_ext_oneapi_matrix.asciidoc) SYCL extension [4c17a7f39] [f3137e99]
+- Supported `Queue::mem_advise` on HIP backends [a669374b7] [ab86d0db]
+- Supported `fill` and `memset` nodes in [ext_oneapi_graph](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_graph.asciidoc) SYCL extension. [8ea022954]
+- Implemented [ext_oneapi_in_order_queue_events](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_in_order_queue_events.asciidoc) SYCL extension. [19072756e]
+- Implemented [ext_oneapi_address_cast](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_address_cast.asciidoc) SYCL extension. [123705190]
+- Implemented [ext_oneapi_kernel_compiler_spirv](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler_spirv.asciidoc) SYCL extension. [36e123d3e1]
+- Implemented [ext_oneapi_composite_device](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_composite_device.asciidoc) SYCL extension. [2db1a4f6a5]
+- Implemented joing matrix query from [ext_oneapi_matrix](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_matrix/sycl_ext_oneapi_matrix.asciidoc) SYCL extension on CUDA and HIP backends. [00eebe1e4]
+- Add support for unsampled image arrays in bindless image extension. [76ec3f0f7]
+- Added `__imf_rcp64h` - equivalent to CUDA's `__nv_rcp64h` - to Intel math libdevice. [ce70cb521]
+- Integrated OneAPI construction kit's vectorizer to Native CPU backend. [330ac57d6]
+- Added ability to compare device architecture and support for PVC-VG to [ext_oneapi_device_architecture](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) SYCL extension. [68445467] [ac0e142e12]
+- Added helper functions in SYCLCompat library for occupancy calculation in Intel GPUs. [b209b321]
+
 ### Documentation
+- Proposed [ext_intel_fp_control](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_intel_fp_control.asciidoc) extension to allow specifying the rounding and denorm mode for floating-point operations in SYCL kernels. [bf8ea96f4]
+- Proposed [ext_oneapi_raw_kernel_arg](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_raw_kernel_arg.asciidoc) SYCL extension to allow opaque types to be passed to SYCL kernels. [4168793978]
+- Proposed [ext_oneapi_composite_device](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_composite_device.asciidoc) SYCL extension to allow card-level device access on PVC GPUs. [9a1b9084]
+- Proposed [ext_oneapi_in_order_queue_events](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_in_order_queue_events.asciidoc) SYCL extension to allow getting event from the last submitted command and setting an external event as an implicit dependence on the next command submitted to the queue [19072756e]
+- Proposed [ext_oneapi_profiling_tag](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_profiling_tag.asciidoc) SYCL extension to time commands submitted to the queue. [b4ade420]
 
 
 ## Improvements
@@ -15,6 +46,7 @@ Release notes for commit range f4e0d3177338..f4ed132f243a
 ### SYCL Library
 
 ### Documentation
+- Updated [ext_oneapi_kernel_compiler_opencl](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler_opencl.asciidoc) SYCL extension to allow querying OpenCL version. [6344ead19e]
 
 
 ## Bug Fixes
