@@ -50,7 +50,8 @@ ur_result_t ur_event_handle_t_::start() {
 
   try {
     if (Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE || isTimestampEvent()) {
-      UR_CHECK_ERROR(hipEventRecord(EvQueued, Queue->getProfilingStream()));
+      UR_CHECK_ERROR(
+          hipEventRecord(EvQueued, Queue->getHostSubmitTimeStream()));
       UR_CHECK_ERROR(hipEventRecord(EvStart, Stream));
     }
   } catch (ur_result_t Error) {

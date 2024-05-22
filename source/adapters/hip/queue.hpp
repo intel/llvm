@@ -25,10 +25,9 @@ struct ur_queue_handle_t_ {
 
   std::vector<native_type> ComputeStreams;
   std::vector<native_type> TransferStreams;
-  // Stream used solely when profiling is enabled
-  native_type ProfStream;
-  bool IsProfStreamCreated{false};
-  std::once_flag ProfStreamFlag;
+  // Stream used for recording EvQueue. It is created only if profiling is
+  // enabled - either for the queue or per event.
+  native_type HostSubmitTimeStream{0};
   // DelayCompute keeps track of which streams have been recently reused and
   // their next use should be delayed. If a stream has been recently reused it
   // will be skipped the next time it would be selected round-robin style. When
@@ -105,13 +104,13 @@ struct ur_queue_handle_t_ {
   // Function which creates the profiling stream. Called only if profiling is
   // enabled.
   void createProfilingStream() {
-    std::call_once(ProfStreamFlag, [&]() {
-      UR_CHECK_ERROR(
-          hipStreamCreateWithFlags(&ProfStream, hipStreamNonBlocking));
-      IsProfStreamCreated = true;
+    static std::once_flag HostSubmitTimeStreamFlag;
+    std::call_once(HostSubmitTimeStreamFlag, [&]() {
+      UR_CHECK_ERROR(hipStreamCreateWithFlags(&HostSubmitTimeStream,
+                                              hipStreamNonBlocking));
     });
   }
-  native_type getProfilingStream() { return ProfStream; }
+  native_type getHostSubmitTimeStream() { return HostSubmitTimeStream; }
 
   bool hasBeenSynchronized(uint32_t StreamToken) {
     // stream token not associated with one of the compute streams
