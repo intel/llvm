@@ -172,9 +172,11 @@
 //         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D
 //         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM
 //         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D
+// 15.51 Removed ret_mem argument from piextMemUnsampledImageCreate and
+// piextMemSampledImageCreate
 
 #define _PI_H_VERSION_MAJOR 15
-#define _PI_H_VERSION_MINOR 50
+#define _PI_H_VERSION_MINOR 51
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -2780,7 +2782,7 @@ __SYCL_EXPORT pi_result piextMemMipmapFree(pi_context context, pi_device device,
 /// \param ret_handle is the returning memory handle to newly allocated memory
 __SYCL_EXPORT pi_result piextMemUnsampledImageCreate(
     pi_context context, pi_device device, pi_image_mem_handle img_mem,
-    pi_image_format *image_format, pi_image_desc *image_desc, pi_mem *ret_mem,
+    pi_image_format *image_format, pi_image_desc *image_desc,
     pi_image_handle *ret_handle);
 
 /// API to create sampled bindless image handles.
@@ -2796,7 +2798,7 @@ __SYCL_EXPORT pi_result piextMemUnsampledImageCreate(
 __SYCL_EXPORT pi_result piextMemSampledImageCreate(
     pi_context context, pi_device device, pi_image_mem_handle img_mem,
     pi_image_format *image_format, pi_image_desc *image_desc,
-    pi_sampler sampler, pi_mem *ret_mem, pi_image_handle *ret_handle);
+    pi_sampler sampler, pi_image_handle *ret_handle);
 
 /// API to create samplers for bindless images.
 ///

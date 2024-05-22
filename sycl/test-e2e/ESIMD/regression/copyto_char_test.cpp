@@ -11,8 +11,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
+#include <sycl/usm/usm_allocator.hpp>
 
 #include <iostream>
 #include <memory>

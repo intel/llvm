@@ -6,7 +6,6 @@
 #include "../bindless_helpers.hpp"
 #include <iostream>
 #include <random>
-#include <sycl/sycl.hpp>
 #include <type_traits>
 
 static sycl::device dev;

@@ -1,8 +1,11 @@
 // REQUIRES: level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+
+#include <sycl/detail/core.hpp>
+
 #include <cassert>
-#include <sycl/sycl.hpp>
+
 using namespace sycl::ext::oneapi::experimental;
 
 std::vector<forward_progress_guarantee> ref1 = {

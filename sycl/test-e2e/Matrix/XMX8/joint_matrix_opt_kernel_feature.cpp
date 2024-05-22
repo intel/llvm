@@ -7,8 +7,4 @@
 // incompatible on the current device
 
 #include "../common.hpp"
-
-#define SG_SZ 8
-constexpr size_t SN = 8;
-
 #include "../joint_matrix_opt_kernel_feature_impl.hpp"

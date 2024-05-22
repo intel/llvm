@@ -7,7 +7,7 @@
 // This test case tests if compiling works with or without
 // _GLIBCXX_USE_CXX11_ABI=0.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
 #ifdef _GLIBCXX_USE_CXX11_ABI

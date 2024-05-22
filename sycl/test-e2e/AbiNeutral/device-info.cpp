@@ -9,7 +9,7 @@
 #include <deque>
 #include <iostream>
 #include <mutex>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <vector>
 
 template <typename T> using dpcpp_info_t = typename T::return_type;
