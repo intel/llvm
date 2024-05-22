@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-fp16
-// REQUIRES: matrix,gpu
-// REQUIRES: matrix-fp16
+// REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
 // RUN: %{build} -o %t.out

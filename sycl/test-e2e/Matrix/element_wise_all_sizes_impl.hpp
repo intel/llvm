@@ -24,7 +24,8 @@ void assert_ops_ref(host_accessor<T, 2, access::mode::read_write> C,
     }
 }
 
-template <typename T, typename T1, size_t TM, size_t TN, size_t TK, typename kernel_name>
+template <typename T, typename T1, size_t TM, size_t TN, size_t TK,
+          typename kernel_name>
 void matrix_verify_add(const T1 val1, const T1 val2, const T1 result) {
   static constexpr size_t M = TM * M_MULTIPLIER;
   static constexpr size_t K = 128;
@@ -78,13 +79,12 @@ void add_ref() {
         bfloat16(5.0), bfloat16(2.0), bfloat16(7.0));
   }
   if constexpr (std::is_same_v<Ta, int8_t>) {
-    matrix_verify_add<int8_t, int, tM, tN, tK, kernel_name>(5 /*val1*/, 2 /*val2*/,
-                                                        7 /*result*/);
+    matrix_verify_add<int8_t, int, tM, tN, tK, kernel_name>(
+        5 /*val1*/, 2 /*val2*/, 7 /*result*/);
   }
 }
 
-template <size_t TN>
-void test() {
+template <size_t TN> void test() {
   add_ref<bfloat16, 1, TN, 16, add<bfloat16, 1, TN, 16>>();
   add_ref<bfloat16, 2, TN, 16, add<bfloat16, 2, TN, 16>>();
   add_ref<bfloat16, 3, TN, 16, add<bfloat16, 3, TN, 16>>();

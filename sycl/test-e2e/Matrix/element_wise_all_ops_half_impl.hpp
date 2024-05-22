@@ -5,16 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-template <size_t TileM, size_t TileN, size_t TileK>
-class add;
-template <size_t TileM, size_t TileN, size_t TileK>
-class sub;
-template <size_t TileM, size_t TileN, size_t TileK>
-class mult;
-template <size_t TileM, size_t TileN, size_t TileK>
-class divide;
-template <size_t TileM, size_t TileN, size_t TileK>
-class logic;
+template <size_t TileM, size_t TileN, size_t TileK> class add;
+template <size_t TileM, size_t TileN, size_t TileK> class sub;
+template <size_t TileM, size_t TileN, size_t TileK> class mult;
+template <size_t TileM, size_t TileN, size_t TileK> class divide;
+template <size_t TileM, size_t TileN, size_t TileK> class logic;
 
 template <typename T, size_t M, size_t N, typename R>
 void assert_ops_ref(host_accessor<T, 2, access::mode::read> C,
@@ -87,8 +82,7 @@ void test() {
         if (x) {
           if (x > static_cast<Ta>(2.0) || x >= static_cast<Ta>(2.0) ||
               x < static_cast<Ta>(2.0) || x <= static_cast<Ta>(2.0)) {
-            Ta val =
-                (x != static_cast<Ta>(2.0)) ? x : static_cast<Ta>(2.0);
+            Ta val = (x != static_cast<Ta>(2.0)) ? x : static_cast<Ta>(2.0);
             val--;
             val++;
             if (x == static_cast<Ta>(2.0)) {

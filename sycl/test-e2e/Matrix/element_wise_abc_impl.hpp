@@ -13,8 +13,7 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-template <size_t M, size_t N, size_t K, int vnniFactor>
-class add;
+template <size_t M, size_t N, size_t K, int vnniFactor> class add;
 
 template <typename T1, typename T2, size_t M, size_t N, size_t K,
           int vnniFactor>
