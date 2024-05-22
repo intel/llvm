@@ -951,6 +951,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // CUDA supports recording timestamp events.
     return ReturnValue(true);
   }
+  case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP: {
+    // CUDA supports enqueueing native work through the urNativeEnqueueExp
+    return ReturnValue(true);
+  }
   case UR_DEVICE_INFO_DEVICE_ID: {
     int Value = 0;
     UR_CHECK_ERROR(cuDeviceGetAttribute(
