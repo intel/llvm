@@ -168,7 +168,6 @@ jobs:
           --cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=ccache \
           --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
-          --cmake-opt="-DNATIVECPU_USE_OCK=Off" \
           --cmake-opt="-DSYCL_PI_TESTS=OFF"
     - name: Compile
       id: build
