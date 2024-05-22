@@ -299,5 +299,5 @@ At this moment all the tests have been updated to include a limited set of
 headers only. However, the work of eliminating unnecessary dependencies between
 implementation header files is still in progress and the final set of these
 "fine-grained" includes that might be officially documented and suggested for
-customers to use isn't determined yet. Until then, code outside of this project
-must keep using `<sycl/sycl.hpp>` provided by the SYCL2020 specification.
+customers to use isn't determined yet. **Until then, code outside of this project
+must keep using `<sycl/sycl.hpp>` provided by the SYCL2020 specification.**
