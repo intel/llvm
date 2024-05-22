@@ -105,14 +105,6 @@ EventImplPtr Scheduler::addCG(
     auto *CGExecKernelPtr = static_cast<CGExecKernel *>(CommandGroup.get());
     Streams = CGExecKernelPtr->getStreams();
     CGExecKernelPtr->clearStreams();
-    // Stream's flush buffer memory is mainly initialized in stream's __init
-    // method. However, this method is not available on host device.
-    // Initializing stream's flush buffer on the host side in a separate task.
-    if (Queue->is_host()) {
-      for (const StreamImplPtr &Stream : Streams) {
-        Stream->initStreamHost(Queue);
-      }
-    }
   }
   std::vector<std::shared_ptr<const void>> AuxiliaryResources;
   AuxiliaryResources = CommandGroup->getAuxiliaryResources();
@@ -393,18 +385,6 @@ void Scheduler::enqueueUnblockedCommands(
                           PI_ERROR_INVALID_OPERATION);
   }
 }
-
-Scheduler::Scheduler() {
-  sycl::device HostDevice =
-      createSyclObjFromImpl<device>(device_impl::getHostDeviceImpl());
-  sycl::context HostContext{HostDevice};
-  DefaultHostQueue = QueueImplPtr(
-      new queue_impl(detail::getSyclObjImpl(HostDevice),
-                     detail::getSyclObjImpl(HostContext), /*AsyncHandler=*/{},
-                     /*PropList=*/{sycl::property::queue::enable_profiling()}));
-}
-
-Scheduler::~Scheduler() { DefaultHostQueue.reset(); }
 
 void Scheduler::releaseResources(BlockingT Blocking) {
   //  There might be some commands scheduled for post enqueue cleanup that
@@ -726,11 +706,11 @@ bool CheckEventReadiness(const ContextImplPtr &Context,
   // their context, which we wish to avoid as it is expensive.
   // NOP events also don't represent actual dependencies.
   if ((!SyclEventImplPtr->isContextInitialized() &&
-       !SyclEventImplPtr->is_host()) ||
+       !SyclEventImplPtr->isHost()) ||
       SyclEventImplPtr->isNOP()) {
     return true;
   }
-  if (SyclEventImplPtr->is_host()) {
+  if (SyclEventImplPtr->isHost()) {
     return SyclEventImplPtr->isCompleted();
   }
   // Cross-context dependencies can't be passed to the backend directly.

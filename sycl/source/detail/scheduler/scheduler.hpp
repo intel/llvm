@@ -450,10 +450,6 @@ public:
   /// \return true if an instance of the scheduler object exists.
   static bool isInstanceAlive();
 
-  QueueImplPtr getDefaultHostQueue() { return DefaultHostQueue; }
-
-  const QueueImplPtr &getDefaultHostQueue() const { return DefaultHostQueue; }
-
   static MemObjRecord *getMemObjRecord(const Requirement *const Req);
 
   void deferMemObjRelease(const std::shared_ptr<detail::SYCLMemObjI> &MemObj);
@@ -468,8 +464,6 @@ public:
 
   bool isInFusionMode(QueueIdT Queue);
 
-  Scheduler();
-  ~Scheduler();
   void releaseResources(BlockingT Blocking = BlockingT::BLOCKING);
   bool isDeferredMemObjectsEmpty();
 
@@ -965,8 +959,6 @@ protected:
   std::unordered_map<EventImplPtr, std::vector<std::shared_ptr<const void>>>
       MAuxiliaryResources;
   std::mutex MAuxiliaryResourcesMutex;
-
-  QueueImplPtr DefaultHostQueue;
 
   friend class Command;
   friend class DispatchHostTask;

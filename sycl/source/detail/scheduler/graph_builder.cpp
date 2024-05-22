@@ -50,9 +50,7 @@ static bool doOverlap(const Requirement *LHS, const Requirement *RHS) {
 }
 
 static bool sameCtx(const ContextImplPtr &LHS, const ContextImplPtr &RHS) {
-  // Consider two different host contexts to be the same to avoid additional
-  // allocation on the host
-  return LHS == RHS || (LHS->is_host() && RHS->is_host());
+  return LHS == RHS;
 }
 
 /// Checks if current requirement is requirement for sub buffer.

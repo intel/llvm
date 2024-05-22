@@ -136,13 +136,6 @@ event_impl::event_impl(sycl::detail::pi::PiEvent Event,
       MContext(detail::getSyclObjImpl(SyclContext)),
       MIsFlushed(true), MState(HES_Complete) {
 
-  if (MContext->is_host()) {
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "The syclContext must match the OpenCL context "
-                          "associated with the clEvent. " +
-                              codeToString(PI_ERROR_INVALID_CONTEXT));
-  }
-
   sycl::detail::pi::PiContext TempContext;
   getPlugin()->call<PiApiKind::piEventGetInfo>(
       MEvent, PI_EVENT_INFO_CONTEXT, sizeof(sycl::detail::pi::PiContext),
@@ -162,19 +155,8 @@ event_impl::event_impl(const QueueImplPtr &Queue) {
 
 void event_impl::associateWithQueue(const QueueImplPtr &Queue) {
   MQueue = Queue;
-  MIsProfilingEnabled = Queue->is_host() || Queue->MIsProfilingEnabled;
+  MIsProfilingEnabled = Queue->MIsProfilingEnabled;
   MFallbackProfiling = MIsProfilingEnabled && Queue->isProfilingFallback();
-  if (Queue->is_host()) {
-    MState.store(HES_NotComplete);
-    if (Queue->has_property<property::queue::enable_profiling>()) {
-      MHostProfilingInfo.reset(new HostProfilingInfo());
-      if (!MHostProfilingInfo)
-        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                              "Out of host memory " +
-                                  codeToString(PI_ERROR_OUT_OF_HOST_MEMORY));
-    }
-    return;
-  }
   MState.store(HES_Complete);
 }
 
@@ -576,6 +558,13 @@ uint64_t event_impl::getSubmissionTime() { return MSubmitTime; }
 bool event_impl::isCompleted() {
   return get_info<info::event::command_execution_status>() ==
          info::event_command_status::complete;
+}
+
+void event_impl::setCommand(void *Cmd) {
+  MCommand = Cmd;
+  auto TypedCommand = static_cast<Command*>(Cmd);
+  if (TypedCommand)
+    MIsHostTask = TypedCommand->isHostTask();
 }
 
 } // namespace detail

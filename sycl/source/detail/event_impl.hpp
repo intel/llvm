@@ -68,14 +68,6 @@ public:
   event_impl(sycl::detail::pi::PiEvent Event, const context &SyclContext);
   event_impl(const QueueImplPtr &Queue);
 
-  /// Checks if this event is a SYCL host event.
-  ///
-  /// All devices that do not support OpenCL interoperability are treated as
-  /// host device to avoid attempts to call method get on such events.
-  //
-  /// \return true if this event is a SYCL host event.
-  bool is_host();
-
   /// Waits for the event.
   ///
   /// Self is needed in order to pass shared_ptr to Scheduler.
@@ -177,7 +169,7 @@ public:
   /// Scheduler mutex must be locked in write mode when this is called.
   ///
   /// @param Command is a generic pointer to Command object instance.
-  void setCommand(void *Command) { MCommand = Command; }
+  void setCommand(void *Command);
 
   /// Returns host profiling information.
   ///
@@ -345,6 +337,8 @@ public:
 
   void setEnqueued() { MIsEnqueued = true; }
 
+  bool isHost() { return MIsHostTask; }
+
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -412,6 +406,7 @@ protected:
                   std::shared_ptr<sycl::detail::context_impl> Context);
 
   std::atomic_bool MIsEnqueued{false};
+  bool MIsHostTask{false};
 };
 
 } // namespace detail

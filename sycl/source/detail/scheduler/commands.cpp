@@ -96,9 +96,7 @@ static std::string demangleKernelName(std::string Name) { return Name; }
 #endif
 
 static std::string deviceToString(device Device) {
-  if (getSyclObjImpl(Device)->is_host())
-    return "HOST";
-  else if (Device.is_cpu())
+  if (Device.is_cpu())
     return "CPU";
   else if (Device.is_gpu())
     return "GPU";
@@ -144,10 +142,7 @@ void applyFuncOnFilteredArgs(
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 static size_t deviceToID(const device &Device) {
-  if (getSyclObjImpl(Device)->is_host())
-    return 0;
-  else
-    return reinterpret_cast<size_t>(getSyclObjImpl(Device)->getHandleRef());
+  return reinterpret_cast<size_t>(getSyclObjImpl(Device)->getHandleRef());
 }
 #endif
 
@@ -265,7 +260,7 @@ std::vector<sycl::detail::pi::PiEvent> Command::getPiEventsBlocking(
     // (which is set lazily) calling getContextImpl() would set that
     // context, which we wish to avoid as it is expensive.
     // Skip host task and NOP events also.
-    if (!EventImpl->isContextInitialized() || EventImpl->is_host() ||
+    if (!EventImpl->isContextInitialized() || EventImpl->isHost() ||
         EventImpl->isNOP())
       continue;
     // In this path nullptr native event means that the command has not been
@@ -455,40 +450,9 @@ void Command::waitForEvents(QueueImplPtr Queue,
                             std::vector<EventImplPtr> &EventImpls,
                             sycl::detail::pi::PiEvent &Event) {
   if (!EventImpls.empty()) {
-    if (Queue->is_host()) {
-      // Host queue can wait for events from different contexts, i.e. it may
-      // contain events with different contexts in its MPreparedDepsEvents.
-      // OpenCL 2.1 spec says that clWaitForEvents will return
-      // CL_INVALID_CONTEXT if events specified in the list do not belong to
-      // the same context. Thus we split all the events into per-context map.
-      // An example. We have two queues for the same CPU device: Q1, Q2. Thus
-      // we will have two different contexts for the same CPU device: C1, C2.
-      // Also we have default host queue. This queue is accessible via
-      // Scheduler. Now, let's assume we have three different events: E1(C1),
-      // E2(C1), E3(C2). The command's MPreparedDepsEvents will contain all
-      // three events (E1, E2, E3). Now, if piEventsWait is called for all
-      // three events we'll experience failure with CL_INVALID_CONTEXT 'cause
-      // these events refer to different contexts.
-      std::map<context_impl *, std::vector<EventImplPtr>>
-          RequiredEventsPerContext;
-
-      for (const EventImplPtr &Event : EventImpls) {
-        ContextImplPtr Context = Event->getContextImpl();
-        assert(Context.get() &&
-               "Only non-host events are expected to be waited for here");
-        RequiredEventsPerContext[Context.get()].push_back(Event);
-      }
-
-      for (auto &CtxWithEvents : RequiredEventsPerContext) {
-        std::vector<sycl::detail::pi::PiEvent> RawEvents =
-            getPiEvents(CtxWithEvents.second);
-        CtxWithEvents.first->getPlugin()->call<PiApiKind::piEventsWait>(
-            RawEvents.size(), RawEvents.data());
-      }
-    } else {
 #ifndef NDEBUG
       for (const EventImplPtr &Event : EventImpls)
-        assert(Event->getContextImpl().get() &&
+        assert(!Event->isHost() &&
                "Only non-host events are expected to be waited for here");
 #endif
 
@@ -501,7 +465,6 @@ void Command::waitForEvents(QueueImplPtr Queue,
         MEvent->setHostEnqueueTime();
       Plugin->call<PiApiKind::piEnqueueEventsWait>(
           Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
-    }
   }
 }
 
@@ -714,7 +677,7 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   // enqueued
   //    (e.g. alloca). Note that we can't check the pi event to make that
   //    distinction since the command might still be unenqueued at this point.
-  bool PiEventExpected = (!DepEvent->is_host() && DepEvent->isInitialized());
+  bool PiEventExpected = (!DepEvent->isHost() && DepEvent->isInitialized());
   if (auto *DepCmd = static_cast<Command *>(DepEvent->getCommand()))
     PiEventExpected &= DepCmd->producesPiEvent();
 
@@ -885,7 +848,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   else {
     MEvent->setEnqueued();
     if (MShouldCompleteEventIfPossible &&
-        (MEvent->is_host() || MEvent->getHandleRef() == nullptr))
+        (MEvent->isHost() || MEvent->getHandleRef() == nullptr))
       MEvent->setComplete();
 
     // Consider the command is successfully enqueued if return code is
@@ -3172,8 +3135,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
     std::vector<sycl::detail::pi::PiEvent> PiEvents =
         getPiEventsBlocking(Events);
-    if (MQueue->getDeviceImplPtr()->is_host() || PiEvents.empty()) {
-      // NOP for host device.
+    if (PiEvents.empty()) {
       // If Events is empty, then the barrier has no effect.
       return PI_SUCCESS;
     }
@@ -3244,10 +3206,6 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   }
   case CG::CGTYPE::SemaphoreWait: {
     CGSemaphoreWait *SemWait = (CGSemaphoreWait *)MCommandGroup.get();
-    if (MQueue->getDeviceImplPtr()->is_host()) {
-      // NOP for host device.
-      return PI_SUCCESS;
-    }
 
     const detail::PluginPtr &Plugin = MQueue->getPlugin();
     Plugin->call<PiApiKind::piextWaitExternalSemaphore>(
@@ -3258,10 +3216,6 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   }
   case CG::CGTYPE::SemaphoreSignal: {
     CGSemaphoreSignal *SemSignal = (CGSemaphoreSignal *)MCommandGroup.get();
-    if (MQueue->getDeviceImplPtr()->is_host()) {
-      // NOP for host device.
-      return PI_SUCCESS;
-    }
 
     const detail::PluginPtr &Plugin = MQueue->getPlugin();
     Plugin->call<PiApiKind::piextSignalExternalSemaphore>(

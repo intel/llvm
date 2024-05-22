@@ -377,10 +377,9 @@ public:
   std::string MSubmissionFileName;
   std::string MSubmissionFunctionName;
 
-  // This flag allows to control whether host event should be set complete
-  // after successfull enqueue of command. Event is considered as host event if
-  // either it's is_host() return true or there is no backend representation
-  // of event (i.e. getHandleRef() return reference to nullptr value).
+  // This flag allows to control whether event should be set complete
+  // after successfull enqueue of command. Event is considered as "host" event if
+  // there is no backend representation of event (i.e. getHandleRef() return reference to nullptr value).
   // By default the flag is set to true due to most of host operations are
   // synchronous. The only asynchronous operation currently is host-task.
   bool MShouldCompleteEventIfPossible = true;
