@@ -8965,6 +8965,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
         if (phEventWaitList != NULL && numEventsInWaitList > 0) {
             for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
                 if (phEventWaitList[i] == NULL) {
