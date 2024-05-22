@@ -48,10 +48,9 @@ TEST_P(urEnqueueKernelLaunchCustomTest, Success) {
   attr[0].value.clusterDim[0] = global_size;
   attr[0].value.clusterDim[1] = 1;
   attr[0].value.clusterDim[2] = 1;
-  size_t LocalWorkSize = 5;
 
   ASSERT_SUCCESS(urEnqueueKernelLaunchCustomExp(queue, kernel, n_dimensions,
-                                                &global_size, &LocalWorkSize, 1,
+                                                &global_size, nullptr, 1,
                                                 attr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
   ValidateBuffer(buffer, sizeof(val) * global_size, val);
