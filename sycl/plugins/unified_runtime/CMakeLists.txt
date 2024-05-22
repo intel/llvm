@@ -115,7 +115,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit d3502dc1c1eac924736fc08529e4d5f149648fd1
+    # Merge: c911a9b6 71420060
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed May 22 10:38:34 2024 +0100
+    #     Merge pull request #1565 from hdelan/cuda-multi-dev-ctx
+    #     [CUDA] CUDA adapter multi device context
+    d3502dc1c1eac924736fc08529e4d5f149648fd1
   )
 
   fetch_adapter_source(hip
