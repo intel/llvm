@@ -1220,11 +1220,9 @@ template <class T> void RunOverType(sycl::queue &Q, size_t DataSize) {
   RunKeyValueOnDataAndCompArray(ArrayDataReversed, ArrayKeysReversed,
                                 std::less<T>{});
 
-  // TODO: Currently there is an issue with key/value sorting for array input -
-  // for some reasons sorting is not stable, order of values is not preserved.
-  //  RunKeyValueOnDataAndCompArray(ArrayDataRandom, ArrayKeysRandom,
-  //  std::less<T>{}); RunKeyValueOnDataAndCompArray(ArrayDataRandom,
-  //  ArrayKeysRandom, std::greater<T>{});
+   RunKeyValueOnDataAndCompArray(ArrayDataRandom, ArrayKeysRandom,
+   std::less<T>{}); RunKeyValueOnDataAndCompArray(ArrayDataRandom,
+   ArrayKeysRandom, std::greater<T>{});
 }
 
 int main() {

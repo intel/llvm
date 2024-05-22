@@ -251,11 +251,11 @@ void bubble_sort(Iter first, const size_t begin, const size_t end,
   if (begin < end) {
     for (size_t i = begin; i < end; ++i) {
       // Handle intermediate items
-      for (size_t idx = i + 1; idx < end; ++idx) {
-        auto refs_1 = detail::get_references(first, idx);
-        auto refs_2 = detail::get_references(first, i);
+      for (size_t idx = begin; idx < begin + (end - 1 - i); ++idx) {
+        auto refs_1 = detail::get_references(first, idx + 1);
+        auto refs_2 = detail::get_references(first, idx);
         if (comp(refs_1, refs_2)) {
-          detail::swap(first, i, idx);
+          detail::swap(first, idx, idx + 1);
         }
       }
     }
