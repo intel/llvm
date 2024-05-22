@@ -1235,8 +1235,6 @@ template <>
 struct get_device_info_impl<
     sycl::device, ext::oneapi::experimental::info::device::composite_device> {
   static sycl::device get(const DeviceImplPtr &Dev) {
-    if (Dev->getBackend() != backend::ext_oneapi_level_zero)
-      return {};
     if (!Dev->has(sycl::aspect::ext_oneapi_is_component))
       throw sycl::exception(make_error_code(errc::invalid),
                             "Only devices with aspect::ext_oneapi_is_component "

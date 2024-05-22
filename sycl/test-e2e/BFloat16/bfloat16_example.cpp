@@ -31,7 +31,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen "-device pvc" %s -o %t.out
 // RUN: %if cpu %{ %{run} %t.out %}
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
 
 using namespace sycl;
 using sycl::ext::oneapi::bfloat16;

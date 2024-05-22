@@ -8,7 +8,7 @@
 
 // Test that USM is made resident at allocation as requested.
 
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 using namespace std;
 using namespace sycl;

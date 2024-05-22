@@ -95,23 +95,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 4c69624c3f651819210148ad11d0e1e5c9af12de
-  # Merge: ea009363 f04b44c3
+  # commit 85771876a5c2a13e3b24c048f0c0d81720d47ccc
+  # Merge: 42d72b66 00edaab9
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon May 13 11:56:12 2024 +0100
-  #     Merge pull request #1532 from AllanZyne/review/yang/local_accessor
-  #     [DeviceSanitizer] Check out-of-bounds on sycl::local_accessor
-  set(UNIFIED_RUNTIME_TAG 4c69624c3f651819210148ad11d0e1e5c9af12de)
+  # Date:   Tue May 21 10:15:03 2024 +0100
+  #     Merge pull request #1401 from ph0b/patch-1
+  #     [UR][L0] Return device version based on DeviceIpVersion
+  set(UNIFIED_RUNTIME_TAG 85771876a5c2a13e3b24c048f0c0d81720d47ccc)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit 65c39c8a0cc17ebb43686230f91e1c3560764494
-    # Merge: 09467b8d f67122c0
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu May 16 11:11:37 2024 +0100
-    #     Merge pull request #1611 from nrspruit/fix_interop_wg_max_size
-    #     [L0] ensure a valid kernel handle for the device when reading max wg
-    65c39c8a0cc17ebb43686230f91e1c3560764494
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
@@ -121,13 +115,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit 1ff111c12ea5bcb7b524dc377237c997fd884b8f
-    # Merge: 50452b75 28393448
+    # commit d3502dc1c1eac924736fc08529e4d5f149648fd1
+    # Merge: c911a9b6 71420060
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed May 15 13:30:30 2024 +0100
-    #     Merge pull request #1596 from Bensuo/cuda_bool
-    #     [CUDA] Change `bool` variable type to `unsigned int`
-    1ff111c12ea5bcb7b524dc377237c997fd884b8f
+    # Date:   Wed May 22 10:38:34 2024 +0100
+    #     Merge pull request #1565 from hdelan/cuda-multi-dev-ctx
+    #     [CUDA] CUDA adapter multi device context
+    d3502dc1c1eac924736fc08529e4d5f149648fd1
   )
 
   fetch_adapter_source(hip
@@ -137,13 +131,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    # commit 50452b75f0d1d7434f5beb4febd642af59a994ff
-    # Merge: 78b8e3e3 fa084d0a
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed May 15 10:37:42 2024 +0100
-    #     Merge pull request #1477 from PietroGhg/pietro/reqd_work_group_size
-    #     [NATIVECPU] Support reqd_work_group_size on Native CPU
-    50452b75f0d1d7434f5beb4febd642af59a994ff
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)

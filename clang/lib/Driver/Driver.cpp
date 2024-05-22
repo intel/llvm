@@ -236,9 +236,6 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
     UserConfigDir = static_cast<std::string>(P);
   }
 #endif
-
-  // Compute the path to the resource directory.
-  ResourceDir = GetResourcesPath(ClangExecutable, CLANG_RESOURCE_DIR);
 }
 
 void Driver::setDriverMode(StringRef Value) {
@@ -255,6 +252,24 @@ void Driver::setDriverMode(StringRef Value) {
     Mode = *M;
   else
     Diag(diag::err_drv_unsupported_option_argument) << OptName << Value;
+}
+
+void Driver::setResourceDirectory() {
+  // Compute the path to the resource directory, depending on the driver mode.
+  switch (Mode) {
+  case GCCMode:
+  case GXXMode:
+  case CPPMode:
+  case CLMode:
+  case DXCMode:
+    ResourceDir = GetResourcesPath(ClangExecutable, CLANG_RESOURCE_DIR);
+    break;
+  case FlangMode:
+    SmallString<64> customResourcePathRelativeToDriver{".."};
+    ResourceDir =
+        GetResourcesPath(ClangExecutable, customResourcePathRelativeToDriver);
+    break;
+  }
 }
 
 InputArgList Driver::ParseArgStrings(ArrayRef<const char *> ArgStrings,
@@ -604,9 +619,9 @@ static llvm::Triple computeTargetTriple(const Driver &D,
       StringRef ObjectMode = *ObjectModeValue;
       llvm::Triple::ArchType AT = llvm::Triple::UnknownArch;
 
-      if (ObjectMode.equals("64")) {
+      if (ObjectMode == "64") {
         AT = Target.get64BitArchVariant().getArch();
-      } else if (ObjectMode.equals("32")) {
+      } else if (ObjectMode == "32") {
         AT = Target.get32BitArchVariant().getArch();
       } else {
         D.Diag(diag::err_drv_invalid_object_mode) << ObjectMode;
@@ -1556,6 +1571,7 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   if (!DriverMode.empty())
     setDriverMode(DriverMode);
 
+  setResourceDirectory();
   // FIXME: What are we going to do with -V and -b?
 
   // Arguments specified in command line.
@@ -3333,19 +3349,6 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
         Diag(diag::note_use_dashdash);
       }
     }
-    // TODO: remove when -foffload-static-lib support is dropped.
-    else if (A->getOption().matches(options::OPT_offload_lib_Group)) {
-      // Add the foffload-static-lib library to the command line to allow
-      // processing when no source or object is supplied as well as proper
-      // host link.
-      Arg *InputArg = MakeInputArg(Args, Opts, A->getValue());
-      Inputs.push_back(std::make_pair(types::TY_Object, InputArg));
-      A->claim();
-      // Use of -foffload-static-lib and -foffload-whole-static-lib are
-      // deprecated with the updated functionality to scan the static libs.
-      Diag(clang::diag::warn_drv_deprecated_option)
-          << A->getAsString(Args) << A->getValue();
-    }
   }
   if (CCCIsCPP() && Inputs.empty()) {
     // If called as standalone preprocessor, stdin is processed
@@ -3657,22 +3660,6 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
       }
       continue;
     }
-    // Use of -foffload-static-lib and -foffload-whole-static-lib is
-    // considered deprecated.  Usage should move to passing in the static
-    // library name on the command line, encapsulating with
-    // -Wl,--whole-archive <lib> -Wl,--no-whole-archive as needed.
-    if (A->getOption().matches(options::OPT_foffload_static_lib_EQ)) {
-      LibArgs.push_back(Args.MakeArgString(A->getValue()));
-      continue;
-    }
-    if (A->getOption().matches(options::OPT_foffload_whole_static_lib_EQ)) {
-      // For -foffload-whole-static-lib, we add the --whole-archive wrap
-      // around the library which will be used during the partial link step.
-      LibArgs.push_back("--whole-archive");
-      LibArgs.push_back(Args.MakeArgString(A->getValue()));
-      LibArgs.push_back("--no-whole-archive");
-      continue;
-    }
     if (A->getOption().matches(options::OPT_l))
       resolveStaticLib(A->getAsString(Args), IsLinkStateStatic);
   }
@@ -3734,11 +3721,6 @@ bool Driver::checkForOffloadStaticLib(Compilation &C,
       !Args.hasArg(options::OPT_fopenmp_targets_EQ))
     return false;
 
-  // Right off the bat, assume the presence of -foffload-static-lib means
-  // the need to perform linking steps for fat static archive offloading.
-  // TODO: remove when -foffload-static-lib support is dropped.
-  if (Args.hasArg(options::OPT_offload_lib_Group))
-    return true;
   SmallVector<const char *, 16> OffloadLibArgs(getLinkerArgs(C, Args));
   for (StringRef OLArg : OffloadLibArgs)
     if (isStaticArchiveFile(OLArg) && hasOffloadSections(C, OLArg, Args)) {
@@ -7182,11 +7164,6 @@ public:
           hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCR) ||
           hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCR_EMU))
         continue;
-      // For offload-static-libs we add an unbundling action for each static
-      // archive which produces list files with extracted objects. Device lists
-      // are then added to the appropriate device link actions and host list is
-      // ignored since we are adding offload-static-libs as normal libraries to
-      // the host link command.
       if (hasOffloadSections(C, LA, Args)) {
         // Pass along the static libraries to check if we need to add them for
         // unbundling for FPGA AOT static lib usage.  Uses FPGA aoco type to
@@ -10489,7 +10466,7 @@ llvm::StringRef clang::driver::getDriverMode(StringRef ProgName,
   return Opt.consume_front(OptName) ? Opt : "";
 }
 
-bool driver::IsClangCL(StringRef DriverMode) { return DriverMode.equals("cl"); }
+bool driver::IsClangCL(StringRef DriverMode) { return DriverMode == "cl"; }
 
 llvm::Error driver::expandResponseFiles(SmallVectorImpl<const char *> &Args,
                                         bool ClangCLMode,

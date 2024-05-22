@@ -388,6 +388,20 @@ public:
   template <typename Param>
   typename Param::return_type get_backend_info() const;
 
+  /// Provides a hint to the backend to execute previously issued commands on
+  /// this queue. Overrides normal batching behaviour. Note that this is merely
+  /// a hint and not a guarantee.
+  void flush() {
+    if (MGraph.lock()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "flush cannot be called for a queue which is "
+                            "recording to a command graph.");
+    }
+    for (const auto &queue : MQueues) {
+      getPlugin()->call<PiApiKind::piQueueFlush>(queue);
+    }
+  }
+
   using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
 
   /// Submits a command group function object to the queue, in order to be
@@ -764,8 +778,7 @@ protected:
 
   // template is needed for proper unit testing
   template <typename HandlerType = handler>
-  void finalizeHandler(HandlerType &Handler, const CG::CGTYPE &Type,
-                       event &EventRet) {
+  void finalizeHandler(HandlerType &Handler, event &EventRet) {
     if (MIsInorder) {
       // Accessing and changing of an event isn't atomic operation.
       // Hence, here is the lock for thread-safety.
@@ -793,6 +806,8 @@ protected:
       EventRet = Handler.finalize();
       EventToBuildDeps = getSyclObjImpl(EventRet);
     } else {
+      const CG::CGTYPE Type = Handler.getType();
+
       // The following code supports barrier synchronization if host task is
       // involved in the scenario. Native barriers cannot handle host task
       // dependency so in the case where some commands were not enqueued
@@ -872,11 +887,11 @@ protected:
         KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
                            ProgramManager::getInstance().kernelUsesAssert(
                                Handler.MKernelName.c_str());
-      finalizeHandler(Handler, Type, Event);
+      finalizeHandler(Handler, Event);
 
       (*PostProcess)(IsKernel, KernelUsesAssert, Event);
     } else
-      finalizeHandler(Handler, Type, Event);
+      finalizeHandler(Handler, Event);
 
     addEvent(Event);
     return Event;
