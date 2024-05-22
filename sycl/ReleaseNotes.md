@@ -98,6 +98,7 @@ Release notes for commit range [f4e0d3177338](https://github.com/intel/llvm/comm
 - Fixed double-free bug in kernel-program cache. [04ff5b81]
 - Fixed resource leak in `SYCL_FALLBACK_ASSERT`. [b478d2fa]
 - Fix deadlock in in-order queue when submitting a host task and simultaneously accessing stream service events. [3031733]
+- Made `sycl::vec` interface consistent with `sycl::marray` and `sycl::buffer` by defining `value_type` alias. [33e5b10]
 
 ### Documentation
 - Clarified [ext_oneapi_graph](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_graph.asciidoc) SYCL extension to make it illegal for graph nodes to depend on events from outside the graph. [2581123a1]
@@ -108,6 +109,7 @@ the default contexts on Windows. This is because on Windows the release
 of the plugin DLLs races against the release of static global variables
 (like the default context).
 - Intel Graphic Compiler's Vector Compute backend does not support O0 code and often gets miscompiled, produces wrong answers and crashes. This issue directly affects ESIMD code at O0. As a temporary workaround, we have optimize ESIMD code even in O0 mode. [00749b1e8](https://github.com/intel/llvm/commit/00749b1e8e3085acfdc63108f073a255842533e2)
+- `multi_ptr` relational operators assume the lowest possible value of `std::null_ptr` which might cause issues with the CUDA and AMDGPU backends. 
 
 
 # Nov'23 release notes
