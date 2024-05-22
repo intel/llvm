@@ -9,6 +9,7 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=0 %{run} %t.out %}
 
 #include "common.hpp"
 

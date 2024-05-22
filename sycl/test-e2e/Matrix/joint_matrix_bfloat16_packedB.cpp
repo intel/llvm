@@ -12,6 +12,7 @@
 // RUN: %{run} %t.out
 // RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=2 %{run} %t.out %}
 // RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=1 %{run} %t.out %}
+// RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=0 %{run} %t.out %}
 
 #include "common.hpp"
 #include "joint_matrix_bfloat16_packedB_impl.hpp"
