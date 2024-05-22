@@ -30,12 +30,6 @@ namespace detail {
 
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
 
-PlatformImplPtr platform_impl::getHostPlatformImpl() {
-  static PlatformImplPtr HostImpl = std::make_shared<platform_impl>();
-
-  return HostImpl;
-}
-
 PlatformImplPtr
 platform_impl::getOrMakePlatformImpl(sycl::detail::pi::PiPlatform PiPlatform,
                                      const PluginPtr &Plugin) {

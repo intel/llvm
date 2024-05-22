@@ -192,14 +192,6 @@ public:
   getOrMakeDeviceImpl(sycl::detail::pi::PiDevice PiDevice,
                       const std::shared_ptr<platform_impl> &PlatformImpl);
 
-  /// Static functions that help maintain platform uniquess and
-  /// equality of comparison
-
-  /// Returns the host platform impl
-  ///
-  /// \return the host platform impl
-  static std::shared_ptr<platform_impl> getHostPlatformImpl();
-
   /// Queries the cache to see if the specified PiPlatform has been seen
   /// before.  If so, return the cached platform_impl, otherwise create a new
   /// one and cache it.

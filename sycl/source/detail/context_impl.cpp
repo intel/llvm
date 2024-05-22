@@ -177,9 +177,6 @@ uint32_t context_impl::get_info<info::context::reference_count>() const {
                                                           this->getPlugin());
 }
 template <> platform context_impl::get_info<info::context::platform>() const {
-  if (is_host())
-    return createSyclObjFromImpl<platform>(
-        platform_impl::getHostPlatformImpl());
   return createSyclObjFromImpl<platform>(MPlatform);
 }
 template <>
