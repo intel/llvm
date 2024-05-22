@@ -6495,14 +6495,14 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   FreeFunctionFwdDeclEmitter FFFwdDeclEmitter(O, S.getLangOpts());
   unsigned ShimCounter = 1;
   int FreeFunctionCount = 0;
-  for (const KernelDesc& K : KernelDescs) {
+  for (const KernelDesc &K : KernelDescs) {
     if (!isFreeFunction(S, K.SyclKernel))
       continue;
 
     ++FreeFunctionCount;
     O << "\n// Definition of " << K.Name << " as a free function kernel\n";
     if (K.ParamTypes.size() > 0) {
-      for (const auto& P : K.ParamTypes) {
+      for (const auto &P : K.ParamTypes) {
         FFFwdDeclEmitter.Visit(P);
       }
     }
@@ -6510,7 +6510,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "static constexpr auto __sycl_shim" << ShimCounter << "() {\n";
     O << "  return (";
     FFFwdDeclEmitter.VisitFunctionPointerType(
-      S.getASTContext().getPointerType(K.SyclKernel->getType()));
+        S.getASTContext().getPointerType(K.SyclKernel->getType()));
     O << ")" << K.SyclKernel->getIdentifier()->getName().data() << ";\n";
     O << "}\n";
     O << "namespace sycl {\n";
@@ -6524,11 +6524,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "template <>\n";
     if (Dim > 0)
       O << "struct ext::oneapi::experimental::is_nd_range_kernel<__sycl_shim"
-      << ShimCounter << "(), " << Dim;
+        << ShimCounter << "(), " << Dim;
     else
       O << "struct "
-      "ext::oneapi::experimental::is_single_task_kernel<__sycl_shim"
-      << ShimCounter << "()";
+           "ext::oneapi::experimental::is_single_task_kernel<__sycl_shim"
+        << ShimCounter << "()";
     O << "> {\n";
     O << "  static constexpr bool value = true;\n";
     O << "};\n";
@@ -6539,7 +6539,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "\n#include <sycl/kernel_bundle.hpp>\n";
   }
   ShimCounter = 1;
-  for (const KernelDesc& K : KernelDescs) {
+  for (const KernelDesc &K : KernelDescs) {
     if (!isFreeFunction(S, K.SyclKernel))
       continue;
 

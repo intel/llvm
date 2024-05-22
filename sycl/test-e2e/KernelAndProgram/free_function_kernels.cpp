@@ -8,9 +8,7 @@
 // This test tests free function kernel code generation and execution.
 
 #include <iostream>
-#include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/free_function_queries.hpp>
-#include <sycl/usm.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -174,7 +172,7 @@ bool test_2(queue Queue) {
 
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
-  kernel_id Kernel_id = get_kernel_id<(void (*)(int*, int))ff_1>();
+  kernel_id Kernel_id = get_kernel_id<(void (*)(int *, int))ff_1>();
   kernel Kernel = Bundle.get_kernel(Kernel_id);
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {

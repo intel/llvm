@@ -113,7 +113,8 @@ bool test_bundle_apis(queue Queue) {
   Pass &= PassB;
 
   // ff_2 and ff_3 are free functions, evaluate has_kernel_bundle.
-  bool PassC = has_kernel_bundle<ff_2, bundle_state::executable>(Context, Devices);
+  bool PassC =
+      has_kernel_bundle<ff_2, bundle_state::executable>(Context, Devices);
   std::cerr << "PassC=" << PassC << std::endl;
   Pass &= PassC;
 
@@ -151,7 +152,8 @@ bool test_bundle_apis(queue Queue) {
   std::cerr << "PassI=" << PassI << std::endl;
   Pass &= PassI;
 
-  bool PassJ = Bundle3.ext_oneapi_has_kernel<(void (*)(int *, int))ff_3>(Device);
+  bool PassJ =
+      Bundle3.ext_oneapi_has_kernel<(void (*)(int *, int))ff_3>(Device);
   std::cerr << "PassJ=" << PassJ << std::endl;
   Pass &= PassJ;
   kernel Kernel3 = Bundle3.ext_oneapi_get_kernel<(void (*)(int *, int))ff_3>();
@@ -190,7 +192,8 @@ bool test_bundle_apis(queue Queue) {
   std::cerr << "PassP=" << PassP << std::endl;
   Pass &= PassP;
 
-  bool PassQ = Bundle6.ext_oneapi_has_kernel<(void (*)(int *, int))ff_3>(Device);
+  bool PassQ =
+      Bundle6.ext_oneapi_has_kernel<(void (*)(int *, int))ff_3>(Device);
   std::cerr << "PassQ=" << PassQ << std::endl;
   Pass &= PassQ;
 
