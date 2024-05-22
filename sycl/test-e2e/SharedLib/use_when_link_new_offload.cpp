@@ -1,4 +1,4 @@
-// REQUIRES: linux
+// REQUIRES: opencl, cpu, linux
 // This test checks for correct behavior for shared library builds when new
 // offload driver is enabled. Currently, new offload model supports only JIT.
 // TODO: Expand the test once AOT support for new offload model is ready.
