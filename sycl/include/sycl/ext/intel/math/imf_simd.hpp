@@ -110,6 +110,7 @@ int __imf_viaddmin_s32(int, int, int);
 int __imf_viaddmin_s32_relu(int, int, int);
 unsigned int __imf_viaddmin_u16x2(unsigned int, unsigned int, unsigned int);
 unsigned int __imf_viaddmin_u32(unsigned int, unsigned int, unsigned int);
+unsigned int __imf_vibmax_s16x2(unsigned int, unsigned int, bool *, bool *);
 };
 
 namespace sycl {
@@ -668,6 +669,12 @@ template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
 viaddmin_u32(Tp x, Tp y, Tp z) {
   return __imf_viaddmin_u32(x, y, z);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
+vibmax_s16x2(Tp x, Tp y, bool *p_hi, bool *p_lo) {
+  return __imf_vibmax_s16x2(x, y, p_hi, p_lo);
 }
 } // namespace ext::intel::math
 } // namespace _V1

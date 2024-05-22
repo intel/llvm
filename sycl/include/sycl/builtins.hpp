@@ -583,6 +583,8 @@ extern __DPCPP_SYCL_EXTERNAL unsigned int
 __imf_viaddmin_u16x2(unsigned int x, unsigned int y, unsigned int z);
 extern __DPCPP_SYCL_EXTERNAL unsigned int
 __imf_viaddmin_u32(unsigned int x, unsigned int y, unsigned int z);
+extern __DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vibmax_s16x2(unsigned int x, unsigned int y, bool *pred_hi, bool *pred_lo);
 }
 #ifdef __GLIBC__
 extern "C" {

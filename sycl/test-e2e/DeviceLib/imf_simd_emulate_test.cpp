@@ -2118,6 +2118,33 @@ void run_viaddmin_u16x2_test(s::queue &device_q) {
   std::cout << "sycl::ext::intel::math::viaddmin_u16x2 test pass." << std::endl;
 }
 
+void run_vibmax_s16x2_test(s::queue &device_q) {
+  std::initializer_list<unsigned> input_vals1 = {
+      0,          0x6b8b4567, 0x643c9869, 0x74b0dc51, 0x2ae8944a, 0x238e1f29,
+      0x3d1b58ba, 0x2eb141f2, 0x79e2a9e3, 0x515f007c, 0x12200854, 0x216231b,
+      0x1190cde7, 0x140e0f76, 0x109cf92e, 0x7fdcc233, 0x41a7c4c9, 0x4e6afb66,
+      0x519b500d, 0x3f2dba31, 0x257130a3};
+  std::initializer_list<unsigned> input_vals2 = {
+      0,          0x327b23c6, 0x66334873, 0x19495cff, 0x625558ec, 0x46e87ccd,
+      0x507ed7ab, 0x41b71efb, 0x7545e146, 0x5bd062c2, 0x4db127f8, 0x1f16e9e8,
+      0x66ef438d, 0x3352255a, 0xded7263,  0x1befd79f, 0x6b68079a, 0x25e45d32,
+      0x431bd7b7, 0x7c83e458, 0x62bbd95a};
+  std::initializer_list<unsigned> ref_vals = {
+      0,          0x6b8b4567, 0x66334873, 0x74b05cff, 0x625558ec, 0x46e87ccd,
+      0x507e58ba, 0x41b741f2, 0x79e2e146, 0x5bd062c2, 0x4db127f8, 0x1f16231b,
+      0x66ef438d, 0x3352255a, 0x109c7263, 0x7fdcd79f, 0x6b68079a, 0x4e6a5d32,
+      0x519b500d, 0x7c83e458, 0x62bb30a3};
+  std::initializer_list<bool> ref_preds = {
+      true,  true,  true,  true,  false, false, true,  false, false,
+      false, false, false, false, true,  false, true,  true,  false,
+      false, false, false, false, false, true,  false, false, false,
+      false, true,  false, true,  false, false, false, true,  false,
+      true,  true,  false, false, false, true};
+  test2_with_pred(device_q, input_vals1, input_vals2, ref_vals, ref_preds,
+                  F2_PRED(s::ext::intel::math::vibmax_s16x2));
+  std::cout << "sycl::ext::intel::math::vibmax_s16x2 test pass." << std::endl;
+}
+
 int main(int, char **) {
   s::queue device_queue(s::default_selector_v);
   std::cout << "Running on "
@@ -2153,5 +2180,6 @@ int main(int, char **) {
   run_viaddmin_s32_relu_test(device_queue);
   run_viaddmin_u16x2_test(device_queue);
   run_viaddmin_u32_test(device_queue);
+  run_vibmax_s16x2_test(device_queue);
   return 0;
 }

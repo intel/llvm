@@ -360,6 +360,45 @@ static inline unsigned int __internal_v_binary_op(unsigned int x,
   return __assemble_integral_value<unsigned, UTp, N>(res_buf);
 }
 
+template <typename Tp> class __ibmax_op {
+  static_assert(std::is_same<int16_t, Tp>::value ||
+                    std::is_same<uint16_t, Tp>::value,
+                "Tp can only accept 16-bit integer for __ibmax_op.");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y, bool *pred) {
+    if (x >= y) {
+      *pred = true;
+      return x;
+    } else {
+      *pred = false;
+      return y;
+    }
+  }
+};
+
+template <typename Tp, size_t N, template <typename> class BinaryOp>
+static inline unsigned int
+__internal_v_binary_op_with_pred(unsigned int x, unsigned int y, bool *pred) {
+  static_assert(
+      std::is_integral<Tp>::value && (sizeof(Tp) == 1 || sizeof(Tp) == 2),
+      "__internal_v_binary_op_with_pred accepts 1/2 byte integer type.");
+  static_assert(sizeof(Tp) * N == sizeof(unsigned int),
+                "__internal_v_binary_op_with_pred size mismatch");
+  typedef typename std::make_unsigned<Tp>::type UTp;
+  UTp res_buf[N] = {
+      0,
+  };
+  Tp x_tmp, y_tmp;
+  BinaryOp<Tp> b_op;
+  for (size_t idx = 0; idx < N; ++idx) {
+    x_tmp = static_cast<Tp>(__get_bytes_by_index<unsigned int, UTp>(x, idx));
+    y_tmp = static_cast<Tp>(__get_bytes_by_index<unsigned int, UTp>(y, idx));
+    res_buf[idx] = b_op(x_tmp, y_tmp, &pred[idx]);
+  }
+  return __assemble_integral_value<unsigned, UTp, N>(res_buf);
+}
+
 // __iaddmax op doesn't work correctly on Gen12 devices, there should be some
 // issue in GPU runtime, disable clang optimizer here avoid blocking pre-ci.
 #pragma clang optimize off
@@ -1196,5 +1235,16 @@ DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_viaddmin_u32(unsigned int x, unsigned int y,
                                           unsigned int z) {
   return __imin<unsigned int>((x + y), z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmax_s16x2(unsigned int x, unsigned int y,
+                                          bool *pred_hi, bool *pred_lo) {
+  bool pred_temp[2] = {false, false};
+  unsigned int res =
+      __internal_v_binary_op_with_pred<int16_t, 2, __ibmax_op>(x, y, pred_temp);
+  *pred_lo = pred_temp[0];
+  *pred_hi = pred_temp[1];
+  return res;
 }
 #endif
