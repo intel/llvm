@@ -44,11 +44,6 @@ enum class PiApiKind {
 #include <sycl/detail/pi.def>
 };
 
-enum class UrApiKind {
-#define _UR_API(api) api,
-#include <sycl/detail/ur.def>
-};
-
 class plugin;
 using PluginPtr = std::shared_ptr<plugin>;
 
