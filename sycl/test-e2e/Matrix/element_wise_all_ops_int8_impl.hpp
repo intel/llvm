@@ -6,8 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define TM 8
-#define TK 32
+template <size_t TileM, size_t TileN, size_t TileK> class add;
+template <size_t TileM, size_t TileN, size_t TileK> class sub;
+template <size_t TileM, size_t TileN, size_t TileK> class mul;
+template <size_t TileM, size_t TileN, size_t TileK> class divide;
+template <size_t TileM, size_t TileN, size_t TileK> class logic;
 
 template <typename T, size_t M, size_t N, typename R>
 void assert_ops_ref(host_accessor<T, 2, access::mode::read> C, const R ref) {
@@ -59,40 +62,65 @@ void matrix_verify_op(big_matrix<T, M, N> &A, const R ref, OP op) {
   assert_ops_ref<T, M, N, R>(bufA.get_host_access(read_only), ref);
 }
 
-static constexpr size_t MATRIX_M = TM * 2;
-static constexpr size_t MATRIX_N = TN * 2;
-int8_t A[MATRIX_M][MATRIX_N];
-
-int main() {
+template <size_t TM, size_t TN, size_t TK> void test() {
+  static constexpr size_t MATRIX_M = TM * 2;
+  static constexpr size_t MATRIX_N = TN * 2;
+  int8_t A[MATRIX_M][MATRIX_N];
 
   big_matrix<int8_t, MATRIX_M, MATRIX_N> MA((int8_t *)&A);
 
-  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK, class add, int>(
-      MA, 7, [=](auto &x) { x = x + 2; });
-  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK, class sub, int>(
-      MA, 3, [=](auto &x) { x = x - 2; });
-  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK, class mul, int>(
-      MA, 10, [=](auto &x) { x = x * 2; });
-  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK, class div, int>(
-      MA, 2, [=](auto &x) { x = x / 2; }); // truncation is expected
-  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK, class logic, int>(
-      MA, 7, [=](auto &x) {
-        if (x) {
-          if (x > 2 || x >= 2 || x < 2 || x <= 2) {
-            int8_t val = (x != 2) ? x : 2;
-            val--;
-            val++;
-            if (x == 2) {
-              val -= 2;
-              val *= 3;
-              val /= 2;
-            } else {
-              val += 2;
-            }
-            x = val;
-          }
+  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK, add<TM, TN, TK>,
+                   int>(MA, 7, [=](auto &x) { x = x + 2; });
+  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK, sub<TM, TN, TK>,
+                   int>(MA, 3, [=](auto &x) { x = x - 2; });
+  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK, mul<TM, TN, TK>,
+                   int>(MA, 10, [=](auto &x) { x = x * 2; });
+  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK, divide<TM, TN, TK>,
+                   int>(MA, 2,
+                        [=](auto &x) { x = x / 2; }); // truncation is expected
+  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK, logic<TM, TN, TK>,
+                   int>(MA, 7, [=](auto &x) {
+    if (x) {
+      if (x > 2 || x >= 2 || x < 2 || x <= 2) {
+        int8_t val = (x != 2) ? x : 2;
+        val--;
+        val++;
+        if (x == 2) {
+          val -= 2;
+          val *= 3;
+          val /= 2;
+        } else {
+          val += 2;
         }
-      });
+        x = val;
+      }
+    }
+  });
+}
+
+int main() {
+  queue q;
+  std::vector<combination> combinations =
+      q.get_device()
+          .get_info<sycl::ext::oneapi::experimental::info::device::
+                        matrix_combinations>();
+
+  for (unsigned int i = 0; i < combinations.size(); i++) {
+    if (combinations[i].nsize == 0) { // Intel AMX
+      test<16, 16, 64>();
+      break;
+    }
+
+    if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
+      test<8, 16, 32>();
+      break;
+    }
+
+    if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
+      test<8, 8, 32>();
+      break;
+    }
+  }
 
   return 0;
 }

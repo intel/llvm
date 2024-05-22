@@ -11,7 +11,4 @@
 // RUN: %{run} %t.out
 
 #include "common.hpp"
-
-constexpr size_t TN = 16;
-
 #include "element_wise_all_ops_int8_impl.hpp"

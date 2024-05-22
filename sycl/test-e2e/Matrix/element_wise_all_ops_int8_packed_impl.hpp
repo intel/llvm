@@ -71,20 +71,17 @@ template <size_t TM, size_t TN, size_t TK> void test() {
 
   big_matrix<int8_t, MATRIX_M, MATRIX_N> MB((int8_t *)&B);
 
-  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK,
-                   add<TM, TN, TK>, int>(MB, 7,
-                                               [=](auto &x) { x = x + 2; });
-  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK,
-                   sub<TM, TN, TK>, int>(MB, 3,
-                                               [=](auto &x) { x = x - 2; });
-  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK,
-                   mul<TM, TN, TK>, int>(MB, 10,
-                                               [=](auto &x) { x = x * 2; });
-  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK,
-                   divide<TM, TN, TK>, int>(
-      MB, 2, [=](auto &x) { x = x / 2; }); // truncation is expected
-  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK,
-                   logic<TM, TN, TK>, int>(MB, 7, [=](auto &x) {
+  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK, add<TM, TN, TK>,
+                   int>(MB, 7, [=](auto &x) { x = x + 2; });
+  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK, sub<TM, TN, TK>,
+                   int>(MB, 3, [=](auto &x) { x = x - 2; });
+  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK, mul<TM, TN, TK>,
+                   int>(MB, 10, [=](auto &x) { x = x * 2; });
+  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK, divide<TM, TN, TK>,
+                   int>(MB, 2,
+                        [=](auto &x) { x = x / 2; }); // truncation is expected
+  matrix_verify_op<int8_t, MATRIX_M, MATRIX_N, TM, TN, TK, logic<TM, TN, TK>,
+                   int>(MB, 7, [=](auto &x) {
     if (x) {
       if (x > 2 || x >= 2 || x < 2 || x <= 2) {
         int8_t val = (x != 2) ? x : 2;
@@ -104,7 +101,6 @@ template <size_t TM, size_t TN, size_t TK> void test() {
 }
 
 int main() {
-
   queue q;
   std::vector<combination> combinations =
       q.get_device()
