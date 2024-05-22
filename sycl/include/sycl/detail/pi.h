@@ -227,8 +227,8 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <variant>
 #include <optional>
+#include <variant>
 
 #ifdef __cplusplus
 extern "C" {
