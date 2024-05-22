@@ -228,6 +228,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <variant>
+#include <optional>
 
 #ifdef __cplusplus
 extern "C" {
@@ -3023,7 +3024,7 @@ piextDestroyExternalSemaphore(pi_context context, pi_device device,
 /// \param event is the returned event representing this operation
 __SYCL_EXPORT pi_result piextWaitExternalSemaphore(
     pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
-    bool has_wait_value, pi_uint64 wait_value,
+    std::optional<uint64_t> wait_value,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event);
 
@@ -3044,7 +3045,7 @@ __SYCL_EXPORT pi_result piextWaitExternalSemaphore(
 /// \param event is the returned event representing this operation
 __SYCL_EXPORT pi_result piextSignalExternalSemaphore(
     pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
-    bool has_signal_value, pi_uint64 signal_value,
+    std::optional<uint64_t> signal_value,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event);
 

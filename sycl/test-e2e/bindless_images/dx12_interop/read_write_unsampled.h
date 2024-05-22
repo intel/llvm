@@ -18,7 +18,7 @@
 #include <string>
 #include <wrl.h>
 
-#include <sycl/sycl.hpp>
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 using Microsoft::WRL::ComPtr;
 namespace syclexp = sycl::ext::oneapi::experimental;

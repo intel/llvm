@@ -527,45 +527,41 @@ public:
 /// "Semaphore Wait" command group class.
 class CGSemaphoreWait : public CG {
   sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
-  bool MHasWaitValue;
-  uint64_t MWaitValue;
+  std::optional<uint64_t> MWaitValue;
 
 public:
   CGSemaphoreWait(
       sycl::detail::pi::PiInteropSemaphoreHandle InteropSemaphoreHandle,
-      bool HasWaitValue, uint64_t WaitValue, CG::StorageInitHelper CGData,
+      std::optional<uint64_t> WaitValue, CG::StorageInitHelper CGData,
       detail::code_location loc = {})
       : CG(SemaphoreWait, std::move(CGData), std::move(loc)),
         MInteropSemaphoreHandle(InteropSemaphoreHandle),
-        MHasWaitValue(HasWaitValue), MWaitValue(WaitValue) {}
+        MWaitValue(WaitValue) {}
 
   sycl::detail::pi::PiInteropSemaphoreHandle getInteropSemaphoreHandle() const {
     return MInteropSemaphoreHandle;
   }
-  bool getHasWaitValue() const { return MHasWaitValue; }
-  uint64_t getWaitValue() const { return MWaitValue; }
+  std::optional<uint64_t> getWaitValue() const { return MWaitValue; }
 };
 
 /// "Semaphore Signal" command group class.
 class CGSemaphoreSignal : public CG {
   sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
-  bool MHasSignalValue;
-  uint64_t MSignalValue;
+  std::optional<uint64_t> MSignalValue;
 
 public:
   CGSemaphoreSignal(
       sycl::detail::pi::PiInteropSemaphoreHandle InteropSemaphoreHandle,
-      bool HasSignalValue, uint64_t SignalValue, CG::StorageInitHelper CGData,
+      std::optional<uint64_t> SignalValue, CG::StorageInitHelper CGData,
       detail::code_location loc = {})
       : CG(SemaphoreSignal, std::move(CGData), std::move(loc)),
         MInteropSemaphoreHandle(InteropSemaphoreHandle),
-        MHasSignalValue(HasSignalValue), MSignalValue(SignalValue) {}
+        MSignalValue(SignalValue) {}
 
   sycl::detail::pi::PiInteropSemaphoreHandle getInteropSemaphoreHandle() const {
     return MInteropSemaphoreHandle;
   }
-  bool getHasSignalValue() const { return MHasSignalValue; }
-  uint64_t getSignalValue() const { return MSignalValue; }
+  std::optional<uint64_t> getSignalValue() const { return MSignalValue; }
 };
 
 /// "Execute command-buffer" command group class.

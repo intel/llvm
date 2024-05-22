@@ -511,21 +511,19 @@ piextDestroyExternalSemaphore(pi_context Context, pi_device Device,
 }
 
 __SYCL_EXPORT pi_result piextWaitExternalSemaphore(
-    pi_queue Queue, pi_interop_semaphore_handle SemHandle, bool HasWaitValue,
-    pi_uint64 WaitValue, pi_uint32 NumEventsInWaitList,
+    pi_queue Queue, pi_interop_semaphore_handle SemHandle,
+    std::optional<uint64_t> WaitValue, pi_uint32 NumEventsInWaitList,
     const pi_event *EventWaitList, pi_event *Event) {
-  return pi2ur::piextWaitExternalSemaphore(Queue, SemHandle, HasWaitValue,
-                                           WaitValue, NumEventsInWaitList,
-                                           EventWaitList, Event);
+  return pi2ur::piextWaitExternalSemaphore(
+      Queue, SemHandle, WaitValue, NumEventsInWaitList, EventWaitList, Event);
 }
 
 __SYCL_EXPORT pi_result piextSignalExternalSemaphore(
-    pi_queue Queue, pi_interop_semaphore_handle SemHandle, bool HasSignalValue,
-    pi_uint64 SignalValue, pi_uint32 NumEventsInWaitList,
+    pi_queue Queue, pi_interop_semaphore_handle SemHandle,
+    std::optional<uint64_t> SignalValue, pi_uint32 NumEventsInWaitList,
     const pi_event *EventWaitList, pi_event *Event) {
-  return pi2ur::piextSignalExternalSemaphore(Queue, SemHandle, HasSignalValue,
-                                             SignalValue, NumEventsInWaitList,
-                                             EventWaitList, Event);
+  return pi2ur::piextSignalExternalSemaphore(
+      Queue, SemHandle, SignalValue, NumEventsInWaitList, EventWaitList, Event);
 }
 
 pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,

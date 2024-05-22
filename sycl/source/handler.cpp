@@ -514,13 +514,13 @@ event handler::finalize() {
     break;
   case detail::CG::SemaphoreWait:
     CommandGroup.reset(new detail::CGSemaphoreWait(
-        MImpl->MInteropSemaphoreHandle, MImpl->MHasWaitValue, MImpl->MWaitValue,
-        std::move(CGData), MCodeLoc));
+        MImpl->MInteropSemaphoreHandle, MImpl->MWaitValue, std::move(CGData),
+        MCodeLoc));
     break;
   case detail::CG::SemaphoreSignal:
     CommandGroup.reset(new detail::CGSemaphoreSignal(
-        MImpl->MInteropSemaphoreHandle, MImpl->MHasSignalValue,
-        MImpl->MSignalValue, std::move(CGData), MCodeLoc));
+        MImpl->MInteropSemaphoreHandle, MImpl->MSignalValue, std::move(CGData),
+        MCodeLoc));
     break;
   case detail::CG::None:
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
@@ -1402,7 +1402,8 @@ void handler::ext_oneapi_wait_external_semaphore(
   }
   MImpl->MInteropSemaphoreHandle =
       (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
-  MImpl->MHasWaitValue = false;
+  // MImpl->MHasWaitValue = false;
+  MImpl->MWaitValue = {};
   setType(detail::CG::SemaphoreWait);
 }
 
@@ -1422,7 +1423,7 @@ void handler::ext_oneapi_wait_external_semaphore(
   }
   MImpl->MInteropSemaphoreHandle =
       (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
-  MImpl->MHasWaitValue = true;
+  // MImpl->MHasWaitValue = true;
   MImpl->MWaitValue = WaitValue;
   setType(detail::CG::SemaphoreWait);
 }
@@ -1445,7 +1446,8 @@ void handler::ext_oneapi_signal_external_semaphore(
   }
   MImpl->MInteropSemaphoreHandle =
       (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
-  MImpl->MHasSignalValue = false;
+  // MImpl->MHasSignalValue = false;
+  MImpl->MSignalValue = {};
   setType(detail::CG::SemaphoreSignal);
 }
 
@@ -1465,7 +1467,7 @@ void handler::ext_oneapi_signal_external_semaphore(
   }
   MImpl->MInteropSemaphoreHandle =
       (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
-  MImpl->MHasSignalValue = true;
+  // MImpl->MHasSignalValue = true;
   MImpl->MSignalValue = SignalValue;
   setType(detail::CG::SemaphoreSignal);
 }
