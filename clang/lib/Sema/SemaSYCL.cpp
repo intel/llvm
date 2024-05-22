@@ -6242,7 +6242,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "#include <sycl/detail/defines_elementary.hpp>\n";
   O << "#include <sycl/detail/kernel_desc.hpp>\n";
   O << "#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>\n";
-  O << "#include <sycl/kernel_bundle.hpp>\n";
 
   O << "\n";
 
@@ -6492,52 +6491,67 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "} // namespace detail\n";
   O << "} // namespace _V1\n";
   O << "} // namespace sycl\n";
-  O << "\n";
 
   FreeFunctionFwdDeclEmitter FFFwdDeclEmitter(O, S.getLangOpts());
   unsigned ShimCounter = 1;
-  for (const KernelDesc &K : KernelDescs) {
-    if (isFreeFunction(S, K.SyclKernel)) {
-      O << "// Declarations for free function " << K.Name << "\n\n";
-      if (K.ParamTypes.size() > 0) {
-        for (const auto &P : K.ParamTypes) {
-          FFFwdDeclEmitter.Visit(P);
-        }
+  int FreeFunctionCount = 0;
+  for (const KernelDesc& K : KernelDescs) {
+    if (!isFreeFunction(S, K.SyclKernel))
+      continue;
+
+    ++FreeFunctionCount;
+    O << "\n// Definition of " << K.Name << " as a free function kernel\n";
+    if (K.ParamTypes.size() > 0) {
+      for (const auto& P : K.ParamTypes) {
+        FFFwdDeclEmitter.Visit(P);
       }
-      FFFwdDeclEmitter.VisitFunctionDecl(K.FreeFunctionCDecl);
-      O << "static constexpr auto __sycl_shim" << ShimCounter << "() {\n";
-      O << "  return (";
-      FFFwdDeclEmitter.VisitFunctionPointerType(
-          S.getASTContext().getPointerType(K.SyclKernel->getType()));
-      O << ")" << K.SyclKernel->getIdentifier()->getName().data() << ";\n";
-      O << "}\n";
-      O << "\nnamespace sycl {\n";
-      O << "template <>\n";
-      O << "struct ext::oneapi::experimental::is_kernel<__sycl_shim"
-        << ShimCounter << "()";
-      O << "> {\n";
-      O << "  static constexpr bool value = true;\n";
-      O << "};\n";
-      int Dim = getFreeFunctionRangeDim(S, K.SyclKernel);
-      O << "template <>\n";
-      if (Dim > 0)
-        O << "struct ext::oneapi::experimental::is_nd_range_kernel<__sycl_shim"
-          << ShimCounter << "(), " << Dim;
-      else
-        O << "struct "
-             "ext::oneapi::experimental::is_single_task_kernel<__sycl_shim"
-          << ShimCounter << "()";
-      O << "> {\n";
-      O << "  static constexpr bool value = true;\n";
-      O << "};\n";
-      O << "template <>\n";
-      O << "kernel_id get_kernel_id <__sycl_shim" << ShimCounter << "()>() {\n";
-      O << "  return sycl::detail::get_kernel_id_impl(std::string_view{\""
-        << K.Name << "\"});\n";
-      O << "}\n";
-      O << "}\n";
-      ++ShimCounter;
     }
+    FFFwdDeclEmitter.VisitFunctionDecl(K.FreeFunctionCDecl);
+    O << "static constexpr auto __sycl_shim" << ShimCounter << "() {\n";
+    O << "  return (";
+    FFFwdDeclEmitter.VisitFunctionPointerType(
+      S.getASTContext().getPointerType(K.SyclKernel->getType()));
+    O << ")" << K.SyclKernel->getIdentifier()->getName().data() << ";\n";
+    O << "}\n";
+    O << "namespace sycl {\n";
+    O << "template <>\n";
+    O << "struct ext::oneapi::experimental::is_kernel<__sycl_shim"
+      << ShimCounter << "()";
+    O << "> {\n";
+    O << "  static constexpr bool value = true;\n";
+    O << "};\n";
+    int Dim = getFreeFunctionRangeDim(S, K.SyclKernel);
+    O << "template <>\n";
+    if (Dim > 0)
+      O << "struct ext::oneapi::experimental::is_nd_range_kernel<__sycl_shim"
+      << ShimCounter << "(), " << Dim;
+    else
+      O << "struct "
+      "ext::oneapi::experimental::is_single_task_kernel<__sycl_shim"
+      << ShimCounter << "()";
+    O << "> {\n";
+    O << "  static constexpr bool value = true;\n";
+    O << "};\n";
+    O << "}\n";
+    ++ShimCounter;
+  }
+  if (FreeFunctionCount > 0) {
+    O << "\n#include <sycl/kernel_bundle.hpp>\n";
+  }
+  ShimCounter = 1;
+  for (const KernelDesc& K : KernelDescs) {
+    if (!isFreeFunction(S, K.SyclKernel))
+      continue;
+
+    O << "\n// Definition of kernel_id of " << K.Name << "\n";
+    O << "namespace sycl {\n";
+    O << "template <>\n";
+    O << "kernel_id get_kernel_id <__sycl_shim" << ShimCounter << "()>() {\n";
+    O << "  return sycl::detail::get_kernel_id_impl(std::string_view{\""
+      << K.Name << "\"});\n";
+    O << "}\n";
+    O << "}\n";
+    ++ShimCounter;
   }
 }
 
