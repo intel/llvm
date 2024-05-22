@@ -27,10 +27,12 @@ namespace mp11 = sycl::detail::boost::mp11;
 template <class P1, class P2>
 using compare_property = mp11::mp_less<PropertyToKind<P1>, PropertyToKind<P2>>;
 
-template <class P> using sort_properties = mp11::mp_sort<P, compare_property>;
-template <class P>
+template <class PropertiesT>
+using sort_properties = mp11::mp_sort<PropertiesT, compare_property>;
+template <class PropertiesT>
 using properties_are_sorted =
-    mp11::mp_apply<mp11::mp_all, mp11::mp_pairwise_fold<P, compare_property>>;
+    mp11::mp_apply<mp11::mp_all,
+                   mp11::mp_pairwise_fold<PropertiesT, compare_property>>;
 
 //******************************************************************************
 // Property value tooling

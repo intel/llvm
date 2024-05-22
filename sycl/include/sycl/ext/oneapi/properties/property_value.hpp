@@ -52,15 +52,21 @@ constexpr bool operator!=(const property_value<PropertyT, A...> &,
   return (!std::is_same<A, B>::value || ...);
 }
 
-template <typename V, typename O>
-struct is_property_value_of : is_property_key_of<V, O> {};
+template <class> struct is_property_key;
 
-template <typename V, typename O>
-struct is_property_value_of<const V, O> : is_property_value_of<V, O> {};
+template <typename PropT> struct is_property_value : is_property_key<PropT> {};
+template <typename KeyT, typename... A>
+struct is_property_value<property_value<KeyT, A...>> : is_property_key<KeyT> {};
 
-template <typename K, typename... A, typename O>
-struct is_property_value_of<property_value<K, A...>, O>
-    : is_property_key_of<K, O> {};
+template <typename PropT, typename O>
+struct is_property_value_of : is_property_key_of<PropT, O> {};
+
+template <typename PropT, typename O>
+struct is_property_value_of<const PropT, O> : is_property_value_of<PropT, O> {};
+
+template <typename KeyT, typename... A, typename O>
+struct is_property_value_of<property_value<KeyT, A...>, O>
+    : is_property_key_of<KeyT, O> {};
 
 namespace detail {
 //******************************************************************************

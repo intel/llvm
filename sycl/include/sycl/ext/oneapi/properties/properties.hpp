@@ -24,22 +24,27 @@ namespace ext::oneapi::experimental {
 
 namespace detail {
 using sycl::detail::type_list;
-}
 
-namespace detail {
+// The list of property values get turned into an mp11 map.
+// This allows efficient lookup by key (by inheritance check).
+// An mp11 map is a list of lists. The inner list has the key
+// as the first type. The key has to be unique.
+
 // create map entry for property value
-template <class V> struct make_entry {
-  // for runtime property: list containing key/value (is same)
-  using type = type_list<V>;
+// base-case for runtime property: entry is just key (=value)
+template <class PropT> struct make_entry {
+  using type = type_list<PropT>;
 };
+// specialization for compile-time property
+// property value is already a list with key as first type
 template <class... T> struct make_entry<property_value<T...>> {
-  // for type compile-time property: property value already is type-list
   using type = property_value<T...>;
 };
-template <class V> using make_entry_t = typename make_entry<V>::type;
+template <class PropT> using make_entry_t = typename make_entry<PropT>::type;
 // create property map from properties type
-template <class P>
-using property_map = mp11::mp_transform<make_entry_t, mp11::mp_front<P>>;
+template <class PropertiesT>
+using property_map =
+    mp11::mp_transform<make_entry_t, mp11::mp_front<PropertiesT>>;
 template <class T, class = void>
 struct is_empty_or_incomplete : std::true_type {};
 template <class T>
@@ -61,11 +66,20 @@ template <class L, class = void> class properties {
                 "Duplicate properties in property list.");
 };
 
-template <template <class...> class TL, class... V>
-class properties<TL<V...>,
-                 std::enable_if_t<(std::is_class_v<V> && ...) &&
-                                  detail::mp11::mp_is_set<TL<V...>>::value>>
-    : V... {
+// Storage of property values is as base classes. Advantages:
+// - empty properties (=compile-time) don't increase size of class
+//   and can be treated the same as runtime properties
+// - size of class is empty if all properties are empty
+// - doesn't require instanstiation of tuple
+// - constructor and retrival is trivial because the builtin
+//   behavior of constructor/conversion for base classes is the
+//   same as we need for properties for constructor/get_property.
+
+template <template <class...> class TL, class... PropT>
+class properties<TL<PropT...>,
+                 std::enable_if_t<(std::is_class_v<PropT> && ...) &&
+                                  detail::mp11::mp_is_set<TL<PropT...>>::value>>
+    : PropT... {
 private:
   using map = detail::property_map<properties>; // map of properties
   static_assert(detail::mp11::mp_is_map<map>(),
@@ -81,9 +95,9 @@ private:
       "Conflicting properties in property list.");
 
 public:
-  template <class... T>
-  constexpr properties(T... v)
-      : T(v)... {} // T might have different ordering than V
+  template <class... T> // T pack might have different ordering than PropT pack
+  constexpr properties(T... v) : T(v)... {}
+
   template <class P> static constexpr bool has_property() {
     return detail::mp11::mp_map_contains<map, P>();
   }
