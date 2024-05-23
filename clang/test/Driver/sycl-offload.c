@@ -484,9 +484,9 @@
 
 /// Check for default linking of syclN.lib with -fsycl usage
 // RUN: %clang -fsycl -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL %s
-// RUN: %clang_cl -fsycl %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-CL %s
+// RUN: %clang_cl -fsycl %s -o %t -### 2>&1 \
+// RUN:  | FileCheck -check-prefixes=CHECK-LINK-SYCL-CL,CHECK-LINK-SYCL %s
 // CHECK-LINK-SYCL-CL: "--dependent-lib=sycl{{[0-9]*}}"
-// CHECK-LINK-SYCL-CL-NOT: "-defaultlib:sycl{{[0-9]*}}.lib"
 // CHECK-LINK-SYCL: "-defaultlib:sycl{{[0-9]*}}.lib"
 
 /// Check no SYCL runtime is linked with -nolibsycl

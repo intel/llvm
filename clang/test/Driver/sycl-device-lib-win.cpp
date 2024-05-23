@@ -189,3 +189,4 @@
 // RUN: %clang_cl -fsycl %s /winsysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_HOST_LIB
 // SYCL_DEVICE_HOST_LIB: {{.*}} "--dependent-lib=sycl-devicelib-host" {{.*}}
+// SYCL_DEVICE_HOST_LIB: link{{.*}} "-defaultlib:sycl-devicelib-host.lib"
