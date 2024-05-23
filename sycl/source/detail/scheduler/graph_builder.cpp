@@ -246,7 +246,8 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
     getOrCreateAllocaForReq(MemObject->MRecord.get(), Req, InteropQueuePtr,
                             ToEnqueue);
     assert(ToEnqueue.empty() && "Creation of the first alloca for a record "
-                                "shouldn't lead to any enqueuing.");
+                                "shouldn't lead to any enqueuing (no linked "
+                                "alloca or exceeding the leaf limit).");
   } else
     MemObject->MRecord.reset(new MemObjRecord{Queue->getContextImplPtr(),
                                               LeafLimit, AllocateDependency});
