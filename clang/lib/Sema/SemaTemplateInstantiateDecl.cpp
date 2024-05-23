@@ -3641,9 +3641,10 @@ Decl *TemplateDeclInstantiator::VisitNonTypeTemplateParmDecl(
   if (D->hasDefaultArgument() && !D->defaultArgumentWasInherited()) {
     EnterExpressionEvaluationContext ConstantEvaluated(
         SemaRef, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-    ExprResult Value = SemaRef.SubstExpr(D->getDefaultArgument(), TemplateArgs);
-    if (!Value.isInvalid())
-      Param->setDefaultArgument(Value.get());
+    TemplateArgumentLoc Result;
+    if (!SemaRef.SubstTemplateArgument(D->getDefaultArgument(), TemplateArgs,
+                                       Result))
+      Param->setDefaultArgument(SemaRef.Context, Result);
   }
 
   // Introduce this template parameter's instantiation into the instantiation
@@ -5572,6 +5573,7 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
   Function->setLocation(PatternDecl->getLocation());
   Function->setInnerLocStart(PatternDecl->getInnerLocStart());
   Function->setRangeEnd(PatternDecl->getEndLoc());
+  Function->setDeclarationNameLoc(PatternDecl->getNameInfo().getInfo());
 
   EnterExpressionEvaluationContext EvalContext(
       *this, Sema::ExpressionEvaluationContext::PotentiallyEvaluated);

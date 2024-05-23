@@ -2998,7 +2998,8 @@ private:
   bool ParseCXXAssumeAttributeArg(ParsedAttributes &Attrs,
                                   IdentifierInfo *AttrName,
                                   SourceLocation AttrNameLoc,
-                                  SourceLocation *EndLoc);
+                                  SourceLocation *EndLoc,
+                                  ParsedAttr::Form Form);
 
   IdentifierInfo *TryParseCXX11AttributeIdentifier(
       SourceLocation &Loc,
