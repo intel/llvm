@@ -104,9 +104,9 @@ struct ur_queue_handle_t_ {
   native_type get() { return getNextComputeStream(); };
   ur_device_handle_t getDevice() const noexcept { return Device; };
 
-  // Function which creates the profiling stream. Called only if profiling is
-  // enabled.
-  void createProfilingStream() {
+  // Function which creates the profiling stream. Called only from makeNative
+  // event when profiling is required.
+  void createHostSubmitTimeStream() {
     static std::once_flag HostSubmitTimeStreamFlag;
     std::call_once(HostSubmitTimeStreamFlag, [&]() {
       UR_CHECK_ERROR(cuStreamCreateWithPriority(&HostSubmitTimeStream,
