@@ -681,8 +681,7 @@ vibmax_s16x2(Tp x, Tp y, bool *p_hi, bool *p_lo) {
 }
 
 template <typename Tp>
-std::enable_if_t<std::is_same_v<Tp, int>, int>
-vibmax_s32(Tp x, Tp y, bool *p) {
+std::enable_if_t<std::is_same_v<Tp, int>, int> vibmax_s32(Tp x, Tp y, bool *p) {
   return __imf_vibmax_s32(x, y, p);
 }
 
