@@ -135,7 +135,7 @@ etors:
     - name: WORK_GROUP_SIZE
       desc: "[size_t] Return maximum Work Group size"
     - name: COMPILE_WORK_GROUP_SIZE
-      desc: "[size_t[3]] Return Work Group size required by the source code, such as __attribute__((required_work_group_size(X,Y,Z))"
+      desc: "[size_t[3]] Return Work Group size required by the source code, such as __attribute__((required_work_group_size(X,Y,Z)), or (0, 0, 0) if unspecified"
     - name: LOCAL_MEM_SIZE
       desc: "[size_t] Return local memory required by the Kernel"
     - name: PREFERRED_WORK_GROUP_SIZE_MULTIPLE
@@ -154,7 +154,7 @@ etors:
     - name: MAX_NUM_SUB_GROUPS
       desc: "[uint32_t] Return maximum number of SubGroup"
     - name: COMPILE_NUM_SUB_GROUPS
-      desc: "[uint32_t] Return number of SubGroup required by the source code"
+      desc: "[uint32_t] Return number of SubGroup required by the source code or 0 if unspecified"
     - name: SUB_GROUP_SIZE_INTEL
       desc: "[uint32_t] Return SubGroup size required by Intel"
 --- #--------------------------------------------------------------------------
