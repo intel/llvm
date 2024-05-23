@@ -858,6 +858,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
                   pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, ZeEvent,
                   WaitList.Length, WaitList.ZeEventList));
     }
+  } else if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE) {
+    ze_image_region_t DstRegion;
+    UR_CALL(
+        getImageRegionHelper(ZeImageDesc, &dstOffset, &copyExtent, DstRegion));
+    ze_image_region_t SrcRegion;
+    UR_CALL(
+        getImageRegionHelper(ZeImageDesc, &srcOffset, &copyExtent, SrcRegion));
+    auto *UrImageDst = static_cast<_ur_image *>(pDst);
+    auto *UrImageSrc = static_cast<_ur_image *>(pSrc);
+    ZE2UR_CALL(zeCommandListAppendImageCopyRegion,
+               (ZeCommandList, UrImageDst->ZeImage, UrImageSrc->ZeImage,
+                &DstRegion, &SrcRegion, ZeEvent, WaitList.Length,
+                WaitList.ZeEventList));
   } else {
     logger::error("urBindlessImagesImageCopyExp: unexpected imageCopyFlags");
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
