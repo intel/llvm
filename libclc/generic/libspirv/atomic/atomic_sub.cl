@@ -39,7 +39,7 @@ IMPL_GENERIC(int, i, __sync_fetch_and_add)
 IMPL_GENERIC(unsigned int, j, __sync_fetch_and_sub)
 
 #ifdef cl_khr_int64_base_atomics
-IMPL_GENERIC(long, l, __sync_fetch_and_add_8)
+IMPL_GENERIC(long, l, __sync_fetch_and_sub_8)
 IMPL_GENERIC(unsigned long, m, __sync_fetch_and_sub_8)
 #endif
 
