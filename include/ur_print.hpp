@@ -7,7 +7,7 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  * @file ur_print.hpp
- * @version v0.9-r0
+ * @version v0.10-r0
  *
  */
 #ifndef UR_PRINT_HPP
@@ -14319,12 +14319,6 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
                           *(params->ppImageDesc));
 
     os << ", ";
-    os << ".phMem = ";
-
-    ur::details::printPtr(os,
-                          *(params->pphMem));
-
-    os << ", ";
     os << ".phImage = ";
 
     ur::details::printPtr(os,
@@ -14373,12 +14367,6 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     ur::details::printPtr(os,
                           *(params->phSampler));
-
-    os << ", ";
-    os << ".phMem = ";
-
-    ur::details::printPtr(os,
-                          *(params->pphMem));
 
     os << ", ";
     os << ".phImage = ";

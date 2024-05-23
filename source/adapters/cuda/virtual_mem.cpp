@@ -17,12 +17,12 @@
 #include <cuda.h>
 
 UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_context_handle_t, ur_device_handle_t hDevice,
     ur_virtual_mem_granularity_info_t propName, size_t propSize,
     void *pPropValue, size_t *pPropSizeRet) {
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
-  ScopedContext Active(hContext);
+  ScopedContext Active(hDevice);
   switch (propName) {
   case UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM:
   case UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED: {
@@ -33,7 +33,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     CUmemAllocationProp AllocProps = {};
     AllocProps.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
     AllocProps.type = CU_MEM_ALLOCATION_TYPE_PINNED;
-    UR_CHECK_ERROR(GetDeviceOrdinal(hDevice, AllocProps.location.id));
+    AllocProps.location.id = hDevice->getIndex();
 
     size_t Granularity;
     UR_CHECK_ERROR(
@@ -50,15 +50,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
 UR_APIEXPORT ur_result_t UR_APICALL
 urVirtualMemReserve(ur_context_handle_t hContext, const void *pStart,
                     size_t size, void **ppStart) {
-  ScopedContext Active(hContext);
+  // Reserve the virtual mem. Only need to do once for arbitrary context
+  ScopedContext Active(hContext->getDevices()[0]);
   UR_CHECK_ERROR(cuMemAddressReserve((CUdeviceptr *)ppStart, size, 0,
                                      (CUdeviceptr)pStart, 0));
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemFree(
-    ur_context_handle_t hContext, const void *pStart, size_t size) {
-  ScopedContext Active(hContext);
+UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemFree(ur_context_handle_t,
+                                                     const void *pStart,
+                                                     size_t size) {
   UR_CHECK_ERROR(cuMemAddressFree((CUdeviceptr)pStart, size));
   return UR_RESULT_SUCCESS;
 }
@@ -66,22 +67,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemFree(
 UR_APIEXPORT ur_result_t UR_APICALL
 urVirtualMemSetAccess(ur_context_handle_t hContext, const void *pStart,
                       size_t size, ur_virtual_mem_access_flags_t flags) {
-  CUmemAccessDesc AccessDesc = {};
-  if (flags & UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE)
-    AccessDesc.flags = CU_MEM_ACCESS_FLAGS_PROT_READWRITE;
-  else if (flags & UR_VIRTUAL_MEM_ACCESS_FLAG_READ_ONLY)
-    AccessDesc.flags = CU_MEM_ACCESS_FLAGS_PROT_READ;
-  else
-    AccessDesc.flags = CU_MEM_ACCESS_FLAGS_PROT_NONE;
-  AccessDesc.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
-  // TODO: When contexts support multiple devices, we should create a descriptor
-  //       for each. We may also introduce a variant of this function with a
-  //       specific device.
-  UR_CHECK_ERROR(
-      GetDeviceOrdinal(hContext->getDevice(), AccessDesc.location.id));
-
-  ScopedContext Active(hContext);
-  UR_CHECK_ERROR(cuMemSetAccess((CUdeviceptr)pStart, size, &AccessDesc, 1));
+  // Set access for every device in the context
+  for (auto &Device : hContext->getDevices()) {
+    CUmemAccessDesc AccessDesc = {};
+    if (flags & UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE)
+      AccessDesc.flags = CU_MEM_ACCESS_FLAGS_PROT_READWRITE;
+    else if (flags & UR_VIRTUAL_MEM_ACCESS_FLAG_READ_ONLY)
+      AccessDesc.flags = CU_MEM_ACCESS_FLAGS_PROT_READ;
+    else
+      AccessDesc.flags = CU_MEM_ACCESS_FLAGS_PROT_NONE;
+    AccessDesc.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
+    AccessDesc.location.id = Device->getIndex();
+    ScopedContext Active(Device);
+    UR_CHECK_ERROR(cuMemSetAccess((CUdeviceptr)pStart, size, &AccessDesc, 1));
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -89,7 +88,8 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urVirtualMemMap(ur_context_handle_t hContext, const void *pStart, size_t size,
                 ur_physical_mem_handle_t hPhysicalMem, size_t offset,
                 ur_virtual_mem_access_flags_t flags) {
-  ScopedContext Active(hContext);
+  // Map the virtual mem. Only need to do once for arbitrary context
+  ScopedContext Active(hContext->getDevices()[0]);
   UR_CHECK_ERROR(
       cuMemMap((CUdeviceptr)pStart, size, offset, hPhysicalMem->get(), 0));
   if (flags)
@@ -99,7 +99,8 @@ urVirtualMemMap(ur_context_handle_t hContext, const void *pStart, size_t size,
 
 UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemUnmap(
     ur_context_handle_t hContext, const void *pStart, size_t size) {
-  ScopedContext Active(hContext);
+  // Unmap the virtual mem. Only need to do once for arbitrary context
+  ScopedContext Active(hContext->getDevices()[0]);
   UR_CHECK_ERROR(cuMemUnmap((CUdeviceptr)pStart, size));
   return UR_RESULT_SUCCESS;
 }
@@ -110,12 +111,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGetInfo(
     size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
-  ScopedContext Active(hContext);
+  // Set arbitrary context
+  ScopedContext Active(hContext->getDevices()[0]);
   switch (propName) {
   case UR_VIRTUAL_MEM_INFO_ACCESS_MODE: {
     CUmemLocation MemLocation = {};
     MemLocation.type = CU_MEM_LOCATION_TYPE_DEVICE;
-    UR_CHECK_ERROR(GetDeviceOrdinal(hContext->getDevice(), MemLocation.id));
+    MemLocation.id = hContext->getDevices()[0]->getIndex();
 
     unsigned long long CuAccessFlags;
     UR_CHECK_ERROR(

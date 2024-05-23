@@ -10,8 +10,9 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemBufferCreateWithNativeHandleTest);
 
 TEST_P(urMemBufferCreateWithNativeHandleTest, Success) {
     ur_native_handle_t hNativeMem = nullptr;
-    if (urMemGetNativeHandle(buffer, device, &hNativeMem)) {
-        GTEST_SKIP();
+    {
+        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+            urMemGetNativeHandle(buffer, device, &hNativeMem));
     }
 
     // We cannot assume anything about a native_handle, not even if it's
@@ -24,7 +25,7 @@ TEST_P(urMemBufferCreateWithNativeHandleTest, Success) {
         /*.pNext =*/nullptr,
         /*.isNativeHandleOwned =*/false,
     };
-    ASSERT_SUCCESS(
+    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
         urMemBufferCreateWithNativeHandle(hNativeMem, context, &props, &mem));
     ASSERT_NE(mem, nullptr);
 

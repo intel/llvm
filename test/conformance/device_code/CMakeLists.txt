@@ -10,6 +10,12 @@ else()
     set(AMD_ARCH "${UR_CONFORMANCE_AMD_ARCH}")
 endif()
 
+if (WIN32)
+  set(NULDEV NUL)
+else()
+  set(NULDEV /dev/null)
+endif()
+
 cmake_path(GET UR_DPCXX EXTENSION EXE)
 cmake_path(REPLACE_FILENAME UR_DPCXX "clang-offload-extract${EXE}" OUTPUT_VARIABLE DEFAULT_EXTRACTOR_NAME)
 set(UR_DEVICE_CODE_EXTRACTOR "${DEFAULT_EXTRACTOR_NAME}" CACHE PATH "Path to clang-offload-extract")
@@ -100,6 +106,17 @@ macro(add_device_binary SOURCE_FILE)
         add_custom_target(generate_${KERNEL_NAME}_${TRIPLE} DEPENDS ${BIN_PATH})
         add_dependencies(generate_device_binaries generate_${KERNEL_NAME}_${TRIPLE})
     endforeach()
+
+    set(IH_PATH "${DEVICE_BINARY_DIR}/${KERNEL_NAME}.ih")
+    add_custom_command(OUTPUT "${IH_PATH}"
+        COMMAND ${UR_DPCXX} -fsycl -fsycl-device-code-split=off
+        -fsycl-device-only -c -Xclang -fsycl-int-header="${IH_PATH}"
+        ${DPCXX_BUILD_FLAGS_LIST} ${SOURCE_FILE} -o ${NULDEV}
+
+        WORKING_DIRECTORY "${DEVICE_BINARY_DIR}"
+        DEPENDS ${SOURCE_FILE}
+    )
+    list(APPEND DEVICE_IHS ${IH_PATH})
     list(APPEND DEVICE_CODE_SOURCES ${SOURCE_FILE})
 endmacro()
 
@@ -127,8 +144,8 @@ set(KERNEL_HEADER ${UR_CONFORMANCE_DEVICE_BINARIES_DIR}/kernel_entry_points.h)
 add_custom_command(OUTPUT ${KERNEL_HEADER}
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/scripts
     COMMAND ${Python3_EXECUTABLE} generate_kernel_header.py
-    --dpcxx_path ${UR_DPCXX} -o ${KERNEL_HEADER} ${DEVICE_CODE_SOURCES}
+    -o ${KERNEL_HEADER} ${DEVICE_CODE_SOURCES}
     DEPENDS ${PROJECT_SOURCE_DIR}/scripts/generate_kernel_header.py
-    ${DEVICE_CODE_SOURCES})
+    ${DEVICE_CODE_SOURCES} ${DEVICE_IHS})
 add_custom_target(kernel_names_header DEPENDS ${KERNEL_HEADER})
 add_dependencies(generate_device_binaries kernel_names_header)

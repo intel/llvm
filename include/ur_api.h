@@ -7,7 +7,7 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  * @file ur_api.h
- * @version v0.9-r0
+ * @version v0.10-r0
  *
  */
 #ifndef UR_API_H_INCLUDED
@@ -1098,11 +1098,12 @@ urPlatformGetInfo(
 ///     - API versions contain major and minor attributes, use
 ///       ::UR_MAJOR_VERSION and ::UR_MINOR_VERSION
 typedef enum ur_api_version_t {
-    UR_API_VERSION_0_6 = UR_MAKE_VERSION(0, 6),     ///< version 0.6
-    UR_API_VERSION_0_7 = UR_MAKE_VERSION(0, 7),     ///< version 0.7
-    UR_API_VERSION_0_8 = UR_MAKE_VERSION(0, 8),     ///< version 0.8
-    UR_API_VERSION_0_9 = UR_MAKE_VERSION(0, 9),     ///< version 0.9
-    UR_API_VERSION_CURRENT = UR_MAKE_VERSION(0, 9), ///< latest known version
+    UR_API_VERSION_0_6 = UR_MAKE_VERSION(0, 6),      ///< version 0.6
+    UR_API_VERSION_0_7 = UR_MAKE_VERSION(0, 7),      ///< version 0.7
+    UR_API_VERSION_0_8 = UR_MAKE_VERSION(0, 8),      ///< version 0.8
+    UR_API_VERSION_0_9 = UR_MAKE_VERSION(0, 9),      ///< version 0.9
+    UR_API_VERSION_0_10 = UR_MAKE_VERSION(0, 10),    ///< version 0.10
+    UR_API_VERSION_CURRENT = UR_MAKE_VERSION(0, 10), ///< latest known version
     /// @cond
     UR_API_VERSION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -7550,7 +7551,6 @@ urBindlessImagesImageFreeExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
-///         + `NULL == phMem`
 ///         + `NULL == phImage`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -7565,7 +7565,6 @@ urBindlessImagesUnsampledImageCreateExp(
     ur_exp_image_mem_handle_t hImageMem,   ///< [in] handle to memory from which to create the image
     const ur_image_format_t *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc,     ///< [in] pointer to image description
-    ur_mem_handle_t *phMem,                ///< [out] pointer to handle of image object created
     ur_exp_image_handle_t *phImage         ///< [out] pointer to handle of image object created
 );
 
@@ -7589,7 +7588,6 @@ urBindlessImagesUnsampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
-///         + `NULL == phMem`
 ///         + `NULL == phImage`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -7606,7 +7604,6 @@ urBindlessImagesSampledImageCreateExp(
     const ur_image_format_t *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc,     ///< [in] pointer to image description
     ur_sampler_handle_t hSampler,          ///< [in] sampler to be used
-    ur_mem_handle_t *phMem,                ///< [out] pointer to handle of image object created
     ur_exp_image_handle_t *phImage         ///< [out] pointer to handle of image object created
 );
 
@@ -8913,6 +8910,8 @@ urKernelSuggestMaxCooperativeGroupCountExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueTimestampRecordingExp(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
@@ -10707,7 +10706,6 @@ typedef struct ur_bindless_images_unsampled_image_create_exp_params_t {
     ur_exp_image_mem_handle_t *phImageMem;
     const ur_image_format_t **ppImageFormat;
     const ur_image_desc_t **ppImageDesc;
-    ur_mem_handle_t **pphMem;
     ur_exp_image_handle_t **pphImage;
 } ur_bindless_images_unsampled_image_create_exp_params_t;
 
@@ -10722,7 +10720,6 @@ typedef struct ur_bindless_images_sampled_image_create_exp_params_t {
     const ur_image_format_t **ppImageFormat;
     const ur_image_desc_t **ppImageDesc;
     ur_sampler_handle_t *phSampler;
-    ur_mem_handle_t **pphMem;
     ur_exp_image_handle_t **pphImage;
 } ur_bindless_images_sampled_image_create_exp_params_t;
 

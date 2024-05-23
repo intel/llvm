@@ -498,7 +498,7 @@ struct ur_mem_handle_t_ {
     LastEventWritingToMemObj = NewEvent;
     for (const auto &Device : Context->getDevices()) {
       HaveMigratedToDeviceSinceLastWrite[Device->getIndex()] =
-          Device == NewEvent->getDevice();
+          Device == NewEvent->getQueue()->getDevice();
     }
   }
 };

@@ -435,9 +435,6 @@ params:
     - type: "const $x_image_desc_t*"
       name: pImageDesc
       desc: "[in] pointer to image description"
-    - type: $x_mem_handle_t*
-      name: phMem
-      desc: "[out] pointer to handle of image object created"
     - type: $x_exp_image_handle_t*
       name: phImage
       desc: "[out] pointer to handle of image object created"
@@ -475,9 +472,6 @@ params:
     - type: $x_sampler_handle_t
       name: hSampler
       desc: "[in] sampler to be used"
-    - type: $x_mem_handle_t*
-      name: phMem
-      desc: "[out] pointer to handle of image object created"
     - type: $x_exp_image_handle_t*
       name: phImage
       desc: "[out] pointer to handle of image object created"
