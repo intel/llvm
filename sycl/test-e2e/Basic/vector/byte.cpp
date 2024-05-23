@@ -1,6 +1,9 @@
 // RUN: %{build} -std=c++17 -o %t.out
 // RUN: %{run} %t.out
 
+// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -std=c++17 -o %t2.out %}
+// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
+
 //==---------- vector_byte.cpp - SYCL vec<> for std::byte test -------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -102,6 +105,7 @@ int main() {
     sycl::vec<std::byte, 4> vop3{std::byte{5}, std::byte{6}, std::byte{2},
                                  std::byte{3}};
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     // binary op for 2 vec
     auto vop = vop1 + vop2;
     assert(vop[0] == std::byte{6});
@@ -210,6 +214,11 @@ int main() {
 
     // logical binary op for 2 vec
     vop = vop1 & vop2;
+  #else // __INTEL_PREVIEW_BREAKING_CHANGES
+    auto vop = vop1 & vop2;
+    auto swlo = vop3.lo();
+    auto swhi = vop3.hi();
+  #endif // __INTEL_PREVIEW_BREAKING_CHANGES
     vop = vop1 | vop2;
     vop = vop1 ^ vop2;
 
@@ -218,6 +227,7 @@ int main() {
     auto swor = swlo | swhi;
     auto swxor = swlo ^ swhi;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     // logical binary op for 1 vec
     vop = vop1 & std::byte{3};
     vop = vop1 | std::byte{3};
@@ -225,6 +235,20 @@ int main() {
     vop = std::byte{3} & vop1;
     vop = std::byte{3} | vop1;
     vop = std::byte{3} ^ vop1;
+#else
+    {
+      // Check order of operands for bitwise operators.
+      auto BitWiseAnd1 = vop1 & std::byte{3};
+      auto BitWiseOr1 = vop1 | std::byte{3};
+      auto BitWiseXor1 = vop1 ^ std::byte{3};
+      auto BitWiseAnd2 = std::byte{3} & vop1;
+      auto BitWiseOr2 = std::byte{3} | vop1;
+      auto BitWiseXor2 = std::byte{3} ^ vop1;
+      assert(BitWiseAnd1[0] == BitWiseAnd2[0]);
+      assert(BitWiseOr1[1] == BitWiseOr2[1]);
+      assert(BitWiseXor1[2] == BitWiseXor2[2]);
+    }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
     // logical binary op for 1 swizzle
     auto swand2 = swlo & std::byte{3};
@@ -235,6 +259,7 @@ int main() {
     auto swor3 = std::byte{3} | swlo;
     auto swxor3 = std::byte{3} ^ swlo;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     // bit binary op for 2 vec
     vop = vop1 && vop2;
     vop = vop1 || vop2;
@@ -253,6 +278,26 @@ int main() {
     swlo << std::byte{3};
     auto right = std::byte{3} >> swhi;
     auto left = std::byte{3} << swhi;
+#else
+    // std::byte is not an arithmetic type and it only supports the following
+    // overloads of >> and << operators.
+    //
+    // 1 template <class IntegerType>
+    //   constexpr std::byte operator<<( std::byte b, IntegerType shift )
+    //   noexcept;
+    // 2 template <class IntegerType>
+    //   constexpr std::byte operator>>( std::byte b, IntegerType shift )
+    //   noexcept;
+    vop = vop1 << 3;
+    vop = vop1 >> 3;
+
+    // TODO: Fix >> and << for swizzle of std::byte. Currently, Swizzles assume
+    // that both operands of the >> abd << operator have the same data type.
+    // That is not the case with std::byte.
+
+    // swlo >> 3;
+    // swlo << 3;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
     // condition op for 2 vec
     auto vres = vop1 == vop2;
@@ -292,7 +337,9 @@ int main() {
 
     sycl::vec<std::byte, 3> voptest{std::byte{4}, std::byte{9}, std::byte{25}};
     auto bitv1 = ~vop3;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     auto bitv2 = !vop3;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
     auto bitw = ~swhi;
   }
 
