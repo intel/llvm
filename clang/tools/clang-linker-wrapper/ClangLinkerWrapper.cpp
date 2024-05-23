@@ -1765,6 +1765,12 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
     }
 
     if (HasSYCLOffloadKind) {
+      const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
+      // Only JIT targets are supported for SYCL offloads
+      if (!Triple.isSPIROrSPIRV() || Triple.isSPIRAOT())
+        reportError(createStringError(
+            inconvertibleErrorCode(),
+            "Only SPIR/SPIRV JIT targets supported for SYCL offload"));
       // Link the remaining device files using the device linker for SYCL
       // offload.
       auto TmpOutputOrErr = sycl::linkDevice(InputFiles, LinkerArgs);
