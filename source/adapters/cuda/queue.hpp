@@ -29,8 +29,9 @@ struct ur_queue_handle_t_ {
 
   std::vector<native_type> ComputeStreams;
   std::vector<native_type> TransferStreams;
-  // Stream used for recording EvQueue. It is created only if profiling is
-  // enabled - either for the queue or per event.
+  // Stream used for recording EvQueue, which holds information about when the
+  // command in question is enqueued on host, as opposed to started. It is
+  // created only if profiling is enabled - either for queue or per event.
   native_type HostSubmitTimeStream{0};
   // delay_compute_ keeps track of which streams have been recently reused and
   // their next use should be delayed. If a stream has been recently reused it
