@@ -1056,6 +1056,8 @@ static uint64_t getNbarrierArgValue(CallInst &CI) {
 }
 
 static void translateNBarrierAllocations(Module &M) {
+  std::function<bool(const Instruction *, const Function *)> FunctionFilter =
+      [](const Instruction *, const Function *) { return true; };
   // Translate named_barrier_init first to populate the metadata
   for (auto &F : M) {
     if (!llvm::esimd::isNbarrierInit(F))
@@ -1070,7 +1072,9 @@ static void translateNBarrierAllocations(Module &M) {
             M, genx::KernelMDOp::NBarrierCnt, BarrierCount};
         // TODO: Keep track of traversed functions to avoid repeating traversals
         // over same function.
-        sycl::utils::traverseCallgraphUp(GenF, SetMaxNBarrierCnt);
+        SmallPtrSet<Function *, 32> Visited;
+        sycl::utils::traverseCallgraphUp(GenF, SetMaxNBarrierCnt, Visited, true,
+                                         FunctionFilter);
       }
     }
   }
@@ -1103,16 +1107,20 @@ static void translateNBarrierAllocations(Module &M) {
         // Get current named barrier count for the kernel which calls
         // named_barrier_allocate to calculate the barrier Id to be used after
         // allocation.
-        sycl::utils::traverseCallgraphUp(GenF, [&](Function *GraphNode) {
-          auto KernelNodeIterator = Kernel2NBarrierMD.find(GraphNode);
-          if (KernelNodeIterator != Kernel2NBarrierMD.end()) {
-            llvm::Value *NamedBarrierCount = getValue(
-                (*KernelNodeIterator)
-                    .second->getOperand(genx::KernelMDOp::NBarrierCnt));
-            LastBarrierId =
-                cast<llvm::ConstantInt>(NamedBarrierCount)->getZExtValue();
-          }
-        });
+        SmallPtrSet<Function *, 32> Visited;
+        sycl::utils::traverseCallgraphUp(
+            GenF,
+            [&](Function *GraphNode) {
+              auto KernelNodeIterator = Kernel2NBarrierMD.find(GraphNode);
+              if (KernelNodeIterator != Kernel2NBarrierMD.end()) {
+                llvm::Value *NamedBarrierCount = getValue(
+                    (*KernelNodeIterator)
+                        .second->getOperand(genx::KernelMDOp::NBarrierCnt));
+                LastBarrierId =
+                    cast<llvm::ConstantInt>(NamedBarrierCount)->getZExtValue();
+              }
+            },
+            Visited, true, FunctionFilter);
         auto LastBarrierIdValue =
             llvm::ConstantInt::get(FCall->getType(), LastBarrierId);
         // replace the use
@@ -1121,7 +1129,11 @@ static void translateNBarrierAllocations(Module &M) {
             M, genx::KernelMDOp::NBarrierCnt, BarrierCount + LastBarrierId};
         // TODO: Keep track of traversed functions to avoid repeating traversals
         // over same function.
-        sycl::utils::traverseCallgraphUp(GenF, SetMaxNBarrierCnt);
+        {
+          SmallPtrSet<Function *, 32> Visited;
+          sycl::utils::traverseCallgraphUp(GenF, SetMaxNBarrierCnt, Visited,
+                                           true, FunctionFilter);
+        }
       }
     }
   }
