@@ -15,7 +15,8 @@
 #include <cstdint>
 #include <cstring>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 enum USM_TEST_RES { USM_ALLOC_FAIL = -1, USM_TEST_PASS = 0, USM_TEST_FAIL = 1 };
 
 template <class DeviceMemcpyTest>

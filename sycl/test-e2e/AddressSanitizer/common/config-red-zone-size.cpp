@@ -5,7 +5,7 @@
 // RUN: env SYCL_PREFER_UR=1 UR_LOG_SANITIZER=level:debug UR_LAYER_ASAN_OPTIONS=redzone:8 %{run} %t 2>&1 | FileCheck --check-prefixes CHECK-MIN %s
 // RUN: env SYCL_PREFER_UR=1 UR_LOG_SANITIZER=level:debug UR_LAYER_ASAN_OPTIONS=max_redzone:4096 %{run} %t 2>&1 | FileCheck --check-prefixes CHECK-MAX %s
 
-#include "sycl/sycl.hpp"
+#include <sycl/usm.hpp>
 
 int main() {
   sycl::queue q;

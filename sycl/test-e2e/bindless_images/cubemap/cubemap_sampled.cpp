@@ -6,7 +6,6 @@
 
 #include "../user_types/user_types_common.hpp"
 #include <iostream>
-#include <sycl/sycl.hpp>
 
 // Uncomment to print additional test information.
 // #define VERBOSE_PRINT
