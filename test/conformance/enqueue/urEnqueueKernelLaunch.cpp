@@ -132,6 +132,16 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidWorkGroupSize) {
 }
 
 TEST_P(urEnqueueKernelLaunchTest, InvalidKernelArgs) {
+    ur_platform_backend_t backend;
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                     sizeof(ur_platform_backend_t), &backend,
+                                     nullptr));
+
+    if (backend == UR_PLATFORM_BACKEND_CUDA ||
+        backend == UR_PLATFORM_BACKEND_HIP) {
+        GTEST_FAIL() << "AMD and Nvidia can't check kernel arguments.";
+    }
+
     // Enqueue kernel without setting any args
     ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
                                            &global_offset, &global_size,
