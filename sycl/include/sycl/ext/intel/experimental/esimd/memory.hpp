@@ -2947,7 +2947,9 @@ atomic_update(AccessorTy acc, Toffset offset, simd<T, N> src0, simd<T, N> src1,
 /// supported.
 ///
 /// @tparam SLMAmount The amount allocated in bytes
-template <int SLMAmount> class slm_allocator {
+template <int SLMAmount>
+class __SYCL_DEPRECATED("use sycl::ext::intel::esimd::slm_allocator")
+    slm_allocator {
   int offset;
 
 public:
