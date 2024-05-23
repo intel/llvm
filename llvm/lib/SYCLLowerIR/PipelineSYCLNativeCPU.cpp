@@ -15,7 +15,6 @@
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/RenameKernelSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
-#include "llvm/IRPrinter/IRPrintingPasses.h"
 
 #ifdef NATIVECPU_USE_OCK
 #include "compiler/utils/builtin_info.h"
@@ -51,9 +50,9 @@ static cl::opt<bool>
     SYCLNativeCPUNoVecz("sycl-native-cpu-no-vecz", cl::init(false),
                         cl::desc("Disable vectorizer for SYCL Native CPU"));
 
-static cl::opt<bool> SYCLDumpIR(
-    "sycl-native-dump-device-ir", cl::init(false),
-    cl::desc("Dump device IR after Native passes."));
+static cl::opt<bool>
+    SYCLDumpIR("sycl-native-dump-device-ir", cl::init(false),
+               cl::desc("Dump device IR after Native passes."));
 
 void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
     llvm::ModulePassManager &MPM, ModuleAnalysisManager &MAM,
@@ -96,6 +95,13 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
   MPM.addPass(RenameKernelSYCLNativeCPUPass());
 
   if (SYCLDumpIR) {
-    MPM.addPass(PrintModulePass(llvm::outs()));
+    // Fixme: Use PrintModulePass after PR to fix dependencies/--shared-libs
+    struct DumpIR : public PassInfoMixin<DumpIR> {
+      PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM) {
+        M.print(llvm::outs(), nullptr);
+        return PreservedAnalyses::all();
+      }
+    };
+    MPM.addPass(DumpIR());
   }
 }
