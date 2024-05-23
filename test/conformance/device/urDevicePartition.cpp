@@ -244,6 +244,21 @@ TEST_F(urDevicePartitionTest, InvalidNullPointerProperties) {
     }
 }
 
+TEST_F(urDevicePartitionTest, InvalidNullPointerPropertiesArray) {
+    ur_device_partition_properties_t properties{
+        UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
+        nullptr,
+        nullptr,
+        0,
+    };
+    for (auto device : devices) {
+        ur_device_handle_t sub_device = nullptr;
+        ASSERT_EQ_RESULT(
+            UR_RESULT_ERROR_INVALID_NULL_POINTER,
+            urDevicePartition(device, &properties, 1, &sub_device, nullptr));
+    }
+}
+
 TEST_F(urDevicePartitionTest, SuccessSubSet) {
     for (auto device : devices) {
 

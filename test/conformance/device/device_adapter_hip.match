@@ -1,2 +1,4 @@
 {{OPT}}urDeviceCreateWithNativeHandleTest.Success
+{{OPT}}urDeviceCreateWithNativeHandleTest.SuccessWithOwnedNativeHandle
+{{OPT}}urDeviceCreateWithNativeHandleTest.SuccessWithUnOwnedNativeHandle
 {{OPT}}urDeviceGetGlobalTimestampTest.SuccessSynchronizedTime
