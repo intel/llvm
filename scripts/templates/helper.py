@@ -12,7 +12,9 @@ import util
 
 # allow imports from top-level scripts directory
 sys.path.append("..")
+from .print_helper import get_api_types_funcs
 from version import Version
+
 
 """
     Extracts traits from a spec object
@@ -655,6 +657,32 @@ def get_adapter_handles(specs):
                 objs.append(obj)
 
     return objs
+
+"""
+Public:
+    returns a list of all loader API functions' names
+"""
+def get_loader_functions(specs, meta, n, tags):
+    func_names = []
+    
+    # Main API functions
+    for s in specs:
+        for obj in s["objects"]:
+            if obj_traits.is_function(obj):
+                func_names.append(make_func_name(n, tags, obj))
+
+    # Process address tables functions
+    for tbl in get_pfntables(specs, meta, n, tags):
+        func_names.append(tbl['export']['name'])
+
+    # Print functions
+    api_types_funcs = get_api_types_funcs(specs, meta, n, tags)
+    for func in api_types_funcs:
+        func_names.append(func.c_name)
+    func_names.append(f"{tags['$x']}PrintFunctionParams")
+
+    return sorted(func_names)
+
 
 """
 Private:
