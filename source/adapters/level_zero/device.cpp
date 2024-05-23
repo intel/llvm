@@ -1,6 +1,6 @@
 //===--------- device.cpp - Level Zero Adapter ----------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2024 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -337,8 +337,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_DRIVER_VERSION:
   case UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION:
     return ReturnValue(Device->Platform->ZeDriverVersion.c_str());
-  case UR_DEVICE_INFO_VERSION:
-    return ReturnValue(Device->Platform->ZeDriverApiVersion.c_str());
+  case UR_DEVICE_INFO_VERSION: {
+    // from compute-runtime/shared/source/helpers/hw_ip_version.h
+    typedef struct {
+      uint32_t revision : 6;
+      uint32_t reserved : 8;
+      uint32_t release : 8;
+      uint32_t architecture : 10;
+    } version_components_t;
+    typedef struct {
+      union {
+        uint32_t value;
+        version_components_t components;
+      };
+    } ipVersion_t;
+    ipVersion_t IpVersion;
+    IpVersion.value = Device->ZeDeviceIpVersionExt->ipVersion;
+    std::stringstream S;
+    S << IpVersion.components.architecture << "."
+      << IpVersion.components.release << "." << IpVersion.components.revision;
+    return ReturnValue(S.str().c_str());
+  }
   case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES: {
     auto Res = Device->Platform->populateDeviceCacheIfNeeded();
     if (Res != UR_RESULT_SUCCESS) {

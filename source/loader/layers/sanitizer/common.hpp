@@ -16,6 +16,7 @@
 #include "ur_ddi.h"
 
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <string>
 
@@ -53,7 +54,17 @@ inline constexpr uptr RZLog2Size(uptr rz_log) {
     return 16 << rz_log;
 }
 
-inline constexpr uptr ComputeRZLog(uptr user_requested_size) {
+inline constexpr uptr RZSize2Log(uptr rz_size) {
+    assert(rz_size >= 16);
+    assert(rz_size <= 2048);
+    assert(IsPowerOfTwo(rz_size));
+    uptr res = log2(rz_size) - 4;
+    assert(rz_size == RZLog2Size(res));
+    return res;
+}
+
+inline constexpr uptr ComputeRZLog(uptr user_requested_size, uptr min_size,
+                                   uptr max_size) {
     uptr rz_log = user_requested_size <= 64 - 16            ? 0
                   : user_requested_size <= 128 - 32         ? 1
                   : user_requested_size <= 512 - 64         ? 2
@@ -62,7 +73,9 @@ inline constexpr uptr ComputeRZLog(uptr user_requested_size) {
                   : user_requested_size <= (1 << 15) - 512  ? 5
                   : user_requested_size <= (1 << 16) - 1024 ? 6
                                                             : 7;
-    return rz_log;
+    uptr min_log = RZSize2Log(min_size);
+    uptr max_log = RZSize2Log(max_size);
+    return std::min(std::max(rz_log, min_log), max_log);
 }
 
 /// Returns the next integer (mod 2**64) that is greater than or equal to

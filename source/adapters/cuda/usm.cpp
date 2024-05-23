@@ -95,11 +95,10 @@ urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t USMFreeImpl(ur_context_handle_t Context, void *Pointer) {
+ur_result_t USMFreeImpl(ur_context_handle_t, void *Pointer) {
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
-    ScopedContext Active(Context);
-    bool IsManaged;
+    unsigned int IsManaged;
     unsigned int Type;
     void *AttributeValues[2] = {&IsManaged, &Type};
     CUpointer_attribute Attributes[2] = {CU_POINTER_ATTRIBUTE_IS_MANAGED,
@@ -131,11 +130,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
   return USMFreeImpl(hContext, pMem);
 }
 
-ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t Context,
-                               ur_device_handle_t, ur_usm_device_mem_flags_t,
-                               size_t Size, uint32_t Alignment) {
+ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t,
+                               ur_device_handle_t Device,
+                               ur_usm_device_mem_flags_t, size_t Size,
+                               uint32_t Alignment) {
   try {
-    ScopedContext Active(Context);
+    ScopedContext Active(Device);
     UR_CHECK_ERROR(cuMemAlloc((CUdeviceptr *)ResultPtr, Size));
   } catch (ur_result_t Err) {
     return Err;
@@ -150,12 +150,13 @@ ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t Context,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
-                               ur_device_handle_t, ur_usm_host_mem_flags_t,
+ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t,
+                               ur_device_handle_t Device,
+                               ur_usm_host_mem_flags_t,
                                ur_usm_device_mem_flags_t, size_t Size,
                                uint32_t Alignment) {
   try {
-    ScopedContext Active(Context);
+    ScopedContext Active(Device);
     UR_CHECK_ERROR(cuMemAllocManaged((CUdeviceptr *)ResultPtr, Size,
                                      CU_MEM_ATTACH_GLOBAL));
   } catch (ur_result_t Err) {
@@ -171,11 +172,10 @@ ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t Context,
+ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t,
                              ur_usm_host_mem_flags_t, size_t Size,
                              uint32_t Alignment) {
   try {
-    ScopedContext Active(Context);
     UR_CHECK_ERROR(cuMemAllocHost(ResultPtr, Size));
   } catch (ur_result_t Err) {
     return Err;
@@ -199,7 +199,6 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
   UrReturnHelper ReturnValue(propValueSize, pPropValue, pPropValueSizeRet);
 
   try {
-    ScopedContext Active(hContext);
     switch (propName) {
     case UR_USM_ALLOC_INFO_TYPE: {
       unsigned int Value;
@@ -375,7 +374,7 @@ ur_result_t USMHostMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
 
 ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
                                              ur_usm_pool_desc_t *PoolDesc)
-    : Context(Context) {
+    : Context{Context} {
   const void *pNext = PoolDesc->pNext;
   while (pNext != nullptr) {
     const ur_base_desc_t *BaseDesc = static_cast<const ur_base_desc_t *>(pNext);
@@ -406,25 +405,25 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
           &this->DisjointPoolConfigs.Configs[usm::DisjointPoolMemType::Host])
           .second;
 
-  auto Device = Context->DeviceID;
-  MemProvider =
-      umf::memoryProviderMakeUnique<USMDeviceMemoryProvider>(Context, Device)
-          .second;
-  DeviceMemPool =
-      umf::poolMakeUniqueFromOps(
-          &UMF_DISJOINT_POOL_OPS, std::move(MemProvider),
-          &this->DisjointPoolConfigs.Configs[usm::DisjointPoolMemType::Device])
-          .second;
-
-  MemProvider =
-      umf::memoryProviderMakeUnique<USMSharedMemoryProvider>(Context, Device)
-          .second;
-  SharedMemPool =
-      umf::poolMakeUniqueFromOps(
-          &UMF_DISJOINT_POOL_OPS, std::move(MemProvider),
-          &this->DisjointPoolConfigs.Configs[usm::DisjointPoolMemType::Shared])
-          .second;
-  Context->addPool(this);
+  for (const auto &Device : Context->getDevices()) {
+    MemProvider =
+        umf::memoryProviderMakeUnique<USMDeviceMemoryProvider>(Context, Device)
+            .second;
+    DeviceMemPool = umf::poolMakeUniqueFromOps(
+                        &UMF_DISJOINT_POOL_OPS, std::move(MemProvider),
+                        &this->DisjointPoolConfigs
+                             .Configs[usm::DisjointPoolMemType::Device])
+                        .second;
+    MemProvider =
+        umf::memoryProviderMakeUnique<USMSharedMemoryProvider>(Context, Device)
+            .second;
+    SharedMemPool = umf::poolMakeUniqueFromOps(
+                        &UMF_DISJOINT_POOL_OPS, std::move(MemProvider),
+                        &this->DisjointPoolConfigs
+                             .Configs[usm::DisjointPoolMemType::Shared])
+                        .second;
+    Context->addPool(this);
+  }
 }
 
 bool ur_usm_pool_handle_t_::hasUMFPool(umf_memory_pool_t *umf_pool) {
