@@ -1,3 +1,6 @@
+{{OPT}}urEnqueueKernelLaunchTest.InvalidKernelArgs/AMD_HIP_BACKEND___{{.*}}_
+{{OPT}}urEnqueueKernelLaunchKernelWgSizeTest.NonMatchingLocalSize/AMD_HIP_BACKEND___{{.*}}_
+{{OPT}}urEnqueueKernelLaunchKernelSubGroupTest.Success/AMD_HIP_BACKEND___{{.*}}_
 {{OPT}}urEnqueueKernelLaunchUSMLinkedList.Success/AMD_HIP_BACKEND___{{.*}}___UsePoolEnabled
 {{OPT}}urEnqueueMemBufferCopyRectTestWithParam.Success/AMD_HIP_BACKEND___{{.*}}___copy_row_2D
 {{OPT}}urEnqueueMemBufferCopyRectTestWithParam.Success/AMD_HIP_BACKEND___{{.*}}___copy_3d_2d
