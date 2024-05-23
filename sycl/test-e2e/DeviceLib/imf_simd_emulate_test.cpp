@@ -2224,6 +2224,60 @@ void run_vibmax_u32_test(s::queue &device_q) {
   std::cout << "sycl::ext::intel::math::vibmax_u32 test pass." << std::endl;
 }
 
+void run_vibmin_s16x2_test(s::queue &device_q) {
+  std::initializer_list<unsigned> input_vals1 = {
+      0,          0x3ae44994, 0x787aec15, 0x38f673b1, 0x1b50fa01, 0x1b7628fe,
+      0x739f56bf, 0x1879b014, 0x1078d2b5, 0x375126c4, 0xa32741e,  0xdbdaa09,
+      0x41f0eef3, 0x155f4b7c, 0x17d90dbf, 0x93498f3,  0x32df8360, 0x6c8b2bcf,
+      0x1988c03c, 0x16761845, 0x7c66d55b};
+  std::initializer_list<unsigned> input_vals2 = {
+      0,          0x6ff2e5d4, 0x556fddb5, 0x6b1ba8d0, 0x56e535db, 0x6cc7a299,
+      0x7f311340, 0xaef7e35,  0x7abb83ee, 0xeb6c876,  0x3bde1841, 0x482e927c,
+      0x163a2ef4, 0x703bc2d9, 0x23e40bc6, 0x7c9845fa, 0x4418e287, 0x2b5a6f75,
+      0x25819f80, 0x34d9ba3d, 0x31ec4143};
+  std::initializer_list<unsigned> ref_vals = {
+      0,          0x3ae4e5d4, 0x556fddb5, 0x38f6a8d0, 0x1b50fa01, 0x1b76a299,
+      0x739f1340, 0xaefb014,  0x107883ee, 0xeb6c876,  0xa321841,  0xdbd927c,
+      0x163aeef3, 0x155fc2d9, 0x17d90bc6, 0x93498f3,  0x32df8360, 0x2b5a2bcf,
+      0x19889f80, 0x1676ba3d, 0x31ecd55b};
+  std::initializer_list<bool> ref_preds = {
+      true,  true,  true,  false, false, false, true,  false, true,
+      true,  true,  false, true,  false, false, true,  true,  false,
+      false, false, true,  false, true,  false, false, true,  true,
+      false, true,  false, true,  true,  true,  true,  false, true,
+      true,  false, true,  false, false, true};
+  assert(ref_preds.size() == 2 * input_vals1.size());
+  test2_with_pred<2>(device_q, input_vals1, input_vals2, ref_vals, ref_preds,
+                     F2_PRED2(s::ext::intel::math::vibmin_s16x2));
+  std::cout << "sycl::ext::intel::math::vibmin_s16x2 test pass." << std::endl;
+}
+
+void run_vibmin_s32_test(s::queue &device_q) {
+  std::initializer_list<int> input_vals1 = {
+      0,          611047636,   672483410,  1754331344, -612962572, -2041446763,
+      378469960,  -458562784,  1292245326, 1038406112, 1240407460, 920494138,
+      2107191082, -1359579123, -185159361, 96649971,   1695288540, 1132217736,
+      1156357266, -975142102,  -983330111};
+  std::initializer_list<int> input_vals2 = {
+      0,          1348551940, -910303841, -614341486,  1944071070,  1721305015,
+      295605318,  -682512160, 799785470,  -1698158054, 1179333692,  1130914815,
+      -610223694, 1150185827, -368424926, -331578504,  -1144704611, -149616880,
+      1072396705, 1462824467, 788520085};
+  std::initializer_list<int> ref_vals = {
+      0,           611047636,   -910303841, -614341486,  -612962572,
+      -2041446763, 295605318,   -682512160, 799785470,   -1698158054,
+      1179333692,  920494138,   -610223694, -1359579123, -368424926,
+      -331578504,  -1144704611, -149616880, 1072396705,  -975142102,
+      -983330111};
+  std::initializer_list<bool> ref_preds = {
+      true,  true,  false, false, true,  true,  false,
+      false, false, false, false, true,  false, true,
+      false, false, false, false, false, true,  true};
+  test2_with_pred<1>(device_q, input_vals1, input_vals2, ref_vals, ref_preds,
+                     F2_PRED1(s::ext::intel::math::vibmin_s32));
+  std::cout << "sycl::ext::intel::math::vibmin_s32 test pass." << std::endl;
+}
+
 int main(int, char **) {
   s::queue device_queue(s::default_selector_v);
   std::cout << "Running on "
@@ -2263,5 +2317,7 @@ int main(int, char **) {
   run_vibmax_s32_test(device_queue);
   run_vibmax_u16x2_test(device_queue);
   run_vibmax_u32_test(device_queue);
+  run_vibmin_s16x2_test(device_queue);
+  run_vibmin_s32_test(device_queue);
   return 0;
 }

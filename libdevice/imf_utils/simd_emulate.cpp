@@ -371,6 +371,17 @@ public:
   }
 };
 
+template <typename Tp> class __ibmin_op {
+  static_assert(std::is_same<int16_t, Tp>::value ||
+                    std::is_same<uint16_t, Tp>::value,
+                "Tp can only accept 16-bit integer for __ibmin_op.");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y, bool *pred) {
+    return (x <= y) ? ((*pred = true), x) : ((*pred = false), y);
+  }
+};
+
 template <typename Tp, size_t N, template <typename> class BinaryOp>
 static inline unsigned int
 __internal_v_binary_op_with_pred(unsigned int x, unsigned int y, bool *pred) {
@@ -1243,8 +1254,24 @@ unsigned int __devicelib_imf_vibmax_s16x2(unsigned int x, unsigned int y,
 }
 
 DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmin_s16x2(unsigned int x, unsigned int y,
+                                          bool *pred_hi, bool *pred_lo) {
+  bool pred_temp[2] = {false, false};
+  unsigned int res =
+      __internal_v_binary_op_with_pred<int16_t, 2, __ibmin_op>(x, y, pred_temp);
+  *pred_lo = pred_temp[0];
+  *pred_hi = pred_temp[1];
+  return res;
+}
+
+DEVICE_EXTERN_C_INLINE
 int __devicelib_imf_vibmax_s32(int x, int y, bool *pred) {
   return (x >= y) ? ((*pred = true), x) : ((*pred = false), y);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vibmin_s32(int x, int y, bool *pred) {
+  return (x <= y) ? ((*pred = true), x) : ((*pred = false), y);
 }
 
 DEVICE_EXTERN_C_INLINE

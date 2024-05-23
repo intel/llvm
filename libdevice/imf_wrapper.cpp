@@ -1005,7 +1005,14 @@ unsigned int __devicelib_imf_vibmax_s16x2(unsigned int, unsigned int, bool *,
                                           bool *);
 
 DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmin_s16x2(unsigned int, unsigned int, bool *,
+                                          bool *);
+
+DEVICE_EXTERN_C_INLINE
 int __devicelib_imf_vibmax_s32(int, int, bool *);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vibmin_s32(int, int, bool *);
 
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vibmax_u16x2(unsigned int, unsigned int, bool *,
@@ -1491,8 +1498,19 @@ unsigned int __imf_vibmax_s16x2(unsigned int x, unsigned int y, bool *pred_hi,
 }
 
 DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vibmin_s16x2(unsigned int x, unsigned int y, bool *pred_hi,
+                                bool *pred_lo) {
+  return __devicelib_imf_vibmin_s16x2(x, y, pred_hi, pred_lo);
+}
+
+DEVICE_EXTERN_C_INLINE
 int __imf_vibmax_s32(int x, int y, bool *pred) {
   return __devicelib_imf_vibmax_s32(x, y, pred);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_vibmin_s32(int x, int y, bool *pred) {
+  return __devicelib_imf_vibmin_s32(x, y, pred);
 }
 
 DEVICE_EXTERN_C_INLINE
