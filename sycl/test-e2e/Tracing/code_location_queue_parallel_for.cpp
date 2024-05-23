@@ -6,7 +6,7 @@
 // Test tracing of the code location data for queue.parallel_for in case of
 // failure (exception generation)
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::queue Queue;

@@ -7,18 +7,8 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// XFAIL: *
 
-// Vector BE bug.
-// Memory access via a pointer type argument is broken if the function was not
-// inlined.
-
-#include "esimd_test_utils.hpp"
-
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
-#include <iostream>
+#include "../esimd_test_utils.hpp"
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;

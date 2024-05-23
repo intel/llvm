@@ -226,7 +226,8 @@
 // CKALL: Test Pass
 // CKALL: Test Pass
 
-#include "sycl/sycl.hpp"
+#include "sycl/detail/core.hpp"
+#include "sycl/usm.hpp"
 #include <chrono>
 #include <cmath>
 #include <iostream>
