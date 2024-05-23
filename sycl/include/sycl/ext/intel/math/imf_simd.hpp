@@ -116,6 +116,8 @@ unsigned int __imf_vibmax_u16x2(unsigned int, unsigned int, bool *, bool *);
 unsigned int __imf_vibmax_u32(unsigned int, unsigned int, bool *);
 unsigned int __imf_vibmin_s16x2(unsigned int, unsigned int, bool *, bool *);
 int __imf_vibmin_s32(int, int, bool *);
+unsigned int __imf_vibmin_u16x2(unsigned int, unsigned int, bool *, bool *);
+unsigned int __imf_vibmin_u32(unsigned int, unsigned int, bool *);
 };
 
 namespace sycl {
@@ -708,6 +710,18 @@ vibmin_s16x2(Tp x, Tp y, bool *p_hi, bool *p_lo) {
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, int>, int> vibmin_s32(Tp x, Tp y, bool *p) {
   return __imf_vibmin_s32(x, y, p);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
+vibmin_u16x2(Tp x, Tp y, bool *p_hi, bool *p_lo) {
+  return __imf_vibmin_u16x2(x, y, p_hi, p_lo);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
+vibmin_u32(Tp x, Tp y, bool *p) {
+  return __imf_vibmin_u32(x, y, p);
 }
 } // namespace ext::intel::math
 } // namespace _V1

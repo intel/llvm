@@ -1019,7 +1019,14 @@ unsigned int __devicelib_imf_vibmax_u16x2(unsigned int, unsigned int, bool *,
                                           bool *);
 
 DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmin_u16x2(unsigned int, unsigned int, bool *,
+                                          bool *);
+
+DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vibmax_u32(unsigned int, unsigned int, bool *);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmin_u32(unsigned int, unsigned int, bool *);
 
 DEVICE_EXTERN_C_INLINE
 unsigned int __imf_vabs2(unsigned int x) { return __devicelib_imf_vabs2(x); }
@@ -1520,8 +1527,19 @@ unsigned int __imf_vibmax_u16x2(unsigned int x, unsigned int y, bool *pred_hi,
 }
 
 DEVICE_EXTERN_C_INLINE
-int __imf_vibmax_u32(int x, int y, bool *pred) {
+unsigned int __imf_vibmin_u16x2(unsigned int x, unsigned int y, bool *pred_hi,
+                                bool *pred_lo) {
+  return __devicelib_imf_vibmin_u16x2(x, y, pred_hi, pred_lo);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vibmax_u32(unsigned int x, unsigned int y, bool *pred) {
   return __devicelib_imf_vibmax_u32(x, y, pred);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vibmin_u32(unsigned int x, unsigned int y, bool *pred) {
+  return __devicelib_imf_vibmin_u32(x, y, pred);
 }
 
 // FP16 type cast functions
