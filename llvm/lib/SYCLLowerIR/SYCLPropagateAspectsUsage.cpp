@@ -591,6 +591,11 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
 
 PreservedAnalyses
 SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
+  if (FP64ConvEmu)
+    llvm::errs() << "FP64 conversion emulation is supported\n";
+  else
+    llvm::errs() << "FP64 conversion emulation is NOT supported\n";
+
   TypeToAspectsMapTy TypesWithAspects = getTypesThatUseAspectsFromMetadata(M);
   AspectValueToNameMapTy AspectValues = getAspectsFromMetadata(M);
 
