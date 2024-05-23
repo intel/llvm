@@ -459,7 +459,8 @@ ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
 
   if (Mem->isBuffer()) {
     auto &Buffer = std::get<BufferMem>(Mem->Mem);
-    hipDeviceptr_t &DevPtr = Buffer.Ptrs[hDevice->getIndex()];
+    hipDeviceptr_t &DevPtr =
+        Buffer.Ptrs[hDevice->getIndex() % Buffer.Ptrs.size()];
 
     // Allocation has already been made
     if (DevPtr != BufferMem::native_type{0}) {
@@ -482,12 +483,12 @@ ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
     try {
       auto &Image = std::get<SurfaceMem>(Mem->Mem);
       // Allocation has already been made
-      if (Image.Arrays[hDevice->getIndex()]) {
+      if (Image.Arrays[hDevice->getIndex() % Image.Arrays.size()]) {
         return UR_RESULT_SUCCESS;
       }
       UR_CHECK_ERROR(hipArray3DCreate(
           reinterpret_cast<hipCUarray *>(&ImageArray), &Image.ArrayDesc));
-      Image.Arrays[hDevice->getIndex()] = ImageArray;
+      Image.Arrays[hDevice->getIndex() % Image.Arrays.size()] = ImageArray;
       // HIP_RESOURCE_DESC is a union of different structs, shown here
       // We need to fill it as described here to use it for a surface or texture
       // HIP_RESOURCE_DESC::resType must be HIP_RESOURCE_TYPE_ARRAY and
@@ -499,7 +500,7 @@ ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
       ImageResDesc.resType = hipResourceTypeArray;
 
       UR_CHECK_ERROR(hipCreateSurfaceObject(&Surface, &ImageResDesc));
-      Image.SurfObjs[hDevice->getIndex()] = Surface;
+      Image.SurfObjs[hDevice->getIndex() % Image.SurfObjs.size()] = Surface;
     } catch (ur_result_t Err) {
       if (ImageArray) {
         UR_CHECK_ERROR(hipFreeArray(ImageArray));
@@ -610,9 +611,10 @@ ur_result_t migrateMemoryToDeviceIfNeeded(ur_mem_handle_t Mem,
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   // Device allocation has already been initialized with most up to date
   // data in buffer
-  if (Mem->HaveMigratedToDeviceSinceLastWrite[hDevice->getIndex()]) {
+  if (Mem->HaveMigratedToDeviceSinceLastWrite
+          [hDevice->getIndex() %
+           Mem->HaveMigratedToDeviceSinceLastWrite.size()])
     return UR_RESULT_SUCCESS;
-  }
 
   ScopedContext Active(hDevice);
   if (Mem->isBuffer()) {
@@ -621,6 +623,8 @@ ur_result_t migrateMemoryToDeviceIfNeeded(ur_mem_handle_t Mem,
     UR_CHECK_ERROR(migrateImageToDevice(Mem, hDevice));
   }
 
-  Mem->HaveMigratedToDeviceSinceLastWrite[hDevice->getIndex()] = true;
+  Mem->HaveMigratedToDeviceSinceLastWrite
+      [hDevice->getIndex() % Mem->HaveMigratedToDeviceSinceLastWrite.size()] =
+      true;
   return UR_RESULT_SUCCESS;
 }

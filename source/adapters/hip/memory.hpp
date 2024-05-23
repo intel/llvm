@@ -102,7 +102,8 @@ public:
       throw Err;
     }
     return reinterpret_cast<native_type>(
-        reinterpret_cast<uint8_t *>(Ptrs[Device->getIndex()]) + Offset);
+        reinterpret_cast<uint8_t *>(Ptrs[Device->getIndex() % Ptrs.size()]) +
+        Offset);
   }
 
   // This will allocate memory on device if there isn't already an active
@@ -266,7 +267,7 @@ public:
         Err != UR_RESULT_SUCCESS) {
       throw Err;
     }
-    return Arrays[Device->getIndex()];
+    return Arrays[Device->getIndex() % Arrays.size()];
   }
 
   // Will allocate a new surface on device if not already allocated
@@ -276,7 +277,7 @@ public:
         Err != UR_RESULT_SUCCESS) {
       throw Err;
     }
-    return SurfObjs[Device->getIndex()];
+    return SurfObjs[Device->getIndex() % SurfObjs.size()];
   }
 
   ur_mem_type_t getImageType() const noexcept { return ImageDesc.type; }
@@ -510,8 +511,9 @@ struct ur_mem_handle_t_ {
     urEventRetain(NewEvent);
     LastEventWritingToMemObj = NewEvent;
     for (const auto &Device : Context->getDevices()) {
-      HaveMigratedToDeviceSinceLastWrite[Device->getIndex()] =
-          Device == NewEvent->getQueue()->getDevice();
+      HaveMigratedToDeviceSinceLastWrite
+          [Device->getIndex() % HaveMigratedToDeviceSinceLastWrite.size()] =
+              Device == NewEvent->getQueue()->getDevice();
     }
   }
 };
