@@ -14,8 +14,6 @@ int main() {
   sycl::queue q;
 
   std::vector<int> v(N);
-  for (int i = 0; i < N; i++)
-    v[i] = i;
 
   {
     sycl::buffer<int, 1> buf(v.data(), v.size());

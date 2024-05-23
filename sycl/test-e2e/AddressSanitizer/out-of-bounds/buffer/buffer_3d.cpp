@@ -23,16 +23,12 @@ int main() {
      cgh.parallel_for<class Test>(
          sycl::nd_range<3>({size_x, size_y, size_z + 1}, {1, 1, 1}),
          [=](sycl::nd_item<3> item) {
-           accessor[item.get_global_id()] =
-               item.get_global_id(0) * item.get_global_range(1) *
-                   item.get_global_range(2) +
-               item.get_global_id(1) * item.get_global_range(2) +
-               item.get_global_id(2);
+           accessor[item.get_global_id()] = item.get_global_linear_id();
          });
    }).wait();
   // CHECK: ERROR: DeviceSanitizer: out-of-bounds-access on Memory Buffer
   // CHECK: {{WRITE of size 4 at kernel <.*Test> LID\(0, 0, 0\) GID\(7, 5, 4\)}}
-  // CHECK: {{#0 .* .*buffer_3d.cpp:}}[[@LINE-9]]
+  // CHECK: {{#0 .* .*buffer_3d.cpp:}}[[@LINE-5]]
 
   return 0;
 }

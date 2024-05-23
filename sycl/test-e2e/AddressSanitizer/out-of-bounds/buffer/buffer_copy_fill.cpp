@@ -8,14 +8,15 @@
 
 #include <sycl/detail/core.hpp>
 
+#include <numeric>
+
 static const int N = 16;
 
 int main() {
   sycl::queue q;
 
   std::vector<int> v(N);
-  for (int i = 0; i < N; i++)
-    v[i] = i;
+  std::iota(v.begin(), v.end(), 0);
 
   {
     sycl::buffer<int, 1> buf(v.size());
@@ -26,6 +27,11 @@ int main() {
      }).wait();
 
     q.submit([&](sycl::handler &h) {
+       auto A = buf.get_access<sycl::access::mode::write>(h);
+       h.fill(A, 1);
+     }).wait();
+
+    q.submit([&](sycl::handler &h) {
        auto A = buf.get_access<sycl::access::mode::read_write>(h);
        h.parallel_for<class Test>(
            sycl::nd_range<1>(N + 1, 1),
@@ -33,7 +39,7 @@ int main() {
      }).wait();
     // CHECK: ERROR: DeviceSanitizer: out-of-bounds-access on Memory Buffer
     // CHECK: {{READ of size 4 at kernel <.*Test> LID\(0, 0, 0\) GID\(16, 0, 0\)}}
-    // CHECK: {{#0 .* .*buffer_copy.cpp:}}[[@LINE-4]]
+    // CHECK: {{#0 .* .*buffer_copy_fill.cpp:}}[[@LINE-4]]
   }
 
   return 0;
