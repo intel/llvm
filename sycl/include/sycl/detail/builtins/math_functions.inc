@@ -43,8 +43,9 @@ template <typename... Ts> struct last_intptr_rest_same {
     return (
         (... &&
          (++i == N
-              ? /* last */ (std::is_pointer_v<Ts> || (is_multi_ptr_v<Ts> &&
-                    has_writeable_addr_space_v<Ts>)) &&
+              ? /* last */ (
+                    std::is_pointer_v<Ts> ||
+                    (is_multi_ptr_v<Ts> && has_writeable_addr_space_v<Ts>)) &&
                     builtin_same_shape_v<first_type, get_elem_type_t<Ts>> &&
                     !is_swizzle_v<get_elem_type_t<Ts>> &&
                     std::is_same_v<get_elem_type_t<get_elem_type_t<Ts>>,
@@ -196,7 +197,7 @@ namespace detail {
 template <typename T0, typename T1>
 inline constexpr bool builtin_ptr_check_v =
     (std::is_pointer_v<T1> ||
-    (is_multi_ptr_v<T1> && has_writeable_addr_space_v<T1>)) &&
+     (is_multi_ptr_v<T1> && has_writeable_addr_space_v<T1>)) &&
     is_valid_elem_type_v<T1, simplify_if_swizzle_t<T0>>;
 
 template <typename T0, typename T1>
