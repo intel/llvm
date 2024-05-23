@@ -154,18 +154,17 @@ template <typename DataT, int NumElements> class vec {
 
   // This represent type of underlying value. There should be only one field
   // in the class, so vec<float, 16> should be equal to float16 in memory.
-  using DataType =
-      std::array<std::conditional_t<std::is_same_v<DataT, bool>, int8_t, DataT>,
-                 AdjustedNum>;
+  using DataType = std::array<std::conditional_t<std::is_same_v<DataT, bool>, int8_t, DataT>, AdjustedNum>;
 
 public:
 #ifdef __SYCL_DEVICE_ONLY__
-  // Type used for passing sycl::vec to SPIRV builtins. Optimizer treats
-  // ext_vector_type(1) as a scalar type, except for logical operations.
-  // Logical operations on ext_vector_type(1) results in 0 or -1, while
-  // on scalar types it results in 0 or 1. 
-  using vector_t = detail::element_type_for_vector_t<DataT> __attribute__((
-      ext_vector_type(NumElements)));
+  // Type used for passing sycl::vec to SPIRV builtins.
+  // We can not use ext_vector_type(1) as it's not supported by SPIRV
+  // plugins (CTS fails).
+  using vector_t = typename std::conditional_t<
+      NumElements == 1, detail::element_type_for_vector_t<DataT>,
+        detail::element_type_for_vector_t<DataT> __attribute__((
+        ext_vector_type(NumElements)))>;
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
@@ -189,7 +188,7 @@ private:
   template <typename DataT_, typename T, std::size_t... Is>
   static constexpr std::array<DataT_, sizeof...(Is)>
   VecToArray(const vec<T, sizeof...(Is)> &V, std::index_sequence<Is...>) {
-    return {static_cast<DataT_>(V.getValue(Is))...};
+    return {static_cast<DataT_>(V[Is])...};
   }
   template <typename DataT_, typename T, int N, typename T2, typename T3,
             template <typename> class T4, int... T5, std::size_t... Is>
@@ -322,6 +321,8 @@ private:
       typename std::enable_if_t<SizeChecker<0, NumElements, argTN...>::value>;
 
 public:
+  // Aliases required by SPEC to make sycl::vec consistent
+  // with that of marray and buffer.
   using element_type = DataT;
   using value_type = DataT;
   using rel_t = detail::rel_t<DataT>;
@@ -407,7 +408,7 @@ public:
   static constexpr size_t get_size() { return byte_size(); }
   static constexpr size_t byte_size() noexcept { return sizeof(m_Data); }
 
-  // We interpret bool as int8_t, std::byte as uint8_t for onversion to other
+  // We interpret bool as int8_t, std::byte as uint8_t for conversion to other
   // types.
   template <typename T>
   using ConvertBoolAndByteT = typename std::conditional_t<
@@ -533,43 +534,13 @@ public:
   // NOTE: aliasing the incompatible types of bfloat16 may lead to problems if
   // aggressively optimized. Specializing with noinline to avoid as workaround.
 
-  template <typename T = DataT>
-  typename std::enable_if_t<!std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
-                            const DataT &>
-  operator[](int i) const {
+  const DataT& operator[](int i) const {
     return reinterpret_cast<const DataT *>(&m_Data)[i];
   }
 
-  template <typename T = DataT>
-  typename std::enable_if_t<!std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
-                            DataT &>
-  operator[](int i) {
+  DataT& operator[](int i) {
     return reinterpret_cast<DataT *>(&m_Data)[i];
   }
-
-#ifdef _MSC_VER
-#define __SYCL_NOINLINE_BF16 __declspec(noinline)
-#else
-#define __SYCL_NOINLINE_BF16 __attribute__((noinline))
-#endif
-
-  template <typename T = DataT>
-  __SYCL_NOINLINE_BF16
-      typename std::enable_if_t<std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
-                                const DataT &>
-      operator[](int i) const {
-    return reinterpret_cast<const DataT *>(&m_Data)[i];
-  }
-
-  template <typename T = DataT>
-  __SYCL_NOINLINE_BF16
-      typename std::enable_if_t<std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
-                                DataT &>
-      operator[](int i) {
-    return reinterpret_cast<DataT *>(&m_Data)[i];
-  }
-
-#undef __SYCL_NOINLINE_BF16
 
   // Begin hi/lo, even/odd, xyzw, and rgba swizzles.
 private:
@@ -621,7 +592,7 @@ public:
     for (int I = 0; I < NumElements; I++) {
       // Cast require for int8 -> std::byte conversion.
       *multi_ptr<DataT, Space, DecorateAddress>(
-          Ptr + Offset * NumElements + I) = static_cast<DataT>(getValue(I));
+          Ptr + Offset * NumElements + I) = static_cast<DataT>(m_Data[I]);
     }
   }
   template <int Dimensions, access::mode Mode,
@@ -792,14 +763,6 @@ public:
   template <typename T = DataT>                                                \
   friend typename std::enable_if_t<(COND), vec<rel_t, NumElements>>            \
   operator RELLOGOP(const vec & Lhs, const vec & Rhs) {                        \
-                                                                               \
-    /* Asserts to verify that logical operations on ext_vector_type(1) */      \
-    /* results in 0 or -1. SYCL Spec (Table 143) requires logical operations */\
-    /* on sycl::vec to result in 0 or -1, similar to OpenCL vectors.*/         \
-    using SingleIntVecType = int __attribute__((ext_vector_type(1)));          \
-    assert(sycl::bit_cast<int>(static_cast<SingleIntVecType>(1) == static_cast<SingleIntVecType>(1)) == -1); \
-    assert(sycl::bit_cast<int>(static_cast<SingleIntVecType>(1) != static_cast<SingleIntVecType>(1)) == 0); \
-                                                                               \
     vec<rel_t, NumElements> Ret{};                                             \
     /* ext_vector_type does not support bfloat16, so for these   */            \
     /* we do element-by-element operation on the underlying std::array.  */    \
@@ -815,6 +778,10 @@ public:
       Ret = vec<rel_t, NumElements>(                                           \
           (typename vec<rel_t, NumElements>::vector_t)(                        \
               ExtVecLhs RELLOGOP ExtVecRhs));                                  \
+      /* For NumElements == 1, we use scalar instead of ext_vector_type. */    \
+      if constexpr (NumElements == 1) {                                        \
+        Ret *= -1;                                                             \
+      }                                                                        \
     }                                                                          \
     return Ret;                                                                \
   }
@@ -862,6 +829,8 @@ public:
 #undef __SYCL_RELLOGOP
 
 // ++ and -- operators are only allowed for DataT!=std::byte and DataT!=bool
+// FIXME: Don't allow Unary operators on vec<bool> after
+// https://github.com/KhronosGroup/SYCL-CTS/issues/896 gets fixed.
 #ifdef __SYCL_UOP
 #error "Undefine __SYCL_UOP macro"
 #endif
@@ -879,9 +848,9 @@ public:
   }
 
   __SYCL_UOP(++, +=,
-             ((!std::is_same_v<T, std::byte>) && !std::is_same_v<T, bool>))
+             (!std::is_same_v<T, std::byte>))
   __SYCL_UOP(--, -=,
-             ((!std::is_same_v<T, std::byte>) && !std::is_same_v<T, bool>))
+             (!std::is_same_v<T, std::byte>))
 #undef __SYCL_UOP
 
   // operator~() available only when: dataT != float && dataT != double

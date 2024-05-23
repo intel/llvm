@@ -135,6 +135,15 @@ int main() {
     auto swor3 = std::byte{3} | swlo;
     auto swxor3 = std::byte{3} ^ swlo;
 
+    // std::byte is not an arithmetic type and it only supports the following
+    // overloads of >> and << operators.
+    //
+    // 1 template <class IntegerType>
+    //   constexpr std::byte operator<<( std::byte b, IntegerType shift )
+    //   noexcept;
+    // 2 template <class IntegerType>
+    //   constexpr std::byte operator>>( std::byte b, IntegerType shift )
+    //   noexcept;
     vop = vop1 << 3;
     vop = vop1 >> 3;
 
