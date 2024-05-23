@@ -25,4 +25,3 @@ urProgramBuildTest.BuildFailure/AMD_HIP_BACKEND___{{.*}}_
 {{OPT}}urProgramGetInfoTest.InvalidNullHandleProgram/AMD_HIP_BACKEND___{{.*}}___UR_PROGRAM_INFO_KERNEL_NAMES
 {{OPT}}urProgramLinkTest.Success/AMD_HIP_BACKEND___{{.*}}_
 {{OPT}}urProgramSetSpecializationConstantsTest.Success/AMD_HIP_BACKEND___{{.*}}_
-{{OPT}}{{Segmentation fault|Aborted}}
