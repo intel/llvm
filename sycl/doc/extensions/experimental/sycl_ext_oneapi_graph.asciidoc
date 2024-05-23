@@ -762,22 +762,22 @@ dynamic parameter for the buffer can be registered with all the nodes which
 use the buffer as a parameter. Then a single `dynamic_parameter::update()` call
 will maintain the graphs data dependencies.
 
-===== Whole Graph Update
+===== Whole Graph Update [[whole-graph-update]]
 
-A graph in the executable state can have all of its nodes inputs & outputs updated
-using the `command_graph<graph_state::executable>::update(graph)`
-method. This method takes a graph in the modifiable state and updates the executable
-graph to use the node inputs & outputs of the modifiable graph.
+A graph in the executable state can have all of its nodes inputs & outputs
+updated using the `command_graph<graph_state::executable>::update(graph)`
+method. This method takes a graph in the modifiable state and updates the
+executable graph to use the node inputs & outputs of the modifiable graph.
+
+Both graphs must have been constructed with the same device and context.
 
 The modifiable graph must have the same topology as the graph originally used to
-create the executable graph, with the nodes and edges added in the same order. 
-In addition, the device used during construction of both graphs must also be 
-identical.
+create the executable graph, with the nodes and edges added in the same order.
 
 It is valid to use nodes that contain dynamic parameters in whole graph updates.
-If a node containing a dynamic parameter is updated through the whole graph update
-API, then any previous updates to the dynamic parameter will be reflected in the
-new graph.
+If a node containing a dynamic parameter is updated through the whole graph
+update API, then any previous updates to the dynamic parameter will be reflected
+in the new graph.
 
 :sycl-kernel-function: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sycl-kernel-function
 
@@ -1204,11 +1204,11 @@ Equivalent nodes in topologically identical graphs each have the
 same command. There is the additional limitation that to update an executable
 graph, every node in the graph must be a kernel command.
 
-During an update, the only characteristics that can differ between two topologically
-identical graphs are the arguments and the execution ND-Range of the kernel
-nodes. For example, the graph may capture different values for the USM pointers
-or accessors used in the graph. It is these kernels arguments in `graph` that
-constitute the inputs & outputs to update to.
+During an update, the only characteristics that can differ between two
+topologically identical graphs are the arguments and the execution ND-Range of
+the kernel nodes. For example, the graph may capture different values for the
+USM pointers or accessors used in the graph. It is these kernels arguments in
+`graph` that constitute the inputs & outputs to update to.
 
 It is not an error to update an executable graph such that all the arguments and
 ND-Range of kernels in `graph` are identical to the arguments of the executable
@@ -1218,6 +1218,7 @@ Differences in the following characteristics between two graphs during an
 update results in undefined behavior:
 
 * Modifying the {sycl-kernel-function}[kernel function] of a kernel node.
+* The order that nodes and edges were added to the graph.
 
 The implementation may perform a blocking wait during this call on
 any in-flight executions of that same graph if required by the backend.
@@ -1236,8 +1237,11 @@ Parameters:
 Exceptions:
 
 * Throws synchronously with error code `invalid` if the topology of `graph` is
-  not the same as the existing graph topology, or if the nodes were not added in
-  the same order.
+  not the same as the existing graph topology in the following ways:
+  
+** The number of nodes in the graph does not match.
+** The number of edges between nodes does not match.
+
 
 :handler-copy-functions: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#table.members.handler.copy
 
@@ -2206,6 +2210,71 @@ node nodeA = myGraph.add([&](handler& cgh) {
 ...
 // Update the dynamic parameter with a placeholder accessor from bufferB instead
 dynParamAccessor.update(bufferB.get_access());
+----
+
+=== Whole Graph Update
+
+Example that shows recording and updating several nodes with different
+parameters using <<whole-graph-update, Whole Graph Update>>.
+
+[source,c++]
+----
+...
+using namespace sycl;
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+
+// Enqueue several kernels which use inputPtr
+void run_kernels(int* inputPtr, queue syclQueue){
+  event eventA = syclQueue.submit([&](handler& CGH){
+    CGH.parallel_for(...);
+  });
+  event eventB = syclQueue.submit([&](handler& CGH){
+    CGH.depends_on(eventA);
+    CGH.parallel_for(...);
+  });
+  syclQueue.submit([&](handler& CGH){
+    CGH.depends_on(eventB);
+    CGH.parallel_for(...);
+  });
+}
+
+...
+
+queue myQueue;
+auto myContext = myQueue.get_context();
+auto myDevice = myQueue.get_device();
+
+// USM allocations
+const size_t n = 1024;
+int *ptrA = malloc_device<int>(n, myQueue);
+int *ptrB = malloc_device<int>(n, myQueue);
+
+// Main graph which will be updated later
+sycl_ext::command_graph mainGraph(myContext, myDevice);
+
+// Record the kernels to mainGraph, using ptrA
+mainGraph.begin_recording(myQueue);
+run_kernels(ptrA, myQueue);
+mainGraph.end_recording();
+
+auto execMainGraph = mainGraph.finalize({sycl_ext::property::graph::updatable});
+
+// Execute execMainGraph
+myQueue.ext_oneapi_graph(execMainGraph);
+
+// Record a second graph which records the same kernels, but using ptrB instead
+sycl_ext::command_graph updateGraph(myContext, myDevice);
+updateGraph.begin_recording(myQueue);
+run_kernels(ptrB, myQueue);
+updateGraph.end_recording();
+
+// Update execMainGraph using updateGraph. We do not need to finalize
+// updateGraph (this would be expensive)
+execMainGraph.update(updateGraph);
+
+// Execute execMainGraph again, which will now be operating on ptrB instead of
+// ptrA
+myQueue.ext_oneapi_graph(execMainGraph);
 ----
 
 == Future Direction [[future-direction]]
