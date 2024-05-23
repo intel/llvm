@@ -956,6 +956,11 @@ public:
         MultiPtr(Acc);
     load(Offset, MultiPtr);
   }
+  void load(size_t Offset, const DataT *Ptr) {
+    for (int I = 0; I < NumElements; ++I)
+      setValue(I, Ptr[Offset * NumElements + I]);
+  }
+
   template <access::address_space Space, access::decorated DecorateAddress>
   void store(size_t Offset,
              multi_ptr<DataT, Space, DecorateAddress> Ptr) const {
@@ -974,6 +979,10 @@ public:
     multi_ptr<DataT, detail::TargetToAS<Target>::AS, access::decorated::yes>
         MultiPtr(Acc);
     store(Offset, MultiPtr);
+  }
+  void store(size_t Offset, DataT *Ptr) const {
+    for (int I = 0; I < NumElements; ++I)
+      Ptr[Offset * NumElements + I] = getValue(I);
   }
 
   void ConvertToDataT() {
