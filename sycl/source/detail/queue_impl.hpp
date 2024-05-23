@@ -106,13 +106,12 @@ public:
   queue_impl(const DeviceImplPtr &Device, const ContextImplPtr &Context,
              const async_handler &AsyncHandler, const property_list &PropList)
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
-        MPropList(PropList), MHostQueue(MDevice->is_host()),
+        MPropList(PropList),
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MSupportsDiscardingPiEvents(MDiscardEvents &&
-                                    (MHostQueue ? true : MIsInorder)),
+        MSupportsDiscardingPiEvents(MDiscardEvents && MIsInorder)),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
     if (has_property<property::queue::enable_profiling>()) {
@@ -124,8 +123,7 @@ public:
       if (MDevice->has(aspect::queue_profiling)) {
         // When piGetDeviceAndHostTimer is not supported, compute the
         // profiling time OpenCL version < 2.1 case
-        if (!getDeviceImplPtr()->is_host() &&
-            !getDeviceImplPtr()->isGetDeviceAndHostTimerSupported())
+        if (!getDeviceImplPtr()->isGetDeviceAndHostTimerSupported())
           MFallbackProfiling = true;
       } else {
         throw sycl::exception(make_error_code(errc::feature_not_supported),
@@ -154,7 +152,7 @@ public:
           "Cannot enable fusion if device does not support fusion");
     }
     if (!Context->isDeviceValid(Device)) {
-      if (!Context->is_host() && Context->getBackend() == backend::opencl)
+      if (Context->getBackend() == backend::opencl)
         throw sycl::invalid_object_error(
             "Queue cannot be constructed with the given context and device "
             "since the device is not a member of the context (descendants of "
@@ -166,13 +164,12 @@ public:
           "descendant of its member.",
           PI_ERROR_INVALID_DEVICE);
     }
-    if (!MHostQueue) {
-      const QueueOrder QOrder =
-          MIsInorder ? QueueOrder::Ordered : QueueOrder::OOO;
-      MQueues.push_back(createQueue(QOrder));
-      // This section is the second part of the instrumentation that uses the
-      // tracepoint information and notifies
-    }
+
+    const QueueOrder QOrder =
+        MIsInorder ? QueueOrder::Ordered : QueueOrder::OOO;
+    MQueues.push_back(createQueue(QOrder));
+    // This section is the second part of the instrumentation that uses the
+    // tracepoint information and notifies
 
     // We enable XPTI tracing events using the TLS mechanism; if the code
     // location data is available, then the tracing data will be rich.
@@ -198,13 +195,11 @@ public:
                             MDevice->getDeviceName());
           xpti::addMetadata(
               TEvent, "sycl_device",
-              reinterpret_cast<size_t>(
-                  MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+              reinterpret_cast<size_t>(MDevice->getHandleRef()));
         }
         xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
         xpti::addMetadata(TEvent, "queue_id", MQueueID);
-        if (!MHostQueue)
-          xpti::addMetadata(TEvent, "queue_handle",
+        xpti::addMetadata(TEvent, "queue_handle",
                             reinterpret_cast<size_t>(getHandleRef()));
       });
       // Also publish to TLS
@@ -263,13 +258,11 @@ private:
                             MDevice->getDeviceName());
           xpti::addMetadata(
               TEvent, "sycl_device",
-              reinterpret_cast<size_t>(
-                  MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+              reinterpret_cast<size_t>(MDevice->getHandleRef()));
         }
         xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
         xpti::addMetadata(TEvent, "queue_id", MQueueID);
-        if (!MHostQueue)
-          xpti::addMetadata(TEvent, "queue_handle", getHandleRef());
+        xpti::addMetadata(TEvent, "queue_handle", getHandleRef());
       });
       // Also publish to TLS before notification
       xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
@@ -287,13 +280,12 @@ public:
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   queue_impl(sycl::detail::pi::PiQueue PiQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler)
-      : MContext(Context), MAsyncHandler(AsyncHandler), MHostQueue(false),
+      : MContext(Context), MAsyncHandler(AsyncHandler),
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MSupportsDiscardingPiEvents(MDiscardEvents &&
-                                    (MHostQueue ? true : MIsInorder)),
+        MSupportsDiscardingPiEvents(MDiscardEvents && MIsInorder)),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
     queue_impl_interop(PiQueue);
@@ -309,13 +301,11 @@ public:
   queue_impl(sycl::detail::pi::PiQueue PiQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler, const property_list &PropList)
       : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(PropList),
-        MHostQueue(false),
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MSupportsDiscardingPiEvents(MDiscardEvents &&
-                                    (MHostQueue ? true : MIsInorder)) {
+        MSupportsDiscardingPiEvents(MDiscardEvents && MIsInorder)) {
     queue_impl_interop(PiQueue);
   }
 
@@ -336,19 +326,12 @@ public:
     }
 #endif
     throw_asynchronous();
-    if (!MHostQueue) {
-      cleanup_fusion_cmd();
-      getPlugin()->call<PiApiKind::piQueueRelease>(MQueues[0]);
-    }
+    cleanup_fusion_cmd();
+    getPlugin()->call<PiApiKind::piQueueRelease>(MQueues[0]);
   }
 
   /// \return an OpenCL interoperability queue handle.
   cl_command_queue get() {
-    if (MHostQueue) {
-      throw invalid_object_error(
-          "This instance of queue doesn't support OpenCL interoperability",
-          PI_ERROR_INVALID_QUEUE);
-    }
     getPlugin()->call<PiApiKind::piQueueRetain>(MQueues[0]);
     return pi::cast<cl_command_queue>(MQueues[0]);
   }
@@ -366,9 +349,6 @@ public:
 
   /// \return an associated SYCL device.
   device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
-
-  /// \return true if this queue is a SYCL host queue.
-  bool is_host() const { return MHostQueue; }
 
   /// \return true if this queue has discard_events support.
   bool supportsDiscardingPiEvents() const {
@@ -859,7 +839,7 @@ protected:
           "function objects should use the sycl::handler API instead.");
     }
 
-    handler Handler(Self, PrimaryQueue, SecondaryQueue, MHostQueue);
+    handler Handler(Self, PrimaryQueue, SecondaryQueue);
     Handler.saveCodeLoc(Loc);
     PreventSubmit = true;
     try {
@@ -969,7 +949,6 @@ protected:
   /// Iterator through MQueues.
   size_t MNextQueueIdx = 0;
 
-  const bool MHostQueue = false;
   /// Indicates that a native out-of-order queue could not be created and we
   /// need to emulate it with multiple native in-order queues.
   bool MEmulateOOO = false;

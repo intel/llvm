@@ -2246,7 +2246,7 @@ void SetArgBasedOnType(
     const PluginPtr &Plugin, sycl::detail::pi::PiKernel Kernel,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    const sycl::context &Context, bool IsHost, detail::ArgDesc &Arg,
+    const sycl::context &Context, detail::ArgDesc &Arg,
     size_t NextTrueIndex) {
   switch (Arg.MType) {
   case kernel_param_kind_t::kind_stream:
@@ -2300,13 +2300,6 @@ void SetArgBasedOnType(
     break;
   }
   case kernel_param_kind_t::kind_specialization_constants_buffer: {
-    if (IsHost) {
-      throw sycl::exception(
-          sycl::make_error_code(sycl::errc::feature_not_supported),
-          "SYCL2020 specialization constants are not yet supported on host "
-          "device " +
-              codeToString(PI_ERROR_INVALID_OPERATION));
-    }
     assert(DeviceImageImpl != nullptr);
     sycl::detail::pi::PiMem SpecConstsBuffer =
         DeviceImageImpl->get_spec_const_buffer_ref();
@@ -2343,7 +2336,7 @@ static pi_result SetKernelParamsAndLaunch(
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
                   &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
     SetArgBasedOnType(Plugin, Kernel, DeviceImageImpl, getMemAllocationFunc,
-                      Queue->get_context(), Queue->is_host(), Arg,
+                      Queue->get_context(), Arg,
                       NextTrueIndex);
   };
 
@@ -2940,8 +2933,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     NDRDescT &NDRDesc = ExecKernel->MNDRDesc;
     std::vector<ArgDesc> &Args = ExecKernel->MArgs;
 
-    if (MQueue->is_host() || (MQueue->getDeviceImplPtr()->getBackend() ==
-                              backend::ext_intel_esimd_emulator)) {
+    if (MQueue->getDeviceImplPtr()->getBackend() ==
+                              backend::ext_intel_esimd_emulator) {
       for (ArgDesc &Arg : Args)
         if (kernel_param_kind_t::kind_accessor == Arg.MType) {
           Requirement *Req = (Requirement *)(Arg.MPtr);
@@ -2954,10 +2947,6 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         Plugin->call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
       }
 
-      if (MQueue->is_host()) {
-        ExecKernel->MHostKernel->call(NDRDesc,
-                                      getEvent()->getHostProfilingInfo());
-      } else {
         assert(MQueue->getDeviceImplPtr()->getBackend() ==
                backend::ext_intel_esimd_emulator);
         if (MEvent != nullptr)
@@ -2967,7 +2956,6 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
             reinterpret_cast<pi_kernel>(ExecKernel->MHostKernel->getPtr()),
             NDRDesc.Dims, &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
             &NDRDesc.LocalSize[0], 0, nullptr, nullptr);
-      }
       return PI_SUCCESS;
     }
 

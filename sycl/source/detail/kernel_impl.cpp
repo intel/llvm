@@ -76,9 +76,7 @@ kernel_impl::kernel_impl(ContextImplPtr Context, ProgramImplPtr ProgramImpl)
 
 kernel_impl::~kernel_impl() {
   // TODO catch an exception and put it to list of asynchronous exceptions
-  if (!is_host()) {
-    getPlugin()->call<PiApiKind::piKernelRelease>(MKernel);
-  }
+  getPlugin()->call<PiApiKind::piKernelRelease>(MKernel);
 }
 
 bool kernel_impl::isCreatedFromSource() const {

@@ -42,10 +42,9 @@ getPIEvents(const std::vector<sycl::event> &DepEvents) {
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
   sycl::detail::pi::PiResult result = PI_SUCCESS;
-  if (!is_host())
-    getPlugin()->call<PiApiKind::piQueueGetInfo>(
-        MQueues[0], PI_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
-        nullptr);
+  getPlugin()->call<PiApiKind::piQueueGetInfo>(
+      MQueues[0], PI_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
+      nullptr);
   return result;
 }
 
@@ -142,8 +141,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                           SYCL_STREAM_NAME, "memory_transfer_node");
   PrepareNotify.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device",
-                      reinterpret_cast<size_t>(
-                          MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+                      reinterpret_cast<size_t>(MDevice->getHandleRef()));
     xpti::addMetadata(TEvent, "memory_ptr", reinterpret_cast<size_t>(Ptr));
     xpti::addMetadata(TEvent, "value_set", Value);
     xpti::addMetadata(TEvent, "memory_size", Count);
@@ -190,8 +188,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                           SYCL_STREAM_NAME, "memory_transfer_node");
   PrepareNotify.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device",
-                      reinterpret_cast<size_t>(
-                          MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+                      reinterpret_cast<size_t>(MDevice->getHandleRef()));
     xpti::addMetadata(TEvent, "src_memory_ptr", reinterpret_cast<size_t>(Src));
     xpti::addMetadata(TEvent, "dest_memory_ptr",
                       reinterpret_cast<size_t>(Dest));
@@ -430,9 +427,7 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
   if (WaitEvent) {
     device D = get_device();
     std::string DevStr;
-    if (getSyclObjImpl(D)->is_host())
-      DevStr = "HOST";
-    else if (D.is_cpu())
+    if (D.is_cpu())
       DevStr = "CPU";
     else if (D.is_gpu())
       DevStr = "GPU";
@@ -588,14 +583,12 @@ bool queue_impl::ext_oneapi_empty() const {
   }
 
   // Check the status of the backend queue if this is not a host queue.
-  if (!is_host()) {
-    pi_bool IsReady = false;
-    getPlugin()->call<PiApiKind::piQueueGetInfo>(
-        MQueues[0], PI_EXT_ONEAPI_QUEUE_INFO_EMPTY, sizeof(pi_bool), &IsReady,
-        nullptr);
-    if (!IsReady)
-      return false;
-  }
+  pi_bool IsReady = false;
+  getPlugin()->call<PiApiKind::piQueueGetInfo>(
+      MQueues[0], PI_EXT_ONEAPI_QUEUE_INFO_EMPTY, sizeof(pi_bool), &IsReady,
+      nullptr);
+  if (!IsReady)
+    return false;
 
   // We may have events like host tasks which are not submitted to the backend
   // queue so we need to get their status separately.
@@ -609,7 +602,7 @@ bool queue_impl::ext_oneapi_empty() const {
        EventImplWeakPtrIt != MEventsWeak.end(); ++EventImplWeakPtrIt)
     if (std::shared_ptr<event_impl> EventImplSharedPtr =
             EventImplWeakPtrIt->lock())
-      if (EventImplSharedPtr->is_host() &&
+      if (EventImplSharedPtr->isHost() &&
           EventImplSharedPtr
                   ->get_info<info::event::command_execution_status>() !=
               info::event_command_status::complete)
@@ -641,7 +634,7 @@ void queue_impl::revisitUnenqueuedCommandsState(
           std::remove_if(
               Deps.UnenqueuedCmdEvents.begin(), Deps.UnenqueuedCmdEvents.end(),
               [](const EventImplPtr &CommandEvent) {
-                return (CommandEvent->is_host() ? CommandEvent->isCompleted()
+                return (CommandEvent->isHost() ? CommandEvent->isCompleted()
                                                 : CommandEvent->isEnqueued());
               }),
           Deps.UnenqueuedCmdEvents.end());

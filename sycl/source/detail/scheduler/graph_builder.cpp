@@ -678,7 +678,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
 static bool checkHostUnifiedMemory(const ContextImplPtr &Ctx) {
   if (const char *HUMConfig = SYCLConfig<SYCL_HOST_UNIFIED_MEMORY>::get()) {
     if (std::strcmp(HUMConfig, "0") == 0)
-      return Ctx->is_host();
+      return false;
     if (std::strcmp(HUMConfig, "1") == 0)
       return true;
   }

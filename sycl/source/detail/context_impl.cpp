@@ -162,8 +162,6 @@ const async_handler &context_impl::get_async_handler() const {
 
 template <>
 uint32_t context_impl::get_info<info::context::reference_count>() const {
-  if (is_host())
-    return 0;
   return get_context_info<info::context::reference_count>(this->getHandleRef(),
                                                           this->getPlugin());
 }
@@ -183,8 +181,6 @@ context_impl::get_info<info::context::atomic_memory_order_capabilities>()
       sycl::memory_order::relaxed, sycl::memory_order::acquire,
       sycl::memory_order::release, sycl::memory_order::acq_rel,
       sycl::memory_order::seq_cst};
-  if (is_host())
-    return CapabilityList;
 
   GetCapabilitiesIntersectionSet<
       sycl::memory_order, info::device::atomic_memory_order_capabilities>(
@@ -200,8 +196,6 @@ context_impl::get_info<info::context::atomic_memory_scope_capabilities>()
       sycl::memory_scope::work_item, sycl::memory_scope::sub_group,
       sycl::memory_scope::work_group, sycl::memory_scope::device,
       sycl::memory_scope::system};
-  if (is_host())
-    return CapabilityList;
 
   GetCapabilitiesIntersectionSet<
       sycl::memory_scope, info::device::atomic_memory_scope_capabilities>(
@@ -216,8 +210,6 @@ context_impl::get_info<info::context::atomic_fence_order_capabilities>() const {
       sycl::memory_order::relaxed, sycl::memory_order::acquire,
       sycl::memory_order::release, sycl::memory_order::acq_rel,
       sycl::memory_order::seq_cst};
-  if (is_host())
-    return CapabilityList;
 
   GetCapabilitiesIntersectionSet<sycl::memory_order,
                                  info::device::atomic_fence_order_capabilities>(
@@ -232,8 +224,6 @@ context_impl::get_info<info::context::atomic_fence_scope_capabilities>() const {
       sycl::memory_scope::work_item, sycl::memory_scope::sub_group,
       sycl::memory_scope::work_group, sycl::memory_scope::device,
       sycl::memory_scope::system};
-  if (is_host())
-    return CapabilityList;
 
   GetCapabilitiesIntersectionSet<sycl::memory_scope,
                                  info::device::atomic_fence_scope_capabilities>(

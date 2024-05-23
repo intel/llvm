@@ -79,9 +79,6 @@ static bool IsBannedPlatform(platform Platform) {
   // is disabled as well.
   //
   auto IsMatchingOpenCL = [](platform Platform, const std::string_view name) {
-    if (getSyclObjImpl(Platform)->is_host())
-      return false;
-
     const bool HasNameMatch = Platform.get_info<info::platform::name>().find(
                                   name) != std::string::npos;
     const auto Backend = detail::getSyclObjImpl(Platform)->getBackend();
@@ -466,15 +463,9 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   ods_target_list *OdsTargetList = SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
 
-  if (is_host() && (DeviceType == info::device_type::host ||
-                    DeviceType == info::device_type::all)) {
-    Res.push_back(
-        createSyclObjFromImpl<device>(device_impl::getHostDeviceImpl()));
-  }
-
   // If any DeviceType other than host was requested for host platform,
   // an empty vector will be returned.
-  if (is_host() || DeviceType == info::device_type::host)
+  if (DeviceType == info::device_type::host)
     return Res;
 
   pi_uint32 NumDevices = 0;
@@ -556,9 +547,6 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 }
 
 bool platform_impl::has_extension(const std::string &ExtensionName) const {
-  if (is_host())
-    return false;
-
   std::string AllExtensionNames = get_platform_info_string_impl(
       MPlatform, getPlugin(),
       detail::PiInfoCode<info::platform::extensions>::value);
@@ -580,9 +568,6 @@ pi_native_handle platform_impl::getNative() const {
 
 template <typename Param>
 typename Param::return_type platform_impl::get_info() const {
-  if (is_host())
-    return get_platform_info_host<Param>();
-
   return get_platform_info<Param>(this->getHandleRef(), getPlugin());
 }
 
