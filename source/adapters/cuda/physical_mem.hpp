@@ -26,17 +26,25 @@ struct ur_physical_mem_handle_t_ {
   std::atomic_uint32_t RefCount;
   native_type PhysicalMem;
   ur_context_handle_t_ *Context;
+  ur_device_handle_t Device;
 
-  ur_physical_mem_handle_t_(native_type PhysMem, ur_context_handle_t_ *Ctx)
-      : RefCount(1), PhysicalMem(PhysMem), Context(Ctx) {
+  ur_physical_mem_handle_t_(native_type PhysMem, ur_context_handle_t_ *Ctx,
+                            ur_device_handle_t Device)
+      : RefCount(1), PhysicalMem(PhysMem), Context(Ctx), Device(Device) {
     urContextRetain(Context);
+    urDeviceRetain(Device);
   }
 
-  ~ur_physical_mem_handle_t_() { urContextRelease(Context); }
+  ~ur_physical_mem_handle_t_() {
+    urContextRelease(Context);
+    urDeviceRelease(Device);
+  }
 
   native_type get() const noexcept { return PhysicalMem; }
 
   ur_context_handle_t_ *getContext() const noexcept { return Context; }
+
+  ur_device_handle_t_ *getDevice() const noexcept { return Device; }
 
   uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
 
@@ -44,23 +52,3 @@ struct ur_physical_mem_handle_t_ {
 
   uint32_t getReferenceCount() const noexcept { return RefCount; }
 };
-
-// Find a device ordinal of a device.
-inline ur_result_t GetDeviceOrdinal(ur_device_handle_t Device, int &Ordinal) {
-  ur_adapter_handle_t AdapterHandle = &adapter;
-  // Get list of platforms
-  uint32_t NumPlatforms;
-  UR_CHECK_ERROR(urPlatformGet(&AdapterHandle, 1, 0, nullptr, &NumPlatforms));
-  UR_ASSERT(NumPlatforms, UR_RESULT_ERROR_UNKNOWN);
-
-  std::vector<ur_platform_handle_t> Platforms{NumPlatforms};
-  UR_CHECK_ERROR(urPlatformGet(&AdapterHandle, 1, NumPlatforms,
-                               Platforms.data(), nullptr));
-
-  // Ordinal corresponds to the platform ID as each device has its own platform.
-  CUdevice NativeDevice = Device->get();
-  for (Ordinal = 0; size_t(Ordinal) < Platforms.size(); ++Ordinal)
-    if (Platforms[Ordinal]->Devices[0]->get() == NativeDevice)
-      return UR_RESULT_SUCCESS;
-  return UR_RESULT_ERROR_INVALID_DEVICE;
-}
