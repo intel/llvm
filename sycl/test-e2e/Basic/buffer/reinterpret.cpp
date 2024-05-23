@@ -104,7 +104,7 @@ int main() {
   try {
     sycl::buffer<float, 1> buf_fl(r1d);
     auto buf_d = buf_1d.reinterpret<double>(r2d);
-  } catch (sycl::invalid_object_error e) {
+  } catch (sycl::exception e) {
     std::cout << "Expected exception has been caught: " << e.what()
               << std::endl;
   }

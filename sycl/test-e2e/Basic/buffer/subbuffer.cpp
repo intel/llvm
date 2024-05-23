@@ -159,7 +159,7 @@ void checkExceptions() {
     sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ sycl::range<2>{2, 0},
                                  /*size*/ sycl::range<2>{2, 2}};
     assert(!"non contiguous region exception wasn't caught");
-  } catch (const sycl::invalid_object_error &e) {
+  } catch (const sycl::exception &e) {
     std::cerr << e.what() << std::endl;
   }
 
@@ -167,7 +167,7 @@ void checkExceptions() {
     sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ sycl::range<2>{2, 2},
                                  /*size*/ sycl::range<2>{2, 6}};
     assert(!"non contiguous region exception wasn't caught");
-  } catch (const sycl::invalid_object_error &e) {
+  } catch (const sycl::exception &e) {
     std::cerr << e.what() << std::endl;
   }
 
@@ -176,7 +176,7 @@ void checkExceptions() {
                                  /*offset*/ sycl::range<3>{0, 2, 1},
                                  /*size*/ sycl::range<3>{1, 2, 3}};
     assert(!"non contiguous region exception wasn't caught");
-  } catch (const sycl::invalid_object_error &e) {
+  } catch (const sycl::exception &e) {
     std::cerr << e.what() << std::endl;
   }
 
@@ -185,7 +185,7 @@ void checkExceptions() {
                                  /*offset*/ sycl::range<3>{0, 0, 0},
                                  /*size*/ sycl::range<3>{2, 3, 4}};
     assert(!"non contiguous region exception wasn't caught");
-  } catch (const sycl::invalid_object_error &e) {
+  } catch (const sycl::exception &e) {
     std::cerr << e.what() << std::endl;
   }
 
@@ -194,7 +194,7 @@ void checkExceptions() {
     sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ sycl::range<2>{2, 2},
                                  /*size*/ sycl::range<2>{2, 8}};
     assert(!"out of bounds exception wasn't caught");
-  } catch (const sycl::invalid_object_error &e) {
+  } catch (const sycl::exception &e) {
     std::cerr << e.what() << std::endl;
   }
 
@@ -203,7 +203,7 @@ void checkExceptions() {
                                  /*offset*/ sycl::range<3>{1, 1, 1},
                                  /*size*/ sycl::range<3>{1, 1, 4}};
     assert(!"out of bounds exception wasn't caught");
-  } catch (const sycl::invalid_object_error &e) {
+  } catch (const sycl::exception &e) {
     std::cerr << e.what() << std::endl;
   }
 
@@ -212,7 +212,7 @@ void checkExceptions() {
                                  /*offset*/ sycl::range<3>{3, 3, 0},
                                  /*size*/ sycl::range<3>{1, 2, 4}};
     assert(!"out of bounds exception wasn't caught");
-  } catch (const sycl::invalid_object_error &e) {
+  } catch (const sycl::exception &e) {
     std::cerr << e.what() << std::endl;
   }
 
@@ -223,7 +223,7 @@ void checkExceptions() {
     sycl::buffer<int, 2> sub_sub_buf(sub_buf, sycl::range<2>{0, 0},
                                      /*size*/ sycl::range<2>{0, 0});
     assert(!"invalid subbuffer exception wasn't caught");
-  } catch (const sycl::invalid_object_error &e) {
+  } catch (const sycl::exception &e) {
     std::cerr << e.what() << std::endl;
   }
 }
