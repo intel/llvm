@@ -35,7 +35,7 @@ int main() {
     queue q;
     print_queue_info(q);
 
-  } catch (device_error e) {
+  } catch (exception e) {
     std::cout << "Failed to create device for context" << std::endl;
   }
 
@@ -97,8 +97,8 @@ int main() {
   }
 
   {
-    default_selector Selector;
-    device Device = Selector.select_device();
+    const auto& Selector = default_selector_v;
+    device Device(Selector);
     context Context(Device);
     queue Queue(Context, Selector);
     assert(Context == Queue.get_context());
