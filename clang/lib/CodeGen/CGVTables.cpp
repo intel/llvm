@@ -770,6 +770,19 @@ void CodeGenVTables::addVTableComponent(ConstantArrayBuilder &builder,
       // Method is acceptable, continue processing as usual.
     }
 
+    if (CGM.getLangOpts().SYCLIsDevice) {
+      // Some virtual function may be only valid in host code. Don't emit
+      // virtual functions which were not specifically marked as device code.
+      const CXXMethodDecl *MD = cast<CXXMethodDecl>(GD.getDecl());
+      // FIXME: Update check to use compile-time property instead of
+      // SYCLDeviceIndirectlyCallableAttr once Virtual function extension
+      // specification is accepted.
+      if (!MD->hasAttr<SYCLDeviceIndirectlyCallableAttr>() &&
+          !MD->hasAttr<SYCLDeviceAttr>())
+        return builder.add(
+            llvm::ConstantExpr::getNullValue(CGM.DefaultInt8PtrTy));
+    }
+
     auto getSpecialVirtualFn = [&](StringRef name) -> llvm::Constant * {
       // FIXME(PR43094): When merging comdat groups, lld can select a local
       // symbol as the signature symbol even though it cannot be accessed

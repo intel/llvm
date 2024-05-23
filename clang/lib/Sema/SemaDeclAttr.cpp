@@ -8712,6 +8712,32 @@ void Sema::AddSYCLAddIRAttributesFunctionAttr(Decl *D,
                                   CI))
     return;
   D->addAttr(Attr);
+
+  // There are compile-time SYCL properties which we would like to turn into
+  // attributes to enable compiler diagnostics.
+  // At the moment the only such property is related to virtual functions and
+  // it is turned into sycl_device attribute. This is a tiny optimization to
+  // avoid deep dive into the attribute if we already know that a declaration
+  // is a device declaration. It may have to be removed later if/when we add
+  // handling of more compile-time properties here.
+  if (D->hasAttr<SYCLDeviceAttr>())
+    return;
+
+  // SYCL Headers use template magic to pass key=value pairs to the attribute
+  // and we should make sure that all template instantiations are done before
+  // accessing attribute arguments.
+  if (hasDependentExpr(Attr->args_begin(), Attr->args_size()))
+    return;
+
+  SmallVector<std::pair<std::string, std::string>, 4> Pairs =
+      Attr->getFilteredAttributeNameValuePairs(Context);
+
+  for (const auto &[Key, Value] : Pairs) {
+    if (Key == "indirectly-callable") {
+      D->addAttr(SYCLDeviceAttr::CreateImplicit(Context));
+      break;
+    }
+  }
 }
 
 static void handleSYCLAddIRAttributesFunctionAttr(Sema &S, Decl *D,
