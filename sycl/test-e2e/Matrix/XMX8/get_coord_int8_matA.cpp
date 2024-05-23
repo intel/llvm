@@ -18,7 +18,6 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-constexpr size_t SG_SZ = 8;
 constexpr size_t TN = 8;
 
 #include "../get_coord_int8_matA_impl.hpp"
