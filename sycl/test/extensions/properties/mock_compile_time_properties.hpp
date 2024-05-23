@@ -35,7 +35,7 @@ struct boo_key : detail::compile_time_property_key<fakePropKind(2)> {
 };
 
 struct foo : detail::run_time_property_key<fakePropKind(3)> {
-  constexpr foo(int v) : value(v) {}
+  constexpr foo(int v = 0) : value(v) {}
   int value;
 };
 

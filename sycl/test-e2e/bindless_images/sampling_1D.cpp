@@ -5,7 +5,8 @@
 // RUN: %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -112,6 +113,6 @@ int main() {
     return 0;
   }
 
-  std::cout << "Test passed!" << std::endl;
+  std::cout << "Test failed!" << std::endl;
   return 3;
 }

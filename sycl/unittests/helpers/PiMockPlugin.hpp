@@ -204,6 +204,7 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
   }
   case PI_DEVICE_INFO_USM_HOST_SUPPORT:
   case PI_DEVICE_INFO_USM_DEVICE_SUPPORT:
+  case PI_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT:
   case PI_DEVICE_INFO_HOST_UNIFIED_MEMORY:
   case PI_DEVICE_INFO_AVAILABLE:
   case PI_DEVICE_INFO_LINKER_AVAILABLE:
@@ -238,8 +239,22 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
     }
     return PI_SUCCESS;
   }
-  default:
+  default: {
+    // In the default case we fill the return value with 0's. This may not be
+    // valid for all device queries, but it will mean a consistent return value
+    // for the query.
+    // Any tests that need special return values should either add behavior
+    // the this function or use redefineAfter with a function that adds the
+    // intended behavior.
+    if (param_value && param_value_size != 0)
+      std::memset(param_value, 0, param_value_size);
+    // Likewise, if the device info query asks for the size of the return value
+    // we tell it there is a single byte to avoid cases where the runtime tries
+    // to allocate some random amount of memory for the return value.
+    if (param_value_size_ret)
+      *param_value_size_ret = 1;
     return PI_SUCCESS;
+  }
   }
 }
 
@@ -482,7 +497,7 @@ inline pi_result mock_piextMemMipmapFree(pi_context context, pi_device device,
 
 inline pi_result mock_piextMemUnsampledImageCreate(
     pi_context context, pi_device device, pi_image_mem_handle img_mem,
-    pi_image_format *image_format, pi_image_desc *desc, pi_mem *ret_mem,
+    pi_image_format *image_format, pi_image_desc *desc,
     pi_image_handle *ret_handle) {
   return PI_SUCCESS;
 }
@@ -552,7 +567,7 @@ inline pi_result mock_piextMemSampledImageCreateInterop(
 inline pi_result mock_piextMemSampledImageCreate(
     pi_context context, pi_device device, pi_image_mem_handle img_mem,
     pi_image_format *image_format, pi_image_desc *desc, pi_sampler sampler,
-    pi_mem *ret_mem, pi_image_handle *ret_handle) {
+    pi_image_handle *ret_handle) {
   return PI_SUCCESS;
 }
 

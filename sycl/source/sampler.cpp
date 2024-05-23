@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/sampler_impl.hpp>
+#include <sycl/image.hpp>
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/sampler.hpp>

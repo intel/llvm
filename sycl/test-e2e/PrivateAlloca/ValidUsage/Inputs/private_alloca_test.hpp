@@ -8,11 +8,23 @@
 #include <sycl/specialization_id.hpp>
 
 template <typename ElementType, typename SizeType,
-          sycl::access::decorated DecorateAddress>
+          sycl::access::decorated DecorateAddress, std::size_t Alignment>
 class Kernel;
 
 template <typename ElementType, auto &Size,
-          sycl::access::decorated DecorateAddress>
+          sycl::access::decorated DecorateAddress, std::size_t Alignment>
+static auto allocate(sycl::kernel_handler &kh) {
+  if constexpr (Alignment > 0) {
+    return sycl::ext::oneapi::experimental::aligned_private_alloca<
+        ElementType, Alignment, Size, DecorateAddress>(kh);
+  } else {
+    return sycl::ext::oneapi::experimental::private_alloca<ElementType, Size,
+                                                           DecorateAddress>(kh);
+  }
+}
+
+template <typename ElementType, auto &Size,
+          sycl::access::decorated DecorateAddress, std::size_t Alignment = 0>
 void test() {
   std::size_t N;
 
@@ -27,10 +39,11 @@ void test() {
       cgh.set_specialization_constant<Size>(N);
       using spec_const_type = std::remove_reference_t<decltype(Size)>;
       using size_type = typename spec_const_type::value_type;
-      cgh.single_task<Kernel<ElementType, size_type, DecorateAddress>>(
+      cgh.single_task<
+          Kernel<ElementType, size_type, DecorateAddress, Alignment>>(
           [=](sycl::kernel_handler h) {
-            auto ptr = sycl::ext::oneapi::experimental::private_alloca<
-                ElementType, Size, DecorateAddress>(h);
+            auto ptr =
+                allocate<ElementType, Size, DecorateAddress, Alignment>(h);
             const std::size_t M = h.get_specialization_constant<Size>();
             ptr[0] = static_cast<ElementType>(M);
             ElementType value{1};

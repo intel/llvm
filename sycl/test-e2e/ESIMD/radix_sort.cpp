@@ -12,11 +12,6 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <algorithm>
-#include <iostream>
-#include <sycl/CL/sycl.hpp>
-#include <sycl/ext/intel/esimd.hpp>
-
 #define LOG2_ELEMENTS 20
 
 // the number of bits necessary for representing the radix R
@@ -587,7 +582,7 @@ int main(int argc, char *argv[]) {
   unsigned log2_element = LOG2_ELEMENTS;
   unsigned int size = 1 << log2_element;
 
-  cl::sycl::range<2> LocalRange{1, 1};
+  sycl::range<2> LocalRange{1, 1};
 
   queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler(),
           property::queue::in_order());

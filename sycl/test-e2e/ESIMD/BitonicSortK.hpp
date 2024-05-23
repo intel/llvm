@@ -8,11 +8,6 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <algorithm>
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 #define ESIMD_UNROLL _Pragma("unroll")
 
 using namespace sycl;
