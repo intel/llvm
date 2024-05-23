@@ -6,10 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
+
+// UNSUPPORTED: gpu-intel-dg2
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
-// XFAIL: gpu
 
 #include "common.hpp"
 
