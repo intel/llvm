@@ -94,8 +94,15 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/lbushi25/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 74e18f16c0576ba8e20e0017113791335cbfa81c)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 79b6d698aecd40e44e5872fba15701e10597f694
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Tue May 14 14:22:11 2024 +0100
+  #     [HIP] Implement kernel set spec constant query
+  #     Handle the `UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS` device
+  #     query to report the feature is not supported. This also causes the
+  #     `urKernelSetSpecializationConstants` tests to be skipped.
+  set(79b6d698aecd40e44e5872fba15701e10597f694)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
