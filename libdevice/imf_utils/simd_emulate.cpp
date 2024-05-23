@@ -367,13 +367,7 @@ template <typename Tp> class __ibmax_op {
 
 public:
   Tp operator()(const Tp &x, const Tp &y, bool *pred) {
-    if (x >= y) {
-      *pred = true;
-      return x;
-    } else {
-      *pred = false;
-      return y;
-    }
+    return (x >= y) ? ((*pred = true), x) : ((*pred = false), y);
   }
 };
 
@@ -1246,5 +1240,27 @@ unsigned int __devicelib_imf_vibmax_s16x2(unsigned int x, unsigned int y,
   *pred_lo = pred_temp[0];
   *pred_hi = pred_temp[1];
   return res;
+}
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vibmax_s32(int x, int y, bool *pred) {
+  return (x >= y) ? ((*pred = true), x) : ((*pred = false), y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmax_u16x2(unsigned int x, unsigned int y,
+                                          bool *pred_hi, bool *pred_lo) {
+  bool pred_temp[2] = {false, false};
+  unsigned int res = __internal_v_binary_op_with_pred<uint16_t, 2, __ibmax_op>(
+      x, y, pred_temp);
+  *pred_lo = pred_temp[0];
+  *pred_hi = pred_temp[1];
+  return res;
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmax_u32(unsigned int x, unsigned int y,
+                                        bool *pred) {
+  return (x >= y) ? ((*pred = true), x) : ((*pred = false), y);
 }
 #endif
