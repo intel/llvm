@@ -283,7 +283,11 @@ urProgramCreateWithIL(ur_context_handle_t, const void *, size_t,
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCompile(ur_context_handle_t hContext, ur_program_handle_t hProgram,
                  const char *pOptions) {
-  return urProgramBuild(hContext, hProgram, pOptions);
+  UR_CHECK_ERROR(urProgramBuild(hContext, hProgram, pOptions));
+  // urProgramBuild sets the BinaryType to UR_PROGRAM_BINARY_TYPE_EXECUTABLE, so
+  // set it to the correct value for urProgramCompile post-hoc.
+  hProgram->BinaryType = UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCompileExp(ur_program_handle_t,
@@ -312,6 +316,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t,
     ScopedContext Active(hProgram->getDevice());
 
     hProgram->buildProgram(pOptions);
+    hProgram->BinaryType = UR_PROGRAM_BINARY_TYPE_EXECUTABLE;
 
   } catch (ur_result_t Err) {
     Result = Err;
@@ -355,13 +360,14 @@ urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t,
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
-  case UR_PROGRAM_BUILD_INFO_STATUS: {
+  case UR_PROGRAM_BUILD_INFO_STATUS:
     return ReturnValue(hProgram->BuildStatus);
-  }
   case UR_PROGRAM_BUILD_INFO_OPTIONS:
     return ReturnValue(hProgram->BuildOptions.c_str());
   case UR_PROGRAM_BUILD_INFO_LOG:
     return ReturnValue(hProgram->InfoLog, hProgram->MAX_LOG_SIZE);
+  case UR_PROGRAM_BUILD_INFO_BINARY_TYPE:
+    return ReturnValue(hProgram->BinaryType);
   default:
     break;
   }
@@ -494,6 +500,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   UR_ASSERT(Result == UR_RESULT_SUCCESS, Result);
 
   *phProgram = RetProgram.release();
+  (*phProgram)->BinaryType = UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT;
 
   return Result;
 }
