@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -triple amdgcn-amd-amdhsa -std=c++20 %s -emit-llvm -o - | FileCheck %s
-// RUN: %clang_cc1 -triple spirv64-unknown-unknown -fsycl-is-device -std=c++20 %s -emit-llvm -o - | FileCheck %s --check-prefix=WITH-NONZERO-DEFAULT-AS
+// RUNx: %clang_cc1 -triple spirv64-unknown-unknown -fsycl-is-device -std=c++20 %s -emit-llvm -o - | FileCheck %s --check-prefix=WITH-NONZERO-DEFAULT-AS
 
 struct S { char buf[32]; };
 template<S s> constexpr const char *begin() { return s.buf; }
