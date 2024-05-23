@@ -107,10 +107,6 @@ constexpr auto kSPIR_AsanShadowMemoryGlobalStart =
     "__AsanShadowMemoryGlobalStart";
 constexpr auto kSPIR_AsanShadowMemoryGlobalEnd = "__AsanShadowMemoryGlobalEnd";
 
-constexpr auto kSPIR_AsanShadowMemoryLocalStart =
-    "__AsanShadowMemoryLocalStart";
-constexpr auto kSPIR_AsanShadowMemoryLocalEnd = "__AsanShadowMemoryLocalEnd";
-
 constexpr auto kSPIR_DeviceType = "__DeviceType";
 constexpr auto kSPIR_AsanDebug = "__AsanDebug";
 
