@@ -245,7 +245,8 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
     std::vector<Command *> ToEnqueue;
     getOrCreateAllocaForReq(MemObject->MRecord.get(), Req, InteropQueuePtr,
                             ToEnqueue);
-    assert(ToEnqueue.empty());
+    assert(ToEnqueue.empty() && "Creation of the first alloca for a record "
+                                "shouldn't lead to any enqueuing.");
   } else
     MemObject->MRecord.reset(new MemObjRecord{Queue->getContextImplPtr(),
                                               LeafLimit, AllocateDependency});
