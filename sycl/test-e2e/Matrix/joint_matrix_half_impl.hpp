@@ -27,56 +27,60 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
   buffer<float, 2> bufC(C.get_data(), range<2>(M, N));
 
   queue q;
+  size_t sg_size = get_sg_size<class mult>(q);
   q.submit([&](handler &cgh) {
      auto accC = bufC.get_access<access::mode::read_write>(cgh);
      auto accA = bufA.get_access<access::mode::read_write>(cgh);
      auto accB = bufB.get_access<access::mode::read_write>(cgh);
 
-     cgh.parallel_for<class imatrix>(
-         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, SG_SZ}),
-         [accA, accB, accC, M, N, K](nd_item<2> spmd_item)
-             [[intel::reqd_sub_group_size(SG_SZ)]] {
-               // The submatrix API has to be accessed by all the workitems in a
-               // subgroup these functions will be called once by the subgroup
-               // no code divergence between the workitems
-               const auto global_idx = spmd_item.get_global_id(0);
-               const auto global_idy = spmd_item.get_global_id(1);
-               const auto sg_startx = global_idx - spmd_item.get_local_id(0);
-               const auto sg_starty = global_idy - spmd_item.get_local_id(1);
+     cgh.parallel_for<class mult>(
+         nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, sg_size}),
+         [=](nd_item<2> spmd_item)
+#ifdef SG_SZ
+             [[intel::reqd_sub_group_size(SG_SZ)]]
+#endif
+         {
+           // The submatrix API has to be accessed by all the workitems in a
+           // subgroup these functions will be called once by the subgroup
+           // no code divergence between the workitems
+           const auto global_idx = spmd_item.get_global_id(0);
+           const auto global_idy = spmd_item.get_global_id(1);
+           const auto sg_startx = global_idx - spmd_item.get_local_id(0);
+           const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
-               sub_group sg = spmd_item.get_sub_group();
-               joint_matrix<sub_group, half, use::a, TM, TK, layout::row_major>
-                   sub_a;
-               // For B, we assume B has been already VNNIed.
-               joint_matrix<sub_group, half, use::b, TK, TN,
-                            layout::ext_intel_packed>
-                   sub_b;
-               joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
+           sub_group sg = spmd_item.get_sub_group();
+           joint_matrix<sub_group, half, use::a, TM, TK, layout::row_major>
+               sub_a;
+           // For B, we assume B has been already VNNIed.
+           joint_matrix<sub_group, half, use::b, TK, TN,
+                        layout::ext_intel_packed>
+               sub_b;
+           joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
 
-               joint_matrix_load(
-                   sg, sub_c,
-                   accC.template get_multi_ptr<access::decorated::no>() +
-                       (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
-                   N, layout::row_major);
-               for (int k = 0; k < K / TK; k += 1) {
-                 joint_matrix_load(
-                     sg, sub_a,
-                     accA.template get_multi_ptr<access::decorated::no>() +
-                         (sg_startx * TM) * K + k * TK,
-                     K);
-                 joint_matrix_load(
-                     sg, sub_b,
-                     accB.template get_multi_ptr<access::decorated::no>() +
-                         (k * TK / 2) * (N * 2) + sg_starty / SG_SZ * TN * 2,
-                     N * 2);
-                 joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
-               }
-               joint_matrix_store(
-                   sg, sub_c,
-                   accC.template get_multi_ptr<access::decorated::no>() +
-                       (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
-                   N, layout::row_major);
-             }); // parallel for
+           joint_matrix_load(
+               sg, sub_c,
+               accC.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * TM) * N + sg_starty / sg_size * TN,
+               N, layout::row_major);
+           for (int k = 0; k < K / TK; k += 1) {
+             joint_matrix_load(
+                 sg, sub_a,
+                 accA.template get_multi_ptr<access::decorated::no>() +
+                     (sg_startx * TM) * K + k * TK,
+                 K);
+             joint_matrix_load(
+                 sg, sub_b,
+                 accB.template get_multi_ptr<access::decorated::no>() +
+                     (k * TK / 2) * (N * 2) + sg_starty / sg_size * TN * 2,
+                 N * 2);
+             joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
+           }
+           joint_matrix_store(
+               sg, sub_c,
+               accC.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * TM) * N + sg_starty / sg_size * TN,
+               N, layout::row_major);
+         }); // parallel for
    }).wait();
 }
 

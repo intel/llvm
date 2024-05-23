@@ -3497,7 +3497,7 @@ protected:
   typedef SPIRVInstTemplate<SPIRVCooperativeMatrixPrefetchINTELInstBase,       \
                             internal::Op##x##INTEL, __VA_ARGS__>               \
       SPIRV##x##INTEL;
-_SPIRV_OP(CooperativeMatrixPrefetch, false, 8, true, 5)
+_SPIRV_OP(CooperativeMatrixPrefetch, false, 6, true, 3)
 #undef _SPIRV_OP
 
 class SPIRVCooperativeMatrixCheckedInstructionsINTELInstBase
@@ -4045,7 +4045,9 @@ protected:
     SPVErrLog.checkError(
         (ResTy->isTypeImage() && OC == internal::OpConvertHandleToImageINTEL) ||
             (ResTy->isTypeSampler() &&
-             OC == internal::OpConvertHandleToSamplerINTEL),
+             OC == internal::OpConvertHandleToSamplerINTEL) ||
+            (ResTy->isTypeSampledImage() &&
+             OC == internal::OpConvertHandleToSampledImageINTEL),
         SPIRVEC_InvalidInstruction,
         InstName + "\nIncorrect return type of the instruction must be "
                    "image/sampler\n");
@@ -4055,6 +4057,7 @@ protected:
   typedef SPIRVBindlessImagesInstBase<internal::Op##x> SPIRV##x;
 _SPIRV_OP(ConvertHandleToImageINTEL)
 _SPIRV_OP(ConvertHandleToSamplerINTEL)
+_SPIRV_OP(ConvertHandleToSampledImageINTEL)
 #undef _SPIRV_OP
 
 } // namespace SPIRV

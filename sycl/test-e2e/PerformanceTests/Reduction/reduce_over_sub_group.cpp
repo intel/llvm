@@ -2,7 +2,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <sycl/ext/oneapi/experimental/user_defined_reductions.hpp>
 

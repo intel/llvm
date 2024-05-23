@@ -28,12 +28,8 @@ int main() {
   auto *array = sycl::malloc_host<int>(N, Q);
 #elif defined(MALLOC_SHARED)
   auto *array = sycl::malloc_shared<int>(N, Q);
-#elif defined(MALLOC_DEVICE)
+#else // defined(MALLOC_DEVICE)
   auto *array = sycl::malloc_device<int>(N, Q);
-#elif defined(MALLOC_SYSTEM)
-  auto *array = new int[N];
-#else
-#error "Must provide malloc type to run the test"
 #endif
 
   Q.submit([&](sycl::handler &h) {
@@ -43,5 +39,6 @@ int main() {
   });
   Q.wait();
 
+  sycl::free(array, Q);
   return 0;
 }

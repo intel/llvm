@@ -8,8 +8,6 @@
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
 
-#include <sycl/sycl.hpp>
-
 #include "../bindless_helpers.hpp"
 #include "vulkan_common.hpp"
 

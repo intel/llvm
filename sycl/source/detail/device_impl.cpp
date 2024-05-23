@@ -697,14 +697,14 @@ bool device_impl::has(aspect Aspect) const {
     if (getBackend() != backend::ext_oneapi_level_zero)
       return false;
 
-    typename sycl_to_pi<device>::type Result;
-    getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        getHandleRef(),
-        PiInfoCode<
-            ext::oneapi::experimental::info::device::composite_device>::value,
-        sizeof(Result), &Result, nullptr);
+    typename sycl_to_pi<device>::type Result = nullptr;
+    bool CallSuccessful = getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+                              getHandleRef(),
+                              PiInfoCode<ext::oneapi::experimental::info::
+                                             device::composite_device>::value,
+                              sizeof(Result), &Result, nullptr) == PI_SUCCESS;
 
-    return Result != nullptr;
+    return CallSuccessful && Result != nullptr;
   }
   case aspect::ext_oneapi_graph: {
     pi_bool SupportsCommandBufferUpdate = false;
@@ -860,8 +860,8 @@ bool device_impl::extOneapiCanCompile(
 // coordinationScope
 sycl::ext::oneapi::experimental::forward_progress_guarantee
 device_impl::getHostProgressGuarantee(
-    ext::oneapi::experimental::execution_scope threadScope,
-    ext::oneapi::experimental::execution_scope coordinationScope) {
+    ext::oneapi::experimental::execution_scope,
+    ext::oneapi::experimental::execution_scope) {
   return sycl::ext::oneapi::experimental::forward_progress_guarantee::
       weakly_parallel;
 }
@@ -877,6 +877,7 @@ device_impl::getProgressGuarantee(
       ext::oneapi::experimental::forward_progress_guarantee;
   using execution_scope = ext::oneapi::experimental::execution_scope;
   const int executionScopeSize = 4;
+  (void)coordinationScope;
   int threadScopeNum = static_cast<int>(threadScope);
   // we get the immediate progress guarantee that is provided by each scope
   // between root_group and threadScope and then return the weakest of these.
