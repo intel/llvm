@@ -861,7 +861,7 @@ USMLaunchInfo::~USMLaunchInfo() {
     [[maybe_unused]] ur_result_t Result;
     if (Data) {
         auto Type = GetDeviceType(Device);
-        if (Type == DeviceType::GPU_PVC) {
+        if (Type == DeviceType::GPU_PVC || Type == DeviceType::GPU_DG2) {
             if (Data->PrivateShadowOffset) {
                 Result = context.urDdiTable.USM.pfnFree(
                     Context, (void *)Data->PrivateShadowOffset);
