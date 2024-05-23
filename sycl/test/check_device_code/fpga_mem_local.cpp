@@ -24,11 +24,8 @@ namespace oneapi = sycl::ext::oneapi::experimental; // for properties
 // CHECK: [[MaxPrivateCopiesINTEL:@.*]] = private unnamed_addr addrspace(1) constant [27 x i8] c"{5826:\22DEFAULT\22}{5829:\223\22}\00"
 // CHECK: [[MaxReplicatesINTEL:@.*]] = private unnamed_addr addrspace(1) constant [27 x i8] c"{5826:\22DEFAULT\22}{5832:\225\22}\00"
 
-int main() {
-  queue Q;
-  int f = 5;
-
-  Q.single_task([=]() {
+SYCL_EXTERNAL void fpga_mem_local() {
+    int f = 5;
     intel::fpga_mem<int[10]> empty;
     // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) {{.*}}, ptr addrspace(1) [[MemoryINTEL]]
     // CHECK-NOT: call void @llvm.memset
@@ -56,12 +53,12 @@ int main() {
     // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) {{.*}}, ptr addrspace(1) [[MemoryINTEL_mlab]]
     // CHECK-NOT: call void @llvm.memset
     intel::fpga_mem<int[10], decltype(oneapi::properties(
-                                 intel::bi_directional_ports_false))>
+                                    intel::bi_directional_ports_false))>
         simple_dual_port;
     // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) {{.*}}, ptr addrspace(1) [[SimpleDualPortINTEL]]
     // CHECK-NOT: call void @llvm.memset
     intel::fpga_mem<int[10], decltype(oneapi::properties(
-                                 intel::bi_directional_ports_true))>
+                                    intel::bi_directional_ports_true))>
         true_dual_port;
     // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) {{.*}}, ptr addrspace(1) [[TrueDualPortINTEL]]
     // CHECK-NOT: call void @llvm.memset
@@ -95,10 +92,8 @@ int main() {
     // CHECK-NOT: call void @llvm.memset
 
     volatile int ReadVal = empty[f] + min_ram[f] + max_fmax[f] +
-                           double_pumped[f] + single_pumped[f] + mlab[f] +
-                           simple_dual_port[f] + true_dual_port[f] +
-                           block_ram[f] + banks[f] + stride[f] + word[f] +
-                           copies[f] + replicates[f];
-  });
-  return 0;
+                            double_pumped[f] + single_pumped[f] + mlab[f] +
+                            simple_dual_port[f] + true_dual_port[f] +
+                            block_ram[f] + banks[f] + stride[f] + word[f] +
+                            copies[f] + replicates[f];
 }
