@@ -237,6 +237,7 @@ const static char AtomicInit[] = "atomic_init";
 const static char AtomicWorkItemFence[] = "atomic_work_item_fence";
 const static char Barrier[] = "barrier";
 const static char Clamp[] = "clamp";
+const static char ClockReadPrefix[] = "clock_read_";
 const static char ConvertPrefix[] = "convert_";
 const static char Dot[] = "dot";
 const static char DotAccSat[] = "dot_acc_sat";
