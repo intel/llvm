@@ -37,16 +37,16 @@ properties at launch-time.
 
 This extension is a future-proof and portable solution that supports these two
 requirements. Instead of using a fixed set of kernel enqueue arguments, the
-approach is to introduce the `exp_launch_property_t` type that enables a more
-extendable API.
+approach is to introduce the ${x}_exp_launch_property_t type that enables a
+more extendable API.
 
-Each `exp_launch_property_t` instance corresponds to a specific kernel launch
-property.
-Only one new function is introduced: `urEnqueueKernelLaunchCustomExp`.
-`urEnqueueKernelLaunchCustomExp` takes an array of `exp_launch_property_t` as
-an argument, and launches a kernel using these properties.
-`urEnqueueKernelLaunchCustomExp` corresponds closely to the CUDA Driver API
-`cuLaunchKernelEx`.
+Each ${x}_exp_launch_property_t instance corresponds to a specific kernel
+launch property.
+Only one new function is introduced: ${x}EnqueueKernelLaunchCustomExp.
+${x}EnqueueKernelLaunchCustomExp takes an array of ${x}_exp_launch_property_t
+as an argument, and launches a kernel using these properties.
+${x}EnqueueKernelLaunchCustomExp corresponds closely to the CUDA Driver API
+``cuLaunchKernelEx``.
 
 Many kernel lauch properties can be supported, such as cooperative kernel
 launches. As such, eventually this extension should be able to replace the
