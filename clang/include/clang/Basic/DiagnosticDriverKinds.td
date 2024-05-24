@@ -446,6 +446,8 @@ def err_drv_print_header_env_var_combination_cc1 : Error<
   "unsupported combination: -header-include-format=%0 and -header-include-filtering=%1">;
 
 def warn_O4_is_O3 : Warning<"-O4 is equivalent to -O3">, InGroup<Deprecated>;
+def warn_invalid_fp64_emu_use : Warning<"-fsycl-fp64-conv-emu option is supported only for Intel GPU AOT compilation">,
+  InGroup<InvalidCommandLineArgument>;
 def warn_drv_optimization_value : Warning<"optimization level '%0' is not supported; using '%1%2' instead">,
   InGroup<InvalidCommandLineArgument>;
 def warn_ignored_gcc_optimization : Warning<"optimization flag '%0' is not supported">,

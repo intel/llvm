@@ -5533,8 +5533,19 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (Arg *A = Args.getLastArg(options::OPT_fsycl_exp_range_rounding))
       A->render(Args, CmdArgs);
 
-    if (Arg *A = Args.getLastArg(options::OPT_fsycl_fp64_conv_emu))
+    if (Arg *A = Args.getLastArg(options::OPT_fsycl_fp64_conv_emu)) {
+      Arg *SYCLTargets = Args.getLastArg(options::OPT_fsycl_targets_EQ);
+      bool HasIntelGPUAOTTarget = false;
+      for (StringRef Val : SYCLTargets->getValues()) {
+        if (auto Device = SYCL::gen::isGPUTarget<SYCL::gen::IntelGPU>(Val)) {
+          HasIntelGPUAOTTarget = true;
+          break;
+        }
+      }
+      if (!HasIntelGPUAOTTarget)
+        D.Diag(diag::warn_invalid_fp64_emu_use);
       A->render(Args, CmdArgs);
+    }
 
     // Add the Unique ID prefix
     StringRef UniqueID = D.getSYCLUniqueID(Input.getBaseInput());
