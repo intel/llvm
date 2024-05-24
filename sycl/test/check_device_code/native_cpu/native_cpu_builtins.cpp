@@ -12,6 +12,8 @@
 // check that we added the state struct as a function argument, and that we
 // inject the calls to our builtins.
 
+// CHECK-NOT: define internal{{.*}}__mux_sub_group_shuffle
+
 #include "sycl.hpp"
 class Test1;
 class Test2;

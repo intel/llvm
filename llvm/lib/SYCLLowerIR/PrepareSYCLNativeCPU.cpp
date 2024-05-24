@@ -452,6 +452,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   }
 #endif
 
+  // removing unused builtins
   SmallVector<Function *> UnusedLibBuiltins;
   for (auto &F : M) {
     if (IsUnusedBuiltinOrPrivateDef(F)) {
@@ -462,5 +463,15 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     f->eraseFromParent();
     ModuleChanged = true;
   }
+  for (auto it = M.begin(); it != M.end();) {
+    auto Curr = it++;
+    Function &F = *Curr;
+    if (F.getNumUses() == 0 && F.isDeclaration() &&
+        F.getName().starts_with("__mux_")) {
+      F.eraseFromParent();
+      ModuleChanged = true;
+    }
+  }
+
   return ModuleChanged ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
