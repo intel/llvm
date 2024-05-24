@@ -487,12 +487,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
-    uint32_t numAttrsInLaunchAttrList,
-    const ur_exp_launch_attribute_t *launchAttrList,
+    uint32_t numPropsInLaunchPropList,
+    const ur_exp_launch_property_t *launchPropList,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
 
-  if (numAttrsInLaunchAttrList == 0) {
+  if (numPropsInLaunchPropList == 0) {
     urEnqueueKernelLaunch(hQueue, hKernel, workDim, nullptr, pGlobalWorkSize,
                           pLocalWorkSize, numEventsInWaitList, phEventWaitList,
                           phEvent);
@@ -504,32 +504,33 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
-  if (launchAttrList == NULL) {
+  if (launchPropList == NULL) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
 
-  std::vector<CUlaunchAttribute> launch_attribute(numAttrsInLaunchAttrList);
-  for (uint32_t i = 0; i < numAttrsInLaunchAttrList; i++) {
-    switch (launchAttrList[i].id) {
-    case UR_EXP_LAUNCH_ATTRIBUTE_ID_IGNORE: {
+  std::vector<CUlaunchAttribute> launch_attribute(numPropsInLaunchPropList);
+  for (uint32_t i = 0; i < numPropsInLaunchPropList; i++) {
+    switch (launchPropList[i].id) {
+    case UR_EXP_LAUNCH_PROPERTY_ID_IGNORE: {
       launch_attribute[i].id = CU_LAUNCH_ATTRIBUTE_IGNORE;
       break;
     }
-    case UR_EXP_LAUNCH_ATTRIBUTE_ID_CLUSTER_DIMENSION: {
+    case UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION: {
 
       launch_attribute[i].id = CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION;
+      // Note that cuda orders from right to left wrt SYCL dimensional order.
       launch_attribute[i].value.clusterDim.x =
-          launchAttrList[i].value.clusterDim[0];
+          launchPropList[i].value.clusterDim[2];
       launch_attribute[i].value.clusterDim.y =
-          launchAttrList[i].value.clusterDim[1];
+          launchPropList[i].value.clusterDim[1];
       launch_attribute[i].value.clusterDim.z =
-          launchAttrList[i].value.clusterDim[2];
+          launchPropList[i].value.clusterDim[0];
       break;
     }
-    case UR_EXP_LAUNCH_ATTRIBUTE_ID_COOPERATIVE: {
+    case UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE: {
       launch_attribute[i].id = CU_LAUNCH_ATTRIBUTE_COOPERATIVE;
       launch_attribute[i].value.cooperative =
-          launchAttrList[i].value.cooperative;
+          launchPropList[i].value.cooperative;
       break;
     }
     default: {
@@ -538,7 +539,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     }
   }
 
-std::vector<ur_event_handle_t> DepEvents(
+  std::vector<ur_event_handle_t> DepEvents(
       phEventWaitList, phEventWaitList + numEventsInWaitList);
   std::vector<std::pair<ur_mem_handle_t, ur_lock>> MemMigrationLocks;
 
@@ -587,8 +588,8 @@ std::vector<ur_event_handle_t> DepEvents(
   // using the standard UR_CHECK_ERROR
   if (ur_result_t Ret =
           setKernelParams(hQueue->getContext(), hQueue->Device, workDim,
-                          nullptr, pGlobalWorkSize, pLocalWorkSize,
-                          hKernel, CuFunc, ThreadsPerBlock, BlocksPerGrid);
+                          nullptr, pGlobalWorkSize, pLocalWorkSize, hKernel,
+                          CuFunc, ThreadsPerBlock, BlocksPerGrid);
       Ret != UR_RESULT_SUCCESS)
     return Ret;
 
@@ -647,7 +648,7 @@ std::vector<ur_event_handle_t> DepEvents(
     launch_config.sharedMemBytes = LocalSize;
     launch_config.hStream = CuStream;
     launch_config.attrs = &launch_attribute[0];
-    launch_config.numAttrs = numAttrsInLaunchAttrList;
+    launch_config.numAttrs = numPropsInLaunchPropList;
 
     UR_CHECK_ERROR(cuLaunchKernelEx(&launch_config, CuFunc,
                                     const_cast<void **>(ArgIndices.data()),
