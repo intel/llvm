@@ -76,19 +76,19 @@ XPTI_EXPORT_API xpti::result_t xptiInitialize(const char *stream, uint32_t maj,
 XPTI_EXPORT_API void xptiFinalize(const char *stream);
 
 /// @brief Returns universal ID
-/// @details Universal ID is a 64 bit value, that can be used to correlate
+/// @details Universal ID is a tuple of values, that can be used to correlate
 /// events from different software layers. It is generated once for top SW layer
 /// and then re-used by subsequent layers to identify original source code
 /// location. This value is stored in thread-local storage.
-XPTI_EXPORT_API uint64_t xptiGetUniversalId();
+XPTI_EXPORT_API xpti::uid_t xptiGetUniversalId();
 
 /// @brief Update universal ID value
-/// @detail Save new universal ID value to thread-local storage. This function
+/// @details Save new universal ID value to thread-local storage. This function
 /// is typically called by xpti::framework::tracepoint_t constructor when
 /// updating tracepoint information. See xptiGetUniversalId() for more info
 /// about universal IDs.
-/// @param uid Unique 64 bit identifier.
-XPTI_EXPORT_API void xptiSetUniversalId(uint64_t uid);
+/// @param uid Unique identifier.
+XPTI_EXPORT_API void xptiSetUniversalId(xpti::uid_t &uid);
 
 /// @brief Returns stashed tuple<std::string, uint64_t>
 /// @details The XPTI Framework allows the notification mechanism to stash a
@@ -195,8 +195,8 @@ XPTI_EXPORT_API xpti::object_data_t xptiLookupObject(xpti::object_id_t id);
 /// strings on the stack with the pointers from the string table that should be
 /// valid for the lifetime of the application.
 /// @param payload The payload object that is registered with the system.
-/// @return The unique hash value for the payload.
-XPTI_EXPORT_API uint64_t xptiRegisterPayload(xpti::payload_t *payload);
+/// @return The universal ID object for the payload.
+XPTI_EXPORT_API xpti::uid_t xptiRegisterPayload(xpti::payload_t *payload);
 
 /// @brief Register a stream by its name and get a stream ID
 /// @details When events in a given stream have to be notified to the
@@ -342,7 +342,7 @@ xptiMakeEvent(const char *name, xpti::payload_t *payload, uint16_t event,
 /// performed
 /// @return The trace event with unique ID equal to uid. If the unique ID is not
 /// present, then nullptr will be returned.
-XPTI_EXPORT_API const xpti::trace_event_data_t *xptiFindEvent(uint64_t uid);
+XPTI_EXPORT_API const xpti::trace_event_data_t *xptiFindEvent(xpti::uid_t &uid);
 
 /// @brief Retrieves the payload information associated with an event
 /// @details An event encapsulates the unique payload it represents and this
@@ -360,7 +360,7 @@ xptiQueryPayload(xpti::trace_event_data_t *lookup_object);
 ///
 /// @param uid The universal ID for which the payload is to be retrieved.
 /// @return The payload data structure pointer for the event.
-XPTI_EXPORT_API const xpti::payload_t *xptiQueryPayloadByUID(uint64_t uid);
+XPTI_EXPORT_API const xpti::payload_t *xptiQueryPayloadByUID(xpti::uid_t &uid);
 
 /// @brief Registers a callback for a trace point type
 /// @details Subscribers receive notifications to the trace point types they
@@ -525,13 +525,95 @@ XPTI_EXPORT_API void xptiTraceTryToEnable();
 /// @param e The event for which associated data will be removed
 XPTI_EXPORT_API void xptiReleaseEvent(xpti::trace_event_data_t *e);
 
+/// @brief Retrieves the default stream ID.
+/// @details This function is used to get the default stream ID that is
+/// currently set in the tracing framework.
+/// @return The default stream ID.
+XPTI_EXPORT_API uint8_t xptiGetDefaultStreamID();
+
+/// @brief Sets the default stream ID.
+/// @details This function is used to set the default stream ID in the tracing
+/// framework. All MACROs and other scoped notification objects will use the
+/// default stream to send the event data
+///
+/// @param defaultStreamID The stream ID to be set as default.
+/// @return Result of the operation, success or failure.
+XPTI_EXPORT_API xpti::result_t xptiSetDefaultStreamID(uint8_t defaultStreamID);
+
+/// @brief Retrieves the default event type.
+/// @details This function is used to get the default event type that is
+/// currently set in the tracing framework. This is typically set to 'algorithm'
+/// as most default events are algorithmic events trying to capture a task,
+/// barrier/lock or function call.
+///
+/// @return The default event type.
+XPTI_EXPORT_API xpti::trace_event_type_t xptiGetDefaultEventType();
+
+/// @brief Sets the default event type.
+/// @details This function is used to set the default event type in the tracing
+/// framework.
+///
+/// @param defaultEventType The event type to be set as default.
+/// @return Result of the operation, success or failure.
+XPTI_EXPORT_API xpti::result_t
+xptiSetDefaultEventType(xpti::trace_event_type_t defaultEventType);
+
+/// @brief Retrieves the default trace point type.
+/// @details This function is used to get the default trace point type that is
+/// currently set in the tracing framework. This is typically set to
+/// 'function_begin'
+///
+/// @return The default trace point type.
+XPTI_EXPORT_API xpti::trace_point_type_t xptiGetDefaultTraceType();
+
+/// @brief Sets the default trace point type.
+/// @details This function is used to set the default trace point type in the
+/// tracing framework.
+///
+/// @param defaultTraceType The trace point type to be set as default.
+/// @return Result of the operation, success or failure.
+XPTI_EXPORT_API xpti::result_t
+xptiSetDefaultTraceType(xpti::trace_point_type_t defaultTraceType);
+
+/// @brief Retrieves the trace point scope data.
+/// @details This function is used to get the trace point scope data that is
+/// currently set in the tracing framework thread-local storage.
+///
+/// @return The trace point scope data.
+XPTI_EXPORT_API xpti::trace_point_data_t xptiGetTracepointScopeData();
+
+/// @brief Registers payload and prepares trace point data for use.
+/// @details This function is used to register a payload and publish it in the
+/// tracing framework. The registration of the payload determines the instance
+/// ID fo the payload and the the data along with the computed universal ID is
+/// prepared for use in the current tracepoint scope.
+///
+/// @param payload The payload to be registered and published.
+/// @return The trace point data associated with the registered payload.
+XPTI_EXPORT_API xpti::trace_point_data_t
+xptiRegisterPayloadAndPrepareTracepointData(xpti::payload_t &payload);
+
+/// @brief Sets the trace point scope data.
+/// @details This function is used to set the trace point scope data in the
+/// tracing framework.
+///
+/// @param data The trace point data to be set.
+/// @return Result of the operation, success or failure.
+XPTI_EXPORT_API xpti::result_t
+xptiSetTracepointScopeData(xpti::trace_point_data_t &data);
+
+/// @brief Unsets the trace point scope data.
+/// @details This function is used to unset the trace point scope data in the
+/// tracing framework.
+XPTI_EXPORT_API void xptiUnsetTracepointScopeData();
+
 typedef xpti::result_t (*xpti_framework_initialize_t)();
 typedef xpti::result_t (*xpti_framework_finalize_t)();
 typedef xpti::result_t (*xpti_initialize_t)(const char *, uint32_t, uint32_t,
                                             const char *);
 typedef void (*xpti_finalize_t)(const char *);
-typedef uint64_t (*xpti_get_universal_id_t)();
-typedef void (*xpti_set_universal_id_t)(uint64_t uid);
+typedef xpti::uid_t (*xpti_get_universal_id_t)();
+typedef void (*xpti_set_universal_id_t)(xpti::uid_t &uid);
 typedef uint64_t (*xpti_get_unique_id_t)();
 typedef xpti::result_t (*xpti_stash_tuple_t)(const char *key, uint64_t value);
 typedef xpti::result_t (*xpti_get_stashed_tuple_t)(char **key, uint64_t &value);
@@ -541,7 +623,7 @@ typedef const char *(*xpti_lookup_string_t)(xpti::string_id_t);
 typedef xpti::string_id_t (*xpti_register_object_t)(const char *, size_t,
                                                     uint8_t);
 typedef xpti::object_data_t (*xpti_lookup_object_t)(xpti::object_id_t);
-typedef uint64_t (*xpti_register_payload_t)(xpti::payload_t *);
+typedef xpti::uid_t (*xpti_register_payload_t)(xpti::payload_t *);
 typedef uint8_t (*xpti_register_stream_t)(const char *);
 typedef xpti::result_t (*xpti_unregister_stream_t)(const char *);
 typedef uint16_t (*xpti_register_user_defined_tp_t)(const char *, uint8_t);
@@ -549,10 +631,10 @@ typedef uint16_t (*xpti_register_user_defined_et_t)(const char *, uint8_t);
 typedef xpti::trace_event_data_t *(*xpti_make_event_t)(
     const char *, xpti::payload_t *, uint16_t, xpti::trace_activity_type_t,
     uint64_t *);
-typedef const xpti::trace_event_data_t *(*xpti_find_event_t)(int64_t);
+typedef const xpti::trace_event_data_t *(*xpti_find_event_t)(xpti::uid_t &uid);
 typedef const xpti::payload_t *(*xpti_query_payload_t)(
     xpti::trace_event_data_t *);
-typedef const xpti::payload_t *(*xpti_query_payload_by_uid_t)(uint64_t uid);
+typedef const xpti::payload_t *(*xpti_query_payload_by_uid_t)(xpti::uid_t &uid);
 typedef xpti::result_t (*xpti_register_cb_t)(uint8_t, uint16_t,
                                              xpti::tracepoint_callback_api_t);
 typedef xpti::result_t (*xpti_unregister_cb_t)(uint8_t, uint16_t,
@@ -567,4 +649,18 @@ typedef bool (*xpti_trace_enabled_t)();
 typedef bool (*xpti_check_trace_enabled_t)(uint16_t stream, uint16_t ttype);
 typedef void (*xpti_force_set_trace_enabled_t)(bool);
 typedef void (*xpti_release_event_t)(xpti::trace_event_data_t *);
+typedef uint8_t (*xpti_get_default_stream_id_t)();
+typedef xpti::result_t (*xpti_set_default_stream_id_t)(uint8_t);
+typedef xpti::trace_event_type_t (*xpti_get_default_event_type_t)();
+typedef xpti::result_t (*xpti_set_default_event_type_t)(
+    xpti::trace_event_type_t);
+typedef xpti::trace_point_type_t (*xpti_get_default_trace_type_t)();
+typedef xpti::result_t (*xpti_set_default_trace_type_t)(
+    xpti::trace_point_type_t);
+typedef xpti::trace_point_data_t (*xpti_get_trace_point_scope_data_t)();
+typedef xpti::trace_point_data_t (
+    *xpti_register_payload_and_prepare_tracepoint_data_t)(xpti::payload_t &);
+typedef xpti::result_t (*xpti_set_trace_point_scope_data_t)(
+    xpti::trace_point_data_t &);
+typedef void (*xpti_unset_trace_point_scope_data_t)();
 }

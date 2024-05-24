@@ -233,10 +233,11 @@ public:
   }
 
   void fillLastTracepointData(const xpti::trace_event_data_t *ObjectEvent) {
+    auto Uid = xptiGetUniversalId();
     const xpti::payload_t *Payload =
         ObjectEvent && ObjectEvent->reserved.payload
             ? ObjectEvent->reserved.payload
-            : xptiQueryPayloadByUID(xptiGetUniversalId());
+            : xptiQueryPayloadByUID(Uid);
 
     if (Payload) {
       if (Payload->source_file)

@@ -269,7 +269,8 @@ COLLECTOR_EXPORT_API void callback(uint16_t TraceType,
       std::string Source = "<unknown>";
       size_t Line = 0;
 
-      auto *Payload = xptiQueryPayloadByUID(xptiGetUniversalId());
+      auto Uid = xptiGetUniversalId();
+      auto *Payload = xptiQueryPayloadByUID(Uid);
 
       if (Payload) {
         if (Payload->source_file != nullptr) {

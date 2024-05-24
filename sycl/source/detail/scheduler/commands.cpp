@@ -576,8 +576,8 @@ void Command::emitEdgeEventForCommandDependence(
   if (EdgeEvent) {
     xpti_td *SrcEvent = static_cast<xpti_td *>(Cmd->MTraceEvent);
     xpti_td *TgtEvent = static_cast<xpti_td *>(MTraceEvent);
-    EdgeEvent->source_id = SrcEvent->unique_id;
-    EdgeEvent->target_id = TgtEvent->unique_id;
+    EdgeEvent->source_uid = SrcEvent->uid;
+    EdgeEvent->target_uid = TgtEvent->uid;
     if (IsCommand) {
       xpti::addMetadata(EdgeEvent, "access_mode",
                         static_cast<int>(AccMode.value()));
@@ -645,8 +645,8 @@ void Command::emitEdgeEventForEventDependence(
       // Source node represents the event and this event needs to be completed
       // before target node can execute
       xpti_td *TgtEvent = static_cast<xpti_td *>(MTraceEvent);
-      EdgeEvent->source_id = NodeEvent->unique_id;
-      EdgeEvent->target_id = TgtEvent->unique_id;
+      EdgeEvent->source_uid = NodeEvent->uid;
+      EdgeEvent->target_uid = TgtEvent->uid;
       xpti::addMetadata(EdgeEvent, "event",
                         reinterpret_cast<size_t>(PiEventAddr));
       xptiNotifySubscribers(MStreamID, xpti::trace_edge_create,
@@ -937,8 +937,8 @@ void Command::resolveReleaseDependencies(std::set<Command *> &DepList) {
                         xpti_at::active, &EdgeInstanceNo);
       if (EdgeEvent) {
         xpti_td *SrcTraceEvent = static_cast<xpti_td *>(Item->MTraceEvent);
-        EdgeEvent->target_id = TgtTraceEvent->unique_id;
-        EdgeEvent->source_id = SrcTraceEvent->unique_id;
+        EdgeEvent->target_uid = TgtTraceEvent->uid;
+        EdgeEvent->source_uid = SrcTraceEvent->uid;
         xpti::addMetadata(EdgeEvent, "memory_object",
                           reinterpret_cast<size_t>(MAddress));
         xptiNotifySubscribers(MStreamID, xpti::trace_edge_create,
@@ -1785,7 +1785,8 @@ void EmptyCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#8d8f29\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "EMPTY NODE" << "\\n";
+  Stream << "EMPTY NODE"
+         << "\\n";
 
   Stream << "\"];" << std::endl;
 
@@ -3472,7 +3473,8 @@ void UpdateCommandBufferCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#8d8f29\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "CommandBuffer Command Update" << "\\n";
+  Stream << "CommandBuffer Command Update"
+         << "\\n";
 
   Stream << "\"];" << std::endl;
 

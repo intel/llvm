@@ -7,6 +7,7 @@
 //
 #pragma once
 #include <atomic>
+#include <cmath>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -14,6 +15,10 @@
 #include <unordered_map>
 
 namespace xpti {
+constexpr int invalid_id = -1;
+constexpr uint64_t invalid_uid = 0;
+constexpr uint8_t default_vendor = 0;
+
 /// @brief Universal ID data structure that is central to XPTI
 /// @details A given trace point is referred to by it its universal ID and this
 /// data structure has all the elements that are necessary to map to the code
@@ -21,57 +26,244 @@ namespace xpti {
 /// the code location information in the trace point, other pieces of
 /// information are leveraged to generate a unique 64-bit ID.
 struct uid_t {
-  /// Contains string ID for file name in upper 32-bits and the line number in
+  /// Contains string ID for file name in upper 32-bits and the function name in
   /// lower 32-bits
   uint64_t p1 = 0;
-  /// Contains the string ID for kernel name in lower 32-bits; in the case
-  /// dynamic stack walk is performed, the upper 32-bits contain the string ID
-  /// of the caller->callee combination string.
+  /// Contains the line number in the lower 32-bits and the column number in the
+  /// upper 32-bits.
   uint64_t p2 = 0;
-  /// Contains the address of the kernel object or SYCL object references and
-  /// only the lower 32-bits will be used to generate the hash
-  uint64_t p3 = 0;
+  /// A mutable value to hold instance information, which is the count of the
+  /// number of occurrences of a given UID
+  uint64_t instance = 0;
 
   uid_t() = default;
-  /// Computes a hash that is a bijection between N^3 and N
-  /// (x,y,z) |-> (x) + (x+y+1)/2 + (x+y+z+2)/3
-  uint64_t hash() const {
-    /// Use lower 32-bits of the address
-    uint32_t v3 = (uint32_t)(p3 & 0x00000000ffffffff);
-    /// Use p1 and p2 as is; since p1 and p2 upper 32-bits is built from string
-    /// IDs, they are more than likely to be less than 16 bits. Combining
-    /// 48-bits of one value with ~16-bits/~32-bits will should not overflow a
-    /// 64-bit accumulator.
-    return (p1 + (p1 + p2 + 1) / 2 + (p1 + p2 + v3 + 2) / 3);
+
+  /// @brief Constructs a uid_t object with the given file ID, function ID, line
+  /// number, and column number.
+  ///
+  /// This constructor takes a file ID and a function ID, both as 64-bit values,
+  /// and a line number and a column number, both as integers. It then combines
+  /// the file ID and function ID into a single 64-bit value (p1), and the line
+  /// number and column number into another 64-bit value (p2).
+  ///
+  /// @param FileID A 64-bit value that represents the file ID.
+  /// @param FuncID A 64-bit value that represents the function ID.
+  /// @param Line An integer that represents the line number.
+  /// @param Col An integer that represents the column number.
+  uid_t(uint64_t FileID, uint64_t FuncID, int Line, int Col) {
+    p1 = (FileID << 32) | FuncID;
+    p2 = ((uint64_t)Col << 32) | Line;
+    instance = 1;
   }
 
-  bool operator<(const uid_t &rhs) const {
-    if (p1 < rhs.p1)
-      return true;
-    if (p1 == rhs.p1 && p2 < rhs.p2)
-      return true;
-    if (p1 == rhs.p1 && p2 == rhs.p2 && p3 < rhs.p3)
-      return true;
-    return false;
-  }
+  /// @brief Checks if the uid_t object is valid.
+  ///
+  /// This method checks if the uid_t object is valid by checking if any of the
+  /// hash parts (`p1`, `p2`, `p3`) or the `instance` member is not zero. The
+  /// `instance` member is a unique identifier for the instance of the uid_t
+  /// object. If any of these members is not zero, it means that the uid_t
+  /// object is considered valid.
+  ///
+  /// @return Returns true if the uid_t object is valid (i.e., if any of the
+  /// hash parts or the `instance` member is not zero), and false otherwise.
+  ///
+  bool isValid() { return (p1 != 0 || p2 != 0) && (instance != 0); }
 
-  bool operator==(const uid_t &rhs) const {
-    return p1 == rhs.p1 && p2 == rhs.p2 && p3 == rhs.p3;
+  /// @brief Returns the file ID from the uid_t object.
+  ///
+  /// This method extracts the file ID from the first 64-bit field (p1) of the
+  /// uid_t object by shifting it 32 bits to the right.
+  ///
+  /// @return A 64-bit value that represents the file ID.
+  uint64_t fileId() { return p1 >> 32; }
+
+  /// @brief Returns the function ID from the uid_t object.
+  ///
+  /// This method extracts the function ID from the first 64-bit field (p1) of
+  /// the uid_t object by applying a bitwise AND operation with a mask that has
+  /// the lower 32 bits set to 1.
+  ///
+  /// @return A 64-bit value that represents the function ID.
+  uint64_t functionId() { return p1 & 0x00000000ffffffff; }
+
+  /// @brief Returns the line number from the uid_t object.
+  ///
+  /// This method extracts the line number from the second 64-bit field (p2) of
+  /// the uid_t object by applying a bitwise AND operation with a mask that has
+  /// the lower 32 bits set to 1.
+  ///
+  /// @return A 32-bit value that represents the line number.
+  uint32_t lineNo() { return (uint32_t)(p2 & 0x00000000ffffffff); }
+
+  /// @brief Returns the column number from the uid_t object.
+  ///
+  /// This method extracts the column number from the second 64-bit field (p2)
+  /// of the uid_t object by shifting it 32 bits to the right.
+  ///
+  /// @return A 32-bit value that represents the column number.
+  uint32_t columnNo() { return (uint32_t)(p2 >> 32); }
+
+  /// @brief Overload of operator== to compare two xpti::uid_t objects.
+  ///
+  /// This operator overload allows for the comparison of two xpti::uid_t
+  /// objects. Two uid_t objects are considered equal if their p1 and p2 fields
+  /// are equal. The p1 field contains the combined file ID and function ID, and
+  /// the p2 field contains the combined line number and column number.
+  ///
+  /// @param rhs The right-hand side xpti::uid_t object in the comparison.
+  /// @return Returns true if the p1 and p2 fields of the two xpti::uid_t
+  /// objects are equal, and false otherwise.
+  bool operator==(const xpti::uid_t &rhs) const {
+    // Two uid_t objects are considered equal if their p1, p2, and p3 fields are
+    // equal. p1 contains the combined file ID and function ID, p2 contains the
+    // combined line number and column number, and p3 contains the object
+    // address or a unique 64-bit value.
+    return p1 == rhs.p1 && p2 == rhs.p2;
   }
 };
-} // namespace xpti
 
-/// Specialize std::hash to support xpti::uid_t
-namespace std {
-template <> struct hash<xpti::uid_t> {
-  std::size_t operator()(const xpti::uid_t &key) const { return key.hash(); }
+/// @brief Hash generation helper
+/// @details The Universal ID concept in XPTI requires a good hashing function
+/// and this data type provides the necessary functionality for creating the
+/// Universal ID. Earlier simplementation were derived from the paper:
+/// "Strongly universal string hashing is fast" by Daniel Lemire and Owen Kaser
+/// and the corresponding Java implementation available in the blog 2018/08/15:
+/// https:// github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/
+///
+/// However, the probability of collisions increase with not having a codeptr
+/// field populated and relying on the other fields, where some of them may be
+/// absent if NDEBUG is in use, to generate the hash. The current implementation
+/// uses the file_id, func_id, line and column information to generate the hash.
+/// The hash is generated by compacting the input values into a 64-bit value.
+/// The hash can then be used to index into the hash table, if required
+struct hash_t {
+  /// @brief Calculates the number of bits required to represent a given value.
+  ///
+  /// This function uses the logarithm base 2 (log2) of the input value to
+  /// calculate the number of bits required to represent it. It then adds 1 to
+  /// the result to account for the fact that log2 of a value is one less than
+  /// the number of bits required to represent it.
+  ///
+  /// @param value A 64-bit integer for which the bit count is to be calculated.
+  /// @return The number of bits required to represent the input value.
+  int bit_count(uint64_t value) { return (int)log2(value) + 1; }
+
+  /// @brief Compacts the file ID, function ID, line number, and column number
+  /// into a single 64-bit hash value.
+  ///
+  /// This function calculates the number of bits necessary to represent each of
+  /// the input values using the bit_count function. It then creates a hash
+  /// value by shifting and combining these values. The hash value may grow to
+  /// more than 64-bits as the string tables grow and may overflow the
+  /// accumulator.
+  ///
+  /// @param file_id A 64-bit value that represents the file ID.
+  /// @param func_id A 64-bit value that represents the function ID.
+  /// @param line An integer that represents the line number.
+  /// @param col An integer that represents the column number.
+  /// @return A 64-bit hash value that represents the compacted file ID,
+  /// function ID, line number, and column number.
+  uint64_t compact(uint64_t file_id, uint64_t func_id, int line, int col) {
+    uint64_t funcB, lineB, colB;
+    // Figure out the bit counts necessary to represent the input values
+    funcB = bit_count(func_id);
+    lineB = bit_count(line);
+    colB = bit_count(col);
+    // Prepare the hash value by compacting the input values; this hash may grow
+    // to more than 64-bits as the string tables grow and may overflow the
+    // accumulator
+    uint64_t hash = file_id;
+    hash <<= funcB;
+    hash = hash | func_id;
+    hash <<= lineB;
+    hash = hash | (uint64_t)line;
+    hash <<= colB;
+    hash = hash | (uint64_t)col;
+#ifdef DEBUG
+    uint64_t fileB = bit_count(file_id);
+    std::cout << "Total bits: " << (fileB + funcB + lineB + colB) << "\n";
+    std::cout << "Hash = " << std::hex << hash << std::dec << std::endl;
+#endif
+    return hash;
+  }
+
+  /// @brief Compacts the file ID, function ID, and line number into a single
+  /// 64-bit hash value.
+  ///
+  /// This function calculates the number of bits necessary to represent each of
+  /// the input values using the bit_count function. It then creates a hash
+  /// value by shifting and combining these values. The hash value may grow to
+  /// more than 64-bits as the string tables grow and may overflow the
+  /// accumulator. However, this function has a better chance of success than
+  /// the compact function as the "column" information is not encoded.
+  ///
+  /// @param file_id A 64-bit value that represents the file ID.
+  /// @param func_id A 64-bit value that represents the function ID.
+  /// @param line An integer that represents the line number.
+  /// @return A 64-bit hash value that represents the compacted file ID,
+  /// function ID, and line number.
+  uint64_t compact_short(uint64_t file_id, uint64_t func_id, int line) {
+    uint64_t funcB, lineB;
+    funcB = bit_count(func_id);
+    lineB = bit_count(line);
+    // Prepare the hash value by compacting the input values; this hash may
+    // also grow to more than 64-bits as the string tables grow and may
+    // overflow the accumulator, but we have a better chance of success as
+    // the "column" information is not encoded
+    uint64_t hash = file_id;
+    hash <<= funcB;
+    hash = hash | func_id;
+    hash <<= lineB;
+    hash = hash | (uint64_t)line;
+#ifdef DEBUG
+    uint64_t fileB = bit_count(file_id);
+    std::cout << "Total bits: " << (fileB + funcB + lineB) << "\n";
+    std::cout << "Short Hash = " << std::hex << hash << std::dec << std::endl;
+#endif
+    return hash;
+  }
+
+  /// @brief Combines the file ID, function ID, line number, and column number
+  /// from a uid_t object into a single 64-bit value.
+  ///
+  /// This function extracts the file ID and function ID from the first 64-bit
+  /// field of the uid_t object (p1), and the line number and column number from
+  /// the second 64-bit field (p2). It then combines these four values into a
+  /// single 64-bit value using the compact function.
+  ///
+  /// @param uid A uid_t object that contains the file ID, function ID, line
+  /// number, and column number to be combined.
+  /// @return A 64-bit value that represents the combined file ID, function ID,
+  /// line number, and column number.
+  ///
+  uint64_t combine(const xpti::uid_t &uid) {
+    uint64_t FileID = uid.p1 >> 32;
+    uint64_t FuncID = uid.p1 & 0x00000000ffffffff;
+    uint32_t Line = (uint32_t)(uid.p2 & 0x00000000ffffffff);
+    uint32_t Col = (uint32_t)(uid.p2 >> 32);
+    return compact(FileID, FuncID, Line, Col);
+  }
+
+  /// @brief Combines the file ID, function ID, and line number from a uid_t
+  /// object into a single 64-bit value.
+  ///
+  /// This function extracts the file ID and function ID from the first 64-bit
+  /// field of the uid_t object (p1), and the line number from the second 64-bit
+  /// field (p2). It then combines these three values into a single 64-bit value
+  /// using the compact function.
+  ///
+  /// @param uid A uid_t object that contains the file ID, function ID, and line
+  /// number to be combined.
+  /// @return A 64-bit value that represents the combined file ID, function ID,
+  /// line number, and column number.
+  ///
+  uint64_t combine_short(const xpti::uid_t &uid) {
+    uint64_t FileID = uid.p1 >> 32;
+    uint64_t FuncID = uid.p1 & 0x00000000ffffffff;
+    uint32_t Line = (uint32_t)(uid.p2 & 0x00000000ffffffff);
+    return compact_short(FileID, FuncID, Line);
+  }
 };
-} // namespace std
-
-namespace xpti {
-constexpr int invalid_id = -1;
-constexpr uint64_t invalid_uid = 0;
-constexpr uint8_t default_vendor = 0;
 
 /// @brief Flag values used by the payload_t structure to mark the information
 /// present
@@ -91,12 +283,10 @@ enum class payload_flag_t {
   LineInfoAvailable = 1 << 3,
   /// Column information available in payload
   ColumnInfoAvailable = 1 << 4,
-  /// Caller/Callee stack trace available when source/kernel info not available
-  StackTraceAvailable = 1 << 5,
   /// Payload has been registered with the framework
   PayloadRegistered = 1 << 15,
-  // A 64-bit hash is already available for this payload
-  HashAvailable = 2 << 16
+  // A UID is already available for this payload
+  UIDAvailable = 2 << 16
 };
 
 //
@@ -131,122 +321,129 @@ struct object_data_t {
   uint8_t type;
 };
 
-/// @brief Payload data structure that is optional for trace point callback
-/// API
-/// @details The payload structure, if determined at compile time, can deliver
-/// the source association of various parallel constructs defined by the
-/// language. In the case it is defined, a lookup table will provide the
-/// association from a kernel/lambda (address) to a payload and the same
-/// address to a unique ID created at runtime.
+/// @struct payload_t
 ///
-/// All instances of a kernel will be associated with the same unique ID
-/// through the lifetime of an object. The hash maps that will be maintained
-/// would be: # [unique_id]->[payload] # [kernel address]->[unique_id]
+/// @brief This struct represents a payload of a trace point in a program.
 ///
-/// Unique_id MUST be propagated downstream to the OpenCL runtime to ensure
-/// the associations back to the sources. This requires elp from the compiler
-/// front-end.
+/// A trace point could be any significant point in the execution of a program,
+/// such as a function call, a lock acquisition, or an algorithm execution. The
+/// payload carries information about the trace point, such as its name, the
+/// source file where it's located, and its line and column numbers.
+///
+/// @var const char* payload_t::name
+/// The name of the trace point or the name of the function within which the
+/// trace point is located at the corrspondfing line and comumn. It's set to
+/// `nullptr` by default.
+///
+/// @var const char* payload_t::source_file
+/// The absolute path of the source file where the trace point is located. This
+/// could be a Unicode string. It's set to `nullptr` by default.
+///
+/// @var uint32_t payload_t::line_no
+/// The line number in the source file where the trace point is located. This
+/// helps correlate the trace point during debugging or profiling. It's set to
+/// `0` by default.
+///
+/// @var uint32_t payload_t::column_no
+/// The column number in the source file where the trace point is located. This
+/// could be useful for resolving complex statements. However, currently, none
+/// of the compiler built-ins return a valid column number. It's set to `0` by
+/// default.
+///
+/// @var uint64_t payload_t::flags
+/// Flags indicating the availability of different components of the payload.
+/// For example, whether the string name, code pointer, source file, and hash
+/// values are available. It's set to `0` by default, indicating that none of
+/// these components are available.
+///
+/// @fn bool payload_t::isValid()
+/// Checks whether the payload is valid. A payload is considered valid if its
+/// `flags` member is not `0`, indicating that at least one component of the
+/// payload is available.
 ///
 struct payload_t {
   /// Name of the trace point; graph, algorithm, lock names, for example.
   const char *name = nullptr;
-  /// Stack trace indicated by caller/callee as "caller->callee"
-  const char *stack_trace = nullptr;
-  /// Absolute path of the source file; may have to to be unicode string
+  /// Absolute path of the source file; may have to be unicode string
   const char *source_file = nullptr;
   /// Line number information to correlate the trace point
-  uint32_t line_no = invalid_id;
+  uint32_t line_no = 0;
   /// For a complex statement, column number may be needed to resolve the
   /// trace point; currently none of the compiler builtins return a valid
   /// column no
-  uint32_t column_no = invalid_id;
-  /// Kernel/lambda/function address
-  const void *code_ptr_va = nullptr;
-  /// Internal bookkeeping slot - do not change.
-  uint64_t internal;
+  uint32_t column_no = 0;
   /// Flags indicating whether string name, codepointer, source file and hash
   /// values are available
   uint64_t flags = 0;
-  /// Universal ID associated with this payload
+  /// @brief  Contains the computed UID for the payload
+  /// @details The UID is accurate, except for the instance ID for a given
+  /// payload. The instance ID in xpti::trace_event_data_t::uid is always
+  /// accurate w.r.t to the event data reference
   uid_t uid;
 
   payload_t() = default;
 
-  //  If the address of the kernel/function name is provided, we mark it as
-  //  valid since we can potentially reconstruct the name and the source file
-  //  information during post-processing step of symbol resolution; this
-  //  indicates a partial but valid payload.
-  payload_t(const void *codeptr) {
-    code_ptr_va = codeptr;
-    name = nullptr;         ///< Invalid name string pointer
-    source_file = nullptr;  ///< Invalid source file string pointer
-    line_no = invalid_id;   ///< Invalid line number
-    column_no = invalid_id; ///< Invalid column number
-    if (codeptr) {
-      flags = (uint64_t)payload_flag_t::CodePointerAvailable;
-    }
-  }
+  /// @brief Checks if the payload is valid.
+  ///
+  /// This method checks if the payload is valid by checking if the flags member
+  /// is not zero. The flags member is a bit field that indicates the
+  /// availability of different components of the payload, such as the name,
+  /// source file, line number, and column number. If the flags member is not
+  /// zero, it means that at least one component of the payload is available,
+  /// and therefore the payload is considered valid.
+  ///
+  /// @return Returns true if the payload is valid (i.e., if the flags member is
+  /// not zero), and false otherwise.
+  ///
+  bool isValid() { return (flags != 0); }
 
-  //  If neither an address or the fully identifyable source file name and
-  //  location are not available, we take in the name of the
-  //  function/task/user-defined name as input and create a hash from it. We
-  //  mark it as valid since we can display the name in a timeline view, but
-  //  the payload is considered to be a partial but valid payload.
+  /// @brief Constructs a payload_t object with a function name.
+  ///
+  /// This constructor initializes a payload_t object with a given function
+  /// name. The source file pointer is set to nullptr, indicating that the
+  /// source file is not available. If the function name is not null, the flags
+  /// are set to indicate that the name is available.
+  ///
+  /// @param func_name A pointer to a string representing the function name or a
+  /// user-provided name. This could be a Unicode string. If this parameter is
+  /// null, the flags will not be set.
+  ///
   payload_t(const char *func_name) {
-    code_ptr_va = nullptr;
-    name = func_name;      ///< Invalid name string pointer
+    name = func_name;      ///< Valid function name or user provided name
     source_file = nullptr; ///< Invalid source file string pointer
     if (func_name) {
       flags = (uint64_t)(payload_flag_t::NameAvailable);
     }
   }
+  // For backward compatibility
+  payload_t(const char *func_name, const void *codeptr)
+      : payload_t(func_name) {}
 
-  payload_t(const char *func_name, const void *codeptr) {
-    code_ptr_va = codeptr;
-    name = func_name;      ///< Invalid name string pointer
-    source_file = nullptr; ///< Invalid source file string pointer
-    if (func_name) {
-      flags = (uint64_t)(payload_flag_t::NameAvailable);
-    }
-    if (codeptr) {
-      flags |= (uint64_t)payload_flag_t::CodePointerAvailable;
-    }
-  }
-
-  //  When the end user opts out of preserving the code location information and
-  //  the KernelInfo is not available from the given entry point, we will rely
-  //  on dynamic backtrace as a possibility. In this case, we send in the
-  //  caller/callee information as a string in the form "caller->callee" that
-  //  will be used to generate the unique ID.
-  payload_t(const char *kname, const char *caller_callee, const void *codeptr) {
-    if (codeptr) {
-      code_ptr_va = codeptr;
-      flags |= (uint64_t)payload_flag_t::CodePointerAvailable;
-    }
-    /// Capture the rest of the parameters
-    if (kname) {
-      name = kname;
-      flags |= (uint64_t)payload_flag_t::NameAvailable;
-    }
-    if (caller_callee) {
-      stack_trace = caller_callee;
-      flags |= (uint64_t)payload_flag_t::StackTraceAvailable;
-    }
-  }
-
-  //  We need the payload to contain at the very least, the code pointer
-  //  information of the kernel or function. In the full payload case, we will
-  //  also have the function name and source file name along with the line and
-  //  column number of the trace point that forms the payload.
-  payload_t(const char *kname, const char *sf, int line, int col,
-            const void *codeptr) {
-    code_ptr_va = codeptr;
-    /// Capture the rest of the parameters
-    name = kname;
+  /// @brief Constructs a payload_t object with a function name, source file,
+  /// line number, and column number.
+  ///
+  /// This constructor initializes a payload_t object with the given parameters.
+  /// If the function name is not null, the flags are set to indicate that the
+  /// name is available. If the source file is not null, the flags are set to
+  /// indicate that the source file, line number, and column number are
+  /// available.
+  ///
+  /// @param func_name A pointer to a string representing the function name or a
+  /// user-provided name. This could be a Unicode string. If this parameter is
+  /// null, the flags will not be set.
+  /// @param sf A pointer to a string representing the source file. This could
+  /// be a Unicode string. If this parameter is null, the flags will not be set.
+  /// @param line The line number in the source file. This is ignored if the
+  /// source file is null.
+  /// @param col The column number in the source file. This is ignored if the
+  /// source file is null.
+  ///
+  payload_t(const char *func_name, const char *sf, int line, int col) {
+    name = func_name;
     source_file = sf;
     line_no = line;
     column_no = col;
-    if (kname && kname[0] != '\0') {
+    if (func_name) {
       flags = (uint64_t)payload_flag_t::NameAvailable;
     }
     if (sf && sf[0] != '\0') {
@@ -254,14 +451,11 @@ struct payload_t {
                (uint64_t)payload_flag_t::LineInfoAvailable |
                (uint64_t)payload_flag_t::ColumnInfoAvailable;
     }
-    if (codeptr) {
-      flags |= (uint64_t)payload_flag_t::CodePointerAvailable;
-    }
   }
-
-  int32_t name_sid() const { return (int32_t)(uid.p2 & 0x00000000ffffffff); }
-  int32_t stacktrace_sid() const { return (int32_t)(uid.p2 >> 32); }
-  int32_t source_file_sid() const { return (int32_t)(uid.p1 >> 32); }
+  // For backward compatibility
+  payload_t(const char *func_name, const char *sf, int line, int col,
+            const void *codeptr)
+      : payload_t(func_name, sf, line, col) {}
 };
 
 /// A data structure that holds information about an API function call and its
@@ -503,6 +697,40 @@ enum class metadata_type_t {
   boolean = 5
 };
 
+/// @struct trace_event_t
+/// @brief Represents a trace event object in the system.
+///
+/// This structure represents a trace event, which is a record of some
+/// occurrence in the system. Each trace event has a unique identifier (`uid`),
+/// a source identifier (`source`), a target identifier (`target`), and an
+/// optional payload (`payload`).
+///
+/// The `uid` member is a unique identifier for the trace event. It is a `uid_t`
+/// object that contains information about the file, function, line number, and
+/// column number where the trace event was created.
+///
+/// The `source` member is a `uid_t` object that identifies the source trace
+/// event if the recorded event type is an edge.
+///
+/// The `target` member is a `uid_t` object that identifies the target trace
+/// event if the recorded event type is an edge.
+///
+/// The `payload` member is a pointer to a `payload_t` object that contains
+/// additional information about the trace event. This could include the name of
+/// the trace point, the source file, the line number, and the column number.
+/// The payload member is used to create the UID member and registered with the
+/// framework. The pointer to the payload is a reference to the registered
+/// payload and included here for efficiency and avoiding a lookup in the system
+///
+struct trace_event_t {
+  uid_t uid;    /// UID of the trace event and derived from the payload
+  uid_t source; /// If the event happens to be an edge (dependency), this field
+                /// defines the source
+  uid_t target; /// If the event happens to be an edge (dependency), this field
+                /// defines the target object
+  payload_t *payload = nullptr; /// Payload of the trace event
+};
+
 struct reserved_data_t {
   /// Has a reference to the associated payload field for an event
   payload_t *payload = nullptr;
@@ -511,15 +739,41 @@ struct reserved_data_t {
   metadata_t metadata;
 };
 
+/// @struct trace_point_data_t
+/// @brief This struct represents a trace point's data in the tracing framework.
+///
+/// It contains a unique identifier (uid) and a payload.
+///
+struct trace_point_data_t {
+  /// @brief This is a unique identifier for the trace point.
+  ///
+  /// It is of type uid_t, which encodes the payload information.
+  ///
+  uid_t uid;
+
+  /// @brief This is a pointer to the payload associated with the trace point.
+  ///
+  /// It is of type payload_t that includes file name, function name, line
+  /// number, and column number for the associated tracepoint. The pointer to
+  /// the payload is valid through the lifetime of the program and points to the
+  /// registered payload.
+  ///
+  payload_t *payload = nullptr;
+
+  /// @brief This method checks if the trace point data is valid.
+  ///
+  /// It returns true if both the uid is valid (as determined by the uid's
+  /// isValid method) and the payload pointer is not null. Otherwise, it
+  /// returns false.
+  ///
+  /// @return True if uid is valid and payload is not null, false otherwise.
+  ///
+  bool isValid() { return (uid.isValid() && payload); }
+};
+
 struct trace_event_data_t {
   /// Unique id that corresponds to an event type or event group type
-  uint64_t unique_id = 0;
-  /// Data ID: ID that tracks the data elements streaming through the
-  /// algorithm (mostly graphs; will be the same as instance_id for
-  /// algorithms)
-  uint64_t data_id = 0;
-  /// Instance id of an algorithm with id=unique_id
-  uint64_t instance_id = 0;
+  uid_t uid;
   /// The type of event
   uint16_t event_type;
   /// How this event is classified: active, overhead, barrier etc
@@ -529,15 +783,12 @@ struct trace_event_data_t {
   uint32_t unused;
   /// If event_type is "graph" and trace_type is "edge_create", then the
   /// source ID is set
-  int64_t source_id = invalid_id;
+  uid_t source_uid;
   /// If event_type is "graph" and trace_type is "edge_create", then the
   /// target ID is set
-  int64_t target_id = invalid_id;
+  uid_t target_uid;
   /// A reserved slot for memory growth, if required by the framework
   reserved_data_t reserved;
-  /// User defined data, if required; owned by the user shared object and will
-  /// not be deleted when event data is destroyed
-  void *global_user_data = nullptr;
 };
 
 /// Describes offload buffer
@@ -777,6 +1028,33 @@ constexpr uint16_t trace_queue_destroy =
 constexpr uint16_t trace_diagnostics =
     static_cast<uint16_t>(xpti::trace_point_type_t::diagnostics);
 } // namespace xpti
+
+namespace std {
+// Specializations for std::unordered_map
+
+// Specialization of std::hash for xpti::uid_t
+template <> struct hash<xpti::uid_t> {
+  // Overload of operator() to calculate hash of xpti::uid_t
+  size_t operator()(const xpti::uid_t &UID) const {
+    xpti::hash_t Hash;
+    // The hash is calculated by combining the file ID, function ID, and line
+    // number from the uid_t object into a single 64-bit value.
+    return Hash.combine_short(UID);
+  }
+};
+
+// Specialization of std::equal_to for xpti::uid_t
+template <> struct equal_to<xpti::uid_t> {
+  // Overload of operator() to compare two xpti::uid_t objects
+  bool operator()(const xpti::uid_t &lhs, const xpti::uid_t &rhs) const {
+    // Two uid_t objects are considered equal if their p1, p2, and p3 fields are
+    // equal. p1 contains the combined file ID and function ID, p2 contains the
+    // combined line number and column number, and p3 contains the object
+    // address or a unique 64-bit value.
+    return lhs.p1 == rhs.p1 && lhs.p2 == rhs.p2;
+  }
+};
+} // namespace std
 
 using xpti_tp = xpti::trace_point_type_t;
 using xpti_te = xpti::trace_event_type_t;

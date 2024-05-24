@@ -213,7 +213,7 @@ void TestCorrectness::runTracepointTestThreads(int RunNo, int NumThreads,
 
   if (!NumThreads) {
     std::vector<xpti::payload_t *> Payloads;
-    std::vector<uint64_t> UIds;
+    std::vector<xpti::uid_t> UIds;
     std::vector<xpti::trace_event_data_t *> Events;
     Payloads.resize(TracepointCount);
     UIds.resize(TracepointCount);
@@ -221,13 +221,13 @@ void TestCorrectness::runTracepointTestThreads(int RunNo, int NumThreads,
 
     for (uint64_t i = 0; i < TracepointCount; ++i) {
       std::string fn = "Function" + std::to_string(i);
-      xpti::payload_t P = xpti::payload_t(fn.c_str(), MSource, (int)i,
-                                          (int)(i % 80), (void *)i);
+      xpti::payload_t P =
+          xpti::payload_t(fn.c_str(), MSource, (int)i, (int)(i % 80));
       xpti::trace_event_data_t *Ev = xptiMakeEvent(
           fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
           xpti::trace_activity_type_t::active, &MInstanceID);
       if (Ev) {
-        UIds[i] = Ev->unique_id;
+        UIds[i] = Ev->uid;
         Payloads[i] = Ev->reserved.payload;
         Events[i] = Ev;
       }
@@ -239,7 +239,7 @@ void TestCorrectness::runTracepointTestThreads(int RunNo, int NumThreads,
     std::atomic<int> LookupCount = {0};
     for (int i = 0; i < Events.size(); ++i) {
       const xpti::trace_event_data_t *Ev = xptiFindEvent(UIds[i]);
-      if (Ev && Ev->unique_id == UIds[i])
+      if (Ev && Ev->uid == UIds[i])
         ++LookupCount;
     }
     ModelRow[(int)TPColumns::Lookups] = LookupCount;
@@ -248,16 +248,16 @@ void TestCorrectness::runTracepointTestThreads(int RunNo, int NumThreads,
     for (uint64_t i = 0; i < Events.size(); ++i) {
       std::string fn = "Function" + std::to_string(i);
       xpti::payload_t P =
-          xpti::payload_t(fn.c_str(), MSource, (int)i, (int)i % 80, (void *)i);
+          xpti::payload_t(fn.c_str(), MSource, (int)i, (int)i % 80);
       xpti::trace_event_data_t *Ev = xptiMakeEvent(
           fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
           xpti::trace_activity_type_t::active, &MInstanceID);
       if (Ev) {
-        if (Ev->unique_id == UIds[i]) {
+        if (Ev->uid == UIds[i]) {
           ++DuplicateCount;
         }
         xpti::payload_t *RP = Ev->reserved.payload;
-        if (Ev->unique_id == UIds[i] && RP &&
+        if (Ev->uid == UIds[i] && RP &&
             std::string(RP->name) == std::string(P.name) &&
             std::string(RP->source_file) == std::string(P.source_file) &&
             RP->line_no == P.line_no && RP->column_no == P.column_no)
@@ -275,7 +275,7 @@ void TestCorrectness::runTracepointTestThreads(int RunNo, int NumThreads,
     int Count = 0;
 
     std::vector<xpti::payload_t *> Payloads;
-    std::vector<int64_t> UIds;
+    std::vector<xpti::uid_t> UIds;
     std::vector<xpti::trace_event_data_t *> Events;
     Payloads.resize(TracepointCount);
     UIds.resize(TracepointCount);
@@ -291,13 +291,13 @@ void TestCorrectness::runTracepointTestThreads(int RunNo, int NumThreads,
     auto MakeEvent = [&](int min, int max) {
       for (size_t i = min; i < max; ++i) {
         std::string fn = "Function" + std::to_string(i);
-        xpti::payload_t P = xpti::payload_t(fn.c_str(), MSource, (int)i,
-                                            (int)i % 80, (void *)i);
+        xpti::payload_t P =
+            xpti::payload_t(fn.c_str(), MSource, (int)i, (int)i % 80);
         xpti::trace_event_data_t *Ev = xptiMakeEvent(
             fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
             xpti::trace_activity_type_t::active, &MInstanceID);
         if (Ev) {
-          UIds[i] = Ev->unique_id;
+          UIds[i] = Ev->uid;
           Payloads[i] = Ev->reserved.payload;
           Events[i] = Ev;
         }
@@ -310,7 +310,7 @@ void TestCorrectness::runTracepointTestThreads(int RunNo, int NumThreads,
       for (size_t i = min; i < max; ++i) {
         std::string fn = "Function" + std::to_string(i);
         const xpti::trace_event_data_t *Ev = xptiFindEvent(UIds[i]);
-        if (Ev && Ev->unique_id == UIds[i])
+        if (Ev && Ev->uid == UIds[i])
           LookupCount++;
       }
     };
@@ -320,17 +320,17 @@ void TestCorrectness::runTracepointTestThreads(int RunNo, int NumThreads,
     auto CheckEvents = [&](int min, int max) {
       for (size_t i = min; i < max; ++i) {
         std::string fn = "Function" + std::to_string(i);
-        xpti::payload_t P = xpti::payload_t(fn.c_str(), MSource, (int)i,
-                                            (int)i % 80, (void *)i);
+        xpti::payload_t P =
+            xpti::payload_t(fn.c_str(), MSource, (int)i, (int)i % 80);
         xpti::trace_event_data_t *Ev = xptiMakeEvent(
             fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
             xpti::trace_activity_type_t::active, &MInstanceID);
         if (Ev) {
-          if (Ev->unique_id == UIds[i]) {
+          if (Ev->uid == UIds[i]) {
             ++DuplicateCount;
           }
           xpti::payload_t *RP = Ev->reserved.payload;
-          if (Ev->unique_id == UIds[i] && RP &&
+          if (Ev->uid == UIds[i] && RP &&
               std::string(RP->name) == std::string(P.name) &&
               std::string(RP->source_file) == std::string(P.source_file) &&
               RP->line_no == P.line_no && RP->column_no == P.column_no)
@@ -375,7 +375,7 @@ void TestCorrectness::runNotificationTestThreads(
   xptiReset();
   int TPCount = 30, CallbackCount = TPCount * 30;
   std::vector<xpti::payload_t *> Payloads;
-  std::vector<int64_t> UIds;
+  std::vector<xpti::uid_t> UIds;
   std::vector<xpti::trace_event_data_t *> Events;
   Payloads.resize(TPCount);
   UIds.resize(TPCount);
@@ -388,13 +388,13 @@ void TestCorrectness::runNotificationTestThreads(
     for (uint64_t i = 0; i < TPCount; ++i) {
       int Index = (int)i;
       std::string fn = "Function" + std::to_string(i);
-      xpti::payload_t P = xpti::payload_t(fn.c_str(), MSource, Index,
-                                          Index % 80, (void *)(i % 10));
+      xpti::payload_t P =
+          xpti::payload_t(fn.c_str(), MSource, Index, Index % 80);
       xpti::trace_event_data_t *Ev = xptiMakeEvent(
           fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
           xpti::trace_activity_type_t::active, &MInstanceID);
       if (Ev) {
-        UIds[Index] = Ev->unique_id;
+        UIds[Index] = Ev->uid;
         Payloads[Index] = Ev->reserved.payload;
         Events[Index] = Ev;
       }
@@ -408,12 +408,12 @@ void TestCorrectness::runNotificationTestThreads(
       size_t Index = (int)i % TPCount;
       void *Address = (void *)(Index % 10);
       std::string fn = "Function" + std::to_string(Index);
-      xpti::payload_t P = xpti::payload_t(fn.c_str(), MSource, (int)Index,
-                                          (int)Index % 80, Address);
+      xpti::payload_t P =
+          xpti::payload_t(fn.c_str(), MSource, (int)Index, (int)Index % 80);
       xpti::trace_event_data_t *Ev = xptiMakeEvent(
           fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
           xpti::trace_activity_type_t::active, &MInstanceID);
-      if (Ev && Ev->unique_id == UIds[Index]) {
+      if (Ev && Ev->uid == UIds[Index]) {
         uint8_t TP = (Index % 10) + 1;
         uint16_t TPType = (uint16_t)(TP << 1);
         xpti::framework::scoped_notify ev("xpti", TPType, nullptr, Ev,
@@ -423,7 +423,7 @@ void TestCorrectness::runNotificationTestThreads(
     }
     uint64_t Acc = 0;
     for (int i = 0; i < TPCount; ++i) {
-      Acc += Events[i]->instance_id;
+      Acc += Events[i]->uid.instance;
     }
 
     // Accumulator contains 'CallbackCount' number of
@@ -448,13 +448,13 @@ void TestCorrectness::runNotificationTestThreads(
 
         size_t Index = (int)i;
         std::string fn = "Function" + std::to_string(i);
-        xpti::payload_t P = xpti::payload_t(fn.c_str(), MSource, (int)Index,
-                                            (int)Index % 80, (void *)(i % 10));
+        xpti::payload_t P =
+            xpti::payload_t(fn.c_str(), MSource, (int)Index, (int)Index % 80);
         xpti::trace_event_data_t *Ev = xptiMakeEvent(
             fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
             xpti::trace_activity_type_t::active, &MInstanceID);
         if (Ev) {
-          UIds[Index] = Ev->unique_id;
+          UIds[Index] = Ev->uid;
           Payloads[Index] = Ev->reserved.payload;
           Events[Index] = Ev;
         }
@@ -475,12 +475,12 @@ void TestCorrectness::runNotificationTestThreads(
         size_t Index = (int)i % TPCount;
         void *Address = (void *)(Index % 10);
         std::string fn = "Function" + std::to_string(Index);
-        xpti::payload_t P = xpti::payload_t(fn.c_str(), MSource, (int)Index,
-                                            (int)Index % 80, Address);
+        xpti::payload_t P =
+            xpti::payload_t(fn.c_str(), MSource, (int)Index, (int)Index % 80);
         xpti::trace_event_data_t *Ev = xptiMakeEvent(
             fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
             xpti::trace_activity_type_t::active, &MInstanceID);
-        if (Ev && Ev->unique_id == UIds[Index]) {
+        if (Ev && Ev->uid == UIds[Index]) {
           uint8_t TP = (Index % 10) + 1;
           uint16_t TPType = (uint16_t)(TP << 1);
           xpti::framework::scoped_notify ev("xpti", TPType, nullptr, Ev,
@@ -493,7 +493,7 @@ void TestCorrectness::runNotificationTestThreads(
 
     uint64_t Acc = 0;
     for (int i = 0; i < TPCount; ++i) {
-      Acc += Events[i]->instance_id;
+      Acc += Events[i]->uid.instance;
     }
 
     ModelRow[(int)NColumns::Notifications] = (long double)Acc;

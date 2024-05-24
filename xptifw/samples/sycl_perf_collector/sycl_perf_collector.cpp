@@ -193,6 +193,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
                                      unsigned int minor_version,
                                      const char *version_str,
                                      const char *stream_name) {
+  std::cout << "Initializing trace collector\n";
   // On first use, set up some data structures to track the streams we are
   // registering with and create some writer objects for formatted output
   static bool InitStreams = true;

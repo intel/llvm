@@ -71,18 +71,21 @@ TEST_F(xptiApiTest, xptiLookupStringGoodInput) {
 
 TEST_F(xptiApiTest, xptiRegisterPayloadGoodInput) {
   xpti::payload_t p("foo", "foo.cpp", 10, 0, (void *)(0xdeadbeefull));
+  xpti::uid_t Invalid;
 
   auto ID = xptiRegisterPayload(&p);
-  EXPECT_NE(ID, xpti::invalid_uid);
-  EXPECT_EQ(p.internal, ID);
-  EXPECT_EQ(p.uid.hash(), ID);
+  xpti::hash_t Hash;
+  EXPECT_NE(Hash.combine_short(ID), Hash.combine_short(Invalid));
+  EXPECT_EQ(Hash.combine_short(ID), Hash.combine_short(p.uid));
 }
 
 TEST_F(xptiApiTest, xptiRegisterPayloadBadInput) {
   xpti::payload_t p;
+  xpti::uid_t Invalid;
+  xpti::hash_t Hash;
 
   auto ID = xptiRegisterPayload(&p);
-  EXPECT_EQ(ID, xpti::invalid_uid);
+  EXPECT_EQ(Hash.combine_short(ID), Hash.combine_short(Invalid));
 }
 
 TEST_F(xptiApiTest, xptiGetUniqueId) {
@@ -146,14 +149,18 @@ TEST_F(xptiApiTest, xptiMakeEventGoodInput) {
   Payload = xpti::payload_t("foo", "foo.cpp", 1, 0, (void *)13);
   auto NewResult = xptiMakeEvent("foo", &Payload, 0,
                                  (xpti::trace_activity_type_t)1, &instance);
-  EXPECT_EQ(Result, NewResult);
+  EXPECT_NE(Result, NewResult);
+  EXPECT_EQ(Result->uid.p1, NewResult->uid.p1);
+  EXPECT_EQ(Result->uid.p2, NewResult->uid.p2);
+  EXPECT_NE(Result->uid.instance, NewResult->uid.instance);
   EXPECT_EQ(instance, 2u);
 }
 
 TEST_F(xptiApiTest, xptiFindEventBadInput) {
-  auto Result = xptiFindEvent(0);
+  xpti::uid_t Invalid, Fake(100, 100, 100, 100);
+  auto Result = xptiFindEvent(Invalid);
   EXPECT_EQ(Result, nullptr);
-  Result = xptiFindEvent(1000000);
+  Result = xptiFindEvent(Fake);
   EXPECT_EQ(Result, nullptr);
 }
 
@@ -165,7 +172,7 @@ TEST_F(xptiApiTest, xptiFindEventGoodInput) {
                               (xpti::trace_activity_type_t)1, &Instance);
   ASSERT_NE(Result, nullptr);
   EXPECT_EQ(Instance, 1u);
-  auto NewResult = xptiFindEvent(Result->unique_id);
+  auto NewResult = xptiFindEvent(Result->uid);
   EXPECT_EQ(Result, NewResult);
 }
 
@@ -181,27 +188,86 @@ TEST_F(xptiApiTest, xptiQueryPayloadGoodInput) {
                               (xpti::trace_activity_type_t)1, &instance);
   EXPECT_NE(Result, nullptr);
   EXPECT_EQ(instance, 1u);
-  auto NewResult = xptiQueryPayload(Result);
+  auto NewResult = const_cast<xpti::payload_t *>(xptiQueryPayload(Result));
   ASSERT_NE(NewResult, nullptr);
   EXPECT_STREQ(Payload.name, NewResult->name);
   EXPECT_STREQ(Payload.source_file, NewResult->source_file);
   // NewResult->name_sid will have a string ID whereas 'Payload' will not
-  EXPECT_NE(Payload.name_sid(), NewResult->name_sid());
-  EXPECT_NE(Payload.source_file_sid(), NewResult->source_file_sid());
-  EXPECT_EQ(Payload.line_no, NewResult->line_no);
+  EXPECT_EQ(Result->uid.functionId(), NewResult->uid.functionId());
+  EXPECT_EQ(Result->uid.fileId(), NewResult->uid.fileId());
+  EXPECT_EQ(Result->uid.lineNo(), NewResult->uid.lineNo());
+  EXPECT_NE(Payload.uid.functionId(), NewResult->uid.functionId());
+  EXPECT_NE(Payload.uid.fileId(), NewResult->uid.fileId());
+  EXPECT_NE(Payload.uid.lineNo(), NewResult->uid.lineNo());
 }
 
 TEST_F(xptiApiTest, xptiQueryPayloadByUIDGoodInput) {
   xpti::payload_t p("foo", "foo.cpp", 10, 0, (void *)(0xdeadbeefull));
+  xpti::uid_t Invalid;
 
   auto ID = xptiRegisterPayload(&p);
-  EXPECT_NE(ID, xpti::invalid_uid);
-  EXPECT_EQ(p.internal, ID);
-  EXPECT_EQ(p.uid.hash(), ID);
+  xpti::hash_t Hash;
+  EXPECT_NE(Hash.combine_short(ID), Hash.combine_short(Invalid));
+  EXPECT_EQ(Hash.combine_short(ID), Hash.combine_short(p.uid));
 
   auto pp = xptiQueryPayloadByUID(ID);
-  EXPECT_EQ(p.internal, pp->internal);
-  EXPECT_EQ(p.uid.hash(), pp->uid.hash());
+  EXPECT_EQ(Hash.combine_short(ID), Hash.combine_short(pp->uid));
+  EXPECT_EQ(Hash.combine_short(ID), Hash.combine_short(pp->uid));
+}
+
+TEST_F(xptiApiTest, xptiGetAndSetDefaultEventType) {
+  auto ID = xptiGetDefaultEventType();
+  EXPECT_EQ((int)ID, (int)xpti::trace_event_type_t::algorithm);
+  auto Result =
+      xptiSetDefaultEventType(xpti::trace_event_type_t::unknown_event);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+  Result = xptiSetDefaultEventType(xpti::trace_event_type_t::graph);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  auto ID2 = xptiGetDefaultEventType();
+  EXPECT_EQ((int)ID2, (int)xpti::trace_event_type_t::graph);
+}
+
+TEST_F(xptiApiTest, xptiGetAndSetDefaultStreamID) {
+  auto ID = xptiGetDefaultStreamID();
+  EXPECT_EQ(ID, 0);
+  auto Result = xptiSetDefaultStreamID(-1);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+  Result = xptiSetDefaultStreamID(42);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  auto ID2 = xptiGetDefaultStreamID();
+  EXPECT_EQ(ID2, 42);
+}
+
+TEST_F(xptiApiTest, xptiGetAndSetDefaultTraceType) {
+  auto ID = xptiGetDefaultTraceType();
+  EXPECT_EQ((int)ID, (int)xpti::trace_point_type_t::function_begin);
+  auto Result = xptiSetDefaultTraceType(xpti::trace_point_type_t::unknown_type);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+  Result = xptiSetDefaultTraceType(xpti::trace_point_type_t::task_begin);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  auto ID2 = xptiGetDefaultTraceType();
+  EXPECT_EQ((int)ID2, (int)xpti::trace_point_type_t::task_begin);
+}
+
+TEST_F(xptiApiTest, xptiGetTracePointScopeData) {
+  xpti::hash_t Hash;
+  xpti::trace_point_data_t Data;
+  auto ScopeData = xptiGetTracepointScopeData();
+  EXPECT_EQ(ScopeData.isValid(), false);
+  auto Result = xptiSetTracepointScopeData(Data);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+  xpti::payload_t Payload("foo", "foo.cpp", 1, 0, (void *)13);
+
+  Data.payload = &Payload;
+  Data.uid = xptiRegisterPayload(&Payload);
+  Result = xptiSetTracepointScopeData(Data);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  EXPECT_EQ(Data.isValid(), true);
+
+  ScopeData = xptiGetTracepointScopeData();
+  EXPECT_EQ(ScopeData.isValid(), true);
+  EXPECT_EQ(Data.payload, ScopeData.payload);
+  EXPECT_EQ(Hash.combine_short(ScopeData.uid), Hash.combine_short(Data.uid));
 }
 
 TEST_F(xptiApiTest, xptiTraceEnabled) {
