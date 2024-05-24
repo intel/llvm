@@ -17,7 +17,6 @@
 
 #include "../../esimd_test_utils.hpp"
 #include "type_traits.hpp"
-#include <sycl/sycl.hpp>
 
 #include <climits>
 #include <cmath>

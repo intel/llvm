@@ -4085,6 +4085,7 @@
 ?ext_oneapi_copy@handler@_V1@sycl@@QEAAXUimage_mem_handle@experimental@oneapi@ext@23@0AEBUimage_descriptor@56723@@Z
 ?ext_oneapi_copy@handler@_V1@sycl@@QEAAXUimage_mem_handle@experimental@oneapi@ext@23@PEAXAEBUimage_descriptor@56723@@Z
 ?ext_oneapi_copy@handler@_V1@sycl@@QEAAXUimage_mem_handle@experimental@oneapi@ext@23@V?$range@$02@23@AEBUimage_descriptor@56723@PEAX111@Z
+?ext_oneapi_prod@queue@_V1@sycl@@QEAAXXZ
 ?ext_oneapi_copy@queue@_V1@sycl@@QEAA?AVevent@23@PEAX0AEBUimage_descriptor@experimental@oneapi@ext@23@_KAEBUcode_location@detail@23@@Z
 ?ext_oneapi_copy@queue@_V1@sycl@@QEAA?AVevent@23@PEAX0AEBUimage_descriptor@experimental@oneapi@ext@23@_KAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@AEBUcode_location@detail@23@@Z
 ?ext_oneapi_copy@queue@_V1@sycl@@QEAA?AVevent@23@PEAX0AEBUimage_descriptor@experimental@oneapi@ext@23@_KV423@AEBUcode_location@detail@23@@Z

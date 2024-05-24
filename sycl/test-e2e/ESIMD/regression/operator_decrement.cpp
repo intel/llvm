@@ -7,14 +7,10 @@
 //===----------------------------------------------------------------------===//
 // This is a test for a bug found simd_view::operator--
 //
-// RUN: %{build} -I%S/.. -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "esimd_test_utils.hpp"
-
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include "../esimd_test_utils.hpp"
 
 using namespace sycl;
 

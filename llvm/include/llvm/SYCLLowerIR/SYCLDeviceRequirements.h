@@ -33,6 +33,7 @@ struct SYCLDeviceRequirements {
   std::set<uint32_t> Aspects;
   std::set<uint32_t> FixedTarget;
   std::optional<llvm::SmallVector<uint64_t, 3>> ReqdWorkGroupSize;
+  std::optional<uint32_t> WorkGroupNumDim;
   std::optional<llvm::SmallString<256>> JointMatrix;
   std::optional<llvm::SmallString<256>> JointMatrixMad;
   std::optional<uint32_t> SubGroupSize;
