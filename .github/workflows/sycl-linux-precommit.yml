@@ -72,7 +72,7 @@ jobs:
       - name: Determine IGC dev image
         id: get_igc_dev_ci_control
         run: |
-          echo 'run_igc_dev_ci=${{ secrets.ISSUE_WRITE_DOWNLOAD_ARTIFACT }}' >> "$GITHUB_OUTPUT"
+          echo 'run_igc_dev_ci=${{ secrets.RUN_DEV_IGC_CI }}' >> "$GITHUB_OUTPUT"
 
   test:
     needs: [build, detect_changes, determine_arc_tests]
