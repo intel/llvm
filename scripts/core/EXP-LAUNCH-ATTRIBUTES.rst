@@ -84,7 +84,7 @@ Support
 --------------------------------------------------------------------------------
 
 Adapters which support this experimental feature *must* return the valid string
-defined in ``${X}_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP`` as one of the options from
+defined in ${X}_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP as one of the options from
 ${x}DeviceGetInfo when querying for ${X}_DEVICE_INFO_EXTENSIONS.
 
 Changelog
