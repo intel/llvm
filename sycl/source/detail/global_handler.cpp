@@ -270,10 +270,13 @@ void GlobalHandler::drainThreadPool() {
 // we focus solely on unloading the plugins, so as to not
 // accidentally retain device handles. etc
 void shutdown() {
-  
+  const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
+  GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
+  if (!Handler)
+    return;
+
   Handler->releaseDefaultContexts();
 
-  GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   Handler->unloadPlugins();
 }
 #else
