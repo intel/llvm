@@ -4768,6 +4768,7 @@ ur_result_t UR_APICALL urEventSetCallback(
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGS - "The kernel argument values have not been specified."
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urEnqueueKernelLaunch(
@@ -6602,7 +6603,6 @@ ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
-///         + `NULL == phMem`
 ///         + `NULL == phImage`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -6618,7 +6618,6 @@ ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
-    ur_mem_handle_t *phMem, ///< [out] pointer to handle of image object created
     ur_exp_image_handle_t
         *phImage ///< [out] pointer to handle of image object created
     ) try {
@@ -6630,7 +6629,7 @@ ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     }
 
     return pfnUnsampledImageCreateExp(hContext, hDevice, hImageMem,
-                                      pImageFormat, pImageDesc, phMem, phImage);
+                                      pImageFormat, pImageDesc, phImage);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -6655,7 +6654,6 @@ ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
-///         + `NULL == phMem`
 ///         + `NULL == phImage`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -6673,7 +6671,6 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_sampler_handle_t hSampler,      ///< [in] sampler to be used
-    ur_mem_handle_t *phMem, ///< [out] pointer to handle of image object created
     ur_exp_image_handle_t
         *phImage ///< [out] pointer to handle of image object created
     ) try {
@@ -6684,7 +6681,7 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     }
 
     return pfnSampledImageCreateExp(hContext, hDevice, hImageMem, pImageFormat,
-                                    pImageDesc, hSampler, phMem, phImage);
+                                    pImageDesc, hSampler, phImage);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -8328,6 +8325,8 @@ ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     bool

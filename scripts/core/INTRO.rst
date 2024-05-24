@@ -182,6 +182,8 @@ Unified Runtime loader implements tracing support through the `XPTI framework <h
        | **user_data**: A pointer to `function_with_args_t` object, that includes function ID, name, arguments, and return value.
      - None
 
+The Unified Runtime tracing layer also supports logging tracing output directly, rather than using XPTI. Use the `UR_LOG_TRACING` environment variable to control this output. See the `Logging`_ section below for details of the syntax. All traces are logged at the *info* log level.
+
 Sanitizers
 ---------------------
 
@@ -317,6 +319,10 @@ Specific environment variables can be set to control the behavior of unified run
 .. envvar:: UR_LOG_VALIDATION
 
    Holds parameters for setting Unified Runtime validation logging. The syntax is described in the Logging_ section.
+
+.. envvar:: UR_LOG_TRACING
+
+   Holds parameters for setting Unified Runtime tracing logging. The syntax is described in the Logging_ section.
 
 .. envvar:: UR_ADAPTERS_FORCE_LOAD
 

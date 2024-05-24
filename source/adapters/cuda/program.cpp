@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "program.hpp"
+#include "ur_util.hpp"
 
 bool getMaxRegistersJitOptionValue(const std::string &BuildOptions,
                                    unsigned int &Value) {
@@ -42,23 +43,6 @@ bool getMaxRegistersJitOptionValue(const std::string &BuildOptions,
 
   Value = static_cast<unsigned int>(std::stoi(ValueString));
   return true;
-}
-
-ur_program_handle_t_::ur_program_handle_t_(ur_context_handle_t Context)
-    : Module{nullptr}, Binary{}, BinarySizeInBytes{0}, RefCount{1},
-      Context{Context}, KernelReqdWorkGroupSizeMD{} {
-  urContextRetain(Context);
-}
-
-ur_program_handle_t_::~ur_program_handle_t_() { urContextRelease(Context); }
-
-std::pair<std::string, std::string>
-splitMetadataName(const std::string &metadataName) {
-  size_t splitPos = metadataName.rfind('@');
-  if (splitPos == std::string::npos)
-    return std::make_pair(metadataName, std::string{});
-  return std::make_pair(metadataName.substr(0, splitPos),
-                        metadataName.substr(splitPos, metadataName.length()));
 }
 
 ur_result_t
@@ -197,12 +181,14 @@ ur_result_t createProgram(ur_context_handle_t hContext,
                           const uint8_t *pBinary,
                           const ur_program_properties_t *pProperties,
                           ur_program_handle_t *phProgram) {
-  UR_ASSERT(hContext->getDevice()->get() == hDevice->get(),
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
             UR_RESULT_ERROR_INVALID_CONTEXT);
   UR_ASSERT(size, UR_RESULT_ERROR_INVALID_SIZE);
 
   std::unique_ptr<ur_program_handle_t_> RetProgram{
-      new ur_program_handle_t_{hContext}};
+      new ur_program_handle_t_{hContext, hDevice}};
 
   if (pProperties) {
     if (pProperties->count > 0 && pProperties->pMetadatas == nullptr) {
@@ -222,18 +208,12 @@ ur_result_t createProgram(ur_context_handle_t hContext,
   return UR_RESULT_SUCCESS;
 }
 
-/// CUDA will handle the PTX/CUBIN binaries internally through CUmodule object.
-/// So, urProgramCreateWithIL and urProgramCreateWithBinary are equivalent in
-/// terms of CUDA adapter. See \ref urProgramCreateWithBinary.
+// A program is unique to a device so this entry point cannot be supported with
+// a multi device context
 UR_APIEXPORT ur_result_t UR_APICALL
-urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
-                      size_t length, const ur_program_properties_t *pProperties,
-                      ur_program_handle_t *phProgram) {
-  ur_device_handle_t hDevice = hContext->getDevice();
-  auto pBinary = reinterpret_cast<const uint8_t *>(pIL);
-
-  return createProgram(hContext, hDevice, length, pBinary, pProperties,
-                       phProgram);
+urProgramCreateWithIL(ur_context_handle_t, const void *, size_t,
+                      const ur_program_properties_t *, ur_program_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 /// CUDA will handle the PTX/CUBIN binaries internally through a call to
@@ -272,7 +252,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t hContext,
   ur_result_t Result = UR_RESULT_SUCCESS;
 
   try {
-    ScopedContext Active(hProgram->getContext());
+    ScopedContext Active(hProgram->getDevice());
 
     hProgram->buildProgram(pOptions);
     hProgram->BinaryType = UR_PROGRAM_BINARY_TYPE_EXECUTABLE;
@@ -297,13 +277,17 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
               const ur_program_handle_t *phPrograms, const char *pOptions,
               ur_program_handle_t *phProgram) {
   ur_result_t Result = UR_RESULT_SUCCESS;
+  // All programs must be associated with the same device
+  for (auto i = 1u; i < count; ++i)
+    UR_ASSERT(phPrograms[i]->getDevice() == phPrograms[0]->getDevice(),
+              UR_RESULT_ERROR_INVALID_DEVICE);
 
   try {
-    ScopedContext Active(hContext);
+    ScopedContext Active(phPrograms[0]->getDevice());
 
     CUlinkState State;
     std::unique_ptr<ur_program_handle_t_> RetProgram{
-        new ur_program_handle_t_{hContext}};
+        new ur_program_handle_t_{hContext, phPrograms[0]->getDevice()}};
 
     UR_CHECK_ERROR(cuLinkCreate(0, nullptr, nullptr, &State));
     try {
@@ -390,7 +374,7 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
   case UR_PROGRAM_INFO_NUM_DEVICES:
     return ReturnValue(1u);
   case UR_PROGRAM_INFO_DEVICES:
-    return ReturnValue(&hProgram->Context->DeviceID, 1);
+    return ReturnValue(&hProgram->Device, 1);
   case UR_PROGRAM_INFO_SOURCE:
     return ReturnValue(hProgram->Binary);
   case UR_PROGRAM_INFO_BINARY_SIZES:
@@ -434,7 +418,7 @@ urProgramRelease(ur_program_handle_t hProgram) {
     ur_result_t Result = UR_RESULT_ERROR_INVALID_PROGRAM;
 
     try {
-      ScopedContext Active(hProgram->getContext());
+      ScopedContext Active(hProgram->getDevice());
       auto cuModule = hProgram->get();
       // "0" is a valid handle for a cuModule, so the best way to check if we
       // actually loaded a module and need to unload it is to look at the build
@@ -491,8 +475,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
     ur_device_handle_t hDevice, ur_program_handle_t hProgram,
     const char *pFunctionName, void **ppFunctionPointer) {
   // Check if device passed is the same the device bound to the context
-  UR_ASSERT(hDevice == hProgram->getContext()->getDevice(),
-            UR_RESULT_ERROR_INVALID_DEVICE);
+  UR_ASSERT(hDevice == hProgram->getDevice(), UR_RESULT_ERROR_INVALID_DEVICE);
 
   CUfunction Func;
   CUresult Ret = cuModuleGetFunction(&Func, hProgram->get(), pFunctionName);
