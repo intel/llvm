@@ -13,13 +13,26 @@ else()
         FIXTURE KERNELS
         SOURCES
             urProgramLink.cpp
+            urKernelCreateWithNativeHandle.cpp
         ENVIRONMENT
             "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_level_zero>\""
+    )
+    # TODO: valgrind tests require very new environment.
+    # Enable once all L0 runners are updated.
+    # add_adapter_memcheck_test(level_zero
+    #    ENVIRONMENT
+    #         "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_level_zero>\""
+    # )
+
+    target_link_libraries(test-adapter-level_zero PRIVATE
+        LevelZeroLoader
+        LevelZeroLoader-Headers
     )
 
     target_include_directories(test-adapter-level_zero PRIVATE
         ${PROJECT_SOURCE_DIR}/source
         ${PROJECT_SOURCE_DIR}/source/adapters/level_zero
+        LevelZeroLoader-Headers
     )
 
     add_dependencies(test-adapter-level_zero
