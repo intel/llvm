@@ -95,18 +95,23 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 79b6d698aecd40e44e5872fba15701e10597f694
+  # commit 396fb20498c315a526c961d7cb645b42795acd2c
+  # Merge: 719bb9cd e2ffea69
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue May 14 14:22:11 2024 +0100
-  #     [HIP] Implement kernel set spec constant query
-  #     Handle the `UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS` device
-  #     query to report the feature is not supported. This also causes the
-  #     `urKernelSetSpecializationConstants` tests to be skipped.
-  set(79b6d698aecd40e44e5872fba15701e10597f694)
+  # Date:   Thu May 23 10:53:03 2024 +0100
+  #     Merge pull request #1501 from RossBrunton/ross/kerneltests
+  #     [Testing] Spec clarifications and testing updates for kernel
+  set(UNIFIED_RUNTIME_TAG 396fb20498c315a526c961d7cb645b42795acd2c)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit e428745588dd87e5db3c0bc0df1183eb7d0811a5
+    # Merge: fb3cbd16 80d46bb1
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Fri May 24 10:31:13 2024 +0100
+    #     Merge pull request #1656 from pbalcer/leaks-program-kernel
+    #     fix leaks on level-zero interop program and kernel handles
+    e428745588dd87e5db3c0bc0df1183eb7d0811a5
   )
 
   fetch_adapter_source(opencl

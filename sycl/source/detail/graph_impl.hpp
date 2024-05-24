@@ -13,6 +13,8 @@
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/handler.hpp>
 
+#include <sycl/detail/host_task_impl.hpp>
+
 #include <detail/accessor_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/kernel_impl.hpp>
@@ -938,7 +940,7 @@ public:
   void addEventForNode(std::shared_ptr<graph_impl> GraphImpl,
                        std::shared_ptr<sycl::detail::event_impl> EventImpl,
                        std::shared_ptr<node_impl> NodeImpl) {
-    if (EventImpl && !(EventImpl->getCommandGraph()))
+    if (!(EventImpl->getCommandGraph()))
       EventImpl->setCommandGraph(GraphImpl);
     MEventsMap[EventImpl] = NodeImpl;
   }

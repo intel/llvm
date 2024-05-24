@@ -1,5 +1,7 @@
 #include "FindPrimesSYCL.h"
 
+#include <sycl/properties/all_properties.hpp>
+
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
