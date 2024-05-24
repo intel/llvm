@@ -376,6 +376,11 @@ else:
     )
     config.substitutions.append(("%shared_lib", "-shared"))
 
+# Check if user passed verbose-print parameter, if yes, add VERBOSE_PRINT macro
+if "verbose-print" in lit_config.params:
+    config.substitutions.append(("%verbose_print", "-DVERBOSE_PRINT"))
+else:
+    config.substitutions.append(("%verbose_print", ""))
 
 config.substitutions.append(("%vulkan_include_dir", config.vulkan_include_dir))
 config.substitutions.append(("%vulkan_lib", config.vulkan_lib))
@@ -701,7 +706,3 @@ try:
     lit_config.maxIndividualTestTime = 600
 except ImportError:
     pass
-
-config.substitutions.append(
-    ("%device_sanitizer_flags", "-Xsycl-target-frontend -fsanitize=address")
-)

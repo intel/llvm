@@ -257,8 +257,16 @@ TEST_F(CommandGraphTest, InOrderQueueWithPreviousHostTask) {
   experimental::command_graph<experimental::graph_state::modifiable>
       InOrderGraph{InOrderQueue.get_context(), InOrderQueue.get_device()};
 
-  auto EventInitial =
-      InOrderQueue.submit([&](handler &CGH) { CGH.host_task([=]() {}); });
+  // Event dependency build depends on host task completion. Making it
+  // predictable with mutex in host task.
+  std::mutex HostTaskMutex;
+  std::unique_lock<std::mutex> Lock(HostTaskMutex, std::defer_lock);
+  Lock.lock();
+  auto EventInitial = InOrderQueue.submit([&](handler &CGH) {
+    CGH.host_task([&HostTaskMutex]() {
+      std::lock_guard<std::mutex> HostTaskLock(HostTaskMutex);
+    });
+  });
   auto EventInitialImpl = sycl::detail::getSyclObjImpl(EventInitial);
 
   // Record in-order queue with three nodes.
@@ -305,10 +313,12 @@ TEST_F(CommandGraphTest, InOrderQueueWithPreviousHostTask) {
 
   auto EventLastImpl = sycl::detail::getSyclObjImpl(EventLast);
   auto WaitList = EventLastImpl->getWaitList();
+  Lock.unlock();
   // Previous task is a host task. Explicit dependency is needed to enforce the
   // execution order.
   ASSERT_EQ(WaitList.size(), 1lu);
   ASSERT_EQ(WaitList[0], EventInitialImpl);
+  InOrderQueue.wait();
 }
 
 TEST_F(CommandGraphTest, InOrderQueueHostTaskAndGraph) {
@@ -409,9 +419,12 @@ TEST_F(CommandGraphTest, InOrderQueueMemsetAndGraph) {
   experimental::command_graph<experimental::graph_state::modifiable>
       InOrderGraph{InOrderQueue.get_context(), InOrderQueue.get_device()};
 
-  // Check if device has usm shared allocation.
-  if (!InOrderQueue.get_device().has(sycl::aspect::usm_shared_allocations))
-    return;
+  // The mock plugin should return true for shared USM allocation support by
+  // default. If this fails it means this test needs to redefine the device info
+  // query.
+  ASSERT_TRUE(
+      InOrderQueue.get_device().has(sycl::aspect::usm_shared_allocations));
+
   size_t Size = 128;
   std::vector<int> TestDataHost(Size);
   int *TestData = sycl::malloc_shared<int>(Size, InOrderQueue);
@@ -484,9 +497,12 @@ TEST_F(CommandGraphTest, InOrderQueueMemcpyAndGraph) {
   experimental::command_graph<experimental::graph_state::modifiable>
       InOrderGraph{InOrderQueue.get_context(), InOrderQueue.get_device()};
 
-  // Check if device has usm shared allocation.
-  if (!InOrderQueue.get_device().has(sycl::aspect::usm_shared_allocations))
-    return;
+  // The mock plugin should return true for shared USM allocation support by
+  // default. If this fails it means this test needs to redefine the device info
+  // query.
+  ASSERT_TRUE(
+      InOrderQueue.get_device().has(sycl::aspect::usm_shared_allocations));
+
   size_t Size = 128;
   std::vector<int> TestDataHost(Size);
   int *TestData = sycl::malloc_shared<int>(Size, InOrderQueue);

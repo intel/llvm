@@ -14,4 +14,8 @@ int main() {
   test<float, size, sycl::access::decorated::yes>();
   test<int16_t, isize, sycl::access::decorated::legacy>();
   test<int, ssize, sycl::access::decorated::no>();
+
+  test<float, size, sycl::access::decorated::yes, alignof(float) * 2>();
+  test<int16_t, isize, sycl::access::decorated::legacy, alignof(int16_t) * 2>();
+  test<int, ssize, sycl::access::decorated::no, alignof(int) * 2>();
 }

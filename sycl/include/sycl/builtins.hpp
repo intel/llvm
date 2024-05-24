@@ -20,6 +20,8 @@ extern __DPCPP_SYCL_EXTERNAL void *memcpy(void *dest, const void *src,
 extern __DPCPP_SYCL_EXTERNAL void *memset(void *dest, int c, size_t n);
 extern __DPCPP_SYCL_EXTERNAL int memcmp(const void *s1, const void *s2,
                                         size_t n);
+extern __DPCPP_SYCL_EXTERNAL int rand();
+extern __DPCPP_SYCL_EXTERNAL void srand(unsigned int seed);
 extern __DPCPP_SYCL_EXTERNAL long long int __imf_llmax(long long int x,
                                                        long long int y);
 extern __DPCPP_SYCL_EXTERNAL long long int __imf_llmin(long long int x,

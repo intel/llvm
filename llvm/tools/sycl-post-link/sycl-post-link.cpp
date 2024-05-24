@@ -339,7 +339,22 @@ std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
 }
 
 bool isModuleUsingAsan(const Module &M) {
-  return nullptr != M.getNamedGlobal("__DeviceSanitizerReportMem");
+  NamedMDNode *MD = M.getNamedMetadata("device.sanitizer");
+  if (MD == nullptr)
+    return false;
+  assert(MD->getNumOperands() != 0);
+  auto *MDVal = cast<MDString>(MD->getOperand(0)->getOperand(0));
+  return MDVal->getString() == "asan";
+}
+
+// Gets work_group_num_dim information for function Func, conviniently 0 if
+// metadata is not present.
+uint32_t getKernelWorkGroupNumDim(const Function &Func) {
+  MDNode *MaxDimMD = Func.getMetadata("work_group_num_dim");
+  if (!MaxDimMD)
+    return 0;
+  assert(MaxDimMD->getNumOperands() == 1 && "Malformed node.");
+  return mdconst::extract<ConstantInt>(MaxDimMD->getOperand(0))->getZExtValue();
 }
 
 // Gets reqd_work_group_size information for function Func.
@@ -468,15 +483,23 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   SmallVector<std::string, 4> MetadataNames;
 
   if (GlobProps.EmitProgramMetadata) {
-    // Add reqd_work_group_size information to program metadata
+    // Add reqd_work_group_size and work_group_num_dim information to
+    // program metadata.
     for (const Function &Func : M.functions()) {
       std::vector<uint32_t> KernelReqdWorkGroupSize =
           getKernelReqdWorkGroupSizeMetadata(Func);
-      if (KernelReqdWorkGroupSize.empty())
-        continue;
-      MetadataNames.push_back(Func.getName().str() + "@reqd_work_group_size");
-      PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
-                  KernelReqdWorkGroupSize);
+      if (!KernelReqdWorkGroupSize.empty()) {
+        MetadataNames.push_back(Func.getName().str() + "@reqd_work_group_size");
+        PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
+                    KernelReqdWorkGroupSize);
+      }
+
+      uint32_t WorkGroupNumDim = getKernelWorkGroupNumDim(Func);
+      if (WorkGroupNumDim) {
+        MetadataNames.push_back(Func.getName().str() + "@work_group_num_dim");
+        PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
+                    WorkGroupNumDim);
+      }
     }
 
     // Add global_id_mapping information with mapping between device-global
@@ -1014,7 +1037,7 @@ bool isTargetCompatibleWithModule(const std::optional<std::string> &Target,
 
     // Make the set of aspects values the target supports.
     SmallSet<int64_t, 32> TargetAspectValueSet;
-    for (auto Aspect : TargetInfo.aspects) {
+    for (const auto &Aspect : TargetInfo.aspects) {
       auto It = AspectNameToValue.find(Aspect);
       assert(It != AspectNameToValue.end() && "Aspect value mapping unknown!");
       TargetAspectValueSet.insert(It->second);
@@ -1022,7 +1045,7 @@ bool isTargetCompatibleWithModule(const std::optional<std::string> &Target,
 
     // Now check to see if all the requirements of the input module
     // are compatbile with the target.
-    for (auto Aspect : ModuleReqs.Aspects) {
+    for (const auto &Aspect : ModuleReqs.Aspects) {
       if (!TargetAspectValueSet.contains(Aspect))
         return false;
     }
@@ -1049,8 +1072,7 @@ processInputModule(std::unique_ptr<Module> M) {
       util::SimpleTable::create(ColumnTitles);
   CHECK_AND_EXIT(TableE.takeError());
   std::vector<std::unique_ptr<util::SimpleTable>> Tables;
-  for (auto OutputFile : OutputFiles) {
-    std::ignore = OutputFile;
+  for (size_t i = 0; i < OutputFiles.size(); ++i) {
     Expected<std::unique_ptr<util::SimpleTable>> TableE =
         util::SimpleTable::create(ColumnTitles);
     CHECK_AND_EXIT(TableE.takeError());
