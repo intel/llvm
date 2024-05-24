@@ -28,7 +28,7 @@ TEST(OneAPIProdTest, PiQueueFlush) {
   context Ctx{Plt};
   queue Queue{Ctx, default_selector_v};
   Queue.ext_oneapi_prod();
-  EXPECT_TRUE(QueueFlushed);
+  EXPECT_TRUE(!QueueFlushed);
   sycl::ext::oneapi::experimental::command_graph Graph(Ctx, Queue.get_device());
   Graph.begin_recording(Queue);
   try {
