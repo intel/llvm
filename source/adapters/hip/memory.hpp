@@ -9,19 +9,13 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include "common.hpp"
 #include "context.hpp"
 #include "event.hpp"
 #include <cassert>
 #include <memory>
 #include <unordered_map>
 #include <variant>
-
-#include "common.hpp"
-
-ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t,
-                                           const ur_device_handle_t);
-ur_result_t migrateMemoryToDeviceIfNeeded(ur_mem_handle_t,
-                                          const ur_device_handle_t);
 
 // Handler for plain, pointer-based HIP allocations
 struct BufferMem {
@@ -95,16 +89,7 @@ public:
 
   // This will allocate memory on device with index Index if there isn't already
   // an active allocation on the device
-  native_type getPtrWithOffset(const ur_device_handle_t Device, size_t Offset) {
-    if (ur_result_t Err =
-            allocateMemObjOnDeviceIfNeeded(OuterMemStruct, Device);
-        Err != UR_RESULT_SUCCESS) {
-      throw Err;
-    }
-    return reinterpret_cast<native_type>(
-        reinterpret_cast<uint8_t *>(Ptrs[Device->getIndex() % Ptrs.size()]) +
-        Offset);
-  }
+  native_type getPtrWithOffset(const ur_device_handle_t Device, size_t Offset);
 
   // This will allocate memory on device if there isn't already an active
   // allocation on the device
@@ -261,24 +246,10 @@ public:
   }
 
   // Will allocate a new array on device if not already allocated
-  hipArray *getArray(const ur_device_handle_t Device) {
-    if (ur_result_t Err =
-            allocateMemObjOnDeviceIfNeeded(OuterMemStruct, Device);
-        Err != UR_RESULT_SUCCESS) {
-      throw Err;
-    }
-    return Arrays[Device->getIndex() % Arrays.size()];
-  }
+  hipArray *getArray(const ur_device_handle_t Device);
 
   // Will allocate a new surface on device if not already allocated
-  hipSurfaceObject_t getSurface(const ur_device_handle_t Device) {
-    if (ur_result_t Err =
-            allocateMemObjOnDeviceIfNeeded(OuterMemStruct, Device);
-        Err != UR_RESULT_SUCCESS) {
-      throw Err;
-    }
-    return SurfObjs[Device->getIndex() % SurfObjs.size()];
-  }
+  hipSurfaceObject_t getSurface(const ur_device_handle_t Device);
 
   ur_mem_type_t getImageType() const noexcept { return ImageDesc.type; }
 
@@ -511,9 +482,11 @@ struct ur_mem_handle_t_ {
     urEventRetain(NewEvent);
     LastEventWritingToMemObj = NewEvent;
     for (const auto &Device : Context->getDevices()) {
-      HaveMigratedToDeviceSinceLastWrite
-          [Device->getIndex() % HaveMigratedToDeviceSinceLastWrite.size()] =
-              Device == NewEvent->getQueue()->getDevice();
+      HaveMigratedToDeviceSinceLastWrite[Context->getDeviceIndex(Device)] =
+          Device == NewEvent->getQueue()->getDevice();
     }
   }
 };
+
+ur_result_t migrateMemoryToDeviceIfNeeded(ur_mem_handle_t,
+                                          const ur_device_handle_t);
