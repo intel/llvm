@@ -1,60 +1,75 @@
 # Implementation design for parallel loop annotations and `ivdep`
 
 This document describes the LLVM and SPIR-V implementation for representing
-loop-carried memory dependence distance (or lack-there off) for kernel loops
-with parallelism annotations like ivdep.
+guarantees about loop-carried memory dependence distance for loops with
+parallelism annotations like ivdep.
 
-## SYCL Attributes
+## Attributes
 
 ### Attributes for specifying no loop-carried dependences: `[[intel::ivdep]]` and `[[intel::ivdep(array)]]`
 
 When placed on a kernel loop, these attributes indicate that there are no
-loop-carried memory (data) dependences on all pointer accesses (`ivdep`) or on the specified
-arrays (`ivdep(array)`). This annotation allows the compiler to avoid making
-conservative assumptions when it cannot infer the loop-carried dependences on a
-specific array. For example consider the following kernel code:
+loop-carried memory (data) dependences on all pointer and array accesses
+(`ivdep`) or on the specified array/pointer (`ivdep(array)`). This annotation
+allows the compiler to avoid making conservative assumptions when it cannot
+infer the loop-carried dependences on a specific array. For example consider the
+following code:
 
-```
-q.single_task([=] {
-    for (int i = 0; i < N; ++i) {
-        B[i] += B[idx[i]];
-    }
-}).wait();
+```cpp
+for (int i = 0; i < N; ++i) {
+   B[i] += B[idx[i]];
+}
 ```
 
 Since the access `B[idx[i]]` is unknown at compile time, the compiler will have
 to make the conservative assumption that there is a loop carried dependence of
-distance 1 between the write to B and the read from B (in both directions) when
-it tries to parallelize the loop. If however `ivdep` is used, then the
-annotation tells the compiler that there are no loop-carried dependences on `B`,
-and the compiler can make parallelism decisions without this assumption.
+distance 1 between the write to B and the read from B (in both directions) of it
+tries to parallelize the loop. If however `ivdep` is used, then the annotation
+tells the compiler that there are no loop-carried dependences on `B`, and the
+compiler can make parallelism decisions without this assumption.
 
-```
-q.single_task([=] {
-    [[intel::ivdep]]
-    for (int i = 0; i < N; ++i) {
-        B[i] += B[idx[i]];
-    }
-}).wait();
+```cpp
+[[intel::ivdep]]
+for (int i = 0; i < N; ++i) {
+   B[i] += B[idx[i]];
+}
 ```
 
 ### Attributes for specifying loop-carried dependence distance: `[[intel::ivdep(safelen)]]` and `[[intel::ivdep(array,safelen)]]`
 
-When placed on a kernel loop, these attributes indicate that any loop-carried
-dependences on all pointer accesses (`ivdep(safelen)`) or on the specified
-arrays/pointers (`ivdep(array,safelen)`) have a distance of at least `safelen`.
-This can be used to disambiguate any aliasing when the compiler cannot
-automatically infer the dependence distance and instead has to make the
+When placed on a loop, these attributes indicate that any loop-carried
+dependences on all pointer and array accesses (`ivdep(safelen)`) or on the
+specified array/pointer (`ivdep(array,safelen)`) have a distance of at least
+`safelen`. This can be used to disambiguate any aliasing when the compiler
+cannot automatically infer the dependence distance and instead has to make the
 conservative assumption that the distance is 1.
+
+In order to mark multiple arrays/pointers using ivdep on the same loop, then
+multiple instances on `ivdep(array)` or `ivdep(array,safelen)` can be used. The
+example below has the two arrays A and B marked with ivdep, but not C.
+Additionally, we indicate that the minimum dependence distance on accesses of B
+is 5 iterations.
+
+```cpp
+[[intel::ivdep(A)]]
+[[intel::ivdep(B,5)]]
+for(int i = 0; i <N; ++i) {
+   A[i] += A[idx_A[i]];
+   B[i] += B[idx_B[i]];
+   C[i] += C[idx_C[i]];
+}
+```
 
 ### Marking parallel loops
 
-We are considering adding a mechanism for users to indicate when a kernel loop
-is parallel. THe difference between this and `ivdep` is that a parallel loop
-implies that memory-ordering dependences can be ignored, in addition to memory
-data dependences. Marking parallel loops can either be done using new annotation
-`[[intel::parallel]]`, a new lambda-style `parallel_for` API, or using SYCL
-nested parallelism.
+In contrast with `ivdep`, which only deals with memory dependences, a new
+language feature can be introduced to indicate that a loop is completely
+parallel (i.e., in addition to memory data dependences, any memory-ordering
+dependences can also be ignored). While we are not currently proposing this
+feature, we mention it for completeness and because there is an existing LLVM IR
+representation that has these semantics. If desired, it can be achieved using a
+new annotation `[[intel::parallel]]`, a new lambda-style `parallel_for` API, or
+using SYCL nested parallelism.
 
 ## LLVM Metadata changes
 
@@ -74,10 +89,13 @@ We are proposing the following new LLVM metadata:
    above. As with `llvm.loop.no_depends`, the semantics indicate that all accesses
    with access groups listed in this metadata have dependence distances of at
    least safelen.
-3. The built-in `llvm.loop.parallel_accesses` metadata should be generated on
-   loops that are marked as parallel, or in cases where the compiler knows that
-   the loop is parallel. This metadata allows the compiler to not only ignore
-   loop-carried data dependences, but also loop-carried memory-ordering dependences.
+3. The built-in `llvm.loop.parallel_accesses` metadata semantics allow the
+   compiler to not only ignore loop-carried data dependences, but also
+   loop-carried memory-ordering dependences. This metadata should not be
+   generated by the SYCL front end in conjunction with ivdep given the
+   difference in their semantics. If a parallel loop feature is added in the
+   future (as descirbed in [the previous section](#marking-parallel-loops)),
+   then this metadata would be generated from that representation.
 4. The built-in `llvm.access.group` metadata should be generated for all memory
    operations (loads, stores, and function calls) in the body of a loop that has
    either an ivdep attribute, or is marked as parallel (by the user or the
