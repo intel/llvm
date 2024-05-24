@@ -175,7 +175,7 @@ the various ids of the work-item and work-groups.
         using range_type = range<3>;
         using linear_id_type = uint32_t;
 
-        linear_id get_group_linear_id() const;
+        linear_id_type get_group_linear_id() const;
 
         linear_id get_local_linear_id() const;
 
