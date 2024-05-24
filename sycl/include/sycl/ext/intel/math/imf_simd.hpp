@@ -119,6 +119,9 @@ int __imf_vibmin_s32(int, int, bool *);
 unsigned int __imf_vibmin_u16x2(unsigned int, unsigned int, bool *, bool *);
 unsigned int __imf_vibmin_u32(unsigned int, unsigned int, bool *);
 unsigned int __imf_vimax3_s16x2(unsigned int, unsigned int, unsigned int);
+unsigned int __imf_vimax3_s16x2_relu(unsigned int, unsigned int, unsigned int);
+int __imf_vimax3_s32(int, int, int);
+int __imf_vimax3_s32_relu(int, int, int);
 };
 
 namespace sycl {
@@ -729,6 +732,24 @@ template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
 vimax3_s16x2(Tp x, Tp y, Tp z) {
   return __imf_vimax3_s16x2(x, y, z);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, unsigned int>, unsigned int>
+vimax3_s16x2_relu(Tp x, Tp y, Tp z) {
+  return __imf_vimax3_s16x2_relu(x, y, z);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, int>, int>
+vimax3_s32(Tp x, Tp y, Tp z) {
+  return __imf_vimax3_s32(x, y, z);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, int>, int>
+vimax3_s32_relu(Tp x, Tp y, Tp z) {
+  return __imf_vimax3_s32_relu(x, y, z);
 }
 } // namespace ext::intel::math
 } // namespace _V1
