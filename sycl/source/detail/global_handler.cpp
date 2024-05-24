@@ -270,6 +270,9 @@ void GlobalHandler::drainThreadPool() {
 // we focus solely on unloading the plugins, so as to not
 // accidentally retain device handles. etc
 void shutdown() {
+  
+  Handler->releaseDefaultContexts();
+
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   Handler->unloadPlugins();
 }
@@ -287,11 +290,7 @@ void shutdown() {
   if (Handler->MHostTaskThreadPool.Inst)
     Handler->MHostTaskThreadPool.Inst->finishAndWait();
 
-  // If default contexts are requested after the first default contexts have
-  // been released there may be a new default context. These must be released
-  // prior to closing the plugins.
-  // Note: Releasing a default context here may cause failures in plugins with
-  // global state as the global state may have been released.
+  // shutdown is the only place the default context is released.
   Handler->releaseDefaultContexts();
 
   // First, release resources, that may access plugins.
