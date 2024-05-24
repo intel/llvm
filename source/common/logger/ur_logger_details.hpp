@@ -25,6 +25,7 @@ class Logger {
     Logger(logger::Level level, std::unique_ptr<logger::Sink> sink)
         : level(level), sink(std::move(sink)) {}
 
+    Logger &operator=(Logger &&) = default;
     ~Logger() = default;
 
     void setLevel(logger::Level level) { this->level = level; }
