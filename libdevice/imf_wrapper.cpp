@@ -1029,6 +1029,10 @@ DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vibmin_u32(unsigned int, unsigned int, bool *);
 
 DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimax3_s16x2(unsigned int, unsigned int,
+                                          unsigned int);
+
+DEVICE_EXTERN_C_INLINE
 unsigned int __imf_vabs2(unsigned int x) { return __devicelib_imf_vabs2(x); }
 
 DEVICE_EXTERN_C_INLINE
@@ -1540,6 +1544,12 @@ unsigned int __imf_vibmax_u32(unsigned int x, unsigned int y, bool *pred) {
 DEVICE_EXTERN_C_INLINE
 unsigned int __imf_vibmin_u32(unsigned int x, unsigned int y, bool *pred) {
   return __devicelib_imf_vibmin_u32(x, y, pred);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimax3_s16x2(unsigned int x, unsigned int y,
+                                unsigned int z) {
+  return __devicelib_imf_vimax3_s16x2(x, y, z);
 }
 
 // FP16 type cast functions

@@ -458,6 +458,7 @@ SYCLDeviceLibFuncMap SDLMap = {
     {"__devicelib_imf_vibmin_s32", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_vibmin_u16x2", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_vibmin_u32", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vimax3_s16x2", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_double2half", DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_double2bfloat16",
      DeviceLibExt::cl_intel_devicelib_imf_fp64},

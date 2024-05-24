@@ -2330,6 +2330,32 @@ void run_vibmin_u32_test(s::queue &device_q) {
   std::cout << "sycl::ext::intel::math::vibmin_u32 test pass." << std::endl;
 }
 
+void run_vimax3_s16x2_test(s::queue &device_q) {
+  std::initializer_list<unsigned> input_vals1 = {
+      0,          0x4b7a4937, 0x4d18ee29, 0x68efe422, 0x5532e212, 0x3c6db6de,
+      0x62ad36ff, 0x2909b52,  0x4e6ad8fc, 0x677e94fa, 0x184b7238, 0x37ebfeca,
+      0x39a572f7, 0x1a1a98d,  0x63170eab, 0x3b1ca699, 0x528ee5f1, 0x50c6447e,
+      0x523b132d, 0x29e8bfdf, 0x680f689b};
+  std::initializer_list<unsigned> input_vals2 = {
+      0,          0x487d8b61, 0x3bfc5454, 0x282f3c8a, 0x293aeca1, 0x151b3b5c,
+      0x7c63bdf2, 0x54fd85ef, 0x30de04d2, 0x43bc0cd1, 0x28666607, 0x73e0af3e,
+      0x40f99d67, 0x29e98189, 0x7f1c639b, 0x3b8a1a79, 0x1e375178, 0x20c7ecca,
+      0x6f32c5c7, 0x56b15ac1, 0x6efcccf9};
+  std::initializer_list<unsigned> input_vals3 = {
+      0,          0x1b9742d,  0x47fc3696, 0x6175651e, 0x580597ed, 0x17723f58,
+      0x7e375e8d, 0x174ceae,  0x57adacb2, 0x3e26a8bc, 0x77e83b2f, 0x4065c690,
+      0x7c621ae5, 0x2491576f, 0x4dcc4410, 0x62e77f6c, 0x5f4b3d5e, 0x3448c34d,
+      0x6526c81f, 0x28e2d4f1, 0x51493af8};
+  std::initializer_list<unsigned> ref_vals = {
+      0,          0x4b7a742d, 0x4d185454, 0x68ef651e, 0x5805eca1, 0x3c6d3f58,
+      0x7e375e8d, 0x54fdceae, 0x57ad04d2, 0x677e0cd1, 0x77e87238, 0x73e0feca,
+      0x7c6272f7, 0x29e9576f, 0x7f1c639b, 0x62e77f6c, 0x5f4b5178, 0x50c6447e,
+      0x6f32132d, 0x56b15ac1, 0x6efc689b};
+  test3(device_q, input_vals1, input_vals2, input_vals3, ref_vals,
+        F3(s::ext::intel::math::vimax3_s16x2));
+  std::cout << "sycl::ext::intel::math::vimax3_s16x2 test pass." << std::endl;
+}
+
 int main(int, char **) {
   s::queue device_queue(s::default_selector_v);
   std::cout << "Running on "
@@ -2373,5 +2399,6 @@ int main(int, char **) {
   run_vibmin_s32_test(device_queue);
   run_vibmin_u16x2_test(device_queue);
   run_vibmin_u32_test(device_queue);
+  run_vimax3_s16x2_test(device_queue);
   return 0;
 }

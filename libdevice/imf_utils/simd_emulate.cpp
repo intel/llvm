@@ -453,6 +453,17 @@ public:
 
 #pragma clang optimize on
 
+template <typename Tp> class __imax3_op {
+  static_assert(std::is_same<int16_t, Tp>::value ||
+                    std::is_same<uint16_t, Tp>::value,
+                "Tp can only accept 16-bit integer for imax3 op.");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y, const Tp &z) {
+    return __imax<Tp>(__imax<Tp>(x, y), z);
+  }
+};
+
 template <typename Tp, size_t N, template <typename> class TernaryOp>
 static inline unsigned int
 __internal_v_ternary_op(unsigned int x, unsigned int y, unsigned int z) {
@@ -1306,5 +1317,14 @@ DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vibmin_u32(unsigned int x, unsigned int y,
                                         bool *pred) {
   return (x <= y) ? ((*pred = true), x) : ((*pred = false), y);
+}
+
+// Split 32-bit value into 2 16-bit parts, interpret each part as singed short.
+// For corresponding part, perform and add and compare operation:
+// max(max(x_part, y_part), z_part), partial results are combined for return.
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimax3_s16x2(unsigned int x, unsigned int y,
+                                            unsigned int z) {
+  return __internal_v_ternary_op<int16_t, 2, __imax3_op>(x, y, z);
 }
 #endif
