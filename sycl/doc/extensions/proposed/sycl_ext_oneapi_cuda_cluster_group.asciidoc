@@ -116,10 +116,10 @@ supports
 === Launching a kernel with a `cluster_group`
 
 Because of the special scheduling guarantees associated with a cluster launch,
-the backend must know which kernel would be using this feature. This can be
-thought of as a runtime property of the kernel.This proposal defines a new
-`struct` which will hold the cluster ranges in each dimension. If the value of
-the cluster range is not specified along a dimension, it is assumed to be 1.
+the backend must know which kernel would be using this feature. Thus, this 
+proposal introduces a new launch property called as `ClusterRange` that will
+contain the cluster  in terms of number of workgroups.
+ 
 
 [source,c++]
 ----
@@ -144,14 +144,14 @@ The property list can the be constructed as follows -
 
 [source,c++]
 ----
-properties  cluster_launch_property{ClusterRange(1, 2, 1)};
+properties  cluster_launch_property{ClusterRange({1, 2, 1})};
 ----
 
 Note that the total number of work-groups in the kernel must be a multiple of
 the cluster range in each dimension.
 
 The launch functions introduced in `sycl_ext_oneapi_enqueue_functions` can then
-be used to launch the kernel with the mentioned properties.
+be used to launch the kernel with the mentioned property.
 
 
 === Accessing the Cluster Group From Device Code
@@ -180,11 +180,11 @@ the various ids of the work-item and work-groups.
     public:
         using id_type = id<3>;
         using range_type = range<3>;
-        using linear_id_type = uint32_t;
+        using linear_id_type = size_t;
 
         linear_id_type get_group_linear_id() const;
 
-        linear_id get_local_linear_id() const;
+        linear_id_type get_local_linear_id() const;
 
         range_type get_cluster_group_range() const;
 
