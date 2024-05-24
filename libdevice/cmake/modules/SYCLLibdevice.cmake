@@ -55,8 +55,6 @@ if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
     "--cuda-gpu-arch=sm_50")
 endif()
 
-option(LIBDEVICE_NATIVE_CPU "Enable native cpu" On)
-
 if (WIN32)
   list(APPEND compile_opts -D_ALLOW_RUNTIME_LIBRARY_MISMATCH)
   list(APPEND compile_opts -D_ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH)
@@ -164,7 +162,7 @@ if (NOT MSVC)
   set(sanitizer_obj_deps device.h atomic.hpp spirv_vars.h include/sanitizer_utils.hpp include/spir_global_var.hpp sycl-compiler)
 endif()
 
-if(LIBDEVICE_NATIVE_CPU)
+if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
   if (NOT DEFINED NATIVE_CPU_DIR)
     message( FATAL_ERROR "Undefined UR variable NATIVE_CPU_DIR. The name may have changed." )
   endif()
