@@ -153,6 +153,35 @@ SanitizerInterceptor::SanitizerInterceptor() {
         cl_Debug = Value == "1" || Value == "true" ? 1 : 0;
     }
 
+    KV = Options->find("redzone");
+    if (KV != Options->end()) {
+        auto Value = KV->second.front();
+        try {
+            cl_MinRZSize = std::stoul(Value);
+            if (cl_MinRZSize < 16) {
+                cl_MinRZSize = 16;
+                context.logger.warning("Trying to set redzone size to a value "
+                                       "less than 16 is ignored");
+            }
+        } catch (...) {
+            die("<SANITIZER>[ERROR]: \"redzone\" should be an integer");
+        }
+    }
+    KV = Options->find("max_redzone");
+    if (KV != Options->end()) {
+        auto Value = KV->second.front();
+        try {
+            cl_MaxRZSize = std::stoul(Value);
+            if (cl_MaxRZSize > 2048) {
+                cl_MaxRZSize = 2048;
+                context.logger.warning("Trying to set max redzone size to a "
+                                       "value greater than 2048 is ignored");
+            }
+        } catch (...) {
+            die("<SANITIZER>[ERROR]: \"max_redzone\" should be an integer");
+        }
+    }
+
     KV = Options->find("quarantine_size_mb");
     if (KV != Options->end()) {
         auto Value = KV->second.front();
@@ -211,7 +240,7 @@ ur_result_t SanitizerInterceptor::allocateMemory(
         Alignment = MinAlignment;
     }
 
-    uptr RZLog = ComputeRZLog(Size);
+    uptr RZLog = ComputeRZLog(Size, cl_MinRZSize, cl_MaxRZSize);
     uptr RZSize = RZLog2Size(RZLog);
     uptr RoundedSize = RoundUpTo(Size, Alignment);
     uptr NeededSize = RoundedSize + RZSize * 2;

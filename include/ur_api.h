@@ -4773,7 +4773,8 @@ typedef enum ur_kernel_group_info_t {
     UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE = 0,                   ///< [size_t[3]] Return Work Group maximum global size
     UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE = 1,                    ///< [size_t] Return maximum Work Group size
     UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE = 2,            ///< [size_t[3]] Return Work Group size required by the source code, such
-                                                                 ///< as __attribute__((required_work_group_size(X,Y,Z))
+                                                                 ///< as __attribute__((required_work_group_size(X,Y,Z)), or (0, 0, 0) if
+                                                                 ///< unspecified
     UR_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE = 3,                     ///< [size_t] Return local memory required by the Kernel
     UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE = 4, ///< [size_t] Return preferred multiple of Work Group size for launch
     UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE = 5,                   ///< [size_t] Return minimum amount of private memory in bytes used by each
@@ -4789,7 +4790,8 @@ typedef enum ur_kernel_group_info_t {
 typedef enum ur_kernel_sub_group_info_t {
     UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE = 0,     ///< [uint32_t] Return maximum SubGroup size
     UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS = 1,     ///< [uint32_t] Return maximum number of SubGroup
-    UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS = 2, ///< [uint32_t] Return number of SubGroup required by the source code
+    UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS = 2, ///< [uint32_t] Return number of SubGroup required by the source code or 0
+                                                         ///< if unspecified
     UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL = 3,   ///< [uint32_t] Return SubGroup size required by Intel
     /// @cond
     UR_KERNEL_SUB_GROUP_INFO_FORCE_UINT32 = 0x7fffffff
@@ -5990,6 +5992,7 @@ urEventSetCallback(
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGS - "The kernel argument values have not been specified."
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -7552,7 +7555,6 @@ urBindlessImagesImageFreeExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
-///         + `NULL == phMem`
 ///         + `NULL == phImage`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -7567,7 +7569,6 @@ urBindlessImagesUnsampledImageCreateExp(
     ur_exp_image_mem_handle_t hImageMem,   ///< [in] handle to memory from which to create the image
     const ur_image_format_t *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc,     ///< [in] pointer to image description
-    ur_mem_handle_t *phMem,                ///< [out] pointer to handle of image object created
     ur_exp_image_handle_t *phImage         ///< [out] pointer to handle of image object created
 );
 
@@ -7591,7 +7592,6 @@ urBindlessImagesUnsampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
-///         + `NULL == phMem`
 ///         + `NULL == phImage`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -7608,7 +7608,6 @@ urBindlessImagesSampledImageCreateExp(
     const ur_image_format_t *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc,     ///< [in] pointer to image description
     ur_sampler_handle_t hSampler,          ///< [in] sampler to be used
-    ur_mem_handle_t *phMem,                ///< [out] pointer to handle of image object created
     ur_exp_image_handle_t *phImage         ///< [out] pointer to handle of image object created
 );
 
@@ -8915,6 +8914,8 @@ urKernelSuggestMaxCooperativeGroupCountExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueTimestampRecordingExp(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
@@ -10853,7 +10854,6 @@ typedef struct ur_bindless_images_unsampled_image_create_exp_params_t {
     ur_exp_image_mem_handle_t *phImageMem;
     const ur_image_format_t **ppImageFormat;
     const ur_image_desc_t **ppImageDesc;
-    ur_mem_handle_t **pphMem;
     ur_exp_image_handle_t **pphImage;
 } ur_bindless_images_unsampled_image_create_exp_params_t;
 
@@ -10868,7 +10868,6 @@ typedef struct ur_bindless_images_sampled_image_create_exp_params_t {
     const ur_image_format_t **ppImageFormat;
     const ur_image_desc_t **ppImageDesc;
     ur_sampler_handle_t *phSampler;
-    ur_mem_handle_t **pphMem;
     ur_exp_image_handle_t **pphImage;
 } ur_bindless_images_sampled_image_create_exp_params_t;
 
