@@ -5546,9 +5546,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       if (HasIntelGPUAOTTarget && Triple.isSPIRAOT())
         A->render(Args, CmdArgs);
-      else
-        if (Triple != HostTC->getTriple())
-          D.Diag(diag::warn_invalid_fp64_emu_use) << Triple.str();
+      else if (Triple != HostTC->getTriple())
+        D.Diag(diag::warn_invalid_fp64_emu_use) << Triple.str();
     }
 
     // Add the Unique ID prefix

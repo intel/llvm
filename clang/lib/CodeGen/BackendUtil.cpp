@@ -995,8 +995,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
         MPM.addPass(ESIMDVerifierPass(LangOpts.SYCLESIMDForceStatelessMem));
         if (Level == OptimizationLevel::O0)
           MPM.addPass(ESIMDRemoveOptnoneNoinlinePass());
-        MPM.addPass(SYCLPropagateAspectsUsagePass(/*FP64ConvEmu=*/CodeGenOpts.FP64ConvEmu,
-                                                  /*ExcludeAspects=*/{"fp64"}));
+        MPM.addPass(SYCLPropagateAspectsUsagePass(
+            /*FP64ConvEmu=*/CodeGenOpts.FP64ConvEmu,
+            /*ExcludeAspects=*/{"fp64"}));
         MPM.addPass(SYCLPropagateJointMatrixUsagePass());
       });
     else if (LangOpts.SYCLIsHost && !LangOpts.SYCLESIMDBuildHostCode)
@@ -1132,9 +1133,10 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
         MPM.addPass(DeadArgumentEliminationSYCLPass());
 
       // Rerun aspect propagation without warning diagnostics.
-      MPM.addPass(SYCLPropagateAspectsUsagePass(/*FP64ConvEmu=*/CodeGenOpts.FP64ConvEmu,
-                                                /*ExcludeAspects=*/{},
-                                                /*ValidateAspects=*/false));
+      MPM.addPass(
+          SYCLPropagateAspectsUsagePass(/*FP64ConvEmu=*/CodeGenOpts.FP64ConvEmu,
+                                        /*ExcludeAspects=*/{},
+                                        /*ValidateAspects=*/false));
 
       // Add attribute corresponding to optimization level.
       MPM.addPass(SYCLAddOptLevelAttributePass(CodeGenOpts.OptimizationLevel));

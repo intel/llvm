@@ -26,8 +26,7 @@ public:
                                 std::set<StringRef> ExcludeAspects = {},
                                 bool ValidateAspects = true,
                                 StringRef OptionsString = {})
-      : FP64ConvEmu{FP64ConvEmu},
-        ExcludedAspects{std::move(ExcludeAspects)},
+      : FP64ConvEmu{FP64ConvEmu}, ExcludedAspects{std::move(ExcludeAspects)},
         ValidateAspectUsage{ValidateAspects} {
     OptionsString.split(this->TargetFixedAspects, ',', /*MaxSplit=*/-1,
                         /*KeepEmpty=*/false);
