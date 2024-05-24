@@ -107,7 +107,7 @@ int main() {
       sycl::buffer<float, 1> buf_fl(r1d);
       auto buf_d = buf_1d.reinterpret<double>(r2d);
     } catch (sycl::exception e) {
-      if (e.code() == sycl::errc::invalid){
+      if (e.code() == sycl::errc::invalid) {
         std::cout << "Expected exception has been caught: " << e.what()
                   << std::endl;
         gotException = true;
@@ -115,7 +115,6 @@ int main() {
     }
     assert(gotException);
   }
-  
 
   // subbuffer reinterpret
   // 1d int -> char

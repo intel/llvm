@@ -257,7 +257,7 @@ void checkExceptions() {
       caughtException = true;
     }
   }
-    assert(caughtException && "invalid subbuffer exception wasn't caught");
+  assert(caughtException && "invalid subbuffer exception wasn't caught");
 }
 
 void copyBlock() {
