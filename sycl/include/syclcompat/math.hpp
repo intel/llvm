@@ -128,6 +128,30 @@ inline bool isnan(const sycl::ext::oneapi::bfloat16 a) {
 
 } // namespace detail
 
+/// Emulated function for __funnelshift_l
+inline unsigned int funnelshift_l(unsigned int low, unsigned int high,
+                                  unsigned int shift) {
+  return (sycl::upsample(high, low) << (shift & 31U)) >> 32;
+}
+
+/// Emulated function for __funnelshift_lc
+inline unsigned int funnelshift_lc(unsigned int low, unsigned int high,
+                                   unsigned int shift) {
+  return (sycl::upsample(high, low) << sycl::min(shift, 32U)) >> 32;
+}
+
+/// Emulated function for __funnelshift_r
+inline unsigned int funnelshift_r(unsigned int low, unsigned int high,
+                                  unsigned int shift) {
+  return (sycl::upsample(high, low) >> (shift & 31U)) & 0xFFFFFFFF;
+}
+
+/// Emulated function for __funnelshift_rc
+inline unsigned int funnelshift_rc(unsigned int low, unsigned int high,
+                                   unsigned int shift) {
+  return (sycl::upsample(high, low) >> sycl::min(shift, 32U)) & 0xFFFFFFFF;
+}
+
 /// Compute fast_length for variable-length array
 /// \param [in] a The array
 /// \param [in] len Length of the array

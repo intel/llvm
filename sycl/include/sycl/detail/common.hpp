@@ -148,13 +148,6 @@ private:
   bool MLocalScope = true;
 };
 
-__SYCL_EXPORT const char *stringifyErrorCode(pi_int32 error);
-
-inline std::string codeToString(pi_int32 code) {
-  return std::string(std::to_string(code) + " (" + stringifyErrorCode(code) +
-                     ")");
-}
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

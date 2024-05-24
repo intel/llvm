@@ -74,6 +74,10 @@ def wrapper_jobs : Joined<["--"], "wrapper-jobs=">,
   Flags<[WrapperOnlyOption]>, MetaVarName<"<number>">,
   HelpText<"Sets the number of parallel jobs to use for device linking">;
 
+def override_image : Joined<["--"], "override-image=">,
+  Flags<[WrapperOnlyOption]>, MetaVarName<"<kind=file>">,
+  HelpText<"Uses the provided file as if it were the output of the device link step">;
+
 // Flags passed to the device linker.
 def arch_EQ : Joined<["--"], "arch=">,
   Flags<[DeviceOnlyOption, HelpHidden]>, MetaVarName<"<arch>">,
@@ -130,6 +134,9 @@ def no_whole_archive : Flag<["--", "-"], "no-whole-archive">, Flags<[HelpHidden]
 def relocatable : Flag<["--", "-"], "relocatable">, 
     HelpText<"Link device code to create a relocatable offloading application">;
 def r : Flag<["-"], "r">, Alias<relocatable>;
+
+def shared : Flag<["--", "-"], "shared">,
+    HelpText<"Link device code to create a shared library">;
 
 // link.exe-style linker options.
 def out : Joined<["/", "-", "/?", "-?"], "out:">, Flags<[HelpHidden]>;

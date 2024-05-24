@@ -14,7 +14,6 @@
 
 #include "../common.hpp"
 
-constexpr size_t SG_SZ = 8;
 constexpr size_t TN = 8;
 constexpr size_t MATRIX_K = 1024 + 14;
 
