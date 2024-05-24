@@ -4,7 +4,8 @@
 
 #include <algorithm>
 #include <cassert>
-#include <sycl/sycl.hpp>
+#include <sycl/queue.hpp>
+#include <sycl/usm.hpp>
 
 // This test verifies that for L0 backend, aligned USM alloc functions return
 // null_ptr when called with alignment values that are not a power-of-2.
