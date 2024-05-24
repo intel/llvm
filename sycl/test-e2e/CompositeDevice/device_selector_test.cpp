@@ -2,7 +2,8 @@
 // RUN: env ONEAPI_DEVICE_SELECTOR=level_zero:0 ZE_FLAT_DEVICE_HIERARCHY=COMBINED %t.out
 // REQUIRES: level_zero
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/composite_device.hpp>
 
 #ifdef SYCL_EXT_ONEAPI_COMPOSITE_DEVICE
 
