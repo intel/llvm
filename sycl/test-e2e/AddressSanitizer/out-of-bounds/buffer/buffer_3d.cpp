@@ -13,6 +13,9 @@ int main() {
 
   std::vector<int> v(size_x * size_y * size_z);
 
+  // We intentionally test sycl::buffer uses host ptr here because in unified
+  // runtime we intercept sycl::buffer with usm, we need to cover that pattern
+  // here.
   sycl::buffer<int, 3> buf(v.data(), sycl::range<3>(size_x, size_y, size_z));
 
   sycl::queue q;

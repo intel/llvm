@@ -16,6 +16,9 @@ int main() {
   std::vector<int> v(N);
 
   {
+    // We intentionally test sycl::buffer uses host ptr and trigger data write
+    // back here because in unified runtime we intercept sycl::buffer with usm,
+    // we need to cover that pattern here.
     sycl::buffer<int, 1> buf(v.data(), v.size());
     q.submit([&](sycl::handler &h) {
        auto A = buf.get_access<sycl::access::mode::read_write>(h);
