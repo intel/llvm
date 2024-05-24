@@ -294,8 +294,6 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
   bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
   StringRef LibSuffix = ".bc";
-  if (TargetTriple.isNVPTX())
-      LibSuffix = "--cuda.bc";
   if ((TargetTriple.isSPIR() &&
        TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga))
     // For NVidia or FPGA, we are unbundling objects.
@@ -308,10 +306,17 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       if (!DeviceLibLinkInfo[Lib.DeviceLibOption])
         continue;
       SmallString<128> LibName(Lib.DeviceLibName);
+      if (TargetTriple.isNVPTX())
+        LibName.append("--cuda");
       llvm::sys::path::replace_extension(LibName, LibSuffix);
       LibraryList.push_back(Args.MakeArgString(LibName));
     }
   };
+
+  if (TargetTriple.isNVPTX()) {
+      LibraryList.push_back(Args.MakeArgString("cuda_lib_device.bc"));
+      return LibraryList;
+  }
 
   addLibraries(SYCLDeviceWrapperLibs);
   if (IsSpirvAOT || TargetTriple.isNVPTX())

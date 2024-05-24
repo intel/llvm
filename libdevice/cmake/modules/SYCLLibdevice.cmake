@@ -21,6 +21,7 @@ set(install_dest_bc lib${LLVM_LIBDIR_SUFFIX})
 
 set(clang $<TARGET_FILE:clang>)
 set(llvm-ar $<TARGET_FILE:llvm-ar>)
+set(llvm-link $<TARGET_FILE:llvm-link>)
 
 string(CONCAT sycl_targets_opt
   "-fsycl-targets="
@@ -125,6 +126,53 @@ function(add_devicelib_spv spv_filename)
           COMPONENT libsycldevice)
 endfunction()
 
+# Links together one or more bytecode files
+#
+# Arguments:
+# * TARGET <string>
+#     Custom target to create
+# * INPUT <string> ...
+#     List of bytecode files to link together
+function(link_bc)
+  cmake_parse_arguments(ARG
+    ""
+    "TARGET"
+    "INPUTS"
+    ${ARGN}
+  )
+
+  set( LINK_INPUT_ARG ${ARG_INPUTS} )
+  if( WIN32 OR CYGWIN )
+    # Create a response file in case the number of inputs exceeds command-line
+    # character limits on certain platforms.
+    file( TO_CMAKE_PATH ${bc_binary_dir}/${ARG_TARGET}.rsp RSP_FILE )
+    # Turn it into a space-separate list of input files
+    list( JOIN ARG_INPUTS " " RSP_INPUT )
+    file( WRITE ${RSP_FILE} ${RSP_INPUT} )
+    # Ensure that if this file is removed, we re-run CMake
+    set_property( DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+      ${RSP_FILE}
+    )
+    set( LINK_INPUT_ARG "@${RSP_FILE}" )
+  endif()
+
+  add_custom_command(
+    #ToDo maybe add bc_bianry_dir to path
+    OUTPUT ${ARG_TARGET}.bc
+    COMMAND ${llvm-link} -o ${bc_binary_dir}/${ARG_TARGET}.bc ${LINK_INPUT_ARG}
+    DEPENDS ${llvm-link} ${ARG_INPUTS} ${RSP_FILE}
+  )
+
+  add_custom_target( ${ARG_TARGET} ALL DEPENDS ${ARG_TARGET}.bc )
+  set_target_properties( ${ARG_TARGET} PROPERTIES TARGET_FILE ${ARG_TARGET}.bc )
+endfunction()
+
+function(append_to_property arg)
+  get_property(CUDA_FOO GLOBAL PROPERTY CUDA_FOO)
+  list(APPEND CUDA_FOO ${arg})
+  set_property(GLOBAL PROPERTY CUDA_FOO ${CUDA_FOO})
+endfunction()
+
 function(add_devicelib_bc bc_filename)
   cmake_parse_arguments(BC  "CUDA" "" "SRC;DEP;EXTRA_ARGS" ${ARGN})
   list(APPEND compile_opts "-fsycl-device-only" "-fsycl-device-obj=llvmir")
@@ -152,12 +200,18 @@ function(add_devicelib_bc bc_filename)
   install(FILES ${devicelib-bc-file}
           DESTINATION ${install_dest_bc}
           COMPONENT libsycldevice)
+
+  if(${BC_CUDA})
+    append_to_property(${devicelib-bc-file})
+  endif()
 endfunction()
 
 function(add_devicelib filename)
+  set(dummy)
+
   cmake_parse_arguments(DL "" "" "SRC;DEP;EXTRA_ARGS" ${ARGN})
   add_devicelib_spv(${filename} SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
-  add_devicelib_bc(${filename} SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
+  add_devicelib_bc(${filename} dummy SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
   add_devicelib_obj(${filename} SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
   add_devicelib_bc(${filename} CUDA SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
 endfunction()
@@ -177,10 +231,13 @@ if (NOT MSVC)
     sycl-compiler)
 endif()
 
+set(cuda_out_file_list)
 add_devicelib(libsycl-itt-stubs SRC itt_stubs.cpp DEP ${itt_obj_deps})
 add_devicelib(libsycl-itt-compiler-wrappers SRC itt_compiler_wrappers.cpp DEP ${itt_obj_deps})
 add_devicelib(libsycl-itt-user-wrappers SRC itt_user_wrappers.cpp DEP ${itt_obj_deps})
 
+get_property(CUDA_FOO GLOBAL PROPERTY CUDA_FOO)
+message("CUDA OUT FILE LIST:  ${CUDA_FOO}")
 add_devicelib(libsycl-crt SRC crt_wrapper.cpp DEP ${crt_obj_deps})
 add_devicelib(libsycl-complex SRC complex_wrapper.cpp DEP ${complex_obj_deps})
 add_devicelib(libsycl-complex-fp64 SRC complex_wrapper_fp64.cpp DEP ${complex_obj_deps} )
@@ -204,6 +261,13 @@ add_devicelib(libsycl-fallback-cmath SRC fallback-cmath.cpp DEP ${cmath_obj_deps
 add_devicelib(libsycl-fallback-cmath-fp64 SRC fallback-cmath-fp64.cpp DEP ${cmath_obj_deps})
 add_devicelib(libsycl-fallback-bfloat16 SRC fallback-bfloat16.cpp DEP ${bfloat16_obj_deps})
 add_devicelib(libsycl-native-bfloat16 SRC bfloat16_wrapper.cpp DEP ${bfloat16_obj_deps})
+
+#get_property(CUDA_FOO GLOBAL PROPERTY CUDA_FOO)
+#message("CUDA OUT FILE LIST:  ${CUDA_FOO}")
+#
+#link_bc(TARGET cuda_lib_device INPUTS ${CUDA_FOO})
+#
+#add_dependencies(libsycldevice-bc cuda_lib_device)
 
 file(MAKE_DIRECTORY ${obj_binary_dir}/libdevice)
 set(imf_fallback_src_dir ${obj_binary_dir}/libdevice)
@@ -314,6 +378,17 @@ add_custom_command(OUTPUT ${bc_binary_dir}/libsycl-fallback-imf.bc
                            sycl-compiler
                    VERBATIM)
 
+add_custom_command(OUTPUT ${bc_binary_dir}/libsycl-fallback-imf--cuda.bc
+                   COMMAND ${clang} -fsycl-device-only -fsycl-device-obj=llvmir
+                           ${compile_opts} -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
+                           ${imf_fp32_fallback_src} -fsycl-targets=nvptx64-nvidia-cuda
+                           -o ${bc_binary_dir}/libsycl-fallback-imf--cuda.bc
+                   DEPENDS ${imf_fallback_fp32_deps} get_imf_fallback_fp32
+                           sycl-compiler
+                   VERBATIM)
+
+append_to_property(${bc_binary_dir}/libsycl-fallback-imf--cuda.bc)
+
 add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-imf.${lib-suffix}
                    COMMAND ${clang} -fsycl -c
                            ${compile_opts} ${sycl_targets_opt}
@@ -363,6 +438,17 @@ add_custom_command(OUTPUT ${bc_binary_dir}/libsycl-fallback-imf-fp64.bc
                    DEPENDS ${imf_fallback_fp64_deps} get_imf_fallback_fp64
                            sycl-compiler
                    VERBATIM)
+
+add_custom_command(OUTPUT ${bc_binary_dir}/libsycl-fallback-imf-fp64--cuda.bc
+                   COMMAND ${clang} -fsycl-device-only -fsycl-device-obj=llvmir
+                           ${compile_opts} -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
+                           ${imf_fp64_fallback_src} -fsycl-targets=nvptx64-nvidia-cuda
+                           -o ${bc_binary_dir}/libsycl-fallback-imf-fp64--cuda.bc
+                   DEPENDS ${imf_fallback_fp64_deps} get_imf_fallback_fp64
+                           sycl-compiler
+                   VERBATIM)
+
+append_to_property(${bc_binary_dir}/libsycl-fallback-imf-fp64--cuda.bc)
 
 add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-imf-fp64.${lib-suffix}
                    COMMAND ${clang} -fsycl -c -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
@@ -415,6 +501,17 @@ add_custom_command(OUTPUT ${bc_binary_dir}/libsycl-fallback-imf-bf16.bc
                            sycl-compiler
                    VERBATIM)
 
+add_custom_command(OUTPUT ${bc_binary_dir}/libsycl-fallback-imf-bf16--cuda.bc
+                   COMMAND ${clang} -fsycl-device-only -fsycl-device-obj=llvmir
+                           ${compile_opts} -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
+                           ${imf_bf16_fallback_src} -fsycl-targets=nvptx64-nvidia-cuda
+                           -o ${bc_binary_dir}/libsycl-fallback-imf-bf16--cuda.bc
+                   DEPENDS ${imf_fallback_bf16_deps} get_imf_fallback_bf16
+                           sycl-compiler
+                   VERBATIM)
+
+append_to_property(${bc_binary_dir}/libsycl-fallback-imf-bf16--cuda.bc)
+
 add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-imf-bf16.${lib-suffix}
                    COMMAND ${clang} -fsycl -c -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
                            ${compile_opts} ${sycl_targets_opt}
@@ -450,36 +547,49 @@ add_custom_command(OUTPUT ${obj_binary_dir}/fallback-imf-bf16-host.${new-offload
 
 add_custom_target(imf_fallback_fp32_spv DEPENDS ${spv_binary_dir}/libsycl-fallback-imf.spv)
 add_custom_target(imf_fallback_fp32_bc DEPENDS ${bc_binary_dir}/libsycl-fallback-imf.bc)
+add_custom_target(imf_fallback_fp32_bc_cuda DEPENDS ${bc_binary_dir}/libsycl-fallback-imf--cuda.bc)
 add_custom_target(imf_fallback_fp32_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf.${lib-suffix})
 add_custom_target(imf_fallback_fp32_host_obj DEPENDS ${obj_binary_dir}/fallback-imf-fp32-host.${lib-suffix})
 add_custom_target(imf_fallback_fp32_new_offload_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf.${new-offload-lib-suffix})
 add_custom_target(imf_fallback_fp32_host_new_offload_obj DEPENDS ${obj_binary_dir}/fallback-imf-fp32-host.${new-offload-lib-suffix})
 add_dependencies(libsycldevice-spv imf_fallback_fp32_spv)
 add_dependencies(libsycldevice-bc imf_fallback_fp32_bc)
+add_dependencies(libsycldevice-bc imf_fallback_fp32_bc_cuda)
 add_dependencies(libsycldevice-obj imf_fallback_fp32_obj)
 add_dependencies(libsycldevice-obj imf_fallback_fp32_new_offload_obj)
 
 add_custom_target(imf_fallback_fp64_spv DEPENDS ${spv_binary_dir}/libsycl-fallback-imf-fp64.spv)
 add_custom_target(imf_fallback_fp64_bc DEPENDS ${bc_binary_dir}/libsycl-fallback-imf-fp64.bc)
+add_custom_target(imf_fallback_fp64_bc_cuda DEPENDS ${bc_binary_dir}/libsycl-fallback-imf-fp64--cuda.bc)
 add_custom_target(imf_fallback_fp64_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf-fp64.${lib-suffix})
 add_custom_target(imf_fallback_fp64_host_obj DEPENDS ${obj_binary_dir}/fallback-imf-fp64-host.${lib-suffix})
 add_custom_target(imf_fallback_fp64_new_offload_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf-fp64.${new-offload-lib-suffix})
 add_custom_target(imf_fallback_fp64_host_new_offload_obj DEPENDS ${obj_binary_dir}/fallback-imf-fp64-host.${new-offload-lib-suffix})
 add_dependencies(libsycldevice-spv imf_fallback_fp64_spv)
 add_dependencies(libsycldevice-bc imf_fallback_fp64_bc)
+add_dependencies(libsycldevice-bc imf_fallback_fp64_bc_cuda)
 add_dependencies(libsycldevice-obj imf_fallback_fp64_obj)
 add_dependencies(libsycldevice-obj imf_fallback_fp64_new_offload_obj)
 
 add_custom_target(imf_fallback_bf16_spv DEPENDS ${spv_binary_dir}/libsycl-fallback-imf-bf16.spv)
 add_custom_target(imf_fallback_bf16_bc DEPENDS ${bc_binary_dir}/libsycl-fallback-imf-bf16.bc)
+add_custom_target(imf_fallback_bf16_bc_cuda DEPENDS  ${bc_binary_dir}/libsycl-fallback-imf-bf16--cuda.bc)
 add_custom_target(imf_fallback_bf16_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf-bf16.${lib-suffix})
 add_custom_target(imf_fallback_bf16_host_obj DEPENDS ${obj_binary_dir}/fallback-imf-bf16-host.${lib-suffix})
 add_custom_target(imf_fallback_bf16_new_offload_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf-bf16.${new-offload-lib-suffix})
 add_custom_target(imf_fallback_bf16_host_new_offload_obj DEPENDS ${obj_binary_dir}/fallback-imf-bf16-host.${new-offload-lib-suffix})
 add_dependencies(libsycldevice-spv imf_fallback_bf16_spv)
 add_dependencies(libsycldevice-bc imf_fallback_bf16_bc)
+add_dependencies(libsycldevice-bc imf_fallback_bf16_bc_cuda)
 add_dependencies(libsycldevice-obj imf_fallback_bf16_obj)
 add_dependencies(libsycldevice-obj imf_fallback_bf16_new_offload_obj)
+
+get_property(CUDA_FOO GLOBAL PROPERTY CUDA_FOO)
+message("CUDA OUT FILE LIST:  ${CUDA_FOO}")
+
+link_bc(TARGET cuda_lib_device INPUTS ${CUDA_FOO})
+
+add_dependencies(libsycldevice-bc cuda_lib_device)
 
 add_custom_command(OUTPUT ${obj_binary_dir}/imf-fp32-host.${lib-suffix}
                    COMMAND ${clang} ${imf_host_cxx_flags}
@@ -576,6 +686,9 @@ install(FILES ${spv_binary_dir}/libsycl-fallback-imf.spv
 install(FILES ${bc_binary_dir}/libsycl-fallback-imf.bc
               ${bc_binary_dir}/libsycl-fallback-imf-fp64.bc
               ${bc_binary_dir}/libsycl-fallback-imf-bf16.bc
+              ${bc_binary_dir}/libsycl-fallback-imf--cuda.bc
+              ${bc_binary_dir}/libsycl-fallback-imf-fp64--cuda.bc
+              ${bc_binary_dir}/libsycl-fallback-imf-bf16--cuda.bc
         DESTINATION ${install_dest_bc}
         COMPONENT libsycldevice)
 
