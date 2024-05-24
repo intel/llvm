@@ -140,7 +140,7 @@ The property list can the be constructed as follows -
 properties  cluster_launch_property{ClusterRange(1, 2, 1)};
 ----
 
-Note that the total number of work-groups in the kernel should be a multiple of
+Note that the total number of work-groups in the kernel must be a multiple of
 the cluster range in each dimension.
 
 The launch functions introduced in `sycl_ext_oneapi_enqueue_functions` can then
