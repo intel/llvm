@@ -9,68 +9,68 @@
 #
 --- #--------------------------------------------------------------------------
 type: header
-desc: "Intel $OneApi Unified Runtime Experimental APIs for (kernel) Launch Attributes"
+desc: "Intel $OneApi Unified Runtime Experimental APIs for (kernel) Launch Properties"
 ordinal: "99"
 --- #--------------------------------------------------------------------------
 type: macro
-desc: "The extension string that defines support for the Launch Attributes extension, which is returned when querying device extensions."
-name: $X_LAUNCH_ATTRIBUTES_EXTENSION_STRING_EXP
-value: "\"$x_exp_launch_attributes\""
+desc: "The extension string that defines support for the Launch Properties extension, which is returned when querying device extensions."
+name: $X_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP
+value: "\"$x_exp_launch_properties\""
 --- #--------------------------------------------------------------------------
 type: enum
-desc: "Specifies a launch attribute id"
-name: $x_exp_launch_attribute_id_t
+desc: "Specifies a launch property id"
+name: $x_exp_launch_property_id_t
 analogue:
     - "**CUlaunchAttributeID**"
 etors:
     - name: IGNORE
-      desc: "the attribute has no effect"
+      desc: "The property has no effect"
     - name: COOPERATIVE
-      desc: "whether to launch a cooperative kernel"
+      desc: "Whether to launch a cooperative kernel"
     - name: CLUSTER_DIMENSION
-      desc: "cluster dimensions"
+      desc: "work-group cluster dimensions"
 --- #--------------------------------------------------------------------------
 type: union
-desc: "Specifies a launch attribute value"
-name: $x_exp_launch_attribute_value_t
-tag: $x_exp_launch_attribute_id_t
+desc: "Specifies a launch property value"
+name: $x_exp_launch_property_value_t
+tag: $x_exp_launch_property_id_t
 analogue:
     - "**CUlaunchAttributeValue**"
 members:
     - type: uint32_t[3]
       name: clusterDim
-      desc: "[in] cluster dimensions (x, y, z)"
-      tag: $X_EXP_LAUNCH_ATTRIBUTE_ID_CLUSTER_DIMENSION
+      desc: "[in] dimensions of the cluster (units of work-group) (x, y, z). Each value must be a divisor of the corresponding global work-size dimension (in units of work-group)."
+      tag: $X_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION
     - type: int
       name: cooperative
       desc: "[in] non-zero value indicates a cooperative kernel"
-      tag: $X_EXP_LAUNCH_ATTRIBUTE_ID_COOPERATIVE
+      tag: $X_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE
 --- #--------------------------------------------------------------------------
 type: struct
-desc: "Kernel launch attribute"
-name: $x_exp_launch_attribute_t
+desc: "Kernel launch property"
+name: $x_exp_launch_property_t
 analogue:
     - "**cuLaunchAttribute**"
 members:
-    - type: $x_exp_launch_attribute_id_t
+    - type: $x_exp_launch_property_id_t
       name: id
-      desc: "[in] Launch attribute id"
-      init: $X_EXP_LAUNCH_ATTRIBUTE_ID_IGNORE
-    - type: $x_exp_launch_attribute_value_t
+      desc: "[in] launch property id"
+      init: $X_EXP_LAUNCH_PROPERTY_ID_IGNORE
+    - type: $x_exp_launch_property_value_t
       name: value
-      desc: "[in][tagged_by(id)] Launch attribute value"
+      desc: "[in][tagged_by(id)] launch property value"
       init: nullptr
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Launch kernel with custom Launch attributes"
+desc: "Launch kernel with custom launch properties"
 class: $xEnqueue
 name: KernelLaunchCustomExp
 ordinal: "0"
 analogue:
     - "**cuLaunchKernelEx**"
 details:
-    - "Launches the kernel using the specified launch attributes"
-    - "If numAttrsInLaunchAttrList == 0 then a regular kernel launch is used: `urEnqueueKernelLaunch`"
+    - "Launches the kernel using the specified launch properties"
+    - "If numPropsInLaunchPropList == 0 then a regular kernel launch is used: `urEnqueueKernelLaunch`"
     - "Consult the appropriate adapter driver documentation for details of adapter specific behavior and native error codes that may be returned."
 params:
     - type: $x_queue_handle_t
@@ -89,11 +89,11 @@ params:
       name: pLocalWorkSize
       desc: "[in][optional] pointer to an array of workDim unsigned values that specify the number of local work-items forming a work-group that will execute the kernel function. If nullptr, the runtime implementation will choose the work-group size."
     - type: uint32_t
-      name: numAttrsInLaunchAttrList
-      desc: "[in] size of the launch attr list"
-    - type: const $x_exp_launch_attribute_t*
-      name: launchAttrList
-      desc: "[in][range(0, numAttrsInLaunchAttrList)] pointer to a list of launch attributes"
+      name: numPropsInLaunchPropList
+      desc: "[in] size of the launch prop list"
+    - type: const $x_exp_launch_property_t*
+      name: launchPropList
+      desc: "[in][range(0, numPropsInLaunchPropList)] pointer to a list of launch properties"
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
@@ -113,7 +113,7 @@ returns:
         - "NULL == hKernel"
     - $X_RESULT_ERROR_INVALID_NULL_POINTER:
         - "NULL == pGlobalWorkSize"
-        - "numAttrsInLaunchAttrList != 0 && launchAttrList == NULL"
+        - "numPropsInLaunchpropList != 0 && launchPropList == NULL"
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_KERNEL
     - $X_RESULT_ERROR_INVALID_EVENT
