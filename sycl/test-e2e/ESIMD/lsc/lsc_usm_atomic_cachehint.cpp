@@ -11,11 +11,8 @@
 
 #include "../esimd_test_utils.hpp"
 
-#include <iostream>
 #include <stdlib.h>
-#include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/intel/experimental/grf_size_properties.hpp>
-#include <sycl/sycl.hpp>
 
 class Test;
 

@@ -7,7 +7,8 @@
 #include <iomanip>
 #include <iostream>
 
-#include <sycl.hpp>
+#include <sycl/builtins.hpp>
+#include <sycl/detail/core.hpp>
 
 template <typename T> T get_ulp_std(T x) {
   const T inf = std::numeric_limits<T>::infinity();

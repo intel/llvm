@@ -5,10 +5,6 @@
 
 #include "../esimd_test_utils.hpp"
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 using namespace sycl;
 
 template <typename T, unsigned VL, unsigned STRIDE> struct Kernel {
