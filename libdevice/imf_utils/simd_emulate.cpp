@@ -1358,4 +1358,19 @@ int __devicelib_imf_vimax3_s32_relu(int x, int y, int z) {
   int t = __imax<int>(__imax<int>(x, y), z);
   return (t > 0) ? t : 0;
 }
+
+// Split 32-bit value into 2 16-bit parts, interpret each part as unsinged
+// short. For corresponding part, perform and add and compare operation:
+// max(x_part, y_part, z_part), partial results are combined for return.
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimax3_u16x2(unsigned int x, unsigned int y,
+                                          unsigned int z) {
+  return __internal_v_ternary_op<uint16_t, 2, __imax3_op>(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimax3_u32(unsigned int x, unsigned int y,
+                                        unsigned int z) {
+  return __imax<unsigned int>(__imax<unsigned int>(x, y), z);
+}
 #endif
