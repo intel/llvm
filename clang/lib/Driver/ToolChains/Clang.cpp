@@ -5617,10 +5617,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
     // Add any predefined macros associated with intel_gpu* type targets
     // passed in with -fsycl-targets
-    // TODO: Macros are populated during device compilations and saved for
-    // addition to the host compilation. There is no dependence connection
-    // between device and host where we should be able to use the offloading
-    // arch to add the macro to the host compile.
     auto addTargetMacros = [&](const llvm::Triple &Triple) {
       if (!Triple.isSPIR() && !Triple.isNVPTX() && !Triple.isAMDGCN())
         return;
@@ -5635,16 +5631,35 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         }
       } else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
         Macro = "-D__SYCL_TARGET_INTEL_X86_64__";
-      if (Macro.size()) {
+      if (Macro.size())
         CmdArgs.push_back(Args.MakeArgString(Macro));
-        D.addSYCLTargetMacroArg(Args, Macro);
-      }
     };
     if (IsSYCLOffloadDevice)
       addTargetMacros(RawTriple);
     else {
-      for (auto &Macro : D.getSYCLTargetMacroArgs())
-        CmdArgs.push_back(Args.MakeArgString(Macro));
+      // Add the host side macros.
+      // TODO: There is some code duplication for adding the macros for the
+      // host and device side, find a way to clean this up.
+      auto SYCLTCRange = C.getOffloadToolChains<Action::OFK_SYCL>();
+      for (auto TI = SYCLTCRange.first, TE = SYCLTCRange.second;
+           TI != TE; ++TI) {
+        auto TC = TI->second;
+        llvm::Triple SYCLTriple = TC->getTriple();
+        SmallString<64> Macro;
+        if (SYCLTriple.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
+            SYCLTriple.isNVPTX() || SYCLTriple.isAMDGCN()) {
+          for (StringRef Arch : D.getOffloadArchs(
+               C, C.getArgs(), Action::OFK_SYCL, &*TC, true)) {
+            if (!SYCL::gen::getGenDeviceMacro(Arch).empty()) {
+              Macro = "-D";
+              Macro += SYCL::gen::getGenDeviceMacro(Arch);
+            }
+          }
+        } else if (SYCLTriple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+          Macro = "-D__SYCL_TARGET_INTEL_X86_64__";
+        if (Macro.size())
+          CmdArgs.push_back(Args.MakeArgString(Macro));
+      }
       if (Args.hasArg(options::OPT_fno_sycl_esimd_build_host_code))
         CmdArgs.push_back("-fno-sycl-esimd-build-host-code");
     }

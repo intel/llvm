@@ -846,6 +846,8 @@ static bool addSYCLDefaultTriple(Compilation &C,
   /// Returns true if a triple is added to SYCLTriples, false otherwise
   if (!C.getDriver().isSYCLDefaultTripleImplied())
     return false;
+  if (C.getInputArgs().hasArg(options::OPT_fno_spirv))
+    return false;
   if (C.getInputArgs().hasArg(options::OPT_fsycl_force_target_EQ))
     return false;
   for (const auto &SYCLTriple : SYCLTriples) {
@@ -856,6 +858,10 @@ static bool addSYCLDefaultTriple(Compilation &C,
     if (SYCLTriple.isNVPTX() || SYCLTriple.isAMDGCN())
       return false;
   }
+  // When FPGA is the only AOT target or SYCL Native is the only target, do
+  // not add the default triple.
+  if (SYCLTriples.size() == 1 && (SYCLTriples[0].getSubArch() == llvm::Triple::SPIRSubArch_fpga || driver::isSYCLNativeCPU(C.getSingleOffloadToolChain<Action::OFK_Host>()->getTriple(), SYCLTriples[0])))
+    return false;
   // Add the default triple as it was not found.
   llvm::Triple DefaultTriple =
       C.getDriver().MakeSYCLDeviceTriple(getDefaultSYCLArch(C));
@@ -3689,6 +3695,9 @@ bool Driver::checkForSYCLDefaultDevice(Compilation &C,
   if (Args.hasArg(options::OPT_fno_sycl_link_spirv))
     return false;
 
+  if (Args.hasArg(options::OPT_fno_spirv))
+    return false;
+
   // Do not do the check if the default device is passed in -fsycl-targets
   // or if -fsycl-targets isn't passed (that implies default device)
   if (const Arg *A = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
@@ -6392,6 +6401,7 @@ class OffloadingActionBuilder final {
           llvm::StringMap<StringRef> FoundNormalizedTriples;
           for (StringRef Val : SYCLTargetsValues->getValues()) {
             StringRef UserTargetName(Val);
+            bool GPUHasArch = false;
             if (auto ValidDevice = gen::isGPUTarget<gen::IntelGPU>(Val)) {
               if (ValidDevice->empty())
                 // Unrecognized, we have already diagnosed this earlier; skip.
@@ -6400,6 +6410,7 @@ class OffloadingActionBuilder final {
               GpuArchList.emplace_back(C.getDriver().MakeSYCLDeviceTriple(
                                        "spir64_gen"), ValidDevice->data());
               UserTargetName = "spir64_gen";
+              GPUHasArch = true;
             } else if (auto ValidDevice =
                            gen::isGPUTarget<gen::NvidiaGPU>(Val)) {
               if (ValidDevice->empty())
@@ -6427,8 +6438,11 @@ class OffloadingActionBuilder final {
               continue;
             }
 
-            llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
-            std::string NormalizedName = TT.normalize();
+            llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(UserTargetName));
+            if (!isValidSYCLTriple(TT))
+              continue;
+            std::string NormalizedName =
+                C.getDriver().MakeSYCLDeviceTriple(Val).normalize();
 
             // Make sure we don't have a duplicate triple.
             auto Duplicate = FoundNormalizedTriples.find(NormalizedName);
@@ -6445,7 +6459,8 @@ class OffloadingActionBuilder final {
               SYCLfpgaTriple = true;
             // For user specified spir64_gen, add an empty device value as a
             // placeholder.
-            if (TT.getSubArch() == llvm::Triple::SPIRSubArch_gen)
+            if (TT.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
+                !GPUHasArch)
               GpuArchList.emplace_back(TT, nullptr);
           }
 
