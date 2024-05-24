@@ -8938,63 +8938,65 @@ urEnqueueTimestampRecordingExp(
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
-// Intel 'oneAPI' Unified Runtime Experimental APIs for (kernel) Launch Attributes
+// Intel 'oneAPI' Unified Runtime Experimental APIs for (kernel) Launch Properties
 #if !defined(__GNUC__)
 #pragma region launch attributes(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
-#ifndef UR_LAUNCH_ATTRIBUTES_EXTENSION_STRING_EXP
-/// @brief The extension string that defines support for the Launch Attributes
+#ifndef UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP
+/// @brief The extension string that defines support for the Launch Properties
 ///        extension, which is returned when querying device extensions.
-#define UR_LAUNCH_ATTRIBUTES_EXTENSION_STRING_EXP "ur_exp_launch_attributes"
-#endif // UR_LAUNCH_ATTRIBUTES_EXTENSION_STRING_EXP
+#define UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP "ur_exp_launch_properties"
+#endif // UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Specifies a launch attribute id
+/// @brief Specifies a launch property id
 ///
 /// @remarks
 ///   _Analogues_
 ///     - **CUlaunchAttributeID**
-typedef enum ur_exp_launch_attribute_id_t {
-    UR_EXP_LAUNCH_ATTRIBUTE_ID_IGNORE = 0,            ///< the attribute has no effect
-    UR_EXP_LAUNCH_ATTRIBUTE_ID_COOPERATIVE = 1,       ///< whether to launch a cooperative kernel
-    UR_EXP_LAUNCH_ATTRIBUTE_ID_CLUSTER_DIMENSION = 2, ///< cluster dimensions
+typedef enum ur_exp_launch_property_id_t {
+    UR_EXP_LAUNCH_PROPERTY_ID_IGNORE = 0,            ///< The property has no effect
+    UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE = 1,       ///< Whether to launch a cooperative kernel
+    UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION = 2, ///< work-group cluster dimensions
     /// @cond
-    UR_EXP_LAUNCH_ATTRIBUTE_ID_FORCE_UINT32 = 0x7fffffff
+    UR_EXP_LAUNCH_PROPERTY_ID_FORCE_UINT32 = 0x7fffffff
     /// @endcond
 
-} ur_exp_launch_attribute_id_t;
+} ur_exp_launch_property_id_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Specifies a launch attribute value
+/// @brief Specifies a launch property value
 ///
 /// @remarks
 ///   _Analogues_
 ///     - **CUlaunchAttributeValue**
-typedef union ur_exp_launch_attribute_value_t {
-    uint32_t clusterDim[3]; ///< [in] cluster dimensions (x, y, z)
+typedef union ur_exp_launch_property_value_t {
+    uint32_t clusterDim[3]; ///< [in] dimensions of the cluster (units of work-group) (x, y, z). Each
+                            ///< value must be a divisor of the corresponding global work-size
+                            ///< dimension (in units of work-group).
     int cooperative;        ///< [in] non-zero value indicates a cooperative kernel
 
-} ur_exp_launch_attribute_value_t;
+} ur_exp_launch_property_value_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Kernel launch attribute
+/// @brief Kernel launch property
 ///
 /// @remarks
 ///   _Analogues_
 ///     - **cuLaunchAttribute**
-typedef struct ur_exp_launch_attribute_t {
-    ur_exp_launch_attribute_id_t id;       ///< [in] Launch attribute id
-    ur_exp_launch_attribute_value_t value; ///< [in][tagged_by(id)] Launch attribute value
+typedef struct ur_exp_launch_property_t {
+    ur_exp_launch_property_id_t id;       ///< [in] launch property id
+    ur_exp_launch_property_value_t value; ///< [in][tagged_by(id)] launch property value
 
-} ur_exp_launch_attribute_t;
+} ur_exp_launch_property_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Launch kernel with custom Launch attributes
+/// @brief Launch kernel with custom launch properties
 ///
 /// @details
-///     - Launches the kernel using the specified launch attributes
-///     - If numAttrsInLaunchAttrList == 0 then a regular kernel launch is used:
+///     - Launches the kernel using the specified launch properties
+///     - If numPropsInLaunchPropList == 0 then a regular kernel launch is used:
 ///       `urEnqueueKernelLaunch`
 ///     - Consult the appropriate adapter driver documentation for details of
 ///       adapter specific behavior and native error codes that may be returned.
@@ -9015,9 +9017,9 @@ typedef struct ur_exp_launch_attribute_t {
 ///         + NULL == hKernel
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pGlobalWorkSize`
-///         + `NULL == launchAttrList`
+///         + `NULL == launchPropList`
 ///         + NULL == pGlobalWorkSize
-///         + numAttrsInLaunchAttrList != 0 && launchAttrList == NULL
+///         + numPropsInLaunchpropList != 0 && launchPropList == NULL
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
@@ -9038,26 +9040,26 @@ typedef struct ur_exp_launch_attribute_t {
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueKernelLaunchCustomExp(
-    ur_queue_handle_t hQueue,                        ///< [in] handle of the queue object
-    ur_kernel_handle_t hKernel,                      ///< [in] handle of the kernel object
-    uint32_t workDim,                                ///< [in] number of dimensions, from 1 to 3, to specify the global and
-                                                     ///< work-group work-items
-    const size_t *pGlobalWorkSize,                   ///< [in] pointer to an array of workDim unsigned values that specify the
-                                                     ///< number of global work-items in workDim that will execute the kernel
-                                                     ///< function
-    const size_t *pLocalWorkSize,                    ///< [in][optional] pointer to an array of workDim unsigned values that
-                                                     ///< specify the number of local work-items forming a work-group that will
-                                                     ///< execute the kernel function. If nullptr, the runtime implementation
-                                                     ///< will choose the work-group size.
-    uint32_t numAttrsInLaunchAttrList,               ///< [in] size of the launch attr list
-    const ur_exp_launch_attribute_t *launchAttrList, ///< [in][range(0, numAttrsInLaunchAttrList)] pointer to a list of launch
-                                                     ///< attributes
-    uint32_t numEventsInWaitList,                    ///< [in] size of the event wait list
-    const ur_event_handle_t *phEventWaitList,        ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-                                                     ///< events that must be complete before the kernel execution. If nullptr,
-                                                     ///< the numEventsInWaitList must be 0, indicating that no wait event.
-    ur_event_handle_t *phEvent                       ///< [out][optional] return an event object that identifies this particular
-                                                     ///< kernel execution instance.
+    ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
+    ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
+    uint32_t workDim,                               ///< [in] number of dimensions, from 1 to 3, to specify the global and
+                                                    ///< work-group work-items
+    const size_t *pGlobalWorkSize,                  ///< [in] pointer to an array of workDim unsigned values that specify the
+                                                    ///< number of global work-items in workDim that will execute the kernel
+                                                    ///< function
+    const size_t *pLocalWorkSize,                   ///< [in][optional] pointer to an array of workDim unsigned values that
+                                                    ///< specify the number of local work-items forming a work-group that will
+                                                    ///< execute the kernel function. If nullptr, the runtime implementation
+                                                    ///< will choose the work-group size.
+    uint32_t numPropsInLaunchPropList,              ///< [in] size of the launch prop list
+    const ur_exp_launch_property_t *launchPropList, ///< [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
+                                                    ///< properties
+    uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
+    const ur_event_handle_t *phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                    ///< events that must be complete before the kernel execution. If nullptr,
+                                                    ///< the numEventsInWaitList must be 0, indicating that no wait event.
+    ur_event_handle_t *phEvent                      ///< [out][optional] return an event object that identifies this particular
+                                                    ///< kernel execution instance.
 );
 
 #if !defined(__GNUC__)
@@ -10764,8 +10766,8 @@ typedef struct ur_enqueue_kernel_launch_custom_exp_params_t {
     uint32_t *pworkDim;
     const size_t **ppGlobalWorkSize;
     const size_t **ppLocalWorkSize;
-    uint32_t *pnumAttrsInLaunchAttrList;
-    const ur_exp_launch_attribute_t **plaunchAttrList;
+    uint32_t *pnumPropsInLaunchPropList;
+    const ur_exp_launch_property_t **plaunchPropList;
     uint32_t *pnumEventsInWaitList;
     const ur_event_handle_t **pphEventWaitList;
     ur_event_handle_t **pphEvent;
