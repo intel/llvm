@@ -35,7 +35,7 @@ IMPL(unsigned long, m, local, U3AS3, 1, __sync_fetch_and_sub_8)
 #define IMPL_GENERIC(TYPE, TYPE_MANGLED, FN_NAME) \
   IMPL(TYPE, TYPE_MANGLED, , , 0, FN_NAME)
 
-IMPL_GENERIC(int, i, __sync_fetch_and_add)
+IMPL_GENERIC(int, i, __sync_fetch_and_sub)
 IMPL_GENERIC(unsigned int, j, __sync_fetch_and_sub)
 
 #ifdef cl_khr_int64_base_atomics
