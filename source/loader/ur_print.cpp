@@ -1011,18 +1011,18 @@ ur_result_t urPrintExpCommandBufferUpdateKernelLaunchDesc(
     return str_copy(&ss, buffer, buff_size, out_size);
 }
 
-ur_result_t urPrintExpLaunchAttributeId(enum ur_exp_launch_attribute_id_t value,
-                                        char *buffer, const size_t buff_size,
-                                        size_t *out_size) {
+ur_result_t urPrintExpLaunchPropertyId(enum ur_exp_launch_property_id_t value,
+                                       char *buffer, const size_t buff_size,
+                                       size_t *out_size) {
     std::stringstream ss;
     ss << value;
     return str_copy(&ss, buffer, buff_size, out_size);
 }
 
 ur_result_t
-urPrintExpLaunchAttribute(const struct ur_exp_launch_attribute_t params,
-                          char *buffer, const size_t buff_size,
-                          size_t *out_size) {
+urPrintExpLaunchProperty(const struct ur_exp_launch_property_t params,
+                         char *buffer, const size_t buff_size,
+                         size_t *out_size) {
     std::stringstream ss;
     ss << params;
     return str_copy(&ss, buffer, buff_size, out_size);

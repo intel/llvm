@@ -7073,11 +7073,11 @@ ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Launch kernel with custom Launch attributes
+/// @brief Launch kernel with custom launch properties
 ///
 /// @details
-///     - Launches the kernel using the specified launch attributes
-///     - If numAttrsInLaunchAttrList == 0 then a regular kernel launch is used:
+///     - Launches the kernel using the specified launch properties
+///     - If numPropsInLaunchPropList == 0 then a regular kernel launch is used:
 ///       `urEnqueueKernelLaunch`
 ///     - Consult the appropriate adapter driver documentation for details of
 ///       adapter specific behavior and native error codes that may be returned.
@@ -7098,9 +7098,9 @@ ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 ///         + NULL == hKernel
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pGlobalWorkSize`
-///         + `NULL == launchAttrList`
+///         + `NULL == launchPropList`
 ///         + NULL == pGlobalWorkSize
-///         + numAttrsInLaunchAttrList != 0 && launchAttrList == NULL
+///         + numPropsInLaunchpropList != 0 && launchPropList == NULL
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
@@ -7134,10 +7134,10 @@ ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     ///< specify the number of local work-items forming a work-group that will
     ///< execute the kernel function. If nullptr, the runtime implementation
     ///< will choose the work-group size.
-    uint32_t numAttrsInLaunchAttrList, ///< [in] size of the launch attr list
-    const ur_exp_launch_attribute_t *
-        launchAttrList, ///< [in][range(0, numAttrsInLaunchAttrList)] pointer to a list of launch
-                        ///< attributes
+    uint32_t numPropsInLaunchPropList, ///< [in] size of the launch prop list
+    const ur_exp_launch_property_t *
+        launchPropList, ///< [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
+                        ///< properties
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
