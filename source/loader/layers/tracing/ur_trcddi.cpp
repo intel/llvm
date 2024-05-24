@@ -7448,6 +7448,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
         context.notify_begin(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP,
                              "urEnqueueKernelLaunchCustomExp", &params);
 
+    context.logger.info("---> urEnqueueKernelLaunchCustomExp");
+
     ur_result_t result = pfnKernelLaunchCustomExp(
         hQueue, hKernel, workDim, pGlobalWorkSize, pLocalWorkSize,
         numPropsInLaunchPropList, launchPropList, numEventsInWaitList,
@@ -7456,6 +7458,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     context.notify_end(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP,
                        "urEnqueueKernelLaunchCustomExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
