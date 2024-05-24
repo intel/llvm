@@ -1,7 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-
 // E2E tests for annotated USM allocation functions with alignment arguments
 // that are not powers of 2.
 
