@@ -225,6 +225,74 @@ const AspectsSetTy &getAspectsFromType(const Type *T,
   return Result;
 }
 
+/// Utility function to identify FP64 conversion instruction
+bool isFP64ConversionInstruction(const Instruction &I) {
+  switch (I.getOpcode()) {
+  default:
+    return false;
+  case Instruction::Alloca:
+  case Instruction::GetElementPtr:
+  case Instruction::Load:
+  case Instruction::Store:
+  case Instruction::FPExt:
+  case Instruction::FPTrunc:
+  case Instruction::SIToFP:
+  case Instruction::UIToFP:
+  case Instruction::FPToUI:
+  case Instruction::FPToSI:
+  case Instruction::FCmp:
+  case Instruction::PHI:
+  case Instruction::ExtractValue:
+  case Instruction::InsertValue:
+  case Instruction::Call:
+  case Instruction::Ret:
+    return true;
+  }
+}
+
+/// Returns 'true' if Type has double type
+bool hasDoubleType(const Type *T) {
+  if (T->isDoubleTy())
+    return true;
+  for (const Type *TT : T->subtypes())
+    if (TT->isDoubleTy())
+      return true;
+  return false;
+}
+
+/// Returns 'true' if Instruction has double type
+bool hasDoubleType(const Instruction &I) {
+  const Type *ReturnType = I.getType();
+  if (auto *AI = dyn_cast<const AllocaInst>(&I)) {
+    // Return type of an alloca is a pointer and in opaque pointers world we
+    // don't know which type it points to. Therefore, explicitly checking the
+    // allocated type instead
+    ReturnType = AI->getAllocatedType();
+  }
+  if (hasDoubleType(ReturnType))
+    return true;
+  for (const auto &OperandIt : I.operands()) {
+    if (const auto *GV =
+            dyn_cast<const GlobalValue>(OperandIt->stripPointerCasts())) {
+      if (hasDoubleType(GV->getValueType()))
+        return true;
+    } else {
+      if (hasDoubleType(OperandIt->getType()))
+        return true;
+    }
+  }
+
+  // Opaque pointer arguments may hide types of pointer arguments until elements
+  // inside the types are accessed through a GEP instruction. However, this will
+  // not be caught by the operands check above, so we must extract the
+  // information directly from the GEP.
+  if (auto *GEPI = dyn_cast<const GetElementPtrInst>(&I))
+    if (hasDoubleType(GEPI->getSourceElementType()))
+      return true;
+
+  return false;
+}
+
 /// Returns aspects which might be used in instruction @I.
 /// Function inspects return type and all operand's types.
 /// NB! This function inserts new records in @Types map for new discovered
@@ -462,21 +530,35 @@ void propagateAspectsThroughCG(Function *F, CallGraphTy &CG,
 /// metadata and if so collects aspects from this metadata
 void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToUsedAspects,
                      FunctionToAspectsMapTy &FunctionToDeclaredAspects,
-                     TypeToAspectsMapTy &TypesWithAspects, CallGraphTy &CG) {
+                     TypeToAspectsMapTy &TypesWithAspects, CallGraphTy &CG,
+                     const AspectValueToNameMapTy &AspectValues,
+                     bool FP64ConvEmu) {
+  auto FP64AspectIt = AspectValues.find("fp64");
+  assert(FP64AspectIt != AspectValues.end() &&
+         "fp64 aspect was not found in the aspect values.");
+  auto FP64Aspect = FP64AspectIt->second;
   const AspectsSetTy RetTyAspects =
       getAspectsFromType(F.getReturnType(), TypesWithAspects);
-  FunctionToUsedAspects[&F].insert(RetTyAspects.begin(), RetTyAspects.end());
+  for (const auto &Aspect : RetTyAspects)
+    if (!hasDoubleType(F.getReturnType()) || !FP64ConvEmu ||
+        (Aspect != FP64Aspect))
+      FunctionToUsedAspects[&F].insert(Aspect);
   for (Argument &Arg : F.args()) {
     const AspectsSetTy ArgAspects =
         getAspectsFromType(Arg.getType(), TypesWithAspects);
-    FunctionToUsedAspects[&F].insert(ArgAspects.begin(), ArgAspects.end());
+    for (const auto &Aspect : ArgAspects)
+      if (!hasDoubleType(Arg.getType()) || !FP64ConvEmu ||
+          (Aspect != FP64Aspect))
+        FunctionToUsedAspects[&F].insert(Aspect);
   }
 
   for (Instruction &I : instructions(F)) {
     const AspectsSetTy Aspects =
         getAspectsUsedByInstruction(I, TypesWithAspects);
-    FunctionToUsedAspects[&F].insert(Aspects.begin(), Aspects.end());
-
+    for (const auto &Aspect : Aspects)
+      if (!hasDoubleType(I) || !FP64ConvEmu || (Aspect != FP64Aspect) ||
+          !isFP64ConversionInstruction(I))
+        FunctionToUsedAspects[&F].insert(Aspect);
     if (const auto *CI = dyn_cast<CallInst>(&I)) {
       if (!CI->isIndirectCall() && CI->getCalledFunction())
         CG[&F].insert(CI->getCalledFunction());
@@ -558,14 +640,14 @@ std::pair<FunctionToAspectsMapTy, FunctionToAspectsMapTy>
 buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
                            const AspectValueToNameMapTy &AspectValues,
                            const std::vector<Function *> &EntryPoints,
-                           bool ValidateAspects) {
+                           bool ValidateAspects, bool FP64ConvEmu) {
   FunctionToAspectsMapTy FunctionToUsedAspects;
   FunctionToAspectsMapTy FunctionToDeclaredAspects;
   CallGraphTy CG;
 
   for (Function &F : M.functions()) {
     processFunction(F, FunctionToUsedAspects, FunctionToDeclaredAspects,
-                    TypesWithAspects, CG);
+                    TypesWithAspects, CG, AspectValues, FP64ConvEmu);
   }
 
   SmallPtrSet<const Function *, 16> Visited;
@@ -591,11 +673,6 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
 
 PreservedAnalyses
 SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
-  if (FP64ConvEmu)
-    llvm::errs() << "FP64 conversion emulation is supported\n";
-  else
-    llvm::errs() << "FP64 conversion emulation is NOT supported\n";
-
   TypeToAspectsMapTy TypesWithAspects = getTypesThatUseAspectsFromMetadata(M);
   AspectValueToNameMapTy AspectValues = getAspectsFromMetadata(M);
 
@@ -630,7 +707,7 @@ SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
 
   auto [FunctionToUsedAspects, FunctionToDeclaredAspects] =
       buildFunctionsToAspectsMap(M, TypesWithAspects, AspectValues, EntryPoints,
-                                 ValidateAspectUsage);
+                                 ValidateAspectUsage, FP64ConvEmu);
 
   // Create a set of excluded aspect values.
   AspectsSetTy ExcludedAspectVals;
@@ -645,6 +722,5 @@ SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
       FunctionToUsedAspects, FunctionToDeclaredAspects, ExcludedAspectVals);
 
   setSyclFixedTargetsMD(EntryPoints, TargetFixedAspects, AspectValues);
-
   return PreservedAnalyses::all();
 }
