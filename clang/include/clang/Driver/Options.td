@@ -3512,10 +3512,6 @@ def fobjc_nonfragile_abi : Flag<["-"], "fobjc-nonfragile-abi">, Group<f_Group>;
 def fno_objc_nonfragile_abi : Flag<["-"], "fno-objc-nonfragile-abi">, Group<f_Group>;
 
 def fobjc_sender_dependent_dispatch : Flag<["-"], "fobjc-sender-dependent-dispatch">, Group<f_Group>;
-def foffload_static_lib_EQ : CommaJoined<["-"], "foffload-static-lib=">, Flags<[NoXarchOption]>,
-  Visibility<[ClangOption, CLOption, DXCOption]>, Group<offload_lib_Group>;
-def foffload_whole_static_lib_EQ : CommaJoined<["-"], "foffload-whole-static-lib=">, Flags<[NoXarchOption]>,
-  Visibility<[ClangOption, CLOption, DXCOption]>, Group<offload_lib_Group>;
 def fobjc_disable_direct_methods_for_testing :
   Flag<["-"], "fobjc-disable-direct-methods-for-testing">,
   Group<f_Group>, Visibility<[ClangOption, CC1Option]>,
@@ -3958,14 +3954,6 @@ def fno_sycl_esimd_build_host_code :  Flag<["-"], "fno-sycl-esimd-build-host-cod
 def fsycl_targets_EQ : CommaJoined<["-"], "fsycl-targets=">, Flags<[NoXarchOption]>,
   Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
   HelpText<"Specify comma-separated list of triples SYCL offloading targets to be supported">;
-def fsycl_add_targets_EQ : CommaJoined<["-"], "fsycl-add-targets=">,
-  Flags<[NoXarchOption, Deprecated]>, Visibility<[ClangOption, CLOption, DXCOption]>,
-  HelpText<"Specify comma-separated list of triple and device binary image "
-           "pairs to add to the final SYCL binary (deprecated)">;
-def fsycl_link_targets_EQ : CommaJoined<["-"], "fsycl-link-targets=">,
-  Flags<[NoXarchOption, Deprecated]>, Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
-  HelpText<"Specify comma-separated list of triples SYCL offloading targets "
-           "to produce linked device images (deprecated)">;
 def fsycl_force_target_EQ : Joined<["-"], "fsycl-force-target=">,
   Flags<[NoXarchOption]>, Visibility<[ClangOption, CLOption, DXCOption]>,
   HelpText<"Force the usage of the given triple when extracting device code "

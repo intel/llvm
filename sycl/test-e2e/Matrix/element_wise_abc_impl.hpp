@@ -27,14 +27,19 @@ void matrix_elem_wise_ops(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
   buffer<T1, 2> bufC(C.get_data(), range<2>(M, N));
 
   queue q;
+  size_t sg_size = get_sg_size<class add>(q);
   q.submit([&](handler &cgh) {
      accessor accC{bufC, cgh};
      accessor accA{bufA, cgh};
      accessor accB{bufB, cgh};
 
-     cgh.parallel_for(
-         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]] {
+     cgh.parallel_for<class add>(
+         nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
+         [=](nd_item<2> spmd_item)
+#ifdef SG_SZ
+             [[intel::reqd_sub_group_size(SG_SZ)]]
+#endif
+         {
            // The submatrix API has to be accessed by all the workitems in a
            // subgroup these functions will be called once by the subgroup no
            // code divergence between the workitems
@@ -60,14 +65,14 @@ void matrix_elem_wise_ops(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
            joint_matrix_load(
                sg, sub_b,
                accB.template get_multi_ptr<access::decorated::no>() +
-                   sg_starty / SG_SZ * TN * vnniFactor,
+                   sg_starty / sg_size * TN * vnniFactor,
                N * vnniFactor);
            joint_matrix_apply(sg, sub_b, [](T2 &x) { x += 1; });
 
            joint_matrix_load(
                sg, sub_c,
                accC.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+                   (sg_startx * TM) * N + sg_starty / sg_size * TN,
                N, layout::row_major);
            joint_matrix_apply(sg, sub_c, [](T1 &x) { x += 1; });
          }); // parallel for

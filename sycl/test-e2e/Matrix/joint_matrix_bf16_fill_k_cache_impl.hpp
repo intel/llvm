@@ -68,8 +68,9 @@ static constexpr void manually_unroll_loop(F &&f) {
 
 template <unsigned int rowsA, unsigned int colsA, unsigned int rowsB,
           unsigned int colsB, unsigned int vnniFactor, typename TOperand,
-          typename TResult, unsigned int sgSize = SG_SZ>
+          typename TResult>
 double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
+  size_t sgSize = get_sg_size<class MatMul>(q);
   range<2> global{rowsA / MCACHE1, (colsB / NCACHE1) * sgSize};
   range<2> cachelocal{MCACHE2 / MCACHE1, NCACHE2 / NCACHE1 * sgSize};
 
@@ -82,12 +83,16 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
   std::chrono::high_resolution_clock::time_point start =
       std::chrono::high_resolution_clock::now();
 
-  auto mk = q.submit([&](handler &h) {
-    h.parallel_for( // cache layer#1
+  q.submit([&](handler &h) {
+    h.parallel_for<class MatMul>( // cache layer#1
         nd_range<2>{global, cachelocal},
         // loop global
         // loop localrange
-        [=](nd_item<2> it) [[intel::reqd_sub_group_size(sgSize)]] {
+        [=](nd_item<2> it)
+#ifdef SG_SZ
+            [[intel::reqd_sub_group_size(SG_SZ)]]
+#endif
+        {
           auto pA =
               address_space_cast<sycl::access::address_space::global_space,
                                  sycl::access::decorated::no>(A);
@@ -291,6 +296,7 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
 #endif
         }); // parallel_for
   });       // queue.submit
+
   if (i == testIterations - 1)
     q.wait();
   std::chrono::duration<double, std::milli> duration =
