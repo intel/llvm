@@ -1,11 +1,11 @@
 // REQUIRES: ocloc, gpu-intel-dg2
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -fsycl-fp64-conv-emu -O0 -o %t_opt.out
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g12 -fsycl-fp64-conv-emu -O0 %s -o %t_opt.out
 // RUN: %{run} %t_opt.out
 
 // Tests that aspect::fp64 is emitted correctly when -fsycl-fp64-conv-emu flag
 // is used.
 
-#include "sycl.hpp"
+#include <sycl/detail/core.hpp>
 
 template <typename t, typename Func>
 __attribute__((sycl_kernel)) void kernel_compute(const Func &func) {
