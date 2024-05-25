@@ -29,7 +29,10 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
     return aligned_alloc_host(align, N, args...);
   };
   auto AShared = [&](size_t align, auto... args) {
-    return aligned_alloc_shared(align, N, args...);
+    if (dev.has(aspect::usm_shared_allocations)) {
+      return aligned_alloc_shared(align, N, args...);
+    }
+    return (void*)nullptr;
   };
   auto AAnnotated = [&](size_t align, auto... args) {
     return aligned_alloc(align, N, args...);
@@ -42,7 +45,10 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
     return aligned_alloc_host<T>(align, N, args...);
   };
   auto ATShared = [&](size_t align, auto... args) {
-    return aligned_alloc_shared<T>(align, N, args...);
+    if (dev.has(aspect::usm_shared_allocations)) {
+      return aligned_alloc_shared<T>(align, N, args...);
+    }
+    return (T*)nullptr;
   };
   auto ATAnnotated = [&](size_t align, auto... args) {
     return aligned_alloc<T>(align, N, args...);
