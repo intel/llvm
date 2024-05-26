@@ -943,7 +943,7 @@ void OCLToSPIRVBase::transBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
     Mutator.changeReturnType(
         Info.RetTy, [OldRetTy, &Info](IRBuilder<> &Builder, CallInst *NewCI) {
           if (Info.RetTy->isIntegerTy() && OldRetTy->isIntegerTy()) {
-            return Builder.CreateIntCast(NewCI, OldRetTy, Info.IsRetSigned);
+            return Builder.CreateIntCast(NewCI, OldRetTy, false);
           }
           return Builder.CreatePointerBitCastOrAddrSpaceCast(NewCI, OldRetTy);
         });

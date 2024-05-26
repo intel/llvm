@@ -162,9 +162,7 @@ struct OCLBuiltinTransInfo {
   /// Postprocessor of operands
   std::function<void(BuiltinCallMutator &)> PostProc;
   Type *RetTy;      // Return type of the translated function
-  bool IsRetSigned; // When RetTy is int, determines if extensions
-                    // on it should be a sext or zet.
-  OCLBuiltinTransInfo() : RetTy(nullptr), IsRetSigned(false) {
+  OCLBuiltinTransInfo() : RetTy(nullptr) {
     PostProc = [](BuiltinCallMutator &) {};
   }
 };
