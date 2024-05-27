@@ -13,6 +13,7 @@
 #include <iostream>
 #include <memory>
 #include <sycl/detail/core.hpp>
+#include <sycl/types.hpp>
 
 using namespace sycl;
 
