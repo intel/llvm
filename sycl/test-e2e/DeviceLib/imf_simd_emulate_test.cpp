@@ -2356,6 +2356,32 @@ void run_vimax3_s16x2_test(s::queue &device_q) {
   std::cout << "sycl::ext::intel::math::vimax3_s16x2 test pass." << std::endl;
 }
 
+void run_vimin3_s16x2_test(s::queue &device_q) {
+  std::initializer_list<unsigned> input_vals1 = {
+      0,          0x4f57d411, 0x4c26207,  0x2ca8da9e, 0x61392f42, 0x34d89c37,
+      0x1206ac6d, 0x728b19f9, 0x765a6295, 0x36dbf763, 0x739734f,  0x7c09cb1d,
+      0x34f1eb03, 0x1d98cee4, 0x698a958c, 0x674b456a, 0x44698deb, 0x3ff288d7,
+      0x5445ca7c, 0x2f0ae37,  0x6bb35255};
+  std::initializer_list<unsigned> input_vals2 = {
+      0,          0x18027349, 0x264c6286, 0x47875b8b, 0x4612c8ee, 0x4994a1b7,
+      0x4d561240, 0x2c29666f, 0x482741c,  0x2f98613f, 0x10067cdf, 0x5f5e50f0,
+      0x6420b2f8, 0x10c98d96, 0x7202bcd8, 0x26db590f, 0x38e2057d, 0x2b6d1f76,
+      0x21c7820b, 0x58a3796f, 0x5fdcecbe};
+  std::initializer_list<unsigned> input_vals3 = {
+      0,          0x38e81fe5, 0x68a6e3e1, 0x4bf1c6a8, 0x7dc0afdd, 0x5d1e4881,
+      0x7b88faec, 0x145341a4, 0x2eaae3bb, 0x68c2a41e, 0x69410d78, 0x14380c1,
+      0x278fe348, 0x6f173ed3, 0x352a07c2, 0x7ebea979, 0x4c14bbba, 0x783e2229,
+      0x7cc09645, 0x2c58f784, 0x3c5f7464};
+  std::initializer_list<unsigned> ref_vals = {
+      0,          0x1802d411, 0x4c2e3e1,  0x2ca8c6a8, 0x4612afdd, 0x34d89c37,
+      0x1206ac6d, 0x145319f9, 0x482e3bb,  0x2f98a41e, 0x7390d78,  0x14380c1,
+      0x278fb2f8, 0x10c98d96, 0x352a958c, 0x26dba979, 0x38e28deb, 0x2b6d88d7,
+      0x21c7820b, 0x2f0ae37,  0x3c5fecbe};
+  test3(device_q, input_vals1, input_vals2, input_vals3, ref_vals,
+        F3(s::ext::intel::math::vimin3_s16x2));
+  std::cout << "sycl::ext::intel::math::vimin3_s16x2 test pass." << std::endl;
+}
+
 void run_vimax3_s16x2_relu_test(s::queue &device_q) {
   std::initializer_list<unsigned> input_vals1 = {
       0,          0x50cd63f6, 0x44826549, 0x415211f4, 0x363618a6, 0x13db1ca9,
@@ -2380,6 +2406,33 @@ void run_vimax3_s16x2_relu_test(s::queue &device_q) {
   test3(device_q, input_vals1, input_vals2, input_vals3, ref_vals,
         F3(s::ext::intel::math::vimax3_s16x2_relu));
   std::cout << "sycl::ext::intel::math::vimax3_s16x2_relu test pass."
+            << std::endl;
+}
+
+void run_vimin3_s16x2_relu_test(s::queue &device_q) {
+  std::initializer_list<unsigned> input_vals1 = {
+      0,          0x25879885, 0x7e2361a7, 0x3d5285d4, 0x6a2677ac, 0x39e67c81,
+      0x75b12d6a, 0x774201f,  0x6aeeb696, 0x2b05223b, 0x2200d55,  0x3ccd66c6,
+      0x79cec7d6, 0x76dce36e, 0x6198d27f, 0x625e9bf6, 0x614ab233, 0x6a78ee9c,
+      0x367bab94, 0x241a258a, 0x458e3e1e};
+  std::initializer_list<unsigned> input_vals2 = {
+      0,          0x5f613e39, 0x539d1cea, 0x5162a414, 0x6ac2f697, 0x7e863916,
+      0x30fb2b95, 0x7b6caa8f, 0x2f3c6b4,  0x65ea6316, 0x319aec18, 0x5722849e,
+      0x5545e645, 0x12986c19, 0x7cbee3c6, 0x36a56047, 0x2c568db1, 0x33caadd0,
+      0x1eb96466, 0x49be86a2, 0x4bde93f7};
+  std::initializer_list<unsigned> input_vals3 = {
+      0,          0x3d016110, 0x7d0e1b97, 0x6abbef11, 0xc5c977,   0x7eec163d,
+      0x92e3c68,  0x4c02bcf8, 0x6d9e79f5, 0x21741894, 0x1dc235ef, 0x7d237428,
+      0x50c09112, 0x22233526, 0xce62bbe,  0xb6c64d4,  0x3c679069, 0x37d43af8,
+      0x3ac801ad, 0x20b264c3, 0x524d50db};
+  std::initializer_list<unsigned> ref_vals = {
+      0,          0x25870000, 0x539d1b97, 0x3d520000, 0xc50000,   0x39e6163d,
+      0x92e2b95,  0x7740000,  0x2f30000,  0x21741894, 0x2200000,  0x3ccd0000,
+      0x50c00000, 0x12980000, 0xce60000,  0xb6c0000,  0x2c560000, 0x33ca0000,
+      0x1eb90000, 0x20b20000, 0x458e0000};
+  test3(device_q, input_vals1, input_vals2, input_vals3, ref_vals,
+        F3(s::ext::intel::math::vimin3_s16x2_relu));
+  std::cout << "sycl::ext::intel::math::vimin3_s16x2_relu test pass."
             << std::endl;
 }
 
@@ -2582,6 +2635,8 @@ int main(int, char **) {
   run_vibmin_u32_test(device_queue);
   run_vimax3_s16x2_test(device_queue);
   run_vimax3_s16x2_relu_test(device_queue);
+  run_vimin3_s16x2_test(device_queue);
+  run_vimin3_s16x2_relu_test(device_queue);
   run_vimax3_s32_test(device_queue);
   run_vimax3_s32_relu_test(device_queue);
   run_vimax3_u16x2_test(device_queue);
