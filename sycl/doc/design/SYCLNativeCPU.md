@@ -40,7 +40,7 @@ python buildbot/configure.py \
 
 ### libclc target triples
 
-SYCL Native CPU uses [libclc](https://github.com/intel/llvm/tree/sycl/libclc) to implement many SPIRV builtins. When Native CPU is enabled, the default target triple for libclc will be `LLVM_TARGET_TRIPLE` (same as the default target triple used by `clang`). This can be overridden by setting the `--native_cpu_libclc_targets` option in `configure.py`.
+SYCL Native CPU uses [libclc](https://github.com/intel/llvm/tree/sycl/libclc) to implement many SPIRV builtins. When Native CPU is enabled, the default target triple for libclc will be `LLVM_TARGET_TRIPLE` (same as the default target triple used by `clang`). This can be overridden by setting the `--native-cpu-libclc-targets` option in `configure.py`.
 
 ### oneAPI Construction Kit
 

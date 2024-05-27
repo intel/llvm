@@ -280,7 +280,7 @@ def main():
     parser.add_argument("--disable-preview-lib", action='store_true', help="Disable building of the SYCL runtime major release preview library")
     parser.add_argument("--disable-fusion", action="store_true", help="Disable the kernel fusion JIT compiler")
     parser.add_argument("--add_security_flags", type=str, choices=['none', 'default', 'sanitize'], default=None, help="Enables security flags for compile & link. Two values are supported: 'default' and 'sanitize'. 'Sanitize' option is an extension of 'default' set.")
-    parser.add_argument('--native_cpu_libclc_targets', help='Target triples for libclc, used by the Native CPU backend')
+    parser.add_argument('--native-cpu-libclc-targets', help='Target triples for libclc, used by the Native CPU backend')
     args = parser.parse_args()
 
     print("args:{}".format(args))
