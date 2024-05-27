@@ -1429,10 +1429,25 @@ unsigned int __devicelib_imf_vimax3_u16x2(unsigned int x, unsigned int y,
   return __internal_v_ternary_op<uint16_t, 2, __imax3_op>(x, y, z);
 }
 
+// Split 32-bit value into 2 16-bit parts, interpret each part as unsinged
+// short. For corresponding part, perform and add and compare operation:
+// min(x_part, y_part, z_part), partial results are combined for return.
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimin3_u16x2(unsigned int x, unsigned int y,
+                                          unsigned int z) {
+  return __internal_v_ternary_op<uint16_t, 2, __imin3_op>(x, y, z);
+}
+
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vimax3_u32(unsigned int x, unsigned int y,
                                         unsigned int z) {
   return __imax<unsigned int>(__imax<unsigned int>(x, y), z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimin3_u32(unsigned int x, unsigned int y,
+                                        unsigned int z) {
+  return __imin<unsigned int>(__imin<unsigned int>(x, y), z);
 }
 
 DEVICE_EXTERN_C_INLINE

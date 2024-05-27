@@ -1061,7 +1061,15 @@ unsigned int __devicelib_imf_vimax3_u16x2(unsigned int, unsigned int,
                                           unsigned int);
 
 DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimin3_u16x2(unsigned int, unsigned int,
+                                          unsigned int);
+
+DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vimax3_u32(unsigned int, unsigned int,
+                                        unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimin3_u32(unsigned int, unsigned int,
                                         unsigned int);
 
 DEVICE_EXTERN_C_INLINE
@@ -1635,8 +1643,19 @@ unsigned int __imf_vimax3_u16x2(unsigned int x, unsigned int y,
 }
 
 DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimin3_u16x2(unsigned int x, unsigned int y,
+                                unsigned int z) {
+  return __devicelib_imf_vimin3_u16x2(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
 unsigned int __imf_vimax3_u32(unsigned int x, unsigned int y, unsigned int z) {
   return __devicelib_imf_vimax3_u32(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimin3_u32(unsigned int x, unsigned int y, unsigned int z) {
+  return __devicelib_imf_vimin3_u32(x, y, z);
 }
 
 DEVICE_EXTERN_C_INLINE
