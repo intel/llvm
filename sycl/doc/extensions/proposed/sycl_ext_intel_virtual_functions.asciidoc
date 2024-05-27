@@ -204,12 +204,21 @@ to be using the default set of virtual member functions.
 
 Calling a virtual member function, which does not belong to any of sets of
 virtual member functions declared to be used is an undefined behavior.
+
+This property should be attached to a kernel if it contains a virtual member
+function call in its call graph, even if the said function is never actually
+called. If a kernel submitted without this property calls a virtual member
+function, diagnostic should be emitted by an implementation.
 |===
 
 If a virtual member function is called from device code, all declarations of
 that function must be decorated with the `indirectly_callable` property with
 the same value of `SetId` property parameter, or otherwise behavior is
 undefined.
+
+If a kernel is submitted with the `indirectly_callable` property that points to
+an empty set of virtual functions, an exception should be thrown by an
+implementation.
 
 Applying the `indirectly_callable` property to a SYCL Kernel function is illegal
 and an implementation should produce a diagnostic for that.

@@ -456,6 +456,11 @@ images are linked together with it:
   together, i.e. runtime should keep track of which device images have already
   been looked at to avoid entering an infinite recursion;
 
+If for any used virtual functions set there is no device image that provides
+virtual functions from it, the runtime should throw an exception, because that
+is likely a user error (missing or misspelled `indirectly_callable` property
+on a virtual function).
+
 Produced list of device images is then linked together and used to enqueue a
 kernel.
 
