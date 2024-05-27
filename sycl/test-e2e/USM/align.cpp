@@ -48,7 +48,7 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
     if (dev.has(aspect::usm_shared_allocations)) {
       return aligned_alloc_shared<T>(align, N, args...);
     }
-    return (T *)nullptr;
+    return nullptr;
   };
   auto ATAnnotated = [&](size_t align, auto... args) {
     return aligned_alloc<T>(align, N, args...);
