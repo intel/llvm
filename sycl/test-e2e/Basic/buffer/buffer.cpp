@@ -656,8 +656,8 @@ int main() {
     sycl::buffer<char, 1> Buf_2(Size / 2);
 
     {
-      auto AccA = Buf_1.get_host_access(Size / 2, sycl::read_write);
-      auto AccB = Buf_2.get_host_access(Size / 2, sycl::read_write);
+      sycl::host_accessor AccA{Buf_1, Size / 2, sycl::read_write};
+      sycl::host_accessor AccB{Buf_2, Size / 2, sycl::read_write};
       assert(AccA.byte_size() == AccB.byte_size());
       assert(AccA.get_range() == AccB.get_range());
       assert(AccA.size() == AccB.size());
