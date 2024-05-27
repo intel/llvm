@@ -926,10 +926,16 @@ void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
 void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
   throwIfActionIsCreated();
   MCGType = detail::CG::BarrierWaitlist;
-  MEventsWaitWithBarrier.resize(WaitList.size());
-  std::transform(
-      WaitList.begin(), WaitList.end(), MEventsWaitWithBarrier.begin(),
-      [](const event &Event) { return detail::getSyclObjImpl(Event); });
+  MEventsWaitWithBarrier.reserve(WaitList.size());
+  for (auto &Event : WaitList) {
+    auto EventImpl = detail::getSyclObjImpl(Event);
+    // We could not wait for host task events in backend.
+    // Adding them as dependency to enable proper scheduling.
+    if (EventImpl->is_host()) {
+      depends_on(EventImpl);
+    }
+    MEventsWaitWithBarrier.push_back(EventImpl);
+  }
 }
 
 using namespace sycl::detail;

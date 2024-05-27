@@ -50,8 +50,7 @@ struct sampled_image_handle {
 
   sampled_image_handle() : raw_handle(~0) {}
 
-  sampled_image_handle(raw_image_handle_type raw_image_handle)
-      : raw_handle(raw_image_handle) {}
+  sampled_image_handle(raw_image_handle_type handle) : raw_handle(handle) {}
 
   raw_image_handle_type raw_handle;
 };
@@ -792,6 +791,43 @@ template <typename DataT> constexpr bool is_recognized_standard_type() {
           std::is_floating_point_v<DataT> || std::is_same_v<DataT, sycl::half>);
 }
 
+#ifdef __SYCL_DEVICE_ONLY__
+
+// Image types used for generating SPIR-V
+template <int NDims>
+using OCLImageTyRead =
+    typename sycl::detail::opencl_image_type<NDims, sycl::access::mode::read,
+                                             sycl::access::target::image>::type;
+
+template <int NDims>
+using OCLImageTyWrite =
+    typename sycl::detail::opencl_image_type<NDims, sycl::access::mode::write,
+                                             sycl::access::target::image>::type;
+
+// Macros are required because it is not legal for a function to return
+// a variable of type 'opencl_image_type'.
+#if defined(__SPIR__)
+#define CONVERT_HANDLE_TO_IMAGE(raw_handle, ImageType)                         \
+  __spirv_ConvertHandleToImageINTEL<ImageType>(raw_handle)
+
+#define CONVERT_HANDLE_TO_SAMPLED_IMAGE(raw_handle, NDims)                     \
+  __spirv_ConvertHandleToSampledImageINTEL<                                    \
+      typename sycl::detail::sampled_opencl_image_type<                        \
+          detail::OCLImageTyRead<NDims>>::type>(raw_handle)
+
+#define FETCH_UNSAMPLED_IMAGE(DataT, raw_handle, coords)                       \
+  __invoke__ImageRead<DataT>(raw_handle, coords)
+#else
+#define CONVERT_HANDLE_TO_IMAGE(raw_handle, ImageType) raw_handle
+
+#define CONVERT_HANDLE_TO_SAMPLED_IMAGE(raw_handle, NDims) raw_handle
+
+#define FETCH_UNSAMPLED_IMAGE(DataT, raw_handle, coords)                       \
+  __invoke__ImageFetch<DataT>(raw_handle, coords)
+#endif
+
+#endif
+
 } // namespace detail
 
 /**
@@ -826,15 +862,23 @@ DataT fetch_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return __invoke__ImageFetch<DataT>(imageHandle.raw_handle, coords);
+    return FETCH_UNSAMPLED_IMAGE(
+        DataT,
+        CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
+                                detail::OCLImageTyRead<coordSize>),
+        coords);
+
   } else {
     static_assert(sizeof(HintT) == sizeof(DataT),
                   "When trying to read a user-defined type, HintT must be of "
                   "the same size as the user-defined DataT.");
     static_assert(detail::is_recognized_standard_type<HintT>(),
                   "HintT must always be a recognized standard type");
-    return sycl::bit_cast<DataT>(
-        __invoke__ImageFetch<HintT>(imageHandle.raw_handle, coords));
+    return sycl::bit_cast<DataT>(FETCH_UNSAMPLED_IMAGE(
+        HintT,
+        CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
+                                detail::OCLImageTyRead<coordSize>),
+        coords));
   }
 #else
   assert(false); // Bindless images not yet implemented on host
@@ -907,10 +951,13 @@ DataT fetch_image(const sampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return __invoke__SampledImageFetch<DataT>(imageHandle.raw_handle, coords);
+    return __invoke__SampledImageFetch<DataT>(
+        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
+        coords);
   } else {
-    return sycl::bit_cast<DataT>(
-        __invoke__SampledImageFetch<HintT>(imageHandle.raw_handle, coords));
+    return sycl::bit_cast<DataT>(__invoke__SampledImageFetch<HintT>(
+        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
+        coords));
   }
 #else
   assert(false); // Bindless images not yet implemented on host.
@@ -954,10 +1001,13 @@ DataT sample_image(const sampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return __invoke__ImageRead<DataT>(imageHandle.raw_handle, coords);
+    return __invoke__ImageRead<DataT>(
+        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
+        coords);
   } else {
-    return sycl::bit_cast<DataT>(
-        __invoke__ImageRead<HintT>(imageHandle.raw_handle, coords));
+    return sycl::bit_cast<DataT>(__invoke__ImageRead<HintT>(
+        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
+        coords));
   }
 #else
   assert(false); // Bindless images not yet implemented on host.
@@ -1026,15 +1076,18 @@ DataT sample_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return __invoke__ImageReadLod<DataT>(imageHandle.raw_handle, coords, level);
+    return __invoke__ImageReadLod<DataT>(
+        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
+        coords, level);
   } else {
     static_assert(sizeof(HintT) == sizeof(DataT),
                   "When trying to read a user-defined type, HintT must be of "
                   "the same size as the user-defined DataT.");
     static_assert(detail::is_recognized_standard_type<HintT>(),
                   "HintT must always be a recognized standard type");
-    return sycl::bit_cast<DataT>(
-        __invoke__ImageReadLod<HintT>(imageHandle.raw_handle, coords, level));
+    return sycl::bit_cast<DataT>(__invoke__ImageReadLod<HintT>(
+        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
+        coords, level));
   }
 #else
   assert(false); // Bindless images not yet implemented on host
@@ -1070,16 +1123,18 @@ DataT sample_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return __invoke__ImageReadGrad<DataT>(imageHandle.raw_handle, coords, dX,
-                                          dY);
+    return __invoke__ImageReadGrad<DataT>(
+        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
+        coords, dX, dY);
   } else {
     static_assert(sizeof(HintT) == sizeof(DataT),
                   "When trying to read a user-defined type, HintT must be of "
                   "the same size as the user-defined DataT.");
     static_assert(detail::is_recognized_standard_type<HintT>(),
                   "HintT must always be a recognized standard type");
-    return sycl::bit_cast<DataT>(
-        __invoke__ImageReadGrad<HintT>(imageHandle.raw_handle, coords, dX, dY));
+    return sycl::bit_cast<DataT>(__invoke__ImageReadGrad<HintT>(
+        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
+        coords, dX, dY));
   }
 #else
   assert(false); // Bindless images not yet implemented on host
@@ -1224,8 +1279,10 @@ DataT fetch_image_array(const unsampled_image_handle &imageHandle
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return __invoke__ImageArrayFetch<DataT>(imageHandle.raw_handle, coords,
-                                            arrayLayer);
+    return __invoke__ImageArrayFetch<DataT>(
+        CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
+                                detail::OCLImageTyRead<coordSize>),
+        coords, arrayLayer);
   } else {
     static_assert(sizeof(HintT) == sizeof(DataT),
                   "When trying to fetch a user-defined type, HintT must be of "
@@ -1233,7 +1290,9 @@ DataT fetch_image_array(const unsampled_image_handle &imageHandle
     static_assert(detail::is_recognized_standard_type<HintT>(),
                   "HintT must always be a recognized standard type");
     return sycl::bit_cast<DataT>(__invoke__ImageArrayFetch<HintT>(
-        imageHandle.raw_handle, coords, arrayLayer));
+        CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
+                                detail::OCLImageTyRead<coordSize>),
+        coords, arrayLayer));
   }
 #else
   assert(false); // Bindless images not yet implemented on host.
@@ -1277,11 +1336,12 @@ DataT fetch_cubemap(const unsampled_image_handle &imageHandle,
 template <typename DataT, typename HintT = DataT>
 DataT sample_cubemap(const sampled_image_handle &imageHandle [[maybe_unused]],
                      const sycl::float3 &dirVec [[maybe_unused]]) {
+  [[maybe_unused]] constexpr size_t NDims = 2;
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return __invoke__ImageReadCubemap<DataT, uint64_t>(imageHandle.raw_handle,
-                                                       dirVec);
+    return __invoke__ImageReadCubemap<DataT, uint64_t>(
+        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, NDims), dirVec);
   } else {
     static_assert(sizeof(HintT) == sizeof(DataT),
                   "When trying to read a user-defined type, HintT must be of "
@@ -1289,7 +1349,8 @@ DataT sample_cubemap(const sampled_image_handle &imageHandle [[maybe_unused]],
     static_assert(detail::is_recognized_standard_type<HintT>(),
                   "HintT must always be a recognized standard type");
     return sycl::bit_cast<DataT>(__invoke__ImageReadCubemap<HintT, uint64_t>(
-        imageHandle.raw_handle, dirVec));
+        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, NDims),
+        dirVec));
   }
 #else
   assert(false); // Bindless images not yet implemented on host
@@ -1318,12 +1379,17 @@ void write_image(unsampled_image_handle imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    __invoke__ImageWrite((uint64_t)imageHandle.raw_handle, coords, color);
+    __invoke__ImageWrite(
+        CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
+                                detail::OCLImageTyWrite<coordSize>),
+        coords, color);
   } else {
     // Convert DataT to a supported backend write type when user-defined type is
     // passed
-    __invoke__ImageWrite((uint64_t)imageHandle.raw_handle, coords,
-                         detail::convert_color(color));
+    __invoke__ImageWrite(
+        CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
+                                detail::OCLImageTyWrite<coordSize>),
+        coords, detail::convert_color(color));
   }
 #else
   assert(false); // Bindless images not yet implemented on host
@@ -1354,13 +1420,17 @@ void write_image_array(unsampled_image_handle imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    __invoke__ImageArrayWrite(static_cast<uint64_t>(imageHandle.raw_handle),
-                              coords, arrayLayer, color);
+    __invoke__ImageArrayWrite(
+        CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
+                                detail::OCLImageTyRead<coordSize>),
+        coords, arrayLayer, color);
   } else {
     // Convert DataT to a supported backend write type when user-defined type is
     // passed
-    __invoke__ImageArrayWrite(static_cast<uint64_t>(imageHandle.raw_handle),
-                              coords, arrayLayer, detail::convert_color(color));
+    __invoke__ImageArrayWrite(
+        CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
+                                detail::OCLImageTyRead<coordSize>),
+        coords, arrayLayer, detail::convert_color(color));
   }
 #else
   assert(false); // Bindless images not yet implemented on host.

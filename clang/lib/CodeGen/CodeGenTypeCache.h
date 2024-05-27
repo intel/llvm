@@ -69,6 +69,9 @@ struct CodeGenTypeCache {
   /// void* in target address space
   llvm::PointerType *DefaultInt8PtrTy;
 
+  /// void* used for virtual table globals.
+  llvm::PointerType *RuntimeGlobalsInt8PtrTy;
+
   /// void* in default globals address space
   union {
     llvm::PointerType *GlobalsVoidPtrTy;

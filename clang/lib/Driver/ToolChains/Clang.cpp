@@ -10411,7 +10411,8 @@ static void getOtherSPIRVTransOpts(Compilation &C,
       ",+SPV_INTEL_fpga_argument_interfaces"
       ",+SPV_INTEL_fpga_invocation_pipelining_attributes"
       ",+SPV_INTEL_fpga_latency_control"
-      ",+SPV_INTEL_task_sequence";
+      ",+SPV_INTEL_task_sequence"
+      ",+SPV_INTEL_bindless_images";
   ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
   if (C.getDriver().IsFPGAHWMode())
     // Enable several extensions on FPGA H/W exclusively
@@ -11014,8 +11015,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("--triple=spirv64");
 
     SmallVector<std::string, 8> SYCLDeviceLibs;
-    SYCLDeviceLibs = SYCL::getDeviceLibraries(C, TargetTriple,
-                                              /*IsSpirvAOT=*/false);
+    auto IsSPIR = TargetTriple.isSPIROrSPIRV();
+    bool IsSpirvAOT = TargetTriple.isSPIRAOT();
+    bool UseJitLink =
+        IsSPIR &&
+        Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
+                     options::OPT_fno_sycl_device_lib_jit_link, false);
+    bool UseAOTLink = IsSPIR && (IsSpirvAOT || !UseJitLink);
+    SYCLDeviceLibs = SYCL::getDeviceLibraries(C, TargetTriple, UseAOTLink);
     // Create a comma separated list to pass along to the linker wrapper.
     SmallString<256> LibList;
     for (const auto &AddLib : SYCLDeviceLibs) {

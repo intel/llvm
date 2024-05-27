@@ -10,8 +10,6 @@
 // Define NOMINMAX to enable compilation on Windows
 #define NOMINMAX
 
-#include <sycl/sycl.hpp>
-
 #include "../bindless_helpers.hpp"
 #include "vulkan_common.hpp"
 
