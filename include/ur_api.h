@@ -8941,7 +8941,7 @@ urEnqueueTimestampRecordingExp(
 #endif
 // Intel 'oneAPI' Unified Runtime Experimental APIs for (kernel) Launch Properties
 #if !defined(__GNUC__)
-#pragma region launch attributes(experimental)
+#pragma region launch properties(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 #ifndef UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP
