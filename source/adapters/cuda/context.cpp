@@ -46,23 +46,19 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urContextCreate(uint32_t DeviceCount, const ur_device_handle_t *phDevices,
                 const ur_context_properties_t *pProperties,
                 ur_context_handle_t *phContext) {
-  std::ignore = DeviceCount;
   std::ignore = pProperties;
-
-  assert(DeviceCount == 1);
-  ur_result_t RetErr = UR_RESULT_SUCCESS;
 
   std::unique_ptr<ur_context_handle_t_> ContextPtr{nullptr};
   try {
     ContextPtr = std::unique_ptr<ur_context_handle_t_>(
-        new ur_context_handle_t_{*phDevices});
+        new ur_context_handle_t_{phDevices, DeviceCount});
     *phContext = ContextPtr.release();
   } catch (ur_result_t Err) {
-    RetErr = Err;
+    return Err;
   } catch (...) {
-    RetErr = UR_RESULT_ERROR_OUT_OF_RESOURCES;
+    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
-  return RetErr;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
@@ -72,9 +68,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
 
   switch (static_cast<uint32_t>(ContextInfoType)) {
   case UR_CONTEXT_INFO_NUM_DEVICES:
-    return ReturnValue(1);
+    return ReturnValue(static_cast<uint32_t>(hContext->getDevices().size()));
   case UR_CONTEXT_INFO_DEVICES:
-    return ReturnValue(hContext->getDevice());
+    return ReturnValue(hContext->getDevices().data(),
+                       hContext->getDevices().size());
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
     return ReturnValue(hContext->getReferenceCount());
   case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
@@ -88,7 +85,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
     int Major = 0;
     UR_CHECK_ERROR(cuDeviceGetAttribute(
         &Major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-        hContext->getDevice()->get()));
+        hContext->getDevices()[0]->get()));
     uint32_t Capabilities =
         (Major >= 7) ? UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
@@ -137,7 +134,10 @@ urContextRetain(ur_context_handle_t hContext) {
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
     ur_context_handle_t hContext, ur_native_handle_t *phNativeContext) {
-  *phNativeContext = reinterpret_cast<ur_native_handle_t>(hContext->get());
+  // FIXME: this entry point has been deprecated in the SYCL RT and should be
+  // changed to unsupoorted once deprecation period has elapsed.
+  *phNativeContext = reinterpret_cast<ur_native_handle_t>(
+      hContext->getDevices()[0]->getNativeContext());
   return UR_RESULT_SUCCESS;
 }
 
