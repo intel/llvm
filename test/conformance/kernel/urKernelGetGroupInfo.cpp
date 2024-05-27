@@ -18,6 +18,24 @@ UUR_TEST_SUITE_P(
                       UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE),
     uur::deviceTestWithParamPrinter<ur_kernel_group_info_t>);
 
+struct urKernelGetGroupInfoSingleTest : uur::urKernelTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
+    }
+};
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelGetGroupInfoSingleTest);
+
+struct urKernelGetGroupInfoWgSizeTest : uur::urKernelTest {
+    void SetUp() override {
+        program_name = "fixed_wg_size";
+        UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
+    }
+
+    // This must match the size in fixed_wg_size.cpp
+    std::array<size_t, 3> wg_size{4, 4, 4};
+};
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelGetGroupInfoWgSizeTest);
+
 TEST_P(urKernelGetGroupInfoTest, Success) {
     auto property_name = getParam();
     size_t property_size = 0;
@@ -56,4 +74,22 @@ TEST_P(urKernelGetGroupInfoTest, InvalidEnumeration) {
                      urKernelGetGroupInfo(kernel, device,
                                           UR_KERNEL_GROUP_INFO_FORCE_UINT32, 0,
                                           nullptr, &bad_enum_length));
+}
+
+TEST_P(urKernelGetGroupInfoWgSizeTest, CompileWorkGroupSize) {
+    std::array<size_t, 3> read_dims{1, 1, 1};
+    ASSERT_SUCCESS(urKernelGetGroupInfo(
+        kernel, device, UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
+        sizeof(read_dims), read_dims.data(), nullptr));
+    ASSERT_EQ(read_dims, wg_size);
+}
+
+TEST_P(urKernelGetGroupInfoSingleTest, CompileWorkGroupSizeEmpty) {
+    // Returns 0 by default when there is no sepecific information
+    std::array<size_t, 3> read_dims{1, 1, 1};
+    std::array<size_t, 3> zero{0, 0, 0};
+    ASSERT_SUCCESS(urKernelGetGroupInfo(
+        kernel, device, UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
+        sizeof(read_dims), read_dims.data(), nullptr));
+    ASSERT_EQ(read_dims, zero);
 }

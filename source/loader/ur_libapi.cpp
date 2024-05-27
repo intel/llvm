@@ -4768,6 +4768,7 @@ ur_result_t UR_APICALL urEventSetCallback(
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGS - "The kernel argument values have not been specified."
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urEnqueueKernelLaunch(
@@ -8324,6 +8325,8 @@ ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     bool

@@ -11,6 +11,7 @@
 #include "ur_api.h"
 
 #include "common.hpp"
+#include "common/ur_util.hpp"
 #include "program.hpp"
 #include <cstdint>
 
@@ -25,16 +26,6 @@ urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
   std::ignore = phProgram;
 
   DIE_NO_IMPLEMENTATION
-}
-
-// TODO: taken from CUDA adapter, move this to a common header?
-static std::pair<std::string, std::string>
-splitMetadataName(const std::string &metadataName) {
-  size_t splitPos = metadataName.rfind('@');
-  if (splitPos == std::string::npos)
-    return std::make_pair(metadataName, std::string{});
-  return std::make_pair(metadataName.substr(0, splitPos),
-                        metadataName.substr(splitPos, metadataName.length()));
 }
 
 static ur_result_t getReqdWGSize(const ur_program_metadata_t &MetadataElement,

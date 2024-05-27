@@ -45,9 +45,15 @@ namespace ur_tracing_layer
         ${th.make_pfncb_param_type(n, tags, obj)} params = { &${",&".join(th.make_param_lines(n, tags, obj, format=["name"]))} };
         uint64_t instance = context.notify_begin(${th.make_func_etor(n, tags, obj)}, "${th.make_func_name(n, tags, obj)}", &params);
 
+        context.logger.info("---> ${th.make_func_name(n, tags, obj)}");
+
         ${x}_result_t result = ${th.make_pfn_name(n, tags, obj)}( ${", ".join(th.make_param_lines(n, tags, obj, format=["name"]))} );
 
         context.notify_end(${th.make_func_etor(n, tags, obj)}, "${th.make_func_name(n, tags, obj)}", &params, &result, instance);
+
+        std::ostringstream args_str;
+        ur::extras::printFunctionParams(args_str, ${th.make_func_etor(n, tags, obj)}, &params);
+        context.logger.info("({}) -> {};\n", args_str.str(), result);
 
         return result;
     }
@@ -111,6 +117,10 @@ namespace ur_tracing_layer
         if(!enabledLayerNames.count(name)) {
             return result;
         }
+
+        // Recreate the logger in case env variables have been modified between
+        // program launch and the call to `urLoaderInit`
+        logger = logger::create_logger("tracing", true, true);
 
         ur_tracing_layer::context.codelocData = codelocData;
 
