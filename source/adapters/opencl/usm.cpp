@@ -68,8 +68,7 @@ usmDescToCLMemProperties(const ur_base_desc_t *Desc,
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
 
-    Next = Next->pNext ? static_cast<const ur_base_desc_t *>(Next->pNext)
-                       : nullptr;
+    Next = static_cast<const ur_base_desc_t *>(Next->pNext);
   } while (Next);
 
   if (AllocFlags) {

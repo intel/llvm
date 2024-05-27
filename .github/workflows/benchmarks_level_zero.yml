@@ -1,0 +1,26 @@
+name: Compute Benchmarks Level Zero
+
+on:
+  issue_comment:
+    types: [created, edited]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  e2e-build-hw:
+    # trigger only if PR comment contains "benchmarks-level-zero"
+    if: ${{ (github.event.issue.pull_request && contains(github.event.comment.body, '/benchmarks-level-zero'))}}
+    name: Start benchmarks job
+    # use core flow, run it with L0 specific parameters
+    uses: ./.github/workflows/benchmarks_core.yml
+    # parameters that we pass to the core flow
+    with:
+      name: "L0"
+      runner_tag: "L0_PERF"
+      str_name: "level_zero"
+      config: ""
+      unit: "gpu"
+      trigger: "${{github.event_name}}"
+      comment: ${{github.event.comment.body}}

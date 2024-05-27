@@ -17,7 +17,7 @@ import copy
 from templates.helper import param_traits, type_traits, value_traits
 import ctypes
 import itertools
-from typing import Optional
+from typing import Dict, List, Optional
 from version import Version
 
 
@@ -504,7 +504,7 @@ def _validate_doc(f, d, tags, line_num, meta):
 """
     filters object by version
 """
-def _filter_version(d, max_ver: Version) -> Optional[dict]:
+def _filter_version(d, max_ver: Version) -> Optional[Dict]:
     ver = Version(d.get('version', default_version))
     if ver > max_ver:
         return None
@@ -550,7 +550,7 @@ def _filter_version(d, max_ver: Version) -> Optional[dict]:
 """
     creates docs per version
 """
-def _make_versions(d, max_ver : Version) -> list[Version]:
+def _make_versions(d, max_ver : Version) -> List[Version]:
     docs = []
     type = d['type']
     if 'function' == type or 'struct' == type:

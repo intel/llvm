@@ -3,6 +3,7 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
+#include <uur/raii.h>
 
 using urMemImageCreateTest = uur::urContextTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemImageCreateTest);
@@ -62,6 +63,13 @@ TEST_P(urMemImageCreateTest, InvalidNullPointerImageDesc) {
                      urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
                                       &image_format, nullptr, nullptr,
                                       &image_handle));
+}
+
+TEST_P(urMemImageCreateTest, InvalidNullPointerImageFormat) {
+    ur_mem_handle_t image_handle = nullptr;
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
+                     urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE, nullptr,
+                                      &image_desc, nullptr, &image_handle));
 }
 
 TEST_P(urMemImageCreateTest, InvalidSize) {
@@ -170,6 +178,20 @@ UUR_TEST_SUITE_P(urMemImageCreateWithHostPtrFlagsTest,
                  ::testing::Values(UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER,
                                    UR_MEM_FLAG_USE_HOST_POINTER),
                  uur::deviceTestWithParamPrinter<ur_mem_flag_t>);
+
+TEST_P(urMemImageCreateWithHostPtrFlagsTest, Success) {
+    uur::raii::Mem host_ptr_buffer = nullptr;
+    ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_ALLOC_HOST_POINTER,
+                                    &image_format, &image_desc, nullptr,
+                                    host_ptr_buffer.ptr()));
+
+    ur_mem_handle_t image_handle = nullptr;
+    ASSERT_SUCCESS(urMemImageCreate(context, getParam(), &image_format,
+                                    &image_desc, host_ptr_buffer.ptr(),
+                                    &image_handle));
+    ASSERT_NE(nullptr, image_handle);
+    ASSERT_SUCCESS(urMemRelease(image_handle));
+}
 
 TEST_P(urMemImageCreateWithHostPtrFlagsTest, InvalidHostPtr) {
     ur_mem_handle_t image_handle = nullptr;

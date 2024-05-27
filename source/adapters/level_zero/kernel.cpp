@@ -849,6 +849,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
   try {
     Kernel = new ur_kernel_handle_t_(ZeKernel, Properties->isNativeHandleOwned,
                                      Context);
+    if (Properties->isNativeHandleOwned) {
+      // If ownership is passed to the adapter we need to pass the kernel
+      // to this vector which is then used during ZeKernelRelease.
+      Kernel->ZeKernels.push_back(ZeKernel);
+    }
+
     *RetKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
