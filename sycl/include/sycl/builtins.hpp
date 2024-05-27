@@ -615,6 +615,9 @@ extern __DPCPP_SYCL_EXTERNAL unsigned int
 __imf_vimax3_u16x2(unsigned int x, unsigned int y, unsigned int z);
 extern __DPCPP_SYCL_EXTERNAL unsigned int
 __imf_vimax3_u32(unsigned int x, unsigned int y, unsigned int z);
+extern __DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vimax_s16x2_relu(unsigned int x, unsigned int y);
+extern __DPCPP_SYCL_EXTERNAL int __imf_vimax_s32_relu(int x, int y);
 }
 #ifdef __GLIBC__
 extern "C" {

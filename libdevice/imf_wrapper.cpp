@@ -1051,6 +1051,12 @@ unsigned int __devicelib_imf_vimax3_u32(unsigned int, unsigned int,
                                         unsigned int);
 
 DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimax_s16x2_relu(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vimax_s32_relu(int, int);
+
+DEVICE_EXTERN_C_INLINE
 unsigned int __imf_vabs2(unsigned int x) { return __devicelib_imf_vabs2(x); }
 
 DEVICE_EXTERN_C_INLINE
@@ -1595,6 +1601,16 @@ unsigned int __imf_vimax3_u16x2(unsigned int x, unsigned int y,
 DEVICE_EXTERN_C_INLINE
 unsigned int __imf_vimax3_u32(unsigned int x, unsigned int y, unsigned int z) {
   return __devicelib_imf_vimax3_u32(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimax_s16x2_relu(unsigned int x, unsigned int y) {
+  return __devicelib_imf_vimax_s16x2_relu(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_vimax_s32_relu(int x, int y) {
+  return __devicelib_imf_vimax_s32_relu(x, y);
 }
 
 // FP16 type cast functions
