@@ -194,15 +194,17 @@ as:
 - virtual member function *not* annotated with `indirectly_callable`
   compile-time property should *not* be emitted into device code;
 
-To achieve that, the front-end should implicitly add `sycl_device` attribtue to
+To achieve that, the front-end should implicitly add `sycl_device` attribute to
 each function which is marked with the `indirectly_callable` attribute. This
 can be done during handling of `[[__sycl_detail__::add_ir_attributes_function]]`
 attribute by checking if one of string literals passed in there as a property
 name is equal to "indirectly_callable". Later the `sycl_device` attribute can be
 used to decide if a virtual function should be emitted into device code.
 
-**TODO:** any extra diagnostics we would like to emit? Like kernel without
-`calls_indirectly` property performing virtual function call.
+When emitting virtual calls, front-end should emit an extra `virtual-call` LLVM
+IR attribute at every call site. This attribute will be used by a middle-end
+pass to check that there are no virtual function calls in kernels _not_ marked
+with the `calls_indirectly` property and emit a diagnostic about that.
 
 ### Changes to the compiler middle-end
 
@@ -298,7 +300,14 @@ which doesn't support all required optional features.
 
 #### New compiler diagnostics
 
-**TBD**
+A new pass should be added to analyze virtual calls and emit diagnostics if a
+kernel without the `calls_indirectly` property performs a virtual call and emit
+a diagnostic about that. `virtual-call` LLVM IR attribute we attach to such
+call instructions should help us with detecting those calls.
+
+The pass should be launched somewhere at the beginning of the optimization
+pipeline so that LLVM IR is as close to the input source file as possible for
+better diagnostics.
 
 #### Device code split and device images
 
