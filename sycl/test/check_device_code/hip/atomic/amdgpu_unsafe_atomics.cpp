@@ -4,21 +4,20 @@
 
 #include <sycl/sycl.hpp>
 
-int main() {
-  sycl::queue{}.single_task([=] {
-    int a;
-    sycl::atomic_ref<int, sycl::memory_order_relaxed, sycl::memory_scope_device>
-        atomicInt(a);
-    atomicInt.fetch_xor(1);
-    atomicInt.fetch_and(1);
-    atomicInt.fetch_or(1);
-    // CHECK: __CLANG_OFFLOAD_BUNDLE____START__ sycl-amdgcn-amd-amdhsa-
-    // CHECK-SAFE: cmpxchg volatile
-    // CHECK-SAFE-NOT: atomicrmw
-    // CHECK-UNSAFE: atomicrmw volatile xor
-    // CHECK-UNSAFE: atomicrmw volatile and
-    // CHECK-UNSAFE: atomicrmw volatile or
-    // CHECK-UNSAFE-NOT: cmpxchg
-    // CHECK: __CLANG_OFFLOAD_BUNDLE____END__ sycl-amdgcn-amd-amdhsa-
-  });
+
+SYCL_EXTERNAL amdgpu_unsafe_atomics() {
+  int a;
+  sycl::atomic_ref<int, sycl::memory_order_relaxed, sycl::memory_scope_device>
+      atomicInt(a);
+  atomicInt.fetch_xor(1);
+  atomicInt.fetch_and(1);
+  atomicInt.fetch_or(1);
+  // CHECK: __CLANG_OFFLOAD_BUNDLE____START__ sycl-amdgcn-amd-amdhsa-
+  // CHECK-SAFE: cmpxchg volatile
+  // CHECK-SAFE-NOT: atomicrmw
+  // CHECK-UNSAFE: atomicrmw volatile xor
+  // CHECK-UNSAFE: atomicrmw volatile and
+  // CHECK-UNSAFE: atomicrmw volatile or
+  // CHECK-UNSAFE-NOT: cmpxchg
+  // CHECK: __CLANG_OFFLOAD_BUNDLE____END__ sycl-amdgcn-amd-amdhsa-
 }
