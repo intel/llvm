@@ -94,24 +94,18 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/0x12CC/unified-runtime.git")
-  # commit ebf873fb5996c9ddca32bbb7c9330d3ffe15473c
-  # Merge: 633ec408 8f375039
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 905804c2e93dd046140057fd07a5d6191063bedc
+  # Merge: 0a11fb44 d3d3f6e5
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu May 2 10:56:55 2024 +0100
-  #    Merge pull request #1535 from przemektmalon/przemek/sampled-image-fetch
-  #    [Bindless][Exp] Add device queries for sampled image fetch
-  set(UNIFIED_RUNTIME_TAG d3d3f6e519e804d109117e99ce6d84d10dba9131)
+  # Date:   Mon May 27 10:34:13 2024 +0100
+  #     Merge pull request #1581 from 0x12CC/l0_cooperative_kernels
+  #     Implement L0 cooperative kernel functions
+  set(UNIFIED_RUNTIME_TAG 905804c2e93dd046140057fd07a5d6191063bedc)
 
   fetch_adapter_source(level_zero
-    "https://github.com/0x12CC/unified-runtime.git"
-    # commit fb342f06e1ac244c5995b7be458d0c32a1ba17ab
-    # Merge: a44e81b5 7186d6ce
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri May 3 11:55:26 2024 +0100
-    #     Merge pull request #1549 from igchor/event_fix
-    #     Fix adding event to queue cache
-    d3d3f6e519e804d109117e99ce6d84d10dba9131
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
