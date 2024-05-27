@@ -25,9 +25,6 @@ void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
   bool HostPtrReadOnly = false;
   BaseT::determineHostPtr(Context, InitFromUserData, HostPtr, HostPtrReadOnly);
 
-  assert(!(nullptr == HostPtr && BaseT::useHostPtr() && Context->is_host()) &&
-         "Internal error. Allocating memory on the host "
-         "while having use_host_ptr property");
   return MemoryManager::allocateMemBuffer(
       std::move(Context), this, HostPtr, HostPtrReadOnly,
       BaseT::getSizeInBytes(), BaseT::MInteropEvent, BaseT::MInteropContext,

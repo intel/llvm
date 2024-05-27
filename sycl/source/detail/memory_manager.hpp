@@ -85,10 +85,6 @@ public:
   static void releaseMemObj(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
                             void *MemAllocation, void *UserPtr);
 
-  static void *allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
-                                  bool HostPtrReadOnly, size_t Size,
-                                  const sycl::property_list &PropsList);
-
   static void *
   allocateInteropMemObject(ContextImplPtr TargetContext, void *UserPtr,
                            const EventImplPtr &InteropEvent,

@@ -283,12 +283,12 @@ void queue_impl::addEvent(const event &Event) {
     // if there is no command on the event, we cannot track it with MEventsWeak
     // as that will leave it with no owner. Track in MEventsShared only if we're
     // unable to call piQueueFinish during wait.
-    if (is_host() || MEmulateOOO)
+    if (Event->isHost() || MEmulateOOO)
       addSharedEvent(Event);
   }
   // As long as the queue supports piQueueFinish we only need to store events
   // for unenqueued commands and host tasks.
-  else if (is_host() || MEmulateOOO || EImpl->getHandleRef() == nullptr) {
+  else if (Event->isHost() || MEmulateOOO || EImpl->getHandleRef() == nullptr) {
     std::weak_ptr<event_impl> EventWeakPtr{EImpl};
     std::lock_guard<std::mutex> Lock{MMutex};
     MEventsWeak.push_back(std::move(EventWeakPtr));
@@ -299,7 +299,7 @@ void queue_impl::addEvent(const event &Event) {
 /// but some events have no other owner. In this case,
 /// addSharedEvent will have the queue track the events via a shared pointer.
 void queue_impl::addSharedEvent(const event &Event) {
-  assert(is_host() || MEmulateOOO);
+  assert(MEmulateOOO);
   std::lock_guard<std::mutex> Lock(MMutex);
   // Events stored in MEventsShared are not released anywhere else aside from
   // calls to queue::wait/wait_and_throw, which a user application might not
@@ -368,9 +368,6 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
       auto EventImpl = detail::getSyclObjImpl(ResEvent);
       MemOpFunc(MemOpArgs..., getPIEvents(ExpandedDepEvents),
                 &EventImpl->getHandleRef(), EventImpl);
-
-      if (MContext->is_host())
-        return MDiscardEvents ? createDiscardedEvent() : event();
 
       if (isInOrder()) {
         auto &EventToStoreIn = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
@@ -520,7 +517,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   // directly. Otherwise, only wait for unenqueued or host task events, starting
   // from the latest submitted task in order to minimize total amount of calls,
   // then handle the rest with piQueueFinish.
-  const bool SupportsPiFinish = !is_host() && !MEmulateOOO;
+  const bool SupportsPiFinish = !MEmulateOOO;
   for (auto EventImplWeakPtrIt = WeakEvents.rbegin();
        EventImplWeakPtrIt != WeakEvents.rend(); ++EventImplWeakPtrIt) {
     if (std::shared_ptr<event_impl> EventImplSharedPtr =

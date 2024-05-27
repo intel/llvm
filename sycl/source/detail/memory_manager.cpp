@@ -266,11 +266,6 @@ void MemoryManager::releaseMemObj(ContextImplPtr TargetContext,
     return;
   }
 
-  if (TargetContext->is_host()) {
-    MemObj->releaseHostMem(MemAllocation);
-    return;
-  }
-
   const PluginPtr &Plugin = TargetContext->getPlugin();
   memReleaseHelper(Plugin, pi::cast<sycl::detail::pi::PiMem>(MemAllocation));
 }
@@ -286,20 +281,6 @@ void *MemoryManager::allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
 
   return MemObj->allocateMem(TargetContext, InitFromUserData, HostPtr,
                              OutEvent);
-}
-
-void *MemoryManager::allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
-                                        bool HostPtrReadOnly, size_t Size,
-                                        const sycl::property_list &) {
-  std::ignore = HostPtrReadOnly;
-  std::ignore = Size;
-
-  // Can return user pointer directly if it is not a nullptr.
-  if (UserPtr)
-    return UserPtr;
-
-  return MemObj->allocateHostMem();
-  ;
 }
 
 void *MemoryManager::allocateInteropMemObject(
@@ -398,10 +379,7 @@ void *MemoryManager::allocateMemBuffer(
     const ContextImplPtr &InteropContext, const sycl::property_list &PropsList,
     sycl::detail::pi::PiEvent &OutEventToWait) {
   void *MemPtr;
-  if (TargetContext->is_host())
-    MemPtr =
-        allocateHostMemory(MemObj, UserPtr, HostPtrReadOnly, Size, PropsList);
-  else if (UserPtr && InteropContext)
+  if (UserPtr && InteropContext)
     MemPtr =
         allocateInteropMemObject(TargetContext, UserPtr, InteropEvent,
                                  InteropContext, PropsList, OutEventToWait);
@@ -420,9 +398,6 @@ void *MemoryManager::allocateMemImage(
     const EventImplPtr &InteropEvent, const ContextImplPtr &InteropContext,
     const sycl::property_list &PropsList,
     sycl::detail::pi::PiEvent &OutEventToWait) {
-  if (TargetContext->is_host())
-    return allocateHostMemory(MemObj, UserPtr, HostPtrReadOnly, Size,
-                              PropsList);
   if (UserPtr && InteropContext)
     return allocateInteropMemObject(TargetContext, UserPtr, InteropEvent,
                                     InteropContext, PropsList, OutEventToWait);

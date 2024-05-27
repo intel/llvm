@@ -33,12 +33,6 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
       MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
       MSharedPtrStorage(nullptr), MHostPtrProvided(true),
       MOwnNativeHandle(OwnNativeHandle) {
-  if (MInteropContext->is_host())
-    throw sycl::invalid_parameter_error(
-        "Creation of interoperability memory object using host context is "
-        "not allowed",
-        PI_ERROR_INVALID_CONTEXT);
-
   sycl::detail::pi::PiContext Context = nullptr;
   const PluginPtr &Plugin = getPlugin();
 
@@ -84,12 +78,6 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
       MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
       MSharedPtrStorage(nullptr), MHostPtrProvided(true),
       MOwnNativeHandle(OwnNativeHandle) {
-  if (MInteropContext->is_host())
-    throw sycl::invalid_parameter_error(
-        "Creation of interoperability memory object using host context is "
-        "not allowed",
-        PI_ERROR_INVALID_CONTEXT);
-
   sycl::detail::pi::PiContext Context = nullptr;
   const PluginPtr &Plugin = getPlugin();
 
@@ -191,19 +179,12 @@ void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
   // The data for the allocation can be provided via either the user pointer
   // (InitFromUserData, can be read-only) or a runtime-allocated read-write
   // HostPtr. We can have one of these scenarios:
-  // 1. The allocation is the first one and on host. InitFromUserData == true.
-  // 2. The allocation is the first one and isn't on host. InitFromUserData
+  // 1. The allocation is the first one and isn't on host. InitFromUserData
   // varies based on unified host memory support and whether or not the data can
   // be discarded.
-  // 3. The allocation is not the first one and is on host. InitFromUserData ==
-  // false, HostPtr == nullptr. This can only happen if the allocation command
-  // is not linked since it would be a no-op otherwise. Attempt to reuse the
-  // user pointer if it's read-write, but do not copy its contents if it's not.
-  // 4. The allocation is not the first one and not on host. InitFromUserData ==
+  // 2. The allocation is not the first one and not on host. InitFromUserData ==
   // false, HostPtr is provided if the command is linked. The host pointer is
   // guaranteed to be reused in this case.
-  if (Context->is_host() && !MOpenCLInterop && !MHostPtrReadOnly)
-    InitFromUserData = true;
 
   if (InitFromUserData) {
     assert(!HostPtr && "Cannot init from user data and reuse host ptr provided "
