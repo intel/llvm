@@ -32,7 +32,7 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
     if (dev.has(aspect::usm_shared_allocations)) {
       return aligned_alloc_shared(align, N, args...);
     }
-    return (void *)nullptr;
+    return nullptr;
   };
   auto AAnnotated = [&](size_t align, auto... args) {
     return aligned_alloc(align, N, args...);
