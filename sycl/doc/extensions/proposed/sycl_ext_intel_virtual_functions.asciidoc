@@ -662,3 +662,11 @@ By implementing some extra interfaces at SPIR-V and SYCL level we should be able
 to improve the situation and lift some of the limitations around
 `reqd_sub_group_size` attribute use together with virtual functions, but this
 won't be a part of the initial language specification and implementation.
+
+=== Interaction with specialization constants
+
+Implementation of specialization constants may involve re-compilation and
+therefore can easily break virtual functions functionality. Current extension
+spec wording is to _discourage_ use of specialization constants together with
+virtual functions, but not to completely prohibit. Should we be more clear here
+maybe with the wording and make it stricter or more precise/formal?
