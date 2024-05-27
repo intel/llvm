@@ -160,10 +160,9 @@ void checkExceptions() {
     sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ sycl::range<2>{2, 0},
                                  /*size*/ sycl::range<2>{2, 2}};
   } catch (const sycl::exception &e) {
-    if (e.code() == sycl::errc::invalid) {
-      std::cerr << e.what() << std::endl;
-      caughtException = true;
-    }
+    assert(e.code() == sycl::errc::invalid);
+    std::cerr << e.what() << std::endl;
+    caughtException = true;
   }
   assert(caughtException && "non contiguous region exception wasn't caught");
 
@@ -172,10 +171,9 @@ void checkExceptions() {
     sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ sycl::range<2>{2, 2},
                                  /*size*/ sycl::range<2>{2, 6}};
   } catch (const sycl::exception &e) {
-    if (e.code() == sycl::errc::invalid) {
-      std::cerr << e.what() << std::endl;
-      caughtException = true;
-    }
+    assert(e.code() == sycl::errc::invalid);
+    std::cerr << e.what() << std::endl;
+    caughtException = true;
   }
   assert(caughtException && "non contiguous region exception wasn't caught");
 
@@ -185,10 +183,9 @@ void checkExceptions() {
                                  /*offset*/ sycl::range<3>{0, 2, 1},
                                  /*size*/ sycl::range<3>{1, 2, 3}};
   } catch (const sycl::exception &e) {
-    if (e.code() == sycl::errc::invalid) {
-      std::cerr << e.what() << std::endl;
-      caughtException = true;
-    }
+    assert(e.code() == sycl::errc::invalid);
+    std::cerr << e.what() << std::endl;
+    caughtException = true;
   }
   assert(caughtException && "non contiguous region exception wasn't caught");
 
@@ -198,10 +195,9 @@ void checkExceptions() {
                                  /*offset*/ sycl::range<3>{0, 0, 0},
                                  /*size*/ sycl::range<3>{2, 3, 4}};
   } catch (const sycl::exception &e) {
-    if (e.code() == sycl::errc::invalid) {
-      std::cerr << e.what() << std::endl;
-      caughtException = true;
-    }
+    assert(e.code() == sycl::errc::invalid);
+    std::cerr << e.what() << std::endl;
+    caughtException = true;
   }
   assert(caughtException && "non contiguous region exception wasn't caught");
 
@@ -211,10 +207,9 @@ void checkExceptions() {
     sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ sycl::range<2>{2, 2},
                                  /*size*/ sycl::range<2>{2, 8}};
   } catch (const sycl::exception &e) {
-    if (e.code() == sycl::errc::invalid) {
-      std::cerr << e.what() << std::endl;
-      caughtException = true;
-    }
+    assert(e.code() == sycl::errc::invalid);
+    std::cerr << e.what() << std::endl;
+    caughtException = true;
   }
   assert(caughtException && "out of bounds exception wasn't caught");
 
@@ -224,10 +219,9 @@ void checkExceptions() {
                                  /*offset*/ sycl::range<3>{1, 1, 1},
                                  /*size*/ sycl::range<3>{1, 1, 4}};
   } catch (const sycl::exception &e) {
-    if (e.code() == sycl::errc::invalid) {
-      std::cerr << e.what() << std::endl;
-      caughtException = true;
-    }
+    assert(e.code() == sycl::errc::invalid);
+    std::cerr << e.what() << std::endl;
+    caughtException = true;
   }
   assert(caughtException && "out of bounds exception wasn't caught");
 
@@ -237,10 +231,9 @@ void checkExceptions() {
                                  /*offset*/ sycl::range<3>{3, 3, 0},
                                  /*size*/ sycl::range<3>{1, 2, 4}};
   } catch (const sycl::exception &e) {
-    if (e.code() == sycl::errc::invalid) {
-      std::cerr << e.what() << std::endl;
-      caughtException = true;
-    }
+    assert(e.code() == sycl::errc::invalid);
+    std::cerr << e.what() << std::endl;
+    caughtException = true;
   }
   assert(caughtException && "out of bounds exception wasn't caught");
 
@@ -252,10 +245,9 @@ void checkExceptions() {
     sycl::buffer<int, 2> sub_sub_buf(sub_buf, sycl::range<2>{0, 0},
                                      /*size*/ sycl::range<2>{0, 0});
   } catch (const sycl::exception &e) {
-    if (e.code() == sycl::errc::invalid) {
-      std::cerr << e.what() << std::endl;
-      caughtException = true;
-    }
+    assert(e.code() == sycl::errc::invalid);
+    std::cerr << e.what() << std::endl;
+    caughtException = true;
   }
   assert(caughtException && "invalid subbuffer exception wasn't caught");
 }
