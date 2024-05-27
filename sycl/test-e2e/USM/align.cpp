@@ -1,8 +1,11 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// E2E tests for annotated USM allocation functions with alignment arguments
-// that are not powers of 2.
+// E2E tests for aligned USM allocation functions with different alignment
+// arguments. Depending on the backend the alignment may or may not be supported
+// but either way, according to the SYCL spec, we should see a nullptr if it is
+// not supported or we should verify that the pointer returned is indeed
+// aligned if it is supported.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
@@ -23,75 +26,46 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
   assert(align > 0 || (align & (align - 1)) == 0);
 
   auto ADevice = [&](size_t align, auto... args) {
-    return aligned_alloc_device(align, N, args...);
+    auto ptr = aligned_alloc_device(align, N, args...);
+    assert(!ptr || !(reinterpret_cast<std::uintptr_t>(ptr) % align));
+    return 0;
   };
   auto AHost = [&](size_t align, auto... args) {
-    return aligned_alloc_host(align, N, args...);
+    auto ptr = aligned_alloc_host(align, N, args...);
+    assert(!ptr || !(reinterpret_cast<std::uintptr_t>(ptr) % align));
+    return 0;
   };
   auto AShared = [&](size_t align, auto... args) {
+    void *ptr = nullptr;
     if (dev.has(aspect::usm_shared_allocations)) {
-      return aligned_alloc_shared(align, N, args...);
+      ptr = aligned_alloc_shared(align, N, args...);
     }
-    return (void *)nullptr;
+    assert(!ptr || !(reinterpret_cast<std::uintptr_t>(ptr) % align));
+    return 0;
   };
   auto AAnnotated = [&](size_t align, auto... args) {
-    return aligned_alloc(align, N, args...);
+    auto ptr = aligned_alloc(align, N, args...);
+    assert(!ptr || !(reinterpret_cast<std::uintptr_t>(ptr) % align));
+    return 0;
   };
 
-  auto ATDevice = [&](size_t align, auto... args) {
-    return aligned_alloc_device<T>(align, N, args...);
-  };
-  auto ATHost = [&](size_t align, auto... args) {
-    return aligned_alloc_host<T>(align, N, args...);
-  };
-  auto ATShared = [&](size_t align, auto... args) {
-    if (dev.has(aspect::usm_shared_allocations)) {
-      return aligned_alloc_shared<T>(align, N, args...);
-    }
-    return (T *)nullptr;
-  };
-  auto ATAnnotated = [&](size_t align, auto... args) {
-    return aligned_alloc<T>(align, N, args...);
+  auto CheckNullOrAlignedAll = [&](auto Funcs) {
+    std::apply([&](auto... Fs) { (void)std::initializer_list<int>{Fs()...}; },
+               Funcs);
   };
 
-  // Test cases that are expected to return null
-  auto check_null = [&q](auto AllocFn, int Line, int Case) {
-    decltype(AllocFn()) Ptr = AllocFn();
-    if (Ptr != nullptr) {
-      free(Ptr, q);
-      std::cout << "Failed at line " << Line << ", case " << Case << std::endl;
-      assert(false && "The return is not null!");
-    }
-  };
-
-  auto CheckNullAll = [&](auto Funcs, int Line = __builtin_LINE()) {
-    std::apply(
-        [&](auto... Fs) {
-          int Case = 0;
-          (void)std::initializer_list<int>{
-              (check_null(Fs, Line, Case++), 0)...};
-        },
-        Funcs);
-  };
-
-  CheckNullAll(std::tuple{
-      // Case: aligned_alloc_xxx with no alignment property, and the alignment
-      // argument is not a power of 2, the result is nullptr
+  CheckNullOrAlignedAll(std::tuple{
       [&]() { return ADevice(3, q); }, [&]() { return ADevice(5, dev, Ctx); },
       [&]() { return AHost(7, q); }, [&]() { return AHost(9, Ctx); },
       [&]() { return AShared(114, q); },
       [&]() { return AShared(1023, dev, Ctx); },
       [&]() { return AAnnotated(15, q, alloc::device); },
-      [&]() { return AAnnotated(17, dev, Ctx, alloc::host); }
-      // Case: aligned_alloc_xxx<T> with no alignment property, and the
-      // alignment argument is not a power of 2, the result is nullptr
-      ,
-      [&]() { return ATDevice(3, q); }, [&]() { return ATDevice(5, dev, Ctx); },
-      [&]() { return ATHost(7, q); }, [&]() { return ATHost(9, Ctx); },
-      [&]() { return ATShared(1919, q); },
-      [&]() { return ATShared(11, dev, Ctx); },
-      [&]() { return ATAnnotated(15, q, alloc::device); },
-      [&]() { return ATAnnotated(17, dev, Ctx, alloc::host); }});
+      [&]() { return AAnnotated(17, dev, Ctx, alloc::host); },
+      [&]() { return ADevice(1 << 10, q); },
+      [&]() { return AHost(1 << 12, q); },
+      [&]() { return AShared(1 << 13, q); },
+      [&]() { return ADevice(1 << 16, q); },
+      [&]() { return ADevice(1 << 20, q); }});
 }
 
 int main() {
