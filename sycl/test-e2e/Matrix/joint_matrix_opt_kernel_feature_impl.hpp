@@ -22,14 +22,19 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
   buffer<T1, 2> bufC(C.get_data(), range<2>(M, N));
 
   queue q;
+  size_t sg_size = get_sg_size<class imatrix>(q);
   q.submit([&](handler &cgh) {
      sycl::accessor accC{bufC, cgh, sycl::read_write};
      sycl::accessor accA{bufA, cgh, sycl::read_only};
      sycl::accessor accB{bufB, cgh, sycl::read_only};
 
-     cgh.parallel_for(
-         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]] {
+     cgh.parallel_for<class imatrix>(
+         nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
+         [=](nd_item<2> spmd_item)
+#ifdef SG_SZ
+             [[intel::reqd_sub_group_size(SG_SZ)]]
+#endif
+         {
            const auto global_idx = spmd_item.get_global_id(0);
            const auto global_idy = spmd_item.get_global_id(1);
            const auto sg_startx = global_idx - spmd_item.get_local_id(0);
@@ -44,7 +49,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
            joint_matrix_load(
                sg, sub_c,
                accC.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+                   (sg_startx * TM) * N + sg_starty / sg_size * TN,
                N, layout::row_major);
            for (int k = 0; k < K / TK; k += 1) {
              joint_matrix_load(
@@ -56,7 +61,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
                  sg, sub_b,
                  accB.template get_multi_ptr<access::decorated::no>() +
                      (k * TK / vnniFactor) * (N * vnniFactor) +
-                     sg_starty / SG_SZ * TN * vnniFactor,
+                     sg_starty / sg_size * TN * vnniFactor,
                  N * vnniFactor);
              joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
@@ -95,8 +100,9 @@ int main() {
     init_and_multiply<bfloat16, float, 2, 1, 500,
                       16>(); // 500 is not correct size
   } catch (const sycl::exception &e) {
-    if (e.code() == errc::kernel_not_supported)
+    if (e.code() == errc::invalid)
       return 0;
+    throw;
   }
 
   return 1;

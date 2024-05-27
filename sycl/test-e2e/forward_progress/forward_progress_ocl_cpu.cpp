@@ -2,7 +2,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 #include <cassert>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
 using namespace sycl::ext::oneapi::experimental;
 
 std::vector<forward_progress_guarantee> ref1 = {
