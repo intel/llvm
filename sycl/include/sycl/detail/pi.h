@@ -227,7 +227,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <optional>
 #include <variant>
 
 #ifdef __cplusplus
@@ -3011,34 +3010,43 @@ piextDestroyExternalSemaphore(pi_context context, pi_device device,
 ///
 /// \param command_queue is the queue instructed to wait
 /// \param sem_handle is the interop semaphore handle
+/// \param has_wait_value indicates whether the semaphore is capable of setting
+///                       user defined state passed through `wait_value`.
+///                       Otherwise `wait_value` is ignored.
 /// \param wait_value is the user defined value of the semaphore state for
 ///                   which this operation will wait upon, provided the
-///                   semaphore type has this capability
+///                   semaphore type has this capability, and
+///                   `has_wait_value` is `true`.
 /// \param num_events_in_wait_list is the number of events in the wait list
 /// \param event_wait_list is the list of events to wait on before this
 /// operation
 /// \param event is the returned event representing this operation
 __SYCL_EXPORT pi_result piextWaitExternalSemaphore(
     pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
-    std::optional<uint64_t> wait_value, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event);
+    bool has_wait_value, pi_uint64 wait_value,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event);
 
 /// API to instruct the queue to signal the external semaphore handle once all
 /// previous commands have completed execution.
 ///
 /// \param command_queue is the queue instructed to signal
 /// \param sem_handle is the interop semaphore handle to signal
+/// \param has_signal_value indicates whether the semaphore is capable of
+///                         setting user defined state passed through
+///                         `signal_value`. Otherwise `signal_value` is ignored.
 /// \param signal_value is the user defined value to which the state of the
 ///                     semaphore will be set, provided the semaphore type has
-///                     this capability
+///                     this capability, and `has_signal_value` is `true`.
 /// \param num_events_in_wait_list is the number of events in the wait list
 /// \param event_wait_list is the list of events to wait on before this
 /// operation
 /// \param event is the returned event representing this operation
 __SYCL_EXPORT pi_result piextSignalExternalSemaphore(
     pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
-    std::optional<uint64_t> signal_value, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event);
+    bool has_signal_value, pi_uint64 signal_value,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event);
 
 typedef enum {
   _PI_SANITIZE_TYPE_NONE = 0x0,

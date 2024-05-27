@@ -3250,9 +3250,11 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     }
 
     const detail::PluginPtr &Plugin = MQueue->getPlugin();
+    auto OptWaitValue = SemWait->getWaitValue();
+    uint64_t WaitValue = OptWaitValue.has_value() ? OptWaitValue.value() : 0;
     Plugin->call<PiApiKind::piextWaitExternalSemaphore>(
         MQueue->getHandleRef(), SemWait->getInteropSemaphoreHandle(),
-        SemWait->getWaitValue(), 0, nullptr, nullptr);
+        OptWaitValue.has_value(), WaitValue, 0, nullptr, nullptr);
 
     return PI_SUCCESS;
   }
@@ -3264,9 +3266,12 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     }
 
     const detail::PluginPtr &Plugin = MQueue->getPlugin();
+    auto OptSignalValue = SemSignal->getSignalValue();
+    uint64_t SignalValue =
+        OptSignalValue.has_value() ? OptSignalValue.value() : 0;
     Plugin->call<PiApiKind::piextSignalExternalSemaphore>(
         MQueue->getHandleRef(), SemSignal->getInteropSemaphoreHandle(),
-        SemSignal->getSignalValue(), 0, nullptr, nullptr);
+        OptSignalValue.has_value(), SignalValue, 0, nullptr, nullptr);
 
     return PI_SUCCESS;
   }

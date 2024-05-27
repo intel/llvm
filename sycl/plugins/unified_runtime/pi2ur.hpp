@@ -5584,8 +5584,8 @@ piextDestroyExternalSemaphore(pi_context Context, pi_device Device,
 }
 
 inline pi_result piextWaitExternalSemaphore(
-    pi_queue Queue, pi_interop_semaphore_handle SemHandle,
-    std::optional<uint64_t> WaitValue, pi_uint32 NumEventsInWaitList,
+    pi_queue Queue, pi_interop_semaphore_handle SemHandle, bool HasWaitValue,
+    pi_uint64 WaitValue, pi_uint32 NumEventsInWaitList,
     const pi_event *EventWaitList, pi_event *Event) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
@@ -5596,18 +5596,16 @@ inline pi_result piextWaitExternalSemaphore(
       reinterpret_cast<const ur_event_handle_t *>(EventWaitList);
   ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(Event);
 
-  uint64_t passedWaitValue = WaitValue.has_value() ? WaitValue.value() : 0;
-
   HANDLE_ERRORS(urBindlessImagesWaitExternalSemaphoreExp(
-      UrQueue, UrSemHandle, WaitValue.has_value(), passedWaitValue,
-      NumEventsInWaitList, UrEventWaitList, UREvent));
+      UrQueue, UrSemHandle, HasWaitValue, WaitValue, NumEventsInWaitList,
+      UrEventWaitList, UREvent));
 
   return PI_SUCCESS;
 }
 
 inline pi_result piextSignalExternalSemaphore(
-    pi_queue Queue, pi_interop_semaphore_handle SemHandle,
-    std::optional<uint64_t> SignalValue, pi_uint32 NumEventsInWaitList,
+    pi_queue Queue, pi_interop_semaphore_handle SemHandle, bool HasSignalValue,
+    pi_uint64 SignalValue, pi_uint32 NumEventsInWaitList,
     const pi_event *EventWaitList, pi_event *Event) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
@@ -5618,12 +5616,9 @@ inline pi_result piextSignalExternalSemaphore(
       reinterpret_cast<const ur_event_handle_t *>(EventWaitList);
   ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(Event);
 
-  uint64_t passedSignalValue =
-      SignalValue.has_value() ? SignalValue.value() : 0;
-
   HANDLE_ERRORS(urBindlessImagesSignalExternalSemaphoreExp(
-      UrQueue, UrSemHandle, SignalValue.has_value(), passedSignalValue,
-      NumEventsInWaitList, UrEventWaitList, UREvent));
+      UrQueue, UrSemHandle, HasSignalValue, SignalValue, NumEventsInWaitList,
+      UrEventWaitList, UREvent));
 
   return PI_SUCCESS;
 }
