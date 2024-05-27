@@ -14476,7 +14476,7 @@ _CLC_OVERLOAD _CLC_DECL __clc_vec16_fp16_t
 __spirv_ocl_fract(__clc_vec16_fp16_t, __clc_vec16_fp16_t __global *);
 #endif
 
-#if _CLC_GENERIC_AS_SUPPORTED
+#if _CLC_DISTINCT_GENERIC_AS_SUPPORTED
 _CLC_OVERLOAD _CLC_DECL __clc_fp32_t
 __spirv_ocl_fract(__clc_fp32_t, __clc_fp32_t __generic *);
 
@@ -14637,7 +14637,7 @@ _CLC_OVERLOAD _CLC_DECL __clc_vec16_fp16_t
 __spirv_ocl_frexp(__clc_vec16_fp16_t, __clc_vec16_int32_t __global *);
 #endif
 
-#if _CLC_GENERIC_AS_SUPPORTED
+#if _CLC_DISTINCT_GENERIC_AS_SUPPORTED
 _CLC_OVERLOAD _CLC_DECL __clc_fp32_t
 __spirv_ocl_frexp(__clc_fp32_t, __clc_int32_t __generic *);
 _CLC_OVERLOAD _CLC_DECL __clc_vec2_fp32_t
@@ -15218,7 +15218,7 @@ _CLC_OVERLOAD _CLC_DECL __clc_vec16_fp16_t
 __spirv_ocl_lgamma_r(__clc_vec16_fp16_t, __clc_vec16_int32_t __global *);
 #endif
 
-#if _CLC_GENERIC_AS_SUPPORTED
+#if _CLC_DISTINCT_GENERIC_AS_SUPPORTED
 _CLC_OVERLOAD _CLC_DECL __clc_fp32_t
 __spirv_ocl_lgamma_r(__clc_fp32_t, __clc_int32_t __generic *);
 _CLC_OVERLOAD _CLC_DECL __clc_vec2_fp32_t
@@ -15767,7 +15767,7 @@ _CLC_OVERLOAD _CLC_DECL __clc_vec16_fp16_t
 __spirv_ocl_modf(__clc_vec16_fp16_t, __clc_vec16_fp16_t __global *);
 #endif
 
-#if _CLC_GENERIC_AS_SUPPORTED
+#if _CLC_DISTINCT_GENERIC_AS_SUPPORTED
 _CLC_OVERLOAD _CLC_DECL __clc_fp32_t __spirv_ocl_modf(__clc_fp32_t,
                                                       __clc_fp32_t __generic *);
 _CLC_OVERLOAD _CLC_DECL __clc_vec2_fp32_t
@@ -16752,7 +16752,7 @@ _CLC_OVERLOAD _CLC_DECL __clc_vec16_fp16_t __spirv_ocl_remquo(
     __clc_vec16_fp16_t, __clc_vec16_fp16_t, __clc_vec16_int32_t __global *);
 #endif
 
-#if _CLC_GENERIC_AS_SUPPORTED
+#if _CLC_DISTINCT_GENERIC_AS_SUPPORTED
 _CLC_OVERLOAD _CLC_DECL __clc_fp32_t
 __spirv_ocl_remquo(__clc_fp32_t, __clc_fp32_t, __clc_int32_t __generic *);
 _CLC_OVERLOAD _CLC_DECL __clc_vec2_fp32_t __spirv_ocl_remquo(
@@ -19016,7 +19016,7 @@ _CLC_OVERLOAD _CLC_DECL __clc_vec16_fp16_t
 __spirv_ocl_sincos(__clc_vec16_fp16_t, __clc_vec16_fp16_t __global *);
 #endif
 
-#if _CLC_GENERIC_AS_SUPPORTED
+#if _CLC_DISTINCT_GENERIC_AS_SUPPORTED
 _CLC_OVERLOAD _CLC_DECL __clc_fp32_t
 __spirv_ocl_sincos(__clc_fp32_t, __clc_fp32_t __generic *);
 _CLC_OVERLOAD _CLC_DECL __clc_vec2_fp32_t

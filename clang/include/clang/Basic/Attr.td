@@ -1769,6 +1769,30 @@ class SYCLAddIRAttrMemberCodeHolder<code Code> {
 // Common class for SYCL add_ir_attributes_* attributes.
 def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
   static std::optional<std::string>
+  getValidAttributeNameAsString(const APValue &Value,
+                                 const ASTContext &Context,
+                                 QualType ValueQType) {
+    assert(!Value.isLValue());
+    if (ValueQType->isCharType()) {
+      char C = static_cast<char>(Value.getInt().getExtValue());
+      return std::string(&C, 1);
+    }
+    if (ValueQType->isArrayType() &&
+        (ValueQType->getArrayElementTypeNoTypeQual()->isCharType())) {
+      SmallString<10> StrBuffer;
+      for (unsigned I = 0; I < Value.getArrayInitializedElts(); ++I) {
+        const APValue &ArrayElem = Value.getArrayInitializedElt(I);
+        char C = static_cast<char>(ArrayElem.getInt().getExtValue());
+        if (C == '\0')
+          break;
+        StrBuffer += C;
+      }
+      return std::string(StrBuffer);
+    }
+    return std::nullopt;
+  }
+
+  static std::optional<std::string>
   getValidAttributeNameAsString(const Expr *NameE, const ASTContext &Context) {
     if (const auto *NameLiteral = dyn_cast<StringLiteral>(NameE))
       return NameLiteral->getString().str();
@@ -1782,7 +1806,8 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
       NameLValue = NameCE->getAPValueResult();
 
     if (!NameLValue.isLValue())
-      return std::nullopt;
+      return getValidAttributeNameAsString(NameLValue, Context,
+                                            NameCE->getType());
 
     if (const auto *NameValExpr =
             NameLValue.getLValueBase().dyn_cast<const Expr *>())
@@ -1816,10 +1841,10 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
          ValueQType->getArrayElementTypeNoTypeQual()
                    ->isIntegralOrEnumerationType())) {
       SmallString<10> StrBuffer;
-      for (unsigned I = 0; I < Value.getArraySize(); ++I) {
+      for (unsigned I = 0; I < Value.getArrayInitializedElts(); ++I) {
         const APValue &ArrayElem = Value.getArrayInitializedElt(I);
         char C = static_cast<char>(ArrayElem.getInt().getExtValue());
-        if (C == 0)
+        if (C == '\0')
           break;
         StrBuffer += C;
       }
@@ -1859,7 +1884,7 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
       SmallString<10> StrBuffer;
       for (const auto *InitE : InitListE->inits()) {
         const Expr *InitNoImpCastE = InitE->IgnoreParenImpCasts();
-        char C = 0;
+        char C = '\0';
         if (const auto *CharacterVal =
               dyn_cast<CharacterLiteral>(InitNoImpCastE))
           C = static_cast<char>(CharacterVal->getValue());
@@ -1870,7 +1895,7 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
           return std::nullopt;
 
         // Null terminator will end the string reading.
-        if (C == 0)
+        if (C == '\0')
           break;
 
         StrBuffer += C;

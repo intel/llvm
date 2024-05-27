@@ -163,7 +163,7 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
   if (as == ADDRESS_SPACE_GLOBAL) { // global
     uptr shadow_ptr;
     if (addr & 0xFF00000000000000) { // Device USM
-      shadow_ptr = __AsanShadowMemoryGlobalStart + 0x200000000000 +
+      shadow_ptr = __AsanShadowMemoryGlobalStart + 0x80000000000 +
                    ((addr & 0xFFFFFFFFFFFF) >> ASAN_SHADOW_SCALE);
     } else { // Only consider 47bit VA
       shadow_ptr = __AsanShadowMemoryGlobalStart +

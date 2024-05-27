@@ -6,7 +6,8 @@
 // RUN: %{run} %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 class kernel_sampled_fetch;
 

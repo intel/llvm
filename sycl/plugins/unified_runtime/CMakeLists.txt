@@ -99,7 +99,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit e428745588dd87e5db3c0bc0df1183eb7d0811a5
+    # Merge: fb3cbd16 80d46bb1
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Fri May 24 10:31:13 2024 +0100
+    #     Merge pull request #1656 from pbalcer/leaks-program-kernel
+    #     fix leaks on level-zero interop program and kernel handles
+    e428745588dd87e5db3c0bc0df1183eb7d0811a5
   )
 
   fetch_adapter_source(opencl
