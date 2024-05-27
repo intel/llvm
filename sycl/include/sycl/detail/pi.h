@@ -174,9 +174,10 @@
 //         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D
 // 15.51 Removed ret_mem argument from piextMemUnsampledImageCreate and
 // piextMemSampledImageCreate
+// 15.52 Added mappings to UR launch properties extension.
 
 #define _PI_H_VERSION_MAJOR 15
-#define _PI_H_VERSION_MINOR 51
+#define _PI_H_VERSION_MINOR 52
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -1213,8 +1214,31 @@ typedef enum {
           ///< P2P link, otherwise such operations are not supported.
 } _pi_peer_attr;
 
+typedef enum {
+  PI_LAUNCH_PROPERTY_IGNORE =
+      0x0,
+  PI_LAUNCH_PROPERTY_COOPERATIVE =
+      0x1,
+  PI_LAUNCH_PROPERTY_CLUSTER_DIMENSION =
+      0x2,
+} _pi_launch_property_id;
+
+typedef union {
+  int cooperative;
+  int32_t cluster_dims[3];
+} _pi_launch_property_value;
+
 using pi_mem_info = _pi_mem_info;
 using pi_peer_attr = _pi_peer_attr;
+using pi_launch_property_id = _pi_launch_property_id;
+using pi_launch_property_value = _pi_launch_property_value;
+
+typedef struct {
+  pi_launch_property_id id;
+  pi_launch_property_value value;
+} _pi_launch_property;
+
+using pi_launch_property = _pi_launch_property;
 
 //
 // Following section contains SYCL RT Plugin Interface (PI) functions.
@@ -1824,6 +1848,15 @@ __SYCL_EXPORT pi_result piextEnqueueCooperativeKernelLaunch(
     const size_t *global_work_offset, const size_t *global_work_size,
     const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event);
+
+
+__SYCL_EXPORT pi_result piextEnqueueKernelLaunchCustom(
+    pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,
+    const size_t *global_work_size, const size_t *local_work_size,
+    pi_uint32 num_props_in_launch_prop_list,
+    const pi_launch_property *launch_prop_list,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event);
 
 __SYCL_EXPORT pi_result piEnqueueEventsWait(pi_queue command_queue,
                                             pi_uint32 num_events_in_wait_list,
