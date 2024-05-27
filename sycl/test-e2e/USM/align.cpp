@@ -61,6 +61,8 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
       [&]() { return AShared(1023, dev, Ctx); },
       [&]() { return AAnnotated(15, q, alloc::device); },
       [&]() { return AAnnotated(17, dev, Ctx, alloc::host); },
+      [&]() { return ADevice(1 << 0, q); },
+      [&]() { return AShared(1 << 1, q); },
       [&]() { return ADevice(1 << 10, q); },
       [&]() { return AHost(1 << 12, q); },
       [&]() { return AShared(1 << 13, q); },
