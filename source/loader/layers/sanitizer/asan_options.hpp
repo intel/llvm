@@ -16,7 +16,9 @@
 #include "ur/ur.hpp"
 #include "ur_sanitizer_layer.hpp"
 
-#include <cstdint>
+#include <algorithm>
+#include <cstring>
+#include <stdexcept>
 
 namespace ur_sanitizer_layer {
 
@@ -30,9 +32,7 @@ struct AsanOptions {
         return instance;
     }
 
-    // We use "uint64_t" here because EnqueueWriteGlobal will fail when it's "uint32_t"
-    uint64_t Debug = 0;
-
+    bool Debug = false;
     uint64_t MinRZSize = 16;
     uint64_t MaxRZSize = 2048;
     uint32_t MaxQuarantineSizeMB = 0;
@@ -45,27 +45,67 @@ struct AsanOptions {
             return;
         }
 
-        auto KV = OptionsEnvMap->find("debug");
-        if (KV != OptionsEnvMap->end()) {
-            auto Value = KV->second.front();
-            Debug = Value == "1" || Value == "true" ? 1 : 0;
-        }
+        const char *TrueStrings[] = {"1", "true"};
+        const char *FalseStrings[] = {"0", "false"};
 
-        KV = OptionsEnvMap->find("quarantine_size_mb");
+        auto InplaceToLower = [](std::string &S) {
+            std::transform(S.begin(), S.end(), S.begin(),
+                           [](unsigned char C) { return std::tolower(C); });
+        };
+        auto IsTrue = [&](const std::string &S) {
+            return std::any_of(std::begin(TrueStrings), std::end(TrueStrings),
+                               [&](const char *CS) { return S == CS; });
+        };
+        auto IsFalse = [&](const std::string &S) {
+            return std::any_of(std::begin(FalseStrings), std::end(FalseStrings),
+                               [&](const char *CS) { return S == CS; });
+        };
+
+        auto SetBoolOption = [&](const std::string &Name, bool &Opt) {
+            auto KV = OptionsEnvMap->find(Name);
+            if (KV != OptionsEnvMap->end()) {
+                auto Value = KV->second.front();
+                InplaceToLower(Value);
+                if (IsTrue(Value)) {
+                    Opt = true;
+                } else if (IsFalse(Value)) {
+                    Opt = false;
+                } else {
+                    std::stringstream SS;
+                    SS << "<SANITIZER>[ERROR]: \"" << Name << "\" is set to \""
+                       << Value << "\", which is not an valid setting. ";
+                    SS << "Acceptable input are: for enable, use:";
+                    for (auto &S : TrueStrings) {
+                        SS << " \"" << S << "\"";
+                    }
+                    SS << "; ";
+                    SS << "for disable, use:";
+                    for (auto &S : FalseStrings) {
+                        SS << " \"" << S << "\"";
+                    }
+                    SS << ".";
+                    die(SS.str().c_str());
+                }
+            }
+        };
+
+        SetBoolOption("debug", Debug);
+        SetBoolOption("detect_locals", DetectLocals);
+
+        auto KV = OptionsEnvMap->find("quarantine_size_mb");
         if (KV != OptionsEnvMap->end()) {
             auto Value = KV->second.front();
             try {
-                MaxQuarantineSizeMB = std::stoul(Value);
+                auto temp_long = std::stoul(Value);
+                if (temp_long > UINT32_MAX) {
+                    throw std::out_of_range("");
+                }
+                MaxQuarantineSizeMB = temp_long;
             } catch (...) {
                 die("<SANITIZER>[ERROR]: \"quarantine_size_mb\" should be "
-                    "an integer");
+                    "an positive integer that smaller than or equal to "
+                    "4294967295.");
             }
-        }
-
-        KV = OptionsEnvMap->find("detect_locals");
-        if (KV != OptionsEnvMap->end()) {
-            auto Value = KV->second.front();
-            DetectLocals = Value == "1" || Value == "true" ? true : false;
         }
 
         KV = OptionsEnvMap->find("redzone");
@@ -101,6 +141,6 @@ struct AsanOptions {
     }
 };
 
-inline AsanOptions &Options() { return AsanOptions::getInstance(); }
+inline const AsanOptions &Options() { return AsanOptions::getInstance(); }
 
 } // namespace ur_sanitizer_layer

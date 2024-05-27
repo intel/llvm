@@ -145,7 +145,7 @@ ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
 SanitizerInterceptor::SanitizerInterceptor() {
     if (Options().MaxQuarantineSizeMB) {
         m_Quarantine = std::make_unique<Quarantine>(
-            Options().MaxQuarantineSizeMB * 1024 * 1024);
+            static_cast<uint64_t>(Options().MaxQuarantineSizeMB) * 1024 * 1024);
     }
 }
 
@@ -646,8 +646,9 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         };
 
         // Write debug
-        EnqueueWriteGlobal(kSPIR_AsanDebug, &(Options().Debug),
-                           sizeof(Options().Debug));
+        // We use "uint64_t" here because EnqueueWriteGlobal will fail when it's "uint32_t"
+        uint64_t Debug = Options().Debug ? 1 : 0;
+        EnqueueWriteGlobal(kSPIR_AsanDebug, &Debug, sizeof(Debug));
 
         // Write shadow memory offset for global memory
         EnqueueWriteGlobal(kSPIR_AsanShadowMemoryGlobalStart,
@@ -747,7 +748,8 @@ SanitizerInterceptor::findAllocInfoByAddress(uptr Address) {
     --It;
     // Make sure we got the right AllocInfo
     assert(Address >= It->second->AllocBegin &&
-           Address < It->second->AllocBegin + It->second->AllocSize);
+           Address < It->second->AllocBegin + It->second->AllocSize &&
+           "Wrong AllocInfo for the address");
     return It;
 }
 
