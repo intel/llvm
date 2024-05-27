@@ -32,7 +32,7 @@ void matrix_verify_op(big_matrix<T, Rows, Cols> &A, const R ref, OP op) {
   nd_range<2> r({Rows / TileRows, Cols / TileCols * sg_size}, {1, 1 * sg_size});
 
   q.submit([&](handler &cgh) {
-    sycl::accessor accA{bufA, cgh, sycl::read_write};
+     sycl::accessor accA{bufA, cgh, sycl::read_write};
 
      cgh.parallel_for<kernel_name>(
          r, [=](nd_item<2> spmd_item)
