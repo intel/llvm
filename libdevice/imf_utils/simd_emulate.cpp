@@ -1404,8 +1404,19 @@ int __devicelib_imf_vimax3_s32(int x, int y, int z) {
 }
 
 DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vimin3_s32(int x, int y, int z) {
+  return __imin<int>(__imin<int>(x, y), z);
+}
+
+DEVICE_EXTERN_C_INLINE
 int __devicelib_imf_vimax3_s32_relu(int x, int y, int z) {
   int t = __imax<int>(__imax<int>(x, y), z);
+  return (t > 0) ? t : 0;
+}
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vimin3_s32_relu(int x, int y, int z) {
+  int t = __imin<int>(__imin<int>(x, y), z);
   return (t > 0) ? t : 0;
 }
 
