@@ -85,6 +85,8 @@ ur_result_t mapCLErrorToUR(cl_int Result) {
     return UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS;
   case CL_DEVICE_NOT_AVAILABLE:
     return UR_RESULT_ERROR_DEVICE_NOT_AVAILABLE;
+  case CL_INVALID_KERNEL_ARGS:
+    return UR_RESULT_ERROR_INVALID_KERNEL_ARGS;
   default:
     return UR_RESULT_ERROR_UNKNOWN;
   }

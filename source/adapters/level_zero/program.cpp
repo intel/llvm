@@ -891,10 +891,15 @@ void ur_program_handle_t_::ur_release_program_resources(bool deletion) {
     }
 
     if (ZeModule && OwnZeModule) {
-      for (auto &ZeModulePair : this->ZeModuleMap) {
-        ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModulePair.second));
+      if (ZeModuleMap.empty()) {
+        // interop api
+        ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
+      } else {
+        for (auto &ZeModulePair : this->ZeModuleMap) {
+          ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModulePair.second));
+        }
+        this->ZeModuleMap.clear();
       }
-      this->ZeModuleMap.clear();
     }
     resourcesReleased = true;
   }

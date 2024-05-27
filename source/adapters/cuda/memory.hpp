@@ -11,10 +11,19 @@
 
 #include <cassert>
 #include <cuda.h>
+#include <memory>
 #include <ur_api.h>
 #include <variant>
 
 #include "common.hpp"
+#include "context.hpp"
+#include "device.hpp"
+#include "event.hpp"
+
+ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t,
+                                           const ur_device_handle_t);
+ur_result_t migrateMemoryToDeviceIfNeeded(ur_mem_handle_t,
+                                          const ur_device_handle_t);
 
 // Handler for plain, pointer-based CUDA allocations
 struct BufferMem {
@@ -27,7 +36,7 @@ struct BufferMem {
     /// Original flags for the mapped region
     ur_map_flags_t MapFlags;
     /// Allocated host memory used exclusively for this map.
-    std::unique_ptr<unsigned char[]> MapMem;
+    std::shared_ptr<unsigned char[]> MapMem;
 
     BufferMap(size_t MapSize, size_t MapOffset, ur_map_flags_t MapFlags)
         : MapSize(MapSize), MapOffset(MapOffset), MapFlags(MapFlags),
@@ -61,11 +70,16 @@ struct BufferMem {
 
   using native_type = CUdeviceptr;
 
+private:
+  /// CUDA handler for the pointer
+  std::vector<native_type> Ptrs;
+
+public:
   /// If this allocation is a sub-buffer (i.e., a view on an existing
   /// allocation), this is the pointer to the parent handler structure
-  ur_mem_handle_t Parent;
-  /// CUDA handler for the pointer
-  native_type Ptr;
+  ur_mem_handle_t Parent = nullptr;
+  /// Outer UR mem holding this BufferMem in variant
+  ur_mem_handle_t OuterMemStruct;
   /// Pointer associated with this device on the host
   void *HostPtr;
   /// Size of the allocation in bytes
@@ -75,12 +89,34 @@ struct BufferMem {
 
   AllocMode MemAllocMode;
 
-  BufferMem(ur_mem_handle_t Parent, BufferMem::AllocMode Mode, CUdeviceptr Ptr,
-            void *HostPtr, size_t Size)
-      : Parent{Parent}, Ptr{Ptr}, HostPtr{HostPtr}, Size{Size},
-        PtrToBufferMap{}, MemAllocMode{Mode} {};
+  BufferMem(ur_context_handle_t Context, ur_mem_handle_t OuterMemStruct,
+            AllocMode Mode, void *HostPtr, size_t Size)
+      : Ptrs(Context->getDevices().size(), native_type{0}),
+        OuterMemStruct{OuterMemStruct}, HostPtr{HostPtr}, Size{Size},
+        MemAllocMode{Mode} {};
 
-  native_type get() const noexcept { return Ptr; }
+  BufferMem(const BufferMem &Buffer) = default;
+
+  native_type getPtrWithOffset(const ur_device_handle_t Device, size_t Offset) {
+    if (ur_result_t Err =
+            allocateMemObjOnDeviceIfNeeded(OuterMemStruct, Device);
+        Err != UR_RESULT_SUCCESS) {
+      throw Err;
+    }
+    return reinterpret_cast<native_type>(
+        reinterpret_cast<uint8_t *>(Ptrs[Device->getIndex() % Ptrs.size()]) +
+        Offset);
+  }
+
+  native_type getPtr(const ur_device_handle_t Device) {
+    return getPtrWithOffset(Device, 0);
+  }
+
+  void *getVoid(const ur_device_handle_t Device) {
+    return reinterpret_cast<void *>(getPtrWithOffset(Device, 0));
+  }
+
+  bool isSubBuffer() const noexcept { return Parent != nullptr; }
 
   size_t getSize() const noexcept { return Size; }
 
@@ -120,104 +156,315 @@ struct BufferMem {
     assert(MapPtr != nullptr);
     PtrToBufferMap.erase(MapPtr);
   }
+
+  ur_result_t clear() {
+    if (Parent != nullptr) {
+      return UR_RESULT_SUCCESS;
+    }
+
+    switch (MemAllocMode) {
+    case AllocMode::CopyIn:
+    case AllocMode::Classic:
+      for (auto &DevPtr : Ptrs) {
+        if (DevPtr != native_type{0}) {
+          UR_CHECK_ERROR(cuMemFree(DevPtr));
+        }
+      }
+      break;
+    case AllocMode::UseHostPtr:
+      UR_CHECK_ERROR(cuMemHostUnregister(HostPtr));
+      break;
+    case AllocMode::AllocHostPtr:
+      UR_CHECK_ERROR(cuMemFreeHost(HostPtr));
+    }
+    return UR_RESULT_SUCCESS;
+  }
+
+  friend struct ur_mem_handle_t_;
+  friend ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t,
+                                                    const ur_device_handle_t);
 };
 
 // Handler data for surface object (i.e. Images)
 struct SurfaceMem {
-  CUarray Array;
-  CUsurfObject SurfObj;
-  ur_mem_type_t ImageType;
+private:
+  std::vector<CUarray> Arrays;
+  std::vector<CUsurfObject> SurfObjs;
 
-  SurfaceMem(CUarray Array, CUsurfObject Surf, ur_mem_type_t ImageType,
+public:
+  ur_mem_handle_t OuterMemStruct;
+
+  ur_image_format_t ImageFormat;
+  ur_image_desc_t ImageDesc;
+  CUDA_ARRAY3D_DESCRIPTOR ArrayDesc;
+  size_t PixelTypeSizeBytes;
+  void *HostPtr;
+
+  SurfaceMem(ur_context_handle_t Context, ur_mem_handle_t OuterMemStruct,
+             ur_image_format_t ImageFormat, ur_image_desc_t ImageDesc,
              void *HostPtr)
-      : Array{Array}, SurfObj{Surf}, ImageType{ImageType} {
-    (void)HostPtr;
+      : Arrays(Context->Devices.size(), CUarray{0}),
+        SurfObjs(Context->Devices.size(), CUsurfObject{0}),
+        OuterMemStruct{OuterMemStruct},
+        ImageFormat{ImageFormat}, ImageDesc{ImageDesc}, HostPtr{HostPtr} {
+    // We have to use hipArray3DCreate, which has some caveats. The height and
+    // depth parameters must be set to 0 produce 1D or 2D arrays. image_desc
+    // gives a minimum value of 1, so we need to convert the answer.
+    ArrayDesc.NumChannels = 4; // Only support 4 channel image
+    ArrayDesc.Flags = 0;       // No flags required
+    ArrayDesc.Width = ImageDesc.width;
+    if (ImageDesc.type == UR_MEM_TYPE_IMAGE1D) {
+      ArrayDesc.Height = 0;
+      ArrayDesc.Depth = 0;
+    } else if (ImageDesc.type == UR_MEM_TYPE_IMAGE2D) {
+      ArrayDesc.Height = ImageDesc.height;
+      ArrayDesc.Depth = 0;
+    } else if (ImageDesc.type == UR_MEM_TYPE_IMAGE3D) {
+      ArrayDesc.Height = ImageDesc.height;
+      ArrayDesc.Depth = ImageDesc.depth;
+    }
+
+    // We need to get PixelTypeSizeBytes for calculating the total image size
+    // later
+    switch (ImageFormat.channelType) {
+
+    case UR_IMAGE_CHANNEL_TYPE_UNORM_INT8:
+    case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8:
+      ArrayDesc.Format = CU_AD_FORMAT_UNSIGNED_INT8;
+      PixelTypeSizeBytes = 1;
+      break;
+    case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8:
+      ArrayDesc.Format = CU_AD_FORMAT_SIGNED_INT8;
+      PixelTypeSizeBytes = 1;
+      break;
+    case UR_IMAGE_CHANNEL_TYPE_UNORM_INT16:
+    case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16:
+      ArrayDesc.Format = CU_AD_FORMAT_UNSIGNED_INT16;
+      PixelTypeSizeBytes = 2;
+      break;
+    case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16:
+      ArrayDesc.Format = CU_AD_FORMAT_SIGNED_INT16;
+      PixelTypeSizeBytes = 2;
+      break;
+    case UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT:
+      ArrayDesc.Format = CU_AD_FORMAT_HALF;
+      PixelTypeSizeBytes = 2;
+      break;
+    case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32:
+      ArrayDesc.Format = CU_AD_FORMAT_UNSIGNED_INT32;
+      PixelTypeSizeBytes = 4;
+      break;
+    case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32:
+      ArrayDesc.Format = CU_AD_FORMAT_SIGNED_INT32;
+      PixelTypeSizeBytes = 4;
+      break;
+    case UR_IMAGE_CHANNEL_TYPE_FLOAT:
+      ArrayDesc.Format = CU_AD_FORMAT_FLOAT;
+      PixelTypeSizeBytes = 4;
+      break;
+    default:
+      detail::ur::die(
+          "urMemImageCreate given unsupported image_channel_data_type");
+    }
   }
 
-  CUarray getArray() const noexcept { return Array; }
+  // Will allocate a new array on device if not already allocated
+  CUarray getArray(const ur_device_handle_t Device) {
+    if (ur_result_t Err =
+            allocateMemObjOnDeviceIfNeeded(OuterMemStruct, Device);
+        Err != UR_RESULT_SUCCESS) {
+      throw Err;
+    }
+    return Arrays[Device->getIndex() % Arrays.size()];
+  }
+  // Will allocate a new surface on device if not already allocated
+  CUsurfObject getSurface(const ur_device_handle_t Device) {
+    if (ur_result_t Err =
+            allocateMemObjOnDeviceIfNeeded(OuterMemStruct, Device);
+        Err != UR_RESULT_SUCCESS) {
+      throw Err;
+    }
+    return SurfObjs[Device->getIndex() % SurfObjs.size()];
+  }
 
-  CUsurfObject getSurface() const noexcept { return SurfObj; }
+  ur_mem_type_t getType() { return ImageDesc.type; }
 
-  ur_mem_type_t getImageType() const noexcept { return ImageType; }
-};
-
-// For sampled/unsampled images
-struct ImageMem {
-  CUarray Array;
-  void *Handle;
-  ur_mem_type_t ImageType;
-  ur_sampler_handle_t Sampler;
-
-  ImageMem(CUarray Array, void *Handle, ur_mem_type_t ImageType,
-           ur_sampler_handle_t Sampler)
-      : Array{Array}, Handle{Handle}, ImageType{ImageType}, Sampler{Sampler} {};
-
-  CUarray get_array() const noexcept { return Array; }
-
-  void *get_handle() const noexcept { return Handle; }
-
-  ur_mem_type_t get_image_type() const noexcept { return ImageType; }
-
-  ur_sampler_handle_t get_sampler() const noexcept { return Sampler; }
+  ur_result_t clear() {
+    for (auto Array : Arrays) {
+      if (Array) {
+        UR_CHECK_ERROR(cuArrayDestroy(Array));
+      }
+    }
+    for (auto Surf : SurfObjs) {
+      if (Surf != CUsurfObject{0}) {
+        UR_CHECK_ERROR(cuSurfObjectDestroy(Surf));
+      }
+    }
+    return UR_RESULT_SUCCESS;
+  }
+  friend ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t,
+                                                    const ur_device_handle_t);
 };
 
 /// UR Mem mapping to CUDA memory allocations, both data and texture/surface.
 /// \brief Represents non-SVM allocations on the CUDA backend.
 /// Keeps tracks of all mapped regions used for Map/Unmap calls.
 /// Only one region can be active at the same time per allocation.
+///
+/// The ur_mem_handle_t is responsible for memory allocation and migration
+/// across devices in the same ur_context_handle_t. If a kernel writes to a
+/// ur_mem_handle_t then it will write to LastEventWritingToMemObj. Then all
+/// subsequent operations that want to read from the ur_mem_handle_t must wait
+/// on the event referring to the last write.
+///
+/// Since urMemBufferCreate/urMemImageCreate do not take a queue or device
+/// object, only a ur_context_handle_t, at mem obj creation we don't know which
+/// device we must make a native image/allocation on. Therefore no allocations
+/// are made at urMemBufferCreate/urMemImageCreate. Instead device
+/// images/allocations are made lazily. These allocations are made implicitly
+/// with a call to getPtr/getArray which will allocate a new allocation/image on
+/// device if need be.
+///
+/// Memory migration between native allocations for devices in the same
+/// ur_context_handle_t will occur at:
+///
+///   1. urEnqueueKernelLaunch
+///   2. urEnqueueMem(Buffer|Image)Read(Rect)
+///
+/// Migrations will occur in both cases if the most recent version of data
+/// is on a different device, marked by
+/// LastEventWritingToMemObj->getQueue()->getDevice()
+///
+/// Example trace:
+/// ~~~~~~~~~~~~~~
+///
+/// =====> urContextCreate([device0, device1], ...) // associated with [q0, q1]
+///             -> OUT: hContext
+///
+/// =====> urMemBufferCreate(hContext,...);
+///             -> No native allocations made
+///             -> OUT: hBuffer
+///
+/// =====> urEnqueueMemBufferWrite(q0, hBuffer,...);
+///             -> Allocation made on q0 ie device0
+///             -> New allocation initialized with host data.
+///
+/// =====> urKernelSetArgMemObj(hKernel0, hBuffer, ...);
+///             -> ur_kernel_handle_t associated with a ur_program_handle_t,
+///                which is in turn unique to a device. So we can set the kernel
+///                arg with the ptr of the device specific allocation.
+///             -> hKernel0->getProgram()->getDevice() == device0
+///             -> allocateMemObjOnDeviceIfNeeded(device0);
+///                   -> Native allocation already made on device0, continue.
+///
+/// =====> urEnqueueKernelLaunch(q0, hKernel0, ...);
+///             -> Suppose that hKernel0 writes to hBuffer.
+///             -> Call hBuffer->setLastEventWritingToMemObj with return event
+///                from this operation
+///             -> Enqueue native kernel launch
+///
+/// =====> urKernelSetArgMemObj(hKernel1, hBuffer, ...);
+///             -> hKernel1->getProgram()->getDevice() == device1
+///             -> New allocation will be made on device1 when calling
+///                getPtr(device1)
+///                   -> No native allocation on device1
+///                   -> Make native allocation on device1
+///
+/// =====> urEnqueueKernelLaunch(q1, hKernel1, ...);
+///             -> Suppose hKernel1 wants to read from hBuffer and not write.
+///             -> migrateMemoryToDeviceIfNeeded(device1);
+///                   -> hBuffer->LastEventWritingToMemObj is not nullptr
+///                   -> Check if memory has been migrated to device1 since the
+///                      last write
+///                        -> Hasn't been migrated
+///                   -> Wait on LastEventWritingToMemObj.
+///                   -> Migrate memory from device0's native allocation to
+///                      device1's native allocation.
+///             -> Enqueue native kernel launch
+///
+/// =====> urEnqueueKernelLaunch(q0, hKernel0, ...);
+///             -> migrateMemoryToDeviceIfNeeded(device0);
+///                   -> hBuffer->LastEventWritingToMemObj refers to an event
+///                      from q0
+///                        -> Migration not necessary
+///             -> Enqueue native kernel launch
+///
 struct ur_mem_handle_t_ {
   // Context where the memory object is accessible
   ur_context_handle_t Context;
 
   /// Reference counting of the handler
   std::atomic_uint32_t RefCount;
-  enum class Type { Buffer, Surface, Texture } MemType;
 
   // Original mem flags passed
   ur_mem_flags_t MemFlags;
+
+  // If we make a ur_mem_handle_t_ from a native allocation, it can be useful to
+  // associate it with the device that holds the native allocation.
+  ur_device_handle_t DeviceWithNativeAllocation{nullptr};
+
+  // Has the memory been migrated to a device since the last write?
+  std::vector<bool> HaveMigratedToDeviceSinceLastWrite;
+
+  // We should wait on this event prior to migrating memory across allocations
+  // in this ur_mem_handle_t_
+  ur_event_handle_t LastEventWritingToMemObj{nullptr};
+
+  // Enumerates all possible types of accesses.
+  enum access_mode_t { unknown, read_write, read_only, write_only };
+
+  ur_mutex MemoryAllocationMutex; // A mutex for allocations
+  ur_mutex MemoryMigrationMutex;  // A mutex for memory transfers
 
   /// A UR Memory object represents either plain memory allocations ("Buffers"
   /// in OpenCL) or typed allocations ("Images" in OpenCL).
   /// In CUDA their API handlers are different. Whereas "Buffers" are allocated
   /// as pointer-like structs, "Images" are stored in Textures or Surfaces.
-  /// This union allows implementation to use either from the same handler.
-  std::variant<BufferMem, SurfaceMem, ImageMem> Mem;
+  /// This variant allows implementation to use either from the same handler.
+  std::variant<BufferMem, SurfaceMem> Mem;
 
   /// Constructs the UR mem handler for a non-typed allocation ("buffer")
-  ur_mem_handle_t_(ur_context_handle_t Context, ur_mem_handle_t Parent,
-                   ur_mem_flags_t MemFlags, BufferMem::AllocMode Mode,
-                   CUdeviceptr Ptr, void *HostPtr, size_t Size)
-      : Context{Context}, RefCount{1}, MemType{Type::Buffer},
-        MemFlags{MemFlags}, Mem{BufferMem{Parent, Mode, Ptr, HostPtr, Size}} {
-    if (isSubBuffer()) {
-      urMemRetain(std::get<BufferMem>(Mem).Parent);
-    } else {
-      urContextRetain(Context);
-    }
+  ur_mem_handle_t_(ur_context_handle_t Ctxt, ur_mem_flags_t MemFlags,
+                   BufferMem::AllocMode Mode, void *HostPtr, size_t Size)
+      : Context{Ctxt}, RefCount{1}, MemFlags{MemFlags},
+        HaveMigratedToDeviceSinceLastWrite(Context->Devices.size(), false),
+        Mem{std::in_place_type<BufferMem>, Ctxt, this, Mode, HostPtr, Size} {
+    urContextRetain(Context);
   };
 
-  /// Constructs the UR allocation for an Image object (surface in CUDA)
-  ur_mem_handle_t_(ur_context_handle_t Context, CUarray Array,
-                   CUsurfObject Surf, ur_mem_flags_t MemFlags,
-                   ur_mem_type_t ImageType, void *HostPtr)
-      : Context{Context}, RefCount{1}, MemType{Type::Surface},
-        MemFlags{MemFlags}, Mem{SurfaceMem{Array, Surf, ImageType, HostPtr}} {
-    urContextRetain(Context);
-  }
+  // Subbuffer constructor
+  ur_mem_handle_t_(ur_mem_handle_t Parent, size_t SubBufferOffset)
+      : Context{Parent->Context}, RefCount{1}, MemFlags{Parent->MemFlags},
+        HaveMigratedToDeviceSinceLastWrite(Parent->Context->Devices.size(),
+                                           false),
+        Mem{BufferMem{std::get<BufferMem>(Parent->Mem)}} {
+    auto &SubBuffer = std::get<BufferMem>(Mem);
+    SubBuffer.Parent = Parent;
+    SubBuffer.OuterMemStruct = this;
+    if (SubBuffer.HostPtr) {
+      SubBuffer.HostPtr =
+          static_cast<char *>(SubBuffer.HostPtr) + SubBufferOffset;
+    }
+    for (auto &DevPtr : SubBuffer.Ptrs) {
+      if (DevPtr) {
+        DevPtr += SubBufferOffset;
+      }
+    }
+    urMemRetain(Parent);
+  };
 
-  /// Constructs the UR allocation for an unsampled image object
-  ur_mem_handle_t_(ur_context_handle_t Context, CUarray Array,
-                   CUsurfObject Surf, ur_mem_type_t ImageType)
-      : Context{Context}, RefCount{1}, MemType{Type::Surface}, MemFlags{0},
-        Mem{ImageMem{Array, (void *)Surf, ImageType, nullptr}} {
-    urContextRetain(Context);
-  }
-
-  /// Constructs the UR allocation for a sampled image object
-  ur_mem_handle_t_(ur_context_handle_t Context, CUarray Array, CUtexObject Tex,
-                   ur_sampler_handle_t Sampler, ur_mem_type_t ImageType)
-      : Context{Context}, RefCount{1}, MemType{Type::Texture}, MemFlags{0},
-        Mem{ImageMem{Array, (void *)Tex, ImageType, Sampler}} {
+  /// Constructs the UR mem handler for an Image object
+  ur_mem_handle_t_(ur_context_handle_t Ctxt, ur_mem_flags_t MemFlags,
+                   ur_image_format_t ImageFormat, ur_image_desc_t ImageDesc,
+                   void *HostPtr)
+      : Context{Ctxt}, RefCount{1}, MemFlags{MemFlags},
+        HaveMigratedToDeviceSinceLastWrite(Context->Devices.size(), false),
+        Mem{std::in_place_type<SurfaceMem>,
+            Ctxt,
+            this,
+            ImageFormat,
+            ImageDesc,
+            HostPtr} {
     urContextRetain(Context);
   }
 
@@ -229,13 +476,24 @@ struct ur_mem_handle_t_ {
     urContextRelease(Context);
   }
 
-  bool isBuffer() const noexcept { return MemType == Type::Buffer; }
+  bool isBuffer() const noexcept {
+    return std::holds_alternative<BufferMem>(Mem);
+  }
 
   bool isSubBuffer() const noexcept {
     return (isBuffer() && (std::get<BufferMem>(Mem).Parent != nullptr));
   }
 
-  bool isImage() const noexcept { return MemType == Type::Surface; }
+  bool isImage() const noexcept {
+    return std::holds_alternative<SurfaceMem>(Mem);
+  }
+
+  ur_result_t clear() {
+    if (isBuffer()) {
+      return std::get<BufferMem>(Mem).clear();
+    }
+    return std::get<SurfaceMem>(Mem).clear();
+  }
 
   ur_context_handle_t getContext() const noexcept { return Context; }
 
@@ -244,4 +502,22 @@ struct ur_mem_handle_t_ {
   uint32_t decrementReferenceCount() noexcept { return --RefCount; }
 
   uint32_t getReferenceCount() const noexcept { return RefCount; }
+
+  void setLastEventWritingToMemObj(ur_event_handle_t NewEvent) {
+    assert(NewEvent && "Invalid event!");
+    // This entry point should only ever be called when using multi device ctx
+    assert(Context->Devices.size() > 1);
+    urEventRetain(NewEvent);
+    if (LastEventWritingToMemObj != nullptr) {
+      urEventRelease(LastEventWritingToMemObj);
+    }
+    LastEventWritingToMemObj = NewEvent;
+    for (const auto &Device : Context->getDevices()) {
+      // This event is never an interop event so will always have an associated
+      // queue
+      HaveMigratedToDeviceSinceLastWrite
+          [Device->getIndex() % HaveMigratedToDeviceSinceLastWrite.size()] =
+              Device == NewEvent->getQueue()->getDevice();
+    }
+  }
 };
