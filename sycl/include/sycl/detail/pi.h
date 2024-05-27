@@ -172,9 +172,10 @@
 //         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D
 //         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM
 //         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D
-// 16.51 Replaced piextUSMEnqueueMemset with piextUSMEnqueueFill
+// 15.51 Removed ret_mem argument from piextMemUnsampledImageCreate and
+// piextMemSampledImageCreate
 
-#define _PI_H_VERSION_MAJOR 16
+#define _PI_H_VERSION_MAJOR 15
 #define _PI_H_VERSION_MINOR 51
 
 #define _PI_STRING_HELPER(a) #a
@@ -438,7 +439,12 @@ typedef enum {
   // The number of max registers per block (device specific)
   PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP = 0x20009,
   PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT = 0x2000A,
-
+  PI_EXT_ONEAPI_DEVICE_INFO_WORK_GROUP_PROGRESS_AT_ROOT_GROUP_LEVEL = 0x2000B,
+  PI_EXT_ONEAPI_DEVICE_INFO_SUB_GROUP_PROGRESS_AT_ROOT_GROUP_LEVEL = 0x2000C,
+  PI_EXT_ONEAPI_DEVICE_INFO_SUB_GROUP_PROGRESS_AT_WORK_GROUP_LEVEL = 0x2000D,
+  PI_EXT_ONEAPI_DEVICE_INFO_WORK_ITEM_PROGRESS_AT_ROOT_GROUP_LEVEL = 0x2000E,
+  PI_EXT_ONEAPI_DEVICE_INFO_WORK_ITEM_PROGRESS_AT_WORK_GROUP_LEVEL = 0x2000F,
+  PI_EXT_ONEAPI_DEVICE_INFO_WORK_ITEM_PROGRESS_AT_SUB_GROUP_LEVEL = 0x20010,
   // Bindless images, mipmaps, interop
   PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT = 0x20100,
   PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT = 0x20101,
@@ -2061,22 +2067,22 @@ __SYCL_EXPORT pi_result piextUSMPitchedAlloc(
 /// \param ptr is the memory to be freed
 __SYCL_EXPORT pi_result piextUSMFree(pi_context context, void *ptr);
 
-/// USM Fill API
+/// USM Memset API
 ///
 /// \param queue is the queue to submit to
-/// \param ptr is the ptr to fill
-/// \param pattern is the ptr with the bytes of the pattern to set
-/// \param patternSize is the size in bytes of the pattern to set
-/// \param count is the size in bytes to fill
+/// \param ptr is the ptr to memset
+/// \param value is value to set.  It is interpreted as an 8-bit value and the
+/// upper
+///        24 bits are ignored
+/// \param count is the size in bytes to memset
 /// \param num_events_in_waitlist is the number of events to wait on
 /// \param events_waitlist is an array of events to wait on
 /// \param event is the event that represents this operation
-__SYCL_EXPORT pi_result piextUSMEnqueueFill(pi_queue queue, void *ptr,
-                                            const void *pattern,
-                                            size_t patternSize, size_t count,
-                                            pi_uint32 num_events_in_waitlist,
-                                            const pi_event *events_waitlist,
-                                            pi_event *event);
+__SYCL_EXPORT pi_result piextUSMEnqueueMemset(pi_queue queue, void *ptr,
+                                              pi_int32 value, size_t count,
+                                              pi_uint32 num_events_in_waitlist,
+                                              const pi_event *events_waitlist,
+                                              pi_event *event);
 
 /// USM Memcpy API
 ///
@@ -2776,7 +2782,7 @@ __SYCL_EXPORT pi_result piextMemMipmapFree(pi_context context, pi_device device,
 /// \param ret_handle is the returning memory handle to newly allocated memory
 __SYCL_EXPORT pi_result piextMemUnsampledImageCreate(
     pi_context context, pi_device device, pi_image_mem_handle img_mem,
-    pi_image_format *image_format, pi_image_desc *image_desc, pi_mem *ret_mem,
+    pi_image_format *image_format, pi_image_desc *image_desc,
     pi_image_handle *ret_handle);
 
 /// API to create sampled bindless image handles.
@@ -2792,7 +2798,7 @@ __SYCL_EXPORT pi_result piextMemUnsampledImageCreate(
 __SYCL_EXPORT pi_result piextMemSampledImageCreate(
     pi_context context, pi_device device, pi_image_mem_handle img_mem,
     pi_image_format *image_format, pi_image_desc *image_desc,
-    pi_sampler sampler, pi_mem *ret_mem, pi_image_handle *ret_handle);
+    pi_sampler sampler, pi_image_handle *ret_handle);
 
 /// API to create samplers for bindless images.
 ///

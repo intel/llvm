@@ -394,19 +394,18 @@ __SYCL_EXPORT pi_result piextMemImageAllocate(pi_context Context,
 
 __SYCL_EXPORT pi_result piextMemUnsampledImageCreate(
     pi_context Context, pi_device Device, pi_image_mem_handle ImgMem,
-    pi_image_format *ImageFormat, pi_image_desc *ImageDesc, pi_mem *RetMem,
+    pi_image_format *ImageFormat, pi_image_desc *ImageDesc,
     pi_image_handle *RetHandle) {
-  return pi2ur::piextMemUnsampledImageCreate(
-      Context, Device, ImgMem, ImageFormat, ImageDesc, RetMem, RetHandle);
+  return pi2ur::piextMemUnsampledImageCreate(Context, Device, ImgMem,
+                                             ImageFormat, ImageDesc, RetHandle);
 }
 
 __SYCL_EXPORT pi_result piextMemSampledImageCreate(
     pi_context Context, pi_device Device, pi_image_mem_handle ImgMem,
     pi_image_format *ImageFormat, pi_image_desc *ImageDesc, pi_sampler Sampler,
-    pi_mem *RetMem, pi_image_handle *RetHandle) {
+    pi_image_handle *RetHandle) {
   return pi2ur::piextMemSampledImageCreate(Context, Device, ImgMem, ImageFormat,
-                                           ImageDesc, Sampler, RetMem,
-                                           RetHandle);
+                                           ImageDesc, Sampler, RetHandle);
 }
 
 __SYCL_EXPORT pi_result piextBindlessImageSamplerCreate(
@@ -929,22 +928,23 @@ pi_result piextKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
   return pi2ur::piextKernelSetArgPointer(Kernel, ArgIndex, ArgSize, ArgValue);
 }
 
-/// USM Fill API
+/// USM Memset API
 ///
 /// @param Queue is the queue to submit to
-/// @param Ptr is the ptr to fill
-/// \param Pattern is the ptr with the bytes of the pattern to set
-/// \param PatternSize is the size in bytes of the pattern to set
-/// @param Count is the size in bytes to fill
+/// @param Ptr is the ptr to memset
+/// @param Value is value to set.  It is interpreted as an 8-bit value and the
+/// upper
+///        24 bits are ignored
+/// @param Count is the size in bytes to memset
 /// @param NumEventsInWaitlist is the number of events to wait on
 /// @param EventsWaitlist is an array of events to wait on
 /// @param Event is the event that represents this operation
-pi_result piextUSMEnqueueFill(pi_queue Queue, void *Ptr, const void *Pattern,
-                              size_t PatternSize, size_t Count,
-                              pi_uint32 NumEventsInWaitlist,
-                              const pi_event *EventsWaitlist, pi_event *Event) {
-  return pi2ur::piextUSMEnqueueFill(Queue, Ptr, Pattern, PatternSize, Count,
-                                    NumEventsInWaitlist, EventsWaitlist, Event);
+pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr, pi_int32 Value,
+                                size_t Count, pi_uint32 NumEventsInWaitlist,
+                                const pi_event *EventsWaitlist,
+                                pi_event *Event) {
+  return pi2ur::piextUSMEnqueueMemset(
+      Queue, Ptr, Value, Count, NumEventsInWaitlist, EventsWaitlist, Event);
 }
 
 pi_result piextUSMEnqueueMemcpy(pi_queue Queue, pi_bool Blocking, void *DstPtr,

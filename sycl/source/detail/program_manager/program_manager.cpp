@@ -332,13 +332,12 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
       CompileOpts += std::string(TemporaryStr);
   }
   bool isEsimdImage = getUint32PropAsBool(Img, "isEsimdImage");
-  // The -vc-codegen and -ftranslate-legacy-memory-intrinsics options are
-  // always preserved for ESIMD kernels, regardless of the contents
-  // of the SYCL_PROGRAM_COMPILE_OPTIONS environment variable.
+  // The -vc-codegen option is always preserved for ESIMD kernels, regardless
+  // of the contents SYCL_PROGRAM_COMPILE_OPTIONS environment variable.
   if (isEsimdImage) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
-    CompileOpts += "-vc-codegen -ftranslate-legacy-memory-intrinsics";
+    CompileOpts += "-vc-codegen";
     // Allow warning and performance hints from vc/finalizer if the RT warning
     // level is at least 1.
     if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() == 0)
@@ -2682,8 +2681,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
                                   const RTDeviceBinaryImage &Img,
                                   const NDRDescT &NDRDesc) {
   auto getPropIt = [&Img](const std::string &PropName) {
-    const RTDeviceBinaryImage::PropertyRange &PropRange =
-        Img.getDeviceRequirements();
+    auto &PropRange = Img.getDeviceRequirements();
     RTDeviceBinaryImage::PropertyRange::ConstIterator PropIt = std::find_if(
         PropRange.begin(), PropRange.end(),
         [&PropName](RTDeviceBinaryImage::PropertyRange::ConstIterator &&Prop) {
@@ -2701,6 +2699,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
   auto ReqdWGSizeUint32TPropIt = getPropIt("reqd_work_group_size");
   auto ReqdWGSizeUint64TPropIt = getPropIt("reqd_work_group_size_uint64_t");
   auto ReqdSubGroupSizePropIt = getPropIt("reqd_sub_group_size");
+  auto WorkGroupNumDim = getPropIt("work_group_num_dim");
 
   // Checking if device supports defined aspects
   if (AspectsPropIt) {
@@ -2797,7 +2796,23 @@ checkDevSupportDeviceRequirements(const device &Dev,
       Dims++;
     }
 
-    if (NDRDesc.Dims != 0 && NDRDesc.Dims != static_cast<size_t>(Dims))
+    size_t UserProvidedNumDims = 0;
+    if (WorkGroupNumDim) {
+      // We know the dimensions have been padded to 3, make sure that the pad
+      // value is always set to 1 and record the number of dimensions specified
+      // by the user.
+      UserProvidedNumDims =
+          DeviceBinaryProperty(*(WorkGroupNumDim.value())).asUint32();
+#ifndef NDEBUG
+      for (unsigned i = UserProvidedNumDims; i < 3; ++i)
+        assert(ReqdWGSizeVec[i] == 1 &&
+               "Incorrect padding in required work-group size metadata.");
+#endif // NDEBUG
+    } else {
+      UserProvidedNumDims = Dims;
+    }
+
+    if (NDRDesc.Dims != 0 && NDRDesc.Dims != UserProvidedNumDims)
       return sycl::exception(
           sycl::errc::nd_range,
           "The local size dimension of submitted nd_range doesn't match the "

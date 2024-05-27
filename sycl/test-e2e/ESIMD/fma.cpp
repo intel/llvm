@@ -5,15 +5,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES-INTEL-DRIVER: lin: 29138, win: 101.5499
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
 #include "esimd_test_utils.hpp"
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/intel/experimental/esimd/math.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 

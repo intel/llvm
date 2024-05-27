@@ -1,5 +1,5 @@
-// Fails with opencl, enable when fixed.
-// XFAIL: opencl
+// Fails with opencl non-cpu, enable when fixed.
+// XFAIL: (opencl && !cpu)
 // RUN: %{build} -I . -o %t.out
 // RUN: %{run} %t.out
 
@@ -7,8 +7,9 @@
 #include <cstdlib>
 #include <type_traits>
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/group_barrier.hpp>
 
 static constexpr int WorkGroupSize = 32;
 
