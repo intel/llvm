@@ -22,6 +22,7 @@ set(install_dest_bc lib${LLVM_LIBDIR_SUFFIX})
 set(clang $<TARGET_FILE:clang>)
 set(llvm-ar $<TARGET_FILE:llvm-ar>)
 set(llvm-link $<TARGET_FILE:llvm-link>)
+set(llvm-opt $<TARGET_FILE:opt>)
 
 string(CONCAT sycl_targets_opt
   "-fsycl-targets="
@@ -261,13 +262,6 @@ add_devicelib(libsycl-fallback-cmath SRC fallback-cmath.cpp DEP ${cmath_obj_deps
 add_devicelib(libsycl-fallback-cmath-fp64 SRC fallback-cmath-fp64.cpp DEP ${cmath_obj_deps})
 add_devicelib(libsycl-fallback-bfloat16 SRC fallback-bfloat16.cpp DEP ${bfloat16_obj_deps})
 add_devicelib(libsycl-native-bfloat16 SRC bfloat16_wrapper.cpp DEP ${bfloat16_obj_deps})
-
-#get_property(CUDA_FOO GLOBAL PROPERTY CUDA_FOO)
-#message("CUDA OUT FILE LIST:  ${CUDA_FOO}")
-#
-#link_bc(TARGET cuda_lib_device INPUTS ${CUDA_FOO})
-#
-#add_dependencies(libsycldevice-bc cuda_lib_device)
 
 file(MAKE_DIRECTORY ${obj_binary_dir}/libdevice)
 set(imf_fallback_src_dir ${obj_binary_dir}/libdevice)
@@ -585,9 +579,49 @@ add_dependencies(libsycldevice-obj imf_fallback_bf16_obj)
 add_dependencies(libsycldevice-obj imf_fallback_bf16_new_offload_obj)
 
 get_property(CUDA_FOO GLOBAL PROPERTY CUDA_FOO)
-message("CUDA OUT FILE LIST:  ${CUDA_FOO}")
 
 link_bc(TARGET cuda_lib_device INPUTS ${CUDA_FOO})
+
+# -----------------------------------------------------------------------------------------------------
+
+set( builtins_link_lib $<TARGET_PROPERTY:cuda_lib_device,TARGET_FILE> )
+
+set( builtins_opt_lib_tgt builtins.opt)
+
+# Add opt target
+add_custom_command( OUTPUT ${builtins_opt_lib_tgt}.bc
+   COMMAND ${llvm-opt} ${ARG_OPT_FLAGS} -o ${builtins_opt_lib_tgt}.bc
+       ${builtins_link_lib}
+     DEPENDS ${llvm-opt} ${builtins_link_lib}
+   )
+add_custom_target( ${builtins_opt_lib_tgt}
+     ALL DEPENDS ${builtins_opt_lib_tgt}.bc
+   )
+set_target_properties( ${builtins_opt_lib_tgt}
+     PROPERTIES TARGET_FILE ${builtins_opt_lib_tgt}.bc
+   )
+
+set( builtins_opt_lib $<TARGET_PROPERTY:${builtins_opt_lib_tgt},TARGET_FILE> )
+
+# Add prepare target
+set( obj_suffix dummy.bc )
+message ("output dir: " ${LLVM_LIBRARY_OUTPUT_INTDIR}/${obj_suffix})
+add_custom_command( OUTPUT ${LLVM_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${LLVM_LIBRARY_OUTPUT_INTDIR}
+  COMMAND prepare_builtins -o ${LLVM_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
+    ${builtins_opt_lib}
+  DEPENDS ${builtins_opt_lib} prepare_builtins )
+add_custom_target( prepare-${obj_suffix} ALL
+  DEPENDS ${LLVM_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
+)
+set_target_properties( prepare-${obj_suffix}
+  PROPERTIES TARGET_FILE ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
+)
+
+add_dependencies(libsycldevice-bc prepare-${obj_suffix})
+set( builtins_lib $<TARGET_PROPERTY:prepare-${obj_suffix},TARGET_FILE> )
+
+# ----------------------------------------------------------------------------------------------
 
 add_dependencies(libsycldevice-bc cuda_lib_device)
 
