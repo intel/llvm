@@ -90,9 +90,9 @@ def do_configure(args):
 
     if args.native_cpu:
         if args.native_cpu_libclc_targets:
-            libclc_targets_to_build += ';' + args.native_cpu_libclc_targets
+            libclc_targets_to_build += ";" + args.native_cpu_libclc_targets
         else:
-            libclc_build_native = 'ON'
+            libclc_build_native = "ON"
         libclc_gen_remangled_variants = "ON"
         sycl_enabled_plugins.append("native_cpu")
 
