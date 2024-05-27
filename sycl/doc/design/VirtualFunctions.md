@@ -421,31 +421,17 @@ following properties are set within the new property set:
   functions set contained within the image (value of the property argument);
 - "dummy-image=1" if an image is a dummy virtual functions device image;
 
-For other device images, the following properties are set within the new
-property set:
-- "calls-virtual-functions-set" with a string value containing comma-separated
-  list of names of virtual function sets used by kernels in the image (as
-  indicated by `calls_indirectly` kernel property);
-- "creates-virtual-functions-set" with a string value containing comma-separate
-  list of names of virtual function sets which are referenced from functions
-  included into vtables used by a kernel within a device image;
+For other device images (i.e. ones containing actual user-provided kernels):
+- "uses-virtual-functions-set" with a string value containing comma-separated
+  list of names of virtual function sets used by kernels in the image.
 
-There is a reason why we need to separate properties and can't just use one for
-both kinds of relationships:
-
-When a kernel only creates an object of a polymorphic class, we should only use
-virtual functions which are compatible with a target device. Virtual functions
-that use unsupported optional features are expected to be outlined into separate
-sets in that case and we need to ensure that we are still able to create an
-object so that virtual functions that use supported optional features are
-usable.
-
-However, when a kernel actually makes calls to virtual functions, we assert
-that all optional features used by virtual functions in all sets used by the
-kernel are supported on a target device. All those aspects have been already
-attached to the kernel as part of aspects propagation phase and therefore at
-runtime we will unconditionally pull all device images with virtual functions
-which are used by a kernel to make calls to them.
+For the purposes of generating "uses-virtual-functions-set" device image
+property value the fact that kernel uses a set of virtual functions is inferred
+based on two things:
+- kernel is set to explicitly use a set of virtual functions through
+  `calls_indirectly` property;
+- kernel constructs an object of a polymorphic class and thus references vtable
+  global variable which in turn references functions that belong to some sets;
 
 ### Changes to the runtime
 
@@ -454,18 +440,21 @@ properties set in "SYCL/virtual functions" property set, then runtime does some
 extra actions to link several device images together to ensure that the kernel
 can be executed.
 
-Algorithm for discovery of device images which has to be linked:
-- if device image has property "calls-virtual-functions-set=A,B,...,N" on it,
-  then all device images with "virtual-functions-set" property equal to "A",
-  "B", ..., "N" are taken to be linked with the initial device image;
-- if device image has property "creates-virtual-functions-set=A,B,...,N" on it,
-  then for each device image with "virtual-functions-set" property equal to "A",
-  "B", ..., "N" and *without* "dummy-image=1" property on it:
-  - if that device image is compatible with device, it is taken to be linked
+Let's say that a submitted kernel is from device image that has property
+"uses-virtual-functions-set=A,B,...,N" on it, then the following other device
+images are linked together with it:
+- all device images with "virtual-functions-set" property equal to "A", "B",
+  ..., "N" and *without* "dummy-image=1" property on it:
+  - if that device image is compatible with a device, it is taken to be linked
     with the initial device image;
   - otherwise, runtime looks for a device image with the same
     "virtual-functions-set" property, but *with* "dummy-image=1" property on it
     and takes that device image to be linked with the initial device image;
+- all other device images with "uses-virtual-functions-set" property equal to
+  "A", "B", ..., "N" if they are compatible with a device. Note that this
+  triggers further recursive search for device images that should be linked
+  together, i.e. runtime should keep track of which device images have already
+  been looked at to avoid entering an infinite recursion;
 
 Produced list of device images is then linked together and used to enqueue a
 kernel.
