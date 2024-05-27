@@ -279,6 +279,8 @@ else(LIBCLC_STANDALONE_BUILD)
 endif(LIBCLC_STANDALONE_BUILD)
 file( TO_CMAKE_PATH ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/clc LIBCLC_LIBRARY_OUTPUT_INTDIR )
 
+set(NATIVECPU_SUPPORTED_ARCH "x86_64;aarch64")
+
 foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
   message( STATUS "libclc target '${t}' is enabled" )
   string( REPLACE "-" ";" TRIPLE  ${t} )
@@ -304,8 +306,16 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     set( DARCH ${ARCH} )
   endif()
 
-  if( (ARCH  STREQUAL x86_64 OR ARCH  STREQUAL aarch64) AND OS STREQUAL "linux")
+  set(IS_NATIVE_CPU_ARCH FALSE)
+  if( ARCH IN_LIST NATIVECPU_SUPPORTED_ARCH )
+    set(IS_NATIVE_CPU_ARCH TRUE)
+  endif()
+
+  if( IS_NATIVE_CPU_ARCH AND OS STREQUAL linux)
     LIST( APPEND dirs native_cpu-unknown-linux )
+  elseif( IS_NATIVE_CPU_ARCH AND NOT OS STREQUAL linux )
+    message(WARNING "libclc is being built for an unsupported ARCH/OS"
+      " configuration, some SYCL programs may fail to build.")
   endif()
 
   set( lib_files )
@@ -343,15 +353,13 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
         # AMDGCN needs libclc to be compiled to high bc version since all atomic
         # clang builtins need to be accessible
         list( APPEND flags -mcpu=gfx940 -mllvm --amdgpu-oclc-reflect-enable=false )
-      elseif( ARCH  STREQUAL x86_64)
-        # TODO: This is used by SYCL Native Cpu, we should define an option to set this flags
-        list( APPEND flags -Xclang -target-feature -Xclang +avx
-            -Xclang -fsycl-is-native-cpu
-            -Xclang -target-feature -Xclang +avx512f)
-      elseif( ARCH  STREQUAL aarch64)
-        list( APPEND flags -Xclang -fsycl-is-native-cpu)
-      else()
-        set ( flags )
+      elseif( IS_NATIVE_CPU_ARCH )
+        list( APPEND flags -Xclang -fsycl-is-native-cpu )
+        if( ARCH  STREQUAL x86_64 )
+          # TODO: This is used by SYCL Native Cpu, we should define an option to set this flags
+          list( APPEND flags -Xclang -target-feature -Xclang +avx
+              -Xclang -target-feature -Xclang +avx512f)
+        endif()
       endif()
     endif()
 
@@ -384,10 +392,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       set( has_distinct_generic_addrspace FALSE )
     elseif( ARCH STREQUAL amdgcn )
       set( opt_flags -O3 --amdgpu-oclc-reflect-enable=false )
-    elseif( ARCH STREQUAL x86_64)
-      set( opt_flags -O3 )
-      set( has_distinct_generic_addrspace FALSE )
-    elseif( ARCH STREQUAL "aarch64")
+    elseif( IS_NATIVE_CPU_ARCH )
       set( opt_flags -O3 )
       set( has_distinct_generic_addrspace FALSE )
     else()
