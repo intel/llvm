@@ -29,6 +29,7 @@ void test() {
   std::size_t N;
 
   std::cin >> N;
+  assert(!std::cin.fail());
 
   std::vector<std::size_t> v(N);
   {

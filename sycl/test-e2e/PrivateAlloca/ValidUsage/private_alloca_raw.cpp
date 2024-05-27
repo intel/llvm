@@ -1,8 +1,8 @@
 // RUN: %{build} -o %t.out
-// RUN: echo 1  | %{run} %t.out
-// RUN: echo 10 | %{run} %t.out
-// RUN: echo 20 | %{run} %t.out
-// RUN: echo 30 | %{run} %t.out
+// RUN: echo 1 1  | %{run} %t.out
+// RUN: echo 10 10 | %{run} %t.out
+// RUN: echo 20 20 | %{run} %t.out
+// RUN: echo 30 30 | %{run} %t.out
 
 // Simple test filling a private alloca and copying it back to an output
 // accessor using a raw multi_ptr. This pointer checks struct allocation.

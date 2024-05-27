@@ -1,5 +1,5 @@
 // RUN: %{build} -w -o %t.out
-// RUN: echo 1  | %{run} %t.out
+// RUN: echo 1 1  | %{run} %t.out
 
 // Test checking size of 'bool' type. This is not expected to be ever used, but,
 // as 'bool' is an integral type, it is a possible scenario.
