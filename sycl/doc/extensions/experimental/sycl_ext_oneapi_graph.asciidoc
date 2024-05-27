@@ -764,12 +764,15 @@ will maintain the graphs data dependencies.
 
 ===== Whole Graph Update [[whole-graph-update]]
 
-A graph in the executable state can have all of its nodes inputs & outputs
-updated using the `command_graph<graph_state::executable>::update(graph)`
-method. This method takes a graph in the modifiable state and updates the
-executable graph to use the node inputs & outputs of the modifiable graph.
+A graph in the executable state can have all of its nodes updated using the
+`command_graph<graph_state::executable>::update(graph)` method. This method
+takes a graph in the modifiable state and updates the nodes in the executable
+state graph to reflect any changes made to the nodes in the modifiable state
+graph. The characteristics which will be updated are detailed in the section on
+<<executable-graph-update, Executable Graph Update>>.
 
-Both graphs must have been constructed with the same device and context.
+Both the graph being updated and the graph being used as the source for the
+update must have been constructed with the same device and context.
 
 The modifiable graph must have the same topology as the graph originally used to
 create the executable graph, with the nodes and edges added in the same order.
@@ -2241,8 +2244,6 @@ void run_kernels(int* inputPtr, queue syclQueue){
 ...
 
 queue myQueue;
-auto myContext = myQueue.get_context();
-auto myDevice = myQueue.get_device();
 
 // USM allocations
 const size_t n = 1024;
@@ -2250,7 +2251,7 @@ int *ptrA = malloc_device<int>(n, myQueue);
 int *ptrB = malloc_device<int>(n, myQueue);
 
 // Main graph which will be updated later
-sycl_ext::command_graph mainGraph(myContext, myDevice);
+sycl_ext::command_graph mainGraph(myQueue);
 
 // Record the kernels to mainGraph, using ptrA
 mainGraph.begin_recording(myQueue);
@@ -2263,7 +2264,7 @@ auto execMainGraph = mainGraph.finalize({sycl_ext::property::graph::updatable});
 myQueue.ext_oneapi_graph(execMainGraph);
 
 // Record a second graph which records the same kernels, but using ptrB instead
-sycl_ext::command_graph updateGraph(myContext, myDevice);
+sycl_ext::command_graph updateGraph(myQueue);
 updateGraph.begin_recording(myQueue);
 run_kernels(ptrB, myQueue);
 updateGraph.end_recording();
