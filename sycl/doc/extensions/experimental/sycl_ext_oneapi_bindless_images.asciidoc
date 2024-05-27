@@ -1636,7 +1636,10 @@ for Windows NT resource handles.
 The user must populate the `external_mem_descriptor` with the appropriate 
 `ResourceType` values, a `handle_type`, and the size of the external memory in 
 bytes, before they can then import that memory into SYCL through 
-`import_external_memory`.
+`import_external_memory`. Note that some handle types can only be used in 
+combination with certain resource types, for example the `opaque_fd` handle type
+is only used on Linux systems and is only compatible with the `resource_fd` 
+resource type.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
@@ -1745,7 +1748,10 @@ to describe a POSIX file descriptor resource on Linux systems, or a
 
 The user must populate the `external_semaphore_descriptor` with the appropriate 
 `ResourceType` values, and `handle_type`, before they can then import that 
-semaphore into SYCL through `import_external_semaphore`.
+semaphore into SYCL through `import_external_semaphore`. Note that some handle 
+types can only be used in combination with certain resource types, for example 
+the `opaque_fd` handle type is only used on Linux systems and is only 
+compatible with the `resource_fd` resource type.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
