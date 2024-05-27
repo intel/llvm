@@ -475,9 +475,22 @@ NOTE: when shared libraries are involved, they could also provide some
 there could be more than one image registered with the same value of
 "virtual-functions-set" property.
 
-NOTE: No changes are needed for both in-memory and on-disk caches, because they
-take both kernel and device as keys and for that pair list of device images
-which needs to be linked together does not change from launch to launch.
+#### In-memory cache of kernels and programs
+
+It is very important that all kernels that use virtual functions from the same
+set and operate (construct and perform calls) on the same objects are bundled
+into the same program. If that program changes somewhere in between an object
+construction and virtual call, it will lead to undefined behavior because of
+invalidated vtable pointers.
+
+Therefore, in-memory cache eviction mechanism should be updated not to evict
+kernels that use virtual functions, because otherwise it will lead to functional
+issues.
+
+NOTE: in our experience we have only encountered a situation where in-memory
+cache eviction was required with SYCL CTS test for specialization constants,
+which is very heavy. Therefore, it is not expected that any changes to in-memory
+cache eviction mechanism will be needed any time soon.
 
 [1]: <../extensions/proposed/sycl_ext_intel_virtual_functions.asciidoc>
 [2]: <CompileTimeProperties.md>

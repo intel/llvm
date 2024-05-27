@@ -561,6 +561,24 @@ int main() {
 }
 ----
 
+If no explicit kernel bundle operations are performed by a program, it is
+responsibility of a SYCL implementation to ensure that all kernels that use
+virtual functions from the same set are implicitly put together into the same
+kernel bundle to ensure that everything works correctly.
+
+Note, however, that there are APIs which may require SYCL implementation to
+re-compile a kernel bundle. For example, if a specialization constant value is
+changed, SYCL implementation may need to re-compile a kernel bundle to embed
+new value of a specialization constant into a device program. Such
+re-compilation will invalidate all addresses of virtual functions which may
+have been previously recorded in a constructed object making behavior of
+virtual function calls through that object undefined.
+
+Correct manipulation with specialization constants in kernels that also use
+virtual functions requires advanced knowledge of implementation details and
+therefore it is not recommended to use specialization constants together with
+virtual functions.
+
 == Example usage
 
 [source,dpcpp]
