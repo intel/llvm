@@ -56,8 +56,8 @@ handles_t create_handles(sycl::context &ctxt, sycl::device &dev,
 }
 
 template <int NDims, typename DType, int NChannels,
-          sycl::image_channel_type CType, sycl::image_channel_order COrder,
-          typename InteropMemHandleT, typename KernelName>
+          sycl::image_channel_type CType, typename InteropMemHandleT,
+          typename KernelName>
 bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
               InteropMemHandleT inputImgInteropHandle, size_t mipLevels,
               size_t reqSize) {
@@ -66,7 +66,7 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
   auto ctxt = q.get_context();
 
   // Image descriptor - mapped to Vulkan image layout
-  syclexp::image_descriptor desc(globalSize, COrder, CType,
+  syclexp::image_descriptor desc(globalSize, NChannels, CType,
                                  syclexp::image_type::mipmap, mipLevels);
 
   syclexp::bindless_image_sampler samp(
@@ -386,7 +386,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
 #else
   auto inputMemHandle = vkutil::getMemoryOpaqueFD(inputMemory);
 #endif
-  bool result = run_sycl<NDims, DType, NChannels, CType, COrder,
+  bool result = run_sycl<NDims, DType, NChannels, CType,
                          decltype(inputMemHandle), KernelName>(
       dims, localSize, inputMemHandle, mipLevels, memRequirements.size);
 

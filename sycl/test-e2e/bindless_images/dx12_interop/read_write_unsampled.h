@@ -39,8 +39,7 @@ class DX12InteropTest {
 public:
   DX12InteropTest(uint32_t width)
       : m_width(width), m_sharedFenceValue(1),
-        m_syclImageDesc({m_width}, sycl::image_channel_order::r,
-                        sycl::image_channel_type::unsigned_int32),
+        m_syclImageDesc({m_width}, 1, sycl::image_channel_type::unsigned_int32),
         m_syclDevice(m_syclQueue.get_device()) {}
   ~DX12InteropTest() {}
 

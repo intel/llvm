@@ -52,8 +52,7 @@ handles_t create_test_handles(sycl::context &ctxt, sycl::device &dev,
 }
 
 template <typename InteropHandleT, int NDims, typename DType, int NChannels,
-          sycl::image_channel_type CType, sycl::image_channel_order COrder,
-          typename KernelName>
+          sycl::image_channel_type CType, typename KernelName>
 bool run_sycl(InteropHandleT inputInteropMemHandle,
               sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
   sycl::device dev;
@@ -61,7 +60,7 @@ bool run_sycl(InteropHandleT inputInteropMemHandle,
   auto ctxt = q.get_context();
 
   // Image descriptor - mapped to Vulkan image layout
-  syclexp::image_descriptor desc(globalSize, COrder, CType);
+  syclexp::image_descriptor desc(globalSize, NChannels, CType);
 
   syclexp::bindless_image_sampler samp(
       sycl::addressing_mode::repeat,
@@ -309,7 +308,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
 
   bool validated =
       run_sycl<decltype(input_mem_handle), NDims, DType, NChannels, CType,
-               COrder, KernelName>(input_mem_handle, dims, localSize);
+               KernelName>(input_mem_handle, dims, localSize);
 
   // Cleanup
   vkDestroyBuffer(vk_device, inputStagingBuffer, nullptr);

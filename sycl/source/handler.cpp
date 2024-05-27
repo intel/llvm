@@ -1059,8 +1059,9 @@ void handler::ext_oneapi_copy(
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
       sycl::_V1::detail::convertChannelType(Desc.channel_type);
-  PiFormat.image_channel_order =
-      sycl::_V1::detail::convertChannelOrder(Desc.channel_order);
+  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+      sycl::_V1::ext::oneapi::experimental::detail::
+          get_image_default_channel_order(Desc.num_channels));
 
   MImpl->MSrcOffset = {0, 0, 0};
   MImpl->MDestOffset = {0, 0, 0};
@@ -1112,8 +1113,9 @@ void handler::ext_oneapi_copy(
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
       sycl::_V1::detail::convertChannelType(DestImgDesc.channel_type);
-  PiFormat.image_channel_order =
-      sycl::_V1::detail::convertChannelOrder(DestImgDesc.channel_order);
+  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+      sycl::_V1::ext::oneapi::experimental::detail::
+          get_image_default_channel_order(DestImgDesc.num_channels));
 
   MImpl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
   MImpl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
@@ -1163,8 +1165,9 @@ void handler::ext_oneapi_copy(
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
       sycl::_V1::detail::convertChannelType(Desc.channel_type);
-  PiFormat.image_channel_order =
-      sycl::_V1::detail::convertChannelOrder(Desc.channel_order);
+  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+      sycl::_V1::ext::oneapi::experimental::detail::
+          get_image_default_channel_order(Desc.num_channels));
 
   MImpl->MSrcOffset = {0, 0, 0};
   MImpl->MDestOffset = {0, 0, 0};
@@ -1214,8 +1217,9 @@ void handler::ext_oneapi_copy(
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
       sycl::_V1::detail::convertChannelType(ImageDesc.channel_type);
-  PiFormat.image_channel_order =
-      sycl::_V1::detail::convertChannelOrder(ImageDesc.channel_order);
+  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+      sycl::_V1::ext::oneapi::experimental::detail::
+          get_image_default_channel_order(ImageDesc.num_channels));
 
   MImpl->MSrcOffset = {0, 0, 0};
   MImpl->MDestOffset = {0, 0, 0};
@@ -1267,8 +1271,9 @@ void handler::ext_oneapi_copy(
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
       sycl::_V1::detail::convertChannelType(SrcImgDesc.channel_type);
-  PiFormat.image_channel_order =
-      sycl::_V1::detail::convertChannelOrder(SrcImgDesc.channel_order);
+  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+      sycl::_V1::ext::oneapi::experimental::detail::
+          get_image_default_channel_order(SrcImgDesc.num_channels));
 
   MImpl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
   MImpl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
@@ -1318,8 +1323,9 @@ void handler::ext_oneapi_copy(
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
       sycl::_V1::detail::convertChannelType(Desc.channel_type);
-  PiFormat.image_channel_order =
-      sycl::_V1::detail::convertChannelOrder(Desc.channel_order);
+  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+      sycl::_V1::ext::oneapi::experimental::detail::
+          get_image_default_channel_order(Desc.num_channels));
 
   MImpl->MSrcOffset = {0, 0, 0};
   MImpl->MDestOffset = {0, 0, 0};
@@ -1374,8 +1380,9 @@ void handler::ext_oneapi_copy(
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
       sycl::_V1::detail::convertChannelType(DeviceImgDesc.channel_type);
-  PiFormat.image_channel_order =
-      sycl::_V1::detail::convertChannelOrder(DeviceImgDesc.channel_order);
+  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+      sycl::_V1::ext::oneapi::experimental::detail::
+          get_image_default_channel_order(DeviceImgDesc.num_channels));
 
   MImpl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
   MImpl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};

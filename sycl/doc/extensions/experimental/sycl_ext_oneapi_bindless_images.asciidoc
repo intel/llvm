@@ -159,23 +159,6 @@ of 3D USM images.
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
-enum class image_channel_order : /* unspecified */ {
-  a,
-  r,
-  rx,
-  rg,
-  rgx,
-  ra,
-  rgb,
-  rgbx,
-  rgba,
-  argb,
-  bgra,
-  intensity,
-  luminance,
-  abgr,
-};
-
 enum class image_channel_type : /* unspecified */ {
   snorm_int8,
   snorm_int16,
@@ -202,7 +185,7 @@ struct image_descriptor {
   size_t width{0};
   size_t height{0};
   size_t depth{0};
-  image_channel_order channel_order{image_channel_order::rgba};
+  unsigned int num_channels{4};
   image_channel_type channel_type{image_channel_type::fp32};
   image_type type{image_type::standard};
   unsigned int num_levels{1};
@@ -210,17 +193,17 @@ struct image_descriptor {
 
   image_descriptor() = default;
 
-  image_descriptor(sycl::range<1> dims, image_channel_order channel_order,
+  image_descriptor(sycl::range<1> dims, unsigned int num_channels,
                    image_channel_type channel_type, 
                    image_type type = image_type::standard, 
                    unsigned int num_levels = 1, unsigned int array_size = 1);
 
-  image_descriptor(sycl::range<2> dims, image_channel_order channel_order,
+  image_descriptor(sycl::range<2> dims, unsigned int num_channels,
                    image_channel_type channel_type, 
                    image_type type = image_type::standard, 
                    unsigned int num_levels = 1, unsigned int array_size = 1);
 
-  image_descriptor(sycl::range<3> dims, image_channel_order channel_order,
+  image_descriptor(sycl::range<3> dims, unsigned int num_channels,
                    image_channel_type channel_type, 
                    image_type type = image_type::standard, 
                    unsigned int num_levels = 1, unsigned int array_size = 1);
@@ -233,9 +216,9 @@ struct image_descriptor {
 }
 ```
 
-The image descriptor represents the image dimensions, channel type, and channel 
-order. An `image_type` member is also present to allow for implementation of 
-mipmapped, image array, and cubemapped images.
+The image descriptor represents the image dimensions, number of channels, and
+channel type. An `image_type` member is also present to allow for implementation
+of mipmapped, image array, and cubemapped images.
 
 The `image_descriptor` shall be default constructible and follow by-value 
 semantics.
@@ -255,6 +238,8 @@ The `verify` member function is available to check the validity of the image
 descriptor against the limitations outlined below. If the given descriptor is 
 deemed invalid, then a `sycl::exception` will be thrown with error code 
 `sycl::errc::invalid`.
+
+For all image types, the value of `num_channels` must be `1`, `2`, or `4`.
 
 For the `standard` image type, the value of `num_levels` and `array_size` must
 both be `1`.
@@ -311,9 +296,8 @@ public:
   sycl::context get_context() const;
 
   sycl::range<3> get_range() const;
-  sycl::image_channel_type get_image_channel_type() const;
-  sycl::image_channel_type get_image_channel_order() const;
-  unsigned int get_image_num_channels() const;
+  sycl::image_channel_type get_channel_type() const;
+  unsigned int get_num_channels() const;
   image_type get_type() const;
 
   image_mem_handle get_mip_level_mem_handle(unsigned int level) const;
@@ -394,7 +378,7 @@ using the `image_mem_alloc` function. These are similar to the member functions
 provided by `image_mem`. However, since the `image_mem_handle` is a minimal 
 struct representing just the opaque handle the underlying memory object, there 
 is some information that we cannot retrieve from it, namely the `image_type`,
-`image_channel_order`, the `sycl::context` or `sycl::device` the memory was 
+`num_channels`, the `sycl::context` or `sycl::device` the memory was
 allocated in, and the `image_descriptor` used to allocate the memory.
 
 ```cpp
@@ -1072,13 +1056,13 @@ void write_image(unsampled_image_handle ImageHandle,
 ```
 
 Inside a kernel, it's possible to retrieve data from an image via `fetch_image` 
-or `sample_image`, passing the appropirate image handle. The `fetch_image` API 
+or `sample_image`, passing the appropriate image handle. The `fetch_image` API 
 is applicable to sampled and unsampled images, and the data will be fetched 
 exactly as is in device memory. The `sample_image` API is only applicable to 
 sampled images, the image data will be sampled according to the 
 `bindless_image_sampler` that was passed to the image upon construction.
 
-When fetching from a sampled image handle, data exatly as is in memory, no 
+When fetching from a sampled image handle, data exactly as is in memory, no 
 sampling operations will be performed, and the `bindless_image_sampler` passed 
 to the image upon creation has no effect on the returned image data. Note that 
 not all devices may support fetching of sampled image data depending on the 
@@ -1681,7 +1665,7 @@ When calling `create_image` with an `image_mem_handle` mapped from an external
 memory object, the user must ensure that the image descriptor they pass to 
 `create_image` has members that match or map to those of the external API. 
 A mismatch between any of the `width`, `height`, `depth`, `image_channel_type`,
-or `image_channel_order` members will result in undefined behavior.
+or `num_channels` members will result in undefined behavior.
 
 Additionally, the `image_type` describing the image must match to the image of 
 the external API. The current supported importable image types are `standard` 
@@ -1930,7 +1914,7 @@ for (int i = 0; i < width; i++) {
 
 // Image descriptor - can use the same for both images
 sycl::ext::oneapi::experimental::image_descriptor desc(
-    sycl::range{width}, sycl::ext::oneapi::experimental::image_channel_order::r,
+    sycl::range{width}, 1,
     sycl::ext::oneapi::experimental::image_channel_type::fp32);
 
 try {
@@ -2009,7 +1993,7 @@ for (int i = 0; i < width; i++) {
 
 // Image descriptor - can use the same for all images
 sycl::ext::oneapi::experimental::image_descriptor desc(
-    {width, height}, sycl::ext::oneapi::experimental::image_channel_order::r,
+    {width, height}, 1,
     sycl::ext::oneapi::experimental::image_channel_type::fp32);
 
 try {
@@ -2109,7 +2093,7 @@ try {
 
   // Image descriptor -- number of levels
   sycl::ext::oneapi::experimental::image_descriptor desc(
-      {width}, sycl::ext::oneapi::experimental::image_channel_order::r, 
+      {width}, 1,
       sycl::ext::oneapi::experimental::image_channel_type::fp32,
       sycl::ext::oneapi::experimental::image_type::mipmap, num_levels);
 
@@ -2209,7 +2193,7 @@ for (int i = 0; i < width; i++) {
 try {
   // Extension: image descriptor -- number of layers
   sycl::ext::oneapi::experimental::image_descriptor desc(
-      {width}, sycl::image_channel_order::rgba, sycl::image_channel_type::fp32,
+      {width}, 4, sycl::image_channel_type::fp32,
       sycl::ext::oneapi::experimental::image_type::array, 1, array_size);
 
   // Extension: allocate image array memory on device
@@ -2338,7 +2322,7 @@ int main() {
 
   // Extension: image descriptor - Cubemap
   syclexp::image_descriptor desc(
-      {width, height}, sycl::image_channel_order::rgba,
+      {width, height}, 4,
       sycl::image_channel_type::fp32, syclexp::image_type::cubemap, 1, 6);
 
   syclexp::bindless_image_sampler samp(
@@ -2441,9 +2425,9 @@ sycl::context context = queue.get_context();
 size_t width = /* passed from external API */;
 size_t height = /* passed from external API */;
 
-sycl::ext::oneapi::experimental::image_channel_order channel_order = 
+unsigned int num_channels = 1;
     /* mapped from external API */
-    /* we assume sycl::image_channel_order::r */;
+    /* we assume there is one channel */;
 
 sycl::ext::oneapi::experimental::image_channel_type channel_type = 
     /* mapped from external API */
@@ -2451,7 +2435,7 @@ sycl::ext::oneapi::experimental::image_channel_type channel_type =
 
 // Image descriptor - mapped to external API image layout
 sycl::ext::oneapi::experimental::image_descriptor desc(
-    {width, height}, channel_order, channel_type);
+    {width, height}, num_channels, channel_type);
 
 size_t img_size_in_bytes = width * height * sizeof(uint32_t);
 
@@ -2774,7 +2758,16 @@ These features still need to be handled:
 |5.8|2024-05-09| - Add missing cubemap `HintT` template parameter to 
                    `fetch_cubemap` and `sample_cubemap`.
 |5.9|2024-05-14| - Default constructor for `image_descriptor`.
-|5.10|2024-05-22| - Added `external_mem_handle_type` and 
+|5.10|2024-05-20| - Replaced `channel_order` field in `image_descriptor` with
+                   `num_channels`.
+                  - Renamed `image_mem` functions `get_image_channel_type()`
+                    to `get_channel_type()` and `get_image_num_channels()` to
+                    `get_num_channels()`.
+                  - Removed `get_channel_order()` function from `image_mem`.
+                    This function is redundant since images don't have a notion
+                    of channel order, only the channel size. Use
+                    `get_num_channels()` instead.
+|5.11|2024-05-27| - Added `external_mem_handle_type` and 
                     `external_semaphore_handle_type` enums. These will allow 
                     multiple handle types to be consumed by the same interop API.
                   - Added `handle_type` field to the `external_mem_descriptor`
