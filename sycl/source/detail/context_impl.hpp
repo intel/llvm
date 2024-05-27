@@ -97,11 +97,6 @@ public:
   /// \return an instance of OpenCL cl_context.
   cl_context get() const;
 
-  /// Checks if this context is a host context.
-  ///
-  /// \return true if this context is a host context.
-  bool is_host() const;
-
   /// Gets asynchronous exception handler.
   ///
   /// \return an instance of SYCL async_handler.
@@ -182,7 +177,7 @@ public:
     // OpenCL does not support using descendants of context members within that
     // context yet.
     // TODO remove once this limitation is lifted
-    if (!is_host() && Device->getBackend() == backend::opencl)
+    if (Device->getBackend() == backend::opencl)
       return hasDevice(Device);
 
     while (!hasDevice(Device)) {

@@ -73,20 +73,6 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
     return nullptr;
 
   std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
-  if (CtxImpl->is_host()) {
-    if (!Alignment) {
-      // worst case default
-      Alignment = 128;
-    }
-
-    aligned_allocator<char> Alloc(Alignment);
-    try {
-      RetVal = Alloc.allocate(Size);
-    } catch (const std::bad_alloc &) {
-      // Conform with Specification behavior
-      RetVal = nullptr;
-    }
-  } else {
     pi_context C = CtxImpl->getHandleRef();
     const PluginPtr &Plugin = CtxImpl->getPlugin();
     pi_result Error = PI_ERROR_INVALID_VALUE;
@@ -128,7 +114,6 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
     // The spec wants a nullptr returned, not an exception.
     if (Error != PI_SUCCESS)
       return nullptr;
-  }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   xpti::addMetadata(PrepareNotify.traceEvent(), "memory_ptr",
                     reinterpret_cast<size_t>(RetVal));
@@ -154,24 +139,6 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
   if (Size == 0)
     return nullptr;
 
-  if (CtxImpl->is_host()) {
-    if (Kind == alloc::unknown) {
-      RetVal = nullptr;
-    } else {
-      if (!Alignment) {
-        // worst case default
-        Alignment = 128;
-      }
-
-      aligned_allocator<char> Alloc(Alignment);
-      try {
-        RetVal = Alloc.allocate(Size);
-      } catch (const std::bad_alloc &) {
-        // Conform with Specification behavior
-        RetVal = nullptr;
-      }
-    }
-  } else {
     pi_context C = CtxImpl->getHandleRef();
     const PluginPtr &Plugin = CtxImpl->getPlugin();
     pi_result Error = PI_ERROR_INVALID_VALUE;
@@ -245,7 +212,6 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
     // The spec wants a nullptr returned, not an exception.
     if (Error != PI_SUCCESS)
       return nullptr;
-  }
   return RetVal;
 }
 
@@ -284,14 +250,9 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
 void freeInternal(void *Ptr, const context_impl *CtxImpl) {
   if (Ptr == nullptr)
     return;
-  if (CtxImpl->is_host()) {
-    // need to use alignedFree here for Windows
-    detail::OSUtil::alignedFree(Ptr);
-  } else {
     pi_context C = CtxImpl->getHandleRef();
     const PluginPtr &Plugin = CtxImpl->getPlugin();
     Plugin->call<PiApiKind::piextUSMFree>(C, Ptr);
-  }
 }
 
 void free(void *Ptr, const context &Ctxt,
@@ -578,10 +539,6 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
 
   std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
 
-  // Everything on a host device is just system malloc so call it host
-  if (CtxImpl->is_host())
-    return alloc::host;
-
   pi_context PICtx = CtxImpl->getHandleRef();
   pi_usm_type AllocTy;
 
@@ -630,10 +587,6 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
                         PI_ERROR_INVALID_VALUE);
 
   std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
-
-  // Just return the host device in the host context
-  if (CtxImpl->is_host())
-    return Ctxt.get_devices()[0];
 
   // Check if ptr is a host allocation
   if (get_pointer_type(Ptr, Ctxt) == alloc::host) {
