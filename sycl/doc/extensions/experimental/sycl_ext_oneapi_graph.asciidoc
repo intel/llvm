@@ -775,7 +775,9 @@ Both the graph being updated and the graph being used as the source for the
 update must have been constructed with the same device and context.
 
 The modifiable graph must have the same topology as the graph originally used to
-create the executable graph, with the nodes and edges added in the same order.
+create the executable graph. This means that all nodes and edges must be added
+in the same order, and all Graph-related API calls and recorded queue
+submissions must occur in the same order.
 
 It is valid to use nodes that contain dynamic parameters in whole graph updates.
 If a node containing a dynamic parameter is updated through the whole graph
