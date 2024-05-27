@@ -219,14 +219,18 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
-template <
-    typename Group, typename S, typename T, use Use, size_t NumRows,
-    size_t NumCols, matrix::layout Layout, access::address_space Space,
-    access::decorated IsDecorated,
-    std::enable_if_t<std::is_same<S, std::remove_const_t<T>>::value ||
-                         (std::is_same<S, precision::tf32>::value &&
-                          std::is_same<std::remove_const_t<T>, float>::value),
-                     bool> = true>
+template <typename Group, typename S, typename T, use Use, size_t NumRows,
+          size_t NumCols, matrix::layout Layout, access::address_space Space,
+          access::decorated IsDecorated,
+          std::enable_if_t<
+              std::is_same<S, std::remove_const_t<T>>::value ||
+                  (std::is_same<S, precision::tf32>::value &&
+                   std::is_same<std::remove_const_t<T>, float>::value) ||
+                  (std::is_same<S, precision::sint4>::value &&
+                   std::is_same<std::remove_const_t<T>, int32_t>::value) ||
+                  (std::is_same<S, precision::uint4>::value &&
+                   std::is_same<std::remove_const_t<T>, int32_t>::value),
+              bool> = true>
 inline __SYCL_ALWAYS_INLINE void
 joint_matrix_load(Group sg,
                   joint_matrix<Group, S, Use, NumRows, NumCols, Layout> &res,
@@ -302,13 +306,17 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
-template <
-    typename Group, typename S, typename T, use Use, size_t NumRows,
-    size_t NumCols, matrix::layout Layout, typename PropertyListT,
-    std::enable_if_t<std::is_same<S, std::remove_const_t<T>>::value ||
-                         (std::is_same<S, precision::tf32>::value &&
-                          std::is_same<std::remove_const_t<T>, float>::value),
-                     bool> = true>
+template <typename Group, typename S, typename T, use Use, size_t NumRows,
+          size_t NumCols, matrix::layout Layout, typename PropertyListT,
+          std::enable_if_t<
+              std::is_same<S, std::remove_const_t<T>>::value ||
+                  (std::is_same<S, precision::tf32>::value &&
+                   std::is_same<std::remove_const_t<T>, float>::value) ||
+                  (std::is_same<S, precision::sint4>::value &&
+                   std::is_same<std::remove_const_t<T>, int32_t>::value) ||
+                  (std::is_same<S, precision::uint4>::value &&
+                   std::is_same<std::remove_const_t<T>, int32_t>::value),
+              bool> = true>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
     Group sg, joint_matrix<Group, S, Use, NumRows, NumCols, Layout> &res,
     ext::oneapi::experimental::annotated_ptr<T, PropertyListT> src,

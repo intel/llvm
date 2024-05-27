@@ -797,6 +797,14 @@ struct get_device_info_impl<
       };
     else if (architecture::intel_gpu_pvc == DeviceArch)
       return {
+          {8, 0, 0, 0, 16, 64, matrix_type::uint4, matrix_type::uint4,
+           matrix_type::sint32, matrix_type::sint32},
+          {8, 0, 0, 0, 16, 64, matrix_type::uint4, matrix_type::sint4,
+           matrix_type::sint32, matrix_type::sint32},
+          {8, 0, 0, 0, 16, 64, matrix_type::sint4, matrix_type::uint4,
+           matrix_type::sint32, matrix_type::sint32},
+          {8, 0, 0, 0, 16, 64, matrix_type::sint4, matrix_type::sint4,
+           matrix_type::sint32, matrix_type::sint32},
           {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},
           {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::sint8,
