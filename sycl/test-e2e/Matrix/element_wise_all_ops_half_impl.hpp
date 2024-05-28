@@ -16,7 +16,7 @@ void assert_ops_ref(host_accessor<T, 2, access::mode::read> C, const R ref) {
   for (size_t i = 0; i < Rows; i++)
     for (size_t j = 0; j < Cols; j++) {
       auto diff = C[i][j] - ref;
-      assert(std::fabs(static_cast<R>(diff)) <=
+      assert(std::fabs(static_cast<R>(diff)) <
              std::numeric_limits<R>::epsilon());
     }
 }

@@ -12,20 +12,21 @@ template <size_t TileRows, size_t TileCols> class mul;
 template <size_t TileRows, size_t TileCols> class divide;
 template <size_t TileRows, size_t TileCols> class logic;
 
-template <typename T, size_t Rows, size_t Cols, typename R>
-void assert_ops_ref(host_accessor<T, 2, access::mode::read> C, const R ref) {
+template <typename T, size_t Rows, size_t Cols, typename TResult>
+void assert_ops_ref(host_accessor<T, 2, access::mode::read> C,
+                    const TResult ref) {
   for (size_t i = 0; i < Rows; i++)
     for (size_t j = 0; j < Cols; j++) {
-      R diff = C[i][j] - ref;
-      assert(std::fabs(static_cast<R>(diff)) <=
-             std::numeric_limits<R>::epsilon());
+      TResult diff = C[i][j] - ref;
+      assert(std::fabs(static_cast<TResult>(diff)) <=
+             std::numeric_limits<TResult>::epsilon());
     }
 }
 
 template <typename T, size_t Rows, size_t Cols, size_t TileRows,
-          size_t TileCols, size_t VNNI, class kernel_name, typename R,
+          size_t TileCols, size_t VNNI, class kernel_name, typename TResult,
           typename OP>
-void matrix_verify_op(big_matrix<T, Rows, Cols> &B, const R ref, OP op) {
+void matrix_verify_op(big_matrix<T, Rows, Cols> &B, const TResult ref, OP op) {
   buffer<T, 2> bufB(B.get_data(), range<2>(Rows, Cols));
 
   queue q;
@@ -62,30 +63,30 @@ void matrix_verify_op(big_matrix<T, Rows, Cols> &B, const R ref, OP op) {
                Cols * VNNI);
          }); // parallel for
    }).wait();
-  assert_ops_ref<T, Rows, Cols, R>(bufB.get_host_access(read_only), ref);
+  assert_ops_ref<T, Rows, Cols, TResult>(bufB.get_host_access(read_only), ref);
 }
 
-template <typename Ta, typename TResult, size_t TK, size_t TN, size_t VNNI>
+template <typename T, typename TResult, size_t TK, size_t TN, size_t VNNI>
 void test() {
   static constexpr size_t Rows = TK * 2;
   static constexpr size_t Cols = TN * 2;
-  Ta B[Rows][Cols];
+  T B[Rows][Cols];
 
-  big_matrix<Ta, Rows, Cols> MB((Ta *)&B);
+  big_matrix<T, Rows, Cols> MB((T *)&B);
 
-  matrix_verify_op<Ta, Rows, Cols, TK, TN, VNNI, add<TK, TN>, TResult>(
+  matrix_verify_op<T, Rows, Cols, TK, TN, VNNI, add<TK, TN>, TResult>(
       MB, 7, [=](auto &x) { x = x + 2; });
-  matrix_verify_op<Ta, Rows, Cols, TK, TN, VNNI, sub<TK, TN>, TResult>(
+  matrix_verify_op<T, Rows, Cols, TK, TN, VNNI, sub<TK, TN>, TResult>(
       MB, 3, [=](auto &x) { x = x - 2; });
-  matrix_verify_op<Ta, Rows, Cols, TK, TN, VNNI, mul<TK, TN>, TResult>(
+  matrix_verify_op<T, Rows, Cols, TK, TN, VNNI, mul<TK, TN>, TResult>(
       MB, 10, [=](auto &x) { x = x * 2; });
-  matrix_verify_op<Ta, Rows, Cols, TK, TN, VNNI, divide<TK, TN>, TResult>(
+  matrix_verify_op<T, Rows, Cols, TK, TN, VNNI, divide<TK, TN>, TResult>(
       MB, 2, [=](auto &x) { x = x / 2; }); // truncation is expected
-  matrix_verify_op<Ta, Rows, Cols, TK, TN, VNNI, logic<TK, TN>, TResult>(
+  matrix_verify_op<T, Rows, Cols, TK, TN, VNNI, logic<TK, TN>, TResult>(
       MB, 7, [=](auto &x) {
         if (x) {
           if (x > 2 || x >= 2 || x < 2 || x <= 2) {
-            Ta val = (x != 2) ? x : 2;
+            T val = (x != 2) ? x : 2;
             val--;
             val++;
             if (x == 2) {
@@ -110,7 +111,7 @@ int main() {
 
   for (unsigned int i = 0; i < combinations.size(); i++) {
     if (combinations[i].nsize == 0) {                        // Intel AMX
-      test<int8_t, int, /*TK*/ 64, /*TN*/ 16, /*VNNI*/ 4>(); // should work
+      test<int8_t, int, /*TK*/ 64, /*TN*/ 16, /*VNNI*/ 4>();
       break;
     }
 
