@@ -535,9 +535,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  return urEnqueueKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                               pGlobalWorkSize, pLocalWorkSize,
-                               numEventsInWaitList, phEventWaitList, phEvent);
+  if (pGlobalWorkOffset == nullptr) {
+    ur_exp_launch_property_t coop_prop;
+    coop_prop.id = UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE;
+    coop_prop.value.cooperative = 1;
+    return urEnqueueKernelLaunchCustomExp(
+        hQueue, hKernel, workDim, pGlobalWorkSize, pLocalWorkSize, 1,
+        &coop_prop, numEventsInWaitList, phEventWaitList, phEvent);
+  } else {
+    return urEnqueueKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
+                                 pGlobalWorkSize, pLocalWorkSize,
+                                 numEventsInWaitList, phEventWaitList, phEvent);
+  }
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
