@@ -314,7 +314,11 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   };
 
   if (TargetTriple.isNVPTX()) {
-      LibraryList.push_back(Args.MakeArgString("cuda_lib_device.bc"));
+      LibraryList.push_back(Args.MakeArgString("devicelib--nvptx.bc"));
+      return LibraryList;
+  }
+  if (TargetTriple.isAMDGCN()) {
+      LibraryList.push_back(Args.MakeArgString("devicelib--amd.bc"));
       return LibraryList;
   }
 

@@ -48,6 +48,8 @@ if (NOT SYCL_LIBDEVICE_GCC_TOOLCHAIN STREQUAL "")
   list(APPEND compile_opts "--gcc-toolchain=${SYCL_LIBDEVICE_GCC_TOOLCHAIN}")
 endif()
 
+set(devicelib_arch)
+
 if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   string(APPEND sycl_targets_opt ",nvptx64-nvidia-cuda")
   list(APPEND compile_opts
@@ -55,6 +57,16 @@ if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
     "-fno-bundle-offload-arch"
     "-nocudalib"
     "--cuda-gpu-arch=sm_50")
+  set(devicelib_arch "NVPTX")
+elseif("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
+  string(APPEND sycl_targets_opt ",amdgcn-amd-amdhsa")
+  list(APPEND compile_opts
+    "fno-sycl-libspirv"
+    "-fno-bundle-offload-arch"
+    # Compile it to a high bc version. The arch info gets removed later.
+    # ToDo Do we need it for atomic clang builtin access?
+    "--offload-arch=gfx940")
+  set(devicelib_arch "AMDGPU")
 endif()
 
 if (WIN32)
@@ -169,18 +181,21 @@ function(link_bc)
 endfunction()
 
 function(append_to_property arg)
-  get_property(CUDA_FOO GLOBAL PROPERTY CUDA_FOO)
-  list(APPEND CUDA_FOO ${arg})
-  set_property(GLOBAL PROPERTY CUDA_FOO ${CUDA_FOO})
+  get_property(BC_DEVICE_LIBS GLOBAL PROPERTY BC_DEVICE_LIBS)
+  list(APPEND BC_DEVICE_LIBS ${arg})
+  set_property(GLOBAL PROPERTY BC_DEVICE_LIBS ${BC_DEVICE_LIBS})
 endfunction()
 
 function(add_devicelib_bc bc_filename)
-  cmake_parse_arguments(BC  "CUDA" "" "SRC;DEP;EXTRA_ARGS" ${ARGN})
+  cmake_parse_arguments(BC  "CUDA;AMD" "" "SRC;DEP;EXTRA_ARGS" ${ARGN})
   list(APPEND compile_opts "-fsycl-device-only" "-fsycl-device-obj=llvmir")
 
   if(${BC_CUDA})
-  list(APPEND compile_opts "-fsycl-targets=nvptx64-nvidia-cuda")
-  set (bc_filename ${bc_filename}--cuda)
+    list(APPEND compile_opts "-fsycl-targets=nvptx64-nvidia-cuda")
+    set (bc_filename ${bc_filename}--cuda)
+  elseif(${BC_AMD})
+    list(APPEND compile_opts "-Xsycl-target-backend=amdgcn-amd-amdhsa")
+    set (bc_filename ${bc_filename}--amd)
   endif()
 
   set(devicelib-bc-file ${bc_binary_dir}/${bc_filename}.bc)
@@ -202,20 +217,29 @@ function(add_devicelib_bc bc_filename)
           DESTINATION ${install_dest_bc}
           COMPONENT libsycldevice)
 
-  if(${BC_CUDA})
+   if(${BC_CUDA} OR ${BC_AMD})
     append_to_property(${devicelib-bc-file})
   endif()
 endfunction()
 
 function(add_devicelib filename)
-  set(dummy)
-
   cmake_parse_arguments(DL "" "" "SRC;DEP;EXTRA_ARGS" ${ARGN})
+
   add_devicelib_spv(${filename} SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
   add_devicelib_bc(${filename} dummy SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
   add_devicelib_obj(${filename} SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
-  add_devicelib_bc(${filename} CUDA SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
+  if (${devicelib_arch} STREQUAL "NVPTX")
+    add_devicelib_bc(${filename} CUDA SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
+  elseif (${devicelib_arch} STREQUAL "AMDGPU")
+    add_devicelib_bc(${filename} AMD SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
+  endif()
 endfunction()
+
+if (${devicelib_arch} STREQUAL "NVPTX")
+  add_devicelib_bc(${filename} CUDA SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
+elseif (${devicelib_arch} STREQUAL "AMDGPU")
+  add_devicelib_bc(${filename} AMD SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
+endif()
 
 set(crt_obj_deps wrapper.h device.h spirv_vars.h sycl-compiler)
 set(complex_obj_deps device_complex.h device.h sycl-compiler)
@@ -232,13 +256,11 @@ if (NOT MSVC)
     sycl-compiler)
 endif()
 
-set(cuda_out_file_list)
 add_devicelib(libsycl-itt-stubs SRC itt_stubs.cpp DEP ${itt_obj_deps})
 add_devicelib(libsycl-itt-compiler-wrappers SRC itt_compiler_wrappers.cpp DEP ${itt_obj_deps})
 add_devicelib(libsycl-itt-user-wrappers SRC itt_user_wrappers.cpp DEP ${itt_obj_deps})
 
-get_property(CUDA_FOO GLOBAL PROPERTY CUDA_FOO)
-message("CUDA OUT FILE LIST:  ${CUDA_FOO}")
+get_property(BC_DEVICE_LIBS GLOBAL PROPERTY BC_DEVICE_LIBS)
 add_devicelib(libsycl-crt SRC crt_wrapper.cpp DEP ${crt_obj_deps})
 add_devicelib(libsycl-complex SRC complex_wrapper.cpp DEP ${complex_obj_deps})
 add_devicelib(libsycl-complex-fp64 SRC complex_wrapper_fp64.cpp DEP ${complex_obj_deps} )
@@ -578,21 +600,21 @@ add_dependencies(libsycldevice-bc imf_fallback_bf16_bc_cuda)
 add_dependencies(libsycldevice-obj imf_fallback_bf16_obj)
 add_dependencies(libsycldevice-obj imf_fallback_bf16_new_offload_obj)
 
-get_property(CUDA_FOO GLOBAL PROPERTY CUDA_FOO)
+get_property(BC_DEVICE_LIBS GLOBAL PROPERTY BC_DEVICE_LIBS)
 
-link_bc(TARGET cuda_lib_device INPUTS ${CUDA_FOO})
+link_bc(TARGET device_lib_device INPUTS ${BC_DEVICE_LIBS})
 
 # -----------------------------------------------------------------------------------------------------
 
-set( builtins_link_lib $<TARGET_PROPERTY:cuda_lib_device,TARGET_FILE> )
+set( builtins_link_lib $<TARGET_PROPERTY:device_lib_device,TARGET_FILE> )
 
 set( builtins_opt_lib_tgt builtins.opt)
 
 # Add opt target
 add_custom_command( OUTPUT ${builtins_opt_lib_tgt}.bc
    COMMAND ${llvm-opt} ${ARG_OPT_FLAGS} -o ${builtins_opt_lib_tgt}.bc
-       ${builtins_link_lib}
-     DEPENDS ${llvm-opt} ${builtins_link_lib}
+       ${bc_binary_dir}/${builtins_link_lib}
+     DEPENDS ${llvm-opt} ${builtins_link_lib} ${device_lib_device}
    )
 add_custom_target( ${builtins_opt_lib_tgt}
      ALL DEPENDS ${builtins_opt_lib_tgt}.bc
@@ -604,8 +626,12 @@ set_target_properties( ${builtins_opt_lib_tgt}
 set( builtins_opt_lib $<TARGET_PROPERTY:${builtins_opt_lib_tgt},TARGET_FILE> )
 
 # Add prepare target
-set( obj_suffix dummy.bc )
-message ("output dir: " ${LLVM_LIBRARY_OUTPUT_INTDIR}/${obj_suffix})
+if (${devicelib_arch} STREQUAL "NVPTX")
+  set(obj_suffix "devicelib--nvptx.bc")
+elseif (${devicelib_arch} STREQUAL "AMDGPU")
+  set(obj_suffix "devicelib--amd.bc")
+endif()
+
 add_custom_command( OUTPUT ${LLVM_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
   COMMAND ${CMAKE_COMMAND} -E make_directory ${LLVM_LIBRARY_OUTPUT_INTDIR}
   COMMAND prepare_builtins -o ${LLVM_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
@@ -623,7 +649,7 @@ set( builtins_lib $<TARGET_PROPERTY:prepare-${obj_suffix},TARGET_FILE> )
 
 # ----------------------------------------------------------------------------------------------
 
-add_dependencies(libsycldevice-bc cuda_lib_device)
+add_dependencies(libsycldevice-bc device_lib_device)
 
 add_custom_command(OUTPUT ${obj_binary_dir}/imf-fp32-host.${lib-suffix}
                    COMMAND ${clang} ${imf_host_cxx_flags}
