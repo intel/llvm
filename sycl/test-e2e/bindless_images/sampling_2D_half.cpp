@@ -1,9 +1,9 @@
 // REQUIRES: linux
-// REQUIRES: cuda
+// REQUIRES: cuda || gpu-intel-dg2
 // REQUIRES: aspect-fp16
 
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
-// RUN: %t.out
+// RUN: env UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
