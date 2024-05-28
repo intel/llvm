@@ -45,6 +45,10 @@ function(compile_to_bc)
     set( TARGET_ARG "-target" ${ARG_TRIPLE} )
   endif()
 
+  # Ensure the directory we are told to output to exists
+  get_filename_component( ARG_OUTPUT_DIR ${ARG_OUTPUT} DIRECTORY )
+  file( MAKE_DIRECTORY ${ARG_OUTPUT_DIR} )
+
   add_custom_command(
     OUTPUT ${ARG_OUTPUT}${TMP_SUFFIX}
     COMMAND libclc::clang
@@ -90,10 +94,25 @@ function(link_bc)
     ${ARGN}
   )
 
+  set( LINK_INPUT_ARG ${ARG_INPUTS} )
+  if( WIN32 OR CYGWIN )
+    # Create a response file in case the number of inputs exceeds command-line
+    # character limits on certain platforms.
+    file( TO_CMAKE_PATH ${LIBCLC_ARCH_OBJFILE_DIR}/${ARG_TARGET}.rsp RSP_FILE )
+    # Turn it into a space-separate list of input files
+    list( JOIN ARG_INPUTS " " RSP_INPUT )
+    file( WRITE ${RSP_FILE} ${RSP_INPUT} )
+    # Ensure that if this file is removed, we re-run CMake
+    set_property( DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+      ${RSP_FILE}
+    )
+    set( LINK_INPUT_ARG "@${RSP_FILE}" )
+  endif()
+
   add_custom_command(
     OUTPUT ${ARG_TARGET}.bc
-    COMMAND libclc::llvm-link -o ${ARG_TARGET}.bc ${ARG_INPUTS}
-    DEPENDS libclc::llvm-link ${ARG_INPUTS}
+    COMMAND libclc::llvm-link -o ${ARG_TARGET}.bc ${LINK_INPUT_ARG}
+    DEPENDS libclc::llvm-link ${ARG_INPUTS} ${RSP_FILE}
   )
 
   add_custom_target( ${ARG_TARGET} ALL DEPENDS ${ARG_TARGET}.bc )
@@ -178,6 +197,7 @@ function(add_libclc_alias alias target)
 
   add_custom_command(
       OUTPUT ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${alias_suffix}
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
       COMMAND ${CMAKE_COMMAND} -E
         ${LIBCLC_LINK_OR_COPY} ${target}.bc
         ${alias_suffix}
@@ -288,6 +308,7 @@ macro(add_libclc_builtin_set arch_suffix)
   # Add prepare target
   set( obj_suffix ${arch_suffix}.bc )
   add_custom_command( OUTPUT ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
     COMMAND prepare_builtins -o ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
       ${builtins_opt_lib}
     DEPENDS ${builtins_opt_lib} prepare_builtins )
@@ -307,9 +328,11 @@ macro(add_libclc_builtin_set arch_suffix)
 
   # Generate remangled variants if requested
   if( LIBCLC_GENERATE_REMANGLED_VARIANTS )
-    set(dummy_in "${CMAKE_BINARY_DIR}/lib/clc/libclc_dummy_in.cc")
+    set( dummy_in ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/libclc_dummy_in.cc )
     add_custom_command( OUTPUT ${dummy_in}
-      COMMAND ${CMAKE_COMMAND} -E touch ${dummy_in} )
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
+      COMMAND ${CMAKE_COMMAND} -E touch ${dummy_in}
+    )
     set(long_widths l32 l64)
     set(char_signedness signed unsigned)
     if( ${obj_suffix} STREQUAL "libspirv-nvptx64--nvidiacl.bc")
@@ -326,6 +349,7 @@ macro(add_libclc_builtin_set arch_suffix)
         set( builtins_remangle_path
             "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}" )
         add_custom_command( OUTPUT "${builtins_remangle_path}"
+          COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
           COMMAND libclc::libclc-remangler
           -o "${builtins_remangle_path}"
           --long-width=${long_width}

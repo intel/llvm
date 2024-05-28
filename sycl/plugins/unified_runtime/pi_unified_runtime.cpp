@@ -19,14 +19,19 @@ static void DieUnsupported() {
 
 // Adapters may be released by piTearDown being called, or the global dtors
 // being called first. Handle releasing the adapters exactly once.
-static void releaseAdapters(std::vector<ur_adapter_handle_t> &Vec) {
+static void releaseAdapters(std::vector<ur_adapter_handle_t> &Vec) noexcept {
   static std::once_flag ReleaseFlag{};
-  std::call_once(ReleaseFlag, [&]() {
-    for (auto Adapter : Vec) {
-      urAdapterRelease(Adapter);
-    }
-    urLoaderTearDown();
-  });
+  try {
+    std::call_once(ReleaseFlag, [&]() {
+      for (auto Adapter : Vec) {
+        urAdapterRelease(Adapter);
+      }
+      urLoaderTearDown();
+    });
+  } catch (...) {
+    // Ignore any potential exceptions on teardown. Worst case scenario
+    // this just leaks some memory on exit.
+  }
 }
 
 struct AdapterHolder {
@@ -1226,19 +1231,18 @@ __SYCL_EXPORT pi_result piextMemImageAllocate(pi_context Context,
 
 __SYCL_EXPORT pi_result piextMemUnsampledImageCreate(
     pi_context Context, pi_device Device, pi_image_mem_handle ImgMem,
-    pi_image_format *ImageFormat, pi_image_desc *ImageDesc, pi_mem *RetMem,
+    pi_image_format *ImageFormat, pi_image_desc *ImageDesc,
     pi_image_handle *RetHandle) {
-  return pi2ur::piextMemUnsampledImageCreate(
-      Context, Device, ImgMem, ImageFormat, ImageDesc, RetMem, RetHandle);
+  return pi2ur::piextMemUnsampledImageCreate(Context, Device, ImgMem,
+                                             ImageFormat, ImageDesc, RetHandle);
 }
 
 __SYCL_EXPORT pi_result piextMemSampledImageCreate(
     pi_context Context, pi_device Device, pi_image_mem_handle ImgMem,
     pi_image_format *ImageFormat, pi_image_desc *ImageDesc, pi_sampler Sampler,
-    pi_mem *RetMem, pi_image_handle *RetHandle) {
+    pi_image_handle *RetHandle) {
   return pi2ur::piextMemSampledImageCreate(Context, Device, ImgMem, ImageFormat,
-                                           ImageDesc, Sampler, RetMem,
-                                           RetHandle);
+                                           ImageDesc, Sampler, RetHandle);
 }
 
 __SYCL_EXPORT pi_result piextBindlessImageSamplerCreate(

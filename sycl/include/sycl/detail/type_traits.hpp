@@ -11,7 +11,6 @@
 #include <sycl/access/access.hpp>             // for decorated, address_space
 #include <sycl/detail/generic_type_lists.hpp> // for vec, marray, integer_list
 #include <sycl/detail/type_list.hpp>          // for is_contained, find_twi...
-#include <sycl/half_type.hpp>                 // for half
 
 #include <array>       // for array
 #include <cstddef>     // for size_t
@@ -89,6 +88,8 @@ template <typename T>
 struct is_generic_group
     : std::integral_constant<bool,
                              is_group<T>::value || is_sub_group<T>::value> {};
+template <typename T>
+inline constexpr bool is_generic_group_v = is_generic_group<T>::value;
 
 namespace half_impl {
 class half;

@@ -95,61 +95,43 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit fe9a05e528992cd1db7b05e2857fb17879442e86
-  # Merge: ee2feb22 9222315f
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Tue Apr 16 10:10:10 2024 +0100
-  #    Merge pull request #1507 from nrspruit/fix_p2p_properties_init
-  #    [L0] Fix to p2p properties init for pNext and stype
-  set(UNIFIED_RUNTIME_TAG fe9a05e528992cd1db7b05e2857fb17879442e86)
+  # commit 396fb20498c315a526c961d7cb645b42795acd2c
+  # Merge: 719bb9cd e2ffea69
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Thu May 23 10:53:03 2024 +0100
+  #     Merge pull request #1501 from RossBrunton/ross/kerneltests
+  #     [Testing] Spec clarifications and testing updates for kernel
+  set(UNIFIED_RUNTIME_TAG 396fb20498c315a526c961d7cb645b42795acd2c)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit e428745588dd87e5db3c0bc0df1183eb7d0811a5
+    # Merge: fb3cbd16 80d46bb1
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Fri May 24 10:31:13 2024 +0100
+    #     Merge pull request #1656 from pbalcer/leaks-program-kernel
+    #     fix leaks on level-zero interop program and kernel handles
+    e428745588dd87e5db3c0bc0df1183eb7d0811a5
   )
 
   fetch_adapter_source(opencl
     ${UNIFIED_RUNTIME_REPO}
-    # commit 0d2a972c71ba4dd5935478c7b7124a372a1eeca0
-    # Merge: ac89abfe 44aef877
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Apr 11 10:24:19 2024 +0100
-    #     Merge pull request #1440 from fabiomestre/fabio/opencl_remove_queued_hack
-    #     [OPENCL] Remove EVENT_STATUS_QUEUED workaround
-    0d2a972c71ba4dd5935478c7b7124a372a1eeca0
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit 3f5f5688471a23a8d49ad6f47333df92e9f2e5c6
-    # Merge: fe9a05e5 6027c6bc
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Tue Apr 16 13:59:32 2024 +0100
-    #     Merge pull request #1510 from kbenzie/benie/cuda-fix-wrapper-escape
-    #     Fix Coverity wrapper escape issue
-    3f5f5688471a23a8d49ad6f47333df92e9f2e5c6
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 55cf3ba8139f8ffea9cf5cf42ea1f79c049b3520
-    # Merge: 15233fd2 35a6899d
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Mon Apr 15 09:50:52 2024 +0100
-    #     Merge pull request #1437 from hdelan/event-wait-with-good-context
-    #     [HIP] Use context to get active device
-    55cf3ba8139f8ffea9cf5cf42ea1f79c049b3520
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    # commit 15233fd2521f9e9b35e3a24037be99ceef334a8e
-    # Merge: 68e525a4 a04b062e
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri Apr 12 15:46:49 2024 +0100
-    #     Merge pull request #1489 from konradkusiak97/nativeCPUqueueFill
-    #     [NATIVECPU] Extended usm fill to bigger patterns than 1 byte
-    15233fd2521f9e9b35e3a24037be99ceef334a8e
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)

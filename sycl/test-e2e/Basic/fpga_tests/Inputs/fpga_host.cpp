@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "CL/sycl.hpp"
 #include <cassert>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

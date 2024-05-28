@@ -311,7 +311,7 @@ _CLC_DEF _CLC_OVERLOAD double __clc_pown(double x, int ny) {
     const double lnof2_by_64_tail = -4.359010638708991e-10;
 
     double temp = v * sixtyfour_by_lnof2;
-    int n = (int)temp;
+    int n = (int)(long)temp;
     double dn = (double)n;
     int j = n & 0x0000003f;
     int m = n >> 6;

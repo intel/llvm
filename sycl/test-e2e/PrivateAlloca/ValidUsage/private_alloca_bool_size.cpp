@@ -8,4 +8,7 @@
 
 constexpr sycl::specialization_id<bool> size(true);
 
-int main() { test<int, size, sycl::access::decorated::legacy>(); }
+int main() {
+  test<int, size, sycl::access::decorated::legacy>();
+  test<int, size, sycl::access::decorated::legacy, alignof(int) * 2>();
+}

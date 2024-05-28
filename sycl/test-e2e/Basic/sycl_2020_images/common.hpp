@@ -1,6 +1,9 @@
 // Header file with common utilities for testing SYCL 2020 image functionality.
 
-#include <sycl/sycl.hpp>
+#include <sycl/accessor_image.hpp>
+#include <sycl/builtins.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/image.hpp>
 
 using namespace sycl;
 

@@ -126,14 +126,14 @@ void foo() {
 // CHECK-NEXT: 416 |           pointer _M_finish
 // CHECK-NEXT: 424 |           pointer _M_end_of_storage
 // CHECK-NEXT: 432 |   class std::unique_ptr<class sycl::detail::HostKernelBase> MHostKernel
-// CHECK:      432 |       class std::__uniq_ptr_impl<class sycl::detail::HostKernelBase, struct std::default_delete<class sycl::detail::HostKernelBase> > (base)
+// CHECK:      432 |       class std::__uniq_ptr_impl<class sycl::detail::HostKernelBase, struct std::default_delete<class sycl::detail::HostKernelBase> >
 // CHECK-NEXT: 432 |         class std::tuple<class sycl::detail::HostKernelBase *, struct std::default_delete<class sycl::detail::HostKernelBase> > _M_t
 // CHECK-NEXT: 432 |           struct std::_Tuple_impl<0, class sycl::detail::HostKernelBase *, struct std::default_delete<class sycl::detail::HostKernelBase> > (base)
 // CHECK-NEXT: 432 |             struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::HostKernelBase> > (base) (empty)
 // CHECK:      432 |             struct std::_Head_base<0, class sycl::detail::HostKernelBase *> (base)
 // CHECK-NEXT: 432 |               class sycl::detail::HostKernelBase * _M_head_impl
 // CHECK-NEXT: 440 |   class std::unique_ptr<class sycl::detail::HostTask> MHostTask
-// CHECK:      440 |       class std::__uniq_ptr_impl<class sycl::detail::HostTask, struct std::default_delete<class sycl::detail::HostTask> > (base)
+// CHECK:      440 |       class std::__uniq_ptr_impl<class sycl::detail::HostTask, struct std::default_delete<class sycl::detail::HostTask> >
 // CHECK-NEXT: 440 |         class std::tuple<class sycl::detail::HostTask *, struct std::default_delete<class sycl::detail::HostTask> > _M_t
 // CHECK-NEXT: 440 |           struct std::_Tuple_impl<0, class sycl::detail::HostTask *, struct std::default_delete<class sycl::detail::HostTask> > (base)
 // CHECK-NEXT: 440 |             struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::HostTask> > (base) (empty)
@@ -165,7 +165,7 @@ void foo() {
 // CHECK-NEXT: 512 |       class std::__shared_count<> _M_refcount
 // CHECK-NEXT: 512 |         _Sp_counted_base<(_Lock_policy)2U> * _M_pi
 // CHECK-NEXT: 520 |   class std::unique_ptr<class sycl::detail::CG> MGraphNodeCG
-// CHECK:      520 |       class std::__uniq_ptr_impl<class sycl::detail::CG, struct std::default_delete<class sycl::detail::CG> > (base)
+// CHECK:      520 |       class std::__uniq_ptr_impl<class sycl::detail::CG, struct std::default_delete<class sycl::detail::CG> >
 // CHECK-NEXT: 520 |         class std::tuple<class sycl::detail::CG *, struct std::default_delete<class sycl::detail::CG> > _M_t
 // CHECK-NEXT: 520 |           struct std::_Tuple_impl<0, class sycl::detail::CG *, struct std::default_delete<class sycl::detail::CG> > (base)
 // CHECK-NEXT: 520 |             struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::CG> > (base) (empty)

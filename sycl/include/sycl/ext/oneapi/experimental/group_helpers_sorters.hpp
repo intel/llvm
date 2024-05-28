@@ -11,6 +11,7 @@
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 
 #include <sycl/aliases.hpp>             // for half
+#include <sycl/builtins.hpp>            // for min
 #include <sycl/detail/pi.h>             // for PI_ERROR_INVALID_DEVICE
 #include <sycl/exception.hpp>           // for sycl_category, exception
 #include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16
