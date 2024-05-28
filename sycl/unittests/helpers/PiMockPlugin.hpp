@@ -521,6 +521,12 @@ inline pi_result mock_piextMemMapExternalArray(pi_context context,
   return PI_SUCCESS;
 }
 
+inline pi_result mock_piextMemMapExternalLinearMemory(
+    pi_context context, pi_device device, uint64_t size, uint64_t offset,
+    pi_interop_mem_handle mem_handle, void **ret_mem) {
+  return PI_SUCCESS;
+}
+
 inline pi_result mock_piextMemReleaseInterop(pi_context context,
                                              pi_device device,
                                              pi_interop_mem_handle ext_mem) {

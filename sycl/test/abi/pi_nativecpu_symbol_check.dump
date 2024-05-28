@@ -137,6 +137,7 @@ piextMemImageCreateWithNativeHandle
 piextMemImageFree
 piextMemImageGetInfo
 piextMemMapExternalArray
+piextMemMapExternalLinearMemory
 piextMemMipmapFree
 piextMemMipmapGetLevel
 piextMemReleaseInterop

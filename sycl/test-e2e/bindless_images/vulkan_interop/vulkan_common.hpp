@@ -472,7 +472,7 @@ program is compiled for.
 */
 VkImage createImage(VkImageType type, VkFormat format, VkExtent3D extent,
                     VkImageUsageFlags usage, size_t mipLevels,
-                    bool exportable = true) {
+                    bool linearTiling = false, bool exportable = true) {
   VkImageCreateInfo ici = {};
   ici.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
   ici.imageType = type;
@@ -483,6 +483,10 @@ VkImage createImage(VkImageType type, VkFormat format, VkExtent3D extent,
   ici.usage = usage;
   ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   ici.samples = VK_SAMPLE_COUNT_1_BIT;
+
+  if (linearTiling) {
+    ici.tiling = VK_IMAGE_TILING_LINEAR;
+  }
 
   VkExternalMemoryImageCreateInfo emici = {};
   if (exportable) {
@@ -502,6 +506,24 @@ VkImage createImage(VkImageType type, VkFormat format, VkExtent3D extent,
     return VK_NULL_HANDLE;
   }
   return image;
+}
+
+/*
+Returns the row pitch with which a linear image's first subresource was
+created with in bytes.
+*/
+VkDeviceSize getImageRowPitch(VkImage image) {
+
+  VkImageSubresource imageSubresource = {};
+  imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  imageSubresource.mipLevel = 0;
+  imageSubresource.arrayLayer = 0;
+
+  VkSubresourceLayout subresourceLayout = {};
+  vkGetImageSubresourceLayout(vk_device, image, &imageSubresource,
+                              &subresourceLayout);
+
+  return subresourceLayout.rowPitch;
 }
 
 /*

@@ -206,9 +206,11 @@
 // 19.61 Rename piextDestroyExternalSemaphore to piextReleaseExternalSemaphore
 // 20.62 Changed the signature of piextMemImageCopy to take 2 image and format
 //       descriptors.
+// 20.63 Added new extension function that enables mapping imported memory to
+//       linear USM regions: `piextMemMapExternalLinearMemory`.
 
 #define _PI_H_VERSION_MAJOR 20
-#define _PI_H_VERSION_MINOR 62
+#define _PI_H_VERSION_MINOR 63
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -3147,6 +3149,19 @@ __SYCL_EXPORT pi_result piextMemMapExternalArray(
     pi_context context, pi_device device, pi_image_format *image_format,
     pi_image_desc *image_desc, pi_interop_mem_handle mem_handle,
     pi_image_mem_handle *ret_mem);
+
+/// API to map an interop memory handle to a memory region described by void *.
+///
+/// \param context is the pi_context
+/// \param device is the pi_device
+/// \param size size of memory region to map
+/// \param offset offset into memory region to map
+/// \param mem_handle is the interop memory handle to the external memory
+/// \param ret_mem is the returned memory pointer mapped to the externally
+/// allocated memory on device
+__SYCL_EXPORT pi_result piextMemMapExternalLinearMemory(
+    pi_context context, pi_device device, uint64_t size, uint64_t offset,
+    pi_interop_mem_handle mem_handle, void **ret_mem);
 
 /// API to destroy interop memory.
 ///

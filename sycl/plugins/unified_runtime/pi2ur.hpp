@@ -5540,6 +5540,22 @@ inline pi_result piextMemMapExternalArray(pi_context Context, pi_device Device,
   return PI_SUCCESS;
 }
 
+inline pi_result piextMemMapExternalLinearMemory(
+    pi_context Context, pi_device Device, uint64_t Offset, uint64_t Size,
+    pi_interop_mem_handle MemHandle, void **RetMem) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+
+  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
+  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  auto UrMemHandle = reinterpret_cast<ur_exp_interop_mem_handle_t>(MemHandle);
+
+  HANDLE_ERRORS(urBindlessImagesMapExternalLinearMemoryExp(
+      UrContext, UrDevice, Offset, Size, UrMemHandle, RetMem));
+
+  return PI_SUCCESS;
+}
+
 inline pi_result piextMemReleaseInterop(pi_context Context, pi_device Device,
                                         pi_interop_mem_handle ExtMem) {
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);

@@ -454,6 +454,14 @@ pi_result piextMemMapExternalArray(pi_context Context, pi_device Device,
                                          ImageDesc, MemHandle, RetMem);
 }
 
+pi_result piextMemMapExternalLinearMemory(pi_context Context, pi_device Device,
+                                          uint64_t Offset, uint64_t Size,
+                                          pi_interop_mem_handle MemHandle,
+                                          void **RetMem) {
+  return pi2ur::piextMemMapExternalLinearMemory(Context, Device, Offset, Size,
+                                                MemHandle, RetMem);
+}
+
 pi_result piextMemReleaseInterop(pi_context Context, pi_device Device,
                                  pi_interop_mem_handle ExtMem) {
   return pi2ur::piextMemReleaseInterop(Context, Device, ExtMem);

@@ -188,6 +188,36 @@ image_mem_handle map_external_image_memory(interop_mem_handle memHandle,
                                            const sycl::queue &syclQueue);
 
 /**
+ *  @brief   Maps an interop memory handle to a memory region described by the
+ *           returned void *
+ *
+ *  @param   memHandle   Interop memory handle
+ *  @param   offset      Offset of memory region to map
+ *  @param   size        Size of memory region to map
+ *  @param   syclDevice  The device in which we create our image memory handle
+ *  @param   syclContext The context in which we create our image memory handle
+ *  @return  Memory handle to externally allocated memory on the device
+ */
+__SYCL_EXPORT
+void *map_external_linear_memory(interop_mem_handle memHandle, uint64_t offset,
+                                 uint64_t size, const sycl::device &syclDevice,
+                                 const sycl::context &syclContext);
+
+/**
+ *  @brief   Maps an interop memory handle to a memory region described by the
+ *           returned void *
+ *
+ *  @param   memHandle   Interop memory handle
+ *  @param   offset      Offset of memory region to map
+ *  @param   size        Size of memory region to map
+ *  @param   syclQueue   The queue in which we create our image memory handle
+ *  @return  Memory handle to externally allocated memory on the device
+ */
+__SYCL_EXPORT
+void *map_external_linear_memory(interop_mem_handle memHandle, uint64_t offset,
+                                 uint64_t size, const sycl::queue &syclQueue);
+
+/**
  *  @brief   Import external semaphore taking an external semaphore handle (the
  *           type of which is dependent on the OS & external API)
  *

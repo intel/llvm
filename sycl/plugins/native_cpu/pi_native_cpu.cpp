@@ -477,6 +477,13 @@ __SYCL_EXPORT pi_result piextMemMapExternalArray(
                                          ImageDesc, MemHandle, RetMem);
 }
 
+__SYCL_EXPORT pi_result piextMemMapExternalLinearMemory(
+    pi_context Context, pi_device Device, uint64_t Offset, uint64_t Size,
+    pi_interop_mem_handle MemHandle, void **RetMem) {
+  return pi2ur::piextMemMapExternalLinearMemory(Context, Device, Offset, Size,
+                                                MemHandle, RetMem);
+}
+
 __SYCL_EXPORT pi_result piextMemReleaseInterop(pi_context Context,
                                                pi_device Device,
                                                pi_interop_mem_handle ExtMem) {

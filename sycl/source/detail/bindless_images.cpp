@@ -511,6 +511,35 @@ image_mem_handle map_external_image_memory(interop_mem_handle memHandle,
                                    syclQueue.get_context());
 }
 
+__SYCL_EXPORT
+void *map_external_linear_memory(interop_mem_handle memHandle, uint64_t offset,
+                                 uint64_t size, const sycl::device &syclDevice,
+                                 const sycl::context &syclContext) {
+  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
+      sycl::detail::getSyclObjImpl(syclContext);
+  pi_context C = CtxImpl->getHandleRef();
+  std::shared_ptr<sycl::detail::device_impl> DevImpl =
+      sycl::detail::getSyclObjImpl(syclDevice);
+  pi_device Device = DevImpl->getHandleRef();
+  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
+
+  pi_interop_mem_handle piInteropMem{memHandle.raw_handle};
+
+  void *retMemory;
+  Plugin->call<sycl::errc::invalid,
+               sycl::detail::PiApiKind::piextMemMapExternalLinearMemory>(
+      C, Device, offset, size, piInteropMem, &retMemory);
+
+  return retMemory;
+}
+
+__SYCL_EXPORT
+void *map_external_linear_memory(interop_mem_handle memHandle, uint64_t offset,
+                                 uint64_t size, const sycl::queue &syclQueue) {
+  return map_external_linear_memory(
+      memHandle, offset, size, syclQueue.get_device(), syclQueue.get_context());
+}
+
 __SYCL_EXPORT void release_external_memory(interop_mem_handle interopMem,
                                            const sycl::device &syclDevice,
                                            const sycl::context &syclContext) {
