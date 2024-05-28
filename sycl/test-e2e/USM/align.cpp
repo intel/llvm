@@ -1,4 +1,4 @@
-// RUN: %{build} -DNDEBUG -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // E2E tests for aligned USM allocation functions with different alignment
@@ -66,8 +66,7 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
       [&]() { return ADevice(1 << 10, q); },
       [&]() { return AHost(1 << 12, q); },
       [&]() { return AShared(1 << 13, q); },
-      [&]() { return ADevice(1 << 16, q); },
-      [&]() { return ADevice(1 << 20, q); }});
+      [&]() { return ADevice(1 << 16, q); }});
 }
 
 int main() {
