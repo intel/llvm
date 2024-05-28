@@ -249,6 +249,16 @@ public:
   }
 };
 
+template <typename Tp> class __imin_relu_op {
+  static_assert(std::is_same<int16_t, Tp>::value,
+                "Tp can only accept int16_t for __imax_relu_op");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y) {
+    return __imax<Tp>(__imin<Tp>(x, y), 0);
+  }
+};
+
 // Clang will optimize this function with llvm.sadd.sat intrinsic which
 // can't be handled by llvm-spirv translator, so using turn off clang
 // optimization for this function to avoid llvm-spirv crash.
@@ -1460,4 +1470,16 @@ int __devicelib_imf_vimax_s32_relu(int x, int y) {
   int t = __imax<int>(x, y);
   return (t > 0) ? t : 0;
 }
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimin_s16x2_relu(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<int16_t, 2, __imin_relu_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vimin_s32_relu(int x, int y) {
+  int t = __imin<int>(x, y);
+  return (t > 0) ? t : 0;
+}
+
 #endif

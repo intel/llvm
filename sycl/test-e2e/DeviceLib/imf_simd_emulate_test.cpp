@@ -2698,6 +2698,47 @@ void run_vimax_s32_relu_test(s::queue &device_q) {
   std::cout << "sycl::ext::intel::math::vimax_s32_relu test pass." << std::endl;
 }
 
+void run_vimin_s16x2_relu_test(s::queue &device_q) {
+  std::initializer_list<unsigned> input_vals1 = {
+      0,          0x66598536, 0x79a720c7, 0x230c1039, 0x7aea6c13, 0x28cc46cd,
+      0x424cee5,  0x17cb4d27, 0x3d07eab9, 0x8a1a296,  0x2c0fb9c7, 0xea36317,
+      0x3f71dcb,  0x1781e987, 0x187a846,  0x4669f625, 0x719530a2, 0x677ef563,
+      0x79e8b625, 0x7a2bea6,  0x289a6468};
+  std::initializer_list<unsigned> input_vals2 = {
+      0,          0x4c23af17, 0x4d253ac9, 0x1c666d3c, 0x1e0f5ecc, 0x8aa7475,
+      0x126d845a, 0x26a69327, 0x13834eb2, 0x11663096, 0x4bfb59a0, 0xe2c91ef,
+      0x13855d9a, 0x49bb5ff5, 0x5dadf7fa, 0x1b5b464b, 0x2cc37b5b, 0x6b3c516a,
+      0xa8b059c,  0x74d32238, 0x306f0573};
+  std::initializer_list<unsigned> ref_vals = {
+      0,         0x4c230000, 0x4d2520c7, 0x1c661039, 0x1e0f5ecc, 0x8aa46cd,
+      0x4240000, 0x17cb0000, 0x13830000, 0x8a10000,  0x2c0f0000, 0xe2c0000,
+      0x3f71dcb, 0x17810000, 0x1870000,  0x1b5b0000, 0x2cc330a2, 0x677e0000,
+      0xa8b0000, 0x7a20000,  0x289a0573};
+  test2(device_q, input_vals1, input_vals2, ref_vals,
+        F2(s::ext::intel::math::vimin_s16x2_relu));
+  std::cout << "sycl::ext::intel::math::vimin_s16x2_relu test pass."
+            << std::endl;
+}
+
+void run_vimin_s32_relu_test(s::queue &device_q) {
+  std::initializer_list<int> input_vals1 = {
+      0,           -513972138, 164967209,  -1552700357, -1415372018, 1466604230,
+      -2114923001, -777173506, 1024337784, -1530912123, 1541681187,  1082027099,
+      1111207099,  -903971399, 952543777,  -292091500,  -413825753,  -777022092,
+      443228777,   1213244154, -1095725924};
+  std::initializer_list<int> input_vals2 = {
+      0,          -1406387233, 1045875120,  -726054484, 557993502,  -1412263759,
+      -586527793, -1218389818, -124524890,  -495806067, -355972615, -553213597,
+      1639191288, 366015984,   -1221185330, 289300863,  281216025,  -87256161,
+      660030557,  1604018284,  -2085520141};
+  std::initializer_list<int> ref_vals = {
+      0, 0,          164967209, 0, 0, 0, 0, 0,         0,          0, 0,
+      0, 1111207099, 0,         0, 0, 0, 0, 443228777, 1213244154, 0};
+  test2(device_q, input_vals1, input_vals2, ref_vals,
+        F2(s::ext::intel::math::vimin_s32_relu));
+  std::cout << "sycl::ext::intel::math::vimin_s32_relu test pass." << std::endl;
+}
+
 int main(int, char **) {
   s::queue device_queue(s::default_selector_v);
   std::cout << "Running on "
@@ -2755,5 +2796,7 @@ int main(int, char **) {
   run_vimin3_u32_test(device_queue);
   run_vimax_s16x2_relu_test(device_queue);
   run_vimax_s32_relu_test(device_queue);
+  run_vimin_s16x2_relu_test(device_queue);
+  run_vimin_s32_relu_test(device_queue);
   return 0;
 }
