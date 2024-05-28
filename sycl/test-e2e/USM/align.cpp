@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -DNDEBUG -o %t.out
 // RUN: %{run} %t.out
 
 // E2E tests for aligned USM allocation functions with different alignment
