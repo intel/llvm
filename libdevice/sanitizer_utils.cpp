@@ -214,6 +214,30 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
       return 0;
     }
     return shadow_ptr;
+  } else if (as == ADDRESS_SPACE_PRIVATE) { // private
+    // work-group linear id
+    const auto WG_LID =
+        __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
+            __spirv_BuiltInNumWorkgroups.z +
+        __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
+        __spirv_BuiltInWorkgroupId.z;
+
+    auto launch_info = (__SYCL_GLOBAL__ const LaunchInfo *)__AsanLaunchInfo;
+    const auto shadow_offset = launch_info->PrivateShadowOffset;
+
+    if (shadow_offset == 0) {
+      return 0;
+    }
+
+    if (__AsanDebug)
+      __spirv_ocl_printf(__mem_launch_info, launch_info,
+                         launch_info->PrivateShadowOffset, 0,
+                         launch_info->NumLocalArgs, launch_info->LocalArgs);
+
+    uptr shadow_ptr = shadow_offset +
+                      ((WG_LID * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE) +
+                      ((addr & (ASAN_PRIVATE_SIZE - 1)) >> ASAN_SHADOW_SCALE);
+    return shadow_ptr;
   }
 
   return 0;
@@ -613,6 +637,14 @@ ASAN_REPORT_ERROR_BYTE(store, true, 16)
 
 ASAN_REPORT_ERROR_N(load, false)
 ASAN_REPORT_ERROR_N(store, true)
+
+///
+/// ASAN convert memory address to shadow memory address
+///
+
+DEVICE_EXTERN_C_NOINLINE uptr __asan_mem_to_shadow(uptr ptr, uint32_t as) {
+  return MemToShadow(ptr, as);
+}
 
 ///
 /// ASAN initialize shdadow memory of local memory
