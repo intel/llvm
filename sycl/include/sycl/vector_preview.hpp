@@ -616,9 +616,7 @@ public:
     } else {                                                                   \
       vector_t ExtVecLhs = sycl::bit_cast<vector_t>(Lhs);                      \
       vector_t ExtVecRhs = sycl::bit_cast<vector_t>(Rhs);                      \
-      Ret = vec<DataT, NumElements>(                                           \
-          (typename vec<DataT, NumElements>::vector_t)(                        \
-              ExtVecLhs BINOP ExtVecRhs));                                     \
+      Ret = vec<DataT, NumElements>(ExtVecLhs BINOP ExtVecRhs);                \
       if constexpr (std::is_same_v<DataT, bool> && CONVERT) {                  \
         Ret.ConvertToDataT();                                                  \
       }                                                                        \
@@ -746,6 +744,8 @@ public:
     } else {                                                                   \
       vector_t ExtVecLhs = sycl::bit_cast<vector_t>(Lhs);                      \
       vector_t ExtVecRhs = sycl::bit_cast<vector_t>(Rhs);                      \
+      /* Cast required to convert unsigned char ext_vec_type to */             \
+      /* char ext_vec_type. */                                                 \
       Ret = vec<rel_t, NumElements>(                                           \
           (typename vec<rel_t, NumElements>::vector_t)(                        \
               ExtVecLhs RELLOGOP ExtVecRhs));                                  \
