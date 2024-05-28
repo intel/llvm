@@ -902,10 +902,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(
     ur_queue_handle_t Queue ///< [in] handle of the queue to be flushed.
 ) {
-  // Flushing cross-queue dependencies is covered by
-  // createAndRetainUrZeEventList, so this can be left as a no-op.
-  std::ignore = Queue;
-  return UR_RESULT_SUCCESS;
+  std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
+  return Queue->executeAllOpenCommandLists();
 }
 
 // Configuration of the command-list batching.
@@ -1337,6 +1335,7 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
     // in the command list is not empty, otherwise we are going to just create
     // and remove proxy event right away and dereference deleted object
     // afterwards.
+    bool AppendBarrierNeeded = true;
     if (ZeEventsScope == LastCommandInBatchHostVisible &&
         !CommandList->second.EventList.empty()) {
       // If there are only internal events in the command list then we don't
@@ -1405,6 +1404,7 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
           ZE2UR_CALL(zeCommandListAppendSignalEvent,
                      (CommandList->first, HostVisibleEvent->ZeEvent));
         } else {
+          AppendBarrierNeeded = false;
           ZE2UR_CALL(
               zeCommandListAppendBarrier,
               (CommandList->first, HostVisibleEvent->ZeEvent, 0, nullptr));
@@ -1416,6 +1416,27 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
     } else {
       // If we don't have host visible proxy then signal event if needed.
       this->signalEventFromCmdListIfLastEventDiscarded(CommandList);
+    }
+    // Append Signalling of the inner events at the end of the batch if this is
+    // an integrated gpu and out of order signal events are not allowed.
+    if (!UrL0OutOfOrderIntegratedSignalEvent && this->Device->isIntegrated()) {
+      for (auto &Event : CommandList->second.EventList) {
+        // If the events scope does not apply a barrier already above, then we
+        // need to apply a barrier to wait on all the previous commands without
+        // signal events to complete before we can signal the batched events as
+        // completed. This functionality is only used if this command list is
+        // out of order and there are events created that were not used as
+        // signal events.
+        if (Event->IsInnerBatchedEvent) {
+          if (AppendBarrierNeeded) {
+            ZE2UR_CALL(zeCommandListAppendBarrier,
+                       (CommandList->first, nullptr, 0, nullptr));
+            AppendBarrierNeeded = false;
+          }
+          ZE2UR_CALL(zeCommandListAppendSignalEvent,
+                     (CommandList->first, Event->ZeEvent));
+        }
+      }
     }
 
     // Close the command list and have it ready for dispatch.
@@ -1491,8 +1512,7 @@ ur_queue_handle_t_::resetDiscardedEvent(ur_command_list_ptr_t CommandList) {
 }
 
 ur_result_t ur_queue_handle_t_::addEventToQueueCache(ur_event_handle_t Event) {
-  if (!Event->IsMultiDevice && Event->UrQueue) {
-    auto Device = Event->UrQueue->Device;
+  if (!Event->IsMultiDevice) {
     auto EventCachesMap = Event->isHostVisible() ? &EventCachesDeviceMap[0]
                                                  : &EventCachesDeviceMap[1];
     if (EventCachesMap->find(Device) == EventCachesMap->end()) {
@@ -1519,6 +1539,34 @@ ur_result_t ur_queue_handle_t_::active_barriers::clear() {
   return UR_RESULT_SUCCESS;
 }
 
+void ur_queue_handle_t_::clearEndTimeRecordings() {
+  uint64_t ZeTimerResolution = Device->ZeDeviceProperties->timerResolution;
+  const uint64_t TimestampMaxValue =
+      ((1ULL << Device->ZeDeviceProperties->kernelTimestampValidBits) - 1ULL);
+
+  for (auto Entry : EndTimeRecordings) {
+    auto &Event = Entry.first;
+    auto &EndTimeRecording = Entry.second;
+    if (!Entry.second.EventHasDied) {
+      // Write the result back to the event if it is not dead.
+      uint64_t ContextEndTime =
+          (EndTimeRecording.RecordEventEndTimestamp & TimestampMaxValue) *
+          ZeTimerResolution;
+
+      // Handle a possible wrap-around (the underlying HW counter is < 64-bit).
+      // Note, it will not report correct time if there were multiple wrap
+      // arounds, and the longer term plan is to enlarge the capacity of the
+      // HW timestamps.
+      if (ContextEndTime < Event->RecordEventStartTimestamp)
+        ContextEndTime += TimestampMaxValue * ZeTimerResolution;
+
+      // Store it in the event.
+      Event->RecordEventEndTimestamp = ContextEndTime;
+    }
+  }
+  EndTimeRecordings.clear();
+}
+
 ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
   ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
 
@@ -1543,6 +1591,8 @@ ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
               return ze2urResult(ZeResult);
           }
   }
+
+  Queue->clearEndTimeRecordings();
 
   logger::debug("urQueueRelease(compute) NumTimesClosedFull {}, "
                 "NumTimesClosedEarly {}",
@@ -1697,6 +1747,11 @@ ur_result_t ur_queue_handle_t_::synchronize() {
     LastCommandEvent = nullptr;
   }
 
+  // Since all timestamp recordings should have finished with the
+  // synchronizations, we can clear the map and write the results to the owning
+  // events.
+  clearEndTimeRecordings();
+
   // With the entire queue synchronized, the active barriers must be done so we
   // can remove them.
   if (auto Res = ActiveBarriers.clear())
@@ -1732,6 +1787,58 @@ ur_event_handle_t ur_queue_handle_t_::getEventFromQueueCache(bool IsMultiDevice,
   ur_event_handle_t RetEvent = *It;
   Cache->erase(It);
   return RetEvent;
+}
+
+// This helper function checks to see if an event for a command can be included
+// at the end of a command list batch. This will only be true if the event does
+// not have dependencies or the dependencies are not for events which exist in
+// this batch.
+bool eventCanBeBatched(ur_queue_handle_t Queue, bool UseCopyEngine,
+                       uint32_t NumEventsInWaitList,
+                       const ur_event_handle_t *EventWaitList) {
+  auto &CommandBatch =
+      UseCopyEngine ? Queue->CopyCommandBatch : Queue->ComputeCommandBatch;
+  // First see if there is an command-list open for batching commands
+  // for this queue.
+  if (Queue->hasOpenCommandList(UseCopyEngine)) {
+    // If this command should be batched, but the command has a dependency on a
+    // command in the current batch, then the command needs to have an event
+    // to track its completion so this event cannot be batched to the end of the
+    // command list.
+    if (NumEventsInWaitList > 0) {
+      for (auto &Event : CommandBatch.OpenCommandList->second.EventList) {
+        for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
+          if (Event == EventWaitList[i]) {
+            return false;
+          }
+        }
+      }
+    }
+  }
+  return true;
+}
+
+// This helper function checks to see if a signal event at the end of a command
+// should be set. If the Queue is out of order and the command has no
+// dependencies, then this command can be enqueued without a signal event set in
+// a command list batch. The signal event will be appended at the end of the
+// batch to be signalled at the end of the command list.
+ur_result_t setSignalEvent(ur_queue_handle_t Queue, bool UseCopyEngine,
+                           ze_event_handle_t *ZeEvent, ur_event_handle_t *Event,
+                           uint32_t NumEventsInWaitList,
+                           const ur_event_handle_t *EventWaitList,
+                           ze_command_queue_handle_t ZeQueue) {
+  if (!UrL0OutOfOrderIntegratedSignalEvent && Queue->Device->isIntegrated() &&
+      eventCanBeBatched(Queue, UseCopyEngine, NumEventsInWaitList,
+                        EventWaitList) &&
+      !Queue->isInOrderQueue() && !Queue->UsingImmCmdLists) {
+    ZeEvent = nullptr;
+    (*Event)->IsInnerBatchedEvent = true;
+    (*Event)->ZeBatchedQueue = ZeQueue;
+  } else {
+    (*ZeEvent) = (*Event)->ZeEvent;
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 // This helper function creates a ur_event_handle_t and associate a

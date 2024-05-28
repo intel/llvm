@@ -496,7 +496,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP < propName) {
+        if (UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
@@ -6961,7 +6961,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
-    ur_mem_handle_t *phMem, ///< [out] pointer to handle of image object created
     ur_exp_image_handle_t
         *phImage ///< [out] pointer to handle of image object created
 ) {
@@ -6993,10 +6992,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (NULL == phMem) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-
         if (NULL == phImage) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
@@ -7017,7 +7012,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     }
 
     ur_result_t result = pfnUnsampledImageCreateExp(
-        hContext, hDevice, hImageMem, pImageFormat, pImageDesc, phMem, phImage);
+        hContext, hDevice, hImageMem, pImageFormat, pImageDesc, phImage);
 
     return result;
 }
@@ -7033,7 +7028,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_sampler_handle_t hSampler,      ///< [in] sampler to be used
-    ur_mem_handle_t *phMem, ///< [out] pointer to handle of image object created
     ur_exp_image_handle_t
         *phImage ///< [out] pointer to handle of image object created
 ) {
@@ -7069,10 +7063,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (NULL == phMem) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-
         if (NULL == phImage) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
@@ -7099,7 +7089,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 
     ur_result_t result =
         pfnSampledImageCreateExp(hContext, hDevice, hImageMem, pImageFormat,
-                                 pImageDesc, hSampler, phMem, phImage);
+                                 pImageDesc, hSampler, phImage);
 
     return result;
 }
@@ -8937,6 +8927,154 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueTimestampRecordingExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    bool
+        blocking, ///< [in] indicates whether the call to this function should block until
+    ///< until the device timestamp recording command has executed on the
+    ///< device.
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the kernel execution.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    ///< events.
+    ur_event_handle_t *
+        phEvent ///< [in,out] return an event object that identifies this particular kernel
+                ///< execution instance. Profiling information can be queried
+    ///< from this event as if `hQueue` had profiling enabled. Querying
+    ///< `UR_PROFILING_INFO_COMMAND_QUEUED` or `UR_PROFILING_INFO_COMMAND_SUBMIT`
+    ///< reports the timestamp at the time of the call to this function.
+    ///< Querying `UR_PROFILING_INFO_COMMAND_START` or `UR_PROFILING_INFO_COMMAND_END`
+    ///< reports the timestamp recorded when the command is executed on the device.
+) {
+    auto pfnTimestampRecordingExp =
+        context.urDdiTable.EnqueueExp.pfnTimestampRecordingExp;
+
+    if (nullptr == pfnTimestampRecordingExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hQueue) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == phEvent) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
+        }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
+    ur_result_t result = pfnTimestampRecordingExp(
+        hQueue, blocking, numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueKernelLaunchCustomExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
+    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
+    uint32_t
+        workDim, ///< [in] number of dimensions, from 1 to 3, to specify the global and
+                 ///< work-group work-items
+    const size_t *
+        pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify the
+    ///< number of global work-items in workDim that will execute the kernel
+    ///< function
+    const size_t *
+        pLocalWorkSize, ///< [in][optional] pointer to an array of workDim unsigned values that
+    ///< specify the number of local work-items forming a work-group that will
+    ///< execute the kernel function. If nullptr, the runtime implementation
+    ///< will choose the work-group size.
+    uint32_t numPropsInLaunchPropList, ///< [in] size of the launch prop list
+    const ur_exp_launch_property_t *
+        launchPropList, ///< [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
+                        ///< properties
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the kernel execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating that no wait event.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+                ///< kernel execution instance.
+) {
+    auto pfnKernelLaunchCustomExp =
+        context.urDdiTable.EnqueueExp.pfnKernelLaunchCustomExp;
+
+    if (nullptr == pfnKernelLaunchCustomExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hQueue) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hKernel) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pGlobalWorkSize) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == launchPropList) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
+        }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hKernel)) {
+        refCountContext.logInvalidReference(hKernel);
+    }
+
+    ur_result_t result = pfnKernelLaunchCustomExp(
+        hQueue, hKernel, workDim, pGlobalWorkSize, pLocalWorkSize,
+        numPropsInLaunchPropList, launchPropList, numEventsInWaitList,
+        phEventWaitList, phEvent);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramBuildExp
 __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     ur_program_handle_t hProgram, ///< [in] Handle of the program to build.
@@ -9740,10 +9878,18 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
+    dditable.pfnKernelLaunchCustomExp = pDdiTable->pfnKernelLaunchCustomExp;
+    pDdiTable->pfnKernelLaunchCustomExp =
+        ur_validation_layer::urEnqueueKernelLaunchCustomExp;
+
     dditable.pfnCooperativeKernelLaunchExp =
         pDdiTable->pfnCooperativeKernelLaunchExp;
     pDdiTable->pfnCooperativeKernelLaunchExp =
         ur_validation_layer::urEnqueueCooperativeKernelLaunchExp;
+
+    dditable.pfnTimestampRecordingExp = pDdiTable->pfnTimestampRecordingExp;
+    pDdiTable->pfnTimestampRecordingExp =
+        ur_validation_layer::urEnqueueTimestampRecordingExp;
 
     return result;
 }

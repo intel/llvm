@@ -34,6 +34,22 @@ on:
         description: Type of workflow trigger
         type: string
         required: true
+      xfail:
+        description: Allow test failures
+        type: string
+        required: false
+      xfail_not:
+        description: Not xfail
+        type: string
+        required: false
+      filter_out:
+        description: Tests to filter out completely
+        type: string
+        required: false
+      extra_lit_flags:
+        description: Additional llvm-lit flags to use
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -50,7 +66,8 @@ jobs:
           str_name: "${{inputs.str_name}}",
           prefix: "${{inputs.prefix}}",
           config: "${{inputs.config}}",
-          unit: "${{inputs.unit}}"}
+          unit: "${{inputs.unit}}",
+          extra_lit_flags: "${{inputs.extra_lit_flags}}"},
         ]
         build_type: [Release]
         compiler: [{c: clang, cxx: clang++}]
@@ -103,7 +120,7 @@ jobs:
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       with:
         repository: intel/llvm
-        ref: sycl
+        ref: refs/heads/sycl
         path: sycl-repo
 
     - name: Set CUDA env vars
@@ -111,11 +128,6 @@ jobs:
       run: |
         echo "CUDA_LIB_PATH=/usr/local/cuda/lib64/stubs" >> $GITHUB_ENV
         echo "LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH" >> $GITHUB_ENV
-
-    - name: Run pre setup
-      run: |
-        source /opt/intel/oneapi/setvars.sh --force
-        sycl-ls
 
     - name: Configure SYCL
       run: >
@@ -134,11 +146,15 @@ jobs:
     - name: Build SYCL
       run: cmake --build ${{github.workspace}}/sycl_build -j
 
+    - name: Set extra llvm-lit options
+      if: matrix.adapter.extra_lit_flags != ''
+      run: echo "LIT_OPTS=${{matrix.adapter.extra_lit_flags}}" >> $GITHUB_ENV
+
     - name: Run check-sycl
       # Remove after fixing SYCL test :: abi/layout_handler.cpp
       # This issue does not affect further execution of e2e with UR.
       continue-on-error: true
-      run: cmake --build ${{github.workspace}}/sycl_build --target check-sycl -j6
+      run: cmake --build ${{github.workspace}}/sycl_build --target check-sycl
 
     - name: Set additional env. vars
       run: |
@@ -160,6 +176,13 @@ jobs:
         -DSYCL_TEST_E2E_TARGETS="${{matrix.adapter.prefix}}${{matrix.adapter.str_name}}:${{matrix.adapter.unit}}"
         -DCMAKE_CXX_COMPILER="$(which clang++)"
         -DLLVM_LIT="${{github.workspace}}/sycl-repo/llvm/utils/lit/lit.py"
+
+    - name: Set test filters for L0
+      if: matrix.adapter.name == 'L0'
+      run: |
+        echo "LIT_XFAIL_NOT=${{inputs.xfail_not}}" >> $GITHUB_ENV
+        echo "LIT_XFAIL=${{inputs.xfail}}" >> $GITHUB_ENV
+        echo "LIT_FILTER_OUT=${{inputs.filter_out}}" >> $GITHUB_ENV
 
     - name: Run e2e tests
       id: tests

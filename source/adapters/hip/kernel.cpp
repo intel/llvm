@@ -91,14 +91,17 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     return ReturnValue(size_t(MaxThreads));
   }
   case UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
-    size_t group_size[3] = {0, 0, 0};
-    // Returns the work-group size specified in the kernel source or IL.
-    // If the work-group size is not specified in the kernel source or IL,
-    // (0, 0, 0) is returned.
-    // https://www.khronos.org/registry/OpenCL/sdk/2.1/docs/man/xhtml/clGetKernelWorkGroupInfo.html
-
-    // TODO: can we extract the work group size from the PTX?
-    return ReturnValue(group_size, 3);
+    size_t GroupSize[3] = {0, 0, 0};
+    const auto &ReqdWGSizeMDMap =
+        hKernel->getProgram()->KernelReqdWorkGroupSizeMD;
+    const auto ReqdWGSizeMD = ReqdWGSizeMDMap.find(hKernel->getName());
+    if (ReqdWGSizeMD != ReqdWGSizeMDMap.end()) {
+      const auto ReqdWGSize = ReqdWGSizeMD->second;
+      GroupSize[0] = std::get<0>(ReqdWGSize);
+      GroupSize[1] = std::get<1>(ReqdWGSize);
+      GroupSize[2] = std::get<2>(ReqdWGSize);
+    }
+    return ReturnValue(GroupSize, 3);
   }
   case UR_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
     // OpenCL LOCAL == HIP SHARED

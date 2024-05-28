@@ -176,6 +176,10 @@ struct ur_device_handle_t_ : _ur_object {
            (ZeDeviceProperties->deviceId & 0xff0) == 0xb60;
   }
 
+  bool isIntegrated() {
+    return (ZeDeviceProperties->flags & ZE_DEVICE_PROPERTY_FLAG_INTEGRATED);
+  }
+
   // Does this device represent a single compute slice?
   bool isCCS() const {
     return QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute]

@@ -18,6 +18,45 @@ struct urEnqueueKernelLaunchTest : uur::urKernelExecutionTest {
 };
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchTest);
 
+struct urEnqueueKernelLaunchKernelWgSizeTest : uur::urKernelExecutionTest {
+    void SetUp() override {
+        program_name = "fixed_wg_size";
+        UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
+    }
+
+    std::array<size_t, 3> global_size{32, 32, 32};
+    std::array<size_t, 3> global_offset{0, 0, 0};
+    // This must match the size in fixed_wg_size.cpp
+    std::array<size_t, 3> wg_size{4, 4, 4};
+    size_t n_dimensions = 3;
+};
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchKernelWgSizeTest);
+
+// Note: Due to an issue with HIP, the subgroup test is not generated
+struct urEnqueueKernelLaunchKernelSubGroupTest : uur::urKernelExecutionTest {
+    void SetUp() override {
+        program_name = "subgroup";
+        UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
+    }
+
+    std::array<size_t, 3> global_size{32, 32, 32};
+    std::array<size_t, 3> global_offset{0, 0, 0};
+    size_t n_dimensions = 3;
+};
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchKernelSubGroupTest);
+
+struct urEnqueueKernelLaunchKernelStandardTest : uur::urKernelExecutionTest {
+    void SetUp() override {
+        program_name = "standard_types";
+        UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
+    }
+
+    size_t n_dimensions = 1;
+    size_t global_size = 1;
+    size_t offset = 0;
+};
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchKernelStandardTest);
+
 TEST_P(urEnqueueKernelLaunchTest, Success) {
     ur_mem_handle_t buffer = nullptr;
     AddBuffer1DArg(sizeof(val) * global_size, &buffer);
@@ -75,6 +114,94 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidWorkDimension) {
                                            &global_offset, &global_size,
                                            nullptr, 0, nullptr, nullptr),
                      UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+}
+
+TEST_P(urEnqueueKernelLaunchTest, InvalidWorkGroupSize) {
+    // As far as I can tell, there's no way to check if a kernel or device
+    // requires uniform work group sizes or not, so this may succeed or report
+    // an error
+    size_t local_size = 31;
+    ur_mem_handle_t buffer = nullptr;
+    AddBuffer1DArg(sizeof(val) * global_size, &buffer);
+    AddPodArg(val);
+    auto result =
+        urEnqueueKernelLaunch(queue, kernel, n_dimensions, &global_offset,
+                              &global_size, &local_size, 0, nullptr, nullptr);
+    ASSERT_TRUE(result == UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE ||
+                result == UR_RESULT_SUCCESS);
+}
+
+TEST_P(urEnqueueKernelLaunchTest, InvalidKernelArgs) {
+    ur_platform_backend_t backend;
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                     sizeof(ur_platform_backend_t), &backend,
+                                     nullptr));
+
+    if (backend == UR_PLATFORM_BACKEND_CUDA ||
+        backend == UR_PLATFORM_BACKEND_HIP) {
+        GTEST_FAIL() << "AMD and Nvidia can't check kernel arguments.";
+    }
+
+    // Enqueue kernel without setting any args
+    ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
+                                           &global_offset, &global_size,
+                                           nullptr, 0, nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_KERNEL_ARGS);
+}
+
+TEST_P(urEnqueueKernelLaunchKernelWgSizeTest, Success) {
+    ASSERT_SUCCESS(urEnqueueKernelLaunch(
+        queue, kernel, n_dimensions, global_offset.data(), global_size.data(),
+        nullptr, 0, nullptr, nullptr));
+    ASSERT_SUCCESS(urQueueFinish(queue));
+}
+
+TEST_P(urEnqueueKernelLaunchKernelWgSizeTest, SuccessWithExplicitLocalSize) {
+    ASSERT_SUCCESS(urEnqueueKernelLaunch(
+        queue, kernel, n_dimensions, global_offset.data(), global_size.data(),
+        wg_size.data(), 0, nullptr, nullptr));
+    ASSERT_SUCCESS(urQueueFinish(queue));
+}
+
+TEST_P(urEnqueueKernelLaunchKernelWgSizeTest, NonMatchingLocalSize) {
+    std::array<size_t, 3> wrong_wg_size{8, 8, 8};
+    ASSERT_EQ_RESULT(
+        urEnqueueKernelLaunch(queue, kernel, n_dimensions, global_offset.data(),
+                              global_size.data(), wrong_wg_size.data(), 0,
+                              nullptr, nullptr),
+        UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
+}
+
+TEST_P(urEnqueueKernelLaunchKernelSubGroupTest, Success) {
+    ur_mem_handle_t buffer = nullptr;
+    AddBuffer1DArg(sizeof(size_t), &buffer);
+    ASSERT_SUCCESS(urEnqueueKernelLaunch(
+        queue, kernel, n_dimensions, global_offset.data(), global_size.data(),
+        nullptr, 0, nullptr, nullptr));
+    ASSERT_SUCCESS(urQueueFinish(queue));
+    ValidateBuffer<size_t>(buffer, sizeof(size_t), 8);
+}
+
+struct Pair {
+    uint32_t a;
+    uint32_t b;
+};
+TEST_P(urEnqueueKernelLaunchKernelStandardTest, Success) {
+    uint32_t expected_result = 2410;
+    ur_mem_handle_t output = nullptr;
+    AddBuffer1DArg(sizeof(uint32_t), &output);
+    AddPodArg(true);
+    AddPodArg<uint8_t>(2);
+    AddPodArg<uint32_t>(3);
+    AddPodArg<uint64_t>(5);
+    AddPodArg<Pair>({7, 5});
+    AddPodArg<float>(11.0);
+
+    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions, &offset,
+                                         &global_size, nullptr, 0, nullptr,
+                                         nullptr));
+    ASSERT_SUCCESS(urQueueFinish(queue));
+    ValidateBuffer<uint32_t>(output, sizeof(uint32_t), expected_result);
 }
 
 struct testParametersEnqueueKernel {

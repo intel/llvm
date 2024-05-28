@@ -10,6 +10,8 @@
 
 #include "common.hpp"
 #include "nativecpu_state.hpp"
+#include "program.hpp"
+#include <array>
 #include <ur_api.h>
 #include <utility>
 
@@ -37,13 +39,17 @@ struct local_arg_info_t {
 
 struct ur_kernel_handle_t_ : RefCounted {
 
-  ur_kernel_handle_t_(const char *name, nativecpu_task_t subhandler)
-      : _name{name}, _subhandler{std::move(subhandler)} {}
+  ur_kernel_handle_t_(ur_program_handle_t hProgram, const char *name,
+                      nativecpu_task_t subhandler)
+      : hProgram(hProgram), _name{name}, _subhandler{std::move(subhandler)},
+        HasReqdWGSize(false) {}
 
   ur_kernel_handle_t_(const ur_kernel_handle_t_ &other)
-      : _name(other._name), _subhandler(other._subhandler), _args(other._args),
+      : hProgram(other.hProgram), _name(other._name),
+        _subhandler(other._subhandler), _args(other._args),
         _localArgInfo(other._localArgInfo), _localMemPool(other._localMemPool),
-        _localMemPoolSize(other._localMemPoolSize) {
+        _localMemPoolSize(other._localMemPoolSize),
+        HasReqdWGSize(other.HasReqdWGSize), ReqdWGSize(other.ReqdWGSize) {
     incrementReferenceCount();
   }
 
@@ -52,13 +58,22 @@ struct ur_kernel_handle_t_ : RefCounted {
       free(_localMemPool);
     }
   }
+  ur_kernel_handle_t_(ur_program_handle_t hProgram, const char *name,
+                      nativecpu_task_t subhandler,
+                      const native_cpu::ReqdWGSize_t &ReqdWGSize)
+      : hProgram(hProgram), _name{name}, _subhandler{std::move(subhandler)},
+        HasReqdWGSize(true), ReqdWGSize(ReqdWGSize) {}
 
-  const char *_name;
+  ur_program_handle_t hProgram;
+  std::string _name;
   nativecpu_task_t _subhandler;
   std::vector<native_cpu::NativeCPUArgDesc> _args;
   std::vector<local_arg_info_t> _localArgInfo;
 
-  // To be called before enqueueing the kernel.
+  bool hasReqdWGSize() const { return HasReqdWGSize; }
+
+  const native_cpu::ReqdWGSize_t &getReqdWGSize() const { return ReqdWGSize; }
+
   void updateMemPool(size_t numParallelThreads) {
     // compute requested size.
     size_t reqSize = 0;
@@ -88,4 +103,6 @@ struct ur_kernel_handle_t_ : RefCounted {
 private:
   char *_localMemPool = nullptr;
   size_t _localMemPoolSize = 0;
+  bool HasReqdWGSize;
+  native_cpu::ReqdWGSize_t ReqdWGSize;
 };

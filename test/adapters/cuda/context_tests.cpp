@@ -21,7 +21,9 @@ TEST_P(cudaUrContextCreateTest, CreateWithChildThread) {
 
     // Retrieve the CUDA context to check information is correct
     auto checkValue = [=] {
-        CUcontext cudaContext = context.handle->get();
+        // Just testing the first device in context
+        CUcontext cudaContext =
+            context.handle->getDevices()[0]->getNativeContext();
         unsigned int version = 0;
         EXPECT_SUCCESS_CUDA(cuCtxGetApiVersion(cudaContext, &version));
         EXPECT_EQ(version, known_cuda_api_version);
@@ -94,15 +96,6 @@ TEST_P(cudaUrContextCreateTest, ContextLifetimeExisting) {
 
     // ensure the queue has the correct context
     ASSERT_EQ(context, queue->getContext());
-
-    // create a buffer in the context to set the context as active
-    uur::raii::Mem buffer;
-    ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, 1024,
-                                     nullptr, buffer.ptr()));
-
-    // check that context is now the active cuda context
-    ASSERT_SUCCESS_CUDA(cuCtxGetCurrent(&current));
-    ASSERT_EQ(current, context->get());
 }
 
 TEST_P(cudaUrContextCreateTest, ThreadedContext) {
@@ -127,8 +120,6 @@ TEST_P(cudaUrContextCreateTest, ThreadedContext) {
     // the first context, and then create and release another queue with
     // the second context.
     auto test_thread = std::thread([&] {
-        CUcontext current = nullptr;
-
         {
             // create a queue with the first context
             uur::raii::Queue queue;
@@ -165,15 +156,6 @@ TEST_P(cudaUrContextCreateTest, ThreadedContext) {
 
             // ensure queue has correct context
             ASSERT_EQ(context2, queue->getContext());
-
-            // create a buffer to set the active context
-            uur::raii::Mem buffer = nullptr;
-            ASSERT_SUCCESS(urMemBufferCreate(context2, UR_MEM_FLAG_READ_WRITE,
-                                             1024, nullptr, buffer.ptr()));
-
-            // check that the 2nd context is now tha active cuda context
-            ASSERT_SUCCESS_CUDA(cuCtxGetCurrent(&current));
-            ASSERT_EQ(current, context2->get());
         }
     });
 

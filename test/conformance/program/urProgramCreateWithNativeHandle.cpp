@@ -8,8 +8,10 @@
 struct urProgramCreateWithNativeHandleTest : uur::urProgramTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
-        ASSERT_SUCCESS(
-            urProgramGetNativeHandle(program, &native_program_handle));
+        {
+            UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+                urProgramGetNativeHandle(program, &native_program_handle));
+        }
     }
 
     void TearDown() override {
@@ -25,10 +27,8 @@ struct urProgramCreateWithNativeHandleTest : uur::urProgramTest {
 UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramCreateWithNativeHandleTest);
 
 TEST_P(urProgramCreateWithNativeHandleTest, Success) {
-    if (urProgramCreateWithNativeHandle(native_program_handle, context, nullptr,
-                                        &native_program)) {
-        GTEST_SKIP();
-    }
+    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urProgramCreateWithNativeHandle(
+        native_program_handle, context, nullptr, &native_program));
 
     uint32_t ref_count = 0;
     ASSERT_SUCCESS(urProgramGetInfo(native_program,

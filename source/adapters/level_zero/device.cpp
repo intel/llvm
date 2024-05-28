@@ -1,6 +1,6 @@
 //===--------- device.cpp - Level Zero Adapter ----------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2024 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -188,8 +188,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_ATOMIC_64:
     return ReturnValue(
-        static_cast<uint32_t>(Device->ZeDeviceModuleProperties->flags &
-                              ZE_DEVICE_MODULE_FLAG_INT64_ATOMICS));
+        static_cast<ur_bool_t>(Device->ZeDeviceModuleProperties->flags &
+                               ZE_DEVICE_MODULE_FLAG_INT64_ATOMICS));
   case UR_DEVICE_INFO_EXTENSIONS: {
     // Convention adopted from OpenCL:
     //     "Returns a space separated list of extension names (the extension
@@ -258,9 +258,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_BUILD_ON_SUBDEVICE:
     return ReturnValue(uint32_t{0});
   case UR_DEVICE_INFO_COMPILER_AVAILABLE:
-    return ReturnValue(static_cast<uint32_t>(true));
+    return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_LINKER_AVAILABLE:
-    return ReturnValue(static_cast<uint32_t>(true));
+    return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_MAX_COMPUTE_UNITS: {
     uint32_t MaxComputeUnits =
         Device->ZeDeviceProperties->numEUsPerSubslice *
@@ -337,8 +337,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_DRIVER_VERSION:
   case UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION:
     return ReturnValue(Device->Platform->ZeDriverVersion.c_str());
-  case UR_DEVICE_INFO_VERSION:
-    return ReturnValue(Device->Platform->ZeDriverApiVersion.c_str());
+  case UR_DEVICE_INFO_VERSION: {
+    // from compute-runtime/shared/source/helpers/hw_ip_version.h
+    typedef struct {
+      uint32_t revision : 6;
+      uint32_t reserved : 8;
+      uint32_t release : 8;
+      uint32_t architecture : 10;
+    } version_components_t;
+    typedef struct {
+      union {
+        uint32_t value;
+        version_components_t components;
+      };
+    } ipVersion_t;
+    ipVersion_t IpVersion;
+    IpVersion.value = Device->ZeDeviceIpVersionExt->ipVersion;
+    std::stringstream S;
+    S << IpVersion.components.architecture << "."
+      << IpVersion.components.release << "." << IpVersion.components.revision;
+    return ReturnValue(S.str().c_str());
+  }
   case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES: {
     auto Res = Device->Platform->populateDeviceCacheIfNeeded();
     if (Res != UR_RESULT_SUCCESS) {
@@ -410,7 +429,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION:
     return ReturnValue("");
   case UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC:
-    return ReturnValue(static_cast<uint32_t>(true));
+    return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_PRINTF_BUFFER_SIZE:
     return ReturnValue(
         size_t{Device->ZeDeviceModuleProperties->printfBufferSize});
@@ -427,7 +446,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(ur_device_exec_capability_flag_t{
         UR_DEVICE_EXEC_CAPABILITY_FLAG_NATIVE_KERNEL});
   case UR_DEVICE_INFO_ENDIAN_LITTLE:
-    return ReturnValue(static_cast<uint32_t>(true));
+    return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT:
     return ReturnValue(static_cast<uint32_t>(Device->ZeDeviceProperties->flags &
                                              ZE_DEVICE_PROPERTY_FLAG_ECC));
@@ -604,7 +623,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS: {
     // TODO: Not supported yet. Needs to be updated after support is added.
-    return ReturnValue(static_cast<uint32_t>(false));
+    return ReturnValue(static_cast<ur_bool_t>(false));
   }
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     // ze_device_compute_properties.subGroupSizes is in uint32_t whereas the
@@ -790,7 +809,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return UR_RESULT_ERROR_INVALID_VALUE;
   case UR_DEVICE_INFO_BFLOAT16: {
     // bfloat16 math functions are not yet supported on Intel GPUs.
-    return ReturnValue(bool{false});
+    return ReturnValue(ur_bool_t{false});
   }
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
     // There are no explicit restrictions in L0 programming guide, so assume all
@@ -839,9 +858,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(capabilities);
   }
   case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
-    return ReturnValue(uint32_t{false});
+    return ReturnValue(ur_bool_t{false});
   case UR_DEVICE_INFO_IMAGE_SRGB:
-    return ReturnValue(uint32_t{false});
+    return ReturnValue(ur_bool_t{false});
 
   case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES:
   case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
@@ -853,6 +872,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
         0)); //__read_write attribute currently undefinde in opencl
   }
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
+    return ReturnValue(static_cast<ur_bool_t>(true));
+  }
+  case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
     return ReturnValue(static_cast<uint32_t>(true));
   }
 
@@ -893,9 +915,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
       // can know if we are in (a) or (b) by checking if a tile is root device
       // or not.
       ur_device_handle_t URDev = Device->Platform->getDeviceFromNativeHandle(d);
-      if (URDev->isSubDevice())
+      if (URDev->isSubDevice()) {
         // We are in COMPOSITE mode, return an empty list.
-        return ReturnValue(0);
+        if (pSize) {
+          *pSize = 0;
+        }
+        return UR_RESULT_SUCCESS;
+      }
 
       Res.push_back(URDev);
     }
@@ -1078,7 +1104,7 @@ bool ur_device_handle_t_::useDriverInOrderLists() {
   static const bool UseDriverInOrderLists = [] {
     const char *UrRet = std::getenv("UR_L0_USE_DRIVER_INORDER_LISTS");
     if (!UrRet)
-      return true;
+      return false;
     return std::atoi(UrRet) != 0;
   }();
 

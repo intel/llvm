@@ -171,7 +171,7 @@ static ur_result_t USMAllocationMakeResident(
 static ur_result_t USMDeviceAllocImpl(void **ResultPtr,
                                       ur_context_handle_t Context,
                                       ur_device_handle_t Device,
-                                      ur_usm_device_mem_flags_t *Flags,
+                                      ur_usm_device_mem_flags_t Flags,
                                       size_t Size, uint32_t Alignment) {
   std::ignore = Flags;
   // TODO: translate PI properties to Level Zero flags
@@ -213,12 +213,10 @@ static ur_result_t USMDeviceAllocImpl(void **ResultPtr,
   return UR_RESULT_SUCCESS;
 }
 
-static ur_result_t USMSharedAllocImpl(void **ResultPtr,
-                                      ur_context_handle_t Context,
-                                      ur_device_handle_t Device,
-                                      ur_usm_host_mem_flags_t *,
-                                      ur_usm_device_mem_flags_t *, size_t Size,
-                                      uint32_t Alignment) {
+static ur_result_t
+USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
+                   ur_device_handle_t Device, ur_usm_host_mem_flags_t,
+                   ur_usm_device_mem_flags_t, size_t Size, uint32_t Alignment) {
 
   // TODO: translate PI properties to Level Zero flags
   ZeStruct<ze_host_mem_alloc_desc_t> ZeHostDesc;
@@ -263,7 +261,7 @@ static ur_result_t USMSharedAllocImpl(void **ResultPtr,
 
 static ur_result_t USMHostAllocImpl(void **ResultPtr,
                                     ur_context_handle_t Context,
-                                    ur_usm_host_mem_flags_t *Flags, size_t Size,
+                                    ur_usm_host_mem_flags_t Flags, size_t Size,
                                     uint32_t Alignment) {
   std::ignore = Flags;
   // TODO: translate PI properties to Level Zero flags
@@ -308,7 +306,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
   uint32_t Align = USMDesc ? USMDesc->align : 0;
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
-  if (Align > 65536)
+  // L0 spec says that alignment values that are not powers of 2 are invalid.
+  if (Align > 65536 || (Align & (Align - 1)) != 0)
     return UR_RESULT_ERROR_INVALID_VALUE;
 
   ur_platform_handle_t Plt = Context->getPlatform();
@@ -337,11 +336,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
   // find the allocator depending on context as we do for Shared and Device
   // allocations.
   umf_memory_pool_handle_t hPoolInternal = nullptr;
-  if (!UseUSMAllocator ||
-      // L0 spec says that allocation fails if Alignment != 2^n, in order to
-      // keep the same behavior for the allocator, just call L0 API directly and
-      // return the error code.
-      ((Align & (Align - 1)) != 0)) {
+  if (!UseUSMAllocator) {
     hPoolInternal = Context->HostMemProxyPool.get();
   } else if (Pool) {
     hPoolInternal = Pool->HostMemPool.get();
@@ -381,7 +376,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
 
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
-  if (Alignment > 65536)
+  // L0 spec says that alignment values that are not powers of 2 are invalid.
+  if (Alignment > 65536 || (Alignment & (Alignment - 1)) != 0)
     return UR_RESULT_ERROR_INVALID_VALUE;
 
   ur_platform_handle_t Plt = Device->Platform;
@@ -408,11 +404,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
   }
 
   umf_memory_pool_handle_t hPoolInternal = nullptr;
-  if (!UseUSMAllocator ||
-      // L0 spec says that allocation fails if Alignment != 2^n, in order to
-      // keep the same behavior for the allocator, just call L0 API directly and
-      // return the error code.
-      ((Alignment & (Alignment - 1)) != 0)) {
+  if (!UseUSMAllocator) {
     auto It = Context->DeviceMemProxyPools.find(Device->ZeDevice);
     if (It == Context->DeviceMemProxyPools.end())
       return UR_RESULT_ERROR_INVALID_VALUE;
@@ -485,7 +477,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
 
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
-  if (Alignment > 65536)
+  // L0 spec says that alignment values that are not powers of 2 are invalid.
+  if (Alignment > 65536 || (Alignment & (Alignment - 1)) != 0)
     return UR_RESULT_ERROR_INVALID_VALUE;
 
   ur_platform_handle_t Plt = Device->Platform;
@@ -508,11 +501,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
   }
 
   umf_memory_pool_handle_t hPoolInternal = nullptr;
-  if (!UseUSMAllocator ||
-      // L0 spec says that allocation fails if Alignment != 2^n, in order to
-      // keep the same behavior for the allocator, just call L0 API directly and
-      // return the error code.
-      ((Alignment & (Alignment - 1)) != 0)) {
+  if (!UseUSMAllocator) {
     auto &Allocator = (DeviceReadOnly ? Context->SharedReadOnlyMemProxyPools
                                       : Context->SharedMemProxyPools);
     auto It = Allocator.find(Device->ZeDevice);
@@ -776,8 +765,8 @@ umf_result_t L0MemoryProvider::get_min_page_size(void *Ptr, size_t *PageSize) {
 
 ur_result_t L0SharedMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
                                                  uint32_t Alignment) {
-  return USMSharedAllocImpl(ResultPtr, Context, Device, nullptr, nullptr, Size,
-                            Alignment);
+  return USMSharedAllocImpl(ResultPtr, Context, Device, /*host flags*/ 0,
+                            /*device flags*/ 0, Size, Alignment);
 }
 
 ur_result_t L0SharedReadOnlyMemoryProvider::allocateImpl(void **ResultPtr,
@@ -785,20 +774,19 @@ ur_result_t L0SharedReadOnlyMemoryProvider::allocateImpl(void **ResultPtr,
                                                          uint32_t Alignment) {
   ur_usm_device_desc_t UsmDeviceDesc{};
   UsmDeviceDesc.flags = UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY;
-  ur_usm_host_desc_t UsmHostDesc{};
-  return USMSharedAllocImpl(ResultPtr, Context, Device, &UsmDeviceDesc.flags,
-                            &UsmHostDesc.flags, Size, Alignment);
+  return USMSharedAllocImpl(ResultPtr, Context, Device, UsmDeviceDesc.flags,
+                            /*host flags*/ 0, Size, Alignment);
 }
 
 ur_result_t L0DeviceMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
                                                  uint32_t Alignment) {
-  return USMDeviceAllocImpl(ResultPtr, Context, Device, nullptr, Size,
+  return USMDeviceAllocImpl(ResultPtr, Context, Device, /* flags */ 0, Size,
                             Alignment);
 }
 
 ur_result_t L0HostMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
                                                uint32_t Alignment) {
-  return USMHostAllocImpl(ResultPtr, Context, nullptr, Size, Alignment);
+  return USMHostAllocImpl(ResultPtr, Context, /* flags */ 0, Size, Alignment);
 }
 
 ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,

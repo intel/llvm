@@ -24,7 +24,7 @@ def get_cts_test_suite_names(working_directory):
     ]
 
 def percent(amount, total):
-    return round((amount / total) * 100, 2)
+    return round((amount / (total or 1)) * 100, 2)
 
 def summarize_results(results):
     total = results['Total']

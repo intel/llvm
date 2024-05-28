@@ -43,6 +43,20 @@ add_test(NAME example-collected-hello-world
 
 set_tracing_test_props(example-collected-hello-world collector)
 
+add_test(NAME example-logged-hello-world
+    COMMAND ${CMAKE_COMMAND}
+    -D MODE=stdout
+    -D TEST_FILE=$<TARGET_FILE:hello_world>
+    -D MATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/hello_world.out.logged.match
+    -P ${PROJECT_SOURCE_DIR}/cmake/match.cmake
+    DEPENDS hello_world
+)
+set_tests_properties(example-logged-hello-world PROPERTIES LABELS "tracing")
+set_property(TEST example-logged-hello-world PROPERTY ENVIRONMENT
+    "UR_LOG_TRACING=level:info\;output:stdout"
+    "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_null>\""
+    "UR_ENABLE_LAYERS=UR_LAYER_TRACING")
+
 function(add_tracing_test name)
     set(TEST_TARGET_NAME tracing-test-${name})
     add_ur_executable(${TEST_TARGET_NAME}

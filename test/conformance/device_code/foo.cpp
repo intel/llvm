@@ -3,14 +3,14 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
-    cl::sycl::queue deviceQueue;
-    cl::sycl::range<1> numOfItems{1};
+    sycl::queue deviceQueue;
+    sycl::range<1> numOfItems{1};
 
-    deviceQueue.submit([&](cl::sycl::handler &cgh) {
-        auto kern = [=](cl::sycl::id<1>) {};
+    deviceQueue.submit([&](sycl::handler &cgh) {
+        auto kern = [=](sycl::id<1>) {};
         cgh.parallel_for<class Foo>(numOfItems, kern);
     });
 

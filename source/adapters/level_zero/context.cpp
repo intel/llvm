@@ -645,7 +645,8 @@ static const size_t CmdListsCleanupThreshold = [] {
 // Retrieve an available command list to be used in a PI call.
 ur_result_t ur_context_handle_t_::getAvailableCommandList(
     ur_queue_handle_t Queue, ur_command_list_ptr_t &CommandList,
-    bool UseCopyEngine, bool AllowBatching,
+    bool UseCopyEngine, uint32_t NumEventsInWaitList,
+    const ur_event_handle_t *EventWaitList, bool AllowBatching,
     ze_command_queue_handle_t *ForcedCmdQueue) {
   // Immediate commandlists have been pre-allocated and are always available.
   if (Queue->UsingImmCmdLists) {
@@ -677,9 +678,22 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
   // for this queue.
   if (Queue->hasOpenCommandList(UseCopyEngine)) {
     if (AllowBatching) {
-      CommandList = CommandBatch.OpenCommandList;
-      UR_CALL(Queue->insertStartBarrierIfDiscardEventsMode(CommandList));
-      return UR_RESULT_SUCCESS;
+      bool batchingAllowed = true;
+      if (ForcedCmdQueue &&
+          CommandBatch.OpenCommandList->second.ZeQueue != *ForcedCmdQueue) {
+        // Current open batch doesn't match the forced command queue
+        batchingAllowed = false;
+      }
+      if (!UrL0OutOfOrderIntegratedSignalEvent &&
+          Queue->Device->isIntegrated()) {
+        batchingAllowed = eventCanBeBatched(Queue, UseCopyEngine,
+                                            NumEventsInWaitList, EventWaitList);
+      }
+      if (batchingAllowed) {
+        CommandList = CommandBatch.OpenCommandList;
+        UR_CALL(Queue->insertStartBarrierIfDiscardEventsMode(CommandList));
+        return UR_RESULT_SUCCESS;
+      }
     }
     // If this command isn't allowed to be batched or doesn't match the forced
     // command queue, then we need to go ahead and execute what is already in
