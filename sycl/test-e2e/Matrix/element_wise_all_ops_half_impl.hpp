@@ -71,26 +71,27 @@ template <typename Ta, typename TResult, size_t TM, size_t TK> void test() {
   big_matrix<Ta, Rows, Cols> MA((Ta *)&A);
 
   matrix_verify_op<Ta, Rows, Cols, TM, TK, add<TM, TK>, TResult>(
-      MA, 7, [=](auto &x) { x = x + 2; });
+      MA, 7, [=](Ta &x) { x = x + static_cast<Ta>(2); });
   matrix_verify_op<Ta, Rows, Cols, TM, TK, sub<TM, TK>, TResult>(
-      MA, 3, [=](auto &x) { x = x - 2; });
+      MA, 3, [=](Ta &x) { x = x - static_cast<Ta>(2); });
   matrix_verify_op<Ta, Rows, Cols, TM, TK, mul<TM, TK>, TResult>(
-      MA, 10, [=](auto &x) { x = x * 2; });
+      MA, 10, [=](Ta &x) { x = x * static_cast<Ta>(2); });
   matrix_verify_op<Ta, Rows, Cols, TM, TK, divide<TM, TK>, TResult>(
-      MA, 2, [=](auto &x) { x = x / 2; }); // truncation is expected
+      MA, 2.5, [=](Ta &x) { x = x / static_cast<Ta>(2); });
   matrix_verify_op<Ta, Rows, Cols, TM, TK, logic<TM, TK>, TResult>(
-      MA, 7, [=](auto &x) {
+      MA, 7, [=](Ta &x) {
         if (x) {
-          if (x > 2 || x >= 2 || x < 2 || x <= 2) {
-            Ta val = (x != 2) ? x : 2;
+          if (x > static_cast<Ta>(2) || x >= static_cast<Ta>(2) ||
+              x < static_cast<Ta>(2) || x <= static_cast<Ta>(2)) {
+            Ta val = (x != static_cast<Ta>(2)) ? x : static_cast<Ta>(2);
             val--;
             val++;
-            if (x == 2) {
-              val -= 2;
-              val *= 3;
-              val /= 2;
+            if (x == static_cast<Ta>(2)) {
+              val -= static_cast<Ta>(2);
+              val *= static_cast<Ta>(3);
+              val /= static_cast<Ta>(2);
             } else {
-              val += 2;
+              val += static_cast<Ta>(2);
             }
             x = val;
           }
@@ -107,17 +108,17 @@ int main() {
 
   for (unsigned int i = 0; i < combinations.size(); i++) {
     if (combinations[i].nsize == 0) { // Intel AMX
-      test<half, float, /*TM*/ 4, /*TK*/ 4>();
+      test<half, float, /*TM*/ 16, /*TK*/ 32>();
       break;
     }
 
     if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
-      test<half, float, /*TM*/ 8, /*TK*/ 32>();
+      test<half, float, /*TM*/ 8, /*TK*/ 16>();
       break;
     }
 
     if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
-      test<half, float, /*TM*/ 8, /*TK*/ 32>();
+      test<half, float, /*TM*/ 8, /*TK*/ 16>();
       break;
     }
   }
