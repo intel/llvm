@@ -25,6 +25,7 @@ function(add_test_adapter name adapter)
             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         )
     else()
+        separate_arguments(TEST_COMMAND)
         add_test(NAME ${TEST_NAME}
             COMMAND ${TEST_COMMAND}
             DEPENDS ${TEST_TARGET_NAME}

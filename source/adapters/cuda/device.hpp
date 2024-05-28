@@ -22,6 +22,7 @@ private:
   CUevent EvBase; // CUDA event used as base counter
   std::atomic_uint32_t RefCount;
   ur_platform_handle_t Platform;
+  uint32_t DeviceIndex;
 
   static constexpr uint32_t MaxWorkItemDimensions = 3u;
   size_t MaxWorkItemSizes[MaxWorkItemDimensions];
@@ -34,9 +35,9 @@ private:
 
 public:
   ur_device_handle_t_(native_type cuDevice, CUcontext cuContext, CUevent evBase,
-                      ur_platform_handle_t platform)
+                      ur_platform_handle_t platform, uint32_t DevIndex)
       : CuDevice(cuDevice), CuContext(cuContext), EvBase(evBase), RefCount{1},
-        Platform(platform) {
+        Platform(platform), DeviceIndex{DevIndex} {
 
     UR_CHECK_ERROR(cuDeviceGetAttribute(
         &MaxRegsPerBlock, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
@@ -79,11 +80,15 @@ public:
 
   native_type get() const noexcept { return CuDevice; };
 
-  CUcontext getContext() const noexcept { return CuContext; };
+  CUcontext getNativeContext() const noexcept { return CuContext; };
 
   uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   ur_platform_handle_t getPlatform() const noexcept { return Platform; };
+
+  // Returns the index of the device relative to the other devices in the same
+  // platform
+  uint32_t getIndex() const noexcept { return DeviceIndex; }
 
   uint64_t getElapsedTime(CUevent) const;
 
