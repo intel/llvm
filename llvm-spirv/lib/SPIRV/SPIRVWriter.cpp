@@ -5612,7 +5612,7 @@ static auto stablePreDominatorTraversal(Function &F, const DominatorTree &DT) {
                                     std::forward_iterator_tag, BasicBlock> {
 
     // The passed DominatorTree; may be unset for end iterators.
-    const DominatorTree *DT;
+    const DominatorTree *DT = nullptr;
 
     // The set of basic blocks already visited in this traversal.
     SmallPtrSet<const BasicBlock *, 4> VisitedBBs;
