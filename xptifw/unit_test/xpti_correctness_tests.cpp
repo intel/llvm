@@ -742,7 +742,7 @@ TEST_F(xptiCorrectnessTest, xptiUniversalIDRandomTest) {
 
 TEST_F(xptiCorrectnessTest, xptiUniversalIDMapTest) {
   using namespace std;
-  unordered_map<xpti::uid_t, uint64_t> MapTest;
+  map<xpti::uid_t, uint64_t> MapTest;
   random_device QRd;
   mt19937_64 Gen(QRd());
   uniform_int_distribution<uint32_t> MStringID, MLineNo, MAddr;
@@ -765,6 +765,12 @@ TEST_F(xptiCorrectnessTest, xptiUniversalIDMapTest) {
   EXPECT_EQ(Count, MapTest.size());
   for (auto &e : MapTest) {
     EXPECT_EQ(Hash.combine_short(e.first), e.second);
+  }
+  xpti::uid_t prev;
+  for (auto &e : MapTest) {
+    bool test = prev < e.first;
+    EXPECT_EQ(test, true);
+    prev = e.first;
   }
 }
 

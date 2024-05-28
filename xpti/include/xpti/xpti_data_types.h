@@ -56,6 +56,24 @@ struct uid_t {
     instance = 1;
   }
 
+  /// @brief Compares two `uid_t` objects.
+  ///
+  /// This operator overload allows for the comparison of two `uid_t` objects.
+  /// A `uid_t` object is considered less than another if its `p1` field is
+  /// less than the other's, or if their `p1` fields are equal and its `p2`
+  /// field is less than the other's.
+  ///
+  /// @param rhs The right-hand side `uid_t` object in the comparison.
+  /// @return Returns true if the left-hand side `uid_t` object is less than
+  /// the right-hand side one, and false otherwise.
+  bool operator<(const uid_t &rhs) const {
+    if (p1 < rhs.p1)
+      return true;
+    if (p1 == rhs.p1 && p2 < rhs.p2)
+      return true;
+    return false;
+  }
+
   /// @brief Checks if the uid_t object is valid.
   ///
   /// This method checks if the uid_t object is valid by checking if any of the
@@ -1047,13 +1065,31 @@ template <> struct hash<xpti::uid_t> {
 template <> struct equal_to<xpti::uid_t> {
   // Overload of operator() to compare two xpti::uid_t objects
   bool operator()(const xpti::uid_t &lhs, const xpti::uid_t &rhs) const {
-    // Two uid_t objects are considered equal if their p1, p2, and p3 fields are
-    // equal. p1 contains the combined file ID and function ID, p2 contains the
-    // combined line number and column number, and p3 contains the object
-    // address or a unique 64-bit value.
+    // Two uid_t objects are considered equal if their p1 & p2 fields are equal.
+    // p1 contains the combined file ID and function ID, p2 contains the
+    // combined line number and column number.
     return lhs.p1 == rhs.p1 && lhs.p2 == rhs.p2;
   }
 };
+
+template <>
+struct less<xpti::uid_t>
+    : public binary_function<xpti::uid_t, xpti::uid_t, bool> {
+  // Overload of operator() to compare two xpti::uid_t objects
+  bool operator()(const xpti::uid_t &lhs, const xpti::uid_t &rhs) const {
+    // Two uid_t objects are considered equal if their p1 & p2 fields are equal.
+    // p1 contains the combined file ID and function ID, p2 contains the
+    // combined line number and column number. For one to be less than the
+    // other, one.p1 should be less than two.p1 or one.p1 == two.p1 and one.p2
+    // less than two.p2 for 'one' to be considered less than 'two'
+    if (lhs.p1 < rhs.p1)
+      return true;
+    else if (lhs.p1 == rhs.p1 && lhs.p2 < rhs.p2)
+      return true;
+    return false;
+  }
+};
+
 } // namespace std
 
 using xpti_tp = xpti::trace_point_type_t;
