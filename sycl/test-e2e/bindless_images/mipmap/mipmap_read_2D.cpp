@@ -69,7 +69,7 @@ template <typename DType, sycl::image_channel_type CType> bool runTest() {
 
     // Extension: image descriptor -- number of levels
     sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width, height}, sycl::image_channel_order::rgba, CType,
+        {width, height}, 4, CType,
         sycl::ext::oneapi::experimental::image_type::mipmap, numLevels);
 
     // Extension: define a sampler object -- extended mipmap attributes
