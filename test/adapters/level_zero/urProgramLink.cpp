@@ -3,6 +3,7 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "ur_api.h"
 #include <uur/fixtures.h>
 
 using urLevelZeroProgramLinkTest = uur::urProgramTest;
@@ -28,4 +29,6 @@ TEST_P(urLevelZeroProgramLinkTest, InvalidLinkOptionsPrintedInLog) {
                                          log.data(), nullptr));
     ASSERT_EQ(log[logSize - 1], '\0');
     ASSERT_NE(std::string{log.data()}.find("-foo"), std::string::npos);
+
+    ASSERT_SUCCESS(urProgramRelease(linked_program));
 }
