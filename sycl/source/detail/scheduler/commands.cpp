@@ -671,12 +671,9 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   const QueueImplPtr &WorkerQueue = getWorkerQueue();
   const ContextImplPtr &WorkerContext = WorkerQueue->getContextImplPtr();
 
-  // 1. Async work is not supported for host device.
-  // 2. Non-host events can be ignored if they are not fully initialized.
-  // 3. Some types of commands do not produce PI events after they are
-  // enqueued
-  //    (e.g. alloca). Note that we can't check the pi event to make that
-  //    distinction since the command might still be unenqueued at this point.
+  // 1. Non-host events can be ignored if they are not fully initialized.
+  // 2. Some types of commands do not produce PI events after they are
+  // enqueued (e.g. alloca). Note that we can't check the pi event to make that distinction since the command might still be unenqueued at this point.
   bool PiEventExpected = (!DepEvent->isHost() && DepEvent->isInitialized());
   if (auto *DepCmd = static_cast<Command *>(DepEvent->getCommand()))
     PiEventExpected &= DepCmd->producesPiEvent();
@@ -692,11 +689,13 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
 
   ContextImplPtr DepEventContext = DepEvent->getContextImpl();
   // If contexts don't match we'll connect them using host task
-  if (DepEventContext != WorkerContext && !WorkerContext->is_host()) {
+  if (DepEventContext == WorkerContext)
+    MPreparedDepsEvents.push_back(std::move(DepEvent));
+  else
+  {
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
     ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep, ToCleanUp);
-  } else
-    MPreparedDepsEvents.push_back(std::move(DepEvent));
+  }
 
   return ConnectionCmd;
 }
@@ -3106,10 +3105,6 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     return PI_SUCCESS;
   }
   case CG::CGTYPE::Barrier: {
-    if (MQueue->getDeviceImplPtr()->is_host()) {
-      // NOP for host device.
-      return PI_SUCCESS;
-    }
     const PluginPtr &Plugin = MQueue->getPlugin();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();

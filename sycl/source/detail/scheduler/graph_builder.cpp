@@ -243,7 +243,7 @@ MemObjRecord *Scheduler::GraphBuilder::getOrInsertMemObjRecord(
     getOrCreateAllocaForReq(MemObject->MRecord.get(), Req, InteropQueuePtr,
                             ToEnqueue);
   } else
-    MemObject->MRecord.reset(new MemObjRecord{Queue->getContextImplPtr(),
+    MemObject->MRecord.reset(new MemObjRecord{Queue ? Queue->getContextImplPtr() : nullptr,
                                               LeafLimit, AllocateDependency});
 
   MMemObjs.push_back(MemObject);
@@ -317,7 +317,7 @@ static Command *insertMapUnmapForLinkedCmds(AllocaCommandBase *AllocaCmdSrc,
   assert(AllocaCmdSrc->MIsActive &&
          "Expected source alloca command to be active");
 
-  if (AllocaCmdSrc->getQueue()->is_host()) {
+  if (!AllocaCmdSrc->getQueue()) {
     UnMapMemObject *UnMapCmd = new UnMapMemObject(
         AllocaCmdDst, *AllocaCmdDst->getRequirement(),
         &AllocaCmdSrc->MMemAllocation, AllocaCmdDst->getQueue());
@@ -427,7 +427,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
 Command *Scheduler::GraphBuilder::remapMemoryObject(
     MemObjRecord *Record, Requirement *Req, AllocaCommandBase *HostAllocaCmd,
     std::vector<Command *> &ToEnqueue) {
-  assert(HostAllocaCmd->getQueue()->is_host() &&
+  assert(!HostAllocaCmd->getQueue() &&
          "Host alloca command expected");
   assert(HostAllocaCmd->MIsActive && "Active alloca command expected");
 
@@ -525,16 +525,14 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
     auto SYCLMemObj = static_cast<detail::SYCLMemObjT *>(Req->MSYCLMemObj);
     SYCLMemObj->handleWriteAccessorCreation();
   }
-
-  const QueueImplPtr &HostQueue = getInstance().getDefaultHostQueue();
-
-  MemObjRecord *Record = getOrInsertMemObjRecord(HostQueue, Req, ToEnqueue);
+  // Host accessor is not attached to any queue so no QueueImplPtr object to be sent to getOrInsertMemObjRecord.
+  MemObjRecord *Record = getOrInsertMemObjRecord(nullptr, Req, ToEnqueue);
   if (MPrintOptionsArray[BeforeAddHostAcc])
     printGraphAsDot("before_addHostAccessor");
   markModifiedIfWrite(Record, Req);
 
   AllocaCommandBase *HostAllocaCmd =
-      getOrCreateAllocaForReq(Record, Req, HostQueue, ToEnqueue);
+      getOrCreateAllocaForReq(Record, Req, nullptr, ToEnqueue);
 
   if (sameCtx(HostAllocaCmd->getQueue()->getContextImplPtr(),
               Record->MCurContext)) {
@@ -682,6 +680,10 @@ static bool checkHostUnifiedMemory(const ContextImplPtr &Ctx) {
     if (std::strcmp(HUMConfig, "1") == 0)
       return true;
   }
+  // host task & host accessor is covered with no device context but provide required support.
+  if (Ctx == nullptr)
+    return true;
+
   for (const device &Device : Ctx->getDevices()) {
     if (!Device.get_info<info::device::host_unified_memory>())
       return false;
@@ -696,9 +698,9 @@ static bool checkHostUnifiedMemory(const ContextImplPtr &Ctx) {
 AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
     MemObjRecord *Record, const Requirement *Req, const QueueImplPtr &Queue,
     std::vector<Command *> &ToEnqueue) {
-
+  auto Context = Queue != nullptr ? Queue->getContextImplPtr() : nullptr;
   AllocaCommandBase *AllocaCmd = findAllocaForReq(
-      Record, Req, Queue->getContextImplPtr(), /*AllowConst=*/false);
+      Record, Req, Context, /*AllowConst=*/false);
 
   if (!AllocaCmd) {
     std::vector<Command *> ToCleanUp;
@@ -729,7 +731,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
       // the user pointer is read-only is still not handled: it leads to
       // unnecessary copy on devices with unified host memory support.
       const bool HostUnifiedMemory =
-          checkHostUnifiedMemory(Queue->getContextImplPtr());
+          checkHostUnifiedMemory(Context);
       SYCLMemObjI *MemObj = Req->MSYCLMemObj;
       const bool InitFromUserData = Record->MAllocaCommands.empty() &&
                                     (HostUnifiedMemory || MemObj->isInterop());
@@ -745,16 +747,14 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
           // There's no need to make a host allocation if the buffer is not
           // initialized with user data.
           if (MemObj->hasUserDataPtr()) {
-            QueueImplPtr DefaultHostQueue =
-                Scheduler::getInstance().getDefaultHostQueue();
             AllocaCommand *HostAllocaCmd = new AllocaCommand(
-                DefaultHostQueue, FullReq, true /* InitFromUserData */,
+                nullptr, FullReq, true /* InitFromUserData */,
                 nullptr /* LinkedAllocaCmd */,
                 MemObj->isHostPointerReadOnly() /* IsConst */);
             Record->MAllocaCommands.push_back(HostAllocaCmd);
             Record->MWriteLeaves.push_back(HostAllocaCmd, ToEnqueue);
             ++(HostAllocaCmd->MLeafCounter);
-            Record->MCurContext = DefaultHostQueue->getContextImplPtr();
+            Record->usedOnHost();
           }
         }
       } else {
@@ -766,7 +766,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
           // new one. There could be situations when we could setup link with
           // "not" current allocation, but it will require memory copy.
           // Can setup link between cl and host allocations only
-          if (Queue->is_host() != Record->MCurContext->is_host()) {
+          if ((Context != nullptr) + (Record->MCurContext != nullptr) == 1) {
             // Linked commands assume that the host allocation is reused by the
             // plugin runtime and that can lead to unnecessary copy overhead on
             // devices that do not support host unified memory. Do not link the
@@ -778,7 +778,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
             bool PinnedHostMemory = MemObj->usesPinnedHostMemory();
 
             bool HostUnifiedMemoryOnNonHostDevice =
-                Queue->is_host() ? checkHostUnifiedMemory(Record->MCurContext)
+                Queue == nullptr ? checkHostUnifiedMemory(Record->MCurContext)
                                  : HostUnifiedMemory;
             if (PinnedHostMemory || HostUnifiedMemoryOnNonHostDevice) {
               AllocaCommandBase *LinkedAllocaCmdCand = findAllocaForReq(
@@ -818,14 +818,14 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
         // construction, host allocation doesn't. So, device allocation should
         // always be active here. Also if the "follower" command is a device one
         // we have to change current context to the device one.
-        if (Queue->is_host()) {
+        if (Queue == nullptr) {
           AllocaCmd->MIsActive = false;
         } else {
           LinkedAllocaCmd->MIsActive = false;
           Record->MCurContext = Queue->getContextImplPtr();
 
           std::set<Command *> Deps =
-              findDepsForReq(Record, Req, Queue->getContextImplPtr());
+              findDepsForReq(Record, Req, Context);
           for (Command *Dep : Deps) {
             Command *ConnCmd = AllocaCmd->addDep(
                 DepDesc{Dep, Req, LinkedAllocaCmd}, ToCleanUp);
@@ -1071,7 +1071,7 @@ void Scheduler::GraphBuilder::createGraphForCommand(
     if (isSameCtx) {
       // If the memory is already in the required host context, check if the
       // required access mode is valid, remap if not.
-      if (Record->MCurContext->is_host() &&
+      if (!Record->MCurContext &&
           !isAccessModeAllowed(Req->MAccessMode, Record->MHostAccess)) {
         remapMemoryObject(Record, Req,
                           Req->MIsSubBuffer
@@ -1093,7 +1093,7 @@ void Scheduler::GraphBuilder::createGraphForCommand(
           NeedMemMoveToHost = true;
           MemMoveTargetQueue = HT.MQueue;
         }
-      } else if (!Queue->is_host() && !Record->MCurContext->is_host())
+      } else if (Queue && Record->MCurContext)
         NeedMemMoveToHost = true;
 
       if (NeedMemMoveToHost)
@@ -1714,12 +1714,12 @@ Command *Scheduler::GraphBuilder::addCommandGraphUpdate(
       bool NeedMemMoveToHost = false;
       auto MemMoveTargetQueue = Queue;
 
-      if (!Queue->is_host() && !Record->MCurContext->is_host())
+      if (Queue && Record->MCurContext)
         NeedMemMoveToHost = true;
 
       if (NeedMemMoveToHost)
         insertMemoryMove(Record, Req,
-                         Scheduler::getInstance().getDefaultHostQueue(),
+                        nullptr,
                          ToEnqueue);
       insertMemoryMove(Record, Req, MemMoveTargetQueue, ToEnqueue);
     }

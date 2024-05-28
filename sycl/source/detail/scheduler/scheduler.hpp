@@ -199,12 +199,12 @@ using FusionMap = std::unordered_map<QueueIdT, FusionList>;
 /// There must be a single MemObjRecord for each SYCL memory object.
 ///
 /// \ingroup sycl_graph
-struct MemObjRecord {
+class MemObjRecord {
   MemObjRecord(ContextImplPtr Ctx, std::size_t LeafLimit,
                LeavesCollection::AllocateDependencyF AllocateDependency)
       : MReadLeaves{this, LeafLimit, AllocateDependency},
-        MWriteLeaves{this, LeafLimit, AllocateDependency}, MCurContext{Ctx} {}
-
+        MWriteLeaves{this, LeafLimit, AllocateDependency}, MCurContext{Ctx}, MCurHostAccess{ MCurContext == nullptr } {}
+public:
   // Contains all allocation commands for the memory object.
   std::vector<AllocaCommandBase *> MAllocaCommands;
 
@@ -214,16 +214,32 @@ struct MemObjRecord {
   // Contains latest write commands working with memory object.
   LeavesCollection MWriteLeaves;
 
-  // The context which has the latest state of the memory object.
-  ContextImplPtr MCurContext;
-
-  // The mode this object can be accessed with from the host context.
-  // Valid only if the current context is host.
-  access::mode MHostAccess = access::mode::read_write;
-
   // The flag indicates that the content of the memory object was/will be
   // modified. Used while deciding if copy back needed.
   bool MMemModified = false;
+
+  void usedOnDevice(ContextImplPtr& NewContext)
+  {
+    MCurContext = NewContext;
+    MCurHostAccess = false;
+  }
+
+  void usedOnHost()
+  {
+    MCurContext = nullptr;
+    MCurHostAccess = true;
+  }
+
+  bool usedOnHost() { return MCurHostAccess; }
+protected:
+  // The context which has the latest state of the memory object.
+  ContextImplPtr MCurContext;
+
+  // The mode this object can be accessed with from the host (host_accessor).
+  // Valid only if the current usage is on host.
+  access::mode MHostAccess = access::mode::read_write;
+
+  bool MCurHostAccess = false;
 };
 
 /// DPC++ graph scheduler class.

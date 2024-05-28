@@ -921,9 +921,6 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
                              std::vector<sycl::detail::pi::PiEvent> DepEvents,
                              sycl::detail::pi::PiEvent *OutEvent,
                              const detail::EventImplPtr &OutEventImpl) {
-  assert(!SrcQueue->getContextImplPtr()->is_host() &&
-         "Host queue not supported in fill_usm.");
-
   if (!Len) { // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
       if (OutEventImpl != nullptr)
@@ -962,9 +959,6 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                              std::vector<sycl::detail::pi::PiEvent> DepEvents,
                              sycl::detail::pi::PiEvent *OutEvent,
                              const detail::EventImplPtr &OutEventImpl) {
-  assert(!Queue->getContextImplPtr()->is_host() &&
-         "Host queue not supported in fill_usm.");
-
   if (!Length) { // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
       if (OutEventImpl != nullptr)
@@ -1000,9 +994,6 @@ void MemoryManager::prefetch_usm(
     std::vector<sycl::detail::pi::PiEvent> DepEvents,
     sycl::detail::pi::PiEvent *OutEvent,
     const detail::EventImplPtr &OutEventImpl) {
-  assert(!Queue->getContextImplPtr()->is_host() &&
-         "Host queue not supported in prefetch_usm.");
-
   const PluginPtr &Plugin = Queue->getPlugin();
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
@@ -1024,9 +1015,6 @@ void MemoryManager::advise_usm(
     std::vector<sycl::detail::pi::PiEvent> /*DepEvents*/,
     sycl::detail::pi::PiEvent *OutEvent,
     const detail::EventImplPtr &OutEventImpl) {
-  assert(!Queue->getContextImplPtr()->is_host() &&
-         "Host queue not supported in advise_usm.");
-
   const PluginPtr &Plugin = Queue->getPlugin();
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
@@ -1049,9 +1037,6 @@ void MemoryManager::copy_2d_usm(
     std::vector<sycl::detail::pi::PiEvent> DepEvents,
     sycl::detail::pi::PiEvent *OutEvent,
     const detail::EventImplPtr &OutEventImpl) {
-  assert(!Queue->getContextImplPtr()->is_host() &&
-         "Host queue not supported in copy_2d_usm.");
-
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
@@ -1137,9 +1122,6 @@ void MemoryManager::fill_2d_usm(
     std::vector<sycl::detail::pi::PiEvent> DepEvents,
     sycl::detail::pi::PiEvent *OutEvent,
     const detail::EventImplPtr &OutEventImpl) {
-  assert(!Queue->getContextImplPtr()->is_host() &&
-         "Host queue not supported in fill_2d_usm.");
-
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
@@ -1177,9 +1159,6 @@ void MemoryManager::memset_2d_usm(
     char Value, std::vector<sycl::detail::pi::PiEvent> DepEvents,
     sycl::detail::pi::PiEvent *OutEvent,
     const detail::EventImplPtr &OutEventImpl) {
-  assert(!Queue->getContextImplPtr()->is_host() &&
-         "Host queue not supported in fill_2d_usm.");
-
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
@@ -1714,8 +1693,6 @@ void MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(
     sycl::detail::pi::PiExtCommandBuffer CommandBuffer, void *Mem,
     size_t Length, std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
     sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
-  assert(!Context->is_host() && "Host queue not supported in prefetch_usm.");
-
   const PluginPtr &Plugin = Context->getPlugin();
   Plugin->call<PiApiKind::piextCommandBufferPrefetchUSM>(
       CommandBuffer, Mem, Length, _pi_usm_migration_flags(0), Deps.size(),
@@ -1728,8 +1705,6 @@ void MemoryManager::ext_oneapi_advise_usm_cmd_buffer(
     size_t Length, pi_mem_advice Advice,
     std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
     sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
-  assert(!Context->is_host() && "Host queue not supported in advise_usm.");
-
   const PluginPtr &Plugin = Context->getPlugin();
   Plugin->call<PiApiKind::piextCommandBufferAdviseUSM>(
       CommandBuffer, Mem, Length, Advice, Deps.size(), Deps.data(),
@@ -1748,8 +1723,6 @@ void MemoryManager::copy_image_bindless(
     const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
     sycl::detail::pi::PiEvent *OutEvent) {
 
-  assert(!Queue->getContextImplPtr()->is_host() &&
-         "Host queue not supported in copy_image_bindless.");
   assert((Flags == (sycl::detail::pi::PiImageCopyFlags)
                        ext::oneapi::experimental::image_copy_flags::HtoD ||
           Flags == (sycl::detail::pi::PiImageCopyFlags)
