@@ -1,14 +1,14 @@
 // RUN: %{build} -o %t.out
 
 // Test discard filters in ONEAPI_DEVICE_SELECTOR.
-// RUN: env ONEAPI_DEVICE_SELECTOR="!*:gpu" %t.out | FileCheck %s --allow-empty --implicit-check-not="[{{.*}}{{gpu|GPU|Gpu}}{{.*}}]:[{{.*}}]"
-// RUN: env ONEAPI_DEVICE_SELECTOR="!*:cpu" %t.out | FileCheck %s --allow-empty --implicit-check-not="[{{.*}}{{cpu|CPU|cpu}}{{.*}}]:[{{.*}}]"
-// RUN: env ONEAPI_DEVICE_SELECTOR="!*:cpu,gpu" %t.out | FileCheck %s --allow-empty --implicit-check-not="[{{.*}}{{cpu|CPU|cpu|gpu|GPU|Gpu}}{{.*}}]:[{{.*}}]"
+// RUN: env ONEAPI_DEVICE_SELECTOR="!*:gpu" %{run-unfiltered-devices} %t.out | FileCheck %s --allow-empty --implicit-check-not="[{{.*}}{{gpu|GPU|Gpu}}{{.*}}]:[{{.*}}]"
+// RUN: env ONEAPI_DEVICE_SELECTOR="!*:cpu" %{run-unfiltered-devices} %t.out | FileCheck %s --allow-empty --implicit-check-not="[{{.*}}{{cpu|CPU|cpu}}{{.*}}]:[{{.*}}]"
+// RUN: env ONEAPI_DEVICE_SELECTOR="!*:cpu,gpu" %{run-unfiltered-devices} %t.out | FileCheck %s --allow-empty --implicit-check-not="[{{.*}}{{cpu|CPU|cpu|gpu|GPU|Gpu}}{{.*}}]:[{{.*}}]"
 
-// RUN: env ONEAPI_DEVICE_SELECTOR="!opencl:*" %t.out | FileCheck %s --allow-empty --implicit-check-not="[{{.*}}]:[{{.*}}{{OpenCL|opencl|Opencl}}{{.*}}]"
-// RUN: env ONEAPI_DEVICE_SELECTOR="!level_zero:*" %t.out | FileCheck %s --allow-empty --implicit-check-not="[{{.*}}]:[{{.*}}{{Level-Zero}}{{.*}}]"
+// RUN: env ONEAPI_DEVICE_SELECTOR="!opencl:*" %{run-unfiltered-devices} %t.out | FileCheck %s --allow-empty --implicit-check-not="[{{.*}}]:[{{.*}}{{OpenCL|opencl|Opencl}}{{.*}}]"
+// RUN: env ONEAPI_DEVICE_SELECTOR="!level_zero:*" %{run-unfiltered-devices} %t.out | FileCheck %s --allow-empty --implicit-check-not="[{{.*}}]:[{{.*}}{{Level-Zero}}{{.*}}]"
 
-// RUN: env ONEAPI_DEVICE_SELECTOR="!level_zero:cpu" %t.out | FileCheck %s --allow-empty --implicit-check-not="[{{.*}}{{cpu|CPU|Cpu}}{{.*}}]:[{{.*}}{{Level-Zero}}{{.*}}]"
+// RUN: env ONEAPI_DEVICE_SELECTOR="!level_zero:cpu" %{run-unfiltered-devices} %t.out | FileCheck %s --allow-empty --implicit-check-not="[{{.*}}{{cpu|CPU|Cpu}}{{.*}}]:[{{.*}}{{Level-Zero}}{{.*}}]"
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
