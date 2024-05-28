@@ -223,6 +223,7 @@ typedef enum ur_function_t {
     UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP = 221,                             ///< Enumerator for ::urCommandBufferGetInfoExp
     UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP = 222,                     ///< Enumerator for ::urCommandBufferCommandGetInfoExp
     UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP = 223,                         ///< Enumerator for ::urEnqueueTimestampRecordingExp
+    UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP = 224,                        ///< Enumerator for ::urEnqueueKernelLaunchCustomExp
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -8938,6 +8939,133 @@ urEnqueueTimestampRecordingExp(
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
+// Intel 'oneAPI' Unified Runtime Experimental APIs for (kernel) Launch Properties
+#if !defined(__GNUC__)
+#pragma region launch properties(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+#ifndef UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP
+/// @brief The extension string that defines support for the Launch Properties
+///        extension, which is returned when querying device extensions.
+#define UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP "ur_exp_launch_properties"
+#endif // UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Specifies a launch property id
+///
+/// @remarks
+///   _Analogues_
+///     - **CUlaunchAttributeID**
+typedef enum ur_exp_launch_property_id_t {
+    UR_EXP_LAUNCH_PROPERTY_ID_IGNORE = 0,            ///< The property has no effect
+    UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE = 1,       ///< Whether to launch a cooperative kernel
+    UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION = 2, ///< work-group cluster dimensions
+    /// @cond
+    UR_EXP_LAUNCH_PROPERTY_ID_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_exp_launch_property_id_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Specifies a launch property value
+///
+/// @remarks
+///   _Analogues_
+///     - **CUlaunchAttributeValue**
+typedef union ur_exp_launch_property_value_t {
+    uint32_t clusterDim[3]; ///< [in] dimensions of the cluster (units of work-group) (x, y, z). Each
+                            ///< value must be a divisor of the corresponding global work-size
+                            ///< dimension (in units of work-group).
+    int cooperative;        ///< [in] non-zero value indicates a cooperative kernel
+
+} ur_exp_launch_property_value_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Kernel launch property
+///
+/// @remarks
+///   _Analogues_
+///     - **cuLaunchAttribute**
+typedef struct ur_exp_launch_property_t {
+    ur_exp_launch_property_id_t id;       ///< [in] launch property id
+    ur_exp_launch_property_value_t value; ///< [in][tagged_by(id)] launch property value
+
+} ur_exp_launch_property_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Launch kernel with custom launch properties
+///
+/// @details
+///     - Launches the kernel using the specified launch properties
+///     - If numPropsInLaunchPropList == 0 then a regular kernel launch is used:
+///       `urEnqueueKernelLaunch`
+///     - Consult the appropriate adapter driver documentation for details of
+///       adapter specific behavior and native error codes that may be returned.
+///
+/// @remarks
+///   _Analogues_
+///     - **cuLaunchKernelEx**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///         + `NULL == hKernel`
+///         + NULL == hQueue
+///         + NULL == hKernel
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalWorkSize`
+///         + `NULL == launchPropList`
+///         + NULL == pGlobalWorkSize
+///         + numPropsInLaunchpropList != 0 && launchPropList == NULL
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + phEventWaitList == NULL && numEventsInWaitList > 0
+///         + phEventWaitList != NULL && numEventsInWaitList == 0
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in phEventWaitList has ::UR_EVENT_STATUS_ERROR
+///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
+///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL
+urEnqueueKernelLaunchCustomExp(
+    ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
+    ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
+    uint32_t workDim,                               ///< [in] number of dimensions, from 1 to 3, to specify the global and
+                                                    ///< work-group work-items
+    const size_t *pGlobalWorkSize,                  ///< [in] pointer to an array of workDim unsigned values that specify the
+                                                    ///< number of global work-items in workDim that will execute the kernel
+                                                    ///< function
+    const size_t *pLocalWorkSize,                   ///< [in][optional] pointer to an array of workDim unsigned values that
+                                                    ///< specify the number of local work-items forming a work-group that will
+                                                    ///< execute the kernel function. If nullptr, the runtime implementation
+                                                    ///< will choose the work-group size.
+    uint32_t numPropsInLaunchPropList,              ///< [in] size of the launch prop list
+    const ur_exp_launch_property_t *launchPropList, ///< [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
+                                                    ///< properties
+    uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
+    const ur_event_handle_t *phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                    ///< events that must be complete before the kernel execution. If nullptr,
+                                                    ///< the numEventsInWaitList must be 0, indicating that no wait event.
+    ur_event_handle_t *phEvent                      ///< [out][optional] return an event object that identifies this particular
+                                                    ///< kernel execution instance.
+);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
 // Intel 'oneAPI' Unified Runtime Experimental APIs for multi-device compile
 #if !defined(__GNUC__)
 #pragma region multi device compile(experimental)
@@ -10628,6 +10756,23 @@ typedef struct ur_enqueue_write_host_pipe_params_t {
     const ur_event_handle_t **pphEventWaitList;
     ur_event_handle_t **pphEvent;
 } ur_enqueue_write_host_pipe_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEnqueueKernelLaunchCustomExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_kernel_launch_custom_exp_params_t {
+    ur_queue_handle_t *phQueue;
+    ur_kernel_handle_t *phKernel;
+    uint32_t *pworkDim;
+    const size_t **ppGlobalWorkSize;
+    const size_t **ppLocalWorkSize;
+    uint32_t *pnumPropsInLaunchPropList;
+    const ur_exp_launch_property_t **plaunchPropList;
+    uint32_t *pnumEventsInWaitList;
+    const ur_event_handle_t **pphEventWaitList;
+    ur_event_handle_t **pphEvent;
+} ur_enqueue_kernel_launch_custom_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urEnqueueCooperativeKernelLaunchExp

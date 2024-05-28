@@ -8994,6 +8994,87 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueKernelLaunchCustomExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
+    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
+    uint32_t
+        workDim, ///< [in] number of dimensions, from 1 to 3, to specify the global and
+                 ///< work-group work-items
+    const size_t *
+        pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify the
+    ///< number of global work-items in workDim that will execute the kernel
+    ///< function
+    const size_t *
+        pLocalWorkSize, ///< [in][optional] pointer to an array of workDim unsigned values that
+    ///< specify the number of local work-items forming a work-group that will
+    ///< execute the kernel function. If nullptr, the runtime implementation
+    ///< will choose the work-group size.
+    uint32_t numPropsInLaunchPropList, ///< [in] size of the launch prop list
+    const ur_exp_launch_property_t *
+        launchPropList, ///< [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
+                        ///< properties
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the kernel execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating that no wait event.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+                ///< kernel execution instance.
+) {
+    auto pfnKernelLaunchCustomExp =
+        context.urDdiTable.EnqueueExp.pfnKernelLaunchCustomExp;
+
+    if (nullptr == pfnKernelLaunchCustomExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hQueue) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hKernel) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pGlobalWorkSize) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == launchPropList) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
+        }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hKernel)) {
+        refCountContext.logInvalidReference(hKernel);
+    }
+
+    ur_result_t result = pfnKernelLaunchCustomExp(
+        hQueue, hKernel, workDim, pGlobalWorkSize, pLocalWorkSize,
+        numPropsInLaunchPropList, launchPropList, numEventsInWaitList,
+        phEventWaitList, phEvent);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramBuildExp
 __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     ur_program_handle_t hProgram, ///< [in] Handle of the program to build.
@@ -9796,6 +9877,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
     }
 
     ur_result_t result = UR_RESULT_SUCCESS;
+
+    dditable.pfnKernelLaunchCustomExp = pDdiTable->pfnKernelLaunchCustomExp;
+    pDdiTable->pfnKernelLaunchCustomExp =
+        ur_validation_layer::urEnqueueKernelLaunchCustomExp;
 
     dditable.pfnCooperativeKernelLaunchExp =
         pDdiTable->pfnCooperativeKernelLaunchExp;
