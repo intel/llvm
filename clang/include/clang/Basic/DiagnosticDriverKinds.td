@@ -210,7 +210,7 @@ def err_drv_Xsycl_target_missing_triple : Error<
 def err_drv_invalid_Xsycl_frontend_with_args : Error<
   "invalid -Xsycl-target-frontend argument: '%0', options requiring arguments are unsupported">;
 def err_drv_bad_fpga_device_count : Error<
-  "More than one FPGA specific device binary found in input objects">;
+  "more than one FPGA specific device binary found in input objects">;
 def warn_drv_mismatch_fpga_archive : Warning<
   "FPGA archive '%0' does not contain matching emulation/hardware expectancy">,
   InGroup<SyclFPGAMismatch>;
@@ -374,7 +374,7 @@ def err_drv_no_neon_modifier : Error<"[no]neon is not accepted as modifier, plea
 def err_drv_invalid_omp_target : Error<"OpenMP target is invalid: '%0'">;
 def err_drv_invalid_sycl_target : Error<"SYCL target is invalid: '%0'">;
 def err_drv_incompatible_omp_arch : Error<"OpenMP target architecture '%0' pointer size is incompatible with host '%1'">;
-def err_drv_option_conflict : Error<"The option %0 conflicts with %1">;
+def err_drv_option_conflict : Error<"the option %0 conflicts with %1">;
 def err_drv_omp_host_ir_file_not_found : Error<
   "provided host compiler IR file '%0' is required to generate code for OpenMP "
   "target regions but cannot be found">;
@@ -388,7 +388,7 @@ def err_drv_expecting_fsycl_with_sycl_opt : Error<
 def err_drv_fsycl_with_c_type : Error<
   "'%0' must not be used in conjunction with '-fsycl', which expects C++ source">;
 def err_drv_fsycl_with_pch : Error<
-  "Precompiled header generation is not supported with '-fsycl'">;
+  "precompiled header generation is not supported with '-fsycl'">;
 def err_drv_fsycl_unsupported_with_opt
   : Error<"'%0' is not supported with '-fsycl'">;
 def warn_drv_opt_requires_opt
@@ -406,7 +406,7 @@ def err_drv_no_rdc_sycl_target_missing : Error<
 def err_drv_fsycl_wrong_optimization_options : Error<
   "-fsycl-optimize-non-user-code option can be used only in conjunction with %0">;
 def warn_drv_fsycl_add_default_spec_consts_image_flag_in_non_AOT : Warning<
-  "-fsycl-add-default-spec-consts-image flag has an effect only in Ahead of Time Compilation mode (AOT).">,
+  "-fsycl-add-default-spec-consts-image flag has an effect only in Ahead of Time Compilation mode (AOT)">,
   InGroup<SyclTarget>;
 def warn_drv_ftarget_register_alloc_mode_pvc : Warning<
   "using '%0' to set GRF mode on PVC hardware is deprecated; use '-ftarget-register-alloc-mode=pvc:%1'">,
