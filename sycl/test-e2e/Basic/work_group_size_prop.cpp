@@ -65,9 +65,9 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
     Q.wait_and_throw();
   } catch (exception &E) {
     std::cerr << "Test case ReqdWGSizePositiveA failed: unexpected exception: "
-      << E.what() <<std::endl;
+              << E.what() << std::endl;
     return 1;
-  } 
+  }
 
   // Same as above but using the queue shortcuts.
   try {
@@ -76,7 +76,8 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
         KernelFunc);
     Q.wait_and_throw();
   } catch (exception &E) {
-    std::cerr << "Test case ReqdWGSizePositiveA shortcut failed: unexpected exception: "
+    std::cerr << "Test case ReqdWGSizePositiveA shortcut failed: unexpected "
+                 "exception: "
               << E.what() << std::endl;
     return 1;
   }
@@ -93,7 +94,8 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
       });
       Q.wait_and_throw();
     } catch (exception &E) {
-      std::cerr << "Test case ReqdWGSizeNoLocalPositive failed: unexpected exception: "
+      std::cerr << "Test case ReqdWGSizeNoLocalPositive failed: unexpected "
+                   "exception: "
                 << E.what() << std::endl;
       return 1;
     }
@@ -103,9 +105,9 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
           repeatRange<Dims>(16), Props, KernelFunc);
       Q.wait_and_throw();
     } catch (exception &E) {
-      std::cerr
-          << "Test case ReqdWGSizeNoLocalPositive shortcut failed: unexpected exception: "
-          << E.what() << std::endl;
+      std::cerr << "Test case ReqdWGSizeNoLocalPositive shortcut failed: "
+                   "unexpected exception: "
+                << E.what() << std::endl;
       return 1;
     }
   }
@@ -122,7 +124,8 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
                  "thrown\n";
     return 1; // We shouldn't be here, exception is expected
   } catch (exception &E) {
-    if (E.code() != errc::nd_range || std::string(E.what()).find(
+    if (E.code() != errc::nd_range ||
+        std::string(E.what()).find(
             "The specified local size " + rangeToString(repeatRange<Dims>(8)) +
             " doesn't match the required " +
             "work-group size specified in the program source " +
@@ -145,12 +148,14 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
                  "thrown\n";
     return 1; // We shouldn't be here, exception is expected
   } catch (exception &E) {
-    if (E.code() != errc::nd_range || std::string(E.what()).find(
+    if (E.code() != errc::nd_range ||
+        std::string(E.what()).find(
             "The specified local size " + rangeToString(repeatRange<Dims>(8)) +
             " doesn't match the required " +
             "work-group size specified in the program source " +
             rangeToString(range<Dims>(Is...))) == std::string::npos) {
-      std::cerr << "Test case ReqdWGSizeNegativeA shortcut failed: unexpected exception: "
+      std::cerr << "Test case ReqdWGSizeNegativeA shortcut failed: unexpected "
+                   "exception: "
                 << E.what() << std::endl;
       return 1;
     }

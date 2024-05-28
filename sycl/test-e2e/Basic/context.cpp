@@ -15,7 +15,7 @@ int main() {
   } catch (exception e) {
     if (e.code() == errc::invalid)
       std::cout << "Failed to create device for context" << std::endl;
-    else 
+    else
       std::cout << "Failed to create context" << std::endl;
   }
 
