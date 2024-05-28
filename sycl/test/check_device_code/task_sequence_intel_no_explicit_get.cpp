@@ -21,20 +21,11 @@ int arrayAdd(int *data1, int *data2, int N) {
   return ret;
 }
 
-int main() {
-  sycl::queue myQueue;
-
-  myQueue.submit([&](sycl::handler &cgh) {
-    cgh.single_task([=]() {
-      int d1[kSize], d2[kSize];
-      task_sequence<arrayAdd,
-                    decltype(properties{pipelined<0>, stall_enable_clusters,
-                                        invocation_capacity<1>,
-                                        response_capacity<1>})>
-          arrayAddTask;
-      arrayAddTask.async(d1, d2, kSize);
-    });
-  });
-  myQueue.wait();
-  return 0;
+SYCL_EXTERNAL void task_sequence_no_explicit_get() {
+  int d1[kSize], d2[kSize];
+  task_sequence<arrayAdd, decltype(properties{
+                              pipelined<0>, stall_enable_clusters,
+                              invocation_capacity<1>, response_capacity<1>})>
+      arrayAddTask;
+  arrayAddTask.async(d1, d2, kSize);
 }

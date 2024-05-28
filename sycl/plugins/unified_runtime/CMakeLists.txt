@@ -95,17 +95,23 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 85771876a5c2a13e3b24c048f0c0d81720d47ccc
-  # Merge: 42d72b66 00edaab9
+  # commit 396fb20498c315a526c961d7cb645b42795acd2c
+  # Merge: 719bb9cd e2ffea69
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue May 21 10:15:03 2024 +0100
-  #     Merge pull request #1401 from ph0b/patch-1
-  #     [UR][L0] Return device version based on DeviceIpVersion
-  set(UNIFIED_RUNTIME_TAG 85771876a5c2a13e3b24c048f0c0d81720d47ccc)
+  # Date:   Thu May 23 10:53:03 2024 +0100
+  #     Merge pull request #1501 from RossBrunton/ross/kerneltests
+  #     [Testing] Spec clarifications and testing updates for kernel
+  set(UNIFIED_RUNTIME_TAG 396fb20498c315a526c961d7cb645b42795acd2c)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit e428745588dd87e5db3c0bc0df1183eb7d0811a5
+    # Merge: fb3cbd16 80d46bb1
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Fri May 24 10:31:13 2024 +0100
+    #     Merge pull request #1656 from pbalcer/leaks-program-kernel
+    #     fix leaks on level-zero interop program and kernel handles
+    e428745588dd87e5db3c0bc0df1183eb7d0811a5
   )
 
   fetch_adapter_source(opencl
@@ -115,13 +121,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit d3502dc1c1eac924736fc08529e4d5f149648fd1
-    # Merge: c911a9b6 71420060
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed May 22 10:38:34 2024 +0100
-    #     Merge pull request #1565 from hdelan/cuda-multi-dev-ctx
-    #     [CUDA] CUDA adapter multi device context
-    d3502dc1c1eac924736fc08529e4d5f149648fd1
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(hip

@@ -23990,22 +23990,6 @@ RValue CodeGenFunction::EmitIntelSYCLAllocaBuiltin(
     return CI;
   }();
 
-  // Perform AS cast if needed.
-
-  constexpr int NoDecorated = 0;
-  llvm::APInt Decorated = TAL->get(DecorateAddressIndex).getAsIntegral();
-  // Both 'sycl::access::decorated::{yes and legacy}' lead to decorated (private
-  // AS) pointer type. Perform cast if 'sycl::access::decorated::no'.
-  if (Decorated == NoDecorated) {
-    IRBuilderBase::InsertPointGuard IPG(Builder);
-    Builder.SetInsertPoint(getPostAllocaInsertPoint());
-    unsigned DestAddrSpace =
-        getContext().getTargetAddressSpace(LangAS::Default);
-    llvm::PointerType *DestTy =
-        llvm::PointerType::get(Builder.getContext(), DestAddrSpace);
-    Allocation = Builder.CreateAddrSpaceCast(Allocation, DestTy);
-  }
-
   // If no slot is provided, simply return allocation.
   if (ReturnValue.isNull())
     return RValue::get(Allocation);
