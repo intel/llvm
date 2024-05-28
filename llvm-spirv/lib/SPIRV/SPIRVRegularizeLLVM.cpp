@@ -556,6 +556,65 @@ void regularizeWithOverflowInstrinsics(StringRef MangledName, CallInst *Call,
   }
   ToErase.push_back(Call);
 }
+
+// CacheControls(Load/Store)INTEL decorations can be represented as metadata
+// placed on memory accessing instruction with the following form:
+// !spirv.DecorationCacheControlINTEL !X
+// !X = !{i32 %decoration_kind%, i32 %level%, i32 %control%,
+//        i32 %operand of the instruction to decorate%}
+// This function creates a dummy GEP accessing pointer operand of the
+// instruction and creates !spirv.Decorations metadata attached to it.
+void prepareCacheControlsTranslation(Metadata *MD, Instruction *Inst) {
+  if (!Inst->mayReadOrWriteMemory())
+    return;
+  auto *ArgDecoMD = dyn_cast<MDNode>(MD);
+  assert(ArgDecoMD && "Decoration list must be a metadata node");
+  for (unsigned I = 0, E = ArgDecoMD->getNumOperands(); I != E; ++I) {
+    auto *DecoMD = dyn_cast<MDNode>(ArgDecoMD->getOperand(I));
+    if (!DecoMD) {
+      assert(!"Decoration does not name metadata");
+      return;
+    }
+
+    constexpr size_t CacheControlsNumOps = 4;
+    if (DecoMD->getNumOperands() != CacheControlsNumOps) {
+      assert(!"Cache controls metadata on instruction must have 4 operands");
+      return;
+    }
+
+    auto *const KindMD = cast<ConstantAsMetadata>(DecoMD->getOperand(0));
+    auto *const LevelMD = cast<ConstantAsMetadata>(DecoMD->getOperand(1));
+    auto *const ControlMD = cast<ConstantAsMetadata>(DecoMD->getOperand(2));
+
+    const size_t TargetArgNo =
+        mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(3))
+            ->getZExtValue();
+    Value *PtrInstOp = Inst->getOperand(TargetArgNo);
+    if (!PtrInstOp->getType()->isPointerTy()) {
+      assert(!"Cache controls must decorate a pointer");
+      return;
+    }
+
+    // Create dummy GEP for SSA copy of the pointer operand. Lets do our best
+    // to guess pointee type here, but if we won't - just pointer is also fine,
+    // if necessary TypeScavenger will adjust types and create bitcasts.
+    IRBuilder Builder(Inst);
+    Type *GEPTy = PtrInstOp->getType();
+    if (auto *LI = dyn_cast<LoadInst>(Inst))
+      GEPTy = LI->getType();
+    else if (auto *SI = dyn_cast<StoreInst>(Inst))
+      GEPTy = SI->getValueOperand()->getType();
+    auto *GEP =
+        cast<Instruction>(Builder.CreateConstGEP1_32(GEPTy, PtrInstOp, 0));
+    Inst->setOperand(TargetArgNo, GEP);
+
+    SmallVector<Metadata *, 4> MDs;
+    std::vector<Metadata *> OPs = {KindMD, LevelMD, ControlMD};
+    MDs.push_back(MDNode::get(Inst->getContext(), OPs));
+    MDNode *MDList = MDNode::get(Inst->getContext(), MDs);
+    GEP->setMetadata(SPIRV_MD_DECORATIONS, MDList);
+  }
+}
 } // namespace
 
 /// Remove entities not representable by SPIR-V
@@ -579,9 +638,12 @@ bool SPIRVRegularizeLLVMBase::regularize() {
       continue;
     }
 
+    // TODO: query intrinsic calls from their declarations
     std::vector<Instruction *> ToErase;
     for (BasicBlock &BB : *F) {
       for (Instruction &II : BB) {
+        if (auto *MD = II.getMetadata(SPIRV_MD_INTEL_CACHE_DECORATIONS))
+          prepareCacheControlsTranslation(MD, &II);
         if (auto *Call = dyn_cast<CallInst>(&II)) {
           Call->setTailCall(false);
           Function *CF = Call->getCalledFunction();

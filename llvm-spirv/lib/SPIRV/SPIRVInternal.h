@@ -271,6 +271,7 @@ typedef SPIRVMap<SPIRVExtInstSetKind, std::string, SPIRVExtSetShortName>
 
 #define SPIRV_MD_PARAMETER_DECORATIONS "spirv.ParameterDecorations"
 #define SPIRV_MD_DECORATIONS "spirv.Decorations"
+#define SPIRV_MD_INTEL_CACHE_DECORATIONS "spirv.DecorationCacheControlINTEL"
 
 #define OCL_TYPE_NAME_SAMPLER_T "sampler_t"
 #define SPIR_TYPE_NAME_EVENT_T "opencl.event_t"
