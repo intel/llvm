@@ -184,6 +184,11 @@ a device function, thus making it available to be called from SYCL kernel and
 device functions. Should only be applied to virtual member functions and to do
 so, function-style `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` macro should be used.
 
+NOTE: This property affect a particular function and does not impact any of its
+overrides in derived classes. If the whole hierarchy of overrides is expected
+to be callable from a device, then each and every override should be marked with
+the property.
+
 Optional parameter `SetId` specifies a set of virtual member functions this
 function belongs to and at the same time it defines a group of kernels, which
 can call this function, it must be a C++ typename. When the parameter is
