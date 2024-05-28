@@ -1210,7 +1210,7 @@ unsigned int __devicelib_imf_vsadu4(unsigned int x, unsigned int y) {
   return __internal_v_sad_op<uint8_t, 4>(x, y);
 }
 
-// Split 32-bit value into 2 16-bit parts, interpret each part as singed short.
+// Split 32-bit value into 2 16-bit parts, interpret each part as signed short.
 // For corresponding part, perform and add and compare operation:
 // max(x_part + y_part, z_part), partial results are combined as return value.
 DEVICE_EXTERN_C_INLINE
