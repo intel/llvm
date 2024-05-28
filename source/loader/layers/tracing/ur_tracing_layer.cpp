@@ -27,7 +27,7 @@ constexpr auto STREAM_VER_MINOR = UR_MINOR_VERSION(UR_API_VERSION_CURRENT);
 static thread_local xpti_td *activeEvent;
 
 ///////////////////////////////////////////////////////////////////////////////
-context_t::context_t() {
+context_t::context_t() : logger(logger::create_logger("tracing", true, true)) {
     xptiFrameworkInitialize();
 
     call_stream_id = xptiRegisterStream(CALL_STREAM_NAME);
@@ -37,7 +37,7 @@ context_t::context_t() {
                    streamv.str().data());
 }
 
-bool context_t::isAvailable() const { return xptiTraceEnabled(); }
+bool context_t::isAvailable() const { return true; }
 
 void context_t::notify(uint16_t trace_type, uint32_t id, const char *name,
                        void *args, ur_result_t *resultp, uint64_t instance) {

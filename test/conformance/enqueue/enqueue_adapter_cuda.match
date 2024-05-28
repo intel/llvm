@@ -1,3 +1,6 @@
+urEnqueueKernelLaunchTest.InvalidKernelArgs/NVIDIA_CUDA_BACKEND___{{.*}}_
+urEnqueueKernelLaunchKernelWgSizeTest.NonMatchingLocalSize/NVIDIA_CUDA_BACKEND___{{.*}}_
+urEnqueueKernelLaunchKernelSubGroupTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}_
 {{OPT}}urEnqueueKernelLaunchWithVirtualMemory.Success/NVIDIA_CUDA_BACKEND___{{.*}}_
 {{OPT}}urEnqueueMemBufferCopyRectTest.InvalidSize/NVIDIA_CUDA_BACKEND___{{.*}}_
 {{OPT}}urEnqueueMemBufferFillTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___size__256__patternSize__256
