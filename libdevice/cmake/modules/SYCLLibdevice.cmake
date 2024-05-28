@@ -58,17 +58,16 @@ if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
     "-nocudalib"
     "--cuda-gpu-arch=sm_50")
   set(devicelib_arch "NVPTX")
-elseif("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
-  string(APPEND sycl_targets_opt ",amdgcn-amd-amdhsa")
-  list(APPEND compile_opts
-    "fno-sycl-libspirv"
-    "-fno-bundle-offload-arch"
-    # Compile it to a high bc version. The arch info gets removed later.
-    # ToDo Do we need it for atomic clang builtin access?
-    "--offload-arch=gfx940")
+  elseif("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
+    #string(APPEND sycl_targets_opt ",amdgcn-amd-amdhsa")
+    list(APPEND compile_opts
+      "-fno-sycl-libspirv"
+      "-fno-bundle-offload-arch")
   set(devicelib_arch "AMDGPU")
 endif()
 
+    # Compile it to a high bc version. The arch info gets removed later.
+    # ToDo Do we need it for atomic clang builtin access?
 if (WIN32)
   list(APPEND compile_opts -D_ALLOW_RUNTIME_LIBRARY_MISMATCH)
   list(APPEND compile_opts -D_ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH)
@@ -194,7 +193,8 @@ function(add_devicelib_bc bc_filename)
     list(APPEND compile_opts "-fsycl-targets=nvptx64-nvidia-cuda")
     set (bc_filename ${bc_filename}--cuda)
   elseif(${BC_AMD})
-    list(APPEND compile_opts "-Xsycl-target-backend=amdgcn-amd-amdhsa")
+    list(APPEND compile_opts "-Xsycl-target-backend=amdgcn-amd-amdhsa"
+      "--offload-arch=gfx940")
     set (bc_filename ${bc_filename}--amd)
   endif()
 
@@ -402,8 +402,17 @@ add_custom_command(OUTPUT ${bc_binary_dir}/libsycl-fallback-imf--cuda.bc
                    DEPENDS ${imf_fallback_fp32_deps} get_imf_fallback_fp32
                            sycl-compiler
                    VERBATIM)
+add_custom_command(OUTPUT ${bc_binary_dir}/libsycl-fallback-imf--amd.bc
+                   COMMAND ${clang} -fsycl-device-only -fsycl-device-obj=llvmir
+                           ${compile_opts} -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
+                           ${imf_fp32_fallback_src} -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx940
+                           -o ${bc_binary_dir}/libsycl-fallback-imf--amd.bc
+                   DEPENDS ${imf_fallback_fp32_deps} get_imf_fallback_fp32
+                           sycl-compiler
+                   VERBATIM)
 
-append_to_property(${bc_binary_dir}/libsycl-fallback-imf--cuda.bc)
+append_to_property(${bc_binary_dir}/libsycl-fallback-imf--amd.bc)
+# append_to_property(${bc_binary_dir}/libsycl-fallback-imf--cuda.bc)
 
 add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-imf.${lib-suffix}
                    COMMAND ${clang} -fsycl -c
@@ -455,6 +464,15 @@ add_custom_command(OUTPUT ${bc_binary_dir}/libsycl-fallback-imf-fp64.bc
                            sycl-compiler
                    VERBATIM)
 
+add_custom_command(OUTPUT ${bc_binary_dir}/libsycl-fallback-imf-fp64--amd.bc
+                   COMMAND ${clang} -fsycl-device-only -fsycl-device-obj=llvmir
+                           ${compile_opts} -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
+                           ${imf_fp64_fallback_src} -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx940
+                           -o ${bc_binary_dir}/libsycl-fallback-imf-fp64--amd.bc
+                   DEPENDS ${imf_fallback_fp64_deps} get_imf_fallback_fp64
+                           sycl-compiler
+                   VERBATIM)
+
 add_custom_command(OUTPUT ${bc_binary_dir}/libsycl-fallback-imf-fp64--cuda.bc
                    COMMAND ${clang} -fsycl-device-only -fsycl-device-obj=llvmir
                            ${compile_opts} -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
@@ -464,7 +482,8 @@ add_custom_command(OUTPUT ${bc_binary_dir}/libsycl-fallback-imf-fp64--cuda.bc
                            sycl-compiler
                    VERBATIM)
 
-append_to_property(${bc_binary_dir}/libsycl-fallback-imf-fp64--cuda.bc)
+append_to_property(${bc_binary_dir}/libsycl-fallback-imf-fp64--amd.bc)
+# append_to_property(${bc_binary_dir}/libsycl-fallback-imf-fp64--cuda.bc)
 
 add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-imf-fp64.${lib-suffix}
                    COMMAND ${clang} -fsycl -c -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
@@ -526,7 +545,16 @@ add_custom_command(OUTPUT ${bc_binary_dir}/libsycl-fallback-imf-bf16--cuda.bc
                            sycl-compiler
                    VERBATIM)
 
-append_to_property(${bc_binary_dir}/libsycl-fallback-imf-bf16--cuda.bc)
+add_custom_command(OUTPUT ${bc_binary_dir}/libsycl-fallback-imf-bf16--amd.bc
+                   COMMAND ${clang} -fsycl-device-only -fsycl-device-obj=llvmir
+                           ${compile_opts} -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
+                           ${imf_bf16_fallback_src} -Xsycl-target-backend --offload-arch=gfx940
+                           -o ${bc_binary_dir}/libsycl-fallback-imf-bf16--amd.bc
+                   DEPENDS ${imf_fallback_bf16_deps} get_imf_fallback_bf16
+                           sycl-compiler
+                   VERBATIM)
+# append_to_property(${bc_binary_dir}/libsycl-fallback-imf-bf16--cuda.bc)
+append_to_property(${bc_binary_dir}/libsycl-fallback-imf-bf16--amd.bc)
 
 add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-imf-bf16.${lib-suffix}
                    COMMAND ${clang} -fsycl -c -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
@@ -563,40 +591,46 @@ add_custom_command(OUTPUT ${obj_binary_dir}/fallback-imf-bf16-host.${new-offload
 
 add_custom_target(imf_fallback_fp32_spv DEPENDS ${spv_binary_dir}/libsycl-fallback-imf.spv)
 add_custom_target(imf_fallback_fp32_bc DEPENDS ${bc_binary_dir}/libsycl-fallback-imf.bc)
-add_custom_target(imf_fallback_fp32_bc_cuda DEPENDS ${bc_binary_dir}/libsycl-fallback-imf--cuda.bc)
+# add_custom_target(imf_fallback_fp32_bc_cuda DEPENDS ${bc_binary_dir}/libsycl-fallback-imf--cuda.bc)
+add_custom_target(imf_fallback_fp32_bc_amd DEPENDS ${bc_binary_dir}/libsycl-fallback-imf--amd.bc)
 add_custom_target(imf_fallback_fp32_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf.${lib-suffix})
 add_custom_target(imf_fallback_fp32_host_obj DEPENDS ${obj_binary_dir}/fallback-imf-fp32-host.${lib-suffix})
 add_custom_target(imf_fallback_fp32_new_offload_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf.${new-offload-lib-suffix})
 add_custom_target(imf_fallback_fp32_host_new_offload_obj DEPENDS ${obj_binary_dir}/fallback-imf-fp32-host.${new-offload-lib-suffix})
 add_dependencies(libsycldevice-spv imf_fallback_fp32_spv)
 add_dependencies(libsycldevice-bc imf_fallback_fp32_bc)
-add_dependencies(libsycldevice-bc imf_fallback_fp32_bc_cuda)
+# add_dependencies(libsycldevice-bc imf_fallback_fp32_bc_cuda)
+add_dependencies(libsycldevice-bc imf_fallback_fp32_bc_amd)
 add_dependencies(libsycldevice-obj imf_fallback_fp32_obj)
 add_dependencies(libsycldevice-obj imf_fallback_fp32_new_offload_obj)
 
 add_custom_target(imf_fallback_fp64_spv DEPENDS ${spv_binary_dir}/libsycl-fallback-imf-fp64.spv)
 add_custom_target(imf_fallback_fp64_bc DEPENDS ${bc_binary_dir}/libsycl-fallback-imf-fp64.bc)
-add_custom_target(imf_fallback_fp64_bc_cuda DEPENDS ${bc_binary_dir}/libsycl-fallback-imf-fp64--cuda.bc)
+# add_custom_target(imf_fallback_fp64_bc_cuda DEPENDS ${bc_binary_dir}/libsycl-fallback-imf-fp64--cuda.bc)
+add_custom_target(imf_fallback_fp64_bc_amd DEPENDS ${bc_binary_dir}/libsycl-fallback-imf-fp64--amd.bc)
 add_custom_target(imf_fallback_fp64_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf-fp64.${lib-suffix})
 add_custom_target(imf_fallback_fp64_host_obj DEPENDS ${obj_binary_dir}/fallback-imf-fp64-host.${lib-suffix})
 add_custom_target(imf_fallback_fp64_new_offload_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf-fp64.${new-offload-lib-suffix})
 add_custom_target(imf_fallback_fp64_host_new_offload_obj DEPENDS ${obj_binary_dir}/fallback-imf-fp64-host.${new-offload-lib-suffix})
 add_dependencies(libsycldevice-spv imf_fallback_fp64_spv)
 add_dependencies(libsycldevice-bc imf_fallback_fp64_bc)
-add_dependencies(libsycldevice-bc imf_fallback_fp64_bc_cuda)
+# add_dependencies(libsycldevice-bc imf_fallback_fp64_bc_cuda)
+add_dependencies(libsycldevice-bc imf_fallback_fp64_bc_amd)
 add_dependencies(libsycldevice-obj imf_fallback_fp64_obj)
 add_dependencies(libsycldevice-obj imf_fallback_fp64_new_offload_obj)
 
 add_custom_target(imf_fallback_bf16_spv DEPENDS ${spv_binary_dir}/libsycl-fallback-imf-bf16.spv)
 add_custom_target(imf_fallback_bf16_bc DEPENDS ${bc_binary_dir}/libsycl-fallback-imf-bf16.bc)
-add_custom_target(imf_fallback_bf16_bc_cuda DEPENDS  ${bc_binary_dir}/libsycl-fallback-imf-bf16--cuda.bc)
+#add_custom_target(imf_fallback_bf16_bc_cuda DEPENDS  ${bc_binary_dir}/libsycl-fallback-imf-bf16--cuda.bc)
+add_custom_target(imf_fallback_bf16_bc_amd DEPENDS ${bc_binary_dir}/libsycl-fallback-imf-bf16--amd.bc)
 add_custom_target(imf_fallback_bf16_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf-bf16.${lib-suffix})
 add_custom_target(imf_fallback_bf16_host_obj DEPENDS ${obj_binary_dir}/fallback-imf-bf16-host.${lib-suffix})
 add_custom_target(imf_fallback_bf16_new_offload_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf-bf16.${new-offload-lib-suffix})
 add_custom_target(imf_fallback_bf16_host_new_offload_obj DEPENDS ${obj_binary_dir}/fallback-imf-bf16-host.${new-offload-lib-suffix})
 add_dependencies(libsycldevice-spv imf_fallback_bf16_spv)
 add_dependencies(libsycldevice-bc imf_fallback_bf16_bc)
-add_dependencies(libsycldevice-bc imf_fallback_bf16_bc_cuda)
+# add_dependencies(libsycldevice-bc imf_fallback_bf16_bc_cuda)
+add_dependencies(libsycldevice-bc imf_fallback_bf16_bc_amd)
 add_dependencies(libsycldevice-obj imf_fallback_bf16_obj)
 add_dependencies(libsycldevice-obj imf_fallback_bf16_new_offload_obj)
 
@@ -743,12 +777,23 @@ install(FILES ${spv_binary_dir}/libsycl-fallback-imf.spv
         DESTINATION ${install_dest_spv}
         COMPONENT libsycldevice)
 
+if (${devicelib_arch} STREQUAL "NVPTX")
+  install(FILES ${bc_binary_dir}/libsycl-fallback-imf--cuda.bc
+              ${bc_binary_dir}/libsycl-fallback-imf-fp64--cuda.bc
+              ${bc_binary_dir}/libsycl-fallback-imf-bf16--cuda.bc
+        DESTINATION ${install_dest_bc}
+        COMPONENT libsycldevice)
+elseif (${devicelib_arch} STREQUAL "AMDGPU")
+  install(FILES ${bc_binary_dir}/libsycl-fallback-imf--amd.bc
+              ${bc_binary_dir}/libsycl-fallback-imf-fp64--amd.bc
+              ${bc_binary_dir}/libsycl-fallback-imf-bf16--amd.bc
+        DESTINATION ${install_dest_bc}
+        COMPONENT libsycldevice)
+endif()
+
 install(FILES ${bc_binary_dir}/libsycl-fallback-imf.bc
               ${bc_binary_dir}/libsycl-fallback-imf-fp64.bc
               ${bc_binary_dir}/libsycl-fallback-imf-bf16.bc
-              ${bc_binary_dir}/libsycl-fallback-imf--cuda.bc
-              ${bc_binary_dir}/libsycl-fallback-imf-fp64--cuda.bc
-              ${bc_binary_dir}/libsycl-fallback-imf-bf16--cuda.bc
         DESTINATION ${install_dest_bc}
         COMPONENT libsycldevice)
 
