@@ -6,7 +6,8 @@
 // RUN: %{build} %device_asan_flags -Xarch_device "-mllvm=-asan-spir-privates=1" -O2 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 UR_LAYER_ASAN_OPTIONS=detect_privates:1 %{run} not %t 2>&1 | FileCheck %s
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 __attribute__((noinline)) int foo(int p[], int i) { return p[i]; }
 // CHECK: ERROR: DeviceSanitizer: out-of-bounds-access on Private Memory
