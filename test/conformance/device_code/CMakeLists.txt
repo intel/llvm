@@ -93,6 +93,13 @@ macro(add_device_binary SOURCE_FILE)
             continue()
         endif()
 
+        # HIP doesn't seem to provide the symbol
+        # `_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E11FixedSgSize` which
+        # causes a build failure here
+        if(${TRIPLE} MATCHES "amd" AND ${KERNEL_NAME} MATCHES "subgroup")
+            continue()
+        endif()
+
         add_custom_command(OUTPUT "${BIN_PATH}"
             COMMAND ${UR_DPCXX} -fsycl -fsycl-targets=${TRIPLE} -fsycl-device-code-split=off 
             ${AMD_TARGET_BACKEND} ${AMD_OFFLOAD_ARCH} ${AMD_NOGPULIB}
@@ -139,6 +146,9 @@ add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/saxpy.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/saxpy_usm.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/indexers_usm.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/build_failure.cpp)
+add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/fixed_wg_size.cpp)
+add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/standard_types.cpp)
+add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/subgroup.cpp)
 
 set(KERNEL_HEADER ${UR_CONFORMANCE_DEVICE_BINARIES_DIR}/kernel_entry_points.h)
 add_custom_command(OUTPUT ${KERNEL_HEADER}

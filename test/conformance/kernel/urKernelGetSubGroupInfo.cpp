@@ -16,6 +16,13 @@ UUR_TEST_SUITE_P(
                       UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL),
     uur::deviceTestWithParamPrinter<ur_kernel_sub_group_info_t>);
 
+struct urKernelGetSubGroupInfoSingleTest : uur::urKernelTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
+    }
+};
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelGetSubGroupInfoSingleTest);
+
 TEST_P(urKernelGetSubGroupInfoTest, Success) {
     auto property_name = getParam();
     size_t property_size = 0;
@@ -52,4 +59,13 @@ TEST_P(urKernelGetSubGroupInfoTest, InvalidEnumeration) {
                      urKernelGetSubGroupInfo(
                          kernel, device, UR_KERNEL_SUB_GROUP_INFO_FORCE_UINT32,
                          0, nullptr, &bad_enum_length));
+}
+
+TEST_P(urKernelGetSubGroupInfoSingleTest, CompileNumSubgroupsIsZero) {
+    // Returns 0 by default when there is no specific information
+    size_t subgroups = 1;
+    ASSERT_SUCCESS(urKernelGetSubGroupInfo(
+        kernel, device, UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS,
+        sizeof(subgroups), &subgroups, nullptr));
+    ASSERT_EQ(subgroups, 0);
 }

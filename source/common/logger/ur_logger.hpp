@@ -14,7 +14,8 @@
 
 namespace logger {
 
-Logger create_logger(std::string logger_name, bool skip_prefix = false);
+Logger create_logger(std::string logger_name, bool skip_prefix = false,
+                     bool skip_linebreak = false);
 
 inline Logger &get_logger(std::string name = "common") {
     static Logger logger = create_logger(std::move(name));
@@ -105,7 +106,8 @@ template <typename T> inline std::string toHex(T t) {
 ///             - flush level: error, meaning that only error messages are guaranteed
 ///                            to be printed immediately as they occur
 ///             - output: stderr
-inline Logger create_logger(std::string logger_name, bool skip_prefix) {
+inline Logger create_logger(std::string logger_name, bool skip_prefix,
+                            bool skip_linebreak) {
     std::transform(logger_name.begin(), logger_name.end(), logger_name.begin(),
                    ::toupper);
     std::stringstream env_var_name;
@@ -121,7 +123,7 @@ inline Logger create_logger(std::string logger_name, bool skip_prefix) {
         auto map = getenv_to_map(env_var_name.str().c_str());
         if (!map.has_value()) {
             return Logger(std::make_unique<logger::StderrSink>(
-                std::move(logger_name), skip_prefix));
+                std::move(logger_name), skip_prefix, skip_linebreak));
         }
 
         auto kv = map->find("level");
@@ -150,19 +152,20 @@ inline Logger create_logger(std::string logger_name, bool skip_prefix) {
                       << map->begin()->first
                       << "'. Default logger options are set.";
             return Logger(std::make_unique<logger::StderrSink>(
-                std::move(logger_name), skip_prefix));
+                std::move(logger_name), skip_prefix, skip_linebreak));
         }
 
-        sink =
-            values.size() == 2
-                ? sink_from_str(logger_name, values[0], values[1], skip_prefix)
-                : sink_from_str(logger_name, values[0], "", skip_prefix);
+        sink = values.size() == 2
+                   ? sink_from_str(logger_name, values[0], values[1],
+                                   skip_prefix, skip_linebreak)
+                   : sink_from_str(logger_name, values[0], "", skip_prefix,
+                                   skip_linebreak);
     } catch (const std::invalid_argument &e) {
         std::cerr << "Error when creating a logger instance from the '"
                   << env_var_name.str() << "' environment variable:\n"
                   << e.what() << std::endl;
         return Logger(std::make_unique<logger::StderrSink>(
-            std::move(logger_name), skip_prefix));
+            std::move(logger_name), skip_prefix, skip_linebreak));
     }
     sink->setFlushLevel(flush_level);
 
