@@ -113,7 +113,7 @@ struct ur_context_handle_t_ {
   }
 
   // Gets the index of the device relative to other devices in the context
-  int getDeviceIndex(ur_device_handle_t hDevice) {
+  size_t getDeviceIndex(ur_device_handle_t hDevice) {
     auto It = std::find(Devices.begin(), Devices.end(), hDevice);
     assert(It != Devices.end());
     return std::distance(Devices.begin(), It);
