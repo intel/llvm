@@ -922,36 +922,30 @@ private:
   // setValue and getValue should be able to operate on different underlying
   // types: enum cl_float#N , builtin vector float#N, builtin type float.
   constexpr auto getValue(int Index) const {
-#ifndef __SYCL_DEVICE_ONLY__
-    assert(Index < NumElements && "Index out of range");
 
-    // Special tratment required for std::byte for vec::Convert
-    if constexpr (detail::is_byte_t<DataT>::value)
-      return static_cast<int8_t>(m_Data[Index]);
-    else
-      return m_Data[Index];
+  using RetType = typename std::conditional_t<detail::is_byte_v<DataT>, int8_t,
+#ifdef __SYCL_DEVICE_ONLY__
+    detail::element_type_for_vector_t<DataT>
 #else
-
-    if constexpr (std::is_same_v<DataT, sycl::ext::oneapi::bfloat16>)
-      return sycl::bit_cast<detail::element_type_for_vector_t<DataT>>(
-          m_Data[Index]);
-    else
-      return static_cast<detail::element_type_for_vector_t<DataT>>(
-          m_Data[Index]);
+    DataT
 #endif
+  >;
+
+#ifdef __SYCL_DEVICE_ONLY__
+    if constexpr (std::is_same_v<DataT, sycl::ext::oneapi::bfloat16>)
+      return sycl::bit_cast<RetType>(m_Data[Index]);
+    else
+#endif
+      return static_cast<RetType>(m_Data[Index]);
   }
 
   constexpr void setValue(int Index, const DataT &Value) {
-#ifndef __SYCL_DEVICE_ONLY__
-    assert(Index < NumElements && "Index out of range");
-    m_Data[Index] = Value;
-#else
-
+#ifdef __SYCL_DEVICE_ONLY__
     if constexpr (std::is_same_v<DataT, sycl::ext::oneapi::bfloat16>)
       m_Data[Index] = sycl::bit_cast<DataT>(Value);
     else
-      m_Data[Index] = Value;
 #endif
+      m_Data[Index] = Value;
   }
 
   // fields
