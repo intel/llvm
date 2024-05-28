@@ -163,8 +163,8 @@ public:
   // plugins (CTS fails).
   using vector_t = typename std::conditional_t<
       NumElements == 1, detail::element_type_for_vector_t<DataT>,
-        detail::element_type_for_vector_t<DataT> __attribute__((
-        ext_vector_type(NumElements)))>;
+      detail::element_type_for_vector_t<DataT> __attribute__((
+          ext_vector_type(NumElements)))>;
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
@@ -614,8 +614,8 @@ public:
         Ret[I] = Lhs[I] BINOP Rhs[I];                                          \
       }                                                                        \
     } else {                                                                   \
-      vector_t ExtVecLhs = sycl::bit_cast<vector_t>(Lhs);                         \
-      vector_t ExtVecRhs = sycl::bit_cast<vector_t>(Rhs);                         \
+      vector_t ExtVecLhs = sycl::bit_cast<vector_t>(Lhs);                      \
+      vector_t ExtVecRhs = sycl::bit_cast<vector_t>(Rhs);                      \
       Ret = vec<DataT, NumElements>(                                           \
           (typename vec<DataT, NumElements>::vector_t)(                        \
               ExtVecLhs BINOP ExtVecRhs));                                     \
@@ -699,7 +699,7 @@ public:
   //   noexcept;
 #define __SYCL_SHIFT_BYTE(OP, OPASSIGN)                                        \
   template <typename T = DataT>                                                \
-  friend typename std::enable_if_t<(detail::is_byte_v<T>), vec> operator OP(       \
+  friend typename std::enable_if_t<(detail::is_byte_v<T>), vec> operator OP(   \
       const vec & Lhs, int shift) {                                            \
     vec Ret;                                                                   \
     for (size_t I = 0; I < NumElements; ++I) {                                 \
@@ -708,9 +708,8 @@ public:
     return Ret;                                                                \
   }                                                                            \
   template <typename T = DataT>                                                \
-  friend                                                                       \
-      typename std::enable_if_t<(detail::is_byte_v<T>), vec &> operator OPASSIGN(  \
-          vec & Lhs, int shift) {                                              \
+  friend typename std::enable_if_t<(detail::is_byte_v<T>), vec &>              \
+  operator OPASSIGN(vec & Lhs, int shift) {                                    \
     Lhs = Lhs OP shift;                                                        \
     return Lhs;                                                                \
   }
@@ -852,7 +851,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     if constexpr (!std::is_same_v<DataT, sycl::ext::oneapi::bfloat16>) {
       auto extVec = sycl::bit_cast<vector_t>(Rhs);
-      vec<detail::rel_t<DataT>, NumElements> Ret{(typename vec<rel_t, NumElements>::vector_t)!extVec};
+      vec<detail::rel_t<DataT>, NumElements> Ret{
+          (typename vec<rel_t, NumElements>::vector_t) !extVec};
       return Ret;
     } else
 #endif // __SYCL_DEVICE_ONLY__
@@ -911,13 +911,14 @@ private:
   // types: enum cl_float#N , builtin vector float#N, builtin type float.
   constexpr auto getValue(int Index) const {
 
-  using RetType = typename std::conditional_t<detail::is_byte_v<DataT>, int8_t,
+    using RetType =
+        typename std::conditional_t<detail::is_byte_v<DataT>, int8_t,
 #ifdef __SYCL_DEVICE_ONLY__
-    detail::element_type_for_vector_t<DataT>
+                                    detail::element_type_for_vector_t<DataT>
 #else
-    DataT
+                                    DataT
 #endif
-  >;
+                                    >;
 
 #ifdef __SYCL_DEVICE_ONLY__
     if constexpr (std::is_same_v<DataT, sycl::ext::oneapi::bfloat16>)
@@ -1265,26 +1266,26 @@ public:
 #endif
 #define __SYCL_BINOP(BINOP, COND)                                              \
   template <typename T = DataT>                                                \
-  friend typename std::enable_if_t<(COND), vec_t>                              \
-  operator BINOP(const DataT &Lhs, const SwizzleOp &Rhs) {                     \
+  friend typename std::enable_if_t<(COND), vec_t> operator BINOP(              \
+      const DataT & Lhs, const SwizzleOp & Rhs) {                              \
     vec_t Tmp = Rhs;                                                           \
     return Lhs BINOP Tmp;                                                      \
   }                                                                            \
   template <typename T = DataT>                                                \
-  friend typename std::enable_if_t<(COND), vec_t>                              \
-  operator BINOP(const SwizzleOp &Lhs, const DataT &Rhs) {                     \
+  friend typename std::enable_if_t<(COND), vec_t> operator BINOP(              \
+      const SwizzleOp & Lhs, const DataT & Rhs) {                              \
     vec_t Tmp = Lhs;                                                           \
     return Tmp BINOP Rhs;                                                      \
   }                                                                            \
   template <typename T = DataT>                                                \
-  friend typename std::enable_if_t<(COND), vec_t>                              \
-  operator BINOP(const vec_t &Lhs, const SwizzleOp &Rhs) {                     \
+  friend typename std::enable_if_t<(COND), vec_t> operator BINOP(              \
+      const vec_t & Lhs, const SwizzleOp & Rhs) {                              \
     vec_t Tmp = Rhs;                                                           \
     return Lhs BINOP Tmp;                                                      \
   }                                                                            \
   template <typename T = DataT>                                                \
-  friend typename std::enable_if_t<(COND), vec_t>                              \
-  operator BINOP(const SwizzleOp &Lhs, const vec_t &Rhs) {                     \
+  friend typename std::enable_if_t<(COND), vec_t> operator BINOP(              \
+      const SwizzleOp & Lhs, const vec_t & Rhs) {                              \
     vec_t Tmp = Lhs;                                                           \
     return Tmp BINOP Rhs;                                                      \
   }
@@ -1303,14 +1304,14 @@ public:
 
   template <typename T = DataT>
   friend typename std::enable_if_t<detail::is_byte_v<T>, vec_t>
-  operator >>(const SwizzleOp &Lhs, const int shift) {
+  operator>>(const SwizzleOp &Lhs, const int shift) {
     vec_t Tmp = Lhs;
     return Tmp >> shift;
   }
 
   template <typename T = DataT>
   friend typename std::enable_if_t<detail::is_byte_v<T>, vec_t>
-  operator <<(const SwizzleOp &Lhs, const int shift) {
+  operator<<(const SwizzleOp &Lhs, const int shift) {
     vec_t Tmp = Lhs;
     return Tmp << shift;
   }
@@ -1324,26 +1325,26 @@ public:
 #endif
 #define __SYCL_RELLOGOP(RELLOGOP, COND)                                        \
   template <typename T = DataT>                                                \
-  friend typename std::enable_if_t<(COND), vec_rel_t>                          \
-  operator RELLOGOP(const DataT &Lhs, const SwizzleOp &Rhs) {                  \
+  friend typename std::enable_if_t<(COND), vec_rel_t> operator RELLOGOP(       \
+      const DataT & Lhs, const SwizzleOp & Rhs) {                              \
     vec_t Tmp = Rhs;                                                           \
     return Lhs RELLOGOP Tmp;                                                   \
   }                                                                            \
   template <typename T = DataT>                                                \
-  friend typename std::enable_if_t<(COND), vec_rel_t>                          \
-  operator RELLOGOP(const SwizzleOp &Lhs, const DataT &Rhs) {                  \
+  friend typename std::enable_if_t<(COND), vec_rel_t> operator RELLOGOP(       \
+      const SwizzleOp & Lhs, const DataT & Rhs) {                              \
     vec_t Tmp = Lhs;                                                           \
     return Tmp RELLOGOP Rhs;                                                   \
   }                                                                            \
   template <typename T = DataT>                                                \
-  friend typename std::enable_if_t<(COND), vec_rel_t>                          \
-  operator RELLOGOP(const vec_t &Lhs, const SwizzleOp &Rhs) {                  \
+  friend typename std::enable_if_t<(COND), vec_rel_t> operator RELLOGOP(       \
+      const vec_t & Lhs, const SwizzleOp & Rhs) {                              \
     vec_t Tmp = Rhs;                                                           \
     return Lhs RELLOGOP Tmp;                                                   \
   }                                                                            \
   template <typename T = DataT>                                                \
-  friend typename std::enable_if_t<(COND), vec_rel_t>                          \
-  operator RELLOGOP(const SwizzleOp &Lhs, const vec_t &Rhs) {                  \
+  friend typename std::enable_if_t<(COND), vec_rel_t> operator RELLOGOP(       \
+      const SwizzleOp & Lhs, const vec_t & Rhs) {                              \
     vec_t Tmp = Lhs;                                                           \
     return Tmp RELLOGOP Rhs;                                                   \
   }

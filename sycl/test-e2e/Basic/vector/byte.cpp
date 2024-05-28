@@ -57,10 +57,9 @@ int main() {
 
     // 0000 0000 0000 0001 0000 0000 0000 0001
     assert(asbyte[0] == std::byte{1} && asbyte[1] == std::byte{0} &&
-            asbyte[2] == std::byte{0} && asbyte[3] == std::byte{0} &&
-            asbyte[4] == std::byte{1} && asbyte[5] == std::byte{0} &&
-            asbyte[6] == std::byte{0} && asbyte[7] == std::byte{0}
-    );
+           asbyte[2] == std::byte{0} && asbyte[3] == std::byte{0} &&
+           asbyte[4] == std::byte{1} && asbyte[5] == std::byte{0} &&
+           asbyte[6] == std::byte{0} && asbyte[7] == std::byte{0});
   }
 
   // load() and store()
@@ -120,10 +119,11 @@ int main() {
 
   // operatorOP for vec and for swizzle
   {
-    sycl::vec<std::byte, 3> VecByte3A{std::byte{4}, std::byte{9}, std::byte{25}};
+    sycl::vec<std::byte, 3> VecByte3A{std::byte{4}, std::byte{9},
+                                      std::byte{25}};
     sycl::vec<std::byte, 3> VecByte3B{std::byte{2}, std::byte{3}, std::byte{5}};
     sycl::vec<std::byte, 4> VecByte4A{std::byte{5}, std::byte{6}, std::byte{2},
-                                 std::byte{3}};
+                                      std::byte{3}};
 
     // Test bitwise operations on vec<std::byte> and swizzles.
     // Adding asserts on vec<> operations, and not swizzle operations,
@@ -270,7 +270,8 @@ int main() {
       swlo %= std::byte{3};
 
       // unary operator++ and -- for vec
-      VecByte3A = sycl::vec<std::byte, 3>(std::byte{4}, std::byte{9}, std::byte{25});
+      VecByte3A =
+          sycl::vec<std::byte, 3>(std::byte{4}, std::byte{9}, std::byte{25});
       VecByte3A++;
       VecByte3A--;
       vop = ++VecByte3A;

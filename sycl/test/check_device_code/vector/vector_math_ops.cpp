@@ -117,17 +117,17 @@ SYCL_EXTERNAL auto TestAdd(vec<half, 3> a, vec<half, 3> b) { return a + b; }
 // CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i64 [[I_0_I]], 3
 // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1PLINS0_3EXT6ONEAPI8BFLOAT16EEENST9ENABLE_IFIXNTSR6DETAILE9IS_BYTE_VIT_EENS0_3VECIS4_LI3EEEE4TYPEERKS8_SC__EXIT:%.*]]
 // CHECK:       for.body.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds %"class.sycl::_V1::ext::oneapi::bfloat16", ptr addrspace(4) [[A_ASCAST]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[ARRAYIDX_I10_I:%.*]] = getelementptr inbounds %"class.sycl::_V1::ext::oneapi::bfloat16", ptr addrspace(4) [[B_ASCAST]], i64 [[I_0_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[A_ASCAST]], i64 0, i64 [[I_0_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I10_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[B_ASCAST]], i64 0, i64 [[I_0_I]]
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 4, ptr nonnull [[REF_TMP_I_I]]), !noalias [[META39]]
-// CHECK-NEXT:    [[CALL_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[ARRAYIDX_I_I]]) #[[ATTR8:[0-9]+]], !noalias [[META42:![0-9]+]]
-// CHECK-NEXT:    [[CALL_I_I2_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[ARRAYIDX_I10_I]]) #[[ATTR8]], !noalias [[META42]]
+// CHECK-NEXT:    [[CALL_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[ARRAYIDX_I_I_I_I]]) #[[ATTR8:[0-9]+]], !noalias [[META42:![0-9]+]]
+// CHECK-NEXT:    [[CALL_I_I2_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[ARRAYIDX_I_I_I10_I]]) #[[ATTR8]], !noalias [[META42]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = fadd float [[CALL_I_I_I_I]], [[CALL_I_I2_I_I]]
 // CHECK-NEXT:    store float [[ADD_I_I]], ptr [[REF_TMP_I_I]], align 4, !tbaa [[TBAA45:![0-9]+]], !noalias [[META42]]
 // CHECK-NEXT:    [[CALL_I_I3_I_I:%.*]] = call spir_func noundef zeroext i16 @__devicelib_ConvertFToBF16INTEL(ptr addrspace(4) noundef align 4 dereferenceable(4) [[REF_TMP_ASCAST_I_I]]) #[[ATTR8]], !noalias [[META42]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 4, ptr nonnull [[REF_TMP_I_I]]), !noalias [[META39]]
-// CHECK-NEXT:    [[ARRAYIDX_I12_I:%.*]] = getelementptr inbounds %"class.sycl::_V1::ext::oneapi::bfloat16", ptr addrspace(4) [[AGG_RESULT]], i64 [[I_0_I]]
-// CHECK-NEXT:    store i16 [[CALL_I_I3_I_I]], ptr addrspace(4) [[ARRAYIDX_I12_I]], align 2, !tbaa [[TBAA47:![0-9]+]], !alias.scope [[META39]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I12_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[AGG_RESULT]], i64 0, i64 [[I_0_I]]
+// CHECK-NEXT:    store i16 [[CALL_I_I3_I_I]], ptr addrspace(4) [[ARRAYIDX_I_I_I12_I]], align 2, !tbaa [[TBAA47:![0-9]+]], !alias.scope [[META39]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP49:![0-9]+]]
 // CHECK:       _ZN4sycl3_V1plINS0_3ext6oneapi8bfloat16EEENSt9enable_ifIXntsr6detailE9is_byte_vIT_EENS0_3vecIS4_Li3EEEE4typeERKS8_SC_.exit:
@@ -212,14 +212,14 @@ SYCL_EXTERNAL auto TestGreaterThan(vec<half, 8> a, vec<half, 8> b) {
 // CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i64 [[I_0_I]], 4
 // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1GTINS0_3EXT6ONEAPI8BFLOAT16EEENST9ENABLE_IFIXNTSR6DETAILE9IS_BYTE_VIT_EENS0_3VECISLI4EEEE4TYPEERKNS7_IS4_LI4EEESD__EXIT:%.*]]
 // CHECK:       for.body.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds %"class.sycl::_V1::ext::oneapi::bfloat16", ptr addrspace(4) [[A_ASCAST]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[ARRAYIDX_I13_I:%.*]] = getelementptr inbounds %"class.sycl::_V1::ext::oneapi::bfloat16", ptr addrspace(4) [[B_ASCAST]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[CALL_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[ARRAYIDX_I_I]]) #[[ATTR8]], !noalias [[META64]]
-// CHECK-NEXT:    [[CALL_I_I2_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[ARRAYIDX_I13_I]]) #[[ATTR8]], !noalias [[META64]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[A_ASCAST]], i64 0, i64 [[I_0_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I13_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[B_ASCAST]], i64 0, i64 [[I_0_I]]
+// CHECK-NEXT:    [[CALL_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[ARRAYIDX_I_I_I_I]]) #[[ATTR8]], !noalias [[META64]]
+// CHECK-NEXT:    [[CALL_I_I2_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[ARRAYIDX_I_I_I13_I]]) #[[ATTR8]], !noalias [[META64]]
 // CHECK-NEXT:    [[CMP_I_I:%.*]] = fcmp ogt float [[CALL_I_I_I_I]], [[CALL_I_I2_I_I]]
 // CHECK-NEXT:    [[CONV5_I:%.*]] = sext i1 [[CMP_I_I]] to i16
-// CHECK-NEXT:    [[ARRAYIDX_I15_I:%.*]] = getelementptr inbounds i16, ptr addrspace(4) [[AGG_RESULT]], i64 [[I_0_I]]
-// CHECK-NEXT:    store i16 [[CONV5_I]], ptr addrspace(4) [[ARRAYIDX_I15_I]], align 2, !tbaa [[TBAA47]], !alias.scope [[META64]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I15_I:%.*]] = getelementptr inbounds [4 x i16], ptr addrspace(4) [[AGG_RESULT]], i64 0, i64 [[I_0_I]]
+// CHECK-NEXT:    store i16 [[CONV5_I]], ptr addrspace(4) [[ARRAYIDX_I_I_I15_I]], align 2, !tbaa [[TBAA47]], !alias.scope [[META64]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP67:![0-9]+]]
 // CHECK:       _ZN4sycl3_V1gtINS0_3ext6oneapi8bfloat16EEENSt9enable_ifIXntsr6detailE9is_byte_vIT_EENS0_3vecIsLi4EEEE4typeERKNS7_IS4_Li4EEESD_.exit:
@@ -316,12 +316,12 @@ SYCL_EXTERNAL auto TestMinus(vec<half, 8> a) { return -a; }
 // CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i64 [[I_0_I]], 3
 // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1NTINS0_3EXT6ONEAPI8BFLOAT16EEENST9ENABLE_IFIXNTSR6DETAILE9IS_BYTE_VIT_EENS0_3VECISLI3EEEE4TYPEERKNS7_IS4_LI3EEE_EXIT:%.*]]
 // CHECK:       for.body.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds %"class.sycl::_V1::ext::oneapi::bfloat16", ptr addrspace(4) [[A_ASCAST]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[CALL_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[ARRAYIDX_I_I]]) #[[ATTR8]], !noalias [[META93]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[A_ASCAST]], i64 0, i64 [[I_0_I]]
+// CHECK-NEXT:    [[CALL_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[ARRAYIDX_I_I_I_I]]) #[[ATTR8]], !noalias [[META93]]
 // CHECK-NEXT:    [[TOBOOL_I:%.*]] = fcmp oeq float [[CALL_I_I_I]], 0.000000e+00
 // CHECK-NEXT:    [[CONV3_I:%.*]] = sext i1 [[TOBOOL_I]] to i16
-// CHECK-NEXT:    [[ARRAYIDX_I10_I:%.*]] = getelementptr inbounds i16, ptr addrspace(4) [[AGG_RESULT]], i64 [[I_0_I]]
-// CHECK-NEXT:    store i16 [[CONV3_I]], ptr addrspace(4) [[ARRAYIDX_I10_I]], align 2, !tbaa [[TBAA47]], !alias.scope [[META93]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I10_I:%.*]] = getelementptr inbounds [4 x i16], ptr addrspace(4) [[AGG_RESULT]], i64 0, i64 [[I_0_I]]
+// CHECK-NEXT:    store i16 [[CONV3_I]], ptr addrspace(4) [[ARRAYIDX_I_I_I10_I]], align 2, !tbaa [[TBAA47]], !alias.scope [[META93]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP96:![0-9]+]]
 // CHECK:       _ZN4sycl3_V1ntINS0_3ext6oneapi8bfloat16EEENSt9enable_ifIXntsr6detailE9is_byte_vIT_EENS0_3vecIsLi3EEEE4typeERKNS7_IS4_Li3EEE.exit:
@@ -344,13 +344,13 @@ SYCL_EXTERNAL auto TestNegation(vec<ext::oneapi::bfloat16, 3> a) { return !a; }
 // CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i64 [[I_0_I]], 16
 // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1NGINS0_3EXT6ONEAPI8BFLOAT16EEENST9ENABLE_IFIXNTSR6DETAILE9IS_BYTE_VIT_EENS0_3VECIS4_LI16EEEE4TYPEERKS8__EXIT:%.*]]
 // CHECK:       for.body.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds %"class.sycl::_V1::ext::oneapi::bfloat16", ptr addrspace(4) [[A_ASCAST]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[CALL_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[ARRAYIDX_I_I]]) #[[ATTR8]], !noalias [[META98]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I:%.*]] = getelementptr inbounds [16 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[A_ASCAST]], i64 0, i64 [[I_0_I]]
+// CHECK-NEXT:    [[CALL_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[ARRAYIDX_I_I_I_I]]) #[[ATTR8]], !noalias [[META98]]
 // CHECK-NEXT:    [[FNEG_I:%.*]] = fneg float [[CALL_I_I_I]]
 // CHECK-NEXT:    store float [[FNEG_I]], ptr [[REF_TMP_I]], align 4, !tbaa [[TBAA45]], !noalias [[META98]]
-// CHECK-NEXT:    [[ARRAYIDX_I9_I:%.*]] = getelementptr inbounds %"class.sycl::_V1::ext::oneapi::bfloat16", ptr addrspace(4) [[AGG_RESULT]], i64 [[I_0_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I9_I:%.*]] = getelementptr inbounds [16 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[AGG_RESULT]], i64 0, i64 [[I_0_I]]
 // CHECK-NEXT:    [[CALL_I_I10_I:%.*]] = call spir_func noundef zeroext i16 @__devicelib_ConvertFToBF16INTEL(ptr addrspace(4) noundef align 4 dereferenceable(4) [[REF_TMP_ASCAST_I]]) #[[ATTR8]], !noalias [[META98]]
-// CHECK-NEXT:    store i16 [[CALL_I_I10_I]], ptr addrspace(4) [[ARRAYIDX_I9_I]], align 2, !tbaa [[TBAA101:![0-9]+]], !alias.scope [[META98]]
+// CHECK-NEXT:    store i16 [[CALL_I_I10_I]], ptr addrspace(4) [[ARRAYIDX_I_I_I9_I]], align 2, !tbaa [[TBAA101:![0-9]+]], !alias.scope [[META98]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP103:![0-9]+]]
 // CHECK:       _ZN4sycl3_V1ngINS0_3ext6oneapi8bfloat16EEENSt9enable_ifIXntsr6detailE9is_byte_vIT_EENS0_3vecIS4_Li16EEEE4typeERKS8_.exit:
