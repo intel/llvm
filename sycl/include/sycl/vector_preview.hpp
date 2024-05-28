@@ -154,7 +154,7 @@ template <typename DataT, int NumElements> class vec {
 
   // This represent type of underlying value. There should be only one field
   // in the class, so vec<float, 16> should be equal to float16 in memory.
-  using DataType = std::array<std::conditional_t<std::is_same_v<DataT, bool>, int8_t, DataT>, AdjustedNum>;
+  using DataType = std::array<DataT, AdjustedNum>;
 
 public:
 #ifdef __SYCL_DEVICE_ONLY__
@@ -396,8 +396,7 @@ public:
   // Available only when: NumElements == 1
   template <int N = NumElements>
   operator typename std::enable_if_t<N == 1, DataT>() const {
-    // Cast required to convert int8_t to bool.
-    return static_cast<DataT>(m_Data[0]);
+    return m_Data[0];
   }
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
@@ -604,10 +603,9 @@ public:
 
 #ifdef __SYCL_DEVICE_ONLY__
   // Require only for std::bool.
-  void ConvertToDataT() {
+  inline void ConvertToDataT() {
     for (size_t i = 0; i < NumElements; ++i) {
-      DataT tmp = getValue(i);
-      setValue(i, tmp);
+      m_Data[i] = bit_cast<int8_t>(m_Data[i]) != 0;
     }
   }
 #endif
@@ -951,8 +949,6 @@ private:
 
     if constexpr (std::is_same_v<DataT, sycl::ext::oneapi::bfloat16>)
       m_Data[Index] = sycl::bit_cast<DataT>(Value);
-    else if constexpr (std::is_same_v<DataT, bool>)
-      m_Data[Index] = static_cast<int8_t>(Value);
     else
       m_Data[Index] = Value;
 #endif

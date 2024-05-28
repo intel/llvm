@@ -33,7 +33,7 @@ SYCL_EXTERNAL void foo(sycl::vec<bool, 16>) {}
 // CHECK-NEXT: |  nvsize=16, nvalign=16]
 
 // FSYCL-PREVIEW-BREAKING-CHANGES-CHECK: 0 | class sycl::vec<_Bool, 16>
-// FSYCL-PREVIEW-BREAKING-CHANGES-CHECK-NEXT: 0 | struct std::array<signed char, 16> m_Data
+// FSYCL-PREVIEW-BREAKING-CHANGES-CHECK-NEXT: 0 | struct std::array<_Bool, 16> m_Data
 // FSYCL-PREVIEW-BREAKING-CHANGES-CHECK-NEXT: 0 | typename _AT_Type::_Type _M_elems
 // FSYCL-PREVIEW-BREAKING-CHANGES-CHECK-NEXT: | [sizeof=16, dsize=16, align=16,
 // FSYCL-PREVIEW-BREAKING-CHANGES-CHECK-NEXT: |  nvsize=16, nvalign=16]
