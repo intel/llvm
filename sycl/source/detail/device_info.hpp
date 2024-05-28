@@ -25,6 +25,7 @@
 #include <sycl/platform.hpp>
 
 #include <chrono>
+#include <sstream>
 #include <thread>
 
 #include "split_string.hpp"
