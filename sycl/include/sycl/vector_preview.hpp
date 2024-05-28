@@ -409,10 +409,16 @@ public:
 
   // We interpret bool as int8_t, std::byte as uint8_t for conversion to other
   // types.
+  // clang-format off
   template <typename T>
-  using ConvertBoolAndByteT = typename std::conditional_t<
-      std::is_same_v<T, bool>, int8_t,
-      typename std::conditional_t<detail::is_byte_v<T>, uint8_t, T>>;
+  using ConvertBoolAndByteT = typename detail::map_type<
+      T,
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+      std::byte, /*->*/ std::uint8_t,
+#endif
+      bool, /*->*/ std::int8_t,
+      T, /*->*/ T>::type;
+  // clang-format on
 
   // convertImpl can't be called with the same From and To types and therefore
   // we need this version of convert which is mostly no-op.
@@ -454,9 +460,8 @@ public:
 #endif
           NumElements > 1 &&
           // - vec storage has an equivalent OpenCL native vector it is
-          // implicitly
-          //   convertible to. There are some corner cases where it is not the
-          //   case with char, long and long long types.
+          //   implicitly convertible to. There are some corner cases where it
+          //   is not the case with char, long and long long types.
           std::is_convertible_v<vector_t, OpenCLVecT> &&
           std::is_convertible_v<ConvertTVecType, OpenCLVecR> &&
           // - it is not a signed to unsigned (or vice versa) conversion
@@ -515,25 +520,13 @@ public:
     return this;
   }
 
-  // ext_vector_type is used as an underlying type for sycl::vec on device.
-  // The problem is that for clang vector types the return of operator[] is a
-  // temporary and not a reference to the element in the vector. In practice
-  // reinterpret_cast<DataT *>(&m_Data)[i]; is working. According to
-  // http://llvm.org/docs/GetElementPtr.html#can-gep-index-into-vector-elements
-  // this is not disallowed now. But could probably be disallowed in the future.
-  // That is why tests are added to check that behavior of the compiler has
-  // not changed.
-  //
   // Implement operator [] in the same way for host and device.
-  // NOTE: aliasing the incompatible types of bfloat16 may lead to problems if
-  // aggressively optimized. Specializing with noinline to avoid as workaround.
-
   const DataT& operator[](int i) const {
-    return reinterpret_cast<const DataT *>(&m_Data)[i];
+    return m_Data[i];
   }
 
   DataT& operator[](int i) {
-    return reinterpret_cast<DataT *>(&m_Data)[i];
+    return m_Data[i];
   }
 
   // Begin hi/lo, even/odd, xyzw, and rgba swizzles.
@@ -584,9 +577,8 @@ public:
   void store(size_t Offset,
              multi_ptr<DataT, Space, DecorateAddress> Ptr) const {
     for (int I = 0; I < NumElements; I++) {
-      // Cast require for int8 -> std::byte conversion.
       *multi_ptr<DataT, Space, DecorateAddress>(
-          Ptr + Offset * NumElements + I) = static_cast<DataT>(m_Data[I]);
+          Ptr + Offset * NumElements + I) = m_Data[I];
     }
   }
   template <int Dimensions, access::mode Mode,
