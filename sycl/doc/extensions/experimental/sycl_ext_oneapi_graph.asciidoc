@@ -775,9 +775,9 @@ Both the graph being updated and the graph being used as the source for the
 update must have been constructed with the same device and context.
 
 The modifiable graph must have the same topology as the graph originally used to
-create the executable graph. This means that all nodes and edges must be added
-in the same order, and all Graph-related API calls and recorded queue
-submissions must occur in the same order.
+create the executable graph. Additionally, all nodes and edges must be added in
+the same order, and all Graph-related API calls and recorded queue submissions
+must occur in the same order.
 
 It is valid to use nodes that contain dynamic parameters in whole graph updates.
 If a node containing a dynamic parameter is updated through the whole graph
@@ -1201,9 +1201,10 @@ update(const command_graph<graph_state::modifiable>& graph);
 ----
 
 |Updates the executable graph node inputs & outputs from a topologically
-identical modifiable graph. A topologically identical graph is one with the
-same structure of nodes and edges. Additionally, the nodes and edges must have
-been added in the same order to both graphs.
+identical modifiable graph. A topologically identical graph is one with the same
+structure of nodes and edges. Additionally, all nodes and edges must be added in
+the same order, and all Graph-related API calls and recorded queue submissions
+must occur in the same order.
 
 Equivalent nodes in topologically identical graphs each have the
 same command. There is the additional limitation that to update an executable
@@ -1227,6 +1228,9 @@ update results in undefined behavior:
 
 The implementation may perform a blocking wait during this call on
 any in-flight executions of that same graph if required by the backend.
+
+This function may only be called if the graph was created with the `updatable`
+property.
 
 Constraints:
 
