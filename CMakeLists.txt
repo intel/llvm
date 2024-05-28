@@ -3,8 +3,8 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-cmake_minimum_required(VERSION 3.14.0 FATAL_ERROR)
-project(unified-runtime VERSION 0.9.0)
+cmake_minimum_required(VERSION 3.20.0 FATAL_ERROR)
+project(unified-runtime VERSION 0.10.0)
 
 include(GNUInstallDirs)
 include(CheckCXXSourceCompiles)
@@ -47,12 +47,15 @@ option(UR_BUILD_ADAPTER_ALL "Build all currently supported adapters" OFF)
 option(UR_BUILD_EXAMPLE_CODEGEN "Build the codegen example." OFF)
 option(VAL_USE_LIBBACKTRACE_BACKTRACE "enable libbacktrace validation backtrace for linux" OFF)
 option(UR_ENABLE_ASSERTIONS "Enable assertions for all build types" OFF)
+option(UR_BUILD_XPTI_LIBS "Build the XPTI libraries when tracing is enabled" ON)
 set(UR_DPCXX "" CACHE FILEPATH "Path of the DPC++ compiler executable")
+set(UR_DPCXX_BUILD_FLAGS "" CACHE STRING "Build flags to pass to DPC++ when compiling device programs")
 set(UR_SYCL_LIBRARY_DIR "" CACHE PATH
     "Path of the SYCL runtime library directory")
 set(UR_CONFORMANCE_TARGET_TRIPLES "" CACHE STRING
     "List of sycl targets to build CTS device binaries for")
 set(UR_CONFORMANCE_AMD_ARCH "" CACHE STRING "AMD device target ID to build CTS binaries for")
+option(UR_CONFORMANCE_ENABLE_MATCH_FILES "Enable CTS match files" ON)
 set(UR_ADAPTER_LEVEL_ZERO_SOURCE_DIR "" CACHE PATH
     "Path to external 'level_zero' adapter source dir")
 set(UR_ADAPTER_OPENCL_SOURCE_DIR "" CACHE PATH
@@ -107,31 +110,34 @@ endif()
 if(UR_ENABLE_TRACING)
     add_compile_definitions(UR_ENABLE_TRACING)
 
-    # fetch xpti proxy library for the tracing layer
-    FetchContentSparse_Declare(xpti https://github.com/intel/llvm.git "sycl-nightly/20230703" "xpti")
-    FetchContent_MakeAvailable(xpti)
+    if (UR_BUILD_XPTI_LIBS)
+        # fetch xpti proxy library for the tracing layer
+        FetchContentSparse_Declare(xpti https://github.com/intel/llvm.git "sycl-nightly/20230703" "xpti")
+        FetchContent_MakeAvailable(xpti)
 
-    # set -fPIC for xpti since we are linking it with a shared library
-    set_target_properties(xpti PROPERTIES POSITION_INDEPENDENT_CODE ON)
+        # set -fPIC for xpti since we are linking it with a shared library
+        set_target_properties(xpti PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-    # fetch the xptifw dispatcher, mostly used for testing
-    # these variables need to be set for xptifw to compile
-    set(XPTI_SOURCE_DIR ${xpti_SOURCE_DIR})
-    set(XPTI_DIR ${xpti_SOURCE_DIR})
-    set(XPTI_ENABLE_TESTS OFF CACHE INTERNAL "Turn off xptifw tests")
+        # fetch the xptifw dispatcher, mostly used for testing
+        # these variables need to be set for xptifw to compile
+        set(XPTI_SOURCE_DIR ${xpti_SOURCE_DIR})
+        set(XPTI_DIR ${xpti_SOURCE_DIR})
+        set(XPTI_ENABLE_TESTS OFF CACHE INTERNAL "Turn off xptifw tests")
 
-    FetchContentSparse_Declare(xptifw https://github.com/intel/llvm.git "sycl-nightly/20230703" "xptifw")
+        FetchContentSparse_Declare(xptifw https://github.com/intel/llvm.git "sycl-nightly/20230703" "xptifw")
 
-    FetchContent_MakeAvailable(xptifw)
+        FetchContent_MakeAvailable(xptifw)
 
-    check_cxx_compiler_flag("-Wno-error=maybe-uninitialized" HAS_MAYBE_UNINIT)
-    if (HAS_MAYBE_UNINIT)
-        target_compile_options(xptifw PRIVATE -Wno-error=maybe-uninitialized)
+        check_cxx_compiler_flag("-Wno-error=maybe-uninitialized" HAS_MAYBE_UNINIT)
+        if (HAS_MAYBE_UNINIT)
+            target_compile_options(xptifw PRIVATE -Wno-error=maybe-uninitialized)
+        endif()
+
+        set_target_properties(xptifw PROPERTIES
+            LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+        )
     endif()
 
-    set_target_properties(xptifw PROPERTIES
-        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
-    )
     if (MSVC)
         set(TARGET_XPTI $<IF:$<CONFIG:Release>,xpti,xptid>)
     else()

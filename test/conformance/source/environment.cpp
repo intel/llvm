@@ -367,7 +367,7 @@ KernelsEnvironment::parseKernelOptions(int argc, char **argv,
     return options;
 }
 
-std::string KernelsEnvironment::getSupportedILPostfix(uint32_t device_index) {
+std::string KernelsEnvironment::getTargetName() {
     std::stringstream IL;
 
     if (instance->GetDevices().size() == 0) {
@@ -382,66 +382,44 @@ std::string KernelsEnvironment::getSupportedILPostfix(uint32_t device_index) {
         error = "failed to get backend from platform.";
         return {};
     }
-    if (backend == UR_PLATFORM_BACKEND_HIP) {
-        return ".bin";
-    }
 
-    auto device = instance->GetDevices()[device_index];
-    std::string IL_version;
-    if (uur::GetDeviceILVersion(device, IL_version)) {
-        error = "failed to get device IL version";
+    std::string target = "";
+    switch (backend) {
+    case UR_PLATFORM_BACKEND_OPENCL:
+    case UR_PLATFORM_BACKEND_LEVEL_ZERO:
+        return "spir64";
+    case UR_PLATFORM_BACKEND_CUDA:
+        return "nvptx64-nvidia-cuda";
+    case UR_PLATFORM_BACKEND_HIP:
+        return "amdgcn-amd-amdhsa";
+    case UR_PLATFORM_BACKEND_NATIVE_CPU:
+        error = "native_cpu doesn't support kernel tests yet";
+        return {};
+    default:
+        error = "unknown target.";
         return {};
     }
-
-    // TODO: This potentially needs updating as more adapters are tested.
-    if (IL_version.find("SPIR-V") != std::string::npos) {
-        IL << ".spv";
-    } else if (IL_version.find("nvptx") != std::string::npos) {
-        IL << ".bin";
-    } else {
-        error = "Undefined IL version: " + IL_version;
-        return {};
-    }
-
-    return IL.str();
 }
 
 std::string
-KernelsEnvironment::getKernelSourcePath(const std::string &kernel_name,
-                                        uint32_t device_index) {
+KernelsEnvironment::getKernelSourcePath(const std::string &kernel_name) {
     std::stringstream path;
     path << kernel_options.kernel_directory << "/" << kernel_name;
-    std::string il_postfix = getSupportedILPostfix(device_index);
 
-    if (il_postfix.empty()) {
+    std::string target_name = getTargetName();
+    if (target_name.empty()) {
         return {};
     }
 
-    std::string binary_name;
-    for (const auto &entry : filesystem::directory_iterator(path.str())) {
-        auto file_name = entry.path().filename().string();
-        if (file_name.find(il_postfix) != std::string::npos) {
-            binary_name = file_name;
-            break;
-        }
-    }
-
-    if (binary_name.empty()) {
-        error =
-            "failed retrieving kernel source path for kernel: " + kernel_name;
-        return {};
-    }
-
-    path << "/" << binary_name;
+    path << "/" << target_name << ".bin.0";
 
     return path.str();
 }
 
 void KernelsEnvironment::LoadSource(
-    const std::string &kernel_name, uint32_t device_index,
+    const std::string &kernel_name,
     std::shared_ptr<std::vector<char>> &binary_out) {
-    std::string source_path =
-        instance->getKernelSourcePath(kernel_name, device_index);
+    std::string source_path = instance->getKernelSourcePath(kernel_name);
 
     if (source_path.empty()) {
         FAIL() << error;
@@ -487,9 +465,10 @@ ur_result_t KernelsEnvironment::CreateProgram(
                                        nullptr)) {
         return error;
     }
-    if (backend == UR_PLATFORM_BACKEND_HIP) {
-        // The HIP adapter does not support urProgramCreateWithIL so we need to
-        // use urProgramCreateWithBinary instead.
+    if (backend == UR_PLATFORM_BACKEND_HIP ||
+        backend == UR_PLATFORM_BACKEND_CUDA) {
+        // The CUDA and HIP adapters do not support urProgramCreateWithIL so we
+        // need to use urProgramCreateWithBinary instead.
         if (auto error = urProgramCreateWithBinary(
                 hContext, hDevice, binary.size(),
                 reinterpret_cast<const uint8_t *>(binary.data()), properties,

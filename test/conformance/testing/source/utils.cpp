@@ -635,6 +635,12 @@ ur_result_t GetDeviceHostPipeRWSupported(ur_device_handle_t device,
         device, UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED, support);
 }
 
+ur_result_t GetTimestampRecordingSupport(ur_device_handle_t device,
+                                         bool &support) {
+    return GetDeviceInfo<bool>(
+        device, UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP, support);
+}
+
 ur_device_partition_property_t makePartitionByCountsDesc(uint32_t count) {
     ur_device_partition_property_t desc;
     desc.type = UR_DEVICE_PARTITION_BY_COUNTS;

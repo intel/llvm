@@ -8,8 +8,9 @@
 struct urKernelCreateWithNativeHandleTest : uur::urKernelTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
-        if (urKernelGetNativeHandle(kernel, &native_kernel_handle)) {
-            GTEST_SKIP();
+        {
+            UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+                urKernelGetNativeHandle(kernel, &native_kernel_handle));
         }
     }
 
@@ -31,7 +32,7 @@ struct urKernelCreateWithNativeHandleTest : uur::urKernelTest {
 UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelCreateWithNativeHandleTest);
 
 TEST_P(urKernelCreateWithNativeHandleTest, Success) {
-    ASSERT_SUCCESS(urKernelCreateWithNativeHandle(
+    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urKernelCreateWithNativeHandle(
         native_kernel_handle, context, program, &properties, &native_kernel));
 
     uint32_t ref_count = 0;

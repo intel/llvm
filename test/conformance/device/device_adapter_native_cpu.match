@@ -1,4 +1,7 @@
+urDeviceCreateWithNativeHandleTest.InvalidNullHandlePlatform
+urDeviceCreateWithNativeHandleTest.InvalidNullPointerDevice
 {{OPT}}urDeviceGetGlobalTimestampTest.SuccessSynchronizedTime
+urDeviceGetInfoSingleTest.MaxWorkGroupSizeIsNonzero
 {{OPT}}urDeviceSelectBinaryTest.Success
 urDeviceGetInfoTest.Success/UR_DEVICE_INFO_DEVICE_ID
 urDeviceGetInfoTest.Success/UR_DEVICE_INFO_MEMORY_CLOCK_RATE

@@ -63,6 +63,14 @@ struct ur_kernel_handle_t_ {
     args_size_t ParamSizes;
     args_index_t Indices;
     args_size_t OffsetPerIndex;
+    // A struct to keep track of memargs so that we can do dependency analysis
+    // at urEnqueueKernelLaunch
+    struct mem_obj_arg {
+      ur_mem_handle_t_ *Mem;
+      int Index;
+      ur_mem_flags_t AccessFlags;
+    };
+    std::vector<mem_obj_arg> MemObjArgs;
 
     std::uint32_t ImplicitOffsetArgs[3] = {0, 0, 0};
 
@@ -116,6 +124,20 @@ struct ur_kernel_handle_t_ {
              Size + (AlignedLocalOffset - LocalOffset));
     }
 
+    void addMemObjArg(int Index, ur_mem_handle_t hMem, ur_mem_flags_t Flags) {
+      assert(hMem && "Invalid mem handle");
+      // To avoid redundancy we are not storing mem obj with index i at index
+      // i in the vec of MemObjArgs.
+      for (auto &Arg : MemObjArgs) {
+        if (Arg.Index == Index) {
+          // Overwrite the mem obj with the same index
+          Arg = arguments::mem_obj_arg{hMem, Index, Flags};
+          return;
+        }
+      }
+      MemObjArgs.push_back(arguments::mem_obj_arg{hMem, Index, Flags});
+    }
+
     void setImplicitOffset(size_t Size, std::uint32_t *ImplicitOffset) {
       assert(Size == sizeof(std::uint32_t) * 3);
       std::memcpy(ImplicitOffsetArgs, ImplicitOffset, Size);
@@ -142,7 +164,7 @@ struct ur_kernel_handle_t_ {
     urContextRetain(Context);
     /// Note: this code assumes that there is only one device per context
     ur_result_t RetError = urKernelGetGroupInfo(
-        this, Context->getDevice(),
+        this, Program->getDevice(),
         UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
         sizeof(ReqdThreadsPerBlock), ReqdThreadsPerBlock, nullptr);
     (void)RetError;
@@ -165,6 +187,7 @@ struct ur_kernel_handle_t_ {
   uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   native_type get() const noexcept { return Function; };
+  ur_program_handle_t getProgram() const noexcept { return Program; };
 
   native_type get_with_offset_parameter() const noexcept {
     return FunctionWithOffsetParam;

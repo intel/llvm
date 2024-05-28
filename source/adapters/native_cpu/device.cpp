@@ -112,7 +112,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // '0x8086' : 'Intel HD graphics vendor ID'
     return ReturnValue(uint32_t{0x8086});
   case UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE:
-    return ReturnValue(size_t{256});
+    // TODO: provide a mechanism to estimate/configure this.
+    return ReturnValue(size_t{2048});
   case UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN:
     // Imported from level_zero
     return ReturnValue(uint32_t{8});
@@ -151,7 +152,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
     struct {
       size_t Arr[3];
-    } MaxGroupSize = {{256, 256, 1}};
+    } MaxGroupSize = {{256, 256, 256}};
     return ReturnValue(MaxGroupSize);
   }
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR:
@@ -321,6 +322,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP:
     return ReturnValue(false);
 
+  case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:
+    return ReturnValue(false);
   default:
     DIE_NO_IMPLEMENTATION;
   }

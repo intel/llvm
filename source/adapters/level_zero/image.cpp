@@ -656,13 +656,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_mem_handle_t hImageMem, const ur_image_format_t *pImageFormat,
-    const ur_image_desc_t *pImageDesc, ur_mem_handle_t *phMem,
-    ur_exp_image_handle_t *phImage) {
+    const ur_image_desc_t *pImageDesc, ur_exp_image_handle_t *phImage) {
   std::shared_lock<ur_shared_mutex> Lock(hContext->Mutex);
 
   UR_ASSERT(hContext && hDevice && hImageMem,
             UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pImageFormat && pImageDesc && phMem && phImage,
+  UR_ASSERT(pImageFormat && pImageDesc && phImage,
             UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   ZeStruct<ze_image_desc_t> ZeImageDesc;
@@ -687,11 +686,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
                   UrImage->ZeImage, &ZeImage));
       ZE2UR_CALL(zeContextMakeImageResident,
                  (hContext->ZeContext, hDevice->ZeDevice, ZeImage));
-      UR_CALL(createUrMemFromZeImage(hContext, ZeImage, /*OwnZeMemHandle*/ true,
-                                     ZeImageDesc, phMem));
     } else {
       ZeImage = UrImage->ZeImage;
-      *phMem = nullptr;
     }
   } else if (MemAllocProperties.type == ZE_MEMORY_TYPE_DEVICE) {
     ze_image_pitched_exp_desc_t PitchedDesc;
@@ -710,8 +706,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
                                &ZeImageDesc, &ZeImage));
     ZE2UR_CALL(zeContextMakeImageResident,
                (hContext->ZeContext, hDevice->ZeDevice, ZeImage));
-    UR_CALL(createUrMemFromZeImage(hContext, ZeImage, /*OwnZeMemHandle*/ true,
-                                   ZeImageDesc, phMem));
   } else {
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
@@ -741,10 +735,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_mem_handle_t hImageMem, const ur_image_format_t *pImageFormat,
     const ur_image_desc_t *pImageDesc, ur_sampler_handle_t hSampler,
-    ur_mem_handle_t *phMem, ur_exp_image_handle_t *phImage) {
+    ur_exp_image_handle_t *phImage) {
 
   UR_CALL(urBindlessImagesUnsampledImageCreateExp(
-      hContext, hDevice, hImageMem, pImageFormat, pImageDesc, phMem, phImage));
+      hContext, hDevice, hImageMem, pImageFormat, pImageDesc, phImage));
 
   struct combined_sampled_image_handle {
     uint64_t RawImageHandle;
@@ -790,8 +784,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
-  UR_CALL(hQueue->Context->getAvailableCommandList(hQueue, CommandList,
-                                                   UseCopyEngine, OkToBatch));
+  UR_CALL(hQueue->Context->getAvailableCommandList(
+      hQueue, CommandList, UseCopyEngine, numEventsInWaitList, phEventWaitList,
+      OkToBatch));
 
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent;
@@ -800,7 +795,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
   UR_CALL(createEventAndAssociateQueue(hQueue, Event, UR_COMMAND_MEM_IMAGE_COPY,
                                        CommandList, IsInternal,
                                        /*IsMultiDevice*/ false));
-  ZeEvent = (*Event)->ZeEvent;
+  UR_CALL(setSignalEvent(hQueue, UseCopyEngine, &ZeEvent, Event,
+                         numEventsInWaitList, phEventWaitList,
+                         CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
 
   const auto &ZeCommandList = CommandList->first;

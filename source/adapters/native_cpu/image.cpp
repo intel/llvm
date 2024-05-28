@@ -59,7 +59,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     [[maybe_unused]] ur_exp_image_mem_handle_t hImageMem,
     [[maybe_unused]] const ur_image_format_t *pImageFormat,
     [[maybe_unused]] const ur_image_desc_t *pImageDesc,
-    [[maybe_unused]] ur_mem_handle_t *phMem,
     [[maybe_unused]] ur_exp_image_handle_t *phImage) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -71,7 +70,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     [[maybe_unused]] const ur_image_format_t *pImageFormat,
     [[maybe_unused]] const ur_image_desc_t *pImageDesc,
     [[maybe_unused]] ur_sampler_handle_t hSampler,
-    [[maybe_unused]] ur_mem_handle_t *phMem,
     [[maybe_unused]] ur_exp_image_handle_t *phImage) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

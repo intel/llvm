@@ -22,7 +22,8 @@ ur_event_handle_t_::ur_event_handle_t_(ur_command_t Type,
       StreamToken{StreamToken}, EventId{0}, EvEnd{nullptr}, EvStart{nullptr},
       EvQueued{nullptr}, Queue{Queue}, Stream{Stream}, Context{Context} {
 
-  bool ProfilingEnabled = Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE;
+  bool ProfilingEnabled =
+      Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE || isTimestampEvent();
 
   UR_CHECK_ERROR(hipEventCreateWithFlags(
       &EvEnd, ProfilingEnabled ? hipEventDefault : hipEventDisableTiming));
@@ -58,7 +59,7 @@ ur_result_t ur_event_handle_t_::start() {
   ur_result_t Result = UR_RESULT_SUCCESS;
 
   try {
-    if (Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE) {
+    if (Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE || isTimestampEvent()) {
       // NOTE: This relies on the default stream to be unused.
       UR_CHECK_ERROR(hipEventRecord(EvQueued, 0));
       UR_CHECK_ERROR(hipEventRecord(EvStart, Queue->get()));
@@ -177,7 +178,7 @@ ur_result_t ur_event_handle_t_::release() {
   assert(Queue != nullptr);
   UR_CHECK_ERROR(hipEventDestroy(EvEnd));
 
-  if (Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE) {
+  if (Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE || isTimestampEvent()) {
     UR_CHECK_ERROR(hipEventDestroy(EvQueued));
     UR_CHECK_ERROR(hipEventDestroy(EvStart));
   }
@@ -244,7 +245,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
   UR_ASSERT(!(pPropValue && propValueSize == 0), UR_RESULT_ERROR_INVALID_VALUE);
 
   ur_queue_handle_t Queue = hEvent->getQueue();
-  if (Queue == nullptr || !(Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE)) {
+  if (Queue == nullptr || (!(Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE) &&
+                           !hEvent->isTimestampEvent())) {
     return UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE;
   }
 

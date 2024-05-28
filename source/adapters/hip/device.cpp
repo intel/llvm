@@ -724,11 +724,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
 
   case UR_DEVICE_INFO_GLOBAL_MEM_FREE: {
+    // Work around an issue on some (unsupported) architectures,
+    // where hipMemGetInfo fails internally and returns hipErrorInvalidValue
+    // when trying to query the amount of available global memory. Since we
+    // can't distinguish this condition from us doing something wrong, we can't
+    // handle it gracefully.
+    hipDeviceProp_t Props;
+    UR_CHECK_ERROR(hipGetDeviceProperties(&Props, hDevice->get()));
+    if (strcmp(Props.gcnArchName, "gfx1031") == 0) {
+      return ReturnValue(size_t{0});
+    }
+
     size_t FreeMemory = 0;
     size_t TotalMemory = 0;
-    detail::ur::assertion(hipMemGetInfo(&FreeMemory, &TotalMemory) ==
-                              hipSuccess,
-                          "failed hipMemGetInfo() API.");
+    UR_CHECK_ERROR(hipMemGetInfo(&FreeMemory, &TotalMemory));
     return ReturnValue(FreeMemory);
   }
 
@@ -841,6 +850,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_COMPOSITE_DEVICE:
     // These two are exclusive of L0.
     return ReturnValue(0);
+  case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:
+    return ReturnValue(true);
 
   // TODO: Investigate if this information is available on HIP.
   case UR_DEVICE_INFO_GPU_EU_COUNT:

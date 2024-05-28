@@ -182,6 +182,8 @@ Unified Runtime loader implements tracing support through the `XPTI framework <h
        | **user_data**: A pointer to `function_with_args_t` object, that includes function ID, name, arguments, and return value.
      - None
 
+The Unified Runtime tracing layer also supports logging tracing output directly, rather than using XPTI. Use the `UR_LOG_TRACING` environment variable to control this output. See the `Logging`_ section below for details of the syntax. All traces are logged at the *info* log level.
+
 Sanitizers
 ---------------------
 
@@ -282,6 +284,26 @@ Environment Variables
 
 Specific environment variables can be set to control the behavior of unified runtime or enable certain features.
 
+.. envvar:: UR_LOG_LEVEL_ZERO
+
+   Holds parameters for setting Unified Runtime level zero adapter logging. The syntax is described in the Logging_ section.
+
+.. envvar:: UR_LOG_CUDA
+
+   Holds parameters for setting Unified Runtime cuda adapter logging. The syntax is described in the Logging_ section.
+
+.. envvar:: UR_LOG_HIP
+
+   Holds parameters for setting Unified Runtime hip adapter logging. The syntax is described in the Logging_ section.
+
+.. envvar:: UR_LOG_OPENCL
+
+   Holds parameters for setting Unified Runtime opencl adapter logging. The syntax is described in the Logging_ section.
+
+.. envvar:: UR_LOG_NATIVE_CPU
+
+   Holds parameters for setting Unified Runtime native cpu logging. The syntax is described in the Logging_ section.
+
 .. envvar:: UR_LOG_LOADER
 
    Holds parameters for setting Unified Runtime loader logging. The syntax is described in the Logging_ section.
@@ -297,6 +319,10 @@ Specific environment variables can be set to control the behavior of unified run
 .. envvar:: UR_LOG_VALIDATION
 
    Holds parameters for setting Unified Runtime validation logging. The syntax is described in the Logging_ section.
+
+.. envvar:: UR_LOG_TRACING
+
+   Holds parameters for setting Unified Runtime tracing logging. The syntax is described in the Logging_ section.
 
 .. envvar:: UR_ADAPTERS_FORCE_LOAD
 
