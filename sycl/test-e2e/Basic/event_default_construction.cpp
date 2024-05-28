@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR=bad %{run-unfiltered-devices} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main(void) {
   try {

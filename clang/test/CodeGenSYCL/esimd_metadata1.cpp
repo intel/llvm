@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -disable-llvm-passes -triple spir64-unknown-unknown \
-// RUN:   -fsycl-is-device -S -emit-llvm %s -o - | \
+// RUN:   -fsycl-is-device -emit-llvm %s -o - | \
 // RUN:   FileCheck %s
 
 // The test checks that:

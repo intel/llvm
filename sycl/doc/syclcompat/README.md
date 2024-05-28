@@ -292,6 +292,39 @@ This `launch` interface allows users to define an internal memory pool, or
 scratchpad, that can then be reinterpreted as the datatype required by the user
 within the kernel function.
 
+To launch a kernel with a specified sub-group size, overloads similar to above `launch`
+functions are present in the `syclcompat::experimental` namespace, which accept SubgroupSize
+as a template parameter and can be called as  `launch<Function, SubgroupSize>`
+
+```cpp
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(sycl::nd_range<3> launch_range, std::size_t local_memory_size,
+       sycl::queue queue, Args... args);
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(sycl::nd_range<Dim> launch_range, std::size_t local_memory_size,
+       Args... args);
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(::syclcompat::dim3 grid_dim, ::syclcompat::dim3 block_dim,
+       std::size_t local_memory_size, Args... args);
+
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(sycl::nd_range<3> launch_range, sycl::queue queue, 
+       Args... args);
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(sycl::nd_range<Dim> launch_range,
+       Args... args);
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(::syclcompat::dim3 grid_dim, ::syclcompat::dim3 block_dim,
+       Args... args);
+
+```
+
 ### Utilities
 
 SYCLcompat introduces a set of utility functions designed to streamline the
@@ -1006,8 +1039,8 @@ template <sycl::access::address_space addressSpace =
           sycl::memory_scope memoryScope = sycl::memory_scope::device,
           typename T>
 T atomic_compare_exchange_strong(
-    sycl::multi_ptr<T, sycl::access::address_space::generic_space> addr,
-    T expected, T desired,
+    sycl::multi_ptr<T, addressSpace> addr, type_identity_t<T> expected,
+    type_identity_t<T> desired,
     sycl::memory_order success = sycl::memory_order::relaxed,
     sycl::memory_order fail = sycl::memory_order::relaxed);
 template <sycl::access::address_space addressSpace =
@@ -1424,6 +1457,17 @@ static void invoke_kernel_function(kernel_function &function,
 
 ### Math Functions
 
+The `funnelshift_*` APIs perform a concatenate-shift operation on two 32-bit
+values, and return a 32-bit result. The two unsigned integer arguments (`low`
+and `high`) are concatenated to a 64-bit value which is then shifted left or
+right by `shift` bits. The functions then return either the least- or
+most-significant 32 bits. The `_l*` variants shift *left* and return the *most*
+significant 32 bits, while the `_r*` variants shift *right* and return the
+*least* significant 32 bits. The `_l`/`_r` APIs differ from the `_lc`/`_rc` APIs
+in how they clamp the `shift` argument: `funnelshift_l` and `funnelshift_r`
+shift the result by `shift & 31` bits, whereas `funnelshift_lc` and
+`funnelshift_rc` shift the result by `min(shift, 32)` bits.
+
 `syclcompat::fast_length` provides a wrapper to SYCL's
 `fast_length(sycl::vec<float,N>)` that accepts arguments for a C++ array and a
 length. `syclcompat::length` provides a templated version that wraps over
@@ -1447,6 +1491,18 @@ The functions `cmul`,`cdiv`,`cabs`, `cmul_add`, and `conj` define complex math o
 which accept `sycl::vec<T,2>` arguments representing complex values.
 
 ```cpp
+inline unsigned int funnelshift_l(unsigned int low, unsigned int high,
+                                  unsigned int shift); 
+
+inline unsigned int funnelshift_lc(unsigned int low, unsigned int high,
+                                   unsigned int shift); 
+
+inline unsigned int funnelshift_r(unsigned int low, unsigned int high,
+                                  unsigned int shift);
+
+inline unsigned int funnelshift_rc(unsigned int low, unsigned int high,
+                                   unsigned int shift);
+
 inline float fast_length(const float *a, int len);
 
 template <typename ValueT>

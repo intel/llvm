@@ -374,11 +374,11 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
       KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
                          ProgramManager::getInstance().kernelUsesAssert(
                              Handler.MKernelName.c_str());
-    finalizeHandler(Handler, Type, Event);
+    finalizeHandler(Handler, Event);
 
     (*PostProcess)(IsKernel, KernelUsesAssert, Event);
   } else
-    finalizeHandler(Handler, Type, Event);
+    finalizeHandler(Handler, Event);
 
   addEvent(Event);
   return Event;
