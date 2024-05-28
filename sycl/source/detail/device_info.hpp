@@ -25,6 +25,7 @@
 #include <sycl/platform.hpp>
 
 #include <chrono>
+#include <sstream>
 #include <thread>
 
 #include "split_string.hpp"
@@ -2203,7 +2204,7 @@ inline uint32_t get_device_info_host<
 template <>
 inline float get_device_info_host<
     ext::oneapi::experimental::info::device::mipmap_max_anisotropy>() {
-  throw runtime_error("Bindless image mipaps are not supported on HOST device",
+  throw runtime_error("Bindless image mipmaps are not supported on HOST device",
                       PI_ERROR_INVALID_DEVICE);
 }
 

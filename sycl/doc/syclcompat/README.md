@@ -1039,8 +1039,8 @@ template <sycl::access::address_space addressSpace =
           sycl::memory_scope memoryScope = sycl::memory_scope::device,
           typename T>
 T atomic_compare_exchange_strong(
-    sycl::multi_ptr<T, sycl::access::address_space::generic_space> addr,
-    T expected, T desired,
+    sycl::multi_ptr<T, addressSpace> addr, type_identity_t<T> expected,
+    type_identity_t<T> desired,
     sycl::memory_order success = sycl::memory_order::relaxed,
     sycl::memory_order fail = sycl::memory_order::relaxed);
 template <sycl::access::address_space addressSpace =
