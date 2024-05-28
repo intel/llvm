@@ -521,13 +521,9 @@ public:
   }
 
   // Implement operator [] in the same way for host and device.
-  const DataT& operator[](int i) const {
-    return m_Data[i];
-  }
+  const DataT &operator[](int i) const { return m_Data[i]; }
 
-  DataT& operator[](int i) {
-    return m_Data[i];
-  }
+  DataT &operator[](int i) { return m_Data[i]; }
 
   // Begin hi/lo, even/odd, xyzw, and rgba swizzles.
 private:
@@ -577,8 +573,8 @@ public:
   void store(size_t Offset,
              multi_ptr<DataT, Space, DecorateAddress> Ptr) const {
     for (int I = 0; I < NumElements; I++) {
-      *multi_ptr<DataT, Space, DecorateAddress>(
-          Ptr + Offset * NumElements + I) = m_Data[I];
+      *multi_ptr<DataT, Space, DecorateAddress>(Ptr + Offset * NumElements +
+                                                I) = m_Data[I];
     }
   }
   template <int Dimensions, access::mode Mode,
