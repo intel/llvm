@@ -1014,41 +1014,12 @@ bool isTargetCompatibleWithModule(const std::optional<std::string> &Target,
       DeviceConfigFile::TargetTable[*Target];
   const SYCLDeviceRequirements &ModuleReqs =
       IrMD.getOrComputeDeviceRequirements();
-  // The device config file data stores the target's supported
-  // aspects as a vector of the strings, so we need to translate
-  // the values to a common format.
-  const NamedMDNode *Node = IrMD.getModule().getNamedMetadata("sycl_aspects");
-  if (Node) {
-    SmallMapVector<StringRef, int, 32> AspectNameToValue;
-    for (const MDNode *N : Node->operands()) {
-      assert(N->getNumOperands() == 2 &&
-             "Each operand of sycl_aspects must be a pair.");
 
-      // The aspect's name is the first operand.
-      const auto *AspectName = cast<MDString>(N->getOperand(0));
-
-      // The aspect's integral value is the second operand.
-      const auto *AspectCAM = cast<ConstantAsMetadata>(N->getOperand(1));
-      const Constant *AspectC = AspectCAM->getValue();
-
-      AspectNameToValue[AspectName->getString()] =
-          cast<ConstantInt>(AspectC)->getSExtValue();
-    }
-
-    // Make the set of aspects values the target supports.
-    SmallSet<int64_t, 32> TargetAspectValueSet;
-    for (const auto &Aspect : TargetInfo.aspects) {
-      auto It = AspectNameToValue.find(Aspect);
-      assert(It != AspectNameToValue.end() && "Aspect value mapping unknown!");
-      TargetAspectValueSet.insert(It->second);
-    }
-
-    // Now check to see if all the requirements of the input module
-    // are compatbile with the target.
-    for (const auto &Aspect : ModuleReqs.Aspects) {
-      if (!TargetAspectValueSet.contains(Aspect))
-        return false;
-    }
+  // Check to see if all the requirements of the input module
+  // are compatbile with the target.
+  for (const auto &Aspect : ModuleReqs.Aspects) {
+    if (!is_contained(TargetInfo.aspects, Aspect.Name))
+      return false;
   }
 
   // Check if module sub group size is compatible with the target.
