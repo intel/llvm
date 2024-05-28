@@ -31,9 +31,13 @@ void __sycl_register_lib(void *) {}
 void __sycl_unregister_lib(void *) {}
 }
 
+SYCL_EXTERNAL double foo(double a);
+
+double bar(double a) { return a; }
+
 int main() {
   kernel_compute<class fake_kernel_compute>(
-      [](double *a, double *b, int i) { b[i] = a[i] + 1.0; });
+      [](double *a, double *b, int i) { b[i] = foo(a[i]); });
   kernel_convert<class fake_kernel_convert>(
-      [](double *a, double *b, int i) { b[i] = (double)((float)(a[i])); });
+      [](double *a, double *b, int i) { b[i] = bar(a[i]); });
 }

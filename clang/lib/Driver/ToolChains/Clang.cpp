@@ -5532,22 +5532,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     if (Arg *A = Args.getLastArg(options::OPT_fsycl_exp_range_rounding))
       A->render(Args, CmdArgs);
+
     if (Arg *A = Args.getLastArg(options::OPT_fsycl_fp64_conv_emu)) {
-      Arg *SYCLTargets = Args.getLastArg(options::OPT_fsycl_targets_EQ);
-      bool HasIntelGPUAOTTarget = false;
-      if (SYCLTargets) {
-        for (StringRef Val : SYCLTargets->getValues()) {
-          if (auto Device = SYCL::gen::isGPUTarget<SYCL::gen::IntelGPU>(Val)) {
-            HasIntelGPUAOTTarget = true;
-            break;
-          }
-        }
-      }
-      const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-      if (HasIntelGPUAOTTarget && Triple.isSPIRAOT())
+      if (Triple.isSPIRAOT() &&
+          Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen)
         A->render(Args, CmdArgs);
-      else if (Triple != HostTC->getTriple())
-        D.Diag(diag::warn_invalid_fp64_emu_use) << Triple.str();
     }
 
     // Add the Unique ID prefix

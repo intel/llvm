@@ -180,7 +180,7 @@
 
 /// Check for correct handling of -fsycl-fp64-conv-emu option for different targets
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64 -fsycl-fp64-conv-emu %s 2>&1 | FileCheck -check-prefix=CHECK_WARNING %s
-// CHECK_WARNING: warning: Invalid option for spir64-unknown-unknown; -fsycl-fp64-conv-emu option is not supported for non-Intel GPU or JIT compilation [-Winvalid-command-line-argument]
+// CHECK_WARNING: warning: Invalid option. '-fsycl-fp64-conv-emu' option is supported only for AOT compilation of Intel GPUs [-Winvalid-command-line-argument]
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=intel_gpu_pvc -fsycl-fp64-conv-emu %s 2>&1 | FileCheck -check-prefix=CHECK_FSYCL_FP64_CONV_EMU %s
 // CHECK_FSYCL_FP64_CONV_EMU-NOT: clang-19{{.*}} "-cc1" "-triple x86_64-unknown-linux-gnu" {{.*}} "-fsycl-fp64-conv-emu"
 // CHECK_FSYCL_FP64_CONV_EMU-DAG: clang-19{{.*}} "-cc1" "-triple" "spir64_gen{{.*}}" "-fsycl-fp64-conv-emu"

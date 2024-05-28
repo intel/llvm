@@ -1,5 +1,5 @@
-// REQUIRES: ocloc, gpu-intel-dg2
-// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g12 -fsycl-fp64-conv-emu -O0 %s -o %t_opt.out
+// REQUIRES: ocloc
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -fsycl-fp64-conv-emu -O0 %s -o %t_opt.out
 // RUN: %{run} %t_opt.out
 
 // Tests that aspect::fp64 is emitted correctly when -fsycl-fp64-conv-emu flag

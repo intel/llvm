@@ -244,9 +244,20 @@ bool isFP64ConversionInstruction(const Instruction &I) {
   case Instruction::PHI:
   case Instruction::ExtractValue:
   case Instruction::InsertValue:
-  case Instruction::Call:
   case Instruction::Ret:
     return true;
+  // In case of call instructions, we check if the definition of the called
+  // function is present inside the current module. If present, we conclude
+  // that the call instruction does not require FP64 computations and return
+  // 'true'. Otherwise, we return 'false'.
+  // In case of memory intrinsics, FP64 computations are not required and we
+  // return 'true'.
+  // TODO: Identify other cases similar to memory intrinsics.
+  case Instruction::Call:
+    if (cast<CallInst>(&I)->getCalledFunction()->isDeclaration())
+      return isa<MemIntrinsic>(&I);
+    else
+      return true;
   }
 }
 
