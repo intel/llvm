@@ -10,6 +10,7 @@
 
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
+#include <sycl/aspects.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/ext/intel/experimental/fpga_kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/task_sequence_properties.hpp>
