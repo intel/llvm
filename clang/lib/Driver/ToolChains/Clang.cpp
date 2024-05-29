@@ -10414,7 +10414,6 @@ static void getOtherSPIRVTransOpts(Compilation &C,
       ",+SPV_INTEL_task_sequence"
       ",+SPV_KHR_shader_clock";
       ",+SPV_INTEL_bindless_images";
-
   ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
   if (C.getDriver().IsFPGAHWMode())
     // Enable several extensions on FPGA H/W exclusively
