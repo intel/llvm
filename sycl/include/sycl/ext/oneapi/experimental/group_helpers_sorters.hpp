@@ -63,11 +63,6 @@ public:
   void operator()([[maybe_unused]] Group g, [[maybe_unused]] Ptr first,
                   [[maybe_unused]] Ptr last) {
 #ifdef __SYCL_DEVICE_ONLY__
-    // If last <= first then range is considered empty and we shouldn't sort
-    // anything, so return early.
-    if (last <= first)
-      return;
-
     // Per extension specification if scratch size is less than the value
     // returned by memory_required then behavior is undefined, so we don't check
     // that the scratch size statisfies the requirement.
@@ -161,11 +156,6 @@ public:
   void operator()([[maybe_unused]] GroupT g, [[maybe_unused]] PtrT first,
                   [[maybe_unused]] PtrT last) {
 #ifdef __SYCL_DEVICE_ONLY__
-    // If last <= first then range is considered empty and we shouldn't sort
-    // anything, so return early.
-    if (last <= first)
-      return;
-
     sycl::detail::privateDynamicSort</*is_key_value=*/false,
                                      OrderT == sorting_order::ascending,
                                      /*empty*/ 1, BitsPerPass>(
