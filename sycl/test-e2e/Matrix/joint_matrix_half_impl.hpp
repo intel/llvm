@@ -98,8 +98,8 @@ void test() {
   big_matrix<T, MATRIX_K / VNNI, MATRIX_N * VNNI> MB((T *)&B);
   matrix_multiply<TResult, T, MATRIX_M, MATRIX_N, MATRIX_K, TM, TN, TK, VNNI>(
       MC, MA, MB);
-  matrix_multiply_ref<T, T, TResult, VNNI>((T *)A, (T *)B, (TResult *)D, MATRIX_M,
-                                        MATRIX_N, MATRIX_K / VNNI);
+  matrix_multiply_ref<T, T, TResult, VNNI>((T *)A, (T *)B, (TResult *)D,
+                                           MATRIX_M, MATRIX_N, MATRIX_K / VNNI);
 
   assert(matrix_compare(MATRIX_M, MATRIX_N, (TResult *)C, (TResult *)D));
 }

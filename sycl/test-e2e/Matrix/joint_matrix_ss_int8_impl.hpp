@@ -41,11 +41,9 @@ void matrix_multiply(big_matrix<TResult, M, N> &C, big_matrix<T, M, K> &A,
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major>
-               sub_a;
+           joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
            // For B, we assume B has been already VNNIed.
-           joint_matrix<sub_group, T, use::b, TK, TN,
-                        layout::ext_intel_packed>
+           joint_matrix<sub_group, T, use::b, TK, TN, layout::ext_intel_packed>
                sub_b;
            joint_matrix<sub_group, TResult, use::accumulator, TM, TN> sub_c;
 
@@ -59,7 +57,8 @@ void matrix_multiply(big_matrix<TResult, M, N> &C, big_matrix<T, M, K> &A,
              joint_matrix_load(
                  sg, sub_b,
                  accB.template get_multi_ptr<access::decorated::no>() +
-                     (k * TK / VNNI) * (N * VNNI) + sg_starty / sg_size * TN * VNNI,
+                     (k * TK / VNNI) * (N * VNNI) +
+                     sg_starty / sg_size * TN * VNNI,
                  N * VNNI);
              joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
@@ -94,9 +93,10 @@ void test() {
   big_matrix<TResult, MATRIX_M, MATRIX_N> MD((TResult *)&D);
   big_matrix<T, MATRIX_M, MATRIX_K> MA((T *)&A);
   big_matrix<T, MATRIX_K / VNNI, MATRIX_N * VNNI> MB((T *)&B);
-  matrix_multiply<TResult, T, MATRIX_M, MATRIX_N, MATRIX_K, TM, TN, TK, VNNI>(MC, MA, MB);
-  matrix_multiply_ref<T, T, TResult, VNNI>(
-      (T *)A, (T *)B, (TResult *)D, MATRIX_M, MATRIX_N, MATRIX_K / VNNI);
+  matrix_multiply<TResult, T, MATRIX_M, MATRIX_N, MATRIX_K, TM, TN, TK, VNNI>(
+      MC, MA, MB);
+  matrix_multiply_ref<T, T, TResult, VNNI>((T *)A, (T *)B, (TResult *)D,
+                                           MATRIX_M, MATRIX_N, MATRIX_K / VNNI);
 
   assert(matrix_compare(MATRIX_M, MATRIX_N, (TResult *)C, (TResult *)D));
 }

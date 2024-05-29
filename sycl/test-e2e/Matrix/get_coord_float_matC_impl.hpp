@@ -82,18 +82,18 @@ void matrix_sum_rows(big_matrix<T, Rows, Cols> &C, T *sum_rows) {
    }).wait();
 }
 
-template <typename Ta, size_t TM, size_t TN> void test() {
+template <typename T, size_t TM, size_t TN> void test() {
   constexpr size_t SCALE = 2;
   static constexpr size_t Rows = TM * SCALE;
   static constexpr size_t Cols = TN * SCALE;
 
-  Ta sum_rows[Rows] = {0};
-  Ta sum_rows_ref[Rows] = {0};
-  Ta C[Rows][Cols];
-  big_matrix<Ta, Rows, Cols> MC((Ta *)&C);
+  T sum_rows[Rows] = {0};
+  T sum_rows_ref[Rows] = {0};
+  T C[Rows][Cols];
+  big_matrix<T, Rows, Cols> MC((T *)&C);
 
-  matrix_rand(Rows, Cols, (Ta *)&C, (Ta)100);
-  matrix_sum_rows<Ta, Rows, Cols, TM, TN>(MC, sum_rows);
+  matrix_rand(Rows, Cols, (T *)&C, (T)100);
+  matrix_sum_rows<T, Rows, Cols, TM, TN>(MC, sum_rows);
 
   for (int i = 0; i < Rows; i++) {
     for (int j = 0; j < Cols; j++) {

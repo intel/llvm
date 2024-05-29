@@ -12,4 +12,7 @@
 // RUN: %{run} %t.out
 
 #include "../common.hpp"
+
+#define SG_SZ 32
+
 #include "../get_coord_int8_matA_impl.hpp"
