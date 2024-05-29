@@ -32,6 +32,7 @@
 #include <sycl/ext/oneapi/bindless_images_mem_handle.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
+#include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
@@ -943,6 +944,15 @@ private:
       sycl::ext::oneapi::experimental::execution_scope threadScope,
       sycl::ext::oneapi::experimental::execution_scope coordinationScope);
 
+  template <typename PropertiesT> constexpr bool hasClusterSizeProperty() {
+    return PropertiesT::template has_property<
+               sycl::ext::oneapi::experimental::cuda::cluster_size_key<1>>() ||
+           PropertiesT::template has_property<
+               sycl::ext::oneapi::experimental::cuda::cluster_size_key<2>>() ||
+           PropertiesT::template has_property<
+               sycl::ext::oneapi::experimental::cuda::cluster_size_key<3>>();
+  }
+
   /// Process kernel properties.
   ///
   /// Stores information about kernel properties into the handler.
@@ -1007,6 +1017,7 @@ private:
           sycl::ext::oneapi::experimental::execution_scope::work_item,
           prop.coordinationScope);
     }
+    setKernelUsesCudaClusterLaunch(hasClusterSizeProperty<ProperTiesT>());
   }
 
   /// Checks whether it is possible to copy the source shape to the destination
@@ -3656,6 +3667,9 @@ private:
   // Set value of the gpu cache configuration for the kernel.
   void setKernelCacheConfig(sycl::detail::pi::PiKernelCacheConfig);
   // Set value of the kernel is cooperative flag
+  void setKernelIsCooperative(bool);
+
+  // Set value of kernel uses cuda' thread block cluster flag
   void setKernelIsCooperative(bool);
 
   template <

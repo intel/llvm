@@ -2376,7 +2376,7 @@ static pi_result SetKernelParamsAndLaunch(
     const detail::EventImplPtr &OutEventImpl,
     const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    bool IsCooperative) {
+    bool IsCooperative, bool KernelUsesClusterLaunch) {
   const PluginPtr &Plugin = Queue->getPlugin();
 
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
@@ -2567,7 +2567,7 @@ pi_int32 enqueueImpKernel(
     const detail::EventImplPtr &OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
-    const bool KernelIsCooperative) {
+    const bool KernelIsCooperative, const bool KernelUsesClusterLaunch) {
 
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2656,10 +2656,10 @@ pi_int32 enqueueImpKernel(
           sizeof(sycl::detail::pi::PiKernelCacheConfig), &KernelCacheConfig);
     }
 
-    Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
-                                     NDRDesc, EventsWaitList, OutEventImpl,
-                                     EliminatedArgMask, getMemAllocationFunc,
-                                     KernelIsCooperative);
+    Error = SetKernelParamsAndLaunch(
+        Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
+        OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
+        KernelIsCooperative, KernelUsesClusterLaunch);
 
     const PluginPtr &Plugin = Queue->getPlugin();
     if (!SyclKernelImpl && !MSyclKernel) {

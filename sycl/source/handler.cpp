@@ -1668,6 +1668,10 @@ void handler::setKernelIsCooperative(bool KernelIsCooperative) {
   MImpl->MKernelIsCooperative = KernelIsCooperative;
 }
 
+void handler::setKernelUsesCudaClusterLaunch(bool KernelUsesClusterLaunch) {
+  MImpl->MKernelUsesClusterLaunch = KernelUsesClusterLaunch;
+}
+
 void handler::ext_oneapi_graph(
     ext::oneapi::experimental::command_graph<
         ext::oneapi::experimental::graph_state::executable>
