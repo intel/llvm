@@ -722,10 +722,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     return Err;
   }
   return UR_RESULT_SUCCESS;
-#endif // CUDA_VERSION >= 11080
+#else
   setErrorMessage("This feature requires cuda 11.8 or later.",
                   UR_RESULT_ERROR_ADAPTER_SPECIFIC);
   return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+#endif // CUDA_VERSION >= 11080
 }
 
 /// Set parameters for general 3D memory copy.
