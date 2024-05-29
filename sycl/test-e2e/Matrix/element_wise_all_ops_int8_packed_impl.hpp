@@ -110,7 +110,7 @@ int main() {
                         matrix_combinations>();
 
   for (unsigned int i = 0; i < combinations.size(); i++) {
-    if (combinations[i].nsize == 0) {                        // Intel AMX
+    if (combinations[i].nsize == 0) { // Intel AMX
       test<int8_t, int, /*TK*/ 64, /*TN*/ 16, /*VNNI*/ 4>();
       break;
     }
