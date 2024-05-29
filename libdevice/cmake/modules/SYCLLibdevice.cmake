@@ -411,8 +411,11 @@ add_custom_command(OUTPUT ${bc_binary_dir}/libsycl-fallback-imf--amd.bc
                            sycl-compiler
                    VERBATIM)
 
-append_to_property(${bc_binary_dir}/libsycl-fallback-imf--amd.bc)
-# append_to_property(${bc_binary_dir}/libsycl-fallback-imf--cuda.bc)
+if (${devicelib_arch} STREQUAL "AMDGPU")
+  append_to_property(${bc_binary_dir}/libsycl-fallback-imf--amd.bc)
+elseif (${devicelib_arch} STREQUAL "NVPTX")
+  append_to_property(${bc_binary_dir}/libsycl-fallback-imf--cuda.bc)
+endif()
 
 add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-imf.${lib-suffix}
                    COMMAND ${clang} -fsycl -c
@@ -482,8 +485,11 @@ add_custom_command(OUTPUT ${bc_binary_dir}/libsycl-fallback-imf-fp64--cuda.bc
                            sycl-compiler
                    VERBATIM)
 
-append_to_property(${bc_binary_dir}/libsycl-fallback-imf-fp64--amd.bc)
-# append_to_property(${bc_binary_dir}/libsycl-fallback-imf-fp64--cuda.bc)
+if (${devicelib_arch} STREQUAL "AMDGPU")
+  append_to_property(${bc_binary_dir}/libsycl-fallback-imf-fp64--amd.bc)
+elseif (${devicelib_arch} STREQUAL "NVPTX")
+  append_to_property(${bc_binary_dir}/libsycl-fallback-imf-fp64--cuda.bc)
+endif()
 
 add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-imf-fp64.${lib-suffix}
                    COMMAND ${clang} -fsycl -c -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
@@ -553,8 +559,6 @@ add_custom_command(OUTPUT ${bc_binary_dir}/libsycl-fallback-imf-bf16--amd.bc
                    DEPENDS ${imf_fallback_bf16_deps} get_imf_fallback_bf16
                            sycl-compiler
                    VERBATIM)
-# append_to_property(${bc_binary_dir}/libsycl-fallback-imf-bf16--cuda.bc)
-append_to_property(${bc_binary_dir}/libsycl-fallback-imf-bf16--amd.bc)
 
 add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-imf-bf16.${lib-suffix}
                    COMMAND ${clang} -fsycl -c -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
@@ -591,46 +595,61 @@ add_custom_command(OUTPUT ${obj_binary_dir}/fallback-imf-bf16-host.${new-offload
 
 add_custom_target(imf_fallback_fp32_spv DEPENDS ${spv_binary_dir}/libsycl-fallback-imf.spv)
 add_custom_target(imf_fallback_fp32_bc DEPENDS ${bc_binary_dir}/libsycl-fallback-imf.bc)
-# add_custom_target(imf_fallback_fp32_bc_cuda DEPENDS ${bc_binary_dir}/libsycl-fallback-imf--cuda.bc)
-add_custom_target(imf_fallback_fp32_bc_amd DEPENDS ${bc_binary_dir}/libsycl-fallback-imf--amd.bc)
 add_custom_target(imf_fallback_fp32_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf.${lib-suffix})
 add_custom_target(imf_fallback_fp32_host_obj DEPENDS ${obj_binary_dir}/fallback-imf-fp32-host.${lib-suffix})
 add_custom_target(imf_fallback_fp32_new_offload_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf.${new-offload-lib-suffix})
 add_custom_target(imf_fallback_fp32_host_new_offload_obj DEPENDS ${obj_binary_dir}/fallback-imf-fp32-host.${new-offload-lib-suffix})
 add_dependencies(libsycldevice-spv imf_fallback_fp32_spv)
 add_dependencies(libsycldevice-bc imf_fallback_fp32_bc)
-# add_dependencies(libsycldevice-bc imf_fallback_fp32_bc_cuda)
-add_dependencies(libsycldevice-bc imf_fallback_fp32_bc_amd)
+if (${devicelib_arch} STREQUAL "NVPTX")
+  add_custom_target(imf_fallback_fp32_bc_cuda DEPENDS ${bc_binary_dir}/libsycl-fallback-imf--cuda.bc)
+  add_dependencies(libsycldevice-bc imf_fallback_fp32_bc_cuda)
+  append_to_property(${bc_binary_dir}/libsycl-fallback-imf--cuda.bc)
+elseif (${devicelib_arch} STREQUAL "AMDGPU")
+  add_custom_target(imf_fallback_fp32_bc_amd DEPENDS ${bc_binary_dir}/libsycl-fallback-imf--amd.bc)
+  add_dependencies(libsycldevice-bc imf_fallback_fp32_bc_amd)
+  append_to_property(${bc_binary_dir}/libsycl-fallback-imf--amd.bc)
+endif()
 add_dependencies(libsycldevice-obj imf_fallback_fp32_obj)
 add_dependencies(libsycldevice-obj imf_fallback_fp32_new_offload_obj)
 
 add_custom_target(imf_fallback_fp64_spv DEPENDS ${spv_binary_dir}/libsycl-fallback-imf-fp64.spv)
 add_custom_target(imf_fallback_fp64_bc DEPENDS ${bc_binary_dir}/libsycl-fallback-imf-fp64.bc)
-# add_custom_target(imf_fallback_fp64_bc_cuda DEPENDS ${bc_binary_dir}/libsycl-fallback-imf-fp64--cuda.bc)
-add_custom_target(imf_fallback_fp64_bc_amd DEPENDS ${bc_binary_dir}/libsycl-fallback-imf-fp64--amd.bc)
 add_custom_target(imf_fallback_fp64_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf-fp64.${lib-suffix})
 add_custom_target(imf_fallback_fp64_host_obj DEPENDS ${obj_binary_dir}/fallback-imf-fp64-host.${lib-suffix})
 add_custom_target(imf_fallback_fp64_new_offload_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf-fp64.${new-offload-lib-suffix})
 add_custom_target(imf_fallback_fp64_host_new_offload_obj DEPENDS ${obj_binary_dir}/fallback-imf-fp64-host.${new-offload-lib-suffix})
 add_dependencies(libsycldevice-spv imf_fallback_fp64_spv)
 add_dependencies(libsycldevice-bc imf_fallback_fp64_bc)
-# add_dependencies(libsycldevice-bc imf_fallback_fp64_bc_cuda)
-add_dependencies(libsycldevice-bc imf_fallback_fp64_bc_amd)
+if (${devicelib_arch} STREQUAL "NVPTX")
+  add_custom_target(imf_fallback_fp64_bc_cuda DEPENDS ${bc_binary_dir}/libsycl-fallback-imf-fp64--cuda.bc)
+  add_dependencies(libsycldevice-bc imf_fallback_fp64_bc_cuda)
+  append_to_property(${bc_binary_dir}/libsycl-fallback-imf-fp64--cuda.bc)
+elseif (${devicelib_arch} STREQUAL "AMDGPU")
+  add_custom_target(imf_fallback_fp64_bc_amd DEPENDS ${bc_binary_dir}/libsycl-fallback-imf-fp64--amd.bc)
+  add_dependencies(libsycldevice-bc imf_fallback_fp64_bc_amd)
+  append_to_property(${bc_binary_dir}/libsycl-fallback-imf-fp64--amd.bc)
+endif()
 add_dependencies(libsycldevice-obj imf_fallback_fp64_obj)
 add_dependencies(libsycldevice-obj imf_fallback_fp64_new_offload_obj)
 
 add_custom_target(imf_fallback_bf16_spv DEPENDS ${spv_binary_dir}/libsycl-fallback-imf-bf16.spv)
 add_custom_target(imf_fallback_bf16_bc DEPENDS ${bc_binary_dir}/libsycl-fallback-imf-bf16.bc)
-#add_custom_target(imf_fallback_bf16_bc_cuda DEPENDS  ${bc_binary_dir}/libsycl-fallback-imf-bf16--cuda.bc)
-add_custom_target(imf_fallback_bf16_bc_amd DEPENDS ${bc_binary_dir}/libsycl-fallback-imf-bf16--amd.bc)
 add_custom_target(imf_fallback_bf16_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf-bf16.${lib-suffix})
 add_custom_target(imf_fallback_bf16_host_obj DEPENDS ${obj_binary_dir}/fallback-imf-bf16-host.${lib-suffix})
 add_custom_target(imf_fallback_bf16_new_offload_obj DEPENDS ${obj_binary_dir}/libsycl-fallback-imf-bf16.${new-offload-lib-suffix})
 add_custom_target(imf_fallback_bf16_host_new_offload_obj DEPENDS ${obj_binary_dir}/fallback-imf-bf16-host.${new-offload-lib-suffix})
 add_dependencies(libsycldevice-spv imf_fallback_bf16_spv)
 add_dependencies(libsycldevice-bc imf_fallback_bf16_bc)
-# add_dependencies(libsycldevice-bc imf_fallback_bf16_bc_cuda)
-add_dependencies(libsycldevice-bc imf_fallback_bf16_bc_amd)
+if (${devicelib_arch} STREQUAL "NVPTX")
+  add_custom_target(imf_fallback_bf16_bc_cuda DEPENDS  ${bc_binary_dir}/libsycl-fallback-imf-bf16--cuda.bc)
+  add_dependencies(libsycldevice-bc imf_fallback_bf16_bc_cuda)
+  append_to_property(${bc_binary_dir}/libsycl-fallback-imf-bf16--cuda.bc)
+elseif (${devicelib_arch} STREQUAL "AMDGPU")
+  add_custom_target(imf_fallback_bf16_bc_amd DEPENDS ${bc_binary_dir}/libsycl-fallback-imf-bf16--amd.bc)
+  add_dependencies(libsycldevice-bc imf_fallback_bf16_bc_amd)
+  append_to_property(${bc_binary_dir}/libsycl-fallback-imf-bf16--amd.bc)
+endif()
 add_dependencies(libsycldevice-obj imf_fallback_bf16_obj)
 add_dependencies(libsycldevice-obj imf_fallback_bf16_new_offload_obj)
 

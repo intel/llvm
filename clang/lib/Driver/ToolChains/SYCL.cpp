@@ -253,17 +253,18 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
 
   const SYCLDeviceLibsList SYCLDeviceWrapperLibs = {
-      {"libsycl-crt", "libc"},
-      {"libsycl-complex", "libm-fp32"},
-      {"libsycl-complex-fp64", "libm-fp64"},
-      {"libsycl-cmath", "libm-fp32"},
-      {"libsycl-cmath-fp64", "libm-fp64"},
+    {"libsycl-crt", "libc"},
+    {"libsycl-complex", "libm-fp32"},
+    {"libsycl-complex-fp64", "libm-fp64"},
+    {"libsycl-cmath", "libm-fp32"},
+    {"libsycl-cmath-fp64", "libm-fp64"},
 #if defined(_WIN32)
-      {"libsycl-msvc-math", "libm-fp32"},
+    {"libsycl-msvc-math", "libm-fp32"},
 #endif
-      {"libsycl-imf", "libimf-fp32"},
-      {"libsycl-imf-fp64", "libimf-fp64"},
-      {"libsycl-imf-bf16", "libimf-bf16"}};
+    {"libsycl-imf", "libimf-fp32"},
+    {"libsycl-imf-fp64", "libimf-fp64"},
+    {"libsycl-imf-bf16", "libimf-bf16"}
+  };
   // For AOT compilation, we need to link sycl_device_fallback_libs as
   // default too.
   const SYCLDeviceLibsList SYCLDeviceFallbackLibs = {
@@ -314,12 +315,12 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   };
 
   if (TargetTriple.isNVPTX()) {
-      LibraryList.push_back(Args.MakeArgString("devicelib--nvptx.bc"));
-      return LibraryList;
+    LibraryList.push_back(Args.MakeArgString("devicelib--nvptx.bc"));
+    return LibraryList;
   }
   if (TargetTriple.isAMDGCN()) {
-      LibraryList.push_back(Args.MakeArgString("devicelib--amd.bc"));
-      return LibraryList;
+    LibraryList.push_back(Args.MakeArgString("devicelib--amd.bc"));
+    return LibraryList;
   }
 
   addLibraries(SYCLDeviceWrapperLibs);
@@ -384,35 +385,19 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
 // The list should match pre-built SYCL device library files located in
 // compiler package. Once we add or remove any SYCL device library files,
 // the list should be updated accordingly.
-static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
-    "bfloat16",
-    "crt",
-    "cmath",
-    "cmath-fp64",
-    "complex",
-    "complex-fp64",
+static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList {
+  "bfloat16", "crt", "cmath", "cmath-fp64", "complex", "complex-fp64",
 #if defined(_WIN32)
-    "msvc-math",
+      "msvc-math",
 #else
-    "sanitizer",
+      "sanitizer",
 #endif
-    "imf",
-    "imf-fp64",
-    "imf-bf16",
-    "itt-compiler-wrappers",
-    "itt-stubs",
-    "itt-user-wrappers",
-    "fallback-cassert",
-    "fallback-cstring",
-    "fallback-cmath",
-    "fallback-cmath-fp64",
-    "fallback-complex",
-    "fallback-complex-fp64",
-    "fallback-imf",
-    "fallback-imf-fp64",
-    "fallback-imf-bf16",
-    "fallback-bfloat16",
-    "native-bfloat16"};
+      "imf", "imf-fp64", "imf-bf16", "itt-compiler-wrappers", "itt-stubs",
+      "itt-user-wrappers", "fallback-cassert", "fallback-cstring",
+      "fallback-cmath", "fallback-cmath-fp64", "fallback-complex",
+      "fallback-complex-fp64", "fallback-imf", "fallback-imf-fp64",
+      "fallback-imf-bf16", "fallback-bfloat16", "native-bfloat16"
+};
 
 const char *SYCL::Linker::constructLLVMLinkCommand(
     Compilation &C, const JobAction &JA, const InputInfo &Output,
