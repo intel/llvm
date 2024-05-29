@@ -25,6 +25,7 @@
 #include <sycl/platform.hpp>
 
 #include <chrono>
+#include <sstream>
 #include <thread>
 
 #include "split_string.hpp"
@@ -1209,11 +1210,22 @@ struct get_device_info_impl<
       return {};
     size_t ResultSize = 0;
     // First call to get DevCount.
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+    pi_result Err = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<
             ext::oneapi::experimental::info::device::component_devices>::value,
         0, nullptr, &ResultSize);
+
+    // If the feature is unsupported or if the result was empty, return an empty
+    // list of devices.
+    if (Err == PI_ERROR_UNSUPPORTED_FEATURE ||
+        (Err == PI_SUCCESS && ResultSize == 0))
+      return {};
+
+    // Otherwise, if there was an error from PI it is unexpected and we should
+    // handle it accordingly.
+    Dev->getPlugin()->checkPiResult(Err);
+
     size_t DevCount = ResultSize / sizeof(pi_device);
     // Second call to get the list.
     std::vector<pi_device> Devs(DevCount);

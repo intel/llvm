@@ -19,14 +19,19 @@ static void DieUnsupported() {
 
 // Adapters may be released by piTearDown being called, or the global dtors
 // being called first. Handle releasing the adapters exactly once.
-static void releaseAdapters(std::vector<ur_adapter_handle_t> &Vec) {
+static void releaseAdapters(std::vector<ur_adapter_handle_t> &Vec) noexcept {
   static std::once_flag ReleaseFlag{};
-  std::call_once(ReleaseFlag, [&]() {
-    for (auto Adapter : Vec) {
-      urAdapterRelease(Adapter);
-    }
-    urLoaderTearDown();
-  });
+  try {
+    std::call_once(ReleaseFlag, [&]() {
+      for (auto Adapter : Vec) {
+        urAdapterRelease(Adapter);
+      }
+      urLoaderTearDown();
+    });
+  } catch (...) {
+    // Ignore any potential exceptions on teardown. Worst case scenario
+    // this just leaks some memory on exit.
+  }
 }
 
 struct AdapterHolder {
