@@ -23,7 +23,7 @@ jobs:
       - name: 'Download artifact'
         uses: actions/download-artifact@6b208ae046db98c579e8a3aa621ab581ff575935 # v4.1.1
         with:
-          github-token: ${{ secrets.ISSUE_WRITE_DOWNLOAD_ARTIFACT }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
           name: workflow-args
 
