@@ -253,6 +253,7 @@ bool isFP64ConversionInstruction(const Instruction &I) {
   // In case of memory intrinsics, FP64 computations are not required and we
   // return 'true'.
   // TODO: Identify other cases similar to memory intrinsics.
+  // TODO: Try to handle FP64 usage in call instructions in sycl-post-link.
   case Instruction::Call:
     if (cast<CallInst>(&I)->getCalledFunction()->isDeclaration())
       return isa<MemIntrinsic>(&I);

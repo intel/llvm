@@ -1280,17 +1280,11 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // -fsycl-fp64-conv-emu is valid only for AOT compilation with an Intel GPU
   // target. For other scenarios, we emit a warning message.
   if (C.getInputArgs().hasArg(options::OPT_fsycl_fp64_conv_emu)) {
-    Arg *SYCLTargets =
-        C.getInputArgs().getLastArg(options::OPT_fsycl_targets_EQ);
     bool HasIntelGPUAOTTarget = false;
-    if (SYCLTargets) {
-      for (StringRef Val : SYCLTargets->getValues()) {
-        llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
-        if (TT.isSPIRAOT() &&
-            TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
-          HasIntelGPUAOTTarget = true;
-          break;
-        }
+    for (auto &TT : UniqueSYCLTriplesVec) {
+      if (TT.isSPIRAOT() && TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+        HasIntelGPUAOTTarget = true;
+        break;
       }
     }
     if (!HasIntelGPUAOTTarget)
