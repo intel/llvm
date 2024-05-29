@@ -63,16 +63,19 @@ struct LocalArgsInfo {
   uint64_t SizeWithRedZone = 0;
 };
 
+constexpr std::size_t ASAN_MAX_NUM_REPORTS = 10;
+
 struct LaunchInfo {
-  uintptr_t PrivateShadowOffset =
-      0; // don't move this field, we use it in AddressSanitizerPass
+  // Don't move this field, we use it in AddressSanitizerPass
+  uintptr_t PrivateShadowOffset = 0;
 
   uintptr_t LocalShadowOffset = 0;
   uintptr_t LocalShadowOffsetEnd = 0;
-  DeviceSanitizerReport SanitizerReport;
 
   uint32_t NumLocalArgs = 0;
-  LocalArgsInfo *LocalArgs = nullptr; // ordered by ArgIndex
+  LocalArgsInfo *LocalArgs = nullptr; // Ordered by ArgIndex
+
+  DeviceSanitizerReport SanitizerReport[ASAN_MAX_NUM_REPORTS];
 };
 
 constexpr unsigned ASAN_SHADOW_SCALE = 3;
