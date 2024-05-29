@@ -19,7 +19,7 @@
 #include <tuple>   // std::ignore
 
 int main() {
-  std::byte bt{2};
+  std::byte bt{7};
   // constructors
   sycl::vec<std::byte, 1> vb1(bt);
   sycl::vec<std::byte, 2> vb2{bt, bt};
@@ -53,8 +53,8 @@ int main() {
     auto asint = vb2.template as<sycl::vec<int16_t, 1>>();
     auto asbyte = vi2.template as<sycl::vec<std::byte, 8>>();
 
-    // 0000 0010 0000 0010 = 514
-    assert(asint[0] == 514);
+    // 0000 0111 0000 0111 = 119
+    assert(asint[0] == 1799);
 
     // 0000 0000 0000 0001 0000 0000 0000 0001
     assert(asbyte[0] == std::byte{1} && asbyte[1] == std::byte{0} &&
@@ -90,7 +90,7 @@ int main() {
         .wait();
   }
   assert(std_vec[0] == std::byte{2});
-  assert(std_vec[1] == std::byte{2});
+  assert(std_vec[1] == std::byte{7});
 
   // swizzle
   {
@@ -127,9 +127,6 @@ int main() {
                                       std::byte{3}};
 
     // Test bitwise operations on vec<std::byte> and swizzles.
-    // Adding asserts on vec<> operations, and not swizzle operations,
-    // should suffice as swizzles just delegates the operation to vec<>
-    // class.
     {
       auto SwizByte2A = VecByte4A.lo();
       auto SwizByte2B = VecByte4A.hi();
@@ -142,12 +139,17 @@ int main() {
       assert(VecByte3Or[1] == (VecByte3A[1] | VecByte3B[1]));
       assert(VecByte3Xor[2] == (VecByte3A[2] ^ VecByte3B[2]));
 
-      // logical binary op for 2 swizzle
-      auto swand = SwizByte2A & SwizByte2B;
-      auto swor = SwizByte2A | SwizByte2B;
-      auto swxor = SwizByte2A ^ SwizByte2B;
+      // logical binary op between swizzle and vec.
+      using SwizType = sycl::vec<std::byte, 2>;
+      auto SwizByte2And = SwizByte2A & (SwizType)SwizByte2B;
+      auto SwizByte2Or = SwizByte2A | (SwizType)SwizByte2B;
+      auto SwizByte2Xor = SwizByte2A ^ (SwizType)SwizByte2B;
 
-      // Check order of operands for bitwise operators.
+      assert(SwizByte2And[0] == (VecByte4A[0] & VecByte4A[2]));
+      assert(SwizByte2Or[1] == (VecByte4A[1] | VecByte4A[3]));
+      assert(SwizByte2Xor[0] == (VecByte4A[0] ^ VecByte4A[2]));
+
+      // Check overloads with scalar argument for bitwise operators.
       auto BitWiseAnd1 = VecByte3A & std::byte{3};
       auto BitWiseOr1 = VecByte3A | std::byte{3};
       auto BitWiseXor1 = VecByte3A ^ std::byte{3};
@@ -159,19 +161,22 @@ int main() {
       assert(BitWiseXor1[2] == BitWiseXor2[2]);
 
       // logical binary op for 1 swizzle
-      auto swand2 = SwizByte2A & std::byte{3};
-      auto swor2 = SwizByte2A | std::byte{3};
-      auto swxor2 = SwizByte2A ^ std::byte{3};
-
-      auto swand3 = std::byte{3} & SwizByte2A;
-      auto swor3 = std::byte{3} | SwizByte2A;
-      auto swxor3 = std::byte{3} ^ SwizByte2A;
+      auto SwizByte2AndScalarA = SwizByte2A & std::byte{3};
+      auto SwizByte2OrScalarA = SwizByte2A | std::byte{3};
+      auto SwizByte2XorScalarA = SwizByte2A ^ std::byte{3};
+      auto SwizByte2AndScalarB = std::byte{3} & SwizByte2A;
+      auto SwizByte2OrScalarB = std::byte{3} | SwizByte2A;
+      auto SwizByte2XorScalarB = std::byte{3} ^ SwizByte2A;
+      assert(SwizByte2AndScalarA[0] == SwizByte2AndScalarB[0]);
+      assert(SwizByte2OrScalarA[1] == SwizByte2OrScalarB[1]);
+      assert(SwizByte2XorScalarA[0] == SwizByte2XorScalarB[0]);
 
       // bit-wise negation test
       auto VecByte4Neg = ~VecByte4A;
       assert(VecByte4Neg[0] == ~VecByte4A[0]);
 
-      auto bitw = ~SwizByte2B;
+      auto SwizByte2Neg = ~SwizByte2B;
+      assert(SwizByte2Neg[0] == ~SwizByte2B[0]);
     }
 
     // std::byte is not an arithmetic type or a character type, so std::byte
