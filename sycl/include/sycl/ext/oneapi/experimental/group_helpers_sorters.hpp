@@ -63,10 +63,25 @@ public:
   void operator()([[maybe_unused]] Group g, [[maybe_unused]] Ptr first,
                   [[maybe_unused]] Ptr last) {
 #ifdef __SYCL_DEVICE_ONLY__
+    // Adjust the scratch pointer based on alignment of the type T.
     // Per extension specification if scratch size is less than the value
-    // returned by memory_required then behavior is undefined, so we don't check
-    // that the scratch size statisfies the requirement.
-    sycl::detail::merge_sort(g, first, last - first, comp, scratch.data());
+    // returned by memory_required, behavior is undefined. So, if std::align
+    // returns nullptr (which means that we don't have enough space) then exit
+    // early.
+    using T = typename sycl::detail::GetValueType<Ptr>::type;
+    void *scratch_ptr = scratch.data();
+    size_t space = scratch.size();
+    size_t n = last - first;
+    if (!std::align(alignof(T), n * sizeof(T), scratch_ptr, space))
+      return;
+
+    std::size_t local_id = g.get_local_linear_id();
+    T *scratch_begin =
+        local_id == 0 ? scratch_begin = ::new (scratch_ptr) T[n] : nullptr;
+    // Broadcast leader's pointer (the beginning of the scratch) to all work
+    // items in the group.
+    scratch_begin = sycl::group_broadcast(g, scratch_begin);
+    sycl::detail::merge_sort(g, first, n, comp, scratch_begin);
 #else
     throw sycl::exception(
         std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
@@ -81,12 +96,29 @@ public:
     // returned by memory_required then behavior is undefined, so we don't check
     // that the scratch size statisfies the requirement.
     auto range_size = g.get_local_range().size();
-    size_t local_id = g.get_local_linear_id();
-    T *temp = reinterpret_cast<T *>(scratch.data());
-    ::new (temp + local_id) T(val);
-    sycl::detail::merge_sort(g, temp, range_size, comp,
-                             scratch.data() + range_size * sizeof(T));
-    val = temp[local_id];
+    std::size_t local_id = g.get_local_linear_id();
+
+    // Adjust the scratch pointer based on alignment of the type T.
+    // Per extension specification if scratch size is less than the value
+    // returned by memory_required, behavior is undefined. So, if std::align
+    // returns nullptr (which means that we don't have enough space) then exit
+    // early.
+    void *scratch_ptr = scratch.data();
+    size_t space = scratch.size();
+    if (!std::align(alignof(T), /* output storage and temporary storage */ 2 *
+                                    range_size * sizeof(T),
+                    scratch_ptr, space))
+      return val;
+
+    T *scratch_begin =
+        local_id == 0 ? ::new (scratch_ptr) T[2 * range_size] : nullptr;
+    // Broadcast leader's pointer (the beginning of the scratch) to all work
+    // items in the group.
+    scratch_begin = sycl::group_broadcast(g, scratch_begin);
+    scratch_begin[local_id] = val;
+    sycl::detail::merge_sort(g, scratch_begin, range_size, comp,
+                             scratch_begin + range_size);
+    val = scratch_begin[local_id];
 #else
     throw sycl::exception(
         std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
