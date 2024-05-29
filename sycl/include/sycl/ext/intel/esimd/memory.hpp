@@ -3623,6 +3623,85 @@ gather(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
   return gather<T, N, VS>(acc, byte_offsets.read(), mask, pass_thru, props);
 }
 
+/// template <int VS = 1, typename T, int N,
+///           typename OffsetSimdViewT,
+//            typename PropertyListT = empty_properties_t>
+/// simd<T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
+///                   simd_mask<N / VS> mask, simd<T, N> pass_thru,
+///                   PropertyListT props = {});
+/// This function is identical to (lacc-ga-1) except that the \p byte_offsets
+/// is represented as \c simd_view.
+template <
+    int VS, typename T, int N, typename AccessorT, typename OffsetSimdViewT,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    (detail::is_device_accessor_with_v<AccessorT,
+                                       detail::accessor_mode_cap::can_read> &&
+     detail::is_simd_view_type_v<OffsetSimdViewT> &&
+     ext::oneapi::experimental::is_property_list_v<PropertyListT>),
+    simd<T, N>>
+gather(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
+       simd<T, N> pass_thru, PropertyListT props = {}) {
+  return gather<T, N, VS>(acc, byte_offsets.read(), mask, pass_thru, props);
+}
+
+/// template <int VS = 1, typename AccessorT,
+///    typename OffsetSimdViewT, typename PassThruSimdViewT,
+///    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+///    typename T = PassThruSimdViewT::value_type::element_type,
+///    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>>
+/// simd<T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
+///                   simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
+///                   PropertyListT props = {});
+/// This function is identical to (lacc-ga-1) except that the \p byte_offsets
+/// is represented as \c simd_view.
+template <
+    int VS = 1, typename AccessorT, typename OffsetSimdViewT,
+    typename PassThruSimdViewT,
+    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+    typename T = PassThruSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    (detail::is_device_accessor_with_v<AccessorT,
+                                       detail::accessor_mode_cap::can_read> &&
+     detail::is_simd_view_type_v<OffsetSimdViewT> &&
+     detail::is_simd_view_type_v<PassThruSimdViewT> &&
+     ext::oneapi::experimental::is_property_list_v<PropertyListT>),
+    simd<T, N>>
+gather(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
+       PassThruSimdViewT pass_thru, PropertyListT props = {}) {
+  return gather<T, N, VS>(acc, byte_offsets.read(), mask, pass_thru.read(),
+                          props);
+}
+
+/// template <int VS = 1, typename AccessorT,
+///    typename OffsetT, typename PassThruSimdViewT,
+///    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+///    typename T = PassThruSimdViewT::value_type::element_type,
+///    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>>
+/// simd<T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
+///                   simd_mask<N / VS> mask, simd<T, N> pass_thru,
+///                   PropertyListT props = {});
+/// This function is identical to (lacc-ga-1) except that the \p byte_offsets
+/// is represented as \c simd_view.
+template <
+    int VS = 1, typename AccessorT, typename OffsetT,
+    typename PassThruSimdViewT,
+    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+    typename T = PassThruSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    (detail::is_device_accessor_with_v<AccessorT,
+                                       detail::accessor_mode_cap::can_read> &&
+     detail::is_simd_view_type_v<PassThruSimdViewT> &&
+     ext::oneapi::experimental::is_property_list_v<PropertyListT>),
+    simd<T, N>>
+gather(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
+       simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
+       PropertyListT props = {}) {
+  return gather<T, N, VS>(acc, byte_offsets, mask, pass_thru.read(), props);
+}
+
 /// template <typename T, int N, int VS = 1, typename AccessorT,
 ///           typename OffsetSimdViewT,
 //            typename PropertyListT = empty_properties_t>
@@ -4670,6 +4749,132 @@ __ESIMD_API std::enable_if_t<
 slm_gather(OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
            simd<T, N> pass_thru, PropertyListT props = {}) {
   return slm_gather<T, N, VS>(byte_offsets.read(), mask, pass_thru, props);
+}
+
+/// template <int VS, typename T, int N, typename OffsetSimdViewT,
+///           typename PropertyListT = empty_props_t>
+/// simd <T, N> slm_gather(
+///             OffsetSimdViewT byte_offsets,
+///             simd_mask<N / VS> mask, simd<T, N> pass_thru,
+///             PropertyListT props = {});
+/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// and \c N template parameters.
+/// Loads ("gathers") elements of the type 'T' from Shared Local Memory
+/// locations addressed by byte offsets \p byte_offsets, and returns the loaded
+/// elements. Access to any element's memory location can be disabled via the
+/// input vector of predicates \p mask. If mask[i] is unset, then the load from
+/// (byte_offsets[i]) is skipped and the corresponding i-th element from
+/// \p pass_thru operand is returned.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC.
+/// @param byte_offsets the vector of 32-bit offsets in bytes.
+/// For each i, (byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param mask The access mask, defaults to all 1s.
+/// @param pass_thru The vector pass through values.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// property is used.
+/// @return A vector of elements read.
+template <
+    int VS, typename T, int N, typename OffsetSimdViewT,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    (detail::is_simd_view_type_v<OffsetSimdViewT> &&
+     ext::oneapi::experimental::is_property_list_v<PropertyListT>),
+    simd<T, N>>
+slm_gather(OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
+           simd<T, N> pass_thru, PropertyListT props = {}) {
+  return slm_gather<T, N, VS>(byte_offsets.read(), mask, pass_thru, props);
+}
+
+/// template <int VS = 1,
+///    typename OffsetSimdViewT, typename PassThruSimdViewT,
+///    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+///     typename T = PassThruSimdViewT::value_type::element_type,
+///    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+/// simd <T, N> slm_gather(
+///             OffsetSimdViewT byte_offsets,
+///             simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
+///             PropertyListT props = {});
+/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// and \c N template parameters.
+/// Loads ("gathers") elements of the type 'T' from Shared Local Memory
+/// locations addressed by byte offsets \p byte_offsets, and returns the loaded
+/// elements. Access to any element's memory location can be disabled via the
+/// input vector of predicates \p mask. If mask[i] is unset, then the load from
+/// (byte_offsets[i]) is skipped and the corresponding i-th element from
+/// \p pass_thru operand is returned.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC.
+/// @param byte_offsets the vector of 32-bit offsets in bytes.
+/// For each i, (byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param mask The access mask, defaults to all 1s.
+/// @param pass_thru The vector pass through values.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// property is used.
+/// @return A vector of elements read.
+template <
+    int VS = 1, typename OffsetSimdViewT, typename PassThruSimdViewT,
+    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+    typename T = PassThruSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    (detail::is_simd_view_type_v<OffsetSimdViewT> &&
+     detail::is_simd_view_type_v<PassThruSimdViewT> &&
+     ext::oneapi::experimental::is_property_list_v<PropertyListT>),
+    simd<T, N>>
+slm_gather(OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
+           PassThruSimdViewT pass_thru, PropertyListT props = {}) {
+  return slm_gather<T, N, VS>(byte_offsets.read(), mask, pass_thru.read(),
+                              props);
+}
+
+/// template <int VS = 1,
+///    typename PassThruSimdViewT,
+///    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+///    typename T = PassThruSimdViewT::value_type::element_type,
+///    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+/// simd <T, N> slm_gather(
+///             OffsetSimdViewT byte_offsets,
+///             simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
+///             PropertyListT props = {});
+/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// and \c N template parameters.
+/// Loads ("gathers") elements of the type 'T' from Shared Local Memory
+/// locations addressed by byte offsets \p byte_offsets, and returns the loaded
+/// elements. Access to any element's memory location can be disabled via the
+/// input vector of predicates \p mask. If mask[i] is unset, then the load from
+/// (byte_offsets[i]) is skipped and the corresponding i-th element from
+/// \p pass_thru operand is returned.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC.
+/// @param byte_offsets the vector of 32-bit offsets in bytes.
+/// For each i, (byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param mask The access mask, defaults to all 1s.
+/// @param pass_thru The vector pass through values.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// property is used.
+/// @return A vector of elements read.
+template <
+    int VS = 1, typename PassThruSimdViewT,
+    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+    typename T = PassThruSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    (detail::is_simd_view_type_v<PassThruSimdViewT> &&
+     ext::oneapi::experimental::is_property_list_v<PropertyListT>),
+    simd<T, N>>
+slm_gather(simd<uint32_t, N / VS> byte_offsets, simd_mask<N / VS> mask,
+           PassThruSimdViewT pass_thru, PropertyListT props = {}) {
+  return slm_gather<T, N, VS>(byte_offsets, mask, pass_thru.read(), props);
 }
 
 /// simd <T, N> slm_gather(
@@ -8418,6 +8623,84 @@ __ESIMD_API std::enable_if_t<
 gather(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
        simd<T, N> pass_thru, PropertyListT props = {}) {
   return gather<T, N, VS>(acc, byte_offsets.read(), mask, pass_thru, props);
+}
+
+/// template <int VS = 1, typename T, int N,
+///           typename OffsetSimdViewT,
+//            typename PropertyListT = empty_properties_t>
+/// simd<T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
+///                   simd_mask<N / VS> mask, simd<T, N> pass_thru,
+///                   PropertyListT props = {});
+/// This function is identical to (lacc-ga-1) except that the \p byte_offsets
+/// is represented as \c simd_view.
+template <
+    int VS, typename T, int N, typename AccessorT, typename OffsetSimdViewT,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    (detail::is_local_accessor_with_v<AccessorT,
+                                      detail::accessor_mode_cap::can_read> &&
+     detail::is_simd_view_type_v<OffsetSimdViewT> &&
+     ext::oneapi::experimental::is_property_list_v<PropertyListT>),
+    simd<T, N>>
+gather(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
+       simd<T, N> pass_thru, PropertyListT props = {}) {
+  return gather<T, N, VS>(acc, byte_offsets.read(), mask, pass_thru, props);
+}
+
+/// template <int VS = 1, typename AccessorT,
+///    typename OffsetSimdViewT, typename PassThruSimdViewT,
+///    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+///    typename T = PassThruSimdViewT::value_type::element_type,
+///    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>>
+/// simd<T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
+///                   simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
+///                   PropertyListT props = {});
+/// This function is identical to (lacc-ga-1) except that the \p byte_offsets
+/// is represented as \c simd_view.
+template <
+    int VS = 1, typename AccessorT, typename OffsetSimdViewT,
+    typename PassThruSimdViewT,
+    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+    typename T = PassThruSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    (detail::is_local_accessor_with_v<AccessorT,
+                                      detail::accessor_mode_cap::can_read> &&
+     detail::is_simd_view_type_v<OffsetSimdViewT> &&
+     detail::is_simd_view_type_v<PassThruSimdViewT> &&
+     ext::oneapi::experimental::is_property_list_v<PropertyListT>),
+    simd<T, N>>
+gather(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
+       PassThruSimdViewT pass_thru, PropertyListT props = {}) {
+  return gather<T, N, VS>(acc, byte_offsets.read(), mask, pass_thru.read(),
+                          props);
+}
+
+/// template <int VS = 1, typename AccessorT,
+///    typename PassThruSimdViewT,
+///    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+///    typename T = PassThruSimdViewT::value_type::element_type,
+///    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>>
+/// simd<T, N> gather(AccessorT acc, simd<uint32_t, N / VS> byte_offsets,
+///                   simd_mask<N / VS> mask, simd<T, N> pass_thru,
+///                   PropertyListT props = {});
+/// This function is identical to (lacc-ga-1) except that the \p byte_offsets
+/// is represented as \c simd_view.
+template <
+    int VS = 1, typename AccessorT, typename PassThruSimdViewT,
+    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+    typename T = PassThruSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    (detail::is_local_accessor_with_v<AccessorT,
+                                      detail::accessor_mode_cap::can_read> &&
+     detail::is_simd_view_type_v<PassThruSimdViewT> &&
+     ext::oneapi::experimental::is_property_list_v<PropertyListT>),
+    simd<T, N>>
+gather(AccessorT acc, simd<uint32_t, N / VS> byte_offsets,
+       simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
+       PropertyListT props = {}) {
+  return gather<T, N, VS>(acc, byte_offsets, mask, pass_thru.read(), props);
 }
 
 /// template <typename T, int N, int VS = 1, typename AccessorT,
