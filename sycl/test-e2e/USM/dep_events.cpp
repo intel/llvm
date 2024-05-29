@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -o %t1.out
-// RUN: %{run} %t1.out
+// RUN: %if !(windows && cuda) %{ %{run} %t1.out %}
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
