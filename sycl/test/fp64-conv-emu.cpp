@@ -1,3 +1,5 @@
+// UNSUPPORTED: cuda, hip
+
 // RUN: %clangxx -O0 -fsycl -fsycl-device-only -fsycl-targets=spir64_gen -fsycl-fp64-conv-emu %s -c -S -emit-llvm -o- | FileCheck %s
 
 // CHECK: define {{.*}} spir_kernel void @_ZTSZ4mainE19fake_kernel_compute(){{.*}} !sycl_used_aspects ![[ASPECTFP64:[0-9]+]]
