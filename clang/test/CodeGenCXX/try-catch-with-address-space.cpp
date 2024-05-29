@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 %s -triple=amdgcn-amd-amdhsa -emit-llvm -o - -fcxx-exceptions -fexceptions | FileCheck %s
-// RUN: %clang_cc1 %s -triple=spirv64-unknown-unknown -fsycl-is-device -emit-llvm -o - -fcxx-exceptions -fexceptions | FileCheck %s --check-prefix=WITH-NONZERO-DEFAULT-AS
+// RUNx: %clang_cc1 %s -triple=spirv64-unknown-unknown -fsycl-is-device -emit-llvm -o - -fcxx-exceptions -fexceptions | FileCheck %s --check-prefix=WITH-NONZERO-DEFAULT-AS
 
 struct X { };
 
