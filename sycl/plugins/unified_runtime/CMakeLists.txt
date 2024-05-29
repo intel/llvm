@@ -75,6 +75,11 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
         tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
       return()
     endif()
     message(STATUS
