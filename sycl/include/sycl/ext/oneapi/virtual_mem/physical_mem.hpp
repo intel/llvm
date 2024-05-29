@@ -49,9 +49,6 @@ public:
 
   void *map(uintptr_t Ptr, size_t NumBytes, address_access_mode Mode,
             size_t Offset = 0) const;
-  void *map(uintptr_t Ptr, size_t NumBytes, size_t Offset = 0) const {
-    return map(Ptr, NumBytes, address_access_mode::none, Offset);
-  }
 
   context get_context() const;
   device get_device() const;

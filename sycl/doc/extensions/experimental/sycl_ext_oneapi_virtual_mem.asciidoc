@@ -239,7 +239,6 @@ public:
 
   /* -- common interface members -- */
 
-  void *map(uintptr_t ptr, size_t numBytes, size_t offset = 0) const;
   void *map(uintptr_t ptr, size_t numBytes, address_access_mode mode, size_t offset = 0) const;
 
   context get_context() const;
@@ -273,9 +272,6 @@ an exception with `errc::feature_not_supported`.
 
 |`physical_mem(const queue &syclQueue, size_t numBytes)` |
 Same as `physical_mem(syclQueue.get_device(), syclQueue.get_context, numBytes)`.
-
-|`void *map(uintptr_t ptr, size_t numBytes, size_t offset = 0)` |
-Same as `map(ptr, numBytes, address_access_mode::none, offset)`.
 
 |`void *map(uintptr_t ptr, size_t numBytes, address_access_mode mode, size_t offset = 0)` |
 Maps a virtual memory range, specified by `ptr` and `numBytes`, to the physical
