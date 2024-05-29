@@ -70,7 +70,7 @@ int main(void) {
     free(B, ctxt);
     free(C, ctxt);
 
-    return e.get_cl_code();
+    return e.code().value();
   }
 
   int err_cnt = 0;
