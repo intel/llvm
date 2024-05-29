@@ -17,7 +17,7 @@ namespace ext::oneapi::experimental::cuda {
 
 template <int Dim> struct cluster_size {
   cluster_size(const range<Dim> &size) : size(size) {}
-  std::size_t operator[](std::size_t i) { return size[i]; }
+  sycl::range<Dim> get_cluster_size() { return size; }
   range<Dim> size;
 };
 

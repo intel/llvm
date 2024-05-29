@@ -2420,6 +2420,10 @@ static pi_result SetKernelParamsAndLaunch(
           return Plugin
               ->call_nocheck<PiApiKind::piextEnqueueCooperativeKernelLaunch>(
                   Args...);
+        } else if (KernelUsesClusterLaunch) {
+          return Plugin
+              ->call_nocheck<PiApiKind::piextEnqueueKernelLaunchCustom>(
+                  Args...);
         }
         return Plugin->call_nocheck<PiApiKind::piEnqueueKernelLaunch>(Args...);
       }(Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],

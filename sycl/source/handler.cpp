@@ -290,6 +290,10 @@ event handler::finalize() {
                     ->call<
                         detail::PiApiKind::piextEnqueueCooperativeKernelLaunch>(
                         Args...);
+              } else if (KernelUsesClusterLaunch) {
+                return Plugin
+                    ->call_nocheck<PiApiKind::piextEnqueueKernelLaunchCustom>(
+                        Args...);
               } else {
                 MQueue->getPlugin()
                     ->call<detail::PiApiKind::piEnqueueKernelLaunch>(Args...);
@@ -311,7 +315,8 @@ event handler::finalize() {
             Result = enqueueImpKernel(
                 MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
                 MKernelName.c_str(), RawEvents, NewEvent, nullptr,
-                MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative);
+                MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative,
+                MImpl->MKernelUsesClusterLaunch);
           }
         }
 #ifdef XPTI_ENABLE_INSTRUMENTATION

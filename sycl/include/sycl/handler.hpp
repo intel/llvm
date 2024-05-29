@@ -953,6 +953,22 @@ private:
                sycl::ext::oneapi::experimental::cuda::cluster_size_key<3>>();
   }
 
+  template <typename Properties> void setClusterRange(const Properties &Props) {
+    if (MNDRDesc.Dims == 1) {
+      MNDRDesc.setClusterDimensions(
+          Props.template get_property<
+              sycl::ext::oneapi::experimental::cuda::cluster_size_key<1>>());
+    } else if (MNDRDesc.Dims == 2) {
+      MNDRDesc.setClusterDimensions(
+          Props.template get_property<
+              sycl::ext::oneapi::experimental::cuda::cluster_size_key<2>>());
+    } else {
+      MNDRDesc.setClusterDimensions(
+          Props.template get_property<
+              sycl::ext::oneapi::experimental::cuda::cluster_size_key<3>>());
+    }
+  }
+
   /// Process kernel properties.
   ///
   /// Stores information about kernel properties into the handler.
@@ -1017,7 +1033,10 @@ private:
           sycl::ext::oneapi::experimental::execution_scope::work_item,
           prop.coordinationScope);
     }
-    setKernelUsesCudaClusterLaunch(hasClusterSizeProperty<ProperTiesT>());
+    if constexpr (hasClusterSizeProperty<ProperTiesT>()) {
+      setKernelUsesCudaClusterLaunch(true);
+      setClusterRange(Props);
+    }
   }
 
   /// Checks whether it is possible to copy the source shape to the destination
@@ -1477,9 +1496,9 @@ private:
     kernel_parallel_for_wrapper<NameT, TransformedArgType, KernelType,
                                 PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
-    processProperties<NameT, PropertiesT>(Props);
     detail::checkValueRange<Dims>(ExecutionRange);
     MNDRDesc.set(std::move(ExecutionRange));
+    processProperties<NameT, PropertiesT>(Props);
     StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
         std::move(KernelFunc));
     setType(detail::CG::Kernel);

@@ -1215,12 +1215,9 @@ typedef enum {
 } _pi_peer_attr;
 
 typedef enum {
-  PI_LAUNCH_PROPERTY_IGNORE =
-      0x0,
-  PI_LAUNCH_PROPERTY_COOPERATIVE =
-      0x1,
-  PI_LAUNCH_PROPERTY_CLUSTER_DIMENSION =
-      0x2,
+  PI_LAUNCH_PROPERTY_IGNORE = 0x0,
+  PI_LAUNCH_PROPERTY_COOPERATIVE = 0x1,
+  PI_LAUNCH_PROPERTY_CLUSTER_DIMENSION = 0x2,
 } _pi_launch_property_id;
 
 typedef union {
@@ -1848,7 +1845,6 @@ __SYCL_EXPORT pi_result piextEnqueueCooperativeKernelLaunch(
     const size_t *global_work_offset, const size_t *global_work_size,
     const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event);
-
 
 __SYCL_EXPORT pi_result piextEnqueueKernelLaunchCustom(
     pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,

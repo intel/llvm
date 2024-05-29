@@ -3759,9 +3759,9 @@ inline pi_result piextEnqueueCooperativeKernelLaunch(
 inline pi_result piextEnqueueKernelLaunchCustom(
     pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
     const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
-    pi_uint32 NumPropsInLaunchPropList, const pi_launch_property *LaunchPropList,
-    pi_uint32 NumEventsInWaitList, const pi_event *EventsWaitList,
-    pi_event *OutEvent) {
+    pi_uint32 NumPropsInLaunchPropList,
+    const pi_launch_property *LaunchPropList, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *OutEvent) {
   PI_ASSERT(Kernel, PI_ERROR_INVALID_KERNEL);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   PI_ASSERT((WorkDim > 0) && (WorkDim < 4), PI_ERROR_INVALID_WORK_DIMENSION);
