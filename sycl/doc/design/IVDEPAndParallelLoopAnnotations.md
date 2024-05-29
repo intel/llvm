@@ -104,20 +104,19 @@ We are proposing the following new LLVM metadata:
 
 ## SPIR-V Extension
 
-The SPIR-V extension for this design doc is presented in [this sCART
-Review](https://github.com/intel-innersource/documentation.xpu.architecture.spirv-extension-drafts/pull/162)
-(will update link to Khronos repo when extension review is complete). This list
+The SPIR-V extension for this design doc is presented in #13918
+(will update link to PR review is complete). This list
 summarizes the additions:
 
 1. Access groups defined using an LLVM `llvm.access.group` metadata are
 represented as a literal in SPIR-V.
-2. A new instruction `OpAGListINTEL` is used to aggregate multiple access groups
+1. A new instruction `OpAGListINTEL` is used to aggregate multiple access groups
    into a single list.
-3. A new Decoration `AccessGroupINTEL` is used to specify which access groups a
+2. A new Decoration `AccessGroupINTEL` is used to specify which access groups a
    function call or atomic instruction belongs to.
-4. A new Memory Operand `AccessGroupINTELMask` is used to specify which access
+3. A new Memory Operand `AccessGroupINTELMask` is used to specify which access
    groups a memory operation belongs to.
-5. Two new Loop Controls are added to represent `llvm.loop.parallel_accesses`
+4. Two new Loop Controls are added to represent `llvm.loop.parallel_accesses`
    and `llvm.loop.no_depends/no_depends_safelen`. They are called
    `ParallelAccessesINTEL` and `DependencyAccessesINTEL` accordingly.
    1. `ParallelAccessesINTEL` takes one or more `OpAGListINTEL` access group
@@ -144,7 +143,7 @@ represented as a literal in SPIR-V.
          on the loop and passed these access group(s). The front end is free to
          assign access groups as it sees fit as long as all the access groups
          for the accesses to the corresponding array appear in the
-         `llvm.loop.no_depends metadata`. Multiple instances of `ivdep(array)`
+         `llvm.loop.no_depends` metadata. Multiple instances of `ivdep(array)`
          should generate a separate `llvm.loop.no_depends` metadata for each
          array.
       3. `[[intel::ivdep(safelen)]]` on a loop should be translated to
@@ -168,7 +167,7 @@ represented as a literal in SPIR-V.
          it sees fit as long as it maintains the semantics that all the accesses
          that are independent (as indicated by the corresponding version of
          ivdep) have their access groups listed in the same loop metadata.  
-         2. If overlapping attributes are detected (e.g. i`ntel::ivdep(a)` and
+         2. If overlapping attributes are detected (e.g. `intel::ivdep(a)` and
             `intel::ivdep(a,5)`) the front end is free to generate any or all
             metadata as it sees fit, and it must issue a warning to the user.
          3. In nested loops, outer loop metadata will have to take the access
@@ -177,15 +176,30 @@ represented as a literal in SPIR-V.
            the access groups for inner loop accesses should be distinct from the
            access group for outer loop accesses that are not also in the inner
            loop.
-   2. For the new parallel loop annotation, the front end should generate
-   `llvm.access.group` metadata on all the memory accesses and function calls in
-   the loop body, and a `llvm.loop.parallel_accesses` on the loop with that
-   access group(s) as argument. As with ivdep, in nested loops the outer loop
-   will have the access groups of the accesses in the outer loop as well as the
-   accesses in the inner loop, whereas the inner loop will only have the access
-   groups of the inner loop accesses. Additionally, the frontend is free to
-   generate the access groups as it sees fit, as long as all the access groups
-   are provided to the same `llvm.loop.parallel_accesses` metadata.
+   2. For parallel loops (if implemented in the future), the front end should
+   generate `llvm.access.group` metadata on all the memory accesses and function
+   calls in the loop body, and a `llvm.loop.parallel_accesses` on the loop with
+   that access group(s) as argument. As with ivdep, in nested loops the outer
+   loop will have the access groups of the accesses in the outer loop as well as
+   the accesses in the inner loop, whereas the inner loop will only have the
+   access groups of the inner loop accesses. Additionally, the frontend is free
+   to generate the access groups as it sees fit, as long as all the access
+   groups are provided to the same `llvm.loop.parallel_accesses` metadata.
+
+### LLVM Metadata to SPIR-V-Friendly LLVM Metadata
+
+Since the `llvm.loop.no_depends` and `llvm.loop.no_depends_safelen` metadata are
+vendor-specific, they will need to be translated to a SPIR-V friendly format
+before they can be translated to SPIR-V. This is done by using the following
+rules:
+
+1. Each `llvm.loop.no_depends` is translated into a new
+   `spirv.dependency_accesses` metadata attached to the same loop and with
+   the same arguments as the original metadata. The last argument will be 0.
+2. Each `llvm.loop.no_depends_safelen` is translated into a new
+   `spirv.dependency_accesses` metadata attached the same loop and with the same
+   arguments as the original metadata. This will also have the safelen as the
+   last argument.
 
 ### LLVM Metadata to SPIR-V Translation
 
@@ -195,19 +209,90 @@ represented as a literal in SPIR-V.
    `AccessGroupINTELMask` memory operand.
 3. Atomic operations with assigned access group should get decorated using the
    `AccessGroupINTEL` decoration.
-4. For each instance of `llvm.loop.no_depends`, `llvm.loop.no_depends_safelen`,
+4. For each instance of `spirv.dependency_accesses`,
    or `llvm.loop.parallel_accesses` on a given loop, a new `OpAGListINTEL`
    should be created to aggregate the access groups defined in the corresponding
    metadata.
-5. All `llvm.loop.no_depends` and `llvm.loop.no_depends_safelen` metadata on a
-   single loop should get translated to one `DependencyAccessesINTEL` loop
-   control. The first operand of the loop control will be total number metadata
-   instances. Then, for each metadata instances, a pair should be constructed
-   and provided to the loop control. This pair consists of the aggregated access
-   group list for that metadata, and either 0 (if the metadata is
-   `llvm.loop.no_depends`) or the corresponding safelen (if the metadata is
-   `llvm.loop.no_depends_safelen`).
+5. All `spirv.dependency_accesses` metadata on a single loop should get
+   translated to one `DependencyAccessesINTEL` loop control. The first operand
+   of the loop control will be the total number of metadata instances. Then, for
+   each metadata instance, a pair should be constructed and provided to the
+   loop control. This pair consists of the aggregated access group list for that
+   metadata, and the last argument of the metadata, which was either 0 or an
+   integer corresponding to the safelen.
 6. All `llvm.loop.parallel_accesses` metadata on a single loop should get
-   translated to one `ParallelAccessINTEL` loop control.  The first operand of the loop control will be total number metadata
-   instances. Then, for each metadata instance, the corresponding aggregated
-   access groups is provided to the loop control.
+   translated to one `ParallelAccessINTEL` loop control.  The first operand of
+   the loop control will be the total number of metadata instances. Then, for
+   each metadata instance, the corresponding aggregated access groups is
+   provided to the loop control.
+
+## Example
+
+Consider the following example:
+
+```cpp
+[[intel::ivdep(A,C)]]
+[[intel::ivdep(B,5)]]
+for(int i = 0; i <N; ++i) {
+   A[i] += A[idx_A[i]];
+   B[i] += B[idx_B[i]];
+   C[i] += C[idx_C[i]];
+}
+```
+
+One way this could get translated to LLVM by the FE is shown below. Note that
+the FE could have chosen to use the same access group for A and C.
+
+```llvm
+loop:
+   %ld_A = load i32, ptr %A_idx !llvm.access.group !0
+   %ld_Ai = load i32, ptr %A_i !llvm.access.group !0
+   %sum_A = add i32 %ld_A, %ld_Ai
+   store i32 %sum_A, ptr %A_i !llvm.access.group !0
+   %ld_B = load i32, ptr %B_idx !llvm.access.group !1
+   %ld_Bi = load i32, ptr %B_i !llvm.access.group !1
+   %sum_B = add i32 %ld_B, %ld_Bi
+   store i32 %sum_B, ptr %B_i !llvm.access.group !1
+   %ld_C = load i32, ptr %C_idx !llvm.access.group !2
+   %ld_Ci = load i32, ptr %C_i !llvm.access.group !2
+   %sum_A = add i32 %ld_C, %ld_Ci
+   store i32 %sum_C, ptr %C_i !llvm.access.group !2
+   br ... %loop !llvm.loop.no_depends !4 !llvm.loop.no_depends_safelen !5
+
+!0 = distinct !{}
+!1 = distinct !{}
+!2 = distinct !{}
+!4 = !{!0, !2}
+!5 = !{!1, 5}
+```
+
+This would become the following SPIR-V friendly LLVM IR:
+
+```llvm
+loop:
+   %ld_A = load i32, ptr %A_idx !llvm.access.group !0
+   %ld_Ai = load i32, ptr %A_i !llvm.access.group !0
+   %sum_A = add i32 %ld_A, %ld_Ai
+   store i32 %sum_A, ptr %A_i !llvm.access.group !0
+   %ld_B = load i32, ptr %B_idx !llvm.access.group !1
+   %ld_Bi = load i32, ptr %B_i !llvm.access.group !1
+   %sum_B = add i32 %ld_B, %ld_Bi
+   store i32 %sum_B, ptr %B_i !llvm.access.group !1
+   %ld_C = load i32, ptr %C_idx !llvm.access.group !2
+   %ld_Ci = load i32, ptr %C_i !llvm.access.group !2
+   %sum_A = add i32 %ld_C, %ld_Ci
+   store i32 %sum_C, ptr %C_i !llvm.access.group !2
+   br ... %loop !spirv.loop.dependency_accesses !4 !spirv.loop.dependency_accesses !5
+
+!0 = distinct !{}
+!1 = distinct !{}
+!2 = distinct !{}
+!4 = !{!0, !2, 0}
+!5 = !{!1, 5}
+```
+
+Finally, this will become the following SPIR-V:
+
+```spirv
+
+```
