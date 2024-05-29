@@ -1,7 +1,7 @@
 // REQUIRES: ocloc, gpu
 // UNSUPPORTED: cuda, hip
 
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen  -Xsycl-target-backend "-device *" -fsycl-fp64-conv-emu -O0 %s -o %t_opt.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen  -Xsycl-target-backend "-device pvc" -fsycl-fp64-conv-emu -O0 %s -o %t_opt.out
 // To be enabled soon.
 // RUNx: %{run} %t_opt.out
 
