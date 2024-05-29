@@ -1,9 +1,9 @@
 // RUN: %{build} -I . -o %t.out
 // RUN: %{run} %t.out
 
-#include <vector>
 #include <string>
 #include <sycl/detail/core.hpp>
+#include <vector>
 
 void checkExceptionFields(const sycl::exception &e) {
   assert(e.code() == sycl::errc::invalid && "Invalid error code");
