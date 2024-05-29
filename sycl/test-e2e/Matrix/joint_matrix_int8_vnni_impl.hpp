@@ -5,34 +5,26 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+template <typename T, size_t TM, size_t TN, size_t TK> class mult;
 
-#define TM 8
-#define TK 32
-
-template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
-          size_t NUM_ROWS_B, size_t NUM_COLS_B, size_t NUM_ROWS_C,
-          size_t NUM_COLS_C>
-void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
-                     big_matrix<T2, NUM_ROWS_A, NUM_COLS_A> &A,
-                     big_matrix<T2, NUM_ROWS_B, NUM_COLS_B> &B) {
-  size_t M = NUM_ROWS_C;
-  size_t N = NUM_COLS_C;
-  size_t K = NUM_COLS_A;
-
+template <typename TResult, typename T, size_t M, size_t N, size_t K, size_t TM,
+          size_t TN, size_t TK, size_t VNNI>
+void matrix_multiply(big_matrix<TResult, M, N> &C, big_matrix<T, M, K> &A,
+                     big_matrix<T, K / VNNI, N * VNNI> &B) {
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
-  buffer<int8_t, 2> bufA(A.get_data(), range<2>(M, K));
-  buffer<int8_t, 2> bufB(B.get_data(), range<2>(K, N));
-  buffer<int32_t, 2> bufC(C.get_data(), range<2>(M, N));
+  buffer<T, 2> bufA(A.get_data(), range<2>(M, K));
+  buffer<T, 2> bufB(B.get_data(), range<2>(K, N));
+  buffer<TResult, 2> bufC(C.get_data(), range<2>(M, N));
 
   queue q;
-  size_t sg_size = get_sg_size<class imatrix>(q);
+  size_t sg_size = get_sg_size<mult<T, TM, TN, TK>>(q);
   q.submit([&](handler &cgh) {
-     auto accC = bufC.get_access<access::mode::read_write>(cgh);
-     auto accA = bufA.get_access<access::mode::read_write>(cgh);
-     auto accB = bufB.get_access<access::mode::read_write>(cgh);
+     accessor accA{bufA, cgh};
+     accessor accB{bufB, cgh};
+     accessor accC{bufC, cgh};
 
-     cgh.parallel_for<class imatrix>(
+     cgh.parallel_for<mult<T, TM, TN, TK>>(
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
          [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
@@ -48,11 +40,9 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<sub_group, int8_t, use::a, TM, TK, layout::row_major>
-               sub_a;
-           joint_matrix<sub_group, int8_t, use::b, TK, TN, layout::row_major>
-               sub_b;
-           joint_matrix<sub_group, int32_t, use::accumulator, TM, TN> sub_c;
+           joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
+           joint_matrix<sub_group, T, use::b, TK, TN, layout::row_major> sub_b;
+           joint_matrix<sub_group, TResult, use::accumulator, TM, TN> sub_c;
 
            joint_matrix_fill(sg, sub_c, 0);
            for (int k = 0; k < K / TK; k += 1) {
@@ -78,50 +68,74 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
    }).wait();
 }
 
-void int8_row_vnni_reformat(int8_t *_in, int8_t *_out, int K, int N,
-                            int stride_in) {
+template <typename T, size_t N, size_t K, size_t VNNI>
+void row_vnni_reformat(T *_in, T *_out, size_t stride_in) {
   // find the old index, new index, and copy element.
-  //(K, N) => (k/4, N*4)
-  // idx in 2d: (i,j)=>(i/4, j*4+i%4)
+  //(K, N) => (k/VNNI, N*VNNI)
+  // idx in 2d: (i,j)=>(i/VNNI, j*VNNI+i%VNNI)
   // linear idx:
   for (int i = 0; i < K; ++i) {
     for (int j = 0; j < N; ++j) {
       size_t oldindex = i * stride_in + j;
-      size_t newindex = (i / 4) * N * 4 + j * 4 + i % 4;
+      size_t newindex = (i / VNNI) * N * VNNI + j * VNNI + i % VNNI;
       _out[newindex] = _in[oldindex];
     }
   }
 }
 
-int main() {
+template <typename TResult, typename T, size_t VNNI, size_t TM, size_t TN,
+          size_t TK>
+void test() {
   static constexpr size_t MATRIX_M = TM * 2;
   static constexpr size_t MATRIX_N = TN * 2;
   static constexpr size_t MATRIX_K = TK * 2;
-  int8_t A[MATRIX_M][MATRIX_K];
-  int8_t B[MATRIX_K][MATRIX_N];
-  int8_t Bvnni[MATRIX_K / 4][MATRIX_N * 4];
-  int32_t C[MATRIX_M][MATRIX_N];
-  int32_t D[MATRIX_M][MATRIX_N];
+  T A[MATRIX_M][MATRIX_K];
+  T B[MATRIX_K][MATRIX_N];
+  T Bvnni[MATRIX_K / VNNI][MATRIX_N * VNNI];
+  TResult C[MATRIX_M][MATRIX_N];
+  TResult D[MATRIX_M][MATRIX_N];
 
-  matrix_fill(MATRIX_M, MATRIX_K, (int8_t *)A,
-              [](int i, int j) { return i + j; });
-  matrix_fill(MATRIX_K, MATRIX_N, (int8_t *)B,
+  matrix_fill(MATRIX_M, MATRIX_K, (T *)A, [](int i, int j) { return i + j; });
+  matrix_fill(MATRIX_K, MATRIX_N, (T *)B,
               [](int i, int j) { return i + j * 2; });
-  matrix_fill(MATRIX_M, MATRIX_N, (int32_t *)C, 0);
-  matrix_fill(MATRIX_M, MATRIX_N, (int32_t *)D, 0);
+  matrix_fill(MATRIX_M, MATRIX_N, (TResult *)C, 0);
+  matrix_fill(MATRIX_M, MATRIX_N, (TResult *)D, 0);
 
-  big_matrix<int32_t, MATRIX_M, MATRIX_N> MC((int32_t *)&C);
-  big_matrix<int32_t, MATRIX_M, MATRIX_N> MD((int32_t *)&D);
-  big_matrix<int8_t, MATRIX_M, MATRIX_K> MA((int8_t *)&A);
-  big_matrix<int8_t, MATRIX_K / 4, MATRIX_N * 4> MB((int8_t *)&B);
-  matrix_multiply(MC, MA, MB);
-  int8_row_vnni_reformat((int8_t *)B, (int8_t *)Bvnni, MATRIX_K, MATRIX_N,
-                         MATRIX_N);
-  matrix_multiply_ref<int8_t, int8_t, int32_t, 4>((int8_t *)A, (int8_t *)Bvnni,
-                                                  (int32_t *)D, MATRIX_M,
-                                                  MATRIX_N, MATRIX_K / 4);
+  big_matrix<TResult, MATRIX_M, MATRIX_N> MC((TResult *)&C);
+  big_matrix<TResult, MATRIX_M, MATRIX_N> MD((TResult *)&D);
+  big_matrix<T, MATRIX_M, MATRIX_K> MA((T *)&A);
+  big_matrix<T, MATRIX_K / VNNI, MATRIX_N * VNNI> MB((T *)&B);
+  matrix_multiply<TResult, T, MATRIX_M, MATRIX_N, MATRIX_K, TM, TN, TK, VNNI>(
+      MC, MA, MB);
+  row_vnni_reformat<T, MATRIX_N, MATRIX_K, VNNI>((T *)B, (T *)Bvnni, MATRIX_N);
+  matrix_multiply_ref<T, T, TResult, VNNI>((T *)A, (T *)Bvnni, (TResult *)D,
+                                           MATRIX_M, MATRIX_N, MATRIX_K / VNNI);
 
-  bool res = matrix_compare(MATRIX_M, MATRIX_N, (int32_t *)C, (int32_t *)D);
-  std::cout << (res ? "passed" : "failed") << std::endl;
-  return !res;
+  assert(matrix_compare(MATRIX_M, MATRIX_N, (TResult *)C, (TResult *)D));
+}
+
+int main() {
+  queue q;
+  std::vector<combination> combinations =
+      q.get_device()
+          .get_info<sycl::ext::oneapi::experimental::info::device::
+                        matrix_combinations>();
+
+  for (unsigned int i = 0; i < combinations.size(); i++) {
+    if (combinations[i].nsize == 0) { // Intel AMX
+      test<int32_t, int8_t, 4, /*TM*/ 16, /*TN*/ 16, /*TK*/ 64>();
+      break;
+    }
+
+    if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
+      test<int32_t, int8_t, 4, /*TM*/ 8, /*TN*/ 16, /*TK*/ 32>();
+      break;
+    }
+
+    if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
+      test<int32_t, int8_t, 4, /*TM*/ 8, /*TN*/ 8, /*TK*/ 32>();
+      break;
+    }
+  }
+  return 0;
 }

@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix
+// REQUIRES: aspect-ext_intel_matrix
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -13,7 +13,4 @@
 // RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=1 %{run} %t.out %}
 
 #include "common.hpp"
-
-constexpr size_t TN = 16;
-
 #include "joint_matrix_int8_vnni_impl.hpp"
