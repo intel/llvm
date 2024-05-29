@@ -628,6 +628,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // Return supported for the UR command-buffer experimental feature
     SupportedExtensions += "ur_exp_command_buffer ";
     SupportedExtensions += "ur_exp_usm_p2p ";
+    SupportedExtensions += "ur_exp_launch_properties ";
     SupportedExtensions += " ";
 
     int Major = 0;
