@@ -8,6 +8,8 @@
 
 static constexpr size_t M_MULTIPLIER = 16;
 
+template <typename T, size_t TM, size_t TN, size_t TK> class mult;
+
 template <typename T1, typename T2, size_t M, size_t N, size_t K,
           int vnniFactor, size_t TM, size_t TN, size_t TK, typename kernel_name>
 void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
@@ -77,7 +79,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
 
 template <typename Ta, typename Tc, int vnni_factor, size_t tM, size_t tN,
           size_t tK, typename kernel_name>
-int init_and_multiply() {
+void init_and_multiply() {
   static constexpr size_t MATRIX_M = tM * M_MULTIPLIER;
   static constexpr size_t MATRIX_N = 128;
   static constexpr size_t MATRIX_K = 128;
@@ -106,30 +108,47 @@ int init_and_multiply() {
                   kernel_name>(MC, MA, MBvnni);
   matrix_multiply_ref((Ta *)A, (Ta *)B, (Tc *)D, MATRIX_M, MATRIX_N, MATRIX_K);
 
-  bool res = matrix_compare(MATRIX_M, MATRIX_N, (Tc *)C, (Tc *)D);
-  std::cout << (res ? "passed" : "failed") << std::endl;
-  return !res;
+  assert(matrix_compare(MATRIX_M, MATRIX_N, (Tc *)C, (Tc *)D));
+}
+
+template <typename T, typename TResult, size_t VNNI, size_t TN, size_t TK>
+void test() {
+  init_and_multiply<T, TResult, VNNI, 1, TN, TK, mult<T, 1, TN, TK>>();
+  init_and_multiply<T, TResult, VNNI, 2, TN, TK, mult<T, 2, TN, TK>>();
+  init_and_multiply<T, TResult, VNNI, 3, TN, TK, mult<T, 3, TN, TK>>();
+  init_and_multiply<T, TResult, VNNI, 4, TN, TK, mult<T, 4, TN, TK>>();
+  init_and_multiply<T, TResult, VNNI, 5, TN, TK, mult<T, 5, TN, TK>>();
+  init_and_multiply<T, TResult, VNNI, 6, TN, TK, mult<T, 6, TN, TK>>();
+  init_and_multiply<T, TResult, VNNI, 7, TN, TK, mult<T, 7, TN, TK>>();
+  init_and_multiply<T, TResult, VNNI, 8, TN, TK, mult<T, 8, TN, TK>>();
 }
 
 int main() {
-  int errors = 0;
-  errors += init_and_multiply<bfloat16, float, 2, 1, SN, 16, class bf16_1>();
-  errors += init_and_multiply<bfloat16, float, 2, 2, SN, 16, class bf16_2>();
-  errors += init_and_multiply<bfloat16, float, 2, 3, SN, 16, class bf16_3>();
-  errors += init_and_multiply<bfloat16, float, 2, 4, SN, 16, class bf16_4>();
-  errors += init_and_multiply<bfloat16, float, 2, 5, SN, 16, class bf16_5>();
-  errors += init_and_multiply<bfloat16, float, 2, 6, SN, 16, class bf16_6>();
-  errors += init_and_multiply<bfloat16, float, 2, 7, SN, 16, class bf16_7>();
-  errors += init_and_multiply<bfloat16, float, 2, 8, SN, 16, class bf16_8>();
+  queue q;
+  std::vector<combination> combinations =
+      q.get_device()
+          .get_info<sycl::ext::oneapi::experimental::info::device::
+                        matrix_combinations>();
 
-  errors += init_and_multiply<int8_t, int32_t, 4, 1, SN, 32, class int8_1>();
-  errors += init_and_multiply<int8_t, int32_t, 4, 2, SN, 32, class int8_2>();
-  errors += init_and_multiply<int8_t, int32_t, 4, 3, SN, 32, class int8_3>();
-  errors += init_and_multiply<int8_t, int32_t, 4, 4, SN, 32, class int8_4>();
-  errors += init_and_multiply<int8_t, int32_t, 4, 5, SN, 32, class int8_5>();
-  errors += init_and_multiply<int8_t, int32_t, 4, 6, SN, 32, class int8_6>();
-  errors += init_and_multiply<int8_t, int32_t, 4, 7, SN, 32, class int8_7>();
-  errors += init_and_multiply<int8_t, int32_t, 4, 8, SN, 32, class int8_8>();
+  for (unsigned int i = 0; i < combinations.size(); i++) {
+    if (combinations[i].nsize == 0) { // Intel AMX
+      test<bfloat16, float, 2, /*TN*/ 16, /*TK*/ 32>();
+      test<int8_t, int32_t, 4, /*TN*/ 16, /*TK*/ 64>();
+      break;
+    }
 
-  return errors;
+    if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
+      test<bfloat16, float, 2, /*TN*/ 16, /*TK*/ 16>();
+      test<int8_t, int32_t, 4, /*TN*/ 16, /*TK*/ 32>();
+      break;
+    }
+
+    if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
+      test<bfloat16, float, 2, /*TN*/ 8, /*TK*/ 16>();
+      test<int8_t, int32_t, 4, /*TN*/ 8, /*TK*/ 32>();
+      break;
+    }
+  }
+
+  return 0;
 }
