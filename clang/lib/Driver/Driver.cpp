@@ -1077,8 +1077,8 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // SYCL
   //
   // We need to generate a SYCL toolchain if the user specified targets with
-  // the -fsycl-targets, -fsycl-add-targets or -fsycl-link-targets option.
-  // If -fsycl is supplied without any of these we will assume SPIR-V.
+  // the -fsycl-targets. If -fsycl is supplied without any of these we will
+  // assume SPIR-V.
   // Use of -fsycl-device-only overrides -fsycl.
   bool HasValidSYCLRuntime =
       C.getInputArgs().hasFlag(options::OPT_fsycl, options::OPT_fno_sycl,
@@ -1106,10 +1106,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   };
 
   Arg *SYCLTargets = getArgRequiringSYCLRuntime(options::OPT_fsycl_targets_EQ);
-  Arg *SYCLLinkTargets =
-      getArgRequiringSYCLRuntime(options::OPT_fsycl_link_targets_EQ);
-  Arg *SYCLAddTargets =
-      getArgRequiringSYCLRuntime(options::OPT_fsycl_add_targets_EQ);
   Arg *SYCLLink = getArgRequiringSYCLRuntime(options::OPT_fsycl_link_EQ);
 
   // Check if -fsycl-host-compiler is used in conjunction with -fsycl.
@@ -1118,18 +1114,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   Arg *SYCLHostCompilerOptions =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_host_compiler_options_EQ);
 
-  // -fsycl-targets cannot be used with -fsycl-link-targets
-  if (SYCLTargets && SYCLLinkTargets)
-    Diag(clang::diag::err_drv_option_conflict)
-        << SYCLTargets->getSpelling() << SYCLLinkTargets->getSpelling();
-  // -fsycl-link-targets and -fsycl-add-targets cannot be used together
-  if (SYCLLinkTargets && SYCLAddTargets)
-    Diag(clang::diag::err_drv_option_conflict)
-        << SYCLLinkTargets->getSpelling() << SYCLAddTargets->getSpelling();
-  // -fsycl-link-targets is not allowed with -fsycl-link
-  if (SYCLLinkTargets && SYCLLink)
-    Diag(clang::diag::err_drv_option_conflict)
-        << SYCLLink->getSpelling() << SYCLLinkTargets->getSpelling();
   // -fsycl-targets cannot be used with -fintelfpga
   if (SYCLTargets && SYCLfpga)
     Diag(clang::diag::err_drv_option_conflict)
@@ -1188,14 +1172,15 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     if (!isValidSYCLTriple(TT))
       Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
   }
-  bool HasSYCLTargetsOption = SYCLTargets || SYCLLinkTargets || SYCLAddTargets;
+  bool HasSYCLTargetsOption = SYCLTargets;
 
+  llvm::StringMap<llvm::DenseSet<StringRef>> DerivedArchs;
   llvm::StringMap<StringRef> FoundNormalizedTriples;
   llvm::SmallVector<llvm::Triple, 4> UniqueSYCLTriplesVec;
   if (HasSYCLTargetsOption) {
     // At this point, we know we have a valid combination
     // of -fsycl*target options passed
-    Arg *SYCLTargetsValues = SYCLTargets ? SYCLTargets : SYCLLinkTargets;
+    Arg *SYCLTargetsValues = SYCLTargets;
     if (SYCLTargetsValues) {
       if (SYCLTargetsValues->getNumValues()) {
 
@@ -1208,24 +1193,28 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
               << SYCLForceTarget->getAsString(C.getInputArgs());
 
         for (StringRef Val : SYCLTargetsValues->getValues()) {
+          StringRef Arch;
           StringRef UserTargetName(Val);
           if (auto Device = gen::isGPUTarget<gen::IntelGPU>(Val)) {
             if (Device->empty()) {
               Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
               continue;
             }
+            Arch = Device->data();
             UserTargetName = "spir64_gen";
           } else if (auto Device = gen::isGPUTarget<gen::NvidiaGPU>(Val)) {
             if (Device->empty()) {
               Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
               continue;
             }
+            Arch = Device->data();
             UserTargetName = "nvptx64-nvidia-cuda";
           } else if (auto Device = gen::isGPUTarget<gen::AmdGPU>(Val)) {
             if (Device->empty()) {
               Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
               continue;
             }
+            Arch = Device->data();
             UserTargetName = "amdgcn-amd-amdhsa";
           } else if (Val == "native_cpu") {
             const ToolChain *HostTC =
@@ -1252,53 +1241,15 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           // Store the current triple so that we can check for duplicates in
           // the following iterations.
           FoundNormalizedTriples[NormalizedName] = Val;
-          UniqueSYCLTriplesVec.push_back(MakeSYCLDeviceTriple(UserTargetName));
+          llvm::Triple DeviceTriple(MakeSYCLDeviceTriple(UserTargetName));
+          UniqueSYCLTriplesVec.push_back(DeviceTriple);
+          if (!Arch.empty())
+            DerivedArchs[DeviceTriple.getTriple()].insert(Arch);
         }
         addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
       } else
         Diag(clang::diag::warn_drv_empty_joined_argument)
             << SYCLTargetsValues->getAsString(C.getInputArgs());
-    }
-    // -fsycl-add-targets is a list of paired items (Triple and file) which are
-    // gathered and used to be linked into the final device binary. This can
-    // be used with -fsycl-targets to put together the final conglomerate binary
-    if (SYCLAddTargets) {
-      if (SYCLAddTargets->getNumValues()) {
-        // Use of -fsycl-add-targets adds additional files to the SYCL device
-        // link step.  Regular offload processing occurs below
-        for (StringRef Val : SYCLAddTargets->getValues()) {
-          // Parse out the Triple and Input (triple:binary) and create a
-          // ToolChain for each entry.
-          // The expected format is 'triple:file', any other format will
-          // not be accepted.
-          std::pair<StringRef, StringRef> I = Val.split(':');
-          if (!I.first.empty() && !I.second.empty()) {
-            llvm::Triple TT(I.first);
-            if (!isValidSYCLTriple(TT)) {
-              Diag(clang::diag::err_drv_invalid_sycl_target) << I.first;
-              continue;
-            }
-            std::string NormalizedName = TT.normalize();
-
-            // Make sure we don't have a duplicate triple.
-            auto Duplicate = FoundNormalizedTriples.find(NormalizedName);
-            if (Duplicate != FoundNormalizedTriples.end())
-              // The toolchain for this triple was already created
-              continue;
-
-            // Store the current triple so that we can check for duplicates in
-            // the following iterations.
-            FoundNormalizedTriples[NormalizedName] = Val;
-            UniqueSYCLTriplesVec.push_back(TT);
-          } else {
-            // No colon found, do not use the input
-            C.getDriver().Diag(diag::err_drv_unsupported_option_argument)
-                << SYCLAddTargets->getSpelling() << Val;
-          }
-        }
-      } else
-        Diag(clang::diag::warn_drv_empty_joined_argument)
-            << SYCLAddTargets->getAsString(C.getInputArgs());
     }
   } else {
     // If -fsycl is supplied without -fsycl-*targets we will assume SPIR-V
@@ -1334,6 +1285,8 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     auto SYCLTC = &getOffloadingDeviceToolChain(C.getInputArgs(), TT, *HostTC,
                                                 Action::OFK_SYCL);
     C.addOffloadDeviceToolChain(SYCLTC, Action::OFK_SYCL);
+    if (DerivedArchs.contains(TT.getTriple()))
+      KnownArchs[SYCLTC] = DerivedArchs[TT.getTriple()];
   }
 
   //
@@ -5040,9 +4993,6 @@ class OffloadingActionBuilder final {
           ExternalCudaAction = nullptr;
         }
 
-        // With -fsycl-link-targets, we will take the unbundled binaries
-        // for each device and link them together to a single binary that will
-        // be used in a split compilation step.
         if (CompileDeviceOnly && !SYCLDeviceActions.empty()) {
           for (auto SDA : SYCLDeviceActions)
             SYCLLinkBinaryList.push_back(SDA);
@@ -6360,8 +6310,6 @@ class OffloadingActionBuilder final {
       if (ToolChains.empty())
         return false;
 
-      Arg *SYCLLinkTargets =
-          Args.getLastArg(options::OPT_fsycl_link_targets_EQ);
       auto *DeviceCodeSplitArg =
           Args.getLastArg(options::OPT_fsycl_device_code_split_EQ);
       // -fsycl-device-code-split is an alias to
@@ -6371,24 +6319,22 @@ class OffloadingActionBuilder final {
       // Gather information about the SYCL Ahead of Time targets.  The targets
       // are determined on the SubArch values passed along in the triple.
       Arg *SYCLTargets =
-              C.getInputArgs().getLastArg(options::OPT_fsycl_targets_EQ);
-      Arg *SYCLAddTargets = Args.getLastArg(options::OPT_fsycl_add_targets_EQ);
+          C.getInputArgs().getLastArg(options::OPT_fsycl_targets_EQ);
       Arg *SYCLfpga = C.getInputArgs().getLastArg(options::OPT_fintelfpga);
       bool HasValidSYCLRuntime = C.getInputArgs().hasFlag(
           options::OPT_fsycl, options::OPT_fno_sycl, false);
       bool SYCLfpgaTriple = false;
       bool ShouldAddDefaultTriple = true;
       bool GpuInitHasErrors = false;
-      bool HasSYCLTargetsOption =
-          SYCLAddTargets || SYCLTargets || SYCLLinkTargets;
+      bool HasSYCLTargetsOption = SYCLTargets;
 
       // Make -fintelfpga flag imply -fsycl.
       if (SYCLfpga && !HasValidSYCLRuntime)
         HasValidSYCLRuntime = true;
 
       if (HasSYCLTargetsOption) {
-        if (SYCLTargets || SYCLLinkTargets) {
-          Arg *SYCLTargetsValues = SYCLTargets ? SYCLTargets : SYCLLinkTargets;
+        if (SYCLTargets) {
+          Arg *SYCLTargetsValues = SYCLTargets;
           // Fill SYCLTripleList
           llvm::StringMap<StringRef> FoundNormalizedTriples;
           for (StringRef Val : SYCLTargetsValues->getValues()) {
@@ -6489,29 +6435,6 @@ class OffloadingActionBuilder final {
             }
           }
         }
-        if (SYCLAddTargets) {
-          for (StringRef Val : SYCLAddTargets->getValues()) {
-            // Parse out the Triple and Input (triple:binary). At this point,
-            // the format has already been validated at the Driver level.
-            // Populate the pairs. Each of these will be wrapped and fed
-            // into the final binary.
-            std::pair<StringRef, StringRef> I = Val.split(':');
-            llvm::Triple TT(I.first);
-
-            auto TCIt = llvm::find_if(
-                ToolChains, [&](auto &TC) { return TT == TC->getTriple(); });
-            assert(TCIt != ToolChains.end() &&
-                   "Toolchain was not created for this platform");
-
-            const char *TF = C.getArgs().MakeArgString(I.second);
-            // populate the AOT binary inputs vector.
-            SYCLAOTInputs.push_back(std::make_pair(TT, TF));
-            ShouldAddDefaultTriple = false;
-            // Add an empty entry to the Device list
-            if (TT.getSubArch() == llvm::Triple::SPIRSubArch_gen)
-              GpuArchList.emplace_back(TT, nullptr);
-          }
-        }
       } else if (HasValidSYCLRuntime) {
         // -fsycl is provided without -fsycl-*targets.
         bool SYCLfpga = C.getInputArgs().hasArg(options::OPT_fintelfpga);
@@ -6531,9 +6454,8 @@ class OffloadingActionBuilder final {
 
       WrapDeviceOnlyBinary =
           Args.hasArg(options::OPT_fsycl_link_EQ) && !SYCLfpgaTriple;
-      // Device only compilation for -fsycl-link (no FPGA) and
-      // -fsycl-link-targets
-      CompileDeviceOnly = (SYCLLinkTargets || WrapDeviceOnlyBinary);
+      // Device only compilation for -fsycl-link (no FPGA)
+      CompileDeviceOnly = WrapDeviceOnlyBinary;
 
       // Set the FPGA output type based on command line (-fsycl-link).
       if (auto *A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ)) {
@@ -7590,12 +7512,9 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   }
 
   // Add a link action if necessary.
-  // When offloading with -fsycl-link-targets, no link action is processed
-  // as we stop at the spirv-translation step.
   Arg *FinalPhaseArg;
   if (!UseNewOffloadingDriver &&
-      getFinalPhase(Args, &FinalPhaseArg) == phases::Link &&
-      !Args.hasArg(options::OPT_fsycl_link_targets_EQ)) {
+      getFinalPhase(Args, &FinalPhaseArg) == phases::Link) {
     if (Args.hasArg(options::OPT_fsycl_link_EQ) &&
         !Args.hasArg(options::OPT_fintelfpga)) {
       ActionList LAList;
@@ -9290,12 +9209,10 @@ InputInfoList Driver::BuildJobsForActionNoCache(
     Result = {InputInfo(A, BaseInput)};
   else {
     std::string OffloadingPrefix;
-    // When generating binaries with -fsycl-link-target or -fsycl-link, the
-    // output file prefix is the triple arch only.  Do not add the arch when
-    // compiling for host.
+    // When generating binaries with -fsycl-link, the output file prefix is the
+    // triple arch only.  Do not add the arch when compiling for host.
     if (!A->getOffloadingHostActiveKinds() &&
-        (Args.getLastArg(options::OPT_fsycl_link_targets_EQ) ||
-         Args.hasArg(options::OPT_fsycl_link_EQ))) {
+        Args.hasArg(options::OPT_fsycl_link_EQ)) {
       OffloadingPrefix = "-";
       OffloadingPrefix += TC->getTriple().getArchName();
     } else {
