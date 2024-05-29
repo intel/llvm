@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// TODO: Enable when driver issue fixed
-// UNSUPPORTED: gpu
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
