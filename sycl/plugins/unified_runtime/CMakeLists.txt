@@ -99,14 +99,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 905804c2e93dd046140057fd07a5d6191063bedc
-  # Merge: 0a11fb44 d3d3f6e5
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon May 27 10:34:13 2024 +0100
-  #     Merge pull request #1581 from 0x12CC/l0_cooperative_kernels
-  #     Implement L0 cooperative kernel functions
-  set(UNIFIED_RUNTIME_TAG 905804c2e93dd046140057fd07a5d6191063bedc)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/lbushi25/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG 8a90ad7e15deb9fd78027b2c30fe7bce01c649c6)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
