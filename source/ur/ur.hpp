@@ -267,8 +267,8 @@ getInfo<const char *>(size_t param_value_size, void *param_value,
 
 inline ur_result_t getInfoEmpty(size_t param_value_size, void *param_value,
                                 size_t *param_value_size_ret) {
-  return getInfoImpl(param_value_size, param_value, param_value_size_ret, 0,
-                     0, [](void *, int, size_t) {});
+  return getInfoImpl(param_value_size, param_value, param_value_size_ret, 0, 0,
+                     [](void *, int, size_t) {});
 }
 } // namespace ur
 
