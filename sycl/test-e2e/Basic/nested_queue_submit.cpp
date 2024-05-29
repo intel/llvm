@@ -3,6 +3,7 @@
 
 #include <string>
 #include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 #include <vector>
 
 void checkExceptionFields(const sycl::exception &e) {
