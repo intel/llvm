@@ -12,7 +12,6 @@
 // RUN: %{run} %t.out
 
 // This is a version of the test with disabled device code
-// This is a version of the test with disabled device code
 // split to test against fixed bug in IGC
 // RUN: %{build} -fsycl-device-code-split=off -o %t_split.out
 // RUN: %if gpu-intel-dg2 %{ %{run} %t_split.out %}
