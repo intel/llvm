@@ -983,13 +983,21 @@ public:
     }
   }
 
-#ifdef __SYCL_BINOP
-#error "Undefine __SYCL_BINOP macro"
+#if defined(__SYCL_BINOP) || defined(BINOP_BASE)
+#error "Undefine __SYCL_BINOP and BINOP_BASE macro"
 #endif
 
-#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
-#define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
-  friend vec operator BINOP(const vec &Lhs, const vec &Rhs) {                  \
+// Note: vec<>/SwizzleOp logical value is 0/-1 logic, as opposed to 0/1 logic.
+// As far as CTS validation is concerned, 0/-1 logic also applies when
+// NumElements is equal to one, which is somewhat inconsistent with being
+// transparent with scalar data.
+// TODO: Determine if vec<, NumElements=1> is needed at all, remove this
+// inconsistency if not by disallowing one-element vectors (as in OpenCL)
+#ifdef __SYCL_DEVICE_ONLY__
+#define BINOP_BASE(BINOP, OPASSIGN, CONVERT, COND)                             \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec> operator BINOP(                \
+      const vec & Lhs, const vec & Rhs) {                                      \
     vec Ret;                                                                   \
     if constexpr (IsUsingArrayOnDevice) {                                      \
       for (size_t I = 0; I < NumElements; ++I) {                               \
@@ -1002,28 +1010,13 @@ public:
       }                                                                        \
     }                                                                          \
     return Ret;                                                                \
-  }                                                                            \
-  friend vec operator BINOP(const vec &Lhs, const DataT &Rhs) {                \
-    return Lhs BINOP vec(Rhs);                                                 \
-  }                                                                            \
-  friend vec operator BINOP(const DataT &Lhs, const vec &Rhs) {                \
-    return vec(Lhs) BINOP Rhs;                                                 \
-  }                                                                            \
-  friend vec &operator OPASSIGN(vec & Lhs, const vec & Rhs) {                  \
-    Lhs = Lhs BINOP Rhs;                                                       \
-    return Lhs;                                                                \
-  }                                                                            \
-  template <int Num = NumElements>                                             \
-  friend typename std::enable_if_t<Num != 1, vec &> operator OPASSIGN(         \
-      vec & Lhs, const DataT & Rhs) {                                          \
-    Lhs = Lhs BINOP vec(Rhs);                                                  \
-    return Lhs;                                                                \
   }
+#else // __SYCL_DEVICE_ONLY__
 
-#else // __SYCL_USE_EXT_VECTOR_TYPE__
-
-#define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
-  friend vec operator BINOP(const vec &Lhs, const vec &Rhs) {                  \
+#define BINOP_BASE(BINOP, OPASSIGN, CONVERT, COND)                             \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec> operator BINOP(                \
+      const vec & Lhs, const vec & Rhs) {                                      \
     vec Ret{};                                                                 \
     if constexpr (NativeVec)                                                   \
       Ret.m_Data = Lhs.m_Data BINOP Rhs.m_Data;                                \
@@ -1032,41 +1025,87 @@ public:
         Ret.setValue(I, (DataT)(vec_data<DataT>::get(Lhs.getValue(             \
                             I)) BINOP vec_data<DataT>::get(Rhs.getValue(I)))); \
     return Ret;                                                                \
-  }                                                                            \
-  friend vec operator BINOP(const vec &Lhs, const DataT &Rhs) {                \
+  }
+#endif // __SYCL_DEVICE_ONLY__
+
+#define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT, COND)                           \
+  BINOP_BASE(BINOP, OPASSIGN, CONVERT, COND)                                   \
+                                                                               \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec> operator BINOP(                \
+      const vec & Lhs, const DataT & Rhs) {                                    \
     return Lhs BINOP vec(Rhs);                                                 \
   }                                                                            \
-  friend vec operator BINOP(const DataT &Lhs, const vec &Rhs) {                \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec> operator BINOP(                \
+      const DataT & Lhs, const vec & Rhs) {                                    \
     return vec(Lhs) BINOP Rhs;                                                 \
   }                                                                            \
-  friend vec &operator OPASSIGN(vec & Lhs, const vec & Rhs) {                  \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec> &operator OPASSIGN(            \
+      vec & Lhs, const vec & Rhs) {                                            \
     Lhs = Lhs BINOP Rhs;                                                       \
     return Lhs;                                                                \
   }                                                                            \
-  template <int Num = NumElements>                                             \
-  friend typename std::enable_if_t<Num != 1, vec &> operator OPASSIGN(         \
-      vec & Lhs, const DataT & Rhs) {                                          \
+  template <int Num = NumElements, typename T = DataT>                         \
+  friend typename std::enable_if_t<(Num != 1) && (COND), vec &>                \
+  operator OPASSIGN(vec & Lhs, const DataT & Rhs) {                            \
     Lhs = Lhs BINOP vec(Rhs);                                                  \
     return Lhs;                                                                \
   }
 
-#endif // __SYCL_USE_EXT_VECTOR_TYPE__
+  // std::byte is not an arithmetic type.
+  __SYCL_BINOP(+, +=, true, (!detail::is_byte_v<T>))
+  __SYCL_BINOP(-, -=, true, (!detail::is_byte_v<T>))
+  __SYCL_BINOP(*, *=, false, (!detail::is_byte_v<T>))
+  __SYCL_BINOP(/, /=, false, (!detail::is_byte_v<T>))
 
-  __SYCL_BINOP(+, +=, true)
-  __SYCL_BINOP(-, -=, true)
-  __SYCL_BINOP(*, *=, false)
-  __SYCL_BINOP(/, /=, false)
+  // The following OPs are available only when: DataT != cl_float &&
+  // DataT != cl_double && DataT != cl_half && DataT != BF16.
+  __SYCL_BINOP(%, %=, false,
+               (!detail::is_vgenfloat_v<T> && (!detail::is_byte_v<T>)))
+  // Bitwise operations are allowed for std::byte.
+  __SYCL_BINOP(|, |=, false, (!detail::is_vgenfloat_v<T>))
+  __SYCL_BINOP(&, &=, false, (!detail::is_vgenfloat_v<T>))
+  __SYCL_BINOP(^, ^=, false, (!detail::is_vgenfloat_v<T>))
+  __SYCL_BINOP(>>, >>=, false,
+               (!detail::is_vgenfloat_v<T> && (!detail::is_byte_v<T>)))
+  __SYCL_BINOP(<<, <<=, true,
+               (!detail::is_vgenfloat_v<T> && (!detail::is_byte_v<T>)))
 
-  // TODO: The following OPs are available only when: DataT != cl_float &&
-  // DataT != cl_double && DataT != cl_half
-  __SYCL_BINOP(%, %=, false)
-  __SYCL_BINOP(|, |=, false)
-  __SYCL_BINOP(&, &=, false)
-  __SYCL_BINOP(^, ^=, false)
-  __SYCL_BINOP(>>, >>=, false)
-  __SYCL_BINOP(<<, <<=, true)
+#undef BINOP_BASE
 #undef __SYCL_BINOP
-#undef __SYCL_BINOP_HELP
+
+  // Special <<, >> operators for std::byte.
+  // std::byte is not an arithmetic type and it only supports the following
+  // overloads of >> and << operators.
+  //
+  // 1 template <class IntegerType>
+  //   constexpr std::byte operator<<( std::byte b, IntegerType shift )
+  //   noexcept;
+  // 2 template <class IntegerType>
+  //   constexpr std::byte operator>>( std::byte b, IntegerType shift )
+  //   noexcept;
+#define __SYCL_SHIFT_BYTE(OP, OPASSIGN)                                        \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(detail::is_byte_v<T>), vec> operator OP(   \
+      const vec & Lhs, int shift) {                                            \
+    vec Ret;                                                                   \
+    for (size_t I = 0; I < NumElements; ++I) {                                 \
+      Ret[I] = Lhs[I] OP shift;                                                \
+    }                                                                          \
+    return Ret;                                                                \
+  }                                                                            \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(detail::is_byte_v<T>), vec &>              \
+  operator OPASSIGN(vec & Lhs, int shift) {                                    \
+    Lhs = Lhs OP shift;                                                        \
+    return Lhs;                                                                \
+  }
+
+  __SYCL_SHIFT_BYTE(<<, <<=)
+  __SYCL_SHIFT_BYTE(>>, >>=)
+#undef __SYCL_SHIFT_BYTE
 
   // Note: vec<>/SwizzleOp logical value is 0/-1 logic, as opposed to 0/1 logic.
   // As far as CTS validation is concerned, 0/-1 logic also applies when
@@ -1075,15 +1114,15 @@ public:
   // TODO: Determine if vec<, NumElements=1> is needed at all, remove this
   // inconsistency if not by disallowing one-element vectors (as in OpenCL)
 
-#ifdef __SYCL_RELLOGOP
-#error "Undefine __SYCL_RELLOGOP macro"
+#if defined(__SYCL_RELLOGOP) || defined(RELLOGOP_BASE)
+#error "Undefine __SYCL_RELLOGOP and RELLOGOP_BASE macro."
 #endif
-// Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
-// by SYCL device compiler only.
+
 #ifdef __SYCL_DEVICE_ONLY__
-#define __SYCL_RELLOGOP(RELLOGOP)                                              \
-  friend vec<rel_t, NumElements> operator RELLOGOP(const vec & Lhs,            \
-                                                   const vec & Rhs) {          \
+#define RELLOGOP_BASE(RELLOGOP, COND)                                          \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec<rel_t, NumElements>>            \
+  operator RELLOGOP(const vec & Lhs, const vec & Rhs) {                        \
     vec<rel_t, NumElements> Ret{};                                             \
     /* This special case is needed since there are no standard operator||   */ \
     /* or operator&& functions for std::array.                              */ \
@@ -1104,20 +1143,12 @@ public:
         Ret *= -1;                                                             \
     }                                                                          \
     return Ret;                                                                \
-  }                                                                            \
-  friend vec<rel_t, NumElements> operator RELLOGOP(const vec & Lhs,            \
-                                                   const DataT & Rhs) {        \
-    return Lhs RELLOGOP vec(Rhs);                                              \
-  }                                                                            \
-  friend vec<rel_t, NumElements> operator RELLOGOP(const DataT & Lhs,          \
-                                                   const vec & Rhs) {          \
-    return vec(Lhs) RELLOGOP Rhs;                                              \
   }
-
-#else
-#define __SYCL_RELLOGOP(RELLOGOP)                                              \
-  friend vec<rel_t, NumElements> operator RELLOGOP(const vec & Lhs,            \
-                                                   const vec & Rhs) {          \
+#else // __SYCL_DEVICE_ONLY__
+#define RELLOGOP_BASE(RELLOGOP, COND)                                          \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec<rel_t, NumElements>>            \
+  operator RELLOGOP(const vec & Lhs, const vec & Rhs) {                        \
     vec<rel_t, NumElements> Ret{};                                             \
     for (size_t I = 0; I < NumElements; ++I) {                                 \
       /* We cannot use SetValue here as the operator is not a friend of*/      \
@@ -1126,49 +1157,64 @@ public:
           Lhs.getValue(I)) RELLOGOP vec_data<DataT>::get(Rhs.getValue(I))));   \
     }                                                                          \
     return Ret;                                                                \
-  }                                                                            \
-  friend vec<rel_t, NumElements> operator RELLOGOP(const vec & Lhs,            \
-                                                   const DataT & Rhs) {        \
-    return Lhs RELLOGOP vec(Rhs);                                              \
-  }                                                                            \
-  friend vec<rel_t, NumElements> operator RELLOGOP(const DataT & Lhs,          \
-                                                   const vec & Rhs) {          \
-    return vec(Lhs) RELLOGOP Rhs;                                              \
   }
 #endif
 
-  __SYCL_RELLOGOP(==)
-  __SYCL_RELLOGOP(!=)
-  __SYCL_RELLOGOP(>)
-  __SYCL_RELLOGOP(<)
-  __SYCL_RELLOGOP(>=)
-  __SYCL_RELLOGOP(<=)
-  // TODO: limit to integral types.
-  __SYCL_RELLOGOP(&&)
-  __SYCL_RELLOGOP(||)
+#define __SYCL_RELLOGOP(RELLOGOP, COND)                                        \
+  RELLOGOP_BASE(RELLOGOP, COND)                                                \
+                                                                               \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec<rel_t, NumElements>>            \
+  operator RELLOGOP(const vec & Lhs, const DataT & Rhs) {                      \
+    return Lhs RELLOGOP vec(Rhs);                                              \
+  }                                                                            \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec<rel_t, NumElements>>            \
+  operator RELLOGOP(const DataT & Lhs, const vec & Rhs) {                      \
+    return vec(Lhs) RELLOGOP Rhs;                                              \
+  }
+
+  // OP is: ==, !=, <, >, <=, >=, &&, ||
+  // vec<RET, NumElements> operatorOP(const vec<DataT, NumElements> &Rhs) const;
+  // vec<RET, NumElements> operatorOP(const DataT &Rhs) const;
+  __SYCL_RELLOGOP(==, (!detail::is_byte_v<T>))
+  __SYCL_RELLOGOP(!=, (!detail::is_byte_v<T>))
+  __SYCL_RELLOGOP(>, (!detail::is_byte_v<T>))
+  __SYCL_RELLOGOP(<, (!detail::is_byte_v<T>))
+  __SYCL_RELLOGOP(>=, (!detail::is_byte_v<T>))
+  __SYCL_RELLOGOP(<=, (!detail::is_byte_v<T>))
+
+  // Only available to integral types.
+  __SYCL_RELLOGOP(&&, (!detail::is_vgenfloat_v<T>) && (!detail::is_byte_v<T>))
+  __SYCL_RELLOGOP(||, (!detail::is_vgenfloat_v<T>) && (!detail::is_byte_v<T>))
 #undef __SYCL_RELLOGOP
+#undef RELLOGOP_BASE
 
 #ifdef __SYCL_UOP
 #error "Undefine __SYCL_UOP macro"
 #endif
-#define __SYCL_UOP(UOP, OPASSIGN)                                              \
-  friend vec &operator UOP(vec & Rhs) {                                        \
+#define __SYCL_UOP(UOP, OPASSIGN, COND)                                        \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec &> operator UOP(vec & Rhs) {    \
     Rhs OPASSIGN vec_data<DataT>::get(1);                                      \
     return Rhs;                                                                \
   }                                                                            \
-  friend vec operator UOP(vec &Lhs, int) {                                     \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec> operator UOP(vec & Lhs, int) { \
     vec Ret(Lhs);                                                              \
     Lhs OPASSIGN vec_data<DataT>::get(1);                                      \
     return Ret;                                                                \
   }
 
-  __SYCL_UOP(++, +=)
-  __SYCL_UOP(--, -=)
+  __SYCL_UOP(++, +=, (!detail::is_byte_v<T>))
+  __SYCL_UOP(--, -=, (!detail::is_byte_v<T>))
 #undef __SYCL_UOP
 
   // operator~() available only when: dataT != float && dataT != double
   // && dataT != half
-  friend vec operator~(const vec &Rhs) {
+  template <typename T = DataT>
+  friend typename std::enable_if_t<!detail::is_vgenfloat_v<T>, vec>
+  operator~(const vec &Rhs) {
     if constexpr (IsUsingArrayOnDevice || IsUsingArrayOnHost) {
       vec Ret{};
       for (size_t I = 0; I < NumElements; ++I) {
@@ -1184,8 +1230,11 @@ public:
     }
   }
 
-  // operator!
-  friend vec<detail::rel_t<DataT>, NumElements> operator!(const vec &Rhs) {
+  // operator!. Not available for std::byte.
+  template <typename T = DataT>
+  friend typename std::enable_if_t<(!detail::is_byte_v<T>),
+                                   vec<detail::rel_t<DataT>, NumElements>>
+  operator!(const vec &Rhs) {
     if constexpr (IsUsingArrayOnDevice || IsUsingArrayOnHost) {
       vec Ret{};
       for (size_t I = 0; I < NumElements; ++I) {
@@ -1207,8 +1256,10 @@ public:
     }
   }
 
-  // operator +
-  friend vec operator+(const vec &Lhs) {
+  // operator +. Not available for std::byte as it is not an arithmetic type.
+  template <typename T = DataT>
+  friend typename std::enable_if_t<(!detail::is_byte_v<T>), vec>
+  operator+(const vec &Lhs) {
     if constexpr (IsUsingArrayOnDevice || IsUsingArrayOnHost) {
       vec Ret{};
       for (size_t I = 0; I < NumElements; ++I)
@@ -1220,8 +1271,10 @@ public:
     }
   }
 
-  // operator -
-  friend vec operator-(const vec &Lhs) {
+  // operator -. Not available for std::byte as it is not an arithmetic type.
+  template <typename T = DataT>
+  friend typename std::enable_if_t<(!detail::is_byte_v<T>), vec>
+  operator-(const vec &Lhs) {
     namespace oneapi = sycl::ext::oneapi;
     vec Ret{};
     if constexpr (IsBfloat16 && NumElements == 1) {
@@ -1661,7 +1714,7 @@ public:
 
   template <typename T = DataT>
   friend typename std::enable_if_t<
-      std::is_same_v<T, DataT> && std::is_integral_v<vec_data_t<T>>, vec_t>
+      std::is_same_v<T, DataT> && !detail::is_vgenfloat_v<T>, vec_t>
   operator~(const SwizzleOp &Rhs) {
     vec_t Tmp = Rhs;
     return ~Tmp;
@@ -1688,34 +1741,57 @@ public:
 #ifdef __SYCL_BINOP
 #error "Undefine __SYCL_BINOP macro"
 #endif
-#define __SYCL_BINOP(BINOP)                                                    \
-  friend vec_t operator BINOP(const DataT &Lhs, const SwizzleOp &Rhs) {        \
+#define __SYCL_BINOP(BINOP, COND)                                              \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec_t> operator BINOP(              \
+      const DataT & Lhs, const SwizzleOp & Rhs) {                              \
     vec_t Tmp = Rhs;                                                           \
     return Lhs BINOP Tmp;                                                      \
   }                                                                            \
-  friend vec_t operator BINOP(const SwizzleOp &Lhs, const DataT &Rhs) {        \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec_t> operator BINOP(              \
+      const SwizzleOp & Lhs, const DataT & Rhs) {                              \
     vec_t Tmp = Lhs;                                                           \
     return Tmp BINOP Rhs;                                                      \
   }                                                                            \
-  friend vec_t operator BINOP(const vec_t &Lhs, const SwizzleOp &Rhs) {        \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec_t> operator BINOP(              \
+      const vec_t & Lhs, const SwizzleOp & Rhs) {                              \
     vec_t Tmp = Rhs;                                                           \
     return Lhs BINOP Tmp;                                                      \
   }                                                                            \
-  friend vec_t operator BINOP(const SwizzleOp &Lhs, const vec_t &Rhs) {        \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec_t> operator BINOP(              \
+      const SwizzleOp & Lhs, const vec_t & Rhs) {                              \
     vec_t Tmp = Lhs;                                                           \
     return Tmp BINOP Rhs;                                                      \
   }
 
-  __SYCL_BINOP(+)
-  __SYCL_BINOP(-)
-  __SYCL_BINOP(*)
-  __SYCL_BINOP(/)
-  __SYCL_BINOP(%)
-  __SYCL_BINOP(&)
-  __SYCL_BINOP(|)
-  __SYCL_BINOP(^)
-  __SYCL_BINOP(>>)
-  __SYCL_BINOP(<<)
+  __SYCL_BINOP(+, (!detail::is_byte_v<T>))
+  __SYCL_BINOP(-, (!detail::is_byte_v<T>))
+  __SYCL_BINOP(*, (!detail::is_byte_v<T>))
+  __SYCL_BINOP(/, (!detail::is_byte_v<T>))
+  __SYCL_BINOP(%, (!detail::is_byte_v<T>))
+  __SYCL_BINOP(&, true)
+  __SYCL_BINOP(|, true)
+  __SYCL_BINOP(^, true)
+  // We have special <<, >> operators for std::byte.
+  __SYCL_BINOP(>>, (!detail::is_byte_v<T>))
+  __SYCL_BINOP(<<, (!detail::is_byte_v<T>))
+
+  template <typename T = DataT>
+  friend typename std::enable_if_t<detail::is_byte_v<T>, vec_t>
+  operator>>(const SwizzleOp &Lhs, const int shift) {
+    vec_t Tmp = Lhs;
+    return Tmp >> shift;
+  }
+
+  template <typename T = DataT>
+  friend typename std::enable_if_t<detail::is_byte_v<T>, vec_t>
+  operator<<(const SwizzleOp &Lhs, const int shift) {
+    vec_t Tmp = Lhs;
+    return Tmp << shift;
+  }
 #undef __SYCL_BINOP
 
 // scalar RELLOGOP vec<>
@@ -1724,33 +1800,40 @@ public:
 #ifdef __SYCL_RELLOGOP
 #error "Undefine __SYCL_RELLOGOP macro"
 #endif
-#define __SYCL_RELLOGOP(RELLOGOP)                                              \
-  friend vec_rel_t operator RELLOGOP(const DataT &Lhs, const SwizzleOp &Rhs) { \
+#define __SYCL_RELLOGOP(RELLOGOP, COND)                                        \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec_rel_t> operator RELLOGOP(       \
+      const DataT & Lhs, const SwizzleOp & Rhs) {                              \
     vec_t Tmp = Rhs;                                                           \
     return Lhs RELLOGOP Tmp;                                                   \
   }                                                                            \
-  friend vec_rel_t operator RELLOGOP(const SwizzleOp &Lhs, const DataT &Rhs) { \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec_rel_t> operator RELLOGOP(       \
+      const SwizzleOp & Lhs, const DataT & Rhs) {                              \
     vec_t Tmp = Lhs;                                                           \
     return Tmp RELLOGOP Rhs;                                                   \
   }                                                                            \
-  friend vec_rel_t operator RELLOGOP(const vec_t &Lhs, const SwizzleOp &Rhs) { \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec_rel_t> operator RELLOGOP(       \
+      const vec_t & Lhs, const SwizzleOp & Rhs) {                              \
     vec_t Tmp = Rhs;                                                           \
     return Lhs RELLOGOP Tmp;                                                   \
   }                                                                            \
-  friend vec_rel_t operator RELLOGOP(const SwizzleOp &Lhs, const vec_t &Rhs) { \
+  template <typename T = DataT>                                                \
+  friend typename std::enable_if_t<(COND), vec_rel_t> operator RELLOGOP(       \
+      const SwizzleOp & Lhs, const vec_t & Rhs) {                              \
     vec_t Tmp = Lhs;                                                           \
     return Tmp RELLOGOP Rhs;                                                   \
   }
 
-  __SYCL_RELLOGOP(==)
-  __SYCL_RELLOGOP(!=)
-  __SYCL_RELLOGOP(>)
-  __SYCL_RELLOGOP(<)
-  __SYCL_RELLOGOP(>=)
-  __SYCL_RELLOGOP(<=)
-  // TODO: limit to integral types.
-  __SYCL_RELLOGOP(&&)
-  __SYCL_RELLOGOP(||)
+  __SYCL_RELLOGOP(==, (!detail::is_byte_v<T>))
+  __SYCL_RELLOGOP(!=, (!detail::is_byte_v<T>))
+  __SYCL_RELLOGOP(>, (!detail::is_byte_v<T>))
+  __SYCL_RELLOGOP(<, (!detail::is_byte_v<T>))
+  __SYCL_RELLOGOP(>=, (!detail::is_byte_v<T>))
+  __SYCL_RELLOGOP(<=, (!detail::is_byte_v<T>))
+  __SYCL_RELLOGOP(&&, (!detail::is_byte_v<T> && !detail::is_vgenfloat_v<T>))
+  __SYCL_RELLOGOP(||, (!detail::is_byte_v<T> && !detail::is_vgenfloat_v<T>))
 #undef __SYCL_RELLOGOP
 
   template <int IdxNum = getNumElements(),

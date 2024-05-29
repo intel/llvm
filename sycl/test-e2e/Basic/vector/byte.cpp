@@ -177,6 +177,7 @@ int main() {
     // std::byte is not an arithmetic type or a character type, so std::byte
     // and vec<std::byte> should not support artithmetic operations. In the
     // new implementation of vec<> class, the following will be removed.
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     {
       // binary op for 2 vec
       auto vop = VecByte3A + VecByte3B;
@@ -347,6 +348,32 @@ int main() {
 
       auto bitv2 = !VecByte4A;
     }
+#else
+    {
+      // std::byte is not an arithmetic type and it only supports the following
+      // overloads of >> and << operators.
+      //
+      // 1 template <class IntegerType>
+      //   constexpr std::byte operator<<( std::byte b, IntegerType shift )
+      //   noexcept;
+      // 2 template <class IntegerType>
+      //   constexpr std::byte operator>>( std::byte b, IntegerType shift )
+      //   noexcept;
+      auto VecByte3Shift = VecByte3A << 3;
+      assert(VecByte3Shift[0] == VecByte3A[0] << 3 &&
+             VecByte3Shift[1] == VecByte3A[1] << 3 &&
+             VecByte3Shift[2] == VecByte3A[2] << 3);
+
+      VecByte3Shift = VecByte3A >> 1;
+      assert(VecByte3Shift[0] == VecByte3A[0] >> 1 &&
+             VecByte3Shift[1] == VecByte3A[1] >> 1 &&
+             VecByte3Shift[2] == VecByte3A[2] >> 1);
+
+      auto SwizByte3Shift = VecByte4A.lo();
+      SwizByte3Shift >> 3;
+      SwizByte3Shift << 3;
+    }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   }
 
   return 0;
