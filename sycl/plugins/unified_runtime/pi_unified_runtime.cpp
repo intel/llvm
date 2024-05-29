@@ -268,6 +268,19 @@ __SYCL_EXPORT pi_result piEnqueueKernelLaunch(
       NumEventsInWaitList, EventWaitList, OutEvent);
 }
 
+__SYCL_EXPORT pi_result piextEnqueueKernelLaunchCustom(
+    pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+    pi_uint32 NumPropsInLaunchPropList,
+    const pi_launch_property *LaunchPropList, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *OutEvent) {
+
+  return pi2ur::piextEnqueueKernelLaunchCustom(
+      Queue, Kernel, WorkDim, GlobalWorkSize, LocalWorkSize,
+      NumPropsInLaunchPropList, LaunchPropList, NumEventsInWaitList,
+      EventsWaitList, OutEvent);
+}
+
 __SYCL_EXPORT pi_result piEnqueueMemImageWrite(
     pi_queue Queue, pi_mem Image, pi_bool BlockingWrite, pi_image_offset Origin,
     pi_image_region Region, size_t InputRowPitch, size_t InputSlicePitch,
@@ -1521,6 +1534,9 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piextEnablePeerAccess)
   _PI_API(piextDisablePeerAccess)
   _PI_API(piextPeerAccessGetInfo)
+
+  // Launch Properties
+  _PI_API(piextEnqueueKernelLaunchCustom)
 
   _PI_API(piextPluginGetOpaqueData)
   _PI_API(piTearDown)

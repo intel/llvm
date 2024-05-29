@@ -536,6 +536,27 @@ pi_result piextEnqueueCooperativeKernelLaunch(
       NumEventsInWaitList, EventWaitList, OutEvent);
 }
 
+__SYCL_EXPORT pi_result piextEnqueueKernelLaunchCustom(
+    pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+    pi_uint32 NumPropsInLaunchPropList,
+    const pi_launch_property *LaunchPropList, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *OutEvent) {
+  (void)Queue;
+  (void)Kernel;
+  (void)WorkDim;
+  (void)GlobalWorkSize;
+  (void)LocalWorkSize;
+  (void)NumPropsInLaunchPropList;
+  (void)LaunchPropList;
+  (void)NumEventsInWaitList;
+  (void)EventsWaitList;
+  (void)OutEvent;
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+  die("piextEnqueueKernelLaunchCustom: not implemented");
+  return {};
+}
+
 pi_result piextKernelCreateWithNativeHandle(pi_native_handle NativeHandle,
                                             pi_context Context,
                                             pi_program Program,

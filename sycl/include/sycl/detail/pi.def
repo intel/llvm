@@ -212,4 +212,7 @@ _PI_API(piextDestroyExternalSemaphore)
 _PI_API(piextWaitExternalSemaphore)
 _PI_API(piextSignalExternalSemaphore)
 
+// Kernel Launch Properties
+_PI_API(piextEnqueueKernelLaunchCustom)
+
 #undef _PI_API
