@@ -203,7 +203,7 @@ class MemObjRecord {
   MemObjRecord(ContextImplPtr Ctx, std::size_t LeafLimit,
                LeavesCollection::AllocateDependencyF AllocateDependency)
       : MReadLeaves{this, LeafLimit, AllocateDependency},
-        MWriteLeaves{this, LeafLimit, AllocateDependency}, MCurContext{Ctx}, MCurHostAccess{ MCurContext == nullptr } {}
+        MWriteLeaves{this, LeafLimit, AllocateDependency}, MCurContext{Ctx} {}
 public:
   // Contains all allocation commands for the memory object.
   std::vector<AllocaCommandBase *> MAllocaCommands;
@@ -218,19 +218,19 @@ public:
   // modified. Used while deciding if copy back needed.
   bool MMemModified = false;
 
-  void usedOnDevice(ContextImplPtr& NewContext)
+  void updateUsage(ContextImplPtr& NewContext)
   {
     MCurContext = NewContext;
-    MCurHostAccess = false;
   }
 
-  void usedOnHost()
+  bool isSameContext(const QueueImplPtr& Queue) const
   {
-    MCurContext = nullptr;
-    MCurHostAccess = true;
+    // Covers case for host usage (nullptr == nullptr) and existing device contexts comparison.
+    return LHS == (Queue ? Queue->getContextImplPtr() : nullptr);
   }
 
-  bool usedOnHost() { return MCurHostAccess; }
+  bool usedOnDevice( return MCurContext != nullptr; )
+
 protected:
   // The context which has the latest state of the memory object.
   ContextImplPtr MCurContext;
@@ -238,8 +238,6 @@ protected:
   // The mode this object can be accessed with from the host (host_accessor).
   // Valid only if the current usage is on host.
   access::mode MHostAccess = access::mode::read_write;
-
-  bool MCurHostAccess = false;
 };
 
 /// DPC++ graph scheduler class.
@@ -621,7 +619,6 @@ protected:
     ///
     /// \return a command that represents command group execution.
     Command *addCGUpdateHost(std::unique_ptr<detail::CG> CommandGroup,
-                             const QueueImplPtr &HostQueue,
                              std::vector<Command *> &ToEnqueue);
 
     /// Enqueues a command to update memory to the latest state.
@@ -759,7 +756,6 @@ protected:
 
     EmptyCommand *addEmptyCmd(Command *Cmd,
                               const std::vector<Requirement *> &Req,
-                              const QueueImplPtr &Queue,
                               Command::BlockReason Reason,
                               std::vector<Command *> &ToEnqueue,
                               const bool AddDepsToLeaves = true);

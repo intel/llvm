@@ -750,23 +750,23 @@ void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
                          sycl::detail::pi::PiEvent &OutEvent,
                          const detail::EventImplPtr &OutEventImpl) {
 
-  if (SrcQueue->is_host()) {
-    if (TgtQueue->is_host())
-      copyH2H(SYCLMemObj, (char *)SrcMem, std::move(SrcQueue), DimSrc, SrcSize,
+  if (!SrcQueue) {
+    if (!TgtQueue)
+      copyH2H(SYCLMemObj, (char *)SrcMem, nullptr, DimSrc, SrcSize,
               SrcAccessRange, SrcOffset, SrcElemSize, (char *)DstMem,
-              std::move(TgtQueue), DimDst, DstSize, DstAccessRange, DstOffset,
+              nullptr, DimDst, DstSize, DstAccessRange, DstOffset,
               DstElemSize, std::move(DepEvents), OutEvent, OutEventImpl);
     else
-      copyH2D(SYCLMemObj, (char *)SrcMem, std::move(SrcQueue), DimSrc, SrcSize,
+      copyH2D(SYCLMemObj, (char *)SrcMem, nullptr, DimSrc, SrcSize,
               SrcAccessRange, SrcOffset, SrcElemSize,
               pi::cast<sycl::detail::pi::PiMem>(DstMem), std::move(TgtQueue),
               DimDst, DstSize, DstAccessRange, DstOffset, DstElemSize,
               std::move(DepEvents), OutEvent, OutEventImpl);
   } else {
-    if (TgtQueue->is_host())
+    if (!TgtQueue)
       copyD2H(SYCLMemObj, pi::cast<sycl::detail::pi::PiMem>(SrcMem),
               std::move(SrcQueue), DimSrc, SrcSize, SrcAccessRange, SrcOffset,
-              SrcElemSize, (char *)DstMem, std::move(TgtQueue), DimDst, DstSize,
+              SrcElemSize, (char *)DstMem, nullptr, DimDst, DstSize,
               DstAccessRange, DstOffset, DstElemSize, std::move(DepEvents),
               OutEvent, OutEventImpl);
     else

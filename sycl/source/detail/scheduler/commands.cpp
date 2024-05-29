@@ -2872,7 +2872,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         AllocaCmd->getSYCLMemObj(), AllocaCmd->getMemAllocation(), MQueue,
         Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
         Req->MElemSize, Copy->getDst(),
-        Scheduler::getInstance().getDefaultHostQueue(), Req->MDims,
+        nullptr, Req->MDims,
         Req->MAccessRange, Req->MAccessRange, /*DstOffset=*/{0, 0, 0},
         Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef(), MEvent);
 
@@ -2883,11 +2883,9 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     Requirement *Req = (Requirement *)(Copy->getDst());
     AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
 
-    Scheduler::getInstance().getDefaultHostQueue();
-
     MemoryManager::copy(
         AllocaCmd->getSYCLMemObj(), Copy->getSrc(),
-        Scheduler::getInstance().getDefaultHostQueue(), Req->MDims,
+        nullptr, Req->MDims,
         Req->MAccessRange, Req->MAccessRange,
         /*SrcOffset*/ {0, 0, 0}, Req->MElemSize, AllocaCmd->getMemAllocation(),
         MQueue, Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
