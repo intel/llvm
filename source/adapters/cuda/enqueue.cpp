@@ -542,11 +542,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
     return urEnqueueKernelLaunchCustomExp(
         hQueue, hKernel, workDim, pGlobalWorkSize, pLocalWorkSize, 1,
         &coop_prop, numEventsInWaitList, phEventWaitList, phEvent);
-  } else {
-    return urEnqueueKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                                 pGlobalWorkSize, pLocalWorkSize,
-                                 numEventsInWaitList, phEventWaitList, phEvent);
   }
+  return urEnqueueKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
+                               pGlobalWorkSize, pLocalWorkSize,
+                               numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
