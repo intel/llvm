@@ -5,8 +5,8 @@
 // To be enabled soon.
 // RUNx: %{run} %t_opt.out
 
-// Tests that aspect::fp64 is not emitted correctly when -fsycl-fp64-conv-emu flag
-// is used.
+// Tests that aspect::fp64 is not emitted correctly when -fsycl-fp64-conv-emu
+// flag is used.
 
 #include <sycl/detail/core.hpp>
 
