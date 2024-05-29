@@ -178,8 +178,8 @@ __spirv_VectorInsertDynamic(__spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *,
 
 template <typename T>
 extern __DPCPP_SYCL_EXTERNAL void __spirv_CooperativeMatrixPrefetchINTEL(
-    T *Ptr, int32_t coordX, int32_t coordY, uint32_t NumRows, uint32_t NumCols,
-    unsigned int CacheLevel, __spv::MatrixLayout Layout, size_t Stride);
+    T *Ptr, uint32_t NumRows, uint32_t NumCols, unsigned int CacheLevel,
+    __spv::MatrixLayout Layout, size_t Stride);
 
 #ifndef __SPIRV_BUILTIN_DECLARATIONS__
 #error                                                                         \
@@ -230,6 +230,16 @@ __spirv_ImageSampleExplicitLod(SampledType, TempArgT, int, TempArgT, TempArgT);
 template <typename SampledType, typename TempRetT, typename TempArgT>
 extern __DPCPP_SYCL_EXTERNAL TempRetT __spirv_ImageSampleCubemap(SampledType,
                                                                  TempArgT);
+
+template <typename RetT, class HandleT>
+extern __DPCPP_SYCL_EXTERNAL RetT __spirv_ConvertHandleToImageINTEL(HandleT);
+
+template <typename RetT, class HandleT>
+extern __DPCPP_SYCL_EXTERNAL RetT __spirv_ConvertHandleToSamplerINTEL(HandleT);
+
+template <typename RetT, class HandleT>
+extern __DPCPP_SYCL_EXTERNAL
+    RetT __spirv_ConvertHandleToSampledImageINTEL(HandleT);
 
 #define __SYCL_OpGroupAsyncCopyGlobalToLocal __spirv_GroupAsyncCopy
 #define __SYCL_OpGroupAsyncCopyLocalToGlobal __spirv_GroupAsyncCopy

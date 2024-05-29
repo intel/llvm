@@ -383,9 +383,9 @@ std::enable_if_t<detail::is_esimd_scalar<T>::value, T>(min)(T src0, T src1,
 #define __ESIMD_EMATH_SPIRV_COND                                               \
   std::is_same_v<T, float> || std::is_same_v<T, sycl::half>
 
-/// Inversion - calculates (1/x). Supports \c half and \c float.
+/// Inversion - calculates (1/x). Supports \c half, \c float and \c double.
 /// Precision: 1 ULP.
-__ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_SPIRV_COND, inv, recip)
+__ESIMD_UNARY_INTRINSIC_DEF(detail::is_generic_floating_point_v<T>, inv, recip)
 
 /// Logarithm base 2. Supports \c half and \c float.
 /// Precision depending on argument range:
@@ -435,13 +435,16 @@ __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_SPIRV_COND, sin, sin)
 /// Absolute error: \c 0.0008 or less for the range [-32767*pi, 32767*pi].
 __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_SPIRV_COND, cos, cos)
 
+/// Square root reciprocal - calculates <code>1/sqrt(x)</code>.
+/// Supports \c double.
+/// Precision: 4 ULP.
 template <class T, int N, class Sat = saturation_off_tag>
 __ESIMD_API std::enable_if_t<std::is_same_v<T, double>, simd<double, N>>
 rsqrt(simd<T, N> src, Sat sat = {}) {
   if constexpr (std::is_same_v<Sat, saturation_off_tag>)
-    return 1. / sqrt(src);
+    return inv(sqrt(src));
   else
-    return esimd::saturate<double>(1. / sqrt(src));
+    return esimd::saturate<double>(inv(sqrt(src)));
 }
 
 /** Scalar version.                                                       */
@@ -449,9 +452,9 @@ template <class T, class Sat = saturation_off_tag>
 __ESIMD_API std::enable_if_t<std::is_same_v<T, double>, double>
 rsqrt(T src, Sat sat = {}) {
   if constexpr (std::is_same_v<Sat, saturation_off_tag>)
-    return 1. / sqrt(src);
+    return inv(sqrt(src));
   else
-    return esimd::saturate<double>(1. / sqrt(src));
+    return esimd::saturate<double>(inv(sqrt(src)));
 }
 
 #undef __ESIMD_UNARY_INTRINSIC_DEF

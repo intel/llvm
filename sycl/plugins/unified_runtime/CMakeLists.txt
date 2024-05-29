@@ -75,6 +75,11 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
         tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
       return()
     endif()
     message(STATUS
@@ -95,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1e1f577262747d67fcb5c513de4a11bec67ea5db
-  # Merge: dd212f3f 0b405a12
+  # commit 905804c2e93dd046140057fd07a5d6191063bedc
+  # Merge: 0a11fb44 d3d3f6e5
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu May 9 18:00:36 2024 +0100
-  #    Merge pull request #1591 from nrspruit/disable_driver_in_order_lists_default
-  #    [L0] Disable Usage of Driver In order Lists by default
-  set(UNIFIED_RUNTIME_TAG 1e1f577262747d67fcb5c513de4a11bec67ea5db)
+  # Date:   Mon May 27 10:34:13 2024 +0100
+  #     Merge pull request #1581 from 0x12CC/l0_cooperative_kernels
+  #     Implement L0 cooperative kernel functions
+  set(UNIFIED_RUNTIME_TAG 905804c2e93dd046140057fd07a5d6191063bedc)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

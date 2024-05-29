@@ -94,8 +94,7 @@ template <typename Prop> struct IsRuntimePropertyValid : std::false_type {};
 template <typename T, typename propertyList>
 struct ValidAllocPropertyList : std::false_type {};
 template <typename T>
-struct ValidAllocPropertyList<T, detail::empty_properties_t> : std::true_type {
-};
+struct ValidAllocPropertyList<T, empty_properties_t> : std::true_type {};
 template <typename T, typename Prop, typename... Props>
 struct ValidAllocPropertyList<T, detail::properties_t<Prop, Props...>>
     : std::integral_constant<
@@ -117,24 +116,22 @@ struct ValidAllocPropertyList<T, detail::properties_t<Prop, Props...>>
 // annotated_ptr
 template <typename PropertyListT> struct GetCompileTimeProperties {};
 
-template <> struct GetCompileTimeProperties<detail::empty_properties_t> {
-  using type = detail::empty_properties_t;
+template <> struct GetCompileTimeProperties<empty_properties_t> {
+  using type = empty_properties_t;
 };
 
 template <typename Prop>
 struct GetCompileTimeProperties<detail::properties_t<Prop>> {
   using type =
       std::conditional_t<detail::IsCompileTimePropertyValue<Prop>::value,
-                         detail::properties_t<Prop>,
-                         detail::empty_properties_t>;
+                         detail::properties_t<Prop>, empty_properties_t>;
 };
 
 template <typename Prop, typename... Props>
 struct GetCompileTimeProperties<detail::properties_t<Prop, Props...>> {
   using filtered_this_property_t =
       std::conditional_t<detail::IsCompileTimePropertyValue<Prop>::value,
-                         detail::properties_t<Prop>,
-                         detail::empty_properties_t>;
+                         detail::properties_t<Prop>, empty_properties_t>;
   using filtered_other_properties_t =
       typename GetCompileTimeProperties<detail::properties_t<Props...>>::type;
   using type = detail::merged_properties_t<filtered_this_property_t,
