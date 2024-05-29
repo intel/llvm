@@ -442,7 +442,7 @@ bool getSPIRVBuiltin(const std::string &OrigName, spv::BuiltIn &B) {
 // if true is returned
 bool oclIsBuiltin(StringRef Name, StringRef &DemangledName, bool IsCpp) {
   if (Name == "printf") {
-    DemangledName = Name;
+    DemangledName = "__spirv_ocl_printf";
     return true;
   }
   if (isNonMangledOCLBuiltin(Name)) {
