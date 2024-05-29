@@ -34,7 +34,7 @@ urEnqueueMemImageReadTest.Success1D/AMD_HIP_BACKEND___{{.*}}_
 urEnqueueMemImageReadTest.Success3D/AMD_HIP_BACKEND___{{.*}}_
 urEnqueueMemImageWriteTest.Success1D/AMD_HIP_BACKEND___{{.*}}_
 urEnqueueMemImageWriteTest.Success3D/AMD_HIP_BACKEND___{{.*}}_
-urEnqueueUSMFill2DNegativeTest.OutOfBounds/AMD_HIP_BACKEND___{{.*}}_
+{{OPT}}urEnqueueUSMFill2DNegativeTest.OutOfBounds/AMD_HIP_BACKEND___{{.*}}_
 urEnqueueUSMAdviseWithParamTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_USM_ADVICE_FLAG_DEFAULT
 urEnqueueUSMAdviseTest.MultipleParamsSuccess/AMD_HIP_BACKEND___{{.*}}_
 urEnqueueUSMAdviseTest.NonCoherentDeviceMemorySuccessOrWarning/AMD_HIP_BACKEND___{{.*}}_
