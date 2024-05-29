@@ -56,14 +56,6 @@ if(NOT WIN32)
     )
 
     target_link_libraries(test-adapter-level_zero_ze_calls PRIVATE zeCallMap)
-endif()
-
-if(NOT WIN32)
-    # Make L0 use CallMap from a seprate shared lib so that we can access the map
-    # from the tests. This only seems to work on linux
-    add_library(zeCallMap SHARED zeCallMap.cpp)
-    target_compile_definitions(ur_adapter_level_zero PRIVATE UR_L0_CALL_COUNT_IN_TESTS)
-    target_link_libraries(ur_adapter_level_zero PRIVATE zeCallMap)
 
     add_adapter_test(level_zero_multi_queue
         FIXTURE DEVICES
