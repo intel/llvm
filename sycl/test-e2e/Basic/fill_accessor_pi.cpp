@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s
+// RUN: env SYCL_UR_TRACE=1 %{run} %t.out | FileCheck %s
 
-// This test merely checks the use of the correct PI call. Its sister test
+// This test merely checks the use of the correct UR call. Its sister test
 // fill_accessor.cpp thoroughly checks the workings of the .fill() call.
 
 #include <sycl/detail/core.hpp>
@@ -81,7 +81,7 @@ void testFill_Buffer3D() {
     std::cout << "start testFill_Buffer3D" << std::endl;
     q.submit([&](sycl::handler &cgh) {
       auto acc3D = buffer_3D.get_access<sycl::access::mode::write>(cgh);
-      // should stage piEnqueueMemBufferFill
+      // should stage urEnqueueMemBufferFill
       cgh.fill(acc3D, float{5});
     });
     q.wait();
@@ -91,7 +91,7 @@ void testFill_Buffer3D() {
       auto acc3D = buffer_3D.get_access<sycl::access::mode::write>(
           cgh, {4, 8, 12}, {3, 3, 3});
       // "ranged accessor" will have to be handled by custom kernel:
-      // piEnqueueKernelLaunch
+      // urEnqueueKernelLaunch
       cgh.fill(acc3D, float{6});
     });
     q.wait();
@@ -129,19 +129,19 @@ int main() {
 }
 
 // CHECK: start testFill_Buffer1D
-// CHECK: piEnqueueMemBufferFill
+// CHECK: urEnqueueMemBufferFill
 // CHECK: start testFill_Buffer1D -- OFFSET
-// CHECK: piEnqueueMemBufferFill
+// CHECK: urEnqueueMemBufferFill
 
 // CHECK: start testFill_Buffer2D
-// CHECK: piEnqueueMemBufferFill
+// CHECK: urEnqueueMemBufferFill
 // CHECK: start testFill_Buffer2D -- OFFSET
-// CHECK: piEnqueueKernelLaunch
+// CHECK: urEnqueueKernelLaunch
 
 // CHECK: start testFill_Buffer3D
-// CHECK: piEnqueueMemBufferFill
+// CHECK: urEnqueueMemBufferFill
 // CHECK: start testFill_Buffer3D -- OFFSET
-// CHECK: piEnqueueKernelLaunch
+// CHECK: urEnqueueKernelLaunch
 
 // CHECK: start testFill_ZeroDim
-// CHECK: piEnqueueMemBufferFill
+// CHECK: urEnqueueMemBufferFill

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s
 
 #include "esimd_test_utils.hpp"
 
@@ -91,6 +91,6 @@ int main(void) {
   return err_cnt > 0 ? 1 : 0;
 }
 
-// CHECK: ---> piProgramBuild(
-// CHECK: <const char *>: {{.*}}-vc-codegen
-// CHECK: ) ---> pi_result : PI_SUCCESS
+// CHECK: ---> urProgramBuild
+// CHECK-SAME: -vc-codegen
+// CHECK-SAME: -> UR_RESULT_SUCCESS

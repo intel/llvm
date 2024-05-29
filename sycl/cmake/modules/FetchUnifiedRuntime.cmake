@@ -26,6 +26,8 @@ set(SYCL_PI_UR_SOURCE_DIR
 # Override default to enable building tests from unified-runtime
 set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests.")
 set(UMF_ENABLE_POOL_TRACKING ON)
+set(UR_BUILD_XPTI_LIBS OFF)
+set(UR_ENABLE_TRACING ON)
 
 if("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_L0 ON)
@@ -106,13 +108,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 905804c2e93dd046140057fd07a5d6191063bedc
-  # Merge: 0a11fb44 d3d3f6e5
+  # commit ab94782525af77ac6e880e4555d606b7198f11ff
+  # Merge: 937f419c 38cecda2
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon May 27 10:34:13 2024 +0100
-  #     Merge pull request #1581 from 0x12CC/l0_cooperative_kernels
-  #     Implement L0 cooperative kernel functions
-  set(UNIFIED_RUNTIME_TAG 905804c2e93dd046140057fd07a5d6191063bedc)
+  # Date:   Thu Jun 6 17:05:09 2024 +0100
+  #     Merge pull request #1693 from callumfare/callum/fix_cuda_tracing
+  #
+  #     Fix CUDA tracing when UR is built standalone
+  set(UNIFIED_RUNTIME_TAG ab94782525af77ac6e880e4555d606b7198f11ff)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

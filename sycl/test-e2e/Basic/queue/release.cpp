@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s
+// RUN: env SYCL_UR_TRACE=1 %{run} %t.out | FileCheck %s
 //
 // XFAIL: hip_nvidia
 
@@ -13,12 +13,12 @@ int main() {
   return 0;
 }
 
-// CHECK: ---> piEnqueueKernelLaunch(
+// CHECK: ---> urEnqueueKernelLaunch(
 // FIXME the order of these 2 varies between plugins due to a Level Zero
 // specific queue workaround.
-// CHECK-DAG: ---> piEventRelease(
-// CHECK-DAG: ---> piQueueRelease(
-// CHECK: ---> piContextRelease(
-// CHECK: ---> piKernelRelease(
-// CHECK: ---> piProgramRelease(
-// CHECK: ---> piDeviceRelease(
+// CHECK-DAG: ---> urEventRelease(
+// CHECK-DAG: ---> urQueueRelease(
+// CHECK: ---> urContextRelease(
+// CHECK: ---> urKernelRelease(
+// CHECK: ---> urProgramRelease(
+// CHECK: ---> urDeviceRelease(

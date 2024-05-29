@@ -57,8 +57,8 @@
 //
 //   4. We want to check both compilation flow in (1) and the message in (3),
 //      but these messages can interleave and fail to match. To avoid this,
-//      first run with SYCL_PI_TRACE and collect a trace, and then with
-//      SHOULD_CRASH (without SYCL_PI_TRACE) to collect an error message.
+//      first run with SYCL_UR_TRACE and collect a trace, and then with
+//      SHOULD_CRASH (without SYCL_UR_TRACE) to collect an error message.
 //
 // SYCL_DEVICELIB_INHIBIT_NATIVE=1 environment variable is used to force a mode
 // in SYCL Runtime, so it doesn't look into a device extensions list and always
@@ -69,7 +69,7 @@
 // extension is a new feature and may not be supported by the runtime used with
 // SYCL.
 //
-// RUN: %if cpu %{ env SYCL_PI_TRACE=2 SHOULD_CRASH=1 EXPECTED_SIGNAL=SIGABRT %{run} %t.out 2> %t.stderr.native %}
+// RUN: %if cpu %{ env SYCL_UR_TRACE=1 SHOULD_CRASH=1 EXPECTED_SIGNAL=SIGABRT %{run} %t.out 2> %t.stderr.native %}
 // RUN: %if cpu %{ FileCheck %s --input-file %t.stderr.native --check-prefixes=CHECK-MESSAGE || FileCheck %s --input-file %t.stderr.native --check-prefix CHECK-NOTSUPPORTED %}
 // RUN: %if gpu %{ env                 SHOULD_CRASH=1 EXPECTED_SIGNAL=SIGIOT  %{run} %t.out 2> %t.stderr.native %}
 // RUN: %if gpu %{ FileCheck %s --input-file %t.stderr.native --check-prefixes=CHECK-MESSAGE || FileCheck %s --input-file %t.stderr.native --check-prefix CHECK-NOTSUPPORTED %}

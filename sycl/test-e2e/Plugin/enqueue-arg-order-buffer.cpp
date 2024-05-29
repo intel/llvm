@@ -1,6 +1,6 @@
 // UNSUPPORTED: hip_nvidia
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s
+// RUN: env SYCL_UR_TRACE=1 %{run} %t.out | FileCheck %s
 
 #include <iostream>
 
@@ -408,52 +408,52 @@ int main() {
 // ----------- BUFFERS
 
 // CHECK-LABEL: start copyD2H-buffer
-// CHECK: ---> piEnqueueMemBufferRead(
-// CHECK: <unknown> : 64
-// CHECK: ---> piEnqueueMemBufferReadRect(
-// CHECK: pi_buff_rect_region width_bytes/height/depth : 64/5/1
-// CHECK-NEXT: <unknown> : 64
-// CHECK: ---> piEnqueueMemBufferReadRect(
-// CHECK: pi_buff_rect_region width_bytes/height/depth : 64/5/3
-// CHECK-NEXT: <unknown> : 64
-// CHECK-NEXT: <unknown> : 320
+// CHECK: ---> urEnqueueMemBufferRead(
+// CHECK-SAME: .size = 64
+// CHECK: ---> urEnqueueMemBufferReadRect(
+// CHECK-SAME: .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 1}
+// CHECK-SAME: .bufferRowPitch = 64
+// CHECK: ---> urEnqueueMemBufferReadRect(
+// CHECK-SAME: .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 3}
+// CHECK-SAME: .bufferRowPitch = 64
+// CHECK-SAME: .bufferSlicePitch = 320
 // CHECK: end copyD2H-buffer
 
 // CHECK-LABEL: start copyH2D-buffer
-// CHECK: ---> piEnqueueMemBufferWrite(
-// CHECK: <unknown> : 64
-// CHECK:  ---> piEnqueueMemBufferWriteRect(
-// CHECK: pi_buff_rect_region width_bytes/height/depth : 64/5/1
-// CHECK-NEXT: <unknown> : 64
-// CHECK-NEXT: <unknown> : 0
-// CHECK-NEXT: <unknown> : 64
-// CHECK:  ---> piEnqueueMemBufferWriteRect(
-// CHECK: pi_buff_rect_region width_bytes/height/depth : 64/5/3
-// CHECK-NEXT: <unknown> : 64
-// CHECK-NEXT: <unknown> : 320
-// CHECK-NEXT: <unknown> : 64
-// CHECK-NEXT: <unknown> : 320
+// CHECK: ---> urEnqueueMemBufferWrite(
+// CHECK-SAME: .size = 64
+// CHECK: ---> urEnqueueMemBufferWriteRect(
+// CHECK-SAME: .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 1}
+// CHECK-SAME: .bufferRowPitch = 64
+// CHECK-SAME: .bufferSlicePitch = 0
+// CHECK-SAME: .hostRowPitch = 64
+// CHECK: ---> urEnqueueMemBufferWriteRect(
+// CHECK: .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 3}
+// CHECK-SAME: .bufferRowPitch = 64
+// CHECK-SAME: .bufferSlicePitch = 320
+// CHECK-SAME: .hostRowPitch = 64
+// CHECK-SAME: .hostSlicePitch = 320
 // CHECK: end copyH2D-buffer
 
 // CHECK-LABEL: start copyD2D-buffer
-// CHECK: ---> piEnqueueMemBufferCopy(
-// CHECK: <unknown> : 64
-// CHECK: ---> piEnqueueMemBufferCopyRect(
-// CHECK: pi_buff_rect_region width_bytes/height/depth : 64/5/1
-// CHECK-NEXT: <unknown> : 64
-// CHECK-NEXT: <unknown> : 320
-// CHECK-NEXT: <unknown> : 64
-// CHECK-NEXT: <unknown> : 320
-// CHECK: pi_buff_rect_region width_bytes/height/depth : 64/5/3
-// CHECK-NEXT: <unknown> : 64
-// CHECK-NEXT: <unknown> : 320
-// CHECK-NEXT: <unknown> : 64
-// CHECK-NEXT: <unknown> : 320
+// CHECK: ---> urEnqueueMemBufferCopy(
+// CHECK-SAME: .size = 64
+// CHECK: ---> urEnqueueMemBufferCopyRect(
+// CHECK: .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 1}
+// CHECK-SAME: .srcRowPitch = 64
+// CHECK-SAME: .srcSlicePitch = 320
+// CHECK-SAME: .dstRowPitch = 64
+// CHECK-SAME: .dstSlicePitch = 320
+// CHECK: .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 3}
+// CHECK-SAME: .bufferRowPitch = 64
+// CHECK-SAME: .bufferSlicePitch = 320
+// CHECK-SAME: .hostRowPitch = 64
+// CHECK-SAME: .hostSlicePitch = 320
 // CHECK: end copyD2D-buffer
 
 // CHECK-LABEL: start testFill Buffer
-// CHECK: ---> piEnqueueMemBufferFill(
-// CHECK: <unknown> : 4
-// CHECK-NEXT: <unknown> : 0
-// CHECK-NEXT: <unknown> : 64
+// CHECK: ---> urEnqueueMemBufferFill(
+// CHECK-SAME: .patternSize =  4
+// CHECK-SAME: .offset = 0
+// CHECK-SAME: .size = 64
 // CHECK: end testFill Buffer

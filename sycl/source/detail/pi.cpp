@@ -388,10 +388,26 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins) {
   if (urLoaderConfigCreate(&config) == UR_RESULT_SUCCESS) {
     if (urLoaderConfigEnableLayer(config, "UR_LAYER_FULL_VALIDATION")) {
       urLoaderConfigRelease(config);
-      std::cerr << "Failed to enable validation layer";
+      std::cerr << "Failed to enable validation layer\n";
       return;
     }
   }
+
+  auto SyclURTrace = SYCLConfig<SYCL_UR_TRACE>::get();
+  if (SyclURTrace && (std::atoi(SyclURTrace) != 0)) {
+#ifdef _WIN32
+    _putenv_s("UR_LOG_TRACING", "level:info;output:stdout;flush:info");
+#else
+    setenv("UR_LOG_TRACING", "level:info;output:stdout;flush:info", 1);
+#endif
+  }
+
+  if (std::getenv("UR_LOG_TRACING")) {
+    if (urLoaderConfigEnableLayer(config, "UR_LAYER_TRACING")) {
+      std::cerr << "Warning: Failed to enable tracing layer\n";
+    }
+  }
+
   ur_device_init_flags_t device_flags = 0;
   urLoaderInit(device_flags, config);
 
@@ -426,6 +442,41 @@ for (const auto &adapter : adapters) {
   }
   Plugins.emplace_back(std::make_shared<plugin>(adapter, syclBackend));
 }
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+GlobalHandler::instance().getXPTIRegistry().initializeFrameworkOnce();
+
+if (!(xptiTraceEnabled() && !XPTIInitDone))
+  return;
+// Not sure this is the best place to initialize the framework; SYCL runtime
+// team needs to advise on the right place, until then we piggy-back on the
+// initialization of the PI layer.
+
+// Initialize the global events just once, in the case pi::initialize() is
+// called multiple times
+XPTIInitDone = true;
+// Registers a new stream for 'sycl' and any plugin that wants to listen to
+// this stream will register itself using this string or stream ID for this
+// string.
+uint8_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
+//  Let all tool plugins know that a stream by the name of 'sycl' has been
+//  initialized and will be generating the trace stream.
+GlobalHandler::instance().getXPTIRegistry().initializeStream(SYCL_STREAM_NAME,
+                                                             GMajVer, GMinVer,
+                                                             GVerStr);
+// Create a tracepoint to indicate the graph creation
+xpti::payload_t GraphPayload("application_graph");
+uint64_t GraphInstanceNo;
+GSYCLGraphEvent =
+    xptiMakeEvent("application_graph", &GraphPayload, xpti::trace_graph_event,
+                  xpti_at::active, &GraphInstanceNo);
+if (GSYCLGraphEvent) {
+  // The graph event is a global event and will be used as the parent for
+  // all nodes (command groups)
+  xptiNotifySubscribers(StreamID, xpti::trace_graph_create, nullptr,
+                        GSYCLGraphEvent, GraphInstanceNo, nullptr);
+}
+#endif
 } // namespace pi
 
 // Get the plugin serving given backend.

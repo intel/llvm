@@ -1,10 +1,10 @@
 // REQUIRES: windows
-// RUN: env SYCL_PI_TRACE=2 sycl-ls | FileCheck %s
+// RUN: env SYCL_UR_TRACE=1 sycl-ls | FileCheck %s
 
 // ensure that the plugins are detached AFTER piTearDown is done executing
 
 // CHECK: ---> DLL_PROCESS_DETACH syclx.dll
-// CHECK: ---> piTearDown(
+// CHECK: ---> urLoaderTearDown(
 
 // whatever plugin THIS is
 // CHECK: ---> DLL_PROCESS_DETACH

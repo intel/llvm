@@ -30,6 +30,14 @@ if(SYCL_ENABLE_KERNEL_FUSION AND WIN32)
       BOOL "Kernel fusion not yet supported on Windows" FORCE)
 endif()
 
+if (NOT XPTI_INCLUDES)
+  set(XPTI_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/../xpti/include)
+endif()
+
+if (NOT XPTI_PROXY_SRC)
+  set(XPTI_PROXY_SRC ${CMAKE_CURRENT_SOURCE_DIR}/../xpti/src/xpti_proxy.cpp)
+endif()
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AddSYCLExecutable)
 include(AddSYCL)

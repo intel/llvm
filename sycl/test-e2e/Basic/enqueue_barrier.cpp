@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s
 
 // The test is failing sporadically on Windows OpenCL RTs
 // Disabling on windows until fixed
@@ -60,7 +60,7 @@ int main() {
   return 0;
 }
 
-// CHECK:---> piEnqueueEventsWaitWithBarrier
-// CHECK:---> piEnqueueEventsWaitWithBarrier
-// CHECK:---> piEnqueueEventsWaitWithBarrier
-// CHECK:---> piEnqueueEventsWaitWithBarrier
+// CHECK:---> urEnqueueEventsWaitWithBarrier
+// CHECK:---> urEnqueueEventsWaitWithBarrier
+// CHECK:---> urEnqueueEventsWaitWithBarrier
+// CHECK:---> urEnqueueEventsWaitWithBarrier
