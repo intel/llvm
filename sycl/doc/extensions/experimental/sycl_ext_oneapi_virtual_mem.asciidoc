@@ -10,6 +10,7 @@
 :encoding: utf-8
 :lang: en
 :dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
@@ -20,7 +21,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+Copyright (C) 2024 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -36,7 +37,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 6 specification.  All
+This extension is written against the SYCL 2020 revision 8 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
@@ -193,8 +194,8 @@ at the specified address, the implementation will pick another suitable address.
 
 `start` must be aligned in accordance with either the minimum or recommended
 granularity, as returned by a call to `get_mem_granularity`. Likewise,
-`numBytes` must be a multiple of the granularity. Attempting to call this
-function without meeting these requirements results in undefined behavior.
+`numBytes` must be a multiple of the minimum granularity. Attempting to call
+this function without meeting these requirements results in undefined behavior.
 
 If any of the devices in `syclContext` do not have
 `aspect::ext_oneapi_virtual_mem` the call throws an exception with
@@ -328,7 +329,7 @@ void unmap(const void *ptr, size_t numBytes, const context &syclContext);
 |Function |Description
 
 |`void set_access_mode(const void *ptr, size_t numBytes, address_access_mode mode, const context &syclContext)` |
-Sets the access mode of a virtual memory range specified by `ptr` and
+Changes the access mode of a virtual memory range specified by `ptr` and
 `numBytes`.
 
 If `mode` is `address_access_mode::read` or `address_access_mode::read_write`
@@ -353,11 +354,15 @@ must not be a proper sub-range of a previously mapped range. `syclContext` must
 be the same as the context returned by the `get_context()` member function on
 all the `physical_mem` the address ranges are currently mapped to.
 
-After this call, the full range will again be ready to be mapped through a calls
+After this call, the full range will again be ready to be mapped through a call
 to `physical_mem::map()`.
 
-[_Note:_ Unmapping ranges that span multiple contiguous mapped ranges. Doing so
-will result in undefined behavior. This restriction may be lifted in the
-future. _{endnote}_]
+[_Note:_ Unmapping ranges that span multiple contiguous mapped ranges is not
+supported. Doing so will result in undefined behavior. This restriction may be
+lifted in the future. _{endnote}_]
+
+[_Note:_ The destructor for `physical_mem` will not unmap ranges mapped to it.
+As such, the user must call `unmap` on ranges mapped to `physical_mem` objects
+prior to their destruction. _{endnote}_]
 
 |=====================
