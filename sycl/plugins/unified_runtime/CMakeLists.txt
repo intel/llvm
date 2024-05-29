@@ -94,24 +94,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 396fb20498c315a526c961d7cb645b42795acd2c
-  # Merge: 719bb9cd e2ffea69
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu May 23 10:53:03 2024 +0100
-  #     Merge pull request #1501 from RossBrunton/ross/kerneltests
-  #     [Testing] Spec clarifications and testing updates for kernel
-  set(UNIFIED_RUNTIME_TAG 396fb20498c315a526c961d7cb645b42795acd2c)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/steffenlarsen/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG b237c12bb2f67c3b4340b521c2b7b62236dd0536)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit e428745588dd87e5db3c0bc0df1183eb7d0811a5
-    # Merge: fb3cbd16 80d46bb1
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri May 24 10:31:13 2024 +0100
-    #     Merge pull request #1656 from pbalcer/leaks-program-kernel
-    #     fix leaks on level-zero interop program and kernel handles
-    e428745588dd87e5db3c0bc0df1183eb7d0811a5
+    b237c12bb2f67c3b4340b521c2b7b62236dd0536
   )
 
   fetch_adapter_source(opencl
