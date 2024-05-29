@@ -56,4 +56,15 @@ if(NOT WIN32)
     )
 
     target_link_libraries(test-adapter-level_zero_ze_calls PRIVATE zeCallMap)
+
+    add_adapter_test(level_zero_multi_queue
+        FIXTURE DEVICES
+        SOURCES
+            multi_device_event_cache_tests.cpp
+        ENVIRONMENT
+            "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_level_zero>\""
+            "UR_L0_LEAKS_DEBUG=1"
+    )
+
+    target_link_libraries(test-adapter-level_zero_multi_queue PRIVATE zeCallMap)
 endif()
