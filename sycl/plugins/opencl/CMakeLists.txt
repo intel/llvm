@@ -1,6 +1,8 @@
 # Plugin for OpenCL
 # Create Shared library for libpi_opencl.so.
 
+find_package(Threads REQUIRED)
+
 # Get the OpenCL adapter sources so they can be shared with the OpenCL PI plugin
 get_target_property(UR_OPENCL_ADAPTER_SOURCES ur_adapter_opencl SOURCES)
 
@@ -21,6 +23,7 @@ add_sycl_plugin(opencl
     UnifiedRuntime-Headers
     UnifiedRuntimeCommon
     OpenCL-ICD
+    Threads::Threads
 )
 
 set_target_properties(pi_opencl PROPERTIES LINKER_LANGUAGE CXX)

@@ -227,16 +227,6 @@ void GlobalHandler::releaseDefaultContexts() {
   MPlatformToDefaultContextCache.Inst.reset(nullptr);
 }
 
-struct DefaultContextReleaseHandler {
-  ~DefaultContextReleaseHandler() {
-    GlobalHandler::instance().releaseDefaultContexts();
-  }
-};
-
-void GlobalHandler::registerDefaultContextReleaseHandler() {
-  static DefaultContextReleaseHandler handler{};
-}
-
 // Note: Split from shutdown so it is available to the unittests for ensuring
 //       that the mock plugin is the lone plugin.
 void GlobalHandler::unloadPlugins() {
@@ -280,7 +270,13 @@ void GlobalHandler::drainThreadPool() {
 // we focus solely on unloading the plugins, so as to not
 // accidentally retain device handles. etc
 void shutdown() {
+  const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
+  if (!Handler)
+    return;
+
+  Handler->releaseDefaultContexts();
+
   Handler->unloadPlugins();
 }
 #else
@@ -297,11 +293,7 @@ void shutdown() {
   if (Handler->MHostTaskThreadPool.Inst)
     Handler->MHostTaskThreadPool.Inst->finishAndWait();
 
-  // If default contexts are requested after the first default contexts have
-  // been released there may be a new default context. These must be released
-  // prior to closing the plugins.
-  // Note: Releasing a default context here may cause failures in plugins with
-  // global state as the global state may have been released.
+  // shutdown is the only place the default context is released.
   Handler->releaseDefaultContexts();
 
   // First, release resources, that may access plugins.
