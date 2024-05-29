@@ -95,11 +95,11 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/steffenlarsen/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG b237c12bb2f67c3b4340b521c2b7b62236dd0536)
+  set(UNIFIED_RUNTIME_TAG 7a2065888518c839f0ebbb7fe16fefc6edf3c700)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    b237c12bb2f67c3b4340b521c2b7b62236dd0536
+    7a2065888518c839f0ebbb7fe16fefc6edf3c700
   )
 
   fetch_adapter_source(opencl
