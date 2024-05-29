@@ -102,32 +102,6 @@ void test() {
 }
 
 int main() {
-//   static constexpr size_t MATRIX_M = TM * 2;
-//   static constexpr size_t MATRIX_N = TN * 2;
-//   static constexpr size_t MATRIX_K = TK * 2;
-//   int8_t A[MATRIX_M][MATRIX_K];
-//   int8_t B[MATRIX_K / VNNI][MATRIX_N * VNNI];
-//   int32_t C[MATRIX_M][MATRIX_N];
-//   int32_t D[MATRIX_M][MATRIX_N];
-
-//   matrix_fill(MATRIX_M, MATRIX_K, (int8_t *)A,
-//               [](int i, int j) { return i + 2 * j; });
-//   matrix_fill(MATRIX_K / VNNI, MATRIX_N * VNNI, (int8_t *)B,
-//               [](int i, int j) { return i + j; });
-//   matrix_fill(MATRIX_M, MATRIX_N, (int32_t *)C, 0);
-//   matrix_fill(MATRIX_M, MATRIX_N, (int32_t *)D, 0);
-
-//   big_matrix<int32_t, MATRIX_M, MATRIX_N> MC((int32_t *)&C);
-//   big_matrix<int32_t, MATRIX_M, MATRIX_N> MD((int32_t *)&D);
-//   big_matrix<int8_t, MATRIX_M, MATRIX_K> MA((int8_t *)&A);
-//   big_matrix<int8_t, MATRIX_K / VNNI, MATRIX_N * VNNI> MB((int8_t *)&B);
-//   matrix_multiply(MC, MA, MB);
-//   matrix_multiply_ref<int8_t, int8_t, int32_t, VNNI>(
-//       (int8_t *)A, (int8_t *)B, (int32_t *)D, MATRIX_M, MATRIX_N, MATRIX_K / VNNI);
-
-//   bool res = matrix_compare(MATRIX_M, MATRIX_N, (int32_t *)C, (int32_t *)D);
-//   std::cout << (res ? "passed" : "failed") << std::endl;
-//   return !res;
   queue q;
   std::vector<combination> combinations =
       q.get_device()
