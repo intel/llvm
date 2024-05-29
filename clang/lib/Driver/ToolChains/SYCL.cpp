@@ -865,6 +865,83 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
     C.addCommand(std::move(Cmd));
 }
 
+struct OclocInfo {
+  const char *DeviceName;
+  const char *PackageName;
+  const char *Version;
+  SmallVector<int, 8> HexValues;
+};
+
+// The PVCDevices data structure is organized by device name, with the
+// corresponding ocloc split release, version and possible Hex representations
+// of various PVC devices.  This information is gathered from the following:
+// https://github.com/intel/compute-runtime/blob/master/shared/source/dll/devices/devices_base.inl
+// https://github.com/intel/compute-runtime/blob/master/shared/source/dll/devices/devices_additional.inl
+static OclocInfo PVCDevices[] = {
+    {"pvc-sdv", "gen12+", "12.60.1", {}},
+    {"pvc",
+     "gen12+",
+     "12.60.7",
+     {0x0BD0, 0x0BD5, 0x0BD6, 0x0BD7, 0x0BD8, 0x0BD9, 0x0BDA, 0x0BDB}}};
+
+// Determine if any of the given arguments contain any PVC based values for
+// the -device option.
+static bool hasPVCDevice(const ArgStringList &CmdArgs) {
+  bool DeviceSeen = false;
+  StringRef DeviceArg;
+  for (StringRef Arg : CmdArgs) {
+    // -device <arg> comes in as a single arg, split up all potential space
+    // separated values.
+    SmallVector<StringRef> SplitArgs;
+    Arg.split(SplitArgs, ' ');
+    for (StringRef SplitArg : SplitArgs) {
+      if (DeviceSeen) {
+        DeviceArg = SplitArg;
+        break;
+      }
+      if (SplitArg.equals("-device"))
+        DeviceSeen = true;
+    }
+    if (DeviceSeen)
+      break;
+  }
+  if (DeviceArg.empty())
+    return false;
+
+  // Go through all of the arguments to '-device' and determine if any of these
+  // are pvc based.  We only match literal values and will not find a match
+  // when ranges or wildcards are used.
+  // Here we parse the targets, tokenizing via ','
+  SmallVector<StringRef> SplitArgs;
+  DeviceArg.split(SplitArgs, ",");
+  for (const auto &SingleArg : SplitArgs) {
+    StringRef OclocTarget;
+    // Handle shortened versions.
+    bool CheckShortVersion = true;
+    for (auto Char : SingleArg.str()) {
+      if (!std::isdigit(Char) && Char != '.') {
+        CheckShortVersion = false;
+        break;
+      }
+    }
+    // Check for device, version or hex (literal values)
+    for (unsigned int I = 0; I < std::size(PVCDevices); I++) {
+      if (SingleArg.equals_insensitive(PVCDevices[I].DeviceName) ||
+          SingleArg.equals_insensitive(PVCDevices[I].Version))
+        return true;
+      for (int HexVal : PVCDevices[I].HexValues) {
+        int Value = 0;
+        if (!SingleArg.getAsInteger(0, Value) && Value == HexVal)
+          return true;
+      }
+      if (CheckShortVersion &&
+          StringRef(PVCDevices[I].Version).starts_with(SingleArg))
+        return true;
+    }
+  }
+  return false;
+}
+
 static llvm::StringMap<StringRef> GRFModeFlagMap{
     {"auto", "-ze-intel-enable-auto-large-GRF-mode"},
     {"small", "-ze-intel-128-GRF-per-thread"},
@@ -902,7 +979,7 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
   const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
   TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs, JA,
-                          *HostTC);
+                          *HostTC, Device);
   TC.TranslateBackendTargetArgs(getToolChain().getTriple(), Args, CmdArgs,
                                 Device);
   TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
@@ -1358,7 +1435,8 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
                                          const llvm::opt::ArgList &Args,
                                          llvm::opt::ArgStringList &CmdArgs,
                                          const JobAction &JA,
-                                         const ToolChain &HostTC) const {
+                                         const ToolChain &HostTC,
+                                         StringRef Device) const {
   // Current implied args are for debug information and disabling of
   // optimizations.  They are passed along to the respective areas as follows:
   // FPGA:  -g -cl-opt-disable
@@ -1371,6 +1449,8 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
   // string
   llvm::SmallVector<std::pair<StringRef, StringRef>, 16> PerDeviceArgs;
   bool IsGen = Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
+  bool IsJIT =
+      Triple.isSPIROrSPIRV() && Triple.getSubArch() == llvm::Triple::NoSubArch;
   if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
     if (!A->getOption().matches(options::OPT_g0))
       BeArgs.push_back("-g");
@@ -1401,8 +1481,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
         // option to honor the user's specification.
         PerDeviceArgs.push_back(
             {DeviceName, Args.MakeArgString(BackendOptName)});
-      } else if (Triple.isSPIROrSPIRV() &&
-                 Triple.getSubArch() == llvm::Triple::NoSubArch) {
+      } else if (IsJIT) {
         // For JIT, pass -ftarget-register-alloc-mode=Device:BackendOpt to
         // clang-offload-wrapper to be processed by the runtime.
         BeArgs.push_back(Args.MakeArgString(RegAllocModeOptName + DeviceName +
@@ -1415,15 +1494,21 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
       ProcessElement(Elem);
   } else if (!HostTC.getTriple().isWindowsMSVCEnvironment()) {
     // If -ftarget-register-alloc-mode is not specified, the default is
-    // pvc:default on Windows and and pvc:auto otherwise.
-    StringRef DeviceName = "pvc";
-    StringRef BackendOptName = SYCL::gen::getGenGRFFlag("auto");
-    if (IsGen)
-      PerDeviceArgs.push_back({DeviceName, Args.MakeArgString(BackendOptName)});
-    else if (Triple.isSPIROrSPIRV() &&
-             Triple.getSubArch() == llvm::Triple::NoSubArch) {
-      BeArgs.push_back(Args.MakeArgString(RegAllocModeOptName + DeviceName +
-                                          ":" + BackendOptName));
+    // pvc:default on Windows and and pvc:auto otherwise when -device pvc is
+    // provided by the user.
+    ArgStringList TargArgs;
+    Args.AddAllArgValues(TargArgs, options::OPT_Xs, options::OPT_Xs_separate);
+    Args.AddAllArgValues(TargArgs, options::OPT_Xsycl_backend);
+    // Check for any -device settings.
+    if (IsJIT || Device == "pvc" || hasPVCDevice(TargArgs)) {
+      StringRef DeviceName = "pvc";
+      StringRef BackendOptName = SYCL::gen::getGenGRFFlag("auto");
+      if (IsGen)
+        PerDeviceArgs.push_back(
+            {DeviceName, Args.MakeArgString(BackendOptName)});
+      else if (IsJIT)
+        BeArgs.push_back(Args.MakeArgString(RegAllocModeOptName + DeviceName +
+                                            ":" + BackendOptName));
     }
   }
   // only pass -vpfp-relaxed for aoc with -fintelfpga and -fp-model=fast
@@ -1468,11 +1553,9 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     if (Args.hasFlag(options::OPT_ftarget_export_symbols,
                      options::OPT_fno_target_export_symbols, false))
       BeArgs.push_back("-library-compilation");
-  } else if (Triple.getSubArch() == llvm::Triple::NoSubArch &&
-             Triple.isSPIROrSPIRV()) {
+  } else if (IsJIT)
     // -ftarget-compile-fast JIT
     Args.AddLastArg(BeArgs, options::OPT_ftarget_compile_fast);
-  }
   if (IsGen) {
     for (auto [DeviceName, BackendArgStr] : PerDeviceArgs) {
       CmdArgs.push_back("-device_options");
@@ -1588,7 +1671,7 @@ void SYCLToolChain::AddSYCLIncludeArgs(const clang::driver::Driver &Driver,
                                        ArgStringList &CC1Args) {
   // Add ../include/sycl, ../include/sycl/stl_wrappers and ../include (in that
   // order).
-  SmallString<128> IncludePath(Driver.getInstalledDir());
+  SmallString<128> IncludePath(Driver.Dir);
   llvm::sys::path::append(IncludePath, "..");
   llvm::sys::path::append(IncludePath, "include");
   SmallString<128> SYCLPath(IncludePath);

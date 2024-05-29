@@ -15,7 +15,6 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-#define SG_SZ 8
 constexpr size_t SN = 8;
 
 #include "../joint_matrix_all_sizes_impl.hpp"

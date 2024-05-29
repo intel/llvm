@@ -7,7 +7,8 @@
 // Hits an assertion with AMD:
 // XFAIL: hip_amd
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
 
 #include <cassert>
 
