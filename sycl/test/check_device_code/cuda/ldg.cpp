@@ -10,509 +10,146 @@ using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::cuda;
 using namespace sycl::ext::oneapi::experimental;
 
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::detail::half_impl::half" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_6detail9half_impl4halfEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS6_5boost4mp117mp_listIJNS0_3vecIcLi2EEENSE_IcLi3EEENSE_IcLi4EEENSE_IaLi2EEENSE_IaLi3EEENSE_IaLi4EEENSE_IsLi2EEENSE_IsLi3EEENSE_IsLi4EEENSE_IiLi2EEENSE_IiLi3EEENSE_IiLi4EEENSE_IlLi2EEENSE_IlLi3EEENSE_IlLi4EEENSE_IxLi2EEENSE_IxLi3EEENSE_IxLi4EEENSE_IhLi2EEENSE_IhLi3EEENSE_IhLi4EEENSE_ItLi2EEENSE_ItLi3EEENSE_ItLi4EEENSE_IjLi2EEENSE_IjLi3EEENSE_IjLi4EEENSE_ImLi2EEENSE_ImLi3EEENSE_ImLi4EEENSE_IyLi2EEENSE_IyLi3EEENSE_IyLi4EEENSE_IS8_Li2EEENSE_IS8_Li3EEENSE_IS8_Li4EEENSE_IfLi2EEENSE_IfLi3EEENSE_IfLi4EEENSE_IdLi2EEENSE_IdLi3EEENSE_IdLi4EEEfdS8_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueESA_E4typeEPKSA_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] comdat !srcloc [[META10:![0-9]+]] !sycl_used_aspects [[META11:![0-9]+]] !sycl_fixed_targets [[META12:![0-9]+]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call half @llvm.nvvm.ldg.global.f.f16.p0(ptr [[PTR]], i32 2)
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::detail::half_impl::half" poison, half [[TMP0]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::detail::half_impl::half" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call half @llvm.nvvm.ldg.global.f.f16.p0(ptr %{{.*}}, i32 2)
 template SYCL_EXTERNAL half sycl::ext::oneapi::experimental::cuda::ldg(const half *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local noundef float @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgIfEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS0_3vecIcLi2EEENSC_IcLi3EEENSC_IcLi4EEENSC_IaLi2EEENSC_IaLi3EEENSC_IaLi4EEENSC_IsLi2EEENSC_IsLi3EEENSC_IsLi4EEENSC_IiLi2EEENSC_IiLi3EEENSC_IiLi4EEENSC_IlLi2EEENSC_IlLi3EEENSC_IlLi4EEENSC_IxLi2EEENSC_IxLi3EEENSC_IxLi4EEENSC_IhLi2EEENSC_IhLi3EEENSC_IhLi4EEENSC_ItLi2EEENSC_ItLi3EEENSC_ItLi4EEENSC_IjLi2EEENSC_IjLi3EEENSC_IjLi4EEENSC_ImLi2EEENSC_ImLi3EEENSC_ImLi4EEENSC_IyLi2EEENSC_IyLi3EEENSC_IyLi4EEENSC_INS8_9half_impl4halfELi2EEENSC_IS1B_Li3EEENSC_IS1B_Li4EEENSC_IfLi2EEENSC_IfLi3EEENSC_IfLi4EEENSC_IdLi2EEENSC_IdLi3EEENSC_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES7_E4typeEPKS7_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call float @llvm.nvvm.ldg.global.f.f32.p0(ptr [[PTR]], i32 4)
-// CHECK-OPAQUE-NEXT:    ret float [[TMP0]]
+// CHECK-OPAQUE: tail call float @llvm.nvvm.ldg.global.f.f32.p0(ptr %{{.*}}, i32 4)
 template SYCL_EXTERNAL float sycl::ext::oneapi::experimental::cuda::ldg(const float *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local noundef double @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgIdEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS0_3vecIcLi2EEENSC_IcLi3EEENSC_IcLi4EEENSC_IaLi2EEENSC_IaLi3EEENSC_IaLi4EEENSC_IsLi2EEENSC_IsLi3EEENSC_IsLi4EEENSC_IiLi2EEENSC_IiLi3EEENSC_IiLi4EEENSC_IlLi2EEENSC_IlLi3EEENSC_IlLi4EEENSC_IxLi2EEENSC_IxLi3EEENSC_IxLi4EEENSC_IhLi2EEENSC_IhLi3EEENSC_IhLi4EEENSC_ItLi2EEENSC_ItLi3EEENSC_ItLi4EEENSC_IjLi2EEENSC_IjLi3EEENSC_IjLi4EEENSC_ImLi2EEENSC_ImLi3EEENSC_ImLi4EEENSC_IyLi2EEENSC_IyLi3EEENSC_IyLi4EEENSC_INS8_9half_impl4halfELi2EEENSC_IS1B_Li3EEENSC_IS1B_Li4EEENSC_IfLi2EEENSC_IfLi3EEENSC_IfLi4EEENSC_IdLi2EEENSC_IdLi3EEENSC_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES7_E4typeEPKS7_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_used_aspects [[META13:![0-9]+]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call double @llvm.nvvm.ldg.global.f.f64.p0(ptr [[PTR]], i32 8)
-// CHECK-OPAQUE-NEXT:    ret double [[TMP0]]
+// CHECK-OPAQUE: tail call double @llvm.nvvm.ldg.global.f.f64.p0(ptr %{{.*}}, i32 8)
 template SYCL_EXTERNAL double sycl::ext::oneapi::experimental::cuda::ldg(const double *);
 
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecINS0_6detail9half_impl4halfELi2EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS7_5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEESA_NS6_IS9_Li3EEENS6_IS9_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS9_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueESC_E4typeEPKSC_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_used_aspects [[META11]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0(ptr [[PTR]], i32 4)
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec" poison, <2 x half> [[TMP0]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0(ptr %{{.*}}, i32 4)
 template SYCL_EXTERNAL sycl::vec<half, 2> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<half, 2> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.0" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecINS0_6detail9half_impl4halfELi3EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS7_5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_IS9_Li2EEESA_NS6_IS9_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS9_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueESC_E4typeEPKSC_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_used_aspects [[META11]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0(ptr [[PTR]], i32 4)
-// CHECK-OPAQUE-NEXT:    [[INCDEC_PTR_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[PTR]], i64 4
-// CHECK-OPAQUE-NEXT:    [[TMP1:%.*]] = tail call half @llvm.nvvm.ldg.global.f.f16.p0(ptr nonnull [[INCDEC_PTR_I_I_I]], i32 2)
-// CHECK-OPAQUE-NEXT:    [[VECEXT:%.*]] = extractelement <2 x half> [[TMP0]], i64 0
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_0_VEC_INSERT:%.*]] = insertelement <3 x half> poison, half [[VECEXT]], i64 0
-// CHECK-OPAQUE-NEXT:    [[VECEXT5:%.*]] = extractelement <2 x half> [[TMP0]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_2_VEC_INSERT:%.*]] = insertelement <3 x half> [[RETVAL_SROA_0_0_VEC_INSERT]], half [[VECEXT5]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_4_VEC_INSERT:%.*]] = insertelement <3 x half> [[RETVAL_SROA_0_2_VEC_INSERT]], half [[TMP1]], i64 2
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.0" poison, <3 x half> [[RETVAL_SROA_0_4_VEC_INSERT]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.0" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0(ptr %{{.*}}, i32 4)
+// CHECK-OPAQUE: tail call half @llvm.nvvm.ldg.global.f.f16.p0(ptr nonnull %{{.*}}, i32 2)
 template SYCL_EXTERNAL sycl::vec<half, 3> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<half, 3> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.1" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecINS0_6detail9half_impl4halfELi4EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS7_5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_IS9_Li2EEENS6_IS9_Li3EEESA_NS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS9_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueESC_E4typeEPKSC_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_used_aspects [[META11]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0(ptr [[PTR]], i32 4)
-// CHECK-OPAQUE-NEXT:    [[INCDEC_PTR_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[PTR]], i64 4
-// CHECK-OPAQUE-NEXT:    [[TMP1:%.*]] = tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0(ptr nonnull [[INCDEC_PTR_I_I_I]], i32 4)
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_6_VEC_INSERT:%.*]] = shufflevector <2 x half> [[TMP0]], <2 x half> [[TMP1]], <4 x i32> <i32 0, i32 1, i32 2, i32 3>
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.1" poison, <4 x half> [[RETVAL_SROA_0_6_VEC_INSERT]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.1" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0(ptr %{{.*}}, i32 4)
+// CHECK-OPAQUE: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0(ptr nonnull %{{.*}}, i32 4)
 template SYCL_EXTERNAL sycl::vec<half, 4> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<half, 4> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.2" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIfLi2EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1C_Li3EEENS6_IS1C_Li4EEES7_NS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1C_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x float> @llvm.nvvm.ldg.global.f.v2f32.p0(ptr [[PTR]], i32 8)
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.2" poison, <2 x float> [[TMP0]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.2" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x float> @llvm.nvvm.ldg.global.f.v2f32.p0(ptr %{{.*}}, i32 8)
 template SYCL_EXTERNAL sycl::vec<float, 2> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<float, 2> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.3" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIfLi3EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1C_Li3EEENS6_IS1C_Li4EEENS6_IfLi2EEES7_NS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1C_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x float> @llvm.nvvm.ldg.global.f.v2f32.p0(ptr [[PTR]], i32 8)
-// CHECK-OPAQUE-NEXT:    [[INCDEC_PTR_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[PTR]], i64 8
-// CHECK-OPAQUE-NEXT:    [[TMP1:%.*]] = tail call float @llvm.nvvm.ldg.global.f.f32.p0(ptr nonnull [[INCDEC_PTR_I_I_I]], i32 4)
-// CHECK-OPAQUE-NEXT:    [[VECEXT:%.*]] = extractelement <2 x float> [[TMP0]], i64 0
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_0_VEC_INSERT:%.*]] = insertelement <3 x float> poison, float [[VECEXT]], i64 0
-// CHECK-OPAQUE-NEXT:    [[VECEXT2:%.*]] = extractelement <2 x float> [[TMP0]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_4_VEC_INSERT:%.*]] = insertelement <3 x float> [[RETVAL_SROA_0_0_VEC_INSERT]], float [[VECEXT2]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_8_VEC_INSERT:%.*]] = insertelement <3 x float> [[RETVAL_SROA_0_4_VEC_INSERT]], float [[TMP1]], i64 2
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.3" poison, <3 x float> [[RETVAL_SROA_0_8_VEC_INSERT]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.3" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x float> @llvm.nvvm.ldg.global.f.v2f32.p0(ptr %{{.*}}, i32 8)
+// CHECK-OPAQUE: tail call float @llvm.nvvm.ldg.global.f.f32.p0(ptr nonnull %{{.*}}, i32 4)
 template SYCL_EXTERNAL sycl::vec<float, 3> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<float, 3> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.4" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIfLi4EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1C_Li3EEENS6_IS1C_Li4EEENS6_IfLi2EEENS6_IfLi3EEES7_NS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1C_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <4 x float> @llvm.nvvm.ldg.global.f.v4f32.p0(ptr [[PTR]], i32 16)
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.4" poison, <4 x float> [[TMP0]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.4" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <4 x float> @llvm.nvvm.ldg.global.f.v4f32.p0(ptr %{{.*}}, i32 16)
 template SYCL_EXTERNAL sycl::vec<float, 4> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<float, 4> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.5" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIdLi2EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1C_Li3EEENS6_IS1C_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEES7_NS6_IdLi3EEENS6_IdLi4EEEfdS1C_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_used_aspects [[META13]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x double> @llvm.nvvm.ldg.global.f.v2f64.p0(ptr [[PTR]], i32 16)
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.5" poison, <2 x double> [[TMP0]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.5" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x double> @llvm.nvvm.ldg.global.f.v2f64.p0(ptr %{{.*}}, i32 16)
 template SYCL_EXTERNAL sycl::vec<double, 2> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<double, 2> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.6" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIdLi3EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1C_Li3EEENS6_IS1C_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEES7_NS6_IdLi4EEEfdS1C_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_used_aspects [[META13]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x double> @llvm.nvvm.ldg.global.f.v2f64.p0(ptr [[PTR]], i32 16)
-// CHECK-OPAQUE-NEXT:    [[INCDEC_PTR_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[PTR]], i64 16
-// CHECK-OPAQUE-NEXT:    [[TMP1:%.*]] = tail call double @llvm.nvvm.ldg.global.f.f64.p0(ptr nonnull [[INCDEC_PTR_I_I_I]], i32 8)
-// CHECK-OPAQUE-NEXT:    [[VECEXT:%.*]] = extractelement <2 x double> [[TMP0]], i64 0
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_0_VEC_INSERT:%.*]] = insertelement <3 x double> poison, double [[VECEXT]], i64 0
-// CHECK-OPAQUE-NEXT:    [[VECEXT2:%.*]] = extractelement <2 x double> [[TMP0]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_8_VEC_INSERT:%.*]] = insertelement <3 x double> [[RETVAL_SROA_0_0_VEC_INSERT]], double [[VECEXT2]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_16_VEC_INSERT:%.*]] = insertelement <3 x double> [[RETVAL_SROA_0_8_VEC_INSERT]], double [[TMP1]], i64 2
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.6" poison, <3 x double> [[RETVAL_SROA_0_16_VEC_INSERT]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.6" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x double> @llvm.nvvm.ldg.global.f.v2f64.p0(ptr %{{.*}}, i32 16)
+// CHECK-OPAQUE: tail call double @llvm.nvvm.ldg.global.f.f64.p0(ptr nonnull %{{.*}}, i32 8)
 template SYCL_EXTERNAL sycl::vec<double, 3> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<double, 3> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.7" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIdLi4EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1C_Li3EEENS6_IS1C_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEES7_fdS1C_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_used_aspects [[META13]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x double> @llvm.nvvm.ldg.global.f.v2f64.p0(ptr [[PTR]], i32 16)
-// CHECK-OPAQUE-NEXT:    [[INCDEC_PTR_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[PTR]], i64 16
-// CHECK-OPAQUE-NEXT:    [[TMP1:%.*]] = tail call <2 x double> @llvm.nvvm.ldg.global.f.v2f64.p0(ptr nonnull [[INCDEC_PTR_I_I_I]], i32 16)
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_24_VEC_INSERT:%.*]] = shufflevector <2 x double> [[TMP0]], <2 x double> [[TMP1]], <4 x i32> <i32 0, i32 1, i32 2, i32 3>
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.7" poison, <4 x double> [[RETVAL_SROA_0_24_VEC_INSERT]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.7" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x double> @llvm.nvvm.ldg.global.f.v2f64.p0(ptr %{{.*}}, i32 16)
+// CHECK-OPAQUE: tail call <2 x double> @llvm.nvvm.ldg.global.f.v2f64.p0(ptr nonnull %{{.*}}, i32 16)
 template SYCL_EXTERNAL sycl::vec<double, 4> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<double, 4> *);
 
 // Unsigned variants are identical to signed variants, but this leads to
 // correct behavior.
 
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local noundef signext i8 @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgIcEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS0_3vecIcLi2EEENSC_IcLi3EEENSC_IcLi4EEENSC_IaLi2EEENSC_IaLi3EEENSC_IaLi4EEENSC_IsLi2EEENSC_IsLi3EEENSC_IsLi4EEENSC_IiLi2EEENSC_IiLi3EEENSC_IiLi4EEENSC_IlLi2EEENSC_IlLi3EEENSC_IlLi4EEENSC_IxLi2EEENSC_IxLi3EEENSC_IxLi4EEENSC_IhLi2EEENSC_IhLi3EEENSC_IhLi4EEENSC_ItLi2EEENSC_ItLi3EEENSC_ItLi4EEENSC_IjLi2EEENSC_IjLi3EEENSC_IjLi4EEENSC_ImLi2EEENSC_ImLi3EEENSC_ImLi4EEENSC_IyLi2EEENSC_IyLi3EEENSC_IyLi4EEENSC_INS8_9half_impl4halfELi2EEENSC_IS1B_Li3EEENSC_IS1B_Li4EEENSC_IfLi2EEENSC_IfLi3EEENSC_IfLi4EEENSC_IdLi2EEENSC_IdLi3EEENSC_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES7_E4typeEPKS7_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr [[PTR]], i32 1)
-// CHECK-OPAQUE-NEXT:    ret i8 [[TMP0]]
+// CHECK-OPAQUE: tail call i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr %{{.*}}, i32 1)
 template SYCL_EXTERNAL char sycl::ext::oneapi::experimental::cuda::ldg(const char*);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local noundef signext i8 @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgIaEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS0_3vecIcLi2EEENSC_IcLi3EEENSC_IcLi4EEENSC_IaLi2EEENSC_IaLi3EEENSC_IaLi4EEENSC_IsLi2EEENSC_IsLi3EEENSC_IsLi4EEENSC_IiLi2EEENSC_IiLi3EEENSC_IiLi4EEENSC_IlLi2EEENSC_IlLi3EEENSC_IlLi4EEENSC_IxLi2EEENSC_IxLi3EEENSC_IxLi4EEENSC_IhLi2EEENSC_IhLi3EEENSC_IhLi4EEENSC_ItLi2EEENSC_ItLi3EEENSC_ItLi4EEENSC_IjLi2EEENSC_IjLi3EEENSC_IjLi4EEENSC_ImLi2EEENSC_ImLi3EEENSC_ImLi4EEENSC_IyLi2EEENSC_IyLi3EEENSC_IyLi4EEENSC_INS8_9half_impl4halfELi2EEENSC_IS1B_Li3EEENSC_IS1B_Li4EEENSC_IfLi2EEENSC_IfLi3EEENSC_IfLi4EEENSC_IdLi2EEENSC_IdLi3EEENSC_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES7_E4typeEPKS7_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr [[PTR]], i32 1)
-// CHECK-OPAQUE-NEXT:    ret i8 [[TMP0]]
+// CHECK-OPAQUE: tail call i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr %{{.*}}, i32 1)
 template SYCL_EXTERNAL signed char sycl::ext::oneapi::experimental::cuda::ldg(const signed char *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local noundef signext i16 @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgIsEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS0_3vecIcLi2EEENSC_IcLi3EEENSC_IcLi4EEENSC_IaLi2EEENSC_IaLi3EEENSC_IaLi4EEENSC_IsLi2EEENSC_IsLi3EEENSC_IsLi4EEENSC_IiLi2EEENSC_IiLi3EEENSC_IiLi4EEENSC_IlLi2EEENSC_IlLi3EEENSC_IlLi4EEENSC_IxLi2EEENSC_IxLi3EEENSC_IxLi4EEENSC_IhLi2EEENSC_IhLi3EEENSC_IhLi4EEENSC_ItLi2EEENSC_ItLi3EEENSC_ItLi4EEENSC_IjLi2EEENSC_IjLi3EEENSC_IjLi4EEENSC_ImLi2EEENSC_ImLi3EEENSC_ImLi4EEENSC_IyLi2EEENSC_IyLi3EEENSC_IyLi4EEENSC_INS8_9half_impl4halfELi2EEENSC_IS1B_Li3EEENSC_IS1B_Li4EEENSC_IfLi2EEENSC_IfLi3EEENSC_IfLi4EEENSC_IdLi2EEENSC_IdLi3EEENSC_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES7_E4typeEPKS7_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call i16 @llvm.nvvm.ldg.global.i.i16.p0(ptr [[PTR]], i32 2)
-// CHECK-OPAQUE-NEXT:    ret i16 [[TMP0]]
+// CHECK-OPAQUE: tail call i16 @llvm.nvvm.ldg.global.i.i16.p0(ptr %{{.*}}, i32 2)
 template SYCL_EXTERNAL short sycl::ext::oneapi::experimental::cuda::ldg(const short *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local noundef i32 @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgIiEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS0_3vecIcLi2EEENSC_IcLi3EEENSC_IcLi4EEENSC_IaLi2EEENSC_IaLi3EEENSC_IaLi4EEENSC_IsLi2EEENSC_IsLi3EEENSC_IsLi4EEENSC_IiLi2EEENSC_IiLi3EEENSC_IiLi4EEENSC_IlLi2EEENSC_IlLi3EEENSC_IlLi4EEENSC_IxLi2EEENSC_IxLi3EEENSC_IxLi4EEENSC_IhLi2EEENSC_IhLi3EEENSC_IhLi4EEENSC_ItLi2EEENSC_ItLi3EEENSC_ItLi4EEENSC_IjLi2EEENSC_IjLi3EEENSC_IjLi4EEENSC_ImLi2EEENSC_ImLi3EEENSC_ImLi4EEENSC_IyLi2EEENSC_IyLi3EEENSC_IyLi4EEENSC_INS8_9half_impl4halfELi2EEENSC_IS1B_Li3EEENSC_IS1B_Li4EEENSC_IfLi2EEENSC_IfLi3EEENSC_IfLi4EEENSC_IdLi2EEENSC_IdLi3EEENSC_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES7_E4typeEPKS7_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call i32 @llvm.nvvm.ldg.global.i.i32.p0(ptr [[PTR]], i32 4)
-// CHECK-OPAQUE-NEXT:    ret i32 [[TMP0]]
+// CHECK-OPAQUE: tail call i32 @llvm.nvvm.ldg.global.i.i32.p0(ptr %{{.*}}, i32 4)
 template SYCL_EXTERNAL int sycl::ext::oneapi::experimental::cuda::ldg(const int *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local noundef i64 @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgIlEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS0_3vecIcLi2EEENSC_IcLi3EEENSC_IcLi4EEENSC_IaLi2EEENSC_IaLi3EEENSC_IaLi4EEENSC_IsLi2EEENSC_IsLi3EEENSC_IsLi4EEENSC_IiLi2EEENSC_IiLi3EEENSC_IiLi4EEENSC_IlLi2EEENSC_IlLi3EEENSC_IlLi4EEENSC_IxLi2EEENSC_IxLi3EEENSC_IxLi4EEENSC_IhLi2EEENSC_IhLi3EEENSC_IhLi4EEENSC_ItLi2EEENSC_ItLi3EEENSC_ItLi4EEENSC_IjLi2EEENSC_IjLi3EEENSC_IjLi4EEENSC_ImLi2EEENSC_ImLi3EEENSC_ImLi4EEENSC_IyLi2EEENSC_IyLi3EEENSC_IyLi4EEENSC_INS8_9half_impl4halfELi2EEENSC_IS1B_Li3EEENSC_IS1B_Li4EEENSC_IfLi2EEENSC_IfLi3EEENSC_IfLi4EEENSC_IdLi2EEENSC_IdLi3EEENSC_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES7_E4typeEPKS7_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr [[PTR]], i32 8)
-// CHECK-OPAQUE-NEXT:    ret i64 [[TMP0]]
+// CHECK-OPAQUE: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr %{{.*}}, i32 8)
 template SYCL_EXTERNAL long sycl::ext::oneapi::experimental::cuda::ldg(const long *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local noundef i64 @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgIxEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS0_3vecIcLi2EEENSC_IcLi3EEENSC_IcLi4EEENSC_IaLi2EEENSC_IaLi3EEENSC_IaLi4EEENSC_IsLi2EEENSC_IsLi3EEENSC_IsLi4EEENSC_IiLi2EEENSC_IiLi3EEENSC_IiLi4EEENSC_IlLi2EEENSC_IlLi3EEENSC_IlLi4EEENSC_IxLi2EEENSC_IxLi3EEENSC_IxLi4EEENSC_IhLi2EEENSC_IhLi3EEENSC_IhLi4EEENSC_ItLi2EEENSC_ItLi3EEENSC_ItLi4EEENSC_IjLi2EEENSC_IjLi3EEENSC_IjLi4EEENSC_ImLi2EEENSC_ImLi3EEENSC_ImLi4EEENSC_IyLi2EEENSC_IyLi3EEENSC_IyLi4EEENSC_INS8_9half_impl4halfELi2EEENSC_IS1B_Li3EEENSC_IS1B_Li4EEENSC_IfLi2EEENSC_IfLi3EEENSC_IfLi4EEENSC_IdLi2EEENSC_IdLi3EEENSC_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES7_E4typeEPKS7_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr [[PTR]], i32 8)
-// CHECK-OPAQUE-NEXT:    ret i64 [[TMP0]]
+// CHECK-OPAQUE: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr %{{.*}}, i32 8)
 template SYCL_EXTERNAL long long sycl::ext::oneapi::experimental::cuda::ldg(const long long *);
 
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local noundef zeroext i8 @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgIhEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS0_3vecIcLi2EEENSC_IcLi3EEENSC_IcLi4EEENSC_IaLi2EEENSC_IaLi3EEENSC_IaLi4EEENSC_IsLi2EEENSC_IsLi3EEENSC_IsLi4EEENSC_IiLi2EEENSC_IiLi3EEENSC_IiLi4EEENSC_IlLi2EEENSC_IlLi3EEENSC_IlLi4EEENSC_IxLi2EEENSC_IxLi3EEENSC_IxLi4EEENSC_IhLi2EEENSC_IhLi3EEENSC_IhLi4EEENSC_ItLi2EEENSC_ItLi3EEENSC_ItLi4EEENSC_IjLi2EEENSC_IjLi3EEENSC_IjLi4EEENSC_ImLi2EEENSC_ImLi3EEENSC_ImLi4EEENSC_IyLi2EEENSC_IyLi3EEENSC_IyLi4EEENSC_INS8_9half_impl4halfELi2EEENSC_IS1B_Li3EEENSC_IS1B_Li4EEENSC_IfLi2EEENSC_IfLi3EEENSC_IfLi4EEENSC_IdLi2EEENSC_IdLi3EEENSC_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES7_E4typeEPKS7_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr [[PTR]], i32 1)
-// CHECK-OPAQUE-NEXT:    ret i8 [[TMP0]]
+// CHECK-OPAQUE: tail call i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr %{{.*}}, i32 1)
 template SYCL_EXTERNAL unsigned char sycl::ext::oneapi::experimental::cuda::ldg(const unsigned char *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local noundef zeroext i16 @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgItEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS0_3vecIcLi2EEENSC_IcLi3EEENSC_IcLi4EEENSC_IaLi2EEENSC_IaLi3EEENSC_IaLi4EEENSC_IsLi2EEENSC_IsLi3EEENSC_IsLi4EEENSC_IiLi2EEENSC_IiLi3EEENSC_IiLi4EEENSC_IlLi2EEENSC_IlLi3EEENSC_IlLi4EEENSC_IxLi2EEENSC_IxLi3EEENSC_IxLi4EEENSC_IhLi2EEENSC_IhLi3EEENSC_IhLi4EEENSC_ItLi2EEENSC_ItLi3EEENSC_ItLi4EEENSC_IjLi2EEENSC_IjLi3EEENSC_IjLi4EEENSC_ImLi2EEENSC_ImLi3EEENSC_ImLi4EEENSC_IyLi2EEENSC_IyLi3EEENSC_IyLi4EEENSC_INS8_9half_impl4halfELi2EEENSC_IS1B_Li3EEENSC_IS1B_Li4EEENSC_IfLi2EEENSC_IfLi3EEENSC_IfLi4EEENSC_IdLi2EEENSC_IdLi3EEENSC_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES7_E4typeEPKS7_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call i16 @llvm.nvvm.ldg.global.i.i16.p0(ptr [[PTR]], i32 2)
-// CHECK-OPAQUE-NEXT:    ret i16 [[TMP0]]
+// CHECK-OPAQUE: tail call i16 @llvm.nvvm.ldg.global.i.i16.p0(ptr %{{.*}}, i32 2)
 template SYCL_EXTERNAL unsigned short sycl::ext::oneapi::experimental::cuda::ldg(const unsigned short *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local noundef i32 @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgIjEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS0_3vecIcLi2EEENSC_IcLi3EEENSC_IcLi4EEENSC_IaLi2EEENSC_IaLi3EEENSC_IaLi4EEENSC_IsLi2EEENSC_IsLi3EEENSC_IsLi4EEENSC_IiLi2EEENSC_IiLi3EEENSC_IiLi4EEENSC_IlLi2EEENSC_IlLi3EEENSC_IlLi4EEENSC_IxLi2EEENSC_IxLi3EEENSC_IxLi4EEENSC_IhLi2EEENSC_IhLi3EEENSC_IhLi4EEENSC_ItLi2EEENSC_ItLi3EEENSC_ItLi4EEENSC_IjLi2EEENSC_IjLi3EEENSC_IjLi4EEENSC_ImLi2EEENSC_ImLi3EEENSC_ImLi4EEENSC_IyLi2EEENSC_IyLi3EEENSC_IyLi4EEENSC_INS8_9half_impl4halfELi2EEENSC_IS1B_Li3EEENSC_IS1B_Li4EEENSC_IfLi2EEENSC_IfLi3EEENSC_IfLi4EEENSC_IdLi2EEENSC_IdLi3EEENSC_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES7_E4typeEPKS7_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call i32 @llvm.nvvm.ldg.global.i.i32.p0(ptr [[PTR]], i32 4)
-// CHECK-OPAQUE-NEXT:    ret i32 [[TMP0]]
+// CHECK-OPAQUE: tail call i32 @llvm.nvvm.ldg.global.i.i32.p0(ptr %{{.*}}, i32 4)
 template SYCL_EXTERNAL unsigned int sycl::ext::oneapi::experimental::cuda::ldg(const unsigned int *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local noundef i64 @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgImEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS0_3vecIcLi2EEENSC_IcLi3EEENSC_IcLi4EEENSC_IaLi2EEENSC_IaLi3EEENSC_IaLi4EEENSC_IsLi2EEENSC_IsLi3EEENSC_IsLi4EEENSC_IiLi2EEENSC_IiLi3EEENSC_IiLi4EEENSC_IlLi2EEENSC_IlLi3EEENSC_IlLi4EEENSC_IxLi2EEENSC_IxLi3EEENSC_IxLi4EEENSC_IhLi2EEENSC_IhLi3EEENSC_IhLi4EEENSC_ItLi2EEENSC_ItLi3EEENSC_ItLi4EEENSC_IjLi2EEENSC_IjLi3EEENSC_IjLi4EEENSC_ImLi2EEENSC_ImLi3EEENSC_ImLi4EEENSC_IyLi2EEENSC_IyLi3EEENSC_IyLi4EEENSC_INS8_9half_impl4halfELi2EEENSC_IS1B_Li3EEENSC_IS1B_Li4EEENSC_IfLi2EEENSC_IfLi3EEENSC_IfLi4EEENSC_IdLi2EEENSC_IdLi3EEENSC_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES7_E4typeEPKS7_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr [[PTR]], i32 8)
-// CHECK-OPAQUE-NEXT:    ret i64 [[TMP0]]
+// CHECK-OPAQUE: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr %{{.*}}, i32 8)
 template SYCL_EXTERNAL unsigned long sycl::ext::oneapi::experimental::cuda::ldg(const unsigned long *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local noundef i64 @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgIyEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS0_3vecIcLi2EEENSC_IcLi3EEENSC_IcLi4EEENSC_IaLi2EEENSC_IaLi3EEENSC_IaLi4EEENSC_IsLi2EEENSC_IsLi3EEENSC_IsLi4EEENSC_IiLi2EEENSC_IiLi3EEENSC_IiLi4EEENSC_IlLi2EEENSC_IlLi3EEENSC_IlLi4EEENSC_IxLi2EEENSC_IxLi3EEENSC_IxLi4EEENSC_IhLi2EEENSC_IhLi3EEENSC_IhLi4EEENSC_ItLi2EEENSC_ItLi3EEENSC_ItLi4EEENSC_IjLi2EEENSC_IjLi3EEENSC_IjLi4EEENSC_ImLi2EEENSC_ImLi3EEENSC_ImLi4EEENSC_IyLi2EEENSC_IyLi3EEENSC_IyLi4EEENSC_INS8_9half_impl4halfELi2EEENSC_IS1B_Li3EEENSC_IS1B_Li4EEENSC_IfLi2EEENSC_IfLi3EEENSC_IfLi4EEENSC_IdLi2EEENSC_IdLi3EEENSC_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES7_E4typeEPKS7_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr [[PTR]], i32 8)
-// CHECK-OPAQUE-NEXT:    ret i64 [[TMP0]]
+// CHECK-OPAQUE: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr %{{.*}}, i32 8)
 template SYCL_EXTERNAL unsigned long long sycl::ext::oneapi::experimental::cuda::ldg(const unsigned long long *);
 
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.8" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIcLi2EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJS7_NS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i8> @llvm.nvvm.ldg.global.i.v2i8.p0(ptr [[PTR]], i32 2)
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.8" poison, <2 x i8> [[TMP0]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.8" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i8> @llvm.nvvm.ldg.global.i.v2i8.p0(ptr %{{.*}}, i32 2)
 template SYCL_EXTERNAL sycl::vec<char, 2> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<char, 2> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.9" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIcLi3EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEES7_NS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i8> @llvm.nvvm.ldg.global.i.v2i8.p0(ptr [[PTR]], i32 2)
-// CHECK-OPAQUE-NEXT:    [[INCDEC_PTR_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[PTR]], i64 2
-// CHECK-OPAQUE-NEXT:    [[TMP1:%.*]] = tail call i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr nonnull [[INCDEC_PTR_I_I_I]], i32 1)
-// CHECK-OPAQUE-NEXT:    [[VECEXT:%.*]] = extractelement <2 x i8> [[TMP0]], i64 0
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_0_VEC_INSERT:%.*]] = insertelement <3 x i8> poison, i8 [[VECEXT]], i64 0
-// CHECK-OPAQUE-NEXT:    [[VECEXT2:%.*]] = extractelement <2 x i8> [[TMP0]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_1_VEC_INSERT:%.*]] = insertelement <3 x i8> [[RETVAL_SROA_0_0_VEC_INSERT]], i8 [[VECEXT2]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_2_VEC_INSERT:%.*]] = insertelement <3 x i8> [[RETVAL_SROA_0_1_VEC_INSERT]], i8 [[TMP1]], i64 2
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.9" poison, <3 x i8> [[RETVAL_SROA_0_2_VEC_INSERT]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.9" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i8> @llvm.nvvm.ldg.global.i.v2i8.p0(ptr %{{.*}}, i32 2)
+// CHECK-OPAQUE: tail call i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr nonnull %{{.*}}, i32 1)
 template SYCL_EXTERNAL sycl::vec<char, 3> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<char, 3> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.10" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIaLi2EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEES7_NS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i8> @llvm.nvvm.ldg.global.i.v2i8.p0(ptr [[PTR]], i32 2)
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.10" poison, <2 x i8> [[TMP0]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.10" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i8> @llvm.nvvm.ldg.global.i.v2i8.p0(ptr %{{.*}}, i32 2)
 template SYCL_EXTERNAL sycl::vec<signed char, 2> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<signed char, 2> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.11" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIaLi3EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEES7_NS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i8> @llvm.nvvm.ldg.global.i.v2i8.p0(ptr [[PTR]], i32 2)
-// CHECK-OPAQUE-NEXT:    [[INCDEC_PTR_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[PTR]], i64 2
-// CHECK-OPAQUE-NEXT:    [[TMP1:%.*]] = tail call i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr nonnull [[INCDEC_PTR_I_I_I]], i32 1)
-// CHECK-OPAQUE-NEXT:    [[VECEXT:%.*]] = extractelement <2 x i8> [[TMP0]], i64 0
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_0_VEC_INSERT:%.*]] = insertelement <3 x i8> poison, i8 [[VECEXT]], i64 0
-// CHECK-OPAQUE-NEXT:    [[VECEXT2:%.*]] = extractelement <2 x i8> [[TMP0]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_1_VEC_INSERT:%.*]] = insertelement <3 x i8> [[RETVAL_SROA_0_0_VEC_INSERT]], i8 [[VECEXT2]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_2_VEC_INSERT:%.*]] = insertelement <3 x i8> [[RETVAL_SROA_0_1_VEC_INSERT]], i8 [[TMP1]], i64 2
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.11" poison, <3 x i8> [[RETVAL_SROA_0_2_VEC_INSERT]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.11" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i8> @llvm.nvvm.ldg.global.i.v2i8.p0(ptr %{{.*}}, i32 2)
+// CHECK-OPAQUE: tail call i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr nonnull %{{.*}}, i32 1)
 template SYCL_EXTERNAL sycl::vec<signed char, 3> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<signed char, 3> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.12" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIsLi2EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEES7_NS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i16> @llvm.nvvm.ldg.global.i.v2i16.p0(ptr [[PTR]], i32 4)
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.12" poison, <2 x i16> [[TMP0]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.12" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i16> @llvm.nvvm.ldg.global.i.v2i16.p0(ptr %{{.*}}, i32 4)
 template SYCL_EXTERNAL sycl::vec<short, 2> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<short, 2> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.13" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIsLi3EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEES7_NS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i16> @llvm.nvvm.ldg.global.i.v2i16.p0(ptr [[PTR]], i32 4)
-// CHECK-OPAQUE-NEXT:    [[INCDEC_PTR_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[PTR]], i64 4
-// CHECK-OPAQUE-NEXT:    [[TMP1:%.*]] = tail call i16 @llvm.nvvm.ldg.global.i.i16.p0(ptr nonnull [[INCDEC_PTR_I_I_I]], i32 2)
-// CHECK-OPAQUE-NEXT:    [[VECEXT:%.*]] = extractelement <2 x i16> [[TMP0]], i64 0
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_0_VEC_INSERT:%.*]] = insertelement <3 x i16> poison, i16 [[VECEXT]], i64 0
-// CHECK-OPAQUE-NEXT:    [[VECEXT2:%.*]] = extractelement <2 x i16> [[TMP0]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_2_VEC_INSERT:%.*]] = insertelement <3 x i16> [[RETVAL_SROA_0_0_VEC_INSERT]], i16 [[VECEXT2]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_4_VEC_INSERT:%.*]] = insertelement <3 x i16> [[RETVAL_SROA_0_2_VEC_INSERT]], i16 [[TMP1]], i64 2
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.13" poison, <3 x i16> [[RETVAL_SROA_0_4_VEC_INSERT]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.13" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i16> @llvm.nvvm.ldg.global.i.v2i16.p0(ptr %{{.*}}, i32 4)
+// CHECK-OPAQUE: tail call i16 @llvm.nvvm.ldg.global.i.i16.p0(ptr nonnull %{{.*}}, i32 2)
 template SYCL_EXTERNAL sycl::vec<short, 3> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<short, 3> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.14" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIiLi2EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEES7_NS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i32> @llvm.nvvm.ldg.global.i.v2i32.p0(ptr [[PTR]], i32 8)
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.14" poison, <2 x i32> [[TMP0]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.14" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i32> @llvm.nvvm.ldg.global.i.v2i32.p0(ptr %{{.*}}, i32 8)
 template SYCL_EXTERNAL sycl::vec<int, 2> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<int, 2> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.15" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIiLi3EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEES7_NS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i32> @llvm.nvvm.ldg.global.i.v2i32.p0(ptr [[PTR]], i32 8)
-// CHECK-OPAQUE-NEXT:    [[INCDEC_PTR_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[PTR]], i64 8
-// CHECK-OPAQUE-NEXT:    [[TMP1:%.*]] = tail call i32 @llvm.nvvm.ldg.global.i.i32.p0(ptr nonnull [[INCDEC_PTR_I_I_I]], i32 4)
-// CHECK-OPAQUE-NEXT:    [[VECEXT:%.*]] = extractelement <2 x i32> [[TMP0]], i64 0
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_0_VEC_INSERT:%.*]] = insertelement <3 x i32> poison, i32 [[VECEXT]], i64 0
-// CHECK-OPAQUE-NEXT:    [[VECEXT2:%.*]] = extractelement <2 x i32> [[TMP0]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_4_VEC_INSERT:%.*]] = insertelement <3 x i32> [[RETVAL_SROA_0_0_VEC_INSERT]], i32 [[VECEXT2]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_8_VEC_INSERT:%.*]] = insertelement <3 x i32> [[RETVAL_SROA_0_4_VEC_INSERT]], i32 [[TMP1]], i64 2
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.15" poison, <3 x i32> [[RETVAL_SROA_0_8_VEC_INSERT]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.15" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i32> @llvm.nvvm.ldg.global.i.v2i32.p0(ptr %{{.*}}, i32 8)
+// CHECK-OPAQUE: tail call i32 @llvm.nvvm.ldg.global.i.i32.p0(ptr nonnull %{{.*}}, i32 4)
 template SYCL_EXTERNAL sycl::vec<int, 3> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<int, 3> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.16" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIlLi2EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEES7_NS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr [[PTR]], i32 16)
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.16" poison, <2 x i64> [[TMP0]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.16" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
 template SYCL_EXTERNAL sycl::vec<long, 2> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<long, 2> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.17" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIlLi3EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEES7_NS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr [[PTR]], i32 16)
-// CHECK-OPAQUE-NEXT:    [[INCDEC_PTR_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[PTR]], i64 16
-// CHECK-OPAQUE-NEXT:    [[TMP1:%.*]] = tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr nonnull [[INCDEC_PTR_I_I_I]], i32 8)
-// CHECK-OPAQUE-NEXT:    [[VECEXT:%.*]] = extractelement <2 x i64> [[TMP0]], i64 0
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_0_VEC_INSERT:%.*]] = insertelement <3 x i64> poison, i64 [[VECEXT]], i64 0
-// CHECK-OPAQUE-NEXT:    [[VECEXT2:%.*]] = extractelement <2 x i64> [[TMP0]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_8_VEC_INSERT:%.*]] = insertelement <3 x i64> [[RETVAL_SROA_0_0_VEC_INSERT]], i64 [[VECEXT2]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_16_VEC_INSERT:%.*]] = insertelement <3 x i64> [[RETVAL_SROA_0_8_VEC_INSERT]], i64 [[TMP1]], i64 2
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.17" poison, <3 x i64> [[RETVAL_SROA_0_16_VEC_INSERT]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.17" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
+// CHECK-OPAQUE: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr nonnull %{{.*}}, i32 8)
 template SYCL_EXTERNAL sycl::vec<long, 3> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<long, 3> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.18" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIxLi2EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEES7_NS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr [[PTR]], i32 16)
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.18" poison, <2 x i64> [[TMP0]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.18" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
 template SYCL_EXTERNAL sycl::vec<long long, 2> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<long long, 2> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.19" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIxLi3EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEES7_NS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr [[PTR]], i32 16)
-// CHECK-OPAQUE-NEXT:    [[INCDEC_PTR_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[PTR]], i64 16
-// CHECK-OPAQUE-NEXT:    [[TMP1:%.*]] = tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr nonnull [[INCDEC_PTR_I_I_I]], i32 8)
-// CHECK-OPAQUE-NEXT:    [[VECEXT:%.*]] = extractelement <2 x i64> [[TMP0]], i64 0
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_0_VEC_INSERT:%.*]] = insertelement <3 x i64> poison, i64 [[VECEXT]], i64 0
-// CHECK-OPAQUE-NEXT:    [[VECEXT2:%.*]] = extractelement <2 x i64> [[TMP0]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_8_VEC_INSERT:%.*]] = insertelement <3 x i64> [[RETVAL_SROA_0_0_VEC_INSERT]], i64 [[VECEXT2]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_16_VEC_INSERT:%.*]] = insertelement <3 x i64> [[RETVAL_SROA_0_8_VEC_INSERT]], i64 [[TMP1]], i64 2
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.19" poison, <3 x i64> [[RETVAL_SROA_0_16_VEC_INSERT]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.19" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
+// CHECK-OPAQUE: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr nonnull %{{.*}}, i32 8)
 template SYCL_EXTERNAL sycl::vec<long long, 3> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<long long, 3> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.20" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIlLi4EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEES7_NS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr [[PTR]], i32 16)
-// CHECK-OPAQUE-NEXT:    [[INCDEC_PTR_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[PTR]], i64 16
-// CHECK-OPAQUE-NEXT:    [[TMP1:%.*]] = tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr nonnull [[INCDEC_PTR_I_I_I]], i32 16)
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_24_VEC_INSERT:%.*]] = shufflevector <2 x i64> [[TMP0]], <2 x i64> [[TMP1]], <4 x i32> <i32 0, i32 1, i32 2, i32 3>
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.20" poison, <4 x i64> [[RETVAL_SROA_0_24_VEC_INSERT]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.20" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
+// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr nonnull %{{.*}}, i32 16)
 template SYCL_EXTERNAL sycl::vec<long, 4> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<long, 4> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.21" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIxLi4EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEES7_NS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr [[PTR]], i32 16)
-// CHECK-OPAQUE-NEXT:    [[INCDEC_PTR_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[PTR]], i64 16
-// CHECK-OPAQUE-NEXT:    [[TMP1:%.*]] = tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr nonnull [[INCDEC_PTR_I_I_I]], i32 16)
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_24_VEC_INSERT:%.*]] = shufflevector <2 x i64> [[TMP0]], <2 x i64> [[TMP1]], <4 x i32> <i32 0, i32 1, i32 2, i32 3>
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.21" poison, <4 x i64> [[RETVAL_SROA_0_24_VEC_INSERT]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.21" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
+// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr nonnull %{{.*}}, i32 16)
 template SYCL_EXTERNAL sycl::vec<long long, 4> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<long long, 4> *);
 
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.22" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIhLi2EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEES7_NS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i8> @llvm.nvvm.ldg.global.i.v2i8.p0(ptr [[PTR]], i32 2)
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.22" poison, <2 x i8> [[TMP0]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.22" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i8> @llvm.nvvm.ldg.global.i.v2i8.p0(ptr %{{.*}}, i32 2)
 template SYCL_EXTERNAL sycl::vec<unsigned char, 2> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned char, 2> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.23" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIhLi3EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEES7_NS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i8> @llvm.nvvm.ldg.global.i.v2i8.p0(ptr [[PTR]], i32 2)
-// CHECK-OPAQUE-NEXT:    [[INCDEC_PTR_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[PTR]], i64 2
-// CHECK-OPAQUE-NEXT:    [[TMP1:%.*]] = tail call i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr nonnull [[INCDEC_PTR_I_I_I]], i32 1)
-// CHECK-OPAQUE-NEXT:    [[VECEXT:%.*]] = extractelement <2 x i8> [[TMP0]], i64 0
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_0_VEC_INSERT:%.*]] = insertelement <3 x i8> poison, i8 [[VECEXT]], i64 0
-// CHECK-OPAQUE-NEXT:    [[VECEXT2:%.*]] = extractelement <2 x i8> [[TMP0]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_1_VEC_INSERT:%.*]] = insertelement <3 x i8> [[RETVAL_SROA_0_0_VEC_INSERT]], i8 [[VECEXT2]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_2_VEC_INSERT:%.*]] = insertelement <3 x i8> [[RETVAL_SROA_0_1_VEC_INSERT]], i8 [[TMP1]], i64 2
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.23" poison, <3 x i8> [[RETVAL_SROA_0_2_VEC_INSERT]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.23" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i8> @llvm.nvvm.ldg.global.i.v2i8.p0(ptr %{{.*}}, i32 2)
+// CHECK-OPAQUE: tail call i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr nonnull %{{.*}}, i32 1)
 template SYCL_EXTERNAL sycl::vec<unsigned char, 3> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned char, 3> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.24" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecItLi2EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEES7_NS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i16> @llvm.nvvm.ldg.global.i.v2i16.p0(ptr [[PTR]], i32 4)
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.24" poison, <2 x i16> [[TMP0]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.24" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i16> @llvm.nvvm.ldg.global.i.v2i16.p0(ptr %{{.*}}, i32 4)
 template SYCL_EXTERNAL sycl::vec<unsigned short, 2> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned short, 2> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.25" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecItLi3EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEES7_NS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i16> @llvm.nvvm.ldg.global.i.v2i16.p0(ptr [[PTR]], i32 4)
-// CHECK-OPAQUE-NEXT:    [[INCDEC_PTR_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[PTR]], i64 4
-// CHECK-OPAQUE-NEXT:    [[TMP1:%.*]] = tail call i16 @llvm.nvvm.ldg.global.i.i16.p0(ptr nonnull [[INCDEC_PTR_I_I_I]], i32 2)
-// CHECK-OPAQUE-NEXT:    [[VECEXT:%.*]] = extractelement <2 x i16> [[TMP0]], i64 0
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_0_VEC_INSERT:%.*]] = insertelement <3 x i16> poison, i16 [[VECEXT]], i64 0
-// CHECK-OPAQUE-NEXT:    [[VECEXT2:%.*]] = extractelement <2 x i16> [[TMP0]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_2_VEC_INSERT:%.*]] = insertelement <3 x i16> [[RETVAL_SROA_0_0_VEC_INSERT]], i16 [[VECEXT2]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_4_VEC_INSERT:%.*]] = insertelement <3 x i16> [[RETVAL_SROA_0_2_VEC_INSERT]], i16 [[TMP1]], i64 2
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.25" poison, <3 x i16> [[RETVAL_SROA_0_4_VEC_INSERT]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.25" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i16> @llvm.nvvm.ldg.global.i.v2i16.p0(ptr %{{.*}}, i32 4)
+// CHECK-OPAQUE: tail call i16 @llvm.nvvm.ldg.global.i.i16.p0(ptr nonnull %{{.*}}, i32 2)
 template SYCL_EXTERNAL sycl::vec<unsigned short, 3> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned short, 3> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.26" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIjLi2EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEES7_NS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i32> @llvm.nvvm.ldg.global.i.v2i32.p0(ptr [[PTR]], i32 8)
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.26" poison, <2 x i32> [[TMP0]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.26" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i32> @llvm.nvvm.ldg.global.i.v2i32.p0(ptr %{{.*}}, i32 8)
 template SYCL_EXTERNAL sycl::vec<unsigned int, 2> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned int, 2> *);
 
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.27" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIjLi3EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEES7_NS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i32> @llvm.nvvm.ldg.global.i.v2i32.p0(ptr [[PTR]], i32 8)
-// CHECK-OPAQUE-NEXT:    [[INCDEC_PTR_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[PTR]], i64 8
-// CHECK-OPAQUE-NEXT:    [[TMP1:%.*]] = tail call i32 @llvm.nvvm.ldg.global.i.i32.p0(ptr nonnull [[INCDEC_PTR_I_I_I]], i32 4)
-// CHECK-OPAQUE-NEXT:    [[VECEXT:%.*]] = extractelement <2 x i32> [[TMP0]], i64 0
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_0_VEC_INSERT:%.*]] = insertelement <3 x i32> poison, i32 [[VECEXT]], i64 0
-// CHECK-OPAQUE-NEXT:    [[VECEXT2:%.*]] = extractelement <2 x i32> [[TMP0]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_4_VEC_INSERT:%.*]] = insertelement <3 x i32> [[RETVAL_SROA_0_0_VEC_INSERT]], i32 [[VECEXT2]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_8_VEC_INSERT:%.*]] = insertelement <3 x i32> [[RETVAL_SROA_0_4_VEC_INSERT]], i32 [[TMP1]], i64 2
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.27" poison, <3 x i32> [[RETVAL_SROA_0_8_VEC_INSERT]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.27" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i32> @llvm.nvvm.ldg.global.i.v2i32.p0(ptr %{{.*}}, i32 8)
+// CHECK-OPAQUE: tail call i32 @llvm.nvvm.ldg.global.i.i32.p0(ptr nonnull %{{.*}}, i32 4)
 template SYCL_EXTERNAL sycl::vec<unsigned int, 3> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned int, 3> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.28" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecImLi2EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEES7_NS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr [[PTR]], i32 16)
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.28" poison, <2 x i64> [[TMP0]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.28" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
 template SYCL_EXTERNAL sycl::vec<unsigned long, 2> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned long, 2> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.29" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecImLi3EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEES7_NS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr [[PTR]], i32 16)
-// CHECK-OPAQUE-NEXT:    [[INCDEC_PTR_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[PTR]], i64 16
-// CHECK-OPAQUE-NEXT:    [[TMP1:%.*]] = tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr nonnull [[INCDEC_PTR_I_I_I]], i32 8)
-// CHECK-OPAQUE-NEXT:    [[VECEXT:%.*]] = extractelement <2 x i64> [[TMP0]], i64 0
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_0_VEC_INSERT:%.*]] = insertelement <3 x i64> poison, i64 [[VECEXT]], i64 0
-// CHECK-OPAQUE-NEXT:    [[VECEXT2:%.*]] = extractelement <2 x i64> [[TMP0]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_8_VEC_INSERT:%.*]] = insertelement <3 x i64> [[RETVAL_SROA_0_0_VEC_INSERT]], i64 [[VECEXT2]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_16_VEC_INSERT:%.*]] = insertelement <3 x i64> [[RETVAL_SROA_0_8_VEC_INSERT]], i64 [[TMP1]], i64 2
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.29" poison, <3 x i64> [[RETVAL_SROA_0_16_VEC_INSERT]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.29" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
+// CHECK-OPAQUE: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr nonnull %{{.*}}, i32 8)
 template SYCL_EXTERNAL sycl::vec<unsigned long, 3> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned long, 3> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.30" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIyLi2EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEES7_NS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr [[PTR]], i32 16)
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.30" poison, <2 x i64> [[TMP0]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.30" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
 template SYCL_EXTERNAL sycl::vec<unsigned long long, 2> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned long long, 2> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.31" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIyLi3EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEES7_NS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr [[PTR]], i32 16)
-// CHECK-OPAQUE-NEXT:    [[INCDEC_PTR_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[PTR]], i64 16
-// CHECK-OPAQUE-NEXT:    [[TMP1:%.*]] = tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr nonnull [[INCDEC_PTR_I_I_I]], i32 8)
-// CHECK-OPAQUE-NEXT:    [[VECEXT:%.*]] = extractelement <2 x i64> [[TMP0]], i64 0
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_0_VEC_INSERT:%.*]] = insertelement <3 x i64> poison, i64 [[VECEXT]], i64 0
-// CHECK-OPAQUE-NEXT:    [[VECEXT2:%.*]] = extractelement <2 x i64> [[TMP0]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_8_VEC_INSERT:%.*]] = insertelement <3 x i64> [[RETVAL_SROA_0_0_VEC_INSERT]], i64 [[VECEXT2]], i64 1
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_16_VEC_INSERT:%.*]] = insertelement <3 x i64> [[RETVAL_SROA_0_8_VEC_INSERT]], i64 [[TMP1]], i64 2
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.31" poison, <3 x i64> [[RETVAL_SROA_0_16_VEC_INSERT]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.31" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
+// CHECK-OPAQUE: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr nonnull %{{.*}}, i32 8)
 template SYCL_EXTERNAL sycl::vec<unsigned long long, 3> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned long long, 3> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.32" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecImLi4EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEES7_NS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr [[PTR]], i32 16)
-// CHECK-OPAQUE-NEXT:    [[INCDEC_PTR_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[PTR]], i64 16
-// CHECK-OPAQUE-NEXT:    [[TMP1:%.*]] = tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr nonnull [[INCDEC_PTR_I_I_I]], i32 16)
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_24_VEC_INSERT:%.*]] = shufflevector <2 x i64> [[TMP0]], <2 x i64> [[TMP1]], <4 x i32> <i32 0, i32 1, i32 2, i32 3>
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.32" poison, <4 x i64> [[RETVAL_SROA_0_24_VEC_INSERT]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.32" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
+// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr nonnull %{{.*}}, i32 16)
 template SYCL_EXTERNAL sycl::vec<unsigned long, 4> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned long, 4> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.33" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIyLi4EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEES7_NS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr [[PTR]], i32 16)
-// CHECK-OPAQUE-NEXT:    [[INCDEC_PTR_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[PTR]], i64 16
-// CHECK-OPAQUE-NEXT:    [[TMP1:%.*]] = tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr nonnull [[INCDEC_PTR_I_I_I]], i32 16)
-// CHECK-OPAQUE-NEXT:    [[RETVAL_SROA_0_24_VEC_INSERT:%.*]] = shufflevector <2 x i64> [[TMP0]], <2 x i64> [[TMP1]], <4 x i32> <i32 0, i32 1, i32 2, i32 3>
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.33" poison, <4 x i64> [[RETVAL_SROA_0_24_VEC_INSERT]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.33" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
+// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr nonnull %{{.*}}, i32 16)
 template SYCL_EXTERNAL sycl::vec<unsigned long long, 4> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned long long, 4> *);
 
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.34" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIcLi4EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEES7_NS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <4 x i8> @llvm.nvvm.ldg.global.i.v4i8.p0(ptr [[PTR]], i32 4)
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.34" poison, <4 x i8> [[TMP0]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.34" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <4 x i8> @llvm.nvvm.ldg.global.i.v4i8.p0(ptr %{{.*}}, i32 4)
 template SYCL_EXTERNAL sycl::vec<char, 4> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<char, 4> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.35" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIaLi4EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEES7_NS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <4 x i8> @llvm.nvvm.ldg.global.i.v4i8.p0(ptr [[PTR]], i32 4)
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.35" poison, <4 x i8> [[TMP0]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.35" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <4 x i8> @llvm.nvvm.ldg.global.i.v4i8.p0(ptr %{{.*}}, i32 4)
 template SYCL_EXTERNAL sycl::vec<signed char, 4> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<signed char, 4> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.36" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIsLi4EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEES7_NS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <4 x i16> @llvm.nvvm.ldg.global.i.v4i16.p0(ptr [[PTR]], i32 8)
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.36" poison, <4 x i16> [[TMP0]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.36" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <4 x i16> @llvm.nvvm.ldg.global.i.v4i16.p0(ptr %{{.*}}, i32 8)
 template SYCL_EXTERNAL sycl::vec<short, 4> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<short, 4> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.37" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIiLi4EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEES7_NS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <4 x i32> @llvm.nvvm.ldg.global.i.v4i32.p0(ptr [[PTR]], i32 16)
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.37" poison, <4 x i32> [[TMP0]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.37" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <4 x i32> @llvm.nvvm.ldg.global.i.v4i32.p0(ptr %{{.*}}, i32 16)
 template SYCL_EXTERNAL sycl::vec<int, 4> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<int, 4> *);
 
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.38" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIhLi4EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEES7_NS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <4 x i8> @llvm.nvvm.ldg.global.i.v4i8.p0(ptr [[PTR]], i32 4)
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.38" poison, <4 x i8> [[TMP0]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.38" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <4 x i8> @llvm.nvvm.ldg.global.i.v4i8.p0(ptr %{{.*}}, i32 4)
 template SYCL_EXTERNAL sycl::vec<unsigned char, 4> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned char, 4> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.39" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecItLi4EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEES7_NS6_IjLi2EEENS6_IjLi3EEENS6_IjLi4EEENS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <4 x i16> @llvm.nvvm.ldg.global.i.v4i16.p0(ptr [[PTR]], i32 8)
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.39" poison, <4 x i16> [[TMP0]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.39" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <4 x i16> @llvm.nvvm.ldg.global.i.v4i16.p0(ptr %{{.*}}, i32 8)
 template SYCL_EXTERNAL sycl::vec<unsigned short, 4> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned short, 4> *);
-// CHECK-OPAQUE-LABEL: define weak_odr dso_local %"class.sycl::_V1::vec.40" @_ZN4sycl3_V13ext6oneapi12experimental4cuda3ldgINS0_3vecIjLi4EEEEENSt9enable_ifIXsr4sycl6detail12is_containedIT_NS0_6detail5boost4mp117mp_listIJNS6_IcLi2EEENS6_IcLi3EEENS6_IcLi4EEENS6_IaLi2EEENS6_IaLi3EEENS6_IaLi4EEENS6_IsLi2EEENS6_IsLi3EEENS6_IsLi4EEENS6_IiLi2EEENS6_IiLi3EEENS6_IiLi4EEENS6_IlLi2EEENS6_IlLi3EEENS6_IlLi4EEENS6_IxLi2EEENS6_IxLi3EEENS6_IxLi4EEENS6_IhLi2EEENS6_IhLi3EEENS6_IhLi4EEENS6_ItLi2EEENS6_ItLi3EEENS6_ItLi4EEENS6_IjLi2EEENS6_IjLi3EEES7_NS6_ImLi2EEENS6_ImLi3EEENS6_ImLi4EEENS6_IyLi2EEENS6_IyLi3EEENS6_IyLi4EEENS6_INSA_9half_impl4halfELi2EEENS6_IS1B_Li3EEENS6_IS1B_Li4EEENS6_IfLi2EEENS6_IfLi3EEENS6_IfLi4EEENS6_IdLi2EEENS6_IdLi3EEENS6_IdLi4EEEfdS1B_NS2_8bfloat16EcasilxhtjmySt4byteEEEEE5valueES9_E4typeEPKS9_(
-// CHECK-OPAQUE-SAME: ptr noundef [[PTR:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META10]] !sycl_fixed_targets [[META12]] {
-// CHECK-OPAQUE-NEXT:  entry:
-// CHECK-OPAQUE-NEXT:    [[TMP0:%.*]] = tail call <4 x i32> @llvm.nvvm.ldg.global.i.v4i32.p0(ptr [[PTR]], i32 16)
-// CHECK-OPAQUE-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue %"class.sycl::_V1::vec.40" poison, <4 x i32> [[TMP0]], 0
-// CHECK-OPAQUE-NEXT:    ret %"class.sycl::_V1::vec.40" [[DOTFCA_0_INSERT]]
+// CHECK-OPAQUE: tail call <4 x i32> @llvm.nvvm.ldg.global.i.v4i32.p0(ptr %{{.*}}, i32 16)
 template SYCL_EXTERNAL sycl::vec<unsigned int, 4> sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned int, 4> *);
