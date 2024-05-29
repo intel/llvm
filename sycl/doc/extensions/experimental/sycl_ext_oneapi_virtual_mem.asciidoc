@@ -270,6 +270,9 @@ be a multiple of the granularity, as returned by a call to
 If `syclDevice` does not have `aspect::ext_oneapi_virtual_mem` the call throws
 an exception with `errc::feature_not_supported`.
 
+If the constructor is unable to allocate the required memory on `syclDevice`,
+the call throws an exception with `errc::memory_allocation`.
+
 |`physical_mem(const queue &syclQueue, size_t numBytes)` |
 Same as `physical_mem(syclQueue.get_device(), syclQueue.get_context, numBytes)`.
 

@@ -14,6 +14,7 @@
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/device.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/virtual_mem/physical_mem.hpp>
 
 namespace sycl {
@@ -42,9 +43,15 @@ public:
       : MDevice(getSyclObjImpl(SyclDevice)),
         MContext(getSyclObjImpl(SyclContext)), MNumBytes(NumBytes) {
     const PluginPtr &Plugin = MContext->getPlugin();
-    Plugin->call<PiApiKind::piextPhysicalMemCreate>(MContext->getHandleRef(),
-                                                    MDevice->getHandleRef(),
-                                                    MNumBytes, &MPhysicalMem);
+
+    auto Err = Plugin->call_nocheck<PiApiKind::piextPhysicalMemCreate>(
+        MContext->getHandleRef(), MDevice->getHandleRef(), MNumBytes,
+        &MPhysicalMem);
+
+    if (Err == PI_ERROR_OUT_OF_RESOURCES || Err == PI_ERROR_OUT_OF_HOST_MEMORY)
+      throw sycl::exception(make_error_code(errc::memory_allocation),
+                            "Failed to allocate physical memory.");
+    Plugin->checkPiResult(Err);
   }
 
   ~physical_mem_impl() {
