@@ -172,26 +172,15 @@ std::pair<const char *, int> vabsdiff2_add() {
 
 std::pair<const char *, int> vmin2() {
 
-  CHECK(syclcompat::extend_vmin2_sat<int32_t>(0x0002FFF1, 0x0001FFF2, 0),
-        0x0001FFF1);
   CHECK(syclcompat::extend_vmin2<int32_t>((int32_t)0xFFFF0002, 0x00010001, 0),
         (int32_t)0xFFFF0001);
+  CHECK(syclcompat::extend_vmin2_sat<int32_t>(0x0002FFF1, 0x0001FFF2, 0),
+        0x0001FFF1);
 
   CHECK(syclcompat::extend_vmin2<uint32_t>(0x000A000D, 0x000B000C, 0),
         0x000A000C);
   CHECK(syclcompat::extend_vmin2_sat<uint32_t>(0x0002FFF1, 0x0001FFF2, 0),
         0x00010000);
-  return {nullptr, 0};
-}
-
-std::pair<const char *, int> vmin2_add() {
-
-  CHECK(
-      syclcompat::extend_vmin2_add<int32_t>((int32_t)0xFFFF0002, 0x00010001, 0),
-      0x00000000);
-
-  CHECK(syclcompat::extend_vmin2_add<uint32_t>(0x000A000D, 0x000B000C, 0),
-        0x00000016);
 
   return {nullptr, 0};
 }
@@ -211,12 +200,17 @@ std::pair<const char *, int> vmax2() {
   return {nullptr, 0};
 }
 
-std::pair<const char *, int> vmax2_add() {
+std::pair<const char *, int> vmin2_vmax2_add() {
+
+  CHECK(
+      syclcompat::extend_vmin2_add<int32_t>((int32_t)0xFFFF0002, 0x00010001, 0),
+      0x00000000);
+  CHECK(syclcompat::extend_vmin2_add<uint32_t>(0x000A000D, 0x000B000C, 0),
+        0x00000016);
 
   CHECK(
       syclcompat::extend_vmax2_add<int32_t>((int32_t)0xFFFF0002, 0x00010001, 0),
       0x00000003);
-
   CHECK(syclcompat::extend_vmax2_add<uint32_t>(0x000A000D, 0x000B000C, 0),
         0x00000018);
 
@@ -231,9 +225,9 @@ std::pair<const char *, int> vavrg2() {
                                                0),
         0x0002FFF8);
 
-  CHECK(syclcompat::extend_vavrg2<uint32_t>(0x00010006, 0x00030002, 0),
+  CHECK(syclcompat::extend_vavrg2<uint32_t>(0x00010006, 0x00030001, 0),
         0x00020004);
-  CHECK(syclcompat::extend_vavrg2_sat<uint32_t>(0x00010006, 0x00030002, 0),
+  CHECK(syclcompat::extend_vavrg2_sat<uint32_t>(0x00010006, 0x00030001, 0),
         0x00020004);
 
   return {nullptr, 0};
@@ -316,28 +310,19 @@ void test(const sycl::stream &s, int *ec) {
     s << "vmax2 check passed!\n";
   }
   {
-    auto res = vmin2_add();
+    auto res = vmin2_vmax2_add();
     if (res.first) {
       s << res.first << " = " << res.second << " check failed!\n";
       *ec = 8;
       return;
     }
-    s << "vmin2_add check passed!\n";
-  }
-  {
-    auto res = vmax2_add();
-    if (res.first) {
-      s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 9;
-      return;
-    }
-    s << "vmax2_add check passed!\n";
+    s << "vmin2_add/vmax2_add check passed!\n";
   }
   {
     auto res = vavrg2();
     if (res.first) {
       s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 10;
+      *ec = 9;
       return;
     }
     s << "vavrg2 check passed!\n";
@@ -346,7 +331,7 @@ void test(const sycl::stream &s, int *ec) {
     auto res = vavrg2_add();
     if (res.first) {
       s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 11;
+      *ec = 10;
       return;
     }
     s << "vavrg2_add check passed!\n";
@@ -355,7 +340,7 @@ void test(const sycl::stream &s, int *ec) {
     auto res = vabsdiff2_add();
     if (res.first) {
       s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 12;
+      *ec = 11;
       return;
     }
     s << "vabsdiff2_add check passed!\n";
