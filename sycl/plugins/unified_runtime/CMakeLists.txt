@@ -75,6 +75,11 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
         tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
       return()
     endif()
     message(STATUS
@@ -95,16 +100,16 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/steffenlarsen/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 7a2065888518c839f0ebbb7fe16fefc6edf3c700)
+  set(UNIFIED_RUNTIME_TAG 33410b5e9c5fe1babee74fdce9eeea09a54031fd)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    7a2065888518c839f0ebbb7fe16fefc6edf3c700
+    33410b5e9c5fe1babee74fdce9eeea09a54031fd
   )
 
   fetch_adapter_source(opencl
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    33410b5e9c5fe1babee74fdce9eeea09a54031fd
   )
 
   fetch_adapter_source(cuda
@@ -114,7 +119,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit a3895dbf46a98c8a5cd58704efe85e12fa1050cd
+    # Merge: 30c5c553 67338dbe
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu May 30 10:04:14 2024 +0100
+    #     Merge pull request #1604 from kbenzie/benie/hip-kernel-spec-constants
+    #     [HIP] Implement kernel set spec constant query
+    a3895dbf46a98c8a5cd58704efe85e12fa1050cd
   )
 
   fetch_adapter_source(native_cpu

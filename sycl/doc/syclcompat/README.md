@@ -1426,8 +1426,8 @@ static void get_kernel_function_info(kernel_function_info *kernel_info,
 static kernel_function_info get_kernel_function_info(const void *function);
 
 class kernel_library {
-  kernel_library();
-  kernel_library(void *ptr);
+  constexpr kernel_library();
+  constexpr kernel_library(void *ptr);
   operator void *() const;
 };
 
@@ -1436,8 +1436,8 @@ static kernel_library load_kernel_library_mem(char const *const image);
 static void unload_kernel_library(const kernel_library &library);
 
 class kernel_function {
-    kernel_function();
-    kernel_function(kernel_functor ptr);
+    constexpr kernel_function();
+    constexpr kernel_function(kernel_functor ptr);
     operator void *() const;
     void operator()(sycl::queue &q, const sycl::nd_range<3> &range,
                     unsigned int local_mem_size, void **args, void **extra);
