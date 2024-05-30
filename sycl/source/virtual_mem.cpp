@@ -77,7 +77,7 @@ __SYCL_EXPORT size_t get_mem_granularity(const context &SyclContext,
 #ifdef _WIN32
     SYSTEM_INFO SystemInfo;
     GetSystemInfo(&SystemInfo);
-    return static_cast<size_t>(sysInfo.dwPageSize);
+    return static_cast<size_t>(SystemInfo.dwPageSize);
 #else
     return static_cast<size_t>(sysconf(_SC_PAGESIZE));
 #endif
