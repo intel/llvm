@@ -100,6 +100,7 @@ _PI_API(piEventRetain)
 _PI_API(piEventRelease)
 _PI_API(piextEventGetNativeHandle)
 _PI_API(piextEventCreateWithNativeHandle)
+_PI_API(piEnqueueTimestampRecordingExp)
 // Sampler
 _PI_API(piSamplerCreate)
 _PI_API(piSamplerGetInfo)
