@@ -65,19 +65,17 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     // Adjust the scratch pointer based on alignment of the type T.
     // Per extension specification if scratch size is less than the value
-    // returned by memory_required, behavior is undefined. So, if std::align
-    // returns nullptr (which means that we don't have enough space) then exit
-    // early.
+    // returned by memory_required then behavior is undefined, so we don't check
+    // that the scratch size statisfies the requirement.
     using T = typename sycl::detail::GetValueType<Ptr>::type;
-    void *scratch_ptr = scratch.data();
-    size_t space = scratch.size();
+    T *scratch_begin = nullptr;
     size_t n = last - first;
-    if (!std::align(alignof(T), n * sizeof(T), scratch_ptr, space))
-      return;
-
-    std::size_t local_id = g.get_local_linear_id();
-    T *scratch_begin =
-        local_id == 0 ? scratch_begin = ::new (scratch_ptr) T[n] : nullptr;
+    if (g.leader()) {
+      void *scratch_ptr = scratch.data();
+      size_t space = scratch.size();
+      scratch_ptr = std::align(alignof(T), n * sizeof(T), scratch_ptr, space);
+      scratch_begin = ::new (scratch_ptr) T[n];
+    }
     // Broadcast leader's pointer (the beginning of the scratch) to all work
     // items in the group.
     scratch_begin = sycl::group_broadcast(g, scratch_begin);
@@ -92,26 +90,22 @@ public:
   template <typename Group, typename T>
   T operator()([[maybe_unused]] Group g, T val) {
 #ifdef __SYCL_DEVICE_ONLY__
+    // Adjust the scratch pointer based on alignment of the type T.
     // Per extension specification if scratch size is less than the value
     // returned by memory_required then behavior is undefined, so we don't check
     // that the scratch size statisfies the requirement.
-    auto range_size = g.get_local_range().size();
+    T *scratch_begin = nullptr;
     std::size_t local_id = g.get_local_linear_id();
-
-    // Adjust the scratch pointer based on alignment of the type T.
-    // Per extension specification if scratch size is less than the value
-    // returned by memory_required, behavior is undefined. So, if std::align
-    // returns nullptr (which means that we don't have enough space) then exit
-    // early.
-    void *scratch_ptr = scratch.data();
-    size_t space = scratch.size();
-    if (!std::align(alignof(T), /* output storage and temporary storage */ 2 *
-                                    range_size * sizeof(T),
-                    scratch_ptr, space))
-      return val;
-
-    T *scratch_begin =
-        local_id == 0 ? ::new (scratch_ptr) T[2 * range_size] : nullptr;
+    auto range_size = g.get_local_range().size();
+    if (g.leader()) {
+      void *scratch_ptr = scratch.data();
+      size_t space = scratch.size();
+      scratch_ptr =
+          std::align(alignof(T), /* output storage and temporary storage */ 2 *
+                                     range_size * sizeof(T),
+                     scratch_ptr, space);
+      scratch_begin = ::new (scratch_ptr) T[2 * range_size];
+    }
     // Broadcast leader's pointer (the beginning of the scratch) to all work
     // items in the group.
     scratch_begin = sycl::group_broadcast(g, scratch_begin);
