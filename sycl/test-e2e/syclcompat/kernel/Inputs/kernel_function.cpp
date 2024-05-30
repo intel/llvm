@@ -30,7 +30,9 @@
 //
 // ===---------------------------------------------------------------------===//
 #ifdef _WIN32
+#define NOMINMAX
 #include <windows.h>
+#undef NOMINMAX
 #else
 #include <dlfcn.h>
 #endif
@@ -38,7 +40,7 @@
 #include <iostream>
 #include <string>
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <syclcompat/defs.hpp>
 #include <syclcompat/device.hpp>

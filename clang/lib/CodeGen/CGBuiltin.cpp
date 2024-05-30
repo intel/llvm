@@ -5690,8 +5690,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     llvm::Value *Queue = EmitScalarExpr(E->getArg(0));
     llvm::Value *Flags = EmitScalarExpr(E->getArg(1));
     LValue NDRangeL = EmitAggExprToLValue(E->getArg(2));
-    llvm::Value *Range = NDRangeL.getAddress(*this).emitRawPointer(*this);
-    llvm::Type *RangeTy = NDRangeL.getAddress(*this).getType();
+    llvm::Value *Range = NDRangeL.getAddress().emitRawPointer(*this);
+    llvm::Type *RangeTy = NDRangeL.getAddress().getType();
 
     if (NumArgs == 4) {
       // The most basic form of the call with parameters:
@@ -5710,7 +5710,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
           Builder.CreatePointerCast(Info.BlockArg, GenericVoidPtrTy);
 
       AttrBuilder B(Builder.getContext());
-      B.addByValAttr(NDRangeL.getAddress(*this).getElementType());
+      B.addByValAttr(NDRangeL.getAddress().getElementType());
       llvm::AttributeList ByValAttrSet =
           llvm::AttributeList::get(CGM.getModule().getContext(), 3U, B);
 
@@ -5898,7 +5898,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     llvm::Type *GenericVoidPtrTy = Builder.getPtrTy(
         getContext().getTargetAddressSpace(LangAS::opencl_generic));
     LValue NDRangeL = EmitAggExprToLValue(E->getArg(0));
-    llvm::Value *NDRange = NDRangeL.getAddress(*this).emitRawPointer(*this);
+    llvm::Value *NDRange = NDRangeL.getAddress().emitRawPointer(*this);
     auto Info =
         CGM.getOpenCLRuntime().emitOpenCLEnqueuedBlock(*this, E->getArg(1));
     Value *Kernel =
@@ -23990,22 +23990,6 @@ RValue CodeGenFunction::EmitIntelSYCLAllocaBuiltin(
     return CI;
   }();
 
-  // Perform AS cast if needed.
-
-  constexpr int NoDecorated = 0;
-  llvm::APInt Decorated = TAL->get(DecorateAddressIndex).getAsIntegral();
-  // Both 'sycl::access::decorated::{yes and legacy}' lead to decorated (private
-  // AS) pointer type. Perform cast if 'sycl::access::decorated::no'.
-  if (Decorated == NoDecorated) {
-    IRBuilderBase::InsertPointGuard IPG(Builder);
-    Builder.SetInsertPoint(getPostAllocaInsertPoint());
-    unsigned DestAddrSpace =
-        getContext().getTargetAddressSpace(LangAS::Default);
-    llvm::PointerType *DestTy =
-        llvm::PointerType::get(Builder.getContext(), DestAddrSpace);
-    Allocation = Builder.CreateAddrSpaceCast(Allocation, DestTy);
-  }
-
   // If no slot is provided, simply return allocation.
   if (ReturnValue.isNull())
     return RValue::get(Allocation);
@@ -24046,7 +24030,7 @@ Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,
     // Handle aggregate argument, namely RVV tuple types in segment load/store
     if (hasAggregateEvaluationKind(E->getArg(i)->getType())) {
       LValue L = EmitAggExprToLValue(E->getArg(i));
-      llvm::Value *AggValue = Builder.CreateLoad(L.getAddress(*this));
+      llvm::Value *AggValue = Builder.CreateLoad(L.getAddress());
       Ops.push_back(AggValue);
       continue;
     }

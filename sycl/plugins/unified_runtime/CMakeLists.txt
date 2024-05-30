@@ -75,6 +75,11 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
         tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
       return()
     endif()
     message(STATUS
@@ -95,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 3b7f35b1907d1acd35204c6d9472037383566a33
-  # Merge: 65c39c8a 3ec0dde6
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri May 17 09:26:05 2024 +0100
-  #     Merge pull request #1534 from zhaomaosu/config-red-zone-size
-  #     [DeviceSanitizer] Add options to allow user to customize red zone size
-  set(UNIFIED_RUNTIME_TAG 3b7f35b1907d1acd35204c6d9472037383566a33)
+  # commit c0c607c3a88933b4c5c20a0aca4539781c678411
+  # Merge: e18c691d 0f2d1f42
+  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
+  # Date:   Wed May 29 15:02:39 2024 +0100
+  #     Merge pull request #1667 from nrspruit/fix_multi_device_event_cache
+  #     [UR] Fix Multi Device Event Cache for shared Root Device
+  set(UNIFIED_RUNTIME_TAG c0c607c3a88933b4c5c20a0aca4539781c678411)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

@@ -8,6 +8,8 @@
 
 #include "../graph_common.hpp"
 
+#include <sycl/properties/all_properties.hpp>
+
 int main() {
   queue Queue1{{sycl::property::queue::in_order()}};
   queue Queue2{Queue1.get_context(),

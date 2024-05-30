@@ -670,6 +670,10 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
     AttrMDArgs.push_back(
         llvm::ConstantAsMetadata::get(Builder.getInt(*XDimVal)));
 
+    for (auto i = AttrMDArgs.size(); i < 3; ++i)
+      AttrMDArgs.push_back(
+          llvm::ConstantAsMetadata::get(Builder.getInt(llvm::APInt(32, 1))));
+
     Fn->setMetadata("work_group_size_hint",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
@@ -690,16 +694,28 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
     std::optional<llvm::APSInt> ZDimVal = A->getZDimVal();
     llvm::SmallVector<llvm::Metadata *, 3> AttrMDArgs;
 
+    llvm::APInt NumDims(32, 1); // X
     // On SYCL target the dimensions are reversed if present.
-    if (ZDimVal)
+    if (ZDimVal) {
       AttrMDArgs.push_back(
           llvm::ConstantAsMetadata::get(Builder.getInt(*ZDimVal)));
-    if (YDimVal)
+      ++NumDims;
+    }
+    if (YDimVal) {
       AttrMDArgs.push_back(
           llvm::ConstantAsMetadata::get(Builder.getInt(*YDimVal)));
+      ++NumDims;
+    }
     AttrMDArgs.push_back(
         llvm::ConstantAsMetadata::get(Builder.getInt(*XDimVal)));
 
+    for (auto i = NumDims.getZExtValue(); i < 3; ++i)
+      AttrMDArgs.push_back(
+          llvm::ConstantAsMetadata::get(Builder.getInt(llvm::APInt(32, 1))));
+
+    Fn->setMetadata("work_group_num_dim",
+                    llvm::MDNode::get(Context, llvm::ConstantAsMetadata::get(
+                                                   Builder.getInt(NumDims))));
     Fn->setMetadata("reqd_work_group_size",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
@@ -1217,6 +1233,11 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
 
     if (getLangOpts().SYCLIsDevice)
       CGM.getSYCLRuntime().actOnFunctionStart(*FD, *Fn);
+  }
+
+  if (FD && FD->hasAttr<ClspvLibclcBuiltinAttr>()) {
+    Fn->setMetadata("clspv_libclc_builtin",
+                    llvm::MDNode::get(getLLVMContext(), {}));
   }
 
   // If we are checking function types, emit a function type signature as
@@ -2752,11 +2773,11 @@ void CodeGenFunction::EmitVariablyModifiedType(QualType type) {
 Address CodeGenFunction::EmitVAListRef(const Expr* E) {
   if (getContext().getBuiltinVaListType()->isArrayType())
     return EmitPointerWithAlignment(E);
-  return EmitLValue(E).getAddress(*this);
+  return EmitLValue(E).getAddress();
 }
 
 Address CodeGenFunction::EmitMSVAListRef(const Expr *E) {
-  return EmitLValue(E).getAddress(*this);
+  return EmitLValue(E).getAddress();
 }
 
 void CodeGenFunction::EmitDeclRefExprDbgValue(const DeclRefExpr *E,

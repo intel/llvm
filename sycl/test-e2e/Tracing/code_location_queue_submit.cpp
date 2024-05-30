@@ -8,7 +8,8 @@
 // First queue creation (id = 0) is queue created on line 15.
 // The second queue is a host queue created on first scheduler usage.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 int main() {
   bool ExceptionCaught = false;
