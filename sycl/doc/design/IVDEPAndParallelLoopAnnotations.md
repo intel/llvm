@@ -23,7 +23,7 @@ for (int i = 0; i < N; ++i) {
 
 Since the access `B[idx[i]]` is unknown at compile time, the compiler will have
 to make the conservative assumption that there is a loop carried dependence of
-distance 1 between the write to B and the read from B (in both directions) of it
+distance 1 between the write to B and the read from B (in both directions) if it
 tries to parallelize the loop. If however `ivdep` is used, then the annotation
 tells the compiler that there are no loop-carried dependences on `B`, and the
 compiler can make parallelism decisions without this assumption.
