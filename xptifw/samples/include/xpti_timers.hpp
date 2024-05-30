@@ -18,8 +18,19 @@
 #include <thread>
 #include <unordered_map>
 
+#if defined(_WIN32) || defined(_WIN64)
+// Fixes issue with std::max() and std::min()
+// https://stackoverflow.com/questions/61921246/is-include-windows-h-bad-practice
+#define NOMINMAX
+#include <intrin.h>
+#include <processthreadsapi.h>
+#include <windows.h>
+#endif
+
 namespace xpti {
 namespace utils {
+#define MAX_STR_SIZE 2048
+
 /// @brief Statistics class to compute mean, stddev, etc
 /// @details This class can compute many staticsical values using running
 /// average and related techniques so they can be computed on the fly
@@ -113,7 +124,6 @@ private:
 };
 
 namespace timer {
-#define MAX_STR_SIZE 2048
 
 std::string get_timestamp_string() {
   auto curr = std::chrono::system_clock::now();
@@ -142,13 +152,17 @@ public:
   // https://learn.microsoft.com/en-us/windows/win32/sysinfo/acquiring-high-resolution-time-stamps
   inline double microseconds() { (double)(clock()) * 1000000 / m_frequency; }
   inline double clock_to_microsecs(uint64_t clocks) {
-    return ((double)(clocks) * 1000000.0 / m_frequency);
+    return ((double)(clocks)*1000000.0 / m_frequency);
   }
-#if (defined(__x86_64_) || defined(__i386__) || defined(_i386))
-  uint64_t clockticks() { return __rdtsc(); }
+  inline uint64_t clockticks() {
+#if defined(__x86_64_) || defined(__i386__) || defined(_i386)
+    unsigned int lo, hi;
+    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+    return ((uint64_t)hi << 32) | lo;
 #else
-  inline uint64_t clockticks() { return clock(); }
+    return clock();
 #endif
+  }
   inline uint64_t cpu() { return GetCurrentProcessorNumber(); }
   inline uint64_t thread() {
     std::hash<std::thread::id>{}(std::this_thread::get_id());
@@ -260,7 +274,19 @@ inline std::string get_application_name() {
 
 inline uint64_t get_process_id() { return getpid(); }
 #else
-#error Unsupported system
+#include <stdlib.h>
+#include <time.h>
+
+static bool g_initialized = false;
+inline std::string get_application_name() { return "application"; }
+
+inline uint64_t get_process_id() {
+  if (!g_initialized) {
+    srand(time(0));
+    g_initialized = true;
+  }
+  return getpid();
+}
 #endif
 
 } // namespace utils

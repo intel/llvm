@@ -852,7 +852,6 @@ XPTI_CALLBACK_API void syclPiCallback(uint16_t TraceType,
 
 #if (defined(_WIN32) || defined(_WIN64))
 
-#include <string>
 #include <windows.h>
 
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fwdReason, LPVOID lpvReserved) {
