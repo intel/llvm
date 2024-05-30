@@ -192,7 +192,7 @@ Since the `llvm.loop.no_depends` and `llvm.loop.no_depends_safelen` metadata are
 vendor-specific, they will need to be translated to a SPIR-V friendly format as
 described in the Loop Controls section of the ["SPIRV Representation In
 LLVM"](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/blob/main/docs/SPIRVRepresentationInLLVM.rst)
-document[^1]. This is done by using the following rules:
+document. This is done by using the following rules:
 
 1. Each `llvm.loop.no_depends` is translated into a new
    `spirv.dependency_accesses` metadata attached to the same loop and with
@@ -201,8 +201,6 @@ document[^1]. This is done by using the following rules:
    `spirv.dependency_accesses` metadata attached the same loop and with the same
    arguments as the original metadata. This will also have the safelen as the
    last argument.
-
-[^1] The convention for handling Loop Controls is introduced with PR [#2592](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/pull/2592).
 
 ### LLVM Metadata to SPIR-V Translation
 
@@ -273,7 +271,7 @@ loop:
 !5 = !{!1, 5}
 ```
 
-This would become the following SPIR-V friendly LLVM IR:
+This would become the following SPIR-V-friendly LLVM IR:
 
 ```llvm
 loop:
