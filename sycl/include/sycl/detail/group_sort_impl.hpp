@@ -68,13 +68,6 @@ struct GetValueType<sycl::multi_ptr<ElementType, Space, IsDecorated>> {
   using type = ElementType;
 };
 
-// since we couldn't assign data to raw memory, it's better to use placement
-// for first assignment
-template <typename Acc, typename T>
-void set_value(Acc ptr, const size_t idx, const T &val) {
-  ptr[idx] = val;
-}
-
 template <typename InAcc, typename OutAcc, typename Compare>
 void merge(const size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
            const size_t start_1, const size_t end_1, const size_t end_2,
@@ -106,7 +99,7 @@ void merge(const size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
     const size_t l_shift_1 = local_start_1 - start_1;
     const size_t l_shift_2 = l_search_bound_2 - start_2;
 
-    set_value(out_acc1, start_out + l_shift_1 + l_shift_2, local_l_item_1);
+    out_acc1[start_out + l_shift_1 + l_shift_2] = local_l_item_1;
 
     size_t r_search_bound_2{};
     // find right border in 2nd sequence
@@ -117,7 +110,7 @@ void merge(const size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
       const auto r_shift_1 = local_end_1 - 1 - start_1;
       const auto r_shift_2 = r_search_bound_2 - start_2;
 
-      set_value(out_acc1, start_out + r_shift_1 + r_shift_2, local_r_item_1);
+      out_acc1[start_out + r_shift_1 + r_shift_2] = local_r_item_1;
     }
 
     // Handle intermediate items
@@ -131,7 +124,7 @@ void merge(const size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
       const size_t shift_1 = idx - start_1;
       const size_t shift_2 = l_search_bound_2 - start_2;
 
-      set_value(out_acc1, start_out + shift_1 + shift_2, intermediate_item_1);
+      out_acc1[start_out + shift_1 + shift_2] = intermediate_item_1;
     }
   }
   // Process 2nd sequence
@@ -144,7 +137,7 @@ void merge(const size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
     const size_t l_shift_1 = l_search_bound_1 - start_1;
     const size_t l_shift_2 = local_start_2 - start_2;
 
-    set_value(out_acc1, start_out + l_shift_1 + l_shift_2, local_l_item_2);
+    out_acc1[start_out + l_shift_1 + l_shift_2] = local_l_item_2;
 
     size_t r_search_bound_1{};
     // find right border in 1st sequence
@@ -155,7 +148,7 @@ void merge(const size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
       const size_t r_shift_1 = r_search_bound_1 - start_1;
       const size_t r_shift_2 = local_end_2 - 1 - start_2;
 
-      set_value(out_acc1, start_out + r_shift_1 + r_shift_2, local_r_item_2);
+      out_acc1[start_out + r_shift_1 + r_shift_2] = local_r_item_2;
     }
 
     // Handle intermediate items
@@ -169,7 +162,7 @@ void merge(const size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
       const size_t shift_1 = l_search_bound_1 - start_1;
       const size_t shift_2 = idx - start_2;
 
-      set_value(out_acc1, start_out + shift_1 + shift_2, intermediate_item_2);
+      out_acc1[start_out + shift_1 + shift_2] = intermediate_item_2;
     }
   }
 }
@@ -189,8 +182,8 @@ void bubble_sort(Iter first, const size_t begin, const size_t end,
   }
 }
 
-template <typename Group, typename T, typename Compare>
-void merge_sort(Group group, T *first, const size_t n, Compare comp,
+template <typename Group, typename Iter, typename T, typename Compare>
+void merge_sort(Group group, Iter first, const size_t n, Compare comp,
                 T *scratch) {
   const size_t idx = group.get_local_linear_id();
   const size_t local = group.get_local_range().size();
