@@ -1095,6 +1095,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_structure_type_t value
     case UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES";
         break;
+    case UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -1344,6 +1347,11 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
 
     case UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES: {
         const ur_exp_sampler_cubemap_properties_t *pstruct = (const ur_exp_sampler_cubemap_properties_t *)ptr;
+        printPtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES: {
+        const ur_exp_enqueue_native_command_properties_t *pstruct = (const ur_exp_enqueue_native_command_properties_t *)ptr;
         printPtr(os, pstruct);
     } break;
     default:

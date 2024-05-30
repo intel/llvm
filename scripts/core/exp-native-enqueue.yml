@@ -31,7 +31,7 @@ name: $x_command_t
 etors:
     - name: ENQUEUE_NATIVE_EXP
       value: "0x2004"
-      desc: Event created by $xNativeEnqueueExp
+      desc: Event created by $xEnqueueNativeCommandExp
 
 --- #--------------------------------------------------------------------------
 type: enum
@@ -50,6 +50,16 @@ members:
     - type: $x_exp_enqueue_native_command_flags_t
       name: flags
       desc: "[in] native enqueue flags"
+
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+desc: "Structure type experimental enumerations"
+name: $x_structure_type_t
+etors:
+    - name: EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES
+      desc: $x_exp_enqueue_native_command_properties_t
+      value: "0x3000"
 
 --- #--------------------------------------------------------------------------
 type: fptr_typedef
@@ -78,10 +88,10 @@ params:
       name: pfnNativeEnqueue
     - type: void*
       name: data
-      desc: "[in] data used by pfnNativeEnqueue"
+      desc: "[in][optional] data used by pfnNativeEnqueue"
     - type: const $x_exp_enqueue_native_command_properties_t*
       name: pProperties
-      desc: "[in] pointer to the native enqueue properties"
+      desc: "[in][optional] pointer to the native enqueue properties"
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
@@ -89,7 +99,7 @@ params:
       name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
-            If nullptr, the numEventsInWaitList must be 0, indicating no wait events. 
+            If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
     - type: $x_event_handle_t*
       name: phEvent
       desc: |

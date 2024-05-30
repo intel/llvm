@@ -4,10 +4,10 @@
     X=x.upper()
 %>
 
-.. _experimental-enqueue-timestamp-recording:
+.. _experimental-enqueue-native-command:
 
 ================================================================================
-Enqueue Timestamp Recording
+Enqueue Native Command
 ================================================================================
 
 .. warning::
@@ -50,7 +50,6 @@ Types
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ${x}_exp_enqueue_native_command_properties_t
-${x}_exp_enqueue_native_command_function_t
 
 Functions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

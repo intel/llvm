@@ -282,6 +282,7 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE = 0x2004,                             ///< ::ur_exp_win32_handle_t
     UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES = 0x2005,                       ///< ::ur_exp_sampler_addr_modes_t
     UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES = 0x2006,               ///< ::ur_exp_sampler_cubemap_properties_t
+    UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES = 0x3000,        ///< ::ur_exp_enqueue_native_command_properties_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -5686,7 +5687,7 @@ typedef enum ur_command_t {
     UR_COMMAND_INTEROP_SEMAPHORE_WAIT_EXP = 0x2000,   ///< Event created by ::urBindlessImagesWaitExternalSemaphoreExp
     UR_COMMAND_INTEROP_SEMAPHORE_SIGNAL_EXP = 0x2001, ///< Event created by ::urBindlessImagesSignalExternalSemaphoreExp
     UR_COMMAND_TIMESTAMP_RECORDING_EXP = 0x2002,      ///< Event created by ::urEnqueueTimestampRecordingExp
-    UR_COMMAND_ENQUEUE_NATIVE_EXP = 0x2004,           ///< Event created by ::urNativeEnqueueExp
+    UR_COMMAND_ENQUEUE_NATIVE_EXP = 0x2004,           ///< Event created by ::urEnqueueNativeCommandExp
     /// @cond
     UR_COMMAND_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -9551,24 +9552,21 @@ typedef void (*ur_exp_enqueue_native_command_function_t)(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pfnNativeEnqueue`
-///         + `NULL == data`
-///         + `NULL == pProperties`
 ///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAGS_MASK & pProperties->flags`
+///         + `NULL != pProperties && ::UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAGS_MASK & pProperties->flags`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueNativeCommandExp(
     ur_queue_handle_t hQueue,                                      ///< [in] handle of the queue object
     ur_exp_enqueue_native_command_function_t pfnNativeEnqueue,     ///< [in] function calling the native underlying API, to be executed
                                                                    ///< immediately.
-    void *data,                                                    ///< [in] data used by pfnNativeEnqueue
-    const ur_exp_enqueue_native_command_properties_t *pProperties, ///< [in] pointer to the native enqueue properties
+    void *data,                                                    ///< [in][optional] data used by pfnNativeEnqueue
+    const ur_exp_enqueue_native_command_properties_t *pProperties, ///< [in][optional] pointer to the native enqueue properties
     uint32_t numEventsInWaitList,                                  ///< [in] size of the event wait list
     const ur_event_handle_t *phEventWaitList,                      ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                                    ///< events that must be complete before the kernel execution.
-                                                                   ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait
-                                                                   ///< events.
+                                                                   ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
     ur_event_handle_t *phEvent                                     ///< [in,out] return an event object that identifies the work that has
                                                                    ///< been enqueued in nativeEnqueueFunc.
 );
