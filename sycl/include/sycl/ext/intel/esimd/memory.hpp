@@ -4033,6 +4033,10 @@ __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
         simd_mask<N / VS> mask, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
   scatter<T, N, VS>(acc, byte_offsets.read(), vals, mask, props);
 }
 
@@ -4066,6 +4070,10 @@ __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
         PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
   scatter<T, N, VS>(acc, byte_offsets.read(), vals, props);
 }
 
@@ -4110,6 +4118,10 @@ __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
         simd_mask<N / VS> mask, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
   scatter<T, N, VS>(acc, byte_offsets.read(), vals.read(), mask, props);
 }
 
@@ -4150,6 +4162,10 @@ __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
         PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
   scatter<T, N, VS>(acc, byte_offsets.read(), vals.read(), props);
 }
 
@@ -5358,6 +5374,10 @@ __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
             simd_mask<N / VS> mask, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
   slm_scatter<T, N, VS>(byte_offsets.read(), vals, mask, props);
 }
 
@@ -5386,6 +5406,10 @@ __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
             PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
   slm_scatter<T, N, VS>(byte_offsets.read(), vals, props);
 }
 
@@ -5420,6 +5444,10 @@ __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 slm_scatter(OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
             simd_mask<N / VS> mask, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
   slm_scatter<T, N, VS>(byte_offsets.read(), vals.read(), mask, props);
 }
 
@@ -5453,6 +5481,10 @@ __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 slm_scatter(OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
             PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
   slm_scatter<T, N, VS>(byte_offsets.read(), vals.read(), props);
 }
 
@@ -9281,6 +9313,10 @@ __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
         simd_mask<N / VS> mask, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
   scatter<T, N, VS>(acc, byte_offsets.read(), vals, mask, props);
 }
 
@@ -9314,6 +9350,10 @@ __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
         PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
   scatter<T, N, VS>(acc, byte_offsets.read(), vals, props);
 }
 
@@ -9358,6 +9398,10 @@ __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
         simd_mask<N / VS> mask, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
   scatter<T, N, VS>(acc, byte_offsets.read(), vals.read(), mask, props);
 }
 
@@ -9398,6 +9442,10 @@ __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
         PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
   scatter<T, N, VS>(acc, byte_offsets.read(), vals.read(), props);
 }
 
