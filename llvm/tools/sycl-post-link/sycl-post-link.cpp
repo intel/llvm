@@ -761,7 +761,8 @@ IrPropSymFilenameTriple saveModule(module_split::ModuleDesc &MD, int I,
     Res.Ir = saveModuleIR(MD.getModule(), I, Suffix);
   }
   GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
-                               EmitExportedSymbols, EmitImportedSymbols, DeviceGlobals};
+                               EmitExportedSymbols, EmitImportedSymbols,
+                               DeviceGlobals};
   Res.Prop = saveModuleProperties(MD, Props, I, Suffix);
 
   if (DoSymGen) {
@@ -1286,8 +1287,8 @@ int main(int argc, char **argv) {
       GenerateDeviceImageWithDefaultSpecConsts.getNumOccurrences() > 0;
 
   if (!DoSplit && !DoSpecConst && !DoSymGen && !DoParamInfo &&
-      !DoProgMetadata && !DoSplitEsimd && !DoExportedSyms && !DoImportedSyms && !DoDeviceGlobals &&
-      !DoLowerEsimd) {
+      !DoProgMetadata && !DoSplitEsimd && !DoExportedSyms && !DoImportedSyms &&
+      !DoDeviceGlobals && !DoLowerEsimd) {
     errs() << "no actions specified; try --help for usage info\n";
     return 1;
   }
