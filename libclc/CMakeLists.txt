@@ -43,7 +43,7 @@ set( LIBCLC_TARGETS_TO_BUILD "all"
 option( ENABLE_RUNTIME_SUBNORMAL "Enable runtime linking of subnormal support." OFF )
 
 set( LIBCLC_NATIVECPU_FLAGS_X86_64 ""
-  CACHE STRING "Semicolon-separated list on compiler flags for x86_64 libclc target.")
+  CACHE STRING "Semicolon-separated list of compiler flags for x86_64 libclc target.")
 
 if( LIBCLC_STANDALONE_BUILD OR CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   # Out-of-tree configuration
