@@ -1,4 +1,4 @@
-//===---joint_matrix_int8_vnni_impl.hpp - DPC++ joint_matrix---------------===//
+//===-joint_matrix_int8_rowmajorA_rowmajorB_impl.hpp - DPC++ joint_matrix--===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,9 +8,9 @@
 template <typename T, size_t TM, size_t TN, size_t TK> class mult;
 
 template <typename TResult, typename T, size_t M, size_t N, size_t K, size_t TM,
-          size_t TN, size_t TK, size_t VNNI>
+          size_t TN, size_t TK>
 void matrix_multiply(big_matrix<TResult, M, N> &C, big_matrix<T, M, K> &A,
-                     big_matrix<T, K / VNNI, N * VNNI> &B) {
+                     big_matrix<T, K , N> &B) {
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
   buffer<T, 2> bufA(A.get_data(), range<2>(M, K));
@@ -51,7 +51,6 @@ void matrix_multiply(big_matrix<TResult, M, N> &C, big_matrix<T, M, K> &A,
                  accA.template get_multi_ptr<access::decorated::no>() +
                      (sg_startx * TM) * K + k * TK,
                  K);
-             // VNNI transform is done automatically at this level
              joint_matrix_load(
                  sg, sub_b,
                  accB.template get_multi_ptr<access::decorated::no>() +
@@ -68,22 +67,7 @@ void matrix_multiply(big_matrix<TResult, M, N> &C, big_matrix<T, M, K> &A,
    }).wait();
 }
 
-template <typename T, size_t N, size_t K, size_t VNNI>
-void row_vnni_reformat(T *_in, T *_out, size_t stride_in) {
-  // find the old index, new index, and copy element.
-  //(K, N) => (k/VNNI, N*VNNI)
-  // idx in 2d: (i,j)=>(i/VNNI, j*VNNI+i%VNNI)
-  // linear idx:
-  for (int i = 0; i < K; ++i) {
-    for (int j = 0; j < N; ++j) {
-      size_t oldindex = i * stride_in + j;
-      size_t newindex = (i / VNNI) * N * VNNI + j * VNNI + i % VNNI;
-      _out[newindex] = _in[oldindex];
-    }
-  }
-}
-
-template <typename TResult, typename T, size_t VNNI, size_t TM, size_t TN,
+template <typename TResult, typename T, size_t TM, size_t TN,
           size_t TK>
 void test() {
   static constexpr size_t MATRIX_M = TM * 2;
@@ -91,7 +75,6 @@ void test() {
   static constexpr size_t MATRIX_K = TK * 2;
   T A[MATRIX_M][MATRIX_K];
   T B[MATRIX_K][MATRIX_N];
-  T Bvnni[MATRIX_K / VNNI][MATRIX_N * VNNI];
   TResult C[MATRIX_M][MATRIX_N];
   TResult D[MATRIX_M][MATRIX_N];
 
@@ -104,12 +87,11 @@ void test() {
   big_matrix<TResult, MATRIX_M, MATRIX_N> MC((TResult *)&C);
   big_matrix<TResult, MATRIX_M, MATRIX_N> MD((TResult *)&D);
   big_matrix<T, MATRIX_M, MATRIX_K> MA((T *)&A);
-  big_matrix<T, MATRIX_K / VNNI, MATRIX_N * VNNI> MB((T *)&B);
-  matrix_multiply<TResult, T, MATRIX_M, MATRIX_N, MATRIX_K, TM, TN, TK, VNNI>(
+  big_matrix<T, MATRIX_K, MATRIX_N> MB((T *)&B);
+  matrix_multiply<TResult, T, MATRIX_M, MATRIX_N, MATRIX_K, TM, TN, TK>(
       MC, MA, MB);
-  row_vnni_reformat<T, MATRIX_N, MATRIX_K, VNNI>((T *)B, (T *)Bvnni, MATRIX_N);
-  matrix_multiply_ref<T, T, TResult, VNNI>((T *)A, (T *)Bvnni, (TResult *)D,
-                                           MATRIX_M, MATRIX_N, MATRIX_K / VNNI);
+  matrix_multiply_ref<T, T, TResult>((T *)A, (T *)B, (TResult *)D,
+                                           MATRIX_M, MATRIX_N, MATRIX_K);
 
   assert(matrix_compare(MATRIX_M, MATRIX_N, (TResult *)C, (TResult *)D));
 }
@@ -123,17 +105,17 @@ int main() {
 
   for (unsigned int i = 0; i < combinations.size(); i++) {
     if (combinations[i].nsize == 0) { // Intel AMX
-      test<int32_t, int8_t, 4, /*TM*/ 16, /*TN*/ 16, /*TK*/ 64>();
+      test<int32_t, int8_t, /*TM*/ 16, /*TN*/ 16, /*TK*/ 64>();
       break;
     }
 
     if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
-      test<int32_t, int8_t, 4, /*TM*/ 8, /*TN*/ 16, /*TK*/ 32>();
+      test<int32_t, int8_t, /*TM*/ 8, /*TN*/ 16, /*TK*/ 32>();
       break;
     }
 
     if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
-      test<int32_t, int8_t, 4, /*TM*/ 8, /*TN*/ 8, /*TK*/ 32>();
+      test<int32_t, int8_t, /*TM*/ 8, /*TN*/ 8, /*TK*/ 32>();
       break;
     }
   }

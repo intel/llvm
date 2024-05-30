@@ -1,4 +1,4 @@
-//==-------- joint_matrix_bf16_vnni.cpp  - DPC++ joint_matrix---------------==//
+//==--- joint_matrix_int8_rowmajorA_rowmajorB.cpp  - DPC++ joint_matrix-----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -19,4 +19,4 @@
 
 #define SG_SZ 32
 
-#include "../joint_matrix_int8_vnni_impl.hpp"
+#include "../joint_matrix_int8_rowmajorA_rowmajorB_impl.hpp"
