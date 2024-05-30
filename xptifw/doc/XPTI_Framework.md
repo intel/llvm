@@ -15,11 +15,11 @@
     - [Trace Point Event](#trace-point-event)
       - [Creating the Payload](#creating-the-payload)
       - [Creating an Event that Represents the Trace Point](#creating-an-event-that-represents-the-trace-point)
-      - [`xptiRegisterUserDefinedTracePoint`](#xptiregisteruserdefinedtracepoint)
-      - [`xptiRegisterUserDefinedEventType`](#xptiregisteruserdefinedeventtype)
-      - [`xptiMakeEvent`](#xptimakeevent)
+        - [`xptiRegisterUserDefinedTracePoint`](#xptiregisteruserdefinedtracepoint)
+        - [`xptiRegisterUserDefinedEventType`](#xptiregisteruserdefinedeventtype)
+        - [`xptiMakeEvent`](#xptimakeevent)
       - [Notifying the registered listeners](#notifying-the-registered-listeners)
-      - [`xptiNotifySubscribers`](#xptinotifysubscribers)
+        - [`xptiNotifySubscribers`](#xptinotifysubscribers)
   - [Performance of the Framework](#performance-of-the-framework)
   - [Modeling and projection](#modeling-and-projection)
     - [Computing the cost incurred in the framework](#computing-the-cost-incurred-in-the-framework)
@@ -55,12 +55,16 @@ thread-safe
 
 The framework consists of a proxy library that is a static library for use
 within your applications. However, the proxy library consists of stubs that
-forward calls to a dynamic component, if available and if tracing has been
-enabled.  If tracing has not been enabled or the dynamic component not found at
-run time, the stub implementations return immediately.
+forward calls to a dynamic component, if tracing has been enabled.  The stubs
+return immediately if any of the following is true: 
+  - Tracing has not been enabled 
+  - There are no subscribers registered 
+  - Dynamic component not found at run time 
 
 The framework currently employs environment variables to determine if tracing
-has been enabled and where to find the dynamic component. Both of these must be set for it to successfully dispatch event streams.
+has been enabled and where to find the dynamic component and which subscriber(s)
+to forward the data to. All of these must be set for it to successfully dispatch
+event streams.
 
 1. The environment variable that indicates tracing has been enabled for the
    run is defined by `XPTI_TRACE_ENABLE`.
@@ -77,7 +81,9 @@ has been enabled and where to find the dynamic component. Both of these must be 
    of the event streams. The dispatcher or the dynamic component manages the
    subscribers to the event streams through an environment variable
    `XPTI_SUBSCRIBERS`, but this variable has no bearing on the functionality
-   supported by the static library portion of the framework.
+   supported by the static library portion of the framework. As a performance
+   feature, forwarding event streams is disabled if a valid subscriber is not
+   present.
 
 ![XPTI Architecture](xpti_arch.png)
 
@@ -85,25 +91,22 @@ The above diagram describes the dependencies and/or the interactions between a
 sample application or library that has been instrumented with XPTI API, the
 XPTI dispatcher and the subscriber loaded by the dispatcher. All API calls
 made by the application and the library go to the static library in this
-diagram and if `XPTI_TRACE_ENABLE` is not enabled or if the path to the
-dispatcher is not provided in the environment variable
-`XPTI_FRAMEWORK_DISPATCHER`, then the calls to the static library
-`xptiTraceEnabled()` return immediately.
-
-In the case both these variables are enabled, then the calls will be forwarded
-to the dynamic library which will attempt to load the subscribers pointed to by
-the environment variable `XPTI_SUBSCRIBERS`. The hypothetical trace data
-captured by the subscriber is shown as well under the `Resulting trace data`
-part of the above diagram.
+diagram and are forwarded to the subscriber through the dispatcher. If either
+the dispatcher or the subscriber are absent, `xptiTraceEnabled()` returns false
+and the proxy function in the static library returns immediately. The hypothetical
+trace data captured by the subscriber is shown as well under the `Resulting trace data`
+section in the above diagram.
 
 ### The Dispatcher
 
-The dispatcher is a dynamic library that implements the XPTI API and is
+The dispatcher is a dynamic library that actually implements the XPTI API and is
 dynamically loaded by the static proxy library, if the static library is used to
 link with the application or library. Linking with the dynamic library instead
-of the static library is also an option, however the dynamic library will now
-have to be shipped with the application. Using the static library allows
-instrumented applications or libraries to get around this problem.
+of the static library is discouraged as the dynamic library will now have to be
+shipped with the application. The dynamic library is usually associated with tools
+or subscribers that want to receive the data and process it for analysis. It is 
+recommended that applications and middleware link with the static proxy library 
+and tools link against the dynamic library. 
 
 ### The Subscriber
 
@@ -125,7 +128,7 @@ The `xptiTraceInit` callback is called by the dispatcher when the generator of
 a new stream of data makes a call to `xptiInitialize` for the new stream. The
 implementation of the `xptiTraceInit` function is where the subscriber would
 follow the specification or protocol defined for the stream to subscribe to
-events from various trace  point types. The code snippet below shows an example
+events from various trace point types. The code snippet below shows an example
 of such an implementation for the stream `"foo"`.
 
 ```cpp
@@ -198,7 +201,6 @@ XPTI_CALLBACK_API void trace_point_begin(
     // Send the data off to some serializing buffer asynchronously
     emit_data(begin, dev,...);
 }
-
 ```
 
 For example, the specification for a given event stream, the trace point type
@@ -206,14 +208,17 @@ For example, the specification for a given event stream, the trace point type
 `task_begin` might send a character string. Resolving the `user_data` parameter
 requires strict conformance to the specification for the stream.
 
-In addition to the `user_data`, the unique id that describes the event is
-available under `event->unique_id`. For most cases, this should be sufficient
+In addition to the `user_data`, the **Universal ID** that describes the event
+is available under `event->uid`. For most cases, this should be sufficient
 to resolve a given event. However, in many cases, a particular event may be
 exercised within a loop. Since a trace point event is based on the
 instrumentation at a specific location in the code, the `unique_id` of this
-will always remain the same. However, with each instance of this event, and
-instance ID may be emitted that keeps track of the instance of this event. The
-combined value of the `unique_id` and `instance_id` should always be unique.
+will always remain the same. However, with each instance of this event, the 
+`instance` field of `event->uid` will track the occurrence count of this trace
+event. The `uid` field in a trace event returned through a call to `xptiMakeEvent` 
+will contain the same 128-bit key that describes the `payload` as that hasn't 
+changed and an `instance` field that is monotonically increasing with each visit 
+and the both together will be always be unique to a specific instance.
 
 > **NOTE:** A subscriber **must** implement the `xptiTraceInit` and
 > `xptiTraceFinish` APIs for the dispatcher to successfully load the subscriber.
@@ -360,7 +365,8 @@ are owned by the tool attempting to listen to the instrumented stream of data.
 
 2. When using the static library for linking in the instrumented application
 or library, this call returns `true` only if `XPTI_FRAMEWORK_DISPATCHER` is
-set to a valid library and `XPTI_TRACE_ENABLE` is not set to `false`.
+set to a valid library, `XPTI_SUBSCRIBERS` set to a valid subscriber and
+`XPTI_TRACE_ENABLE` is not set to `false`.
 
 ### APIs and Data Structures Exported by the Tracing Framework
 
@@ -380,9 +386,22 @@ into function boundaries.
   can generate all of this information easily through builtin functions.
 * Secondly, an event must be created for this trace point region and this
   process of creating an event will use the `payload` information and create
-  an event. If the payload has already been registered, then the previously
-  registered and associated event will be returned. This process will also
-  create a `unique_id` for the event.
+  an event. If the payload has already been registered, then the payload is 
+  associated with a **Universal ID** which is an invariant entity. In this case,
+  the previously registered `unique_id` or **Universal ID** is returned as a
+  part of a ***new*** trace event representing this instance.
+  
+  > **NOTE:** Previous implementations represented this **Universal ID** as a
+  > single 64-bit value that was meant to be unique. However, there were many
+  > opportunities for collision as all required information in the `payload` 
+  > is not always allowed or available. For example, the source file information
+  > may be considered private and maybe be turned off using `NDEBUG` define at
+  > compiler time etc. To counter this, newer implementations of **Universal ID**
+  > is represented by a tuple of 64-bit values that represent a 128-bit key to
+  > guarantee uniqueness and also includes an `instance` field that keeps track
+  > of how many instances of the same payload has been observed/registered in 
+  > the framework. 
+  
 * Thirdly, the scope of this trace point must be determined and for a given
   scope, as in a related pair of events, the `unique_id` created at the
   begin trace point **must** be preserved and used for the end trace point as
@@ -412,7 +431,7 @@ is defined in `xpti_data_types.h`.
 
 ```cpp
 
-xpti::payload_t p("function1", "main.cpp", 104, 5, function1);
+xpti::payload_t p("function1", "main.cpp", 104, 5, /*codeptr ignored*/);
 
 ```
 
@@ -450,7 +469,7 @@ diagnostic information for executing code, the framework allows each
 instrumentation stream to extend the available trace point types with new trace
 point types that map to these unsupported constructs.
 
-#### `xptiRegisterUserDefinedTracePoint`
+##### `xptiRegisterUserDefinedTracePoint`
 
 This API allows streams to extend the existing trace point types and generate
 new types that map to the action about to be described by this API. The
@@ -463,10 +482,10 @@ this API.
                   uint8_t user_defined_tp);
 ```
 
-| Argument | Description |
-| -------- | ----------- |
-|`vendor_name` | The name of the tool or vendor implementing the tool that is describing this extension to the trace points. |
-| `user_defined_tp`| The user defined trace point which is of type `uint16_t`. The 8 most significant bits of the 16-bit value encodes the `vendor_name` and 8 least significant bits are used to encode the extensions for this tool. A maximum of **128** new user defined trace points can be created per `vendor_name`. |
+| Argument          | Description                                                                                                                                                                                                                                                                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `vendor_name`     | The name of the tool or vendor implementing the tool that is describing this extension to the trace points.                                                                                                                                                                                            |
+| `user_defined_tp` | The user defined trace point which is of type `uint16_t`. The 8 most significant bits of the 16-bit value encodes the `vendor_name` and 8 least significant bits are used to encode the extensions for this tool. A maximum of **128** new user defined trace points can be created per `vendor_name`. |
 
 The code example of extending the default or pre-defined trace point types is
 shown below. As you can see in the example, the user defined trace point types
@@ -519,7 +538,7 @@ trace point type describes the type of information expected by the
 notification. The trace point type is only used when notifying the subscribers
 of an event with the trace point type acting as a qualifier for the event.
 
-#### `xptiRegisterUserDefinedEventType`
+##### `xptiRegisterUserDefinedEventType`
 
 This API allows streams to extend the existing trace point event types and
 generate new types that map to the semantic description of the trace event
@@ -531,10 +550,10 @@ shows the use of this API.
                   const char *vendor_name,
                   uint8_t user_defined_event);
 ```
-| Argument | Description |
-| -------- | ----------- |
-|`vendor_name` | The name of the tool or vendor implementing the tool that is describing this extension to the event types. |
-| `user_defined_event`| The user defined event which is of type `uint16_t`. The 8 most significant bits of the 16-bit value encodes the `vendor_name` and 8 least significant bits are used to encode the extensions for this tool. A maximum of **128** new user defined event types can be created per `vendor_name`. |
+| Argument             | Description                                                                                                                                                                                                                                                                                     |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `vendor_name`        | The name of the tool or vendor implementing the tool that is describing this extension to the event types.                                                                                                                                                                                      |
+| `user_defined_event` | The user defined event which is of type `uint16_t`. The 8 most significant bits of the 16-bit value encodes the `vendor_name` and 8 least significant bits are used to encode the extensions for this tool. A maximum of **128** new user defined event types can be created per `vendor_name`. |
 
 Similar to trace point types, the `xpti::trace_event_type_t` can also be
 extended. The events that are predefined by the framework fall under `{graph,`
@@ -575,7 +594,7 @@ else {
 }
 ```
 
-#### `xptiMakeEvent`
+##### `xptiMakeEvent`
 
 The `xptiMakeEvent` combines the payload information with information about the trace point being defined to create an `xpti::trace_event_data_t`.
 
@@ -586,13 +605,13 @@ The `xptiMakeEvent` combines the payload information with information about the 
                     uint64_t *instance_no);
 ```
 
-| Argument | Description |
-| -------- | ----------- |
-|`name` | Name of the event, which is typically a function or kernel name. |
-| `payload`| The payload that this trace event represents. The payload in `XPTI` represents the source file, function name and line number, if available. If the source information is not available, it may contain a function name and code pointer virtual address or just the virtual address. This allows one to get the payload as meta-data for a given trace point. |
-| `event` | The event type this trace point represents. It could be one of the predefined types or an extended type. |
-| `activity` | Describes the activity type, as in active time or overhead time etc. |
-| `instance_no` | If `xptiMakeEvent` is used each time this code location is visited to create or look up a previously created event, the `instance_no` parameter is incremented to indicate the instance ID of the current visit. |
+| Argument      | Description                                                                                                                                                                                                                                                                                                                                                    |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`        | Name of the event, which is typically a function or kernel name.                                                                                                                                                                                                                                                                                               |
+| `payload`     | The payload that this trace event represents. The payload in `XPTI` represents the source file, function name and line number, if available. If the source information is not available, it may contain a function name and code pointer virtual address or just the virtual address. This allows one to get the payload as meta-data for a given trace point. |
+| `event`       | The event type this trace point represents. It could be one of the predefined types or an extended type.                                                                                                                                                                                                                                                       |
+| `activity`    | Describes the activity type, as in active time or overhead time etc.                                                                                                                                                                                                                                                                                           |
+| `instance_no` | If `xptiMakeEvent` is used each time this code location is visited to create or look up a previously created event, the `instance_no` parameter is incremented to indicate the instance ID of the current visit.                                                                                                                                               |
 
 The created trace event data type is returned. In case the payload information
 is the same, a previously created event is returned. If global `user_data`
@@ -634,7 +653,7 @@ if (event && xptiTraceEnabled()) {
 
 As discussed in previous sections, creating a trace point is only one part of a trace point definition. The part that actually lets a tool know that such a trace event occurred is through a notification of the aforementioned event. In this section, we will describe the API and its use.
 
-#### `xptiNotifySubscribers`
+##### `xptiNotifySubscribers`
 
 ```cpp
    xpti::result_t xptiNotifySubscribers(uint8_t stream_id,
@@ -645,14 +664,14 @@ As discussed in previous sections, creating a trace point is only one part of a 
                       const void *temporal_user_data);
 ```
 
-| Argument | Description |
-| -------- | ----------- |
-|`stream_id` | The stream that this notification belongs to. The stream ID is obtained from `xptiRegisterStream`. |
-| `trace_type`| The trace point type that describes the current notification. It could be one of the pre-defined types or a user-extension. |
-|`parent`| A parent trace event, if present. |
-|`event` | The current trace event for which the notification is being sent out. |
-|`instance` | This value indicates the instance of the current trace event. If this is being used to monitor functions, this value should indicate the call count at that time. |
-| `temporal_user_data` | This is a field that holds per instance user data and is valid for just that value of `instance`|
+| Argument             | Description                                                                                                                                                       |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `stream_id`          | The stream that this notification belongs to. The stream ID is obtained from `xptiRegisterStream`.                                                                |
+| `trace_type`         | The trace point type that describes the current notification. It could be one of the pre-defined types or a user-extension.                                       |
+| `parent`             | A parent trace event, if present.                                                                                                                                 |
+| `event`              | The current trace event for which the notification is being sent out.                                                                                             |
+| `instance`           | This value indicates the instance of the current trace event. If this is being used to monitor functions, this value should indicate the call count at that time. |
+| `temporal_user_data` | This is a field that holds per instance user data and is valid for just that value of `instance`                                                                  |
 
 The code example below shows an example 'C' code that is instrumented with the
 framework API and this will generate traces for the functions in the program.
@@ -690,17 +709,17 @@ how many events/sec we can process before the overheads start to become a
 problem. We will use an overhead limit of 1% as this data will be used to
 build an analytical model in the future.
 
-| Data structure | Operation     | Description |
-| -------------- | ------------- |------------ |
-| String table   | String insert | Every string that is exposed to the framework is registered with the string table and only the string IDs used |
-|| String lookup | The lookup of a string in the string table can be implicit or explicit. For example, when a previously defined payload is submitted again, the strings present will be registered. However, there is an early exit if the string already exists in the table due to an implicit lookup. |
-| Payload| Creation| A payload constructor may take in `function name`, `source file name`, line number, column number and an address or a `function name` and an address or just an address. Whenever strings are presented, they are first registered with the string table and the string IDs are used in the creation of a hash that is used to generate a `unique_id` for the event. |
-| Trace point event | Metadata add| One can add arbitrary number of <key, value> pairs to an event as strings. These strings will be registered with the string table and the metadata is maintained as a map of two string IDs. |
-|| Metadata lookup | The metadata associated with a trace point event is looked up explicitly in the string table. |
-|| Creation | Includes string table registration for the strings contained in the payload, the hash generation for a payload and insertion of the payload and event into a map.|
-|| Framework lookup | If a trace point has already been created, the event can be looked up using its `unique_id`. |
-|| Notification | Events that are created are notified to all subscribers|
-|Subscriber | Callback handler | When a notification is received by the subscriber, the event is handled. The callback handlers must be efficient to minimize the overheads.|
+| Data structure    | Operation        | Description                                                                                                                                                                                                                                                                                                                                                                 |
+| ----------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| String table      | String insert    | Every string that is exposed to the framework is registered with the string table and only the string IDs used                                                                                                                                                                                                                                                              |
+|                   | String lookup    | The lookup of a string in the string table can be implicit or explicit. For example, when a previously defined payload is submitted again, the strings present will be registered. However, there is an early exit if the string already exists in the table due to an implicit lookup.                                                                                     |
+| Payload           | Creation         | A payload constructor may take in `function name`, `source file name`, line number, column number and an address or a `function name` and an address or just an address. Whenever strings are presented, they are first registered with the string table and the string IDs are used in the creation of a 128-bit key that is used to generate a `unique_id` for the event. |
+| Trace point event | Metadata add     | One can add arbitrary number of <key, value> pairs to an event as strings. These strings will be registered with the string table and the metadata is maintained as a map of two string IDs.                                                                                                                                                                                |
+|                   | Metadata lookup  | The metadata associated with a trace point event is looked up explicitly in the string table.                                                                                                                                                                                                                                                                               |
+|                   | Creation         | Includes string table registration for the strings contained in the payload, the hash generation for a payload and insertion of the payload and event into a map.                                                                                                                                                                                                           |
+|                   | Framework lookup | If a trace point has already been created, the event can be looked up using its `unique_id`.                                                                                                                                                                                                                                                                                |
+|                   | Notification     | Events that are created are notified to all subscribers                                                                                                                                                                                                                                                                                                                     |
+| Subscriber        | Callback handler | When a notification is received by the subscriber, the event is handled. The callback handlers must be efficient to minimize the overheads.                                                                                                                                                                                                                                 |
 
 Using the operations described in the table above, a set of tests are designed
 to evaluate the performance of these operations in near real-world scenarios.
@@ -874,17 +893,17 @@ significantly larger than **FW**<sub>***cost***</sub>.
 > running Ubuntu 18.04. The tests were compiled to use Threading Building
 > Blocks concurrent containers for these runs.
 
-| Operation | Statistic | Scenario |Count| Framework Cost(ns) |
-|-----------|-----------|----------|-----|------|
-| String table insertion| Cost/insertion| Create a large number of strings (>1000) and insert them into the table. Measure the average cost of multi-threaded insertion.|10000|~**150-500**ns|
-|String table lookup| Cost/lookup| Look up the strings added in the insertion test in random order and measure the average cost of the lookup.|20000| ~**40**ns|
-|String table insert/lookup| Cost of insert/lookup | Strings that are added to the string table may be looked up multiple times. On an average, we assume that ever string added to the string table is looked up twice. If strings are looked up more often than the twice assumed in this test, then the average cost of insertion/lookup will be lower.|30000|~**130**ns|
-| Trace point creation | Cost/creation| Create unique trace points and measure the average cost for each creation. |10000|~**1100**ns|
-| Trace point creation | Cost/creation| Attempt to create previously created trace points again and measure the average cost for each creation. Since the payloads will be the same, there should be an early exit after it is determined that they are the same.|100000|~**275**ns|
-| Trace point lookup using `unique_id`(FW lookup)| Cost/lookup| This time will purely be the cost of lookup of finding the trace point event, given its `unique_id`. |100000|~**35**ns|
-|Trace point event caching| Cost/lookup| If the trace point event is cached at the event site, then this cost is 0. This is the most efficient mode of using it and amortizes the cost od trace point event creation the best.|100000|~**0**ns|
-| Trace event notification| Cost/notification| Measure the average cost of notification. Here the the callback handler registered will return immediately. The callback handler overheads are modeled separately when the maximum number of events that can be serviced per sec are computed.|100000|~**10**ns|
-|Trace event composite cost [**FW**<sub>***cost***</sub>]|Average cost/trace point| Create N unique trace points and MxN trace point lookups + MxN notifications. Measure the total time and get the average using MxN as the denominator.|100000|~**55**ns|
+| Operation                                                | Statistic                | Scenario                                                                                                                                                                                                                                                                                              | Count  | Framework Cost(ns) |
+| -------------------------------------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------ |
+| String table insertion                                   | Cost/insertion           | Create a large number of strings (>1000) and insert them into the table. Measure the average cost of multi-threaded insertion.                                                                                                                                                                        | 10000  | ~**150-500**ns     |
+| String table lookup                                      | Cost/lookup              | Look up the strings added in the insertion test in random order and measure the average cost of the lookup.                                                                                                                                                                                           | 20000  | ~**40**ns          |
+| String table insert/lookup                               | Cost of insert/lookup    | Strings that are added to the string table may be looked up multiple times. On an average, we assume that ever string added to the string table is looked up twice. If strings are looked up more often than the twice assumed in this test, then the average cost of insertion/lookup will be lower. | 30000  | ~**130**ns         |
+| Trace point creation                                     | Cost/creation            | Create unique trace points and measure the average cost for each creation.                                                                                                                                                                                                                            | 10000  | ~**1100**ns        |
+| Trace point creation                                     | Cost/creation            | Attempt to create previously created trace points again and measure the average cost for each creation. Since the payloads will be the same, there should be an early exit after it is determined that they are the same.                                                                             | 100000 | ~**275**ns         |
+| Trace point lookup using `unique_id`(FW lookup)          | Cost/lookup              | This time will purely be the cost of lookup of finding the trace point event, given its `unique_id`.                                                                                                                                                                                                  | 100000 | ~**35**ns          |
+| Trace point event caching                                | Cost/lookup              | If the trace point event is cached at the event site, then this cost is 0. This is the most efficient mode of using it and amortizes the cost od trace point event creation the best.                                                                                                                 | 100000 | ~**0**ns           |
+| Trace event notification                                 | Cost/notification        | Measure the average cost of notification. Here the the callback handler registered will return immediately. The callback handler overheads are modeled separately when the maximum number of events that can be serviced per sec are computed.                                                        | 100000 | ~**10**ns          |
+| Trace event composite cost [**FW**<sub>***cost***</sub>] | Average cost/trace point | Create N unique trace points and MxN trace point lookups + MxN notifications. Measure the total time and get the average using MxN as the denominator.                                                                                                                                                | 100000 | ~**55**ns          |
 
 > **NOTE:** The trace point, as implemented in the code block in the previous
 > section can lead to significant runtime overheads as the framework has to
@@ -922,16 +941,16 @@ void function1() {
 > a set of callback handler costs, we get the following table that shows the
 > events/sec that can be handled by XPTI for a given configuration.
 
-| Trace points  | Threads  | Overhead|Events/sec @**C<sub>*t*</sub>**=10ns | Events/sec @ **C<sub>*t*</sub>**=100ns | Events/sec @ **C<sub>*t*</sub>**=500ns| Events/sec @ **C<sub>*t*</sub>**=1000
-| ------------- | -------- | ------- | ------------ |------| -----|---|
-|10000 | Serial | 1% | ~150K | ~64K | ~18K | ~9.5K|
-| | 4 | 1% | ~150K | ~64K | ~18K |~9.5K|
-| | Serial | 2% | ~300K | ~127K | ~36K|~19K|
-| | 4 | 2% | ~290K | ~125K | ~36K|~19K|
-|1000 | Serial | 1% | ~165K | ~66K | ~18K | ~9.5K|
-| | 4 | 1% | ~165K | ~66K | ~18K |~9.5K|
-| | Serial | 2% | ~360K | ~137K | ~37K|~19K|
-| | 4 | 2% | ~345K | ~135K | ~37K|~19K|
+| Trace points | Threads | Overhead | Events/sec @**C<sub>*t*</sub>**=10ns | Events/sec @ **C<sub>*t*</sub>**=100ns | Events/sec @ **C<sub>*t*</sub>**=500ns | Events/sec @ **C<sub>*t*</sub>**=1000 |
+| ------------ | ------- | -------- | ------------------------------------ | -------------------------------------- | -------------------------------------- | ------------------------------------- |
+| 10000        | Serial  | 1%       | ~150K                                | ~64K                                   | ~18K                                   | ~9.5K                                 |
+|              | 4       | 1%       | ~150K                                | ~64K                                   | ~18K                                   | ~9.5K                                 |
+|              | Serial  | 2%       | ~300K                                | ~127K                                  | ~36K                                   | ~19K                                  |
+|              | 4       | 2%       | ~290K                                | ~125K                                  | ~36K                                   | ~19K                                  |
+| 1000         | Serial  | 1%       | ~165K                                | ~66K                                   | ~18K                                   | ~9.5K                                 |
+|              | 4       | 1%       | ~165K                                | ~66K                                   | ~18K                                   | ~9.5K                                 |
+|              | Serial  | 2%       | ~360K                                | ~137K                                  | ~37K                                   | ~19K                                  |
+|              | 4       | 2%       | ~345K                                | ~135K                                  | ~37K                                   | ~19K                                  |
 
 The above data from the table is only provided as a guideline on what to
 expect with the instrumentation. The events/second can be quite high if the

@@ -902,6 +902,8 @@ public:
       : MUniversalIDs(0), MTracepoints(MStringTableRef), MTraceEnabled(false) {
     //  Load all subscribers on construction
     MSubscribers.loadFromEnvironmentVariable();
+    // Since we are in the dynamic component, it is implied that the dispatcher
+    // has been set
     MTraceEnabled =
         (g_helper.checkTraceEnv() && MSubscribers.hasValidSubscribers());
   }
