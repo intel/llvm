@@ -6,7 +6,7 @@ import sys
 def main(directory, max_count, target_file=None):
     total_count = 0
     pattern = re.compile(r"//\.instCount (\d+)")
-    
+
     for root, dirs, files in os.walk(directory):
         for file in files:
             if file.endswith(".asm") and (target_file is None or file == target_file):
