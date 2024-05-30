@@ -53,22 +53,6 @@ tls_code_loc_t::~tls_code_loc_t() {
 
 const detail::code_location &tls_code_loc_t::query() { return GCodeLocTLS; }
 
-const char *stringifyErrorCode(pi_int32 error) {
-  switch (error) {
-#define _PI_ERRC(NAME, VAL)                                                    \
-  case NAME:                                                                   \
-    return #NAME;
-#define _PI_ERRC_WITH_MSG(NAME, VAL, MSG)                                      \
-  case NAME:                                                                   \
-    return MSG;
-#include <sycl/detail/pi_error.def>
-#undef _PI_ERRC
-#undef _PI_ERRC_WITH_MSG
-
-  default:
-    return "Unknown error code";
-  }
-}
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

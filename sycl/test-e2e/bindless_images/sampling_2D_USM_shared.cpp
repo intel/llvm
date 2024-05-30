@@ -47,8 +47,7 @@ int main() {
 
     // Extension: image descriptor
     sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width, height}, sycl::image_channel_order::r,
-        sycl::image_channel_type::fp32);
+        {width, height}, 1, sycl::image_channel_type::fp32);
 
     auto devicePitchAlign = dev.get_info<
         sycl::ext::oneapi::experimental::info::device::image_row_pitch_align>();
