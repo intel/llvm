@@ -253,14 +253,14 @@ inline constexpr bool is_genfloatptr_marray_v =
      IsDecorated == access::decorated::no);
 
 template <typename T>
-using is_byte_t = typename
+using is_byte = typename
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
     std::is_same<T, std::byte>;
 #else
     std::false_type;
 #endif
 
-template <typename T> inline constexpr bool is_byte_v = is_byte_t<T>::value;
+template <typename T> inline constexpr bool is_byte_v = is_byte<T>::value;
 
 template <typename T>
 using make_floating_point_t = make_type_t<T, gtl::scalar_floating_list>;

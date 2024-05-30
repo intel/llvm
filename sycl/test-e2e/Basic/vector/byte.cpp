@@ -376,8 +376,8 @@ int main() {
 
       auto SwizByte2Shift = VecByte4A.lo();
       using VecType = sycl::vec<std::byte, 2>;
-      auto SwizShiftRight = (VecType) (SwizByte2Shift >> 3);
-      auto SwizShiftLeft = (VecType) (SwizByte2Shift << 3);
+      auto SwizShiftRight = (VecType)(SwizByte2Shift >> 3);
+      auto SwizShiftLeft = (VecType)(SwizByte2Shift << 3);
       assert(SwizShiftRight[0] == SwizByte2Shift[0] >> 3 &&
              SwizShiftLeft[1] == SwizByte2Shift[1] << 3);
     }
