@@ -110,20 +110,20 @@ summarizes the additions:
 
 1. Access groups defined using an LLVM `llvm.access.group` metadata are
 represented as a literal in SPIR-V.
-1. A new instruction `OpAGListINTEL` is used to aggregate multiple access groups
+1. A new instruction `OpAccessGroupListINTEL` is used to aggregate multiple access groups
    into a single list.
 2. A new Decoration `AccessGroupINTEL` is used to specify which access groups a
    function call or atomic instruction belongs to.
-3. A new Memory Operand `AccessGroupINTELMask` is used to specify which access
+3. A new Memory Operand `AccessGroupMaskINTEL` is used to specify which access
    groups a memory operation belongs to.
 4. Two new Loop Controls are added to represent `llvm.loop.parallel_accesses`
    and `llvm.loop.no_depends/no_depends_safelen`. They are called
    `ParallelAccessesINTEL` and `DependencyAccessesINTEL` accordingly.
-   1. `ParallelAccessesINTEL` takes one or more `OpAGListINTEL` access group
+   1. `ParallelAccessesINTEL` takes one or more `OpAccessGroupListINTEL` access group
       lists and specifies that for each list, all the accesses that belong to
       the specified access groups do not have loop-carried dependences.
    2. `DependencyAccessesINTEL` takes one or more pairs. The first element in
-      each pair is a list of access groups from `OpAGListINTEL`, and the second
+      each pair is a list of access groups from `OpAccessGroupListINTEL`, and the second
       element is an integer `S` that corresponds to the safelen. 
 
 ## Translation Rules
@@ -189,9 +189,10 @@ represented as a literal in SPIR-V.
 ### LLVM Metadata to SPIR-V-Friendly LLVM Metadata
 
 Since the `llvm.loop.no_depends` and `llvm.loop.no_depends_safelen` metadata are
-vendor-specific, they will need to be translated to a SPIR-V friendly format
-before they can be translated to SPIR-V. This is done by using the following
-rules:
+vendor-specific, they will need to be translated to a SPIR-V friendly format as
+described in the Loop Controls section of the ["SPIRV Representation In
+LLVM"](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/blob/main/docs/SPIRVRepresentationInLLVM.rst)
+document[^1]. This is done by using the following rules:
 
 1. Each `llvm.loop.no_depends` is translated into a new
    `spirv.dependency_accesses` metadata attached to the same loop and with
@@ -201,25 +202,31 @@ rules:
    arguments as the original metadata. This will also have the safelen as the
    last argument.
 
+[^1] The convention for handling Loop Controls is introduced with PR [#2592](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/pull/2592).
+
 ### LLVM Metadata to SPIR-V Translation
 
-1. A new access group literal should be created for each `llvm.access.group`
-   distinct metadata.
+1. A new access group literal should be used for each distinct
+   `llvm.access.group` metadata. If an `llvm.access.group` points to a
+   collection of multiple distinct metadata, it should be decomposed into the
+   individual literals accordingly.
 2. Memory operations that have an assigned access group should get the
-   `AccessGroupINTELMask` memory operand.
+   `AccessGroupMaskINTEL` memory operand, along with the corresponding literals.
 3. Atomic operations with assigned access group should get decorated using the
-   `AccessGroupINTEL` decoration.
-4. For each instance of `spirv.dependency_accesses`,
-   or `llvm.loop.parallel_accesses` on a given loop, a new `OpAGListINTEL`
+   `AccessGroupINTEL` decoration along with the corresponding literals.
+4. For each instance of `spirv.dependency_accesses`, or
+   `llvm.loop.parallel_accesses` on a given loop, a new `OpAccessGroupListINTEL`
    should be created to aggregate the access groups defined in the corresponding
-   metadata.
+   metadata. Each `OpAccessGroupListINTEL` will list the corresponding literals.
 5. All `spirv.dependency_accesses` metadata on a single loop should get
    translated to one `DependencyAccessesINTEL` loop control. The first operand
-   of the loop control will be the total number of metadata instances. Then, for
-   each metadata instance, a pair should be constructed and provided to the
-   loop control. This pair consists of the aggregated access group list for that
-   metadata, and the last argument of the metadata, which was either 0 or an
-   integer corresponding to the safelen.
+   of the loop control will be the total number of metadata instances (e.g., if
+   we combine two `spirv.dependency_accesses` into one `DependencyAccessesINTEL`
+   then this will be `2`). Then, for each metadata instance, a pair should be
+   constructed and provided to the loop control. This pair consists of the
+   result of OpAccessGroupListINTEL for that metadata instance, and the last
+   argument of that metadata instance, which is either 0 or an integer
+   corresponding to the safelen.
 6. All `llvm.loop.parallel_accesses` metadata on a single loop should get
    translated to one `ParallelAccessINTEL` loop control.  The first operand of
    the loop control will be the total number of metadata instances. Then, for
@@ -294,5 +301,40 @@ loop:
 Finally, this will become the following SPIR-V:
 
 ```spirv
-
+...
+OpName %50 "loop"
+OpName %51 "A_idx"
+OpName %52 "A_i"
+OpName %53 "B_idx"
+OpName %54 "B_i"
+OpName %55 "C_idx"
+OpName %56 "C_i"
+OpName %57 "ld_A"
+OpName %58 "ld_Ai"
+OpName %59 "sum_A"
+OpName %60 "ld_B"
+OpName %61 "ld_Bi"
+OpName %62 "sum_B"
+OpName %63 "ld_C"
+OpName %64 "ld_Ci"
+OpName %65 "sum_C"
+...
+%13 = OpTypeInt 32 1
+...
+%50 = OpLabel
+%57 = OpLoad %13 %51 AccessGroupMaskINTEL 1 0 
+%58 = OpLoad %13 %52 AccessGroupMaskINTEL 1 0
+%59 = OpIAdd %13 %57 %58
+OpStore %52 %59 AccessGroupMaskINTEL 1 0
+%60 = OpLoad %13 %53 AccessGroupMaskINTEL 1 1 
+%61 = OpLoad %13 %54 AccessGroupMaskINTEL 1 1
+%62 = OpIAdd %13 %60 %61
+OpStore %54 %62 AccessGroupMaskINTEL 1 1
+%63 = OpLoad %13 %55 AccessGroupMaskINTEL 1 2
+%64 = OpLoad %13 %56 AccessGroupMaskINTEL 1 2
+%65 = OpIAdd %13 %63 %64
+OpStore %56 %65 AccessGroupMaskINTEL 1 2
+%66 = OpAccessGroupListINTEL 0 2
+%67 = OpAccessGroupListINTEL 1
+OpLoopMerge %50 %xx DependencyAccessesINTEL 2 %66 0 %67 5
 ```
