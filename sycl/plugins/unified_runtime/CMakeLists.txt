@@ -75,6 +75,11 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
         tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
       return()
     endif()
     message(STATUS
@@ -95,28 +100,34 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 396fb20498c315a526c961d7cb645b42795acd2c
-  # Merge: 719bb9cd e2ffea69
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu May 23 10:53:03 2024 +0100
-  #     Merge pull request #1501 from RossBrunton/ross/kerneltests
-  #     [Testing] Spec clarifications and testing updates for kernel
-  set(UNIFIED_RUNTIME_TAG 396fb20498c315a526c961d7cb645b42795acd2c)
+  # commit c0c607c3a88933b4c5c20a0aca4539781c678411
+  # Merge: e18c691d 0f2d1f42
+  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
+  # Date:   Wed May 29 15:02:39 2024 +0100
+  #     Merge pull request #1667 from nrspruit/fix_multi_device_event_cache
+  #     [UR] Fix Multi Device Event Cache for shared Root Device
+  set(UNIFIED_RUNTIME_TAG c0c607c3a88933b4c5c20a0aca4539781c678411)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit e428745588dd87e5db3c0bc0df1183eb7d0811a5
-    # Merge: fb3cbd16 80d46bb1
+    # commit 1fa0d2302d70a9aa8b717ecb60db0a7d8a4e5d8f
+    # Merge: e16d01c0 35b7de5c
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri May 24 10:31:13 2024 +0100
-    #     Merge pull request #1656 from pbalcer/leaks-program-kernel
-    #     fix leaks on level-zero interop program and kernel handles
-    e428745588dd87e5db3c0bc0df1183eb7d0811a5
+    # Date:   Thu May 30 10:14:37 2024 +0100
+    #     Merge pull request #1654 from Bensuo/ewan/debug_log_update
+    #     Debug logging in Level Zero command-buffer update
+    1fa0d2302d70a9aa8b717ecb60db0a7d8a4e5d8f
   )
 
   fetch_adapter_source(opencl
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit e16d01c02f1c1c18af19d3c882c08f791c2345d9
+    # Merge: a3895dbf 483a6325
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu May 30 10:04:43 2024 +0100
+    #     Merge pull request #1603 from konradkusiak97/queueFillOPENCLctsFix
+    #     [OpenCL] Modify fill emulation to work for patterns which are not powers of 2
+    e16d01c02f1c1c18af19d3c882c08f791c2345d9
   )
 
   fetch_adapter_source(cuda
@@ -126,7 +137,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit a3895dbf46a98c8a5cd58704efe85e12fa1050cd
+    # Merge: 30c5c553 67338dbe
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu May 30 10:04:14 2024 +0100
+    #     Merge pull request #1604 from kbenzie/benie/hip-kernel-spec-constants
+    #     [HIP] Implement kernel set spec constant query
+    a3895dbf46a98c8a5cd58704efe85e12fa1050cd
   )
 
   fetch_adapter_source(native_cpu
