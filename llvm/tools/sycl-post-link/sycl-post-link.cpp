@@ -199,7 +199,8 @@ cl::opt<module_split::IRSplitMode> SplitMode(
                           "Choose split mode automatically")),
     cl::cat(PostLinkCat));
 
-cl::opt<bool> DoSymImports{"imports", cl::desc("generate imported symbol files"),
+cl::opt<bool> DoSymImports{"imports",
+                           cl::desc("generate imported symbol files"),
                            cl::cat(PostLinkCat)};
 
 cl::opt<bool> DoSymGen{"symbols", cl::desc("generate exported symbol files"),
@@ -625,24 +626,23 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   return SCFile;
 }
 
-bool ImportFunction (const Function &F) {
+bool ImportFunction(const Function &F) {
   // Functions with definitions are not listed as imported
   if (!F.isDeclaration())
     return false;
 
-  bool ReturnValue=true;
+  bool ReturnValue = true;
   if (auto NameStr = itaniumDemangle(F.getName())) {
     StringRef DemangledName(NameStr);
-    if (DemangledName.starts_with("__") ||
-        DemangledName.starts_with("_spirv"))
-      ReturnValue=false;
+    if (DemangledName.starts_with("__") || DemangledName.starts_with("_spirv"))
+      ReturnValue = false;
     free(NameStr);
   }
   return ReturnValue;
 }
 // Saves specified collection of symbols to a file.
 std::string saveModuleImportedSymbolTable(const Module &M, int I,
-                                  StringRef Suffix) {
+                                          StringRef Suffix) {
 
   // Concatenate names of the imported symbols with "\n".
   std::string SymT;
@@ -858,7 +858,8 @@ void addTableRow(util::SimpleTable &Table,
                  const IrPropSymFilenameTriple &RowData) {
   SmallVector<StringRef, MAX_COLUMNS_IN_FILE_TABLE> Row;
 
-  for (const std::string *S : {&RowData.Ir, &RowData.Prop, &RowData.Imports, &RowData.Sym}) {
+  for (const std::string *S :
+       {&RowData.Ir, &RowData.Prop, &RowData.Imports, &RowData.Sym}) {
     if (!S->empty()) {
       Row.push_back(StringRef(*S));
     }
@@ -1079,7 +1080,7 @@ std::vector<std::unique_ptr<util::SimpleTable>>
 processInputModule(std::unique_ptr<Module> M) {
   // Construct the resulting table which will accumulate all the outputs.
   SmallVector<StringRef, MAX_COLUMNS_IN_FILE_TABLE> ColumnTitles{
-    StringRef(COL_CODE), StringRef(COL_PROPS)};
+      StringRef(COL_CODE), StringRef(COL_PROPS)};
 
   if (DoSymImports) {
     ColumnTitles.push_back(COL_IMPORTED_SYMBOLS);
