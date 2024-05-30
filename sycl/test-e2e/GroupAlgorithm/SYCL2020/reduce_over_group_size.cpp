@@ -1,8 +1,8 @@
-// Test hangs on AMD with https://github.com/intel/llvm/pull/8412
-// UNSUPPORTED: hip_amd
-
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
+//
+// The CI GPU doesn't report support for shared USM
+// XFAIL: hip_amd
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
