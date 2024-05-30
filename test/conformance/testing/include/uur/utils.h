@@ -189,9 +189,13 @@ inline std::string GetPlatformName(ur_platform_handle_t hPlatform) {
 }
 
 inline std::string GetDeviceName(ur_device_handle_t device) {
-    std::string device_name;
+    std::string device_name, device_uuid;
     GetDeviceInfo<std::string>(device, UR_DEVICE_INFO_NAME, device_name);
-    return GTestSanitizeString(device_name);
+    GetDeviceInfo<std::string>(device, UR_DEVICE_INFO_UUID, device_uuid);
+    if (!device_uuid.empty()) {
+        device_uuid += "____";
+    }
+    return GTestSanitizeString(device_name + device_uuid);
 }
 
 inline std::string GetPlatformAndDeviceName(ur_device_handle_t device) {
