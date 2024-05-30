@@ -12,7 +12,3 @@ urKernelSetArgMemObjTest.InvalidKernelArgumentIndex/AMD_HIP_BACKEND___{{.*}}_
 urKernelSetArgPointerNegativeTest.InvalidKernelArgumentIndex/AMD_HIP_BACKEND___{{.*}}_
 urKernelSetArgValueTest.InvalidKernelArgumentIndex/AMD_HIP_BACKEND___{{.*}}_
 urKernelSetArgValueTest.InvalidKernelArgumentSize/AMD_HIP_BACKEND___{{.*}}_
-urKernelSetSpecializationConstantsTest.Success/AMD_HIP_BACKEND___{{.*}}_
-urKernelSetSpecializationConstantsTest.InvalidNullHandleKernel/AMD_HIP_BACKEND___{{.*}}_
-urKernelSetSpecializationConstantsTest.InvalidNullPointerSpecConstants/AMD_HIP_BACKEND___{{.*}}_
-urKernelSetSpecializationConstantsTest.InvalidSizeCount/AMD_HIP_BACKEND___{{.*}}_
