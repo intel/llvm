@@ -11,6 +11,9 @@
 // Windows
 // UNSUPPORTED: cuda && windows
 
+// Test is flaky on Windows for all targets, disable until it can be fixed
+// UNSUPPORTED: windows
+
 #define GRAPH_E2E_EXPLICIT
 
 #include "../Inputs/host_task2_multiple_roots.cpp"

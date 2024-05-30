@@ -473,11 +473,15 @@ namespace experimental {
 #endif
 template <typename... Args>
 int printf(const __SYCL_CONSTANT_AS char *__format, Args... args) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+#if defined(__SYCL_DEVICE_ONLY__)
+#if (defined(__SPIR__) || defined(__SPIRV__))
   return __spirv_ocl_printf(__format, args...);
 #else
+  return __builtin_printf(__format, args...);
+#endif // (defined(__SPIR__) || defined(__SPIRV__))
+#else
   return ::printf(__format, args...);
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+#endif // defined(__SYCL_DEVICE_ONLY__) 
 }
 
 template <typename T, typename... Props>
