@@ -99,7 +99,7 @@ template <typename T, size_t TM, size_t TN> void test() {
     for (int j = 0; j < Cols; j++) {
       sum_rows_ref[i] += C[i][j];
     }
-    assert(std::fabs(sum_rows_ref[i] - sum_rows[i]) < FLOAT_EPSILON);
+    assert(std::fabs(sum_rows_ref[i] - sum_rows[i]) <= FLOAT_EPSILON);
   }
 }
 

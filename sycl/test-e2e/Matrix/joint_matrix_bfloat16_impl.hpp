@@ -78,6 +78,9 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
 
 template <typename T, typename TResult, size_t TM, size_t TN, size_t TK>
 void test() {
+  std::cout << "Testing: " << TM << " x " << TN << " x " << TK
+            << " [TM x TN x TK]" << std::endl;
+
   static constexpr size_t MATRIX_M = TM * 2;
   static constexpr size_t MATRIX_N = TN * 2;
   static constexpr size_t MATRIX_K = TK * 2;

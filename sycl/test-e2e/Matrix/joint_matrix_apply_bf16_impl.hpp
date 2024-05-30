@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 template <typename T, size_t TM, size_t TK> class add;
-
 template <typename T, size_t TM, size_t TK> class add_func;
 
 template <typename T> struct apply_add {
@@ -66,6 +65,8 @@ void matrix_verify_add(big_matrix<T, Rows, Cols> &A, const TResult ref,
 }
 
 template <typename T, typename TResult, size_t TM, size_t TK> void test() {
+  std::cout << "Testing: " << TM << " x " << TK << " [TM x TK]" << std::endl;
+
   static constexpr size_t Rows = TM * 2;
   static constexpr size_t Cols = TK * 2;
   T A[Rows][Cols];
