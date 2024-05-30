@@ -66,7 +66,6 @@ public:
     // Per extension specification if scratch size is less than the value
     // returned by memory_required then behavior is undefined, so we don't check
     // that the scratch size statisfies the requirement.
-    using T = typename sycl::detail::GetValueType<Ptr>::type;
     sycl::detail::merge_sort(g, first, last - first, comp, scratch.data());
 #else
     throw sycl::exception(
