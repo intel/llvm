@@ -261,18 +261,6 @@ carried by this loop between the operations.
 |====
 --
 
-// == Issues
-
-// . Should we add an agregator instruction (e.g., *OpAGListDeclIntel*) that takes
-// the result of multiple *{instruction_name}* and generates a single <id> that
-// gets used by the decorations, memory operands, and loop controls?
-// +
-// --
-// *UNRESOLVED*: This may make the decorations, memory operands, and loop controls
-// simpler at the expense of adding an arbitrary number of instructions since an
-// agregator instruction will be needed for each location that uses access groups.
-// --
-
 == Revision History
 
 [cols="5,15,15,70"]
@@ -280,6 +268,7 @@ carried by this loop between the operations.
 [options="header"]
 |========================================
 |Rev|Date|Author|Changes
-|1|2023-04-17|Adel Ejjeh|*Initial revision*
-|2|2023-03-04|Adel Ejjeh|*Make AGs literals, update tokens*
+|1|2024-02-28|Adel Ejjeh|*Initial revision*
+|2|2024-03-04|Adel Ejjeh|*Make AGs literals, update tokens*
+|3|2024-05-14|Adel Ejjeh|*Update instruction names and Validation section*
 |========================================
