@@ -8930,26 +8930,23 @@ ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pfnNativeEnqueue`
-///         + `NULL == data`
-///         + `NULL == pProperties`
 ///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAGS_MASK & pProperties->flags`
+///         + `NULL != pProperties && ::UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAGS_MASK & pProperties->flags`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
 ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     ur_exp_enqueue_native_command_function_t
         pfnNativeEnqueue, ///< [in] function calling the native underlying API, to be executed
                           ///< immediately.
-    void *data, ///< [in] data used by pfnNativeEnqueue
-    const ur_exp_enqueue_native_command_properties_t
-        *pProperties, ///< [in] pointer to the native enqueue properties
+    void *data, ///< [in][optional] data used by pfnNativeEnqueue
+    const ur_exp_enqueue_native_command_properties_t *
+        pProperties, ///< [in][optional] pointer to the native enqueue properties
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
     ///< events that must be complete before the kernel execution.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait
-    ///< events.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
     ur_event_handle_t *
         phEvent ///< [in,out] return an event object that identifies the work that has
                 ///< been enqueued in nativeEnqueueFunc.
