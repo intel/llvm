@@ -397,6 +397,7 @@ public:
         // by an int
         get_info<sycl::info::device::max_work_item_sizes<3>>());
 #endif
+    prop.set_host_unified_memory(has(sycl::aspect::usm_host_allocations));
 
     prop.set_max_clock_frequency(
         get_info<sycl::info::device::max_clock_frequency>());
