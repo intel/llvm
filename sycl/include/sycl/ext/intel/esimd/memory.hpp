@@ -3623,8 +3623,7 @@ gather(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
   return gather<T, N, VS>(acc, byte_offsets.read(), mask, pass_thru, props);
 }
 
-/// template <int VS = 1, typename T, int N,
-///           typename OffsetSimdViewT,
+/// template <int VS, typename T, int N, typename OffsetSimdViewT,
 //            typename PropertyListT = empty_properties_t>
 /// simd<T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
 ///                   simd_mask<N / VS> mask, simd<T, N> pass_thru,
@@ -3642,6 +3641,10 @@ __ESIMD_API std::enable_if_t<
     simd<T, N>>
 gather(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
        simd<T, N> pass_thru, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
   return gather<T, N, VS>(acc, byte_offsets.read(), mask, pass_thru, props);
 }
 
@@ -3654,7 +3657,7 @@ gather(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 ///                   simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
 ///                   PropertyListT props = {});
 /// This function is identical to (lacc-ga-1) except that the \p byte_offsets
-/// is represented as \c simd_view.
+/// and \p pass_thru are represented as \c simd_view.
 template <
     int VS = 1, typename AccessorT, typename OffsetSimdViewT,
     typename PassThruSimdViewT,
@@ -3670,6 +3673,10 @@ __ESIMD_API std::enable_if_t<
     simd<T, N>>
 gather(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
        PassThruSimdViewT pass_thru, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
   return gather<T, N, VS>(acc, byte_offsets.read(), mask, pass_thru.read(),
                           props);
 }
@@ -4786,6 +4793,10 @@ __ESIMD_API std::enable_if_t<
     simd<T, N>>
 slm_gather(OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
            simd<T, N> pass_thru, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
   return slm_gather<T, N, VS>(byte_offsets.read(), mask, pass_thru, props);
 }
 
@@ -4830,6 +4841,10 @@ __ESIMD_API std::enable_if_t<
     simd<T, N>>
 slm_gather(OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
            PassThruSimdViewT pass_thru, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
   return slm_gather<T, N, VS>(byte_offsets.read(), mask, pass_thru.read(),
                               props);
 }
@@ -8625,8 +8640,7 @@ gather(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
   return gather<T, N, VS>(acc, byte_offsets.read(), mask, pass_thru, props);
 }
 
-/// template <int VS = 1, typename T, int N,
-///           typename OffsetSimdViewT,
+/// template <int VS, typename T, int N, typename OffsetSimdViewT,
 //            typename PropertyListT = empty_properties_t>
 /// simd<T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
 ///                   simd_mask<N / VS> mask, simd<T, N> pass_thru,
@@ -8644,6 +8658,10 @@ __ESIMD_API std::enable_if_t<
     simd<T, N>>
 gather(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
        simd<T, N> pass_thru, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
   return gather<T, N, VS>(acc, byte_offsets.read(), mask, pass_thru, props);
 }
 
@@ -8656,7 +8674,7 @@ gather(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 ///                   simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
 ///                   PropertyListT props = {});
 /// This function is identical to (lacc-ga-1) except that the \p byte_offsets
-/// is represented as \c simd_view.
+/// and \p pass_thru are represented as \c simd_view.
 template <
     int VS = 1, typename AccessorT, typename OffsetSimdViewT,
     typename PassThruSimdViewT,
@@ -8672,6 +8690,10 @@ __ESIMD_API std::enable_if_t<
     simd<T, N>>
 gather(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
        PassThruSimdViewT pass_thru, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
   return gather<T, N, VS>(acc, byte_offsets.read(), mask, pass_thru.read(),
                           props);
 }
@@ -8684,7 +8706,7 @@ gather(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 /// simd<T, N> gather(AccessorT acc, simd<uint32_t, N / VS> byte_offsets,
 ///                   simd_mask<N / VS> mask, simd<T, N> pass_thru,
 ///                   PropertyListT props = {});
-/// This function is identical to (lacc-ga-1) except that the \p byte_offsets
+/// This function is identical to (lacc-ga-1) except that the \p pass_thru
 /// is represented as \c simd_view.
 template <
     int VS = 1, typename AccessorT, typename PassThruSimdViewT,
