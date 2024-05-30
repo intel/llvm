@@ -115,7 +115,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(opencl
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit e16d01c02f1c1c18af19d3c882c08f791c2345d9
+    # Merge: a3895dbf 483a6325
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu May 30 10:04:43 2024 +0100
+    #     Merge pull request #1603 from konradkusiak97/queueFillOPENCLctsFix
+    #     [OpenCL] Modify fill emulation to work for patterns which are not powers of 2
+    e16d01c02f1c1c18af19d3c882c08f791c2345d9
   )
 
   fetch_adapter_source(cuda
