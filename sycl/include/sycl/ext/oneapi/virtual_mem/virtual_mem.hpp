@@ -44,6 +44,10 @@ get_mem_granularity(const physical_mem &SyclPhysicalMem,
                              SyclPhysicalMem.get_context(), Mode);
 }
 
+__SYCL_EXPORT size_t
+get_mem_granularity(const context &SyclContext,
+                    granularity_mode Mode = granularity_mode::recommended);
+
 __SYCL_EXPORT uintptr_t reserve_virtual_mem(uintptr_t Start, size_t NumBytes,
                                             const context &SyclContext);
 

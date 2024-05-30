@@ -11,6 +11,13 @@
 #include <detail/physical_mem_impl.hpp>
 #include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp>
 
+// System headers for querying page-size.
+#ifdef _WIN32
+#include <sysinfoapi.h>
+#else
+#include <unistd.h>
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
@@ -52,6 +59,44 @@ __SYCL_EXPORT size_t get_mem_granularity(const device &SyclDevice,
       ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), GranularityQuery,
       sizeof(size_t), &Granularity, nullptr);
   return Granularity;
+}
+
+__SYCL_EXPORT size_t get_mem_granularity(const context &SyclContext,
+                                         granularity_mode Mode) {
+  const std::vector<device> Devices = SyclContext.get_devices();
+  if (!std::all_of(Devices.cbegin(), Devices.cend(), [](const device &Dev) {
+        return Dev.has(aspect::ext_oneapi_virtual_mem);
+      })) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device does not support aspect::ext_oneapi_virtual_mem.");
+  }
+
+  // CUDA only needs page-size granularity.
+  if (SyclContext.get_backend() == backend::ext_oneapi_cuda) {
+#ifdef _WIN32
+    SYSTEM_INFO SystemInfo;
+    GetSystemInfo(&SystemInfo);
+    return static_cast<size_t>(sysInfo.dwPageSize);
+#else
+    return static_cast<size_t>(sysconf(_SC_PAGESIZE));
+#endif
+  }
+
+  // Otherwise, we find the least common multiple of granularity of the devices
+  // in the context.
+  size_t LCMGranularity = get_mem_granularity(Devices[0], SyclContext, Mode);
+  for (size_t I = 1; I < Devices.size(); ++I) {
+    size_t DevGranularity = get_mem_granularity(Devices[I], SyclContext, Mode);
+    size_t GCD = LCMGranularity;
+    size_t Rem = DevGranularity % GCD;
+    while (Rem != 0) {
+      std::swap(GCD, Rem);
+      Rem %= GCD;
+    }
+    LCMGranularity *= DevGranularity / GCD;
+  }
+  return LCMGranularity;
 }
 
 __SYCL_EXPORT uintptr_t reserve_virtual_mem(uintptr_t Start, size_t NumBytes,
