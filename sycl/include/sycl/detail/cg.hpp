@@ -79,6 +79,7 @@ public:
     SemaphoreWait = 24,
     SemaphoreSignal = 25,
     ProfilingTag = 26,
+    ACPPCustomOperation = 27,
   };
 
   struct StorageInitHelper {

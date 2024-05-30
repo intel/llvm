@@ -410,6 +410,7 @@ event handler::finalize() {
         MPattern[0], MDstPtr, MImpl->MDstPitch, MImpl->MWidth, MImpl->MHeight,
         std::move(CGData), MCodeLoc));
     break;
+  case detail::CG::ACPPCustomOperation:
   case detail::CG::CodeplayHostTask: {
     auto context = MGraph ? detail::getSyclObjImpl(MGraph->getContext())
                           : MQueue->getContextImplPtr();
