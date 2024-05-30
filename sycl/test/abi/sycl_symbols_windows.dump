@@ -4375,6 +4375,7 @@
 ?get_kernel_ids@kernel_bundle_plain@detail@_V1@sycl@@QEBA?AV?$vector@Vkernel_id@_V1@sycl@@V?$allocator@Vkernel_id@_V1@sycl@@@std@@@std@@XZ
 ?get_max_statement_size@stream@_V1@sycl@@QEBA_KXZ
 ?get_max_statement_size@stream_impl@detail@_V1@sycl@@QEBA_KXZ
+?get_mem_granularity@experimental@oneapi@ext@_V1@sycl@@YA_KAEBVcontext@45@W4granularity_mode@12345@@Z
 ?get_mem_granularity@experimental@oneapi@ext@_V1@sycl@@YA_KAEBVdevice@45@AEBVcontext@45@W4granularity_mode@12345@@Z
 ?get_mip_level_mem_handle@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@U612345@IAEBVdevice@45@AEBVcontext@45@@Z
 ?get_mip_level_mem_handle@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@U612345@IAEBVqueue@45@@Z
