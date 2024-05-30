@@ -131,7 +131,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit a3895dbf46a98c8a5cd58704efe85e12fa1050cd
+    # Merge: 30c5c553 67338dbe
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu May 30 10:04:14 2024 +0100
+    #     Merge pull request #1604 from kbenzie/benie/hip-kernel-spec-constants
+    #     [HIP] Implement kernel set spec constant query
+    a3895dbf46a98c8a5cd58704efe85e12fa1050cd
   )
 
   fetch_adapter_source(native_cpu
