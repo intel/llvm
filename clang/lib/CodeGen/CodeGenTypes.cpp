@@ -320,6 +320,22 @@ llvm::Type *getJointMatrixINTELExtType(llvm::Type *CompTy,
                                   "spirv.JointMatrixINTEL", {CompTy}, Params);
 }
 
+llvm::Type *
+getCooperativeMatrixKHRExtType(llvm::Type *CompTy,
+                               ArrayRef<TemplateArgument> TemplateArgs) {
+  assert(TemplateArgs.size() == 5 &&
+         "Wrong CooperativeMatrixKHR template parameters number");
+  std::vector<unsigned> Params;
+  for (size_t I = 1; I != TemplateArgs.size(); ++I) {
+    assert(TemplateArgs[I].getKind() == TemplateArgument::Integral &&
+           "Wrong CooperativeMatrixKHR template parameter");
+    Params.push_back(TemplateArgs[I].getAsIntegral().getExtValue());
+  }
+
+  return llvm::TargetExtType::get(
+      CompTy->getContext(), "spirv.CooperativeMatrixKHR", {CompTy}, Params);
+}
+
 /// ConvertSYCLJointMatrixINTELType - Convert SYCL joint_matrix type
 /// which is represented as a pointer to a structure to LLVM extension type
 /// with the parameters that follow SPIR-V JointMatrixINTEL type.
@@ -361,6 +377,39 @@ llvm::Type *CodeGenTypes::ConvertSYCLJointMatrixINTELType(RecordDecl *RD) {
     }
   }
   return getJointMatrixINTELExtType(CompTy, TemplateArgs);
+}
+
+/// ConvertSPVCooperativeMatrixType - Convert SYCL joint_matrix type
+/// which is represented as a pointer to a structure to LLVM extension type
+/// with the parameters that follow SPIR-V CooperativeMatrixKHR type.
+/// The expected representation is:
+/// target("spirv.CooperativeMatrixKHR", %element_type, %scope%, %rows%, %cols%,
+///        %use%)
+llvm::Type *CodeGenTypes::ConvertSPVCooperativeMatrixType(RecordDecl *RD) {
+  auto *TemplateDecl = cast<ClassTemplateSpecializationDecl>(RD);
+  ArrayRef<TemplateArgument> TemplateArgs =
+      TemplateDecl->getTemplateArgs().asArray();
+  assert(TemplateArgs[0].getKind() == TemplateArgument::Type &&
+         "1st CooperativeMatrixKHR template parameter must be type");
+  llvm::Type *CompTy = ConvertType(TemplateArgs[0].getAsType());
+
+  if (CompTy->isStructTy()) {
+    StringRef LlvmTyName = CompTy->getStructName();
+    // Emit half/int16/float for sycl[::*]::{half,bfloat16,tf32}
+    if (LlvmTyName.starts_with("class.sycl::") ||
+        LlvmTyName.starts_with("class.__sycl_internal::"))
+      LlvmTyName = LlvmTyName.rsplit("::").second;
+    if (LlvmTyName == "half") {
+      CompTy = llvm::Type::getHalfTy(getLLVMContext());
+    } else if (LlvmTyName == "tf32") {
+      CompTy = llvm::Type::getFloatTy(getLLVMContext());
+    } else if (LlvmTyName == "bfloat16") {
+      CompTy = llvm::Type::getInt16Ty(getLLVMContext());
+    } else {
+      llvm_unreachable("Wrong matrix base type!");
+    }
+  }
+  return getCooperativeMatrixKHRExtType(CompTy, TemplateArgs);
 }
 
 /// ConvertType - Convert the specified type to its LLVM form.
@@ -605,8 +654,7 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
           return llvm::StructType::get(getLLVMContext(), EltTys);
         }
         return llvm::ScalableVectorType::get(ConvertType(Info.ElementType),
-                                             Info.EC.getKnownMinValue() *
-                                                 Info.NumVectors);
+                                             Info.EC.getKnownMinValue());
       }
 #define WASM_REF_TYPE(Name, MangledName, Id, SingletonId, AS)                  \
   case BuiltinType::Id: {                                                      \
@@ -653,6 +701,10 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
         if (RD && RD->getQualifiedNameAsString() ==
                       "__spv::__spirv_JointMatrixINTEL") {
           ResultType = ConvertSYCLJointMatrixINTELType(RD);
+          break;
+        } else if (RD && RD->getQualifiedNameAsString() ==
+                             "__spv::__spirv_CooperativeMatrixKHR") {
+          ResultType = ConvertSPVCooperativeMatrixType(RD);
           break;
         } else if (RD && RD->getQualifiedNameAsString() ==
                              "__spv::__spirv_TaskSequenceINTEL") {

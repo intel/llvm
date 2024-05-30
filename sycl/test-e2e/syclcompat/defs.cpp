@@ -26,7 +26,7 @@
 #include <cassert>
 #include <iostream>
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <syclcompat/defs.hpp>
 

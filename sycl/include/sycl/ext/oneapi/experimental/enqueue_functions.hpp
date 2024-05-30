@@ -10,6 +10,7 @@
 
 #include <utility> // for std::forward
 
+#include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/handler.hpp>
@@ -74,14 +75,18 @@ template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
 } // namespace detail
 
 template <typename CommandGroupFunc>
-void submit(queue Q, CommandGroupFunc &&CGF) {
+void submit(queue Q, CommandGroupFunc &&CGF,
+            const sycl::detail::code_location &CodeLoc =
+                sycl::detail::code_location::current()) {
   // TODO: Use new submit without Events.
-  Q.submit(std::forward<CommandGroupFunc>(CGF));
+  Q.submit(std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
 template <typename CommandGroupFunc>
-event submit_with_event(queue Q, CommandGroupFunc &&CGF) {
-  return Q.submit(std::forward<CommandGroupFunc>(CGF));
+event submit_with_event(queue Q, CommandGroupFunc &&CGF,
+                        const sycl::detail::code_location &CodeLoc =
+                            sycl::detail::code_location::current()) {
+  return Q.submit(std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
 template <typename KernelName = sycl::detail::auto_name, typename KernelType>
@@ -90,8 +95,12 @@ void single_task(handler &CGH, const KernelType &KernelObj) {
 }
 
 template <typename KernelName = sycl::detail::auto_name, typename KernelType>
-void single_task(queue Q, const KernelType &KernelObj) {
-  submit(Q, [&](handler &CGH) { single_task<KernelName>(CGH, KernelObj); });
+void single_task(queue Q, const KernelType &KernelObj,
+                 const sycl::detail::code_location &CodeLoc =
+                     sycl::detail::code_location::current()) {
+  submit(
+      Q, [&](handler &CGH) { single_task<KernelName>(CGH, KernelObj); },
+      CodeLoc);
 }
 
 template <typename... ArgsT>
@@ -261,8 +270,10 @@ inline void memcpy(handler &CGH, void *Dest, const void *Src, size_t NumBytes) {
   CGH.memcpy(Dest, Src, NumBytes);
 }
 
-inline void memcpy(queue Q, void *Dest, const void *Src, size_t NumBytes) {
-  submit(Q, [&](handler &CGH) { memcpy(CGH, Dest, Src, NumBytes); });
+inline void memcpy(queue Q, void *Dest, const void *Src, size_t NumBytes,
+                   const sycl::detail::code_location &CodeLoc =
+                       sycl::detail::code_location::current()) {
+  submit(Q, [&](handler &CGH) { memcpy(CGH, Dest, Src, NumBytes); }, CodeLoc);
 }
 
 template <typename T>
@@ -270,16 +281,21 @@ void copy(handler &CGH, const T *Src, T *Dest, size_t Count) {
   CGH.copy<T>(Src, Dest, Count);
 }
 
-template <typename T> void copy(queue Q, const T *Src, T *Dest, size_t Count) {
-  submit(Q, [&](handler &CGH) { copy<T>(CGH, Src, Dest, Count); });
+template <typename T>
+void copy(queue Q, const T *Src, T *Dest, size_t Count,
+          const sycl::detail::code_location &CodeLoc =
+              sycl::detail::code_location::current()) {
+  submit(Q, [&](handler &CGH) { copy<T>(CGH, Src, Dest, Count); }, CodeLoc);
 }
 
 inline void memset(handler &CGH, void *Ptr, int Value, size_t NumBytes) {
   CGH.memset(Ptr, Value, NumBytes);
 }
 
-inline void memset(queue Q, void *Ptr, int Value, size_t NumBytes) {
-  submit(Q, [&](handler &CGH) { memset(CGH, Ptr, Value, NumBytes); });
+inline void memset(queue Q, void *Ptr, int Value, size_t NumBytes,
+                   const sycl::detail::code_location &CodeLoc =
+                       sycl::detail::code_location::current()) {
+  submit(Q, [&](handler &CGH) { memset(CGH, Ptr, Value, NumBytes); }, CodeLoc);
 }
 
 template <typename T>
@@ -288,38 +304,49 @@ void fill(sycl::handler &CGH, T *Ptr, const T &Pattern, size_t Count) {
 }
 
 template <typename T>
-void fill(sycl::queue Q, T *Ptr, const T &Pattern, size_t Count) {
-  submit(Q, [&](handler &CGH) { fill<T>(CGH, Ptr, Pattern, Count); });
+void fill(sycl::queue Q, T *Ptr, const T &Pattern, size_t Count,
+          const sycl::detail::code_location &CodeLoc =
+              sycl::detail::code_location::current()) {
+  submit(Q, [&](handler &CGH) { fill<T>(CGH, Ptr, Pattern, Count); }, CodeLoc);
 }
 
 inline void prefetch(handler &CGH, void *Ptr, size_t NumBytes) {
   CGH.prefetch(Ptr, NumBytes);
 }
 
-inline void prefetch(queue Q, void *Ptr, size_t NumBytes) {
-  submit(Q, [&](handler &CGH) { prefetch(CGH, Ptr, NumBytes); });
+inline void prefetch(queue Q, void *Ptr, size_t NumBytes,
+                     const sycl::detail::code_location &CodeLoc =
+                         sycl::detail::code_location::current()) {
+  submit(Q, [&](handler &CGH) { prefetch(CGH, Ptr, NumBytes); }, CodeLoc);
 }
 
 inline void mem_advise(handler &CGH, void *Ptr, size_t NumBytes, int Advice) {
   CGH.mem_advise(Ptr, NumBytes, Advice);
 }
 
-inline void mem_advise(queue Q, void *Ptr, size_t NumBytes, int Advice) {
-  submit(Q, [&](handler &CGH) { mem_advise(CGH, Ptr, NumBytes, Advice); });
+inline void mem_advise(queue Q, void *Ptr, size_t NumBytes, int Advice,
+                       const sycl::detail::code_location &CodeLoc =
+                           sycl::detail::code_location::current()) {
+  submit(
+      Q, [&](handler &CGH) { mem_advise(CGH, Ptr, NumBytes, Advice); },
+      CodeLoc);
 }
 
 inline void barrier(handler &CGH) { CGH.ext_oneapi_barrier(); }
 
-inline void barrier(queue Q) {
-  submit(Q, [&](handler &CGH) { barrier(CGH); });
+inline void barrier(queue Q, const sycl::detail::code_location &CodeLoc =
+                                 sycl::detail::code_location::current()) {
+  submit(Q, [&](handler &CGH) { barrier(CGH); }, CodeLoc);
 }
 
 inline void partial_barrier(handler &CGH, const std::vector<event> &Events) {
   CGH.ext_oneapi_barrier(Events);
 }
 
-inline void partial_barrier(queue Q, const std::vector<event> &Events) {
-  submit(Q, [&](handler &CGH) { partial_barrier(CGH, Events); });
+inline void partial_barrier(queue Q, const std::vector<event> &Events,
+                            const sycl::detail::code_location &CodeLoc =
+                                sycl::detail::code_location::current()) {
+  submit(Q, [&](handler &CGH) { partial_barrier(CGH, Events); }, CodeLoc);
 }
 
 } // namespace ext::oneapi::experimental
