@@ -1033,8 +1033,8 @@ private:
           sycl::ext::oneapi::experimental::execution_scope::work_item,
           prop.coordinationScope);
     }
-    if constexpr (hasClusterSizeProperty<ProperTiesT>()) {
-      setKernelUsesCudaClusterLaunch(true);
+    if constexpr (hasClusterSizeProperty<PropertiesT>()) {
+      setKernelUsesClusterLaunch(true);
       setClusterRange(Props);
     }
   }
@@ -3689,7 +3689,7 @@ private:
   void setKernelIsCooperative(bool);
 
   // Set value of kernel uses cuda' thread block cluster flag
-  void setKernelIsCooperative(bool);
+  void setKernelUsesClusterLaunch(bool);
 
   template <
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures FeatureT>

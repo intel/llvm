@@ -285,14 +285,15 @@ event handler::finalize() {
             if (NewEvent != nullptr)
               NewEvent->setHostEnqueueTime();
             [&](auto... Args) {
+              if (MImpl->MKernelUsesClusterLaunch) {
+                // Just a temporary plug, ask what is the de-facto method for
+                // handling unsupported backend in the runtime
+                return PI_ERROR_INVALID_VALUE;
+              }
               if (MImpl->MKernelIsCooperative) {
                 MQueue->getPlugin()
                     ->call<
                         detail::PiApiKind::piextEnqueueCooperativeKernelLaunch>(
-                        Args...);
-              } else if (KernelUsesClusterLaunch) {
-                return Plugin
-                    ->call_nocheck<PiApiKind::piextEnqueueKernelLaunchCustom>(
                         Args...);
               } else {
                 MQueue->getPlugin()
@@ -377,7 +378,8 @@ event handler::finalize() {
         std::move(MImpl->MKernelBundle), std::move(CGData), std::move(MArgs),
         MKernelName.c_str(), std::move(MStreamStorage),
         std::move(MImpl->MAuxiliaryResources), MCGType,
-        MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative, MCodeLoc));
+        MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative,
+        MImpl->MKernelUsesClusterLaunch, MCodeLoc));
     break;
   }
   case detail::CG::CopyAccToPtr:
@@ -1673,7 +1675,7 @@ void handler::setKernelIsCooperative(bool KernelIsCooperative) {
   MImpl->MKernelIsCooperative = KernelIsCooperative;
 }
 
-void handler::setKernelUsesCudaClusterLaunch(bool KernelUsesClusterLaunch) {
+void handler::setKernelUsesClusterLaunch(bool KernelUsesClusterLaunch) {
   MImpl->MKernelUsesClusterLaunch = KernelUsesClusterLaunch;
 }
 

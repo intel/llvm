@@ -177,6 +177,7 @@ public:
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
   sycl::detail::pi::PiKernelCacheConfig MKernelCacheConfig;
   bool MKernelIsCooperative = false;
+  bool MKernelUsesClusterLaunch = false;
 
   CGExecKernel(NDRDescT NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
                std::shared_ptr<detail::kernel_impl> SyclKernel,
@@ -187,7 +188,8 @@ public:
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGTYPE Type,
                sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
-               bool KernelIsCooperative, detail::code_location loc = {})
+               bool KernelIsCooperative, bool MKernelUsesClusterLaunch,
+               detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
         MSyclKernel(std::move(SyclKernel)),
@@ -195,7 +197,8 @@ public:
         MKernelName(std::move(KernelName)), MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MKernelCacheConfig(std::move(KernelCacheConfig)),
-        MKernelIsCooperative(KernelIsCooperative) {
+        MKernelIsCooperative(KernelIsCooperative),
+        MKernelUsesClusterLaunch(MKernelUsesClusterLaunch) {
     assert(getType() == Kernel && "Wrong type of exec kernel CG.");
   }
 

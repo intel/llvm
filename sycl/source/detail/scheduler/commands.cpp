@@ -2414,23 +2414,50 @@ static pi_result SetKernelParamsAndLaunch(
   }
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
-  pi_result Error =
-      [&](auto... Args) {
-        if (IsCooperative) {
-          return Plugin
-              ->call_nocheck<PiApiKind::piextEnqueueCooperativeKernelLaunch>(
-                  Args...);
-        } else if (KernelUsesClusterLaunch) {
-          return Plugin
-              ->call_nocheck<PiApiKind::piextEnqueueKernelLaunchCustom>(
-                  Args...);
-        }
-        return Plugin->call_nocheck<PiApiKind::piEnqueueKernelLaunch>(Args...);
-      }(Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
-        &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
+  if (KernelUsesClusterLaunch) {
+    std::vector<pi_launch_property> property_list;
+
+    pi_launch_property_value launch_property_value_cluster_range;
+    launch_property_value_cluster_range.cluster_dims[0] =
+        NDRDesc.ClusterDimensions[0];
+    launch_property_value_cluster_range.cluster_dims[1] =
+        NDRDesc.ClusterDimensions[1];
+    launch_property_value_cluster_range.cluster_dims[2] =
+        NDRDesc.ClusterDimensions[2];
+
+    property_list.push_back(
+        {pi_launch_property_id::PI_LAUNCH_PROPERTY_CLUSTER_DIMENSION,
+         launch_property_value_cluster_range});
+
+    if (IsCooperative) {
+      pi_launch_property_value launch_property_value_cooperative;
+      launch_property_value_cooperative.cooperative = 1;
+      property_list.push_back(
+          {pi_launch_property_id::PI_LAUNCH_PROPERTY_COOPERATIVE,
+           launch_property_value_cooperative});
+    }
+
+    return Plugin->call_nocheck<PiApiKind::piextEnqueueKernelLaunchCustom>(
+        Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalSize[0],
+        LocalSize, property_list.size(), property_list.data(), RawEvents.size(),
         RawEvents.empty() ? nullptr : &RawEvents[0],
         OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
-  return Error;
+  } else {
+    pi_result Error =
+        [&](auto... Args) {
+          if (IsCooperative) {
+            return Plugin
+                ->call_nocheck<PiApiKind::piextEnqueueCooperativeKernelLaunch>(
+                    Args...);
+          }
+          return Plugin->call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
+              Args...);
+        }(Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
+          &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
+          RawEvents.empty() ? nullptr : &RawEvents[0],
+          OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
+    return Error;
+  }
 }
 
 // The function initialize accessors and calls lambda.
@@ -3038,7 +3065,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     return enqueueImpKernel(
         MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
         KernelName, RawEvents, EventImpl, getMemAllocationFunc,
-        ExecKernel->MKernelCacheConfig, ExecKernel->MKernelIsCooperative);
+        ExecKernel->MKernelCacheConfig, ExecKernel->MKernelIsCooperative,
+        ExecKernel->MKernelUsesClusterLaunch);
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
