@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 905804c2e93dd046140057fd07a5d6191063bedc
-  # Merge: 0a11fb44 d3d3f6e5
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon May 27 10:34:13 2024 +0100
-  #     Merge pull request #1581 from 0x12CC/l0_cooperative_kernels
-  #     Implement L0 cooperative kernel functions
-  set(UNIFIED_RUNTIME_TAG 905804c2e93dd046140057fd07a5d6191063bedc)
+  # commit c0c607c3a88933b4c5c20a0aca4539781c678411
+  # Merge: e18c691d 0f2d1f42
+  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
+  # Date:   Wed May 29 15:02:39 2024 +0100
+  #     Merge pull request #1667 from nrspruit/fix_multi_device_event_cache
+  #     [UR] Fix Multi Device Event Cache for shared Root Device
+  set(UNIFIED_RUNTIME_TAG c0c607c3a88933b4c5c20a0aca4539781c678411)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
