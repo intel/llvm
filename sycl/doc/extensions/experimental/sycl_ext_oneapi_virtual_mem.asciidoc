@@ -176,10 +176,10 @@ the call throws an exception with `errc::feature_not_supported`.
 === Reserving virtual address ranges
 
 Virtual address ranges are represented by a `uintptr_t` and a number of bytes
-reserved for it. The `uintptr_t` must be aligned in accordance with either the
-minimum or recommended granularity of the corresponding `context`, as queried
-through `get_mem_granularity`, and likewise the number of bytes must be a
-multiple of this granularity. It is the responsibility of the user to manage the
+reserved for it. The `uintptr_t` must be aligned in accordance with the minimum
+granularity of the corresponding `context`, as queried through
+`get_mem_granularity`, and likewise the number of bytes must be a multiple of
+this granularity. It is the responsibility of the user to manage the
 constituents of any virtual address range they reserve.
 
 The interfaces for reserving, freeing, and manipulating the access mode of a
@@ -207,11 +207,10 @@ Reserves a virtual memory range in `syclContext` with `numBytes` bytes.
 reservation. If the implementation is unable to reserve the virtual memory range
 at the specified address, the implementation will pick another suitable address.
 
-`start` must be aligned in accordance with either the minimum or recommended
-granularity for `syclContext`, as returned by a call to `get_mem_granularity`.
-Likewise, `numBytes` must be a multiple of the minimum granularity. Attempting
-to call this function without meeting these requirements results in undefined
-behavior.
+`start` must be aligned in accordance with the minimum granularity for
+`syclContext`, as returned by a call to `get_mem_granularity`. Likewise,
+`numBytes` must be a multiple of the minimum granularity. Attempting to call
+this function without meeting these requirements results in undefined behavior.
 
 If any of the devices in `syclContext` do not have
 `aspect::ext_oneapi_virtual_mem` the call throws an exception with
@@ -280,7 +279,7 @@ device of some device that is contained by that context, otherwise this function
 throws a synchronous exception with the `errc::invalid` error code.
 
 This will allocate `numBytes` of physical memory on the device. `numBytes` must
-be a multiple of the granularity, as returned by a call to
+be a multiple of the granularity for `syclDevice`, as returned by a call to
 `get_mem_granularity`.
 
 If `syclDevice` does not have `aspect::ext_oneapi_virtual_mem` the call throws
