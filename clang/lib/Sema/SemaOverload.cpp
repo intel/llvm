@@ -10385,7 +10385,7 @@ static bool sameFunctionParameterTypeLists(Sema &S,
   FunctionDecl *Fn1 = Cand1.Function;
   FunctionDecl *Fn2 = Cand2.Function;
 
-  if (Fn1->isVariadic() != Fn1->isVariadic())
+  if (Fn1->isVariadic() != Fn2->isVariadic())
     return false;
 
   if (!S.FunctionNonObjectParamTypesAreEqual(
