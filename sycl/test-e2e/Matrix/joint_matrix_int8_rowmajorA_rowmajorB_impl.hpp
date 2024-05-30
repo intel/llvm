@@ -51,6 +51,7 @@ void matrix_multiply(big_matrix<TResult, M, N> &C, big_matrix<T, M, K> &A,
                  accA.template get_multi_ptr<access::decorated::no>() +
                      (sg_startx * TM) * K + k * TK,
                  K);
+             // VNNI transform is done automatically at this level
              joint_matrix_load(
                  sg, sub_b,
                  accB.template get_multi_ptr<access::decorated::no>() +

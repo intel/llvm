@@ -9,8 +9,11 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=0 %{run} %t.out %}
-// RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=1 %{run} %t.out %}
+
+// Run these 2 tests on PVC only for now. Check can be updated to "gpu",
+// when newer IGC is used in intel/llvm pre-checkin testing on Intel Arc
+// RUN: %if gpu-intel-pvc %{ env IGC_JointMatrixLoadStoreOpt=0 %{run} %t.out %}
+// RUN: %if gpu-intel-pvc %{ env IGC_JointMatrixLoadStoreOpt=1 %{run} %t.out %}
 
 #include "common.hpp"
 #include "joint_matrix_int8_rowmajorA_rowmajorB_impl.hpp"
