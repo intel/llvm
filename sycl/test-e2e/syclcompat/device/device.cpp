@@ -70,7 +70,7 @@ void test_not_enough_devices() {
   try {
     syclcompat::select_device(dtf.get_n_devices());
   } catch (std::runtime_error const &e) {
-    std::cout << "Expected SYCL exception caught: " << e.what();
+    std::cout << "Expected SYCL exception caught: " << e.what() << std::endl;
   }
 }
 
@@ -228,6 +228,43 @@ void test_device_info_api() {
   assert(Info.get_global_mem_cache_size() == 1000);
 }
 
+void test_image_max_attrs() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  syclcompat::device_info info;
+
+  int _image1d_max = 1;
+  int _image2d_max[2] = {2, 3};
+  int _image3d_max[3] = {4, 5, 6};
+
+  info.set_image1d_max(_image1d_max);
+  info.set_image2d_max(_image2d_max[0], _image2d_max[1]);
+  info.set_image3d_max(_image3d_max[0], _image3d_max[1], _image3d_max[2]);
+
+  assert(info.get_image1d_max() == _image1d_max);
+  assert(info.get_image2d_max()[0] == _image2d_max[0]);
+  assert(info.get_image2d_max()[1] == _image2d_max[1]);
+  assert(info.get_image3d_max()[0] == _image3d_max[0]);
+  assert(info.get_image3d_max()[1] == _image3d_max[1]);
+  assert(info.get_image3d_max()[2] == _image3d_max[2]);
+
+  DeviceExtFixt dev_ext;
+  auto &dev_ = dev_ext.get_dev_ext();
+
+  info.set_image1d_max(0);
+  info.set_image2d_max(0, 0);
+  info.set_image3d_max(0, 0, 0);
+
+  dev_.get_device_info(info);
+  // SYCL guarantees at least a certain minimum value, but we only need to
+  // ensure the value is modified.
+  assert(info.get_image1d_max() > 0);
+  assert(info.get_image2d_max()[0] > 0);
+  assert(info.get_image2d_max()[1] > 0);
+  assert(info.get_image3d_max()[0] > 0);
+  assert(info.get_image3d_max()[1] > 0);
+  assert(info.get_image3d_max()[2] > 0);
+}
+
 int main() {
   test_at_least_one_device();
   test_matches_id();
@@ -242,6 +279,7 @@ int main() {
   test_saved_queue();
   test_reset();
   test_device_info_api();
+  test_image_max_attrs();
 
   return 0;
 }
