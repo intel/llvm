@@ -90,7 +90,7 @@ int main() {
         .wait();
   }
   assert(std_vec[0] == std::byte{2});
-  assert(std_vec[1] == std::byte{2});
+  assert(std_vec[1] == std::byte{7});
 
   // swizzle
   {
