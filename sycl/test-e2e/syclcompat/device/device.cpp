@@ -194,8 +194,6 @@ void test_device_info_api() {
   Info.set_max_work_group_size(32);
   Info.set_max_sub_group_size(16);
   Info.set_max_work_items_per_compute_unit(16);
-  int SizeArray[3] = {1, 2, 3};
-  Info.set_max_nd_range_size(SizeArray);
 
   Info.set_host_unified_memory(true);
   Info.set_memory_clock_rate(1000);
@@ -213,9 +211,6 @@ void test_device_info_api() {
   assert(Info.get_max_work_group_size() == 32);
   assert(Info.get_max_sub_group_size() == 16);
   assert(Info.get_max_work_items_per_compute_unit() == 16);
-  assert(Info.get_max_nd_range_size()[0] == SizeArray[0]);
-  assert(Info.get_max_nd_range_size()[1] == SizeArray[1]);
-  assert(Info.get_max_nd_range_size()[2] == SizeArray[2]);
   assert(Info.get_global_mem_size() == 1000);
   assert(Info.get_local_mem_size() == 1000);
 
@@ -265,6 +260,47 @@ void test_image_max_attrs() {
   assert(info.get_image3d_max()[2] > 0);
 }
 
+void test_max_nd_range() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  syclcompat::device_info info;
+
+  int size_array[3] = {1, 2, 3};
+  info.set_max_nd_range_size(size_array);
+
+  assert(info.get_max_nd_range_size()[0] == size_array[0]);
+  assert(info.get_max_nd_range_size()[1] == size_array[1]);
+  assert(info.get_max_nd_range_size()[2] == size_array[2]);
+
+  DeviceExtFixt dev_ext;
+  auto &dev = dev_ext.get_dev_ext();
+  dev.get_device_info(info);
+
+  int size_array_zeros[3] = {0, 0, 0};
+  info.set_max_nd_range_size(size_array_zeros);
+
+#ifdef SYCL_EXT_ONEAPI_MAX_WORK_GROUP_QUERY
+  // According to the extension values are > 1 unless info::device_type is
+  // info::device_type::custom.
+  if (dev.get_info<sycl::info::device::device_type>() !=
+      sycl::info::device_type::custom) {
+    info.set_max_nd_range_size(
+        dev.get_info<sycl::ext::oneapi::experimental::info::device::
+                         max_work_groups<3>>());
+    assert(info.get_max_nd_range_size()[0] > 0);
+    assert(info.get_max_nd_range_size()[1] > 0);
+    assert(info.get_max_nd_range_size()[2] > 0);
+  } else {
+    std::cout << "  Skipping due to custom sycl::info::device_type::custom."
+              << std::endl;
+  }
+#else
+  int expected = 0x7FFFFFFF;
+  assert(info.get_max_nd_range_size()[0] == expected);
+  assert(info.get_max_nd_range_size()[1] == expected);
+  assert(info.get_max_nd_range_size()[2] == expected);
+#endif
+}
+
 int main() {
   test_at_least_one_device();
   test_matches_id();
@@ -280,6 +316,7 @@ int main() {
   test_reset();
   test_device_info_api();
   test_image_max_attrs();
+  test_max_nd_range();
 
   return 0;
 }
