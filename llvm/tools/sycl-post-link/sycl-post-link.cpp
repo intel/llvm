@@ -96,7 +96,6 @@ cl::OptionCategory PostLinkCat{"sycl-post-link options"};
 constexpr char COL_CODE[] = "Code";
 constexpr char COL_SYM[] = "Symbols";
 constexpr char COL_PROPS[] = "Properties";
-constexpr char COL_IMPORTED_SYMBOLS[] = "Imported Symbols";
 
 // InputFilename - The filename to read from.
 cl::opt<std::string> InputFilename{cl::Positional,
@@ -199,10 +198,6 @@ cl::opt<module_split::IRSplitMode> SplitMode(
                           "Choose split mode automatically")),
     cl::cat(PostLinkCat));
 
-cl::opt<bool> DoSymImports{"imports",
-                           cl::desc("generate imported symbol files"),
-                           cl::cat(PostLinkCat)};
-
 cl::opt<bool> DoSymGen{"symbols", cl::desc("generate exported symbol files"),
                        cl::cat(PostLinkCat)};
 
@@ -234,6 +229,10 @@ cl::opt<bool> EmitExportedSymbols{"emit-exported-symbols",
                                   cl::desc("emit exported symbols"),
                                   cl::cat(PostLinkCat)};
 
+cl::opt<bool> EmitImportedSymbols{"emit-imported-symbols",
+                                  cl::desc("emit imported symbols"),
+                                  cl::cat(PostLinkCat)};
+
 cl::opt<bool> EmitOnlyKernelsAsEntryPoints{
     "emit-only-kernels-as-entry-points",
     cl::desc("Consider only sycl_kernel functions as entry points for "
@@ -256,13 +255,13 @@ struct GlobalBinImageProps {
   bool EmitKernelParamInfo;
   bool EmitProgramMetadata;
   bool EmitExportedSymbols;
+  bool EmitImportedSymbols;
   bool EmitDeviceGlobalPropSet;
 };
 
 struct IrPropSymFilenameTriple {
   std::string Ir;
   std::string Prop;
-  std::string Imports;
   std::string Sym;
 };
 
@@ -418,6 +417,21 @@ std::string saveModuleIR(Module &M, int I, StringRef Suff) {
   return OutFilename;
 }
 
+bool isImportedFunction(const Function &F) {
+  // Functions with definitions are not imported
+  if (!F.isDeclaration())
+    return false;
+
+  bool ReturnValue = true;
+  if (auto NameStr = itaniumDemangle(F.getName())) {
+    StringRef DemangledName(NameStr);
+    if (DemangledName.starts_with("__") || DemangledName.starts_with("_spirv"))
+      ReturnValue = false;
+    free(NameStr);
+  }
+  return ReturnValue;
+}
+
 std::string saveModuleProperties(module_split::ModuleDesc &MD,
                                  const GlobalBinImageProps &GlobProps, int I,
                                  StringRef Suff) {
@@ -485,6 +499,16 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
       }
     }
   }
+
+  if (GlobProps.EmitImportedSymbols) {
+    // record imported functions in the property set
+    for (const auto &F : M) {
+      if (isImportedFunction(F)) {
+        PropSet.add(PropSetRegTy::SYCL_IMPORTED_SYMBOLS, F.getName(), true);
+      }
+    }
+  }
+
   // Metadata names may be composite so we keep them alive until the
   // properties have been written.
   SmallVector<std::string, 4> MetadataNames;
@@ -626,39 +650,6 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   return SCFile;
 }
 
-bool ImportFunction(const Function &F) {
-  // Functions with definitions are not listed as imported
-  if (!F.isDeclaration())
-    return false;
-
-  bool ReturnValue = true;
-  if (auto NameStr = itaniumDemangle(F.getName())) {
-    StringRef DemangledName(NameStr);
-    if (DemangledName.starts_with("__") || DemangledName.starts_with("_spirv"))
-      ReturnValue = false;
-    free(NameStr);
-  }
-  return ReturnValue;
-}
-// Saves specified collection of symbols to a file.
-std::string saveModuleImportedSymbolTable(const Module &M, int I,
-                                          StringRef Suffix) {
-
-  // Concatenate names of the imported symbols with "\n".
-  std::string SymT;
-
-  for (const auto &F : M) {
-    if (ImportFunction(F)) {
-      SymT = (Twine(SymT) + Twine(F.getName()) + Twine("\n")).str();
-    }
-  }
-
-  // Save to file.
-  std::string OutFileName = makeResultFileName(".imported_sym", I, Suffix);
-  writeToFile(OutFileName, SymT);
-  return OutFileName;
-}
-
 // Saves specified collection of symbols to a file.
 std::string saveModuleSymbolTable(const module_split::EntryPointSet &Es, int I,
                                   StringRef Suffix) {
@@ -770,13 +761,8 @@ IrPropSymFilenameTriple saveModule(module_split::ModuleDesc &MD, int I,
     Res.Ir = saveModuleIR(MD.getModule(), I, Suffix);
   }
   GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
-                               EmitExportedSymbols, DeviceGlobals};
+                               EmitExportedSymbols, EmitImportedSymbols, DeviceGlobals};
   Res.Prop = saveModuleProperties(MD, Props, I, Suffix);
-
-  if (DoSymImports) {
-    // save the names of imported symbols
-    Res.Imports = saveModuleImportedSymbolTable(MD.getModule(), I, Suffix);
-  }
 
   if (DoSymGen) {
     // save the names of the entry points - the symbol table
@@ -852,14 +838,13 @@ processSpecConstantsWithDefaultValues(const module_split::ModuleDesc &MD) {
   return std::move(NewModuleDesc);
 }
 
-constexpr int MAX_COLUMNS_IN_FILE_TABLE = 4;
+constexpr int MAX_COLUMNS_IN_FILE_TABLE = 3;
 
 void addTableRow(util::SimpleTable &Table,
                  const IrPropSymFilenameTriple &RowData) {
   SmallVector<StringRef, MAX_COLUMNS_IN_FILE_TABLE> Row;
 
-  for (const std::string *S :
-       {&RowData.Ir, &RowData.Prop, &RowData.Imports, &RowData.Sym}) {
+  for (const std::string *S : {&RowData.Ir, &RowData.Prop, &RowData.Sym}) {
     if (!S->empty()) {
       Row.push_back(StringRef(*S));
     }
@@ -1082,10 +1067,6 @@ processInputModule(std::unique_ptr<Module> M) {
   SmallVector<StringRef, MAX_COLUMNS_IN_FILE_TABLE> ColumnTitles{
       StringRef(COL_CODE), StringRef(COL_PROPS)};
 
-  if (DoSymImports) {
-    ColumnTitles.push_back(COL_IMPORTED_SYMBOLS);
-  }
-
   if (DoSymGen) {
     ColumnTitles.push_back(COL_SYM);
   }
@@ -1299,12 +1280,13 @@ int main(int argc, char **argv) {
   bool DoParamInfo = EmitKernelParamInfo.getNumOccurrences() > 0;
   bool DoProgMetadata = EmitProgramMetadata.getNumOccurrences() > 0;
   bool DoExportedSyms = EmitExportedSymbols.getNumOccurrences() > 0;
+  bool DoImportedSyms = EmitImportedSymbols.getNumOccurrences() > 0;
   bool DoDeviceGlobals = DeviceGlobals.getNumOccurrences() > 0;
   bool DoGenerateDeviceImageWithDefaulValues =
       GenerateDeviceImageWithDefaultSpecConsts.getNumOccurrences() > 0;
 
   if (!DoSplit && !DoSpecConst && !DoSymGen && !DoParamInfo &&
-      !DoProgMetadata && !DoSplitEsimd && !DoExportedSyms && !DoDeviceGlobals &&
+      !DoProgMetadata && !DoSplitEsimd && !DoExportedSyms && !DoImportedSyms && !DoDeviceGlobals &&
       !DoLowerEsimd) {
     errs() << "no actions specified; try --help for usage info\n";
     return 1;
@@ -1336,6 +1318,11 @@ int main(int argc, char **argv) {
   }
   if (IROutputOnly && DoExportedSyms) {
     errs() << "error: -" << EmitExportedSymbols.ArgStr << " can't be used with"
+           << " -" << IROutputOnly.ArgStr << "\n";
+    return 1;
+  }
+  if (IROutputOnly && DoImportedSyms) {
+    errs() << "error: -" << EmitImportedSymbols.ArgStr << " can't be used with"
            << " -" << IROutputOnly.ArgStr << "\n";
     return 1;
   }
