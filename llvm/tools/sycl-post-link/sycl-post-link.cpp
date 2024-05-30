@@ -25,6 +25,7 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/GenXIntrinsics/GenXSPIRVWriterAdaptor.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/LLVMContext.h"
@@ -95,6 +96,7 @@ cl::OptionCategory PostLinkCat{"sycl-post-link options"};
 constexpr char COL_CODE[] = "Code";
 constexpr char COL_SYM[] = "Symbols";
 constexpr char COL_PROPS[] = "Properties";
+constexpr char COL_IMPORTED_SYMBOLS[] = "Imported Symbols";
 
 // InputFilename - The filename to read from.
 cl::opt<std::string> InputFilename{cl::Positional,
@@ -197,6 +199,9 @@ cl::opt<module_split::IRSplitMode> SplitMode(
                           "Choose split mode automatically")),
     cl::cat(PostLinkCat));
 
+cl::opt<bool> DoSymImports{"imports", cl::desc("generate imported symbol files"),
+                           cl::cat(PostLinkCat)};
+
 cl::opt<bool> DoSymGen{"symbols", cl::desc("generate exported symbol files"),
                        cl::cat(PostLinkCat)};
 
@@ -256,6 +261,7 @@ struct GlobalBinImageProps {
 struct IrPropSymFilenameTriple {
   std::string Ir;
   std::string Prop;
+  std::string Imports;
   std::string Sym;
 };
 
@@ -619,6 +625,40 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   return SCFile;
 }
 
+bool ImportFunction (const Function &F) {
+  // Functions with definitions are not listed as imported
+  if (!F.isDeclaration())
+    return false;
+
+  bool ReturnValue=true;
+  if (auto NameStr = itaniumDemangle(F.getName())) {
+    StringRef DemangledName(NameStr);
+    if (DemangledName.starts_with("__") ||
+        DemangledName.starts_with("_spirv"))
+      ReturnValue=false;
+    free(NameStr);
+  }
+  return ReturnValue;
+}
+// Saves specified collection of symbols to a file.
+std::string saveModuleImportedSymbolTable(const Module &M, int I,
+                                  StringRef Suffix) {
+
+  // Concatenate names of the imported symbols with "\n".
+  std::string SymT;
+
+  for (const auto &F : M) {
+    if (ImportFunction(F)) {
+      SymT = (Twine(SymT) + Twine(F.getName()) + Twine("\n")).str();
+    }
+  }
+
+  // Save to file.
+  std::string OutFileName = makeResultFileName(".imported_sym", I, Suffix);
+  writeToFile(OutFileName, SymT);
+  return OutFileName;
+}
+
 // Saves specified collection of symbols to a file.
 std::string saveModuleSymbolTable(const module_split::EntryPointSet &Es, int I,
                                   StringRef Suffix) {
@@ -733,6 +773,11 @@ IrPropSymFilenameTriple saveModule(module_split::ModuleDesc &MD, int I,
                                EmitExportedSymbols, DeviceGlobals};
   Res.Prop = saveModuleProperties(MD, Props, I, Suffix);
 
+  if (DoSymImports) {
+    // save the names of imported symbols
+    Res.Imports = saveModuleImportedSymbolTable(MD.getModule(), I, Suffix);
+  }
+
   if (DoSymGen) {
     // save the names of the entry points - the symbol table
     Res.Sym = saveModuleSymbolTable(MD.entries(), I, Suffix);
@@ -807,13 +852,13 @@ processSpecConstantsWithDefaultValues(const module_split::ModuleDesc &MD) {
   return std::move(NewModuleDesc);
 }
 
-constexpr int MAX_COLUMNS_IN_FILE_TABLE = 3;
+constexpr int MAX_COLUMNS_IN_FILE_TABLE = 4;
 
 void addTableRow(util::SimpleTable &Table,
                  const IrPropSymFilenameTriple &RowData) {
   SmallVector<StringRef, MAX_COLUMNS_IN_FILE_TABLE> Row;
 
-  for (const std::string *S : {&RowData.Ir, &RowData.Prop, &RowData.Sym}) {
+  for (const std::string *S : {&RowData.Ir, &RowData.Prop, &RowData.Imports, &RowData.Sym}) {
     if (!S->empty()) {
       Row.push_back(StringRef(*S));
     }
@@ -1034,7 +1079,11 @@ std::vector<std::unique_ptr<util::SimpleTable>>
 processInputModule(std::unique_ptr<Module> M) {
   // Construct the resulting table which will accumulate all the outputs.
   SmallVector<StringRef, MAX_COLUMNS_IN_FILE_TABLE> ColumnTitles{
-      StringRef(COL_CODE), StringRef(COL_PROPS)};
+    StringRef(COL_CODE), StringRef(COL_PROPS)};
+
+  if (DoSymImports) {
+    ColumnTitles.push_back(COL_IMPORTED_SYMBOLS);
+  }
 
   if (DoSymGen) {
     ColumnTitles.push_back(COL_SYM);
