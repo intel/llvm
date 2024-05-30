@@ -10,7 +10,7 @@ template <typename T, size_t TM, size_t TN, size_t TK> class mult;
 template <typename TResult, typename T, size_t M, size_t N, size_t K, size_t TM,
           size_t TN, size_t TK>
 void matrix_multiply(big_matrix<TResult, M, N> &C, big_matrix<T, M, K> &A,
-                     big_matrix<T, K , N> &B) {
+                     big_matrix<T, K, N> &B) {
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
   buffer<T, 2> bufA(A.get_data(), range<2>(M, K));
@@ -67,8 +67,7 @@ void matrix_multiply(big_matrix<TResult, M, N> &C, big_matrix<T, M, K> &A,
    }).wait();
 }
 
-template <typename TResult, typename T, size_t TM, size_t TN,
-          size_t TK>
+template <typename TResult, typename T, size_t TM, size_t TN, size_t TK>
 void test() {
   static constexpr size_t MATRIX_M = TM * 2;
   static constexpr size_t MATRIX_N = TN * 2;
@@ -88,10 +87,10 @@ void test() {
   big_matrix<TResult, MATRIX_M, MATRIX_N> MD((TResult *)&D);
   big_matrix<T, MATRIX_M, MATRIX_K> MA((T *)&A);
   big_matrix<T, MATRIX_K, MATRIX_N> MB((T *)&B);
-  matrix_multiply<TResult, T, MATRIX_M, MATRIX_N, MATRIX_K, TM, TN, TK>(
-      MC, MA, MB);
-  matrix_multiply_ref<T, T, TResult>((T *)A, (T *)B, (TResult *)D,
-                                           MATRIX_M, MATRIX_N, MATRIX_K);
+  matrix_multiply<TResult, T, MATRIX_M, MATRIX_N, MATRIX_K, TM, TN, TK>(MC, MA,
+                                                                        MB);
+  matrix_multiply_ref<T, T, TResult>((T *)A, (T *)B, (TResult *)D, MATRIX_M,
+                                     MATRIX_N, MATRIX_K);
 
   assert(matrix_compare(MATRIX_M, MATRIX_N, (TResult *)C, (TResult *)D));
 }
