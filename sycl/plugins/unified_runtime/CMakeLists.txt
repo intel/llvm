@@ -110,7 +110,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 1fa0d2302d70a9aa8b717ecb60db0a7d8a4e5d8f
+    # Merge: e16d01c0 35b7de5c
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu May 30 10:14:37 2024 +0100
+    #     Merge pull request #1654 from Bensuo/ewan/debug_log_update
+    #     Debug logging in Level Zero command-buffer update
+    1fa0d2302d70a9aa8b717ecb60db0a7d8a4e5d8f
   )
 
   fetch_adapter_source(opencl
