@@ -10,7 +10,7 @@ def main(directory, max_count, target_file=None):
     for root, dirs, files in os.walk(directory):
         for file in files:
             if file.endswith(".asm") and (target_file is None or file == target_file):
-                print('Checking file: ', file)
+                print("Checking file: ", file)
                 with open(os.path.join(root, file), "r") as f:
                     for line in f:
                         match = pattern.search(line)
