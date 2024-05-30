@@ -29,27 +29,46 @@
 
 namespace xpti {
 namespace utils {
-#define MAX_STR_SIZE 2048
 
-/// @brief Statistics class to compute mean, stddev, etc
-/// @details This class can compute many staticsical values using running
-/// average and related techniques so they can be computed on the fly
-/// without any post processing times.
+/// @def MAX_STR_SIZE
+/// @brief The maximum size of a string in the XPTI framework utils
+/// functionality.
+///
+/// This variable defines the maximum size of a string collector functionality.
+/// It is primarily used to limit overflow in legacy APIs.
+///
+constexpr size_t MAX_STR_SIZE = 2048;
+
+/// @class statistics_t
+/// @brief A class for computing and storing statistical data.
+///
+/// This class is used to compute and store statistical data such as mean,
+/// variance, skewness, and kurtosis. It also keeps track of the minimum and
+/// maximum values, the total of all values, and the count of values. The
+/// staticsical values using running average and related techniques so they can
+/// be computed on the fly without any post processing times.
 ///
 /// http://prod.sandia.gov/techlib/access-control.cgi/2008/086212.pdf
 ///
 class statistics_t {
 public:
+  /// @brief Constructor that initializes the statistics object.
+  ///
+  /// The constructor initializes all state data to 0, the minimum value to the
+  /// maximum possible double value, and the maximum value to the smallest
+  /// possible double value.
+  ///
   statistics_t() {
-    //
-    //  Reset for streaming compute
-    //
     clear();
-
     m_min = std::numeric_limits<double>::max();
     m_max = -std::numeric_limits<double>::max();
   }
 
+  /// @brief Resets all statistical data.
+  ///
+  /// This function resets all moments to 0, allowing the object to be reused
+  /// for statistical data.
+  ///
   void clear() {
     m_count = 0;
     m_total = 0.0;
@@ -58,6 +77,13 @@ public:
     m_moment3 = 0.0;
     m_moment4 = 0.0;
   }
+
+  /// @brief Adds a value to the statistical data object.
+  ///
+  /// This function adds a value to the statistical data which allows it to
+  /// compute internal state and avereages as running means
+  /// @param val The value to add.
+  ///
   void add_value(uint64_t val) {
     double delta, delta_by_n, delta_n_sq, temp;
 
@@ -67,10 +93,7 @@ public:
       m_min = val;
     if (m_max <= val)
       m_max = val;
-    //
-    //  We have added a new value, so update the
-    //  count by 1
-    //
+    //  We have added a new value, so update the count by 1
     m_count++;
     m_total += val;
     delta = val - m_moment1;
@@ -78,53 +101,82 @@ public:
     delta_n_sq = delta_by_n * delta_by_n;
 
     temp = delta * delta_by_n * current_count;
-    //
     // Accumulate the mean
-    //
     m_moment1 += delta_by_n;
     m_moment4 += temp * delta_n_sq * (m_count * m_count - 3 * m_count + 3) +
                  (6 * delta_n_sq * m_moment2) - (4 * delta_by_n * m_moment3);
     m_moment3 += temp * delta_by_n * (m_count - 2) - 3 * delta_by_n * m_moment2;
-    //
     //  Accumulate the average variance
-    //
     m_moment2 += temp;
   }
 
+  /// @brief Returns the total of all values.
+  /// @return The total of all values.
   double total() { return m_total; }
+
+  /// @brief Returns the count of values.
+  /// @return The count of values.
   long count() { return m_count; }
-  //
-  //
-  //
+
+  /// @brief Returns the mean of the values.
+  /// @return The mean of the values.
   double mean() { return m_moment1; }
 
+  /// @brief Returns the maximum value.
+  /// @return The maximum value.
   double max() { return m_max; }
 
+  /// @brief Returns the minimum value.
+  /// @return The minimum value.
   double min() { return m_min; }
 
+  /// @brief Returns the variance of the values.
+  /// @return The variance of the values.
   double variance() {
     if (m_count - 1)
       return m_moment2 / (m_count - 1.0);
     else
       return 0.0;
   }
+
+  /// @brief Returns the standard deviation of the values.
+  /// @return The standard deviation of the values.
   double stddev() { return sqrt(variance()); }
 
+  /// @brief Returns the skewness of the values.
+  /// @return The skewness of the values.
   double skewness() {
     return sqrt((double)m_count) * m_moment3 / pow(m_moment2, 1.5);
   }
 
+  /// @brief Returns the kurtosis of the values.
+  /// @return The kurtosis of the values.
   double kurtosis() {
     return ((double)m_count * m_moment4) / (m_moment2 * m_moment2) - 3.0;
   }
 
 private:
-  uint64_t m_count;
-  double m_moment1, m_moment2, m_moment3, m_moment4, m_min, m_max, m_total;
+  uint64_t m_count; ///< The count of values.
+  double m_moment1, ///< The first moment (mean).
+      m_moment2,    ///< The second moment (variance).
+      m_moment3,    ///< The third moment (skewness).
+      m_moment4,    ///< The fourth moment (kurtosis).
+      m_min,        ///< The minimum value.
+      m_max,        ///< The maximum value.
+      m_total;      ///< The total of all values.
 };
 
 namespace timer {
 
+/// @brief Returns the current timestamp as a string.
+///
+/// This function gets the current time using the system clock, converts it to
+/// local time, and then formats it as a string in the format
+/// "YYYY-MM-DD_HH-MM-SS". This strimng will be used by the perf collector to
+/// dump the collected data into a unique filename.
+///
+/// @return A string representing the current timestamp.
+///
 std::string get_timestamp_string() {
   auto curr = std::chrono::system_clock::now();
   auto local = std::chrono::system_clock::to_time_t(curr);
@@ -133,6 +185,13 @@ std::string get_timestamp_string() {
   return ss.str();
 }
 
+/// @class measurement_t
+/// @brief A class for high-resolution time measurement.
+///
+/// This class provides methods for measuring time with high resolution. It uses
+/// different methods for time measurement depending on the platform and the
+/// available hardware.
+///
 #if defined(_WIN32) || defined(_WIN64)
 #include "windows.h"
 #include <intrin.h>
@@ -242,6 +301,15 @@ private:
 
 } // namespace timer
 
+// @brief Returns the name of the current application.
+//
+// This function retrieves the full path of the executable file of the current
+// process, and then extracts the file name from the path. If the retrieval
+// fails, it returns "application" as a default name. It employs different APIs
+// to get the application name on Windows and Linux
+//
+// @return A string representing the name of the current application.
+//
 #if defined(_WIN32) || defined(_WIN64)
 #include <processthreadsapi.h>
 
@@ -256,6 +324,13 @@ inline std::string get_application_name() {
   }
 }
 
+/// @brief Returns the ID of the current process.
+///
+/// This function uses the Windows API function GetCurrentProcessId to get the
+/// ID of the current process.
+///
+/// @return The ID of the current process.
+///
 inline uint64_t get_process_id() { return GetCurrentProcessId(); }
 
 #elif defined(__linux__)
@@ -272,20 +347,42 @@ inline std::string get_application_name() {
   }
 }
 
+/// @brief Returns the ID of the current process.
+///
+/// This function uses the POSIX function getpid to get the ID of the current
+/// process.
+///
+/// @return The ID of the current process.
+///
 inline uint64_t get_process_id() { return getpid(); }
 #else
+///
+/// @brief Returns a default name for the application.
+///
+/// This function always returns "application" as the name of the application.
+/// It can be used when the call is being made on an unsupported platform
+///
+/// @return A string representing the name of the application.
+///
 #include <stdlib.h>
 #include <time.h>
 
 static bool g_initialized = false;
 inline std::string get_application_name() { return "application"; }
-
+///
+/// @brief Returns the ID of the current process.
+///
+/// This function returns a random number as the ID of the current process when
+/// we are on an unsupported platform
+///
+/// @return The ID of the current process.
+///
 inline uint64_t get_process_id() {
   if (!g_initialized) {
     srand(time(0));
     g_initialized = true;
   }
-  return getpid();
+  return rand();
 }
 #endif
 

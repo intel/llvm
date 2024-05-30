@@ -125,7 +125,8 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
   xpti::uid_t ID = Event ? Event->uid : xpti::uid_t();
   // Lock while we print information
   std::lock_guard<std::mutex> Lock(GIOMutex);
-  // Print the record information
+  // Print the record information; Windows complains about %lu and Linux
+  // complains about %llu; picking one.
   printf("%-25lu: name=%-35s cpu=%3d event_id=[%10lu, %10lu, %5lu]\n", Time,
          Name.c_str(), CPU, ID.p1, ID.p2, ID.instance);
   // Go through all available meta-data for an event and print it out
