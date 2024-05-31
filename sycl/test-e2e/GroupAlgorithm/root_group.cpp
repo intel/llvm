@@ -1,5 +1,7 @@
 // Fails with opencl non-cpu, enable when fixed.
-// XFAIL: (opencl && !cpu && !accelerator)
+// Temporarily disabled for Cuda due to a known issue. Enable it again when the
+// root group barrier functionality is implemented correct in the NVPTX backend.
+// XFAIL: (opencl && !cpu && !accelerator) || cuda
 // RUN: %{build} -I . -o %t.out
 // RUN: %{run} %t.out
 
@@ -29,12 +31,21 @@ void testQueriesAndProperties() {
   const auto maxWGs = kernel.ext_oneapi_get_info<
       sycl::ext::oneapi::experimental::info::kernel_queue_specific::
           max_num_work_group_sync>(q);
+  const auto wgRange = sycl::range{WorkGroupSize, 1, 1};
+  const auto maxWGsWithLimits = kernel.ext_oneapi_get_info<
+      sycl::ext::oneapi::experimental::info::kernel_queue_specific::
+          max_num_work_group_sync>(q, wgRange, wgRange.size() * sizeof(int));
   const auto props = sycl::ext::oneapi::experimental::properties{
       sycl::ext::oneapi::experimental::use_root_sync};
   q.single_task<class QueryKernel>(props, []() {});
-  static_assert(std::is_same_v<std::remove_cv<decltype(maxWGs)>::type, size_t>,
+
+  static auto check_max_num_work_group_sync = [](auto Result) {
+    static_assert(std::is_same_v<std::remove_cv_t<decltype(Result)>, size_t>,
                 "max_num_work_group_sync query must return size_t");
-  assert(maxWGs >= 1 && "max_num_work_group_sync query failed");
+    assert(Result >= 1 && "max_num_work_group_sync query failed");
+  };
+  check_max_num_work_group_sync(maxWGs);
+  check_max_num_work_group_sync(maxWGsWithLimits);
 }
 
 void testRootGroup() {

@@ -174,7 +174,13 @@ public:
   // TODO: Revisit and align with sycl_ext_oneapi_forward_progress extension
   // once #7598 is merged.
   template <typename Param>
-  typename Param::return_type ext_oneapi_get_info(const queue &q) const;
+  typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+  ext_oneapi_get_info(const queue &q) const;
+
+  template <typename Param>
+  typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+  ext_oneapi_get_info(const queue &Queue, const range<3> &WorkGroupSize,
+                      size_t DynamicLocalMemorySize) const;
 
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.
