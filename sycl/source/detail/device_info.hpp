@@ -25,6 +25,7 @@
 #include <sycl/platform.hpp>
 
 #include <chrono>
+#include <sstream>
 #include <thread>
 
 #include "split_string.hpp"
@@ -1209,11 +1210,22 @@ struct get_device_info_impl<
       return {};
     size_t ResultSize = 0;
     // First call to get DevCount.
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+    pi_result Err = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<
             ext::oneapi::experimental::info::device::component_devices>::value,
         0, nullptr, &ResultSize);
+
+    // If the feature is unsupported or if the result was empty, return an empty
+    // list of devices.
+    if (Err == PI_ERROR_UNSUPPORTED_FEATURE ||
+        (Err == PI_SUCCESS && ResultSize == 0))
+      return {};
+
+    // Otherwise, if there was an error from PI it is unexpected and we should
+    // handle it accordingly.
+    Dev->getPlugin()->checkPiResult(Err);
+
     size_t DevCount = ResultSize / sizeof(pi_device);
     // Second call to get the list.
     std::vector<pi_device> Devs(DevCount);
@@ -1235,8 +1247,6 @@ template <>
 struct get_device_info_impl<
     sycl::device, ext::oneapi::experimental::info::device::composite_device> {
   static sycl::device get(const DeviceImplPtr &Dev) {
-    if (Dev->getBackend() != backend::ext_oneapi_level_zero)
-      return {};
     if (!Dev->has(sycl::aspect::ext_oneapi_is_component))
       throw sycl::exception(make_error_code(errc::invalid),
                             "Only devices with aspect::ext_oneapi_is_component "
@@ -2205,7 +2215,7 @@ inline uint32_t get_device_info_host<
 template <>
 inline float get_device_info_host<
     ext::oneapi::experimental::info::device::mipmap_max_anisotropy>() {
-  throw runtime_error("Bindless image mipaps are not supported on HOST device",
+  throw runtime_error("Bindless image mipmaps are not supported on HOST device",
                       PI_ERROR_INVALID_DEVICE);
 }
 

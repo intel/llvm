@@ -1039,8 +1039,8 @@ template <sycl::access::address_space addressSpace =
           sycl::memory_scope memoryScope = sycl::memory_scope::device,
           typename T>
 T atomic_compare_exchange_strong(
-    sycl::multi_ptr<T, sycl::access::address_space::generic_space> addr,
-    T expected, T desired,
+    sycl::multi_ptr<T, addressSpace> addr, type_identity_t<T> expected,
+    type_identity_t<T> desired,
     sycl::memory_order success = sycl::memory_order::relaxed,
     sycl::memory_order fail = sycl::memory_order::relaxed);
 template <sycl::access::address_space addressSpace =
@@ -1426,8 +1426,8 @@ static void get_kernel_function_info(kernel_function_info *kernel_info,
 static kernel_function_info get_kernel_function_info(const void *function);
 
 class kernel_library {
-  kernel_library();
-  kernel_library(void *ptr);
+  constexpr kernel_library();
+  constexpr kernel_library(void *ptr);
   operator void *() const;
 };
 
@@ -1436,8 +1436,8 @@ static kernel_library load_kernel_library_mem(char const *const image);
 static void unload_kernel_library(const kernel_library &library);
 
 class kernel_function {
-    kernel_function();
-    kernel_function(kernel_functor ptr);
+    constexpr kernel_function();
+    constexpr kernel_function(kernel_functor ptr);
     operator void *() const;
     void operator()(sycl::queue &q, const sycl::nd_range<3> &range,
                     unsigned int local_mem_size, void **args, void **extra);
@@ -1456,6 +1456,17 @@ static void invoke_kernel_function(kernel_function &function,
 ```
 
 ### Math Functions
+
+The `funnelshift_*` APIs perform a concatenate-shift operation on two 32-bit
+values, and return a 32-bit result. The two unsigned integer arguments (`low`
+and `high`) are concatenated to a 64-bit value which is then shifted left or
+right by `shift` bits. The functions then return either the least- or
+most-significant 32 bits. The `_l*` variants shift *left* and return the *most*
+significant 32 bits, while the `_r*` variants shift *right* and return the
+*least* significant 32 bits. The `_l`/`_r` APIs differ from the `_lc`/`_rc` APIs
+in how they clamp the `shift` argument: `funnelshift_l` and `funnelshift_r`
+shift the result by `shift & 31` bits, whereas `funnelshift_lc` and
+`funnelshift_rc` shift the result by `min(shift, 32)` bits.
 
 `syclcompat::fast_length` provides a wrapper to SYCL's
 `fast_length(sycl::vec<float,N>)` that accepts arguments for a C++ array and a
@@ -1480,6 +1491,18 @@ The functions `cmul`,`cdiv`,`cabs`, `cmul_add`, and `conj` define complex math o
 which accept `sycl::vec<T,2>` arguments representing complex values.
 
 ```cpp
+inline unsigned int funnelshift_l(unsigned int low, unsigned int high,
+                                  unsigned int shift); 
+
+inline unsigned int funnelshift_lc(unsigned int low, unsigned int high,
+                                   unsigned int shift); 
+
+inline unsigned int funnelshift_r(unsigned int low, unsigned int high,
+                                  unsigned int shift);
+
+inline unsigned int funnelshift_rc(unsigned int low, unsigned int high,
+                                   unsigned int shift);
+
 inline float fast_length(const float *a, int len);
 
 template <typename ValueT>

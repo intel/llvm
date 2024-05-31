@@ -75,6 +75,11 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
         tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
       return()
     endif()
     message(STATUS
@@ -95,23 +100,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 4c69624c3f651819210148ad11d0e1e5c9af12de
-  # Merge: ea009363 f04b44c3
+  # commit 905804c2e93dd046140057fd07a5d6191063bedc
+  # Merge: 0a11fb44 d3d3f6e5
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon May 13 11:56:12 2024 +0100
-  #     Merge pull request #1532 from AllanZyne/review/yang/local_accessor
-  #     [DeviceSanitizer] Check out-of-bounds on sycl::local_accessor
-  set(UNIFIED_RUNTIME_TAG 4c69624c3f651819210148ad11d0e1e5c9af12de)
+  # Date:   Mon May 27 10:34:13 2024 +0100
+  #     Merge pull request #1581 from 0x12CC/l0_cooperative_kernels
+  #     Implement L0 cooperative kernel functions
+  set(UNIFIED_RUNTIME_TAG 905804c2e93dd046140057fd07a5d6191063bedc)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit 65c39c8a0cc17ebb43686230f91e1c3560764494
-    # Merge: 09467b8d f67122c0
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu May 16 11:11:37 2024 +0100
-    #     Merge pull request #1611 from nrspruit/fix_interop_wg_max_size
-    #     [L0] ensure a valid kernel handle for the device when reading max wg
-    65c39c8a0cc17ebb43686230f91e1c3560764494
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
@@ -121,35 +120,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit 1ff111c12ea5bcb7b524dc377237c997fd884b8f
-    # Merge: 50452b75 28393448
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed May 15 13:30:30 2024 +0100
-    #     Merge pull request #1596 from Bensuo/cuda_bool
-    #     [CUDA] Change `bool` variable type to `unsigned int`
-    1ff111c12ea5bcb7b524dc377237c997fd884b8f
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 09467b8d370f304d24bf093d37ee4554b3db2da0
-    # Merge: 1c1fa634 4cbf2106
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu May 16 11:04:05 2024 +0100
-    #     Merge pull request #1553 from hdelan/get-device-from-queue
-    #     [HIP] Get device from queue, not event
-    09467b8d370f304d24bf093d37ee4554b3db2da0
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    # commit 50452b75f0d1d7434f5beb4febd642af59a994ff
-    # Merge: 78b8e3e3 fa084d0a
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed May 15 10:37:42 2024 +0100
-    #     Merge pull request #1477 from PietroGhg/pietro/reqd_work_group_size
-    #     [NATIVECPU] Support reqd_work_group_size on Native CPU
-    50452b75f0d1d7434f5beb4febd642af59a994ff
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)

@@ -4,7 +4,8 @@
 
 // Test parameter analysis of USM usage
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 int main() {
   sycl::queue Q;
