@@ -296,6 +296,10 @@ Maps a virtual memory range, specified by `ptr` and `numBytes`, to the physical
 memory corresponding to this instance of `physical_mem`, starting at an offset
 of `offset` bytes.
 
+It is required that `offset + numBytes` is less than or equal to `size()` and
+that `ptr`, `numBytes` and `offset` are all multiples of the minimum granularity
+for the device associated with this instance of `physical_mem`.
+
 If `mode` is `address_access_mode::read` or `address_access_mode::read_write`
 the returned pointer is accessible after the call as read-only or read-write
 respectively. Otherwise, it is considered inaccessible and accessing it will
@@ -351,6 +355,15 @@ If `mode` is `address_access_mode::read` or `address_access_mode::read_write`
 respectively. Otherwise, it is considered inaccessible and accessing it will result
 in undefined behavior.
 
+The virtual memory range specified by `ptr` and `numBytes` can be a sub-range of
+virtual memory ranges previously mapped to `physical_mem`. `ptr` and
+must be aligned to the host memory page size and `numBytes` must be a multiple
+of the host memory page size.
+
+A virtual memory address cannot be simultaneously mapped to more than one
+physical memory region. Attempting to violate this results in undefined
+behavior.
+
 Writing to any address in the virtual memory range with access mode set to
 `address_access_mode::read` results in undefined behavior.
 
@@ -360,6 +373,11 @@ be used in place of a device USM pointer in any interface accepting one.
 |`address_access_mode get_access_mode(const void *ptr, size_t numBytes, const context &syclContext)` |
 Returns the access mode of the virtual memory range specified by `ptr` and
 `numBytes`.
+
+The virtual memory range specified by `ptr` and `numBytes` can be a sub-range of
+virtual memory ranges previously mapped to `physical_mem`. `ptr` and
+must be aligned to the host memory page size and `numBytes` must be a multiple
+of the host memory page size.
 
 |`void unmap(const void *ptr, size_t numBytes, const device &syclDevice, const context &syclContext)` |
 Unmaps the range specified by `ptr` and `numBytes`. The range must have been
