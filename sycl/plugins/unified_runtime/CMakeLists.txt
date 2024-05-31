@@ -101,13 +101,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 9f783837089c970a22cda08f768aa3dbed38f0d3
-  # Merge: c015f892 b9442104
+  # commit 5083f4f96557672b7b6a55ea53347896d40549d7
+  # Merge: a97eed15 4c3f9abe
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri May 31 10:20:23 2024 +0100
-  #     Merge pull request #1533 from AllanZyne/sanitizer-buffer
-  #     [DeviceSanitizer] Support detecting out-of-bounds errors on sycl::buffer
-  set(UNIFIED_RUNTIME_TAG 9f783837089c970a22cda08f768aa3dbed38f0d3)
+  # Date:   Fri May 31 17:20:01 2024 +0100
+  #     Merge pull request #1397 from GeorgeWeb/georgi/check-allocation-error-on-event-from-native-handle
+  #     [CUDA][HIP] Catch and report bad_alloc errors for event object creation
+  set(UNIFIED_RUNTIME_TAG 5083f4f96557672b7b6a55ea53347896d40549d7)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
