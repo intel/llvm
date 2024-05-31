@@ -180,6 +180,7 @@ Functions
 * Interop
    * ${x}BindlessImagesImportExternalMemoryExp
    * ${x}BindlessImagesMapExternalArrayExp
+   * ${x}BindlessImagesMapExternalLinearMemoryExp
    * ${x}BindlessImagesReleaseInteropExp
    * ${x}BindlessImagesImportExternalSemaphoreExp
    * ${x}BindlessImagesReleaseExternalSemaphoreExp
@@ -242,6 +243,8 @@ Changelog
 |          || BindlessImagesReleaseExternalSemaphoreExp                  |
 +------------------------------------------------------------------------+
 | 15.0     | Added structures for supporting copying.                    |
++------------------------------------------------------------------------+
+| 16.0     | Added BindlessImagesMapExternalLinearMemoryExp function.    |
 +----------+-------------------------------------------------------------+
 
 Contributors

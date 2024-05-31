@@ -6633,6 +6633,46 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesMapExternalLinearMemoryExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    uint64_t offset,              ///< [in] offset into memory region to map
+    uint64_t size,                ///< [in] size of memory region to map
+    ur_exp_interop_mem_handle_t
+        hInteropMem, ///< [in] interop memory handle to the external memory
+    void **ppRetMem  ///< [out] pointer of the externally allocated memory
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    [[maybe_unused]] auto context = getContext();
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
+    auto pfnMapExternalLinearMemoryExp =
+        dditable->ur.BindlessImagesExp.pfnMapExternalLinearMemoryExp;
+    if (nullptr == pfnMapExternalLinearMemoryExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
+
+    // convert loader handle to platform handle
+    hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
+
+    // convert loader handle to platform handle
+    hInteropMem =
+        reinterpret_cast<ur_exp_interop_mem_object_t *>(hInteropMem)->handle;
+
+    // forward to device-platform
+    result = pfnMapExternalLinearMemoryExp(hContext, hDevice, offset, size,
+                                           hInteropMem, ppRetMem);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesReleaseInteropExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
@@ -8682,6 +8722,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
                 ur_loader::urBindlessImagesImportExternalMemoryExp;
             pDdiTable->pfnMapExternalArrayExp =
                 ur_loader::urBindlessImagesMapExternalArrayExp;
+            pDdiTable->pfnMapExternalLinearMemoryExp =
+                ur_loader::urBindlessImagesMapExternalLinearMemoryExp;
             pDdiTable->pfnReleaseInteropExp =
                 ur_loader::urBindlessImagesReleaseInteropExp;
             pDdiTable->pfnImportExternalSemaphoreExp =
