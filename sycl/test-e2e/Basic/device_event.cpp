@@ -57,7 +57,6 @@ int test_strideN(size_t stride) {
     nElemsToCopy++;
 
   try {
-    //default_selector selector;
     queue myQueue(default_selector_v, [](exception_list l) {
       for (auto ep : l) {
         try {
