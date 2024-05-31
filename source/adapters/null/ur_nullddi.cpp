@@ -263,6 +263,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
 __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     ur_native_handle_t
         hNativePlatform, ///< [in][nocheck] the native handle of the platform.
+    ur_adapter_handle_t
+        hAdapter, ///< [in] handle of the adapter associated with the native backend.
     const ur_platform_native_properties_t *
         pProperties, ///< [in][optional] pointer to native platform properties struct.
     ur_platform_handle_t *
@@ -274,8 +276,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     auto pfnCreateWithNativeHandle =
         d_context.urDdiTable.Platform.pfnCreateWithNativeHandle;
     if (nullptr != pfnCreateWithNativeHandle) {
-        result =
-            pfnCreateWithNativeHandle(hNativePlatform, pProperties, phPlatform);
+        result = pfnCreateWithNativeHandle(hNativePlatform, hAdapter,
+                                           pProperties, phPlatform);
     } else {
         // generic implementation
         *phPlatform = reinterpret_cast<ur_platform_handle_t>(d_context.get());
