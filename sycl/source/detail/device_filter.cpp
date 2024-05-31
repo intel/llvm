@@ -219,8 +219,8 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envString) {
       throw sycl::exception(sycl::make_error_code(errc::invalid), ss.str());
     }
 
-    // Parse ONEAPI_DEVICE_SELECTOR terms.
-    else if (Pair.size() == 2) {
+    // Parse ONEAPI_DEVICE_SELECTOR terms for Pair.size() == 2.
+    else {
 
       // Remove `!` from input backend string if it is present.
       std::string_view input_be = Pair[0];
