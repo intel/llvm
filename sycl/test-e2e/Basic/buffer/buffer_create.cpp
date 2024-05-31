@@ -16,7 +16,7 @@ int main() {
   buffer<::cl_int, 1> Buffer(Size);
   Queue.submit([&](handler &cgh) {
     accessor Accessor{Buffer, cgh, read_write};
-    if (D.get_info<info::device::host_unified_memory>())
+    if (D.has(aspect::usm_host_allocations))
       std::cerr << "Integrated GPU should use zeMemAllocHost\n";
     else
       std::cerr << "Discrete GPU should use zeMemAllocDevice\n";
