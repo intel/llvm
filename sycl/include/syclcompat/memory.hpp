@@ -537,6 +537,7 @@ static inline void *malloc(size_t &pitch, size_t x, size_t y,
 /// \returns no return value.
 static inline void free(void *ptr, sycl::queue q = get_default_queue()) {
   if (ptr) {
+    q.wait();
     sycl::free(ptr, q.get_context());
   }
 }
@@ -545,22 +546,15 @@ static inline void free(void *ptr, sycl::queue q = get_default_queue()) {
 /// are related to \p q after \p events completed.
 ///
 /// \param pointers The pointers point to the device memory requested to be
-/// freed. \param events The events to be waited. \param q The sycl::queue the
+/// freed. \param q The sycl::queue the
 /// memory relates to.
 // Can't be static due to the friend declaration in the memory header.
-inline sycl::event free_async(const std::vector<void *> &pointers,
-                              const std::vector<sycl::event> &events,
-                              sycl::queue q = get_default_queue()) {
-  auto event = q.submit(
-      [&pointers, &events, ctxt = q.get_context()](sycl::handler &cgh) {
-        cgh.depends_on(events);
-        cgh.host_task([=]() {
-          for (auto p : pointers)
-            sycl::free(p, ctxt);
-        });
-      });
-  get_current_device().add_event(event);
-  return event;
+inline void free_async(const std::vector<void *> &pointers,
+                       sycl::queue q = get_default_queue()) {
+  for (auto p : pointers) {
+    if (p)
+      sycl::free(p, q);
+  }
 }
 
 /// Synchronously copies \p size bytes from the address specified by \p from_ptr
