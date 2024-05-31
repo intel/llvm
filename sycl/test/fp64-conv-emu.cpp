@@ -1,6 +1,6 @@
 // UNSUPPORTED: cuda, hip
 
-// RUN: %clangxx -O0 -fsycl -fsycl-device-only -fsycl-targets=spir64_gen -fsycl-fp64-conv-emu %s -c -S -emit-llvm -o- | FileCheck %s
+// RUN: %clangxx %if system-windows %{ -Od %} %else %{ -O0 %} -fsycl -fsycl-device-only -fsycl-targets=spir64_gen -fsycl-fp64-conv-emu %s -c -S -emit-llvm -o- | FileCheck %s
 
 // CHECK: define {{.*}} spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlvE_(){{.*}} !sycl_used_aspects ![[ASPECTFP64:[0-9]+]]
 // CHECK-NOT: define {{.*}} spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_EUlvE_(){{.*}} !sycl_used_aspects
