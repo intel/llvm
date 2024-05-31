@@ -552,15 +552,15 @@ void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToUsedAspects,
   const AspectsSetTy RetTyAspects =
       getAspectsFromType(F.getReturnType(), TypesWithAspects);
   for (const auto &Aspect : RetTyAspects)
-    if (!hasDoubleType(F.getReturnType()) || !FP64ConvEmu ||
-        (Aspect != FP64Aspect))
+    if (!FP64ConvEmu || (Aspect != FP64Aspect) ||
+        !hasDoubleType(F.getReturnType()))
       FunctionToUsedAspects[&F].insert(Aspect);
   for (Argument &Arg : F.args()) {
     const AspectsSetTy ArgAspects =
         getAspectsFromType(Arg.getType(), TypesWithAspects);
     for (const auto &Aspect : ArgAspects)
-      if (!hasDoubleType(Arg.getType()) || !FP64ConvEmu ||
-          (Aspect != FP64Aspect))
+      if (!FP64ConvEmu || (Aspect != FP64Aspect) ||
+          !hasDoubleType(Arg.getType()))
         FunctionToUsedAspects[&F].insert(Aspect);
   }
 
@@ -568,7 +568,7 @@ void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToUsedAspects,
     const AspectsSetTy Aspects =
         getAspectsUsedByInstruction(I, TypesWithAspects);
     for (const auto &Aspect : Aspects)
-      if (!hasDoubleType(I) || !FP64ConvEmu || (Aspect != FP64Aspect) ||
+      if (!FP64ConvEmu || (Aspect != FP64Aspect) || !hasDoubleType(I) ||
           !isFP64ConversionInstruction(I))
         FunctionToUsedAspects[&F].insert(Aspect);
     if (const auto *CI = dyn_cast<CallInst>(&I)) {
