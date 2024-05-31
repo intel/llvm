@@ -88,7 +88,7 @@ We are proposing the following new LLVM metadata:
    `llvm.loop.parallel_access_indices_safelen` for the same reason described
    above. As with `llvm.loop.no_depends`, the semantics indicate that all accesses
    with access groups listed in this metadata have dependence distances of at
-   least safelen.
+   least safelen for this loop.
 3. The built-in `llvm.loop.parallel_accesses` metadata semantics allow the
    compiler to not only ignore loop-carried data dependences, but also
    loop-carried memory-ordering dependences. This metadata should not be
