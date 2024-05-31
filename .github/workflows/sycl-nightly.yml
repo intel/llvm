@@ -121,7 +121,7 @@ jobs:
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: Intel GEN12 Graphics with Level Zero
-      runner: '["Windows","gen12"]'
+      runner: '["Windows","gen12-driver-test"]'
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
 
   nightly_build_upload:
