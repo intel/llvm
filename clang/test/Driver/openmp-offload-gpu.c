@@ -2,10 +2,6 @@
 /// Perform several driver tests for OpenMP offloading
 ///
 
-// REQUIRES: x86-registered-target
-// REQUIRES: powerpc-registered-target
-// REQUIRES: nvptx-registered-target
-
 /// ###########################################################################
 
 /// Check whether an invalid OpenMP target is specified:
@@ -925,6 +921,7 @@
 // CHECK-EMIT-LLVM-IR-BC: "-cc1"{{.*}}"-triple" "nvptx64-nvidia-cuda"{{.*}}"-emit-llvm-bc"
 
 // RUN:   %clang -### -fopenmp=libomp --offload-arch=sm_89 \
+// RUN:          --no-cuda-version-check \
 // RUN:          -nogpulib %s -o openmp-offload-gpu 2>&1 \
 // RUN:   | FileCheck -check-prefix=DRIVER_EMBEDDING %s
 
