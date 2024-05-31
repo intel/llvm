@@ -76,8 +76,38 @@ else()
   message(WARNING "CUDA adapter USM pools are disabled, set UMF_ENABLE_POOL_TRACKING to enable them")
 endif()
 
+if (UR_ENABLE_TRACING)
+  include(FindCUDACupti)
+  # The following two ifs can be removed when FindCUDA -> FindCUDAToolkit.
+  # CUDA_CUPTI_INCLUDE_DIR -> CUDAToolkit_CUPTI_INCLUDE_DIR
+  if(NOT CUDA_CUPTI_INCLUDE_DIR)
+    find_cuda_cupti_include_dir()
+  endif()
+  # CUDA_cupti_LIBRARY -> CUDAToolkit_cupti_LIBRARY
+  if(NOT CUDA_cupti_LIBRARY)
+    find_cuda_cupti_library()
+  endif()
+
+  if (NOT XPTI_INCLUDES)
+    get_target_property(XPTI_INCLUDES xpti INCLUDE_DIRECTORIES)
+  endif()
+  if (NOT XPTI_PROXY_SRC)
+    get_target_property(XPTI_SRC_DIR xpti SOURCE_DIR)
+    set(XPTI_PROXY_SRC "${XPTI_SRC_DIR}/xpti_proxy.cpp")
+  endif()
+  target_compile_definitions(${TARGET_NAME} PRIVATE
+    XPTI_ENABLE_INSTRUMENTATION
+    )
+  target_include_directories(${TARGET_NAME} PUBLIC
+    ${XPTI_INCLUDES}
+    ${CUDA_CUPTI_INCLUDE_DIR}
+  )
+  target_sources(${TARGET_NAME} PRIVATE ${XPTI_PROXY_SRC})
+endif()
+
 if (CUDA_cupti_LIBRARY)
   target_compile_definitions("ur_adapter_cuda" PRIVATE CUPTI_LIB_PATH="${CUDA_cupti_LIBRARY}")
+  list(APPEND EXTRA_LIBS ${CUDA_cupti_LIBRARY})
 endif()
 
 target_link_libraries(${TARGET_NAME} PRIVATE
@@ -85,6 +115,7 @@ target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::common
     Threads::Threads
     cudadrv
+    ${EXTRA_LIBS}
 )
 
 target_include_directories(${TARGET_NAME} PRIVATE
