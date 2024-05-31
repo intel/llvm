@@ -81,7 +81,7 @@ public:
 /// Extend the 'val' to 'bit' size, zero extend for unsigned int and signed
 /// extend for signed int.
 template <typename ValueT>
-inline auto zero_or_signed_extent(ValueT val, unsigned bit) {
+inline auto zero_or_signed_extend(ValueT val, unsigned bit) {
   if constexpr (std::is_signed_v<ValueT>) {
     if constexpr (std::is_same_v<ValueT, int32_t>) {
       assert(bit < 64 &&
@@ -106,8 +106,8 @@ inline auto zero_or_signed_extent(ValueT val, unsigned bit) {
 template <typename RetT, bool needSat, typename AT, typename BT,
           typename BinaryOperation>
 inline constexpr RetT extend_binary(AT a, BT b, BinaryOperation binary_op) {
-  const int64_t extend_a = zero_or_signed_extent(a, 33);
-  const int64_t extend_b = zero_or_signed_extent(b, 33);
+  const int64_t extend_a = zero_or_signed_extend(a, 33);
+  const int64_t extend_b = zero_or_signed_extend(b, 33);
   const int64_t ret = binary_op(extend_a, extend_b);
   if constexpr (needSat)
     return detail::clamp<int64_t>(ret, std::numeric_limits<RetT>::min(),
@@ -120,15 +120,15 @@ template <typename RetT, bool needSat, typename AT, typename BT, typename CT,
 inline constexpr RetT extend_binary(AT a, BT b, CT c,
                                     BinaryOperation1 binary_op,
                                     BinaryOperation2 second_op) {
-  const int64_t extend_a = zero_or_signed_extent(a, 33);
-  const int64_t extend_b = zero_or_signed_extent(b, 33);
+  const int64_t extend_a = zero_or_signed_extend(a, 33);
+  const int64_t extend_b = zero_or_signed_extend(b, 33);
   int64_t extend_temp =
-      zero_or_signed_extent(binary_op(extend_a, extend_b), 34);
+      zero_or_signed_extend(binary_op(extend_a, extend_b), 34);
   if constexpr (needSat)
     extend_temp =
         detail::clamp<int64_t>(extend_temp, std::numeric_limits<RetT>::min(),
                                std::numeric_limits<RetT>::max());
-  const int64_t extend_c = zero_or_signed_extent(c, 33);
+  const int64_t extend_c = zero_or_signed_extend(c, 33);
   return second_op(extend_temp, extend_c);
 }
 
@@ -138,8 +138,8 @@ template <typename T> sycl::vec<int32_t, 2> extractAndExtend2(T a) {
   using Tint =
       typename std::conditional<std::is_signed_v<T>, int16_t, uint16_t>::type;
   auto v = va.template as<sycl::vec<Tint, 2>>();
-  ret[0] = zero_or_signed_extent(v[0], 17);
-  ret[1] = zero_or_signed_extent(v[1], 17);
+  ret[0] = zero_or_signed_extend(v[0], 17);
+  ret[1] = zero_or_signed_extend(v[1], 17);
   return ret;
 }
 

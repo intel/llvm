@@ -37,7 +37,7 @@
 #include <cstdint>
 #include <limits>
 #include <stdio.h>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <syclcompat/device.hpp>
 #include <syclcompat/math.hpp>
@@ -50,7 +50,6 @@
       return {#S, REF};                                                        \
     }                                                                          \
   }
-
 
 std::pair<const char *, int> vadd2() {
   CHECK(syclcompat::extend_vadd2<int32_t>(0x0001FFFF, 0x00010005, 0),
@@ -116,16 +115,16 @@ std::pair<const char *, int> vadd2_add() {
 std::pair<const char *, int> vsub2_add() {
 
   CHECK(syclcompat::extend_vsub2_add<int32_t>((int32_t)0x0001FFFF,
-                                              (int32_t)0xFFFF0001, 0),
-        0);
+                                              (int32_t)0xFFFF0001, 1),
+        1);
   CHECK(syclcompat::extend_vsub2_add<int32_t>((int32_t)0x7FFF8000,
-                                              (int32_t)0xFFFF0001, 0),
-        (int32_t)0xFFFFFFFF);
+                                              (int32_t)0xFFFF0001, -1),
+        (int32_t)0xFFFFFFFE);
 
-  CHECK(syclcompat::extend_vsub2_add<uint32_t>(0x0002000B, 0x0001000A, 0),
-        0x00000002);
-  CHECK(syclcompat::extend_vsub2_add<uint32_t>(0x00010001, 0x0002FFFF, 0),
-        0x00000001);
+  CHECK(syclcompat::extend_vsub2_add<uint32_t>(0x0002000B, 0x0001000A, 1),
+        0x00000003);
+  CHECK(syclcompat::extend_vsub2_add<uint32_t>(0x00010001, 0x0002FFFF, 3),
+        0x00000004);
 
   return {nullptr, 0};
 }
@@ -157,11 +156,11 @@ std::pair<const char *, int> vabsdiff2() {
 std::pair<const char *, int> vabsdiff2_add() {
 
   CHECK(syclcompat::extend_vabsdiff2_add<int32_t>((int32_t)0xFFFF0001,
-                                                  0x0003FFFF, 0),
-        0x00000006);
+                                                  0x0003FFFF, -2),
+        0x00000004);
 
-  CHECK(syclcompat::extend_vabsdiff2_add<uint32_t>(0x000A000C, 0x000B000A, 0),
-        0x00000003);
+  CHECK(syclcompat::extend_vabsdiff2_add<uint32_t>(0x000A000C, 0x000B000A, 1),
+        0x00000004);
 
   return {nullptr, 0};
 }
@@ -199,16 +198,16 @@ std::pair<const char *, int> vmax2() {
 std::pair<const char *, int> vmin2_vmax2_add() {
 
   CHECK(
-      syclcompat::extend_vmin2_add<int32_t>((int32_t)0xFFFF0002, 0x00010001, 0),
-      0x00000000);
-  CHECK(syclcompat::extend_vmin2_add<uint32_t>(0x000A000D, 0x000B000C, 0),
-        0x00000016);
-
-  CHECK(
-      syclcompat::extend_vmax2_add<int32_t>((int32_t)0xFFFF0002, 0x00010001, 0),
-      0x00000003);
-  CHECK(syclcompat::extend_vmax2_add<uint32_t>(0x000A000D, 0x000B000C, 0),
+      syclcompat::extend_vmin2_add<int32_t>((int32_t)0xFFFF0002, 0x00010001, 2),
+      0x00000002);
+  CHECK(syclcompat::extend_vmin2_add<uint32_t>(0x000A000D, 0x000B000C, 2),
         0x00000018);
+
+  CHECK(syclcompat::extend_vmax2_add<int32_t>((int32_t)0xFFFF0002, 0x00010001,
+                                              -2),
+        0x00000001);
+  CHECK(syclcompat::extend_vmax2_add<uint32_t>(0x000A000D, 0x000B000C, 2),
+        0x0000001A);
 
   return {nullptr, 0};
 }
@@ -232,11 +231,11 @@ std::pair<const char *, int> vavrg2() {
 std::pair<const char *, int> vavrg2_add() {
 
   CHECK(syclcompat::extend_vavrg2_add<int32_t>((int32_t)0xFFFFFFF6, 0x0005FFFA,
-                                               0),
-        0xFFFFFFFA);
+                                               -2),
+        0xFFFFFFF8);
 
-  CHECK(syclcompat::extend_vavrg2_add<uint32_t>(0x00010006, 0x00030002, 0),
-        0x00000006);
+  CHECK(syclcompat::extend_vavrg2_add<uint32_t>(0x00010006, 0x00030002, 2),
+        0x00000008);
 
   return {nullptr, 0};
 }
