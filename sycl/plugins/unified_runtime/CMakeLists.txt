@@ -100,22 +100,34 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 905804c2e93dd046140057fd07a5d6191063bedc
-  # Merge: 0a11fb44 d3d3f6e5
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon May 27 10:34:13 2024 +0100
-  #     Merge pull request #1581 from 0x12CC/l0_cooperative_kernels
-  #     Implement L0 cooperative kernel functions
-  set(UNIFIED_RUNTIME_TAG 905804c2e93dd046140057fd07a5d6191063bedc)
+  # commit c0c607c3a88933b4c5c20a0aca4539781c678411
+  # Merge: e18c691d 0f2d1f42
+  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
+  # Date:   Wed May 29 15:02:39 2024 +0100
+  #     Merge pull request #1667 from nrspruit/fix_multi_device_event_cache
+  #     [UR] Fix Multi Device Event Cache for shared Root Device
+  set(UNIFIED_RUNTIME_TAG c0c607c3a88933b4c5c20a0aca4539781c678411)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 1fa0d2302d70a9aa8b717ecb60db0a7d8a4e5d8f
+    # Merge: e16d01c0 35b7de5c
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu May 30 10:14:37 2024 +0100
+    #     Merge pull request #1654 from Bensuo/ewan/debug_log_update
+    #     Debug logging in Level Zero command-buffer update
+    1fa0d2302d70a9aa8b717ecb60db0a7d8a4e5d8f
   )
 
   fetch_adapter_source(opencl
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit e16d01c02f1c1c18af19d3c882c08f791c2345d9
+    # Merge: a3895dbf 483a6325
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu May 30 10:04:43 2024 +0100
+    #     Merge pull request #1603 from konradkusiak97/queueFillOPENCLctsFix
+    #     [OpenCL] Modify fill emulation to work for patterns which are not powers of 2
+    e16d01c02f1c1c18af19d3c882c08f791c2345d9
   )
 
   fetch_adapter_source(cuda
@@ -125,7 +137,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit a3895dbf46a98c8a5cd58704efe85e12fa1050cd
+    # Merge: 30c5c553 67338dbe
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu May 30 10:04:14 2024 +0100
+    #     Merge pull request #1604 from kbenzie/benie/hip-kernel-spec-constants
+    #     [HIP] Implement kernel set spec constant query
+    a3895dbf46a98c8a5cd58704efe85e12fa1050cd
   )
 
   fetch_adapter_source(native_cpu
