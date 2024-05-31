@@ -171,9 +171,9 @@ struct ur_context_handle_t_ : _ur_object {
 
   // Caches for events.
   using EventCache = std::vector<std::list<ur_event_handle_t>>;
-  EventCache EventCaches{4};
+  EventCache EventCaches{6};
   std::vector<std::unordered_map<ur_device_handle_t, size_t>>
-      EventCachesDeviceMap{4};
+      EventCachesDeviceMap{6};
 
   // Initialize the PI context.
   ur_result_t initialize();
@@ -208,10 +208,10 @@ struct ur_context_handle_t_ : _ur_object {
                                              bool UsingImmCmdList);
 
   // Get ur_event_handle_t from cache.
-  ur_event_handle_t getEventFromContextCache(bool HostVisible,
-                                             bool WithProfiling,
-                                             ur_device_handle_t Device,
-                                             bool CounterBasedEventEnabled);
+  ur_event_handle_t
+  getEventFromContextCache(bool HostVisible, bool WithProfiling,
+                           ur_device_handle_t Device,
+                           bool CounterBasedEventEnabled bool UsingImmCmdList);
 
   // Add ur_event_handle_t to cache.
   void addEventToContextCache(ur_event_handle_t);
@@ -341,9 +341,36 @@ private:
       }
     }
   }
-};
+  auto getCounterBasedEventCache(bool UsingImmediateCmdList,
+                                 ur_device_handle_t Device) {
+    if (UsingImmediateCmdList) {
+      if (Device) {
+        auto EventCachesMap = &EventCachesDeviceMap[4];
+        if (EventCachesMap->find(Device) == EventCachesMap->end()) {
+          EventCaches.emplace_back();
+          EventCachesMap->insert(
+              std::make_pair(Device, EventCaches.size() - 1));
+        }
+        return &EventCaches[(*EventCachesMap)[Device]];
+      } else {
+        return &EventCaches[4];
+      }
+    } else {
+      if (Device) {
+        auto EventCachesMap = &EventCachesDeviceMap[5];
+        if (EventCachesMap->find(Device) == EventCachesMap->end()) {
+          EventCaches.emplace_back();
+          EventCachesMap->insert(
+              std::make_pair(Device, EventCaches.size() - 1));
+        }
+        return &EventCaches[(*EventCachesMap)[Device]];
+      } else {
+        return &EventCaches[5];
+      }
+    }
+  };
 
-// Helper function to release the context, a caller must lock the platform-level
-// mutex guarding the container with contexts because the context can be removed
-// from the list of tracked contexts.
-ur_result_t ContextReleaseHelper(ur_context_handle_t Context);
+  // Helper function to release the context, a caller must lock the
+  // platform-level mutex guarding the container with contexts because the
+  // context can be removed from the list of tracked contexts.
+  ur_result_t ContextReleaseHelper(ur_context_handle_t Context);
