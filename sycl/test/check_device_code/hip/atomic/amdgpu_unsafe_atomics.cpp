@@ -4,7 +4,7 @@
 
 #include <sycl/sycl.hpp>
 
-SYCL_EXTERNAL amdgpu_unsafe_atomics() {
+SYCL_EXTERNAL void amdgpu_unsafe_atomics() {
   int a;
   sycl::atomic_ref<int, sycl::memory_order_relaxed, sycl::memory_scope_device>
       atomicInt(a);
