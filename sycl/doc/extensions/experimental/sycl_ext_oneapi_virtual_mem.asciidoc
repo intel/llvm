@@ -357,8 +357,9 @@ in undefined behavior.
 
 The virtual memory range specified by `ptr` and `numBytes` can be a sub-range of
 virtual memory ranges previously mapped to `physical_mem`. `ptr` and
-must be aligned to the host memory page size and `numBytes` must be a multiple
-of the host memory page size.
+must be aligned to the minimum memory granularity of `syclContext` and
+`numBytes` must be a multiple of the minimum memory granularity of
+`syclContext`.
 
 A virtual memory address cannot be simultaneously mapped to more than one
 physical memory region. Attempting to violate this results in undefined
@@ -376,8 +377,8 @@ Returns the access mode of the virtual memory range specified by `ptr` and
 
 The virtual memory range specified by `ptr` and `numBytes` can be a sub-range of
 virtual memory ranges previously mapped to `physical_mem`. `ptr` and
-must be aligned to the host memory page size and `numBytes` must be a multiple
-of the host memory page size.
+must be aligned to the minimum memory granularity of `syclContext` and
+`numBytes` must be a multiple of the minimum memory granularity of `syclContext`.
 
 |`void unmap(const void *ptr, size_t numBytes, const device &syclDevice, const context &syclContext)` |
 Unmaps the range specified by `ptr` and `numBytes`. The range must have been
