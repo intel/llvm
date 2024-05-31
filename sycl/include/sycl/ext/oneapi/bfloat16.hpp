@@ -21,13 +21,6 @@ __devicelib_ConvertBF16ToFINTEL(const uint16_t &) noexcept;
 
 namespace sycl {
 inline namespace _V1 {
-
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-// forward declaration of sycl::isnan built-in.
-// extern __DPCPP_SYCL_EXTERNAL bool isnan(float a);
-bool isnan(float a);
-#endif
-
 namespace ext::oneapi {
 
 class bfloat16;
@@ -53,10 +46,6 @@ using Vec8StorageT = std::array<Bfloat16StorageT, 8>;
 using Vec16StorageT = std::array<Bfloat16StorageT, 16>;
 #endif
 } // namespace bf16
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-inline bool float_is_nan(float x) { return x != x; }
-#endif
 } // namespace detail
 
 class bfloat16 {
@@ -77,13 +66,10 @@ public:
 
 private:
   static detail::Bfloat16StorageT from_float_fallback(const float &a) {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-    if (sycl::isnan(a))
+    // We don't call sycl::isnan because we don't want a data type to depend on
+    // builtins.
+    if (a != a)
       return 0xffc1;
-#else
-    if (detail::float_is_nan(a))
-      return 0xffc1;
-#endif
 
     union {
       uint32_t intStorage;
@@ -116,7 +102,7 @@ private:
   }
 
   static float to_float(const detail::Bfloat16StorageT &a) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
     return __devicelib_ConvertBF16ToFINTEL(a);
 #else
     union {
@@ -169,7 +155,7 @@ public:
     detail::Bfloat16StorageT res;
     asm("neg.bf16 %0, %1;" : "=h"(res) : "h"(lhs.value));
     return detail::bitsToBfloat16(res);
-#elif defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+#elif defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
     return bfloat16{-__devicelib_ConvertBF16ToFINTEL(lhs.value)};
 #else
     return bfloat16{-to_float(lhs.value)};

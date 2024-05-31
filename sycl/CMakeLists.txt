@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.20.0)
 
 project(sycl-solution)
 # Requirements
@@ -343,7 +343,7 @@ add_custom_target( sycl-runtime-libraries
   DEPENDS ${SYCL_RT_LIBS}
 )
 
-add_custom_target( sycl-toolchain
+add_custom_target( sycl-toolchain ALL
   DEPENDS sycl-runtime-libraries
           sycl-compiler
           sycl-ls
@@ -414,6 +414,8 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      clang-offload-bundler
      clang-offload-deps
      clang-offload-extract
+     clang-offload-packager
+     clang-linker-wrapper
      file-table-tform
      llc
      llvm-ar

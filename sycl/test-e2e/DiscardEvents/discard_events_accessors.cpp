@@ -20,7 +20,9 @@
 
 #include <cassert>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 static constexpr int MAGIC_NUM = -1;
@@ -59,8 +61,8 @@ int main(int Argc, const char *Argv[]) {
       sycl::local_accessor<int, 1> LocalAcc(LocalMemSize, CGH);
 
       CGH.parallel_for<class kernel_using_local_memory>(
-          NDRange, [=](sycl::item<1> itemID) {
-            size_t i = itemID.get_id(0);
+          NDRange, [=](sycl::nd_item<1> ndi) {
+            size_t i = ndi.get_global_id(0);
             int *Ptr = LocalAcc.get_pointer();
             Ptr[i] = i + 5;
             Harray[i] = Ptr[i] + 5;

@@ -21,27 +21,23 @@
 #include <sycl/detail/pi.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/detail/reduction_forward.hpp>
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
-#endif
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
-#include <sycl/ext/oneapi/bindless_images_descriptor.hpp>
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
-#include <sycl/ext/oneapi/bindless_images_memory.hpp>
+#include <sycl/ext/oneapi/bindless_images_mem_handle.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
-#include <sycl/ext/oneapi/experimental/root_group.hpp>
+#include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group.hpp>
 #include <sycl/id.hpp>
-#include <sycl/interop_handle.hpp>
 #include <sycl/item.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -163,6 +159,10 @@ template <class _name, class _dataT, int32_t _min_capacity, class _propertiesT,
 class pipe;
 }
 
+namespace ext ::oneapi ::experimental {
+struct image_descriptor;
+} // namespace ext::oneapi::experimental
+
 namespace ext::oneapi::experimental::detail {
 class graph_impl;
 } // namespace ext::oneapi::experimental::detail
@@ -175,6 +175,7 @@ class stream_impl;
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder>
 class image_accessor;
+class HandlerAccess;
 template <typename RetType, typename Func, typename Arg>
 static Arg member_ptr_helper(RetType (Func::*)(Arg) const);
 
@@ -422,11 +423,6 @@ template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
   }
   return true;
 }
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-using string = std::string;
-using string_view = std::string;
-#endif
-
 } // namespace detail
 
 /// Command group handler class.
@@ -872,14 +868,10 @@ private:
   ///
   /// \param KernelName is the name of the SYCL kernel to check that the used
   ///                   kernel bundle contains.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   void verifyUsedKernelBundle(const std::string &KernelName) {
     verifyUsedKernelBundleInternal(detail::string_view{KernelName});
   }
   void verifyUsedKernelBundleInternal(detail::string_view KernelName);
-#else
-  void verifyUsedKernelBundle(const std::string &KernelName);
-#endif
 
   /// Stores lambda to the template-free object
   ///
@@ -947,6 +939,11 @@ private:
     }
   }
 
+  void verifyDeviceHasProgressGuarantee(
+      sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
+      sycl::ext::oneapi::experimental::execution_scope threadScope,
+      sycl::ext::oneapi::experimental::execution_scope coordinationScope);
+
   /// Process kernel properties.
   ///
   /// Stores information about kernel properties into the handler.
@@ -981,6 +978,36 @@ private:
     constexpr bool UsesRootSync = PropertiesT::template has_property<
         sycl::ext::oneapi::experimental::use_root_sync_key>();
     setKernelIsCooperative(UsesRootSync);
+    if constexpr (PropertiesT::template has_property<
+                      sycl::ext::oneapi::experimental::
+                          work_group_progress_key>()) {
+      auto prop = Props.template get_property<
+          sycl::ext::oneapi::experimental::work_group_progress_key>();
+      verifyDeviceHasProgressGuarantee(
+          prop.guarantee,
+          sycl::ext::oneapi::experimental::execution_scope::work_group,
+          prop.coordinationScope);
+    }
+    if constexpr (PropertiesT::template has_property<
+                      sycl::ext::oneapi::experimental::
+                          sub_group_progress_key>()) {
+      auto prop = Props.template get_property<
+          sycl::ext::oneapi::experimental::sub_group_progress_key>();
+      verifyDeviceHasProgressGuarantee(
+          prop.guarantee,
+          sycl::ext::oneapi::experimental::execution_scope::sub_group,
+          prop.coordinationScope);
+    }
+    if constexpr (PropertiesT::template has_property<
+                      sycl::ext::oneapi::experimental::
+                          work_item_progress_key>()) {
+      auto prop = Props.template get_property<
+          sycl::ext::oneapi::experimental::work_item_progress_key>();
+      verifyDeviceHasProgressGuarantee(
+          prop.guarantee,
+          sycl::ext::oneapi::experimental::execution_scope::work_item,
+          prop.coordinationScope);
+    }
   }
 
   /// Checks whether it is possible to copy the source shape to the destination
@@ -1241,6 +1268,29 @@ private:
       DidAdjust = true;
     };
 
+#ifdef __SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__
+    size_t GoodExpFactor = 1;
+    switch (Dims) {
+    case 1:
+      GoodExpFactor = 32; // Make global range multiple of {32}
+      break;
+    case 2:
+      GoodExpFactor = 16; // Make global range multiple of {16, 16}
+      break;
+    case 3:
+      GoodExpFactor = 8; // Make global range multiple of {8, 8, 8}
+      break;
+    }
+
+    // Check if rounding parameters have been set through environment:
+    // SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS=MinRound:PreferredRound:MinRange
+    this->GetRangeRoundingSettings(MinFactorX, GoodExpFactor, MinRangeX);
+
+    for (auto i = 0; i < Dims; ++i)
+      if (UserRange[i] % GoodExpFactor) {
+        Adjust(i, ((UserRange[i] / GoodExpFactor) + 1) * GoodExpFactor);
+      }
+#else
     // Perform range rounding if there are sufficient work-items to
     // need rounding and the user-specified range is not a multiple of
     // a "good" value.
@@ -1251,6 +1301,7 @@ private:
       // will yield a rounded-up value for the total range.
       Adjust(0, ((RoundedRange[0] + GoodFactor - 1) / GoodFactor) * GoodFactor);
     }
+#endif // __SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__
 #ifdef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
     // If we are forcing range rounding kernels to be used, we always want the
     // rounded range kernel to be generated, even if rounding isn't needed
@@ -1302,8 +1353,6 @@ private:
                   "Kernel argument cannot have a sycl::nd_item type in "
                   "sycl::parallel_for with sycl::range");
 
-#if defined(SYCL2020_CONFORMANT_APIS) ||                                       \
-    defined(__INTEL_PREVIEW_BREAKING_CHANGES)
     static_assert(std::is_convertible_v<item<Dims>, LambdaArgType> ||
                       std::is_convertible_v<item<Dims, false>, LambdaArgType>,
                   "sycl::parallel_for(sycl::range) kernel must have the "
@@ -1316,7 +1365,6 @@ private:
          std::is_invocable_v<KernelType, RefLambdaArgType, kernel_handler>),
         "SYCL kernel lambda/functor has an unexpected signature, it should be "
         "invocable with sycl::item and optionally sycl::kernel_handler");
-#endif
 
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
@@ -1408,19 +1456,11 @@ private:
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
-#if defined(SYCL2020_CONFORMANT_APIS) ||                                       \
-    defined(__INTEL_PREVIEW_BREAKING_CHANGES)
     static_assert(
         std::is_convertible_v<sycl::nd_item<Dims>, LambdaArgType>,
         "Kernel argument of a sycl::parallel_for with sycl::nd_range "
         "must be either sycl::nd_item or be convertible from sycl::nd_item");
     using TransformedArgType = sycl::nd_item<Dims>;
-#else
-    // If user type is convertible from sycl::item/sycl::nd_item, use
-    // sycl::item/sycl::nd_item to transport item information
-    using TransformedArgType =
-        typename TransformUserItemType<Dims, LambdaArgType>::type;
-#endif
 
     (void)ExecutionRange;
     (void)Props;
@@ -1553,8 +1593,7 @@ private:
       nullptr,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void
-  kernel_single_task(_KERNELFUNCPARAM(KernelFunc)) {
+  __SYCL_KERNEL_ATTR__ void kernel_single_task(_KERNELFUNCPARAM(KernelFunc)) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc();
 #else
@@ -1572,8 +1611,8 @@ private:
       nullptr,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void
-  kernel_single_task(_KERNELFUNCPARAM(KernelFunc), kernel_handler KH) {
+  __SYCL_KERNEL_ATTR__ void kernel_single_task(_KERNELFUNCPARAM(KernelFunc),
+                                               kernel_handler KH) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(KH);
 #else
@@ -1591,8 +1630,7 @@ private:
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void
-  kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc)) {
+  __SYCL_KERNEL_ATTR__ void kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc)) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
 #else
@@ -1609,8 +1647,8 @@ private:
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void
-  kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc), kernel_handler KH) {
+  __SYCL_KERNEL_ATTR__ void kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc),
+                                                kernel_handler KH) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
 #else
@@ -1823,18 +1861,7 @@ private:
                                               void()>::value ||
                    detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void(interop_handle)>::value>
-  host_task_impl(FuncT &&Func) {
-    throwIfActionIsCreated();
-
-    MNDRDesc.set(range<1>(1));
-    // Need to copy these rather than move so that we can check associated
-    // accessors during finalize
-    MArgs = MAssociatedAccesors;
-
-    MHostTask.reset(new detail::HostTask(std::move(Func)));
-
-    setType(detail::CG::CodeplayHostTask);
-  }
+  host_task_impl(FuncT &&Func);
 
   /// @brief Get the command graph if any associated with this handler. It can
   /// come from either the associated queue or from being set explicitly through
@@ -3223,6 +3250,18 @@ public:
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch);
 
+  /// Copies data from device to device memory, where \p Src and \p Dest
+  /// are opaque image memory handles.
+  /// An exception is thrown if either \p Src or \p Dest is incomplete
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param ImageDesc is the source image descriptor
+  void
+  ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src,
+                  ext::oneapi::experimental::image_mem_handle Dest,
+                  const ext::oneapi::experimental::image_descriptor &ImageDesc);
+
   /// Copies data from one memory region to another, where \p Src and \p Dest
   /// are USM pointers. Allows for a sub-region copy, where \p SrcOffset ,
   /// \p DestOffset , and \p Extent are used to determine the sub-region.
@@ -3390,17 +3429,12 @@ private:
   ///        expr m_Storage member
   /// \param Size the size of data getting read back / to.
   /// \param Block if read operation is blocking, default to false.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   void ext_intel_read_host_pipe(const std::string &Name, void *Ptr, size_t Size,
                                 bool Block = false) {
     ext_intel_read_host_pipe(detail::string_view(Name), Ptr, Size, Block);
   }
   void ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
                                 size_t Size, bool Block = false);
-#else
-  void ext_intel_read_host_pipe(const std::string &Name, void *Ptr, size_t Size,
-                                bool Block = false);
-#endif
 
   /// Write to host pipes given a host address and
   /// \param Name name of the host pipe to be passed into lower level runtime
@@ -3408,17 +3442,12 @@ private:
   /// expr m_Storage member
   /// \param Size the size of data getting read back / to.
   /// \param Block if write opeartion is blocking, default to false.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
                                  size_t Size, bool Block = false) {
     ext_intel_write_host_pipe(detail::string_view(Name), Ptr, Size, Block);
   }
   void ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
                                  size_t Size, bool Block = false);
-#else
-  void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
-                                 size_t Size, bool Block = false);
-#endif
   friend class ext::oneapi::experimental::detail::graph_impl;
   friend class ext::oneapi::experimental::detail::dynamic_parameter_impl;
 
@@ -3647,6 +3676,43 @@ private:
 
   // Set that an ND Range was used during a call to parallel_for
   void setNDRangeUsed(bool Value);
+
+  inline void internalProfilingTagImpl() {
+    throwIfActionIsCreated();
+    setType(detail::CG::ProfilingTag);
+  }
+
+  friend class detail::HandlerAccess;
+
+protected:
+  /// Registers event dependencies in this command group.
+  void depends_on(const detail::EventImplPtr &Event);
+  /// Registers event dependencies in this command group.
+  void depends_on(const std::vector<detail::EventImplPtr> &Events);
 };
+
+namespace detail {
+class HandlerAccess {
+public:
+  static void internalProfilingTagImpl(handler &Handler) {
+    Handler.internalProfilingTagImpl();
+  }
+};
+} // namespace detail
+
 } // namespace _V1
 } // namespace sycl
+
+#ifdef __SYCL_BUILD_SYCL_DLL
+// The following fails (somewhat expectedly) when compiled with MSVC:
+//
+//   #include <memory>
+//   struct __declspec(dllexport) handler {
+//      std::unique_ptr<struct Incomplete> Member;
+//   };
+//
+// We do __SYCL_EXPORT sycl::handler class and it has an
+// std::unique_ptr<detail::HostTask> member. As such, ensure the type is
+// complete if we're building the SYCL shared library.
+#include <sycl/detail/host_task_impl.hpp>
+#endif

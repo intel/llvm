@@ -16,7 +16,10 @@ struct AddKernel {
   accessor<int, 1> accIn2;
   accessor<int, 1> accOut;
 
-  void operator()(id<1> i) const { accOut[i] = accIn1[i] + accIn2[i]; }
+  void operator()(nd_item<1> ndi) const {
+    auto i = ndi.get_global_id(0);
+    accOut[i] = accIn1[i] + accIn2[i];
+  }
 };
 
 int main() {
@@ -71,17 +74,21 @@ int main() {
       auto accTmp1 = bTmp1.get_access(cgh);
       auto accIn3 = bIn3.get_access(cgh);
       auto accTmp2 = bTmp2.get_access(cgh);
-      cgh.parallel_for<class KernelOne>(
-          nd_range<1>{{dataSize}, {16}},
-          [=](id<1> i) { accTmp2[i] = accTmp1[i] * accIn3[i]; });
+      cgh.parallel_for<class KernelOne>(nd_range<1>{{dataSize}, {16}},
+                                        [=](nd_item<1> ndi) {
+                                          auto i = ndi.get_global_id(0);
+                                          accTmp2[i] = accTmp1[i] * accIn3[i];
+                                        });
     });
 
     q.submit([&](handler &cgh) {
       auto accTmp1 = bTmp1.get_access(cgh);
       auto accTmp3 = bTmp3.get_access(cgh);
-      cgh.parallel_for<class KernelTwo>(
-          nd_range<1>{{dataSize}, {16}},
-          [=](id<1> i) { accTmp3[i] = accTmp1[i] * 5; });
+      cgh.parallel_for<class KernelTwo>(nd_range<1>{{dataSize}, {16}},
+                                        [=](nd_item<1> ndi) {
+                                          auto i = ndi.get_global_id(0);
+                                          accTmp3[i] = accTmp1[i] * 5;
+                                        });
     });
 
     q.submit([&](handler &cgh) {

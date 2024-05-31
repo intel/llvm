@@ -184,8 +184,10 @@ Defaults to AMD if no value is given. Supported values are:
  - **AMD**    - for HIP to target AMD GPUs
  - **NVIDIA** - for HIP to target NVIDIA GPUs
  
- ***AMD_ARCH*** - flag must be set for when using HIP AMD triple.
- For example it may be set to "gfx906".
+***AMD_ARCH*** - flag may be set for when using HIP AMD triple. For example it
+may be set to "gfx906". Otherwise must be provided via the ***amd_arch*** LIT
+parameter (e.g., ***--param amd_arch=gfx906***) at runtime via the command line
+or via the ***LIT_OPTS*** environment variable.
 
 ***GPU_AOT_TARGET_OPTS*** - defines additional options which are passed to AOT
 compilation command line for GPU device. If not specified "-device *" value
@@ -225,6 +227,7 @@ unavailable.
  * **gpu-intel-dg1** - Intel GPU DG1 availability;
  * **gpu-intel-dg2** - Intel GPU DG2 availability;
  * **gpu-intel-pvc** - Intel GPU PVC availability;
+ * **gpu-intel-pvc-vg** - Intel GPU PVC-VG availability;
  * **dump_ir**: - compiler can / cannot dump IR;
  * **llvm-spirv** - llvm-spirv tool availability;
  * **llvm-link** - llvm-link tool availability;
@@ -288,10 +291,13 @@ llvm-lit --param dpcpp_compiler=path/to/clang++ --param dump_ir=True \
 While SYCL specification dictates that the only user-visible interface is
 `<sycl/sycl.hpp>` header file we found out that as the implementation and
 multiple extensions grew, the compile time was getting worse and worse,
-negatively affecting our CI turnaround time. We are just starting some efforts
-to create a much smaller set of basic feature needed for every SYCL end-to-end
-test/program so that this issue could be somewhat mitigated. This activity is in
-its early stage and NO production code should rely on it. It WILL be changed as
-we go with our experiments. For any code outside of this project only the
-`<sycl/sycl.hpp>` must be used until we feel confident to propose an extension
-that can provide an alternative.
+negatively affecting our CI turnaround time. As such, we decided to use
+finer-grained includes for the end-to-end tests used in this project (under
+`sycl/test-e2e/` folder).
+
+At this moment all the tests have been updated to include a limited set of
+headers only. However, the work of eliminating unnecessary dependencies between
+implementation header files is still in progress and the final set of these
+"fine-grained" includes that might be officially documented and suggested for
+customers to use isn't determined yet. **Until then, code outside of this project
+must keep using `<sycl/sycl.hpp>` provided by the SYCL2020 specification.**

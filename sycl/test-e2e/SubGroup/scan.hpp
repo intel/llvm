@@ -9,7 +9,6 @@
 #include "helper.hpp"
 #include <iostream>
 #include <limits>
-#include <sycl/sycl.hpp>
 
 template <typename... Ts> class sycl_subgr;
 

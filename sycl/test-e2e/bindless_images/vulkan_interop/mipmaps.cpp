@@ -8,8 +8,7 @@
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
 
-#include <sycl/sycl.hpp>
-
+#include "../bindless_helpers.hpp"
 #include "vulkan_common.hpp"
 
 namespace syclexp = sycl::ext::oneapi::experimental;
@@ -46,8 +45,7 @@ handles_t create_handles(sycl::context &ctxt, sycl::device &dev,
 }
 
 template <int NDims, typename DType, int NChannels,
-          sycl::image_channel_type CType, sycl::image_channel_order COrder,
-          typename KernelName>
+          sycl::image_channel_type CType, typename KernelName>
 bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
               int input_image_fd, size_t mipLevels, size_t reqSize) {
   sycl::device dev;
@@ -55,7 +53,7 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
   auto ctxt = q.get_context();
 
   // Image descriptor - mapped to Vulkan image layout
-  syclexp::image_descriptor desc(globalSize, COrder, CType,
+  syclexp::image_descriptor desc(globalSize, NChannels, CType,
                                  syclexp::image_type::mipmap, mipLevels);
 
   syclexp::bindless_image_sampler samp(
@@ -163,13 +161,13 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
           float norm_coord_z = ((k + 0.5f) / (float)depth);
           int z = norm_coord_z * (depth >> 1);
 
-          VecType expected =
-              initVector<DType, NChannels>(i + width * (j + height * k)) +
-              initVector<DType, NChannels>(x + (width / 2) *
-                                                   (y + (height / 2) * z));
+          VecType expected = bindless_helpers::init_vector<DType, NChannels>(
+                                 i + width * (j + height * k)) +
+                             bindless_helpers::init_vector<DType, NChannels>(
+                                 x + (width / 2) * (y + (height / 2) * z));
 
-          if (!equal_vec<DType, NChannels>(out[i + width * (j + height * k)],
-                                           expected)) {
+          if (!bindless_helpers::equal_vec<DType, NChannels>(
+                  out[i + width * (j + height * k)], expected)) {
             mismatch = true;
             validated = false;
           }
@@ -194,10 +192,13 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
         float norm_coord_y = ((j + 0.5f) / (float)height);
         int y = norm_coord_y * (height >> 1);
 
-        VecType expected = initVector<DType, NChannels>(j + (width * i)) +
-                           initVector<DType, NChannels>(y + (width / 2 * x));
+        VecType expected =
+            bindless_helpers::init_vector<DType, NChannels>(j + (width * i)) +
+            bindless_helpers::init_vector<DType, NChannels>(y +
+                                                            (width / 2 * x));
 
-        if (!equal_vec<DType, NChannels>(out[j + (width * i)], expected)) {
+        if (!bindless_helpers::equal_vec<DType, NChannels>(out[j + (width * i)],
+                                                           expected)) {
           mismatch = true;
           validated = false;
         }
@@ -289,7 +290,8 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
                 std::max(height >> i, (uint32_t)1) *
                 std::max(depth >> i, (uint32_t)1));
     for (int j = 0; j < mipElems; ++j) {
-      inputStagingData[j + offset] = initVector<DType, NChannels>(j);
+      inputStagingData[j + offset] =
+          bindless_helpers::init_vector<DType, NChannels>(j);
     }
     offset += mipElems;
   }
@@ -366,7 +368,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   printString("Getting memory file descriptors and calling into SYCL\n");
   // Pass memory to SYCL for modification
   auto input_fd = vkutil::getMemoryOpaqueFD(inputMemory);
-  bool result = run_sycl<NDims, DType, NChannels, CType, COrder, KernelName>(
+  bool result = run_sycl<NDims, DType, NChannels, CType, KernelName>(
       dims, localSize, input_fd, mipLevels, memRequirements.size);
 
   // Cleanup

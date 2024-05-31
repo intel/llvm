@@ -10,7 +10,6 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// XFAIL: cpu
 
 #include "../common.hpp"
 #include <iostream>
@@ -18,7 +17,7 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-constexpr size_t SG_SZ = 32;
+#define SG_SZ 32
 constexpr size_t TN = 16;
 
 #include "../get_coord_int8_matA_impl.hpp"

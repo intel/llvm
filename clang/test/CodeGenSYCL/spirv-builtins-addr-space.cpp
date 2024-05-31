@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -fsycl-is-device -fdeclare-spirv-builtins -fsyntax-only -emit-llvm -o - -O0 | FileCheck %s
+// RUN: %clang_cc1 %s -fsycl-is-device -fdeclare-spirv-builtins -emit-llvm -o - -O0 | FileCheck %s
 //
 // Check that SPIR-V builtins are declared with SYCL address spaces rather
 // than OpenCL address spaces when using them with SYCL. OpenCL address spaces
