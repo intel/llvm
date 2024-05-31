@@ -12,7 +12,7 @@ permissions: read-all
 jobs:
   need_check:
     name: Decide which tests could be affected by the changes
-    runs-on: Linux
+    runs-on: [Linux, aux-tasks]
     timeout-minutes: 3
     outputs:
       filters: ${{ steps.result.outputs.result }}
