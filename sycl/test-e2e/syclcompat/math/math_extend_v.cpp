@@ -51,10 +51,6 @@
     }                                                                          \
   }
 
-// const int16_t INT16MAX = 0x7FFF
-// const int16_t INT16MIN = 0x8000
-// const uint16_t UINT16MAX = 0xFFFF
-// const uint16_t UINT16MIN = 0x0000
 
 std::pair<const char *, int> vadd2() {
   CHECK(syclcompat::extend_vadd2<int32_t>(0x0001FFFF, 0x00010005, 0),
