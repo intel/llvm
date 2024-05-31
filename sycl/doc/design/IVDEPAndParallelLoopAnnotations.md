@@ -79,7 +79,7 @@ We are proposing the following new LLVM metadata:
    marked with the versions of `ivdep` that don't take a `safelen` (i.e.
    `intel::ivdep` and `intel::ivdep(array)`). It will replace the
    previously-generated `llvm.loop.parallel_access_indices` due to the mismatch
-   in the semantics of `llvm.loop.paralllel_accesses` and `ivdep`. The semantics
+   in the semantics of `llvm.loop.parallel_accesses` and `ivdep`. The semantics
    are that all accesses with access groups listed in this metadata have no
    loop-carried memory data dependences carried by this loop.
 2. A new metadata, `llvm.loop.no_depends_safelen` should be generated on loops
@@ -109,7 +109,7 @@ We are proposing the following new LLVM metadata:
 ## SPIR-V Extension
 
 The SPIR-V extension for this design doc is presented in #13918
-(will update link to PR review is complete). This list
+(will update link once PR review is complete). This list
 summarizes the additions:
 
 1. Access groups defined using an LLVM `llvm.access.group` metadata are
@@ -240,10 +240,16 @@ document. This is done by using the following rules:
 
 ## Example
 
-Consider the following example:
+### Example of `[[intel::ivdep(array)]]`
+The following example is intended to illustrate a possible translation of 
+`[[intel::ivdep(array)]]` into LLVM IR and SPIRV. It is not
+intended to be used as a spec.
+
+Consider the following C++ code:
 
 ```cpp
-[[intel::ivdep(A,C)]]
+[[intel::ivdep(A)]]
+[[intel::ivdep(C)]]
 [[intel::ivdep(B,5)]]
 for(int i = 0; i <N; ++i) {
    A[i] += A[idx_A[i]];
@@ -252,8 +258,7 @@ for(int i = 0; i <N; ++i) {
 }
 ```
 
-One way this could get translated to LLVM by the FE is shown below. Note that
-the FE could have chosen to use the same access group for A and C.
+One way this could get translated to LLVM by the FE is shown below.
 
 ```llvm
 loop:
@@ -342,4 +347,109 @@ OpStore %56 %65 AccessGroupMaskINTEL 1 2
 %66 = OpAccessGroupListINTEL 0 2
 %67 = OpAccessGroupListINTEL 1
 OpLoopMerge %50 %xx DependencyAccessesINTEL 2 %66 0 %67 5
+```
+
+### Example of `[[intel::ivdep]]`
+The following example is intended to illustrate a possible translation of 
+`[[intel::ivdep]]` into LLVM IR and SPIRV. It is not
+intended to be used as a spec.
+
+Consider the following C++ code:
+
+```cpp
+[[intel::ivdep]]
+for(int i = 0; i <N; ++i) {
+   A[i] += A[idx_A[i]];
+   B[i] += B[idx_B[i]];
+   C[i] += C[idx_C[i]];
+}
+```
+
+One way this could get translated to LLVM by the FE is shown below. Note that
+the FE could have generated the same access group for all three arrays.
+
+```llvm
+loop:
+   %ld_A = load i32, ptr %A_idx !llvm.access.group !0
+   %ld_Ai = load i32, ptr %A_i !llvm.access.group !0
+   %sum_A = add i32 %ld_A, %ld_Ai
+   store i32 %sum_A, ptr %A_i !llvm.access.group !0
+   %ld_B = load i32, ptr %B_idx !llvm.access.group !1
+   %ld_Bi = load i32, ptr %B_i !llvm.access.group !1
+   %sum_B = add i32 %ld_B, %ld_Bi
+   store i32 %sum_B, ptr %B_i !llvm.access.group !1
+   %ld_C = load i32, ptr %C_idx !llvm.access.group !2
+   %ld_Ci = load i32, ptr %C_i !llvm.access.group !2
+   %sum_A = add i32 %ld_C, %ld_Ci
+   store i32 %sum_C, ptr %C_i !llvm.access.group !2
+   br ... %loop !llvm.loop.no_depends !4
+
+!0 = distinct !{}
+!1 = distinct !{}
+!2 = distinct !{}
+!4 = !{!0, !1, !2}
+```
+
+This would become the following SPIR-V-friendly LLVM IR:
+
+```llvm
+loop:
+   %ld_A = load i32, ptr %A_idx !llvm.access.group !0
+   %ld_Ai = load i32, ptr %A_i !llvm.access.group !0
+   %sum_A = add i32 %ld_A, %ld_Ai
+   store i32 %sum_A, ptr %A_i !llvm.access.group !0
+   %ld_B = load i32, ptr %B_idx !llvm.access.group !1
+   %ld_Bi = load i32, ptr %B_i !llvm.access.group !1
+   %sum_B = add i32 %ld_B, %ld_Bi
+   store i32 %sum_B, ptr %B_i !llvm.access.group !1
+   %ld_C = load i32, ptr %C_idx !llvm.access.group !2
+   %ld_Ci = load i32, ptr %C_i !llvm.access.group !2
+   %sum_A = add i32 %ld_C, %ld_Ci
+   store i32 %sum_C, ptr %C_i !llvm.access.group !2
+   br ... %loop !spirv.loop.dependency_accesses !4
+
+!0 = distinct !{}
+!1 = distinct !{}
+!2 = distinct !{}
+!4 = !{!0, !1, !2, 0}
+```
+
+Finally, this will become the following SPIR-V:
+
+```spirv
+...
+OpName %50 "loop"
+OpName %51 "A_idx"
+OpName %52 "A_i"
+OpName %53 "B_idx"
+OpName %54 "B_i"
+OpName %55 "C_idx"
+OpName %56 "C_i"
+OpName %57 "ld_A"
+OpName %58 "ld_Ai"
+OpName %59 "sum_A"
+OpName %60 "ld_B"
+OpName %61 "ld_Bi"
+OpName %62 "sum_B"
+OpName %63 "ld_C"
+OpName %64 "ld_Ci"
+OpName %65 "sum_C"
+...
+%13 = OpTypeInt 32 1
+...
+%50 = OpLabel
+%57 = OpLoad %13 %51 AccessGroupMaskINTEL 1 0 
+%58 = OpLoad %13 %52 AccessGroupMaskINTEL 1 0
+%59 = OpIAdd %13 %57 %58
+OpStore %52 %59 AccessGroupMaskINTEL 1 0
+%60 = OpLoad %13 %53 AccessGroupMaskINTEL 1 1 
+%61 = OpLoad %13 %54 AccessGroupMaskINTEL 1 1
+%62 = OpIAdd %13 %60 %61
+OpStore %54 %62 AccessGroupMaskINTEL 1 1
+%63 = OpLoad %13 %55 AccessGroupMaskINTEL 1 2
+%64 = OpLoad %13 %56 AccessGroupMaskINTEL 1 2
+%65 = OpIAdd %13 %63 %64
+OpStore %56 %65 AccessGroupMaskINTEL 1 2
+%66 = OpAccessGroupListINTEL 0 1 2
+OpLoopMerge %50 %xx DependencyAccessesINTEL 1 %66 0
 ```
