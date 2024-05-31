@@ -12037,8 +12037,12 @@ bool ASTContext::DeclMustBeEmitted(const Decl *D) {
     if (LangOpts.SYCLIsDevice && isa<CXXMethodDecl>(D)) {
       if (auto *A = D->getAttr<SYCLDeviceIndirectlyCallableAttr>())
         return !A->isImplicit();
+      // Implicit 'sycl_device' attribute is treated as explicit one if method
+      // is also annotated with 'add_ir_attributes_function' attribute, because
+      // the latter can work as an alias for SYCL_EXTERNAL.
       if (auto *A = D->getAttr<SYCLDeviceAttr>())
-        return !A->isImplicit();
+        return !A->isImplicit() ||
+               D->hasAttr<SYCLAddIRAttributesFunctionAttr>();
     }
 
     GVALinkage Linkage = GetGVALinkageForFunction(FD);
