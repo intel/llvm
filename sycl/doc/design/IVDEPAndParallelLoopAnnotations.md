@@ -45,7 +45,7 @@ cannot automatically infer the dependence distance and instead has to make the
 conservative assumption that the distance is 1.
 
 In order to mark multiple arrays/pointers using ivdep on the same loop, then
-multiple instances on `ivdep(array)` or `ivdep(array,safelen)` can be used. The
+multiple instances of `ivdep(array)` or `ivdep(array,safelen)` can be used. The
 example below has the two arrays A and B marked with ivdep, but not C.
 Additionally, we indicate that the minimum dependence distance on accesses of B
 is 5 iterations.
