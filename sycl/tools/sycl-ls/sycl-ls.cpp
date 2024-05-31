@@ -109,17 +109,19 @@ static void printDeviceInfo(const device &Device, bool Verbose,
   auto DeviceDriverVersion = Device.get_info<info::device::driver_version>();
 
   if (Verbose) {
-    std::cout << Prepend << "Type       : " << getDeviceTypeName(Device)
+    std::cout << Prepend << "Type              : " << getDeviceTypeName(Device)
               << std::endl;
-    std::cout << Prepend << "Version    : " << DeviceVersion << std::endl;
-    std::cout << Prepend << "Name       : " << DeviceName << std::endl;
-    std::cout << Prepend << "Vendor     : " << DeviceVendor << std::endl;
-    std::cout << Prepend << "Driver     : " << DeviceDriverVersion << std::endl;
+    std::cout << Prepend << "Version           : " << DeviceVersion
+              << std::endl;
+    std::cout << Prepend << "Name              : " << DeviceName << std::endl;
+    std::cout << Prepend << "Vendor            : " << DeviceVendor << std::endl;
+    std::cout << Prepend << "Driver            : " << DeviceDriverVersion
+              << std::endl;
 
     // Get and print device UUID, if it is available.
     if (Device.has(aspect::ext_intel_device_info_uuid)) {
       auto UUID = Device.get_info<sycl::ext::intel::info::device::uuid>();
-      std::cout << Prepend << "UUID       : ";
+      std::cout << Prepend << "UUID              : ";
       for (int i = 0; i < 16; i++) {
         std::cout << std::to_string(UUID[i]);
       }
@@ -129,11 +131,13 @@ static void printDeviceInfo(const device &Device, bool Verbose,
     // Print sub and sub-sub devices.
     {
       auto DevCount = GetNumberOfSubAndSubSubDevices(Device);
-      std::cout << Prepend << "SubDevices : " << DevCount[0] << std::endl;
-      std::cout << Prepend << "SubSubDevices : " << DevCount[1] << std::endl;
+      std::cout << Prepend << "Num SubDevices    : " << DevCount[0]
+                << std::endl;
+      std::cout << Prepend << "Num SubSubDevices : " << DevCount[1]
+                << std::endl;
     }
 
-    std::cout << Prepend << "Aspects    :";
+    std::cout << Prepend << "Aspects           :";
 #define __SYCL_ASPECT(ASPECT, ID)                                              \
   if (Device.has(aspect::ASPECT))                                              \
     std::cout << " " << #ASPECT;
