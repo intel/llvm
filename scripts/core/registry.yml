@@ -595,6 +595,9 @@ etors:
 - name: LOADER_CONFIG_SET_MOCKING_ENABLED
   desc: Enumerator for $xLoaderConfigSetMockingEnabled
   value: '229'
+- name: BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP
+  desc: Enumerator for $xBindlessImagesMapExternalLinearMemoryExp
+  value: '230'
 ---
 type: enum
 desc: Defines structure types

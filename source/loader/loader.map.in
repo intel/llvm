@@ -12,6 +12,7 @@
 		urBindlessImagesImportExternalMemoryExp;
 		urBindlessImagesImportExternalSemaphoreExp;
 		urBindlessImagesMapExternalArrayExp;
+		urBindlessImagesMapExternalLinearMemoryExp;
 		urBindlessImagesMipmapFreeExp;
 		urBindlessImagesMipmapGetLevelExp;
 		urBindlessImagesReleaseExternalSemaphoreExp;
@@ -181,6 +182,7 @@
 		urPrintBindlessImagesImportExternalMemoryExpParams;
 		urPrintBindlessImagesImportExternalSemaphoreExpParams;
 		urPrintBindlessImagesMapExternalArrayExpParams;
+		urPrintBindlessImagesMapExternalLinearMemoryExpParams;
 		urPrintBindlessImagesMipmapFreeExpParams;
 		urPrintBindlessImagesMipmapGetLevelExpParams;
 		urPrintBindlessImagesReleaseExternalSemaphoreExpParams;
