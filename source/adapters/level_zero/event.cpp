@@ -834,8 +834,11 @@ ur_result_t
 urEventRelease(ur_event_handle_t Event ///< [in] handle of the event object
 ) {
   Event->RefCountExternal--;
-  UR_CALL(urEventReleaseInternal(Event));
-
+  if (Event->CounterBasedEventsEnabled && Event->RefCountExternal == 0) {
+    Event->Context->addEventToContextCache(Event);
+  } else {
+    UR_CALL(urEventReleaseInternal(Event));
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -995,7 +998,7 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
 }
 
 ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
-  if (!Event->RefCount.decrementAndTest())
+  if (!Event->CounterBasedEventsEnabled && !Event->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
   if (Event->CommandType == UR_COMMAND_MEM_UNMAP && Event->CommandData) {
@@ -1257,7 +1260,8 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
   }
 
   if (auto CachedEvent = Context->getEventFromContextCache(
-          HostVisible, ProfilingEnabled, Device, CounterBasedEventEnabled)) {
+          HostVisible, ProfilingEnabled, Device, CounterBasedEventEnabled,
+          UsingImmediateCommandlists)) {
     *RetEvent = CachedEvent;
     return UR_RESULT_SUCCESS;
   }
