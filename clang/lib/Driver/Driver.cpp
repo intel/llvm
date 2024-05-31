@@ -1288,7 +1288,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       }
     }
     if (!HasIntelGPUAOTTarget)
-      Diag(diag::warn_invalid_fp64_emu_use);
+      Diag(diag::warn_unsupported_fsycl_fp64_conv_emu_use);
   }
 
   // We'll need to use the SYCL and host triples as the key into
