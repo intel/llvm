@@ -1,0 +1,48 @@
+import os
+import re
+import sys
+
+def main(directory, max_count, target_file=None):
+    total_count = 0
+    pattern = re.compile(r"//\.instCount (\d+)")
+
+    try:
+        target_found = False
+        for root, dirs, files in os.walk(directory):
+            for file in files:
+                if file.endswith(".asm") and (target_file is None or file == target_file):
+                    if file == target_file:
+                        target_found = True
+                    print("Checking file: ", file)
+                    try:
+                        with open(os.path.join(root, file), "r") as f:
+                            for line in f:
+                                match = pattern.search(line)
+                                if match:
+                                    total_count += int(match.group(1))
+                    except IOError:
+                        print(f"Failed to open file: {file}")
+                        sys.exit(2)
+        if target_file is not None and not target_found:
+            raise FileNotFoundError(f"Target file {target_file} was not found")
+    except FileNotFoundError as e:
+        print(e)
+        sys.exit(3)
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        sys.exit(4)
+
+    print("Instruction count: ", total_count)
+    if total_count > max_count * 1.1:  # 10% tolerance
+        print(f"Instruction count exceeded threshold. Baseline is {max_count}. 10% threshold is {max_count * 1.1}. Current is {total_count}.")
+        print(f"Percentage difference is {((total_count - max_count) / max_count) * 100}%, the tolerance is 10%.")
+        sys.exit(1)
+    elif total_count < max_count * 0.9: # ask for baseline to be updated
+        print(f"Instruction count is below the 90% threshold. Baseline is {max_count}. Current is {total_count}.")
+        print(f"Percentage difference is {((total_count - max_count) / max_count) * 100}%")
+        print("Please update the baseline.")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1], int(sys.argv[2]), sys.argv[3] if len(sys.argv) > 3 else None)
