@@ -5533,6 +5533,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (Arg *A = Args.getLastArg(options::OPT_fsycl_exp_range_rounding))
       A->render(Args, CmdArgs);
 
+    if (Arg *A = Args.getLastArg(options::OPT_fsycl_fp64_conv_emu)) {
+      if (Triple.isSPIRAOT() &&
+          Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen)
+        A->render(Args, CmdArgs);
+    }
+
     // Add the Unique ID prefix
     StringRef UniqueID = D.getSYCLUniqueID(Input.getBaseInput());
     if (!UniqueID.empty())
