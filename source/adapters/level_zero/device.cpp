@@ -947,18 +947,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP: {
-    // TODO: Level Zero API allows to check support for all sub-features:
-    // ZE_MUTABLE_COMMAND_EXP_FLAG_KERNEL_ARGUMENTS,
-    // ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_COUNT,
-    // ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_SIZE,
-    // ZE_MUTABLE_COMMAND_EXP_FLAG_GLOBAL_OFFSET,
-    // ZE_MUTABLE_COMMAND_EXP_FLAG_SIGNAL_EVENT,
-    // ZE_MUTABLE_COMMAND_EXP_FLAG_WAIT_EVENTS
-    // but UR has only one property to check the mutable command lists feature
-    // support. For now return true if kernel arguments can be updated.
-    auto KernelArgUpdateSupport =
-        Device->ZeDeviceMutableCmdListsProperties->mutableCommandFlags &
-        ZE_MUTABLE_COMMAND_EXP_FLAG_KERNEL_ARGUMENTS;
+    // Update support requires being able to update kernel arguments and all
+    // aspects of the kernel NDRange.
+    const ze_mutable_command_exp_flags_t UpdateMask =
+        ZE_MUTABLE_COMMAND_EXP_FLAG_KERNEL_ARGUMENTS |
+        ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_COUNT |
+        ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_SIZE |
+        ZE_MUTABLE_COMMAND_EXP_FLAG_GLOBAL_OFFSET;
+
+    const bool KernelArgUpdateSupport =
+        (Device->ZeDeviceMutableCmdListsProperties->mutableCommandFlags &
+         UpdateMask) == UpdateMask;
     return ReturnValue(KernelArgUpdateSupport &&
                        Device->Platform->ZeMutableCmdListExt.Supported);
   }
