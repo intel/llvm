@@ -16,6 +16,9 @@
 // https://github.com/intel/llvm/issues/12904
 // UNSUPPORTED: hip
 
+// FPGA emulator seems to return unexpected start time for the fallback barrier.
+// UNSUPPORTED: accelerator
+
 #include "common.hpp"
 
 int main() {
