@@ -14,14 +14,12 @@ template <typename T, typename TResult, size_t Rows, size_t Cols>
 void sum_cols_ref(
     host_accessor<T, 2, access::mode::read_write> B,
     host_accessor<TResult, 1, access::mode::read_write> sum_cols) {
-  int sum_cols_ref[Cols] = {0};
-    std::cout << "epsilon: " << std::numeric_limits<TResult>::epsilon() << std::endl;
+  TResult sum_cols_ref[Cols] = {0};
   for (size_t j = 0; j < Cols; j++) {
     for (size_t i = 0; i < Rows; i++) {
       sum_cols_ref[j] += B[i][j];
     }
     auto diff = sum_cols[j] - sum_cols_ref[j];
-    std::cout << sum_cols[j] << " - " << sum_cols_ref[j] << std::endl;
     assert(std::fabs(static_cast<TResult>(diff)) <=
            std::numeric_limits<TResult>::epsilon());
   }
@@ -113,7 +111,7 @@ void matrix_sum_cols(big_matrix<T, Rows, Cols> &B,
   nd_range<2> r({NDRangeK, NDRangeN * sg_size}, {1, 1 * sg_size});
 
   q.submit([&](handler &cgh) {
-     sycl::accessor accB{bufB, cgh, sycl::read_write};
+     sycl::accessor accB{bufBvnni, cgh, sycl::read_write};
      sycl::accessor v{sum_cols_v, cgh, sycl::read_write};
 
      cgh.parallel_for<add_cols<TileRows, TileCols>>(
@@ -140,7 +138,7 @@ void matrix_sum_cols(big_matrix<T, Rows, Cols> &B,
                    sg_starty / sg_size * TileCols * VNNI,
                Cols * VNNI);
 
-           int32_t sum_local_cols[Cols] = {0};
+           TResult sum_local_cols[Cols] = {0};
            ext::intel::experimental::matrix::joint_matrix_apply(
                sg, sub_b, [&](T &x, size_t row, size_t col) {
                  // the coordinates returned are in the logical range
@@ -198,17 +196,17 @@ int main() {
 
   for (unsigned int i = 0; i < combinations.size(); i++) {
     if (combinations[i].nsize == 0) { // Intel AMX
-      test<int8_t, int, 4, /*TK*/ 64, /*TN*/ 16>();
+      test<int8_t, int32_t, 4, /*TK*/ 64, /*TN*/ 16>();
       break;
     }
 
     if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
-      test<int8_t, int, 4, /*TK*/ 32, /*TN*/ 16>();
+      test<int8_t, int32_t, 4, /*TK*/ 32, /*TN*/ 16>();
       break;
     }
 
     if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
-      test<int8_t, int, 4, /*TK*/ 32, /*TN*/ 8>();
+      test<int8_t, int32_t, 4, /*TK*/ 32, /*TN*/ 8>();
       break;
     }
   }
