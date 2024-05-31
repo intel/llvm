@@ -22,8 +22,7 @@ public:
 
   template <typename C, typename = std::enable_if_t<
                             std::is_same_v<T, typename C::value_type>>>
-  explicit constexpr View(const C &Cont)
-      : Ptr(std::data(Cont)), Size(std::size(Cont)) {}
+  constexpr View(const C &Cont) : Ptr(std::data(Cont)), Size(std::size(Cont)) {}
 
   constexpr const T *begin() const { return Ptr; }
   constexpr const T *end() const { return Ptr + Size; }
@@ -37,9 +36,6 @@ private:
   const T *const Ptr;
   const size_t Size;
 };
-
-// Deduction guide
-template <typename C> View(C) -> View<typename C::value_type>;
 
 } // namespace jit_compiler
 
