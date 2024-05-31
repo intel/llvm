@@ -4006,11 +4006,12 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 ///              PropertyListT props = {});
 ///
 /// Variation of the API that allows to use \c simd_view without specifying
-/// \c T and \c N template parameters.Stores ("scatters") elements of the type
-/// 'T' to memory locations addressed by the accessor \p acc and byte offsets \p
-/// byte_offsets. Access to any element's memory location can be disabled via
-/// the input vector of predicates \p mask. If mask[i] is unset, then the store
-/// to (acc + byte_offsets[i]) is skipped.
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the accessor \p acc and byte offsets \p byte_offsets. Access to any
+/// element's memory location can be disabled via the input vector of predicates
+/// \p mask. If mask[i] is unset, then the store to (acc + byte_offsets[i]) is
+/// skipped.
 /// @tparam VS Vector size. It can also be read as the number of writes per each
 /// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
 /// only on DG2 and PVC and only for 4- and 8-byte element vectors.
@@ -4035,7 +4036,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
         simd_mask<N / VS> mask, PropertyListT props = {}) {
   static_assert(N / VS ==
                     OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
-                "Size of pass_thru parameter must correspond to the size of "
+                "Size of vals parameter must correspond to the size of "
                 "byte_offsets parameter.");
   scatter<T, N, VS>(acc, byte_offsets.read(), vals, mask, props);
 }
@@ -4046,9 +4047,9 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// 	         PropertyListT props = {});
 ///
 /// Variation of the API that allows to use \c simd_view without specifying
-/// \c T and \c N template parameters.Stores ("scatters") elements of the type
-/// 'T' to memory locations addressed by the accessor \p acc and byte offsets \p
-/// byte_offsets.
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the accessor \p acc and byte offsets \p byte_offsets.
 /// @tparam VS Vector size. It can also be read as the number of writes per each
 /// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
 /// only on DG2 and PVC and only for 4- and 8-byte element vectors.
@@ -4072,7 +4073,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
         PropertyListT props = {}) {
   static_assert(N / VS ==
                     OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
-                "Size of pass_thru parameter must correspond to the size of "
+                "Size of vals parameter must correspond to the size of "
                 "byte_offsets parameter.");
   scatter<T, N, VS>(acc, byte_offsets.read(), vals, props);
 }
@@ -4087,11 +4088,12 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 ///              PropertyListT props = {});
 ///
 /// Variation of the API that allows to use \c simd_view without specifying
-/// \c T and \c N template parameters.Stores ("scatters") elements of the type
-/// 'T' to memory locations addressed by the accessor \p acc and byte offsets \p
-/// byte_offsets. Access to any element's memory location can be disabled via
-/// the input vector of predicates \p mask. If mask[i] is unset, then the store
-/// to (acc + byte_offsets[i]) is skipped.
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the accessor \p acc and byte offsets \p byte_offsets. Access to any
+/// element's memory location can be disabled via the input vector of predicates
+/// \p mask. If mask[i] is unset, then the store to (acc + byte_offsets[i]) is
+/// skipped.
 /// @tparam VS Vector size. It can also be read as the number of writes per each
 /// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
 /// only on DG2 and PVC and only for 4- and 8-byte element vectors.
@@ -4120,7 +4122,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
         simd_mask<N / VS> mask, PropertyListT props = {}) {
   static_assert(N / VS ==
                     OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
-                "Size of pass_thru parameter must correspond to the size of "
+                "Size of vals parameter must correspond to the size of "
                 "byte_offsets parameter.");
   scatter<T, N, VS>(acc, byte_offsets.read(), vals.read(), mask, props);
 }
@@ -4134,9 +4136,9 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 ///              ValuesSimdViewT vals, PropertyListT props = {});
 ///
 /// Variation of the API that allows to use \c simd_view without specifying
-/// \c T and \c N template parameters.Stores ("scatters") elements of the type
-/// 'T' to memory locations addressed by the accessor \p acc and byte offsets \p
-/// byte_offsets.
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the accessor \p acc and byte offsets \p byte_offsets.
 /// @tparam VS Vector size. It can also be read as the number of writes per each
 /// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
 /// only on DG2 and PVC and only for 4- and 8-byte element vectors.
@@ -4164,7 +4166,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
         PropertyListT props = {}) {
   static_assert(N / VS ==
                     OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
-                "Size of pass_thru parameter must correspond to the size of "
+                "Size of vals parameter must correspond to the size of "
                 "byte_offsets parameter.");
   scatter<T, N, VS>(acc, byte_offsets.read(), vals.read(), props);
 }
@@ -4179,11 +4181,12 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 ///              PropertyListT props = {});
 ///
 /// Variation of the API that allows to use \c simd_view without specifying
-/// \c T and \c N template parameters.Stores ("scatters") elements of the type
-/// 'T' to memory locations addressed by the accessor \p acc and byte offsets \p
-/// byte_offsets. Access to any element's memory location can be disabled via
-/// the input vector of predicates \p mask. If mask[i] is unset, then the store
-/// to (acc + byte_offsets[i]) is skipped.
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the accessor \p acc and byte offsets \p byte_offsets. Access to any
+/// element's memory location can be disabled via the input vector of predicates
+/// \p mask. If mask[i] is unset, then the store to (acc + byte_offsets[i]) is
+/// skipped.
 /// @tparam VS Vector size. It can also be read as the number of writes per each
 /// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
 /// only on DG2 and PVC and only for 4- and 8-byte element vectors.
@@ -4221,9 +4224,9 @@ scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
 ///              ValuesSimdViewT vals, PropertyListT props = {});
 ///
 /// Variation of the API that allows to use \c simd_view without specifying
-/// \c T and \c N template parameters.Stores ("scatters") elements of the type
-/// 'T' to memory locations addressed by the accessor \p acc and byte offsets \p
-/// byte_offsets.
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the accessor \p acc and byte offsets \p byte_offsets.
 /// @tparam VS Vector size. It can also be read as the number of writes per each
 /// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
 /// only on DG2 and PVC and only for 4- and 8-byte element vectors.
@@ -5376,7 +5379,7 @@ slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
             simd_mask<N / VS> mask, PropertyListT props = {}) {
   static_assert(N / VS ==
                     OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
-                "Size of pass_thru parameter must correspond to the size of "
+                "Size of vals parameter must correspond to the size of "
                 "byte_offsets parameter.");
   slm_scatter<T, N, VS>(byte_offsets.read(), vals, mask, props);
 }
@@ -5408,7 +5411,7 @@ slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
             PropertyListT props = {}) {
   static_assert(N / VS ==
                     OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
-                "Size of pass_thru parameter must correspond to the size of "
+                "Size of vals parameter must correspond to the size of "
                 "byte_offsets parameter.");
   slm_scatter<T, N, VS>(byte_offsets.read(), vals, props);
 }
@@ -5446,7 +5449,7 @@ slm_scatter(OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
             simd_mask<N / VS> mask, PropertyListT props = {}) {
   static_assert(N / VS ==
                     OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
-                "Size of pass_thru parameter must correspond to the size of "
+                "Size of vals parameter must correspond to the size of "
                 "byte_offsets parameter.");
   slm_scatter<T, N, VS>(byte_offsets.read(), vals.read(), mask, props);
 }
@@ -5483,7 +5486,7 @@ slm_scatter(OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
             PropertyListT props = {}) {
   static_assert(N / VS ==
                     OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
-                "Size of pass_thru parameter must correspond to the size of "
+                "Size of vals parameter must correspond to the size of "
                 "byte_offsets parameter.");
   slm_scatter<T, N, VS>(byte_offsets.read(), vals.read(), props);
 }
@@ -9286,11 +9289,12 @@ scatter(AccessorT acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 ///              PropertyListT props = {});
 ///
 /// Variation of the API that allows to use \c simd_view without specifying
-/// \c T and \c N template parameters.Stores ("scatters") elements of the type
-/// 'T' to memory locations addressed by the local accessor \p acc and byte
-/// offsets \p byte_offsets. Access to any element's memory location can be
-/// disabled via the input vector of predicates \p mask. If mask[i] is unset,
-/// then the store to (acc + byte_offsets[i]) is skipped.
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the local accessor \p acc and byte offsets \p byte_offsets. Access to any
+/// element's memory location can be disabled via the input vector of predicates
+/// \p mask. If mask[i] is unset, then the store to (acc + byte_offsets[i]) is
+/// skipped.
 /// @tparam VS Vector size. It can also be read as the number of writes per each
 /// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
 /// only on DG2 and PVC and only for 4- and 8-byte element vectors.
@@ -9315,7 +9319,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
         simd_mask<N / VS> mask, PropertyListT props = {}) {
   static_assert(N / VS ==
                     OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
-                "Size of pass_thru parameter must correspond to the size of "
+                "Size of vals parameter must correspond to the size of "
                 "byte_offsets parameter.");
   scatter<T, N, VS>(acc, byte_offsets.read(), vals, mask, props);
 }
@@ -9326,9 +9330,9 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// 	         PropertyListT props = {});
 ///
 /// Variation of the API that allows to use \c simd_view without specifying
-/// \c T and \c N template parameters.Stores ("scatters") elements of the type
-/// 'T' to memory locations addressed by the local accessor \p acc and byte
-/// offsets \p byte_offsets.
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the local accessor \p acc and byte offsets \p byte_offsets.
 /// @tparam VS Vector size. It can also be read as the number of writes per each
 /// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
 /// only on DG2 and PVC and only for 4- and 8-byte element vectors.
@@ -9352,7 +9356,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
         PropertyListT props = {}) {
   static_assert(N / VS ==
                     OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
-                "Size of pass_thru parameter must correspond to the size of "
+                "Size of vals parameter must correspond to the size of "
                 "byte_offsets parameter.");
   scatter<T, N, VS>(acc, byte_offsets.read(), vals, props);
 }
@@ -9367,11 +9371,12 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 ///              PropertyListT props = {});
 ///
 /// Variation of the API that allows to use \c simd_view without specifying
-/// \c T and \c N template parameters.Stores ("scatters") elements of the type
-/// 'T' to memory locations addressed by the local accessor \p acc and byte
-/// offsets \p byte_offsets. Access to any element's memory location can be
-/// disabled via the input vector of predicates \p mask. If mask[i] is unset,
-/// then the store to (acc + byte_offsets[i]) is skipped.
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the local accessor \p acc and byte offsets \p byte_offsets. Access to any
+/// element's memory location can be disabled via the input vector of predicates
+/// \p mask. If mask[i] is unset, then the store to (acc + byte_offsets[i]) is
+/// skipped.
 /// @tparam VS Vector size. It can also be read as the number of writes per each
 /// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
 /// only on DG2 and PVC and only for 4- and 8-byte element vectors.
@@ -9400,7 +9405,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
         simd_mask<N / VS> mask, PropertyListT props = {}) {
   static_assert(N / VS ==
                     OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
-                "Size of pass_thru parameter must correspond to the size of "
+                "Size of vals parameter must correspond to the size of "
                 "byte_offsets parameter.");
   scatter<T, N, VS>(acc, byte_offsets.read(), vals.read(), mask, props);
 }
@@ -9414,9 +9419,9 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 ///              ValuesSimdViewT vals, PropertyListT props = {});
 ///
 /// Variation of the API that allows to use \c simd_view without specifying
-/// \c T and \c N template parameters.Stores ("scatters") elements of the type
-/// 'T' to memory locations addressed by the local accessor \p acc and byte
-/// offsets \p byte_offsets.
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the local accessor \p acc and byte offsets \p byte_offsets.
 /// @tparam VS Vector size. It can also be read as the number of writes per each
 /// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
 /// only on DG2 and PVC and only for 4- and 8-byte element vectors.
@@ -9444,7 +9449,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
         PropertyListT props = {}) {
   static_assert(N / VS ==
                     OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
-                "Size of pass_thru parameter must correspond to the size of "
+                "Size of vals parameter must correspond to the size of "
                 "byte_offsets parameter.");
   scatter<T, N, VS>(acc, byte_offsets.read(), vals.read(), props);
 }
@@ -9459,11 +9464,12 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 ///              PropertyListT props = {});
 ///
 /// Variation of the API that allows to use \c simd_view without specifying
-/// \c T and \c N template parameters.Stores ("scatters") elements of the type
-/// 'T' to memory locations addressed by the local accessor \p acc and byte
-/// offsets \p byte_offsets. Access to any element's memory location can be
-/// disabled via the input vector of predicates \p mask. If mask[i] is unset,
-/// then the store to (acc + byte_offsets[i]) is skipped.
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the local accessor \p acc and byte offsets \p byte_offsets. Access to any
+/// element's memory location can be disabled via the input vector of predicates
+/// \p mask. If mask[i] is unset, then the store to (acc + byte_offsets[i]) is
+/// skipped.
 /// @tparam VS Vector size. It can also be read as the number of writes per each
 /// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
 /// only on DG2 and PVC and only for 4- and 8-byte element vectors.
@@ -9501,9 +9507,9 @@ scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
 ///              ValuesSimdViewT vals, PropertyListT props = {});
 ///
 /// Variation of the API that allows to use \c simd_view without specifying
-/// \c T and \c N template parameters.Stores ("scatters") elements of the type
-/// 'T' to memory locations addressed by the local accessor \p acc and byte
-/// offsets \p byte_offsets.
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the local accessor \p acc and byte offsets \p byte_offsets.
 /// @tparam VS Vector size. It can also be read as the number of writes per each
 /// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
 /// only on DG2 and PVC and only for 4- and 8-byte element vectors.
