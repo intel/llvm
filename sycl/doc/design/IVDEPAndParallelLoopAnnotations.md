@@ -81,7 +81,7 @@ We are proposing the following new LLVM metadata:
    previously-generated `llvm.loop.parallel_access_indices` due to the mismatch
    in the semantics of `llvm.loop.paralllel_accesses` and `ivdep`. The semantics
    are that all accesses with access groups listed in this metadata have no
-   loop-carried memory data dependences.
+   loop-carried memory data dependences carried by this loop.
 2. A new metadata, `llvm.loop.no_depends_safelen` should be generated on loops
    that are marked with the versions of ivdep that take a safelen (i.e.,
    `intel::ivdep(safelen)` and `intel::ivdep(array, safelen)`). It will replace our
