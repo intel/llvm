@@ -51,7 +51,7 @@ jobs:
     name: Decide which Arc tests to run
     needs: [build, detect_changes]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
-    runs-on: [Linux, build]
+    runs-on: Linux
     timeout-minutes: 3
     outputs:
       arc_tests: ${{ steps.arc_tests.outputs.arc_tests }}
