@@ -352,6 +352,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
 __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     ur_native_handle_t
         hNativePlatform, ///< [in][nocheck] the native handle of the platform.
+    ur_adapter_handle_t
+        hAdapter, ///< [in] handle of the adapter associated with the native backend.
     const ur_platform_native_properties_t *
         pProperties, ///< [in][optional] pointer to native platform properties struct.
     ur_platform_handle_t *
@@ -365,15 +367,15 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     }
 
     ur_platform_create_with_native_handle_params_t params = {
-        &hNativePlatform, &pProperties, &phPlatform};
+        &hNativePlatform, &hAdapter, &pProperties, &phPlatform};
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE,
                              "urPlatformCreateWithNativeHandle", &params);
 
     context.logger.info("---> urPlatformCreateWithNativeHandle");
 
-    ur_result_t result =
-        pfnCreateWithNativeHandle(hNativePlatform, pProperties, phPlatform);
+    ur_result_t result = pfnCreateWithNativeHandle(hNativePlatform, hAdapter,
+                                                   pProperties, phPlatform);
 
     context.notify_end(UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE,
                        "urPlatformCreateWithNativeHandle", &params, &result,
