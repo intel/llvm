@@ -10,6 +10,7 @@
 #define SYCL_FUSION_COMMON_VIEW_H
 
 #include <cstddef>
+#include <iterator>
 #include <type_traits>
 
 namespace jit_compiler {
@@ -19,9 +20,10 @@ template <typename T> class View {
 public:
   constexpr View(const T *Ptr, size_t Size) : Ptr(Ptr), Size(Size) {}
 
-  template <template <typename...> typename C>
-  explicit constexpr View(const C<T> &Cont)
-      : Ptr(Cont.data()), Size(Cont.size()) {}
+  template <typename C, typename = std::enable_if_t<
+                            std::is_same_v<T, typename C::value_type>>>
+  explicit constexpr View(const C &Cont)
+      : Ptr(std::data(Cont)), Size(std::size(Cont)) {}
 
   constexpr const T *begin() const { return Ptr; }
   constexpr const T *end() const { return Ptr + Size; }
@@ -37,8 +39,7 @@ private:
 };
 
 // Deduction guide
-template <template <typename...> typename C, typename T>
-View(const C<T> &) -> View<T>;
+template <typename C> View(C) -> View<typename C::value_type>;
 
 } // namespace jit_compiler
 
