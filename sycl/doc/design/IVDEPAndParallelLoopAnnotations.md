@@ -97,9 +97,13 @@ We are proposing the following new LLVM metadata:
    future (as described in [the previous section](#marking-parallel-loops)),
    then this metadata would be generated from that representation.
 4. The built-in `llvm.access.group` metadata should be generated for all memory
-   operations (loads, stores, and function calls) in the body of a loop that has
-   either an ivdep attribute, or is marked as parallel (by the user or the
-   compiler). The access group identifier will be passed to the corresponding
+   operations (loads, stores, and atomics) in the body of a loop that has either
+   an ivdep attribute, or is marked as parallel (by the user or the compiler).
+   Aditionally, any function calls in the loop should also be assigned an access
+   group. The frontend can eagerly assign an access group to all function calls
+   and is not responsible for checking if the call accesses any memory. The
+   optimizer is responsible to decide what to do with that access group
+   information (e.g., apply it to the memory operations in the function when inlining). The access group identifier will be passed to the corresponding
    loop metadata described above.
 
 ## SPIR-V Extension
@@ -139,10 +143,12 @@ represented as a literal in SPIR-V.
          appear in the `llvm.loop.no_depends` metadata.
       2. `[[intel::ivdep(array)]]` on a loop should be translated to
          `llvm.access.group` metadata on all memory instructions that use the
-         specified array, and `llvm.loop.no_depends` metadata should be placed
-         on the loop and passed these access group(s). The front end is free to
-         assign access groups as it sees fit as long as all the access groups
-         for the accesses to the corresponding array appear in the
+         specified array (function calls don't need to be tagged by the front
+         end due to the complexity of the necessary inter-procedural analysis
+         that would be required), and `llvm.loop.no_depends` metadata should be
+         placed on the loop and passed these access group(s). The front end is
+         free to assign access groups as it sees fit as long as all the access
+         groups for the accesses to the corresponding array appear in the
          `llvm.loop.no_depends` metadata. Multiple instances of `ivdep(array)`
          should generate a separate `llvm.loop.no_depends` metadata for each
          array.
@@ -155,10 +161,11 @@ represented as a literal in SPIR-V.
          `llvm.loop.no_depends_safelen` metadata. 
       4. `[[intel::ivdep(array, safelen)]]` should be translated to
         `llvm.access.group` metadata on all memory instructions that use the
-        specified array, and `llvm.loop.no_depends_safelen` metadata should be
-        placed on the loop and passed these access group(s). The front end is
-        free to assign access groups as it sees fit as long as all the access
-        groups for the accesses to the corresponding array appear in the
+        specified array (as with `ivdep(array)`, function calls don't need to be
+        tagged by the front end), and `llvm.loop.no_depends_safelen` metadata
+        should be placed on the loop and passed these access group(s). The front
+        end is free to assign access groups as it sees fit as long as all the
+        access groups for the accesses to the corresponding array appear in the
         `llvm.loop.no_depends_safelen` metadata. Multiple instances of
         ivdep(array, safelen) should generate a separate
         `llvm.loop.no_depends_safelen` metadata for each array.
