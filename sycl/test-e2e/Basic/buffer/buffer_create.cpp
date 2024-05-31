@@ -3,6 +3,9 @@
 // RUN: env UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 // UNSUPPORTED: ze_debug
 
+// Temporarily disabled for DG2 due to failures.
+// UNSUPPORTED: gpu-intel-dg2
+
 #include <iostream>
 #include <sycl/detail/core.hpp>
 
