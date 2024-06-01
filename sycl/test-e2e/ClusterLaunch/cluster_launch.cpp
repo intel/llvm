@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl-device-code-split=per_kernel -fsycl-targets=nvidia_gpu_sm_90 -o %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>

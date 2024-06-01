@@ -54,6 +54,11 @@ template <typename PropertiesT> constexpr bool hasClusterSizeProperty() {
              sycl::ext::oneapi::experimental::cluster_size_key<3>>();
 }
 
+template <typename PropertiesT, int Dim> constexpr bool hasClusterDim() {
+  return PropertiesT::template has_property<
+      sycl::ext::oneapi::experimental::cluster_size_key<Dim>>();
+}
+
 } // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl
