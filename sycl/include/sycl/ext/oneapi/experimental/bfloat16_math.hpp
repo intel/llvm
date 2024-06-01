@@ -46,6 +46,14 @@ template <size_t N> sycl::marray<bool, N> isnan(sycl::marray<bfloat16, N> x) {
   return res;
 }
 
+template <int N> sycl::vec<bool, N> isnan(sycl::vec<bfloat16, N> x) {
+  sycl::vec<bool, N> res;
+  for (size_t i = 0; i < N; i++) {
+    res[i] = isnan(x[i]);
+  }
+  return res;
+}
+
 template <typename T>
 std::enable_if_t<std::is_same_v<T, bfloat16>, T> fabs(T x) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
@@ -86,6 +94,15 @@ sycl::marray<bfloat16, N> fabs(sycl::marray<bfloat16, N> x) {
   }
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&
        // (__SYCL_CUDA_ARCH__ >= 800)
+  return res;
+}
+
+template <int N>
+sycl::vec<bfloat16, N> fabs(sycl::vec<bfloat16, N> x) {
+  sycl::vec<bfloat16, N> res;
+  for (size_t i = 0; i < N; i++) {
+    res[i] = fabs(x[i]);
+  }
   return res;
 }
 
@@ -146,6 +163,16 @@ sycl::marray<bfloat16, N> fmin(sycl::marray<bfloat16, N> x,
   return res;
 }
 
+template <int N>
+sycl::vec<bfloat16, N> fmin(sycl::vec<bfloat16, N> x,
+                               sycl::vec<bfloat16, N> y) {
+  sycl::vec<bfloat16, N> res;
+  for (size_t i = 0; i < N; i++) {
+    res[i] = fmin(x[i], y[i]);
+  }
+  return res;
+}
+
 template <typename T>
 std::enable_if_t<std::is_same_v<T, bfloat16>, T> fmax(T x, T y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
@@ -202,6 +229,16 @@ sycl::marray<bfloat16, N> fmax(sycl::marray<bfloat16, N> x,
   return res;
 }
 
+template <int N>
+sycl::vec<bfloat16, N> fmax(sycl::vec<bfloat16, N> x,
+                               sycl::vec<bfloat16, N> y) {
+  sycl::vec<bfloat16, N> res;
+  for (size_t i = 0; i < N; i++) {
+    res[i] = fmax(x[i], y[i]);
+  }
+  return res;
+}
+
 template <typename T>
 std::enable_if_t<std::is_same_v<T, bfloat16>, T> fma(T x, T y, T z) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
@@ -248,6 +285,17 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
   return res;
 }
 
+template <int N>
+sycl::vec<bfloat16, N> fma(sycl::vec<bfloat16, N> x,
+                              sycl::vec<bfloat16, N> y,
+                              sycl::vec<bfloat16, N> z) {
+  sycl::vec<bfloat16, N> res;
+  for (size_t i = 0; i < N; i++) {
+    res[i] = fma(x[i], y[i], z[i]);
+  }
+  return res;
+}
+
 #define BFLOAT16_MATH_FP32_WRAPPERS(op)                                        \
   template <typename T>                                                        \
   std::enable_if_t<std::is_same<T, bfloat16>::value, T> op(T x) {              \
@@ -264,37 +312,75 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
     return res;                                                                \
   }
 
+#define BFLOAT16_MATH_FP32_WRAPPERS_VEC(op)                                    \
+  template <int N>                                                          \
+  sycl::vec<bfloat16, N> op(sycl::vec<bfloat16, N> x) {                        \
+    sycl::vec<bfloat16, N> res;                                                \
+    for (size_t i = 0; i < N; i++) {                                           \
+      res[i] = op(x[i]);                                                       \
+    }                                                                          \
+    return res;                                                                \
+  }
+
 BFLOAT16_MATH_FP32_WRAPPERS(ceil)
 BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(ceil)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(ceil)
+
 BFLOAT16_MATH_FP32_WRAPPERS(cos)
 BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(cos)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(cos)
+
 BFLOAT16_MATH_FP32_WRAPPERS(exp)
 BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(exp)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(exp)
+
 BFLOAT16_MATH_FP32_WRAPPERS(exp10)
 BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(exp10)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(exp10)
+
 BFLOAT16_MATH_FP32_WRAPPERS(exp2)
 BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(exp2)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(exp2)
+
 BFLOAT16_MATH_FP32_WRAPPERS(floor)
 BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(floor)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(floor)
+
 BFLOAT16_MATH_FP32_WRAPPERS(log)
 BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(log)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(log)
+
 BFLOAT16_MATH_FP32_WRAPPERS(log2)
 BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(log2)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(log2)
+
 BFLOAT16_MATH_FP32_WRAPPERS(log10)
 BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(log10)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(log10)
+
 BFLOAT16_MATH_FP32_WRAPPERS(rint)
 BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(rint)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(rint)
+
 BFLOAT16_MATH_FP32_WRAPPERS(rsqrt)
 BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(rsqrt)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(rsqrt)
+
 BFLOAT16_MATH_FP32_WRAPPERS(sin)
 BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(sin)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(sin)
+
 BFLOAT16_MATH_FP32_WRAPPERS(sqrt)
 BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(sqrt)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(sqrt)
+
 BFLOAT16_MATH_FP32_WRAPPERS(trunc)
 BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(trunc)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(trunc)
 
 #undef BFLOAT16_MATH_FP32_WRAPPERS
 #undef BFLOAT16_MATH_FP32_WRAPPERS_MARRAY
+#undef BFLOAT16_MATH_FP32_WRAPPERS_VEC
 } // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl
