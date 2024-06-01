@@ -75,6 +75,11 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
         tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
       return()
     endif()
     message(STATUS
@@ -94,24 +99,18 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/JackAKirk/unified-runtime.git")
-  # commit 396fb20498c315a526c961d7cb645b42795acd2c
-  # Merge: 719bb9cd e2ffea69
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 9f783837089c970a22cda08f768aa3dbed38f0d3
+  # Merge: c015f892 b9442104
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu May 23 10:53:03 2024 +0100
-  #     Merge pull request #1501 from RossBrunton/ross/kerneltests
-  #     [Testing] Spec clarifications and testing updates for kernel
-  set(UNIFIED_RUNTIME_TAG 1c4478cf4d7e0e8d620d5382007a55e1485acc3d)
+  # Date:   Fri May 31 10:20:23 2024 +0100
+  #     Merge pull request #1533 from AllanZyne/sanitizer-buffer
+  #     [DeviceSanitizer] Support detecting out-of-bounds errors on sycl::buffer
+  set(UNIFIED_RUNTIME_TAG 9f783837089c970a22cda08f768aa3dbed38f0d3)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit e428745588dd87e5db3c0bc0df1183eb7d0811a5
-    # Merge: fb3cbd16 80d46bb1
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri May 24 10:31:13 2024 +0100
-    #     Merge pull request #1656 from pbalcer/leaks-program-kernel
-    #     fix leaks on level-zero interop program and kernel handles
-    e428745588dd87e5db3c0bc0df1183eb7d0811a5
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
