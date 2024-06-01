@@ -945,25 +945,11 @@ private:
       sycl::ext::oneapi::experimental::execution_scope coordinationScope);
 
   template <typename Properties> void setClusterRange(const Properties &Props) {
-    if (MNDRDesc.Dims == 1) {
-      MNDRDesc.setClusterDimensions(
-          Props
-              .template get_property<
-                  sycl::ext::oneapi::experimental::cluster_size_key<1>>()
-              .get_cluster_size());
-    } else if (MNDRDesc.Dims == 2) {
-      MNDRDesc.setClusterDimensions(
-          Props
-              .template get_property<
-                  sycl::ext::oneapi::experimental::cluster_size_key<2>>()
-              .get_cluster_size());
-    } else {
-      MNDRDesc.setClusterDimensions(
-          Props
-              .template get_property<
-                  sycl::ext::oneapi::experimental::cluster_size_key<3>>()
-              .get_cluster_size());
-    }
+    MNDRDesc.setClusterDimensions(
+        Props
+            .template get_property<
+                sycl::ext::oneapi::experimental::cluster_size_key<3>>()
+            .get_cluster_size());
   }
 
   /// Process kernel properties.

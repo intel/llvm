@@ -1,4 +1,4 @@
-//==--- cluster_group.hpp --- SYCL extension for cluster group
+//==--- cluster_group_prop.hpp --- SYCL extension for cluster group
 //------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
