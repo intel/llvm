@@ -223,12 +223,17 @@ void GlobalHandler::releaseDefaultContexts() {
   // Release shared-pointers to SYCL objects.
   // Note that on Windows the destruction of the default context
   // races with the detaching of the DLL object that calls piTearDown.
-
+  std::cout << "releaseDefaultContexts(): "
+            << (MPlatformToDefaultContextCache.Inst
+                    ? MPlatformToDefaultContextCache.Inst->size()
+                    : 0)
+            << std::endl;
   MPlatformToDefaultContextCache.Inst.reset(nullptr);
 }
 
 struct DefaultContextReleaseHandler {
   ~DefaultContextReleaseHandler() {
+    std::cout << "~DefaultContextReleaseHandler()" << std::endl;
     GlobalHandler::instance().releaseDefaultContexts();
   }
 };
@@ -285,6 +290,7 @@ void shutdown() {
 }
 #else
 void shutdown() {
+  std::cout << "shutdown()" << std::endl;
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)

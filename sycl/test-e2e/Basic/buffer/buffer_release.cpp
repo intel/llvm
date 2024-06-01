@@ -6,6 +6,7 @@
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
+// #include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::access;
@@ -13,6 +14,7 @@ using namespace sycl::access;
 static constexpr size_t BUFFER_SIZE = 256;
 
 void test() {
+  std::cout << "hi" << std::endl;
   queue Q;
   std::unique_ptr<host_accessor<int>> HostAcc;
   {

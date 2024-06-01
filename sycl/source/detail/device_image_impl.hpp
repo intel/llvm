@@ -307,8 +307,9 @@ public:
     }
     if (MSpecConstsBuffer) {
       std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
-      const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
-      memReleaseHelper(Plugin, MSpecConstsBuffer);
+      ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
+      const PluginPtr &Plugin = ContextImpl->getPlugin();
+      memReleaseHelper(ContextImpl, Plugin, MSpecConstsBuffer);
     }
   }
 

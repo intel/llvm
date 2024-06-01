@@ -17,7 +17,10 @@ void memBufferCreateHelper(const PluginPtr &Plugin, pi_context Ctx,
                            pi_mem_flags Flags, size_t Size, void *HostPtr,
                            pi_mem *RetMem,
                            const pi_mem_properties *Props = nullptr);
-void memReleaseHelper(const PluginPtr &Plugin, pi_mem Mem);
+void memReleaseWrapper(ContextImplPtr TargetContext, const PluginPtr &Plugin,
+                       pi_mem Mem);
+void memReleaseHelper(ContextImplPtr TargetContext, const PluginPtr &Plugin,
+                      pi_mem Mem);
 void memBufferMapHelper(const PluginPtr &Plugin, pi_queue command_queue,
                         pi_mem buffer, pi_bool blocking_map,
                         pi_map_flags map_flags, size_t offset, size_t size,

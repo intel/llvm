@@ -502,6 +502,7 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
 }
 
 void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
+  std::cout << "Scheduler::deferMemObjRelease" << std::endl;
   {
     std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
     MDeferredMemObjRelease.push_back(MemObj);
@@ -517,6 +518,9 @@ inline bool Scheduler::isDeferredMemObjectsEmpty() {
 void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
   if (isDeferredMemObjectsEmpty())
     return;
+
+  std::cout << "cleanupDeferredMemObjects() with objects" << std::endl;
+
   if (Blocking == BlockingT::BLOCKING) {
     std::vector<std::shared_ptr<SYCLMemObjI>> TempStorage;
     {
