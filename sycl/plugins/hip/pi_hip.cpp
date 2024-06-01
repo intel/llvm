@@ -573,8 +573,7 @@ __SYCL_EXPORT pi_result piextEnqueueKernelLaunchCustom(
   (void)EventsWaitList;
   (void)OutEvent;
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-  die("piextEnqueueKernelLaunchCustom: not implemented");
-  return {};
+  return PI_ERROR_UNSUPPORTED_FEATURE;
 }
 
 pi_result piextKernelCreateWithNativeHandle(pi_native_handle NativeHandle,
