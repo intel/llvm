@@ -191,8 +191,7 @@ T fabs(T x);
 
 ===== Description
 
-Compute absolute value of a `bfloat16` value, `sycl::marray<bfloat16, N>`,
-or `sycl::vec<bfloat16, N>`.
+Compute absolute value of a `bfloat16` value.
 
 ==== ceil
 
@@ -205,7 +204,7 @@ T ceil(T x);
 
 ===== Description
 
-Returns `x` rounded to an integral value using the round to positive infinity rounding mode
+Returns `x` rounded to an integral value using the round to positive infinity rounding mode.
 
 ==== floor
 
@@ -219,7 +218,7 @@ T floor(T x);
 ===== Description
 
 Returns `x` rounded to an integral value using the round to negative infinity rounding mode
-for a `bfloat16` value, `sycl::marray<bfloat16, N>`, or `sycl::vec<bfloat16, N>`.
+for a `bfloat16` value.
 
 ==== cos
 
@@ -232,7 +231,7 @@ T cos(T x);
 
 ===== Description
 
-Compute cosine of a `bfloat16` value, `sycl::marray<bfloat16, N>`, or `sycl::vec<bfloat16, N>`.
+Compute cosine of a `bfloat16` value.
 
 ==== sin
 
@@ -245,7 +244,7 @@ T sin(T x);
 
 ===== Description
 
-Compute sine of a `bfloat16` value, `sycl::marray<bfloat16, N>`, `sycl::vec<bfloat16, N>`.
+Compute sine of a `bfloat16` value.
 
 
 ==== exp
@@ -259,7 +258,7 @@ T exp(T x);
 
 ===== Description
 
-Compute the base-e exponential of a `bfloat16` value, `sycl::marray<bfloat16, N>`, or `sycl::vec<bfloat16, N>`.
+Compute the base-e exponential of a `bfloat16` value.
 
 ==== exp2
 
@@ -272,7 +271,7 @@ T exp2(T x);
 
 ===== Description
 
-Compute the base-2 exponential of a `bfloat16` value, `sycl::marray<bfloat16, N>`, or `sycl::vec<bfloat16, N>`.
+Compute the base-2 exponential of a `bfloat16` value.
 
 ==== exp10
 
@@ -285,7 +284,7 @@ T exp10(T x);
 
 ===== Description
 
-Compute the base-10 exponential of a `bfloat16` value, `sycl::marray<bfloat16, N>`, or `sycl::vec<bfloat16, N>`.
+Compute the base-10 exponential of a `bfloat16` value.
 
 ==== log
 
@@ -298,7 +297,7 @@ T log(T x);
 
 ===== Description
 
-Compute natural logarithm of a `bfloat16` value, `sycl::marray<bfloat16, N>`, or `sycl::vec<bfloat16, N>`.
+Compute natural logarithm of a `bfloat16` value.
 
 ==== log2
 
@@ -311,7 +310,7 @@ T log2(T x);
 
 ===== Description
 
-Compute base-2 logarithm of a `bfloat16` value, `sycl::marray<bfloat16, N>`, or `sycl::vec<bfloat16, N>`.
+Compute base-2 logarithm of a `bfloat16` value.
 
 ==== log10
 
@@ -324,7 +323,7 @@ T log10(T x);
 
 ===== Description
 
-Compute base-10 logarithm of a `bfloat16` value, `sycl::marray<bfloat16, N>`, or `sycl::vec<bfloat16, N>`.
+Compute base-10 logarithm of a `bfloat16` value.
 
 
 ==== rint
@@ -339,7 +338,7 @@ T rint(T x);
 ===== Description
 
 Returns `x` rounded to an integral value using the round to nearest even rounding mode
-for a `bfloat16` value, `sycl::marray<bfloat16, N>`, or `sycl::vec<bfloat16, N>`.
+for a `bfloat16` value.
 
 ==== sqrt
 
@@ -352,7 +351,7 @@ T sqrt(T x);
 
 ===== Description
 
-Compute square root of a `bfloat16` value, `sycl::marray<bfloat16, N>`, or `sycl::vec<bfloat16, N>`.
+Compute square root of a `bfloat16` value.
 
 ==== rsqrt
 
@@ -365,7 +364,7 @@ T rsqrt(T x);
 
 ===== Description
 
-Compute inverse square root of a `bfloat16` value, `sycl::marray<bfloat16, N>`, or `sycl::vec<bfloat16, N>`.
+Compute inverse square root of a `bfloat16` value.
 
 ==== trunc
 
@@ -379,7 +378,7 @@ T trunc(T x);
 ===== Description
 
 Returns `x` rounded to an integral value using the round to zero rounding mode
-for a `bfloat16` value, `sycl::marray<bfloat16, N>`,`sycl::vec<bfloat16, N>`.
+for a `bfloat16` value.
 
 == Issues
 

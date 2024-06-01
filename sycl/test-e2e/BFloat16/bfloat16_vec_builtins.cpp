@@ -5,7 +5,6 @@
 // RUN:  %if preview-breaking-changes-supported %{  %{build} -fpreview-breaking-changes -o %t-pfrev.out %}
 // RUN:  %if preview-breaking-changes-supported %{  %{run} %t-pfrev.out  %}
 
-
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
 
@@ -25,57 +24,56 @@ bool check(float a, float b) {
 
 bool check(bool a, bool b) { return (a != b); }
 
-#define TEST_UNARY_OP(NAME, SZ, RETTY, INPVAL)                             \
-  {                                                                        \
-    vec<bfloat16, SZ> arg;                                                 \
-    /* Initialize the vector with INPVAL */                                \
-    for (int i = 0; i < SZ; i++) {                                         \
-      arg[i] = INPVAL;                                                     \
-    }                                                                      \
-    /* Perform the operation. */                                           \              
-    vec<RETTY, SZ> res = sycl::ext::oneapi::experimental::NAME(arg);       \
-    /* Check the result. */                                                \                   
-    for (int i = 0; i < SZ; i++) {                                         \
-      if (check(res[i], sycl::NAME(INPVAL))) {                             \
-        ERR[0] += 1;                                                       \
-      }                                                                    \
-    }                                                                      \
+#define TEST_UNARY_OP(NAME, SZ, RETTY, INPVAL)                                 \
+  {                                                                            \
+    vec<bfloat16, SZ> arg;                                                     \
+    /* Initialize the vector with INPVAL */                                    \
+    for (int i = 0; i < SZ; i++) {                                             \
+      arg[i] = INPVAL;                                                         \
+    }                                                                          \
+    /* Perform the operation. */                                               \              
+    vec<RETTY, SZ>                                                             \
+        res = sycl::ext::oneapi::experimental::NAME(arg);                      \
+    /* Check the result. */                                                    \                   
+    for (int i = 0; i < SZ; i++) {                                             \
+      if (check(res[i], sycl::NAME(INPVAL))) {                                 \
+        ERR[0] += 1;                                                           \
+      }                                                                        \
+    }                                                                          \
   }
 
-
-#define TEST_BINARY_OP(NAME, SZ, RETTY, INPVAL)                            \
-  {                                                                        \
-    vec<bfloat16, SZ> arg, arg2;                                           \
-    bfloat16 inpVal2 = 1.0f;                                               \
-    /* Initialize the vector with INPVAL */                                \
-    for (int i = 0; i < SZ; i++) {                                         \
-      arg[i] = INPVAL;                                                     \
-      arg2[i] = inpVal2;                                                   \
-    }                                                                      \
-    /* Perform the operation. */                                           \              
-    vec<RETTY, SZ> res = sycl::ext::oneapi::experimental::NAME(arg, arg2); \
-    /* Check the result. */                                                \                   
-    for (int i = 0; i < SZ; i++) {                                         \
-      if (check(res[i], sycl::NAME(INPVAL, inpVal2))) {                    \
-        ERR[0] += 1;                                                       \
-      }                                                                    \
-    }                                                                      \
+#define TEST_BINARY_OP(NAME, SZ, RETTY, INPVAL)                                \
+  {                                                                            \
+    vec<bfloat16, SZ> arg, arg2;                                               \
+    bfloat16 inpVal2 = 1.0f;                                                   \
+    /* Initialize the vector with INPVAL */                                    \
+    for (int i = 0; i < SZ; i++) {                                             \
+      arg[i] = INPVAL;                                                         \
+      arg2[i] = inpVal2;                                                       \
+    }                                                                          \
+    /* Perform the operation. */                                               \              
+    vec<RETTY, SZ>                                                             \
+        res = sycl::ext::oneapi::experimental::NAME(arg, arg2);                \
+    /* Check the result. */                                                    \                   
+    for (int i = 0; i < SZ; i++) {                                             \
+      if (check(res[i], sycl::NAME(INPVAL, inpVal2))) {                        \
+        ERR[0] += 1;                                                           \
+      }                                                                        \
+    }                                                                          \
   }
 
-#define TEST_BUILTIN_VEC(NAME, SZ, RETTY, INPVAL, OPTEST)                        \
-  {   /* On Device */                                                          \
+#define TEST_BUILTIN_VEC(NAME, SZ, RETTY, INPVAL, OPTEST)                      \
+  { /* On Device */                                                            \
     buffer<int> err_buf(&err, 1);                                              \
     q.submit([&](handler &cgh) {                                               \
       accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh); \
-      cgh.single_task([=]() {                                                  \
-        OPTEST(NAME, SZ, RETTY, INPVAL)                                   \
-      });                                                                      \
+      cgh.single_task([=]() { OPTEST(NAME, SZ, RETTY, INPVAL) });              \
     });                                                                        \
   }                                                                            \
   assert(err == 0);                                                            \
-  {   /* On Host */                                                            \
+  { /* On Host */                                                              \
     int ERR[1] = {0};                                                          \
-    OPTEST(NAME, SZ, RETTY, INPVAL)                                       \
+    OPTEST(NAME, SZ, RETTY, INPVAL)                                            \
     assert(ERR[0] == 0);                                                       \
   }
 
@@ -129,7 +127,6 @@ void test() {
   TEST_BUILTIN_BINARY(fmin, bfloat16, nan);
   TEST_BUILTIN_BINARY(fmax, bfloat16, nan);
 
-
   // Test fma operation on host.
   {
     vec<bfloat16, 3> arg1, arg2, arg3;
@@ -146,7 +143,8 @@ void test() {
     auto res = sycl::ext::oneapi::experimental::fma(arg1, arg2, arg3);
     /* Check the result. */
     for (int i = 0; i < 3; i++) {
-      if (check(res[i], sycl::ext::oneapi::experimental::fma(inpVal1, inpVal2, inpVal3))) {
+      if (check(res[i], sycl::ext::oneapi::experimental::fma(inpVal1, inpVal2,
+                                                             inpVal3))) {
         err += 1;
       }
     }
@@ -173,7 +171,8 @@ void test() {
         auto res = sycl::ext::oneapi::experimental::fma(arg1, arg2, arg3);
         /* Check the result. */
         for (int i = 0; i < 3; i++) {
-          if (check(res[i], sycl::ext::oneapi::experimental::fma(inpVal1, inpVal2, inpVal3))) {
+          if (check(res[i], sycl::ext::oneapi::experimental::fma(
+                                inpVal1, inpVal2, inpVal3))) {
             ERR[0] += 1;
           }
         }
@@ -181,7 +180,6 @@ void test() {
     });
     assert(err == 0);
   }
-
 }
 
 int main() {

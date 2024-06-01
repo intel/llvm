@@ -97,8 +97,7 @@ sycl::marray<bfloat16, N> fabs(sycl::marray<bfloat16, N> x) {
   return res;
 }
 
-template <int N>
-sycl::vec<bfloat16, N> fabs(sycl::vec<bfloat16, N> x) {
+template <int N> sycl::vec<bfloat16, N> fabs(sycl::vec<bfloat16, N> x) {
   sycl::vec<bfloat16, N> res;
   for (size_t i = 0; i < N; i++) {
     res[i] = fabs(x[i]);
@@ -165,7 +164,7 @@ sycl::marray<bfloat16, N> fmin(sycl::marray<bfloat16, N> x,
 
 template <int N>
 sycl::vec<bfloat16, N> fmin(sycl::vec<bfloat16, N> x,
-                               sycl::vec<bfloat16, N> y) {
+                            sycl::vec<bfloat16, N> y) {
   sycl::vec<bfloat16, N> res;
   for (size_t i = 0; i < N; i++) {
     res[i] = fmin(x[i], y[i]);
@@ -231,7 +230,7 @@ sycl::marray<bfloat16, N> fmax(sycl::marray<bfloat16, N> x,
 
 template <int N>
 sycl::vec<bfloat16, N> fmax(sycl::vec<bfloat16, N> x,
-                               sycl::vec<bfloat16, N> y) {
+                            sycl::vec<bfloat16, N> y) {
   sycl::vec<bfloat16, N> res;
   for (size_t i = 0; i < N; i++) {
     res[i] = fmax(x[i], y[i]);
@@ -286,9 +285,8 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
 }
 
 template <int N>
-sycl::vec<bfloat16, N> fma(sycl::vec<bfloat16, N> x,
-                              sycl::vec<bfloat16, N> y,
-                              sycl::vec<bfloat16, N> z) {
+sycl::vec<bfloat16, N> fma(sycl::vec<bfloat16, N> x, sycl::vec<bfloat16, N> y,
+                           sycl::vec<bfloat16, N> z) {
   sycl::vec<bfloat16, N> res;
   for (size_t i = 0; i < N; i++) {
     res[i] = fma(x[i], y[i], z[i]);
@@ -313,8 +311,7 @@ sycl::vec<bfloat16, N> fma(sycl::vec<bfloat16, N> x,
   }
 
 #define BFLOAT16_MATH_FP32_WRAPPERS_VEC(op)                                    \
-  template <int N>                                                          \
-  sycl::vec<bfloat16, N> op(sycl::vec<bfloat16, N> x) {                        \
+  template <int N> sycl::vec<bfloat16, N> op(sycl::vec<bfloat16, N> x) {       \
     sycl::vec<bfloat16, N> res;                                                \
     for (size_t i = 0; i < N; i++) {                                           \
       res[i] = op(x[i]);                                                       \
