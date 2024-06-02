@@ -126,8 +126,6 @@ inline bool isnan(const sycl::ext::oneapi::bfloat16 a) {
 }
 #endif
 
-} // namespace detail
-
 /// Bitfield-extract.
 ///
 /// \tparam T The type of \param source value, must be an integer.
@@ -143,6 +141,8 @@ bfe(const T source, const uint32_t bit_start, const uint32_t num_bits) {
       num_bits >= CHAR_BIT * sizeof(T) ? T{-1} : ((T{1} << num_bits) - 1);
   return (source >> bit_start) & mask;
 }
+
+} // namespace detail
 
 /// Bitfield-extract with boundary checking.
 ///
@@ -207,10 +207,11 @@ bfe_safe(const T source, const uint32_t bit_start, const uint32_t num_bits) {
     const T sign_bit_padding = (-sign_bit & ~mask);
     return ((source >> pos) & mask) | sign_bit_padding;
   } else {
-    return syclcompat::bfe(source, pos, len);
+    return syclcompat::detail::bfe(source, pos, len);
   }
 }
 
+namespace detail {
 /// Bitfield-insert.
 ///
 /// \tparam T The type of \param x and \param y , must be an unsigned integer.
@@ -231,6 +232,7 @@ bfi(const T x, const T y, const uint32_t bit_start, const uint32_t num_bits) {
   return (y & (-ignore_bfi | clean_bitfield_mask)) |
          (~-ignore_bfi & ((x << bit_start) & extract_bitfield_mask));
 }
+} // namespace detail
 
 /// Bitfield-insert with boundary checking.
 ///
@@ -267,7 +269,7 @@ bfi_safe(const T x, const T y, const uint32_t bit_start,
   constexpr unsigned bit_width = CHAR_BIT * sizeof(T);
   const uint32_t pos = std::min(bit_start, bit_width);
   const uint32_t len = std::min(pos + num_bits, bit_width) - pos;
-  return syclcompat::bfi(x, y, pos, len);
+  return syclcompat::detail::bfi(x, y, pos, len);
 }
 
 /// Compute fast_length for variable-length array
