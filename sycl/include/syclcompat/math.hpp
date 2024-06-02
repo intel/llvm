@@ -200,10 +200,9 @@ bfe_safe(const T source, const uint32_t bit_start, const uint32_t num_bits) {
 
     // Find the sign-bit, the result is padded with the sign bit of the
     // extracted field.
-    //
-    // sign_bit = len == 0 ? 0 : source[min(pos + len - 1, bit_width - 1)]
+    // Note if requested num_bits==0, we return zero via sign_bit=0
     const uint32_t sign_bit_pos = std::min(pos + len - 1, bit_width - 1);
-    const T sign_bit = len != 0 && ((source >> sign_bit_pos) & 1);
+    const T sign_bit = num_bits != 0 && ((source >> sign_bit_pos) & 1);
     const T sign_bit_padding = (-sign_bit & ~mask);
     return ((source >> pos) & mask) | sign_bit_padding;
   } else {
