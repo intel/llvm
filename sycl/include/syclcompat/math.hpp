@@ -150,9 +150,10 @@ bfe(const T source, const uint32_t bit_start, const uint32_t num_bits) {
 /// result. Source \param bit_start gives the bit field starting bit position,
 /// and source \param num_bits gives the bit field length in bits.
 ///
-/// The result is padded with the sign bit of the extracted field. If the start
-/// position is beyond the msb of the input, the result was filled with the
-/// replicated sign bit of the extracted field.
+/// The result is padded with the sign bit of the extracted field. If `num_bits`
+/// is zero, the  result is zero. If the start position is beyond the msb of the
+/// input, the result is filled with the replicated sign bit of the extracted
+/// field.
 ///
 /// \tparam T The type of \param source value, must be an integer.
 /// \param source The source value to extracting.

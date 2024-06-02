@@ -1710,7 +1710,7 @@ struct sub_sat {
 } // namespace syclcompat
 ```
 
-Finally, the math header provides a set of functions to extend 32-bit operations
+The math header provides a set of functions to extend 32-bit operations
 to 33 bit, and handle sign extension internally. There is support for `add`,
 `sub`, `absdiff`, `min` and `max` operations. Each operation provides overloads
 to include a second, separate, `BinaryOperation` after the first, and include
@@ -1792,6 +1792,46 @@ template <typename RetT, typename AT, typename BT, typename CT,
           typename BinaryOperation>
 inline constexpr RetT extend_max_sat(AT a, BT b, CT c,
                                      BinaryOperation second_op);
+```
+
+The math header file provides APIs for bit-field insertion (`bfi_safe`) and bit-field extraction (`bfe_safe`):
+
+```c++
+
+/// Bitfield-insert with boundary checking.
+///
+/// Align and insert a bit field from \param x into \param y . Source \param
+/// bit_start gives the starting bit position for the insertion, and source
+/// \param num_bits gives the bit field length in bits.
+///
+/// \tparam T The type of \param x and \param y , must be an unsigned integer.
+/// \param x The source of the bitfield.
+/// \param y The source where bitfield is inserted.
+/// \param bit_start The position to start insertion.
+/// \param num_bits The number of bits to insertion.
+template <typename T>
+inline std::enable_if_t<std::is_unsigned_v<T>, T>
+bfi_safe(const T x, const T y, const uint32_t bit_start,
+         const uint32_t num_bits)
+
+/// Bitfield-extract with boundary checking.
+///
+/// Extract bit field from \param source and return the zero or sign-extended
+/// result. Source \param bit_start gives the bit field starting bit position,
+/// and source \param num_bits gives the bit field length in bits.
+///
+/// The result is padded with the sign bit of the extracted field. If `num_bits`
+/// is zero, the  result is zero. If the start position is beyond the msb of the
+/// input, the result is filled with the replicated sign bit of the extracted
+/// field.
+///
+/// \tparam T The type of \param source value, must be an integer.
+/// \param source The source value to extracting.
+/// \param bit_start The position to start extracting.
+/// \param num_bits The number of bits to extracting.
+template <typename T>
+inline std::enable_if_t<std::is_integral_v<T>, T>
+bfe_safe(const T source, const uint32_t bit_start, const uint32_t num_bits)
 ```
 
 ## Sample Code
