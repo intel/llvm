@@ -11064,8 +11064,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     for (auto &I :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = I.second;
-      if (TC->getTriple().isSPIROrSPIRV() &&
-          TC->getTriple().getSubArch() == llvm::Triple::NoSubArch) {
+      // TODO: Third party AOT support needs to be added in new offloading
+      // model.
+      if (TC->getTriple().isSPIROrSPIRV() && !TC->getTriple().isNVPTX() &&
+          !TC->getTriple().isAMDGCN()) {
         TargetTriple = TC->getTriple();
         SmallVector<std::string, 8> SYCLDeviceLibs;
         bool IsSPIR = TargetTriple.isSPIROrSPIRV();
