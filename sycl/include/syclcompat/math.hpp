@@ -84,19 +84,22 @@ template <typename ValueT>
 inline auto zero_or_signed_extend(ValueT val, unsigned bit) {
 
   if constexpr (std::is_same_v<ValueT, int32_t>) {
-    assert(bit < 64 && "When extend int32 value, bit must be smaller than 64.");
+    assert(bit < 64 &&
+           "When extending int32 value, bit must be smaller than 64.");
     if constexpr (std::is_signed_v<ValueT>)
       return int64_t(val) << (64 - bit) >> (64 - bit);
     else
       return int64_t(val);
   } else if constexpr (std::is_same_v<ValueT, int16_t>) {
-    assert(bit < 32 && "When extend int16 value, bit must be smaller than 32.");
+    assert(bit < 32 &&
+           "When extending int16 value, bit must be smaller than 32.");
     if constexpr (std::is_signed_v<ValueT>)
       return int32_t(val) << (32 - bit) >> (32 - bit);
     else
       return int32_t(val);
   } else if constexpr (std::is_same_v<ValueT, int8_t>) {
-    assert(bit < 16 && "When extend int8 value, bit must be smaller than 16.");
+    assert(bit < 16 &&
+           "When extending int8 value, bit must be smaller than 16.");
     if constexpr (std::is_signed_v<ValueT>)
       return int16_t(val) << (16 - bit) >> (16 - bit);
     else
@@ -159,25 +162,19 @@ extend_vbinary2(AT a, BT b, RetT c, BinaryOperation binary_op) {
   sycl::vec<int32_t, 2> extend_b = extractAndExtend2(b);
   sycl::vec<int32_t, 2> temp{binary_op(extend_a[0], extend_b[0]),
                              binary_op(extend_a[1], extend_b[1])};
+  using Tint = typename std::conditional<std::is_signed_v<RetT>, int16_t,
+                                         uint16_t>::type;
+
   if constexpr (NeedSat) {
     int32_t min_val = 0, max_val = 0;
-    if constexpr (std::is_signed_v<RetT>) {
-      min_val = std::numeric_limits<int16_t>::min();
-      max_val = std::numeric_limits<int16_t>::max();
-    } else {
-      min_val = std::numeric_limits<uint16_t>::min();
-      max_val = std::numeric_limits<uint16_t>::max();
-    }
+    min_val = std::numeric_limits<Tint>::min();
+    max_val = std::numeric_limits<Tint>::max();
     temp = detail::clamp(temp, {min_val, min_val}, {max_val, max_val});
   }
   if constexpr (NeedAdd) {
     return temp[0] + temp[1] + c;
   }
-  if constexpr (std::is_signed_v<RetT>) {
-    return sycl::vec<int16_t, 2>{temp[0], temp[1]}.as<sycl::vec<RetT, 1>>();
-  } else {
-    return sycl::vec<uint16_t, 2>{temp[0], temp[1]}.as<sycl::vec<RetT, 1>>();
-  }
+  return sycl::vec<Tint, 2>{temp[0], temp[1]}.template as<sycl::vec<RetT, 1>>();
 }
 
 template <typename ValueT> inline bool isnan(const ValueT a) {
