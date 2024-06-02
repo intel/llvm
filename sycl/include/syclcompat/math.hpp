@@ -196,7 +196,7 @@ bfe_safe(const T source, const uint32_t bit_start, const uint32_t num_bits) {
   if constexpr (std::is_signed_v<T>) {
     //FIXME(jtodd): As above, catching a case whose result is undefined
     //and likely losing perf.
-    const T mask = len >= bit_width ? T{-1} : (T{1} << len) - 1;
+    const T mask = len >= bit_width ? T{-1} : static_cast<T>((T{1} << len) - 1);
 
     // Find the sign-bit, the result is padded with the sign bit of the
     // extracted field.
