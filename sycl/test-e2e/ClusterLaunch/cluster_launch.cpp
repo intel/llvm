@@ -25,7 +25,7 @@ int main() {
                            asm volatile("\n\t"
                                         "mov.u32 %0, %%cluster_nctaid.x; \n\t"
                                         "mov.u32 %1, %%cluster_nctaid.y; \n\t"
-                                        "mov.u32 %1, %%cluster_nctaid.y; \n\t"
+                                        "mov.u32 %2, %%cluster_nctaid.z; \n\t"
                                         : "=r"(cluster_dim_z),
                                           "=r"(cluster_dim_y),
                                           "=r"(cluster_dim_x));
