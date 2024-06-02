@@ -911,6 +911,13 @@ class device_ext : public sycl::device {
 } // syclcompat
 ```
 
+Free functions are provided for querying major and minor version directly from a `sycl::device`, equivalent to the methods of `device_ext` described above:
+
+```c++
+static int get_major_version(const sycl::device &dev);
+static int get_minor_version(const sycl::device &dev);
+```
+
 #### Multiple devices
 
 SYCLcompat allows you to manage multiple devices through
