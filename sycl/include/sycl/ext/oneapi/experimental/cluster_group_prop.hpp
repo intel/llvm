@@ -38,21 +38,21 @@ struct is_property_key_of<cluster_size_key<2>, T> : std::true_type {};
 template <typename T>
 struct is_property_key_of<cluster_size_key<3>, T> : std::true_type {};
 
-template <typename V>
-struct is_property_value<V, std::enable_if_t<(sizeof(V) > 0)>>
-    : is_property_key<V> {};
-template <typename V, typename O>
-struct is_property_value_of<V, O, std::enable_if_t<(sizeof(V) > 0)>>
-    : is_property_key_of<V, O> {};
+template<> struct is_property_value<cluster_size_key<1>> : is_property_key<cluster_size_key<1>> {};
+template<> struct is_property_value<cluster_size_key<2>> : is_property_key<cluster_size_key<2>> {};
+template<> struct is_property_value<cluster_size_key<3>> : is_property_key<cluster_size_key<3>> {};
 
-template <typename PropertiesT> constexpr bool hasClusterSizeProperty() {
-  return PropertiesT::template has_property<
-             sycl::ext::oneapi::experimental::cluster_size_key<1>>() ||
-         PropertiesT::template has_property<
-             sycl::ext::oneapi::experimental::cluster_size_key<2>>() ||
-         PropertiesT::template has_property<
-             sycl::ext::oneapi::experimental::cluster_size_key<3>>();
-}
+template <typename O>
+struct is_property_value_of<cluster_size_key<1>, O>
+    : is_property_key_of<cluster_size_key<1>, O> {};
+
+template <typename O>
+struct is_property_value_of<cluster_size_key<2>, O>
+    : is_property_key_of<cluster_size_key<2>, O> {};
+
+template <typename O>
+struct is_property_value_of<cluster_size_key<3>, O>
+    : is_property_key_of<cluster_size_key<3>, O> {};
 
 template <typename PropertiesT, int Dim> constexpr bool hasClusterDim() {
   return PropertiesT::template has_property<

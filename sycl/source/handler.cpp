@@ -286,9 +286,7 @@ event handler::finalize() {
               NewEvent->setHostEnqueueTime();
             [&](auto... Args) {
               if (MImpl->MKernelUsesClusterLaunch) {
-                // Just a temporary plug, ask what is the de-facto method for
-                // handling unsupported backend in the runtime
-                return PI_ERROR_INVALID_VALUE;
+                return PI_ERROR_UNSUPPORTED_FEATURE;
               }
               if (MImpl->MKernelIsCooperative) {
                 MQueue->getPlugin()

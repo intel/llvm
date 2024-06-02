@@ -21,7 +21,7 @@ int main() {
                          cluster_launch_property, [=](sycl::nd_item<3> it) {
                            uint32_t cluster_dim_x, cluster_dim_y, cluster_dim_z;
 // Temporary solution till cluster group class is implemented
-#if defined(__SYCL_DEVICE_ONLY__) && (__SYCL_CUDA_ARCH__)
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_CUDA_ARCH__) && (__SYCL_CUDA_ARCH__ >= 900)
                            asm volatile("\n\t"
                                         "mov.u32 %0, %%cluster_nctaid.x; \n\t"
                                         "mov.u32 %1, %%cluster_nctaid.y; \n\t"
