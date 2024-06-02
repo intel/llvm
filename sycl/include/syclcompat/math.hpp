@@ -82,25 +82,29 @@ public:
 /// extend for signed int.
 template <typename ValueT>
 inline auto zero_or_signed_extend(ValueT val, unsigned bit) {
-  if constexpr (std::is_signed_v<ValueT>) {
-    if constexpr (std::is_same_v<ValueT, int32_t>) {
-      assert(bit < 64 &&
-             "When extend int32 value, bit must be smaller than 64.");
+
+  if constexpr (std::is_same_v<ValueT, int32_t>) {
+    assert(bit < 64 && "When extend int32 value, bit must be smaller than 64.");
+    if constexpr (std::is_signed_v<ValueT>)
       return int64_t(val) << (64 - bit) >> (64 - bit);
-    } else if constexpr (std::is_same_v<ValueT, int16_t>) {
-      assert(bit < 32 &&
-             "When extend int16 value, bit must be smaller than 32.");
+    else
+      return int64_t(val);
+  } else if constexpr (std::is_same_v<ValueT, int16_t>) {
+    assert(bit < 32 && "When extend int16 value, bit must be smaller than 32.");
+    if constexpr (std::is_signed_v<ValueT>)
       return int32_t(val) << (32 - bit) >> (32 - bit);
-    } else if constexpr (std::is_same_v<ValueT, int8_t>) {
-      assert(bit < 16 &&
-             "When extend int8 value, bit must be smaller than 16.");
+    else
+      return int32_t(val);
+  } else if constexpr (std::is_same_v<ValueT, int8_t>) {
+    assert(bit < 16 && "When extend int8 value, bit must be smaller than 16.");
+    if constexpr (std::is_signed_v<ValueT>)
       return int16_t(val) << (16 - bit) >> (16 - bit);
-    } else {
-      assert(bit < 64 && "Cannot extend int64 value.");
-      return val;
-    }
-  } else
+    else
+      return int16_t(val);
+  } else {
+    assert(bit < 64 && "Cannot extend int64 value.");
     return val;
+  }
 }
 
 template <typename RetT, bool needSat, typename AT, typename BT,
