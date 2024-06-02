@@ -231,8 +231,11 @@ void SYCLMemObjT::detachMemoryObject(
       (MInteropContext && !MInteropContext->isOwnedByRuntime());
 
   if (MRecord && MRecord->MCurContext->isOwnedByRuntime() &&
-      !InteropObjectsUsed && (!MHostPtrProvided || MIsInternal))
+      !InteropObjectsUsed && (!MHostPtrProvided || MIsInternal)) {
+    std::cout << " => MemObj: <SKIP>  MCurContext: " << std::hex
+              << MRecord->MCurContext << std::endl;
     Scheduler::getInstance().deferMemObjRelease(Self, MRecord->MCurContext);
+  }
 }
 
 void SYCLMemObjT::handleWriteAccessorCreation() {
