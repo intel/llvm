@@ -10648,29 +10648,32 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
     addArgs(PostLinkArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
 }
 
-// Add any sycl-post-link options that rely on a specific Triple.
-static void
-getTripleBasedSYCLPostLinkOpts(const ToolChain &TC, const JobAction &JA,
-                               const llvm::opt::ArgList &TCArgs,
-                               llvm::Triple Triple, ArgStringList &PostLinkArgs,
-                               bool SpecConsts, types::ID OutputType) {
+// Add any sycl-post-link options that rely on a specific Triple in addition
+// to user supplied options.
+// In case of new offloading model, such sycl-post-link options are partly
+// computed here (based on user supplied options) and then updated inside the
+// clang-linker-wrapper based on the target triple of device image being
+// compiled.
+static void getTripleBasedSYCLPostLinkOpts(
+    const ToolChain &TC, const JobAction &JA, const llvm::opt::ArgList &TCArgs,
+    ArgStringList &PostLinkArgs, llvm::Triple Triple = llvm::Triple(""),
+    bool SpecConsts = false, types::ID OutputType = types::TY_Nothing) {
   bool NewOffloadDriver = TC.getDriver().getUseNewOffloadingDriver();
-  // Note: Do not use Triple when NewOffloadDriver is 'true'.
   if (!NewOffloadDriver && (OutputType == types::TY_LLVM_BC)) {
     // single file output requested - this means only perform necessary IR
     // transformations (like specialization constant intrinsic lowering) and
     // output LLVMIR
     addArgs(PostLinkArgs, TCArgs, {"-ir-output-only"});
   }
-  // specialization constants processing is mandatory
-  if (SpecConsts)
-    addArgs(PostLinkArgs, TCArgs, {"-spec-const=native"});
-  else
-    addArgs(PostLinkArgs, TCArgs, {"-spec-const=emulation"});
-
+  if (!NewOffloadDriver) {
+    if (SpecConsts)
+      addArgs(PostLinkArgs, TCArgs, {"-spec-const=native"});
+    else
+      addArgs(PostLinkArgs, TCArgs, {"-spec-const=emulation"});
+  }
   // See if device code splitting is requested.  The logic here works along side
-  // the behavior in setOtherSYCLPostLinkOpts, where the option is added based
-  // on the user setting of-fsycl-device-code-split.
+  // the behavior in getNonTripleBasedSYCLPostLinkOpts, where the option is
+  // added based on the user setting of-fsycl-device-code-split.
   if (!TCArgs.hasArg(options::OPT_fsycl_device_code_split_EQ) &&
       (NewOffloadDriver || !(Triple.getArchName() == "spir64_fpga")))
     addArgs(PostLinkArgs, TCArgs, {"-split=auto"});
@@ -10692,7 +10695,7 @@ getTripleBasedSYCLPostLinkOpts(const ToolChain &TC, const JobAction &JA,
   if ((!NewOffloadDriver && (Triple.isNVPTX() || Triple.isAMDGCN())) ||
       isSYCLNativeCPU(TC))
     addArgs(PostLinkArgs, TCArgs, {"-emit-program-metadata"});
-  if (OutputType != types::TY_LLVM_BC) {
+  if (!NewOffloadDriver && OutputType != types::TY_LLVM_BC) {
     assert(OutputType == types::TY_Tempfiletable);
     bool SplitEsimdByDefault = !NewOffloadDriver && Triple.isSPIROrSPIRV();
     bool SplitEsimd = TCArgs.hasFlag(
@@ -10737,7 +10740,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
 
   llvm::Triple T = getToolChain().getTriple();
   getNonTripleBasedSYCLPostLinkOpts(getToolChain(), JA, TCArgs, CmdArgs);
-  getTripleBasedSYCLPostLinkOpts(getToolChain(), JA, TCArgs, T, CmdArgs,
+  getTripleBasedSYCLPostLinkOpts(getToolChain(), JA, TCArgs, CmdArgs, T,
                                  SYCLPostLink->getRTSetsSpecConstants(),
                                  SYCLPostLink->getTrueType());
 
@@ -11050,8 +11053,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     for (auto &I :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = I.second;
-      if (TC->getTriple().isSPIROrSPIRV() &&
-          TC->getTriple().getSubArch() == llvm::Triple::NoSubArch) {
+      // TODO: Third party AOT support needs to be added in new offloading
+      // model.
+      if (TC->getTriple().isSPIROrSPIRV() && !TC->getTriple().isNVPTX() &&
+          !TC->getTriple().isAMDGCN()) {
         TargetTriple = TC->getTriple();
         SmallVector<std::string, 8> SYCLDeviceLibs;
         bool IsSPIR = TargetTriple.isSPIROrSPIRV();
@@ -11115,17 +11120,11 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         appendOption(PostLinkOptString, A);
     }
     ArgStringList PostLinkArgs;
-    bool IsSYCLNativeCPU = driver::isSYCLNativeCPU(Args);
-    types::ID OutputType = TargetTriple.isSPIROrSPIRV() || IsSYCLNativeCPU
-                               ? types::TY_Tempfiletable
-                               : types::TY_LLVM_BC;
-    bool SpecConsts = TargetTriple.isSPIROrSPIRV();
     getNonTripleBasedSYCLPostLinkOpts(getToolChain(), JA, Args, PostLinkArgs);
     // Some options like -spec-consts=* depend on target triple as well as some
     // user options. So, these options are partly computed here and then
     // updated inside the clang-linker-wrapper.
-    getTripleBasedSYCLPostLinkOpts(getToolChain(), JA, Args, TargetTriple,
-                                   PostLinkArgs, SpecConsts, OutputType);
+    getTripleBasedSYCLPostLinkOpts(getToolChain(), JA, Args, PostLinkArgs);
     for (const auto &A : PostLinkArgs)
       appendOption(PostLinkOptString, A);
     if (!PostLinkOptString.empty())
