@@ -143,7 +143,7 @@ void parallel_for(handler &CGH,
   ext::oneapi::experimental::detail::LaunchConfigAccess<range<Dimensions>,
                                                         Properties>
       ConfigAccess(Config);
-  CGH.parallel_for<KernelName>(ConfigAccess.getRange(),
+  CGH.parallel_for<KernelName>(ConfigAccess.getRange(), ConfigAccess.getProperties(),
                                std::forward<ReductionsT>(Reductions)...,
                                KernelObj);
 }
@@ -218,7 +218,7 @@ void nd_launch(handler &CGH,
   ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
                                                         Properties>
       ConfigAccess(Config);
-  CGH.parallel_for<KernelName>(ConfigAccess.getRange(),
+  CGH.parallel_for<KernelName>(ConfigAccess.getRange(), ConfigAccess.getProperties(),
                                std::forward<ReductionsT>(Reductions)...,
                                KernelObj);
 }
@@ -255,7 +255,7 @@ void nd_launch(handler &CGH,
                                                         Properties>
       ConfigAccess(Config);
   CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
-  CGH.parallel_for(ConfigAccess.getRange(), KernelObj);
+  CGH.parallel_for(ConfigAccess.getRange(), ConfigAccess.getProperties(), KernelObj);
 }
 
 template <int Dimensions, typename Properties, typename... ArgsT>
