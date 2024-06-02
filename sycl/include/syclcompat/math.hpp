@@ -137,9 +137,10 @@ inline bool isnan(const sycl::ext::oneapi::bfloat16 a) {
 template <typename T>
 inline std::enable_if_t<std::is_unsigned_v<T>, T>
 bfe(const T source, const uint32_t bit_start, const uint32_t num_bits) {
-  //FIXME(jtodd): This ternary was added to catch a case which may be
-  //undefined anyway. Consider that we are losing perf here.
-  const T mask = num_bits >= CHAR_BIT * sizeof(T) ? T{-1} : ((T{1} << num_bits) - 1);
+  // FIXME(jtodd): This ternary was added to catch a case which may be
+  // undefined anyway. Consider that we are losing perf here.
+  const T mask =
+      num_bits >= CHAR_BIT * sizeof(T) ? T{-1} : ((T{1} << num_bits) - 1);
   return (source >> bit_start) & mask;
 }
 
@@ -194,8 +195,8 @@ bfe_safe(const T source, const uint32_t bit_start, const uint32_t num_bits) {
   const uint32_t pos = std::min(bit_start, bit_width);
   const uint32_t len = std::min(pos + num_bits, bit_width) - pos;
   if constexpr (std::is_signed_v<T>) {
-    //FIXME(jtodd): As above, catching a case whose result is undefined
-    //and likely losing perf.
+    // FIXME(jtodd): As above, catching a case whose result is undefined
+    // and likely losing perf.
     const T mask = len >= bit_width ? T{-1} : static_cast<T>((T{1} << len) - 1);
 
     // Find the sign-bit, the result is padded with the sign bit of the
@@ -224,7 +225,8 @@ bfi(const T x, const T y, const uint32_t bit_start, const uint32_t num_bits) {
 
   // if bit_start > bit_width || len == 0, should return y.
   const T ignore_bfi = static_cast<T>(bit_start > bit_width || num_bits == 0);
-  T extract_bitfield_mask = (static_cast<T>(~T{0}) >> (bit_width - num_bits)) << bit_start;
+  T extract_bitfield_mask = (static_cast<T>(~T{0}) >> (bit_width - num_bits))
+                            << bit_start;
   T clean_bitfield_mask = ~extract_bitfield_mask;
   return (y & (-ignore_bfi | clean_bitfield_mask)) |
          (~-ignore_bfi & ((x << bit_start) & extract_bitfield_mask));
