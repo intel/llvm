@@ -521,6 +521,12 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
     return;
 
   std::cout << "cleanupDeferredMemObjects() with objects" << std::endl;
+  // CP
+  for (auto pair : MDeferredMemObjRelease) {
+    std::cout << " => MemObj: " << "<SKIP>" // std::hex << (pair.first).get()
+              << " Context (impl/pi): " << std::hex << (pair.second).get()
+              << " / " << (pair.second).get()->getHandleRef() << std::endl;
+  }
 
   if (Blocking == BlockingT::BLOCKING) {
     std::vector<std::pair<std::shared_ptr<SYCLMemObjI>, ContextImplPtr>>
