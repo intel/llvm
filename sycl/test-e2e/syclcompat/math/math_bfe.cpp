@@ -49,14 +49,23 @@ bfe_slow(const T source, const uint32_t bit_start, const uint32_t num_bits) {
   const uint32_t msb = CHAR_BIT * sizeof(T) - 1;
   const uint32_t pos = bit_start;
   const uint32_t len = num_bits;
-  uint32_t sbit;
 
+  // If the requested bit field length is zero, the result is zero.
+  if (num_bits == 0)
+    return 0ULL;
 
+  T sbit;
   std::bitset<CHAR_BIT * sizeof(T)> source_bitset(source);
   if (std::is_unsigned_v<T> || len == 0)
     sbit = 0;
   else
     sbit = source_bitset[std::min(pos + len - 1, msb)];
+
+  // If the start position is beyond the msb of the input, the destination d is
+  // filled with the replicated sign bit of the extracted field.
+  // -1 is 1111...
+  if (bit_start > msb)
+    return -sbit;
 
   std::bitset<CHAR_BIT * sizeof(T)> result_bitset;
   for (uint8_t i = 0; i <= msb; ++i)
