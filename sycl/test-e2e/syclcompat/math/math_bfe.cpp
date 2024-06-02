@@ -47,9 +47,11 @@ template <typename T>
 inline std::enable_if_t<std::is_integral_v<T>, T>
 bfe_slow(const T source, const uint32_t bit_start, const uint32_t num_bits) {
   const uint32_t msb = CHAR_BIT * sizeof(T) - 1;
-  const uint32_t pos = bit_start & 0xff;
-  const uint32_t len = num_bits & 0xff;
+  const uint32_t pos = bit_start;
+  const uint32_t len = num_bits;
   uint32_t sbit;
+
+
   std::bitset<CHAR_BIT * sizeof(T)> source_bitset(source);
   if (std::is_unsigned_v<T> || len == 0)
     sbit = 0;
