@@ -232,7 +232,7 @@ void SYCLMemObjT::detachMemoryObject(
 
   if (MRecord && MRecord->MCurContext->isOwnedByRuntime() &&
       !InteropObjectsUsed && (!MHostPtrProvided || MIsInternal))
-    Scheduler::getInstance().deferMemObjRelease(Self);
+    Scheduler::getInstance().deferMemObjRelease(Self, MRecord->MCurContext);
 }
 
 void SYCLMemObjT::handleWriteAccessorCreation() {

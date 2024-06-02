@@ -501,11 +501,12 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
   cleanupCommands(ToCleanUp);
 }
 
-void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
+void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj,
+                                   ContextImplPtr TargetContext) {
   std::cout << "Scheduler::deferMemObjRelease" << std::endl;
   {
     std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
-    MDeferredMemObjRelease.push_back(MemObj);
+    MDeferredMemObjRelease.push_back({MemObj, TargetContext});
   }
   cleanupDeferredMemObjects(BlockingT::NON_BLOCKING);
 }
@@ -522,7 +523,8 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
   std::cout << "cleanupDeferredMemObjects() with objects" << std::endl;
 
   if (Blocking == BlockingT::BLOCKING) {
-    std::vector<std::shared_ptr<SYCLMemObjI>> TempStorage;
+    std::vector<std::pair<std::shared_ptr<SYCLMemObjI>, ContextImplPtr>>
+        TempStorage;
     {
       std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
       MDeferredMemObjRelease.swap(TempStorage);
@@ -531,7 +533,8 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
     // deleted
   }
 
-  std::vector<std::shared_ptr<SYCLMemObjI>> ObjsReadyToRelease;
+  std::vector<std::pair<std::shared_ptr<SYCLMemObjI>, ContextImplPtr>>
+      PairsReadyToRelease;
   {
     // Lock is needed for checkLeavesCompletion - if walks through Record leaves
     ReadLockT Lock = ReadLockT(MGraphLock, std::try_to_lock);
@@ -539,30 +542,32 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
       // Not expected that Blocking == true will be used in parallel with
       // adding MemObj to storage, no such scenario.
       std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
-      auto MemObjIt = MDeferredMemObjRelease.begin();
-      while (MemObjIt != MDeferredMemObjRelease.end()) {
-        MemObjRecord *Record = MGraphBuilder.getMemObjRecord((*MemObjIt).get());
+      auto PairIt = MDeferredMemObjRelease.begin();
+      while (PairIt != MDeferredMemObjRelease.end()) {
+        MemObjRecord *Record =
+            MGraphBuilder.getMemObjRecord(((*PairIt).first).get());
         if (!checkLeavesCompletion(Record)) {
-          MemObjIt++;
+          PairIt++;
           continue;
         }
-        ObjsReadyToRelease.push_back(*MemObjIt);
-        MemObjIt = MDeferredMemObjRelease.erase(MemObjIt);
+        PairsReadyToRelease.push_back(*PairIt);
+        PairIt = MDeferredMemObjRelease.erase(PairIt);
       }
     }
   }
-  auto ReleaseCandidateIt = ObjsReadyToRelease.begin();
-  while (ReleaseCandidateIt != ObjsReadyToRelease.end()) {
-    if (!removeMemoryObject(ReleaseCandidateIt->get(), false))
+  auto ReleaseCandidateIt = PairsReadyToRelease.begin();
+  while (ReleaseCandidateIt != PairsReadyToRelease.end()) {
+    if (!removeMemoryObject(((*ReleaseCandidateIt).first).get(),
+                            false)) // ReleaseCandidateIt->get(), false))
       break;
-    ReleaseCandidateIt = ObjsReadyToRelease.erase(ReleaseCandidateIt);
+    ReleaseCandidateIt = PairsReadyToRelease.erase(ReleaseCandidateIt);
   }
-  if (!ObjsReadyToRelease.empty()) {
+  if (!PairsReadyToRelease.empty()) {
     std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
     MDeferredMemObjRelease.insert(
         MDeferredMemObjRelease.end(),
-        std::make_move_iterator(ObjsReadyToRelease.begin()),
-        std::make_move_iterator(ObjsReadyToRelease.end()));
+        std::make_move_iterator(PairsReadyToRelease.begin()),
+        std::make_move_iterator(PairsReadyToRelease.end()));
   }
 }
 
