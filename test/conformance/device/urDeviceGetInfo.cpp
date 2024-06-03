@@ -3,6 +3,7 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include <array>
 #include <map>
 #include <uur/fixtures.h>
 
@@ -242,6 +243,12 @@ INSTANTIATE_TEST_SUITE_P(
         return ss.str();
     });
 
+struct urDeviceGetInfoSingleTest : uur::urAllDevicesTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urAllDevicesTest::SetUp());
+    }
+};
+
 bool doesReturnArray(ur_device_info_t info_type) {
     if (info_type == UR_DEVICE_INFO_SUPPORTED_PARTITIONS ||
         info_type == UR_DEVICE_INFO_PARTITION_TYPE) {
@@ -284,7 +291,7 @@ TEST_P(urDeviceGetInfoTest, Success) {
     }
 }
 
-TEST_P(urDeviceGetInfoTest, InvalidNullHandleDevice) {
+TEST_F(urDeviceGetInfoSingleTest, InvalidNullHandleDevice) {
     ur_device_type_t device_type;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urDeviceGetInfo(nullptr, UR_DEVICE_INFO_TYPE,
@@ -292,7 +299,7 @@ TEST_P(urDeviceGetInfoTest, InvalidNullHandleDevice) {
                                      nullptr));
 }
 
-TEST_P(urDeviceGetInfoTest, InvalidEnumerationInfoType) {
+TEST_F(urDeviceGetInfoSingleTest, InvalidEnumerationInfoType) {
     for (auto device : devices) {
         ur_device_type_t device_type;
         ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
@@ -302,7 +309,7 @@ TEST_P(urDeviceGetInfoTest, InvalidEnumerationInfoType) {
     }
 }
 
-TEST_P(urDeviceGetInfoTest, InvalidSizePropSize) {
+TEST_F(urDeviceGetInfoSingleTest, InvalidSizePropSize) {
     for (auto device : devices) {
         ur_device_type_t device_type;
         ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
@@ -311,7 +318,7 @@ TEST_P(urDeviceGetInfoTest, InvalidSizePropSize) {
     }
 }
 
-TEST_P(urDeviceGetInfoTest, InvalidSizePropSizeSmall) {
+TEST_F(urDeviceGetInfoSingleTest, InvalidSizePropSizeSmall) {
     for (auto device : devices) {
         ur_device_type_t device_type;
         ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
@@ -321,7 +328,7 @@ TEST_P(urDeviceGetInfoTest, InvalidSizePropSizeSmall) {
     }
 }
 
-TEST_P(urDeviceGetInfoTest, InvalidNullPointerPropValue) {
+TEST_F(urDeviceGetInfoSingleTest, InvalidNullPointerPropValue) {
     for (auto device : devices) {
         ur_device_type_t device_type;
         ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
@@ -331,10 +338,30 @@ TEST_P(urDeviceGetInfoTest, InvalidNullPointerPropValue) {
     }
 }
 
-TEST_P(urDeviceGetInfoTest, InvalidNullPointerPropSizeRet) {
+TEST_F(urDeviceGetInfoSingleTest, InvalidNullPointerPropSizeRet) {
     for (auto device : devices) {
         ASSERT_EQ_RESULT(
             UR_RESULT_ERROR_INVALID_NULL_POINTER,
             urDeviceGetInfo(device, UR_DEVICE_INFO_TYPE, 0, nullptr, nullptr));
+    }
+}
+
+TEST_F(urDeviceGetInfoSingleTest, MaxWorkGroupSizeIsNonzero) {
+    for (auto device : devices) {
+        size_t max_global_size;
+
+        ASSERT_SUCCESS(
+            urDeviceGetInfo(device, UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
+                            sizeof(size_t), &max_global_size, nullptr));
+        ASSERT_NE(max_global_size, 0);
+
+        std::array<size_t, 3> max_work_group_sizes;
+        ASSERT_SUCCESS(urDeviceGetInfo(device,
+                                       UR_DEVICE_INFO_MAX_WORK_GROUPS_3D,
+                                       sizeof(max_work_group_sizes),
+                                       max_work_group_sizes.data(), nullptr));
+        for (size_t i = 0; i < 3; i++) {
+            ASSERT_NE(max_work_group_sizes[i], 0);
+        }
     }
 }
