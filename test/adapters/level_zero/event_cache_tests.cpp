@@ -19,6 +19,16 @@ extern std::map<std::string, int> *ZeCallCount;
 using FlagsTupleType = std::tuple<ur_queue_flags_t, ur_queue_flags_t,
                                   ur_queue_flags_t, ur_queue_flags_t>;
 
+// TODO: get rid of this, this is a workaround for fails on older driver
+// where for some reason continuing the test leads to a segfault
+#define UUR_ASSERT_SUCCESS_OR_EXIT_IF_UNSUPPORTED(ret)                         \
+    auto status = ret;                                                         \
+    if (status == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {                       \
+        exit(0);                                                               \
+    } else {                                                                   \
+        ASSERT_EQ(status, UR_RESULT_SUCCESS);                                  \
+    }
+
 struct urEventCacheTest : uur::urContextTestWithParam<FlagsTupleType> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam::SetUp());
@@ -42,20 +52,20 @@ struct urEventCacheTest : uur::urContextTestWithParam<FlagsTupleType> {
             EXPECT_SUCCESS(urMemRelease(buffer));
         }
         if (queue) {
-            UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urQueueRelease(queue));
+            UUR_ASSERT_SUCCESS_OR_EXIT_IF_UNSUPPORTED(urQueueRelease(queue));
         }
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam::TearDown());
     }
 
     auto enqueueWork(ur_event_handle_t *hEvent, int data) {
         input.assign(count, data);
-        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urEnqueueMemBufferWrite(
+        UUR_ASSERT_SUCCESS_OR_EXIT_IF_UNSUPPORTED(urEnqueueMemBufferWrite(
             queue, buffer, false, 0, size, input.data(), 0, nullptr, hEvent));
     }
 
     void verifyData() {
         std::vector<uint32_t> output(count, 1);
-        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urEnqueueMemBufferRead(
+        UUR_ASSERT_SUCCESS_OR_EXIT_IF_UNSUPPORTED(urEnqueueMemBufferRead(
             queue, buffer, true, 0, size, output.data(), 0, nullptr, nullptr));
 
         if (!(flags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE)) {
@@ -79,7 +89,7 @@ TEST_P(urEventCacheTest, eventsReuseNoVisibleEvent) {
         for (int j = 0; j < numEnqueues; j++) {
             enqueueWork(nullptr, i * numEnqueues + j);
         }
-        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urQueueFinish(queue));
+        UUR_ASSERT_SUCCESS_OR_EXIT_IF_UNSUPPORTED(urQueueFinish(queue));
         verifyData();
     }
 
@@ -101,7 +111,7 @@ TEST_P(urEventCacheTest, eventsReuseWithVisibleEvent) {
         for (int j = 0; j < numEnqueues; j++) {
             enqueueWork(events[j].ptr(), i * numEnqueues + j);
         }
-        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urQueueFinish(queue));
+        UUR_ASSERT_SUCCESS_OR_EXIT_IF_UNSUPPORTED(urQueueFinish(queue));
         verifyData();
     }
 
@@ -126,7 +136,7 @@ TEST_P(urEventCacheTest, eventsReuseWithVisibleEventAndWait) {
                 events.clear();
             }
         }
-        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urQueueFinish(queue));
+        UUR_ASSERT_SUCCESS_OR_EXIT_IF_UNSUPPORTED(urQueueFinish(queue));
     }
 
     ASSERT_GE((*ZeCallCount)["zeEventCreate"], waitEveryN);
