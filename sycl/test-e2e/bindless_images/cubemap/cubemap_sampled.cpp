@@ -44,9 +44,9 @@ int main() {
   }
 
   // Extension: image descriptor - Cubemap.
-  syclexp::image_descriptor desc(
-      {width, height}, sycl::image_channel_order::rgba,
-      sycl::image_channel_type::fp32, syclexp::image_type::cubemap, 1, 6);
+  syclexp::image_descriptor desc({width, height}, 4,
+                                 sycl::image_channel_type::fp32,
+                                 syclexp::image_type::cubemap, 1, 6);
 
   syclexp::bindless_image_sampler samp(
       sycl::addressing_mode::clamp_to_edge,

@@ -1174,6 +1174,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   }
   bool HasSYCLTargetsOption = SYCLTargets;
 
+  llvm::StringMap<llvm::DenseSet<StringRef>> DerivedArchs;
   llvm::StringMap<StringRef> FoundNormalizedTriples;
   llvm::SmallVector<llvm::Triple, 4> UniqueSYCLTriplesVec;
   if (HasSYCLTargetsOption) {
@@ -1192,24 +1193,28 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
               << SYCLForceTarget->getAsString(C.getInputArgs());
 
         for (StringRef Val : SYCLTargetsValues->getValues()) {
+          StringRef Arch;
           StringRef UserTargetName(Val);
           if (auto Device = gen::isGPUTarget<gen::IntelGPU>(Val)) {
             if (Device->empty()) {
               Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
               continue;
             }
+            Arch = Device->data();
             UserTargetName = "spir64_gen";
           } else if (auto Device = gen::isGPUTarget<gen::NvidiaGPU>(Val)) {
             if (Device->empty()) {
               Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
               continue;
             }
+            Arch = Device->data();
             UserTargetName = "nvptx64-nvidia-cuda";
           } else if (auto Device = gen::isGPUTarget<gen::AmdGPU>(Val)) {
             if (Device->empty()) {
               Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
               continue;
             }
+            Arch = Device->data();
             UserTargetName = "amdgcn-amd-amdhsa";
           } else if (Val == "native_cpu") {
             const ToolChain *HostTC =
@@ -1236,7 +1241,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           // Store the current triple so that we can check for duplicates in
           // the following iterations.
           FoundNormalizedTriples[NormalizedName] = Val;
-          UniqueSYCLTriplesVec.push_back(MakeSYCLDeviceTriple(UserTargetName));
+          llvm::Triple DeviceTriple(MakeSYCLDeviceTriple(UserTargetName));
+          UniqueSYCLTriplesVec.push_back(DeviceTriple);
+          if (!Arch.empty())
+            DerivedArchs[DeviceTriple.getTriple()].insert(Arch);
         }
         addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
       } else
@@ -1269,6 +1277,20 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       }
     }
   }
+  // -fsycl-fp64-conv-emu is valid only for AOT compilation with an Intel GPU
+  // target. For other scenarios, we emit a warning message.
+  if (C.getInputArgs().hasArg(options::OPT_fsycl_fp64_conv_emu)) {
+    bool HasIntelGPUAOTTarget = false;
+    for (auto &TT : UniqueSYCLTriplesVec) {
+      if (TT.isSPIRAOT() && TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+        HasIntelGPUAOTTarget = true;
+        break;
+      }
+    }
+    if (!HasIntelGPUAOTTarget)
+      Diag(diag::warn_unsupported_fsycl_fp64_conv_emu_use);
+  }
+
   // We'll need to use the SYCL and host triples as the key into
   // getOffloadingDeviceToolChain, because the device toolchains we're
   // going to create will depend on both.
@@ -1277,6 +1299,8 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     auto SYCLTC = &getOffloadingDeviceToolChain(C.getInputArgs(), TT, *HostTC,
                                                 Action::OFK_SYCL);
     C.addOffloadDeviceToolChain(SYCLTC, Action::OFK_SYCL);
+    if (DerivedArchs.contains(TT.getTriple()))
+      KnownArchs[SYCLTC] = DerivedArchs[TT.getTriple()];
   }
 
   //

@@ -3,32 +3,8 @@
 // are identical to the ones used in KernelCompiler/Kernels/kernels.spv
 
 #include "../graph_common.hpp"
-#include <fstream>
-
-sycl::kernel_bundle<sycl::bundle_state::executable>
-loadKernelsFromFile(sycl::queue &Q, std::string FileName) {
-
-  // Read the SPIR-V module from disk.
-  std::ifstream SpvStream(FileName, std::ios::binary);
-  SpvStream.seekg(0, std::ios::end);
-  size_t sz = SpvStream.tellg();
-  SpvStream.seekg(0);
-  std::vector<std::byte> Spv(sz);
-  SpvStream.read(reinterpret_cast<char *>(Spv.data()), sz);
-
-  // Create a kernel bundle from the binary SPIR-V.
-  sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> KernelBundleSrc =
-      exp_ext::create_kernel_bundle_from_source(
-          Q.get_context(), exp_ext::source_language::spirv, Spv);
-
-  // Build the SPIR-V module for our device.
-  sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundleExe =
-      exp_ext::build(KernelBundleSrc);
-  return KernelBundleExe;
-}
 
 int main(int, char **argv) {
-
   const sycl::device Dev{sycl::default_selector_v};
   const sycl::context Ctx{Dev};
 
