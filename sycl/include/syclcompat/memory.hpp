@@ -531,7 +531,7 @@ static inline void *malloc(size_t &pitch, size_t x, size_t y,
   return detail::malloc(pitch, x, y, 1, q);
 }
 
-/// free
+/// Wait on the queue \p q and free the memory \p ptr.
 /// \param ptr Point to free.
 /// \param q Queue to execute the free task.
 /// \returns no return value.
@@ -543,11 +543,11 @@ static inline void free(void *ptr, sycl::queue q = get_default_queue()) {
 }
 
 /// Free the device memory pointed by a batch of pointers in \p pointers which
-/// are related to \p q after \p events completed.
+/// are related to \p q.
 ///
 /// \param pointers The pointers point to the device memory requested to be
-/// freed. \param q The sycl::queue the
-/// memory relates to.
+/// freed.
+/// \param q The sycl::queue the memory relates to.
 // Can't be static due to the friend declaration in the memory header.
 inline void free_async(const std::vector<void *> &pointers,
                        sycl::queue q = get_default_queue()) {
