@@ -11,6 +11,8 @@
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
 
+#include <sycl/detail/iostream_proxy.hpp>
+
 #include <atomic>
 #include <cstring>
 #include <memory>
