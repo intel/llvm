@@ -2,6 +2,7 @@ import os
 import re
 import sys
 
+
 def main(directory, max_count, target_file=None):
     total_count = 0
     pattern = re.compile(r"//\.instCount (\d+)")
@@ -10,7 +11,9 @@ def main(directory, max_count, target_file=None):
         target_found = False
         for root, dirs, files in os.walk(directory):
             for file in files:
-                if file.endswith(".asm") and (target_file is None or file == target_file):
+                if file.endswith(".asm") and (
+                    target_file is None or file == target_file
+                ):
                     if file == target_file:
                         target_found = True
                     print("Checking file: ", file)
@@ -34,12 +37,20 @@ def main(directory, max_count, target_file=None):
 
     print("Instruction count: ", total_count)
     if total_count > max_count * 1.1:  # 10% tolerance
-        print(f"Instruction count exceeded threshold. Baseline is {max_count}. 10% threshold is {max_count * 1.1}. Current is {total_count}.")
-        print(f"Percentage difference is {((total_count - max_count) / max_count) * 100}%, the tolerance is 10%.")
+        print(
+            f"Instruction count exceeded threshold. Baseline is {max_count}. 10% threshold is {max_count * 1.1}. Current is {total_count}."
+        )
+        print(
+            f"Percentage difference is {((total_count - max_count) / max_count) * 100}%, the tolerance is 10%."
+        )
         sys.exit(1)
-    elif total_count < max_count * 0.9: # ask for baseline to be updated
-        print(f"Instruction count is below the 90% threshold. Baseline is {max_count}. Current is {total_count}.")
-        print(f"Percentage difference is {((total_count - max_count) / max_count) * 100}%")
+    elif total_count < max_count * 0.9:  # ask for baseline to be updated
+        print(
+            f"Instruction count is below the 90% threshold. Baseline is {max_count}. Current is {total_count}."
+        )
+        print(
+            f"Percentage difference is {((total_count - max_count) / max_count) * 100}%"
+        )
         print("Please update the baseline.")
         sys.exit(1)
 
