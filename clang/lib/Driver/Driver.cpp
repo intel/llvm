@@ -5777,8 +5777,8 @@ class OffloadingActionBuilder final {
 
 
     bool addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
-                           bool isSpirvAOT, bool isMSVCEnv,
-                           bool isNativeCPU, Action *&NativeCPULib) {
+                           bool isSpirvAOT, bool isMSVCEnv, bool isNativeCPU,
+                           Action *&NativeCPULib) {
       int NumOfDeviceLibLinked = 0;
       SmallVector<SmallString<128>, 4> LibLocCandidates;
       SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
@@ -5876,20 +5876,23 @@ class OffloadingActionBuilder final {
           // Select remangled libclc variant
           std::string LibSpirvTargetName =
 
-            isNativeCPU ?
-             // Select libclc variant based on target triple.
-             // On Windows long is 32 bits, so we have to select the right remangled
-             // libclc version.
-                ((TC->getAuxTriple()->isOSWindows()
-                              ? "remangled-l32-signed_char.libspirv-"
-                              : "remangled-l64-signed_char.libspirv-") +
-                   TC->getTripleString() + ".bc") :
+              isNativeCPU ?
+                          // Select libclc variant based on target triple.
+                          // On Windows long is 32 bits, so we have to select
+                          // the right remangled libclc version.
+                  ((TC->getAuxTriple()->isOSWindows()
+                        ? "remangled-l32-signed_char.libspirv-"
+                        : "remangled-l64-signed_char.libspirv-") +
+                   TC->getTripleString() + ".bc")
+                          :
 
-              (TC->getAuxTriple()->isOSWindows()
-                  ? "remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda."
-                    "bc"
-                  : "remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda."
-                    "bc");
+                          (TC->getAuxTriple()->isOSWindows()
+                               ? "remangled-l32-signed_char.libspirv-nvptx64-"
+                                 "nvidia-cuda."
+                                 "bc"
+                               : "remangled-l64-signed_char.libspirv-nvptx64-"
+                                 "nvidia-cuda."
+                                 "bc");
 
           for (StringRef LibraryPath : LibraryPaths) {
             SmallString<128> LibSpirvTargetFile(LibraryPath);

@@ -156,7 +156,7 @@ Function *cloneFunctionAndAddParam(Function *OldF, Type *T,
   return NewF;
 }
 
-#define BMapEntry2(n1, n2) { "__mux_" #n1, "__dpcpp_nativecpu_" #n2 }
+#define BMapEntry2(n1, n2) {"__mux_" #n1, "__dpcpp_nativecpu_" #n2}
 #define BMapEntry1(n) BMapEntry2(n, n)
 
 static const std::pair<StringRef, StringRef> BuiltinNamesMap[]{
@@ -176,8 +176,7 @@ static const std::pair<StringRef, StringRef> BuiltinNamesMap[]{
     BMapEntry1(get_max_sub_group_size),
     BMapEntry1(get_sub_group_id),
     BMapEntry1(get_num_sub_groups),
-    BMapEntry1(get_sub_group_size)
-};
+    BMapEntry1(get_sub_group_size)};
 
 static constexpr unsigned int NativeCPUGlobalAS = 1;
 static constexpr char StateTypeName[] = "struct.__nativecpu_state";
@@ -193,8 +192,8 @@ static Function *addReplaceFunc(Module &M, StringRef Name, Type *RetTy,
   // Emit declarations if builtins are not found, e.g. when the device library
   // is not linked by some lit tests. TODO: Change those lit tests and
   // raise compiler error instead.
-  llvm::SmallVector<llvm::Type*> Paras;
-  for (Value *arg: Args)
+  llvm::SmallVector<llvm::Type *> Paras;
+  for (Value *arg : Args)
     Paras.push_back(arg->getType());
   FunctionType *FTy = FunctionType::get(RetTy, Paras, false);
   auto FCallee = M.getOrInsertFunction(Name, FTy);
@@ -225,10 +224,10 @@ static inline bool IsNativeCPUKernel(const Function *F) {
   return F->getCallingConv() == llvm::CallingConv::SPIR_KERNEL;
 }
 
-static bool IsNonKernelCalledByNativeCPUKernel(const Function* F) {
+static bool IsNonKernelCalledByNativeCPUKernel(const Function *F) {
   if (IsNativeCPUKernel(F))
     return false;
-  llvm::DenseSet<const Function *> todo,checked;
+  llvm::DenseSet<const Function *> todo, checked;
   for (;;) {
     if (checked.insert(F).second) {
       for (const auto &Use : F->uses()) {
@@ -417,7 +416,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       OldI->replaceAllUsesWith(NewI);
       OldI->eraseFromParent();
     }
-    for (auto temp: ToRemove2)
+    for (auto temp : ToRemove2)
       temp->eraseFromParent();
 
     // Finally, we erase the builtin from the module

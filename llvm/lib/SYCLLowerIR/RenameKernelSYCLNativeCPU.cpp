@@ -36,9 +36,9 @@ RenameKernelSYCLNativeCPUPass::run(Module &M, ModuleAnalysisManager &MAM) {
 
     // Update call sites that still have SPIR calling conventions
     const llvm::CallingConv::ID conv = F.getCallingConv();
-    //assert(conv != llvm::CallingConv::SPIR_FUNC &&
-    //       conv != llvm::CallingConv::SPIR_KERNEL);
-    //todo: reenable assert
+    // assert(conv != llvm::CallingConv::SPIR_FUNC &&
+    //        conv != llvm::CallingConv::SPIR_KERNEL);
+    // todo: reenable assert
     for (const auto &Use : F.uses()) {
       if (auto I = dyn_cast<CallInst>(Use.getUser())) {
         if (I->getCallingConv() == llvm::CallingConv::SPIR_FUNC ||
