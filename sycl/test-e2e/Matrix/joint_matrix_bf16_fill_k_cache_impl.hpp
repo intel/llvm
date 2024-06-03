@@ -354,7 +354,7 @@ int main() {
     }
 
     if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
-      constexpr size_t NCache1 = 4 * /*TN*/ 16;
+      constexpr size_t NCache1 = 4 * /*TN*/ 8;
       constexpr size_t KCache1 = 16;
 
       test<bfloat16, float, 2, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16, MCache1, NCache1,
