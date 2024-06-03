@@ -483,22 +483,19 @@ bool __asan_region_is_value(uptr addr, uint32_t as, std::size_t size,
   return true;
 }
 
-// NOTE: size < 8
-inline int __asan_address_is_poisoned(uptr a, uint32_t as, size_t size) {
+// NOTE: size <= 16
+inline int __asan_address_is_poisoned(uptr a, uint32_t as, size_t size = 1) {
   auto *shadow_address = (__SYCL_GLOBAL__ s8 *)MemToShadow(a, as);
   if (shadow_address) {
     auto shadow_value = *shadow_address;
     if (shadow_value) {
+      if (size == ASAN_SHADOW_GRANULARITY)
+        return true;
       s8 last_accessed_byte = (a & (ASAN_SHADOW_GRANULARITY - 1)) + size - 1;
       return (last_accessed_byte >= shadow_value);
     }
   }
   return false;
-}
-
-// NOTE: size = 1
-inline int __asan_address_is_poisoned(uptr a, uint32_t as) {
-  return __asan_address_is_poisoned(a, as, 1);
 }
 
 inline uptr __asan_region_is_poisoned(uptr beg, uint32_t as, size_t size) {
@@ -565,33 +562,12 @@ ASAN_REPORT_ERROR(load, false, 1)
 ASAN_REPORT_ERROR(load, false, 2)
 ASAN_REPORT_ERROR(load, false, 4)
 ASAN_REPORT_ERROR(load, false, 8)
+ASAN_REPORT_ERROR(load, false, 16)
 ASAN_REPORT_ERROR(store, true, 1)
 ASAN_REPORT_ERROR(store, true, 2)
 ASAN_REPORT_ERROR(store, true, 4)
 ASAN_REPORT_ERROR(store, true, 8)
-
-#define ASAN_REPORT_ERROR_BYTE(type, is_write, size)                           \
-  DEVICE_EXTERN_C_NOINLINE void __asan_##type##size(                           \
-      uptr addr, uint32_t as, const char __SYCL_CONSTANT__ *file,              \
-      uint32_t line, const char __SYCL_CONSTANT__ *func) {                     \
-    auto *shadow_address = (__SYCL_GLOBAL__ u##size *)MemToShadow(addr, as);   \
-    if (shadow_address && *shadow_address) {                                   \
-      __asan_report_access_error(addr, as, size, is_write, addr, file, line,   \
-                                 func);                                        \
-    }                                                                          \
-  }                                                                            \
-  DEVICE_EXTERN_C_NOINLINE void __asan_##type##size##_noabort(                 \
-      uptr addr, uint32_t as, const char __SYCL_CONSTANT__ *file,              \
-      uint32_t line, const char __SYCL_CONSTANT__ *func) {                     \
-    auto *shadow_address = (__SYCL_GLOBAL__ u##size *)MemToShadow(addr, as);   \
-    if (shadow_address && *shadow_address) {                                   \
-      __asan_report_access_error(addr, as, size, is_write, addr, file, line,   \
-                                 func, true);                                  \
-    }                                                                          \
-  }
-
-ASAN_REPORT_ERROR_BYTE(load, false, 16)
-ASAN_REPORT_ERROR_BYTE(store, true, 16)
+ASAN_REPORT_ERROR(store, true, 16)
 
 #define ASAN_REPORT_ERROR_N(type, is_write)                                    \
   DEVICE_EXTERN_C_NOINLINE void __asan_##type##N(                              \
