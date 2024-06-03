@@ -41,7 +41,7 @@ jobs:
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-            target_devices: ext_oneapi_level_zero:gpu
+            target_devices: level_zero:gpu
             reset_gpu: true
             tests_selector: e2e
 
