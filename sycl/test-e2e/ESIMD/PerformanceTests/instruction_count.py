@@ -52,5 +52,6 @@ def main(directory, max_count, target_file):
         print("Please update the baseline.")
         sys.exit(1)
 
+
 if __name__ == "__main__":
     main(sys.argv[1], int(sys.argv[2]), sys.argv[3])
