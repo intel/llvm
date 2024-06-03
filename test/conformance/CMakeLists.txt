@@ -25,6 +25,7 @@ function(add_test_adapter name adapter)
             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         )
     else()
+        separate_arguments(TEST_COMMAND)
         add_test(NAME ${TEST_NAME}
             COMMAND ${TEST_COMMAND}
             DEPENDS ${TEST_TARGET_NAME}
@@ -138,6 +139,7 @@ if(UR_DPCXX)
     add_subdirectory(integration)
     add_subdirectory(exp_command_buffer)
     add_subdirectory(exp_usm_p2p)
+    add_subdirectory(exp_launch_properties)
 else()
     message(WARNING
         "UR_DPCXX is not defined, the following conformance test executables \

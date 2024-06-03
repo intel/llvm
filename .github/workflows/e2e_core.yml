@@ -46,7 +46,11 @@ on:
         description: Tests to filter out completely
         type: string
         required: false
-  
+      extra_lit_flags:
+        description: Additional llvm-lit flags to use
+        type: string
+        required: false
+
 permissions:
   contents: read
   pull-requests: write
@@ -62,7 +66,8 @@ jobs:
           str_name: "${{inputs.str_name}}",
           prefix: "${{inputs.prefix}}",
           config: "${{inputs.config}}",
-          unit: "${{inputs.unit}}"}
+          unit: "${{inputs.unit}}",
+          extra_lit_flags: "${{inputs.extra_lit_flags}}"},
         ]
         build_type: [Release]
         compiler: [{c: clang, cxx: clang++}]
@@ -141,11 +146,15 @@ jobs:
     - name: Build SYCL
       run: cmake --build ${{github.workspace}}/sycl_build -j
 
+    - name: Set extra llvm-lit options
+      if: matrix.adapter.extra_lit_flags != ''
+      run: echo "LIT_OPTS=${{matrix.adapter.extra_lit_flags}}" >> $GITHUB_ENV
+
     - name: Run check-sycl
       # Remove after fixing SYCL test :: abi/layout_handler.cpp
       # This issue does not affect further execution of e2e with UR.
       continue-on-error: true
-      run: cmake --build ${{github.workspace}}/sycl_build --target check-sycl -j6
+      run: cmake --build ${{github.workspace}}/sycl_build --target check-sycl
 
     - name: Set additional env. vars
       run: |

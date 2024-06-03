@@ -13,6 +13,7 @@
 #ifndef UR_TRACING_LAYER_H
 #define UR_TRACING_LAYER_H 1
 
+#include "logger/ur_logger.hpp"
 #include "ur_ddi.h"
 #include "ur_proxy_layer.hpp"
 #include "ur_util.hpp"
@@ -25,6 +26,7 @@ class __urdlllocal context_t : public proxy_layer_context_t {
   public:
     ur_dditable_t urDdiTable = {};
     codeloc_data codelocData;
+    logger::Logger logger;
 
     context_t();
     ~context_t();
