@@ -844,6 +844,15 @@ static inline sycl::context get_default_context();
 // Util function to get a CPU device.
 static inline device_ext &cpu_device();
 
+/// Filter out devices; only keep the device whose name contains one of the
+/// subname in \p dev_subnames.
+/// May break device id mapping and change current device. It's better to be
+/// called before other SYCLcompat or SYCL APIs.
+static inline void filter_device(const std::vector<std::string> &dev_subnames);
+
+/// List all the devices with its id in dev_mgr.
+static inline void list_devices();
+
 // Util function to select a device by its id
 static inline unsigned int select_device(unsigned int id);
 
@@ -867,6 +876,12 @@ can be queried through `device_ext` as well.
 `device_ext` also provides the `has_capability_or_fail` member function, which
 throws a `sycl::exception` if the device does not have the specified list of
 `sycl::aspect`.
+
+Devices can be listed and filtered using `syclcompat::list_devices()` and
+`syclcompat::filter_device()`. If `SYCLCOMPAT_VERBOSE` is defined at compile
+time, the available SYCL devices are printed to the standard output both at
+initialization time, or if the device list is filtered using
+`syclcompat::filter_device`.
 
 Users can manage queues through the `syclcompat::set_default_queue(sycl::queue
 q)` free function, and the `device_ext` `set_saved_queue`, `set_default_queue`,
