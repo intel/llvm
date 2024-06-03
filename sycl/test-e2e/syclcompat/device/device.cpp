@@ -107,6 +107,18 @@ void test_create_queue_arguments() {
   assert(!q_out_order.is_in_order());
 }
 
+// We have *some* constraints on the major version that we can check
+void test_major_version(sycl::device &dev, int major) {
+  auto backend = dev.get_backend();
+  if (backend == sycl::backend::opencl) {
+    assert(major == 3);
+  } else if (backend == sycl::backend::ext_oneapi_level_zero) {
+    assert(major == 1);
+  } else if (backend == sycl::backend::ext_oneapi_cuda) {
+    assert(major < 99);
+  }
+}
+
 /*
   Device Extension Tests
 */
@@ -115,7 +127,8 @@ void test_device_ext_api() {
   DeviceExtFixt dev_ext;
   auto &dev_ = dev_ext.get_dev_ext();
   dev_.is_native_host_atomic_supported();
-  dev_.get_major_version();
+  auto major = dev_.get_major_version();
+  test_major_version(dev_, major);
   dev_.get_minor_version();
   dev_.get_max_compute_units();
   dev_.get_max_clock_frequency();
@@ -138,8 +151,8 @@ void test_device_api() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   DeviceExtFixt dev_ext;
   auto &dev_ = dev_ext.get_dev_ext();
-
-  get_major_version(dev_);
+  auto major = get_major_version(dev_);
+  test_major_version(dev_, major);
   get_minor_version(dev_);
 }
 
