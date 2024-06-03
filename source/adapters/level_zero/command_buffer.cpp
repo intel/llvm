@@ -1295,7 +1295,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     MutableGroupCountDesc->pNext = NextDesc;
     DEBUG_LOG(MutableGroupCountDesc->pNext);
     MutableGroupCountDesc->pGroupCount = &ZeThreadGroupDimensions;
-    DEBUG_LOG(MutableGroupCountDesc->pGroupCount);
+    DEBUG_LOG(MutableGroupCountDesc->pGroupCount->groupCountX);
+    DEBUG_LOG(MutableGroupCountDesc->pGroupCount->groupCountY);
+    DEBUG_LOG(MutableGroupCountDesc->pGroupCount->groupCountZ);
     NextDesc = MutableGroupCountDesc.get();
     GroupCountDescs.push_back(std::move(MutableGroupCountDesc));
 
