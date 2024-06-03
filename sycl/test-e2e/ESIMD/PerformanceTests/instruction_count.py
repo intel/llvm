@@ -3,7 +3,7 @@ import re
 import sys
 
 
-def main(directory, max_count, target_file=None):
+def main(directory, max_count, target_file):
     total_count = 0
     pattern = re.compile(r"//\.instCount (\d+)")
 
@@ -11,11 +11,8 @@ def main(directory, max_count, target_file=None):
         target_found = False
         for root, dirs, files in os.walk(directory):
             for file in files:
-                if file.endswith(".asm") and (
-                    target_file is None or file == target_file
-                ):
-                    if file == target_file:
-                        target_found = True
+                if file.endswith(".asm") and file == target_file:
+                    target_found = True
                     print("Checking file: ", file)
                     try:
                         with open(os.path.join(root, file), "r") as f:
@@ -26,7 +23,8 @@ def main(directory, max_count, target_file=None):
                     except IOError:
                         print(f"Failed to open file: {file}")
                         sys.exit(2)
-        if target_file is not None and not target_found:
+                    break
+        if not target_found:
             raise FileNotFoundError(f"Target file {target_file} was not found")
     except FileNotFoundError as e:
         print(e)
@@ -54,6 +52,5 @@ def main(directory, max_count, target_file=None):
         print("Please update the baseline.")
         sys.exit(1)
 
-
 if __name__ == "__main__":
-    main(sys.argv[1], int(sys.argv[2]), sys.argv[3] if len(sys.argv) > 3 else None)
+    main(sys.argv[1], int(sys.argv[2]), sys.argv[3])
