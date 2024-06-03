@@ -1468,10 +1468,21 @@ static bool isUnsupportedAMDGPUAddrspace(Value *Addr) {
   return false;
 }
 
+static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
+  // Non image scope device globals are implemented by device USM, and the
+  // out-of-bounds check for them will be done by sanitizer USM part. So we
+  // exclude them here.
+  return (!isDeviceGlobalVariable(*G) || !hasDeviceImageScopeProperty(*G));
+}
+
 static bool isUnsupportedSPIRAccess(Value *Addr, Function *Func) {
   // Skip SPIR-V built-in varibles
   auto *OrigValue = Addr->stripInBoundsOffsets();
   if (OrigValue->getName().starts_with("__spirv_BuiltIn"))
+    return true;
+
+  GlobalVariable *GV = dyn_cast<GlobalVariable>(OrigValue);
+  if (GV && isUnsupportedDeviceGlobal(GV))
     return true;
 
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
@@ -2661,10 +2672,7 @@ void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB,
   StructType *StructTy = StructType::get(IntptrTy, IntptrTy, IntptrTy);
 
   for (auto &G : M.globals()) {
-    // Non image scope device globals are implemented by device USM, and the
-    // out-of-bounds check for them will be done by sanitizer USM part. So we
-    // exclude them here.
-    if (!isDeviceGlobalVariable(G) || !hasDeviceImageScopeProperty(G))
+    if (isUnsupportedDeviceGlobal(&G))
       continue;
 
     Type *Ty = G.getValueType();
