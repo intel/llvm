@@ -155,8 +155,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(native_cpu
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    "https://github.com/PietroGhg/unified-runtime.git"
+    pietro/usm_fixes
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
