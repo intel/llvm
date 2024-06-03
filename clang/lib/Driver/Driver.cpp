@@ -5789,7 +5789,6 @@ class OffloadingActionBuilder final {
       }
     }
 
-
     bool addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
                            bool isSpirvAOT, bool isMSVCEnv, bool isNativeCPU,
                            Action *&NativeCPULib) {

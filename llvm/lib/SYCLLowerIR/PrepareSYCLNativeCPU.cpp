@@ -376,7 +376,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   // replace them with calls to our Native CPU functions.
   for (const auto &Entry : UsedBuiltins) {
     SmallVector<std::pair<Instruction *, Instruction *>> ToRemove;
-    SmallVector<Function*> ToRemove2;
+    SmallVector<Function *> ToRemove2;
     Function *const Glob = Entry.first;
     Function *ReplaceFunc = nullptr;
     for (const auto &Use : Glob->uses()) {
