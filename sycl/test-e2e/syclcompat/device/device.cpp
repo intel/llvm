@@ -249,9 +249,15 @@ void test_image_max_attrs() {
   info.set_image2d_max(0, 0);
   info.set_image3d_max(0, 0, 0);
 
+  // SYCL guarantees at least a certain minimum value if the device has
+  // aspect::image
+  if (!dev_.has(sycl::aspect::image)) {
+    std::cout << "  Partial skip: device does not have sycl::aspect::image."
+              << std::endl;
+    return;
+  }
   dev_.get_device_info(info);
-  // SYCL guarantees at least a certain minimum value, but we only need to
-  // ensure the value is modified.
+  // We only need to ensure the value is modified.
   assert(info.get_image1d_max() > 0);
   assert(info.get_image2d_max()[0] > 0);
   assert(info.get_image2d_max()[1] > 0);
@@ -281,18 +287,19 @@ void test_max_nd_range() {
 #ifdef SYCL_EXT_ONEAPI_MAX_WORK_GROUP_QUERY
   // According to the extension values are > 1 unless info::device_type is
   // info::device_type::custom.
-  if (dev.get_info<sycl::info::device::device_type>() !=
+  if (dev.get_info<sycl::info::device::device_type>() ==
       sycl::info::device_type::custom) {
-    info.set_max_nd_range_size(
-        dev.get_info<sycl::ext::oneapi::experimental::info::device::
-                         max_work_groups<3>>());
-    assert(info.get_max_nd_range_size()[0] > 0);
-    assert(info.get_max_nd_range_size()[1] > 0);
-    assert(info.get_max_nd_range_size()[2] > 0);
-  } else {
     std::cout << "  Skipping due to custom sycl::info::device_type::custom."
               << std::endl;
+    return;
   }
+
+  info.set_max_nd_range_size(
+      dev.get_info<
+          sycl::ext::oneapi::experimental::info::device::max_work_groups<3>>());
+  assert(info.get_max_nd_range_size()[0] > 0);
+  assert(info.get_max_nd_range_size()[1] > 0);
+  assert(info.get_max_nd_range_size()[2] > 0);
 #else
   int expected = 0x7FFFFFFF;
   assert(info.get_max_nd_range_size()[0] == expected);
