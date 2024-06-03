@@ -134,6 +134,15 @@ void test_device_ext_api() {
   auto Context = dev_.get_context();
 }
 
+void test_device_api() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  DeviceExtFixt dev_ext;
+  auto &dev_ = dev_ext.get_dev_ext();
+
+  get_major_version(dev_);
+  get_minor_version(dev_);
+}
+
 void test_default_saved_queue() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   DeviceExtFixt dev_ext;
@@ -238,6 +247,7 @@ int main() {
   test_check_default_device();
   test_create_queue_arguments();
   test_device_ext_api();
+  test_device_api();
   test_default_saved_queue();
   test_saved_queue();
   test_reset();
