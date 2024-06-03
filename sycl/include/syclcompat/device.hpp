@@ -322,13 +322,9 @@ public:
   }
 
   bool is_native_host_atomic_supported() { return false; }
-  int get_major_version() const {
-    return syclcompat::get_major_version(*this);
-  }
+  int get_major_version() const { return syclcompat::get_major_version(*this); }
 
-  int get_minor_version() const {
-    return syclcompat::get_minor_version(*this);
-  }
+  int get_minor_version() const { return syclcompat::get_minor_version(*this); }
 
   int get_max_compute_units() const {
     return get_device_info().get_max_compute_units();
