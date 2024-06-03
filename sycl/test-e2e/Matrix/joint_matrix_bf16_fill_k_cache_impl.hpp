@@ -229,29 +229,6 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
   return duration.count();
 }
 
-template <typename T, typename TResult> void fill_matrix(T *M) {
-  std::random_device dev;
-  std::uniform_real_distribution<TResult> fdistr(-1.0, 1.0);
-  for (unsigned int i = 0; i < MATRIX_SIZE; i++) {
-    for (unsigned int j = 0; j < MATRIX_SIZE; j++) {
-      M[i * MATRIX_SIZE + j] = T(fdistr(dev));
-    }
-  }
-}
-
-template <typename T, typename TResult>
-void native_matmul(T *A, T *B, TResult *C) {
-  memset(C, 0, sizeof(TResult) * MATRIX_SIZE * MATRIX_SIZE);
-  for (unsigned int i = 0; i < MATRIX_SIZE; i++) {
-    for (unsigned int k = 0; k < MATRIX_SIZE; k++) {
-      for (unsigned int j = 0; j < MATRIX_SIZE; j++) {
-        C[i * MATRIX_SIZE + j] += make_fp32(A[i * MATRIX_SIZE + k]) *
-                                  make_fp32(B[k * MATRIX_SIZE + j]);
-      }
-    }
-  }
-}
-
 template <typename T, typename TResult, size_t VNNI, size_t TM, size_t TN,
           size_t TK, size_t MCache1, size_t NCache1, size_t KCache1,
           size_t MCache2, size_t NCache2, size_t KCache2>
@@ -264,13 +241,6 @@ void test() {
 
   std::cout << "Testing: " << TM << " x " << TN << " x " << TK
             << " [TM x TN x TK]" << std::endl;
-  std::cout << "matrix size: " << MATRIX_SIZE << std::endl;
-  std::cout << "m-chache 1: " << MCache1 << std::endl;
-  std::cout << "n-chache 1: " << NCache1 << std::endl;
-  std::cout << "k-chache 1: " << KCache1 << std::endl;
-  std::cout << "m-chache 2: " << MCache2 << std::endl;
-  std::cout << "n-chache 2: " << NCache2 << std::endl;
-  std::cout << "k-chache 2: " << KCache2 << std::endl;
 
   queue q;
   T *A = malloc_shared<T>(MATRIX_SIZE * MATRIX_SIZE, q);
@@ -279,11 +249,12 @@ void test() {
   TResult *C = malloc_shared<TResult>(MATRIX_SIZE * MATRIX_SIZE, q);
   TResult *refC = malloc_shared<TResult>(MATRIX_SIZE * MATRIX_SIZE, q);
 
-  // Initialize; fill matrices
-  fill_matrix<T, TResult>(A);
-  fill_matrix<T, TResult>(B);
+  matrix_rand<T>(MATRIX_SIZE, MATRIX_SIZE, A, T(1));
+  matrix_rand<T>(MATRIX_SIZE, MATRIX_SIZE, B, T(1));
   matrix_vnni<T>(MATRIX_SIZE, MATRIX_SIZE, B, vnniB, VNNI);
-  native_matmul(A, B, refC);
+
+  matrix_multiply_ref<T, T, TResult, 1>(A, B, refC, MATRIX_SIZE, MATRIX_SIZE,
+                                        MATRIX_SIZE);
 
   // run testIterations time, aggregate and calculate average run time
   double totalDuration = 0;
