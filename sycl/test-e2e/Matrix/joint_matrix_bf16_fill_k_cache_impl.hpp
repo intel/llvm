@@ -7,8 +7,6 @@
 //===-------------------------------------------------------------------------===//
 
 #include <random>
-// #include <sycl/detail/core.hpp>
-// #include <sycl/ext/oneapi/matrix/matrix.hpp>
 #include <sycl/usm.hpp>
 
 // number of test iterations
@@ -52,8 +50,6 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
   std::chrono::high_resolution_clock::time_point start =
       std::chrono::high_resolution_clock::now();
 
-  std::cout << "sg_size: " << sgSize << std::endl;
-
   q.submit([&](handler &h) {
     h.parallel_for<MatMul<TM, TN, TK>>( // cache layer#1
         nd_range<2>{global, cachelocal},
@@ -81,24 +77,11 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
           joint_matrix<sub_group, TResult, use::accumulator, TM, TN>
               tC[MCache1 / TM][NCache1 / TN]
 #ifdef INIT_LIST
-              = {joint_matrix<sub_group, TResult, use::accumulator, TM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, TM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, TM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, TM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, TM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, TM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, TM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, TM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, TM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, TM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, TM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, TM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, TM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, TM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, TM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, TM, TN>()}
+              = {}; // default initialization of all array elements
+#else
+              ; // no initialization
 #endif
-          ;
+
 #ifdef MANUAL_UNROLL
           manually_unroll_loop<unsigned int, MCache1 / TM>([&](auto m) {
             manually_unroll_loop<unsigned int, NCache1 / TN>([&](auto n) {
@@ -119,50 +102,20 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
             joint_matrix<sub_group, TOperand, use::a, TM, TK, layout::row_major>
                 tA[MCache1 / TM][KCache2 / KCache1]
 #ifdef INIT_LIST
-                = {joint_matrix<sub_group, TOperand, use::a, TM, TK,
-                                layout::row_major>(),
-                   joint_matrix<sub_group, TOperand, use::a, TM, TK,
-                                layout::row_major>(),
-                   joint_matrix<sub_group, TOperand, use::a, TM, TK,
-                                layout::row_major>(),
-                   joint_matrix<sub_group, TOperand, use::a, TM, TK,
-                                layout::row_major>(),
-                   joint_matrix<sub_group, TOperand, use::a, TM, TK,
-                                layout::row_major>(),
-                   joint_matrix<sub_group, TOperand, use::a, TM, TK,
-                                layout::row_major>(),
-                   joint_matrix<sub_group, TOperand, use::a, TM, TK,
-                                layout::row_major>(),
-                   joint_matrix<sub_group, TOperand, use::a, TM, TK,
-                                layout::row_major>()}
+                = {}; // default initialization of all array elements
+#else
+                ; // no initialization
 #endif
-            ;
 
             joint_matrix<sub_group, TOperand, use::b, TK, TN,
                          layout::ext_intel_packed>
                 tB[NCache1 / TN][KCache2 / KCache1]
 #ifdef INIT_LIST
-                =
-                    {
-                        joint_matrix<sub_group, TOperand, use::b, TK, TN,
-                                     layout::ext_intel_packed>(),
-                        joint_matrix<sub_group, TOperand, use::b, TK, TN,
-                                     layout::ext_intel_packed>(),
-                        joint_matrix<sub_group, TOperand, use::b, TK, TN,
-                                     layout::ext_intel_packed>(),
-                        joint_matrix<sub_group, TOperand, use::b, TK, TN,
-                                     layout::ext_intel_packed>(),
-                        joint_matrix<sub_group, TOperand, use::b, TK, TN,
-                                     layout::ext_intel_packed>(),
-                        joint_matrix<sub_group, TOperand, use::b, TK, TN,
-                                     layout::ext_intel_packed>(),
-                        joint_matrix<sub_group, TOperand, use::b, TK, TN,
-                                     layout::ext_intel_packed>(),
-                        joint_matrix<sub_group, TOperand, use::b, TK, TN,
-                                     layout::ext_intel_packed>(),
-                    }
+                = {}; // default initialization of all array elements
+#else
+                ; // no initialization
 #endif
-            ;
+
 #ifdef MANUAL_UNROLL
             manually_unroll_loop<unsigned int, KCache2 / KCache1>([&](auto k1) {
 #else
@@ -337,8 +290,8 @@ void test() {
   for (unsigned int i = 0; i < testIterations; i++) {
     double duration =
         joint_matmul<MATRIX_SIZE, MATRIX_SIZE, MATRIX_SIZE, MATRIX_SIZE, VNNI,
-                     T, TResult, TM, TN, TK, NCache1,
-           KCache1, MCache2, NCache2, KCache2>(A, vnniB, C, q, i);
+                     T, TResult, TM, TN, TK, MCache1, NCache1, KCache1, MCache2,
+                     NCache2, KCache2>(A, vnniB, C, q, i);
     if (i >= recordThresh) {
       totalDuration += duration;
     }
@@ -394,8 +347,6 @@ int main() {
       // IGC
       test<bfloat16, float, 2, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16, MCache1,
            NCache1, KCache1, MCache2, NCache2, KCache2>();
-      test<bfloat16, float, 2, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16, MCache1, NCache1,
-           KCache1, MCache2, NCache2, KCache2>();
       test<bfloat16, float, 2, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16, MCache1,
            NCache1, KCache1, MCache2, NCache2, KCache2>();
 #endif
