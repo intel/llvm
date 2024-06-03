@@ -1950,7 +1950,7 @@ block_load(const T *ptr, simd_mask<1> pred, simd<T, N> pass_thru,
 
 /// simd<T, N> block_load(const T* ptr, simd_mask<1> pred,
 ///                       PassThruSimdViewT pass_thru, props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// This function loads a contiguous memory block from USM pointer \p ptr. If
 /// the predicate \p pred is set to 0, then the load is omitted and the vector
