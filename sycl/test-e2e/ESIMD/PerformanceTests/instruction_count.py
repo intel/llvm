@@ -34,17 +34,17 @@ def main(directory, max_count, target_file):
         sys.exit(4)
 
     print("Instruction count: ", total_count)
-    if total_count > max_count * 1.1:  # 10% tolerance
+    if total_count > max_count * 1.05:  # 5% tolerance
         print(
-            f"Instruction count exceeded threshold. Baseline is {max_count}. 10% threshold is {max_count * 1.1}. Current is {total_count}."
+            f"Instruction count exceeded threshold. Baseline is {max_count}. 5% threshold is {max_count * 1.05}. Current is {total_count}."
         )
         print(
-            f"Percentage difference is {((total_count - max_count) / max_count) * 100}%, the tolerance is 10%."
+            f"Percentage difference is {((total_count - max_count) / max_count) * 100}%, the tolerance is 5%."
         )
         sys.exit(1)
-    elif total_count < max_count * 0.9:  # ask for baseline to be updated
+    elif total_count < max_count * 0.95:  # ask for baseline to be updated
         print(
-            f"Instruction count is below the 90% threshold. Baseline is {max_count}. Current is {total_count}."
+            f"Instruction count is below the 95% threshold. Baseline is {max_count}. Current is {total_count}."
         )
         print(
             f"Percentage difference is {((total_count - max_count) / max_count) * 100}%"
