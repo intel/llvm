@@ -279,6 +279,8 @@ void Scheduler::waitForEvent(const EventImplPtr &Event, bool *Success) {
 bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
                                    bool StrictLock) {
   MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);
+  std::cout << "removeMemoryObject() StrictLock:" << StrictLock
+            << " Record: " << std::hex << Record << std::endl;
   if (!Record)
     // No operations were performed on the mem object
     return true;
@@ -520,7 +522,9 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
   if (isDeferredMemObjectsEmpty())
     return;
 
-  std::cout << "cleanupDeferredMemObjects() with objects" << std::endl;
+  std::cout << "cleanupDeferredMemObjects() with objects. "
+            << (Blocking == BlockingT::BLOCKING ? "BLOCKING" : "NON-BLOCKING")
+            << std::endl;
   // CP
   for (auto pair : MDeferredMemObjRelease) {
     std::cout << " => MemObj: " << "<SKIP>" // std::hex << (pair.first).get()
@@ -559,13 +563,19 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
         PairsReadyToRelease.push_back(*PairIt);
         PairIt = MDeferredMemObjRelease.erase(PairIt);
       }
+    } else {
+      std::cout << " Lock.owns_lock() was false" << std::endl;
     }
   }
   auto ReleaseCandidateIt = PairsReadyToRelease.begin();
   while (ReleaseCandidateIt != PairsReadyToRelease.end()) {
-    if (!removeMemoryObject(((*ReleaseCandidateIt).first).get(),
-                            false)) // ReleaseCandidateIt->get(), false))
-      break;
+    if (!removeMemoryObject(((*ReleaseCandidateIt).first).get(), false)) {
+      std::cout
+          << "removeMemoryObject() returned false ( unable to own_lock() )"
+          << std::endl;
+      break; // <-- continue?
+    }
+
     ReleaseCandidateIt = PairsReadyToRelease.erase(ReleaseCandidateIt);
   }
   if (!PairsReadyToRelease.empty()) {
