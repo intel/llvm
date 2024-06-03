@@ -48,8 +48,6 @@ define weak_odr spir_kernel void @bar() #0 {
   ;; Functions with a demangled name prefixed with a '__' are not imported
   call void @_Z8__insidev()
   call void @_Z7outsidev()
-  ;; Functions with a demangled name prefixed with a '_spirv' are not imported
-  call void @_Z13_spirv_insidev()  
   ret void
 }
 
@@ -65,6 +63,5 @@ declare void @childD()
 
 declare void @_Z8__insidev()
 declare void @_Z7outsidev()
-declare void @_Z13_spirv_insidev()
 
 attributes #0 = { "sycl-module-id"="a.cpp" }

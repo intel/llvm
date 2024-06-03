@@ -425,7 +425,7 @@ bool isImportedFunction(const Function &F) {
   bool ReturnValue = true;
   if (auto NameStr = itaniumDemangle(F.getName())) {
     StringRef DemangledName(NameStr);
-    if (DemangledName.starts_with("__") || DemangledName.starts_with("_spirv"))
+    if (DemangledName.starts_with("__"))
       ReturnValue = false;
     free(NameStr);
   }
