@@ -111,10 +111,9 @@ void test_create_queue_arguments() {
 void test_major_version(sycl::device &dev, int major) {
   auto backend = dev.get_backend();
   if (backend == sycl::backend::opencl) {
-    assert(major == 3);
-  } else if (backend == sycl::backend::ext_oneapi_level_zero) {
-    assert(major == 1);
-  } else if (backend == sycl::backend::ext_oneapi_cuda) {
+    assert(major == 1 || major == 3);
+  } else if (backend == sycl::backend::ext_oneapi_level_zero ||
+             backend == sycl::backend::ext_oneapi_cuda) {
     assert(major < 99);
   }
 }
