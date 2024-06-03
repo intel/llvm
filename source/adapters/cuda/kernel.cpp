@@ -395,13 +395,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   UR_ASSERT(pSuggestedLocalWorkSize != nullptr,
             UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  ur_context_handle_t Context = hQueue->getContext();
   ur_device_handle_t Device = hQueue->Device;
   ur_result_t Result = UR_RESULT_SUCCESS;
   size_t ThreadsPerBlock[3] = {};
 
   // Set the active context here as guessLocalWorkSize needs an active context
-  ScopedContext Active(Context);
+  ScopedContext Active(Device);
 
   guessLocalWorkSize(Device, ThreadsPerBlock, pGlobalWorkSize, workDim,
                      hKernel);
