@@ -13,6 +13,7 @@
 #pragma once
 
 #include "asan_allocator.hpp"
+#include "asan_buffer.hpp"
 #include "asan_libdevice.hpp"
 #include "common.hpp"
 #include "ur_sanitizer_layer.hpp"
@@ -81,8 +82,10 @@ struct QueueInfo {
 
 struct KernelInfo {
     ur_kernel_handle_t Handle;
-
     ur_shared_mutex Mutex;
+    std::atomic<int32_t> RefCount = 1;
+    std::unordered_map<uint32_t, std::shared_ptr<MemBuffer>> BufferArgs;
+
     // Need preserve the order of local arguments
     std::map<uint32_t, LocalArgsInfo> LocalArgs;
 
@@ -194,6 +197,10 @@ class SanitizerInterceptor {
     ur_result_t insertKernel(ur_kernel_handle_t Kernel);
     ur_result_t eraseKernel(ur_kernel_handle_t Kernel);
 
+    ur_result_t insertMemBuffer(std::shared_ptr<MemBuffer> MemBuffer);
+    ur_result_t eraseMemBuffer(ur_mem_handle_t MemHandle);
+    std::shared_ptr<MemBuffer> getMemBuffer(ur_mem_handle_t MemHandle);
+
     std::optional<AllocationIterator> findAllocInfoByAddress(uptr Address);
 
     std::shared_ptr<ContextInfo> getContextInfo(ur_context_handle_t Context) {
@@ -244,6 +251,10 @@ class SanitizerInterceptor {
     std::unordered_map<ur_kernel_handle_t, std::shared_ptr<KernelInfo>>
         m_KernelMap;
     ur_shared_mutex m_KernelMapMutex;
+
+    std::unordered_map<ur_mem_handle_t, std::shared_ptr<MemBuffer>>
+        m_MemBufferMap;
+    ur_shared_mutex m_MemBufferMapMutex;
 
     /// Assumption: all USM chunks are allocated in one VA
     AllocationMap m_AllocationMap;
