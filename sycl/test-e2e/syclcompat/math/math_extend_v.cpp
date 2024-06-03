@@ -54,40 +54,65 @@
 std::pair<const char *, int> vadd2() {
   CHECK(syclcompat::extend_vadd2<int32_t>(0x0001FFFF, 0x00010005, 0),
         0x00020004);
-  CHECK(syclcompat::extend_vadd2<int32_t>((int32_t)0x7FFF7FFF, 0x00010001, 0),
+  CHECK(syclcompat::extend_vadd2<int32_t>(0x7FFF7FFF, 0x00010001, 0),
         0x80008000);
-  CHECK(
-      syclcompat::extend_vadd2_sat<int32_t>((int32_t)0x7FFF7FFF, 0x00010001, 0),
-      0x7FFF7FFF);
+  CHECK(syclcompat::extend_vadd2_sat<int32_t>(0x7FFF7FFF, 0x00010001, 0),
+        0x7FFF7FFF);
 
   CHECK(syclcompat::extend_vadd2<uint32_t>(0x00010002, 0x00020003, 0),
         0x00030005);
   CHECK(syclcompat::extend_vadd2<uint32_t>(0xFFFEFFFF, 0x00030003, 0),
         0x00010002);
-  CHECK(syclcompat::extend_vadd2_sat<uint32_t>(0xFFFEFFFF, 0x00030003, 0),
+  CHECK(syclcompat::extend_vadd2_sat<uint32_t>((uint32_t)0xFFFEFFFF,
+                                               (uint32_t)0x00030003, 0),
         0xFFFFFFFF);
   return {nullptr, 0};
 }
 
 std::pair<const char *, int> vsub2() {
 
-  CHECK(syclcompat::extend_vsub2<int32_t>((int32_t)0x0001FFFF,
-                                          (int32_t)0xFFFF0001, 0),
+  CHECK(syclcompat::extend_vsub2<int32_t>(0x0001FFFF, 0xFFFF0001, 0),
         0x0002FFFE);
-  CHECK(syclcompat::extend_vsub2<int32_t>((int32_t)0x7FFF8000,
-                                          (int32_t)0xFFFF0001, 0),
-        0x80007FFF);
-  CHECK(syclcompat::extend_vsub2_sat<int32_t>((int32_t)0x7FFF8000,
-                                              (int32_t)0xFFFF0001, 0),
+  // Testing API & Saturated API with mixed types
+  CHECK(syclcompat::extend_vsub2<int32_t>((int32_t)0x7FFFFFFD,
+                                          (int32_t)0xFFFA7FFF, 0),
+        0x80057FFE);
+  CHECK(syclcompat::extend_vsub2<int32_t>((uint32_t)0x7FFFFFFD,
+                                          (uint32_t)0xFFFA7FFF, 0),
+        0x80057FFE);
+  CHECK(syclcompat::extend_vsub2<int32_t>((uint32_t)0x7FFFFFFD,
+                                          (int32_t)0xFFFA7FFF, 0),
+        0x80057FFE);
+  CHECK(syclcompat::extend_vsub2<int32_t>((int32_t)0x7FFFFFFD,
+                                          (uint32_t)0xFFFA7FFF, 0),
+        0x80057FFE);
+  CHECK(syclcompat::extend_vsub2_sat<int32_t>((int32_t)0x7FFFFFFD,
+                                              (int32_t)0xFFFA7FFF, 0),
         0x7FFF8000);
+  CHECK(syclcompat::extend_vsub2_sat<int32_t>((uint32_t)0x7FFFFFFD,
+                                              (uint32_t)0xFFFA7FFF, 0),
+        0x80057FFE);
+  CHECK(syclcompat::extend_vsub2_sat<int32_t>((int32_t)0x7FFFFFFD,
+                                              (uint32_t)0xFFFA7FFF, 0),
+        0x80058000);
+  CHECK(syclcompat::extend_vsub2_sat<int32_t>((uint32_t)0x7FFFFFFD,
+                                              (int32_t)0xFFFA7FFF, 0),
+        0x7FFF7FFE);
 
   CHECK(syclcompat::extend_vsub2<uint32_t>(0x0002000B, 0x0001000A, 0),
         0x00010001);
-  CHECK(syclcompat::extend_vsub2<uint32_t>(0x00010001, 0x0002FFFF, 0),
+  CHECK(syclcompat::extend_vsub2<uint32_t>((uint32_t)0x00010001,
+                                           (uint32_t)0x0002FFFF, 0),
         0xFFFF0002);
-  CHECK(syclcompat::extend_vsub2_sat<uint32_t>(0x00010001, (uint32_t)0x0002FFFF,
-                                               0),
+  CHECK(syclcompat::extend_vsub2<uint32_t>((int32_t)0x00010001,
+                                           (int32_t)0x0002FFFF, 0),
+        0xFFFF0002);
+  CHECK(syclcompat::extend_vsub2_sat<uint32_t>((uint32_t)0x00010001,
+                                               (uint32_t)0x0002FFFF, 0),
         0x00000000);
+  CHECK(syclcompat::extend_vsub2_sat<uint32_t>((int32_t)0x00010001,
+                                               (int32_t)0x0002FFFF, 0),
+        0x00000002);
 
   return {nullptr, 0};
 }
@@ -114,12 +139,22 @@ std::pair<const char *, int> vadd2_add() {
 
 std::pair<const char *, int> vsub2_add() {
 
+  // Testing API with mixed types
   CHECK(syclcompat::extend_vsub2_add<int32_t>((int32_t)0x0001FFFF,
                                               (int32_t)0xFFFF0001, 1),
         1);
-  CHECK(syclcompat::extend_vsub2_add<int32_t>((int32_t)0x7FFF8000,
-                                              (int32_t)0xFFFF0001, -1),
-        (int32_t)0xFFFFFFFE);
+  CHECK(syclcompat::extend_vsub2_add<int32_t>((uint32_t)0x7FFFFFFD,
+                                              (uint32_t)0xFFFA7FFF, -1),
+        0x00000002);
+  CHECK(syclcompat::extend_vsub2_add<int32_t>((int32_t)0x7FFFFFFD,
+                                              (int32_t)0xFFFA7FFF, -1),
+        0x00000002);
+  CHECK(syclcompat::extend_vsub2_add<int32_t>((int32_t)0x7FFFFFFD,
+                                              (uint32_t)0xFFFA7FFF, -1),
+        0xFFFF0002);
+  CHECK(syclcompat::extend_vsub2_add<int32_t>((uint32_t)0x7FFFFFFD,
+                                              (int32_t)0xFFFA7FFF, -1),
+        0x00010002);
 
   CHECK(syclcompat::extend_vsub2_add<uint32_t>(0x0002000B, 0x0001000A, 1),
         0x00000003);
@@ -131,9 +166,9 @@ std::pair<const char *, int> vsub2_add() {
 
 std::pair<const char *, int> vabsdiff2() {
 
-  CHECK(
-      syclcompat::extend_vabsdiff2<int32_t>((int32_t)0xFFFF0001, 0x0003FFFF, 0),
-      0x00040002);
+  CHECK(syclcompat::extend_vabsdiff2<int32_t>((int32_t)0xFFFF0001,
+                                              (int32_t)0x0003FFFF, 0),
+        0x00040002);
   CHECK(syclcompat::extend_vabsdiff2<int32_t>((int32_t)0x80000002,
                                               (int32_t)0x00010001, 0),
         0x80010001);
@@ -145,10 +180,10 @@ std::pair<const char *, int> vabsdiff2() {
         0x00020002);
   CHECK(syclcompat::extend_vabsdiff2<uint32_t>((uint32_t)0xFFFF0001,
                                                (int32_t)0xFFFE0003, 0),
-        (uint32_t)0x00010002);
+        0x00010002);
   CHECK(syclcompat::extend_vabsdiff2_sat<uint32_t>((uint32_t)0xFFFF0001,
                                                    (int32_t)0xFFFE0003, 0),
-        (uint32_t)0xFFFF0002);
+        0xFFFF0002);
 
   return {nullptr, 0};
 }
@@ -156,7 +191,7 @@ std::pair<const char *, int> vabsdiff2() {
 std::pair<const char *, int> vabsdiff2_add() {
 
   CHECK(syclcompat::extend_vabsdiff2_add<int32_t>((int32_t)0xFFFF0001,
-                                                  0x0003FFFF, -2),
+                                                  (int32_t)0x0003FFFF, -2),
         0x00000004);
 
   CHECK(syclcompat::extend_vabsdiff2_add<uint32_t>(0x000A000C, 0x000B000A, 1),
