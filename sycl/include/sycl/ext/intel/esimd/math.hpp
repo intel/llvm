@@ -1843,7 +1843,7 @@ __ESIMD_API uint64_t rdtsc() {
 #ifdef __SYCL_DEVICE_ONLY__
   return __spirv_ReadClockKHR(0);
 #else
-  return 0;
+  __ESIMD_UNSUPPORTED_ON_HOST;
 #endif
 }
 
