@@ -1,8 +1,6 @@
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
-//
-// The CI GPU doesn't report support for shared USM
-// XFAIL: hip_amd
+// REQUIRES: aspect-usm_shared_allocations
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
