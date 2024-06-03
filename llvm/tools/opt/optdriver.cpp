@@ -442,6 +442,7 @@ extern "C" int optMain(
   initializeIndirectBrExpandLegacyPassPass(Registry);
   initializeInterleavedLoadCombinePass(Registry);
   initializeInterleavedAccessPass(Registry);
+  initializePostInlineEntryExitInstrumenterPass(Registry);
   initializeUnreachableBlockElimLegacyPassPass(Registry);
   initializeExpandReductionsPass(Registry);
   initializeExpandVectorPredicationPass(Registry);

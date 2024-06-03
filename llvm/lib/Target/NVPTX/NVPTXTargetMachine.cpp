@@ -115,13 +115,13 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeNVPTXTarget() {
   initializeNVPTXCtorDtorLoweringLegacyPass(PR);
   initializeNVPTXLowerAggrCopiesPass(PR);
   initializeNVPTXProxyRegErasurePass(PR);
-  initializeNVPTXDAGToDAGISelPass(PR);
+  initializeNVPTXDAGToDAGISelLegacyPass(PR);
+  initializeNVPTXAAWrapperPassPass(PR);
+  initializeNVPTXExternalAAWrapperPass(PR);
 
   // SYCL-specific passes, needed here to be available to `opt`.
   initializeGlobalOffsetLegacyPass(PR);
   initializeLocalAccessorToSharedMemoryLegacyPass(PR);
-  initializeNVPTXAAWrapperPassPass(PR);
-  initializeNVPTXExternalAAWrapperPass(PR);
 }
 
 static std::string computeDataLayout(bool is64Bit, bool UseShortPointers) {
