@@ -503,9 +503,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   if (GlobProps.EmitImportedSymbols) {
     // record imported functions in the property set
     for (const auto &F : M) {
-      if (isImportedFunction(F)) {
+      if (isImportedFunction(F))
         PropSet.add(PropSetRegTy::SYCL_IMPORTED_SYMBOLS, F.getName(), true);
-      }
     }
   }
 
