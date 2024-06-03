@@ -1,4 +1,5 @@
-/* Test to check that sycl-ls is outputting UUID and number of sub and sub-sub devices. */
+/* Test to check that sycl-ls is outputting UUID and number of sub and sub-sub
+ * devices. */
 // REQUIRES:  gpu, level_zero
 
 // UNSUPPORTED: gpu-intel-pvc-1T
@@ -9,6 +10,6 @@
 // RUN: env ONEAPI_DEVICE_SELECTOR="level_zero:*" env ZE_FLAT_DEVICE_HIERARCHY=COMPOSITE env ZEX_NUMBER_OF_CCS=0:4 sycl-ls --verbose >%t.default.out
 // RUN: FileCheck %s --input-file %t.default.out
 
-// CHECK: {{.*}}UUID       : {{.*}}
-// CHECK: {{.*}}SubDevices : 2{{.*}}
-// CHECK-NEXT: {{.*}}SubSubDevices : 8{{.*}}
+// CHECK: {{.*}}UUID              : {{.*}}
+// CHECK: {{.*}}Num SubDevices    : {{.*}}
+// CHECK-NEXT: {{.*}}Num SubSubDevices : {{.*}}

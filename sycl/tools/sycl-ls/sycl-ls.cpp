@@ -82,19 +82,24 @@ std::array<int, 2> GetNumberOfSubAndSubSubDevices(const device &Device) {
   int NumSubDevices = 0;
   int NumSubSubDevices = 0;
 
-  // Assume a composite device hierarchy and try to partition Device by affinity.
-  if (isPartitionableBy(Device, info::partition_property::partition_by_affinity_domain)) {
-    auto SubDevs = Device.create_sub_devices<info::partition_property::partition_by_affinity_domain>(info::partition_affinity_domain::next_partitionable);
+  // Assume a composite device hierarchy and try to partition Device by
+  // affinity.
+  if (isPartitionableBy(
+          Device, info::partition_property::partition_by_affinity_domain)) {
+    auto SubDevs = Device.create_sub_devices<
+        info::partition_property::partition_by_affinity_domain>(
+        info::partition_affinity_domain::next_partitionable);
     NumSubDevices = SubDevs.size();
     NumSubSubDevices = GetNumberOfSubAndSubSubDevices(SubDevs[0])[0];
-  }
-  else if (isPartitionableBy(Device, info::partition_property::ext_intel_partition_by_cslice)) {
-    auto SubDevs = Device.create_sub_devices<info::partition_property::ext_intel_partition_by_cslice>();
+  } else if (isPartitionableBy(
+                 Device,
+                 info::partition_property::ext_intel_partition_by_cslice)) {
+    auto SubDevs = Device.create_sub_devices<
+        info::partition_property::ext_intel_partition_by_cslice>();
     NumSubDevices = SubDevs.size();
     // CCSs can't be divided further.
     NumSubSubDevices = 0;
-  }
-  else {
+  } else {
     // Not partitionable for OpenCL, CUDA, and HIP backends.
   }
 
