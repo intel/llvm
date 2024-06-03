@@ -87,6 +87,8 @@ void matrix_multiply(big_matrix<TResult, M, N> &C, big_matrix<T, M, K> &A,
 template <typename T, typename TResult, size_t VNNI, size_t TM, size_t TN,
           size_t TK>
 void test() {
+  std::cout << "Testing: " << TM << " x " << TN << " x " << TK
+            << " [TM x TN x TK]" << std::endl;
   static constexpr size_t MATRIX_M = TM * 2;
   static constexpr size_t MATRIX_N = TN * 2;
   static constexpr size_t MATRIX_K = TK * 2;
@@ -132,13 +134,9 @@ int main() {
 
     if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
       test<bfloat16, float, 2, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
-#if (!defined(SG_SZ) || SG_SZ != 32)
-      // These combination are not currently supported for subgroup size = 32 in
-      // IGC
       test<bfloat16, float, 2, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
       test<bfloat16, float, 2, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
       test<bfloat16, float, 2, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
-#endif
       break;
     }
 
