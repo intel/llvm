@@ -22,7 +22,6 @@ ur_event_factory_t ur_event_factory;
 ur_program_factory_t ur_program_factory;
 ur_kernel_factory_t ur_kernel_factory;
 ur_queue_factory_t ur_queue_factory;
-ur_native_factory_t ur_native_factory;
 ur_sampler_factory_t ur_sampler_factory;
 ur_mem_factory_t ur_mem_factory;
 ur_physical_mem_factory_t ur_physical_mem_factory;
