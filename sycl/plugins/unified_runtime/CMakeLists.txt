@@ -99,14 +99,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 4f105262c30ac231b8db1e250f36e88ef9f0a36d
-  # Merge: 0f118d75 92fce2ee
+  set(UNIFIED_RUNTIME_REPO "https://github.com/aarongreig/unified-runtime.git")
+  # commit 9f783837089c970a22cda08f768aa3dbed38f0d3
+  # Merge: c015f892 b9442104
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Jun 10 13:23:16 2024 +0100
-  #     Merge pull request #1409 from omarahmed1111/Add-CTS-tests-for-image-format
-  #     [CTS] Add CTS tests for urMemImageCreate entry-point
-  set(UNIFIED_RUNTIME_TAG 4f105262c30ac231b8db1e250f36e88ef9f0a36d)
+  # Date:   Fri May 31 10:20:23 2024 +0100
+  #     Merge pull request #1533 from AllanZyne/sanitizer-buffer
+  #     [DeviceSanitizer] Support detecting out-of-bounds errors on sycl::buffer
+  set(UNIFIED_RUNTIME_TAG aaron/platformCreateWithNativeAdapter)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
