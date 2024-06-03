@@ -50,8 +50,10 @@ void matrix_verify_lambda(queue q,
 
             auto sg = spmd_item.get_sub_group();
 
-            joint_matrix<sycl::sub_group, T, use::a, M, K, layout::row_major> sub_a;
-            joint_matrix<sycl::sub_group, T, use::b, K, N, layout::row_major> sub_b;
+            joint_matrix<sycl::sub_group, T, use::a, M, K, layout::row_major>
+                sub_a;
+            joint_matrix<sycl::sub_group, T, use::b, K, N, layout::row_major>
+                sub_b;
             joint_matrix<sycl::sub_group, T2, use::accumulator, M, N> sub_c;
 
             joint_matrix_fill(sg, sub_a, 3);
