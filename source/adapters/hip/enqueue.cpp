@@ -948,7 +948,7 @@ static ur_result_t commonEnqueueMemImageNDCopy(
   UR_ASSERT(DstType == hipMemoryTypeArray || DstType == hipMemoryTypeHost,
             UR_RESULT_ERROR_INVALID_VALUE);
 
-  if (ImgType == UR_MEM_TYPE_IMAGE2D) {
+  if (ImgType == UR_MEM_TYPE_IMAGE1D || ImgType == UR_MEM_TYPE_IMAGE2D) {
     hip_Memcpy2D CpyDesc;
     memset(&CpyDesc, 0, sizeof(CpyDesc));
     CpyDesc.srcMemoryType = SrcType;
@@ -956,7 +956,7 @@ static ur_result_t commonEnqueueMemImageNDCopy(
       CpyDesc.srcArray =
           reinterpret_cast<hipCUarray>(const_cast<void *>(SrcPtr));
       CpyDesc.srcXInBytes = SrcOffset[0];
-      CpyDesc.srcY = SrcOffset[1];
+      CpyDesc.srcY = (ImgType == UR_MEM_TYPE_IMAGE1D) ? 0 : SrcOffset[1];
     } else {
       CpyDesc.srcHost = SrcPtr;
     }
@@ -965,12 +965,12 @@ static ur_result_t commonEnqueueMemImageNDCopy(
       CpyDesc.dstArray =
           reinterpret_cast<hipCUarray>(const_cast<void *>(DstPtr));
       CpyDesc.dstXInBytes = DstOffset[0];
-      CpyDesc.dstY = DstOffset[1];
+      CpyDesc.dstY = (ImgType == UR_MEM_TYPE_IMAGE1D) ? 0 : DstOffset[1];
     } else {
       CpyDesc.dstHost = DstPtr;
     }
     CpyDesc.WidthInBytes = Region[0];
-    CpyDesc.Height = Region[1];
+    CpyDesc.Height = (ImgType == UR_MEM_TYPE_IMAGE1D) ? 1 : Region[1];
     UR_CHECK_ERROR(hipMemcpyParam2DAsync(&CpyDesc, HipStream));
     return UR_RESULT_SUCCESS;
   }
@@ -1052,11 +1052,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     int ElementByteSize = imageElementByteSize(Format);
 
     size_t ByteOffsetX = origin.x * ElementByteSize * NumChannels;
-    size_t BytesToCopy = ElementByteSize * NumChannels * region.depth;
+    size_t BytesToCopy = ElementByteSize * NumChannels * region.width;
 
     auto ImgType = std::get<SurfaceMem>(hImage->Mem).getImageType();
 
-    size_t AdjustedRegion[3] = {BytesToCopy, region.height, region.height};
+    size_t AdjustedRegion[3] = {BytesToCopy, region.height, region.depth};
     size_t SrcOffset[3] = {ByteOffsetX, origin.y, origin.z};
 
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
@@ -1113,11 +1113,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     int ElementByteSize = imageElementByteSize(Format);
 
     size_t ByteOffsetX = origin.x * ElementByteSize * NumChannels;
-    size_t BytesToCopy = ElementByteSize * NumChannels * region.depth;
+    size_t BytesToCopy = ElementByteSize * NumChannels * region.width;
 
     auto ImgType = std::get<SurfaceMem>(hImage->Mem).getImageType();
 
-    size_t AdjustedRegion[3] = {BytesToCopy, region.height, region.height};
+    size_t AdjustedRegion[3] = {BytesToCopy, region.height, region.depth};
     size_t DstOffset[3] = {ByteOffsetX, origin.y, origin.z};
 
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
@@ -1186,13 +1186,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
 
     int ElementByteSize = imageElementByteSize(SrcFormat);
 
-    size_t DstByteOffsetX = dstOrigin.x * ElementByteSize * SrcNumChannels;
-    size_t SrcByteOffsetX = srcOrigin.x * ElementByteSize * DstNumChannels;
-    size_t BytesToCopy = ElementByteSize * SrcNumChannels * region.depth;
+    size_t DstByteOffsetX = dstOrigin.x * ElementByteSize * DstNumChannels;
+    size_t SrcByteOffsetX = srcOrigin.x * ElementByteSize * SrcNumChannels;
+    size_t BytesToCopy = ElementByteSize * SrcNumChannels * region.width;
 
     auto ImgType = std::get<SurfaceMem>(hImageSrc->Mem).getImageType();
 
-    size_t AdjustedRegion[3] = {BytesToCopy, region.height, region.width};
+    size_t AdjustedRegion[3] = {BytesToCopy, region.height, region.depth};
     size_t SrcOffset[3] = {SrcByteOffsetX, srcOrigin.y, srcOrigin.z};
     size_t DstOffset[3] = {DstByteOffsetX, dstOrigin.y, dstOrigin.z};
 
