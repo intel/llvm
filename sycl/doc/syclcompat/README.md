@@ -10,9 +10,9 @@ SYCLcompat provides:
 
 * A high-level API that provides closer semantics to other programming models,
 simplifying line by line conversions.
-* Alternative submission APIs that encapusulate SYCL-specific "queue" and
+* Alternative submission APIs that encapsulate SYCL-specific "queue" and
 "event" APIs for easier reference.
-* Ability to gradually introduce other SYCL concepts as the user familiarises
+* Ability to gradually introduce other SYCL concepts as the user familiarizes
 themselves with the core SYCL API.
 * Clear distinction between core SYCL API and the compatibility interface via
 separate namespaces.
@@ -292,9 +292,10 @@ This `launch` interface allows users to define an internal memory pool, or
 scratchpad, that can then be reinterpreted as the datatype required by the user
 within the kernel function.
 
-To launch a kernel with a specified sub-group size, overloads similar to above `launch`
-functions are present in the `syclcompat::experimental` namespace, which accept SubgroupSize
-as a template parameter and can be called as  `launch<Function, SubgroupSize>`
+To launch a kernel with a specified sub-group size, overloads similar to above
+`launch` functions are present in the `syclcompat::experimental` namespace,
+which accept SubgroupSize as a template parameter and can be called as
+`launch<Function, SubgroupSize>`
 
 ```cpp
 
@@ -840,8 +841,9 @@ The exposed functionalities include creation and destruction of queues, through
 `syclcompat::create_queue` and `syclcompat::destroy_queue`, and providing the
 ability to wait for submitted kernels using `syclcompat::wait` or
 `syclcompat::wait_and_throw`. Any async errors will be output to `stderr` if
-`print_on_async_exceptions`, and will have the default behavior otherwise, which calls `std:terminate`. Synchronous exceptions have to be managed
-by users independently of what is set in this parameter.
+`print_on_async_exceptions`, and will have the default behavior otherwise, which
+calls `std:terminate`. Synchronous exceptions have to be managed by users
+independently of what is set in this parameter.
 
 Devices are managed through a helper class, `device_ext`. The `device_ext` class
 associates a vector of `sycl::queues` with its `sycl::device`. The `device_ext`
@@ -853,16 +855,16 @@ can be queried through `device_ext` as well.
 throws a `sycl::exception` if the device does not have the specified list of
 `sycl::aspect`.
 
-Users can manage queues through the `syclcompat::set_default_queue(sycl::queue q)`
-free function, and the `device_ext` `set_saved_queue`, `set_default_queue`,
+Users can manage queues through the `syclcompat::set_default_queue(sycl::queue
+q)` free function, and the `device_ext` `set_saved_queue`, `set_default_queue`,
 and `get_saved_queue` member functions.
-`set_default_queue` is blocking, and
-overwrites the previous default queue with a user defined one, waiting for any
-submitted kernels to finish.
+`set_default_queue` is blocking, and overwrites the previous default queue with
+a user defined one, waiting for any submitted kernels to finish.
 The `device_ext` automatically sets the saved queue to the default queue.
 Therefore, it's important to note that if the previous default queue was the
 device's saved queue, setting a new default queue will update the reference of
-the saved queue to the new default one to keep the state of the class consistent.
+the saved queue to the new default one to keep the state of the class
+consistent.
 
 The class is exposed as follows:
 
@@ -946,7 +948,7 @@ atomic operations is defined as `syclcompat::type_identity_t<T>` to avoid
 template deduction issues when an operand of a different type (e.g. double
 literal) is supplied. Atomic addition and subtraction free functions make use of
 `syclcompat::arith_t<T>` to differentiate between numeric and pointer
-arithmetics.
+arithmetic.
 
 The available operations are exposed as follows:
 
@@ -1039,8 +1041,8 @@ template <sycl::access::address_space addressSpace =
           sycl::memory_scope memoryScope = sycl::memory_scope::device,
           typename T>
 T atomic_compare_exchange_strong(
-    sycl::multi_ptr<T, sycl::access::address_space::generic_space> addr,
-    T expected, T desired,
+    sycl::multi_ptr<T, addressSpace> addr, type_identity_t<T> expected,
+    type_identity_t<T> desired,
     sycl::memory_order success = sycl::memory_order::relaxed,
     sycl::memory_order fail = sycl::memory_order::relaxed);
 template <sycl::access::address_space addressSpace =
@@ -1142,8 +1144,8 @@ low 32-bits back into an integer.
 position of the first least significant set bit in an integer.
 `byte_level_permute` returns a byte-permutation of two input unsigned integers,
 with bytes selected according to a third unsigned integer argument.
-`match_all_over_sub_group` and `match_any_over_sub_group` allows comparison of values
-across work-items within a sub-group.
+`match_all_over_sub_group` and `match_any_over_sub_group` allows comparison of
+values across work-items within a sub-group.
 
 The functions `select_from_sub_group`, `shift_sub_group_left`,
 `shift_sub_group_right` and `permute_sub_group_by_xor` provide equivalent
@@ -1153,17 +1155,17 @@ However, they provide an optional argument to represent the `logical_group` size
 (default 32).
 
 `int_as_queue_ptr` helps with translation of code by reinterpret casting an
-address to `sycl::queue *`, or returning a pointer to Syclcompat's default queue
+address to `sycl::queue *`, or returning a pointer to SYCLcompat's default queue
 if the address is <= 2.
 `args_selector` is a helper class for extracting arguments from an array of
 pointers to arguments or buffer of arguments to pass to a kernel function.
 The class allows users to exclude parameters such as `sycl::nd_item`.
 Experimental support for masked versions of `select_from_sub_group`,
 `shift_sub_group_left`, `shift_sub_group_right` and `permute_sub_group_by_xor`
-is provided only for SPIRV or cuda devices.
+is provided only for SPIRV or CUDA devices.
 
-As part of the compatibility utilities to facilitate machine translation to SYCL,
-two aliases for errors are provided, `err0` and `err1`.
+As part of the compatibility utilities to facilitate machine translation to
+SYCL, two aliases for errors are provided, `err0` and `err1`.
 
 ```c++
 namespace syclcompat {
@@ -1349,11 +1351,10 @@ kernel names during machine translation.
 SYCL spec supported by the current SYCL compiler.
 
 The `SYCLCOMPAT_CHECK_ERROR` macro encapsulates an error-handling mechanism for
-expressions that might throw `sycl::exception` and `std::runtime_error`.
-If no exceptions are thrown, it returns `syclcompat::error_code::SUCCESS`.
-If a `sycl::exception` is caught, it returns `syclcompat::error_code::BACKEND_ERROR`.
+expressions that might throw `sycl::exception` and `std::runtime_error`. If no
+exceptions are thrown, it returns `syclcompat::error_code::SUCCESS`. If a
+`sycl::exception` is caught, it returns `syclcompat::error_code::BACKEND_ERROR`.
 If a `std::runtime_error` exception is caught,
-
 `syclcompat::error_code::DEFAULT_ERROR` is returned instead. For both cases, it
 prints the error message to the standard error stream.
 
@@ -1407,12 +1408,12 @@ current version, `kernel_function_info` describes only maximum work-group size.
 
 SYCLcompat also provides the `kernel_library` and `kernel_function` classes.
 `kernel_library` facilitates the loading and unloading of kernel libraries.
-`kernel_function` represents a specific kernel function within a loaded librariy
+`kernel_function` represents a specific kernel function within a loaded library
 and can be invoked with specified arguments.
-`load_kernel_library`, `load_kernel_library_mem`, and `unload_kernel_library` are
-free functions to handle the loading and unloading of `kernel_library` objects.
-`get_kernel_function`, and `invoke_kernel_function` offer a similar functionality
-for `kernel_function` objects.
+`load_kernel_library`, `load_kernel_library_mem`, and `unload_kernel_library`
+are free functions to handle the loading and unloading of `kernel_library`
+objects. `get_kernel_function`, and `invoke_kernel_function` offer a similar
+functionality for `kernel_function` objects.
 
 ``` c++
 namespace syclcompat {
@@ -1426,8 +1427,8 @@ static void get_kernel_function_info(kernel_function_info *kernel_info,
 static kernel_function_info get_kernel_function_info(const void *function);
 
 class kernel_library {
-  kernel_library();
-  kernel_library(void *ptr);
+  constexpr kernel_library();
+  constexpr kernel_library(void *ptr);
   operator void *() const;
 };
 
@@ -1436,8 +1437,8 @@ static kernel_library load_kernel_library_mem(char const *const image);
 static void unload_kernel_library(const kernel_library &library);
 
 class kernel_function {
-    kernel_function();
-    kernel_function(kernel_functor ptr);
+    constexpr kernel_function();
+    constexpr kernel_function(kernel_functor ptr);
     operator void *() const;
     void operator()(sycl::queue &q, const sycl::nd_range<3> &range,
                     unsigned int local_mem_size, void **args, void **extra);
@@ -1487,8 +1488,8 @@ as a vector of elements, and returning `0` for vector components for which
 `vectorized_sum_abs_diff` calculates the absolute difference for two values
 without modulo overflow for vector types.
 
-The functions `cmul`,`cdiv`,`cabs`, `cmul_add`, and `conj` define complex math operations
-which accept `sycl::vec<T,2>` arguments representing complex values.
+The functions `cmul`,`cdiv`,`cabs`, `cmul_add`, and `conj` define complex math
+operations which accept `sycl::vec<T,2>` arguments representing complex values.
 
 ```cpp
 inline unsigned int funnelshift_l(unsigned int low, unsigned int high,

@@ -187,6 +187,9 @@ void RunJointSort(sycl::queue &Q, const std::vector<T> &DataToSort,
              const size_t EndIdx =
                  std::min(ChunkSize * (PartID + 1), NumOfElements);
 
+             if (EndIdx <= StartIdx)
+               return;
+
              // This version of API always sorts in ascending order
              if constexpr (std::is_same_v<Compare, std::less<T>>)
                oneapi_exp::joint_sort(
