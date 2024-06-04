@@ -35,11 +35,9 @@ urEnqueueMemImageReadTest.Success1D/AMD_HIP_BACKEND___{{.*}}_
 urEnqueueMemImageReadTest.Success3D/AMD_HIP_BACKEND___{{.*}}_
 urEnqueueMemImageWriteTest.Success1D/AMD_HIP_BACKEND___{{.*}}_
 urEnqueueMemImageWriteTest.Success3D/AMD_HIP_BACKEND___{{.*}}_
-{{OPT}}urEnqueueUSMFill2DNegativeTest.OutOfBounds/AMD_HIP_BACKEND___{{.*}}_
 urEnqueueUSMAdviseWithParamTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_USM_ADVICE_FLAG_DEFAULT
 urEnqueueUSMAdviseTest.MultipleParamsSuccess/AMD_HIP_BACKEND___{{.*}}_
 urEnqueueUSMAdviseTest.NonCoherentDeviceMemorySuccessOrWarning/AMD_HIP_BACKEND___{{.*}}_
-urEnqueueUSMMemcpy2DNegativeTest.InvalidSize/AMD_HIP_BACKEND___{{.*}}___pitch__1__width__1__height__1__src__UR_USM_TYPE_DEVICE__dst__UR_USM_TYPE_DEVICE
 urEnqueueUSMPrefetchWithParamTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_USM_MIGRATION_FLAG_DEFAULT
 urEnqueueUSMPrefetchWithParamTest.CheckWaitEvent/AMD_HIP_BACKEND___{{.*}}___UR_USM_MIGRATION_FLAG_DEFAULT
 urEnqueueTimestampRecordingExpTest.Success/AMD_HIP_BACKEND___{{.*}}
