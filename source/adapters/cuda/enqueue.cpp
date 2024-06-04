@@ -414,8 +414,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
-  std::vector<ur_event_handle_t> DepEvents(
-      phEventWaitList, phEventWaitList + numEventsInWaitList);
+  std::vector<ur_event_handle_t> MemMigrationEvents;
   std::vector<std::pair<ur_mem_handle_t, ur_lock>> MemMigrationLocks;
 
   // phEventWaitList only contains events that are handed to UR by the SYCL
@@ -427,9 +426,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     for (auto &MemArg : hKernel->Args.MemObjArgs) {
       bool PushBack = false;
       if (auto MemDepEvent = MemArg.Mem->LastEventWritingToMemObj;
-          MemDepEvent && std::find(DepEvents.begin(), DepEvents.end(),
-                                   MemDepEvent) == DepEvents.end()) {
-        DepEvents.push_back(MemDepEvent);
+          MemDepEvent && !listContainsElem(numEventsInWaitList, phEventWaitList,
+                                           MemDepEvent)) {
+        MemMigrationEvents.push_back(MemDepEvent);
         PushBack = true;
       }
       if ((MemArg.AccessFlags &
@@ -477,19 +476,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     CUstream CuStream = hQueue->getNextComputeStream(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
 
-    if (DepEvents.size()) {
-      UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, DepEvents.size(),
-                                       DepEvents.data()));
-    }
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
+                                     phEventWaitList));
 
     // For memory migration across devices in the same context
     if (hQueue->getContext()->Devices.size() > 1) {
+      if (MemMigrationEvents.size()) {
+        UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream,
+                                         MemMigrationEvents.size(),
+                                         MemMigrationEvents.data()));
+      }
       for (auto &MemArg : hKernel->Args.MemObjArgs) {
-        migrateMemoryToDeviceIfNeeded(MemArg.Mem, hQueue->getDevice());
+        enqueueMigrateMemoryToDeviceIfNeeded(MemArg.Mem, hQueue->getDevice(),
+                                             CuStream);
       }
     }
 
-    if (phEvent) {
+    if (phEvent || MemMigrationEvents.size()) {
       RetImplEvent =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_KERNEL_LAUNCH, hQueue, CuStream, StreamToken));
@@ -522,8 +525,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());
       *phEvent = RetImplEvent.release();
+    } else if (MemMigrationEvents.size()) {
+      UR_CHECK_ERROR(RetImplEvent->record());
+      for (auto &MemArg : hKernel->Args.MemObjArgs) {
+        // If no event is passed to entry point, we still need to have an event
+        // if ur_mem_handle_t s are used. Here we give ownership of the event
+        // to the ur_mem_handle_t
+        if (MemArg.AccessFlags &
+            (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_WRITE_ONLY)) {
+          MemArg.Mem->setLastEventWritingToMemObj(RetImplEvent.release());
+        }
+      }
     }
-
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -603,8 +616,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     }
   }
 
-  std::vector<ur_event_handle_t> DepEvents(
-      phEventWaitList, phEventWaitList + numEventsInWaitList);
+  std::vector<ur_event_handle_t> MemMigrationEvents;
   std::vector<std::pair<ur_mem_handle_t, ur_lock>> MemMigrationLocks;
 
   // phEventWaitList only contains events that are handed to UR by the SYCL
@@ -616,9 +628,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     for (auto &MemArg : hKernel->Args.MemObjArgs) {
       bool PushBack = false;
       if (auto MemDepEvent = MemArg.Mem->LastEventWritingToMemObj;
-          MemDepEvent && std::find(DepEvents.begin(), DepEvents.end(),
-                                   MemDepEvent) == DepEvents.end()) {
-        DepEvents.push_back(MemDepEvent);
+          MemDepEvent && !listContainsElem(numEventsInWaitList, phEventWaitList,
+                                           MemDepEvent)) {
+        MemMigrationEvents.push_back(MemDepEvent);
         PushBack = true;
       }
       if ((MemArg.AccessFlags &
@@ -666,19 +678,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     CUstream CuStream = hQueue->getNextComputeStream(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
 
-    if (DepEvents.size()) {
-      UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, DepEvents.size(),
-                                       DepEvents.data()));
-    }
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
+                                     phEventWaitList));
 
     // For memory migration across devices in the same context
     if (hQueue->getContext()->Devices.size() > 1) {
+      if (MemMigrationEvents.size()) {
+        UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream,
+                                         MemMigrationEvents.size(),
+                                         MemMigrationEvents.data()));
+      }
       for (auto &MemArg : hKernel->Args.MemObjArgs) {
-        migrateMemoryToDeviceIfNeeded(MemArg.Mem, hQueue->getDevice());
+        enqueueMigrateMemoryToDeviceIfNeeded(MemArg.Mem, hQueue->getDevice(),
+                                             CuStream);
       }
     }
 
-    if (phEvent) {
+    if (phEvent || MemMigrationEvents.size()) {
       RetImplEvent =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_KERNEL_LAUNCH, hQueue, CuStream, StreamToken));
@@ -724,6 +740,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());
       *phEvent = RetImplEvent.release();
+    } else if (MemMigrationEvents.size()) {
+      UR_CHECK_ERROR(RetImplEvent->record());
+      for (auto &MemArg : hKernel->Args.MemObjArgs) {
+        // If no event is passed to entry point, we still need to have an event
+        // if ur_mem_handle_t s are used. Here we give ownership of the event
+        // to the ur_mem_handle_t
+        if (MemArg.AccessFlags &
+            (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_WRITE_ONLY)) {
+          MemArg.Mem->setLastEventWritingToMemObj(RetImplEvent.release());
+        }
+      }
     }
 
   } catch (ur_result_t Err) {

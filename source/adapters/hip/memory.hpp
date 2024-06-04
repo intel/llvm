@@ -17,6 +17,12 @@
 #include <unordered_map>
 #include <variant>
 
+ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t,
+                                           const ur_device_handle_t);
+ur_result_t enqueueMigrateMemoryToDeviceIfNeeded(ur_mem_handle_t,
+                                                 const ur_device_handle_t,
+                                                 hipStream_t);
+
 // Handler for plain, pointer-based HIP allocations
 struct BufferMem {
   struct BufferMap {
@@ -338,7 +344,7 @@ public:
 ///
 /// =====> urEnqueueKernelLaunch(q1, hKernel1, ...);
 ///             -> Suppose hKernel1 wants to read from hBuffer and not write.
-///             -> migrateMemoryToDeviceIfNeeded(device1);
+///             -> enqueueMigrateMemoryToDeviceIfNeeded(device1);
 ///                   -> hBuffer->LastEventWritingToMemObj is not nullptr
 ///                   -> Check if memory has been migrated to device1 since the
 ///                      last write
@@ -349,7 +355,7 @@ public:
 ///             -> Enqueue native kernel launch
 ///
 /// =====> urEnqueueKernelLaunch(q0, hKernel0, ...);
-///             -> migrateMemoryToDeviceIfNeeded(device0);
+///             -> enqueueMigrateMemoryToDeviceIfNeeded(device0);
 ///                   -> hBuffer->LastEventWritingToMemObj refers to an event
 ///                      from q0
 ///                        -> Migration not necessary
