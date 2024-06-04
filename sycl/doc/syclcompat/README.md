@@ -848,7 +848,7 @@ by users independently of what is set in this parameter.
 Devices are managed through a helper class, `device_ext`. The `device_ext` class
 associates a vector of `sycl::queues` with its `sycl::device`. The `device_ext`
 destructor waits on a set of `sycl::event` which can be added to via
-`add_event`. This is used, for example, to implement `syclcompat::free_async` to
+`add_event`. This is used, for example, to implement `syclcompat::enqueue_free` to
 schedule release of memory after a kernel or `mempcy`. SYCL device properties
 can be queried through `device_ext` as well.
 `device_ext` also provides the `has_capability_or_fail` member function, which
