@@ -678,7 +678,7 @@ framework API and this will generate traces for the functions in the program.
 However, in this example, we use the helper scoped class provided by the
 framework to emit notifications for the begin and end of the scope through
 the  `xpti::trace_point_type_t::task_begin` and
-`xpti::trace_point_type_t::task_end` automatically. In this example, the per instance user data is not sent and the `scoped_notify` defaults that to `nullptr`.
+`xpti::trace_point_type_t::task_end` automatically. In this example, the per instance user data is not sent and the `ScopedNotify` defaults that to `nullptr`.
 
 ```cpp
 void function1() {
@@ -690,7 +690,7 @@ void function1() {
             xpti::trace_event_type_t::algorithm,
             xpti::trace_activity_type_t::active, &instance_id);
   }
-  xpti::framework::scoped_notify ev("myStream",
+  xpti::framework::ScopedNotify ev("myStream",
             xpti::trace_point_type_t::region_begin, nullptr, &event,
             instance_id);
   for(int i = 0; i < 5; ++i ) {
@@ -928,7 +928,7 @@ void function1() {
                              xpti::trace_activity_type_t::active,
                              &instance_id);
   }
-  xpti::framework::scoped_notify ev("myStream",
+  xpti::framework::ScopedNotify ev("myStream",
         xpti::trace_point_type_t::region_begin,
         nullptr, f1_event, instance_id);
   for(int i = 0; i < 5; ++i ) {

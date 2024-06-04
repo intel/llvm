@@ -251,23 +251,39 @@ TEST_F(xptiApiTest, xptiGetAndSetDefaultTraceType) {
 
 TEST_F(xptiApiTest, xptiGetTracePointScopeData) {
   xpti::hash_t Hash;
+  uint64_t Instance;
   xpti::trace_point_data_t Data;
   auto ScopeData = xptiGetTracepointScopeData();
   EXPECT_EQ(ScopeData.isValid(), false);
   auto Result = xptiSetTracepointScopeData(Data);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
-  xpti::payload_t Payload("foo", "foo.cpp", 1, 0, (void *)13);
+  xpti::payload_t Payload("foo", "foo.cpp", 1, 4);
 
   Data.payload = &Payload;
   Data.uid = xptiRegisterPayload(&Payload);
   Result = xptiSetTracepointScopeData(Data);
+  // Data.event is nullptr
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+  EXPECT_EQ(Data.isValid(), false);
+
+  Data.event = xptiMakeEvent("foo", &Payload, 0, (xpti::trace_activity_type_t)1,
+                             &Instance);
+  Data.payload = Data.event->reserved.payload;
+  Data.uid = Data.event->uid;
+  Result = xptiSetTracepointScopeData(Data);
+  // Data.event is nullptr
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
-  EXPECT_EQ(Data.isValid(), true);
 
   ScopeData = xptiGetTracepointScopeData();
   EXPECT_EQ(ScopeData.isValid(), true);
+  // As ScopeData is not set
   EXPECT_EQ(Data.payload, ScopeData.payload);
   EXPECT_EQ(Hash.combine_short(ScopeData.uid), Hash.combine_short(Data.uid));
+  xptiUnsetTracepointScopeData();
+  ScopeData = xptiGetTracepointScopeData();
+  EXPECT_EQ(ScopeData.isValid(), false);
+  EXPECT_EQ(ScopeData.payload, nullptr);
+  EXPECT_EQ(ScopeData.event, nullptr);
 }
 
 TEST_F(xptiApiTest, xptiTraceEnabled) {

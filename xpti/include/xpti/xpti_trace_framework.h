@@ -84,7 +84,7 @@ XPTI_EXPORT_API xpti::uid_t xptiGetUniversalId();
 
 /// @brief Update universal ID value
 /// @details Save new universal ID value to thread-local storage. This function
-/// is typically called by xpti::framework::tracepoint_t constructor when
+/// is typically called by xpti::framework::tracepoint_scope_t constructor when
 /// updating tracepoint information. See xptiGetUniversalId() for more info
 /// about universal IDs.
 /// @param uid Unique identifier.

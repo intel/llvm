@@ -497,7 +497,7 @@ struct function_with_args_t {
 ///  that are necessary for modeling parallel runtimes. A helper macro
 ///  provided to create the enum values as the LSB is reserved for
 ///  determining if the trace point is a 'begin' trace or an 'end'
-///  trace. This reserved bit is used by the scoped_notify() class
+///  trace. This reserved bit is used by the ScopedNotify() class
 ///  to automatically send the closing enum trace type for a given
 ///  trace point type.
 ///
@@ -757,6 +757,26 @@ struct reserved_data_t {
   metadata_t metadata;
 };
 
+struct trace_event_data_t {
+  /// Unique id that corresponds to an event type or event group type
+  uid_t uid;
+  /// The type of event
+  uint16_t event_type;
+  /// How this event is classified: active, overhead, barrier etc
+  uint16_t activity_type;
+  /// Unused 32-bit slot that could be used for any ids that need to be
+  /// propagated in the future
+  uint32_t unused;
+  /// If event_type is "graph" and trace_type is "edge_create", then the
+  /// source ID is set
+  uid_t source_uid;
+  /// If event_type is "graph" and trace_type is "edge_create", then the
+  /// target ID is set
+  uid_t target_uid;
+  /// A reserved slot for memory growth, if required by the framework
+  reserved_data_t reserved;
+};
+
 /// @struct trace_point_data_t
 /// @brief This struct represents a trace point's data in the tracing framework.
 ///
@@ -778,6 +798,16 @@ struct trace_point_data_t {
   ///
   payload_t *payload = nullptr;
 
+  /// @brief This is a pointer to the event associated with the payload
+  /// instance.
+  ///
+  /// When a payload is provided to tracepoint_scope_t object, it will register
+  /// the payload to get the the new UID which has an updated instance. Using
+  /// this UID, a new event is also created and stashed here so it can be
+  /// updated to TLS.
+  ///
+  trace_event_data_t *event = nullptr;
+
   /// @brief This method checks if the trace point data is valid.
   ///
   /// It returns true if both the uid is valid (as determined by the uid's
@@ -786,27 +816,7 @@ struct trace_point_data_t {
   ///
   /// @return True if uid is valid and payload is not null, false otherwise.
   ///
-  bool isValid() { return (uid.isValid() && payload); }
-};
-
-struct trace_event_data_t {
-  /// Unique id that corresponds to an event type or event group type
-  uid_t uid;
-  /// The type of event
-  uint16_t event_type;
-  /// How this event is classified: active, overhead, barrier etc
-  uint16_t activity_type;
-  /// Unused 32-bit slot that could be used for any ids that need to be
-  /// propagated in the future
-  uint32_t unused;
-  /// If event_type is "graph" and trace_type is "edge_create", then the
-  /// source ID is set
-  uid_t source_uid;
-  /// If event_type is "graph" and trace_type is "edge_create", then the
-  /// target ID is set
-  uid_t target_uid;
-  /// A reserved slot for memory growth, if required by the framework
-  reserved_data_t reserved;
+  bool isValid() { return (uid.isValid() && payload && event); }
 };
 
 /// Describes offload buffer

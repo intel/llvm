@@ -1075,9 +1075,15 @@ public:
     if (!payload || !payload->isValid())
       return ScopeData;
 
-    auto UidPayload = MTracepoints.registerPayload(payload);
-    ScopeData.uid = UidPayload.first;
-    ScopeData.payload = UidPayload.second;
+    uint64_t InstanceNo = 0;
+    auto event = MTracepoints.create(payload, &InstanceNo);
+    // Scope data is created by this function and needs to successfully populate
+    // all attributes for it to be valid
+    ScopeData.uid = event->uid;
+    // Lifetime of a payload is the duration of the application
+    ScopeData.payload = event->reserved.payload;
+    // The caller will manage the lifetime of the event, which is the scope
+    ScopeData.event = event;
     return ScopeData;
   }
 
@@ -1429,17 +1435,13 @@ xptiSetTracepointScopeData(xpti::trace_point_data_t &data) {
     return xpti::result_t::XPTI_RESULT_INVALIDARG;
   // Copy to TLS so it is available for the remainder of the scope
   g_tls_tracepoint_scope_data = data;
+  // Also set Universal ID separately as it may be in use by older
+  // implementations of tools
+  xptiSetUniversalId(data.uid);
   return xpti::result_t::XPTI_RESULT_SUCCESS;
 }
 
 XPTI_EXPORT_API void xptiUnsetTracepointScopeData() {
-  // Current instance of tracepoint_event_data_t should be no longer valid as it
-  // is going out of scope
-  auto Event = const_cast<xpti::trace_event_data_t *>(
-      xpti::Framework::instance().findEvent(g_tls_tracepoint_scope_data.uid));
-  if (Event) {
-    xpti::Framework::instance().releaseEvent(Event);
-  }
   g_tls_tracepoint_scope_data = xpti::trace_point_data_t();
 }
 

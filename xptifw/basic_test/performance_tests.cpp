@@ -197,9 +197,9 @@ void TestPerformance::runDataStructureTestsThreads(
         record &r = MRecords[i % MTracepoints];
         uint64_t LookupIndex = r.lookup;
         xpti::trace_event_data_t *Ev = Events[LookupIndex];
-        xpti::framework::scoped_notify ev(
-            "xpti", (uint16_t)xpti::trace_point_type_t::region_begin, nullptr,
-            Ev, MInstanceID, nullptr);
+        test::ScopedNotify ev("xpti",
+                              (uint16_t)xpti::trace_point_type_t::region_begin,
+                              nullptr, Ev, MInstanceID, nullptr);
       }
     }
     ModelRow[(int)DSColumns::Notify] = ElapsedTime;
@@ -382,7 +382,7 @@ void TestPerformance::runDataStructureTestsThreads(
             record &r = MRecords[i % MTracepoints];
             uint64_t LookupIndex = r.lookup;
             xpti::trace_event_data_t *Ev = Events[LookupIndex];
-            xpti::framework::scoped_notify ev(
+            test::ScopedNotify ev(
                 "xpti", (uint16_t)xpti::trace_point_type_t::region_begin,
                 nullptr, Ev, MInstanceID, nullptr);
           }
@@ -465,9 +465,9 @@ void TestPerformance::runInstrumentationTestsThreads(
       for (int i = 0; i < MTracepointInstances; ++i) {
         int LookupIndex = MRndmTPIndex[i % MStringTableEntries];
         xpti::trace_event_data_t *Ev = Events[LookupIndex];
-        xpti::framework::scoped_notify ev(
-            "xpti", (uint16_t)xpti::trace_point_type_t::region_begin, nullptr,
-            Ev, MInstanceID, nullptr);
+        test::ScopedNotify ev("xpti",
+                              (uint16_t)xpti::trace_point_type_t::region_begin,
+                              nullptr, Ev, MInstanceID, nullptr);
       }
     }
     ModelRow[(int)FWColumns::TPLookupAndNotify] = ElapsedTime;
@@ -504,7 +504,7 @@ void TestPerformance::runInstrumentationTestsThreads(
           record &r = MRecords[i % MTracepoints];
           uint64_t LookupIndex = r.lookup;
           xpti::trace_event_data_t *Ev = Events[LookupIndex];
-          xpti::framework::scoped_notify ev(
+          test::ScopedNotify ev(
               "xpti", (uint16_t)xpti::trace_point_type_t::region_begin, nullptr,
               Ev, MInstanceID, nullptr);
         }

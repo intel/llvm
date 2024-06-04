@@ -130,7 +130,7 @@ void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) {
       (uint16_t)xpti::trace_point_type_t::function_end;
   if (xptiCheckTraceEnabled(PiCallStreamID, NotificationTraceType)) {
     // CorrelationID is the unique ID that ties together a function_begin and
-    // function_end pair of trace calls. The splitting of a scoped_notify into
+    // function_end pair of trace calls. The splitting of a ScopedNotify into
     // two function calls incurs an additional overhead as the StreamID must
     // be looked up twice.
     xptiNotifySubscribers(PiCallStreamID, NotificationTraceType, GPICallEvent,

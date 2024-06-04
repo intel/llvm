@@ -71,53 +71,52 @@ TEST_F(xptiCorrectnessTest, xptiRegisterString) {
   EXPECT_STREQ(LUTStr, TStr);
 }
 
-void nestedTest(xpti::payload_t *p, std::vector<uint64_t> &uids) {
-  xpti::framework::tracepoint_t t(p);
+TEST_F(xptiCorrectnessTest, xptiTPayloadTest) {
+  xpti::payload_t p("foo", "foo.cpp", 10, 0, (void *)(0xdeadbeefull));
   xpti::hash_t Hash;
 
-  uint64_t hash = Hash.combine_short(t.universal_id());
-  uids.push_back(hash);
+  auto UID = xptiRegisterPayload(&p);
+  EXPECT_EQ(UID, p.uid);
+  EXPECT_EQ(UID.isValid(), true);
+  EXPECT_EQ(p.isValid(), true);
 
-  if (uids.size() < 5) {
-    xpti::payload_t pp;
-    nestedTest(&pp, uids);
-  }
+  auto Payload = const_cast<xpti::payload_t *>(xptiQueryPayloadByUID(UID));
+  EXPECT_NE(Payload, nullptr);
+  EXPECT_EQ(Payload->uid, UID);
+  EXPECT_EQ(Payload->uid.isValid(), true);
+  EXPECT_GT(Payload->uid.instance, 0);
+  // Registering it again should change the instance number
+  auto NewUID = xptiRegisterPayload(&p);
+  EXPECT_GT(NewUID.instance, UID.instance);
+  EXPECT_EQ(Hash.combine_short(NewUID), Hash.combine_short(UID));
 }
 
-TEST_F(xptiCorrectnessTest, xptiTracePointTest) {
-  std::vector<uint64_t> uids;
+TEST_F(xptiCorrectnessTest, xptiTracePointScopeDataTest) {
   xpti::payload_t p("foo", "foo.cpp", 10, 0, (void *)(0xdeadbeefull));
+  xpti::framework::tracepoint_scope_t t(p, false);
+  auto ScopeData = xptiGetTracepointScopeData();
+  EXPECT_EQ(ScopeData.isValid(), true);
+  EXPECT_EQ(ScopeData.uid.isValid(), true);
+  EXPECT_EQ(ScopeData.uid, t.uid());
+  EXPECT_EQ(ScopeData.payload->isValid(), true);
+  EXPECT_NE(ScopeData.payload, nullptr);
+  EXPECT_EQ(ScopeData.payload, t.payload());
+  EXPECT_NE(ScopeData.event, nullptr);
+  EXPECT_EQ(ScopeData.event, t.traceEvent());
 
-  (void)xptiRegisterPayload(&p);
+  EXPECT_EQ(ScopeData.event->uid, t.uid());
+  EXPECT_EQ(ScopeData.event->uid, ScopeData.uid);
+  EXPECT_EQ(ScopeData.payload->uid, ScopeData.uid);
+  EXPECT_EQ(ScopeData.payload->uid, ScopeData.event->uid);
+  EXPECT_EQ(ScopeData.payload->uid, t.uid());
 
-  uint64_t id = xpti::invalid_uid;
-  nestedTest(&p, uids);
-  for (auto &e : uids) {
-    EXPECT_NE(e, xpti::invalid_uid);
-    if (id != xpti::invalid_uid) {
-      EXPECT_EQ(e, id);
-      id = e;
-    }
-  }
-
-  uids.clear();
-  xpti::payload_t p1("bar", "foo.cpp", 15, 0, (void *)(0xdeaddeadull));
-
-  (void)xptiRegisterPayload(&p1);
-
-  id = xpti::invalid_uid;
-  nestedTest(&p1, uids);
-  for (auto &e : uids) {
-    EXPECT_NE(e, xpti::invalid_uid);
-    if (id != xpti::invalid_uid) {
-      EXPECT_EQ(e, id);
-      id = e;
-    }
-  }
+  EXPECT_EQ(ScopeData.payload, ScopeData.event->reserved.payload);
+  EXPECT_EQ(ScopeData.payload->uid, ScopeData.event->reserved.payload->uid);
+  EXPECT_EQ(ScopeData.event->uid, ScopeData.uid);
 }
 
 void nestedScopeTest(xpti::payload_t *p, std::vector<uint64_t> &uids) {
-  xpti::framework::tracepoint_scope_t t(*p);
+  xpti::framework::tracepoint_scope_t t(*p, false);
   xpti::hash_t Hash;
 
   uint64_t hash = Hash.combine_short(t.uid());
@@ -125,7 +124,7 @@ void nestedScopeTest(xpti::payload_t *p, std::vector<uint64_t> &uids) {
 
   if (uids.size() < 5) {
     xpti::payload_t pp;
-    nestedTest(&pp, uids);
+    nestedScopeTest(&pp, uids);
   }
 }
 
@@ -136,42 +135,53 @@ TEST_F(xptiCorrectnessTest, xptiTracePointScopeTest) {
   auto uid = xptiRegisterPayload(&p);
 
   uint64_t id = xpti::invalid_uid;
-  nestedTest(&p, uids);
+  nestedScopeTest(&p, uids);
   for (auto &e : uids) {
     EXPECT_NE(e, xpti::invalid_uid);
     if (id != xpti::invalid_uid) {
       EXPECT_EQ(e, id);
+      std::cerr << "E: " << e << " ID: " << id << std::endl;
       id = e;
     }
   }
-  // UID should not be able to query the trace point data here
+  // UID should not be able to query the trace point data here as it would have
+  // been released when it went of out scope
   auto Event = xptiFindEvent(uid);
   EXPECT_EQ(Event, nullptr);
+  // UID should be able to query the payload data here as it is still valid
   auto Payload = xptiQueryPayloadByUID(uid);
   EXPECT_NE(Payload, nullptr);
 
   uids.clear();
   xpti::payload_t p1("bar", "foo.cpp", 15, 0);
   {
-    auto uid = xptiRegisterPayload(&p);
-
-    xpti::framework::tracepoint_scope_t t(p1);
-    id = xpti::invalid_uid;
-    nestedTest(&p1, uids);
-    for (auto &e : uids) {
-      EXPECT_NE(e, xpti::invalid_uid);
-      if (id != xpti::invalid_uid) {
-        EXPECT_EQ(e, id);
-        id = e;
+    xpti::uid_t uid;
+    {
+      xpti::framework::tracepoint_scope_t t(p1, false);
+      uid = t.uid();
+      EXPECT_NE(t.traceEvent(), nullptr);
+      auto ScopeData = xptiGetTracepointScopeData();
+      EXPECT_EQ(ScopeData.isValid(), true);
+      id = xpti::invalid_uid;
+      nestedScopeTest(&p1, uids);
+      for (auto &e : uids) {
+        EXPECT_NE(e, xpti::invalid_uid);
+        if (id != xpti::invalid_uid) {
+          EXPECT_EQ(e, id);
+          id = e;
+        }
       }
+      EXPECT_NE(t.traceEvent(), nullptr);
+
+      // UID should be able to query both payload and event in this case
+      auto Event = xptiFindEvent(t.uid());
+      EXPECT_NE(Event, nullptr);
+      auto Payload = xptiQueryPayloadByUID(t.uid());
+      EXPECT_NE(Payload, nullptr);
     }
-    // UID should be able to query both payload and event in this case, but only
-    // if an event has been created; since we haven't created one, we will get a
-    // nullptr for this instance of UID
-    auto Event = xptiFindEvent(t.uid());
+    // The Event for the uid would have goine out of scope and deleted
+    auto Event = xptiFindEvent(uid);
     EXPECT_EQ(Event, nullptr);
-    auto Payload = xptiQueryPayloadByUID(t.uid());
-    EXPECT_NE(Payload, nullptr);
   }
 }
 
