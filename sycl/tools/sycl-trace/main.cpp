@@ -55,7 +55,6 @@ int main(int argc, char **argv, char *env[]) {
 #ifdef __linux__
   NewEnv.push_back("XPTI_FRAMEWORK_DISPATCHER=libxptifw.so");
   NewEnv.push_back("XPTI_SUBSCRIBERS=libsycl_ur_trace_collector.so");
-  // NewEnv.push_back("UR_LOG_COLLECTOR=level:info;output:stdout");
 #elif defined(__APPLE__)
   NewEnv.push_back("XPTI_FRAMEWORK_DISPATCHER=libxptifw.dylib");
   NewEnv.push_back("XPTI_SUBSCRIBERS=libsycl_ur_trace_collector.dylib");
@@ -78,6 +77,7 @@ int main(int argc, char **argv, char *env[]) {
   };
   const auto EnableVerificationTrace = [&]() {
     NewEnv.push_back("SYCL_TRACE_VERIFICATION_ENABLE=1");
+    NewEnv.push_back("UR_ENABLE_LAYERS=UR_LAYER_TRACING");
   };
 
   for (auto Mode : Modes) {
