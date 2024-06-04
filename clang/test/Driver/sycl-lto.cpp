@@ -5,4 +5,4 @@
 
 // CHECK_ERROR: unsupported option '-foffload-lto=thin' for target 'spir64-unknown-unknown'
 
-// CHECK_SUPPORTED: clang-19{{.*}} "-cc1" "-triple" "spir64-unknown-unknown" {{.*}} "-flto=thin" "-flto-unit"
+// CHECK_SUPPORTED: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown" {{.*}} "-flto=thin" "-flto-unit"
