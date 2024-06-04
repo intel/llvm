@@ -2,9 +2,7 @@
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_cooperative_matrix -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
-
-; TODO: Validation is disabled till the moment the tools in CI are updated (passes locally)
-; R/UN: spirv-val %t.spv
+; RUN: spirv-val %t.spv
 
 ; RUN: llvm-spirv -r --spirv-target-env=SPV-IR %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc

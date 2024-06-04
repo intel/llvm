@@ -80,6 +80,30 @@ static RetType __invoke__ImageRead(ImageT Img, CoordT Coords) {
 }
 
 template <typename RetType, typename ImageT, typename CoordT>
+static RetType __invoke__ImageFetch(ImageT Img, CoordT Coords) {
+
+  // Convert from sycl types to builtin types to get correct function mangling.
+  using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
+  auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
+
+  return sycl::detail::convertFromOpenCLTypeFor<RetType>(
+      __spirv_ImageFetch<TempRetT, ImageT, decltype(TmpCoords)>(Img,
+                                                                TmpCoords));
+}
+
+template <typename RetType, typename ImageT, typename CoordT>
+static RetType __invoke__SampledImageFetch(ImageT Img, CoordT Coords) {
+
+  // Convert from sycl types to builtin types to get correct function mangling.
+  using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
+  auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
+
+  return sycl::detail::convertFromOpenCLTypeFor<RetType>(
+      __spirv_SampledImageFetch<TempRetT, ImageT, decltype(TmpCoords)>(
+          Img, TmpCoords));
+}
+
+template <typename RetType, typename ImageT, typename CoordT>
 static RetType __invoke__ImageArrayFetch(ImageT Img, CoordT Coords,
                                          int ArrayLayer) {
 
@@ -102,6 +126,18 @@ static void __invoke__ImageArrayWrite(ImageT Img, CoordT Coords, int ArrayLayer,
 
   __spirv_ImageArrayWrite<ImageT, decltype(TmpCoords), decltype(TmpVal)>(
       Img, TmpCoords, ArrayLayer, TmpVal);
+}
+
+template <typename RetType, typename SmpImageT, typename DirVecT>
+static RetType __invoke__ImageReadCubemap(SmpImageT SmpImg, DirVecT DirVec) {
+
+  // Convert from sycl types to builtin types to get correct function mangling.
+  using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
+  auto TmpDirVec = sycl::detail::convertToOpenCLType(DirVec);
+
+  return sycl::detail::convertFromOpenCLTypeFor<RetType>(
+      __spirv_ImageSampleCubemap<SmpImageT, TempRetT, decltype(TmpDirVec)>(
+          SmpImg, TmpDirVec));
 }
 
 template <typename RetType, typename SmpImageT, typename CoordT>

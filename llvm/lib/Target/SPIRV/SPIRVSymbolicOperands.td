@@ -413,6 +413,7 @@ defm ImageGatherBiasLodAMD : CapabilityOperand<5009, 0, 0, [], [Shader]>;
 defm FragmentMaskAMD : CapabilityOperand<5010, 0, 0, [], [Shader]>;
 defm StencilExportEXT : CapabilityOperand<5013, 0, 0, [], [Shader]>;
 defm ImageReadWriteLodAMD : CapabilityOperand<5015, 0, 0, [], [Shader]>;
+defm ShaderClockKHR : CapabilityOperand<5055, 0, 0, [SPV_KHR_shader_clock], []>;
 defm SampleMaskOverrideCoverageNV : CapabilityOperand<5249, 0, 0, [], [SampleRateShading]>;
 defm GeometryShaderPassthroughNV : CapabilityOperand<5251, 0, 0, [], [Geometry]>;
 defm ShaderViewportIndexLayerEXT : CapabilityOperand<5254, 0, 0, [], [MultiViewport]>;
@@ -1611,3 +1612,6 @@ multiclass OpcodeOperand<bits<32> value> {
 // TODO: implement other mnemonics.
 defm InBoundsPtrAccessChain : OpcodeOperand<70>;
 defm PtrCastToGeneric : OpcodeOperand<121>;
+defm Bitcast : OpcodeOperand<124>;
+defm ConvertPtrToU : OpcodeOperand<117>;
+defm ConvertUToPtr : OpcodeOperand<120>;

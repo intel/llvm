@@ -35,7 +35,7 @@
 // RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %if any-device-is-cuda %{ -Xsycl-target-backend --cuda-gpu-arch=sm_70 %} %s -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <syclcompat/atomic.hpp>
 
 #include "../common.hpp"

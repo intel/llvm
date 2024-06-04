@@ -121,6 +121,11 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(
         Args.MakeArgString(std::string("-out:") + Output.getFilename()));
 
+  if (Args.hasArg(options::OPT_marm64x))
+    CmdArgs.push_back("-machine:arm64x");
+  else if (TC.getTriple().isWindowsArm64EC())
+    CmdArgs.push_back("-machine:arm64ec");
+
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles) &&
       !C.getDriver().IsCLMode() && !C.getDriver().IsFlangMode()) {
     if (Args.hasArg(options::OPT_fsycl) && !Args.hasArg(options::OPT_nolibsycl))
@@ -130,33 +135,21 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-defaultlib:oldnames");
   }
 
-  if ((Args.hasArg(options::OPT_fsycl) &&
+  if ((!C.getDriver().IsCLMode() && Args.hasArg(options::OPT_fsycl) &&
        !Args.hasArg(options::OPT_nolibsycl)) ||
       Args.hasArg(options::OPT_fsycl_host_compiler_EQ)) {
     CmdArgs.push_back(Args.MakeArgString(std::string("-libpath:") +
                                          TC.getDriver().Dir + "/../lib"));
-    if (!Args.hasArg(options::OPT__SLASH_MDd) &&
-        !isDependentLibAdded(Args, "msvcrtd")) {
+    // When msvcrtd is added via --dependent-lib, we add the sycld
+    // equivalent.  Do not add the -defaultlib as it conflicts.
+    if (!isDependentLibAdded(Args, "msvcrtd")) {
       if (Args.hasArg(options::OPT_fpreview_breaking_changes))
         CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION "-preview.lib");
       else
         CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION ".lib");
-    } else {
-      if (Args.hasArg(options::OPT_fpreview_breaking_changes))
-        CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION
-                          "-previewd.lib");
-      else
-        CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION "d.lib");
     }
     CmdArgs.push_back("-defaultlib:sycl-devicelib-host.lib");
   }
-
-  for (const auto *A : Args.filtered(options::OPT_foffload_static_lib_EQ))
-    CmdArgs.push_back(
-        Args.MakeArgString(Twine("-defaultlib:") + A->getValue()));
-  for (const auto *A : Args.filtered(options::OPT_foffload_whole_static_lib_EQ))
-    CmdArgs.push_back(
-        Args.MakeArgString(Twine("-wholearchive:") + A->getValue()));
 
   // Suppress multiple section warning LNK4078
   if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
@@ -206,6 +199,10 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
           Args.MakeArgString(std::string("-libpath:") + WindowsSdkLibPath));
   }
 
+  if (!C.getDriver().IsCLMode() && Args.hasArg(options::OPT_L))
+    for (const auto &LibPath : Args.getAllArgValues(options::OPT_L))
+      CmdArgs.push_back(Args.MakeArgString("-libpath:" + LibPath));
+
   if (C.getDriver().IsFlangMode()) {
     addFortranRuntimeLibraryPath(TC, Args, CmdArgs);
     addFortranRuntimeLibs(TC, Args, CmdArgs);
@@ -225,10 +222,6 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   auto CRTPath = TC.getCompilerRTPath();
   if (TC.getVFS().exists(CRTPath))
     CmdArgs.push_back(Args.MakeArgString("-libpath:" + CRTPath));
-
-  if (!C.getDriver().IsCLMode() && Args.hasArg(options::OPT_L))
-    for (const auto &LibPath : Args.getAllArgValues(options::OPT_L))
-      CmdArgs.push_back(Args.MakeArgString("-libpath:" + LibPath));
 
   CmdArgs.push_back("-nologo");
 
@@ -1114,4 +1107,7 @@ void MSVCToolChain::addClangTargetOptions(
   if (DriverArgs.hasFlag(options::OPT_fno_rtti, options::OPT_frtti,
                          /*Default=*/false))
     CC1Args.push_back("-D_HAS_STATIC_RTTI=0");
+
+  if (Arg *A = DriverArgs.getLastArgNoClaim(options::OPT_marm64x))
+    A->ignoreTargetSpecific();
 }

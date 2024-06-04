@@ -29,6 +29,7 @@
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stream.hpp>
 
+#include <sycl/ext/oneapi/bindless_images_memory.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
 
 namespace sycl {
@@ -197,12 +198,8 @@ event handler::finalize() {
           !MImpl->isStateExplicitKernelBundle()) {
         auto Dev = MGraph ? MGraph->getDevice() : MQueue->get_device();
         kernel_id KernelID =
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
             detail::ProgramManager::getInstance().getSYCLKernelID(
                 MKernelName.c_str());
-#else
-            detail::ProgramManager::getInstance().getSYCLKernelID(MKernelName);
-#endif
         bool KernelInserted = KernelBundleImpPtr->add_kernel(KernelID, Dev);
         // If kernel was not inserted and the bundle is in input mode we try
         // building it and trying to find the kernel in executable mode
@@ -245,10 +242,12 @@ event handler::finalize() {
     }
 
     if (MQueue && !MGraph && !MSubgraphNode && !MQueue->getCommandGraph() &&
-        !MQueue->is_in_fusion_mode() &&
-        CGData.MRequirements.size() + CGData.MEvents.size() +
-                MStreamStorage.size() ==
-            0) {
+        !MQueue->is_in_fusion_mode() && !CGData.MRequirements.size() &&
+        !MStreamStorage.size() &&
+        (!CGData.MEvents.size() ||
+         (MQueue->isInOrder() &&
+          detail::Scheduler::areEventsSafeForSchedulerBypass(
+              CGData.MEvents, MQueue->getContextImplPtr())))) {
       // if user does not add a new dependency to the dependency graph, i.e.
       // the graph is not changed, and the queue is not in fusion mode, then
       // this faster path is used to submit kernel bypassing scheduler and
@@ -261,11 +260,7 @@ event handler::finalize() {
       // uint32_t StreamID, uint64_t InstanceID, xpti_td* TraceEvent,
       int32_t StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
       auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
           StreamID, MKernel, MCodeLoc, MKernelName.c_str(), MQueue, MNDRDesc,
-#else
-          StreamID, MKernel, MCodeLoc, MKernelName, MQueue, MNDRDesc,
-#endif
           KernelBundleImpPtr, MArgs);
       auto EnqueueKernel = [&, CmdTraceEvent = CmdTraceEvent,
                             InstanceID = InstanceID]() {
@@ -315,11 +310,7 @@ event handler::finalize() {
           } else {
             Result = enqueueImpKernel(
                 MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
                 MKernelName.c_str(), RawEvents, NewEvent, nullptr,
-#else
-                MKernelName, RawEvents, NewEvent, nullptr,
-#endif
                 MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative);
           }
         }
@@ -341,12 +332,8 @@ event handler::finalize() {
         // Kernel only uses assert if it's non interop one
         bool KernelUsesAssert =
             !(MKernel && MKernel->isInterop()) &&
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
             detail::ProgramManager::getInstance().kernelUsesAssert(
                 MKernelName.c_str());
-#else
-            detail::ProgramManager::getInstance().kernelUsesAssert(MKernelName);
-#endif
         DiscardEvent = !KernelUsesAssert;
       }
 
@@ -366,6 +353,7 @@ event handler::finalize() {
                               PI_ERROR_INVALID_OPERATION);
         else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
           NewEvent->setComplete();
+        NewEvent->setEnqueued();
 
         MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
       }
@@ -382,11 +370,7 @@ event handler::finalize() {
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(MImpl->MKernelBundle), std::move(CGData), std::move(MArgs),
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
         MKernelName.c_str(), std::move(MStreamStorage),
-#else
-        MKernelName, std::move(MStreamStorage),
-#endif
         std::move(MImpl->MAuxiliaryResources), MCGType,
         MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative, MCodeLoc));
     break;
@@ -475,6 +459,10 @@ event handler::finalize() {
           new detail::CGBarrier(std::move(MEventsWaitWithBarrier),
                                 std::move(CGData), MCGType, MCodeLoc));
     }
+    break;
+  }
+  case detail::CG::ProfilingTag: {
+    CommandGroup.reset(new detail::CGProfilingTag(std::move(CGData), MCodeLoc));
     break;
   }
   case detail::CG::CopyToDeviceGlobal: {
@@ -793,7 +781,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       // to a single kernel argument set above.
       if (!IsESIMD && !IsKernelCreatedFromSource) {
         ++IndexShift;
-        const size_t SizeAccField = Dims * sizeof(Size[0]);
+        const size_t SizeAccField = (Dims == 0 ? 1 : Dims) * sizeof(Size[0]);
         MArgs.emplace_back(kernel_param_kind_t::kind_std_layout, &Size,
                            SizeAccField, Index + IndexShift);
         ++IndexShift;
@@ -918,11 +906,7 @@ detail::string handler::getKernelName() {
   return detail::string{MKernel->get_info<info::kernel::function_name>()};
 }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
-#else
-void handler::verifyUsedKernelBundle(const std::string &KernelName) {
-#endif
   auto UsedKernelBundleImplPtr =
       getOrInsertHandlerKernelBundle(/*Insert=*/false);
   if (!UsedKernelBundleImplPtr)
@@ -944,10 +928,16 @@ void handler::verifyUsedKernelBundle(const std::string &KernelName) {
 void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
   throwIfActionIsCreated();
   MCGType = detail::CG::BarrierWaitlist;
-  MEventsWaitWithBarrier.resize(WaitList.size());
-  std::transform(
-      WaitList.begin(), WaitList.end(), MEventsWaitWithBarrier.begin(),
-      [](const event &Event) { return detail::getSyclObjImpl(Event); });
+  MEventsWaitWithBarrier.reserve(WaitList.size());
+  for (auto &Event : WaitList) {
+    auto EventImpl = detail::getSyclObjImpl(Event);
+    // We could not wait for host task events in backend.
+    // Adding them as dependency to enable proper scheduling.
+    if (EventImpl->is_host()) {
+      depends_on(EventImpl);
+    }
+    MEventsWaitWithBarrier.push_back(EventImpl);
+  }
 }
 
 using namespace sycl::detail;
@@ -1055,6 +1045,12 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type =
         Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type =
         Desc.depth > 0
@@ -1065,8 +1061,9 @@ void handler::ext_oneapi_copy(
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
       sycl::_V1::detail::convertChannelType(Desc.channel_type);
-  PiFormat.image_channel_order =
-      sycl::_V1::detail::convertChannelOrder(Desc.channel_order);
+  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+      sycl::_V1::ext::oneapi::experimental::detail::
+          get_image_default_channel_order(Desc.num_channels));
 
   MImpl->MSrcOffset = {0, 0, 0};
   MImpl->MDestOffset = {0, 0, 0};
@@ -1102,6 +1099,12 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type = DestImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
                                                : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        DestImgDesc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type = DestImgDesc.depth > 0
                             ? PI_MEM_TYPE_IMAGE3D
@@ -1112,8 +1115,9 @@ void handler::ext_oneapi_copy(
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
       sycl::_V1::detail::convertChannelType(DestImgDesc.channel_type);
-  PiFormat.image_channel_order =
-      sycl::_V1::detail::convertChannelOrder(DestImgDesc.channel_order);
+  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+      sycl::_V1::ext::oneapi::experimental::detail::
+          get_image_default_channel_order(DestImgDesc.num_channels));
 
   MImpl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
   MImpl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
@@ -1147,6 +1151,12 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type =
         Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type =
         Desc.depth > 0
@@ -1157,8 +1167,9 @@ void handler::ext_oneapi_copy(
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
       sycl::_V1::detail::convertChannelType(Desc.channel_type);
-  PiFormat.image_channel_order =
-      sycl::_V1::detail::convertChannelOrder(Desc.channel_order);
+  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+      sycl::_V1::ext::oneapi::experimental::detail::
+          get_image_default_channel_order(Desc.num_channels));
 
   MImpl->MSrcOffset = {0, 0, 0};
   MImpl->MDestOffset = {0, 0, 0};
@@ -1168,6 +1179,58 @@ void handler::ext_oneapi_copy(
   MImpl->MImageFormat = PiFormat;
   MImpl->MImageCopyFlags =
       sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_HOST;
+  setType(detail::CG::CopyImage);
+}
+
+void handler::ext_oneapi_copy(
+    ext::oneapi::experimental::image_mem_handle Src,
+    ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &ImageDesc) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  ImageDesc.verify();
+
+  MSrcPtr = Src.raw_handle;
+  MDstPtr = Dest.raw_handle;
+
+  sycl::detail::pi::PiMemImageDesc PiDesc = {};
+  PiDesc.image_width = ImageDesc.width;
+  PiDesc.image_height = ImageDesc.height;
+  PiDesc.image_depth = ImageDesc.depth;
+  PiDesc.image_array_size = ImageDesc.array_size;
+  if (ImageDesc.array_size > 1) {
+    // Image Array.
+    PiDesc.image_type = ImageDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
+                                             : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        ImageDesc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
+  } else {
+    PiDesc.image_type = ImageDesc.depth > 0
+                            ? PI_MEM_TYPE_IMAGE3D
+                            : (ImageDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                    : PI_MEM_TYPE_IMAGE1D);
+  }
+
+  sycl::detail::pi::PiMemImageFormat PiFormat;
+  PiFormat.image_channel_data_type =
+      sycl::_V1::detail::convertChannelType(ImageDesc.channel_type);
+  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+      sycl::_V1::ext::oneapi::experimental::detail::
+          get_image_default_channel_order(ImageDesc.num_channels));
+
+  MImpl->MSrcOffset = {0, 0, 0};
+  MImpl->MDestOffset = {0, 0, 0};
+  MImpl->MCopyExtent = {ImageDesc.width, ImageDesc.height, ImageDesc.depth};
+  MImpl->MHostExtent = {ImageDesc.width, ImageDesc.height, ImageDesc.depth};
+  MImpl->MImageDesc = PiDesc;
+  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageCopyFlags =
+      sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_DEVICE;
   setType(detail::CG::CopyImage);
 }
 
@@ -1194,6 +1257,12 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type = SrcImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
                                               : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        SrcImgDesc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type = SrcImgDesc.depth > 0
                             ? PI_MEM_TYPE_IMAGE3D
@@ -1204,8 +1273,9 @@ void handler::ext_oneapi_copy(
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
       sycl::_V1::detail::convertChannelType(SrcImgDesc.channel_type);
-  PiFormat.image_channel_order =
-      sycl::_V1::detail::convertChannelOrder(SrcImgDesc.channel_order);
+  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+      sycl::_V1::ext::oneapi::experimental::detail::
+          get_image_default_channel_order(SrcImgDesc.num_channels));
 
   MImpl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
   MImpl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
@@ -1239,6 +1309,12 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type =
         Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type =
         Desc.depth > 0
@@ -1249,8 +1325,9 @@ void handler::ext_oneapi_copy(
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
       sycl::_V1::detail::convertChannelType(Desc.channel_type);
-  PiFormat.image_channel_order =
-      sycl::_V1::detail::convertChannelOrder(Desc.channel_order);
+  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+      sycl::_V1::ext::oneapi::experimental::detail::
+          get_image_default_channel_order(Desc.num_channels));
 
   MImpl->MSrcOffset = {0, 0, 0};
   MImpl->MDestOffset = {0, 0, 0};
@@ -1288,6 +1365,13 @@ void handler::ext_oneapi_copy(
     // Image Array.
     PiDesc.image_type = DeviceImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
                                                  : PI_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    PiDesc.image_type =
+        DeviceImgDesc.type ==
+                sycl::ext::oneapi::experimental::image_type::cubemap
+            ? PI_MEM_TYPE_IMAGE_CUBEMAP
+            : PiDesc.image_type;
   } else {
     PiDesc.image_type = DeviceImgDesc.depth > 0
                             ? PI_MEM_TYPE_IMAGE3D
@@ -1298,8 +1382,9 @@ void handler::ext_oneapi_copy(
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
       sycl::_V1::detail::convertChannelType(DeviceImgDesc.channel_type);
-  PiFormat.image_channel_order =
-      sycl::_V1::detail::convertChannelOrder(DeviceImgDesc.channel_order);
+  PiFormat.image_channel_order = sycl::detail::convertChannelOrder(
+      sycl::_V1::ext::oneapi::experimental::detail::
+          get_image_default_channel_order(DeviceImgDesc.num_channels));
 
   MImpl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
   MImpl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
@@ -1360,6 +1445,18 @@ void handler::use_kernel_bundle(
 
 void handler::depends_on(event Event) {
   auto EventImpl = detail::getSyclObjImpl(Event);
+  depends_on(EventImpl);
+}
+
+void handler::depends_on(const std::vector<event> &Events) {
+  for (const event &Event : Events) {
+    depends_on(Event);
+  }
+}
+
+void handler::depends_on(const detail::EventImplPtr &EventImpl) {
+  if (!EventImpl)
+    return;
   if (EventImpl->isDiscarded()) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Queue operation cannot depend on discarded event.");
@@ -1380,8 +1477,8 @@ void handler::depends_on(event Event) {
   CGData.MEvents.push_back(EventImpl);
 }
 
-void handler::depends_on(const std::vector<event> &Events) {
-  for (const event &Event : Events) {
+void handler::depends_on(const std::vector<detail::EventImplPtr> &Events) {
+  for (const EventImplPtr &Event : Events) {
     depends_on(Event);
   }
 }
@@ -1395,6 +1492,53 @@ checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
                                                     InfoQuery, sizeof(pi_bool),
                                                     &SupportsOp, nullptr);
   return SupportsOp;
+}
+
+void handler::verifyDeviceHasProgressGuarantee(
+    sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
+    sycl::ext::oneapi::experimental::execution_scope threadScope,
+    sycl::ext::oneapi::experimental::execution_scope coordinationScope) {
+  using execution_scope = sycl::ext::oneapi::experimental::execution_scope;
+  using forward_progress =
+      sycl::ext::oneapi::experimental::forward_progress_guarantee;
+  auto deviceImplPtr = MQueue->getDeviceImplPtr();
+  const bool supported = deviceImplPtr->supportsForwardProgress(
+      guarantee, threadScope, coordinationScope);
+  if (threadScope == execution_scope::work_group) {
+    if (!supported) {
+      throw sycl::exception(
+          sycl::errc::feature_not_supported,
+          "Required progress guarantee for work groups is not "
+          "supported by this device.");
+    }
+    // If we are here, the device supports the guarantee required but there is a
+    // caveat in that if the guarantee required is a concurrent guarantee, then
+    // we most likely also need to enable cooperative launch of the kernel. That
+    // is, although the device supports the required guarantee, some setup work
+    // is needed to truly make the device provide that guarantee at runtime.
+    // Otherwise, we will get the default guarantee which is weaker than
+    // concurrent. Same reasoning applies for sub_group but not for work_item.
+    // TODO: Further design work is probably needed to reflect this behavior in
+    // Unified Runtime.
+    if (guarantee == forward_progress::concurrent)
+      setKernelIsCooperative(true);
+  } else if (threadScope == execution_scope::sub_group) {
+    if (!supported) {
+      throw sycl::exception(sycl::errc::feature_not_supported,
+                            "Required progress guarantee for sub groups is not "
+                            "supported by this device.");
+    }
+    // Same reasoning as above.
+    if (guarantee == forward_progress::concurrent)
+      setKernelIsCooperative(true);
+  } else { // threadScope is execution_scope::work_item otherwise undefined
+           // behavior
+    if (!supported) {
+      throw sycl::exception(sycl::errc::feature_not_supported,
+                            "Required progress guarantee for work items is not "
+                            "supported by this device.");
+    }
+  }
 }
 
 bool handler::supportsUSMMemcpy2D() {
@@ -1437,15 +1581,9 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
 }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
                                        size_t Size, bool Block) {
   MImpl->HostPipeName = Name.data();
-#else
-void handler::ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
-                                       size_t Size, bool Block) {
-  MImpl->HostPipeName = Name;
-#endif
   MImpl->HostPipePtr = Ptr;
   MImpl->HostPipeTypeSize = Size;
   MImpl->HostPipeBlocking = Block;
@@ -1453,15 +1591,9 @@ void handler::ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
   setType(detail::CG::ReadWriteHostPipe);
 }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
                                         size_t Size, bool Block) {
   MImpl->HostPipeName = Name.data();
-#else
-void handler::ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
-                                        size_t Size, bool Block) {
-  MImpl->HostPipeName = Name;
-#endif
   MImpl->HostPipePtr = Ptr;
   MImpl->HostPipeTypeSize = Size;
   MImpl->HostPipeBlocking = Block;

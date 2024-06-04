@@ -23,14 +23,19 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
   buffer<float, 2> bufC((float *)C.get_data(), range<2>(M, N));
 
   queue q;
+  size_t sg_size = get_sg_size<class imatrix>(q);
   q.submit([&](handler &cgh) {
      auto accC = bufC.get_access<access::mode::read_write>(cgh);
      auto accA = bufA.get_access<access::mode::read_write>(cgh);
      auto accB = bufB.get_access<access::mode::read_write>(cgh);
 
-     cgh.parallel_for(
-         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]] {
+     cgh.parallel_for<class imatrix>(
+         nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
+         [=](nd_item<2> spmd_item)
+#ifdef SG_SZ
+             [[intel::reqd_sub_group_size(SG_SZ)]]
+#endif
+         {
            // Matrix API has to be accessed by all the workitems in a
            // subgroup. These functions will be called once by the subgroup.
            // No code divergence between the workitems.
@@ -57,7 +62,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
              joint_matrix_load(
                  sg, sub_b,
                  accB.template get_multi_ptr<access::decorated::no>() +
-                     (k * TK / 2) * (N * 2) + sg_starty / SG_SZ * TN * 2,
+                     (k * TK / 2) * (N * 2) + sg_starty / sg_size * TN * 2,
                  N * 2);
 
              for (int i = 0; i < JM_ARRAY_SZ; ++i) {
@@ -75,7 +80,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
                  sg, sub_c[i],
                  accC.template get_multi_ptr<access::decorated::no>() +
                      (sg_startx * TM * JM_ARRAY_SZ + TM * i) * N +
-                     sg_starty / SG_SZ * TN,
+                     sg_starty / sg_size * TN,
                  N, layout::row_major);
          }); // parallel for
    }).wait();

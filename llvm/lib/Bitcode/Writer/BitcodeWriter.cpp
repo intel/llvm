@@ -203,7 +203,7 @@ public:
     for (const auto &GUIDSummaryLists : *Index)
       // Examine all summaries for this GUID.
       for (auto &Summary : GUIDSummaryLists.second.SummaryList)
-        if (auto FS = dyn_cast<FunctionSummary>(Summary.get()))
+        if (auto FS = dyn_cast<FunctionSummary>(Summary.get())) {
           // For each call in the function summary, see if the call
           // is to a GUID (which means it is for an indirect call,
           // otherwise we would have a Value for it). If so, synthesize
@@ -211,6 +211,15 @@ public:
           for (auto &CallEdge : FS->calls())
             if (!CallEdge.first.haveGVs() || !CallEdge.first.getValue())
               assignValueId(CallEdge.first.getGUID());
+
+          // For each referenced variables in the function summary, see if the
+          // variable is represented by a GUID (as opposed to a symbol to
+          // declarations or definitions in the module). If so, synthesize a
+          // value id.
+          for (auto &RefEdge : FS->refs())
+            if (!RefEdge.haveGVs() || !RefEdge.getValue())
+              assignValueId(RefEdge.getGUID());
+        }
   }
 
 protected:
@@ -419,6 +428,11 @@ class IndexBitcodeWriter : public BitcodeWriterBase {
   /// The combined index to write to bitcode.
   const ModuleSummaryIndex &Index;
 
+  /// When writing combined summaries, provides the set of global value
+  /// summaries for which the value (function, function alias, etc) should be
+  /// imported as a declaration.
+  const GVSummaryPtrSet *DecSummaries = nullptr;
+
   /// When writing a subset of the index for distributed backends, client
   /// provides a map of modules to the corresponding GUIDs/summaries to write.
   const std::map<std::string, GVSummaryMapTy> *ModuleToSummariesForIndex;
@@ -443,11 +457,16 @@ public:
   /// Constructs a IndexBitcodeWriter object for the given combined index,
   /// writing to the provided \p Buffer. When writing a subset of the index
   /// for a distributed backend, provide a \p ModuleToSummariesForIndex map.
+  /// If provided, \p ModuleToDecSummaries specifies the set of summaries for
+  /// which the corresponding functions or aliased functions should be imported
+  /// as a declaration (but not definition) for each module.
   IndexBitcodeWriter(BitstreamWriter &Stream, StringTableBuilder &StrtabBuilder,
                      const ModuleSummaryIndex &Index,
+                     const GVSummaryPtrSet *DecSummaries = nullptr,
                      const std::map<std::string, GVSummaryMapTy>
                          *ModuleToSummariesForIndex = nullptr)
       : BitcodeWriterBase(Stream, StrtabBuilder), Index(Index),
+        DecSummaries(DecSummaries),
         ModuleToSummariesForIndex(ModuleToSummariesForIndex) {
     // Assign unique value ids to all summaries to be written, for use
     // in writing out the call graph edges. Save the mapping from GUID
@@ -977,7 +996,7 @@ void ModuleBitcodeWriter::writeTypeTable() {
   Stream.EnterSubblock(bitc::TYPE_BLOCK_ID_NEW, 4 /*count from # abbrevs */);
   SmallVector<uint64_t, 64> TypeVals;
 
-  uint64_t NumBits = VE.computeBitsRequiredForTypeIndicies();
+  uint64_t NumBits = VE.computeBitsRequiredForTypeIndices();
 
   // Abbrev for TYPE_CODE_OPAQUE_POINTER.
   auto Abbv = std::make_shared<BitCodeAbbrev>();
@@ -1193,7 +1212,8 @@ static uint64_t getEncodedFFlags(FunctionSummary::FFlags Flags) {
 
 // Decode the flags for GlobalValue in the summary. See getDecodedGVSummaryFlags
 // in BitcodeReader.cpp.
-static uint64_t getEncodedGVSummaryFlags(GlobalValueSummary::GVFlags Flags) {
+static uint64_t getEncodedGVSummaryFlags(GlobalValueSummary::GVFlags Flags,
+                                         bool ImportAsDecl = false) {
   uint64_t RawFlags = 0;
 
   RawFlags |= Flags.NotEligibleToImport; // bool
@@ -1207,6 +1227,9 @@ static uint64_t getEncodedGVSummaryFlags(GlobalValueSummary::GVFlags Flags) {
   RawFlags = (RawFlags << 4) | Flags.Linkage; // 4 bits
 
   RawFlags |= (Flags.Visibility << 8); // 2 bits
+
+  unsigned ImportType = Flags.ImportType | ImportAsDecl;
+  RawFlags |= (ImportType << 10); // 1 bit
 
   return RawFlags;
 }
@@ -1640,6 +1663,11 @@ static uint64_t getOptimizationFlags(const Value *V) {
   } else if (const auto *NNI = dyn_cast<PossiblyNonNegInst>(V)) {
     if (NNI->hasNonNeg())
       Flags |= 1 << bitc::PNNI_NON_NEG;
+  } else if (const auto *TI = dyn_cast<TruncInst>(V)) {
+    if (TI->hasNoSignedWrap())
+      Flags |= 1 << bitc::TIO_NO_SIGNED_WRAP;
+    if (TI->hasNoUnsignedWrap())
+      Flags |= 1 << bitc::TIO_NO_UNSIGNED_WRAP;
   }
 
   return Flags;
@@ -2751,9 +2779,10 @@ void ModuleBitcodeWriter::writeConstants(unsigned FirstVal, unsigned LastVal,
         Code = bitc::CST_CODE_CE_GEP;
         const auto *GO = cast<GEPOperator>(C);
         Record.push_back(VE.getTypeID(GO->getSourceElementType()));
-        if (std::optional<unsigned> Idx = GO->getInRangeIndex()) {
-          Code = bitc::CST_CODE_CE_GEP_WITH_INRANGE_INDEX;
-          Record.push_back((*Idx << 1) | GO->isInBounds());
+        if (std::optional<ConstantRange> Range = GO->getInRange()) {
+          Code = bitc::CST_CODE_CE_GEP_WITH_INRANGE;
+          Record.push_back(GO->isInBounds());
+          emitConstantRange(Record, *Range);
         } else if (GO->isInBounds())
           Code = bitc::CST_CODE_CE_INBOUNDS_GEP;
         for (unsigned i = 0, e = CE->getNumOperands(); i != e; ++i) {
@@ -3568,10 +3597,10 @@ void ModuleBitcodeWriter::writeFunction(
         // Write out non-instruction debug information attached to this
         // instruction. Write it after the instruction so that it's easy to
         // re-attach to the instruction reading the records in.
-        for (DbgRecord &DR : I.DbgMarker->getDbgRecordRange()) {
-          if (DPLabel *DPL = dyn_cast<DPLabel>(&DR)) {
-            Vals.push_back(VE.getMetadataID(&*DPL->getDebugLoc()));
-            Vals.push_back(VE.getMetadataID(DPL->getLabel()));
+        for (DbgRecord &DR : I.DebugMarker->getDbgRecordRange()) {
+          if (DbgLabelRecord *DLR = dyn_cast<DbgLabelRecord>(&DR)) {
+            Vals.push_back(VE.getMetadataID(&*DLR->getDebugLoc()));
+            Vals.push_back(VE.getMetadataID(DLR->getLabel()));
             Stream.EmitRecord(bitc::FUNC_CODE_DEBUG_RECORD_LABEL, Vals);
             Vals.clear();
             continue;
@@ -3704,7 +3733,7 @@ void ModuleBitcodeWriter::writeBlockInfo() {
     auto Abbv = std::make_shared<BitCodeAbbrev>();
     Abbv->Add(BitCodeAbbrevOp(bitc::CST_CODE_SETTYPE));
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed,
-                              VE.computeBitsRequiredForTypeIndicies()));
+                              VE.computeBitsRequiredForTypeIndices()));
     if (Stream.EmitBlockInfoAbbrev(bitc::CONSTANTS_BLOCK_ID, Abbv) !=
         CONSTANTS_SETTYPE_ABBREV)
       llvm_unreachable("Unexpected abbrev ordering!");
@@ -3724,7 +3753,7 @@ void ModuleBitcodeWriter::writeBlockInfo() {
     Abbv->Add(BitCodeAbbrevOp(bitc::CST_CODE_CE_CAST));
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 4));  // cast opc
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed,       // typeid
-                              VE.computeBitsRequiredForTypeIndicies()));
+                              VE.computeBitsRequiredForTypeIndices()));
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 8));    // value id
 
     if (Stream.EmitBlockInfoAbbrev(bitc::CONSTANTS_BLOCK_ID, Abbv) !=
@@ -3746,7 +3775,7 @@ void ModuleBitcodeWriter::writeBlockInfo() {
     Abbv->Add(BitCodeAbbrevOp(bitc::FUNC_CODE_INST_LOAD));
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // Ptr
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed,    // dest ty
-                              VE.computeBitsRequiredForTypeIndicies()));
+                              VE.computeBitsRequiredForTypeIndices()));
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 4)); // Align
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // volatile
     if (Stream.EmitBlockInfoAbbrev(bitc::FUNCTION_BLOCK_ID, Abbv) !=
@@ -3798,7 +3827,7 @@ void ModuleBitcodeWriter::writeBlockInfo() {
     Abbv->Add(BitCodeAbbrevOp(bitc::FUNC_CODE_INST_CAST));
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6));    // OpVal
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed,       // dest ty
-                              VE.computeBitsRequiredForTypeIndicies()));
+                              VE.computeBitsRequiredForTypeIndices()));
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 4));  // opc
     if (Stream.EmitBlockInfoAbbrev(bitc::FUNCTION_BLOCK_ID, Abbv) !=
         FUNCTION_INST_CAST_ABBREV)
@@ -3809,7 +3838,7 @@ void ModuleBitcodeWriter::writeBlockInfo() {
     Abbv->Add(BitCodeAbbrevOp(bitc::FUNC_CODE_INST_CAST));
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // OpVal
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed,    // dest ty
-                              VE.computeBitsRequiredForTypeIndicies()));
+                              VE.computeBitsRequiredForTypeIndices()));
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 4)); // opc
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 8)); // flags
     if (Stream.EmitBlockInfoAbbrev(bitc::FUNCTION_BLOCK_ID, Abbv) !=
@@ -4182,7 +4211,7 @@ void ModuleBitcodeWriterBase::writePerModuleFunctionSummaryRecord(
   NameVals.push_back(SpecialRefCnts.second); // worefcnt
 
   for (auto &RI : FS->refs())
-    NameVals.push_back(VE.getValueID(RI.getValue()));
+    NameVals.push_back(getValueId(RI));
 
   const bool UseRelBFRecord =
       WriteRelBFToSummary && !F.hasProfileData() &&
@@ -4526,6 +4555,12 @@ void IndexBitcodeWriter::writeCombinedGlobalValueSummary() {
   Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 8));
   unsigned AllocAbbrev = Stream.EmitAbbrev(std::move(Abbv));
 
+  auto shouldImportValueAsDecl = [&](GlobalValueSummary *GVS) -> bool {
+    if (DecSummaries == nullptr)
+      return false;
+    return DecSummaries->contains(GVS);
+  };
+
   // The aliases are emitted as a post-pass, and will point to the value
   // id of the aliasee. Save them in a vector for post-processing.
   SmallVector<AliasSummary *, 64> Aliases;
@@ -4636,7 +4671,8 @@ void IndexBitcodeWriter::writeCombinedGlobalValueSummary() {
     NameVals.push_back(*ValueId);
     assert(ModuleIdMap.count(FS->modulePath()));
     NameVals.push_back(ModuleIdMap[FS->modulePath()]);
-    NameVals.push_back(getEncodedGVSummaryFlags(FS->flags()));
+    NameVals.push_back(
+        getEncodedGVSummaryFlags(FS->flags(), shouldImportValueAsDecl(FS)));
     NameVals.push_back(FS->instCount());
     NameVals.push_back(getEncodedFFlags(FS->fflags()));
     NameVals.push_back(FS->entryCount());
@@ -4685,7 +4721,8 @@ void IndexBitcodeWriter::writeCombinedGlobalValueSummary() {
     NameVals.push_back(AliasValueId);
     assert(ModuleIdMap.count(AS->modulePath()));
     NameVals.push_back(ModuleIdMap[AS->modulePath()]);
-    NameVals.push_back(getEncodedGVSummaryFlags(AS->flags()));
+    NameVals.push_back(
+        getEncodedGVSummaryFlags(AS->flags(), shouldImportValueAsDecl(AS)));
     auto AliaseeValueId = SummaryToValueIdMap[&AS->getAliasee()];
     assert(AliaseeValueId);
     NameVals.push_back(AliaseeValueId);
@@ -5019,8 +5056,9 @@ void BitcodeWriter::writeModule(const Module &M,
 
 void BitcodeWriter::writeIndex(
     const ModuleSummaryIndex *Index,
-    const std::map<std::string, GVSummaryMapTy> *ModuleToSummariesForIndex) {
-  IndexBitcodeWriter IndexWriter(*Stream, StrtabBuilder, *Index,
+    const std::map<std::string, GVSummaryMapTy> *ModuleToSummariesForIndex,
+    const GVSummaryPtrSet *DecSummaries) {
+  IndexBitcodeWriter IndexWriter(*Stream, StrtabBuilder, *Index, DecSummaries,
                                  ModuleToSummariesForIndex);
   IndexWriter.write();
 }
@@ -5073,12 +5111,13 @@ void IndexBitcodeWriter::write() {
 // index for a distributed backend, provide a \p ModuleToSummariesForIndex map.
 void llvm::writeIndexToFile(
     const ModuleSummaryIndex &Index, raw_ostream &Out,
-    const std::map<std::string, GVSummaryMapTy> *ModuleToSummariesForIndex) {
+    const std::map<std::string, GVSummaryMapTy> *ModuleToSummariesForIndex,
+    const GVSummaryPtrSet *DecSummaries) {
   SmallVector<char, 0> Buffer;
   Buffer.reserve(256 * 1024);
 
   BitcodeWriter Writer(Buffer);
-  Writer.writeIndex(&Index, ModuleToSummariesForIndex);
+  Writer.writeIndex(&Index, ModuleToSummariesForIndex, DecSummaries);
   Writer.writeStrtab();
 
   Out.write((char *)&Buffer.front(), Buffer.size());
