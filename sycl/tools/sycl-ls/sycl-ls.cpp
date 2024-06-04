@@ -69,9 +69,8 @@ std::string getDeviceTypeName(const device &Device) {
   }
 }
 
-namespace syclex = sycl::ext::oneapi::experimental;
-
 const char *getArchName(const device &Device) {
+  namespace syclex = sycl::ext::oneapi::experimental;
   try {
     auto arch = Device.get_info<syclex::info::device::architecture>();
     switch (arch) {
