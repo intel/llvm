@@ -48,21 +48,22 @@
 void test_memcpy_parameter_async() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
-  try{
+  try {
     syclcompat::experimental::memcpy_async(
         syclcompat::experimental::memcpy_parameter{});
     assert(false);
-  } catch (std::runtime_error) {}
-
+  } catch (std::runtime_error) {
+  }
 }
 
 void test_memcpy_parameter() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
-  try{
+  try {
     syclcompat::experimental::memcpy(
         syclcompat::experimental::memcpy_parameter{});
     assert(false);
-  }catch (std::runtime_error) {}
+  } catch (std::runtime_error) {
+  }
 }
 int main() {
   test_memcpy_parameter();
