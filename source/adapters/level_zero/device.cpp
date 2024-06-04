@@ -256,7 +256,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   // > The application must only use the module for the device, or its
   // > sub-devices, which was provided during creation.
   case UR_DEVICE_INFO_BUILD_ON_SUBDEVICE:
-    return ReturnValue(uint32_t{0});
+    return ReturnValue(ur_bool_t{0});
   case UR_DEVICE_INFO_COMPILER_AVAILABLE:
     return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_LINKER_AVAILABLE:
@@ -326,10 +326,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(Device->ZeDeviceImageProperties->maxImageDims1D > 0);
   case UR_DEVICE_INFO_HOST_UNIFIED_MEMORY:
     return ReturnValue(
-        static_cast<uint32_t>((Device->ZeDeviceProperties->flags &
-                               ZE_DEVICE_PROPERTY_FLAG_INTEGRATED) != 0));
+        static_cast<ur_bool_t>((Device->ZeDeviceProperties->flags &
+                                ZE_DEVICE_PROPERTY_FLAG_INTEGRATED) != 0));
   case UR_DEVICE_INFO_AVAILABLE:
-    return ReturnValue(static_cast<uint32_t>(ZeDevice ? true : false));
+    return ReturnValue(static_cast<ur_bool_t>(ZeDevice ? true : false));
   case UR_DEVICE_INFO_VENDOR:
     // TODO: Level-Zero does not return vendor's name at the moment
     // only the ID.
@@ -448,8 +448,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_ENDIAN_LITTLE:
     return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT:
-    return ReturnValue(static_cast<uint32_t>(Device->ZeDeviceProperties->flags &
-                                             ZE_DEVICE_PROPERTY_FLAG_ECC));
+    return ReturnValue(static_cast<ur_bool_t>(
+        Device->ZeDeviceProperties->flags & ZE_DEVICE_PROPERTY_FLAG_ECC));
   case UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION:
     return ReturnValue(
         static_cast<size_t>(Device->ZeDeviceProperties->timerResolution));
@@ -875,13 +875,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
-    return ReturnValue(static_cast<uint32_t>(true));
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
 
   case UR_DEVICE_INFO_ESIMD_SUPPORT: {
     // ESIMD is only supported by Intel GPUs.
-    uint32_t result = Device->ZeDeviceProperties->type == ZE_DEVICE_TYPE_GPU &&
-                      Device->ZeDeviceProperties->vendorId == 0x8086;
+    ur_bool_t result = Device->ZeDeviceProperties->type == ZE_DEVICE_TYPE_GPU &&
+                       Device->ZeDeviceProperties->vendorId == 0x8086;
     return ReturnValue(result);
   }
 
