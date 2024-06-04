@@ -113,34 +113,58 @@ The following functions are only available when `T` is `bfloat16` or
 ```c++
 namespace sycl::ext::oneapi::experimental {
 
-bool isnan(bfloat16 x);
+bool isnan(bfloat16 x);                                                 (1)
 
 template <size_t N>
-sycl::marray<bool, N> isnan(sycl::marray<bfloat16, N> x);
+sycl::marray<bool, N> isnan(sycl::marray<bfloat16, N> x);               (2)
 
-template <size_t N>
-sycl::vec<bool, N> isnan(sycl::vec<bfloat16, N> x);
+template <typename VecOrSwiz, int N>
+sycl::vec<int16_t, N> isnan(VecOrSwiz<N> x);                            (3)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ===== Description
+====== Overloads (1) and (2)
 
-Returns true if x is or contains a NAN value, otherwise returns false.
+Returns `true` if `x` is or contains a `NAN` value, otherwise returns `false`.
 
+====== Overload (3)
+
+*Constraints:*  Only available if `VecOrSwiz<N>` is `sycl::vec<bfloat16, N>` or a `__swizzled_vec__` type convertible to `sycl::vec<bfloat16, N>`.
+
+*Returns:* Returns `-1` for each element of `x` if `x[i]` is a `NaN` value and returns `0` otherwise.
 ==== fma
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
 
-template <typename T>
+template <typename T>                                                      (1)
 T fma(T a, T b, T c);
+
+template <typename VecOrSwiz1,
+ typename VecOrSwiz2, typename VecOrSwiz3, int N>                          (2)
+vec<bfloat16, N> fma(VecOrSwiz1<N> a, VecOrSwiz2<N> b, VecOrSwiz3<N> c);
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ===== Description
 
-Returns the correctly rounded floating-point representation of the
+====== Overload (1)
+
+*Constraints:* Available only for `T` is `bfloat6` or a `marray` of type `bfloat16`.
+
+*Returns:* Returns the correctly rounded floating-point representation of the
 sum of `c` with the infinitely precise product of `a` and `b`.
+Rounding of intermediate products shall not occur. The mantissa
+LSB rounds to the nearest even. Subnormal numbers are supported.
+
+====== Overload (2)
+
+*Constraints:* Available only if `VecOrSwiz1`, `VecOrSwiz2`, `VecOrSwiz3` are any combination of `vec<bfloat16, N>` and the ```__swizzled_vec__``` type convertible to 
+`vec<bfloat16, N>`.
+
+*Returns:* Returns `vec<bfloat16, N>` with each element `i` equal to the correctly rounded floating-point representation of the
+sum of `c[i]` with the infinitely precise product of `a[i]` and `b[i]`.
 Rounding of intermediate products shall not occur. The mantissa
 LSB rounds to the nearest even. Subnormal numbers are supported.
 
@@ -149,11 +173,22 @@ LSB rounds to the nearest even. Subnormal numbers are supported.
 ```c++
 namespace sycl::ext::oneapi::experimental {
 template <typename T>
-T fmax(T x, T y);
+T fmax(T x, T y);                                                                (1)
+
+template <typename VecOrSwiz1,
+ typename VecOrSwiz2, int N>                                                     (2)
+vec<bfloat16, N> fmax(VecOrSwiz1<N> x, VecOrSwiz2<N> y);
+
+template <typename NonScalar1, typename NonScalar2, int N>                       (3)
+NonScalar2<N> fmax(NonScalar1<N> x, bfloat16 y);
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ===== Description
+
+====== Overload (1)
+
+*Constraints:* Available only for `T` is `bfloat6` or a `marray` of type `bfloat16`.
 
 Returns `y` if
 `x < y`, otherwise it
@@ -161,6 +196,18 @@ returns `x`. If one argument is a
 NaN, `fmax()` returns the other
 argument. If both arguments are
 NaNs, `fmax()` returns a NaN.
+
+====== Overload (2)
+
+*Constraints:* Available only if `VecOrSwiz1`, `VecOrSwiz2` are any combination of `vec<bfloat16, N>` and the ```__swizzled_vec__``` type convertible to 
+`vec<bfloat16, N>`.
+
+====== Overload (3)
+
+*Constraints:* Available only if `NonScalar1` is `marray`, `vec` of type `bfloat16` or ```__swizzled_vec__``` type convertible to 
+`vec<bfloat16, N>`.
+
+*Returns:* `marray` of type `bfloat16` if `NonScalar1` is `marray`. Otherwise, returns `vec<bfloat16, N>`. For each element of `x`, the value `y` if `x[i] < y`, otherwise `x[i]`. If one value is a `NaN`, the result is the other value. If both value are `NaNs`, the result is a `NaN`.
 
 ==== fmin
 
