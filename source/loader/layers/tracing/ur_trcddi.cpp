@@ -7851,7 +7851,13 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ur_exp_enqueue_native_command_function_t
         pfnNativeEnqueue, ///< [in] function calling the native underlying API, to be executed
                           ///< immediately.
-    void *data, ///< [in][optional] data used by pfnNativeEnqueue
+    void *data,                ///< [in][optional] data used by pfnNativeEnqueue
+    uint32_t numMemsInMemList, ///< [in] size of the mem list
+    const ur_mem_handle_t *
+        phMemList, ///< [in][optional][range(0, numMemsInMemList)] mems that are used within
+                   ///< pfnNativeEnqueue using ::urMemGetNativeHandle.
+    ///< If nullptr, the numMemsInMemList must be 0, indicating that no mems
+    ///< are accessed with ::urMemGetNativeHandle within pfnNativeEnqueue.
     const ur_exp_enqueue_native_command_properties_t *
         pProperties, ///< [in][optional] pointer to the native enqueue properties
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
@@ -7870,19 +7876,24 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_enqueue_native_command_exp_params_t params = {
-        &hQueue,      &pfnNativeEnqueue,    &data,
-        &pProperties, &numEventsInWaitList, &phEventWaitList,
-        &phEvent};
+    ur_enqueue_native_command_exp_params_t params = {&hQueue,
+                                                     &pfnNativeEnqueue,
+                                                     &data,
+                                                     &numMemsInMemList,
+                                                     &phMemList,
+                                                     &pProperties,
+                                                     &numEventsInWaitList,
+                                                     &phEventWaitList,
+                                                     &phEvent};
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP,
                              "urEnqueueNativeCommandExp", &params);
 
     context.logger.info("---> urEnqueueNativeCommandExp");
 
-    ur_result_t result =
-        pfnNativeCommandExp(hQueue, pfnNativeEnqueue, data, pProperties,
-                            numEventsInWaitList, phEventWaitList, phEvent);
+    ur_result_t result = pfnNativeCommandExp(
+        hQueue, pfnNativeEnqueue, data, numMemsInMemList, phMemList,
+        pProperties, numEventsInWaitList, phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP,
                        "urEnqueueNativeCommandExp", &params, &result, instance);

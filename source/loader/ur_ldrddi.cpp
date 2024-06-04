@@ -8103,7 +8103,13 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ur_exp_enqueue_native_command_function_t
         pfnNativeEnqueue, ///< [in] function calling the native underlying API, to be executed
                           ///< immediately.
-    void *data, ///< [in][optional] data used by pfnNativeEnqueue
+    void *data,                ///< [in][optional] data used by pfnNativeEnqueue
+    uint32_t numMemsInMemList, ///< [in] size of the mem list
+    const ur_mem_handle_t *
+        phMemList, ///< [in][optional][range(0, numMemsInMemList)] mems that are used within
+                   ///< pfnNativeEnqueue using ::urMemGetNativeHandle.
+    ///< If nullptr, the numMemsInMemList must be 0, indicating that no mems
+    ///< are accessed with ::urMemGetNativeHandle within pfnNativeEnqueue.
     const ur_exp_enqueue_native_command_properties_t *
         pProperties, ///< [in][optional] pointer to the native enqueue properties
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
@@ -8128,6 +8134,13 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
 
     // convert loader handles to platform handles
+    auto phMemListLocal = std::vector<ur_mem_handle_t>(numMemsInMemList);
+    for (size_t i = 0; i < numMemsInMemList; ++i) {
+        phMemListLocal[i] =
+            reinterpret_cast<ur_mem_object_t *>(phMemList[i])->handle;
+    }
+
+    // convert loader handles to platform handles
     auto phEventWaitListLocal =
         std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
@@ -8136,9 +8149,9 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     }
 
     // forward to device-platform
-    result = pfnNativeCommandExp(hQueue, pfnNativeEnqueue, data, pProperties,
-                                 numEventsInWaitList,
-                                 phEventWaitListLocal.data(), phEvent);
+    result = pfnNativeCommandExp(
+        hQueue, pfnNativeEnqueue, data, numMemsInMemList, phMemListLocal.data(),
+        pProperties, numEventsInWaitList, phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
