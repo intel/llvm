@@ -58,6 +58,8 @@ public:
   void registerSchedulerUsage(bool ModifyCounter = true);
   Scheduler &getScheduler();
   bool isSchedulerAlive() const;
+  bool isOkToDefer() const { return OkToDefer; }
+  void endDeferredRelease() { OkToDefer = false; }
   ProgramManager &getProgramManager();
   Sync &getSync();
   std::vector<PlatformImplPtr> &getPlatformCache();
@@ -91,7 +93,10 @@ private:
   void *GSYCLCallEvent = nullptr;
 #endif
 
+  bool OkToDefer = true;
+
   friend void shutdown();
+  friend void shutdown2();
   friend class ObjectUsageCounter;
   static GlobalHandler *&getInstancePtr();
   static SpinLock MSyclGlobalHandlerProtector;

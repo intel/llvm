@@ -124,7 +124,7 @@ size_t buffer_plain::getSize() const { return impl->getSizeInBytes(); }
 void buffer_plain::handleRelease() const {
   // Try to detach memory object only if impl is going to be released.
   // Buffer copy will have pointer to the same impl.
-  std::cout << "buffer_plain::handleRelease()" << std::endl;
+  CPOUT << "buffer_plain::handleRelease()" << std::endl;
   if (impl.use_count() == 1)
     impl->detachMemoryObject(impl);
 }

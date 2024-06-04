@@ -473,7 +473,7 @@ public:
   buffer &operator=(buffer &&rhs) = default;
 
   ~buffer() {
-    std::cout << "~buffer()" << std::endl;
+    CPOUT << "~buffer()" << std::endl;
     buffer_plain::handleRelease();
   }
 

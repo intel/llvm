@@ -36,6 +36,9 @@ namespace detail {
 using LockGuard = std::lock_guard<SpinLock>;
 SpinLock GlobalHandler::MSyclGlobalHandlerProtector{};
 
+// forward declaration
+void shutdown();
+
 // Utility class to track references on object.
 // Used for GlobalHandler now and created as thread_local object on the first
 // Scheduler usage. Origin idea is to track usage of Scheduler from main and
@@ -223,18 +226,21 @@ void GlobalHandler::releaseDefaultContexts() {
   // Release shared-pointers to SYCL objects.
   // Note that on Windows the destruction of the default context
   // races with the detaching of the DLL object that calls piTearDown.
-  std::cout << "releaseDefaultContexts(): "
-            << (MPlatformToDefaultContextCache.Inst
-                    ? MPlatformToDefaultContextCache.Inst->size()
-                    : 0)
-            << std::endl;
+  CPOUT << "releaseDefaultContexts(): "
+        << (MPlatformToDefaultContextCache.Inst
+                ? MPlatformToDefaultContextCache.Inst->size()
+                : 0)
+        << std::endl;
   MPlatformToDefaultContextCache.Inst.reset(nullptr);
 }
 
 struct DefaultContextReleaseHandler {
   ~DefaultContextReleaseHandler() {
-    std::cout << "~DefaultContextReleaseHandler()" << std::endl;
-    GlobalHandler::instance().releaseDefaultContexts();
+    CPOUT
+        << "~DefaultContextReleaseHandler()  - but now calls shutdown instead."
+        << std::endl;
+    // GlobalHandler::instance().releaseDefaultContexts();
+    shutdown();
   }
 };
 
@@ -286,16 +292,17 @@ void GlobalHandler::drainThreadPool() {
 // accidentally retain device handles. etc
 void shutdown() {
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
-  Handler->unloadPlugins();
+  Handler->endDeferredRelease() Handler->unloadPlugins();
 }
 #else
 void shutdown() {
-  std::cout << "shutdown()" << std::endl;
+  CPOUT << "shutdown()" << std::endl;
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)
     return;
 
+  Handler->endDeferredRelease();
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
   Handler->prepareSchedulerToRelease(true);
@@ -323,10 +330,22 @@ void shutdown() {
   Handler->MXPTIRegistry.Inst.reset(nullptr);
 
   // Release the rest of global resources.
+  // delete Handler;
+  // Handler = nullptr;
+}
+#endif
+
+void shutdown2() {
+  // Release the rest of global resources.
+  CPOUT << "shutdown2()" << std::endl;
+  const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
+  GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
+  if (!Handler)
+    return;
+
   delete Handler;
   Handler = nullptr;
 }
-#endif
 
 #ifdef _WIN32
 extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
@@ -351,7 +370,7 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                    // TODO: figure out what XPTI is doing that prevents release.
 #endif
 
-    shutdown();
+    shutdown2();
     break;
   case DLL_PROCESS_ATTACH:
     if (PrintPiTrace)
@@ -369,7 +388,8 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
 // destructors. Priorities 0-100 are reserved by the compiler. The priority
 // value 110 allows SYCL users to run their destructors after runtime library
 // deinitialization.
-__attribute__((destructor(110))) static void syclUnload() { shutdown(); }
+// CP
+__attribute__((destructor(110))) static void syclUnload() { shutdown2(); }
 #endif
 } // namespace detail
 } // namespace _V1
