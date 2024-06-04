@@ -58,7 +58,7 @@ void test_free_memory_q() {
 
   sycl::queue q{{sycl::property::queue::in_order()}};
   float *d_A = (float *)syclcompat::malloc(sizeof(float), q);
-  syclcompat::free(d_A, q);
+  syclcompat::free((void *)d_A, q);
 
   syclcompat::free(0, q);
   syclcompat::free(NULL, q);
@@ -685,6 +685,7 @@ void test_constant_memcpy_async_q() {
 
 int main() {
   test_free_memory();
+  test_free_memory_q();
   test_wait_and_free_memory();
   test_wait_and_free_memory_q();
   test_memcpy_async();
