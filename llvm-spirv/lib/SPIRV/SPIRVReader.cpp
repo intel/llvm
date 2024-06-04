@@ -61,6 +61,7 @@
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/AttributeMask.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DebugProgramInstruction.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRBuilder.h"
@@ -1196,10 +1197,12 @@ SPIRVToLLVM::expandOCLBuiltinWithScalarArg(CallInst *CI,
       else {
         NewVec = ConstantVector::getSplat(
             VecElemCount, Constant::getNullValue(Arg->getType()));
-        NewVec = InsertElementInst::Create(NewVec, Arg, getInt32(M, 0), "", CI);
+        NewVec = InsertElementInst::Create(NewVec, Arg, getInt32(M, 0), "",
+                                           CI->getIterator());
         NewVec = new ShuffleVectorInst(
             NewVec, NewVec,
-            ConstantVector::getSplat(VecElemCount, getInt32(M, 0)), "", CI);
+            ConstantVector::getSplat(VecElemCount, getInt32(M, 0)), "",
+            CI->getIterator());
       }
       NewVec->takeName(Arg);
       return NewVec;
@@ -2103,6 +2106,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     LoadInst *LI = new LoadInst(Ty, AI, "", BB);
     return mapValue(BV, LI);
   }
+  case OpCopyLogical: {
+    SPIRVCopyLogical *CL = static_cast<SPIRVCopyLogical *>(BV);
+    return mapValue(BV, transSPIRVBuiltinFromInst(CL, BB));
+  }
 
   case OpAccessChain:
   case OpInBoundsAccessChain:
@@ -2156,6 +2163,28 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       auto *CT = cast<Constant>(Base);
       V = ConstantExpr::getGetElementPtr(BaseTy, CT, Index, IsInbound);
     }
+    return mapValue(BV, V);
+  }
+
+  case OpPtrEqual:
+  case OpPtrNotEqual: {
+    auto *BC = static_cast<SPIRVBinary *>(BV);
+    auto Ops = transValue(BC->getOperands(), F, BB);
+
+    IRBuilder<> Builder(BB);
+    Value *Op1 = Builder.CreatePtrToInt(Ops[0], Type::getInt64Ty(*Context));
+    Value *Op2 = Builder.CreatePtrToInt(Ops[1], Type::getInt64Ty(*Context));
+    CmpInst::Predicate P =
+        OC == OpPtrEqual ? ICmpInst::ICMP_EQ : ICmpInst::ICMP_NE;
+    Value *V = Builder.CreateICmp(P, Op1, Op2);
+    return mapValue(BV, V);
+  }
+
+  case OpPtrDiff: {
+    auto *BC = static_cast<SPIRVBinary *>(BV);
+    auto Ops = transValue(BC->getOperands(), F, BB);
+    IRBuilder<> Builder(BB);
+    Value *V = Builder.CreatePtrDiff(transType(BC->getType()), Ops[0], Ops[1]);
     return mapValue(BV, V);
   }
 
@@ -2411,7 +2440,18 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     case SPIRVEIS_OpenCL_DebugInfo_100:
     case SPIRVEIS_NonSemantic_Shader_DebugInfo_100:
     case SPIRVEIS_NonSemantic_Shader_DebugInfo_200:
-      return mapValue(BV, DbgTran->transDebugIntrinsic(ExtInst, BB));
+      if (!M->IsNewDbgInfoFormat) {
+        return mapValue(
+            BV, DbgTran->transDebugIntrinsic(ExtInst, BB).get<Instruction *>());
+      } else {
+        auto MaybeRecord = DbgTran->transDebugIntrinsic(ExtInst, BB);
+        if (!MaybeRecord.isNull()) {
+          auto *Record = MaybeRecord.get<DbgRecord *>();
+          Record->setDebugLoc(
+              DbgTran->transDebugScope(static_cast<SPIRVInstruction *>(BV)));
+        }
+        return mapValue(BV, nullptr);
+      }
     default:
       llvm_unreachable("Unknown extended instruction set!");
     }
@@ -3317,10 +3357,13 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
   case OpSDotAccSatKHR:
   case OpUDotAccSatKHR:
   case OpSUDotAccSatKHR:
+  case OpReadClockKHR:
   case internal::OpJointMatrixLoadINTEL:
   case OpCooperativeMatrixLoadKHR:
   case internal::OpCooperativeMatrixLoadCheckedINTEL:
   case internal::OpTaskSequenceCreateINTEL:
+  case internal::OpConvertHandleToImageINTEL:
+  case internal::OpConvertHandleToSampledImageINTEL:
     AddRetTypePostfix = true;
     break;
   default: {
@@ -3337,6 +3380,7 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
   case OpUConvert:
   case OpUDotKHR:
   case OpUDotAccSatKHR:
+  case OpReadClockKHR:
     IsRetSigned = false;
     break;
   case OpImageRead:
@@ -4883,7 +4927,7 @@ std::optional<SPIRVModuleReport> getSpirvReport(std::istream &IS,
     return {};
   }
   D >> Word;
-  if (!isSPIRVVersionKnown(Word)) {
+  if (!isSPIRVVersionKnown(static_cast<VersionNumber>(Word))) {
     ErrCode = SPIRVEC_InvalidVersionNumber;
     return {};
   }
@@ -5023,6 +5067,7 @@ llvm::convertSpirvToLLVM(LLVMContext &C, SPIRVModule &BM,
                          const SPIRV::TranslatorOpts &Opts,
                          std::string &ErrMsg) {
   std::unique_ptr<Module> M(new Module("", C));
+
   SPIRVToLLVM BTL(M.get(), &BM);
 
   if (!BTL.translate()) {

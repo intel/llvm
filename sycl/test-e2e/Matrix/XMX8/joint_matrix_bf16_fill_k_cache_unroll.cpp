@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix-xmx8
-// XFAIL:gpu
 
 // RUN: %{build} -mllvm -inline-threshold=2000 -ffp-model=precise -o %t.out -DMANUAL_UNROLL
 // RUN: %{run} %t.out
@@ -18,7 +17,6 @@
 #include "../common.hpp"
 #include <cstddef>
 
-#define SG_SZ 8
 constexpr size_t TN = 8;
 
 #include "../joint_matrix_bf16_fill_k_cache_impl.hpp"

@@ -186,8 +186,17 @@ public:
       return hasDevice(Device);
 
     while (!hasDevice(Device)) {
-      if (Device->isRootDevice())
+      if (Device->isRootDevice()) {
+        if (Device->has(aspect::ext_oneapi_is_component)) {
+          // Component devices should be implicitly usable in context created
+          // for a composite device they belong to.
+          auto CompositeDevice = Device->get_info<
+              ext::oneapi::experimental::info::device::composite_device>();
+          return hasDevice(detail::getSyclObjImpl(CompositeDevice));
+        }
+
         return false;
+      }
       Device = detail::getSyclObjImpl(
           Device->get_info<info::device::parent_device>());
     }

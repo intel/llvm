@@ -6,54 +6,15 @@
 // RUN: %{run} %t.out
 //
 // UNSUPPORTED: cuda || hip
-
 #include "imf_utils.hpp"
+#include <sycl/ext/intel/math.hpp>
 
 namespace s = sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
-extern "C" {
-float __imf_double2float_rd(double);
-float __imf_double2float_rn(double);
-float __imf_double2float_ru(double);
-float __imf_double2float_rz(double);
-int __imf_double2hiint(double);
-int __imf_double2loint(double);
-int __imf_double2int_rd(double);
-int __imf_double2int_rn(double);
-int __imf_double2int_ru(double);
-int __imf_double2int_rz(double);
-long long __imf_double2ll_rd(double);
-long long __imf_double2ll_rn(double);
-long long __imf_double2ll_ru(double);
-long long __imf_double2ll_rz(double);
-unsigned int __imf_double2uint_rd(double);
-unsigned int __imf_double2uint_rn(double);
-unsigned int __imf_double2uint_ru(double);
-unsigned int __imf_double2uint_rz(double);
-unsigned long long __imf_double2ull_rd(double);
-unsigned long long __imf_double2ull_rn(double);
-unsigned long long __imf_double2ull_ru(double);
-unsigned long long __imf_double2ull_rz(double);
-long long __imf_double_as_longlong(double);
-double __imf_hiloint2double(int, int);
-double __imf_int2double_rn(int);
-double __imf_ll2double_rd(long long);
-double __imf_ll2double_rn(long long);
-double __imf_ll2double_ru(long long);
-double __imf_ll2double_rz(long long);
-double __imf_longlong_as_double(long long);
-double __imf_uint2double_rn(unsigned);
-double __imf_ull2double_rd(unsigned long long);
-double __imf_ull2double_rn(unsigned long long);
-double __imf_ull2double_ru(unsigned long long);
-double __imf_ull2double_rz(unsigned long long);
-}
-
 int main(int, char **) {
-  s::default_selector device_selector;
-  s::queue device_queue(device_selector);
+  s::queue device_queue(s::default_selector_v);
   std::cout << "Running on "
             << device_queue.get_device().get_info<s::info::device::name>()
             << "\n";
@@ -79,16 +40,16 @@ int main(int, char **) {
         0,          0x40200000, 0x41bac425, 0x51e6bd56,
         0xc2254cbc, 0xea5f7b25, 0x1fe141c2, 0xdfd87e55};
     test(device_queue, input_vals, ref_vals_rd,
-         FT(unsigned, __imf_double2float_rd));
+         FT(unsigned, sycl::ext::intel::math::double2float_rd));
     std::cout << "double2float_rd passes." << std::endl;
     test(device_queue, input_vals, ref_vals_rn,
-         FT(unsigned, __imf_double2float_rn));
+         FT(unsigned, sycl::ext::intel::math::double2float_rn));
     std::cout << "double2float_rn passes." << std::endl;
     test(device_queue, input_vals, ref_vals_ru,
-         FT(unsigned, __imf_double2float_ru));
+         FT(unsigned, sycl::ext::intel::math::double2float_ru));
     std::cout << "double2float_ru passes." << std::endl;
     test(device_queue, input_vals, ref_vals_rz,
-         FT(unsigned, __imf_double2float_rz));
+         FT(unsigned, sycl::ext::intel::math::double2float_rz));
     std::cout << "double2float_rz passes." << std::endl;
   }
 
@@ -102,9 +63,11 @@ int main(int, char **) {
     std::initializer_list<unsigned> ref_vals_lo = {
         0,          0,          0x8fdedac1, 0xaf933404,
         0x90d084df, 0xee71d6f2, 0xa5a053df, 0x4db8d884};
-    test(device_queue, input_vals, ref_vals_hi, F(__imf_double2hiint));
+    test(device_queue, input_vals, ref_vals_hi,
+         F(sycl::ext::intel::math::double2hiint));
     std::cout << "double2hiint passes." << std::endl;
-    test(device_queue, input_vals, ref_vals_lo, F(__imf_double2loint));
+    test(device_queue, input_vals, ref_vals_lo,
+         F(sycl::ext::intel::math::double2loint));
     std::cout << "double2loint passes." << std::endl;
   }
 
@@ -125,13 +88,17 @@ int main(int, char **) {
                                               -41, -912323352, 1,  -398726272};
     std::initializer_list<int> ref_vals_rz = {0,   2,          23, 12387737,
                                               -41, -912323352, 0,  -398726272};
-    test(device_queue, input_vals, ref_vals_rd, F(__imf_double2int_rd));
+    test(device_queue, input_vals, ref_vals_rd,
+         F(sycl::ext::intel::math::double2int_rd));
     std::cout << "double2int_rd passes." << std::endl;
-    test(device_queue, input_vals, ref_vals_rn, F(__imf_double2int_rn));
+    test(device_queue, input_vals, ref_vals_rn,
+         F(sycl::ext::intel::math::double2int_rn));
     std::cout << "double2int_rn passes." << std::endl;
-    test(device_queue, input_vals, ref_vals_ru, F(__imf_double2int_ru));
+    test(device_queue, input_vals, ref_vals_ru,
+         F(sycl::ext::intel::math::double2int_ru));
     std::cout << "double2int_ru passes." << std::endl;
-    test(device_queue, input_vals, ref_vals_rz, F(__imf_double2int_rz));
+    test(device_queue, input_vals, ref_vals_rz,
+         F(sycl::ext::intel::math::double2int_rz));
     std::cout << "double2int_rz passes." << std::endl;
   }
 
@@ -160,13 +127,17 @@ int main(int, char **) {
                                                     23,  1238773723232332,
                                                     -41, -912323352737383680,
                                                     0,   -39872627293918000};
-    test(device_queue, input_vals, ref_vals_rd, F(__imf_double2ll_rd));
+    test(device_queue, input_vals, ref_vals_rd,
+         F(sycl::ext::intel::math::double2ll_rd));
     std::cout << "double2ll_rd passes." << std::endl;
-    test(device_queue, input_vals, ref_vals_rn, F(__imf_double2ll_rn));
+    test(device_queue, input_vals, ref_vals_rn,
+         F(sycl::ext::intel::math::double2ll_rn));
     std::cout << "double2ll_rn passes." << std::endl;
-    test(device_queue, input_vals, ref_vals_ru, F(__imf_double2ll_ru));
+    test(device_queue, input_vals, ref_vals_ru,
+         F(sycl::ext::intel::math::double2ll_ru));
     std::cout << "double2ll_ru passes." << std::endl;
-    test(device_queue, input_vals, ref_vals_rz, F(__imf_double2ll_rz));
+    test(device_queue, input_vals, ref_vals_rz,
+         F(sycl::ext::intel::math::double2ll_rz));
     std::cout << "double2ll_rz passes." << std::endl;
   }
 
@@ -187,13 +158,17 @@ int main(int, char **) {
         0, 3, 24, 12387738, 0, 3038789877, 1, 4104875679};
     std::initializer_list<unsigned> ref_vals_rz = {
         0, 2, 23, 12387737, 0, 3038789876, 0, 4104875678};
-    test(device_queue, input_vals, ref_vals_rd, F(__imf_double2uint_rd));
+    test(device_queue, input_vals, ref_vals_rd,
+         F(sycl::ext::intel::math::double2uint_rd));
     std::cout << "double2uint_rd passes." << std::endl;
-    test(device_queue, input_vals, ref_vals_rn, F(__imf_double2uint_rn));
+    test(device_queue, input_vals, ref_vals_rn,
+         F(sycl::ext::intel::math::double2uint_rn));
     std::cout << "double2uint_rn passes." << std::endl;
-    test(device_queue, input_vals, ref_vals_ru, F(__imf_double2uint_ru));
+    test(device_queue, input_vals, ref_vals_ru,
+         F(sycl::ext::intel::math::double2uint_ru));
     std::cout << "double2uint_ru passes." << std::endl;
-    test(device_queue, input_vals, ref_vals_rz, F(__imf_double2uint_rz));
+    test(device_queue, input_vals, ref_vals_rz,
+         F(sycl::ext::intel::math::double2uint_rz));
     std::cout << "double2uint_rz passes." << std::endl;
   }
 
@@ -226,13 +201,17 @@ int main(int, char **) {
         23, 1238773723232332,
         0,  17665594994889338880ULL,
         0,  9987262729391849472ULL};
-    test(device_queue, input_vals, ref_vals_rd, F(__imf_double2ull_rd));
+    test(device_queue, input_vals, ref_vals_rd,
+         F(sycl::ext::intel::math::double2ull_rd));
     std::cout << "double2ull_rd passes." << std::endl;
-    test(device_queue, input_vals, ref_vals_rn, F(__imf_double2ull_rn));
+    test(device_queue, input_vals, ref_vals_rn,
+         F(sycl::ext::intel::math::double2ull_rn));
     std::cout << "double2ull_rn passes." << std::endl;
-    test(device_queue, input_vals, ref_vals_ru, F(__imf_double2ull_ru));
+    test(device_queue, input_vals, ref_vals_ru,
+         F(sycl::ext::intel::math::double2ull_ru));
     std::cout << "double2ull_ru passes." << std::endl;
-    test(device_queue, input_vals, ref_vals_rz, F(__imf_double2ull_rz));
+    test(device_queue, input_vals, ref_vals_rz,
+         F(sycl::ext::intel::math::double2ull_rz));
     std::cout << "double2ull_rz passes." << std::endl;
   }
 
@@ -248,7 +227,8 @@ int main(int, char **) {
                                                  -6085586922033260814,
                                                  -7609038353159138337,
                                                  5932852512992843908};
-    test(device_queue, input_vals, ref_vals, F(__imf_double_as_longlong));
+    test(device_queue, input_vals, ref_vals,
+         F(sycl::ext::intel::math::double_as_longlong));
     std::cout << "double_as_longlong passes." << std::endl;
   }
 
@@ -259,7 +239,7 @@ int main(int, char **) {
     std::initializer_list<double> ref_vals = {2.5, -32432.125, 98765432.125,
                                               -999923234343224};
     test2(device_queue, input_vals1, input_vals2, ref_vals,
-          F2(__imf_hiloint2double));
+          F2(sycl::ext::intel::math::hiloint2double));
     std::cout << "hiloint2double passes." << std::endl;
   }
 
@@ -275,7 +255,7 @@ int main(int, char **) {
                                                           0xc1e0000000000000,
                                                           0x41ce7eb635800000};
     test(device_queue, input_vals, ref_vals,
-         FT(unsigned long long, __imf_int2double_rn));
+         FT(unsigned long long, sycl::ext::intel::math::int2double_rn));
     std::cout << "int2double_rn passes." << std::endl;
   }
 
@@ -325,16 +305,16 @@ int main(int, char **) {
         0xc3dfffffffffffff,
         0x43dfe8e848d0f937};
     test(device_queue, input_vals, ref_vals_rd,
-         FT(unsigned long long, __imf_ll2double_rd));
+         FT(unsigned long long, sycl::ext::intel::math::ll2double_rd));
     std::cout << "ll2double_rd passes." << std::endl;
     test(device_queue, input_vals, ref_vals_rn,
-         FT(unsigned long long, __imf_ll2double_rn));
+         FT(unsigned long long, sycl::ext::intel::math::ll2double_rn));
     std::cout << "ll2double_rn passes." << std::endl;
     test(device_queue, input_vals, ref_vals_ru,
-         FT(unsigned long long, __imf_ll2double_ru));
+         FT(unsigned long long, sycl::ext::intel::math::ll2double_ru));
     std::cout << "ll2double_ru passes." << std::endl;
     test(device_queue, input_vals, ref_vals_rz,
-         FT(unsigned long long, __imf_ll2double_rz));
+         FT(unsigned long long, sycl::ext::intel::math::ll2double_rz));
     std::cout << "ll2double_rz passes." << std::endl;
   }
 
@@ -350,7 +330,8 @@ int main(int, char **) {
     std::initializer_list<double> ref_vals = {0,         2.5,         100.625,
                                               -1000.125, 11.5625,     -34.28125,
                                               99.140625, -6783.640625};
-    test(device_queue, input_vals, ref_vals, F(__imf_longlong_as_double));
+    test(device_queue, input_vals, ref_vals,
+         F(sycl::ext::intel::math::longlong_as_double));
     std::cout << "longlong_as_double passes." << std::endl;
   }
 
@@ -366,7 +347,7 @@ int main(int, char **) {
                                                           0x41efffffffe00000,
                                                           0x41e686600d600000};
     test(device_queue, input_vals, ref_vals,
-         FT(unsigned long long, __imf_uint2double_rn));
+         FT(unsigned long long, sycl::ext::intel::math::uint2double_rn));
     std::cout << "uint2double_rn passes." << std::endl;
   }
 
@@ -417,16 +398,16 @@ int main(int, char **) {
         0x43efffffffffffff,
         0x43dfe8e848d0f937};
     test(device_queue, input_vals, ref_vals_rd,
-         FT(unsigned long long, __imf_ull2double_rd));
+         FT(unsigned long long, sycl::ext::intel::math::ull2double_rd));
     std::cout << "ull2double_rd passes." << std::endl;
     test(device_queue, input_vals, ref_vals_rn,
-         FT(unsigned long long, __imf_ull2double_rn));
+         FT(unsigned long long, sycl::ext::intel::math::ull2double_rn));
     std::cout << "ull2double_rn passes." << std::endl;
     test(device_queue, input_vals, ref_vals_ru,
-         FT(unsigned long long, __imf_ull2double_ru));
+         FT(unsigned long long, sycl::ext::intel::math::ull2double_ru));
     std::cout << "ull2double_ru passes." << std::endl;
     test(device_queue, input_vals, ref_vals_rz,
-         FT(unsigned long long, __imf_ull2double_rz));
+         FT(unsigned long long, sycl::ext::intel::math::ull2double_rz));
     std::cout << "ull2double_rz passes." << std::endl;
   }
 

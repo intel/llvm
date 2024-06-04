@@ -8,6 +8,7 @@ on:
     branches:
       - sycl
     paths:
+      - 'devops/actions/build_container/**'
       - 'devops/containers/**'
       - 'devops/dependencies.json'
       - 'devops/scripts/install_drivers.sh'
@@ -15,6 +16,7 @@ on:
       - '.github/workflows/sycl-containers.yaml'
   pull_request:
     paths:
+      - 'devops/actions/build_container/**'
       - 'devops/containers/**'
       - 'devops/dependencies.json'
       - 'devops/scripts/install_drivers.sh'
@@ -35,25 +37,19 @@ jobs:
         include:
           - name: Base Ubuntu 22.04 Docker image
             file: ubuntu2204_base
-            tags: ubuntu2204_base
+            tag: latest
             build_args: ""
           - name: Build Ubuntu Docker image
             file: ubuntu2204_build
-            tags: ubuntu2204_build
+            tag: latest
             build_args: ""
           - name: Intel Drivers Ubuntu 22.04 Docker image
             file: ubuntu2204_intel_drivers
-            tags: ubuntu2204_intel_drivers
+            tag: latest
             build_args: "use_latest=false"
-          - name: Intel Drivers Ubuntu 22.04 Docker image with dev IGC
-            file: ubuntu2204_intel_drivers
-            tags: ubuntu2204_intel_drivers_devigc
-            build_args: |
-                  "use_latest=false"
-                  "use_igc_dev=true"
           - name: Intel Drivers (unstable) Ubuntu 22.04 Docker image
             file: ubuntu2204_intel_drivers
-            tags: ubuntu2204_intel_drivers_unstable
+            tag: unstable
             build_args: "use_latest=true"
     steps:
       - name: Checkout
@@ -68,7 +64,7 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
           tags: |
-            ghcr.io/${{ github.repository }}/${{ matrix.tags }}-${{ github.sha }}
-            ghcr.io/${{ github.repository }}/${{ matrix.tags }}:latest
+            ghcr.io/${{ github.repository }}/${{ matrix.file }}:${{ matrix.tag }}-${{ github.sha }}
+            ghcr.io/${{ github.repository }}/${{ matrix.file }}:${{ matrix.tag }}
           build-args: ${{ matrix.build_args }}
 

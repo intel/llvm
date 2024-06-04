@@ -21,8 +21,13 @@
 // interop-level-zero-image-get-native-mem.cpp
 
 #include <level_zero/ze_api.h>
-#include <sycl.hpp>
+#include <sycl/accessor_image.hpp>
+#include <sycl/backend.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/detail/host_task_impl.hpp>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
+#include <sycl/ext/oneapi/filter_selector.hpp>
+#include <sycl/stream.hpp>
 using namespace sycl;
 
 int main() {
