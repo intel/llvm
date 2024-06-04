@@ -26,7 +26,8 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-std::atomic<unsigned long long> queue_impl::MNextAvailableQueueID = 0;
+// Treat 0 as reserved for "host" queue
+std::atomic<unsigned long long> queue_impl::MNextAvailableQueueID = 1;
 
 static std::vector<sycl::detail::pi::PiEvent>
 getPIEvents(const std::vector<sycl::event> &DepEvents) {
