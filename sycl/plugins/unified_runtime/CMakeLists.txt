@@ -125,7 +125,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 399430da9613269a0dc8ddf605415942e0a37e9c
+    # Merge: 39cb69ab 10b04891
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Tue Jun 4 17:15:33 2024 +0100
+    #     Merge pull request #1688 from frasercrmck/hip-enqueue-mem-readwritecopy
+    #     [HIP] Various fixes for urEnqueueMemImage(Read|Write|Copy)
+    399430da9613269a0dc8ddf605415942e0a37e9c
   )
 
   fetch_adapter_source(native_cpu
