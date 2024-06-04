@@ -46,7 +46,7 @@ using rel_t = typename std::conditional_t<
 #define BINOP_BASE(BINOP, OPASSIGN, CONVERT, COND)                             \
   template <typename T = DataT>                                                \
   friend std::enable_if_t<(COND), vec_t> operator BINOP(const vec_t & Lhs,     \
-                                                      const vec_t & Rhs) {     \
+                                                        const vec_t & Rhs) {   \
     vec_t Ret;                                                                 \
     if constexpr (vec_t::IsUsingArrayOnDevice) {                               \
       for (size_t I = 0; I < NumElements; ++I) {                               \
@@ -65,11 +65,12 @@ using rel_t = typename std::conditional_t<
 #define BINOP_BASE(BINOP, OPASSIGN, CONVERT, COND)                             \
   template <typename T = DataT>                                                \
   friend std::enable_if_t<(COND), vec_t> operator BINOP(const vec_t & Lhs,     \
-                                                      const vec_t & Rhs) {     \
+                                                        const vec_t & Rhs) {   \
     vec_t Ret{};                                                               \
     for (size_t I = 0; I < NumElements; ++I)                                   \
-      Ret.setValue(I, (DataT)(vec_data<DataT>::get(Lhs.getValue(               \
-                          I)) BINOP vec_data<DataT>::get(Rhs.getValue(I))));   \
+      Ret.setValue(I,                                                          \
+                   (DataT)(vec_data<DataT>::get(Lhs.getValue(I))               \
+                               BINOP vec_data<DataT>::get(Rhs.getValue(I))));  \
     return Ret;                                                                \
   }
 #endif // __SYCL_DEVICE_ONLY__
@@ -79,17 +80,17 @@ using rel_t = typename std::conditional_t<
                                                                                \
   template <typename T = DataT>                                                \
   friend std::enable_if_t<(COND), vec_t> operator BINOP(const vec_t & Lhs,     \
-                                                      const DataT & Rhs) {     \
+                                                        const DataT & Rhs) {   \
     return Lhs BINOP vec_t(Rhs);                                               \
   }                                                                            \
   template <typename T = DataT>                                                \
   friend std::enable_if_t<(COND), vec_t> operator BINOP(const DataT & Lhs,     \
-                                                      const vec_t & Rhs) {     \
+                                                        const vec_t & Rhs) {   \
     return vec_t(Lhs) BINOP Rhs;                                               \
   }                                                                            \
   template <typename T = DataT>                                                \
-  friend std::enable_if_t<(COND), vec_t> &operator OPASSIGN(vec_t & Lhs,       \
-                                                          const vec_t & Rhs) { \
+  friend std::enable_if_t<(COND), vec_t> &operator OPASSIGN(                   \
+      vec_t & Lhs, const vec_t & Rhs) {                                        \
     Lhs = Lhs BINOP Rhs;                                                       \
     return Lhs;                                                                \
   }                                                                            \
@@ -108,7 +109,7 @@ using rel_t = typename std::conditional_t<
  *                \            |               /
  *                 \           |              /
  *                        sycl::vec<T>
- * 
+ *
  * vec_arith_common is the base class for vec_arith. It contains
  * the common math operators of sycl::vec for all types.
  * vec_arith is the derived class that contains the math operators
@@ -119,14 +120,13 @@ template <typename DataT> struct vec_helper;
 
 template <typename DataT, int NumElements>
 class vec_arith : public vec_arith_common<DataT, NumElements> {
-public:
+protected:
   using vec_t = vec<DataT, NumElements>;
   using ocl_t = rel_t<DataT>;
   template <typename T> using vec_data = vec_helper<T>;
 
   // operator!.
-  friend vec<rel_t<DataT>, NumElements>
-  operator!(const vec_t &Rhs) {
+  friend vec<rel_t<DataT>, NumElements> operator!(const vec_t &Rhs) {
     if constexpr (vec_t::IsUsingArrayOnDevice || vec_t::IsUsingArrayOnHost) {
       vec_t Ret{};
       for (size_t I = 0; I < NumElements; ++I) {
@@ -166,7 +166,8 @@ public:
         oneapi::bfloat16 w = -v;
         Ret.m_Data[I] = oneapi::detail::bfloat16ToBits(w);
       }
-    } else if constexpr (vec_t::IsUsingArrayOnDevice || vec_t::IsUsingArrayOnHost) {
+    } else if constexpr (vec_t::IsUsingArrayOnDevice ||
+                         vec_t::IsUsingArrayOnHost) {
       for (size_t I = 0; I < NumElements; ++I)
         Ret.setValue(
             I, vec_data<DataT>::get(-vec_data<DataT>::get(Lhs.getValue(I))));
@@ -185,11 +186,11 @@ public:
 #error "Undefine __SYCL_UOP macro"
 #endif
 #define __SYCL_UOP(UOP, OPASSIGN)                                              \
-  friend vec_t & operator UOP(vec_t & Rhs) {                                   \
+  friend vec_t &operator UOP(vec_t & Rhs) {                                    \
     Rhs OPASSIGN vec_data<DataT>::get(1);                                      \
     return Rhs;                                                                \
   }                                                                            \
-  friend vec_t operator UOP(vec_t & Lhs, int) {                                \
+  friend vec_t operator UOP(vec_t &Lhs, int) {                                 \
     vec_t Ret(Lhs);                                                            \
     Lhs OPASSIGN vec_data<DataT>::get(1);                                      \
     return Ret;                                                                \
@@ -287,8 +288,7 @@ public:
 
   // The following OPs are available only when: DataT != cl_float &&
   // DataT != cl_double && DataT != cl_half && DataT != BF16.
-  __SYCL_BINOP(%, %=, false,
-              (!detail::is_vgenfloat_v<T>))
+  __SYCL_BINOP(%, %=, false, (!detail::is_vgenfloat_v<T>))
   // Bitwise operations are allowed for std::byte.
   __SYCL_BINOP(|, |=, false, (!detail::is_vgenfloat_v<DataT>))
   __SYCL_BINOP(&, &=, false, (!detail::is_vgenfloat_v<DataT>))
@@ -302,8 +302,11 @@ public:
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <int NumElements>
-class vec_arith<std::byte, NumElements>: public vec_arith_common<std::byte, NumElements> {
-public:
+class vec_arith<std::byte, NumElements>
+    : public vec_arith_common<std::byte, NumElements> {
+protected:
+  // NumElements can never be zero. Still using the redundant check to avoid
+  // incomplete type errors.
   using DataT = typename std::conditional_t<NumElements == 0, int, std::byte>;
   using vec_t = vec<DataT, NumElements>;
   template <typename T> using vec_data = vec_helper<T>;
@@ -315,14 +318,14 @@ public:
   // 1 template <class IntegerType>
   //   constexpr std::byte operator<<( std::byte b, IntegerType shift )
   //   noexcept;
-  friend vec_t operator <<(const vec_t & Lhs, int shift) {
+  friend vec_t operator<<(const vec_t &Lhs, int shift) {
     vec_t Ret;
     for (size_t I = 0; I < NumElements; ++I) {
       Ret[I] = Lhs[I] << shift;
     }
     return Ret;
   }
-  friend vec_t & operator <<(vec_t & Lhs, int shift) {
+  friend vec_t &operator<<=(vec_t &Lhs, int shift) {
     Lhs = Lhs << shift;
     return Lhs;
   }
@@ -330,14 +333,14 @@ public:
   // 2 template <class IntegerType>
   //   constexpr std::byte operator>>( std::byte b, IntegerType shift )
   //   noexcept;
-  friend vec_t operator >>(const vec_t & Lhs, int shift) {
+  friend vec_t operator>>(const vec_t &Lhs, int shift) {
     vec_t Ret;
     for (size_t I = 0; I < NumElements; ++I) {
       Ret[I] = Lhs[I] >> shift;
     }
     return Ret;
   }
-  friend vec_t & operator >>(vec_t & Lhs, int shift) {
+  friend vec_t &operator>>=(vec_t &Lhs, int shift) {
     Lhs = Lhs >> shift;
     return Lhs;
   }
@@ -346,14 +349,13 @@ public:
   __SYCL_BINOP(&, &=, false, true)
   __SYCL_BINOP(^, ^=, false, true)
 
-// friends
-template <typename T1, int T2> friend class vec;
+  // friends
+  template <typename T1, int T2> friend class vec;
 };
 #endif // (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 
-template <typename DataT, int NumElements>
-class vec_arith_common {
-  public:
+template <typename DataT, int NumElements> class vec_arith_common {
+protected:
   using vec_t = vec<DataT, NumElements>;
 
   // operator~() available only when: dataT != float && dataT != double
@@ -376,7 +378,7 @@ class vec_arith_common {
     }
   }
 
-  //friends
+  // friends
   template <typename T1, int T2> friend class vec;
 };
 

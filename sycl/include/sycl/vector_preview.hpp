@@ -1081,6 +1081,7 @@ public:
   DataT getValue(int Index) const {
     return (NumElements == 1) ? getValue(Index, 0) : getValue(Index, 0.f);
   }
+
 private:
   // fields
   // Alignment is the same as size, to a maximum size of 64.
