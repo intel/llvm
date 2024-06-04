@@ -275,6 +275,58 @@ std::pair<const char *, int> vavrg2_add() {
   return {nullptr, 0};
 }
 
+std::pair<const char *, int> vcompare2() {
+
+  CHECK(syclcompat::extend_vcompare2(0x0002FFFF, 0x0001FFFF, std::greater<>()),
+        (unsigned)0x00010000);
+  CHECK(syclcompat::extend_vcompare2((uint32_t)0x0002FFFF, (int32_t)0x0001FFFF,
+                                     std::greater<>()),
+        (unsigned)0x00010001);
+  CHECK(syclcompat::extend_vcompare2((int32_t)0x0002FFFF, (uint32_t)0x0001FFFF,
+                                     std::greater<>()),
+        (unsigned)0x00010000);
+
+  CHECK(syclcompat::extend_vcompare2(0x0002FFFF, 0x0001FFFF, std::less<>()),
+        (unsigned)0x00000000);
+  CHECK(syclcompat::extend_vcompare2(0x0002FFFF, 0x0002FFFF,
+                                     std::greater_equal<>()),
+        (unsigned)0x00010001);
+  CHECK(
+      syclcompat::extend_vcompare2(0x0002FFFF, 0x0001FFFF, std::less_equal<>()),
+      (unsigned)0x00000001);
+  CHECK(syclcompat::extend_vcompare2(0xFFFE0002, 0xFFFF0002, std::equal_to<>()),
+        (unsigned)0x00000001);
+  CHECK(syclcompat::extend_vcompare2(0xFFFE0002, 0xFFFF0002,
+                                     std::not_equal_to<>()),
+        (unsigned)0x00010000);
+
+  return {nullptr, 0};
+}
+
+std::pair<const char *, int> vcompare2_add() {
+
+  CHECK(syclcompat::extend_vcompare2_add(0x0002FFFF, 0x0001FFFF, 1,
+                                         std::greater<>()),
+        (unsigned)0x00000002);
+  CHECK(syclcompat::extend_vcompare2_add(0x0002FFFF, 0x0001FFFF, 2,
+                                         std::less<>()),
+        (unsigned)0x00000002);
+  CHECK(syclcompat::extend_vcompare2_add(0x0002FFFF, 0x0002FFFF, 1,
+                                         std::greater_equal<>()),
+        (unsigned)0x00000003);
+  CHECK(syclcompat::extend_vcompare2_add(0x0002FFFF, 0x0001FFFF, 2,
+                                         std::less_equal<>()),
+        (unsigned)0x00000003);
+  CHECK(syclcompat::extend_vcompare2_add(0xFFFE0002, 0xFFFF0002, 0xFFFF,
+                                         std::equal_to<>()),
+        (unsigned)0x00010000);
+  CHECK(syclcompat::extend_vcompare2_add(0xFFFE0002, 0xFFFF0002, 0xFF,
+                                         std::not_equal_to<>()),
+        (unsigned)0x00000100);
+
+  return {nullptr, 0};
+}
+
 // v4
 std::pair<const char *, int> vadd4() {
   CHECK(syclcompat::extend_vadd4<int32_t>(0x0102FFFE, 0x01FF02FF, 0),
@@ -515,6 +567,58 @@ std::pair<const char *, int> vavrg4_add() {
   return {nullptr, 0};
 }
 
+std::pair<const char *, int> vcompare4() {
+
+  CHECK(syclcompat::extend_vcompare4(0x0102FEFF, 0x01FFFFFE, std::greater<>()),
+        (unsigned)0x00010001);
+  CHECK(syclcompat::extend_vcompare4((uint32_t)0x0102FEFF, (int32_t)0x01FFFFFE,
+                                     std::greater<>()),
+        (unsigned)0x00010101);
+  CHECK(syclcompat::extend_vcompare4((int32_t)0x0102FEFF, (uint32_t)0x01FFFFFE,
+                                     std::greater<>()),
+        (unsigned)0x00000000);
+
+  CHECK(syclcompat::extend_vcompare4(0x0102FEFF, 0x01FFFFFE, std::less<>()),
+        (unsigned)0x00000100);
+  CHECK(syclcompat::extend_vcompare4(0x0102FEFF, 0x01FFFFFE,
+                                     std::greater_equal<>()),
+        (unsigned)0x01010001);
+  CHECK(
+      syclcompat::extend_vcompare4(0x0102FEFF, 0x01FFFFFE, std::less_equal<>()),
+      (unsigned)0x01000100);
+  CHECK(syclcompat::extend_vcompare4(0xFFFE0102, 0xFFFF0202, std::equal_to<>()),
+        (unsigned)0x01000001);
+  CHECK(syclcompat::extend_vcompare4(0xFFFE0102, 0xFFFF0202,
+                                     std::not_equal_to<>()),
+        (unsigned)0x00010100);
+
+  return {nullptr, 0};
+}
+
+std::pair<const char *, int> vcompare4_add() {
+
+  CHECK(syclcompat::extend_vcompare4_add(0x0102FEFF, 0x01FFFFFE, 1,
+                                         std::greater<>()),
+        (unsigned)0x00000003);
+  CHECK(syclcompat::extend_vcompare4_add(0x0102FEFF, 0x01FFFFFE, 1,
+                                         std::less<>()),
+        (unsigned)0x00000002);
+  CHECK(syclcompat::extend_vcompare4_add(0x0102FEFF, 0x01FFFFFE, 2,
+                                         std::greater_equal<>()),
+        (unsigned)0x00000005);
+  CHECK(syclcompat::extend_vcompare4_add(0x0102FEFF, 0x01FFFFFE, 2,
+                                         std::less_equal<>()),
+        (unsigned)0x00000004);
+  CHECK(syclcompat::extend_vcompare4_add(0xFFFE0102, 0xFFFF0202, 0xFF,
+                                         std::equal_to<>()),
+        (unsigned)0x00000101);
+  CHECK(syclcompat::extend_vcompare4_add(0xFFFE0102, 0xFFFF0202, 0xFFFF,
+                                         std::not_equal_to<>()),
+        (unsigned)0x00010001);
+
+  return {nullptr, 0};
+}
+
 void test(const sycl::stream &s, int *ec) {
   {
     auto res = vadd2();
@@ -713,6 +817,42 @@ void test(const sycl::stream &s, int *ec) {
       return;
     }
     s << "vavrg4_add check passed!\n";
+  }
+  {
+    auto res = vcompare2();
+    if (res.first) {
+      s << res.first << " = " << res.second << " check failed!\n";
+      *ec = 23;
+      return;
+    }
+    s << "vcompare2 check passed!\n";
+  }
+  {
+    auto res = vcompare2_add();
+    if (res.first) {
+      s << res.first << " = " << res.second << " check failed!\n";
+      *ec = 24;
+      return;
+    }
+    s << "vcompare2_add check passed!\n";
+  }
+  {
+    auto res = vcompare4();
+    if (res.first) {
+      s << res.first << " = " << res.second << " check failed!\n";
+      *ec = 25;
+      return;
+    }
+    s << "vcompare2 check passed!\n";
+  }
+  {
+    auto res = vcompare4_add();
+    if (res.first) {
+      s << res.first << " = " << res.second << " check failed!\n";
+      *ec = 26;
+      return;
+    }
+    s << "vcompare2_add check passed!\n";
   }
   *ec = 0;
 }
