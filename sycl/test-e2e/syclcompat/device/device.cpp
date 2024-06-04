@@ -107,6 +107,33 @@ void test_create_queue_arguments() {
   assert(!q_out_order.is_in_order());
 }
 
+void test_version_parsing_case(const std::string &ver_string,
+                               int expected_major, int expected_minor) {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  int major;
+  int minor;
+  syclcompat::detail::parse_version_string(ver_string, major, minor);
+  if (major != expected_major || minor != expected_minor) {
+    std::cout << "Failed comparing " << ver_string << " major " << major
+              << " expected_major " << expected_major << " minor " << minor
+              << " expected_minor " << expected_minor << std::endl;
+    assert(false);
+  }
+  assert(major == expected_major);
+  assert(minor == expected_minor);
+}
+
+void test_version_parsing() {
+  test_version_parsing_case("3.0", 3, 0);
+  test_version_parsing_case("3.0 NEO", 3, 0);
+  test_version_parsing_case("8.6", 8, 6);
+  test_version_parsing_case("8.0", 8, 0);
+  test_version_parsing_case("7.5", 7, 5);
+  test_version_parsing_case("1.3", 1, 3);
+  test_version_parsing_case("11.4", 11, 4);
+  test_version_parsing_case("0.1", 0, 1);
+}
+
 // We have *some* constraints on the major version that we can check
 void test_major_version(sycl::device &dev, int major) {
   auto backend = dev.get_backend();
@@ -264,6 +291,7 @@ int main() {
   test_saved_queue();
   test_reset();
   test_device_info_api();
+  test_version_parsing();
 
   return 0;
 }

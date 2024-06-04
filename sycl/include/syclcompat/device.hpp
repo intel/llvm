@@ -59,12 +59,12 @@
 namespace syclcompat {
 
 namespace detail {
-static void get_version(const sycl::device &dev, int &major, int &minor) {
+static void parse_version_string(const std::string &ver, int &major,
+                                 int &minor) {
   // Version string has the following format:
   // a. OpenCL<space><major.minor><space><vendor-specific-information>
   // b. <major.minor>
-  std::string ver;
-  ver = dev.get_info<sycl::info::device::version>();
+  // c. <AmdGcnArchName> e.g gfx1030 (unhandled)
   std::string::size_type i = 0;
   while (i < ver.size()) {
     if (isdigit(ver[i]))
@@ -85,6 +85,11 @@ static void get_version(const sycl::device &dev, int &major, int &minor) {
     minor = std::stoi(&(ver[i]));
   else
     minor = 0;
+}
+
+static void get_version(const sycl::device &dev, int &major, int &minor) {
+  std::string ver = dev.get_info<sycl::info::device::version>();
+  parse_version_string(ver, major, minor);
 }
 
 /// SYCL default exception handler
