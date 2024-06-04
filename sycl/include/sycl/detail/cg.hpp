@@ -533,40 +533,37 @@ public:
 
 /// "Semaphore Wait" command group class.
 class CGSemaphoreWait : public CG {
-  sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+  sycl::detail::pi::PiExternalSemaphore MExternalSemaphore;
   std::optional<uint64_t> MWaitValue;
 
 public:
-  CGSemaphoreWait(
-      sycl::detail::pi::PiInteropSemaphoreHandle InteropSemaphoreHandle,
-      std::optional<uint64_t> WaitValue, CG::StorageInitHelper CGData,
-      detail::code_location loc = {})
+  CGSemaphoreWait(sycl::detail::pi::PiExternalSemaphore ExternalSemaphore,
+                  std::optional<uint64_t> WaitValue,
+                  CG::StorageInitHelper CGData, detail::code_location loc = {})
       : CG(SemaphoreWait, std::move(CGData), std::move(loc)),
-        MInteropSemaphoreHandle(InteropSemaphoreHandle), MWaitValue(WaitValue) {
-  }
+        MExternalSemaphore(ExternalSemaphore), MWaitValue(WaitValue) {}
 
-  sycl::detail::pi::PiInteropSemaphoreHandle getInteropSemaphoreHandle() const {
-    return MInteropSemaphoreHandle;
+  sycl::detail::pi::PiExternalSemaphore getExternalSemaphore() const {
+    return MExternalSemaphore;
   }
   std::optional<uint64_t> getWaitValue() const { return MWaitValue; }
 };
 
 /// "Semaphore Signal" command group class.
 class CGSemaphoreSignal : public CG {
-  sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+  sycl::detail::pi::PiExternalSemaphore MExternalSemaphore;
   std::optional<uint64_t> MSignalValue;
 
 public:
-  CGSemaphoreSignal(
-      sycl::detail::pi::PiInteropSemaphoreHandle InteropSemaphoreHandle,
-      std::optional<uint64_t> SignalValue, CG::StorageInitHelper CGData,
-      detail::code_location loc = {})
+  CGSemaphoreSignal(sycl::detail::pi::PiExternalSemaphore ExternalSemaphore,
+                    std::optional<uint64_t> SignalValue,
+                    CG::StorageInitHelper CGData,
+                    detail::code_location loc = {})
       : CG(SemaphoreSignal, std::move(CGData), std::move(loc)),
-        MInteropSemaphoreHandle(InteropSemaphoreHandle),
-        MSignalValue(SignalValue) {}
+        MExternalSemaphore(ExternalSemaphore), MSignalValue(SignalValue) {}
 
-  sycl::detail::pi::PiInteropSemaphoreHandle getInteropSemaphoreHandle() const {
-    return MInteropSemaphoreHandle;
+  sycl::detail::pi::PiExternalSemaphore getExternalSemaphore() const {
+    return MExternalSemaphore;
   }
   std::optional<uint64_t> getSignalValue() const { return MSignalValue; }
 };

@@ -128,7 +128,7 @@ public:
   sycl::detail::pi::PiImageRegion MCopyExtent;
 
   // Extra information for semaphore interoperability
-  sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+  sycl::detail::pi::PiExternalSemaphore MExternalSemaphore;
   std::optional<uint64_t> MWaitValue;
   std::optional<uint64_t> MSignalValue;
 

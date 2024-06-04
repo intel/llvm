@@ -99,14 +99,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 00ca0daaa170fa1a5826e1cdcbdc46a4db0a5694
-  # Merge: 7b640455 abab204d
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Jul 2 13:52:21 2024 +0100
-  #     Merge pull request #1696 from nrspruit/l0_windows_interop
-  #     [L0] Support for Bindless Image Import
-  set(UNIFIED_RUNTIME_TAG 00ca0daaa170fa1a5826e1cdcbdc46a4db0a5694)
+  set(UNIFIED_RUNTIME_REPO "git@github.com:DBDuncan/unified-runtime.git")
+  # commit 2875c7e91e43d002440d26fe0eb50e2fb906ab47
+  # Author: Sean Stirling <sean.stirling@codeplay.com>
+  # Date:   Tue, 4 Jun 2024 13:52:21 +0100
+  #     [PATCH] [Bindless][Exp] Rename interop related structs/funcs with
+  #     "external"
+  set(UNIFIED_RUNTIME_TAG 2875c7e91e43d002440d26fe0eb50e2fb906ab47)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

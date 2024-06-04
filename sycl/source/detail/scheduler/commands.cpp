@@ -3243,7 +3243,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     auto OptWaitValue = SemWait->getWaitValue();
     uint64_t WaitValue = OptWaitValue.has_value() ? OptWaitValue.value() : 0;
     Plugin->call<PiApiKind::piextWaitExternalSemaphore>(
-        MQueue->getHandleRef(), SemWait->getInteropSemaphoreHandle(),
+        MQueue->getHandleRef(), SemWait->getExternalSemaphore(),
         OptWaitValue.has_value(), WaitValue, 0, nullptr, nullptr);
 
     return PI_SUCCESS;
@@ -3258,7 +3258,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     uint64_t SignalValue =
         OptSignalValue.has_value() ? OptSignalValue.value() : 0;
     Plugin->call<PiApiKind::piextSignalExternalSemaphore>(
-        MQueue->getHandleRef(), SemSignal->getInteropSemaphoreHandle(),
+        MQueue->getHandleRef(), SemSignal->getExternalSemaphore(),
         OptSignalValue.has_value(), SignalValue, 0, nullptr, nullptr);
 
     return PI_SUCCESS;

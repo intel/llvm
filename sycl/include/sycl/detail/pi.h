@@ -196,6 +196,27 @@
 // _pi_virtual_mem_granularity_info enum, _pi_virtual_mem_info enum and
 // pi_virtual_access_flags bit flags.
 // 15.55 Added piextEnqueueNativeCommand as well as associated types and enums
+// 15.56 Renamed interop related structs/funcs/enums:
+//       - with keyword "external" over "interop":
+//         - PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT to
+//           PI_EXT_ONEAPI_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT
+//         - PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT to
+//           PI_EXT_ONEAPI_DEVICE_INFO_EXTERNAL_MEMORY_EXPORT_SUPPORT
+//         - PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT to
+//           PI_EXT_ONEAPI_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT
+//         - PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT to
+//           PI_EXT_ONEAPI_DEVICE_INFO_EXTERNAL_SEMAPHORE_EXPORT_SUPPORT
+//         - pi_interop_mem_handle to pi_external_mem
+//         - pi_interop_semaphore_handle to pi_external_semaphore
+//         - ext_oneapi_interop_memory_import to
+//           ext_oneapi_external_memory_import
+//         - ext_oneapi_interop_memory_export to
+//           ext_oneapi_external_memory_export
+//         - ext_oneapi_interop_semaphore_import to
+//           ext_oneapi_external_semaphore_import
+//         - ext_oneapi_interop_semaphore_export to
+//           ext_oneapi_external_semaphore_export
+//       - piextMemReleaseInterop to piextMemReleaseExternalMemory
 
 #define _PI_H_VERSION_MAJOR 15
 #define _PI_H_VERSION_MINOR 55
@@ -481,10 +502,10 @@ typedef enum {
   PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT = 0x20109,
   PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY = 0x2010A,
   PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT = 0x2010B,
-  PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT = 0x2010C,
-  PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT = 0x2010D,
-  PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT = 0x2010E,
-  PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT = 0x2010F,
+  PI_EXT_ONEAPI_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT = 0x2010C,
+  PI_EXT_ONEAPI_DEVICE_INFO_EXTERNAL_MEMORY_EXPORT_SUPPORT = 0x2010D,
+  PI_EXT_ONEAPI_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT = 0x2010E,
+  PI_EXT_ONEAPI_DEVICE_INFO_EXTERNAL_SEMAPHORE_EXPORT_SUPPORT = 0x2010F,
 
   PI_EXT_ONEAPI_DEVICE_INFO_MATRIX_COMBINATIONS = 0x20110,
 
@@ -1279,10 +1300,10 @@ using pi_event = _pi_event *;
 using pi_sampler = _pi_sampler *;
 using pi_image_handle = pi_uint64;
 using pi_image_mem_handle = void *;
-using pi_interop_mem_handle = pi_uint64;
-using pi_interop_semaphore_handle = pi_uint64;
 using pi_physical_mem = _pi_physical_mem *;
 using pi_enqueue_native_command_function = void (*)(pi_queue, void *);
+using pi_external_mem = pi_uint64;
+using pi_external_semaphore = pi_uint64;
 
 typedef struct {
   pi_image_channel_order image_channel_order;
@@ -3082,47 +3103,46 @@ __SYCL_EXPORT pi_result piextMemImageGetInfo(
 /// \param device is the pi_device
 /// \param size is the size of the external memory
 /// \param file_descriptor is the file descriptor
-/// \param ret_handle is the returned interop memory handle to the external
-/// memory
+/// \param ret_handle is the returned handle to the external memory
 __SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
                          "`piextImportExternalMemory`")
 pi_result piextMemImportOpaqueFD(pi_context context, pi_device device,
                                  size_t size, int file_descriptor,
-                                 pi_interop_mem_handle *ret_handle);
+                                 pi_external_mem *ret_handle);
 
 /// API to import external memory
 ///
 /// \param context is the pi_context
 /// \param device is the pi_device
-/// \param mem_descriptor is the interop memory descriptor
-/// \param ret_handle is the returned interop memory handle to the external
-/// memory
-__SYCL_EXPORT pi_result
-piextImportExternalMemory(pi_context context, pi_device device,
-                          pi_external_mem_descriptor *mem_descriptor,
-                          pi_interop_mem_handle *ret_handle);
+/// \param mem_descriptor is the external memory descriptor
+/// \param ret_handle is the returned handle to the external memory
+__SYCL_EXPORT pi_result piextImportExternalMemory(
+    pi_context context, pi_device device,
+    pi_external_mem_descriptor *mem_descriptor, pi_external_mem *ret_handle);
 
-/// API to map an interop memory handle to an image memory handle.
+/// API to map an external memory handle to an image memory handle.
 ///
 /// \param context is the pi_context
 /// \param device is the pi_device
 /// \param image_format format of the image (channel order and data type)
 /// \param image_desc image descriptor
-/// \param mem_handle is the interop memory handle to the external memory
+/// \param mem_handle is the external memory handle
 /// \param ret_mem is the returned image memory handle to the externally
 /// allocated memory
-__SYCL_EXPORT pi_result piextMemMapExternalArray(
-    pi_context context, pi_device device, pi_image_format *image_format,
-    pi_image_desc *image_desc, pi_interop_mem_handle mem_handle,
-    pi_image_mem_handle *ret_mem);
+__SYCL_EXPORT pi_result piextMemMapExternalArray(pi_context context,
+                                                 pi_device device,
+                                                 pi_image_format *image_format,
+                                                 pi_image_desc *image_desc,
+                                                 pi_external_mem mem_handle,
+                                                 pi_image_mem_handle *ret_mem);
 
-/// API to destroy interop memory.
+/// API to destroy external memory.
 ///
 /// \param context is the pi_context
 /// \param device is the pi_device
-/// \param memory_handle is the handle to interop memory to be freed
-__SYCL_EXPORT pi_result piextMemReleaseInterop(
-    pi_context context, pi_device device, pi_interop_mem_handle memory_handle);
+/// \param memory_handle is the external memory handle to be released
+__SYCL_EXPORT pi_result piextMemReleaseExternalMemory(
+    pi_context context, pi_device device, pi_external_mem memory_handle);
 
 /// [DEPRECATED] This function is deprecated in favor of
 /// `piextImportExternalSemaphore`
@@ -3132,41 +3152,37 @@ __SYCL_EXPORT pi_result piextMemReleaseInterop(
 /// \param context is the pi_context
 /// \param device is the pi_device
 /// \param file_descriptor is the file descriptor
-/// \param ret_handle is the returned interop semaphore handle to the external
-/// semaphore
+/// \param ret_ext_sem is the returned external semaphore object
 __SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
                          "`piextImportExternalSemaphore`")
 pi_result
 piextImportExternalSemaphoreOpaqueFD(pi_context context, pi_device device,
                                      int file_descriptor,
-                                     pi_interop_semaphore_handle *ret_handle);
+                                     pi_external_semaphore *ret_ext_sem);
 
 /// API to import an external semaphore
 ///
 /// \param context is the pi_context
 /// \param device is the pi_device
-/// \param sem_descriptor is the interop semaphore descriptor
-/// \param ret_handle is the returned interop semaphore handle to the external
-/// semaphore
+/// \param sem_descriptor is the external semaphore descriptor
+/// \param ret_ext_sem is the returned external semaphore object
 __SYCL_EXPORT pi_result
 piextImportExternalSemaphore(pi_context context, pi_device device,
                              pi_external_semaphore_descriptor *sem_descriptor,
-                             pi_interop_semaphore_handle *ret_handle);
+                             pi_external_semaphore *ret_ext_sem);
 
-/// API to destroy the external semaphore handle.
+/// API to destroy the external semaphore.
 ///
 /// \param context is the pi_context
 /// \param device is the pi_device
-/// \param sem_handle is the interop semaphore handle to the external semaphore
-/// to be destroyed
-__SYCL_EXPORT pi_result
-piextDestroyExternalSemaphore(pi_context context, pi_device device,
-                              pi_interop_semaphore_handle sem_handle);
+/// \param ext_sem is external semaphore object to be destroyed
+__SYCL_EXPORT pi_result piextDestroyExternalSemaphore(
+    pi_context context, pi_device device, pi_external_semaphore ext_sem);
 
 /// API to instruct the queue with a non-blocking wait on an external semaphore.
 ///
 /// \param command_queue is the queue instructed to wait
-/// \param sem_handle is the interop semaphore handle
+/// \param ext_sem is the external semaphore to wait on
 /// \param has_wait_value indicates whether the semaphore is capable of setting
 ///                       user defined state passed through `wait_value`.
 ///                       Otherwise `wait_value` is ignored.
@@ -3179,16 +3195,15 @@ piextDestroyExternalSemaphore(pi_context context, pi_device device,
 /// operation
 /// \param event is the returned event representing this operation
 __SYCL_EXPORT pi_result piextWaitExternalSemaphore(
-    pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
-    bool has_wait_value, pi_uint64 wait_value,
-    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
-    pi_event *event);
+    pi_queue command_queue, pi_external_semaphore ext_sem, bool has_wait_value,
+    pi_uint64 wait_value, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event);
 
 /// API to instruct the queue to signal the external semaphore handle once all
 /// previous commands have completed execution.
 ///
 /// \param command_queue is the queue instructed to signal
-/// \param sem_handle is the interop semaphore handle to signal
+/// \param ext_sem is the external semaphore to signal
 /// \param has_signal_value indicates whether the semaphore is capable of
 ///                         setting user defined state passed through
 ///                         `signal_value`. Otherwise `signal_value` is ignored.
@@ -3200,7 +3215,7 @@ __SYCL_EXPORT pi_result piextWaitExternalSemaphore(
 /// operation
 /// \param event is the returned event representing this operation
 __SYCL_EXPORT pi_result piextSignalExternalSemaphore(
-    pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
+    pi_queue command_queue, pi_external_semaphore ext_sem,
     bool has_signal_value, pi_uint64 signal_value,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event);

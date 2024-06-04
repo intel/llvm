@@ -143,7 +143,7 @@ piextMemImportOpaqueFD
 piextMemMapExternalArray
 piextMemMipmapFree
 piextMemMipmapGetLevel
-piextMemReleaseInterop
+piextMemReleaseExternalMemory
 piextMemSampledImageCreate
 piextMemSampledImageHandleDestroy
 piextMemUnsampledImageCreate

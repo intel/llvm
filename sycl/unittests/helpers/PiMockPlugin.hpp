@@ -503,11 +503,9 @@ inline pi_result mock_piextMemUnsampledImageCreate(
 }
 
 [[deprecated("This function has been deprecated in favor of "
-             "`piextImportExternalMemory`")]]
-inline pi_result
+             "`piextImportExternalMemory`")]] inline pi_result
 mock_piextMemImportOpaqueFD(pi_context context, pi_device device, size_t size,
-                            int file_descriptor,
-                            pi_interop_mem_handle *ret_handle) {
+                            int file_descriptor, pi_external_mem *ret_ext_mem) {
   return PI_SUCCESS;
 }
 
@@ -515,71 +513,57 @@ inline pi_result mock_piextMemMapExternalArray(pi_context context,
                                                pi_device device,
                                                pi_image_format *image_format,
                                                pi_image_desc *image_desc,
-                                               pi_interop_mem_handle mem_handle,
+                                               pi_external_mem ext_mem,
                                                pi_image_mem_handle *ret_mem) {
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piextMemReleaseInterop(pi_context context,
-                                             pi_device device,
-                                             pi_interop_mem_handle ext_mem) {
+inline pi_result mock_piextMemReleaseExternalMemory(pi_context context,
+                                                    pi_device device,
+                                                    pi_external_mem ext_mem) {
   return PI_SUCCESS;
 }
 
 [[deprecated("This function has been deprecated in favor of "
-             "`piextImportExternalSemaphore`")]]
-inline pi_result mock_piextImportExternalSemaphoreOpaqueFD(
-    pi_context context, pi_device device, int file_descriptor,
-    pi_interop_semaphore_handle *ret_handle) {
+             "`piextImportExternalSemaphore`")]] inline pi_result
+mock_piextImportExternalSemaphoreOpaqueFD(pi_context context, pi_device device,
+                                          int file_descriptor,
+                                          pi_external_semaphore *ret_ext_sem) {
   return PI_SUCCESS;
 }
 
 inline pi_result mock_piextImportExternalSemaphore(
     pi_context context, pi_device device,
     pi_external_semaphore_descriptor *sem_descriptor,
-    pi_interop_semaphore_handle *ret_handle) {
+    pi_external_semaphore *ret_handle) {
   return PI_SUCCESS;
 }
 
 inline pi_result
 mock_piextImportExternalMemory(pi_context context, pi_device device,
                                pi_external_mem_descriptor *mem_descriptor,
-                               pi_interop_mem_handle *ret_handle) {
+                               pi_external_mem *ret_handle) {
   return PI_SUCCESS;
 }
 
 inline pi_result
 mock_piextDestroyExternalSemaphore(pi_context context, pi_device device,
-                                   pi_interop_semaphore_handle sem_handle) {
+                                   pi_external_semaphore ext_sem) {
   return PI_SUCCESS;
 }
 
 inline pi_result mock_piextWaitExternalSemaphore(
-    pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
-    bool has_wait_value, uint64_t wait_value, pi_uint32 num_events_in_wait_list,
+    pi_queue command_queue, pi_external_semaphore ext_sem, bool has_wait_value,
+    uint64_t wait_value, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
   return PI_SUCCESS;
 }
 
 inline pi_result mock_piextSignalExternalSemaphore(
-    pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
+    pi_queue command_queue, pi_external_semaphore ext_sem,
     bool has_signal_value, uint64_t signal_value,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event) {
-  return PI_SUCCESS;
-}
-
-inline pi_result mock_piextMemUnsampledImageCreateInterop(
-    pi_context context, pi_device device, pi_image_format *image_format,
-    pi_image_desc *desc, pi_interop_mem_handle ext_mem_handle,
-    pi_image_handle *ret_img_handle) {
-  return PI_SUCCESS;
-}
-
-inline pi_result mock_piextMemSampledImageCreateInterop(
-    pi_context context, pi_device device, pi_image_format *image_format,
-    pi_image_desc *desc, pi_sampler sampler,
-    pi_interop_mem_handle ext_mem_handle, pi_image_handle *ret_img_handle) {
   return PI_SUCCESS;
 }
 

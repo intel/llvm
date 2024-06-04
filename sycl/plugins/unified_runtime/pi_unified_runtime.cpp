@@ -1380,29 +1380,31 @@ __SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
                          "`piextImportExternalMemory`")
 pi_result piextMemImportOpaqueFD(pi_context Context, pi_device Device,
                                  size_t Size, int FileDescriptor,
-                                 pi_interop_mem_handle *RetHandle) {
+                                 pi_external_mem *RetExtMem) {
   return pi2ur::piextMemImportOpaqueFD(Context, Device, Size, FileDescriptor,
-                                       RetHandle);
+                                       RetExtMem);
 }
 
 __SYCL_EXPORT pi_result piextImportExternalMemory(
     pi_context Context, pi_device Device, pi_external_mem_descriptor *MemDesc,
-    pi_interop_mem_handle *RetHandle) {
-  return pi2ur::piextImportExternalMemory(Context, Device, MemDesc, RetHandle);
+    pi_external_mem *RetExtMem) {
+  return pi2ur::piextImportExternalMemory(Context, Device, MemDesc, RetExtMem);
 }
 
-__SYCL_EXPORT pi_result piextMemMapExternalArray(
-    pi_context Context, pi_device Device, pi_image_format *ImageFormat,
-    pi_image_desc *ImageDesc, pi_interop_mem_handle MemHandle,
-    pi_image_mem_handle *RetMem) {
+__SYCL_EXPORT pi_result piextMemMapExternalArray(pi_context Context,
+                                                 pi_device Device,
+                                                 pi_image_format *ImageFormat,
+                                                 pi_image_desc *ImageDesc,
+                                                 pi_external_mem ExtMem,
+                                                 pi_image_mem_handle *RetMem) {
   return pi2ur::piextMemMapExternalArray(Context, Device, ImageFormat,
-                                         ImageDesc, MemHandle, RetMem);
+                                         ImageDesc, ExtMem, RetMem);
 }
 
-__SYCL_EXPORT pi_result piextMemReleaseInterop(pi_context Context,
-                                               pi_device Device,
-                                               pi_interop_mem_handle ExtMem) {
-  return pi2ur::piextMemReleaseInterop(Context, Device, ExtMem);
+__SYCL_EXPORT pi_result piextMemReleaseExternalMemory(pi_context Context,
+                                                      pi_device Device,
+                                                      pi_external_mem ExtMem) {
+  return pi2ur::piextMemReleaseExternalMemory(Context, Device, ExtMem);
 }
 
 __SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
@@ -1410,39 +1412,38 @@ __SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
 pi_result
 piextImportExternalSemaphoreOpaqueFD(pi_context Context, pi_device Device,
                                      int FileDescriptor,
-                                     pi_interop_semaphore_handle *RetHandle) {
+                                     pi_external_semaphore *RetExtSem) {
   return pi2ur::piextImportExternalSemaphoreOpaqueFD(Context, Device,
-                                                     FileDescriptor, RetHandle);
+                                                     FileDescriptor, RetExtSem);
 }
 
 __SYCL_EXPORT pi_result
 piextImportExternalSemaphore(pi_context Context, pi_device Device,
                              pi_external_semaphore_descriptor *SemDesc,
-                             pi_interop_semaphore_handle *RetHandle) {
+                             pi_external_semaphore *RetExtSem) {
   return pi2ur::piextImportExternalSemaphore(Context, Device, SemDesc,
-                                             RetHandle);
+                                             RetExtSem);
 }
 
-__SYCL_EXPORT pi_result
-piextDestroyExternalSemaphore(pi_context Context, pi_device Device,
-                              pi_interop_semaphore_handle SemHandle) {
-  return pi2ur::piextDestroyExternalSemaphore(Context, Device, SemHandle);
+__SYCL_EXPORT pi_result piextDestroyExternalSemaphore(
+    pi_context Context, pi_device Device, pi_external_semaphore ExtSem) {
+  return pi2ur::piextDestroyExternalSemaphore(Context, Device, ExtSem);
 }
 
 __SYCL_EXPORT pi_result piextWaitExternalSemaphore(
-    pi_queue Queue, pi_interop_semaphore_handle SemHandle, bool HasWaitValue,
+    pi_queue Queue, pi_external_semaphore ExtSem, bool HasWaitValue,
     pi_uint64 WaitValue, pi_uint32 NumEventsInWaitList,
     const pi_event *EventWaitList, pi_event *Event) {
-  return pi2ur::piextWaitExternalSemaphore(Queue, SemHandle, HasWaitValue,
+  return pi2ur::piextWaitExternalSemaphore(Queue, ExtSem, HasWaitValue,
                                            WaitValue, NumEventsInWaitList,
                                            EventWaitList, Event);
 }
 
 __SYCL_EXPORT pi_result piextSignalExternalSemaphore(
-    pi_queue Queue, pi_interop_semaphore_handle SemHandle, bool HasSignalValue,
+    pi_queue Queue, pi_external_semaphore ExtSem, bool HasSignalValue,
     pi_uint64 SignalValue, pi_uint32 NumEventsInWaitList,
     const pi_event *EventWaitList, pi_event *Event) {
-  return pi2ur::piextSignalExternalSemaphore(Queue, SemHandle, HasSignalValue,
+  return pi2ur::piextSignalExternalSemaphore(Queue, ExtSem, HasSignalValue,
                                              SignalValue, NumEventsInWaitList,
                                              EventWaitList, Event);
 }

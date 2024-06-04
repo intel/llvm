@@ -133,13 +133,13 @@ int main() {
 
     // Extension: query for bindless image interop support -- device aspects
     bool interopMemoryImportSupport =
-        dev.has(sycl::aspect::ext_oneapi_interop_memory_import);
+        dev.has(sycl::aspect::ext_oneapi_external_memory_import);
     bool interopMemoryExportSupport =
-        dev.has(sycl::aspect::ext_oneapi_interop_memory_export);
+        dev.has(sycl::aspect::ext_oneapi_external_memory_export);
     bool interopSemaphoreImportSupport =
-        dev.has(sycl::aspect::ext_oneapi_interop_semaphore_import);
+        dev.has(sycl::aspect::ext_oneapi_external_semaphore_import);
     bool interopSemaphoreExportSupport =
-        dev.has(sycl::aspect::ext_oneapi_interop_semaphore_export);
+        dev.has(sycl::aspect::ext_oneapi_external_semaphore_export);
 
 #ifdef VERBOSE_PRINT
     std::cout << "interopMemoryImportSupport: " << interopMemoryImportSupport

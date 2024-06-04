@@ -496,35 +496,37 @@ bool device_impl::has(aspect Aspect) const {
             sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
     return call_successful && support;
   }
-  case aspect::ext_oneapi_interop_memory_import: {
+  case aspect::ext_oneapi_external_memory_import: {
     pi_bool support = PI_FALSE;
     bool call_successful =
         getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT,
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT,
             sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
     return call_successful && support;
   }
-  case aspect::ext_oneapi_interop_memory_export: {
+  case aspect::ext_oneapi_external_memory_export: {
     pi_bool support = PI_FALSE;
     bool call_successful =
         getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT,
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_EXTERNAL_MEMORY_EXPORT_SUPPORT,
             sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
     return call_successful && support;
   }
-  case aspect::ext_oneapi_interop_semaphore_import: {
+  case aspect::ext_oneapi_external_semaphore_import: {
     pi_bool support = PI_FALSE;
     bool call_successful =
         getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT,
+            MDevice,
+            PI_EXT_ONEAPI_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT,
             sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
     return call_successful && support;
   }
-  case aspect::ext_oneapi_interop_semaphore_export: {
+  case aspect::ext_oneapi_external_semaphore_export: {
     pi_bool support = PI_FALSE;
     bool call_successful =
         getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT,
+            MDevice,
+            PI_EXT_ONEAPI_DEVICE_INFO_EXTERNAL_SEMAPHORE_EXPORT_SUPPORT,
             sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
     return call_successful && support;
   }

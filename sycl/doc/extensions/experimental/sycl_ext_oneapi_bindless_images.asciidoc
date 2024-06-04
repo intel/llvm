@@ -1545,13 +1545,13 @@ The device aspect descriptors for these queries are:
 [frame="none",options="header"]
 |======================
 |Device descriptor |Description
-|`aspect::ext_oneapi_interop_memory_import` | Indicates if the device supports 
+|`aspect::ext_oneapi_external_memory_import` | Indicates if the device supports 
 importing external memory resources.
-|`aspect::ext_oneapi_interop_memory_export` | Indicates if the device supports 
+|`aspect::ext_oneapi_external_memory_export` | Indicates if the device supports 
 exporting internal memory resources.
-|`aspect::ext_oneapi_interop_semaphore_import`` | Indicates if the device 
+|`aspect::ext_oneapi_external_semaphore_import`` | Indicates if the device 
 supports importing external semaphore resources.
-|`aspect::ext_oneapi_interop_semaphore_export` | Indicates if the device 
+|`aspect::ext_oneapi_external_semaphore_export` | Indicates if the device 
 supports exporting internal event resources.
 |======================
 
@@ -1645,35 +1645,35 @@ resource type.
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
-struct interop_mem_handle {
+struct external_mem {
   using raw_handle_type = /* Implementation defined */;
   raw_handle_type raw_handle;
 };
 
 template <typename ResourceType>
-interop_mem_handle import_external_memory(
+external_mem import_external_memory(
     external_mem_descriptor<ResourceType> externalMemDescriptor,
     const sycl::device &syclDevice,
     const sycl::context &syclContext);
 
 template <typename ResourceType>
-interop_mem_handle import_external_memory(
+external_mem import_external_memory(
     external_mem_descriptor<ResourceType> externalMemDescriptor,
     const sycl::queue &syclQueue);
 
 image_mem_handle map_external_image_memory(
-    interop_mem_handle interopMemHandle,
+    external_mem externalMemHandle,
     const image_descriptor &imageDescriptor,
     const sycl::device &syclDevice,
     const sycl::context &syclContext);
 image_mem_handle map_external_image_memory(
-    interop_mem_handle interopMemHandle,
+    external_mem externalMemHandle,
     const image_descriptor &imageDescriptor,
     const sycl::queue &syclQueue);
 }
 ```
 
-The resulting `interop_mem_handle` can then be mapped, where the resulting type 
+The resulting `external_mem` can then be mapped, where the resulting type 
 is an `image_mem_handle`. This can be used to construct images in the same way 
 as memory allocated through `alloc_image_mem`. The `ext_oneapi_copy` operations 
 also work with imported memory mapped to `image_mem_handle` types.
@@ -1692,16 +1692,16 @@ behaviour.
 Once a user has finished operating on imported memory, they must ensure that 
 they destroy the imported memory handle through `release_external_memory`.
 
-`release_external_memory` can only accept `interop_mem_handles` that were
+`release_external_memory` can only accept `external_mems` that were
 created through `import_external_memory`.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
-void release_external_memory(interop_mem_handle interopMem,
+void release_external_memory(external_mem externalMem,
                              const sycl::device &syclDevice,
                              const sycl::context &syclContext);
-void release_external_memory(interop_mem_handle interopMem,
+void release_external_memory(external_mem externalMem,
                              const sycl::queue &syclQueue);
 }
 ```
@@ -1765,27 +1765,27 @@ compatible with the `resource_fd` resource type.
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
-struct interop_semaphore_handle {
+struct external_semaphore_handle {
   using raw_handle_type = /* Implementation defined */;
   raw_handle_type raw_handle;
 };
 
 template <typename ResourceType>
-interop_semaphore_handle import_external_semaphore(
+external_semaphore_handle import_external_semaphore(
     external_semaphore_descriptor<ResourceType>
         externalSemaphoreDescriptor,
     const sycl::device &syclDevice,
     const sycl::context &syclContext);
 
 template <typename ResourceType>
-interop_semaphore_handle import_external_semaphore(
+external_semaphore_handle import_external_semaphore(
     external_semaphore_descriptor<ResourceType>
         externalSemaphoreDescriptor,
     const sycl::queue &syclQueue);
 }
 ```
 
-The resulting `interop_semaphore_handle` can then be used in a SYCL command 
+The resulting `external_semaphore_handle` can then be used in a SYCL command 
 group, to either wait until the semaphore signalled, or signal the semaphore.
 
 If the type of semaphore imported supports setting the state of discrete 
@@ -1801,77 +1801,77 @@ namespace sycl {
 class handler {
 public:
   void ext_oneapi_wait_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle);
+      ext::oneapi::experimental::external_semaphore_handle
+          external_semaphore_handle);
 
   void ext_oneapi_wait_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle,
+      ext::oneapi::experimental::external_semaphore_handle
+          external_semaphore_handle,
       uint64_t wait_value);
 
   void ext_oneapi_signal_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle);
+      ext::oneapi::experimental::external_semaphore_handle
+          external_semaphore_handle);
 
   void ext_oneapi_signal_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle,
+      ext::oneapi::experimental::external_semaphore_handle
+          external_semaphore_handle,
       uint64_t signal_value);
 };
 
 class queue {
 public:
   event ext_oneapi_wait_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle);
+      ext::oneapi::experimental::external_semaphore_handle
+          external_semaphore_handle);
   event ext_oneapi_wait_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle,
+      ext::oneapi::experimental::external_semaphore_handle
+          external_semaphore_handle,
       event DepEvent);
   event ext_oneapi_wait_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle,
+      ext::oneapi::experimental::external_semaphore_handle
+          external_semaphore_handle,
       const std::vector<event> &DepEvents);
 
   event ext_oneapi_wait_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle,
+      ext::oneapi::experimental::external_semaphore_handle
+          external_semaphore_handle,
       uint64_t wait_value);
   event ext_oneapi_wait_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle,
+      ext::oneapi::experimental::external_semaphore_handle
+          external_semaphore_handle,
       uint64_t wait_value, 
       event DepEvent);
   event ext_oneapi_wait_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle,
+      ext::oneapi::experimental::external_semaphore_handle
+          external_semaphore_handle,
       uint64_t wait_value, 
       const std::vector<event> &DepEvents);
 
   event ext_oneapi_signal_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle);
+      ext::oneapi::experimental::external_semaphore_handle
+          external_semaphore_handle);
   event ext_oneapi_signal_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle,
+      ext::oneapi::experimental::external_semaphore_handle
+          external_semaphore_handle,
       event DepEvent);
   event ext_oneapi_signal_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle,
+      ext::oneapi::experimental::external_semaphore_handle
+          external_semaphore_handle,
       const std::vector<event> &DepEvents);
 
   event ext_oneapi_signal_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle,
+      ext::oneapi::experimental::external_semaphore_handle
+          external_semaphore_handle,
       uint64_t signal_value);
   event ext_oneapi_signal_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle,
+      ext::oneapi::experimental::external_semaphore_handle
+          external_semaphore_handle,
       uint64_t signal_value,
       event DepEvent);
   event ext_oneapi_signal_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle,
+      ext::oneapi::experimental::external_semaphore_handle
+          external_semaphore_handle,
       uint64_t signal_value,
       const std::vector<event> &DepEvents);
 };
@@ -1909,11 +1909,11 @@ longer required through `destroy_external_semaphore`.
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
-void destroy_external_semaphore(interop_semaphore_handle semaphoreHandle,
+void destroy_external_semaphore(external_semaphore_handle semaphoreHandle,
                                 const sycl::device &syclDevice,
                                 const sycl::context &syclContext);
 
-void destroy_external_semaphore(interop_semaphore_handle semaphoreHandle,
+void destroy_external_semaphore(external_semaphore_handle semaphoreHandle,
                                 const sycl::queue &syclQueue);
 
 }
@@ -2504,34 +2504,34 @@ sycl::ext::oneapi::experimental::external_semaphore_descriptor<
 
 try {
   // Extension: import external semaphores
-  sycl::ext::oneapi::experimental::interop_semaphore_handle
-      wait_interop_semaphore_handle =
+  sycl::ext::oneapi::experimental::external_semaphore_handle
+      wait_external_semaphore_handle =
           sycl::ext::oneapi::experimental::import_external_semaphore(
               wait_external_semaphore_desc, queue);
 
-  sycl::ext::oneapi::experimental::interop_semaphore_handle
-      done_interop_semaphore_handle =
+  sycl::ext::oneapi::experimental::external_semaphore_handle
+      done_external_semaphore_handle =
           sycl::ext::oneapi::experimental::import_external_semaphore(
               done_external_semaphore_desc, queue);
 
   // Extension: import external memory from descriptors
-  sycl::ext::oneapi::experimental::interop_mem_handle
-      input_interop_mem_handle =
+  sycl::ext::oneapi::experimental::external_mem
+      input_external_mem =
           sycl::ext::oneapi::experimental::import_external_memory(
               input_ext_mem_desc, queue);
 
-  sycl::ext::oneapi::experimental::interop_mem_handle
-      output_interop_mem_handle =
+  sycl::ext::oneapi::experimental::external_mem
+      output_external_mem =
           sycl::ext::oneapi::experimental::import_external_memory(
               output_ext_mem_desc, queue);
 
   // Extension: map imported external memory to image memory
   sycl::ext::oneapi::experimental::image_mem_handle input_mapped_mem_handle =
       sycl::ext::oneapi::experimental::map_external_image_memory(
-          input_interop_mem_handle, desc, queue);
+          input_external_mem, desc, queue);
   sycl::ext::oneapi::experimental::image_mem_handle output_mapped_mem_handle =
       sycl::ext::oneapi::experimental::map_external_image_memory(
-          output_interop_mem_handle, desc, queue);
+          output_external_mem, desc, queue);
 
   // Extension: create images from mapped memory and return the handles
   sycl::ext::oneapi::experimental::unsampled_image_handle img_input =
@@ -2542,7 +2542,7 @@ try {
           output_mapped_mem_handle, desc, queue);
 
   // Extension: wait for imported semaphore
-  q.ext_oneapi_wait_external_semaphore(wait_interop_semaphore_handle)
+  q.ext_oneapi_wait_external_semaphore(wait_external_semaphore_handle)
 
   // Submit our kernel that depends on imported "wait_semaphore_file_descriptor"
   q.submit([&](sycl::handler &cgh) {
@@ -2567,7 +2567,7 @@ try {
   });
 
   // Extension: signal imported semaphore
-  q.ext_oneapi_signal_external_semaphore(done_interop_semaphore_handle)
+  q.ext_oneapi_signal_external_semaphore(done_external_semaphore_handle)
 
   // The external API can now use the semaphore it exported to 
   // "done_semaphore_file_descriptor" to schedule its own command submissions
@@ -2576,13 +2576,13 @@ try {
 
   // Extension: destroy all external resources
   sycl::ext::oneapi::experimental::release_external_memory(
-      input_interop_mem_handle, queue);
+      input_external_mem, queue);
   sycl::ext::oneapi::experimental::release_external_memory(
-      output_interop_mem_handle, queue);
+      output_external_mem, queue);
   sycl::ext::oneapi::experimental::destroy_external_semaphore(
-      wait_interop_semaphore_handle, queue);
+      wait_external_semaphore_handle, queue);
   sycl::ext::oneapi::experimental::destroy_external_semaphore(
-      done_interop_semaphore_handle, queue);
+      done_external_semaphore_handle, queue);
   sycl::ext::oneapi::experimental::destroy_image_handle(img_input, queue);
   sycl::ext::oneapi::experimental::destroy_image_handle(img_output, queue);
 } catch (sycl::exception e) {
@@ -2806,4 +2806,11 @@ These features still need to be handled:
 |5.12|2024-06-19| - Add support for sampled image arrays.
                   - Sample image arrays with `sample_image_array` API.
                   - Fetch sampled image arrays with `fetch_image_array` API.
+|5.13|2024-06-25| - Renamed interop aspect queries, handles, semaphore wait and 
+                    signal functions, by replacing `interop` with `external` for 
+                    consistency with other interop related structs/funcs and 
+                    3rd party interop API naming.
+                  - Removed `handle` keyword from `interop_xxx_handle` to 
+                    clear up possible confusion between 3rd party interop 
+                    handles and the imported `interop_xxx_handle`.
 |======================
