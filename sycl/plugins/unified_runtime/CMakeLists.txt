@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 905804c2e93dd046140057fd07a5d6191063bedc
-  # Merge: 0a11fb44 d3d3f6e5
+  # commit 5083f4f96557672b7b6a55ea53347896d40549d7
+  # Merge: a97eed15 4c3f9abe
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon May 27 10:34:13 2024 +0100
-  #     Merge pull request #1581 from 0x12CC/l0_cooperative_kernels
-  #     Implement L0 cooperative kernel functions
-  set(UNIFIED_RUNTIME_TAG 905804c2e93dd046140057fd07a5d6191063bedc)
+  # Date:   Fri May 31 17:20:01 2024 +0100
+  #     Merge pull request #1397 from GeorgeWeb/georgi/check-allocation-error-on-event-from-native-handle
+  #     [CUDA][HIP] Catch and report bad_alloc errors for event object creation
+  set(UNIFIED_RUNTIME_TAG 5083f4f96557672b7b6a55ea53347896d40549d7)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
