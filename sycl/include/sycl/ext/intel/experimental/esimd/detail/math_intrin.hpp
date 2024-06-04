@@ -112,8 +112,19 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(sycl::half, N)
 
 template <typename T, int N>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
-    __esimd_fmadd(__ESIMD_raw_vec_t(T, N) a, __ESIMD_raw_vec_t(T, N) b,
-                  __ESIMD_raw_vec_t(T, N) c) __ESIMD_INTRIN_END;
+    __spirv_ocl_fma(__ESIMD_raw_vec_t(T, N) a, __ESIMD_raw_vec_t(T, N) b,
+                    __ESIMD_raw_vec_t(T, N) c) __ESIMD_INTRIN_END;
+template <typename T, int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_popcount(__ESIMD_raw_vec_t(T, N) src0) __ESIMD_INTRIN_END;
+
+template <typename T, int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_ctz(__ESIMD_raw_vec_t(T, N) src0) __ESIMD_INTRIN_END;
+
+template <typename T, int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_clz(__ESIMD_raw_vec_t(T, N) src0) __ESIMD_INTRIN_END;
 
 #undef __ESIMD_raw_vec_t
 #undef __ESIMD_cpp_vec_t
