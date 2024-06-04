@@ -740,7 +740,7 @@ public:
   /// Filter out devices; only keep the device whose name contains one of the
   /// subname in \p dev_subnames.
   /// May break device id mapping and change current device. It's better to be
-  /// called before other DPCT/SYCL APIs.
+  /// called before other SYCLcompat/SYCL APIs.
   void filter(const std::vector<std::string> &dev_subnames) {
     std::lock_guard<std::mutex> lock(m_mutex);
     auto iter = _devs.begin();

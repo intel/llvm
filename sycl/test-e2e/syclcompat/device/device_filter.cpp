@@ -28,12 +28,26 @@
 void test_filtering_existing_device() {
   auto &dev = syclcompat::get_current_device();
   std::string dev_name = dev.get_info<sycl::info::device::name>();
-  std::string dev_substr = dev_name.substr(0, dev_name.find(" ") + 2);
-  int n_devices = syclcompat::detail::dev_mgr::instance().device_count();
 
+  syclcompat::filter_device({dev_name});
+  try {
+    syclcompat::get_device_id(dev);
+  } catch (std::runtime_error const &e) {
+    std::cout << "  Unexpected SYCL exception caught: " << e.what()
+              << std::endl;
+    assert(0);
+  }
+
+  // Checks for a substring of the device as well
+  std::string dev_substr = dev_name.substr(1, dev_name.find(" ") + 2);
   syclcompat::filter_device({dev_substr});
-
-  assert(syclcompat::detail::dev_mgr::instance().device_count() == n_devices);
+  try {
+    syclcompat::get_device_id(dev);
+  } catch (std::runtime_error const &e) {
+    std::cout << "  Unexpected SYCL exception caught: " << e.what()
+              << std::endl;
+    assert(0);
+  }
 }
 
 void test_filter_devices() {
