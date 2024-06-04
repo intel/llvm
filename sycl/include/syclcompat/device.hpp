@@ -713,7 +713,7 @@ public:
   unsigned int get_device_id(const sycl::device &dev) {
     if (!_devs.size()) {
       throw std::runtime_error(
-          "[SYCLcompat] No SYCL devices found in the device list.");
+          "[SYCLcompat] No SYCL devices found in the device list. Device list may have been filtered by syclcompat::filter_device");
     }
     unsigned int id = 0;
     for (auto dev_item : _devs) {
