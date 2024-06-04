@@ -396,7 +396,7 @@ static void destroy_event(event_ptr event);
 } // syclcompat
 ```
 
-### Memory Allocation
+### Memory Operations
 
 This library provides interfaces to allocate memory to be accessed within kernel
 functions and on the host. The `syclcompat::malloc` function allocates device
@@ -503,6 +503,56 @@ public:
 };
 
 } // syclcompat
+```
+
+The `syclcompat::experimental` namespace contains currently unsupported `memcpy` overloads which take a `syclcompat::experimental::memcpy_parameter` argument. These are included for forwards compatibility and currently throw a `std::runtime_error`.
+
+```cpp
+namespace syclcompat {
+// Currently unsupported experimental memcpy_parameter API:
+namespace experimental {
+
+#ifdef SYCL_EXT_ONEAPI_BINDLESS_IMAGES
+class image_mem_wrapper;
+#endif
+class image_matrix;
+
+/// Memory copy parameters for 2D/3D memory data.
+struct memcpy_parameter {
+  struct data_wrapper {
+    pitched_data pitched{};
+    sycl::id<3> pos{};
+#ifdef SYCL_EXT_ONEAPI_BINDLESS_IMAGES
+    experimental::image_mem_wrapper *image_bindless{nullptr};
+#endif
+    image_matrix *image{nullptr};
+  };
+  data_wrapper from{};
+  data_wrapper to{};
+  sycl::range<3> size{};
+  syclcompat::detail::memcpy_direction direction{syclcompat::detail::memcpy_direction::automatic};
+};
+
+/// [UNSUPPORTED] Synchronously copies 2D/3D memory data specified by \p param .
+/// The function will return after the copy is completed.
+///
+/// \param param Memory copy parameters.
+/// \param q Queue to execute the copy task.
+/// \returns no return value.
+static inline void memcpy(const memcpy_parameter &param,
+                          sycl::queue q = get_default_queue());
+
+/// [UNSUPPORTED] Asynchronously copies 2D/3D memory data specified by \p param
+/// . The return of the function does NOT guarantee the copy is completed.
+///
+/// \param param Memory copy parameters.
+/// \param q Queue to execute the copy task.
+/// \returns no return value.
+static inline void memcpy_async(const memcpy_parameter &param,
+                                sycl::queue q = get_default_queue());
+
+} // namespace experimental
+} // namespace syclcompat
 ```
 
 Finally, the class `pitched_data`, which manages memory allocation for 3D
