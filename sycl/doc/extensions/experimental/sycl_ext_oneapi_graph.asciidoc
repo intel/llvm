@@ -766,18 +766,31 @@ will maintain the graphs data dependencies.
 
 A graph in the executable state can have all of its nodes updated using the
 `command_graph<graph_state::executable>::update(graph)` method. This method
-takes a graph in the modifiable state and updates the nodes in the executable
-state graph to reflect any changes made to the nodes in the modifiable state
+takes a source graph in the modifiable state and updates the nodes in the target
+executable state graph to reflect any changes made to the nodes in the source
 graph. The characteristics which will be updated are detailed in the section on
 <<executable-graph-update, Executable Graph Update>>.
 
-Both the graph being updated and the graph being used as the source for the
-update must have been constructed with the same device and context.
+Both the source and target graphs for the update must satisfy the following
+conditions:
 
-The modifiable graph must have the same topology as the graph originally used to
-create the executable graph. Additionally, all nodes and edges must be added in
-the same order, and all Graph-related API calls and recorded queue submissions
-must occur in the same order.
+* Both graphs must have been created with the same device and context.
+* Both graphs must be topologically identical. The graphs are considered
+topologically identical when:
+
+** Both graphs have the same number of nodes and edges.
+** Where edges are specified through the `depends_on` property or through event
+dependencies, these must be specified in the same order. 
+** Nodes with dependencies on events outside of the graph must have the same
+number of these dependencies.
+** A kernel node's command function must have the same type in both graphs,
+whether that be a lambda function, function object or otherwise.
+** When creating both graphs all graph-related API calls or operations which
+modify the structure of the graph must have been done in the same order, these
+are:
+
+*** Explicit API calls to add nodes to the graph or calls to `make_edge()`.
+*** Nodes added to a graph via recorded queue submissions.
 
 It is valid to use nodes that contain dynamic parameters in whole graph updates.
 If a node containing a dynamic parameter is updated through the whole graph
@@ -1197,18 +1210,15 @@ Exceptions:
 [source, c++]
 ----
 void
-update(const command_graph<graph_state::modifiable>& graph);
+update(const command_graph<graph_state::modifiable>& source);
 ----
 
-|Updates all of the nodes in the executable graph with parameters from a
-topologically identical modifiable graph. A topologically identical graph is one
-with the same structure of nodes and edges. Additionally, all nodes and edges
-must be added in the same order, and all Graph-related API calls and recorded
-queue submissions must occur in the same order.
-
-Equivalent nodes in topologically identical graphs each have the
-same command. There is the additional limitation that to update an executable
-graph, every node in the graph must be a kernel command.
+|Updates all of the nodes in the target graph with parameters from a
+topologically identical source graph in the modifiable state. The full
+definition of what constitutes a topologically identical graph can be found in
+the <<whole-graph-update, Whole-Graph Update>> section. Violating any of these
+topology requirements, other than those described below as exceptions, results
+in undefined behaviour.
 
 The characteristics in the executable graph which will be updated are detailed
 in the section on <<executable-graph-update, Executable Graph Update>>.
@@ -1216,12 +1226,6 @@ in the section on <<executable-graph-update, Executable Graph Update>>.
 It is not an error to update an executable graph such that all parameters of
 nodes in `graph` are identical to the arguments of the executable graph prior to
 the update.
-
-Differences in the following characteristics between two graphs during an
-update results in undefined behavior:
-
-* Modifying the {sycl-kernel-function}[kernel function] of a kernel node.
-* The order that nodes and edges were added to the graph.
 
 The implementation may perform a blocking wait during this call on
 any in-flight executions of that same graph if required by the backend.
@@ -1236,14 +1240,12 @@ Constraints:
 
 Parameters:
 
-* `graph` - Modifiable graph object to update graph node parameters with.
-  This graph must have the same topology as the original graph used on
-  executable graph creation.
+* `source` - Modifiable graph object used as the source for updating this graph.
 
 Exceptions:
 
-* Throws synchronously with error code `invalid` if the topology of `graph` is
-  not the same as the existing graph topology in the following ways:
+* Throws synchronously with error code `invalid` if the topology of
+  `source` is not the same as the target graph topology in the following ways:
   
 ** The number of nodes in the graph does not match.
 ** The number of edges between nodes does not match.
@@ -1251,15 +1253,17 @@ Exceptions:
 
 :handler-copy-functions: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#table.members.handler.copy
 
-* Throws synchronously with error code `invalid` if `graph` contains any node
-  which is not a kernel command, e.g. {handler-copy-functions}[memory operations].
+* Throws synchronously with error code `invalid` if `source` contains any node
+  which is not a kernel command, e.g. {handler-copy-functions}[memory
+  operations].
 
 * Throws synchronously with error code `invalid` if the context or device
-  associated with `graph` does not match that of the `command_graph` being
+  associated with `source` does not match that of the `command_graph` being
   updated.
 
 * Throws synchronously with error code `invalid` if
-  `property::graph::updatable` was not set when the executable graph was created.
+  `property::graph::updatable` was not set when the executable graph was
+  created.
 |===
 
 Table {counter: tableNumber}. Member functions of the `command_graph` class for
