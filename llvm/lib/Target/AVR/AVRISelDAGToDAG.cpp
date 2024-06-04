@@ -34,7 +34,7 @@ public:
   AVRDAGToDAGISel() = delete;
 
   AVRDAGToDAGISel(AVRTargetMachine &TM, CodeGenOptLevel OptLevel)
-      : SelectionDAGISel(TM, OptLevel), Subtarget(nullptr) {}
+      : SelectionDAGISel(ID, TM, OptLevel), Subtarget(nullptr) {}
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 
@@ -60,19 +60,11 @@ private:
   const AVRSubtarget *Subtarget;
 };
 
-class AVRDAGToDAGISelLegacy : public SelectionDAGISelLegacy {
-public:
-  static char ID;
-  AVRDAGToDAGISelLegacy(AVRTargetMachine &TM, CodeGenOptLevel OptLevel)
-      : SelectionDAGISelLegacy(
-            ID, std::make_unique<AVRDAGToDAGISel>(TM, OptLevel)) {}
-};
-
 } // namespace
 
-char AVRDAGToDAGISelLegacy::ID = 0;
+char AVRDAGToDAGISel::ID = 0;
 
-INITIALIZE_PASS(AVRDAGToDAGISelLegacy, DEBUG_TYPE, PASS_NAME, false, false)
+INITIALIZE_PASS(AVRDAGToDAGISel, DEBUG_TYPE, PASS_NAME, false, false)
 
 bool AVRDAGToDAGISel::runOnMachineFunction(MachineFunction &MF) {
   Subtarget = &MF.getSubtarget<AVRSubtarget>();
@@ -594,5 +586,5 @@ bool AVRDAGToDAGISel::trySelect(SDNode *N) {
 
 FunctionPass *llvm::createAVRISelDag(AVRTargetMachine &TM,
                                      CodeGenOptLevel OptLevel) {
-  return new AVRDAGToDAGISelLegacy(TM, OptLevel);
+  return new AVRDAGToDAGISel(TM, OptLevel);
 }
