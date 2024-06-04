@@ -22,6 +22,7 @@ void matrix_multiply(big_matrix<TResult, M, N> &C, big_matrix<T, M, K> &A,
 
   queue q;
   size_t sg_size = get_sg_size<mult<T, TM, TN, TK>>(q);
+  std::cout << "sg_size: " << sg_size << std::endl;
   q.submit([&](handler &cgh) {
      sycl::accessor accA{bufA, cgh, sycl::read_write};
      sycl::accessor accB{bufB, cgh, sycl::read_write};
@@ -134,10 +135,14 @@ int main() {
 
     if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
       test<bfloat16, float, 2, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
+#if (!defined(SG_SZ) || SG_SZ != 32)
+      // These combination are not currently supported for subgroup size = 32 in
+      // IGC
       test<bfloat16, float, 2, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
       test<bfloat16, float, 2, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
       test<bfloat16, float, 2, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
       break;
+#endif
     }
 
     if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*

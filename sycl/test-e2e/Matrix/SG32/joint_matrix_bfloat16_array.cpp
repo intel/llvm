@@ -15,6 +15,6 @@
 
 #include "../common.hpp"
 
-constexpr std::size_t SG_SZ = 32;
+#define SG_SZ 32
 
 #include "../joint_matrix_bfloat16_array_impl.hpp"
