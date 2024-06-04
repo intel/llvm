@@ -13,6 +13,8 @@
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/handler.hpp>
 
+#include <sycl/detail/host_task_impl.hpp>
+
 #include <detail/accessor_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/kernel_impl.hpp>
@@ -301,6 +303,8 @@ public:
       return createCGCopy<sycl::detail::CGSemaphoreSignal>();
     case sycl::detail::CG::SemaphoreWait:
       return createCGCopy<sycl::detail::CGSemaphoreWait>();
+    case sycl::detail::CG::ProfilingTag:
+      return createCGCopy<sycl::detail::CGProfilingTag>();
     case sycl::detail::CG::ExecCommandBuffer:
       return createCGCopy<sycl::detail::CGExecCommandBuffer>();
     case sycl::detail::CG::None:
@@ -938,7 +942,7 @@ public:
   void addEventForNode(std::shared_ptr<graph_impl> GraphImpl,
                        std::shared_ptr<sycl::detail::event_impl> EventImpl,
                        std::shared_ptr<node_impl> NodeImpl) {
-    if (EventImpl && !(EventImpl->getCommandGraph()))
+    if (!(EventImpl->getCommandGraph()))
       EventImpl->setCommandGraph(GraphImpl);
     MEventsMap[EventImpl] = NodeImpl;
   }

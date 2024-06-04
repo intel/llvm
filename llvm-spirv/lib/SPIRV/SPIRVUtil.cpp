@@ -915,8 +915,7 @@ bool getRetParamSignedness(Function *F, ParamSignedness &RetSignedness,
       StringRef Arg(stringify(Name));
       if (Arg.starts_with("unsigned"))
         return ParamSignedness::Unsigned;
-      if (Arg.equals("char") || Arg.equals("short") || Arg.equals("int") ||
-          Arg.equals("long"))
+      if (Arg == "char" || Arg == "short" || Arg == "int" || Arg == "long")
         return ParamSignedness::Signed;
     }
     return ParamSignedness::Unknown;
@@ -2501,6 +2500,7 @@ public:
     }
     case internal::OpConvertHandleToImageINTEL:
     case internal::OpConvertHandleToSamplerINTEL:
+    case internal::OpConvertHandleToSampledImageINTEL:
       addUnsignedArg(0);
       break;
     default:;

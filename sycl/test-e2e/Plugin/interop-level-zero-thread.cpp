@@ -30,7 +30,9 @@
 #include <level_zero/ze_api.h>
 #include <mutex>
 #include <sycl/backend/level_zero.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 #include <thread>
 #include <vector>
 
