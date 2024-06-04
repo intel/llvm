@@ -109,8 +109,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   set(UNIFIED_RUNTIME_TAG 5083f4f96557672b7b6a55ea53347896d40549d7)
 
   fetch_adapter_source(level_zero
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    "https://github.com/Bensuo/unified-runtime.git"
+    "ewan/fix_leak"
   )
 
   fetch_adapter_source(opencl
