@@ -1,3 +1,4 @@
+// REQUIRES: aspect-fp64
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 #include <complex>
