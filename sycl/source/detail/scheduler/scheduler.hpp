@@ -456,8 +456,7 @@ public:
 
   static MemObjRecord *getMemObjRecord(const Requirement *const Req);
 
-  void deferMemObjRelease(const std::shared_ptr<detail::SYCLMemObjI> &MemObj,
-                          ContextImplPtr TargetContext);
+  void deferMemObjRelease(const std::shared_ptr<detail::SYCLMemObjI> &MemObj);
 
   void startFusion(QueueImplPtr Queue);
 
@@ -960,9 +959,7 @@ protected:
   std::vector<Command *> MDeferredCleanupCommands;
   std::mutex MDeferredCleanupMutex;
 
-  // std::vector<std::shared_ptr<SYCLMemObjI>> MDeferredMemObjRelease;
-  std::vector<std::pair<std::shared_ptr<SYCLMemObjI>, ContextImplPtr>>
-      MDeferredMemObjRelease;
+  std::vector<std::shared_ptr<SYCLMemObjI>> MDeferredMemObjRelease;
   std::mutex MDeferredMemReleaseMutex;
 
   std::unordered_map<EventImplPtr, std::vector<std::shared_ptr<const void>>>

@@ -503,12 +503,11 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
   cleanupCommands(ToCleanUp);
 }
 
-void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj,
-                                   ContextImplPtr TargetContext) {
+void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
   CPOUT << "Scheduler::deferMemObjRelease" << std::endl;
   {
     std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
-    MDeferredMemObjRelease.push_back({MemObj, TargetContext});
+    MDeferredMemObjRelease.push_back(MemObj);
   }
   cleanupDeferredMemObjects(BlockingT::NON_BLOCKING);
 }
@@ -525,16 +524,10 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
   CPOUT << "cleanupDeferredMemObjects() with objects. "
         << (Blocking == BlockingT::BLOCKING ? "BLOCKING" : "NON-BLOCKING")
         << std::endl;
-  // CP
-  for (auto pair : MDeferredMemObjRelease) {
-    CPOUT << " => MemObj: " << "<SKIP>" // std::hex << (pair.first).get()
-          << " Context (impl/pi): " << std::hex << (pair.second).get() << " / "
-          << (pair.second).get()->getHandleRef() << std::endl;
-  }
+  // CP - log each mem and context.
 
   if (Blocking == BlockingT::BLOCKING) {
-    std::vector<std::pair<std::shared_ptr<SYCLMemObjI>, ContextImplPtr>>
-        TempStorage;
+    std::vector<std::shared_ptr<SYCLMemObjI>> TempStorage;
     {
       std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
       MDeferredMemObjRelease.swap(TempStorage);
@@ -543,8 +536,7 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
     // deleted
   }
 
-  std::vector<std::pair<std::shared_ptr<SYCLMemObjI>, ContextImplPtr>>
-      PairsReadyToRelease;
+  std::vector<std::shared_ptr<SYCLMemObjI>> ObjsReadyToRelease;
   {
     // Lock is needed for checkLeavesCompletion - if walks through Record leaves
     ReadLockT Lock = ReadLockT(MGraphLock, std::try_to_lock);
@@ -552,43 +544,42 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
       // Not expected that Blocking == true will be used in parallel with
       // adding MemObj to storage, no such scenario.
       std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
-      auto PairIt = MDeferredMemObjRelease.begin();
-      while (PairIt != MDeferredMemObjRelease.end()) {
-        MemObjRecord *Record =
-            MGraphBuilder.getMemObjRecord(((*PairIt).first).get());
+      auto MemObjIt = MDeferredMemObjRelease.begin();
+      while (MemObjIt != MDeferredMemObjRelease.end()) {
+        MemObjRecord *Record = MGraphBuilder.getMemObjRecord((*MemObjIt).get());
         if (!checkLeavesCompletion(Record)) {
           CPOUT << "checkLeavesCompletion() returned false. value left in "
                    "MDeferredObjRelease until later."
                 << std::endl;
-          PairIt++;
+          MemObjIt++;
           continue;
         }
-        PairsReadyToRelease.push_back(*PairIt);
-        PairIt = MDeferredMemObjRelease.erase(PairIt);
+        ObjsReadyToRelease.push_back(*MemObjIt);
+        MemObjIt = MDeferredMemObjRelease.erase(MemObjIt);
       }
     } else {
       CPOUT << " Lock.owns_lock() was false" << std::endl;
     }
   }
-  auto ReleaseCandidateIt = PairsReadyToRelease.begin();
-  while (ReleaseCandidateIt != PairsReadyToRelease.end()) {
-    if (!removeMemoryObject(((*ReleaseCandidateIt).first).get(), false)) {
+  auto ReleaseCandidateIt = ObjsReadyToRelease.begin();
+  while (ReleaseCandidateIt != ObjsReadyToRelease.end()) {
+    if (!removeMemoryObject(ReleaseCandidateIt->get(), false)) {
       CPOUT << "removeMemoryObject() returned false ( unable to owns_lock() )"
             << std::endl;
       break; // <-- continue?
     }
 
-    ReleaseCandidateIt = PairsReadyToRelease.erase(ReleaseCandidateIt);
+    ReleaseCandidateIt = ObjsReadyToRelease.erase(ReleaseCandidateIt);
   }
-  if (!PairsReadyToRelease.empty()) {
-    CPOUT << "PairsReadyToRelease still not empty, amending them to "
+  if (!ObjsReadyToRelease.empty()) {
+    CPOUT << "ObjsReadyToRelease still not empty, amending them to "
              "MDeferredMemObjRelease for later"
           << std::endl;
     std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
     MDeferredMemObjRelease.insert(
         MDeferredMemObjRelease.end(),
-        std::make_move_iterator(PairsReadyToRelease.begin()),
-        std::make_move_iterator(PairsReadyToRelease.end()));
+        std::make_move_iterator(ObjsReadyToRelease.begin()),
+        std::make_move_iterator(ObjsReadyToRelease.end()));
   }
 }
 

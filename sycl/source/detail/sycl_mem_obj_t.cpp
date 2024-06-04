@@ -8,7 +8,6 @@
 
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
-#include <detail/mem_alloc_helper.hpp>
 #include <detail/memory_manager.hpp>
 #include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -163,8 +162,8 @@ void SYCLMemObjT::updateHostMemory() {
 
   if (MOpenCLInterop) {
     const PluginPtr &Plugin = getPlugin();
-    memReleaseWrapper(getInteropContext(), Plugin,
-                      pi::cast<sycl::detail::pi::PiMem>(MInteropMemObject));
+    Plugin->call<PiApiKind::piMemRelease>(
+        pi::cast<sycl::detail::pi::PiMem>(MInteropMemObject));
   }
 }
 const PluginPtr &SYCLMemObjT::getPlugin() const {
@@ -217,7 +216,7 @@ void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
 
 void SYCLMemObjT::detachMemoryObject(
     const std::shared_ptr<SYCLMemObjT> &Self) const {
-  std::cout << "SYCLMemObjT::detachMemoryObject()" << std::endl;
+  CPOUT << "SYCLMemObjT::detachMemoryObject()" << std::endl;
   // Check MRecord without read lock because at this point we expect that no
   // commands that operate on the buffer can be created. MRecord is nullptr on
   // buffer creation and set to meaningfull
@@ -237,7 +236,7 @@ void SYCLMemObjT::detachMemoryObject(
           << MRecord->MCurContext->getHandleRef() << std::endl;
     bool okToDefer = GlobalHandler::instance().isOkToDefer();
     if (okToDefer)
-      Scheduler::getInstance().deferMemObjRelease(Self, MRecord->MCurContext);
+      Scheduler::getInstance().deferMemObjRelease(Self);
   }
 }
 

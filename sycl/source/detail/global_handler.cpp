@@ -283,6 +283,16 @@ void GlobalHandler::drainThreadPool() {
     MHostTaskThreadPool.Inst->drain();
 }
 
+void shutdown() {
+  CPOUT << "shutdown() - endDeferredRelease" << std::endl;
+  const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
+  GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
+  if (!Handler)
+    return;
+
+  Handler->endDeferredRelease();
+}
+
 #ifdef _WIN32
 // because of something not-yet-understood on Windows
 // threads may be shutdown once the end of main() is reached
@@ -290,19 +300,20 @@ void GlobalHandler::drainThreadPool() {
 // itself is very aggressive about reclaiming memory. Thus,
 // we focus solely on unloading the plugins, so as to not
 // accidentally retain device handles. etc
-void shutdown() {
+void shutdown2() {
+  CPOUT << "shutdown2()" << std::endl;
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
-  Handler->endDeferredRelease() Handler->unloadPlugins();
+
+  Handler->unloadPlugins();
 }
 #else
-void shutdown() {
-  CPOUT << "shutdown()" << std::endl;
+void shutdown2() {
+  CPOUT << "shutdown2()" << std::endl;
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)
     return;
 
-  Handler->endDeferredRelease();
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
   Handler->prepareSchedulerToRelease(true);
@@ -330,22 +341,10 @@ void shutdown() {
   Handler->MXPTIRegistry.Inst.reset(nullptr);
 
   // Release the rest of global resources.
-  // delete Handler;
-  // Handler = nullptr;
-}
-#endif
-
-void shutdown2() {
-  // Release the rest of global resources.
-  CPOUT << "shutdown2()" << std::endl;
-  const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
-  GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
-  if (!Handler)
-    return;
-
   delete Handler;
   Handler = nullptr;
 }
+#endif
 
 #ifdef _WIN32
 extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,

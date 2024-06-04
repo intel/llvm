@@ -164,18 +164,7 @@ void memBufferCreateHelper(const PluginPtr &Plugin, pi_context Ctx,
   }
 }
 
-void memReleaseWrapper(ContextImplPtr TargetContext, const PluginPtr &Plugin,
-                       pi_mem Mem) {
-  // piMemRelease depends on having a valid context, but the API doesn't
-  // require it as an argument. Though it doesn't actually use it,
-  // this wrapper requires it, thus preventing it from being prematurely
-  // destructed.  And thus the volatile assignment
-  volatile ContextImplPtr pretend = TargetContext;
-  Plugin->call<PiApiKind::piMemRelease>(Mem);
-}
-
-void memReleaseHelper(ContextImplPtr TargetContext, const PluginPtr &Plugin,
-                      pi_mem Mem) {
+void memReleaseHelper(const PluginPtr &Plugin, pi_mem Mem) {
   // FIXME piMemRelease does not guarante memory release. It is only true if
   // reference counter is 1. However, SYCL runtime currently only calls
   // piMemRetain only for OpenCL interop
@@ -202,7 +191,7 @@ void memReleaseHelper(ContextImplPtr TargetContext, const PluginPtr &Plugin,
     xpti::utils::finally _{
         [&] { emitMemReleaseEndTrace(MemObjID, Ptr, CorrID); }};
 #endif
-    memReleaseWrapper(TargetContext, Plugin, Mem);
+    Plugin->call<PiApiKind::piMemRelease>(Mem);
   }
 }
 
@@ -283,8 +272,7 @@ void MemoryManager::releaseMemObj(ContextImplPtr TargetContext,
   }
 
   const PluginPtr &Plugin = TargetContext->getPlugin();
-  memReleaseHelper(TargetContext, Plugin,
-                   pi::cast<sycl::detail::pi::PiMem>(MemAllocation));
+  memReleaseHelper(Plugin, pi::cast<sycl::detail::pi::PiMem>(MemAllocation));
 }
 
 void *MemoryManager::allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
