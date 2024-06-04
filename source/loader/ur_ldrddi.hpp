@@ -65,16 +65,16 @@ using ur_usm_pool_object_t = object_t<ur_usm_pool_handle_t>;
 using ur_usm_pool_factory_t =
     singleton_factory_t<ur_usm_pool_object_t, ur_usm_pool_handle_t>;
 
-using ur_exp_interop_mem_object_t = object_t<ur_exp_interop_mem_handle_t>;
-using ur_exp_interop_mem_factory_t =
-    singleton_factory_t<ur_exp_interop_mem_object_t,
-                        ur_exp_interop_mem_handle_t>;
+using ur_exp_external_mem_object_t = object_t<ur_exp_external_mem_handle_t>;
+using ur_exp_external_mem_factory_t =
+    singleton_factory_t<ur_exp_external_mem_object_t,
+                        ur_exp_external_mem_handle_t>;
 
-using ur_exp_interop_semaphore_object_t =
-    object_t<ur_exp_interop_semaphore_handle_t>;
-using ur_exp_interop_semaphore_factory_t =
-    singleton_factory_t<ur_exp_interop_semaphore_object_t,
-                        ur_exp_interop_semaphore_handle_t>;
+using ur_exp_external_semaphore_object_t =
+    object_t<ur_exp_external_semaphore_handle_t>;
+using ur_exp_external_semaphore_factory_t =
+    singleton_factory_t<ur_exp_external_semaphore_object_t,
+                        ur_exp_external_semaphore_handle_t>;
 
 using ur_exp_command_buffer_object_t = object_t<ur_exp_command_buffer_handle_t>;
 using ur_exp_command_buffer_factory_t =
@@ -100,8 +100,8 @@ struct handle_factories {
     ur_mem_factory_t ur_mem_factory;
     ur_physical_mem_factory_t ur_physical_mem_factory;
     ur_usm_pool_factory_t ur_usm_pool_factory;
-    ur_exp_interop_mem_factory_t ur_exp_interop_mem_factory;
-    ur_exp_interop_semaphore_factory_t ur_exp_interop_semaphore_factory;
+    ur_exp_external_mem_factory_t ur_exp_external_mem_factory;
+    ur_exp_external_semaphore_factory_t ur_exp_external_semaphore_factory;
     ur_exp_command_buffer_factory_t ur_exp_command_buffer_factory;
     ur_exp_command_buffer_command_factory_t
         ur_exp_command_buffer_command_factory;
