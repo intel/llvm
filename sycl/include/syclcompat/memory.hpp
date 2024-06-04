@@ -300,6 +300,28 @@ static inline size_t get_offset(sycl::id<3> id, size_t slice, size_t pitch) {
   return slice * id.get(2) + pitch * id.get(1) + id.get(0);
 }
 
+// RAII for host pointer
+class host_buffer {
+  void *_buf;
+  size_t _size;
+  sycl::queue _q;
+  const std::vector<sycl::event> &_deps; // free operation depends
+
+public:
+  host_buffer(size_t size, sycl::queue q, const std::vector<sycl::event> &deps)
+      : _buf(std::malloc(size)), _size(size), _q(q), _deps(deps) {}
+  void *get_ptr() const { return _buf; }
+  size_t get_size() const { return _size; }
+  ~host_buffer() {
+    if (_buf) {
+      _q.submit([&](sycl::handler &cgh) {
+        cgh.depends_on(_deps);
+        cgh.host_task([buf = _buf] { std::free(buf); });
+      });
+    }
+  }
+};
+
 /// copy 3D matrix specified by \p size from 3D matrix specified by \p from_ptr
 /// and \p from_range to another specified by \p to_ptr and \p to_range.
 static inline std::vector<sycl::event>
@@ -307,28 +329,7 @@ memcpy(sycl::queue q, void *to_ptr, const void *from_ptr,
        sycl::range<3> to_range, sycl::range<3> from_range, sycl::id<3> to_id,
        sycl::id<3> from_id, sycl::range<3> size,
        const std::vector<sycl::event> &dep_events = {}) {
-  // RAII for host pointer
-  class host_buffer {
-    void *_buf;
-    size_t _size;
-    sycl::queue _q;
-    const std::vector<sycl::event> &_deps; // free operation depends
 
-  public:
-    host_buffer(size_t size, sycl::queue q,
-                const std::vector<sycl::event> &deps)
-        : _buf(std::malloc(size)), _size(size), _q(q), _deps(deps) {}
-    void *get_ptr() const { return _buf; }
-    size_t get_size() const { return _size; }
-    ~host_buffer() {
-      if (_buf) {
-        _q.submit([&](sycl::handler &cgh) {
-          cgh.depends_on(_deps);
-          cgh.host_task([buf = _buf] { std::free(buf); });
-        });
-      }
-    }
-  };
   std::vector<sycl::event> event_list;
 
   size_t to_slice = to_range.get(1) * to_range.get(0);
