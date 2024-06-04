@@ -176,7 +176,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
   case UR_EVENT_INFO_CONTEXT:
     return ReturnValue(hEvent->getContext());
   default:
-    detail::ur::die("Event info request not implemented");
+    break;
   }
 
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -207,8 +207,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
   default:
     break;
   }
-  detail::ur::die("Event Profiling info request not implemented");
-  return {};
+  return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(ur_event_handle_t,
