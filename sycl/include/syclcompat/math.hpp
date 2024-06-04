@@ -733,6 +733,107 @@ inline unsigned vectorized_binary(unsigned a, unsigned b,
   return v0;
 }
 
+namespace detail {
+
+template <typename T1, typename T2>
+using dot_product_acc_t =
+    std::conditional_t<std::is_unsigned_v<T1> && std::is_unsigned_v<T2>,
+                       uint32_t, int32_t>;
+
+template <typename T> sycl::vec<T, 4> extract_and_sign_or_zero_extend4(T val) {
+  return sycl::vec<T, 1>(val)
+      .template as<sycl::vec<
+          std::conditional_t<std::is_signed_v<T>, int8_t, uint8_t>, 4>>()
+      .template convert<T>();
+}
+
+template <typename T> sycl::vec<T, 2> extract_and_sign_or_zero_extend2(T val) {
+  return sycl::vec<T, 1>(val)
+      .template as<sycl::vec<
+          std::conditional_t<std::is_signed_v<T>, int16_t, uint16_t>, 2>>()
+      .template convert<T>();
+}
+} // namespace detail
+
+/// Two-way dot product-accumulate. Calculate and return integer_vector2(
+/// \param a) dot product integer_vector2(low16_bit( \param b))  + \param c
+///
+/// \tparam [in] T1 The type of first value.
+/// \tparam [in] T2 The type of second value.
+/// \param [in] a The first value.
+/// \param [in] b The second value.
+/// \param [in] c The third value. It has type uint32_t if both T1 and T1 are
+/// uint32_t else has type int32_t.
+/// \return Two-way 16-bit to 8-bit dot product which is accumulated in 32-bit
+/// result.
+template <typename T1, typename T2, typename T3>
+inline auto dp2a_lo(T1 a, T2 b, T3 c) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
+    defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 610
+  return __dp2a_lo(a, b, c);
+#else
+  detail::dot_product_acc_t<T1, T2> res = c;
+  auto va = detail::extract_and_sign_or_zero_extend2(a);
+  auto vb = detail::extract_and_sign_or_zero_extend4(b);
+  res += va[0] * vb[0];
+  res += va[1] * vb[1];
+  return res;
+#endif
+}
+
+/// Two-way dot product-accumulate. Calculate and return integer_vector2(
+/// \param a) dot product integer_vector2(high_16bit( \param b)) + \param c
+///
+/// \tparam [in] T1 The type of first value.
+/// \tparam [in] T2 The type of second value.
+/// \param [in] a The first value.
+/// \param [in] b The second value.
+/// \param [in] c The third value. uint32_t if both T1 and T1 are
+/// uint32_t else has type int32_t.
+/// \return Two-way 16-bit to 8-bit dot product which is accumulated in 32-bit
+/// result.
+template <typename T1, typename T2, typename T3>
+inline auto dp2a_hi(T1 a, T2 b, T3 c) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
+    defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 610
+  return __dp2a_hi(a, b, c);
+#else
+  detail::dot_product_acc_t<T1, T2> res = c;
+  auto va = detail::extract_and_sign_or_zero_extend2(a);
+  auto vb = detail::extract_and_sign_or_zero_extend4(b);
+  res += va[0] * vb[2];
+  res += va[1] * vb[3];
+  return res;
+#endif
+}
+
+/// Four-way byte dot product-accumulate. Calculate and return integer_vector4(
+/// \param a) dot product integer_vector4( \param b)  + \param c
+///
+/// \tparam [in] T1 The type of first value.
+/// \tparam [in] T2 The type of second value.
+/// \param [in] a The first value.
+/// \param [in] b The second value.
+/// \param [in] c The third value. It has type uint32_t if both T1 and T1 are
+/// uint32_t else has type int32_t.
+/// \return Four-way byte dot product which is accumulated in 32-bit result.
+template <typename T1, typename T2, typename T3>
+inline auto dp4a(T1 a, T2 b, T3 c) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
+    defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 610
+  return __dp4a(a, b, c);
+#else
+  detail::dot_product_acc_t<T1, T2> res = c;
+  auto va = detail::extract_and_sign_or_zero_extend4(a);
+  auto vb = detail::extract_and_sign_or_zero_extend4(b);
+  res += va[0] * vb[0];
+  res += va[1] * vb[1];
+  res += va[2] * vb[2];
+  res += va[3] * vb[3];
+  return res;
+#endif
+}
+
 /// Extend \p a and \p b to 33 bit and add them.
 /// \tparam [in] RetT The type of the return value
 /// \tparam [in] AT The type of the first value
