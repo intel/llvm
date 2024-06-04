@@ -34,6 +34,13 @@ queue accessed through ${x}QueueGetNativeHandle. Use of a native queue that is
 not the native queue returned by ${x}QueueGetNativeHandle results in undefined
 behaviour.
 
+Any args that are needed by the func must be passed through a void* and unpacked
+within the func. If ${x}_mem_handle_t arguments are to be used within
+pfnNativeEnqueue, they must be accessed using ${x}MemGetNativeHandle.
+${x}_mem_handle_t arguments must be packed in the void* argument that will be
+used in pfnNativeEnqueue, as well as ${x}EnqueueNativeCommandExp's phMemList
+argument.
+
 API
 --------------------------------------------------------------------------------
 

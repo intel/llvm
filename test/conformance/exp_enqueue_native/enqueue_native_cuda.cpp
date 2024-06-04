@@ -66,20 +66,23 @@ void interop_func_2(ur_queue_handle_t hQueue, void *data) {
 TEST_P(urCudaEnqueueNativeCommandTest, Success) {
     InteropData1 data_1{device_ptr};
     ur_event_handle_t event_1;
-    ASSERT_SUCCESS(urEnqueueNativeCommandExp(queue, &interop_func_1, &data_1,
-                                             nullptr, 0, nullptr, &event_1));
+    ASSERT_SUCCESS(urEnqueueNativeCommandExp(
+        queue, &interop_func_1, &data_1, 0, nullptr /*phMemList=*/,
+        nullptr /*pProperties=*/, 0, nullptr /*phEventWaitList=*/, &event_1));
 }
 
 TEST_P(urCudaEnqueueNativeCommandTest, Dependencies) {
     ur_event_handle_t event_1, event_2;
 
     InteropData1 data_1{device_ptr};
-    ASSERT_SUCCESS(urEnqueueNativeCommandExp(queue, &interop_func_1, &data_1,
-                                             nullptr, 0, nullptr, &event_1));
+    ASSERT_SUCCESS(urEnqueueNativeCommandExp(
+        queue, &interop_func_1, &data_1, 0, nullptr /*phMemList=*/,
+        nullptr /*pProperties=*/, 0, nullptr /*phEventWaitList=*/, &event_1));
 
     InteropData2 data_2{device_ptr, host_vec.data()};
-    ASSERT_SUCCESS(urEnqueueNativeCommandExp(queue, &interop_func_2, &data_2,
-                                             nullptr, 1, &event_1, &event_2));
+    ASSERT_SUCCESS(urEnqueueNativeCommandExp(
+        queue, &interop_func_2, &data_2, 0, nullptr /*phMemList=*/,
+        nullptr /*pProperties=*/, 1, &event_1, &event_2));
     urQueueFinish(queue);
     for (auto &i : host_vec) {
         ASSERT_EQ(i, val);

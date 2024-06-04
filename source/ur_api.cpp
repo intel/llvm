@@ -7573,7 +7573,13 @@ ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ur_exp_enqueue_native_command_function_t
         pfnNativeEnqueue, ///< [in] function calling the native underlying API, to be executed
                           ///< immediately.
-    void *data, ///< [in][optional] data used by pfnNativeEnqueue
+    void *data,                ///< [in][optional] data used by pfnNativeEnqueue
+    uint32_t numMemsInMemList, ///< [in] size of the mem list
+    const ur_mem_handle_t *
+        phMemList, ///< [in][optional][range(0, numMemsInMemList)] mems that are used within
+                   ///< pfnNativeEnqueue using ::urMemGetNativeHandle.
+    ///< If nullptr, the numMemsInMemList must be 0, indicating that no mems
+    ///< are accessed with ::urMemGetNativeHandle within pfnNativeEnqueue.
     const ur_exp_enqueue_native_command_properties_t *
         pProperties, ///< [in][optional] pointer to the native enqueue properties
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list

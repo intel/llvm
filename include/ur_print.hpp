@@ -14548,6 +14548,23 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
                           *(params->pdata));
 
     os << ", ";
+    os << ".numMemsInMemList = ";
+
+    os << *(params->pnumMemsInMemList);
+
+    os << ", ";
+    os << ".phMemList = {";
+    for (size_t i = 0; *(params->pphMemList) != NULL && i < *params->pnumMemsInMemList; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        ur::details::printPtr(os,
+                              (*(params->pphMemList))[i]);
+    }
+    os << "}";
+
+    os << ", ";
     os << ".pProperties = ";
 
     ur::details::printPtr(os,
