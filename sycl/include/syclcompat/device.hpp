@@ -713,7 +713,8 @@ public:
   unsigned int get_device_id(const sycl::device &dev) {
     if (!_devs.size()) {
       throw std::runtime_error(
-          "[SYCLcompat] No SYCL devices found in the device list. Device list may have been filtered by syclcompat::filter_device");
+          "[SYCLcompat] No SYCL devices found in the device list. Device list "
+          "may have been filtered by syclcompat::filter_device");
     }
     unsigned int id = 0;
     for (auto dev_item : _devs) {
@@ -722,11 +723,10 @@ public:
       }
       id++;
     }
-    throw std::runtime_error(
-        "[SYCLcompat] The device[" + dev.get_info<sycl::info::device::name>() +
-        "] is filtered out by "
-        "syclcompat::detail::dev_mgr::filter/syclcompat::filter_device in "
-        "current device list!");
+    throw std::runtime_error("[SYCLcompat] The device[" +
+                             dev.get_info<sycl::info::device::name>() +
+                             "] is filtered out by syclcompat::filter_device "
+                             "in current device list!");
   }
 
   /// List all the devices with its id in dev_mgr.

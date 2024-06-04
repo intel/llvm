@@ -25,6 +25,17 @@
 
 #include <syclcompat/device.hpp>
 
+void test_filtering_existing_device() {
+  auto &dev = syclcompat::get_current_device();
+  std::string dev_name = dev.get_info<sycl::info::device::name>();
+  std::string dev_substr = dev_name.substr(0, dev_name.find(" ") + 2);
+  int n_devices = syclcompat::detail::dev_mgr::instance().device_count();
+
+  syclcompat::filter_device({dev_substr});
+
+  assert(syclcompat::detail::dev_mgr::instance().device_count() == n_devices);
+}
+
 void test_filter_devices() {
   auto &dev = syclcompat::get_current_device();
 
@@ -45,6 +56,8 @@ int main() {
   // syclcompat::dev_mgr is a singleton, so any changes to the device list is
   // permanent between tests. Test isolated instead of relying on it being the
   // last test in a different test suite.
+  test_filtering_existing_device();
+
   test_filter_devices();
 
   return 0;
