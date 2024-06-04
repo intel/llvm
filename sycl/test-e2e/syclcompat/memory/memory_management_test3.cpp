@@ -58,11 +58,35 @@ void test_free_memory_q() {
 
   sycl::queue q{{sycl::property::queue::in_order()}};
   float *d_A = (float *)syclcompat::malloc(sizeof(float), q);
-  syclcompat::free((void *)d_A, q);
+  syclcompat::free(d_A, q);
 
   syclcompat::free(0, q);
   syclcompat::free(NULL, q);
   syclcompat::free(nullptr, q);
+}
+
+void test_wait_and_free_memory() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  sycl::queue q{{sycl::property::queue::in_order()}};
+  float *d_A = (float *)syclcompat::malloc(sizeof(float), q);
+  syclcompat::wait_and_free((void *)d_A);
+
+  syclcompat::wait_and_free(0);
+  syclcompat::wait_and_free(NULL);
+  syclcompat::wait_and_free(nullptr);
+}
+
+void test_wait_and_free_memory_q() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  sycl::queue q{{sycl::property::queue::in_order()}};
+  float *d_A = (float *)syclcompat::malloc(sizeof(float), q);
+  syclcompat::wait_and_free((void *)d_A, q);
+
+  syclcompat::wait_and_free(0, q);
+  syclcompat::wait_and_free(NULL, q);
+  syclcompat::wait_and_free(nullptr, q);
 }
 
 void test_memcpy_async() {
@@ -661,7 +685,8 @@ void test_constant_memcpy_async_q() {
 
 int main() {
   test_free_memory();
-  test_free_memory_q();
+  test_wait_and_free_memory();
+  test_wait_and_free_memory_q();
   test_memcpy_async();
   test_memcpy_async_q();
   test_memcpy_async_pitched();

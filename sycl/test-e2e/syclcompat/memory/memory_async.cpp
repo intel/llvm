@@ -43,14 +43,16 @@
 
 #include "memory_fixt.hpp"
 
-// free_async is just a call to free
+// enqueue_free is just a host task, so we are really testing the event dependency here
 void test_free_async() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   AsyncTest atest;
 
   float *d_D = (float *)syclcompat::malloc(sizeof(float));
-  std::vector<void *> device_mem = {d_D};
-  syclcompat::free_async(device_mem, atest.q_);
+  sycl::event kernel_ev = atest.launch_kernel();
+  sycl::event free_ev = syclcompat::enqueue_free({d_D}, {kernel_ev});
+
+  atest.check_events(kernel_ev, free_ev);
 }
 
 // The following tests are simply testing (as best possible) that

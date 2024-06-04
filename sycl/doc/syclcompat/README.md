@@ -485,10 +485,12 @@ sycl::event memset_async(pitched_data pitch, int val,
                          sycl::range<3> size,
                          sycl::queue q = get_default_queue()); // 3D matrix
 
+// Free
+void wait_and_free(void *ptr, sycl::queue q = get_default_queue());
 void free(void *ptr, sycl::queue q = get_default_queue());
-sycl::event free_async(const std::vector<void *> &pointers,
-                       const std::vector<sycl::event> &events,
-                       sycl::queue q = get_default_queue());
+sycl::event enqueue_free(const std::vector<void *> &pointers,
+                         const std::vector<sycl::event> &events,
+                         sycl::queue q = get_default_queue());
 
 // Queries pointer allocation type
 class pointer_attributes {

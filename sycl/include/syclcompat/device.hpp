@@ -600,6 +600,8 @@ private:
     std::lock_guard<std::mutex> lock(m_mutex);
     _events.push_back(event);
   }
+  friend sycl::event enqueue_free(const std::vector<void *> &,
+                                const std::vector<sycl::event> &, sycl::queue);
   queue_ptr _default_queue;
   queue_ptr _saved_queue;
   sycl::context _ctx;
