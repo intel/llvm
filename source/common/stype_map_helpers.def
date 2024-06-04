@@ -84,9 +84,9 @@ struct stype_map<ur_exp_command_buffer_update_value_arg_desc_t> : stype_map_impl
 template <>
 struct stype_map<ur_exp_sampler_mip_properties_t> : stype_map_impl<UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES> {};
 template <>
-struct stype_map<ur_exp_interop_mem_desc_t> : stype_map_impl<UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC> {};
+struct stype_map<ur_exp_external_mem_desc_t> : stype_map_impl<UR_STRUCTURE_TYPE_EXP_EXTERNAL_MEM_DESC> {};
 template <>
-struct stype_map<ur_exp_interop_semaphore_desc_t> : stype_map_impl<UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC> {};
+struct stype_map<ur_exp_external_semaphore_desc_t> : stype_map_impl<UR_STRUCTURE_TYPE_EXP_EXTERNAL_SEMAPHORE_DESC> {};
 template <>
 struct stype_map<ur_exp_file_descriptor_t> : stype_map_impl<UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR> {};
 template <>

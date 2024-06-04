@@ -372,10 +372,10 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
         hDevice, UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP);
     std::cout << prefix;
     printDeviceInfo<ur_bool_t>(
-        hDevice, UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP);
+        hDevice, UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP);
     std::cout << prefix;
     printDeviceInfo<ur_bool_t>(
-        hDevice, UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP);
+        hDevice, UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP);
     std::cout << prefix;
     printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP);
     std::cout << prefix;

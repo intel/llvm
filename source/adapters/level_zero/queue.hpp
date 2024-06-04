@@ -390,12 +390,12 @@ struct ur_queue_handle_legacy_t_ : _ur_object, public ur_queue_handle_t_ {
       const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t *phEvent) override;
   ur_result_t bindlessImagesWaitExternalSemaphoreExp(
-      ur_exp_interop_semaphore_handle_t hSemaphore, bool hasWaitValue,
+      ur_exp_external_semaphore_handle_t hSemaphore, bool hasWaitValue,
       uint64_t waitValue, uint32_t numEventsInWaitList,
       const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t *phEvent) override;
   ur_result_t bindlessImagesSignalExternalSemaphoreExp(
-      ur_exp_interop_semaphore_handle_t hSemaphore, bool hasSignalValue,
+      ur_exp_external_semaphore_handle_t hSemaphore, bool hasSignalValue,
       uint64_t signalValue, uint32_t numEventsInWaitList,
       const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t *phEvent) override;

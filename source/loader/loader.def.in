@@ -14,8 +14,8 @@ EXPORTS
 	urBindlessImagesMapExternalArrayExp
 	urBindlessImagesMipmapFreeExp
 	urBindlessImagesMipmapGetLevelExp
+	urBindlessImagesReleaseExternalMemoryExp
 	urBindlessImagesReleaseExternalSemaphoreExp
-	urBindlessImagesReleaseInteropExp
 	urBindlessImagesSampledImageCreateExp
 	urBindlessImagesSampledImageHandleDestroyExp
 	urBindlessImagesSignalExternalSemaphoreExp
@@ -183,8 +183,8 @@ EXPORTS
 	urPrintBindlessImagesMapExternalArrayExpParams
 	urPrintBindlessImagesMipmapFreeExpParams
 	urPrintBindlessImagesMipmapGetLevelExpParams
+	urPrintBindlessImagesReleaseExternalMemoryExpParams
 	urPrintBindlessImagesReleaseExternalSemaphoreExpParams
-	urPrintBindlessImagesReleaseInteropExpParams
 	urPrintBindlessImagesSampledImageCreateExpParams
 	urPrintBindlessImagesSampledImageHandleDestroyExpParams
 	urPrintBindlessImagesSignalExternalSemaphoreExpParams
@@ -305,13 +305,13 @@ EXPORTS
 	urPrintExpCommandBufferUpdateValueArgDesc
 	urPrintExpEnqueueNativeCommandFlags
 	urPrintExpEnqueueNativeCommandProperties
+	urPrintExpExternalMemDesc
 	urPrintExpExternalMemType
+	urPrintExpExternalSemaphoreDesc
 	urPrintExpExternalSemaphoreType
 	urPrintExpFileDescriptor
 	urPrintExpImageCopyFlags
 	urPrintExpImageCopyRegion
-	urPrintExpInteropMemDesc
-	urPrintExpInteropSemaphoreDesc
 	urPrintExpLaunchProperty
 	urPrintExpLaunchPropertyId
 	urPrintExpPeerInfo
