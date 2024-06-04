@@ -135,6 +135,9 @@ def relocatable : Flag<["--", "-"], "relocatable">,
     HelpText<"Link device code to create a relocatable offloading application">;
 def r : Flag<["-"], "r">, Alias<relocatable>;
 
+def shared : Flag<["--", "-"], "shared">,
+    HelpText<"Link device code to create a shared library">;
+
 // link.exe-style linker options.
 def out : Joined<["/", "-", "/?", "-?"], "out:">, Flags<[HelpHidden]>;
 def libpath : Joined<["/", "-", "/?", "-?"], "libpath:">, Flags<[HelpHidden]>;

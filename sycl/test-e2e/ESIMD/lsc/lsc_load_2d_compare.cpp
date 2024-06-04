@@ -12,8 +12,9 @@
 // The tests makes sure old and new load_2d API produce identical
 // results.
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 using bf16 = sycl::ext::oneapi::bfloat16;
 using namespace sycl;

@@ -75,6 +75,11 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
         tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
       return()
     endif()
     message(STATUS
@@ -95,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8cdd099ae3d1a34d3bcd7cbed7f5745c3dc8e112
-  # Merge: fc9bb61b c893a3c4
+  # commit 755a1e75e24ed55070a0f457d2d8a676521ad4f7
+  # Merge: 6469b890 5593d84c
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon May 20 15:50:02 2024 +0100
-  #     Merge pull request #954 from jchlanda/jakub/rqwgs_hip
-  #     [HIP] Handle required wg size attribute in HIP
-  set(UNIFIED_RUNTIME_TAG 8cdd099ae3d1a34d3bcd7cbed7f5745c3dc8e112)
+  # Date:   Tue Jun 4 10:34:57 2024 +0100
+  #     Merge pull request #1385 from yingcong-wu/yc/new-api-suggestgroupsize
+  #     Implement urKernelGetSuggestedLocalWorkSize
+  set(UNIFIED_RUNTIME_TAG 755a1e75e24ed55070a0f457d2d8a676521ad4f7)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

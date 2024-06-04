@@ -36,7 +36,7 @@
 #include <cstdint>
 #include <limits>
 #include <stdio.h>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <syclcompat/device.hpp>
 #include <syclcompat/math.hpp>

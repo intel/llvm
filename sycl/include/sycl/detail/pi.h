@@ -174,10 +174,13 @@
 //         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D
 // 15.51 Removed ret_mem argument from piextMemUnsampledImageCreate and
 // piextMemSampledImageCreate
-// 16.52 Replaced piextUSMEnqueueMemset with piextUSMEnqueueFill
+// 15.52 Added piEnqueueTimestampRecordingExp and
+//       PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT.
+// 16.53 Replaced piextUSMEnqueueMemset with piextUSMEnqueueFill
 
 #define _PI_H_VERSION_MAJOR 16
-#define _PI_H_VERSION_MINOR 52
+
+#define _PI_H_VERSION_MINOR 53
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -485,6 +488,9 @@ typedef enum {
   PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D = 0x2011A,
   PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM = 0x2011B,
   PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D = 0x2011C,
+
+  // Timestamp enqueue
+  PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT = 0x2011D,
 } _pi_device_info;
 
 typedef enum {
@@ -1774,6 +1780,10 @@ __SYCL_EXPORT pi_result piEventSetStatus(pi_event event,
 __SYCL_EXPORT pi_result piEventRetain(pi_event event);
 
 __SYCL_EXPORT pi_result piEventRelease(pi_event event);
+
+__SYCL_EXPORT pi_result piEnqueueTimestampRecordingExp(
+    pi_queue queue, pi_bool blocking, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event);
 
 /// Gets the native handle of a PI event object.
 ///
