@@ -103,10 +103,8 @@ then it supports the `bfloat16` math functions described in the next section.
 
 === Math Functions
 
-The following functions are only available when `T` is `bfloat16` or
-`sycl::marray<bfloat16, {N}>`, where `{N}` means any positive value of
-`size_t` type, or `sycl::vec<bfloat16, {N}>`, where `{N}` is a valid
-`sycl::vec` size.
+The following functions are only available for scalar `bfloat16`, `marray`,
+and `vec` of type `bfloat16`.
 
 ==== isnan
 
@@ -214,163 +212,306 @@ NaNs, `fmax()` returns a NaN.
 ```c++
 namespace sycl::ext::oneapi::experimental {
 template <typename T>
-T fmin(T x, T y);
+T fmin(T x, T y);                                                                (1)
+
+template <typename VecOrSwiz1,
+ typename VecOrSwiz2, int N>                                                     (2)
+vec<bfloat16, N> fmin(VecOrSwiz1<N> x, VecOrSwiz2<N> y);
+
+template <typename NonScalar1, typename NonScalar2, int N>                       (3)
+NonScalar2<N> fmin(NonScalar1<N> x, bfloat16 y);
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ===== Description
 
-Returns `y` if
-`y < x`, otherwise it
-returns `x`. If one argument is a
-NaN, `fmax()` returns the other
+====== Overload (1)
+
+*Constraints:* Available only for `T` is `bfloat6` or a `marray` of type `bfloat16`.
+
+Returns `x` if
+`x < y`, otherwise it
+returns `y`. If one argument is a
+NaN, `fmin()` returns the other
 argument. If both arguments are
-NaNs, `fmax()` returns a NaN.
+NaNs, `fmin()` returns a NaN.
+
+====== Overload (2)
+
+*Constraints:* Available only if `VecOrSwiz1`, `VecOrSwiz2` are any combination of `vec<bfloat16, N>` and the ```__swizzled_vec__``` type convertible to 
+`vec<bfloat16, N>`.
+
+====== Overload (3)
+
+*Constraints:* Available only if `NonScalar1` is `marray`, `vec` of type `bfloat16` or ```__swizzled_vec__``` type convertible to 
+`vec<bfloat16, N>`.
+
+*Returns:* `marray` of type `bfloat16` if `NonScalar1` is `marray`. Otherwise, returns `vec<bfloat16, N>`. For each element of `x`, the value `x[i]` if `x[i] < y`, otherwise `y`. If one value is a `NaN`, the result is the other value. If both value are `NaNs`, the result is a `NaN`.
 
 ==== fabs
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
 template <typename T>
-T fabs(T x);
+T fabs(T x);                                                            (1)
+
+template <typename VecOrSwiz, int N>
+sycl::vec<bfloat16, N> fabs(VecOrSwiz<N> x);                            (2)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ===== Description
 
-Compute absolute value of a `bfloat16` value.
+Compute absolute value(s) of a scalar `bfloat16` value or of all elements of a non-scalar `bfloat16` container.
+
+====== Overload (1)
+
+*Constraints:* Available only for `T` is `bfloat6` or a `marray` of type `bfloat16`.
+
+====== Overload (2)
+
+*Constraints:* Only available if `VecOrSwiz<N>` is `sycl::vec<bfloat16, N>` or a `__swizzled_vec__` type convertible to `sycl::vec<bfloat16, N>`.
 
 ==== ceil
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
 template <typename T>
-T ceil(T x);
+T ceil(T x);                                                            (1)
+
+template <typename VecOrSwiz, int N>
+sycl::vec<bfloat16, N> ceil(VecOrSwiz<N> x);                            (2)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ===== Description
 
-Returns `x` rounded to an integral value using the round to positive infinity rounding mode.
+Returns `x` or all elements of `x` rounded to an integral value using the round to positive infinity rounding mode.
+
+====== Overload (1)
+
+*Constraints:* Available only for `T` is `bfloat6` or a `marray` of type `bfloat16`.
+
+====== Overload (2)
+
+*Constraints:* Only available if `VecOrSwiz<N>` is `sycl::vec<bfloat16, N>` or a `__swizzled_vec__` type convertible to `sycl::vec<bfloat16, N>`.
 
 ==== floor
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
 template <typename T>
-T floor(T x);
+T floor(T x);                                                           (1)
+
+template <typename VecOrSwiz, int N>
+sycl::vec<bfloat16, N> floor(VecOrSwiz<N> x);                           (2)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ===== Description
 
-Returns `x` rounded to an integral value using the round to negative infinity rounding mode
+Returns `x` or all elements of `x` rounded to an integral value using the round to negative infinity rounding mode
 for a `bfloat16` value.
+
+====== Overload (1)
+
+*Constraints:* Available only for `T` is `bfloat6` or a `marray` of type `bfloat16`.
+
+====== Overload (2)
+
+*Constraints:* Only available if `VecOrSwiz<N>` is `sycl::vec<bfloat16, N>` or a `__swizzled_vec__` type convertible to `sycl::vec<bfloat16, N>`.
 
 ==== cos
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
 template <typename T>
-T cos(T x);
+T cos(T x);                                                             (1)
+
+template <typename VecOrSwiz, int N>
+sycl::vec<bfloat16, N> cos(VecOrSwiz<N> x);                           (2)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ===== Description
 
-Compute cosine of a `bfloat16` value.
+Compute cosine of a scalar `bfloat16` value, or all elements of `x`.
+
+====== Overload (1)
+
+*Constraints:* Available only for `T` is `bfloat6` or a `marray` of type `bfloat16`.
+
+====== Overload (2)
+
+*Constraints:* Only available if `VecOrSwiz<N>` is `sycl::vec<bfloat16, N>` or a `__swizzled_vec__` type convertible to `sycl::vec<bfloat16, N>`.
 
 ==== sin
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
-template <typename T>
+template <typename T>                                                 (1)
 T sin(T x);
+
+template <typename VecOrSwiz, int N>
+sycl::vec<bfloat16, N> sin(VecOrSwiz<N> x);                           (2)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ===== Description
 
-Compute sine of a `bfloat16` value.
+Compute sine of a scalar `bfloat16` value, or all elements of `x`.
 
+====== Overload (1)
+
+*Constraints:* Available only for `T` is `bfloat6` or a `marray` of type `bfloat16`.
+
+====== Overload (2)
+
+*Constraints:* Only available if `VecOrSwiz<N>` is `sycl::vec<bfloat16, N>` or a `__swizzled_vec__` type convertible to `sycl::vec<bfloat16, N>`.
 
 ==== exp
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
 template <typename T>
-T exp(T x);
+T exp(T x);                                                           (1)
+
+template <typename VecOrSwiz, int N>
+sycl::vec<bfloat16, N> exp(VecOrSwiz<N> x);                           (2)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ===== Description
 
-Compute the base-e exponential of a `bfloat16` value.
+Compute the base-e exponential of a scalar `bfloat16` value, or all elements of `x`.
+
+====== Overload (1)
+
+*Constraints:* Available only for `T` is `bfloat6` or a `marray` of type `bfloat16`.
+
+====== Overload (2)
+
+*Constraints:* Only available if `VecOrSwiz<N>` is `sycl::vec<bfloat16, N>` or a `__swizzled_vec__` type convertible to `sycl::vec<bfloat16, N>`.
 
 ==== exp2
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
 template <typename T>
-T exp2(T x);
+T exp2(T x);                                                          (1)
+
+template <typename VecOrSwiz, int N>
+sycl::vec<bfloat16, N> exp2(VecOrSwiz<N> x);                          (2)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ===== Description
 
-Compute the base-2 exponential of a `bfloat16` value.
+Compute the base-2 exponential of a scalar `bfloat16` value, or all elements of `x`.
+
+====== Overload (1)
+
+*Constraints:* Available only for `T` is `bfloat6` or a `marray` of type `bfloat16`.
+
+====== Overload (2)
+
+*Constraints:* Only available if `VecOrSwiz<N>` is `sycl::vec<bfloat16, N>` or a `__swizzled_vec__` type convertible to `sycl::vec<bfloat16, N>`.
 
 ==== exp10
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
 template <typename T>
-T exp10(T x);
+T exp10(T x);                                                          (1)
+
+template <typename VecOrSwiz, int N>
+sycl::vec<bfloat16, N> exp10(VecOrSwiz<N> x);                          (2)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ===== Description
 
-Compute the base-10 exponential of a `bfloat16` value.
+Compute the base-10 exponential of a scalar `bfloat16` value, or all elements of `x`.
+
+====== Overload (1)
+
+*Constraints:* Available only for `T` is `bfloat6` or a `marray` of type `bfloat16`.
+
+====== Overload (2)
+
+*Constraints:* Only available if `VecOrSwiz<N>` is `sycl::vec<bfloat16, N>` or a `__swizzled_vec__` type convertible to `sycl::vec<bfloat16, N>`.
 
 ==== log
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
 template <typename T>
-T log(T x);
+T log(T x);                                                          (1)
+
+template <typename VecOrSwiz, int N>
+sycl::vec<bfloat16, N> log(VecOrSwiz<N> x);                          (2)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ===== Description
 
-Compute natural logarithm of a `bfloat16` value.
+Compute natural logarithm of a scalar `bfloat16` value, or all elements of `x`.
+
+====== Overload (1)
+
+*Constraints:* Available only for `T` is `bfloat6` or a `marray` of type `bfloat16`.
+
+====== Overload (2)
+
+*Constraints:* Only available if `VecOrSwiz<N>` is `sycl::vec<bfloat16, N>` or a `__swizzled_vec__` type convertible to `sycl::vec<bfloat16, N>`.
 
 ==== log2
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
 template <typename T>
-T log2(T x);
+T log2(T x);                                                           (1)
+
+template <typename VecOrSwiz, int N>
+sycl::vec<bfloat16, N> log2(VecOrSwiz<N> x);                           (2)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ===== Description
 
-Compute base-2 logarithm of a `bfloat16` value.
+Compute base-2 logarithm of a scalar `bfloat16` value, or all elements of `x`.
+
+====== Overload (1)
+
+*Constraints:* Available only for `T` is `bfloat6` or a `marray` of type `bfloat16`.
+
+====== Overload (2)
+
+*Constraints:* Only available if `VecOrSwiz<N>` is `sycl::vec<bfloat16, N>` or a `__swizzled_vec__` type convertible to `sycl::vec<bfloat16, N>`.
 
 ==== log10
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
 template <typename T>
-T log10(T x);
+T log10(T x);                                                          (1)
+
+template <typename VecOrSwiz, int N>
+sycl::vec<bfloat16, N> log10(VecOrSwiz<N> x);                          (2)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ===== Description
 
-Compute base-10 logarithm of a `bfloat16` value.
+Compute base-10 logarithm of a scalar `bfloat16` value, or all elements of `x`.
+
+====== Overload (1)
+
+*Constraints:* Available only for `T` is `bfloat6` or a `marray` of type `bfloat16`.
+
+====== Overload (2)
+
+*Constraints:* Only available if `VecOrSwiz<N>` is `sycl::vec<bfloat16, N>` or a `__swizzled_vec__` type convertible to `sycl::vec<bfloat16, N>`.
 
 
 ==== rint
@@ -378,54 +519,98 @@ Compute base-10 logarithm of a `bfloat16` value.
 ```c++
 namespace sycl::ext::oneapi::experimental {
 template <typename T>
-T rint(T x);
+T rint(T x);                                                           (1)
+
+template <typename VecOrSwiz, int N>
+sycl::vec<bfloat16, N> rint(VecOrSwiz<N> x);                           (2)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ===== Description
 
-Returns `x` rounded to an integral value using the round to nearest even rounding mode
+Returns `x` or all elements of `x` rounded to an integral value using the round to nearest even rounding mode
 for a `bfloat16` value.
+
+====== Overload (1)
+
+*Constraints:* Available only for `T` is `bfloat6` or a `marray` of type `bfloat16`.
+
+====== Overload (2)
+
+*Constraints:* Only available if `VecOrSwiz<N>` is `sycl::vec<bfloat16, N>` or a `__swizzled_vec__` type convertible to `sycl::vec<bfloat16, N>`.
 
 ==== sqrt
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
 template <typename T>
-T sqrt(T x);
+T sqrt(T x);                                                          (1)
+
+template <typename VecOrSwiz, int N>
+sycl::vec<bfloat16, N> sqrt(VecOrSwiz<N> x);                          (2)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ===== Description
 
-Compute square root of a `bfloat16` value.
+Compute square root of a scalar `bfloat16` value, or all elements of `x`.
+
+====== Overload (1)
+
+*Constraints:* Available only for `T` is `bfloat6` or a `marray` of type `bfloat16`.
+
+====== Overload (2)
+
+*Constraints:* Only available if `VecOrSwiz<N>` is `sycl::vec<bfloat16, N>` or a `__swizzled_vec__` type convertible to `sycl::vec<bfloat16, N>`.
 
 ==== rsqrt
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
 template <typename T>
-T rsqrt(T x);
+T rsqrt(T x);                                                          (1)
+
+template <typename VecOrSwiz, int N>
+sycl::vec<bfloat16, N> rsqrt(VecOrSwiz<N> x);                          (2)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ===== Description
 
-Compute inverse square root of a `bfloat16` value.
+Compute inverse square root of a scalar `bfloat16` value, or all elements of `x`.
+
+====== Overload (1)
+
+*Constraints:* Available only for `T` is `bfloat6` or a `marray` of type `bfloat16`.
+
+====== Overload (2)
+
+*Constraints:* Only available if `VecOrSwiz<N>` is `sycl::vec<bfloat16, N>` or a `__swizzled_vec__` type convertible to `sycl::vec<bfloat16, N>`.
 
 ==== trunc
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
 template <typename T>
-T trunc(T x);
+T trunc(T x);                                                          (1)
+
+template <typename VecOrSwiz, int N>
+sycl::vec<bfloat16, N> trunc(VecOrSwiz<N> x);                          (2)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ===== Description
 
-Returns `x` rounded to an integral value using the round to zero rounding mode
+Returns `x` or all elements of `x` rounded to an integral value using the round to zero rounding mode
 for a `bfloat16` value.
+
+====== Overload (1)
+
+*Constraints:* Available only for `T` is `bfloat6` or a `marray` of type `bfloat16`.
+
+====== Overload (2)
+
+*Constraints:* Only available if `VecOrSwiz<N>` is `sycl::vec<bfloat16, N>` or a `__swizzled_vec__` type convertible to `sycl::vec<bfloat16, N>`.
 
 == Issues
 
