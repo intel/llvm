@@ -534,3 +534,44 @@ params:
 returns:
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If the adapter has no underlying equivalent handle."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get the suggested local work size for a kernel."
+class: $xKernel
+name: GetSuggestedLocalWorkSize
+ordinal: "0"
+details:
+    - "Query a suggested local work size for a kernel given a global size for each dimension."
+    - "The application may call this function from simultaneous threads for the same context."
+params:
+    - type: $x_kernel_handle_t
+      name: hKernel
+      desc: |
+            [in] handle of the kernel
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: |
+            [in] handle of the queue object
+    - type: uint32_t
+      name: numWorkDim
+      desc: |
+            [in] number of dimensions, from 1 to 3, to specify the global
+            and work-group work-items
+    - type: const size_t*
+      name: pGlobalWorkOffset
+      desc: |
+            [in] pointer to an array of numWorkDim unsigned values that specify
+            the offset used to calculate the global ID of a work-item
+    - type: const size_t*
+      name: pGlobalWorkSize      
+      desc: |
+            [in] pointer to an array of numWorkDim unsigned values that specify
+            the number of global work-items in workDim that will execute the 
+            kernel function
+    - type: size_t*
+      name: pSuggestedLocalWorkSize
+      desc: |
+            [out] pointer to an array of numWorkDim unsigned values that specify
+            suggested local work size that will contain the result of the query
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
