@@ -263,9 +263,9 @@ jobs:
     - run: sycl-ls --verbose
     - run: SYCL_PI_TRACE=-1 sycl-ls
     - run: |
-          if [ -f /usr/local/lib/igc/IGCTAG.txt ]; then
-            cat /usr/local/lib/igc/IGCTAG.txt
-          fi
+           if [ -f /usr/local/lib/igc/IGCTAG.txt ]; then
+             cat /usr/local/lib/igc/IGCTAG.txt
+           fi
 
     - name: Deduce E2E CMake options
       if: inputs.tests_selector == 'e2e'
