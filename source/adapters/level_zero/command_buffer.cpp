@@ -305,7 +305,7 @@ static ur_result_t enqueueCommandBufferMemCopyHelper(
     ur_command_t CommandType, ur_exp_command_buffer_handle_t CommandBuffer,
     void *Dst, const void *Src, size_t Size, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *SyncPoint) {
+    ur_exp_command_buffer_sync_point_t *RetSyncPoint) {
   if (CommandBuffer->IsInOrderCmdList) {
     ZE2UR_CALL(
         zeCommandListAppendMemoryCopy,
@@ -323,8 +323,12 @@ static ur_result_t enqueueCommandBufferMemCopyHelper(
     LaunchEvent->CommandType = CommandType;
 
     // Get sync point and register the event with it.
-    *SyncPoint = CommandBuffer->GetNextSyncPoint();
-    CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+    ur_exp_command_buffer_sync_point_t SyncPoint =
+        CommandBuffer->GetNextSyncPoint();
+    CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
+    if (RetSyncPoint) {
+      *RetSyncPoint = SyncPoint;
+    }
 
     ZE2UR_CALL(zeCommandListAppendMemoryCopy,
                (CommandBuffer->ZeCommandList, Dst, Src, Size,
@@ -346,7 +350,7 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
     size_t DstRowPitch, size_t SrcSlicePitch, size_t DstSlicePitch,
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *SyncPoint) {
+    ur_exp_command_buffer_sync_point_t *RetSyncPoint) {
 
   uint32_t SrcOriginX = ur_cast<uint32_t>(SrcOrigin.x);
   uint32_t SrcOriginY = ur_cast<uint32_t>(SrcOrigin.y);
@@ -398,8 +402,12 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
     LaunchEvent->CommandType = CommandType;
 
     // Get sync point and register the event with it.
-    *SyncPoint = CommandBuffer->GetNextSyncPoint();
-    CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+    ur_exp_command_buffer_sync_point_t SyncPoint =
+        CommandBuffer->GetNextSyncPoint();
+    CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
+    if (RetSyncPoint) {
+      *RetSyncPoint = SyncPoint;
+    }
 
     ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
                (CommandBuffer->ZeCommandList, Dst, &ZeDstRegion, DstPitch,
@@ -420,7 +428,7 @@ static ur_result_t enqueueCommandBufferFillHelper(
     void *Ptr, const void *Pattern, size_t PatternSize, size_t Size,
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *SyncPoint) {
+    ur_exp_command_buffer_sync_point_t *RetSyncPoint) {
   // Pattern size must be a power of two.
   UR_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
             UR_RESULT_ERROR_INVALID_VALUE);
@@ -451,8 +459,12 @@ static ur_result_t enqueueCommandBufferFillHelper(
     LaunchEvent->CommandType = CommandType;
 
     // Get sync point and register the event with it.
-    *SyncPoint = CommandBuffer->GetNextSyncPoint();
-    CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+    ur_exp_command_buffer_sync_point_t SyncPoint =
+        CommandBuffer->GetNextSyncPoint();
+    CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
+    if (RetSyncPoint) {
+      *RetSyncPoint = SyncPoint;
+    }
 
     ZE2UR_CALL(zeCommandListAppendMemoryFill,
                (CommandBuffer->ZeCommandList, Ptr, Pattern, PatternSize, Size,
@@ -615,7 +627,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *SyncPoint,
+    ur_exp_command_buffer_sync_point_t *RetSyncPoint,
     ur_exp_command_buffer_command_handle_t *Command) {
   UR_ASSERT(CommandBuffer && Kernel && Kernel->Program,
             UR_RESULT_ERROR_INVALID_NULL_POINTER);
@@ -711,10 +723,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
                         !CommandBuffer->IsProfilingEnabled));
     LaunchEvent->CommandType = UR_COMMAND_KERNEL_LAUNCH;
 
-    if (SyncPoint) {
-      // Get sync point and register the event with it.
-      *SyncPoint = CommandBuffer->GetNextSyncPoint();
-      CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+    // Get sync point and register the event with it.
+    ur_exp_command_buffer_sync_point_t SyncPoint =
+        CommandBuffer->GetNextSyncPoint();
+    CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
+    if (RetSyncPoint) {
+      *RetSyncPoint = SyncPoint;
     }
 
     ZE2UR_CALL(zeCommandListAppendLaunchKernel,
@@ -872,7 +886,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     ur_exp_command_buffer_handle_t CommandBuffer, const void *Mem, size_t Size,
     ur_usm_migration_flags_t Flags, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *SyncPoint) {
+    ur_exp_command_buffer_sync_point_t *RetSyncPoint) {
   std::ignore = Flags;
 
   if (CommandBuffer->IsInOrderCmdList) {
@@ -898,8 +912,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     LaunchEvent->CommandType = UR_COMMAND_USM_PREFETCH;
 
     // Get sync point and register the event with it.
-    *SyncPoint = CommandBuffer->GetNextSyncPoint();
-    CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+    ur_exp_command_buffer_sync_point_t SyncPoint =
+        CommandBuffer->GetNextSyncPoint();
+    CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
+    if (RetSyncPoint) {
+      *RetSyncPoint = SyncPoint;
+    }
 
     // Add the prefetch command to the command buffer.
     // Note that L0 does not handle migration flags.
@@ -919,7 +937,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     ur_exp_command_buffer_handle_t CommandBuffer, const void *Mem, size_t Size,
     ur_usm_advice_flags_t Advice, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *SyncPoint) {
+    ur_exp_command_buffer_sync_point_t *RetSyncPoint) {
   // A memory chunk can be advised with muliple memory advices
   // We therefore prefer if statements to switch cases to combine all potential
   // flags
@@ -969,8 +987,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     LaunchEvent->CommandType = UR_COMMAND_USM_ADVISE;
 
     // Get sync point and register the event with it.
-    *SyncPoint = CommandBuffer->GetNextSyncPoint();
-    CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+    ur_exp_command_buffer_sync_point_t SyncPoint =
+        CommandBuffer->GetNextSyncPoint();
+    CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
+    if (RetSyncPoint) {
+      *RetSyncPoint = SyncPoint;
+    }
 
     ZE2UR_CALL(zeCommandListAppendMemAdvise,
                (CommandBuffer->ZeCommandList, CommandBuffer->Device->ZeDevice,
