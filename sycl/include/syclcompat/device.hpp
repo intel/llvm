@@ -64,7 +64,7 @@ static void parse_version_string(const std::string &ver, int &major,
   // Version string has the following format:
   // a. OpenCL<space><major.minor><space><vendor-specific-information>
   // b. <major.minor>
-  // c. <AmdGcnArchName> e.g gfx1030 (unhandled)
+  // c. <AmdGcnArchName> e.g gfx1030
   std::string::size_type i = 0;
   while (i < ver.size()) {
     if (isdigit(ver[i]))

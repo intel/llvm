@@ -126,12 +126,15 @@ void test_version_parsing_case(const std::string &ver_string,
 void test_version_parsing() {
   test_version_parsing_case("3.0", 3, 0);
   test_version_parsing_case("3.0 NEO", 3, 0);
+  test_version_parsing_case("OpenCL 3.0 NEO", 3, 0);
+  test_version_parsing_case("OpenCL 3.0 (Build 0)", 3, 0);
   test_version_parsing_case("8.6", 8, 6);
   test_version_parsing_case("8.0", 8, 0);
   test_version_parsing_case("7.5", 7, 5);
   test_version_parsing_case("1.3", 1, 3);
   test_version_parsing_case("11.4", 11, 4);
   test_version_parsing_case("0.1", 0, 1);
+  test_version_parsing_case("gfx1030", 1030, 0);
 }
 
 // We have *some* constraints on the major version that we can check
