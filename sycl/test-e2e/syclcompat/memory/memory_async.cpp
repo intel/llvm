@@ -43,7 +43,8 @@
 
 #include "memory_fixt.hpp"
 
-// enqueue_free is just a host task, so we are really testing the event dependency here
+// enqueue_free is just a host task, so we are really testing the event
+// dependency here
 void test_free_async() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   AsyncTest atest;
