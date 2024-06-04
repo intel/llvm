@@ -5,7 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: gpu
 // REQUIRES: gpu-intel-dg2 && level_zero
 
 // RUN: mkdir -p %t.dir && %{build} -o %t.dir/exec.out

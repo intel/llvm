@@ -7,10 +7,15 @@ def main(directory, max_count, target_file):
     total_count = 0
     pattern = re.compile(r"//\.instCount (\d+)")
 
+    if not os.path.isdir(directory):
+        print(f"Directory {directory} does not exist.")
+        sys.exit(1)
+
     try:
         target_found = False
         for root, dirs, files in os.walk(directory):
             for file in files:
+                print("File: ", file)
                 if file.endswith(".asm") and file == target_file:
                     target_found = True
                     print("Checking file: ", file)
