@@ -84,7 +84,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -100,34 +100,22 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit c0c607c3a88933b4c5c20a0aca4539781c678411
-  # Merge: e18c691d 0f2d1f42
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Wed May 29 15:02:39 2024 +0100
-  #     Merge pull request #1667 from nrspruit/fix_multi_device_event_cache
-  #     [UR] Fix Multi Device Event Cache for shared Root Device
-  set(UNIFIED_RUNTIME_TAG c0c607c3a88933b4c5c20a0aca4539781c678411)
+  # commit 755a1e75e24ed55070a0f457d2d8a676521ad4f7
+  # Merge: 6469b890 5593d84c
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Tue Jun 4 10:34:57 2024 +0100
+  #     Merge pull request #1385 from yingcong-wu/yc/new-api-suggestgroupsize
+  #     Implement urKernelGetSuggestedLocalWorkSize
+  set(UNIFIED_RUNTIME_TAG 755a1e75e24ed55070a0f457d2d8a676521ad4f7)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit 1fa0d2302d70a9aa8b717ecb60db0a7d8a4e5d8f
-    # Merge: e16d01c0 35b7de5c
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu May 30 10:14:37 2024 +0100
-    #     Merge pull request #1654 from Bensuo/ewan/debug_log_update
-    #     Debug logging in Level Zero command-buffer update
-    1fa0d2302d70a9aa8b717ecb60db0a7d8a4e5d8f
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
     ${UNIFIED_RUNTIME_REPO}
-    # commit e16d01c02f1c1c18af19d3c882c08f791c2345d9
-    # Merge: a3895dbf 483a6325
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu May 30 10:04:43 2024 +0100
-    #     Merge pull request #1603 from konradkusiak97/queueFillOPENCLctsFix
-    #     [OpenCL] Modify fill emulation to work for patterns which are not powers of 2
-    e16d01c02f1c1c18af19d3c882c08f791c2345d9
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(cuda
@@ -137,18 +125,18 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit a3895dbf46a98c8a5cd58704efe85e12fa1050cd
-    # Merge: 30c5c553 67338dbe
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu May 30 10:04:14 2024 +0100
-    #     Merge pull request #1604 from kbenzie/benie/hip-kernel-spec-constants
-    #     [HIP] Implement kernel set spec constant query
-    a3895dbf46a98c8a5cd58704efe85e12fa1050cd
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 31ee5d536130a6d2ce09661db1bef3bd1cd4d705
+    # Merge: ab151e98 53e43466
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Tue Jun 4 14:10:39 2024 +0100
+    #     Merge pull request #1527 from PietroGhg/pietro/report_atomics
+    #     [NATIVECPU] Report correct memory order capabilities for Native CPU
+    31ee5d536130a6d2ce09661db1bef3bd1cd4d705
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)

@@ -23922,7 +23922,6 @@ RValue CodeGenFunction::EmitIntelSYCLAllocaBuiltin(
   constexpr unsigned ElementTypeIndex = 0;
   const unsigned AlignmentIndex = IsAlignedAlloca ? 1 : InvalidIndex;
   const unsigned SpecNameIndex = IsAlignedAlloca ? 2 : 1;
-  const unsigned DecorateAddressIndex = IsAlignedAlloca ? 3 : 2;
 
   const FunctionDecl *FD = E->getDirectCallee();
   assert(FD && "Expecting direct call to builtin");
