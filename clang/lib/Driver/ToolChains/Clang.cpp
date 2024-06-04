@@ -1654,7 +1654,7 @@ static void CollectARMPACBTIOptions(const ToolChain &TC, const ArgList &Args,
       auto isPAuthLR = [](const char *member) {
         llvm::AArch64::ExtensionInfo pauthlr_extension =
             llvm::AArch64::getExtensionByID(llvm::AArch64::AEK_PAUTHLR);
-        return (pauthlr_extension.Feature.compare(member) == 0);
+        return pauthlr_extension.Feature == member;
       };
 
       if (std::any_of(CmdArgs.begin(), CmdArgs.end(), isPAuthLR))
@@ -5533,6 +5533,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (Arg *A = Args.getLastArg(options::OPT_fsycl_exp_range_rounding))
       A->render(Args, CmdArgs);
 
+    if (Arg *A = Args.getLastArg(options::OPT_fsycl_fp64_conv_emu)) {
+      if (Triple.isSPIRAOT() &&
+          Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen)
+        A->render(Args, CmdArgs);
+    }
+
     // Add the Unique ID prefix
     StringRef UniqueID = D.getSYCLUniqueID(Input.getBaseInput());
     if (!UniqueID.empty())
@@ -8056,10 +8062,15 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  // -fsized-deallocation is off by default, as it is an ABI-breaking change for
-  // most platforms.
-  Args.addOptInFlag(CmdArgs, options::OPT_fsized_deallocation,
-                    options::OPT_fno_sized_deallocation);
+  // -fsized-deallocation is on by default in C++14 onwards and otherwise off
+  // by default.
+  if (Arg *A = Args.getLastArg(options::OPT_fsized_deallocation,
+                               options::OPT_fno_sized_deallocation)) {
+    if (A->getOption().matches(options::OPT_fno_sized_deallocation))
+      CmdArgs.push_back("-fno-sized-deallocation");
+    else
+      CmdArgs.push_back("-fsized-deallocation");
+  }
 
   // -faligned-allocation is on by default in C++17 onwards and otherwise off
   // by default.
@@ -11109,6 +11120,32 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     for (const auto &A : TranslatorArgs)
       appendOption(OptString, A);
     CmdArgs.push_back(Args.MakeArgString("--llvm-spirv-options=" + OptString));
+
+    // Formulate and add any offload-wrapper and AOT specific options. These
+    // are additional options passed in via -Xsycl-target-linker and
+    // -Xsycl-target-backend.
+    const toolchains::SYCLToolChain &SYCLTC =
+        static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+    // Only store compile/link opts in the image descriptor for the SPIR-V
+    // target.
+    const ArgList &Args =
+        C.getArgsForToolChain(nullptr, StringRef(), Action::OFK_SYCL);
+    ArgStringList BuildArgs;
+    OptString.clear();
+    SYCLTC.TranslateBackendTargetArgs(TargetTriple, Args, BuildArgs);
+    for (const auto &A : BuildArgs)
+      appendOption(OptString, A);
+    if (!OptString.empty())
+      CmdArgs.push_back(
+          Args.MakeArgString("--sycl-backend-compile-options=" + OptString));
+    BuildArgs.clear();
+    OptString.clear();
+    SYCLTC.TranslateLinkerTargetArgs(TargetTriple, Args, BuildArgs);
+    for (const auto &A : BuildArgs)
+      appendOption(OptString, A);
+    if (!OptString.empty())
+      CmdArgs.push_back(
+          Args.MakeArgString("--sycl-target-link-options=" + OptString));
   }
 
   // Construct the link job so we can wrap around it.

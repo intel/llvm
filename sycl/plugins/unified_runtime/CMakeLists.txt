@@ -84,7 +84,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 905804c2e93dd046140057fd07a5d6191063bedc
-  # Merge: 0a11fb44 d3d3f6e5
+  # commit 755a1e75e24ed55070a0f457d2d8a676521ad4f7
+  # Merge: 6469b890 5593d84c
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon May 27 10:34:13 2024 +0100
-  #     Merge pull request #1581 from 0x12CC/l0_cooperative_kernels
-  #     Implement L0 cooperative kernel functions
-  set(UNIFIED_RUNTIME_TAG 905804c2e93dd046140057fd07a5d6191063bedc)
+  # Date:   Tue Jun 4 10:34:57 2024 +0100
+  #     Merge pull request #1385 from yingcong-wu/yc/new-api-suggestgroupsize
+  #     Implement urKernelGetSuggestedLocalWorkSize
+  set(UNIFIED_RUNTIME_TAG 755a1e75e24ed55070a0f457d2d8a676521ad4f7)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -130,7 +130,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 31ee5d536130a6d2ce09661db1bef3bd1cd4d705
+    # Merge: ab151e98 53e43466
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Tue Jun 4 14:10:39 2024 +0100
+    #     Merge pull request #1527 from PietroGhg/pietro/report_atomics
+    #     [NATIVECPU] Report correct memory order capabilities for Native CPU
+    31ee5d536130a6d2ce09661db1bef3bd1cd4d705
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
