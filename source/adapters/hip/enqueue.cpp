@@ -280,8 +280,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
-  std::vector<ur_event_handle_t> DepEvents(
-      phEventWaitList, phEventWaitList + numEventsInWaitList);
+  std::vector<ur_event_handle_t> MemMigrationEvents;
   std::vector<std::pair<ur_mem_handle_t, ur_lock>> MemMigrationLocks;
 
   // phEventWaitList only contains events that are handed to UR by the SYCL
@@ -293,9 +292,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     for (auto &MemArg : hKernel->Args.MemObjArgs) {
       bool PushBack = false;
       if (auto MemDepEvent = MemArg.Mem->LastEventWritingToMemObj;
-          MemDepEvent && std::find(DepEvents.begin(), DepEvents.end(),
-                                   MemDepEvent) == DepEvents.end()) {
-        DepEvents.push_back(MemDepEvent);
+          MemDepEvent && !listContainsElem(numEventsInWaitList, phEventWaitList,
+                                           MemDepEvent)) {
+        MemMigrationEvents.push_back(MemDepEvent);
         PushBack = true;
       }
       if ((MemArg.AccessFlags &
@@ -313,11 +312,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   // Early exit for zero size range kernel
   if (*pGlobalWorkSize == 0) {
-    if (DepEvents.size()) {
-      return urEnqueueEventsWaitWithBarrier(hQueue, DepEvents.size(),
-                                            phEventWaitList, phEvent);
-    }
-    return UR_RESULT_SUCCESS;
+    return urEnqueueEventsWaitWithBarrier(hQueue, numEventsInWaitList,
+                                          phEventWaitList, phEvent);
   }
 
   // Set the number of threads per block to the number of threads per warp
@@ -325,7 +321,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   size_t ThreadsPerBlock[3] = {32u, 1u, 1u};
   size_t BlocksPerGrid[3] = {1u, 1u, 1u};
 
-  ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
@@ -343,21 +338,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     hipStream_t HIPStream = hQueue->getNextComputeStream(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
 
-    if (DepEvents.size()) {
-      UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, DepEvents.size(),
-                                       DepEvents.data()));
-    }
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
+                                     phEventWaitList));
 
     // For memory migration across devices in the same context
     if (hQueue->getContext()->Devices.size() > 1) {
+      if (MemMigrationEvents.size()) {
+        UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream,
+                                         MemMigrationEvents.size(),
+                                         MemMigrationEvents.data()));
+      }
       for (auto &MemArg : hKernel->Args.MemObjArgs) {
-        migrateMemoryToDeviceIfNeeded(MemArg.Mem, hQueue->getDevice());
+        enqueueMigrateMemoryToDeviceIfNeeded(MemArg.Mem, hQueue->getDevice(),
+                                             HIPStream);
       }
     }
 
     auto ArgIndices = hKernel->getArgIndices();
 
-    if (phEvent) {
+    // If migration of mem across buffer is needed, an event must be associated
+    // with this command, implicitly if phEvent is nullptr
+    if (phEvent || MemMigrationEvents.size()) {
       RetImplEvent =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_KERNEL_LAUNCH, hQueue, HIPStream, StreamToken));
@@ -388,11 +389,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());
       *phEvent = RetImplEvent.release();
+    } else if (MemMigrationEvents.size()) {
+      UR_CHECK_ERROR(RetImplEvent->record());
+      for (auto &MemArg : hKernel->Args.MemObjArgs) {
+        // If no event is passed to entry point, we still need to have an event
+        // if ur_mem_handle_t s are used. Here we give ownership of the event
+        // to the ur_mem_handle_t
+        if (MemArg.AccessFlags &
+            (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_WRITE_ONLY)) {
+          MemArg.Mem->setLastEventWritingToMemObj(RetImplEvent.release());
+        }
+      }
     }
   } catch (ur_result_t err) {
-    Result = err;
+    return err;
   }
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
@@ -803,8 +815,8 @@ static inline void memsetRemainPattern(hipStream_t Stream, uint32_t PatternSize,
 // HIP has no memset functions that allow setting values more than 4 bytes. UR
 // API lets you pass an arbitrary "pattern" to the buffer fill, which can be
 // more than 4 bytes. We must break up the pattern into 1 byte values, and set
-// the buffer using multiple strided calls.  The first 4 patterns are set using
-// hipMemsetD32Async then all subsequent 1 byte patterns are set using
+// the buffer using multiple strided calls.  The first 4 patterns are set
+// using hipMemsetD32Async then all subsequent 1 byte patterns are set using
 // hipMemset2DAsync which is called for each pattern.
 ur_result_t commonMemSetLargePattern(hipStream_t Stream, uint32_t PatternSize,
                                      size_t Size, const void *pPattern,
@@ -823,8 +835,8 @@ ur_result_t commonMemSetLargePattern(hipStream_t Stream, uint32_t PatternSize,
   UR_CHECK_ERROR(hipPointerGetAttributes(&ptrAttribs, (const void *)Ptr));
 
   // The hostPointer attribute is non-null also for shared memory allocations.
-  // To make sure that this workaround only executes for host pinned memory, we
-  // need to check that isManaged attribute is false.
+  // To make sure that this workaround only executes for host pinned memory,
+  // we need to check that isManaged attribute is false.
   if (ptrAttribs.hostPointer && !ptrAttribs.isManaged) {
     const auto NumOfCopySteps = Size / PatternSize;
     const auto Offset = sizeof(uint32_t);
@@ -1299,7 +1311,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
     if (!IsPinned &&
         (Map->getMapFlags() &
          (UR_MAP_FLAG_WRITE | UR_MAP_FLAG_WRITE_INVALIDATE_REGION))) {
-      // Pinned host memory is only on host so it doesn't need to be written to.
+      // Pinned host memory is only on host so it doesn't need to be written
+      // to.
       UR_CHECK_ERROR(urEnqueueMemBufferWrite(
           hQueue, hMem, true, Map->getMapOffset(), Map->getMapSize(),
           pMappedPtr, numEventsInWaitList, phEventWaitList, phEvent));
@@ -1475,10 +1488,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 
     hipPointerAttribute_t attribs;
     // TODO: hipPointerGetAttributes will fail if pMem is non-HIP allocated
-    // memory, as it is neither registered as host memory, nor into the address
-    // space for the current device, meaning the pMem ptr points to a
-    // system-allocated memory. This means we may need to check system-alloacted
-    // memory and handle the failure more gracefully.
+    // memory, as it is neither registered as host memory, nor into the
+    // address space for the current device, meaning the pMem ptr points to a
+    // system-allocated memory. This means we may need to check
+    // system-alloacted memory and handle the failure more gracefully.
     UR_CHECK_ERROR(hipPointerGetAttributes(&attribs, pMem));
     // async prefetch requires USM pointer (or hip SVM) to work.
     if (!attribs.isManaged) {
@@ -1507,8 +1520,9 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
   ur_device_handle_t Device = hQueue->getDevice();
 
 #if HIP_VERSION_MAJOR >= 5
-  // NOTE: The hipPointerGetAttribute API is marked as beta, meaning, while this
-  // is feature complete, it is still open to changes and outstanding issues.
+  // NOTE: The hipPointerGetAttribute API is marked as beta, meaning, while
+  // this is feature complete, it is still open to changes and outstanding
+  // issues.
   size_t PointerRangeSize = 0;
   UR_CHECK_ERROR(hipPointerGetAttribute(
       &PointerRangeSize, HIP_POINTER_ATTRIBUTE_RANGE_SIZE,
@@ -1548,9 +1562,10 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
     }
 
     // Passing MEM_ADVICE_SET/MEM_ADVICE_CLEAR_PREFERRED_LOCATION to
-    // hipMemAdvise on a GPU device requires the GPU device to report a non-zero
-    // value for hipDeviceAttributeConcurrentManagedAccess. Therefore, ignore
-    // the mem advice if concurrent managed memory access is not available.
+    // hipMemAdvise on a GPU device requires the GPU device to report a
+    // non-zero value for hipDeviceAttributeConcurrentManagedAccess.
+    // Therefore, ignore the mem advice if concurrent managed memory access is
+    // not available.
     if (advice & (UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION |
                   UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION |
                   UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE |
@@ -1585,9 +1600,10 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
 #endif
     } else {
       Result = setHipMemAdvise(HIPDevicePtr, size, advice, DeviceID);
-      // UR_RESULT_ERROR_INVALID_ENUMERATION is returned when using a valid but
-      // currently unmapped advice arguments as not supported by this platform.
-      // Therefore, warn the user instead of throwing and aborting the runtime.
+      // UR_RESULT_ERROR_INVALID_ENUMERATION is returned when using a valid
+      // but currently unmapped advice arguments as not supported by this
+      // platform. Therefore, warn the user instead of throwing and aborting
+      // the runtime.
       if (Result == UR_RESULT_ERROR_INVALID_ENUMERATION) {
         releaseEvent();
         setErrorMessage("mem_advise is ignored as the advice argument is not "
@@ -1648,15 +1664,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    // There is an issue with hipMemcpy2D* when hipMemcpyDefault is used, which
-    // makes the HIP runtime not correctly derive the copy kind (direction) for
-    // the copies since ROCm 5.6.0+. See: https://github.com/ROCm/clr/issues/40
+    // There is an issue with hipMemcpy2D* when hipMemcpyDefault is used,
+    // which makes the HIP runtime not correctly derive the copy kind
+    // (direction) for the copies since ROCm 5.6.0+. See:
+    // https://github.com/ROCm/clr/issues/40
     // TODO: Add maximum HIP_VERSION when bug has been fixed.
 #if HIP_VERSION >= 50600000
     hipPointerAttribute_t srcAttribs{};
     hipPointerAttribute_t dstAttribs{};
 
-    // Determine if pSrc and/or pDst are system allocated pageable host memory.
+    // Determine if pSrc and/or pDst are system allocated pageable host
+    // memory.
     bool srcIsSystemAlloc{false};
     bool dstIsSystemAlloc{false};
 
@@ -1851,9 +1869,9 @@ setKernelParams(const ur_device_handle_t Device, const uint32_t WorkDim,
                     UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
           UR_ASSERT(LocalWorkSize[dim] <= MaxThreadsPerBlock[dim],
                     UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
-          // Checks that local work sizes are a divisor of the global work sizes
-          // which includes that the local work sizes are neither larger than
-          // the global work sizes and not 0.
+          // Checks that local work sizes are a divisor of the global work
+          // sizes which includes that the local work sizes are neither larger
+          // than the global work sizes and not 0.
           UR_ASSERT(LocalWorkSize != 0,
                     UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
           UR_ASSERT((GlobalWorkSize[dim] % LocalWorkSize[dim]) == 0,

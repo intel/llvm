@@ -20,6 +20,12 @@
 #include "device.hpp"
 #include "event.hpp"
 
+ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t,
+                                           const ur_device_handle_t);
+ur_result_t enqueueMigrateMemoryToDeviceIfNeeded(ur_mem_handle_t,
+                                                 const ur_device_handle_t,
+                                                 CUstream);
+
 // Handler for plain, pointer-based CUDA allocations
 struct BufferMem {
 

@@ -10,6 +10,7 @@
 
 #include "memory.hpp"
 #include "context.hpp"
+#include "enqueue.hpp"
 #include <cassert>
 #include <ur_util.hpp>
 
@@ -390,7 +391,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
 
   if (PerformInitialCopy) {
     for (const auto &Dev : hContext->getDevices()) {
-      UR_CHECK_ERROR(migrateMemoryToDeviceIfNeeded(URMemObj.get(), Dev));
+      ScopedContext Active(Dev);
+      hipStream_t Stream{0}; // Use default stream
+      UR_CHECK_ERROR(
+          enqueueMigrateMemoryToDeviceIfNeeded(URMemObj.get(), Dev, Stream));
+      UR_CHECK_ERROR(hipStreamSynchronize(Stream));
     }
   }
   *phMem = URMemObj.release();
@@ -541,27 +546,29 @@ ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
 }
 
 namespace {
-inline ur_result_t migrateBufferToDevice(ur_mem_handle_t Mem,
-                                         ur_device_handle_t hDevice) {
+inline ur_result_t enqueueMigrateBufferToDevice(ur_mem_handle_t Mem,
+                                                ur_device_handle_t hDevice,
+                                                hipStream_t Stream) {
   auto &Buffer = std::get<BufferMem>(Mem->Mem);
   if (Mem->LastEventWritingToMemObj == nullptr) {
     // Device allocation being initialized from host for the first time
     if (Buffer.HostPtr) {
-      UR_CHECK_ERROR(
-          hipMemcpyHtoD(Buffer.getPtr(hDevice), Buffer.HostPtr, Buffer.Size));
+      UR_CHECK_ERROR(hipMemcpyHtoDAsync(Buffer.getPtr(hDevice), Buffer.HostPtr,
+                                        Buffer.Size, Stream));
     }
   } else if (Mem->LastEventWritingToMemObj->getQueue()->getDevice() !=
              hDevice) {
-    UR_CHECK_ERROR(hipMemcpyDtoD(
+    UR_CHECK_ERROR(hipMemcpyDtoDAsync(
         Buffer.getPtr(hDevice),
         Buffer.getPtr(Mem->LastEventWritingToMemObj->getQueue()->getDevice()),
-        Buffer.Size));
+        Buffer.Size, Stream));
   }
   return UR_RESULT_SUCCESS;
 }
 
-inline ur_result_t migrateImageToDevice(ur_mem_handle_t Mem,
-                                        ur_device_handle_t hDevice) {
+inline ur_result_t enqueueMigrateImageToDevice(ur_mem_handle_t Mem,
+                                               ur_device_handle_t hDevice,
+                                               hipStream_t Stream) {
   auto &Image = std::get<SurfaceMem>(Mem->Mem);
   // When a dimension isn't used image_desc has the size set to 1
   size_t PixelSizeBytes = Image.PixelTypeSizeBytes *
@@ -594,18 +601,23 @@ inline ur_result_t migrateImageToDevice(ur_mem_handle_t Mem,
 
   if (Mem->LastEventWritingToMemObj == nullptr) {
     if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE1D) {
+      UR_CHECK_ERROR(hipStreamSynchronize(Stream));
       UR_CHECK_ERROR(
           hipMemcpyHtoA(ImageArray, 0, Image.HostPtr, ImageSizeBytes));
     } else if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE2D) {
       CpyDesc2D.srcHost = Image.HostPtr;
-      UR_CHECK_ERROR(hipMemcpyParam2D(&CpyDesc2D));
+      UR_CHECK_ERROR(hipMemcpyParam2DAsync(&CpyDesc2D, Stream));
     } else if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE3D) {
       CpyDesc3D.srcHost = Image.HostPtr;
+      CpyDesc3D.srcMemoryType = hipMemoryTypeHost;
       UR_CHECK_ERROR(hipDrvMemcpy3D(&CpyDesc3D));
     }
   } else if (Mem->LastEventWritingToMemObj->getQueue()->getDevice() !=
              hDevice) {
     if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE1D) {
+      // Blocking wait needed since we need to sync LastEventWritingToMemObj's
+      // queue, as well as the current queue with LastEventWritingToMemObj
+      UR_CHECK_ERROR(urEventWait(1, &Mem->LastEventWritingToMemObj));
       // FIXME: 1D memcpy from DtoD going through the host.
       UR_CHECK_ERROR(hipMemcpyAtoH(
           Image.HostPtr,
@@ -615,13 +627,15 @@ inline ur_result_t migrateImageToDevice(ur_mem_handle_t Mem,
       UR_CHECK_ERROR(
           hipMemcpyHtoA(ImageArray, 0, Image.HostPtr, ImageSizeBytes));
     } else if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE2D) {
+      CpyDesc2D.srcMemoryType = hipMemoryTypeDevice;
       CpyDesc2D.srcArray = Image.getArray(
           Mem->LastEventWritingToMemObj->getQueue()->getDevice());
-      UR_CHECK_ERROR(hipMemcpyParam2D(&CpyDesc2D));
+      UR_CHECK_ERROR(hipMemcpyParam2DAsync(&CpyDesc2D, Stream));
     } else if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE3D) {
+      CpyDesc3D.srcMemoryType = hipMemoryTypeDevice;
       CpyDesc3D.srcArray = Image.getArray(
           Mem->LastEventWritingToMemObj->getQueue()->getDevice());
-      UR_CHECK_ERROR(hipDrvMemcpy3D(&CpyDesc3D));
+      UR_CHECK_ERROR(hipDrvMemcpy3DAsync(&CpyDesc3D, Stream));
     }
   }
   return UR_RESULT_SUCCESS;
@@ -630,8 +644,8 @@ inline ur_result_t migrateImageToDevice(ur_mem_handle_t Mem,
 
 // If calling this entry point it is necessary to lock the memoryMigrationMutex
 // beforehand
-ur_result_t migrateMemoryToDeviceIfNeeded(ur_mem_handle_t Mem,
-                                          const ur_device_handle_t hDevice) {
+ur_result_t enqueueMigrateMemoryToDeviceIfNeeded(
+    ur_mem_handle_t Mem, const ur_device_handle_t hDevice, hipStream_t Stream) {
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   auto DeviceIdx = Mem->getContext()->getDeviceIndex(hDevice);
   // Device allocation has already been initialized with most up to date
@@ -641,9 +655,9 @@ ur_result_t migrateMemoryToDeviceIfNeeded(ur_mem_handle_t Mem,
 
   ScopedContext Active(hDevice);
   if (Mem->isBuffer()) {
-    UR_CHECK_ERROR(migrateBufferToDevice(Mem, hDevice));
+    UR_CHECK_ERROR(enqueueMigrateBufferToDevice(Mem, hDevice, Stream));
   } else {
-    UR_CHECK_ERROR(migrateImageToDevice(Mem, hDevice));
+    UR_CHECK_ERROR(enqueueMigrateImageToDevice(Mem, hDevice, Stream));
   }
 
   Mem->HaveMigratedToDeviceSinceLastWrite[DeviceIdx] = true;
