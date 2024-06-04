@@ -22,7 +22,6 @@ void matrix_multiply(big_matrix<TResult, M, N> &C, big_matrix<T, M, K> &A,
 
   queue q;
   size_t sg_size = get_sg_size<mult<T, TM, TN, TK>>(q);
-  std::cout << "sg_size: " << sg_size << std::endl;
   q.submit([&](handler &cgh) {
      sycl::accessor accA{bufA, cgh, sycl::read_write};
      sycl::accessor accB{bufB, cgh, sycl::read_write};
