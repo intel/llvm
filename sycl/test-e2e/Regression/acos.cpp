@@ -27,8 +27,8 @@ int main() {
     auto actual = p[i];
     auto expected = data[i][1];
     if (expected != actual) {
-      std::cout << i << " fail:" << "expected = " << expected
-                << ", actual = " << actual << "\n";
+      std::cout << i << " fail:"
+                << "expected = " << expected << ", actual = " << actual << "\n";
       ++fails;
     }
   }
