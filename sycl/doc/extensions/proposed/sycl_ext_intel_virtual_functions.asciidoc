@@ -197,6 +197,17 @@ omitted, a virtual member function is considered to belong to the default set.
 Calling a virtual member function from a kernel which does not declare use of a
 set the virtual member function belongs to is an undefined behavior.
 
+The property must appear on the first declaration of the function in the
+translation unit. Redeclarations of the function may optionally be decorated
+with the same property if the property argument is the same. The effect is the
+same regardless of whether redeclarations are so decorated.
+
+If a function is decorated with one of these properties in one translation unit,
+any other translation unit that declares the same function must also decorate
+the function with the same property (with the same argument).
+
+The programs that decorate the same function with multiple instances of the
+property with different argument are ill formed.
 |`calls_indirectly`
 |The `calls_indirectly` property indicates that a SYCL kernel function is
 performing calls through virtual member functions and declares use of one or
@@ -215,11 +226,6 @@ function call in its call graph, even if the said function is never actually
 called. If a kernel submitted without this property calls a virtual member
 function, diagnostic should be emitted by an implementation.
 |===
-
-If a virtual member function is called from device code, all declarations of
-that function must be decorated with the `indirectly_callable` property with
-the same value of `SetId` property parameter, or otherwise behavior is
-undefined.
 
 If a kernel is submitted with the `indirectly_callable` property that points to
 an empty set of virtual functions, an exception should be thrown by an
