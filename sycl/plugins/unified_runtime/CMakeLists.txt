@@ -120,7 +120,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 0e38fda02ca00aaab28018240eb526da7dd08f56
+    # Merge: f4968809 b7c8ac18
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Tue Jun 4 14:18:15 2024 +0100
+    #     Merge pull request #1552 from mmoadeli/atomic-access-on-host-malloc
+    #     [CUDA] Remove the support of concurrent atomic access to host allocated pinned memory.
+    0e38fda02ca00aaab28018240eb526da7dd08f56
   )
 
   fetch_adapter_source(hip
