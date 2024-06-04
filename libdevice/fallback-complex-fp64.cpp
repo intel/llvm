@@ -311,8 +311,8 @@ double __complex__ __devicelib_cacos(double __complex__ z) {
       return CMPLX(z_real, -z_imag);
     return CMPLX(z_real, z_real);
   }
-  if (__spirv_IsInf(z_real))
-    return CMPLX(__pi / 2.0, -z_real);
+  if (__spirv_IsInf(z_imag))
+    return CMPLX(__pi / 2.0, -z_imag);
   if (z_real == 0 && (z_imag == 0 || __spirv_IsNan(z_imag)))
     return CMPLX(__pi / 2.0, -z_imag);
   double __complex__ w =
