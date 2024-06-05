@@ -6649,7 +6649,7 @@ atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset,
 /// atomic_update(local_accessor lacc,
 ///               simd<uint32_t, N> byte_offset,
 ///               simd<T, N> src0,
-///               simd_mask<1> pred = 1);                       // (lacc-au1-1)
+///               simd_mask<N> mask = 1);                       // (lacc-au1-1)
 ///
 
 /// Usage of cache hints or non-standard operation width N requires DG2 or PVC.
@@ -7198,7 +7198,7 @@ slm_atomic_update(OffsetSimdViewT byte_offset, SrcSimdViewT src0,
 ///               simd<uint32_t, N> byte_offset,
 ///               simd<T, N> src0,
 ///               simd<T, N> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-1)
+///               simd_mask<N> mask = 1);                      // (lacc-au2-1)
 template <atomic_op Op, typename T, int N, typename AccessorT>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2 &&
                                  __ESIMD_DNS::is_rw_local_accessor_v<AccessorT>,
@@ -7214,7 +7214,7 @@ atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, simd<T, N> src0,
 ///               simd<uint32_t, N> byte_offset,
 ///               SrcSimdViewT src0,
 ///               simd<T, N> src1,
-///               simd_mask<1> pred = 1);
+///               simd_mask<N> mask = 1);
 /// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 template <atomic_op Op, typename SrcSimdViewT, typename T, int N,
@@ -7236,7 +7236,7 @@ atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, SrcSimdViewT src0,
 ///               simd<uint32_t, N> byte_offset,
 ///               simd<T, N> src0,
 ///               SrcSimdViewT src1,
-///               simd_mask<1> pred = 1);
+///               simd_mask<N> mask = 1);
 /// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 template <atomic_op Op, typename SrcSimdViewT, typename T, int N,
@@ -7258,7 +7258,7 @@ atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, simd<T, N> src0,
 ///               simd<uint32_t, N> byte_offset,
 ///               SrcSimdViewT src0,
 ///               SrcSimdViewT src1,
-///               simd_mask<1> pred = 1);
+///               simd_mask<N> mask = 1);
 /// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 template <atomic_op Op, typename SrcSimdViewT,
@@ -7283,7 +7283,7 @@ atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, SrcSimdViewT src0,
 ///               OffsetSimdViewT byte_offset,
 ///               simd<T, N> src0,
 ///               simd<T, N> src1,
-///               simd_mask<1> pred = 1);
+///               simd_mask<N> mask = 1);
 /// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 template <atomic_op Op, typename OffsetSimdViewT, typename T, int N,
@@ -7306,7 +7306,7 @@ atomic_update(AccessorT lacc, OffsetSimdViewT byte_offset, simd<T, N> src0,
 ///               OffsetSimdViewT byte_offset,
 ///               SrcSimdViewT src0,
 ///               simd<T, N> src1,
-///               simd_mask<1> pred = 1);
+///               simd_mask<N> mask = 1);
 /// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 template <atomic_op Op, typename OffsetSimdViewT, typename SrcSimdViewT,
@@ -7330,7 +7330,7 @@ atomic_update(AccessorT lacc, OffsetSimdViewT byte_offset, SrcSimdViewT src0,
 ///               OffsetSimdViewT byte_offset,
 ///               simd<T, N> src0,
 ///               SrcSimdViewT src1,
-///               simd_mask<1> pred = 1);
+///               simd_mask<N> mask = 1);
 /// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 template <atomic_op Op, typename OffsetSimdViewT, typename SrcSimdViewT,
@@ -7356,7 +7356,7 @@ atomic_update(AccessorT lacc, OffsetSimdViewT byte_offset, simd<T, N> src0,
 ///               OffsetSimdViewT byte_offset,
 ///               SrcSimdViewT src0,
 ///               SrcSimdViewT src1,
-///               simd_mask<1> pred = 1);
+///               simd_mask<N> mask = 1);
 /// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 template <atomic_op Op, typename OffsetSimdViewT, typename SrcSimdViewT,
