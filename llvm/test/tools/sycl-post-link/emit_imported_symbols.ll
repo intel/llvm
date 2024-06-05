@@ -1,32 +1,60 @@
 ; This test checks that the -emit-imported-symbols option generates a list of imported symbols
 ; Function names were chosen so that no function with a 'inside' in their function name is imported
 ;
-; RUN: sycl-post-link -symbols -emit-imported-symbols -split=kernel -S < %s -o %t.table
 
-; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYM-0
-; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-SYM-1
-; RUN: FileCheck %s -input-file=%t_2.sym --check-prefixes CHECK-SYM-2
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Test with -split=kernel
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; RUN: FileCheck %s -input-file=%t_0.prop --check-prefixes CHECK-IMPORTED-SYM-0 --implicit-check-not='inside'
-; RUN: FileCheck %s -input-file=%t_1.prop --check-prefixes CHECK-IMPORTED-SYM-1 --implicit-check-not='inside'
-; RUN: FileCheck %s -input-file=%t_2.prop --check-prefixes CHECK-IMPORTED-SYM-2 --implicit-check-not='inside'
+; RUN: rm -f %t*.prop %t*.sym
 
-; CHECK-SYM-0: middle
-; CHECK-IMPORTED-SYM-0: [SYCL/imported symbols]
-; CHECK-IMPORTED-SYM-0-NEXT: childD
+; RUN: sycl-post-link -symbols -emit-imported-symbols -split=kernel -S < %s -o %t_kernel.table
 
-; CHECK-SYM-1: foo
-; CHECK-IMPORTED-SYM-1: [SYCL/imported symbols]
-; CHECK-IMPORTED-SYM-1-NEXT: childA
-; CHECK-IMPORTED-SYM-1-NEXT: childC
-; CHECK-IMPORTED-SYM-1-NEXT: childD
+; RUN: FileCheck %s -input-file=%t_kernel_0.sym --check-prefixes CHECK-KERNEL-SYM-0
+; RUN: FileCheck %s -input-file=%t_kernel_1.sym --check-prefixes CHECK-KERNEL-SYM-1
+; RUN: FileCheck %s -input-file=%t_kernel_2.sym --check-prefixes CHECK-KERNEL-SYM-2
 
-; CHECK-SYM-2: bar
-; CHECK-IMPORTED-SYM-2: [SYCL/imported symbols]
-; CHECK-IMPORTED-SYM-2-NEXT: childB
-; CHECK-IMPORTED-SYM-2-NEXT: childC
-; CHECK-IMPORTED-SYM-2-NEXT: childD
-; CHECK-IMPORTED-SYM-2-NEXT: _Z7outsidev
+; RUN: FileCheck %s -input-file=%t_kernel_0.prop --check-prefixes CHECK-KERNEL-IMPORTED-SYM-0 --implicit-check-not='inside'
+; RUN: FileCheck %s -input-file=%t_kernel_1.prop --check-prefixes CHECK-KERNEL-IMPORTED-SYM-1 --implicit-check-not='inside'
+; RUN: FileCheck %s -input-file=%t_kernel_2.prop --check-prefixes CHECK-KERNEL-IMPORTED-SYM-2 --implicit-check-not='inside'
+
+; CHECK-KERNEL-SYM-0: middle
+; CHECK-KERNEL-IMPORTED-SYM-0: [SYCL/imported symbols]
+; CHECK-KERNEL-IMPORTED-SYM-0-NEXT: childD
+
+; CHECK-KERNEL-SYM-1: foo
+; CHECK-KERNEL-IMPORTED-SYM-1: [SYCL/imported symbols]
+; CHECK-KERNEL-IMPORTED-SYM-1-NEXT: childA
+; CHECK-KERNEL-IMPORTED-SYM-1-NEXT: childC
+; CHECK-KERNEL-IMPORTED-SYM-1-NEXT: childD
+
+; CHECK-KERNEL-SYM-2: bar
+; CHECK-KERNEL-IMPORTED-SYM-2: [SYCL/imported symbols]
+; CHECK-KERNEL-IMPORTED-SYM-2-NEXT: childB
+; CHECK-KERNEL-IMPORTED-SYM-2-NEXT: childC
+; CHECK-KERNEL-IMPORTED-SYM-2-NEXT: childD
+; CHECK-KERNEL-IMPORTED-SYM-2-NEXT: _Z7outsidev
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Test with -split=source
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; RUN: sycl-post-link -symbols -emit-imported-symbols -split=source -S < %s -o %t_source.table
+
+; RUN: FileCheck %s -input-file=%t_source_0.sym --check-prefixes CHECK-SOURCE-SYM-0
+
+; RUN: FileCheck %s -input-file=%t_source_0.prop --check-prefixes CHECK-SOURCE-IMPORTED-SYM-0 --implicit-check-not='inside'
+
+; CHECK-SOURCE-SYM-0-DAG: foo
+; CHECK-SOURCE-SYM-0-DAG: bar
+; CHECK-SOURCE-SYM-0-DAG: middle
+
+; CHECK-SOURCE-IMPORTED-SYM-0: [SYCL/imported symbols]
+; CHECK-SOURCE-IMPORTED-SYM-0-NEXT: childA
+; CHECK-SOURCE-IMPORTED-SYM-0-NEXT: childB
+; CHECK-SOURCE-IMPORTED-SYM-0-NEXT: childC
+; CHECK-SOURCE-IMPORTED-SYM-0-NEXT: childD
+; CHECK-SOURCE-IMPORTED-SYM-0-NEXT: _Z7outsidev
 
 target triple = "spir64-unknown-unknown"
 
