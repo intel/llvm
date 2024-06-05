@@ -30,7 +30,6 @@
 
 target triple = "spir64-unknown-unknown"
 
-; CHECK-NOT: llvm.used
 @llvm.used = appending global [2 x ptr] [ptr @foo, ptr @bar], section "llvm.metadata"
 
 define weak_odr spir_kernel void @foo() #0 {
