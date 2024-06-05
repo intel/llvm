@@ -126,13 +126,13 @@ namespace experimental {
 #ifdef SYCL_EXT_ONEAPI_BINDLESS_IMAGES
 class image_mem_wrapper;
 namespace detail {
-static sycl::event dpct_memcpy(const image_mem_wrapper *src,
+static sycl::event memcpy(const image_mem_wrapper *src,
                                const sycl::id<3> &src_id, pitched_data &dest,
                                const sycl::id<3> &dest_id,
                                const sycl::range<3> &copy_extend,
                                sycl::queue q);
 static sycl::event
-dpct_memcpy(const pitched_data src, const sycl::id<3> &src_id,
+memcpy(const pitched_data src, const sycl::id<3> &src_id,
             image_mem_wrapper *dest, const sycl::id<3> &dest_id,
             const sycl::range<3> &copy_extend, sycl::queue q);
 } // namespace detail
@@ -502,23 +502,23 @@ memcpy(sycl::queue q, const experimental::memcpy_parameter &param) {
     std::vector<sycl::event> event_list;
     syclcompat::detail::host_buffer buf(param.size.size(), q, event_list);
     to.set_data_ptr(buf.get_ptr());
-    experimental::detail::dpct_memcpy(param.from.image_bindless, param.from.pos,
+    experimental::detail::memcpy(param.from.image_bindless, param.from.pos,
                                       to, sycl::id<3>(0, 0, 0), param.size, q);
     from.set_data_ptr(buf.get_ptr());
-    event_list.push_back(experimental::detail::dpct_memcpy(
+    event_list.push_back(experimental::detail::memcpy(
         from, sycl::id<3>(0, 0, 0), param.to.image_bindless, param.to.pos,
         param.size, q));
     return event_list;
   } else if (param.to.image_bindless != nullptr) {
     throw std::runtime_error(
         "[SYCLcompat] memcpy: Unsupported bindless_image API.");
-    return {experimental::detail::dpct_memcpy(from, param.from.pos,
+    return {experimental::detail::memcpy(from, param.from.pos,
                                               param.to.image_bindless,
                                               param.to.pos, param.size, q)};
   } else if (param.from.image_bindless != nullptr) {
     throw std::runtime_error(
         "[SYCLcompat] memcpy: Unsupported bindless_image API.");
-    return {experimental::detail::dpct_memcpy(param.from.image_bindless,
+    return {experimental::detail::memcpy(param.from.image_bindless,
                                               param.from.pos, to, param.to.pos,
                                               param.size, q)};
   }
