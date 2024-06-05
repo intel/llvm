@@ -2067,7 +2067,7 @@ block_load(const T *ptr, size_t byte_offset, simd_mask<1> pred,
 /// simd<T, N> block_load(const T* ptr, size_t byte_offset,
 ///                       simd_mask<1> pred, PassThruSimdViewT pass_thru,
 ///                       props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// This function loads a contiguous memory block from address referenced
 /// by USM pointer \p ptr and the given \p byte_offset.
@@ -2393,7 +2393,7 @@ block_load(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
 /// simd<T, N>
 /// block_load(AccessorT acc, OffsetT byte_offset, simd_mask<1> pred,
 ///            PassThruSimdViewT pass_thru, props = {});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// This function loads a contiguous memory block referenced
 /// by accessor \p acc and the given \p byte_offset.
@@ -2533,7 +2533,7 @@ block_load(AccessorT acc, simd_mask<1> pred, simd<T, N> pass_thru,
 /// block_load(AccessorT acc, simd_mask<1> pred,
 ///            PassThruSimdViewT pass_thru, props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// This function loads a contiguous memory block referenced
 /// by accessor \p acc and implied offset=0.
@@ -2833,7 +2833,7 @@ block_store(T *ptr, size_t byte_offset, simd<T, N> vals, simd_mask<1> pred,
 }
 
 /// void block_store(T* ptr, ValuesSimdViewT vals, props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// This function stores a contiguous memory block to USM pointer \p ptr
 /// with data specified by \p vals.
@@ -2879,7 +2879,7 @@ block_store(T *ptr, ValuesSimdViewT vals, PropertyListT props = {}) {
 
 /// void block_store(T* ptr, size_t byte_offset,
 ///                          ValuesSimdViewT vals, props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// This function stores a contiguous memory block to USM pointer \p ptr and
 /// byte-offset \p byte_offset with data specified by \p vals.
@@ -2927,7 +2927,7 @@ block_store(T *ptr, size_t byte_offset, ValuesSimdViewT vals,
 
 /// void block_store(T* ptr, ValuesSimdViewT vals,
 ///             simd_mask<1> pred, props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// This function stores a contiguous memory block to USM pointer \p ptr
 /// with data specified by \p vals. If the predicate \p pred is set to 0,
@@ -2972,7 +2972,7 @@ block_store(T *ptr, ValuesSimdViewT vals, simd_mask<1> pred,
 
 /// void block_store(T* ptr, size_t byte_offset,
 /// ValuesSimdViewT vals, simd_mask<1> pred, props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// This function stores a contiguous memory block to USM pointer \p ptr
 /// and byte-offset \p byte_offset with data specified by \p vals.
@@ -3255,7 +3255,7 @@ block_store(AccessorT acc, simd<T, N> vals, simd_mask<1> pred,
 
 /// void block_store(AccessorT acc, OffsetT byte_offset,
 ///                   ValuesSimdViewT vals, props = {});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// This function stores a contiguous memory block to
 /// accessor \p acc and \p byte_offset with data specified by \p vals.
@@ -3315,7 +3315,7 @@ block_store(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
 }
 
 /// void block_store(AccessorT acc, ValuesSimdViewT vals, props = {});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// This function stores a contiguous memory block to
 /// accessor \p acc with data specified by \p vals and implied offset=0.
@@ -3362,7 +3362,7 @@ block_store(AccessorT acc, ValuesSimdViewT vals, PropertyListT props = {}) {
 
 /// void block_store(AccessorT acc, OffsetT byte_offset,
 ///     ValuesSimdViewT vals, simd_mask<1> pred, props = {});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// This function stores a contiguous memory block to
 /// accessor \p acc and \p byte_offset with data specified by \p vals.
@@ -3411,7 +3411,7 @@ block_store(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
 
 /// void block_store(AccessorT acc, ValuesSimdViewT vals,
 ///                  simd_mask<1> pred, props = {});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// This function stores a contiguous memory block to
 /// accessor \p acc with data specified by \p vals and implied offset=0.
@@ -4907,7 +4907,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// 	         simd_mask<N / VS> mask,
 ///              PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the accessor \p acc and byte offsets \p byte_offsets. Access to any
@@ -4948,7 +4948,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// 	         PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the accessor \p acc and byte offsets \p byte_offsets.
@@ -4989,7 +4989,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 ///              ValuesSimdViewT vals, simd_mask<N / VS> mask,
 ///              PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the accessor \p acc and byte offsets \p byte_offsets. Access to any
@@ -5037,7 +5037,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 /// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets,
 ///              ValuesSimdViewT vals, PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the accessor \p acc and byte offsets \p byte_offsets.
@@ -5082,7 +5082,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 ///              ValuesSimdViewT vals, simd_mask<N / VS> mask,
 ///              PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the accessor \p acc and byte offsets \p byte_offsets. Access to any
@@ -5125,7 +5125,7 @@ scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
 /// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
 ///              ValuesSimdViewT vals, PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the accessor \p acc and byte offsets \p byte_offsets.
@@ -6424,7 +6424,7 @@ slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// void slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
 ///	         simd_mask<N / VS> mask, PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets.
@@ -6456,7 +6456,7 @@ slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// void slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
 ///	         PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets.
@@ -6491,7 +6491,7 @@ slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
 ///              ValuesSimdViewT vals, simd_mask<N / VS> mask,
 ///              PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets.
@@ -6528,7 +6528,7 @@ slm_scatter(OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 /// void slm_scatter(OffsetSimdViewT byte_offsets,
 ///              ValuesSimdViewT vals, PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets.
@@ -6566,7 +6566,7 @@ slm_scatter(OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 ///              ValuesSimdViewT vals, simd_mask<N / VS> mask,
 ///              PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets.
@@ -6598,7 +6598,7 @@ slm_scatter(simd<OffsetT, N / VS> byte_offsets, ValuesSimdViewT vals,
 /// void slm_scatter(simd<OffsetT, N / VS> byte_offsets,
 ///              ValuesSimdViewT vals, PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets.
@@ -6933,7 +6933,7 @@ slm_block_load(uint32_t offset, simd_mask<1> pred, simd<T, N> pass_thru,
 /// simd<T, N> slm_block_load(uint32_t byte_offset,
 ///                           simd_mask<1> pred,
 ///                           PassThruSimdViewT pass_thru, props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Loads a contiguous memory block from SLM (Shared Local Memory) at the
 /// given \p byte_offset.
@@ -7167,7 +7167,7 @@ block_load(AccessorT lacc, uint32_t byte_offset, simd_mask<1> pred,
 /// simd<T, N> block_load(local_accessor lacc, uint32_t byte_offset,
 ///                       simd_mask<1> pred, PassThruSimdViewT pass_thru,
 ///                       props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Loads a contiguous memory block from SLM (Shared Local Memory) associated
 /// the local accessor \p lacc at the given \p byte_offset.
@@ -7253,7 +7253,7 @@ block_load(AccessorT lacc, simd_mask<1> pred, simd<T, N> pass_thru,
 /// simd<T, N> block_load(local_accessor lacc,
 ///                       simd_mask<1> pred, PassThruSimdViewT pass_thru,
 ///                       props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Loads a contiguous memory block from SLM (Shared Local Memory) associated
 /// with the local accessor \p lacc at zero offset.
@@ -7463,7 +7463,7 @@ slm_block_store(uint32_t byte_offset, simd<T, N> vals,
 
 /// void slm_block_store(uint32_t byte_offset, ValuesSimdViewT vals,
 ///                      simd_mask<1> pred, props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores the vector \p vals to a contiguous memory block in SLM (Shared Local
 /// Memory) at the given \p byte_offset. The parameter \p pred is the
@@ -7503,7 +7503,7 @@ slm_block_store(uint32_t byte_offset, ValuesSimdViewT vals, simd_mask<1> pred,
 
 /// void slm_block_store(uint32_t byte_offset, ValuesSimdViewT vals,
 ///                      props = {});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores the vector \p vals to a contiguous memory block in SLM
 /// (Shared Local Memory) at the given \p byte_offset. The parameter 'props'
@@ -7665,7 +7665,7 @@ block_store(AccessorT lacc, simd<T, N> vals, simd_mask<1> pred,
 
 /// void block_store(local_accessor lacc, uint32_t byte_offset,
 ///                  ValuesSimdViewT vals, props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores the vector \p vals to a contiguous memory block in SLM (Shared Local
 /// Memory) associated with the local accessor \p lacc at the given \p
@@ -7699,7 +7699,7 @@ block_store(AccessorT lacc, uint32_t byte_offset, ValuesSimdViewT vals,
 
 /// void block_store(local_accessor lacc, ValuesSimdViewT vals,
 ///                  props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores the vector \p vals to a contiguous memory block in SLM
 /// (Shared Local Memory) associated with the local accessor \p lacc. The
@@ -7731,7 +7731,7 @@ block_store(AccessorT lacc, ValuesSimdViewT vals, PropertyListT props = {}) {
 
 /// void block_store(local_accessor lacc, uint32_t byte_offset,
 ///                  ValuesSimdViewT vals, simd_mask<1> pred, props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores the vector \p vals to a contiguous memory block in SLM (Shared Local
 /// Memory) associated with the local accessor \p lacc at the given \p
@@ -7775,7 +7775,7 @@ block_store(AccessorT lacc, uint32_t byte_offset, ValuesSimdViewT vals,
 
 /// void block_store(local_accessor lacc, ValuesSimdViewT vals,
 ///                  simd_mask<1> pred, props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores the vector \p vals to a contiguous memory block in SLM (Shared Local
 /// Memory) associated with the local accessor \p lacc. The parameter \p pred is
@@ -11379,7 +11379,7 @@ scatter(AccessorT acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// 	         simd_mask<N / VS> mask,
 ///              PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the local accessor \p acc and byte offsets \p byte_offsets. Access to any
@@ -11420,7 +11420,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// 	         PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the local accessor \p acc and byte offsets \p byte_offsets.
@@ -11461,7 +11461,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 ///              ValuesSimdViewT vals, simd_mask<N / VS> mask,
 ///              PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the local accessor \p acc and byte offsets \p byte_offsets. Access to any
@@ -11509,7 +11509,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 /// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets,
 ///              ValuesSimdViewT vals, PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the local accessor \p acc and byte offsets \p byte_offsets.
@@ -11554,7 +11554,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 ///              ValuesSimdViewT vals, simd_mask<N / VS> mask,
 ///              PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the local accessor \p acc and byte offsets \p byte_offsets. Access to any
@@ -11597,7 +11597,7 @@ scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
 /// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
 ///              ValuesSimdViewT vals, PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the local accessor \p acc and byte offsets \p byte_offsets.
@@ -11899,6 +11899,66 @@ prefetch(const T *p, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 /// properties are used.
 template <
     typename T, int N, int VS = 1, typename OffsetSimdViewT,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(const T *p, OffsetSimdViewT byte_offsets, PropertyListT props = {}) {
+  prefetch<T, N, VS>(p, byte_offsets.read(), props);
+}
+
+/// template <int VS = 1, typename T, int N, typename OffsetSimdViewT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(const T *p, OffsetSimdViewT byte_offsets,
+///             simd_mask<N / VS> mask, PropertyListT props = {});
+/// Supported platforms: DG2, PVC only.
+/// Variation of the API that allows using \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Prefetches elements of the type 'T' from memory locations
+/// addressed by the base pointer \p p and byte offsets \p byte_offsets to the
+/// cache. Access to any element's memory location can be disabled via the input
+/// vector of predicates \p mask. If mask[i] is unset, then the load from (p +
+/// byte_offsets[i]) is skipped.
+/// @tparam VS Vector size. It can also be read as the number of reads per
+/// each address. The parameter 'N' must be divisible by 'VS'.
+/// @param p The base address.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+template <
+    int VS = 1, typename OffsetSimdViewT, typename T,
+    int N = OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY() * VS,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(const T *p, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
+         PropertyListT props = {}) {
+  prefetch<T, N, VS>(p, byte_offsets.read(), mask, props);
+}
+
+/// template <int VS = 1, typename T, int N, typename OffsetSimdViewT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(const T *p, OffsetSimdViewT byte_offsets,
+///             PropertyListT props = {});
+/// Supported platforms: DG2, PVC only.
+/// Variation of the API that allows using \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Prefetches elements of the type 'T' from memory locations
+/// addressed by the base pointer \p p and byte offsets \p byte_offsets to the
+/// cache.
+/// @tparam VS Vector size. It can also be read as the number of reads per
+/// each address. The parameter 'N' must be divisible by 'VS'.
+/// @param p The base address.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+template <
+    int VS = 1, typename OffsetSimdViewT, typename T,
+    int N = OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY() * VS,
     typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     detail::is_simd_view_type_v<OffsetSimdViewT> &&
