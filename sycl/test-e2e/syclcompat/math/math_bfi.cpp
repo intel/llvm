@@ -38,7 +38,7 @@
 #include <limits.h>
 #include <random>
 #include <stdint.h>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <syclcompat/math.hpp>
 #include <type_traits>
 #include <vector>
