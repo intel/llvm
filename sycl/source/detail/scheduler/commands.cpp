@@ -87,6 +87,13 @@ static addDeviceMetadata(xpti_td* TraceEvent, const QueueImplPtr& Queue)
 }
 #endif
 
+static ContextImplPtr getContext(const QueueImplPtr& Queue)
+{
+  if (Queue)
+    return Queue->getContextImplPtr();
+  return nullptr;
+}
+
 #ifdef __SYCL_ENABLE_GNU_DEMANGLING
 struct DemangleHandle {
   char *p;
@@ -490,7 +497,8 @@ Command::Command(
   MEvent->setWorkerQueue(MWorkerQueue);
   MEvent->setSubmittedQueue(MWorkerQueue);
   MEvent->setCommand(this);
-  MEvent->setContextImpl(MQueue ? MQueue->getContextImplPtr(): nullptr);
+  if (MQueue)
+    MEvent->setContextImpl(MQueue->getContextImplPtr());
   MEvent->setStateIncomplete();
   MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
@@ -707,12 +715,12 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
 }
 
 const ContextImplPtr &Command::getWorkerContext() const {
-  assert(MWorkerQueue && "MWorkerQueue must not be nullptr");
+  if (!MWorkerQueue)
+    return nullptr;
   return MWorkerQueue->getContextImplPtr();
 }
 
 const QueueImplPtr &Command::getWorkerQueue() const {
-  assert(MWorkerQueue && "MWorkerQueue must not be nullptr");
   return MWorkerQueue;
 }
 
@@ -1036,7 +1044,7 @@ pi_int32 AllocaCommand::enqueueImp() {
   // TODO: Check if it is correct to use std::move on stack variable and
   // delete it RawEvents below.
   MMemAllocation = MemoryManager::allocate(
-      MQueue ? MQueue->getContextImplPtr() : nullptr, getSYCLMemObj(), MInitFromUserData, HostPtr,
+      getContext(MQueue), getSYCLMemObj(), MInitFromUserData, HostPtr,
       std::move(EventImpls), Event);
 
   return PI_SUCCESS;
@@ -1119,7 +1127,7 @@ pi_int32 AllocaSubBufCommand::enqueueImp() {
   sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
 
   MMemAllocation = MemoryManager::allocateMemSubBuffer(
-      MQueue ? MQueue->getContextImplPtr() : nullptr, MParentAlloca->getMemAllocation(),
+      getContext(MQueue), MParentAlloca->getMemAllocation(),
       MRequirement.MElemSize, MRequirement.MOffsetInBytes,
       MRequirement.MAccessRange, std::move(EventImpls), Event);
 
@@ -1212,7 +1220,7 @@ pi_int32 ReleaseCommand::enqueueImp() {
                                     : MAllocaCmd->getQueue();
 
     EventImplPtr UnmapEventImpl(new event_impl(Queue));
-    UnmapEventImpl->setContextImpl(Queue ? Queue->getContextImplPtr() : nullptr);
+    UnmapEventImpl->setContextImpl(getContext(Queue));
     UnmapEventImpl->setStateIncomplete();
     sycl::detail::pi::PiEvent &UnmapEvent = UnmapEventImpl->getHandleRef();
 
@@ -1236,7 +1244,7 @@ pi_int32 ReleaseCommand::enqueueImp() {
     Command::waitForEvents(MQueue, EventImpls, Event);
   else {
     MemoryManager::release(
-        MQueue ? MQueue->getContextImplPtr() : nullptr, MAllocaCmd->getSYCLMemObj(),
+        getContext(MQueue), MAllocaCmd->getSYCLMemObj(),
         MAllocaCmd->getMemAllocation(), std::move(EventImpls), Event);
   }
   return PI_SUCCESS;
@@ -2654,6 +2662,7 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
 }
 
 pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
+  assert(MQueue && "Device queue is required for command buffer enqueue");
   // Wait on host command dependencies
   waitForPreparedHostEvents();
 
@@ -2819,8 +2828,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   auto RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
-  bool DiscardPiEvent = (MQueue->supportsDiscardingPiEvents() &&
-                         MCommandGroup->getRequirements().size() == 0);
+  bool DiscardPiEvent = MQueue && MQueue->supportsDiscardingPiEvents() &&
+                         (MCommandGroup->getRequirements().size() == 0);
   sycl::detail::pi::PiEvent *Event =
       DiscardPiEvent ? nullptr : &MEvent->getHandleRef();
   detail::EventImplPtr EventImpl = DiscardPiEvent ? nullptr : MEvent;
@@ -2894,6 +2903,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     return PI_SUCCESS;
   }
   case CG::CGTYPE::Kernel: {
+    assert(MQueue && "Device queue must be present for kernel command");
     CGExecKernel *ExecKernel = (CGExecKernel *)MCommandGroup.get();
 
     NDRDescT &NDRDesc = ExecKernel->MNDRDesc;
@@ -3039,8 +3049,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
             Req->MSYCLMemObj->MRecord->MAllocaCommands;
 
         for (AllocaCommandBase *AllocaCmd : AllocaCmds)
-          if (HostTask->MQueue->getContextImplPtr() ==
-              AllocaCmd->getQueue()->getContextImplPtr()) {
+          if (getContext(HostTask->MQueue) ==
+              getContext(AllocaCmd->getQueue()) {
             auto MemArg =
                 reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
             ReqToMem.emplace_back(std::make_pair(Req, MemArg));
@@ -3064,7 +3074,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     // submitted to report exception origin properly.
     copySubmissionCodeLocation();
 
-    MQueue->getThreadPool().submit<DispatchHostTask>(
+    getThreadPool().submit<DispatchHostTask>(
         DispatchHostTask(this, std::move(ReqToMem)));
 
     MShouldCompleteEventIfPossible = false;
@@ -3072,6 +3082,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     return PI_SUCCESS;
   }
   case CG::CGTYPE::Barrier: {
+    assert(MQueue && "Device queue must be present for barrier command");
     const PluginPtr &Plugin = MQueue->getPlugin();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
@@ -3081,6 +3092,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     return PI_SUCCESS;
   }
   case CG::CGTYPE::BarrierWaitlist: {
+    assert(MQueue && "Device queue must be present for barrier with wait list command");
     CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
     std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
     std::vector<sycl::detail::pi::PiEvent> PiEvents =
@@ -3132,6 +3144,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
                                     typeSize, RawEvents, EventImpl, read);
   }
   case CG::CGTYPE::ExecCommandBuffer: {
+    assert(MQueue && "Device queue must be present for command buffer enqueue");
     CGExecCommandBuffer *CmdBufferCG =
         static_cast<CGExecCommandBuffer *>(MCommandGroup.get());
     if (MEvent != nullptr)
@@ -3155,6 +3168,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     return PI_SUCCESS;
   }
   case CG::CGTYPE::SemaphoreWait: {
+    assert(MQueue && "Device queue must be present for semaphore wait command");
     CGSemaphoreWait *SemWait = (CGSemaphoreWait *)MCommandGroup.get();
 
     const detail::PluginPtr &Plugin = MQueue->getPlugin();
@@ -3165,6 +3179,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     return PI_SUCCESS;
   }
   case CG::CGTYPE::SemaphoreSignal: {
+    assert(MQueue && "Device queue must be present for semaphore signal command");
     CGSemaphoreSignal *SemSignal = (CGSemaphoreSignal *)MCommandGroup.get();
 
     const detail::PluginPtr &Plugin = MQueue->getPlugin();

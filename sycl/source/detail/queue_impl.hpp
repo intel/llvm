@@ -670,9 +670,9 @@ public:
     MExceptions.PushBack(ExceptionPtr);
   }
 
-  ThreadPool &getThreadPool() {
-    return GlobalHandler::instance().getHostTaskThreadPool();
-  }
+  // ThreadPool &getThreadPool() {
+  //   return GlobalHandler::instance().getHostTaskThreadPool();
+  // }
 
   /// Gets the native handle of the SYCL queue.
   ///
