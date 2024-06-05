@@ -77,7 +77,6 @@ template <typename AllocT> auto *local_mem() {
   return As;
 }
 
-namespace detail {
 enum memcpy_direction {
   host_to_host,
   host_to_device,
@@ -85,7 +84,6 @@ enum memcpy_direction {
   device_to_device,
   automatic
 };
-} // namespace detail
 
 enum class memory_region {
   global = 0, // device global memory
@@ -153,8 +151,8 @@ struct memcpy_parameter {
   data_wrapper from{};
   data_wrapper to{};
   sycl::range<3> size{};
-  syclcompat::detail::memcpy_direction direction{
-      syclcompat::detail::memcpy_direction::automatic};
+  syclcompat::memcpy_direction direction{
+      syclcompat::memcpy_direction::automatic};
 };
 } // namespace experimental
 
