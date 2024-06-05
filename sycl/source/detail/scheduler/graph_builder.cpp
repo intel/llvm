@@ -59,6 +59,12 @@ static ContextImplPtr GetContext(const QueueImplPtr& Queue)
   return Queue ? Queue->getContextImplPtr() : nullptr;
 }
 
+bool MemObjRecord::isSameContext(const QueueImplPtr& Queue) const
+{
+  // Covers case for host usage (nullptr == nullptr) and existing device contexts comparison.
+  return MCurContext == (Queue ? Queue->getContextImplPtr() : nullptr);
+}
+
 /// Checks if the required access mode is allowed under the current one.
 static bool isAccessModeAllowed(access::mode Required, access::mode Current) {
   switch (Current) {

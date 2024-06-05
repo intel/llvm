@@ -111,7 +111,7 @@ public:
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MSupportsDiscardingPiEvents(MDiscardEvents && MIsInorder)),
+        MSupportsDiscardingPiEvents(MDiscardEvents && MIsInorder),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
     if (has_property<property::queue::enable_profiling>()) {
@@ -285,7 +285,7 @@ public:
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MSupportsDiscardingPiEvents(MDiscardEvents && MIsInorder)),
+        MSupportsDiscardingPiEvents(MDiscardEvents && MIsInorder),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
     queue_impl_interop(PiQueue);
@@ -305,7 +305,7 @@ public:
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MSupportsDiscardingPiEvents(MDiscardEvents && MIsInorder)) {
+        MSupportsDiscardingPiEvents(MDiscardEvents && MIsInorder) {
     queue_impl_interop(PiQueue);
   }
 

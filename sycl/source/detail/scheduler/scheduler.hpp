@@ -218,26 +218,21 @@ public:
   // modified. Used while deciding if copy back needed.
   bool MMemModified = false;
 
-  void updateUsage(ContextImplPtr& NewContext)
-  {
-    MCurContext = NewContext;
-  }
-
-  bool isSameContext(const QueueImplPtr& Queue) const
-  {
-    // Covers case for host usage (nullptr == nullptr) and existing device contexts comparison.
-    return LHS == (Queue ? Queue->getContextImplPtr() : nullptr);
-  }
-
-  bool usedOnDevice( return MCurContext != nullptr; )
-
-protected:
   // The context which has the latest state of the memory object.
   ContextImplPtr MCurContext;
 
   // The mode this object can be accessed with from the host (host_accessor).
   // Valid only if the current usage is on host.
   access::mode MHostAccess = access::mode::read_write;
+
+  void updateUsage(ContextImplPtr& NewContext)
+  {
+    MCurContext = NewContext;
+  }
+
+  bool isSameContext(const QueueImplPtr& Queue) const;
+
+  bool usedOnDevice() { return MCurContext != nullptr; }
 };
 
 /// DPC++ graph scheduler class.
