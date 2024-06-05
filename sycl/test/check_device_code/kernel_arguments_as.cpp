@@ -31,34 +31,21 @@
 
 using namespace sycl;
 
-template <typename Acc> struct AccWrapper { Acc accessor; };
+template <typename Acc> struct AccWrapper {
+  Acc accessor;
+};
 
-int main() {
-
-  sycl::queue queue;
-  int array[10] = {0};
-  {
-    sycl::buffer<int, 1> buf((int *)array, sycl::range<1>(10),
-                             {sycl::property::buffer::use_host_ptr()});
-    queue.submit([&](sycl::handler &cgh) {
-      auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+SYCL_EXTERNAL void check_address_space(
+    AccWrapper<sycl::accessor<int, 1, sycl::access::mode::read_write>>
+        acc_wrapped,
 #ifdef USE_DEPRECATED_LOCAL_ACC
-      sycl::accessor<int, 1, sycl::access::mode::read_write,
-                     sycl::access::target::local>
-          local_acc(sycl::range<1>(10), cgh);
+    AccWrapper<sycl::accessor<int, 1, sycl::access::mode::read_write,
+                              sycl::access::target::local>>
+        local_acc_wrapped,
 #else
-      sycl::local_accessor<int, 1> local_acc(sycl::range<1>(10), cgh);
+    AccWrapper<sycl::local_accessor<int, 1>> local_acc_wrapped,
 #endif // USE_DEPRECATED_LOCAL_ACC
-      auto acc_wrapped = AccWrapper<decltype(acc)>{acc};
-      auto local_acc_wrapped = AccWrapper<decltype(local_acc)>{local_acc};
-      cgh.parallel_for<class check_adress_space>(
-          sycl::range<1>(buf.size()), [=](sycl::item<1> it) {
-            auto idx = it.get_linear_id();
-            acc_wrapped.accessor[idx] = local_acc_wrapped.accessor[idx];
-          });
-    });
-    queue.wait();
-  }
-
-  return 0;
+    sycl::item<1> it) {
+  auto idx = it.get_linear_id();
+  acc_wrapped.accessor[idx] = local_acc_wrapped.accessor[idx];
 }

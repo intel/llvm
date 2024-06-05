@@ -9,10 +9,9 @@
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
-queue q;
 
-// CHECK-ASPECTS: define weak_odr dso_local spir_kernel void @{{.*}}kernel_name_1{{.*}} !sycl_declared_aspects ![[ASPECTS1:[0-9]+]] {{.*}}
-// CHECK-SRCLOC: define weak_odr dso_local spir_kernel void @{{.*}}kernel_name_1{{.*}} !srcloc ![[SRCLOC1:[0-9]+]] {{.*}}
+// CHECK-ASPECTS: define dso_local spir_func void @{{.*}}kernel_name_1{{.*}} !sycl_declared_aspects ![[ASPECTS1:[0-9]+]] {{.*}}
+// CHECK-SRCLOC: define dso_local spir_func void @{{.*}}kernel_name_1{{.*}} !srcloc ![[SRCLOC1:[0-9]+]] {{.*}}
 
 // CHECK-ASPECTS: define {{.*}}spir_func void @{{.*}}func1{{.*}} !sycl_declared_aspects ![[ASPECTS1]]
 // CHECK-ASPECTS-SAME: !sycl_used_aspects ![[ASPECTS1]]
@@ -45,28 +44,18 @@ constexpr sycl::aspect getAspect() { return sycl::aspect::cpu; }
 // CHECK-SRCLOC: define {{.*}}spir_func void @{{.*}}func6{{.*}} !srcloc ![[SRCLOC7:[0-9]+]]
 [[sycl::device_has(getAspect())]] void func6() {}
 
-class KernelFunctor {
-public:
-  [[sycl::device_has(sycl::aspect::cpu)]] void operator()() const {
-    func1();
-    func2();
-    func3();
-    func4<sycl::aspect::host>();
-    func5();
-    func6();
-  }
-};
-
-void foo() {
-  q.submit([&](handler &h) {
-    KernelFunctor f1;
-    h.single_task<class kernel_name_1>(f1);
-    // CHECK-ASPECTS: define weak_odr dso_local spir_kernel void @{{.*}}kernel_name_2{{.*}} !sycl_declared_aspects ![[ASPECTS4:[0-9]+]]
-    // CHECK-SRCLOC: define weak_odr dso_local spir_kernel void @{{.*}}kernel_name_2{{.*}} !srcloc ![[SRCLOC8:[0-9]+]] {{.*}}
-    h.single_task<class kernel_name_2>(
-        []() [[sycl::device_has(sycl::aspect::gpu)]] {});
-  });
+SYCL_EXTERNAL [[sycl::device_has(sycl::aspect::cpu)]] void kernel_name_1() {
+  func1();
+  func2();
+  func3();
+  func4<sycl::aspect::host>();
+  func5();
+  func6();
 }
+
+// CHECK-ASPECTS: define dso_local spir_func void @{{.*}}kernel_name_2{{.*}} !sycl_declared_aspects ![[ASPECTS4:[0-9]+]]
+// CHECK-SRCLOC: define dso_local spir_func void @{{.*}}kernel_name_2{{.*}} !srcloc ![[SRCLOC8:[0-9]+]] {{.*}}
+SYCL_EXTERNAL [[sycl::device_has(sycl::aspect::gpu)]] void kernel_name_2() {}
 
 // CHECK-ASPECTS-DAG: [[ASPECTS1]] = !{i32 1}
 // CHECK-SRCLOC-DAG: [[SRCLOC1]] = !{i32 {{[0-9]+}}}
