@@ -14,6 +14,9 @@
 
 // Currently the feature isn't supported on FPGA.
 // UNSUPPORTED: accelerator
+
+// https://github.com/intel/llvm/issues/13790
+// UNSUPPORTED: opencl && cpu
 #include "bfloat16_builtins.hpp"
 
 int main() {
