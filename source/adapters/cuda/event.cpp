@@ -176,7 +176,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
   case UR_EVENT_INFO_CONTEXT:
     return ReturnValue(hEvent->getContext());
   default:
-    detail::ur::die("Event info request not implemented");
+    break;
   }
 
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -207,8 +207,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
   default:
     break;
   }
-  detail::ur::die("Event Profiling info request not implemented");
-  return {};
+  return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(ur_event_handle_t,
@@ -221,7 +220,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(ur_event_handle_t,
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
   try {
-    ScopedContext Active(phEventWaitList[0]->getContext());
+    ScopedContext Active(phEventWaitList[0]->getQueue()->getDevice());
 
     auto WaitFunc = [](ur_event_handle_t Event) -> ur_result_t {
       UR_ASSERT(Event, UR_RESULT_ERROR_INVALID_EVENT);
@@ -256,7 +255,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
     std::unique_ptr<ur_event_handle_t_> event_ptr{hEvent};
     ur_result_t Result = UR_RESULT_ERROR_INVALID_EVENT;
     try {
-      ScopedContext Active(hEvent->getContext());
       Result = hEvent->release();
     } catch (...) {
       Result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
@@ -281,8 +279,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
 
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
-  *phEvent = ur_event_handle_t_::makeWithNative(
-      hContext, reinterpret_cast<CUevent>(hNativeEvent));
+  try {
+    EventPtr =
+        std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeWithNative(
+            hContext, reinterpret_cast<CUevent>(hNativeEvent)));
+  } catch (const std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  *phEvent = EventPtr.release();
 
   return UR_RESULT_SUCCESS;
 }
