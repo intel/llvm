@@ -150,7 +150,7 @@ ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t,
+ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
                                ur_device_handle_t Device,
                                ur_usm_host_mem_flags_t,
                                ur_usm_device_mem_flags_t, size_t Size,
@@ -159,6 +159,12 @@ ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t,
     ScopedContext Active(Device);
     UR_CHECK_ERROR(cuMemAllocManaged((CUdeviceptr *)ResultPtr, Size,
                                      CU_MEM_ATTACH_GLOBAL));
+    for (const auto &device : Context->getDevices()) {
+      if (getAttribute(device, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
+        UR_CHECK_ERROR(cuMemAdvise((CUdeviceptr)*ResultPtr, Size,
+                                   CU_MEM_ADVISE_SET_ACCESSED_BY, device->get()));
+      }
+    }
   } catch (ur_result_t Err) {
     return Err;
   }
