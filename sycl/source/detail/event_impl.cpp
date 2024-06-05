@@ -149,15 +149,16 @@ event_impl::event_impl(sycl::detail::pi::PiEvent Event,
 }
 
 event_impl::event_impl(const QueueImplPtr &Queue) {
-  this->setContextImpl(Queue->getContextImplPtr());
+  // Queue == nullptr means that it is a host task event
+  this->setContextImpl(getContext(Queue));
   this->associateWithQueue(Queue);
 }
 
 void event_impl::associateWithQueue(const QueueImplPtr &Queue) {
   MQueue = Queue;
-  MIsProfilingEnabled = Queue->MIsProfilingEnabled;
+  MIsProfilingEnabled = Queue && Queue->MIsProfilingEnabled;
   MFallbackProfiling = MIsProfilingEnabled && Queue->isProfilingFallback();
-  MState.store(HES_Complete);
+  MState.store(Queue ? HES_Complete : HES_NotComplete);
 }
 
 void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
@@ -402,8 +403,9 @@ event_impl::get_backend_info<info::platform::version>() const {
         ->get_platform()
         .get_info<info::platform::version>();
   }
-  return ""; // If the queue has been released, no platform will be associated
-             // so return empty string
+  // If the queue has been released, no platform will be associated
+  // so return empty string.
+  return ""; 
 }
 
 template <>
