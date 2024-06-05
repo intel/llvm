@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/builtins.hpp>            // for ceil, cos, exp, exp10, exp2
+#include <sycl/builtins_utils_vec.hpp>  // For simplify_if_swizzle, is_swizzle
 #include <sycl/detail/memcpy.hpp>       // sycl::detail::memcpy
 #include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16, bfloat16ToBits
 #include <sycl/marray.hpp>              // for marray
@@ -30,6 +31,15 @@ uint32_t to_uint32_t(sycl::marray<bfloat16, N> x, size_t start) {
 }
 } // namespace detail
 
+// aliases for is_vec_or_swizzle, num_elements
+template <typename T>
+constexpr bool is_vec_or_swizzle_v = sycl::detail::is_vec_or_swizzle_v<T>;
+
+template <typename T>
+constexpr int num_elements_v = sycl::detail::num_elements<T>::value;
+
+/******************* isnan ********************/
+
 // According to bfloat16 format, NAN value's exponent field is 0xFF and
 // significand has non-zero bits.
 template <typename T>
@@ -46,13 +56,19 @@ template <size_t N> sycl::marray<bool, N> isnan(sycl::marray<bfloat16, N> x) {
   return res;
 }
 
-template <int N> sycl::vec<bool, N> isnan(sycl::vec<bfloat16, N> x) {
-  sycl::vec<bool, N> res;
+// Overload for BF16 vec and swizzles.
+template <typename T, int N = num_elements_v<T>>
+std::enable_if_t<is_vec_or_swizzle_v<T>, sycl::vec<int16_t, N>> isnan(T x) {
+  sycl::vec<int16_t, N> res;
   for (size_t i = 0; i < N; i++) {
-    res[i] = isnan(x[i]);
+    // The result of isnan is 0 or 1 but SPEC requires
+    // isnan() of vec/swizzle to return -1 or 0.
+    res[i] = isnan(x[i]) ? -1 : 0;
   }
   return res;
 }
+
+/******************* fabs ********************/
 
 template <typename T>
 std::enable_if_t<std::is_same_v<T, bfloat16>, T> fabs(T x) {
@@ -97,13 +113,17 @@ sycl::marray<bfloat16, N> fabs(sycl::marray<bfloat16, N> x) {
   return res;
 }
 
-template <int N> sycl::vec<bfloat16, N> fabs(sycl::vec<bfloat16, N> x) {
+// Overload for BF16 vec and swizzles.
+template <typename T, int N = num_elements_v<T>>
+std::enable_if_t<is_vec_or_swizzle_v<T>, sycl::vec<bfloat16, N>> fabs(T x) {
   sycl::vec<bfloat16, N> res;
   for (size_t i = 0; i < N; i++) {
     res[i] = fabs(x[i]);
   }
   return res;
 }
+
+/******************* fmin ********************/
 
 template <typename T>
 std::enable_if_t<std::is_same_v<T, bfloat16>, T> fmin(T x, T y) {
@@ -172,6 +192,21 @@ sycl::vec<bfloat16, N> fmin(sycl::vec<bfloat16, N> x,
   return res;
 }
 
+// Overload for different combination of BF16 vec and swizzles.
+template <typename T1, typename T2, int N1 = num_elements_v<T1>,
+          int N2 = num_elements_v<T2>>
+std::enable_if_t<is_vec_or_swizzle_v<T1> && is_vec_or_swizzle_v<T2> && N1 == N2,
+                 sycl::vec<bfloat16, N1>>
+fmin(T1 x, T2 y) {
+  sycl::vec<bfloat16, N1> res;
+  for (size_t i = 0; i < N1; i++) {
+    res[i] = fmin(x[i], y[i]);
+  }
+  return res;
+}
+
+/******************* fmax ********************/
+
 template <typename T>
 std::enable_if_t<std::is_same_v<T, bfloat16>, T> fmax(T x, T y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
@@ -228,15 +263,20 @@ sycl::marray<bfloat16, N> fmax(sycl::marray<bfloat16, N> x,
   return res;
 }
 
-template <int N>
-sycl::vec<bfloat16, N> fmax(sycl::vec<bfloat16, N> x,
-                            sycl::vec<bfloat16, N> y) {
-  sycl::vec<bfloat16, N> res;
-  for (size_t i = 0; i < N; i++) {
+// Overload for different combination of BF16 vec and swizzles.
+template <typename T1, typename T2, int N1 = num_elements_v<T1>,
+          int N2 = num_elements_v<T2>>
+std::enable_if_t<is_vec_or_swizzle_v<T1> && is_vec_or_swizzle_v<T2> && N1 == N2,
+                 sycl::vec<bfloat16, N1>>
+fmax(T1 x, T2 y) {
+  sycl::vec<bfloat16, N1> res;
+  for (size_t i = 0; i < N1; i++) {
     res[i] = fmax(x[i], y[i]);
   }
   return res;
 }
+
+/******************* fma *********************/
 
 template <typename T>
 std::enable_if_t<std::is_same_v<T, bfloat16>, T> fma(T x, T y, T z) {
@@ -284,15 +324,21 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
   return res;
 }
 
-template <int N>
-sycl::vec<bfloat16, N> fma(sycl::vec<bfloat16, N> x, sycl::vec<bfloat16, N> y,
-                           sycl::vec<bfloat16, N> z) {
-  sycl::vec<bfloat16, N> res;
-  for (size_t i = 0; i < N; i++) {
+// Overload for different combination of BF16 vec and swizzles.
+template <typename T1, typename T2, typename T3, int N1 = num_elements_v<T1>,
+          int N2 = num_elements_v<T2>, int N3 = num_elements_v<T3>>
+std::enable_if_t<is_vec_or_swizzle_v<T1> && is_vec_or_swizzle_v<T2> &&
+                     is_vec_or_swizzle_v<T3> && N1 == N2 && N2 == N3,
+                 sycl::vec<bfloat16, N1>>
+fma(T1 x, T2 y, T3 z) {
+  sycl::vec<bfloat16, N1> res;
+  for (size_t i = 0; i < N1; i++) {
     res[i] = fma(x[i], y[i], z[i]);
   }
   return res;
 }
+
+/******************* unary math operations ********************/
 
 #define BFLOAT16_MATH_FP32_WRAPPERS(op)                                        \
   template <typename T>                                                        \
@@ -311,7 +357,9 @@ sycl::vec<bfloat16, N> fma(sycl::vec<bfloat16, N> x, sycl::vec<bfloat16, N> y,
   }
 
 #define BFLOAT16_MATH_FP32_WRAPPERS_VEC(op)                                    \
-  template <int N> sycl::vec<bfloat16, N> op(sycl::vec<bfloat16, N> x) {       \
+  /* Overload for BF16 vec and swizzles. */                                    \
+  template <typename T, int N = num_elements_v<T>>                             \
+  std::enable_if_t<is_vec_or_swizzle_v<T>, sycl::vec<bfloat16, N>> op(T x) {   \
     sycl::vec<bfloat16, N> res;                                                \
     for (size_t i = 0; i < N; i++) {                                           \
       res[i] = op(x[i]);                                                       \
