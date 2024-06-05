@@ -77,6 +77,7 @@ template <typename AllocT> auto *local_mem() {
   return As;
 }
 
+namespace experimental {
 enum memcpy_direction {
   host_to_host,
   host_to_device,
@@ -84,6 +85,7 @@ enum memcpy_direction {
   device_to_device,
   automatic
 };
+}
 
 enum class memory_region {
   global = 0, // device global memory
@@ -151,8 +153,8 @@ struct memcpy_parameter {
   data_wrapper from{};
   data_wrapper to{};
   sycl::range<3> size{};
-  syclcompat::memcpy_direction direction{
-      syclcompat::memcpy_direction::automatic};
+  syclcompat::experimental::memcpy_direction direction{
+      syclcompat::experimental::memcpy_direction::automatic};
 };
 } // namespace experimental
 
@@ -297,21 +299,16 @@ static pointer_access_attribute get_pointer_attribute(sycl::queue q,
   }
 }
 
-static memcpy_direction deduce_memcpy_direction(sycl::queue q, void *to_ptr,
-                                                const void *from_ptr) {
+static experimental::memcpy_direction
+deduce_memcpy_direction(sycl::queue q, void *to_ptr, const void *from_ptr) {
   // table[to_attribute][from_attribute]
+  using namespace experimental; // for memcpy_direction
   static const memcpy_direction
       direction_table[static_cast<unsigned>(pointer_access_attribute::end)]
                      [static_cast<unsigned>(pointer_access_attribute::end)] = {
-                         {memcpy_direction::host_to_host,
-                          memcpy_direction::device_to_host,
-                          memcpy_direction::host_to_host},
-                         {memcpy_direction::host_to_device,
-                          memcpy_direction::device_to_device,
-                          memcpy_direction::device_to_device},
-                         {memcpy_direction::host_to_host,
-                          memcpy_direction::device_to_device,
-                          memcpy_direction::device_to_device}};
+                         {host_to_host, device_to_host, host_to_host},
+                         {host_to_device, device_to_device, device_to_device},
+                         {host_to_host, device_to_device, device_to_device}};
   return direction_table[static_cast<unsigned>(get_pointer_attribute(
       q, to_ptr))][static_cast<unsigned>(get_pointer_attribute(q, from_ptr))];
 }
@@ -378,6 +375,7 @@ memcpy(sycl::queue q, void *to_ptr, const void *from_ptr,
     return {memcpy(q, to_surface, from_surface, to_slice * size.get(2),
                    dep_events)};
   }
+  using namespace experimental; // for memcpy_direction
   memcpy_direction direction = deduce_memcpy_direction(q, to_ptr, from_ptr);
   size_t size_slice = size.get(1) * size.get(0);
   switch (direction) {

@@ -509,8 +509,16 @@ The `syclcompat::experimental` namespace contains currently unsupported `memcpy`
 
 ```cpp
 namespace syclcompat {
-// Currently unsupported experimental memcpy_parameter API:
 namespace experimental {
+// Forward declarations for types relating to unsupported memcpy_parameter API:
+
+enum memcpy_direction {
+  host_to_host,
+  host_to_device,
+  device_to_host,
+  device_to_device,
+  automatic
+};
 
 #ifdef SYCL_EXT_ONEAPI_BINDLESS_IMAGES
 class image_mem_wrapper;
