@@ -165,7 +165,7 @@ protected:
   };
 };
 
-#ifdef WIN32
+#ifdef _WIN32
 // Disabled on Windows due to flaky behavior
 // https://github.com/intel/llvm/issues/14060
 TEST_F(DependsOnTests, DISABLED_EnqueueNoMemObjTwoHostTasks) {
