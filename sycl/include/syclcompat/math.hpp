@@ -738,16 +738,6 @@ using dot_product_acc_t =
     std::conditional_t<std::is_unsigned_v<T1> && std::is_unsigned_v<T2>,
                        uint32_t, int32_t>;
 
-/// Ensures dot products (dp4a, dp2a_lo, dp2a_hi) only accept int and unsigned
-/// ints (int32_t, uint32_t)
-/// \tparam T1 First operand datatype
-/// \tparam T2 Second operand datatype
-template <typename T1, typename T2>
-using dot_product_return_type = std::enable_if_t<
-    (std::is_same_v<T1, int32_t> || std::is_same_v<T1, uint32_t>)&&(
-        std::is_same_v<T2, int32_t> || std::is_same_v<T2, uint32_t>),
-    dot_product_acc_t<T1, T2>>;
-
 namespace detail {
 
 template <typename T> sycl::vec<T, 4> extract_and_sign_or_zero_extend4(T val) {
@@ -763,6 +753,11 @@ template <typename T> sycl::vec<T, 2> extract_and_sign_or_zero_extend2(T val) {
           std::conditional_t<std::is_signed_v<T>, int16_t, uint16_t>, 2>>()
       .template convert<T>();
 }
+
+template <typename T>
+constexpr bool is_int32_type =
+    std::is_same_v<T, int32_t> || std::is_same_v<T, uint32_t>;
+
 } // namespace detail
 
 /// Two-way dot product-accumulate. Calculate and return integer_vector2(
@@ -777,8 +772,10 @@ template <typename T> sycl::vec<T, 2> extract_and_sign_or_zero_extend2(T val) {
 /// \return Two-way 16-bit to 8-bit dot product which is accumulated in 32-bit
 /// result.
 template <typename T1, typename T2>
-inline dot_product_return_type<T1, T2> dp2a_lo(T1 a, T2 b,
-                                               dot_product_acc_t<T1, T2> c) {
+inline dot_product_acc_t<T1, T2> dp2a_lo(T1 a, T2 b,
+                                         dot_product_acc_t<T1, T2> c) {
+  static_assert(detail::is_int32_type<T1> && detail::is_int32_type<T2>,
+                "[SYCLcompat] dp2a_lo expects 32-bit integers as operands.");
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
     defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 610
   return __dp2a_lo(a, b, c);
@@ -804,8 +801,10 @@ inline dot_product_return_type<T1, T2> dp2a_lo(T1 a, T2 b,
 /// \return Two-way 16-bit to 8-bit dot product which is accumulated in 32-bit
 /// result.
 template <typename T1, typename T2>
-inline dot_product_return_type<T1, T2> dp2a_hi(T1 a, T2 b,
-                                               dot_product_acc_t<T1, T2> c) {
+inline dot_product_acc_t<T1, T2> dp2a_hi(T1 a, T2 b,
+                                         dot_product_acc_t<T1, T2> c) {
+  static_assert(detail::is_int32_type<T1> && detail::is_int32_type<T2>,
+                "[SYCLcompat] dp2a_hi expects 32-bit integers as operands.");
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
     defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 610
   return __dp2a_hi(a, b, c);
@@ -830,8 +829,9 @@ inline dot_product_return_type<T1, T2> dp2a_hi(T1 a, T2 b,
 /// uint32_t else has type int32_t.
 /// \return Four-way byte dot product which is accumulated in 32-bit result.
 template <typename T1, typename T2>
-inline dot_product_return_type<T1, T2> dp4a(T1 a, T2 b,
-                                            dot_product_acc_t<T1, T2> c) {
+inline dot_product_acc_t<T1, T2> dp4a(T1 a, T2 b, dot_product_acc_t<T1, T2> c) {
+  static_assert(detail::is_int32_type<T1> && detail::is_int32_type<T2>,
+                "[SYCLcompat] dp4a expects 32-bit integers as operands.");
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
     defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 610
   return __dp4a(a, b, c);

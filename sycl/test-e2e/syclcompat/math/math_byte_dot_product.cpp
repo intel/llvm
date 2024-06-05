@@ -291,8 +291,7 @@ int main() {
   passed = test<dp2a_hi, uint32_t, uint32_t>() && passed;
 
   passed = test<dp4a, int32_t, int32_t>() && passed;
-  // Ensuring SFINAE works as intended
-  passed = test<dp4a, int, unsigned int>() && passed;
+  passed = test<dp4a, int32_t, uint32_t>() && passed;
   passed = test<dp4a, uint32_t, int32_t>() && passed;
   passed = test<dp4a, uint32_t, uint32_t>() && passed;
 
