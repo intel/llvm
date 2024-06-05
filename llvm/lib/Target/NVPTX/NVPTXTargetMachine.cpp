@@ -115,7 +115,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeNVPTXTarget() {
   initializeNVPTXCtorDtorLoweringLegacyPass(PR);
   initializeNVPTXLowerAggrCopiesPass(PR);
   initializeNVPTXProxyRegErasurePass(PR);
-  initializeNVPTXDAGToDAGISelPass(PR);
+  initializeNVPTXDAGToDAGISelLegacyPass(PR);
   initializeNVPTXAAWrapperPassPass(PR);
   initializeNVPTXExternalAAWrapperPass(PR);
 
