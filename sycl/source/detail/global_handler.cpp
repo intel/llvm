@@ -291,6 +291,13 @@ void shutdown() {
     return;
 
   Handler->endDeferredRelease();
+
+  // Ensure neither host task is working so that no default context is accessed
+  // upon its release
+  Handler->prepareSchedulerToRelease(true);
+
+  if (Handler->MHostTaskThreadPool.Inst)
+    Handler->MHostTaskThreadPool.Inst->finishAndWait();
 }
 
 #ifdef _WIN32
@@ -313,13 +320,6 @@ void shutdown2() {
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)
     return;
-
-  // Ensure neither host task is working so that no default context is accessed
-  // upon its release
-  Handler->prepareSchedulerToRelease(true);
-
-  if (Handler->MHostTaskThreadPool.Inst)
-    Handler->MHostTaskThreadPool.Inst->finishAndWait();
 
   // If default contexts are requested after the first default contexts have
   // been released there may be a new default context. These must be released
