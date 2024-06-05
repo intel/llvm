@@ -337,7 +337,7 @@ roundToHighestFactorOfGlobalSize(size_t &ThreadsPerBlockInDim,
 
 // Returns whether or not Value is a power of 2
 template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-bool isPowerOf2(const T &Value) {
+bool isPowerOf2(const T Value) {
   return Value && !(Value & (Value - 1));
 }
 
