@@ -21,6 +21,18 @@ int getAttribute(ur_device_handle_t Device, hipDeviceAttribute_t Attribute) {
   return Value;
 }
 
+uint64_t ur_device_handle_t_::getElapsedTime(hipEvent_t ev) const {
+  float Milliseconds = 0.0f;
+
+  // hipEventSynchronize waits till the event is ready for call to
+  // hipEventElapsedTime.
+  UR_CHECK_ERROR(hipEventSynchronize(EvBase));
+  UR_CHECK_ERROR(hipEventSynchronize(ev));
+  UR_CHECK_ERROR(hipEventElapsedTime(&Milliseconds, EvBase, ev));
+
+  return static_cast<uint64_t>(Milliseconds * 1.0e6);
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                                                     ur_device_info_t propName,
                                                     size_t propSize,
@@ -1049,11 +1061,7 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
   if (pDeviceTimestamp) {
     UR_CHECK_ERROR(hipEventCreateWithFlags(&Event, hipEventDefault));
     UR_CHECK_ERROR(hipEventRecord(Event));
-    UR_CHECK_ERROR(hipEventSynchronize(Event));
-    float ElapsedTime = 0.0f;
-    UR_CHECK_ERROR(hipEventElapsedTime(&ElapsedTime,
-                                       ur_platform_handle_t_::EvBase, Event));
-    *pDeviceTimestamp = (uint64_t)(ElapsedTime * (double)1e6);
+    *pDeviceTimestamp = hDevice->getElapsedTime(Event);
   }
 
   if (pHostTimestamp) {
