@@ -1,4 +1,5 @@
 ; This test checks that the -emit-imported-symbols option generates a list of imported symbols
+; Function names were chosen so that no function with a 'inside' in their function name is imported
 ;
 ; RUN: sycl-post-link -symbols -emit-imported-symbols -split=kernel -S < %s -o %t.table
 
@@ -6,7 +7,6 @@
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-SYM-1
 ; RUN: FileCheck %s -input-file=%t_2.sym --check-prefixes CHECK-SYM-2
 
-;; Function names were chosen so that no function with a 'inside' in their function name is imported
 ; RUN: FileCheck %s -input-file=%t_0.prop --check-prefixes CHECK-IMPORTED-SYM-0 --implicit-check-not='inside'
 ; RUN: FileCheck %s -input-file=%t_1.prop --check-prefixes CHECK-IMPORTED-SYM-1 --implicit-check-not='inside'
 ; RUN: FileCheck %s -input-file=%t_2.prop --check-prefixes CHECK-IMPORTED-SYM-2 --implicit-check-not='inside'
