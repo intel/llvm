@@ -32,7 +32,7 @@
 // RUN: %clangxx -std=c++17 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <syclcompat.hpp>
 
 template <typename T, size_t N> constexpr size_t array_size(T (&)[N]) {
