@@ -36,7 +36,7 @@ target triple = "spir-unknown-unknown"
 
 ; CHECK-SPIRV: 5 SpecConstantOp [[AS1]] [[I64ARRC2:[0-9]+]] 124 [[I64ARR]]
 ; CHECK-SPIRV: 5 SpecConstantOp [[AS1]] [[STRUCTC:[0-9]+]] 124 [[STRUCT]]
-; CHECK-SPIRV: 7 SpecConstantOp {{[0-9]+}} [[GEP:[0-9]+]] 70 [[I64ARR]]
+; CHECK-SPIRV: 7 SpecConstantOp {{[0-9]+}} [[GEP:[0-9]+]] 67 [[I64ARR]]
 ; CHECK-SPIRV: 6 ConstantComposite [[ARRAYTY]] [[ARRAY_INIT:[0-9]+]] [[I64ARRC2]] [[STRUCTC]] [[GEP]]
 ; CHECK-SPIRV: 5 Variable {{[0-9]+}} [[ARRAY:[0-9]+]] 5 [[ARRAY_INIT]]
 
@@ -44,7 +44,7 @@ target triple = "spir-unknown-unknown"
 ; CHECK-LLVM: @astr = internal unnamed_addr addrspace(2) constant [7 x i8] c"string\00", align 4
 ; CHECK-LLVM: @i64arr = addrspace(1) constant [3 x i64] [i64 0, i64 1, i64 2]
 ; CHECK-LLVM: @struct = addrspace(1) global %structtype { ptr addrspace(2) @astr, ptr addrspace(1) @i64arr }
-; CHECK-LLVM: @array = addrspace(1) global [3 x ptr addrspace(1)] [ptr addrspace(1) @i64arr, ptr addrspace(1) @struct, ptr addrspace(1) getelementptr inbounds ([3 x i64], ptr addrspace(1) @i64arr, i64 0, i64 1)]
+; CHECK-LLVM: @array = addrspace(1) global [3 x ptr addrspace(1)] [ptr addrspace(1) @i64arr, ptr addrspace(1) @struct, ptr addrspace(1) getelementptr ([3 x i64], ptr addrspace(1) @i64arr, i64 0, i64 1)]
 
 define spir_kernel void @foo() {
   %val = load i32, ptr addrspace(2) @astr, align 4
