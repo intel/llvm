@@ -65,7 +65,7 @@ static bool CurrentCodeLocationValid() {
          (FunctionName && FunctionName[0] != '\0');
 }
 
-static void emitInstrumentationGeneral(uint32_t StreamID, uint64_t InstanceID,
+void emitInstrumentationGeneral(uint32_t StreamID, uint64_t InstanceID,
                                 xpti_td *TraceEvent, uint16_t Type,
                                 const void *Addr) {
   if (!(xptiCheckTraceEnabled(StreamID, Type) && TraceEvent))
@@ -2424,7 +2424,7 @@ pi_int32 enqueueImpCommandBufferKernel(
                   &getMemAllocationFunc](sycl::detail::ArgDesc &Arg,
                                          size_t NextTrueIndex) {
     sycl::detail::SetArgBasedOnType(Plugin, PiKernel, DeviceImageImpl,
-                                    getMemAllocationFunc, Ctx, false, Arg,
+                                    getMemAllocationFunc, Ctx, Arg,
                                     NextTrueIndex);
   };
   // Copy args for modification
@@ -3066,7 +3066,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     // submitted to report exception origin properly.
     copySubmissionCodeLocation();
 
-    getThreadPool().submit<DispatchHostTask>(
+    queue_impl::getThreadPool().submit<DispatchHostTask>(
         DispatchHostTask(this, std::move(ReqToMem)));
 
     MShouldCompleteEventIfPossible = false;

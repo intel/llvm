@@ -33,7 +33,6 @@ class node_impl;
 namespace detail {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-bool CurrentCodeLocationValid();
 void emitInstrumentationGeneral(uint32_t StreamID, uint64_t InstanceID,
                                 xpti_td *TraceEvent, uint16_t Type,
                                 const void *Addr);
@@ -793,7 +792,7 @@ void SetArgBasedOnType(
     const detail::plugin &Plugin, sycl::detail::pi::PiKernel Kernel,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    const sycl::context &Context, bool IsHost, detail::ArgDesc &Arg,
+    const sycl::context &Context, detail::ArgDesc &Arg,
     size_t NextTrueIndex);
 
 void applyFuncOnFilteredArgs(
