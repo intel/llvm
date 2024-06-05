@@ -688,9 +688,21 @@ for sycl_device in config.sycl_devices:
     sg_sizes = set(dev_sg_sizes[0]).intersection(*dev_sg_sizes)
     lit_config.note("SG sizes for {}: {}".format(sycl_device, ", ".join(sg_sizes)))
 
-    lit_config.note("Architectures for {}: {}".format(sycl_device, ", ".join(architectures)))
-    if len(architectures) != 1 or "unknown" in architectures:
+    # Currently, for fpga, the architecture reported by sycl-ls will always
+    # be unknown, as there are currently no architectures specified for fpga
+    # in sycl_ext_oneapi_device_architecture. Skip adding architecture features
+    # in this case.
+    if sycl_device == "opencl:fpga":
         architectures = set()
+    else:
+        lit_config.note("Architectures for {}: {}".format(sycl_device, ", ".join(architectures)))
+        if len(architectures) != 1 or "unknown" in architectures:
+            lit_config.error(
+                "Cannot detect architecture for {}\nstdout:\n{}\nstderr:\n{}".format(
+                    sycl_device, sp.stdout, sp.stderr
+                )
+            )
+            architectures = set()
 
     aspect_features = set("aspect-" + a for a in aspects)
     sg_size_features = set("sg-" + s for s in sg_sizes)

@@ -85,6 +85,8 @@ const char *getArchName(const device &Device) {
       return "unknown";
     }
   } catch (const sycl::exception &) {
+    // Note: device::architecture query is not support on FPGA,
+    // so this function will return "unknown" on FPGA.
     return "unknown";
   }
 }
