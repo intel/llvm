@@ -14,6 +14,7 @@
 #define LLVM_SYCLLOWERIR_MODULE_SPLITTER_H
 
 #include "SYCLDeviceRequirements.h"
+#include "SpecConstants.h"
 
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -49,6 +50,8 @@ enum IRSplitMode {
 // \returns IRSplitMode value if \p S is recognized. Otherwise, std::nullopt is
 // returned.
 std::optional<IRSplitMode> convertStringToSplitMode(StringRef S);
+
+StringRef convertSplitModeToString(IRSplitMode SM);
 
 // A vector that contains all entry point functions in a split module.
 using EntryPointSet = SetVector<Function *>;
@@ -221,6 +224,8 @@ public:
     return *Reqs;
   }
 
+  bool processSpecConstants(SpecConstantsPass::HandlingMode Mode);
+
 #ifndef NDEBUG
   void verifyESIMDProperty() const;
   void dump() const;
@@ -310,7 +315,12 @@ struct ModuleSplitterSettings {
   IRSplitMode Mode;
   bool OutputAssembly = false; // Bitcode or LLVM IR.
   StringRef OutputPrefix;
+  bool DumpSplitModules = false;
+  std::optional<SpecConstantsPass::HandlingMode> SpecConstantMode;
 };
+
+SmallString<64>
+convertSplitterSettingsToString(const ModuleSplitterSettings &S);
 
 /// Parses the output table file from sycl-post-link tool.
 Expected<std::vector<SplitModule>> parseSplitModulesFromFile(StringRef File);

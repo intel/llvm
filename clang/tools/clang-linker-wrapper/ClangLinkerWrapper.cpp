@@ -754,26 +754,19 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
 static Expected<std::vector<module_split::SplitModule>>
 runSYCLSplitLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
                     module_split::IRSplitMode Mode) {
-  std::vector<module_split::SplitModule> SplitModules;
-  if (DryRun) {
-    auto OutputFileOrErr = createOutputFile(
-        sys::path::filename(ExecutableName) + ".sycl.split.image", "bc");
-    if (!OutputFileOrErr)
-      return OutputFileOrErr.takeError();
-
-    StringRef OutputFilePath = *OutputFileOrErr;
-    auto InputFilesStr = llvm::join(InputFiles.begin(), InputFiles.end(), ",");
-    errs() << formatv("sycl-module-split: input: {0}, output: {1}\n",
-                      InputFilesStr, OutputFilePath);
-    SplitModules.emplace_back(OutputFilePath, util::PropertySetRegistry(), "");
-    return SplitModules;
-  }
-
   llvm::module_split::ModuleSplitterSettings Settings;
   Settings.Mode = Mode;
   Settings.OutputPrefix = "";
+  Settings.DumpSplitModules = Args.hasArg(OPT_print_split_modules);
+  if (Args.hasArg(OPT_sycl_spec_const_handling_mode_EQ))
+    Settings.SpecConstantMode = convertStringToSpecConstMode(
+        Args.getLastArgValue(OPT_sycl_spec_const_handling_mode_EQ));
 
+  std::vector<module_split::SplitModule> SplitModules;
   for (StringRef InputFile : InputFiles) {
+    if (DryRun)
+      break;
+
     SMDiagnostic Err;
     LLVMContext C;
     std::unique_ptr<Module> M = parseIRFile(InputFile, Err, C);
@@ -790,7 +783,17 @@ runSYCLSplitLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
                         NewSplitModules.end());
   }
 
-  if (Verbose) {
+  if (Verbose || DryRun) {
+    if (DryRun) {
+      auto OutputFileOrErr = createOutputFile(
+          sys::path::filename(ExecutableName) + ".sycl.split.image", "bc");
+      if (!OutputFileOrErr)
+        return OutputFileOrErr.takeError();
+
+      SplitModules.emplace_back(*OutputFileOrErr, util::PropertySetRegistry(),
+                                "");
+    }
+
     auto InputFilesStr = llvm::join(InputFiles.begin(), InputFiles.end(), ",");
     std::string SplitOutputFilesStr;
     for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
@@ -800,8 +803,10 @@ runSYCLSplitLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
       SplitOutputFilesStr += SplitModules[I].ModuleFilePath;
     }
 
-    errs() << formatv("sycl-module-split: input: {0}, output: {1}\n",
-                      InputFilesStr, SplitOutputFilesStr);
+    errs() << formatv(
+        "sycl-module-split: input: {0}, output: {1}, settings: {2}\n",
+        InputFilesStr, SplitOutputFilesStr,
+        convertSplitterSettingsToString(Settings));
   }
 
   return SplitModules;

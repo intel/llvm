@@ -9,8 +9,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/SpecConstants.h"
-#include "llvm/SYCLLowerIR/Support.h"
-
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
@@ -23,6 +21,7 @@
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/TargetParser/Triple.h"
 
+#include <cassert>
 #include <vector>
 
 #define DEBUG_TYPE "SpecConst"
@@ -111,25 +110,25 @@ StringRef getStringLiteralArg(const CallInst *CI, unsigned ArgNo,
         V = X;
       return isa<AllocaInst>(V);
     };
-    AssertRelease(ValueIsAlloca(TmpPtr), "unexpected instruction type");
+    assert(ValueIsAlloca(TmpPtr) && "unexpected instruction type");
 
     // find the store of the literal address into TmpPtr
     StoreInst *Store = nullptr;
 
     for (User *U : TmpPtr->users()) {
       if (StoreInst *St = dyn_cast<StoreInst>(U)) {
-        AssertRelease(!Store, "single store expected");
+        assert(!Store && "single store expected");
         Store = St;
 #ifndef NDEBUG
         break;
 #endif // NDEBUG
       }
     }
-    AssertRelease(Store, "unexpected spec const IR pattern 0");
+    assert(Store && "unexpected spec const IR pattern 0");
     DelInsts.push_back(Store);
 #ifndef NDEBUG
     // verify there are no intervening stores/calls
-    AssertRelease(L->getParent() == Store->getParent(), "same BB expected");
+    assert(L->getParent() == Store->getParent() && "same BB expected");
 
     for (const Instruction *I = Store->getNextNode(); I; I = I->getNextNode()) {
       if (I == L) {
@@ -137,12 +136,11 @@ StringRef getStringLiteralArg(const CallInst *CI, unsigned ArgNo,
         L = nullptr; // mark as met
         break;
       }
-      AssertRelease(!I->mayHaveSideEffects(),
-                    "unexpected spec const IR pattern 1");
+      assert(!I->mayHaveSideEffects() && "unexpected spec const IR pattern 1");
     }
-    AssertRelease(!L, "load not met after the store");
+    assert(!L && "load not met after the store");
 #endif // NDEBUG
-    AssertRelease(Store, "store not met");
+    assert(Store && "store not met");
     V = Store->getValueOperand()->stripPointerCasts();
   }
   const Constant *Init = cast<GlobalVariable>(V)->getInitializer();
@@ -1087,6 +1085,34 @@ bool SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
   }
 
   return true;
+}
+
+std::optional<SpecConstantsPass::HandlingMode>
+llvm::convertStringToSpecConstMode(StringRef S) {
+  static const StringMap<SpecConstantsPass::HandlingMode> Values = {
+      {"default_values", SpecConstantsPass::HandlingMode::default_values},
+      {"emulation", SpecConstantsPass::HandlingMode::emulation},
+      {"native", SpecConstantsPass::HandlingMode::native}};
+
+  auto It = Values.find(S);
+  if (It == Values.end())
+    return std::nullopt;
+
+  return It->second;
+}
+
+StringRef
+llvm::convertSpecConstModeToString(llvm::SpecConstantsPass::HandlingMode HM) {
+  static const DenseMap<SpecConstantsPass::HandlingMode, StringRef> Values = {
+      {SpecConstantsPass::HandlingMode::default_values, "default_values"},
+      {SpecConstantsPass::HandlingMode::emulation, "emulation"},
+      {SpecConstantsPass::HandlingMode::native, "native"}};
+
+  auto It = Values.find(HM);
+  if (It == Values.end())
+    llvm_unreachable("HandlingMode value is unhandled!");
+
+  return It->second;
 }
 
 bool llvm::checkModuleContainsSpecConsts(const Module &M) {

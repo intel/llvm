@@ -178,6 +178,14 @@ def sycl_module_split_mode_EQ :
   Flags<[WrapperOnlyOption]>,
   HelpText<"Option that turns on split library with the given split mode">;
 
+def print_split_modules : Flag<["--"], "print-split-modules">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Print the split module IRs for debug only purposes.">;
+
+def sycl_spec_const_handling_mode_EQ : Joined<["--", "-"], "sycl-spec-const-handling-mode=">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Handling mode that is being passed to SYCL Module splitting library.">;
+
 // Special option to pass in llvm-spirv options
 def llvm_spirv_options_EQ : Joined<["--", "-"], "llvm-spirv-options=">,
   Flags<[WrapperOnlyOption]>,

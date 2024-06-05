@@ -76,6 +76,11 @@ private:
   HandlingMode Mode;
 };
 
+std::optional<SpecConstantsPass::HandlingMode>
+convertStringToSpecConstMode(StringRef S);
+
+StringRef convertSpecConstModeToString(SpecConstantsPass::HandlingMode HM);
+
 bool checkModuleContainsSpecConsts(const Module &M);
 
 } // namespace llvm

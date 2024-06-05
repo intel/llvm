@@ -29,6 +29,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
@@ -458,6 +459,20 @@ std::optional<IRSplitMode> convertStringToSplitMode(StringRef S) {
   return It->second;
 }
 
+StringRef convertSplitModeToString(IRSplitMode SM) {
+  static const DenseMap<IRSplitMode, StringRef> Values = {
+      {SPLIT_PER_KERNEL, "kernel"},
+      {SPLIT_PER_TU, "source"},
+      {SPLIT_AUTO, "auto"},
+      {SPLIT_NONE, "none"}};
+
+  auto It = Values.find(SM);
+  if (It == Values.end())
+    llvm_unreachable("SplitMode value is unhandled!");
+
+  return It->second;
+}
+
 bool isESIMDFunction(const Function &F) {
   return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
 }
@@ -465,6 +480,23 @@ bool isESIMDFunction(const Function &F) {
 cl::OptionCategory &getModuleSplitCategory() {
   static cl::OptionCategory ModuleSplitCategory{"Module Split options"};
   return ModuleSplitCategory;
+}
+
+bool ModuleDesc::processSpecConstants(SpecConstantsPass::HandlingMode Mode) {
+  Props.SpecConstsMet = false;
+  if (Mode == SpecConstantsPass::HandlingMode::default_values)
+    return false;
+
+  Props.SpecConstsMet = false;
+  ModulePassManager MPM;
+  ModuleAnalysisManager MAM;
+  SpecConstantsPass SCP(Mode);
+  MAM.registerPass([] { return PassInstrumentationAnalysis(); });
+  MPM.addPass(std::move(SCP));
+
+  PreservedAnalyses Res = MPM.run(*M, MAM);
+  Props.SpecConstsMet = !Res.areAllPreserved();
+  return Props.SpecConstsMet;
 }
 
 Error ModuleSplitterBase::verifyNoCrossModuleDeviceGlobalUsage() {
@@ -1355,7 +1387,7 @@ Expected<std::vector<SplitModule>> parseSplitModulesFromFile(StringRef File) {
 
 Expected<std::vector<SplitModule>>
 splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
-  ModuleDesc MD = std::move(M); // makeModuleDesc() ?
+  ModuleDesc MD = std::move(M);
   // FIXME: false arguments are temporary for now.
   auto Splitter = getDeviceCodeSplitter(std::move(MD), Settings.Mode,
                                         /*IROutputOnly=*/false,
@@ -1368,6 +1400,15 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
     MD2.fixupLinkageOfDirectInvokeSimdTargets();
 
     std::string OutIRFileName = (Settings.OutputPrefix + "_" + Twine(ID)).str();
+    if (Settings.DumpSplitModules) {
+      errs() << formatv("Split Module. Index: {0}", ID);
+      MD2.getModule().dump();
+    }
+
+    auto SCMode = Settings.SpecConstantMode;
+    if (SCMode.has_value())
+      MD2.processSpecConstants(SCMode.value());
+
     auto SplittedImageOrErr =
         saveModuleDesc(MD2, OutIRFileName, Settings.OutputAssembly);
     if (!SplittedImageOrErr)
@@ -1411,6 +1452,18 @@ bool canBeImportedFunction(const Function &F) {
     free(NameStr);
   }
   return ReturnValue;
+}
+
+SmallString<64>
+convertSplitterSettingsToString(const ModuleSplitterSettings &S) {
+  StringRef SCMStr = S.SpecConstantMode
+                         ? convertSpecConstModeToString(*S.SpecConstantMode)
+                         : "";
+  return formatv("split_mode: {0}, output_assembly: {1}, output_prefix: {2}, "
+                 "dump_split_modules: {3}, spec_const_mode: {4}",
+                 convertSplitModeToString(S.Mode), S.OutputAssembly,
+                 S.OutputPrefix, S.DumpSplitModules, SCMStr)
+      .sstr<64>();
 }
 
 } // namespace module_split

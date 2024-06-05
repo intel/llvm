@@ -463,27 +463,6 @@ module_split::ModuleDesc link(module_split::ModuleDesc &&MD1,
   return Res;
 }
 
-bool processSpecConstants(module_split::ModuleDesc &MD) {
-  MD.Props.SpecConstsMet = false;
-
-  if (SpecConstLower.getNumOccurrences() == 0)
-    return false;
-
-  ModulePassManager RunSpecConst;
-  ModuleAnalysisManager MAM;
-  SpecConstantsPass SCP(SpecConstLower == SC_NATIVE_MODE
-                            ? SpecConstantsPass::HandlingMode::native
-                            : SpecConstantsPass::HandlingMode::emulation);
-  // Register required analysis
-  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
-  RunSpecConst.addPass(std::move(SCP));
-
-  // Perform the spec constant intrinsics transformation on resulting module
-  PreservedAnalyses Res = RunSpecConst.run(MD.getModule(), MAM);
-  MD.Props.SpecConstsMet = !Res.areAllPreserved();
-  return MD.Props.SpecConstsMet;
-}
-
 /// Function generates the copy of the given ModuleDesc where all uses of
 /// Specialization Constants are replaced by corresponding default values.
 /// If the Module in MD doesn't contain specialization constants then
@@ -852,7 +831,10 @@ processInputModule(std::unique_ptr<Module> M) {
           MMsWithDefaultSpecConsts.push_back(std::move(*NewMD));
       }
 
-      Modified |= processSpecConstants(MMs[I]);
+      Modified |= MMs[I].processSpecConstants(
+          SpecConstLower == SC_NATIVE_MODE
+              ? SpecConstantsPass::HandlingMode::native
+              : SpecConstantsPass::HandlingMode::emulation);
     }
 
     if (IROutputOnly) {
