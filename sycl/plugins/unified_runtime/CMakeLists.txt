@@ -126,7 +126,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     "https://github.com/cppchedy/unified-runtime.git"
-    68d9b97250f811edce0bc713f67b8001dde2b256
+    4c044e2d500fbd6dede0cdcca9b6fc46171149de
   )
 
   fetch_adapter_source(hip
