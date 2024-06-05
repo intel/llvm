@@ -106,6 +106,7 @@ inline namespace _V1 {
 #define SYCL_EXT_ONEAPI_PRIVATE_ALLOCA 1
 #define SYCL_EXT_ONEAPI_FORWARD_PROGRESS 1
 #define SYCL_EXT_ONEAPI_FREE_FUNCTION_KERNELS 1
+#define SYCL_EXT_ONEAPI_PROD 1
 
 #ifndef __has_include
 #define __has_include(x) 0

@@ -75,11 +75,16 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
         tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
       return()
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -95,23 +100,23 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 4c69624c3f651819210148ad11d0e1e5c9af12de
-  # Merge: ea009363 f04b44c3
+  # commit 755a1e75e24ed55070a0f457d2d8a676521ad4f7
+  # Merge: 6469b890 5593d84c
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon May 13 11:56:12 2024 +0100
-  #     Merge pull request #1532 from AllanZyne/review/yang/local_accessor
-  #     [DeviceSanitizer] Check out-of-bounds on sycl::local_accessor
-  set(UNIFIED_RUNTIME_TAG 4c69624c3f651819210148ad11d0e1e5c9af12de)
+  # Date:   Tue Jun 4 10:34:57 2024 +0100
+  #     Merge pull request #1385 from yingcong-wu/yc/new-api-suggestgroupsize
+  #     Implement urKernelGetSuggestedLocalWorkSize
+  set(UNIFIED_RUNTIME_TAG 755a1e75e24ed55070a0f457d2d8a676521ad4f7)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit 65c39c8a0cc17ebb43686230f91e1c3560764494
-    # Merge: 09467b8d f67122c0
+    # commit 8e47ab5057458c5522ce5d86f7996b2882020220
+    # Merge: b816fe82 3d3aba65
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu May 16 11:11:37 2024 +0100
-    #     Merge pull request #1611 from nrspruit/fix_interop_wg_max_size
-    #     [L0] ensure a valid kernel handle for the device when reading max wg
-    65c39c8a0cc17ebb43686230f91e1c3560764494
+    # Date:   Tue Jun 4 17:28:43 2024 +0100
+    #     Merge pull request #1694 from Bensuo/ewan/L0_update_query
+    #     Set minimum L0 device support to support UR kernel update
+    8e47ab5057458c5522ce5d86f7996b2882020220
   )
 
   fetch_adapter_source(opencl
@@ -121,35 +126,35 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit 1ff111c12ea5bcb7b524dc377237c997fd884b8f
-    # Merge: 50452b75 28393448
+    # commit 0e38fda02ca00aaab28018240eb526da7dd08f56
+    # Merge: f4968809 b7c8ac18
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed May 15 13:30:30 2024 +0100
-    #     Merge pull request #1596 from Bensuo/cuda_bool
-    #     [CUDA] Change `bool` variable type to `unsigned int`
-    1ff111c12ea5bcb7b524dc377237c997fd884b8f
+    # Date:   Tue Jun 4 14:18:15 2024 +0100
+    #     Merge pull request #1552 from mmoadeli/atomic-access-on-host-malloc
+    #     [CUDA] Remove the support of concurrent atomic access to host allocated pinned memory.
+    0e38fda02ca00aaab28018240eb526da7dd08f56
   )
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 09467b8d370f304d24bf093d37ee4554b3db2da0
-    # Merge: 1c1fa634 4cbf2106
+    # commit 399430da9613269a0dc8ddf605415942e0a37e9c
+    # Merge: 39cb69ab 10b04891
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu May 16 11:04:05 2024 +0100
-    #     Merge pull request #1553 from hdelan/get-device-from-queue
-    #     [HIP] Get device from queue, not event
-    09467b8d370f304d24bf093d37ee4554b3db2da0
+    # Date:   Tue Jun 4 17:15:33 2024 +0100
+    #     Merge pull request #1688 from frasercrmck/hip-enqueue-mem-readwritecopy
+    #     [HIP] Various fixes for urEnqueueMemImage(Read|Write|Copy)
+    399430da9613269a0dc8ddf605415942e0a37e9c
   )
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    # commit 50452b75f0d1d7434f5beb4febd642af59a994ff
-    # Merge: 78b8e3e3 fa084d0a
+    # commit 31ee5d536130a6d2ce09661db1bef3bd1cd4d705
+    # Merge: ab151e98 53e43466
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed May 15 10:37:42 2024 +0100
-    #     Merge pull request #1477 from PietroGhg/pietro/reqd_work_group_size
-    #     [NATIVECPU] Support reqd_work_group_size on Native CPU
-    50452b75f0d1d7434f5beb4febd642af59a994ff
+    # Date:   Tue Jun 4 14:10:39 2024 +0100
+    #     Merge pull request #1527 from PietroGhg/pietro/report_atomics
+    #     [NATIVECPU] Report correct memory order capabilities for Native CPU
+    31ee5d536130a6d2ce09661db1bef3bd1cd4d705
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)

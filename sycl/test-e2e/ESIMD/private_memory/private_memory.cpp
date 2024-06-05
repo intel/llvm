@@ -7,17 +7,15 @@
 //===----------------------------------------------------------------------===//
 // UNSUPPORTED: gpu-intel-pvc
 
-// RUN: %{build} -fsycl-device-code-split=per_kernel -I%S/.. -o %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
 // The test verifies that basic ESIMD API works properly with
 // private memory allocated on stack.
 
-#include "esimd_test_utils.hpp"
+#include "../esimd_test_utils.hpp"
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/specialization_id.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;

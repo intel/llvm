@@ -1451,6 +1451,8 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
   bool IsGen = Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
   bool IsJIT =
       Triple.isSPIROrSPIRV() && Triple.getSubArch() == llvm::Triple::NoSubArch;
+  if (IsGen && Args.hasArg(options::OPT_fsycl_fp64_conv_emu))
+    BeArgs.push_back("-ze-fp64-gen-conv-emu");
   if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
     if (!A->getOption().matches(options::OPT_g0))
       BeArgs.push_back("-g");
@@ -1671,7 +1673,7 @@ void SYCLToolChain::AddSYCLIncludeArgs(const clang::driver::Driver &Driver,
                                        ArgStringList &CC1Args) {
   // Add ../include/sycl, ../include/sycl/stl_wrappers and ../include (in that
   // order).
-  SmallString<128> IncludePath(Driver.getInstalledDir());
+  SmallString<128> IncludePath(Driver.Dir);
   llvm::sys::path::append(IncludePath, "..");
   llvm::sys::path::append(IncludePath, "include");
   SmallString<128> SYCLPath(IncludePath);

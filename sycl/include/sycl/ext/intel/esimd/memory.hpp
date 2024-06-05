@@ -542,6 +542,137 @@ gather(const T *p, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
   return gather<T, N, VS>(p, byte_offsets.read(), mask, pass_thru, props);
 }
 
+/// template <int VS = 1, typename OffsetT, typename T, typename
+/// PassThruSimdViewT, int N = PassThruSimdViewT::getSizeX() *
+/// PassThruSimdViewT::getSizeY(),
+///            typename PropertyListT = empty_props_t>
+/// simd <T, N> gather(const T *p,
+///             simd<OffsetT, N / VS> byte_offsets,
+///             simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
+///             PropertyListT props = {});
+/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// and \c N template parameters. Loads ("gathers") elements of the type 'T'
+/// from memory locations addressed by the base pointer \p p and byte offsets \p
+/// byte_offsets, and returns the loaded elements. Access to any element's
+/// memory location can be disabled via the input vector of predicates \p mask.
+/// If mask[i] is unset, then the load from (p + byte_offsets[i]) is skipped and
+/// the corresponding i-th element from \p pass_thru operand is returned.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC.
+/// @param p The base address.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param mask The access mask.
+/// @param pass_thru The vector pass through values.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+/// @return A vector of elements read.
+template <
+    int VS = 1, typename OffsetT, typename T, typename PassThruSimdViewT,
+    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_simd_view_type_v<PassThruSimdViewT>,
+    simd<T, N>>
+gather(const T *p, simd<OffsetT, N / VS> byte_offsets, simd_mask<N / VS> mask,
+       PassThruSimdViewT pass_thru, PropertyListT props = {}) {
+  return gather<T, N, VS>(p, byte_offsets, mask, pass_thru.read(), props);
+}
+
+/// template <int VS = 1, typename OffsetSimdViewT, typename T, typename
+/// PassThruSimdViewT, int N = PassThruSimdViewT::getSizeX() *
+/// PassThruSimdViewT::getSizeY(),
+///            typename PropertyListT = empty_props_t>
+/// simd <T, N> gather(const T *p,
+///             OffsetSimdViewT byte_offsets,
+///             simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
+///             PropertyListT props = {});
+/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// and \c N template parameters. Loads ("gathers") elements of the type 'T'
+/// from memory locations addressed by the base pointer \p p and byte offsets \p
+/// byte_offsets, and returns the loaded elements. Access to any element's
+/// memory location can be disabled via the input vector of predicates \p mask.
+/// If mask[i] is unset, then the load from (p + byte_offsets[i]) is skipped and
+/// the corresponding i-th element from \p pass_thru operand is returned.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC.
+/// @param p The base address.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param mask The access mask.
+/// @param pass_thru The vector pass through values.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+/// @return A vector of elements read.
+template <
+    int VS = 1, typename OffsetSimdViewT, typename T,
+    typename PassThruSimdViewT,
+    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_simd_view_type_v<OffsetSimdViewT> &&
+        detail::is_simd_view_type_v<PassThruSimdViewT>,
+    simd<T, N>>
+gather(const T *p, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
+       PassThruSimdViewT pass_thru, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  return gather<T, N, VS>(p, byte_offsets.read(), mask, pass_thru.read(),
+                          props);
+}
+
+/// template <int VS = 1, typename OffsetSimdViewT, typename T, int N,
+///            typename PropertyListT = empty_props_t>
+/// simd <T, N> gather(const T *p,
+///             OffsetSimdViewT byte_offsets,
+///             simd_mask<N / VS> mask, simd<T, N> pass_thru,
+///             PropertyListT props = {});
+/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// and \c N template parameters. Loads ("gathers") elements of the type 'T'
+/// from memory locations addressed by the base pointer \p p and byte offsets \p
+/// byte_offsets, and returns the loaded elements. Access to any element's
+/// memory location can be disabled via the input vector of predicates \p mask.
+/// If mask[i] is unset, then the load from (p + byte_offsets[i]) is skipped and
+/// the corresponding i-th element from \p pass_thru operand is returned.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC.
+/// @param p The base address.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param mask The access mask.
+/// @param pass_thru The vector pass through values.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+/// @return A vector of elements read.
+template <
+    int VS, typename OffsetSimdViewT, typename T, int N,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_simd_view_type_v<OffsetSimdViewT>,
+    simd<T, N>>
+gather(const T *p, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
+       simd<T, N> pass_thru, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  return gather<T, N, VS>(p, byte_offsets.read(), mask, pass_thru, props);
+}
+
 /// simd <T, N> gather(const T *p,
 ///             OffsetSimdViewT byte_offsets,
 ///             simd_mask<N / VS> mask, PropertyListT props = {}); // (usm-ga-8)
@@ -579,6 +710,40 @@ gather(const T *p, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 
 /// simd <T, N> gather(const T *p,
 ///             OffsetSimdViewT byte_offsets,
+///             simd_mask<N / VS> mask, PropertyListT props = {});
+/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// and \c N template parameters. Loads ("gathers") elements of the type 'T'
+/// from memory locations addressed by the base pointer \p p and byte offsets \p
+/// byte_offsets, and returns the loaded elements. Access to any element's
+/// memory location can be disabled via the input vector of predicates \p mask.
+/// If mask[i] is unset, then the load from (p + byte_offsets[i]) is skipped and
+/// the corresponding i-th element of the returned vector is undefined.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC.
+/// @param p The base address.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+/// @return A vector of elements read. Elements in masked out lanes are
+///   undefined.
+template <
+    int VS = 1, typename OffsetSimdViewT, typename T,
+    int N = OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY() * VS,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_simd_view_type_v<OffsetSimdViewT>,
+    simd<T, N>>
+gather(const T *p, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
+       PropertyListT props = {}) {
+  return gather<T, N, VS>(p, byte_offsets.read(), mask, props);
+}
+
+/// simd <T, N> gather(const T *p,
+///             OffsetSimdViewT byte_offsets,
 ///             PropertyListT props = {});                         // (usm-ga-9)
 /// Loads ("gathers") elements of the type 'T' from memory locations addressed
 /// by the base pointer \p p and byte offsets \p byte_offsets, and returns
@@ -596,6 +761,33 @@ gather(const T *p, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 /// @return A vector of elements read.
 template <
     typename T, int N, int VS = 1, typename OffsetSimdViewT,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_simd_view_type_v<OffsetSimdViewT>,
+    simd<T, N>>
+gather(const T *p, OffsetSimdViewT byte_offsets, PropertyListT props = {}) {
+  return gather<T, N, VS>(p, byte_offsets.read(), props);
+}
+/// simd <T, N> gather(const T *p,
+///             OffsetSimdViewT byte_offsets,
+///             PropertyListT props = {});
+/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// and \c N template parameters.  Loads ("gathers") elements of the type 'T'
+/// from memory locations addressed by the base pointer \p p and byte offsets \p
+/// byte_offsets, and returns the loaded elements.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC.
+/// @param p The base address.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+/// @return A vector of elements read.
+template <
+    int VS = 1, typename OffsetSimdViewT, typename T,
+    int N = OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY() * VS,
     typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
@@ -727,10 +919,46 @@ scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
   }
 }
 
-// template <typename T, int N, int VS = 1, typename OffsetT,
-// 	  typename PropertyListT = empty_properties_t>
-// void scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
-// 	PropertyListT props = {});                               // (usm-sc-2)
+/// template <int VS = 1, typename OffsetT, typename ValuesSimdViewT, typename
+/// T, int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+/// typename PropertyListT = empty_properties_t>
+/// void scatter(T *p, simd<OffsetT, N / VS> byte_offsets, ValuesSimdViewT vals,
+/// simd_mask<N / VS> mask, PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// and \c N template parameters.
+/// Writes ("scatters") elements of the input vector to different memory
+/// locations. Each memory location is base address plus an offset - a
+/// value of the corresponding element in the input offset vector. Access to
+/// any element's memory location can be disabled via the input mask.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param p The base address.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param vals The vector to scatter.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <
+    int VS = 1, typename OffsetT, typename ValuesSimdViewT, typename T,
+    int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_simd_view_type_v<ValuesSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(T *p, simd<OffsetT, N / VS> byte_offsets, ValuesSimdViewT vals,
+        simd_mask<N / VS> mask, PropertyListT props = {}) {
+  scatter<T, N, VS>(p, byte_offsets, vals.read(), mask, props);
+}
+
+/// template <typename T, int N, int VS = 1, typename OffsetT,
+/// 	  typename PropertyListT = empty_properties_t>
+/// void scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
+/// 	PropertyListT props = {});                               // (usm-sc-2)
 ///
 /// Writes ("scatters") elements of the input vector to different memory
 /// locations. Each memory location is base address plus an offset - a
@@ -759,10 +987,84 @@ scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
   scatter<T, N, VS>(p, byte_offsets, vals, Mask, props);
 }
 
-// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
-// 	  typename PropertyListT = empty_properties_t>
-// void scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
-// 	simd_mask<N / VS> mask, PropertyListT props = {}); // (usm-sc-3)
+/// template <int VS = 1, typename OffsetSimdViewT, typename ValuesSimdViewT,
+/// typename T, int N = ValuesSimdViewT::getSizeX() *
+/// ValuesSimdViewT::getSizeY(), typename PropertyListT = empty_properties_t>
+/// void scatter(T *p, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
+/// 	simd_mask<N / VS> mask, PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// and \c N template parameters.
+/// Writes ("scatters") elements of the input vector to different memory
+/// locations. Each memory location is base address plus an offset - a
+/// value of the corresponding element in the input offset vector.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param p The base address.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param vals The vector to scatter.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <
+    int VS = 1, typename OffsetSimdViewT, typename ValuesSimdViewT, typename T,
+    int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_simd_view_type_v<ValuesSimdViewT> &&
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(T *p, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
+        simd_mask<N / VS> mask, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of vals parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  scatter<T, N, VS>(p, byte_offsets.read(), vals.read(), mask, props);
+}
+
+/// template <int VS = 1, typename OffsetT, typename ValuesSimdViewT, typename
+/// T, int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+/// typename PropertyListT = empty_properties_t>
+/// void scatter(T *p, simd<OffsetT, N / VS> byte_offsets, ValuesSimdViewT vals,
+/// 	PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// and \c N template parameters.
+/// Writes ("scatters") elements of the input vector to different memory
+/// locations. Each memory location is base address plus an offset - a
+/// value of the corresponding element in the input offset vector.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param p The base address.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param vals The vector to scatter.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <
+    int VS = 1, typename OffsetT, typename ValuesSimdViewT, typename T,
+    int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_simd_view_type_v<ValuesSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(T *p, simd<OffsetT, N / VS> byte_offsets, ValuesSimdViewT vals,
+        PropertyListT props = {}) {
+  scatter<T, N, VS>(p, byte_offsets, vals.read(), props);
+}
+
+/// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+/// 	  typename PropertyListT = empty_properties_t>
+/// void scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+/// 	simd_mask<N / VS> mask, PropertyListT props = {}); // (usm-sc-3)
 ///
 /// Writes ("scatters") elements of the input vector to different memory
 /// locations. Each memory location is base address plus an offset - a
@@ -792,6 +1094,83 @@ __ESIMD_API std::enable_if_t<
 scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
         simd_mask<N / VS> mask, PropertyListT props = {}) {
   scatter<T, N, VS>(p, byte_offsets.read(), vals, mask, props);
+}
+
+/// template <int VS, typename OffsetSimdViewT, typename T, int N, typename
+/// PropertyListT = empty_properties_t>
+/// void scatter(T *p, OffsetSimdViewT byte_offsets, simd<T,N> vals,
+/// 	simd_mask<N / VS> mask, PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// and \c N template parameters.
+/// Writes ("scatters") elements of the input vector to different memory
+/// locations. Each memory location is base address plus an offset - a
+/// value of the corresponding element in the input offset vector. Access to
+/// any element's memory location can be disabled via the input mask.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param p The base address.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param vals The vector to scatter.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <
+    int VS, typename OffsetSimdViewT, typename T, int N,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+        simd_mask<N / VS> mask, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of vals parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  scatter<T, N, VS>(p, byte_offsets.read(), vals, mask, props);
+}
+
+/// template <int VS, typename OffsetSimdViewT, typename T, int N, typename
+/// PropertyListT = empty_properties_t>
+/// void scatter(T *p, OffsetSimdViewT byte_offsets, simd<T,N> vals,
+/// 	PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// and \c N template parameters.
+/// Writes ("scatters") elements of the input vector to different memory
+/// locations. Each memory location is base address plus an offset - a
+/// value of the corresponding element in the input offset vector. Access to
+/// any element's memory location can be disabled via the input mask.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param p The base address.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param vals The vector to scatter.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <
+    int VS, typename OffsetSimdViewT, typename T, int N,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+        PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of vals parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  scatter<T, N, VS>(p, byte_offsets.read(), vals, props);
 }
 
 /// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
@@ -826,6 +1205,47 @@ scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
         PropertyListT props = {}) {
   simd_mask<N / VS> Mask = 1;
   scatter<T, N, VS>(p, byte_offsets.read(), vals, Mask, props);
+}
+
+/// template <int VS = 1, typename OffsetSimdViewT, typename
+/// ValuesSimdViewT, typename T, int N = ValuesSimdViewT::getSizeX() *
+/// ValuesSimdViewT::getSizeY(), typename PropertyListT =
+/// empty_properties_t>
+/// void scatter(T *p, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
+///      PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// and \c N template parameters.
+/// Writes ("scatters") elements of the input vector to different memory
+/// locations. Each memory location is base address plus an offset - a
+/// value of the corresponding element in the input offset vector.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param p The base address.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param vals The vector to scatter.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <
+    int VS = 1, typename OffsetSimdViewT, typename ValuesSimdViewT, typename T,
+    int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    detail::is_simd_view_type_v<ValuesSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(T *p, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
+        PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of vals parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  scatter<T, N, VS>(p, byte_offsets.read(), vals.read(), props);
 }
 
 /// A variation of \c scatter API with \c offsets represented as scalar.
@@ -3623,6 +4043,92 @@ gather(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
   return gather<T, N, VS>(acc, byte_offsets.read(), mask, pass_thru, props);
 }
 
+/// template <int VS, typename T, int N, typename OffsetSimdViewT,
+//            typename PropertyListT = empty_properties_t>
+/// simd<T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
+///                   simd_mask<N / VS> mask, simd<T, N> pass_thru,
+///                   PropertyListT props = {});
+/// This function is identical to (lacc-ga-1) except that the \p byte_offsets
+/// is represented as \c simd_view.
+template <
+    int VS, typename T, int N, typename AccessorT, typename OffsetSimdViewT,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    (detail::is_device_accessor_with_v<AccessorT,
+                                       detail::accessor_mode_cap::can_read> &&
+     detail::is_simd_view_type_v<OffsetSimdViewT> &&
+     ext::oneapi::experimental::is_property_list_v<PropertyListT>),
+    simd<T, N>>
+gather(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
+       simd<T, N> pass_thru, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  return gather<T, N, VS>(acc, byte_offsets.read(), mask, pass_thru, props);
+}
+
+/// template <int VS = 1, typename AccessorT,
+///    typename OffsetSimdViewT, typename PassThruSimdViewT,
+///    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+///    typename T = PassThruSimdViewT::value_type::element_type,
+///    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>>
+/// simd<T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
+///                   simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
+///                   PropertyListT props = {});
+/// This function is identical to (lacc-ga-1) except that the \p byte_offsets
+/// and \p pass_thru are represented as \c simd_view.
+template <
+    int VS = 1, typename AccessorT, typename OffsetSimdViewT,
+    typename PassThruSimdViewT,
+    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+    typename T = PassThruSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    (detail::is_device_accessor_with_v<AccessorT,
+                                       detail::accessor_mode_cap::can_read> &&
+     detail::is_simd_view_type_v<OffsetSimdViewT> &&
+     detail::is_simd_view_type_v<PassThruSimdViewT> &&
+     ext::oneapi::experimental::is_property_list_v<PropertyListT>),
+    simd<T, N>>
+gather(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
+       PassThruSimdViewT pass_thru, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  return gather<T, N, VS>(acc, byte_offsets.read(), mask, pass_thru.read(),
+                          props);
+}
+
+/// template <int VS = 1, typename AccessorT,
+///    typename OffsetT, typename PassThruSimdViewT,
+///    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+///    typename T = PassThruSimdViewT::value_type::element_type,
+///    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>>
+/// simd<T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
+///                   simd_mask<N / VS> mask, simd<T, N> pass_thru,
+///                   PropertyListT props = {});
+/// This function is identical to (lacc-ga-1) except that the \p byte_offsets
+/// is represented as \c simd_view.
+template <
+    int VS = 1, typename AccessorT, typename OffsetT,
+    typename PassThruSimdViewT,
+    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+    typename T = PassThruSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    (detail::is_device_accessor_with_v<AccessorT,
+                                       detail::accessor_mode_cap::can_read> &&
+     detail::is_simd_view_type_v<PassThruSimdViewT> &&
+     ext::oneapi::experimental::is_property_list_v<PropertyListT>),
+    simd<T, N>>
+gather(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
+       simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
+       PropertyListT props = {}) {
+  return gather<T, N, VS>(acc, byte_offsets, mask, pass_thru.read(), props);
+}
+
 /// template <typename T, int N, int VS = 1, typename AccessorT,
 ///           typename OffsetSimdViewT,
 //            typename PropertyListT = empty_properties_t>
@@ -3813,6 +4319,260 @@ __ESIMD_API std::enable_if_t<
 scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
         simd_mask<N / VS> mask, PropertyListT props = {}) {
   scatter<T, N, VS>(acc, byte_offsets.read(), vals, mask, props);
+}
+
+/// template <int VS, typename AccessorTy, typename T, int N,
+/// typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+/// 	         simd_mask<N / VS> mask,
+///              PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the accessor \p acc and byte offsets \p byte_offsets. Access to any
+/// element's memory location can be disabled via the input vector of predicates
+/// \p mask. If mask[i] is unset, then the store to (acc + byte_offsets[i]) is
+/// skipped.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc Accessor referencing the data to store.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, (acc + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <
+    int VS, typename AccessorTy, typename T, int N, typename OffsetSimdViewT,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_device_accessor_with_v<AccessorTy,
+                                      detail::accessor_mode_cap::can_write> &&
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+        simd_mask<N / VS> mask, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of vals parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  scatter<T, N, VS>(acc, byte_offsets.read(), vals, mask, props);
+}
+
+/// template <int VS, typename AccessorTy, typename T, int N,
+/// typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+/// 	         PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the accessor \p acc and byte offsets \p byte_offsets.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc Accessor referencing the data to store.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, (acc + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <
+    int VS, typename AccessorTy, typename T, int N, typename OffsetSimdViewT,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_device_accessor_with_v<AccessorTy,
+                                      detail::accessor_mode_cap::can_write> &&
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+        PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of vals parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  scatter<T, N, VS>(acc, byte_offsets.read(), vals, props);
+}
+
+/// template <int VS = 1, typename AccessorTy, typename ValuesSimdViewT,
+/// typename OffsetSimdViewT,
+/// int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+/// typename T = ValuesSimdViewT::value_type::element_type,
+/// typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets,
+///              ValuesSimdViewT vals, simd_mask<N / VS> mask,
+///              PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the accessor \p acc and byte offsets \p byte_offsets. Access to any
+/// element's memory location can be disabled via the input vector of predicates
+/// \p mask. If mask[i] is unset, then the store to (acc + byte_offsets[i]) is
+/// skipped.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc Accessor referencing the data to store.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, (acc + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <
+    int VS = 1, typename AccessorTy, typename ValuesSimdViewT,
+    typename OffsetSimdViewT,
+    int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+    typename T = ValuesSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_device_accessor_with_v<AccessorTy,
+                                      detail::accessor_mode_cap::can_write> &&
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    detail::is_simd_view_type_v<ValuesSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
+        simd_mask<N / VS> mask, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of vals parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  scatter<T, N, VS>(acc, byte_offsets.read(), vals.read(), mask, props);
+}
+
+/// template <int VS = 1, typename AccessorTy, typename ValuesSimdViewT,
+/// typename OffsetSimdViewT,
+/// int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+/// typename T = ValuesSimdViewT::value_type::element_type,
+/// typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets,
+///              ValuesSimdViewT vals, PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the accessor \p acc and byte offsets \p byte_offsets.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc Accessor referencing the data to store.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, (acc + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <
+    int VS = 1, typename AccessorTy, typename ValuesSimdViewT,
+    typename OffsetSimdViewT,
+    int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+    typename T = ValuesSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_device_accessor_with_v<AccessorTy,
+                                      detail::accessor_mode_cap::can_write> &&
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    detail::is_simd_view_type_v<ValuesSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
+        PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of vals parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  scatter<T, N, VS>(acc, byte_offsets.read(), vals.read(), props);
+}
+
+/// template <int VS = 1, typename AccessorTy, typename ValuesSimdViewT,
+/// typename OffsetT,
+/// int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+/// typename T = ValuesSimdViewT::value_type::element_type,
+/// typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
+///              ValuesSimdViewT vals, simd_mask<N / VS> mask,
+///              PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the accessor \p acc and byte offsets \p byte_offsets. Access to any
+/// element's memory location can be disabled via the input vector of predicates
+/// \p mask. If mask[i] is unset, then the store to (acc + byte_offsets[i]) is
+/// skipped.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc Accessor referencing the data to store.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, (acc + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <
+    int VS = 1, typename AccessorTy, typename ValuesSimdViewT, typename OffsetT,
+    int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+    typename T = ValuesSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_device_accessor_with_v<AccessorTy,
+                                      detail::accessor_mode_cap::can_write> &&
+    detail::is_simd_view_type_v<ValuesSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
+        ValuesSimdViewT vals, simd_mask<N / VS> mask,
+        PropertyListT props = {}) {
+  scatter<T, N, VS>(acc, byte_offsets, vals.read(), mask, props);
+}
+
+/// template <int VS = 1, typename AccessorTy, typename ValuesSimdViewT,
+/// typename OffsetT,
+/// int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+/// typename T = ValuesSimdViewT::value_type::element_type,
+/// typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
+///              ValuesSimdViewT vals, PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the accessor \p acc and byte offsets \p byte_offsets.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc Accessor referencing the data to store.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, (acc + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <
+    int VS = 1, typename AccessorTy, typename ValuesSimdViewT, typename OffsetT,
+    int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+    typename T = ValuesSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_device_accessor_with_v<AccessorTy,
+                                      detail::accessor_mode_cap::can_write> &&
+    detail::is_simd_view_type_v<ValuesSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
+        ValuesSimdViewT vals, PropertyListT props = {}) {
+  scatter<T, N, VS>(acc, byte_offsets, vals.read(), props);
 }
 
 /// template <typename T, int N, int VS = 1, typename AccessorTy,
@@ -4318,6 +5078,37 @@ constexpr void check_atomic() {
 /// @addtogroup sycl_esimd_memory_slm
 /// @{
 
+/// RAII-style class used to implement "semi-dynamic" SLM allocation.
+/// SLM is allocated in the constructor and released in the destructor, that's
+/// why it is "dynamic", as opposed to fully static allocation style of
+/// 'slm_init'. Actual offset of SLM chunk allocated by the call is calculated
+/// at compile time, that's why it is "semi-". To calculate SLM usage by a
+/// kernel, compiler finds a path in a callgraph with the largest amount of SLM
+/// "locked" by slm_allocator objects live along the paths. slm_init call also
+/// participates in calculating SLM budget. It can be modelled as
+/// \c slm_allocator object declared at the very beginning of a kernel and live
+/// till its the very end.
+/// Only compile-time constant SLM amount is supported for now, it is provided
+/// as a class' template argument.
+///
+/// Since a call graph is used, function pointers and recursion is not
+/// supported.
+///
+/// @tparam SLMAmount The amount allocated in bytes
+template <int SLMAmount> class slm_allocator {
+  int offset;
+
+public:
+  /// Allocates the amount of SLM which is class' template parameter.
+  slm_allocator() { offset = __esimd_slm_alloc(SLMAmount); }
+
+  /// @return The allocated chunk's offset in bytes.
+  ESIMD_INLINE int get_offset() const { return offset; }
+
+  /// Releases the SLM chunk allocated in the constructor.
+  ~slm_allocator() { __esimd_slm_free(offset); }
+};
+
 /// Declare per-work-group slm size.
 /// GPU RT/driver requires this function to be called in the beginning
 /// of the kernel using SLM. There must be only 1 call site of slm_init()
@@ -4672,6 +5463,140 @@ slm_gather(OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
   return slm_gather<T, N, VS>(byte_offsets.read(), mask, pass_thru, props);
 }
 
+/// template <int VS, typename T, int N, typename OffsetSimdViewT,
+///           typename PropertyListT = empty_props_t>
+/// simd <T, N> slm_gather(
+///             OffsetSimdViewT byte_offsets,
+///             simd_mask<N / VS> mask, simd<T, N> pass_thru,
+///             PropertyListT props = {});
+/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// and \c N template parameters.
+/// Loads ("gathers") elements of the type 'T' from Shared Local Memory
+/// locations addressed by byte offsets \p byte_offsets, and returns the loaded
+/// elements. Access to any element's memory location can be disabled via the
+/// input vector of predicates \p mask. If mask[i] is unset, then the load from
+/// (byte_offsets[i]) is skipped and the corresponding i-th element from
+/// \p pass_thru operand is returned.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC.
+/// @param byte_offsets the vector of 32-bit offsets in bytes.
+/// For each i, (byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param mask The access mask, defaults to all 1s.
+/// @param pass_thru The vector pass through values.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// property is used.
+/// @return A vector of elements read.
+template <
+    int VS, typename T, int N, typename OffsetSimdViewT,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    (detail::is_simd_view_type_v<OffsetSimdViewT> &&
+     ext::oneapi::experimental::is_property_list_v<PropertyListT>),
+    simd<T, N>>
+slm_gather(OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
+           simd<T, N> pass_thru, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  return slm_gather<T, N, VS>(byte_offsets.read(), mask, pass_thru, props);
+}
+
+/// template <int VS = 1,
+///    typename OffsetSimdViewT, typename PassThruSimdViewT,
+///    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+///     typename T = PassThruSimdViewT::value_type::element_type,
+///    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+/// simd <T, N> slm_gather(
+///             OffsetSimdViewT byte_offsets,
+///             simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
+///             PropertyListT props = {});
+/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// and \c N template parameters.
+/// Loads ("gathers") elements of the type 'T' from Shared Local Memory
+/// locations addressed by byte offsets \p byte_offsets, and returns the loaded
+/// elements. Access to any element's memory location can be disabled via the
+/// input vector of predicates \p mask. If mask[i] is unset, then the load from
+/// (byte_offsets[i]) is skipped and the corresponding i-th element from
+/// \p pass_thru operand is returned.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC.
+/// @param byte_offsets the vector of 32-bit offsets in bytes.
+/// For each i, (byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param mask The access mask, defaults to all 1s.
+/// @param pass_thru The vector pass through values.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// property is used.
+/// @return A vector of elements read.
+template <
+    int VS = 1, typename OffsetSimdViewT, typename PassThruSimdViewT,
+    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+    typename T = PassThruSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    (detail::is_simd_view_type_v<OffsetSimdViewT> &&
+     detail::is_simd_view_type_v<PassThruSimdViewT> &&
+     ext::oneapi::experimental::is_property_list_v<PropertyListT>),
+    simd<T, N>>
+slm_gather(OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
+           PassThruSimdViewT pass_thru, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  return slm_gather<T, N, VS>(byte_offsets.read(), mask, pass_thru.read(),
+                              props);
+}
+
+/// template <int VS = 1,
+///    typename PassThruSimdViewT,
+///    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+///    typename T = PassThruSimdViewT::value_type::element_type,
+///    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+/// simd <T, N> slm_gather(
+///             OffsetSimdViewT byte_offsets,
+///             simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
+///             PropertyListT props = {});
+/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// and \c N template parameters.
+/// Loads ("gathers") elements of the type 'T' from Shared Local Memory
+/// locations addressed by byte offsets \p byte_offsets, and returns the loaded
+/// elements. Access to any element's memory location can be disabled via the
+/// input vector of predicates \p mask. If mask[i] is unset, then the load from
+/// (byte_offsets[i]) is skipped and the corresponding i-th element from
+/// \p pass_thru operand is returned.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC.
+/// @param byte_offsets the vector of 32-bit offsets in bytes.
+/// For each i, (byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param mask The access mask, defaults to all 1s.
+/// @param pass_thru The vector pass through values.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// property is used.
+/// @return A vector of elements read.
+template <
+    int VS = 1, typename PassThruSimdViewT,
+    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+    typename T = PassThruSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    (detail::is_simd_view_type_v<PassThruSimdViewT> &&
+     ext::oneapi::experimental::is_property_list_v<PropertyListT>),
+    simd<T, N>>
+slm_gather(simd<uint32_t, N / VS> byte_offsets, simd_mask<N / VS> mask,
+           PassThruSimdViewT pass_thru, PropertyListT props = {}) {
+  return slm_gather<T, N, VS>(byte_offsets, mask, pass_thru.read(), props);
+}
+
 /// simd <T, N> slm_gather(
 ///             OffsetSimdViewT byte_offsets,
 ///             simd_mask<N / VS> mask, PropertyListT props = {}); // (slm-ga-8)
@@ -4912,6 +5837,210 @@ __ESIMD_API std::enable_if_t<
 slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
             PropertyListT props = {}) {
   return slm_scatter<T, N, VS>(byte_offsets.read(), vals, props);
+}
+
+/// template <int VS, typename T, int N, typename OffsetSimdViewT,
+/// typename PropertyListT = empty_properties_t>
+/// void slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
+///	         simd_mask<N / VS> mask, PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to Shared Local Memory
+/// locations addressed by byte offsets \p byte_offsets.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param byte_offsets the vector of 32-bit offsets in bytes.
+/// For each i, (byte_offsets[i]) must be element size aligned.
+/// @param vals The vector of values to store.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// property is used.
+template <
+    int VS, typename T, int N, typename OffsetSimdViewT,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
+            simd_mask<N / VS> mask, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of vals parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  slm_scatter<T, N, VS>(byte_offsets.read(), vals, mask, props);
+}
+
+/// template <int VS, typename T, int N, typename OffsetSimdViewT,
+/// typename PropertyListT = empty_properties_t>
+/// void slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
+///	         PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to Shared Local Memory
+/// locations addressed by byte offsets \p byte_offsets.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param byte_offsets the vector of 32-bit offsets in bytes.
+/// For each i, (byte_offsets[i]) must be element size aligned.
+/// @param vals The vector of values to store.
+/// @param props The optional comspile-time properties. Only 'alignment'
+/// property is used.
+template <
+    int VS, typename T, int N, typename OffsetSimdViewT,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
+            PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of vals parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  slm_scatter<T, N, VS>(byte_offsets.read(), vals, props);
+}
+
+/// template <int VS = 1, typename ValuesSimdViewT, typename OffsetSimdViewT,
+/// int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+/// typename T = ValuesSimdViewT::value_type::element_type,
+/// typename PropertyListT = empty_properties_t>
+/// void slm_scatter(OffsetSimdViewT byte_offsets,
+///              ValuesSimdViewT vals, simd_mask<N / VS> mask,
+///              PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to Shared Local Memory
+/// locations addressed by byte offsets \p byte_offsets.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param byte_offsets the vector of 32-bit offsets in bytes.
+/// For each i, (byte_offsets[i]) must be element size aligned.
+/// @param vals The vector of values to store.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// property is used.
+template <
+    int VS = 1, typename ValuesSimdViewT, typename OffsetSimdViewT,
+    int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+    typename T = ValuesSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    detail::is_simd_view_type_v<ValuesSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+slm_scatter(OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
+            simd_mask<N / VS> mask, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of vals parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  slm_scatter<T, N, VS>(byte_offsets.read(), vals.read(), mask, props);
+}
+
+/// template <int VS = 1, typename ValuesSimdViewT, typename OffsetSimdViewT,
+/// int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+/// typename T = ValuesSimdViewT::value_type::element_type,
+/// typename PropertyListT = empty_properties_t>
+/// void slm_scatter(OffsetSimdViewT byte_offsets,
+///              ValuesSimdViewT vals, PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to Shared Local Memory
+/// locations addressed by byte offsets \p byte_offsets.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param byte_offsets the vector of 32-bit offsets in bytes.
+/// For each i, (byte_offsets[i]) must be element size aligned.
+/// @param vals The vector of values to store.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// property is used.
+template <
+    int VS = 1, typename ValuesSimdViewT, typename OffsetSimdViewT,
+    int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+    typename T = ValuesSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    detail::is_simd_view_type_v<ValuesSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+slm_scatter(OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
+            PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of vals parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  slm_scatter<T, N, VS>(byte_offsets.read(), vals.read(), props);
+}
+
+/// template <int VS = 1, typename ValuesSimdViewT, typename OffsetT,
+/// int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+/// typename T = ValuesSimdViewT::value_type::element_type,
+/// typename PropertyListT = empty_properties_t>
+/// void slm_scatter(simd<OffsetT, N / VS> byte_offsets,
+///              ValuesSimdViewT vals, simd_mask<N / VS> mask,
+///              PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to Shared Local Memory
+/// locations addressed by byte offsets \p byte_offsets.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param byte_offsets the vector of 32-bit offsets in bytes.
+/// For each i, (byte_offsets[i]) must be element size aligned.
+/// @param vals The vector of values to store.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// property is used.
+template <
+    int VS = 1, typename ValuesSimdViewT, typename OffsetT,
+    int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+    typename T = ValuesSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_simd_view_type_v<ValuesSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+slm_scatter(simd<OffsetT, N / VS> byte_offsets, ValuesSimdViewT vals,
+            simd_mask<N / VS> mask, PropertyListT props = {}) {
+  slm_scatter<T, N, VS>(byte_offsets, vals.read(), mask, props);
+}
+
+/// template <int VS = 1, typename ValuesSimdViewT, typename OffsetT,
+/// int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+/// typename T = ValuesSimdViewT::value_type::element_type,
+/// typename PropertyListT = empty_properties_t>
+/// void slm_scatter(simd<OffsetT, N / VS> byte_offsets,
+///              ValuesSimdViewT vals, PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to Shared Local Memory
+/// locations addressed by byte offsets \p byte_offsets.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param byte_offsets the vector of 32-bit offsets in bytes.
+/// For each i, (byte_offsets[i]) must be element size aligned.
+/// @param vals The vector of values to store.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// property is used.
+template <
+    int VS = 1, typename ValuesSimdViewT, typename OffsetT,
+    int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+    typename T = ValuesSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_simd_view_type_v<ValuesSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+slm_scatter(simd<OffsetT, N / VS> byte_offsets, ValuesSimdViewT vals,
+            PropertyListT props = {}) {
+  slm_scatter<T, N, VS>(byte_offsets, vals.read(), props);
 }
 
 /// Store a scalar value into the Shared Local Memory.
@@ -8420,6 +9549,91 @@ gather(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
   return gather<T, N, VS>(acc, byte_offsets.read(), mask, pass_thru, props);
 }
 
+/// template <int VS, typename T, int N, typename OffsetSimdViewT,
+//            typename PropertyListT = empty_properties_t>
+/// simd<T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
+///                   simd_mask<N / VS> mask, simd<T, N> pass_thru,
+///                   PropertyListT props = {});
+/// This function is identical to (lacc-ga-1) except that the \p byte_offsets
+/// is represented as \c simd_view.
+template <
+    int VS, typename T, int N, typename AccessorT, typename OffsetSimdViewT,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    (detail::is_local_accessor_with_v<AccessorT,
+                                      detail::accessor_mode_cap::can_read> &&
+     detail::is_simd_view_type_v<OffsetSimdViewT> &&
+     ext::oneapi::experimental::is_property_list_v<PropertyListT>),
+    simd<T, N>>
+gather(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
+       simd<T, N> pass_thru, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  return gather<T, N, VS>(acc, byte_offsets.read(), mask, pass_thru, props);
+}
+
+/// template <int VS = 1, typename AccessorT,
+///    typename OffsetSimdViewT, typename PassThruSimdViewT,
+///    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+///    typename T = PassThruSimdViewT::value_type::element_type,
+///    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>>
+/// simd<T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
+///                   simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
+///                   PropertyListT props = {});
+/// This function is identical to (lacc-ga-1) except that the \p byte_offsets
+/// and \p pass_thru are represented as \c simd_view.
+template <
+    int VS = 1, typename AccessorT, typename OffsetSimdViewT,
+    typename PassThruSimdViewT,
+    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+    typename T = PassThruSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    (detail::is_local_accessor_with_v<AccessorT,
+                                      detail::accessor_mode_cap::can_read> &&
+     detail::is_simd_view_type_v<OffsetSimdViewT> &&
+     detail::is_simd_view_type_v<PassThruSimdViewT> &&
+     ext::oneapi::experimental::is_property_list_v<PropertyListT>),
+    simd<T, N>>
+gather(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
+       PassThruSimdViewT pass_thru, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of pass_thru parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  return gather<T, N, VS>(acc, byte_offsets.read(), mask, pass_thru.read(),
+                          props);
+}
+
+/// template <int VS = 1, typename AccessorT,
+///    typename PassThruSimdViewT,
+///    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+///    typename T = PassThruSimdViewT::value_type::element_type,
+///    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>>
+/// simd<T, N> gather(AccessorT acc, simd<uint32_t, N / VS> byte_offsets,
+///                   simd_mask<N / VS> mask, simd<T, N> pass_thru,
+///                   PropertyListT props = {});
+/// This function is identical to (lacc-ga-1) except that the \p pass_thru
+/// is represented as \c simd_view.
+template <
+    int VS = 1, typename AccessorT, typename PassThruSimdViewT,
+    int N = PassThruSimdViewT::getSizeX() * PassThruSimdViewT::getSizeY(),
+    typename T = PassThruSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    (detail::is_local_accessor_with_v<AccessorT,
+                                      detail::accessor_mode_cap::can_read> &&
+     detail::is_simd_view_type_v<PassThruSimdViewT> &&
+     ext::oneapi::experimental::is_property_list_v<PropertyListT>),
+    simd<T, N>>
+gather(AccessorT acc, simd<uint32_t, N / VS> byte_offsets,
+       simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
+       PropertyListT props = {}) {
+  return gather<T, N, VS>(acc, byte_offsets, mask, pass_thru.read(), props);
+}
+
 /// template <typename T, int N, int VS = 1, typename AccessorT,
 ///           typename OffsetSimdViewT,
 //            typename PropertyListT = empty_properties_t>
@@ -8638,6 +9852,260 @@ __ESIMD_API std::enable_if_t<
 scatter(AccessorT acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
         simd_mask<N / VS> mask, PropertyListT props = {}) {
   scatter<T, N, VS>(acc, byte_offsets.read(), vals, mask, props);
+}
+
+/// template <int VS, typename AccessorTy, typename T, int N,
+/// typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+/// 	         simd_mask<N / VS> mask,
+///              PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the local accessor \p acc and byte offsets \p byte_offsets. Access to any
+/// element's memory location can be disabled via the input vector of predicates
+/// \p mask. If mask[i] is unset, then the store to (acc + byte_offsets[i]) is
+/// skipped.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc Accessor referencing the data to store.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, (acc + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <
+    int VS, typename AccessorTy, typename T, int N, typename OffsetSimdViewT,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorTy,
+                                     detail::accessor_mode_cap::can_write> &&
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+        simd_mask<N / VS> mask, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of vals parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  scatter<T, N, VS>(acc, byte_offsets.read(), vals, mask, props);
+}
+
+/// template <int VS, typename AccessorTy, typename T, int N,
+/// typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+/// 	         PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the local accessor \p acc and byte offsets \p byte_offsets.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc Accessor referencing the data to store.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, (acc + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <
+    int VS, typename AccessorTy, typename T, int N, typename OffsetSimdViewT,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorTy,
+                                     detail::accessor_mode_cap::can_write> &&
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+        PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of vals parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  scatter<T, N, VS>(acc, byte_offsets.read(), vals, props);
+}
+
+/// template <int VS = 1, typename AccessorTy, typename ValuesSimdViewT,
+/// typename OffsetSimdViewT,
+/// int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+/// typename T = ValuesSimdViewT::value_type::element_type,
+/// typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets,
+///              ValuesSimdViewT vals, simd_mask<N / VS> mask,
+///              PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the local accessor \p acc and byte offsets \p byte_offsets. Access to any
+/// element's memory location can be disabled via the input vector of predicates
+/// \p mask. If mask[i] is unset, then the store to (acc + byte_offsets[i]) is
+/// skipped.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc Accessor referencing the data to store.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, (acc + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <
+    int VS = 1, typename AccessorTy, typename ValuesSimdViewT,
+    typename OffsetSimdViewT,
+    int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+    typename T = ValuesSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorTy,
+                                     detail::accessor_mode_cap::can_write> &&
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    detail::is_simd_view_type_v<ValuesSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
+        simd_mask<N / VS> mask, PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of vals parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  scatter<T, N, VS>(acc, byte_offsets.read(), vals.read(), mask, props);
+}
+
+/// template <int VS = 1, typename AccessorTy, typename ValuesSimdViewT,
+/// typename OffsetSimdViewT,
+/// int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+/// typename T = ValuesSimdViewT::value_type::element_type,
+/// typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets,
+///              ValuesSimdViewT vals, PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the local accessor \p acc and byte offsets \p byte_offsets.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc Accessor referencing the data to store.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, (acc + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <
+    int VS = 1, typename AccessorTy, typename ValuesSimdViewT,
+    typename OffsetSimdViewT,
+    int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+    typename T = ValuesSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorTy,
+                                     detail::accessor_mode_cap::can_write> &&
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    detail::is_simd_view_type_v<ValuesSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
+        PropertyListT props = {}) {
+  static_assert(N / VS ==
+                    OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of vals parameter must correspond to the size of "
+                "byte_offsets parameter.");
+  scatter<T, N, VS>(acc, byte_offsets.read(), vals.read(), props);
+}
+
+/// template <int VS = 1, typename AccessorTy, typename ValuesSimdViewT,
+/// typename OffsetT,
+/// int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+/// typename T = ValuesSimdViewT::value_type::element_type,
+/// typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
+///              ValuesSimdViewT vals, simd_mask<N / VS> mask,
+///              PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the local accessor \p acc and byte offsets \p byte_offsets. Access to any
+/// element's memory location can be disabled via the input vector of predicates
+/// \p mask. If mask[i] is unset, then the store to (acc + byte_offsets[i]) is
+/// skipped.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc Accessor referencing the data to store.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, (acc + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <
+    int VS = 1, typename AccessorTy, typename ValuesSimdViewT, typename OffsetT,
+    int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+    typename T = ValuesSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorTy,
+                                     detail::accessor_mode_cap::can_write> &&
+    detail::is_simd_view_type_v<ValuesSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
+        ValuesSimdViewT vals, simd_mask<N / VS> mask,
+        PropertyListT props = {}) {
+  scatter<T, N, VS>(acc, byte_offsets, vals.read(), mask, props);
+}
+
+/// template <int VS = 1, typename AccessorTy, typename ValuesSimdViewT,
+/// typename OffsetT,
+/// int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+/// typename T = ValuesSimdViewT::value_type::element_type,
+/// typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
+///              ValuesSimdViewT vals, PropertyListT props = {});
+///
+/// Variation of the API that allows to use \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the local accessor \p acc and byte offsets \p byte_offsets.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc Accessor referencing the data to store.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, (acc + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <
+    int VS = 1, typename AccessorTy, typename ValuesSimdViewT, typename OffsetT,
+    int N = ValuesSimdViewT::getSizeX() * ValuesSimdViewT::getSizeY(),
+    typename T = ValuesSimdViewT::value_type::element_type,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorTy,
+                                     detail::accessor_mode_cap::can_write> &&
+    detail::is_simd_view_type_v<ValuesSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
+        ValuesSimdViewT vals, PropertyListT props = {}) {
+  scatter<T, N, VS>(acc, byte_offsets, vals.read(), props);
 }
 
 /// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,

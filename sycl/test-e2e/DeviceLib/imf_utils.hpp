@@ -4,7 +4,8 @@
 #include <cstdint>
 #include <initializer_list>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/builtins.hpp>
+#include <sycl/detail/core.hpp>
 #include <type_traits>
 
 #if defined(__SPIR__) || defined(__SPIRV__)
