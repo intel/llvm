@@ -496,6 +496,8 @@ memcpy(sycl::queue q, const experimental::memcpy_parameter &param) {
 #ifdef SYCL_EXT_ONEAPI_BINDLESS_IMAGES
   if (param.to.image_bindless != nullptr &&
       param.from.image_bindless != nullptr) {
+    throw std::runtime_error(
+        "[SYCLcompat] memcpy: Unsupported bindless_image API.");
     // TODO: Need change logic when sycl support image_mem to image_mem copy.
     std::vector<sycl::event> event_list;
     syclcompat::detail::host_buffer buf(param.size.size(), q, event_list);
@@ -508,19 +510,25 @@ memcpy(sycl::queue q, const experimental::memcpy_parameter &param) {
         param.size, q));
     return event_list;
   } else if (param.to.image_bindless != nullptr) {
+    throw std::runtime_error(
+        "[SYCLcompat] memcpy: Unsupported bindless_image API.");
     return {experimental::detail::dpct_memcpy(from, param.from.pos,
                                               param.to.image_bindless,
                                               param.to.pos, param.size, q)};
   } else if (param.from.image_bindless != nullptr) {
+    throw std::runtime_error(
+        "[SYCLcompat] memcpy: Unsupported bindless_image API.");
     return {experimental::detail::dpct_memcpy(param.from.image_bindless,
                                               param.from.pos, to, param.to.pos,
                                               param.size, q)};
   }
 #endif
   if (param.to.image != nullptr) {
+    throw std::runtime_error("[SYCLcompat] memcpy: Unsupported image API.");
     to = experimental::detail::to_pitched_data(param.to.image);
   }
   if (param.from.image != nullptr) {
+    throw std::runtime_error("[SYCLcompat] memcpy: Unsupported image API.");
     from = experimental::detail::to_pitched_data(param.from.image);
   }
   return syclcompat::detail::memcpy(q, to, param.to.pos, from, param.from.pos,
@@ -834,8 +842,6 @@ namespace experimental {
 /// \returns no return value.
 static inline void memcpy(const memcpy_parameter &param,
                           sycl::queue q = get_default_queue()) {
-  throw std::runtime_error(
-      "[SYCLcompat] memcpy: Unsupported memcpy_parameter API.");
   sycl::event::wait(syclcompat::experimental::detail::memcpy(q, param));
 }
 
@@ -847,8 +853,6 @@ static inline void memcpy(const memcpy_parameter &param,
 /// \returns no return value.
 static inline void memcpy_async(const memcpy_parameter &param,
                                 sycl::queue q = get_default_queue()) {
-  throw std::runtime_error(
-      "[SYCLcompat] memcpy_async: Unsupported memcpy_parameter API.");
   syclcompat::experimental::detail::memcpy(q, param);
 }
 } // namespace experimental
