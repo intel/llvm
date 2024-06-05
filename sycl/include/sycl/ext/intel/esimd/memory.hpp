@@ -9681,7 +9681,7 @@ prefetch(const T *p, OffsetSimdViewT byte_offsets, PropertyListT props = {}) {
 /// void prefetch(const T *p, OffsetSimdViewT byte_offsets,
 ///             simd_mask<N / VS> mask, PropertyListT props = {});
 /// Supported platforms: DG2, PVC only.
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Prefetches elements of the type 'T' from memory locations
 /// addressed by the base pointer \p p and byte offsets \p byte_offsets to the
