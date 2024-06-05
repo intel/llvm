@@ -418,8 +418,11 @@ std::string saveModuleIR(Module &M, int I, StringRef Suff) {
 }
 
 bool isImportedFunction(const Function &F) {
-  // Functions with definitions are not imported
-  if (!F.isDeclaration())
+
+  if ( // Functions with definitions are not imported
+      !F.isDeclaration() ||
+      // LLVM intrinsic functions cannot be imported
+      F.isIntrinsic())
     return false;
 
   bool ReturnValue = true;

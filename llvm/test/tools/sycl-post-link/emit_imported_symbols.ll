@@ -14,9 +14,9 @@
 ; RUN: FileCheck %s -input-file=%t_kernel_1.sym --check-prefixes CHECK-KERNEL-SYM-1
 ; RUN: FileCheck %s -input-file=%t_kernel_2.sym --check-prefixes CHECK-KERNEL-SYM-2
 
-; RUN: FileCheck %s -input-file=%t_kernel_0.prop --check-prefixes CHECK-KERNEL-IMPORTED-SYM-0 --implicit-check-not='inside'
-; RUN: FileCheck %s -input-file=%t_kernel_1.prop --check-prefixes CHECK-KERNEL-IMPORTED-SYM-1 --implicit-check-not='inside'
-; RUN: FileCheck %s -input-file=%t_kernel_2.prop --check-prefixes CHECK-KERNEL-IMPORTED-SYM-2 --implicit-check-not='inside'
+; RUN: FileCheck %s -input-file=%t_kernel_0.prop --check-prefixes CHECK-KERNEL-IMPORTED-SYM-0 --implicit-check-not='inside' --implicit-check-not='llvm.'
+; RUN: FileCheck %s -input-file=%t_kernel_1.prop --check-prefixes CHECK-KERNEL-IMPORTED-SYM-1 --implicit-check-not='inside' --implicit-check-not='llvm.'
+; RUN: FileCheck %s -input-file=%t_kernel_2.prop --check-prefixes CHECK-KERNEL-IMPORTED-SYM-2 --implicit-check-not='inside' --implicit-check-not='llvm.'
 
 ; CHECK-KERNEL-SYM-0: middle
 ; CHECK-KERNEL-IMPORTED-SYM-0: [SYCL/imported symbols]
@@ -41,11 +41,11 @@
 
 ; RUN: sycl-post-link -symbols -emit-imported-symbols -split=source -S < %s -o %t_source.table
 ; RUN: FileCheck %s -input-file=%t_source_0.sym --check-prefixes CHECK-SOURCE-SYM-0
-; RUN: FileCheck %s -input-file=%t_source_0.prop --check-prefixes CHECK-SOURCE-IMPORTED-SYM-0 --implicit-check-not='inside'
+; RUN: FileCheck %s -input-file=%t_source_0.prop --check-prefixes CHECK-SOURCE-IMPORTED-SYM-0 --implicit-check-not='inside' --implicit-check-not='llvm.'
 
 ; RUN: sycl-post-link -symbols -emit-imported-symbols -split=source -S < %s -o %t_source.table -O0
 ; RUN: FileCheck %s -input-file=%t_source_0.sym --check-prefixes CHECK-SOURCE-SYM-0
-; RUN: FileCheck %s -input-file=%t_source_0.prop --check-prefixes CHECK-SOURCE-IMPORTED-SYM-0 --implicit-check-not='inside'
+; RUN: FileCheck %s -input-file=%t_source_0.prop --check-prefixes CHECK-SOURCE-IMPORTED-SYM-0 --implicit-check-not='inside' --implicit-check-not='llvm.'
 
 ; CHECK-SOURCE-SYM-0-DAG: foo
 ; CHECK-SOURCE-SYM-0-DAG: bar
@@ -73,7 +73,8 @@ define weak_odr spir_kernel void @bar() #0 {
   call void @childB()
   call void @childC()
   call void @middle()
-
+  ;; LLVM intrinsics cannot be imported
+  %dummy = call i8 @llvm.bitreverse.i8(i8 0)
   ;; Functions with a demangled name prefixed with a '__' are not imported
   call void @_Z8__insidev()
   call void @_Z7outsidev()
@@ -91,12 +92,9 @@ declare void @childC()
 declare void @childD()
 
 declare void @_Z7outsidev()
-
 ;; Verify unused functions are not imported
 declare void @insideUnusedFunction()
-
-;; Verify that demangled functions prefixed with double underscores are not imported
 declare void @_Z8__insidev()
-
+declare i8 @llvm.bitreverse.i8(i8)
 
 attributes #0 = { "sycl-module-id"="a.cpp" }
