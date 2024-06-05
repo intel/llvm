@@ -550,7 +550,7 @@ gather(const T *p, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 ///             simd<OffsetT, N / VS> byte_offsets,
 ///             simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
 ///             PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters. Loads ("gathers") elements of the type 'T'
 /// from memory locations addressed by the base pointer \p p and byte offsets \p
 /// byte_offsets, and returns the loaded elements. Access to any element's
@@ -591,7 +591,7 @@ gather(const T *p, simd<OffsetT, N / VS> byte_offsets, simd_mask<N / VS> mask,
 ///             OffsetSimdViewT byte_offsets,
 ///             simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
 ///             PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters. Loads ("gathers") elements of the type 'T'
 /// from memory locations addressed by the base pointer \p p and byte offsets \p
 /// byte_offsets, and returns the loaded elements. Access to any element's
@@ -637,7 +637,7 @@ gather(const T *p, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 ///             OffsetSimdViewT byte_offsets,
 ///             simd_mask<N / VS> mask, simd<T, N> pass_thru,
 ///             PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters. Loads ("gathers") elements of the type 'T'
 /// from memory locations addressed by the base pointer \p p and byte offsets \p
 /// byte_offsets, and returns the loaded elements. Access to any element's
@@ -711,7 +711,7 @@ gather(const T *p, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 /// simd <T, N> gather(const T *p,
 ///             OffsetSimdViewT byte_offsets,
 ///             simd_mask<N / VS> mask, PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters. Loads ("gathers") elements of the type 'T'
 /// from memory locations addressed by the base pointer \p p and byte offsets \p
 /// byte_offsets, and returns the loaded elements. Access to any element's
@@ -772,7 +772,7 @@ gather(const T *p, OffsetSimdViewT byte_offsets, PropertyListT props = {}) {
 /// simd <T, N> gather(const T *p,
 ///             OffsetSimdViewT byte_offsets,
 ///             PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.  Loads ("gathers") elements of the type 'T'
 /// from memory locations addressed by the base pointer \p p and byte offsets \p
 /// byte_offsets, and returns the loaded elements.
@@ -925,7 +925,7 @@ scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
 /// void scatter(T *p, simd<OffsetT, N / VS> byte_offsets, ValuesSimdViewT vals,
 /// simd_mask<N / VS> mask, PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Writes ("scatters") elements of the input vector to different memory
 /// locations. Each memory location is base address plus an offset - a
@@ -993,7 +993,7 @@ scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
 /// void scatter(T *p, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 /// 	simd_mask<N / VS> mask, PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Writes ("scatters") elements of the input vector to different memory
 /// locations. Each memory location is base address plus an offset - a
@@ -1033,7 +1033,7 @@ scatter(T *p, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 /// void scatter(T *p, simd<OffsetT, N / VS> byte_offsets, ValuesSimdViewT vals,
 /// 	PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Writes ("scatters") elements of the input vector to different memory
 /// locations. Each memory location is base address plus an offset - a
@@ -1101,7 +1101,7 @@ scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// void scatter(T *p, OffsetSimdViewT byte_offsets, simd<T,N> vals,
 /// 	simd_mask<N / VS> mask, PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Writes ("scatters") elements of the input vector to different memory
 /// locations. Each memory location is base address plus an offset - a
@@ -1140,7 +1140,7 @@ scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// void scatter(T *p, OffsetSimdViewT byte_offsets, simd<T,N> vals,
 /// 	PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Writes ("scatters") elements of the input vector to different memory
 /// locations. Each memory location is base address plus an offset - a
@@ -1214,7 +1214,7 @@ scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// void scatter(T *p, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 ///      PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Writes ("scatters") elements of the input vector to different memory
 /// locations. Each memory location is base address plus an offset - a
@@ -6049,7 +6049,7 @@ slm_gather(OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 ///             OffsetSimdViewT byte_offsets,
 ///             simd_mask<N / VS> mask, simd<T, N> pass_thru,
 ///             PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Loads ("gathers") elements of the type 'T' from Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets, and returns the loaded
@@ -6094,7 +6094,7 @@ slm_gather(OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 ///             OffsetSimdViewT byte_offsets,
 ///             simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
 ///             PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Loads ("gathers") elements of the type 'T' from Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets, and returns the loaded
@@ -6143,7 +6143,7 @@ slm_gather(OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 ///             OffsetSimdViewT byte_offsets,
 ///             simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
 ///             PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Loads ("gathers") elements of the type 'T' from Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets, and returns the loaded
@@ -8046,7 +8046,7 @@ atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset,
 /// atomic_update(local_accessor lacc,
 ///               simd<uint32_t, N> byte_offset,
 ///               simd<T, N> src0,
-///               simd_mask<1> pred = 1);                       // (lacc-au1-1)
+///               simd_mask<N> mask = 1);                       // (lacc-au1-1)
 ///
 
 /// Usage of cache hints or non-standard operation width N requires DG2 or PVC.
@@ -8098,10 +8098,101 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
 }
 
 /// simd<T, N>
+/// slm_atomic_update(simd<uint32_t, N> byte_offset,
+///                   SrcSimdViewT src0,
+///                   simd_mask<N> mask = 1)
+///
+/// Variation of the API that allows using \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Atomically updates \c N memory locations in SLM indicated by
+/// a vector of offsets, and returns a vector of old
+/// values found at the memory locations before update.
+/// @tparam Op The atomic operation.
+/// @param byte_offset The vector of 32-bit offsets.
+/// @param src0 is the first atomic operand.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <atomic_op Op, typename SrcSimdViewT,
+          typename T = SrcSimdViewT::value_type::element_type, int N>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1 &&
+                                 detail::is_simd_view_type_v<SrcSimdViewT>,
+                             simd<T, N>>
+slm_atomic_update(simd<uint32_t, N> byte_offset, SrcSimdViewT src0,
+                  simd_mask<N> mask = 1) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+                "Size of src0 parameter must correspond to the size of "
+                "byte_offset parameter.");
+  return slm_atomic_update<Op, T, N>(byte_offset, src0.read(), mask);
+}
+
+/// simd<T, N>
+/// slm_atomic_update(OffsetSimdViewT byte_offset,
+///                   simd<T, N> src0,
+///                   simd_mask<N> mask = 1)
+///
+/// Variation of the API that allows using \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Atomically updates \c N memory locations in SLM indicated by
+/// a vector of offsets, and returns a vector of old
+/// values found at the memory locations before update.
+/// @tparam Op The atomic operation.
+/// @param byte_offset The vector of 32-bit offsets.
+/// @param src0 is the first atomic operand.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <atomic_op Op, typename OffsetSimdViewT, typename T, int N>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1 &&
+                                 detail::is_simd_view_type_v<OffsetSimdViewT>,
+                             simd<T, N>>
+slm_atomic_update(OffsetSimdViewT byte_offset, simd<T, N> src0,
+                  simd_mask<N> mask = 1) {
+  static_assert(N == OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of src0 parameter must correspond to the size of "
+                "byte_offset parameter.");
+  return slm_atomic_update<Op, T, N>(byte_offset.read(), src0, mask);
+}
+
+/// simd<T, N>
+/// slm_atomic_update(OffsetSimdViewT byte_offset,
+///                   SrcSimdViewT src0,
+///                   simd_mask<N> mask = 1)
+///
+/// Variation of the API that allows using \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Atomically updates \c N memory locations in SLM indicated by
+/// a vector of offsets, and returns a vector of old
+/// values found at the memory locations before update.
+/// @tparam Op The atomic operation.
+/// @param byte_offset The vector of 32-bit offsets.
+/// @param src0 is the first atomic operand.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <atomic_op Op, typename OffsetSimdViewT, typename SrcSimdViewT,
+          typename T = SrcSimdViewT::value_type::element_type,
+          int N = SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY()>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1 &&
+                                 detail::is_simd_view_type_v<OffsetSimdViewT> &&
+                                 detail::is_simd_view_type_v<SrcSimdViewT>,
+                             simd<T, N>>
+slm_atomic_update(OffsetSimdViewT byte_offset, SrcSimdViewT src0,
+                  simd_mask<N> mask = 1) {
+  static_assert(N == OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of src0 parameter must correspond to the size of "
+                "byte_offset parameter.");
+  return slm_atomic_update<Op, T, N>(byte_offset.read(), src0.read(), mask);
+}
+
+/// simd<T, N>
 /// atomic_update(local_accessor lacc,
 ///               simd<uint32_t, N> byte_offset,
 ///               simd<T, N> src0,
-///               simd_mask<1> pred = 1);                       // (lacc-au1-1)
+///               simd_mask<1> mask = 1);                       // (lacc-au1-1)
 ///
 /// Atomically updates \c N memory locations in SLM indicated by
 /// local accessor \p lacc and a vector of offsets, and returns a vector of old
@@ -8125,6 +8216,105 @@ atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, simd<T, N> src0,
   return slm_atomic_update<Op, T, N>(byte_offset, src0, mask);
 }
 
+/// simd<T, N>
+/// atomic_update(local_accessor lacc,
+///               OffsetSimdViewT byte_offset,
+///               simd<T, N> src0,
+///               simd_mask<1> mask = 1);
+///
+/// Variation of the API that allows using \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Atomically updates \c N memory locations in SLM indicated by
+/// local accessor \p lacc and a vector of offsets, and returns a vector of old
+/// values found at the memory locations before update.
+/// @tparam Op The atomic operation.
+/// @param byte_offset The vector of 32-bit offsets.
+/// @param src0 is the first atomic operand.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <atomic_op Op, typename OffsetSimdViewT, typename T, int N,
+          typename AccessorT>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1 &&
+                                 detail::is_simd_view_type_v<OffsetSimdViewT> &&
+                                 __ESIMD_DNS::is_rw_local_accessor_v<AccessorT>,
+                             simd<T, N>>
+atomic_update(AccessorT lacc, OffsetSimdViewT byte_offset, simd<T, N> src0,
+              simd_mask<N> mask = 1) {
+  static_assert(N == OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of src0 parameter must correspond to the size of "
+                "byte_offset parameter.");
+  return atomic_update<Op, T, N>(lacc, byte_offset.read(), src0, mask);
+}
+
+/// simd<T, N>
+/// atomic_update(local_accessor lacc,
+///               simd<uint32_t, N> byte_offset,
+///               SrcSimdViewT src0,
+///               simd_mask<1> mask = 1);
+///
+/// Variation of the API that allows using \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Atomically updates \c N memory locations in SLM indicated by
+/// local accessor \p lacc and a vector of offsets, and returns a vector of old
+/// values found at the memory locations before update.
+/// @tparam Op The atomic operation.
+/// @param byte_offset The vector of 32-bit offsets.
+/// @param src0 is the first atomic operand.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <atomic_op Op, typename SrcSimdViewT,
+          typename T = SrcSimdViewT::value_type::element_type, int N,
+          typename AccessorT>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1 &&
+                                 detail::is_simd_view_type_v<SrcSimdViewT> &&
+                                 __ESIMD_DNS::is_rw_local_accessor_v<AccessorT>,
+                             simd<T, N>>
+atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, SrcSimdViewT src0,
+              simd_mask<N> mask = 1) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+                "Size of src0 parameter must correspond to the size of "
+                "byte_offset parameter.");
+  return atomic_update<Op, T, N>(lacc, byte_offset, src0.read(), mask);
+}
+
+/// simd<T, N>
+/// atomic_update(local_accessor lacc,
+///               OffsetSimdViewT byte_offset,
+///               SrcSimdViewT src0,
+///               simd_mask<1> mask = 1);
+///
+/// Variation of the API that allows using \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Atomically updates \c N memory locations in SLM indicated by
+/// local accessor \p lacc and a vector of offsets, and returns a vector of old
+/// values found at the memory locations before update.
+/// @tparam Op The atomic operation.
+/// @param byte_offset The vector of 32-bit offsets.
+/// @param src0 is the first atomic operand.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <atomic_op Op, typename SrcSimdViewT, typename OffsetSimdViewT,
+          typename T = SrcSimdViewT::value_type::element_type,
+          int N = SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+          typename AccessorT>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1 &&
+                                 detail::is_simd_view_type_v<SrcSimdViewT> &&
+                                 detail::is_simd_view_type_v<OffsetSimdViewT> &&
+                                 __ESIMD_DNS::is_rw_local_accessor_v<AccessorT>,
+                             simd<T, N>>
+atomic_update(AccessorT lacc, OffsetSimdViewT byte_offset, SrcSimdViewT src0,
+              simd_mask<N> mask = 1) {
+  static_assert(N == OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of src0 parameter must correspond to the size of "
+                "byte_offset parameter.");
+  return atomic_update<Op, T, N>(lacc, byte_offset.read(), src0.read(), mask);
+}
 /// Two argument variant of the atomic update operation.
 
 /// simd<T, N>
@@ -8137,7 +8327,7 @@ atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, simd<T, N> src0,
 ///               simd<uint32_t, N> byte_offset,
 ///               simd<T, N> src0,
 ///               simd<T, N> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-1)
+///               simd_mask<1> mask = 1);                      // (lacc-au2-1)
 ///
 
 /// simd<T, N>
@@ -8180,11 +8370,232 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
 }
 
 /// simd<T, N>
+/// slm_atomic_update(simd<uint32_t, N> byte_offset,
+///                   SrcSimdViewT src0, simd<T, N> src1,
+///                   simd_mask<N> mask = 1);
+/// Variation of the API that allows using \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Atomically updates \c N memory locations in SLM indicated by
+/// a vector of offsets, and returns a vector of old
+/// values found at the memory locations before update.
+/// @tparam Op The atomic operation.
+/// @param byte_offset The vector of 32-bit offsets.
+/// @param src0 is the first atomic operand (new value).
+/// @param src1 is the second atomic operand (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <atomic_op Op, typename SrcSimdViewT, typename T, int N>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2 &&
+                                 detail::is_simd_view_type_v<SrcSimdViewT>,
+                             simd<T, N>>
+slm_atomic_update(simd<uint32_t, N> byte_offset, SrcSimdViewT src0,
+                  simd<T, N> src1, simd_mask<N> mask = 1) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+                "Size of src0 parameter must correspond to the size of "
+                "byte_offset and src1 parameters.");
+  return slm_atomic_update<Op, T, N>(byte_offset, src0.read(), src1, mask);
+}
+
+/// simd<T, N>
+/// slm_atomic_update(simd<uint32_t, N> byte_offset,
+///                   simd<T, N> src0, SrcSimdViewT src1,
+///                   simd_mask<N> mask = 1);
+/// Variation of the API that allows using \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Atomically updates \c N memory locations in SLM indicated by
+/// a vector of offsets, and returns a vector of old
+/// values found at the memory locations before update.
+/// @tparam Op The atomic operation.
+/// @param byte_offset The vector of 32-bit offsets.
+/// @param src0 is the first atomic operand (new value).
+/// @param src1 is the second atomic operand (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <atomic_op Op, typename SrcSimdViewT, typename T, int N>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2 &&
+                                 detail::is_simd_view_type_v<SrcSimdViewT>,
+                             simd<T, N>>
+slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
+                  SrcSimdViewT src1, simd_mask<N> mask = 1) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+                "Size of src1 parameter must correspond to the size of "
+                "byte_offset and src0 parameters.");
+  return slm_atomic_update<Op, T, N>(byte_offset, src0, src1.read(), mask);
+}
+
+/// simd<T, N>
+/// slm_atomic_update(simd<uint32_t, N> byte_offset,
+///                   SrcSimdViewT src0, SrcSimdViewT src1,
+///                   simd_mask<N> mask = 1);
+/// Variation of the API that allows using \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Atomically updates \c N memory locations in SLM indicated by
+/// a vector of offsets, and returns a vector of old
+/// values found at the memory locations before update.
+/// @tparam Op The atomic operation.
+/// @param byte_offset The vector of 32-bit offsets.
+/// @param src0 is the first atomic operand (new value).
+/// @param src1 is the second atomic operand (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <atomic_op Op, typename SrcSimdViewT,
+          typename T = SrcSimdViewT::value_type::element_type, int N>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2 &&
+                                 detail::is_simd_view_type_v<SrcSimdViewT>,
+                             simd<T, N>>
+slm_atomic_update(simd<uint32_t, N> byte_offset, SrcSimdViewT src0,
+                  SrcSimdViewT src1, simd_mask<N> mask = 1) {
+  static_assert(
+      N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+      "Size of src1 and src0 parameters must correspond to the size of "
+      "byte_offset parameter.");
+  return slm_atomic_update<Op, T, N>(byte_offset, src0.read(), src1.read(),
+                                     mask);
+}
+
+/// simd<T, N>
+/// slm_atomic_update(OffsetSimdViewT byte_offset,
+///                   simd<T, N> src0, simd<T, N> src1,
+///                   simd_mask<N> mask = 1);
+/// Variation of the API that allows using \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Atomically updates \c N memory locations in SLM indicated by
+/// a vector of offsets, and returns a vector of old
+/// values found at the memory locations before update.
+/// @tparam Op The atomic operation.
+/// @param byte_offset The vector of 32-bit offsets.
+/// @param src0 is the first atomic operand (new value).
+/// @param src1 is the second atomic operand (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <atomic_op Op, typename OffsetSimdViewT, typename T, int N>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2 &&
+                                 detail::is_simd_view_type_v<OffsetSimdViewT>,
+                             simd<T, N>>
+slm_atomic_update(OffsetSimdViewT byte_offset, simd<T, N> src0, simd<T, N> src1,
+                  simd_mask<N> mask = 1) {
+  static_assert(
+      N == OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+      "Size of src1 and src0 parameters must correspond to the size of "
+      "byte_offset parameter.");
+  return slm_atomic_update<Op, T, N>(byte_offset.read(), src0, src1, mask);
+}
+
+/// simd<T, N>
+/// slm_atomic_update(OffsetSimdViewT byte_offset,
+///                   SrcSimdViewT src0, simd<T, N> src1,
+///                   simd_mask<N> mask = 1);
+/// Variation of the API that allows using \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Atomically updates \c N memory locations in SLM indicated by
+/// a vector of offsets, and returns a vector of old
+/// values found at the memory locations before update.
+/// @tparam Op The atomic operation.
+/// @param byte_offset The vector of 32-bit offsets.
+/// @param src0 is the first atomic operand (new value).
+/// @param src1 is the second atomic operand (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <atomic_op Op, typename OffsetSimdViewT, typename SrcSimdViewT,
+          typename T, int N>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2 &&
+                                 detail::is_simd_view_type_v<SrcSimdViewT> &&
+                                 detail::is_simd_view_type_v<OffsetSimdViewT>,
+                             simd<T, N>>
+slm_atomic_update(OffsetSimdViewT byte_offset, SrcSimdViewT src0,
+                  simd<T, N> src1, simd_mask<N> mask = 1) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY() &&
+                    N == OffsetSimdViewT::getSizeX() *
+                             OffsetSimdViewT::getSizeY(),
+                "Size of src0 parameter must correspond to the size of "
+                "byte_offset and src1 parameters.");
+  return slm_atomic_update<Op, T, N>(byte_offset.read(), src0.read(), src1,
+                                     mask);
+}
+
+/// simd<T, N>
+/// slm_atomic_update(OffsetSimdViewT byte_offset,
+///                   simd<T, N> src0, SrcSimdViewT src1,
+///                   simd_mask<N> mask = 1);
+/// Variation of the API that allows using \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Atomically updates \c N memory locations in SLM indicated by
+/// a vector of offsets, and returns a vector of old
+/// values found at the memory locations before update.
+/// @tparam Op The atomic operation.
+/// @param byte_offset The vector of 32-bit offsets.
+/// @param src0 is the first atomic operand (new value).
+/// @param src1 is the second atomic operand (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <atomic_op Op, typename OffsetSimdViewT, typename SrcSimdViewT,
+          typename T, int N>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2 &&
+                                 detail::is_simd_view_type_v<SrcSimdViewT> &&
+                                 detail::is_simd_view_type_v<OffsetSimdViewT>,
+                             simd<T, N>>
+slm_atomic_update(OffsetSimdViewT byte_offset, simd<T, N> src0,
+                  SrcSimdViewT src1, simd_mask<N> mask = 1) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY() &&
+                    N == OffsetSimdViewT::getSizeX() *
+                             OffsetSimdViewT::getSizeY(),
+                "Size of src1 parameter must correspond to the size of "
+                "byte_offset and src0 parameters.");
+  return slm_atomic_update<Op, T, N>(byte_offset.read(), src0, src1.read(),
+                                     mask);
+}
+
+/// simd<T, N>
+/// slm_atomic_update(OffsetSimdViewT byte_offset,
+///                   SrcSimdViewT src0, SrcSimdViewT src1,
+///                   simd_mask<N> mask = 1);
+/// Variation of the API that allows using \c simd_view without specifying
+/// \c T and \c N template parameters.
+/// Atomically updates \c N memory locations in SLM indicated by
+/// a vector of offsets, and returns a vector of old
+/// values found at the memory locations before update.
+/// @tparam Op The atomic operation.
+/// @param byte_offset The vector of 32-bit offsets.
+/// @param src0 is the first atomic operand (new value).
+/// @param src1 is the second atomic operand (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <atomic_op Op, typename OffsetSimdViewT, typename SrcSimdViewT,
+          typename T = SrcSimdViewT::value_type::element_type,
+          int N = SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY()>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2 &&
+                                 detail::is_simd_view_type_v<SrcSimdViewT> &&
+                                 detail::is_simd_view_type_v<OffsetSimdViewT>,
+                             simd<T, N>>
+slm_atomic_update(OffsetSimdViewT byte_offset, SrcSimdViewT src0,
+                  SrcSimdViewT src1, simd_mask<N> mask = 1) {
+  static_assert(
+      N == OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+      "Size of src1 and src0 parameters must correspond to the size of "
+      "byte_offset parameter.");
+  return slm_atomic_update<Op, T, N>(byte_offset.read(), src0, src1, mask);
+}
+
+/// simd<T, N>
 /// atomic_update(local_accessor lacc,
 ///               simd<uint32_t, N> byte_offset,
 ///               simd<T, N> src0,
 ///               simd<T, N> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-1)
+///               simd_mask<N> mask = 1);                      // (lacc-au2-1)
 template <atomic_op Op, typename T, int N, typename AccessorT>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2 &&
                                  __ESIMD_DNS::is_rw_local_accessor_v<AccessorT>,
@@ -8193,6 +8604,175 @@ atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, simd<T, N> src0,
               simd<T, N> src1, simd_mask<N> mask = 1) {
   byte_offset += detail::localAccessorToOffset(lacc);
   return slm_atomic_update<Op, T, N>(byte_offset, src0, src1, mask);
+}
+
+/// simd<T, N>
+/// atomic_update(local_accessor lacc,
+///               simd<uint32_t, N> byte_offset,
+///               SrcSimdViewT src0,
+///               simd<T, N> src1,
+///               simd_mask<N> mask = 1);
+/// Variation of the API that allows using \c simd_view without specifying
+/// \c T and \c N template parameters.
+template <atomic_op Op, typename SrcSimdViewT, typename T, int N,
+          typename AccessorT>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2 &&
+                                 detail::is_simd_view_type_v<SrcSimdViewT> &&
+                                 __ESIMD_DNS::is_rw_local_accessor_v<AccessorT>,
+                             simd<T, N>>
+atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, SrcSimdViewT src0,
+              simd<T, N> src1, simd_mask<N> mask = 1) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+                "Size of src0 parameter must correspond to the size of "
+                "byte_offset and src1 parameters.");
+  return atomic_update<Op, T, N>(lacc, byte_offset, src0.read(), src1, mask);
+}
+
+/// simd<T, N>
+/// atomic_update(local_accessor lacc,
+///               simd<uint32_t, N> byte_offset,
+///               simd<T, N> src0,
+///               SrcSimdViewT src1,
+///               simd_mask<N> mask = 1);
+/// Variation of the API that allows using \c simd_view without specifying
+/// \c T and \c N template parameters.
+template <atomic_op Op, typename SrcSimdViewT, typename T, int N,
+          typename AccessorT>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2 &&
+                                 detail::is_simd_view_type_v<SrcSimdViewT> &&
+                                 __ESIMD_DNS::is_rw_local_accessor_v<AccessorT>,
+                             simd<T, N>>
+atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, simd<T, N> src0,
+              SrcSimdViewT src1, simd_mask<N> mask = 1) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+                "Size of src1 parameter must correspond to the size of "
+                "byte_offset and src0 parameters.");
+  return atomic_update<Op, T, N>(lacc, byte_offset, src0, src1.read(), mask);
+}
+
+/// simd<T, N>
+/// atomic_update(local_accessor lacc,
+///               simd<uint32_t, N> byte_offset,
+///               SrcSimdViewT src0,
+///               SrcSimdViewT src1,
+///               simd_mask<N> mask = 1);
+/// Variation of the API that allows using \c simd_view without specifying
+/// \c T and \c N template parameters.
+template <atomic_op Op, typename SrcSimdViewT,
+          typename T = SrcSimdViewT::value_type::element_type, int N,
+          typename AccessorT>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2 &&
+                                 detail::is_simd_view_type_v<SrcSimdViewT> &&
+                                 __ESIMD_DNS::is_rw_local_accessor_v<AccessorT>,
+                             simd<T, N>>
+atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, SrcSimdViewT src0,
+              SrcSimdViewT src1, simd_mask<N> mask = 1) {
+  static_assert(
+      N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+      "Size of src1 and src0 parameters must correspond to the size of "
+      "byte_offset parameter.");
+  return atomic_update<Op, T, N>(lacc, byte_offset, src0.read(), src1.read(),
+                                 mask);
+}
+
+/// simd<T, N>
+/// atomic_update(local_accessor lacc,
+///               OffsetSimdViewT byte_offset,
+///               simd<T, N> src0,
+///               simd<T, N> src1,
+///               simd_mask<N> mask = 1);
+/// Variation of the API that allows using \c simd_view without specifying
+/// \c T and \c N template parameters.
+template <atomic_op Op, typename OffsetSimdViewT, typename T, int N,
+          typename AccessorT>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2 &&
+                                 detail::is_simd_view_type_v<OffsetSimdViewT> &&
+                                 __ESIMD_DNS::is_rw_local_accessor_v<AccessorT>,
+                             simd<T, N>>
+atomic_update(AccessorT lacc, OffsetSimdViewT byte_offset, simd<T, N> src0,
+              simd<T, N> src1, simd_mask<N> mask = 1) {
+  static_assert(
+      N == OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+      "Size of src1 and src0 parameters must correspond to the size of "
+      "byte_offset parameter.");
+  return atomic_update<Op, T, N>(lacc, byte_offset.read(), src0, src1, mask);
+}
+
+/// simd<T, N>
+/// atomic_update(local_accessor lacc,
+///               OffsetSimdViewT byte_offset,
+///               SrcSimdViewT src0,
+///               simd<T, N> src1,
+///               simd_mask<N> mask = 1);
+/// Variation of the API that allows using \c simd_view without specifying
+/// \c T and \c N template parameters.
+template <atomic_op Op, typename OffsetSimdViewT, typename SrcSimdViewT,
+          typename T, int N, typename AccessorT>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2 &&
+                                 detail::is_simd_view_type_v<SrcSimdViewT> &&
+                                 detail::is_simd_view_type_v<OffsetSimdViewT> &&
+                                 __ESIMD_DNS::is_rw_local_accessor_v<AccessorT>,
+                             simd<T, N>>
+atomic_update(AccessorT lacc, OffsetSimdViewT byte_offset, SrcSimdViewT src0,
+              simd<T, N> src1, simd_mask<N> mask = 1) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+                "Size of src0 parameter must correspond to the size of "
+                "byte_offset and src1 parameters.");
+  return atomic_update<Op, T, N>(lacc, byte_offset.read(), src0.read(), src1,
+                                 mask);
+}
+
+/// simd<T, N>
+/// atomic_update(local_accessor lacc,
+///               OffsetSimdViewT byte_offset,
+///               simd<T, N> src0,
+///               SrcSimdViewT src1,
+///               simd_mask<N> mask = 1);
+/// Variation of the API that allows using \c simd_view without specifying
+/// \c T and \c N template parameters.
+template <atomic_op Op, typename OffsetSimdViewT, typename SrcSimdViewT,
+          typename T, int N, typename AccessorT>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2 &&
+                                 detail::is_simd_view_type_v<SrcSimdViewT> &&
+                                 detail::is_simd_view_type_v<OffsetSimdViewT> &&
+                                 __ESIMD_DNS::is_rw_local_accessor_v<AccessorT>,
+                             simd<T, N>>
+atomic_update(AccessorT lacc, OffsetSimdViewT byte_offset, simd<T, N> src0,
+              SrcSimdViewT src1, simd_mask<N> mask = 1) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY() &&
+                    N == OffsetSimdViewT::getSizeX() *
+                             OffsetSimdViewT::getSizeY(),
+                "Size of src1 parameter must correspond to the size of "
+                "byte_offset and src0 parameters.");
+  return atomic_update<Op, T, N>(lacc, byte_offset.read(), src0, src1.read(),
+                                 mask);
+}
+
+/// simd<T, N>
+/// atomic_update(local_accessor lacc,
+///               OffsetSimdViewT byte_offset,
+///               SrcSimdViewT src0,
+///               SrcSimdViewT src1,
+///               simd_mask<N> mask = 1);
+/// Variation of the API that allows using \c simd_view without specifying
+/// \c T and \c N template parameters.
+template <atomic_op Op, typename OffsetSimdViewT, typename SrcSimdViewT,
+          typename T = SrcSimdViewT::value_type::element_type,
+          int N = SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+          typename AccessorT>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2 &&
+                                 detail::is_simd_view_type_v<SrcSimdViewT> &&
+                                 detail::is_simd_view_type_v<OffsetSimdViewT> &&
+                                 __ESIMD_DNS::is_rw_local_accessor_v<AccessorT>,
+                             simd<T, N>>
+atomic_update(AccessorT lacc, OffsetSimdViewT byte_offset, SrcSimdViewT src0,
+              SrcSimdViewT src1, simd_mask<N> mask = 1) {
+  static_assert(
+      N == OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+      "Size of src1 and src0 parameters must correspond to the size of "
+      "byte_offset parameter.");
+  return atomic_update<Op, T, N>(lacc, byte_offset.read(), src0.read(),
+                                 src1.read(), mask);
 }
 
 /// @} sycl_esimd_memory_slm
