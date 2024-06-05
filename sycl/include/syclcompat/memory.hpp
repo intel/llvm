@@ -537,6 +537,7 @@ static inline void *malloc(size_t &pitch, size_t x, size_t y,
 /// \returns no return value.
 static inline void wait_and_free(void *ptr,
                                  sycl::queue q = get_default_queue()) {
+  get_current_device().queues_wait_and_throw();
   q.wait();
   if (ptr) {
     sycl::free(ptr, q);
