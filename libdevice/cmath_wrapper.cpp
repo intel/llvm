@@ -23,6 +23,23 @@ DEVICE_EXTERN_C_INLINE
 float fabsf(float x) { return __devicelib_fabsf(x); }
 
 DEVICE_EXTERN_C_INLINE
+float ceilf(float x) { return __devicelib_ceilf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float copysignf(float x, float y) { return __devicelib_copysignf(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float cospif(float x) { return __devicelib_cospif(x); }
+
+extern "C" SYCL_EXTERNAL float __devicelib_fmaxf(float, float);
+DEVICE_EXTERN_C_INLINE
+float fmaxf(float x, float y) { return __devicelib_fmaxf(x, y); }
+
+extern "C" SYCL_EXTERNAL float __devicelib_fminf(float, float);
+DEVICE_EXTERN_C_INLINE
+float fminf(float x, float y) { return __devicelib_fminf(x, y); }
+
+DEVICE_EXTERN_C_INLINE
 div_t div(int x, int y) { return __devicelib_div(x, y); }
 
 DEVICE_EXTERN_C_INLINE

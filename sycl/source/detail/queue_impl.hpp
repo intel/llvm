@@ -388,6 +388,20 @@ public:
   template <typename Param>
   typename Param::return_type get_backend_info() const;
 
+  /// Provides a hint to the backend to execute previously issued commands on
+  /// this queue. Overrides normal batching behaviour. Note that this is merely
+  /// a hint and not a guarantee.
+  void flush() {
+    if (MGraph.lock()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "flush cannot be called for a queue which is "
+                            "recording to a command graph.");
+    }
+    for (const auto &queue : MQueues) {
+      getPlugin()->call<PiApiKind::piQueueFlush>(queue);
+    }
+  }
+
   using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
 
   /// Submits a command group function object to the queue, in order to be
@@ -764,8 +778,7 @@ protected:
 
   // template is needed for proper unit testing
   template <typename HandlerType = handler>
-  void finalizeHandler(HandlerType &Handler, const CG::CGTYPE &Type,
-                       event &EventRet) {
+  void finalizeHandler(HandlerType &Handler, event &EventRet) {
     if (MIsInorder) {
       // Accessing and changing of an event isn't atomic operation.
       // Hence, here is the lock for thread-safety.
@@ -793,6 +806,8 @@ protected:
       EventRet = Handler.finalize();
       EventToBuildDeps = getSyclObjImpl(EventRet);
     } else {
+      const CG::CGTYPE Type = Handler.getType();
+
       // The following code supports barrier synchronization if host task is
       // involved in the scenario. Native barriers cannot handle host task
       // dependency so in the case where some commands were not enqueued
@@ -834,53 +849,7 @@ protected:
                     const std::shared_ptr<queue_impl> &PrimaryQueue,
                     const std::shared_ptr<queue_impl> &SecondaryQueue,
                     const detail::code_location &Loc,
-                    const SubmitPostProcessF *PostProcess) {
-    // Flag used to detect nested calls to submit and report an error.
-    thread_local static bool PreventSubmit = false;
-
-    if (PreventSubmit) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Calls to sycl::queue::submit cannot be nested. Command group "
-          "function objects should use the sycl::handler API instead.");
-    }
-
-    handler Handler(Self, PrimaryQueue, SecondaryQueue, MHostQueue);
-    Handler.saveCodeLoc(Loc);
-    PreventSubmit = true;
-    try {
-      CGF(Handler);
-    } catch (...) {
-      PreventSubmit = false;
-      throw;
-    }
-    PreventSubmit = false;
-
-    // Scheduler will later omit events, that are not required to execute tasks.
-    // Host and interop tasks, however, are not submitted to low-level runtimes
-    // and require separate dependency management.
-    const CG::CGTYPE Type = Handler.getType();
-    event Event = detail::createSyclObjFromImpl<event>(
-        std::make_shared<detail::event_impl>());
-
-    if (PostProcess) {
-      bool IsKernel = Type == CG::Kernel;
-      bool KernelUsesAssert = false;
-
-      if (IsKernel)
-        // Kernel only uses assert if it's non interop one
-        KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
-                           ProgramManager::getInstance().kernelUsesAssert(
-                               Handler.MKernelName.c_str());
-      finalizeHandler(Handler, Type, Event);
-
-      (*PostProcess)(IsKernel, KernelUsesAssert, Event);
-    } else
-      finalizeHandler(Handler, Type, Event);
-
-    addEvent(Event);
-    return Event;
-  }
+                    const SubmitPostProcessF *PostProcess);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param Self is a shared_ptr to this queue.

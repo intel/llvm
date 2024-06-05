@@ -40,10 +40,12 @@
 // CKALL: Test Pass
 // CKALL: Test Pass
 
-#include "sycl/sycl.hpp"
 #include <chrono>
 #include <cmath>
 #include <iostream>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 
 void validate(uint32_t *result, uint32_t *expect, size_t n) {
   int error = 0;

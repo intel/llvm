@@ -1,6 +1,12 @@
 // REQUIRES:  gpu-intel-pvc, level_zero
 
+// UNSUPPORTED: gpu-intel-pvc-1T
+
 // RUN: %{build} %level_zero_options -o %t.out
+
+// TODO - at this time PVC 1T systems aren't correctly supporting affinity
+// subdomain partitioning so this test is marked as UNSUPPORTED on those
+// systems.
 
 // TODO - at this time ZEX_NUMBER_OF_CCS is not working with FLAT hierachy,
 // which is the new default on PVC.  Once it is supported, we'll test on both.
@@ -22,7 +28,9 @@
 #include <cmath>
 #include <iostream>
 #include <math.h>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 #include <unistd.h>
 
 using namespace sycl;

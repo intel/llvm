@@ -59,6 +59,38 @@
 namespace syclcompat {
 
 namespace detail {
+static void parse_version_string(const std::string &ver, int &major,
+                                 int &minor) {
+  // Version string has the following format:
+  // a. OpenCL<space><major.minor><space><vendor-specific-information>
+  // b. <major.minor>
+  // c. <AmdGcnArchName> e.g gfx1030
+  std::string::size_type i = 0;
+  while (i < ver.size()) {
+    if (isdigit(ver[i]))
+      break;
+    i++;
+  }
+  if (i < ver.size())
+    major = std::stoi(&(ver[i]));
+  else
+    major = 0;
+  while (i < ver.size()) {
+    if (ver[i] == '.')
+      break;
+    i++;
+  }
+  i++;
+  if (i < ver.size())
+    minor = std::stoi(&(ver[i]));
+  else
+    minor = 0;
+}
+
+static void get_version(const sycl::device &dev, int &major, int &minor) {
+  std::string ver = dev.get_info<sycl::info::device::version>();
+  parse_version_string(ver, major, minor);
+}
 
 /// SYCL default exception handler
 inline auto exception_handler = [](sycl::exception_list exceptions) {
@@ -161,6 +193,9 @@ public:
   unsigned int get_global_mem_cache_size() const {
     return _global_mem_cache_size;
   }
+  int get_image1d_max() const { return _image1d_max; }
+  auto get_image2d_max() const { return _image2d_max; }
+  auto get_image3d_max() const { return _image3d_max; }
 
   // set interface
   void set_name(const char *name) {
@@ -216,6 +251,12 @@ public:
       _max_nd_range_size_i[i] = max_nd_range_size[i];
     }
   }
+  void set_max_nd_range_size(sycl::id<3> max_nd_range_size) {
+    for (int i = 0; i < 3; i++) {
+      _max_nd_range_size[i] = max_nd_range_size[i];
+      _max_nd_range_size_i[i] = max_nd_range_size[i];
+    }
+  }
   void set_memory_clock_rate(unsigned int memory_clock_rate) {
     _memory_clock_rate = memory_clock_rate;
   }
@@ -230,6 +271,21 @@ public:
   void set_uuid(std::array<unsigned char, 16> uuid) { _uuid = std::move(uuid); }
   void set_global_mem_cache_size(unsigned int global_mem_cache_size) {
     _global_mem_cache_size = global_mem_cache_size;
+  }
+  void set_image1d_max(size_t image_max_buffer_size) {
+    _image1d_max = image_max_buffer_size;
+  }
+  void set_image2d_max(size_t image_max_width_buffer_size,
+                       size_t image_max_height_buffer_size) {
+    _image2d_max[0] = image_max_width_buffer_size;
+    _image2d_max[1] = image_max_height_buffer_size;
+  }
+  void set_image3d_max(size_t image_max_width_buffer_size,
+                       size_t image_max_height_buffer_size,
+                       size_t image_max_depth_buffer_size) {
+    _image3d_max[0] = image_max_width_buffer_size;
+    _image3d_max[1] = image_max_height_buffer_size;
+    _image3d_max[2] = image_max_depth_buffer_size;
   }
 
 private:
@@ -259,7 +315,22 @@ private:
   int _max_nd_range_size_i[3];
   uint32_t _device_id;
   std::array<unsigned char, 16> _uuid;
+  int _image1d_max;
+  int _image2d_max[2];
+  int _image3d_max[3];
 };
+
+static int get_major_version(const sycl::device &dev) {
+  int major, minor;
+  detail::get_version(dev, major, minor);
+  return major;
+}
+
+static int get_minor_version(const sycl::device &dev) {
+  int major, minor;
+  detail::get_version(dev, major, minor);
+  return minor;
+}
 
 /// device extension
 class device_ext : public sycl::device {
@@ -283,13 +354,9 @@ public:
   }
 
   bool is_native_host_atomic_supported() { return false; }
-  int get_major_version() const {
-    return get_device_info().get_major_version();
-  }
+  int get_major_version() const { return syclcompat::get_major_version(*this); }
 
-  int get_minor_version() const {
-    return get_device_info().get_minor_version();
-  }
+  int get_minor_version() const { return syclcompat::get_minor_version(*this); }
 
   int get_max_compute_units() const {
     return get_device_info().get_max_compute_units();
@@ -370,6 +437,7 @@ public:
         // by an int
         get_info<sycl::info::device::max_work_item_sizes<3>>());
 #endif
+    prop.set_host_unified_memory(has(sycl::aspect::usm_host_allocations));
 
     prop.set_max_clock_frequency(
         get_info<sycl::info::device::max_clock_frequency>());
@@ -422,8 +490,21 @@ Use 64 bits as memory_bus_width default value."
 
     prop.set_max_work_items_per_compute_unit(
         get_info<sycl::info::device::max_work_group_size>());
+#ifdef SYCL_EXT_ONEAPI_MAX_WORK_GROUP_QUERY
+    prop.set_max_nd_range_size(
+        get_info<sycl::ext::oneapi::experimental::info::device::max_work_groups<
+            3>>());
+#else
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma message("get_device_info: querying the maximum number \
+    of work groups is not supported.")
+#else
+#warning "get_device_info: querying the maximum number of \
+    work groups is not supported."
+#endif
     int max_nd_range_size[] = {0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF};
     prop.set_max_nd_range_size(max_nd_range_size);
+#endif
 
     // Estimates max register size per work group, feel free to update the value
     // according to device properties.
@@ -431,6 +512,14 @@ Use 64 bits as memory_bus_width default value."
 
     prop.set_global_mem_cache_size(
         get_info<sycl::info::device::global_mem_cache_size>());
+
+    prop.set_image1d_max(get_info<sycl::info::device::image_max_buffer_size>());
+    prop.set_image1d_max(get_info<sycl::info::device::image_max_buffer_size>());
+    prop.set_image2d_max(get_info<sycl::info::device::image2d_max_width>(),
+                         get_info<sycl::info::device::image2d_max_height>());
+    prop.set_image3d_max(get_info<sycl::info::device::image3d_max_width>(),
+                         get_info<sycl::info::device::image3d_max_height>(),
+                         get_info<sycl::info::device::image3d_max_height>());
     out = prop;
   }
 
@@ -569,32 +658,7 @@ private:
   }
 
   void get_version(int &major, int &minor) const {
-    // Version string has the following format:
-    // a. OpenCL<space><major.minor><space><vendor-specific-information>
-    // b. <major.minor>
-    // c. <AmdGcnArchName> e.g gfx1030
-    std::string ver;
-    ver = get_info<sycl::info::device::version>();
-    std::string::size_type i = 0;
-    while (i < ver.size()) {
-      if (isdigit(ver[i]))
-        break;
-      i++;
-    }
-    major = std::stoi(&(ver[i]));
-    while (i < ver.size()) {
-      if (ver[i] == '.')
-        break;
-      i++;
-    }
-    if (i < ver.size()) {
-      // a. and b.
-      i++;
-      minor = std::stoi(&(ver[i]));
-    } else {
-      // c.
-      minor = 0;
-    }
+    detail::get_version(*this, major, minor);
   }
   void add_event(sycl::event event) {
     std::lock_guard<std::mutex> lock(m_mutex);

@@ -6,7 +6,9 @@
 // RUN: %{run} %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/usm.hpp>
 
 class kernel_sampled_fetch;
 
@@ -40,8 +42,7 @@ int main() {
         sycl::filtering_mode::linear);
 
     // Extension: image descriptor
-    syclexp::image_descriptor desc({width, height},
-                                   sycl::image_channel_order::rgba,
+    syclexp::image_descriptor desc({width, height}, 4,
                                    sycl::image_channel_type::unsigned_int16);
     size_t pitch = 0;
 

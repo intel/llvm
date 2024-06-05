@@ -228,44 +228,6 @@ and not recommended to use in production environment.
     module that can be linked later by any standard host linker into the final
     fat binary.
 
-**`-fsycl-link-targets=<T1,...,Tn>`** [DEPRECATED]
-
-    Specify comma-separated list of triples SYCL offloading targets to produce
-    linked device images. Used in a link step to link device code for given
-    targets and output multiple linked device code images, whose names consist
-    of the common prefix taken from the -o option and the triple string.
-    Does not produce fat binary and must be used together with -fsycl.
-
-**`-fsycl-add-targets=<T1:file1...Tn:filen>`** [DEPRECATED]
-
-    Add arbitrary device images to the fat binary being linked
-
-    Specify comma-separated list of triple and device binary image file name
-    pairs to add to the final SYCL binary. Tells clang to include given set of
-    device binaries into the fat SYCL binary when linking; the option value is
-    a set of pairs triple,filename - filename is treated as the device binary
-    image for the target triple it is paired with, and offload bundler is
-    invoked to do the actual bundling.
-
-**`-foffload-static-lib=<lib>`** [DEPRECATED]
-
-    Link with fat static library.
-
-    Link with <lib>, which is a fat static archive containing fat objects which
-    correspond to the target device. When linking clang will extract the device
-    code from the objects contained in the library and link it with other
-    device objects coming from the individual fat objects passed on the command
-    line.
-    NOTE:  Any libraries that are passed on the command line which are not
-    specified with `-foffload-static-lib` are treated as host libraries and are
-    only used during the final host link.
-
-**`-foffload-whole-static-lib=<lib>`** [DEPRECATED]
-
-    Similar to `-foffload-static-lib` but uses the whole archive when
-    performing the device code extraction.  This is helpful when creating
-    shared objects from fat static archives.
-
 **`-fsycl-device-code-split=<mode>`**
 
     Specifies SYCL device code module assembly. Mode is one of the following:

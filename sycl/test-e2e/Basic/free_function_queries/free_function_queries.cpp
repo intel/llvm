@@ -14,7 +14,8 @@
 //
 //===------------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/free_function_queries.hpp>
 
 #include <cassert>
 #include <iostream>

@@ -41,6 +41,18 @@
 ??$get_info@U?$max_work_groups@$00@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$id@$00@23@XZ
 ??$get_info@U?$max_work_groups@$01@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$id@$01@23@XZ
 ??$get_info@U?$max_work_groups@$02@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$id@$02@23@XZ
+??$get_info@U?$sub_group_progress_capabilities@$02@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$vector@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@V?$allocator@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
+??$get_info@U?$work_item_progress_capabilities@$00@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$vector@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@V?$allocator@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
+??$get_info@U?$work_group_progress_capabilities@$02@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$vector@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@V?$allocator@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
+??$get_info_impl@U?$work_item_progress_capabilities@$01@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$vector@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@V?$allocator@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
+??$get_info@U?$work_item_progress_capabilities@$01@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$vector@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@V?$allocator@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
+??$get_info_impl@U?$work_item_progress_capabilities@$02@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$vector@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@V?$allocator@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
+??$get_info@U?$work_item_progress_capabilities@$02@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$vector@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@V?$allocator@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
+??$get_info_impl@U?$sub_group_progress_capabilities@$02@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$vector@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@V?$allocator@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
+??$get_info_impl@U?$work_item_progress_capabilities@$00@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$vector@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@V?$allocator@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
+??$get_info@U?$sub_group_progress_capabilities@$01@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$vector@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@V?$allocator@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
+??$get_info_impl@U?$work_group_progress_capabilities@$02@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$vector@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@V?$allocator@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
+??$get_info_impl@U?$sub_group_progress_capabilities@$01@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$vector@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@V?$allocator@W4forward_progress_guarantee@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Uarchitecture@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AW4architecture@experimental@oneapi@ext@23@XZ
 ??$get_info@Uatomic_fence_order_capabilities@context@info@_V1@sycl@@@context@_V1@sycl@@QEBA?AV?$vector@W4memory_order@_V1@sycl@@V?$allocator@W4memory_order@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Uatomic_fence_scope_capabilities@context@info@_V1@sycl@@@context@_V1@sycl@@QEBA?AV?$vector@W4memory_scope@_V1@sycl@@V?$allocator@W4memory_scope@_V1@sycl@@@std@@@std@@XZ
@@ -441,6 +453,12 @@
 ??$import_external_semaphore@Uexternal_semaphore_fd@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA?AUinterop_semaphore_handle@01234@U?$external_semaphore_descriptor@Uexternal_semaphore_fd@experimental@oneapi@ext@_V1@sycl@@@01234@AEBVqueue@34@@Z
 ??$import_external_semaphore@Uresource_fd@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA?AUinterop_semaphore_handle@01234@U?$external_semaphore_descriptor@Uresource_fd@experimental@oneapi@ext@_V1@sycl@@@01234@AEBVdevice@34@AEBVcontext@34@@Z
 ??$import_external_semaphore@Uresource_fd@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA?AUinterop_semaphore_handle@01234@U?$external_semaphore_descriptor@Uresource_fd@experimental@oneapi@ext@_V1@sycl@@@01234@AEBVqueue@34@@Z
+??$update_nd_range@$00@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$00@45@@Z
+??$update_nd_range@$01@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$01@45@@Z
+??$update_nd_range@$02@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$02@45@@Z
+??$update_range@$00@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$range@$00@45@@Z
+??$update_range@$01@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$range@$01@45@@Z
+??$update_range@$02@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$range@$02@45@@Z
 ??0AccessorBaseHost@detail@_V1@sycl@@IEAA@AEBV?$shared_ptr@VAccessorImplHost@detail@_V1@sycl@@@std@@@Z
 ??0AccessorBaseHost@detail@_V1@sycl@@QEAA@$$QEAV0123@@Z
 ??0AccessorBaseHost@detail@_V1@sycl@@QEAA@AEBV0123@@Z
@@ -3920,6 +3938,7 @@
 ?add@device_global_map@detail@_V1@sycl@@YAXPEBXPEBD@Z
 ?add@host_pipe_map@detail@_V1@sycl@@YAXPEBXPEBD@Z
 ?add@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA?AVnode@34567@AEBVproperty_list@67@@Z
+?addCounterInit@detail@_V1@sycl@@YAXAEAVhandler@23@AEAV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@AEAV?$shared_ptr@H@6@@Z
 ?addGraphLeafDependencies@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXVnode@34567@@Z
 ?addHostAccessorAndWait@detail@_V1@sycl@@YAXPEAVAccessorImplHost@123@@Z
 ?addHostSampledImageAccessorAndWait@detail@_V1@sycl@@YAXPEAVSampledImageAccessorImplHost@123@@Z
@@ -4057,6 +4076,7 @@
 ?ext_intel_read_host_pipe@handler@_V1@sycl@@AEAAXVstring_view@detail@23@PEAX_K_N@Z
 ?ext_intel_write_host_pipe@handler@_V1@sycl@@AEAAXAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAX_K_N@Z
 ?ext_intel_write_host_pipe@handler@_V1@sycl@@AEAAXVstring_view@detail@23@PEAX_K_N@Z
+?verifyDeviceHasProgressGuarantee@handler@_V1@sycl@@AEAAXW4forward_progress_guarantee@experimental@oneapi@ext@23@W4execution_scope@56723@1@Z
 ?ext_oneapi_advise_usm_cmd_buffer@MemoryManager@detail@_V1@sycl@@SAXV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@PEAU_pi_ext_command_buffer@@PEBX_KW4_pi_mem_advice@@V?$vector@IV?$allocator@I@std@@@6@PEAI@Z
 ?ext_oneapi_architecture_is@device@_V1@sycl@@QEAA_NW4arch_category@experimental@oneapi@ext@23@@Z
 ?ext_oneapi_architecture_is@device@_V1@sycl@@QEAA_NW4architecture@experimental@oneapi@ext@23@@Z
@@ -4072,6 +4092,7 @@
 ?ext_oneapi_copy@handler@_V1@sycl@@QEAAXUimage_mem_handle@experimental@oneapi@ext@23@0AEBUimage_descriptor@56723@@Z
 ?ext_oneapi_copy@handler@_V1@sycl@@QEAAXUimage_mem_handle@experimental@oneapi@ext@23@PEAXAEBUimage_descriptor@56723@@Z
 ?ext_oneapi_copy@handler@_V1@sycl@@QEAAXUimage_mem_handle@experimental@oneapi@ext@23@V?$range@$02@23@AEBUimage_descriptor@56723@PEAX111@Z
+?ext_oneapi_prod@queue@_V1@sycl@@QEAAXXZ
 ?ext_oneapi_copy@queue@_V1@sycl@@QEAA?AVevent@23@PEAX0AEBUimage_descriptor@experimental@oneapi@ext@23@_KAEBUcode_location@detail@23@@Z
 ?ext_oneapi_copy@queue@_V1@sycl@@QEAA?AVevent@23@PEAX0AEBUimage_descriptor@experimental@oneapi@ext@23@_KAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@AEBUcode_location@detail@23@@Z
 ?ext_oneapi_copy@queue@_V1@sycl@@QEAA?AVevent@23@PEAX0AEBUimage_descriptor@experimental@oneapi@ext@23@_KV423@AEBUcode_location@detail@23@@Z
@@ -4341,12 +4362,6 @@
 ?get_mip_level_mem_handle@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AUimage_mem_handle@23456@I@Z
 ?get_name@kernel_id@_V1@sycl@@QEBAPEBDXZ
 ?get_node_from_event@node@experimental@oneapi@ext@_V1@sycl@@SA?AV123456@Vevent@56@@Z
-??$update_nd_range@$00@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$00@45@@Z
-??$update_nd_range@$01@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$01@45@@Z
-??$update_nd_range@$02@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$02@45@@Z
-??$update_range@$00@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$range@$00@45@@Z
-??$update_range@$01@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$range@$01@45@@Z
-??$update_range@$02@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$range@$02@45@@Z
 ?get_nodes@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ?get_num_channels@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBAIXZ
 ?get_pipe_name@pipe_base@experimental@intel@ext@_V1@sycl@@KA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEBX@Z
@@ -4399,6 +4414,7 @@
 ?has_kernel_bundle_impl@detail@_V1@sycl@@YA_NAEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@W4bundle_state@23@@Z
 ?has_specialization_constant_impl@kernel_bundle_plain@detail@_V1@sycl@@IEBA_NPEBD@Z
 ?initStreamHost@stream_impl@detail@_V1@sycl@@QEAAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@@Z
+?internalProfilingTagImpl@handler@_V1@sycl@@AEAAXXZ
 ?isBackendSupportedFillSize@handler@_V1@sycl@@CA_N_K@Z
 ?isConstOrGlobal@handler@_V1@sycl@@CA_NW4target@access@23@@Z
 ?isDeviceGlobalUsedInKernel@detail@_V1@sycl@@YA_NPEBX@Z
