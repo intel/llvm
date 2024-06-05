@@ -550,7 +550,7 @@ gather(const T *p, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 ///             simd<OffsetT, N / VS> byte_offsets,
 ///             simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
 ///             PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters. Loads ("gathers") elements of the type 'T'
 /// from memory locations addressed by the base pointer \p p and byte offsets \p
 /// byte_offsets, and returns the loaded elements. Access to any element's
@@ -591,7 +591,7 @@ gather(const T *p, simd<OffsetT, N / VS> byte_offsets, simd_mask<N / VS> mask,
 ///             OffsetSimdViewT byte_offsets,
 ///             simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
 ///             PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters. Loads ("gathers") elements of the type 'T'
 /// from memory locations addressed by the base pointer \p p and byte offsets \p
 /// byte_offsets, and returns the loaded elements. Access to any element's
@@ -637,7 +637,7 @@ gather(const T *p, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 ///             OffsetSimdViewT byte_offsets,
 ///             simd_mask<N / VS> mask, simd<T, N> pass_thru,
 ///             PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters. Loads ("gathers") elements of the type 'T'
 /// from memory locations addressed by the base pointer \p p and byte offsets \p
 /// byte_offsets, and returns the loaded elements. Access to any element's
@@ -711,7 +711,7 @@ gather(const T *p, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 /// simd <T, N> gather(const T *p,
 ///             OffsetSimdViewT byte_offsets,
 ///             simd_mask<N / VS> mask, PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters. Loads ("gathers") elements of the type 'T'
 /// from memory locations addressed by the base pointer \p p and byte offsets \p
 /// byte_offsets, and returns the loaded elements. Access to any element's
@@ -772,7 +772,7 @@ gather(const T *p, OffsetSimdViewT byte_offsets, PropertyListT props = {}) {
 /// simd <T, N> gather(const T *p,
 ///             OffsetSimdViewT byte_offsets,
 ///             PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.  Loads ("gathers") elements of the type 'T'
 /// from memory locations addressed by the base pointer \p p and byte offsets \p
 /// byte_offsets, and returns the loaded elements.
@@ -925,7 +925,7 @@ scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
 /// void scatter(T *p, simd<OffsetT, N / VS> byte_offsets, ValuesSimdViewT vals,
 /// simd_mask<N / VS> mask, PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Writes ("scatters") elements of the input vector to different memory
 /// locations. Each memory location is base address plus an offset - a
@@ -993,7 +993,7 @@ scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
 /// void scatter(T *p, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 /// 	simd_mask<N / VS> mask, PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Writes ("scatters") elements of the input vector to different memory
 /// locations. Each memory location is base address plus an offset - a
@@ -1033,7 +1033,7 @@ scatter(T *p, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 /// void scatter(T *p, simd<OffsetT, N / VS> byte_offsets, ValuesSimdViewT vals,
 /// 	PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Writes ("scatters") elements of the input vector to different memory
 /// locations. Each memory location is base address plus an offset - a
@@ -1101,7 +1101,7 @@ scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// void scatter(T *p, OffsetSimdViewT byte_offsets, simd<T,N> vals,
 /// 	simd_mask<N / VS> mask, PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Writes ("scatters") elements of the input vector to different memory
 /// locations. Each memory location is base address plus an offset - a
@@ -1140,7 +1140,7 @@ scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// void scatter(T *p, OffsetSimdViewT byte_offsets, simd<T,N> vals,
 /// 	PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Writes ("scatters") elements of the input vector to different memory
 /// locations. Each memory location is base address plus an offset - a
@@ -1214,7 +1214,7 @@ scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// void scatter(T *p, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 ///      PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Writes ("scatters") elements of the input vector to different memory
 /// locations. Each memory location is base address plus an offset - a
@@ -5215,7 +5215,7 @@ slm_gather(OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 ///             OffsetSimdViewT byte_offsets,
 ///             simd_mask<N / VS> mask, simd<T, N> pass_thru,
 ///             PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Loads ("gathers") elements of the type 'T' from Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets, and returns the loaded
@@ -5260,7 +5260,7 @@ slm_gather(OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 ///             OffsetSimdViewT byte_offsets,
 ///             simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
 ///             PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Loads ("gathers") elements of the type 'T' from Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets, and returns the loaded
@@ -5309,7 +5309,7 @@ slm_gather(OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 ///             OffsetSimdViewT byte_offsets,
 ///             simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
 ///             PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Loads ("gathers") elements of the type 'T' from Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets, and returns the loaded
@@ -6705,7 +6705,7 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
 ///                   SrcSimdViewT src0,
 ///                   simd_mask<N> mask = 1)
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Atomically updates \c N memory locations in SLM indicated by
 /// a vector of offsets, and returns a vector of old
@@ -6735,7 +6735,7 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, SrcSimdViewT src0,
 ///                   simd<T, N> src0,
 ///                   simd_mask<N> mask = 1)
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Atomically updates \c N memory locations in SLM indicated by
 /// a vector of offsets, and returns a vector of old
@@ -6764,7 +6764,7 @@ slm_atomic_update(OffsetSimdViewT byte_offset, simd<T, N> src0,
 ///                   SrcSimdViewT src0,
 ///                   simd_mask<N> mask = 1)
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Atomically updates \c N memory locations in SLM indicated by
 /// a vector of offsets, and returns a vector of old
@@ -6795,7 +6795,7 @@ slm_atomic_update(OffsetSimdViewT byte_offset, SrcSimdViewT src0,
 /// atomic_update(local_accessor lacc,
 ///               simd<uint32_t, N> byte_offset,
 ///               simd<T, N> src0,
-///               simd_mask<1> pred = 1);                       // (lacc-au1-1)
+///               simd_mask<1> mask = 1);                       // (lacc-au1-1)
 ///
 /// Atomically updates \c N memory locations in SLM indicated by
 /// local accessor \p lacc and a vector of offsets, and returns a vector of old
@@ -6823,9 +6823,9 @@ atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, simd<T, N> src0,
 /// atomic_update(local_accessor lacc,
 ///               OffsetSimdViewT byte_offset,
 ///               simd<T, N> src0,
-///               simd_mask<1> pred = 1);
+///               simd_mask<1> mask = 1);
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Atomically updates \c N memory locations in SLM indicated by
 /// local accessor \p lacc and a vector of offsets, and returns a vector of old
@@ -6855,9 +6855,9 @@ atomic_update(AccessorT lacc, OffsetSimdViewT byte_offset, simd<T, N> src0,
 /// atomic_update(local_accessor lacc,
 ///               simd<uint32_t, N> byte_offset,
 ///               SrcSimdViewT src0,
-///               simd_mask<1> pred = 1);
+///               simd_mask<1> mask = 1);
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Atomically updates \c N memory locations in SLM indicated by
 /// local accessor \p lacc and a vector of offsets, and returns a vector of old
@@ -6888,9 +6888,9 @@ atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, SrcSimdViewT src0,
 /// atomic_update(local_accessor lacc,
 ///               OffsetSimdViewT byte_offset,
 ///               SrcSimdViewT src0,
-///               simd_mask<1> pred = 1);
+///               simd_mask<1> mask = 1);
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Atomically updates \c N memory locations in SLM indicated by
 /// local accessor \p lacc and a vector of offsets, and returns a vector of old
@@ -6930,7 +6930,7 @@ atomic_update(AccessorT lacc, OffsetSimdViewT byte_offset, SrcSimdViewT src0,
 ///               simd<uint32_t, N> byte_offset,
 ///               simd<T, N> src0,
 ///               simd<T, N> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-1)
+///               simd_mask<1> mask = 1);                      // (lacc-au2-1)
 ///
 
 /// simd<T, N>
@@ -6976,7 +6976,7 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
 /// slm_atomic_update(simd<uint32_t, N> byte_offset,
 ///                   SrcSimdViewT src0, simd<T, N> src1,
 ///                   simd_mask<N> mask = 1);
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Atomically updates \c N memory locations in SLM indicated by
 /// a vector of offsets, and returns a vector of old
@@ -7005,7 +7005,7 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, SrcSimdViewT src0,
 /// slm_atomic_update(simd<uint32_t, N> byte_offset,
 ///                   simd<T, N> src0, SrcSimdViewT src1,
 ///                   simd_mask<N> mask = 1);
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Atomically updates \c N memory locations in SLM indicated by
 /// a vector of offsets, and returns a vector of old
@@ -7034,7 +7034,7 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
 /// slm_atomic_update(simd<uint32_t, N> byte_offset,
 ///                   SrcSimdViewT src0, SrcSimdViewT src1,
 ///                   simd_mask<N> mask = 1);
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Atomically updates \c N memory locations in SLM indicated by
 /// a vector of offsets, and returns a vector of old
@@ -7066,7 +7066,7 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, SrcSimdViewT src0,
 /// slm_atomic_update(OffsetSimdViewT byte_offset,
 ///                   simd<T, N> src0, simd<T, N> src1,
 ///                   simd_mask<N> mask = 1);
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Atomically updates \c N memory locations in SLM indicated by
 /// a vector of offsets, and returns a vector of old
@@ -7096,7 +7096,7 @@ slm_atomic_update(OffsetSimdViewT byte_offset, simd<T, N> src0, simd<T, N> src1,
 /// slm_atomic_update(OffsetSimdViewT byte_offset,
 ///                   SrcSimdViewT src0, simd<T, N> src1,
 ///                   simd_mask<N> mask = 1);
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Atomically updates \c N memory locations in SLM indicated by
 /// a vector of offsets, and returns a vector of old
@@ -7130,7 +7130,7 @@ slm_atomic_update(OffsetSimdViewT byte_offset, SrcSimdViewT src0,
 /// slm_atomic_update(OffsetSimdViewT byte_offset,
 ///                   simd<T, N> src0, SrcSimdViewT src1,
 ///                   simd_mask<N> mask = 1);
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Atomically updates \c N memory locations in SLM indicated by
 /// a vector of offsets, and returns a vector of old
@@ -7164,7 +7164,7 @@ slm_atomic_update(OffsetSimdViewT byte_offset, simd<T, N> src0,
 /// slm_atomic_update(OffsetSimdViewT byte_offset,
 ///                   SrcSimdViewT src0, SrcSimdViewT src1,
 ///                   simd_mask<N> mask = 1);
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Atomically updates \c N memory locations in SLM indicated by
 /// a vector of offsets, and returns a vector of old
@@ -7215,7 +7215,7 @@ atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, simd<T, N> src0,
 ///               SrcSimdViewT src0,
 ///               simd<T, N> src1,
 ///               simd_mask<1> pred = 1);
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 template <atomic_op Op, typename SrcSimdViewT, typename T, int N,
           typename AccessorT>
@@ -7237,7 +7237,7 @@ atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, SrcSimdViewT src0,
 ///               simd<T, N> src0,
 ///               SrcSimdViewT src1,
 ///               simd_mask<1> pred = 1);
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 template <atomic_op Op, typename SrcSimdViewT, typename T, int N,
           typename AccessorT>
@@ -7259,7 +7259,7 @@ atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, simd<T, N> src0,
 ///               SrcSimdViewT src0,
 ///               SrcSimdViewT src1,
 ///               simd_mask<1> pred = 1);
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 template <atomic_op Op, typename SrcSimdViewT,
           typename T = SrcSimdViewT::value_type::element_type, int N,
@@ -7284,7 +7284,7 @@ atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, SrcSimdViewT src0,
 ///               simd<T, N> src0,
 ///               simd<T, N> src1,
 ///               simd_mask<1> pred = 1);
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 template <atomic_op Op, typename OffsetSimdViewT, typename T, int N,
           typename AccessorT>
@@ -7307,7 +7307,7 @@ atomic_update(AccessorT lacc, OffsetSimdViewT byte_offset, simd<T, N> src0,
 ///               SrcSimdViewT src0,
 ///               simd<T, N> src1,
 ///               simd_mask<1> pred = 1);
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 template <atomic_op Op, typename OffsetSimdViewT, typename SrcSimdViewT,
           typename T, int N, typename AccessorT>
@@ -7331,7 +7331,7 @@ atomic_update(AccessorT lacc, OffsetSimdViewT byte_offset, SrcSimdViewT src0,
 ///               simd<T, N> src0,
 ///               SrcSimdViewT src1,
 ///               simd_mask<1> pred = 1);
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 template <atomic_op Op, typename OffsetSimdViewT, typename SrcSimdViewT,
           typename T, int N, typename AccessorT>
@@ -7357,7 +7357,7 @@ atomic_update(AccessorT lacc, OffsetSimdViewT byte_offset, simd<T, N> src0,
 ///               SrcSimdViewT src0,
 ///               SrcSimdViewT src1,
 ///               simd_mask<1> pred = 1);
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 template <atomic_op Op, typename OffsetSimdViewT, typename SrcSimdViewT,
           typename T = SrcSimdViewT::value_type::element_type,
