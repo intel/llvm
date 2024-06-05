@@ -804,6 +804,14 @@ using OCLImageTyWrite =
     typename sycl::detail::opencl_image_type<NDims, sycl::access::mode::write,
                                              sycl::access::target::image>::type;
 
+template <int NDims>
+using OCLImageArrayTyRead = typename sycl::detail::opencl_image_type<
+    NDims, sycl::access::mode::read, sycl::access::target::image_array>::type;
+
+template <int NDims>
+using OCLImageArrayTyWrite = typename sycl::detail::opencl_image_type<
+    NDims, sycl::access::mode::write, sycl::access::target::image_array>::type;
+
 // Macros are required because it is not legal for a function to return
 // a variable of type 'opencl_image_type'.
 #if defined(__SPIR__)
@@ -817,6 +825,16 @@ using OCLImageTyWrite =
 
 #define FETCH_UNSAMPLED_IMAGE(DataT, raw_handle, coords)                       \
   __invoke__ImageRead<DataT>(raw_handle, coords)
+
+#define FETCH_SAMPLED_IMAGE(DataT, raw_handle, coords)                         \
+  __invoke__ImageRead<DataT>(raw_handle, coords)
+
+#define FETCH_IMAGE_ARRAY(DataT, raw_handle, coords, arrayLayer, coordsLayer)  \
+  __invoke__ImageRead<DataT>(raw_handle, coordsLayer)
+
+#define WRITE_IMAGE_ARRAY(raw_handle, coords, arrayLayer, coordsLayer, color)  \
+  __invoke__ImageWrite(raw_handle, coordsLayer, color)
+
 #else
 #define CONVERT_HANDLE_TO_IMAGE(raw_handle, ImageType) raw_handle
 
@@ -824,9 +842,18 @@ using OCLImageTyWrite =
 
 #define FETCH_UNSAMPLED_IMAGE(DataT, raw_handle, coords)                       \
   __invoke__ImageFetch<DataT>(raw_handle, coords)
+
+#define FETCH_SAMPLED_IMAGE(DataT, raw_handle, coords)                         \
+  __invoke__SampledImageFetch<DataT>(raw_handle, coords)
+
+#define FETCH_IMAGE_ARRAY(DataT, raw_handle, coords, arrayLayer, coordsLayer)  \
+  __invoke__ImageArrayFetch<DataT>(raw_handle, coords, arrayLayer)
+
+#define WRITE_IMAGE_ARRAY(raw_handle, coords, arrayLayer, coordsLayer, color)  \
+  __invoke__ImageArrayWrite(raw_handle, coords, arrayLayer, color)
 #endif
 
-#endif
+#endif // __SYCL_DEVICE_ONLY__
 
 } // namespace detail
 
@@ -951,11 +978,13 @@ DataT fetch_image(const sampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return __invoke__SampledImageFetch<DataT>(
+    return FETCH_SAMPLED_IMAGE(
+        DataT,
         CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
         coords);
   } else {
-    return sycl::bit_cast<DataT>(__invoke__SampledImageFetch<HintT>(
+    return sycl::bit_cast<DataT>(FETCH_SAMPLED_IMAGE(
+        HintT,
         CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
         coords));
   }
@@ -1278,21 +1307,24 @@ DataT fetch_image_array(const unsampled_image_handle &imageHandle
                 "and 2D images respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
+  sycl::vec<int, coordSize + 1> coordsLayer{coords, arrayLayer};
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return __invoke__ImageArrayFetch<DataT>(
+    return FETCH_IMAGE_ARRAY(
+        DataT,
         CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
-                                detail::OCLImageTyRead<coordSize>),
-        coords, arrayLayer);
+                                detail::OCLImageArrayTyRead<coordSize>),
+        coords, arrayLayer, coordsLayer);
   } else {
     static_assert(sizeof(HintT) == sizeof(DataT),
                   "When trying to fetch a user-defined type, HintT must be of "
                   "the same size as the user-defined DataT.");
     static_assert(detail::is_recognized_standard_type<HintT>(),
                   "HintT must always be a recognized standard type");
-    return sycl::bit_cast<DataT>(__invoke__ImageArrayFetch<HintT>(
+    return sycl::bit_cast<DataT>(FETCH_IMAGE_ARRAY(
+        HintT,
         CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
-                                detail::OCLImageTyRead<coordSize>),
-        coords, arrayLayer));
+                                detail::OCLImageArrayTyRead<coordSize>),
+        coords, arrayLayer, coordsLayer));
   }
 #else
   assert(false); // Bindless images not yet implemented on host.
@@ -1419,18 +1451,19 @@ void write_image_array(unsampled_image_handle imageHandle [[maybe_unused]],
                 "and 2D images respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
+  sycl::vec<int, coordSize + 1> coordsLayer{coords, arrayLayer};
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    __invoke__ImageArrayWrite(
+    WRITE_IMAGE_ARRAY(
         CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
-                                detail::OCLImageTyRead<coordSize>),
-        coords, arrayLayer, color);
+                                detail::OCLImageArrayTyWrite<coordSize>),
+        coords, arrayLayer, coordsLayer, color);
   } else {
     // Convert DataT to a supported backend write type when user-defined type is
     // passed
-    __invoke__ImageArrayWrite(
+    WRITE_IMAGE_ARRAY(
         CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
-                                detail::OCLImageTyRead<coordSize>),
-        coords, arrayLayer, detail::convert_color(color));
+                                detail::OCLImageArrayTyWrite<coordSize>),
+        coords, arrayLayer, coordsLayer, detail::convert_color(color));
   }
 #else
   assert(false); // Bindless images not yet implemented on host.

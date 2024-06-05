@@ -521,10 +521,11 @@ if os.path.exists(xptifw_lib_dir) and os.path.exists(
     config.available_features.add("xptifw")
     config.substitutions.append(("%xptifw_dispatcher", xptifw_dispatcher))
     if cl_options:
+        xptifw_lib_name = os.path.normpath(os.path.join(xptifw_lib_dir, "xptifw.lib"))
         config.substitutions.append(
             (
                 "%xptifw_lib",
-                " {}/xptifw.lib /I{} ".format(xptifw_lib_dir, xptifw_includes),
+                " {} /I{} ".format(xptifw_lib_name, xptifw_includes),
             )
         )
     else:

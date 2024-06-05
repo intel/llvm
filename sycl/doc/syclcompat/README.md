@@ -54,6 +54,9 @@ If available, the following extensions extend SYCLcompat functionality:
 
 * [sycl_ext_intel_device_info](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_intel_device_info.md) \[Optional\]
 * [sycl_ext_oneapi_bfloat16_math_functions](../extensions/experimental/sycl_ext_oneapi_bfloat16_math_functions.asciidoc) \[Optional\]
+* [sycl_ext_oneapi_max_work_group_query](
+  https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_max_work_group_query.md)
+  \[Optional\]
 
 ## Usage
 
@@ -755,6 +758,9 @@ public:
   uint32_t get_device_id() const;
   std::array<unsigned char, 16> get_uuid() const;
   unsigned int get_global_mem_cache_size() const;
+  int get_image1d_max() const;
+  auto get_image2d_max() const;
+  auto get_image3d_max() const;
 
   void set_name(const char *name);
   void set_max_work_item_sizes(const sycl::range<3> max_work_item_sizes);
@@ -773,6 +779,7 @@ public:
   void
   set_max_work_items_per_compute_unit(int max_work_items_per_compute_unit);
   void set_max_nd_range_size(int max_nd_range_size[]);
+  void set_max_nd_range_size(sycl::id<3> max_nd_range_size);
   void set_memory_clock_rate(unsigned int memory_clock_rate);
   void set_memory_bus_width(unsigned int memory_bus_width);
   void 
@@ -780,6 +787,12 @@ public:
   void set_device_id(uint32_t device_id);
   void set_uuid(std::array<unsigned char, 16> uuid);
   void set_global_mem_cache_size(unsigned int global_mem_cache_size);
+  void set_image1d_max(size_t image_max_buffer_size);
+  void set_image2d_max(size_t image_max_width_buffer_size,
+                       size_t image_max_height_buffer_size);
+  void set_image3d_max(size_t image_max_width_buffer_size,
+                       size_t image_max_height_buffer_size,
+                       size_t image_max_depth_buffer_size);
 };
 ```
 
@@ -909,6 +922,13 @@ class device_ext : public sycl::device {
 };
 
 } // syclcompat
+```
+
+Free functions are provided for querying major and minor version directly from a `sycl::device`, equivalent to the methods of `device_ext` described above:
+
+```c++
+static int get_major_version(const sycl::device &dev);
+static int get_minor_version(const sycl::device &dev);
 ```
 
 #### Multiple devices
