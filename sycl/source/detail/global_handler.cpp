@@ -303,11 +303,6 @@ void shutdown() {
   // This releases our reference to the default context, but
   // it might not be the last one quite yet.
   Handler->releaseDefaultContexts();
-
-  // First, release resources, that may access plugins.
-  Handler->MPlatformCache.Inst.reset(nullptr);
-  Handler->MScheduler.Inst.reset(nullptr);
-  Handler->MProgramManager.Inst.reset(nullptr);
 }
 
 #ifdef _WIN32
@@ -330,6 +325,11 @@ void shutdown2() {
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)
     return;
+
+  // First, release resources, that may access plugins.
+  Handler->MPlatformCache.Inst.reset(nullptr);
+  Handler->MScheduler.Inst.reset(nullptr);
+  Handler->MProgramManager.Inst.reset(nullptr);
 
   // Clear the plugins and reset the instance if it was there.
   Handler->unloadPlugins();
