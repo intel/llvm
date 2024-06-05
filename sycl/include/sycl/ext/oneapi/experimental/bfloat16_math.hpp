@@ -186,16 +186,6 @@ sycl::marray<bfloat16, N> fmin(sycl::marray<bfloat16, N> x,
   return res;
 }
 
-template <int N>
-sycl::vec<bfloat16, N> fmin(sycl::vec<bfloat16, N> x,
-                            sycl::vec<bfloat16, N> y) {
-  sycl::vec<bfloat16, N> res;
-  for (size_t i = 0; i < N; i++) {
-    res[i] = fmin(x[i], y[i]);
-  }
-  return res;
-}
-
 // Overload for different combination of BF16 vec and swizzles.
 template <typename T1, typename T2, int N1 = num_elements_v<T1>,
           int N2 = num_elements_v<T2>>
