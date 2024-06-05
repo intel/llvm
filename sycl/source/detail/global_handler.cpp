@@ -290,6 +290,7 @@ void shutdown() {
   if (!Handler)
     return;
 
+  // now that we are shutting down, we no longer defer MemObj release.
   Handler->endDeferredRelease();
 
   // Ensure neither host task is working so that no default context is accessed
@@ -299,11 +300,8 @@ void shutdown() {
   if (Handler->MHostTaskThreadPool.Inst)
     Handler->MHostTaskThreadPool.Inst->finishAndWait();
 
-  // If default contexts are requested after the first default contexts have
-  // been released there may be a new default context. These must be released
-  // prior to closing the plugins.
-  // Note: Releasing a default context here may cause failures in plugins with
-  // global state as the global state may have been released.
+  // This releases our reference to the default context, but
+  // it might not be the last one quite yet.
   Handler->releaseDefaultContexts();
 
   // First, release resources, that may access plugins.
