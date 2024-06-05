@@ -750,6 +750,11 @@ public:
   // tasks and host tasks is applicable for out of order queues only. Not neede
   // for in order ones.
   void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
+ 
+  static ContextImplPtr getContext(const QueueImplPtr& Queue)
+  {
+    return Queue ? Queue->getContextImplPtr() : nullptr;
+  }
 
 protected:
   event discard_or_return(const event &Event);

@@ -413,7 +413,7 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
   waitForEvents(DepEvents);
   OutEvent = nullptr;
 
-  if (TargetContext->is_host())
+  if (!TargetContext)
     return static_cast<void *>(static_cast<char *>(ParentMemObj) + Offset);
 
   size_t SizeInBytes = ElemSize;
@@ -643,7 +643,7 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
              sycl::detail::pi::PiEvent &OutEvent,
              const detail::EventImplPtr &OutEventImpl) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
-  assert(SrcQueue && TgtQueue && "Source mem object and target mem object queues are expected to be not nullptr");
+  assert(SrcQueue && "Source mem object and target mem object queues are expected to be not nullptr");
 
   const sycl::detail::pi::PiQueue Queue = SrcQueue->getHandleRef();
   const PluginPtr &Plugin = SrcQueue->getPlugin();

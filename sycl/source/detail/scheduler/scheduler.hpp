@@ -199,12 +199,11 @@ using FusionMap = std::unordered_map<QueueIdT, FusionList>;
 /// There must be a single MemObjRecord for each SYCL memory object.
 ///
 /// \ingroup sycl_graph
-class MemObjRecord {
+struct MemObjRecord {
   MemObjRecord(ContextImplPtr Ctx, std::size_t LeafLimit,
                LeavesCollection::AllocateDependencyF AllocateDependency)
       : MReadLeaves{this, LeafLimit, AllocateDependency},
         MWriteLeaves{this, LeafLimit, AllocateDependency}, MCurContext{Ctx} {}
-public:
   // Contains all allocation commands for the memory object.
   std::vector<AllocaCommandBase *> MAllocaCommands;
 
@@ -224,15 +223,6 @@ public:
   // The mode this object can be accessed with from the host (host_accessor).
   // Valid only if the current usage is on host.
   access::mode MHostAccess = access::mode::read_write;
-
-  void updateUsage(ContextImplPtr& NewContext)
-  {
-    MCurContext = NewContext;
-  }
-
-  bool isSameContext(const QueueImplPtr& Queue) const;
-
-  bool usedOnDevice() { return MCurContext != nullptr; }
 };
 
 /// DPC++ graph scheduler class.

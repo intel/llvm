@@ -223,11 +223,7 @@ public:
 
   /// Get the context of the queue this command will be submitted to. Could
   /// differ from the context of MQueue for memory copy commands.
-  virtual const ContextImplPtr &getWorkerContext() const;
-
-  /// Get the queue this command will be submitted to. Could differ from MQueue
-  /// for memory copy commands.
-  const QueueImplPtr &getWorkerQueue() const;
+  virtual ContextImplPtr getWorkerContext() const;
 
   /// Returns true iff the command produces a PI event on non-host devices.
   virtual bool producesPiEvent() const;
@@ -414,7 +410,7 @@ protected:
 /// implement lock in the graph, or to merge several nodes into one.
 class EmptyCommand : public Command {
 public:
-  EmptyCommand(QueueImplPtr Queue);
+  EmptyCommand();
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MRequirements[0]; }
@@ -586,7 +582,7 @@ public:
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
-  const ContextImplPtr &getWorkerContext() const final;
+  ContextImplPtr getWorkerContext() const final;
   bool producesPiEvent() const final;
 
 private:
@@ -610,7 +606,7 @@ public:
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
-  const ContextImplPtr &getWorkerContext() const final;
+  ContextImplPtr getWorkerContext() const final;
 
 private:
   pi_int32 enqueueImp() final;

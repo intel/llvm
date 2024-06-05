@@ -150,7 +150,7 @@ event_impl::event_impl(sycl::detail::pi::PiEvent Event,
 
 event_impl::event_impl(const QueueImplPtr &Queue) {
   // Queue == nullptr means that it is a host task event
-  this->setContextImpl(getContext(Queue));
+  this->setContextImpl(queue_impl::getContext(Queue));
   this->associateWithQueue(Queue);
 }
 

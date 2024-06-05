@@ -68,10 +68,13 @@ buffer_impl::getNativeVector(backend BackendName) const {
     sycl::detail::pi::PiMem NativeMem =
         pi::cast<sycl::detail::pi::PiMem>(Cmd->getMemAllocation());
     auto Ctx = Cmd->getWorkerContext();
-    auto Platform = Ctx->getPlatformImpl();
     // If Host Shared Memory is not supported then there is alloca for host that
-    // doesn't have platform
-    if (!Platform || (Platform->getBackend() != BackendName))
+    // doesn't have context and platform
+    if (!Ctx)
+      continue;
+    PlatformImplPtr Platform = Ctx->getPlatformImpl();
+    assert(Platform && "Platform must be present for device context");
+    if (Platform->getBackend() != BackendName)
       continue;
 
     auto Plugin = Platform->getPlugin();
