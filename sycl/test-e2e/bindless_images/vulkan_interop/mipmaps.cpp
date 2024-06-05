@@ -10,8 +10,10 @@
 // Define NOMINMAX to enable compilation on Windows
 #define NOMINMAX
 
-#include "../bindless_helpers.hpp"
+#include "../helpers/common.hpp"
 #include "vulkan_common.hpp"
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 

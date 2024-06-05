@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <set>
+#include <sycl/ext/oneapi/bindless_images.hpp>
 #include <vector>
 
 void printString(std::string str) {
