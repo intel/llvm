@@ -1528,6 +1528,13 @@ without modulo overflow for vector types.
 The functions `cmul`,`cdiv`,`cabs`, `cmul_add`, and `conj` define complex math
 operations which accept `sycl::vec<T,2>` arguments representing complex values.
 
+The `dp4a` function returns the 4-way 8-bit dot product accumulate for unsigned
+and signed 32-bit integer values. The `dp2a_lo` and `dp2a_hi` functions return the
+two-way 16-bit to 8-bit dot product using the second and first 16 bits of the
+second operand, respectively. These three APIs return a single 32-bit value with
+the accumulated result, which is unsigned if both operands are `uint32_t` and
+signed otherwise.
+
 ```cpp
 inline unsigned int funnelshift_l(unsigned int low, unsigned int high,
                                   unsigned int shift); 
@@ -1709,6 +1716,15 @@ inline sycl::marray<ValueT, 2> cmul_add(const sycl::marray<ValueT, 2> a,
 template <typename T> sycl::vec<T, 2> conj(sycl::vec<T, 2> x);
 
 template <typename ValueT> inline ValueT reverse_bits(ValueT a);
+
+template <typename T1, typename T2, typename T3>
+inline auto dp2a_lo(T1 a, T2 b, T3 c);
+
+template <typename T1, typename T2, typename T3>
+inline auto dp2a_hi(T1 a, T2 b, T3 c);
+
+template <typename T1, typename T2, typename T3>
+inline auto dp4a(T1 a, T2 b, T3 c);
 ```
 
 `vectorized_binary` computes the `BinaryOperation` for two operands,

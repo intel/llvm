@@ -756,7 +756,7 @@ template <typename T> sycl::vec<T, 2> extract_and_sign_or_zero_extend2(T val) {
 } // namespace detail
 
 /// Two-way dot product-accumulate. Calculate and return integer_vector2(
-/// \param a) dot product integer_vector2(low16_bit( \param b))  + \param c
+/// \param a) dot product integer_vector2(low16_bit( \param b)) + \param c
 ///
 /// \tparam [in] T1 The type of first value.
 /// \tparam [in] T2 The type of second value.
