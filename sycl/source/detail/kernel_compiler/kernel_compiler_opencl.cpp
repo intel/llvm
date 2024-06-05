@@ -16,6 +16,7 @@
 
 #include <cstring> // strlen
 #include <numeric> // for std::accumulate
+#include <sstream>
 
 namespace sycl {
 inline namespace _V1 {

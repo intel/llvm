@@ -123,6 +123,8 @@ int main() {
                             int32_t>();
 
       if (combination.nsize == 16) { // architecture::intel_gpu_pvc
+        res += gemm_row_major<16, 16, 16, class bf16_16x16x16, bfloat16,
+                              bfloat16, float>();
         res += gemm_row_major<1, 64, 16, class bf16_1x64x16, bfloat16, bfloat16,
                               float>();
         res += gemm_row_major<32, 64, 16, class bf16_32x64x16, bfloat16,

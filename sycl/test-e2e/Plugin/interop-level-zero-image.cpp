@@ -13,7 +13,9 @@
 // -lze_loader interop-level-zero-image.cpp
 
 #include <level_zero/ze_api.h>
-#include <sycl.hpp>
+#include <sycl/accessor_image.hpp>
+#include <sycl/backend.hpp>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 
 using namespace sycl;

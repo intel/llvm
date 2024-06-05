@@ -5,7 +5,8 @@
 #include <algorithm>
 #include <cstdio>
 #include <numeric>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 namespace {
 
@@ -27,7 +28,7 @@ void async_sycl_error(sycl::exception_list el) {
     try {
       std::rethrow_exception(*l);
     } catch (const sycl::exception &e) {
-      fprintf(stderr, "what: %s code: %d\n", e.what(), e.get_cl_code());
+      fprintf(stderr, "what: %s code: %d\n", e.what(), e.code().value());
       std::exit(-1);
     }
   }
@@ -74,7 +75,7 @@ int main() {
     }
   } catch (sycl::exception &e) {
     fprintf(stderr, "...sycl failed to entertain with \"%s\" (%d) \n", e.what(),
-            e.get_cl_code());
+            e.code().value());
   }
   return 0;
 }

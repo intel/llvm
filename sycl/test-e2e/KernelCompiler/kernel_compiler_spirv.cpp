@@ -20,7 +20,8 @@
 #include <cassert>
 #include <fstream>
 #include <string>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 sycl::kernel_bundle<sycl::bundle_state::executable>
 loadKernelsFromFile(sycl::queue &q, std::string file_name) {

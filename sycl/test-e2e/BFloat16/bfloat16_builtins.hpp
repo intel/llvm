@@ -1,6 +1,7 @@
 #pragma once
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
 
 #include <cmath>
 #include <vector>
