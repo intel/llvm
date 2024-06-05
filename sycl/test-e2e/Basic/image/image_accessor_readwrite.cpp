@@ -180,8 +180,8 @@ template <> void check<s::uint4>(char *HostPtr) {
   // s::image_channel_type::signed_int8
   write_type_order<s::uint4, s::image_channel_type::unsigned_int8>(
       HostPtr, s::image_channel_order::rgba,
-      s::uint4(std::numeric_limits<uint>::max(),
-               std::numeric_limits<uint>::min(), 123, 0));
+      s::uint4(std::numeric_limits<unsigned int>::max(),
+               std::numeric_limits<unsigned int>::min(), 123, 0));
   check_read_type_order<s::uint4, s::image_channel_type::unsigned_int8>(
       HostPtr, s::image_channel_order::rgba,
       s::uint4(std::numeric_limits<unsigned char>::max(),
@@ -190,22 +190,22 @@ template <> void check<s::uint4>(char *HostPtr) {
   // s::image_channel_type::signed_int16
   write_type_order<s::uint4, s::image_channel_type::unsigned_int16>(
       HostPtr, s::image_channel_order::rgba,
-      s::uint4(std::numeric_limits<uint>::max(),
-               std::numeric_limits<uint>::min(), 123, 0));
+      s::uint4(std::numeric_limits<unsigned int>::max(),
+               std::numeric_limits<unsigned int>::min(), 123, 0));
   check_read_type_order<s::uint4, s::image_channel_type::unsigned_int16>(
       HostPtr, s::image_channel_order::rgba,
-      s::uint4(std::numeric_limits<ushort>::max(),
-               std::numeric_limits<ushort>::min(), 123, 0));
+      s::uint4(std::numeric_limits<unsigned short>::max(),
+               std::numeric_limits<unsigned short>::min(), 123, 0));
 
   // s::image_channel_type::signed_int32
   write_type_order<s::uint4, s::image_channel_type::unsigned_int32>(
       HostPtr, s::image_channel_order::rgba,
-      s::uint4(std::numeric_limits<uint>::max(),
-               std::numeric_limits<uint>::min(), 123, 0));
+      s::uint4(std::numeric_limits<unsigned int>::max(),
+               std::numeric_limits<unsigned int>::min(), 123, 0));
   check_read_type_order<s::uint4, s::image_channel_type::unsigned_int32>(
       HostPtr, s::image_channel_order::rgba,
-      s::uint4(std::numeric_limits<uint>::max(),
-               std::numeric_limits<uint>::min(), 123, 0));
+      s::uint4(std::numeric_limits<unsigned int>::max(),
+               std::numeric_limits<unsigned int>::min(), 123, 0));
 };
 
 template <> void check<s::float4>(char *HostPtr) {
