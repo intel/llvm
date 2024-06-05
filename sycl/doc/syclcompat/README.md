@@ -1717,14 +1717,31 @@ template <typename T> sycl::vec<T, 2> conj(sycl::vec<T, 2> x);
 
 template <typename ValueT> inline ValueT reverse_bits(ValueT a);
 
-template <typename T1, typename T2, typename T3>
-inline auto dp2a_lo(T1 a, T2 b, T3 c);
 
-template <typename T1, typename T2, typename T3>
-inline auto dp2a_hi(T1 a, T2 b, T3 c);
+template <typename T1, typename T2>
+using dot_product_acc_t =
+    std::conditional_t<std::is_unsigned_v<T1> && std::is_unsigned_v<T2>,
+                       uint32_t, int32_t>;
 
-template <typename T1, typename T2, typename T3>
-inline auto dp4a(T1 a, T2 b, T3 c);
+// Ensures dot products (dp4a, dp2a_lo, dp2a_hi) only accept int and unsigned
+// ints (int32_t, uint32_t)
+template <typename T1, typename T2>
+using dot_product_return_type = std::enable_if_t<
+    (std::is_same_v<T1, int32_t> || std::is_same_v<T1, uint32_t>) &&
+        (std::is_same_v<T2, int32_t> || std::is_same_v<T2, uint32_t>),
+    dot_product_acc_t<T1, T2>>;
+
+template <typename T1, typename T2>
+inline dot_product_return_type<T1, T2> dp2a_lo(T1 a, T2 b,
+                                               dot_product_acc_t<T1, T2> c);
+
+template <typename T1, typename T2>
+inline dot_product_return_type<T1, T2> dp2a_hi(T1 a, T2 b,
+                                               dot_product_acc_t<T1, T2> c);
+
+template <typename T1, typename T2>
+inline dot_product_return_type<T1, T2> dp4a(T1 a, T2 b,
+                                            dot_product_acc_t<T1, T2> c);
 ```
 
 `vectorized_binary` computes the `BinaryOperation` for two operands,

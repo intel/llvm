@@ -42,8 +42,8 @@ template <typename T, size_t N> constexpr size_t array_size(T (&)[N]) {
 template <typename T1, typename T2> struct TestCaseStorage {
   T1 a;
   T2 b;
-  syclcompat::detail::dot_product_acc_t<T1, T2> c;
-  syclcompat::detail::dot_product_acc_t<T1, T2> d;
+  syclcompat::dot_product_acc_t<T1, T2> c;
+  syclcompat::dot_product_acc_t<T1, T2> d;
 };
 
 enum TestType { dp2a_lo, dp2a_hi, dp4a };
@@ -234,7 +234,7 @@ template <TestType Type, typename T1, typename T2> bool test() {
   using Case = TestCase<Type, T1, T2>;
   using CaseElement =
       std::remove_cv_t<std::remove_extent_t<decltype(Case::data)>>;
-  using ResultT = syclcompat::detail::dot_product_acc_t<T1, T2>;
+  using ResultT = syclcompat::dot_product_acc_t<T1, T2>;
   constexpr size_t N = array_size(Case::data);
   std::vector<ResultT> result(N);
   std::vector<CaseElement> cases(std::begin(Case::data), std::end(Case::data));
@@ -291,7 +291,8 @@ int main() {
   passed = test<dp2a_hi, uint32_t, uint32_t>() && passed;
 
   passed = test<dp4a, int32_t, int32_t>() && passed;
-  passed = test<dp4a, int32_t, uint32_t>() && passed;
+  // Ensuring SFINAE works as intended
+  passed = test<dp4a, int, unsigned int>() && passed;
   passed = test<dp4a, uint32_t, int32_t>() && passed;
   passed = test<dp4a, uint32_t, uint32_t>() && passed;
 

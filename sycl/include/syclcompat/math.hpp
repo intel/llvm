@@ -733,12 +733,22 @@ inline unsigned vectorized_binary(unsigned a, unsigned b,
   return v0;
 }
 
-namespace detail {
-
 template <typename T1, typename T2>
 using dot_product_acc_t =
     std::conditional_t<std::is_unsigned_v<T1> && std::is_unsigned_v<T2>,
                        uint32_t, int32_t>;
+
+/// Ensures dot products (dp4a, dp2a_lo, dp2a_hi) only accept int and unsigned
+/// ints (int32_t, uint32_t)
+/// \tparam T1 First operand datatype
+/// \tparam T2 Second operand datatype
+template <typename T1, typename T2>
+using dot_product_return_type = std::enable_if_t<
+    (std::is_same_v<T1, int32_t> || std::is_same_v<T1, uint32_t>)&&(
+        std::is_same_v<T2, int32_t> || std::is_same_v<T2, uint32_t>),
+    dot_product_acc_t<T1, T2>>;
+
+namespace detail {
 
 template <typename T> sycl::vec<T, 4> extract_and_sign_or_zero_extend4(T val) {
   return sycl::vec<T, 1>(val)
@@ -766,13 +776,14 @@ template <typename T> sycl::vec<T, 2> extract_and_sign_or_zero_extend2(T val) {
 /// uint32_t else has type int32_t.
 /// \return Two-way 16-bit to 8-bit dot product which is accumulated in 32-bit
 /// result.
-template <typename T1, typename T2, typename T3>
-inline auto dp2a_lo(T1 a, T2 b, T3 c) {
+template <typename T1, typename T2>
+inline dot_product_return_type<T1, T2> dp2a_lo(T1 a, T2 b,
+                                               dot_product_acc_t<T1, T2> c) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
     defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 610
   return __dp2a_lo(a, b, c);
 #else
-  detail::dot_product_acc_t<T1, T2> res = c;
+  dot_product_acc_t<T1, T2> res = c;
   auto va = detail::extract_and_sign_or_zero_extend2(a);
   auto vb = detail::extract_and_sign_or_zero_extend4(b);
   res += va[0] * vb[0];
@@ -792,13 +803,14 @@ inline auto dp2a_lo(T1 a, T2 b, T3 c) {
 /// uint32_t else has type int32_t.
 /// \return Two-way 16-bit to 8-bit dot product which is accumulated in 32-bit
 /// result.
-template <typename T1, typename T2, typename T3>
-inline auto dp2a_hi(T1 a, T2 b, T3 c) {
+template <typename T1, typename T2>
+inline dot_product_return_type<T1, T2> dp2a_hi(T1 a, T2 b,
+                                               dot_product_acc_t<T1, T2> c) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
     defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 610
   return __dp2a_hi(a, b, c);
 #else
-  detail::dot_product_acc_t<T1, T2> res = c;
+  dot_product_acc_t<T1, T2> res = c;
   auto va = detail::extract_and_sign_or_zero_extend2(a);
   auto vb = detail::extract_and_sign_or_zero_extend4(b);
   res += va[0] * vb[2];
@@ -817,13 +829,14 @@ inline auto dp2a_hi(T1 a, T2 b, T3 c) {
 /// \param [in] c The third value. It has type uint32_t if both T1 and T1 are
 /// uint32_t else has type int32_t.
 /// \return Four-way byte dot product which is accumulated in 32-bit result.
-template <typename T1, typename T2, typename T3>
-inline auto dp4a(T1 a, T2 b, T3 c) {
+template <typename T1, typename T2>
+inline dot_product_return_type<T1, T2> dp4a(T1 a, T2 b,
+                                            dot_product_acc_t<T1, T2> c) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
     defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 610
   return __dp4a(a, b, c);
 #else
-  detail::dot_product_acc_t<T1, T2> res = c;
+  dot_product_acc_t<T1, T2> res = c;
   auto va = detail::extract_and_sign_or_zero_extend4(a);
   auto vb = detail::extract_and_sign_or_zero_extend4(b);
   res += va[0] * vb[0];
