@@ -1,10 +1,11 @@
 // RUN: %clangxx %s -S -o %t.ll -fsycl-device-only -Xclang -disable-llvm-passes
 // RUN: FileCheck %s --input-file %t.ll
 
-// CHECK: !sycl_types_that_use_aspects = !{![[#MDNUM1:]], ![[#MDNUM2:]], ![[#MDNUM3:]]}
-// CHECK: ![[#MDNUM1]] = !{!"class.sycl::_V1::detail::atomic_ref_impl", i32 [[#ASPECT_NUM:]]}
-// CHECK: ![[#MDNUM2]] = !{!"class.sycl::_V1::detail::atomic_ref_impl.2", i32 [[#ASPECT_NUM:]]}
-// CHECK: ![[#MDNUM3]] = !{!"class.sycl::_V1::detail::atomic_ref_impl.7", i32 [[#ASPECT_NUM:]]}
+// CHECK: !sycl_types_that_use_aspects = !{![[#MDNUM1:]], ![[#MDNUM2:]], ![[#MDNUM3:]], ![[#MDNUM4:]]}
+// CHECK: ![[#MDNUM1]] = !{!"class.sycl::_V1::detail::atomic_ref_impl.20", i32 [[#ASPECT_NUM:]]}
+// CHECK-NEXT: ![[#MDNUM2]] = !{!"class.sycl::_V1::detail::atomic_ref_impl", i32 [[#ASPECT_NUM:]]}
+// CHECK-NEXT: ![[#MDNUM3]] = !{!"class.sycl::_V1::detail::atomic_ref_impl.2", i32 [[#ASPECT_NUM:]]}
+// CHECK-NEXT: ![[#MDNUM4]] = !{!"class.sycl::_V1::detail::atomic_ref_impl.7", i32 [[#ASPECT_NUM:]]}
 // CHECK: !{{.*}} = !{!"atomic64", i32 [[#ASPECT_NUM]]}
 
 #include <sycl/sycl.hpp>
@@ -46,6 +47,12 @@ int main() {
           sycl::atomic_ref<int, sycl::memory_order_acq_rel,
                            sycl::memory_scope_device,
                            sycl::access::address_space::local_space>(val_int);
+
+      double *ptr = nullptr;
+      auto ref_double_ptr =
+          sycl::atomic_ref<double *, sycl::memory_order_acq_rel,
+                           sycl::memory_scope_device,
+                           sycl::access::address_space::local_space>(ptr);
     });
   });
   return 0;
