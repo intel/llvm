@@ -16,7 +16,7 @@ def main(directory, max_count, target_file):
         for root, dirs, files in os.walk(directory):
             for file in files:
                 print("File: ", file)
-                if file.endswith(".asm") and file == target_file:
+                if file.endswith(".asm") and re.search(target_file + "$", file):
                     target_found = True
                     print("Checking file: ", file)
                     try:
