@@ -2617,6 +2617,43 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelGetSuggestedLocalWorkSize
+__urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel
+    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
+    uint32_t
+        numWorkDim, ///< [in] number of dimensions, from 1 to 3, to specify the global
+                    ///< and work-group work-items
+    const size_t *
+        pGlobalWorkOffset, ///< [in] pointer to an array of numWorkDim unsigned values that specify
+    ///< the offset used to calculate the global ID of a work-item
+    const size_t *
+        pGlobalWorkSize, ///< [in] pointer to an array of numWorkDim unsigned values that specify
+    ///< the number of global work-items in workDim that will execute the
+    ///< kernel function
+    size_t *
+        pSuggestedLocalWorkSize ///< [out] pointer to an array of numWorkDim unsigned values that specify
+    ///< suggested local work size that will contain the result of the query
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnGetSuggestedLocalWorkSize =
+        d_context.urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize;
+    if (nullptr != pfnGetSuggestedLocalWorkSize) {
+        result = pfnGetSuggestedLocalWorkSize(
+            hKernel, hQueue, numWorkDim, pGlobalWorkOffset, pGlobalWorkSize,
+            pSuggestedLocalWorkSize);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urQueueGetInfo
 __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
@@ -5548,6 +5585,55 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueKernelLaunchCustomExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
+    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
+    uint32_t
+        workDim, ///< [in] number of dimensions, from 1 to 3, to specify the global and
+                 ///< work-group work-items
+    const size_t *
+        pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify the
+    ///< number of global work-items in workDim that will execute the kernel
+    ///< function
+    const size_t *
+        pLocalWorkSize, ///< [in][optional] pointer to an array of workDim unsigned values that
+    ///< specify the number of local work-items forming a work-group that will
+    ///< execute the kernel function. If nullptr, the runtime implementation
+    ///< will choose the work-group size.
+    uint32_t numPropsInLaunchPropList, ///< [in] size of the launch prop list
+    const ur_exp_launch_property_t *
+        launchPropList, ///< [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
+                        ///< properties
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the kernel execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating that no wait event.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+                ///< kernel execution instance.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnKernelLaunchCustomExp =
+        d_context.urDdiTable.EnqueueExp.pfnKernelLaunchCustomExp;
+    if (nullptr != pfnKernelLaunchCustomExp) {
+        result = pfnKernelLaunchCustomExp(
+            hQueue, hKernel, workDim, pGlobalWorkSize, pLocalWorkSize,
+            numPropsInLaunchPropList, launchPropList, numEventsInWaitList,
+            phEventWaitList, phEvent);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramBuildExp
 __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     ur_program_handle_t hProgram, ///< [in] Handle of the program to build.
@@ -6100,6 +6186,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
+    pDdiTable->pfnKernelLaunchCustomExp =
+        driver::urEnqueueKernelLaunchCustomExp;
+
     pDdiTable->pfnCooperativeKernelLaunchExp =
         driver::urEnqueueCooperativeKernelLaunchExp;
 
@@ -6195,6 +6284,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
 
     pDdiTable->pfnCreateWithNativeHandle =
         driver::urKernelCreateWithNativeHandle;
+
+    pDdiTable->pfnGetSuggestedLocalWorkSize =
+        driver::urKernelGetSuggestedLocalWorkSize;
 
     pDdiTable->pfnSetArgValue = driver::urKernelSetArgValue;
 

@@ -223,6 +223,8 @@ typedef enum ur_function_t {
     UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP = 221,                             ///< Enumerator for ::urCommandBufferGetInfoExp
     UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP = 222,                     ///< Enumerator for ::urCommandBufferCommandGetInfoExp
     UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP = 223,                         ///< Enumerator for ::urEnqueueTimestampRecordingExp
+    UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP = 224,                        ///< Enumerator for ::urEnqueueKernelLaunchCustomExp
+    UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE = 225,                    ///< Enumerator for ::urKernelGetSuggestedLocalWorkSize
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -4772,7 +4774,8 @@ typedef enum ur_kernel_group_info_t {
     UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE = 0,                   ///< [size_t[3]] Return Work Group maximum global size
     UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE = 1,                    ///< [size_t] Return maximum Work Group size
     UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE = 2,            ///< [size_t[3]] Return Work Group size required by the source code, such
-                                                                 ///< as __attribute__((required_work_group_size(X,Y,Z))
+                                                                 ///< as __attribute__((required_work_group_size(X,Y,Z)), or (0, 0, 0) if
+                                                                 ///< unspecified
     UR_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE = 3,                     ///< [size_t] Return local memory required by the Kernel
     UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE = 4, ///< [size_t] Return preferred multiple of Work Group size for launch
     UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE = 5,                   ///< [size_t] Return minimum amount of private memory in bytes used by each
@@ -4788,7 +4791,8 @@ typedef enum ur_kernel_group_info_t {
 typedef enum ur_kernel_sub_group_info_t {
     UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE = 0,     ///< [uint32_t] Return maximum SubGroup size
     UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS = 1,     ///< [uint32_t] Return maximum number of SubGroup
-    UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS = 2, ///< [uint32_t] Return number of SubGroup required by the source code
+    UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS = 2, ///< [uint32_t] Return number of SubGroup required by the source code or 0
+                                                         ///< if unspecified
     UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL = 3,   ///< [uint32_t] Return SubGroup size required by Intel
     /// @cond
     UR_KERNEL_SUB_GROUP_INFO_FORCE_UINT32 = 0x7fffffff
@@ -5225,6 +5229,43 @@ urKernelCreateWithNativeHandle(
     ur_program_handle_t hProgram,                     ///< [in] handle of the program associated with the kernel
     const ur_kernel_native_properties_t *pProperties, ///< [in][optional] pointer to native kernel properties struct
     ur_kernel_handle_t *phKernel                      ///< [out] pointer to the handle of the kernel object created.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the suggested local work size for a kernel.
+///
+/// @details
+///     - Query a suggested local work size for a kernel given a global size for
+///       each dimension.
+///     - The application may call this function from simultaneous threads for
+///       the same context.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalWorkOffset`
+///         + `NULL == pGlobalWorkSize`
+///         + `NULL == pSuggestedLocalWorkSize`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelGetSuggestedLocalWorkSize(
+    ur_kernel_handle_t hKernel,      ///< [in] handle of the kernel
+    ur_queue_handle_t hQueue,        ///< [in] handle of the queue object
+    uint32_t numWorkDim,             ///< [in] number of dimensions, from 1 to 3, to specify the global
+                                     ///< and work-group work-items
+    const size_t *pGlobalWorkOffset, ///< [in] pointer to an array of numWorkDim unsigned values that specify
+                                     ///< the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkSize,   ///< [in] pointer to an array of numWorkDim unsigned values that specify
+                                     ///< the number of global work-items in workDim that will execute the
+                                     ///< kernel function
+    size_t *pSuggestedLocalWorkSize  ///< [out] pointer to an array of numWorkDim unsigned values that specify
+                                     ///< suggested local work size that will contain the result of the query
 );
 
 #if !defined(__GNUC__)
@@ -5989,6 +6030,7 @@ urEventSetCallback(
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGS - "The kernel argument values have not been specified."
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -8910,6 +8952,8 @@ urKernelSuggestMaxCooperativeGroupCountExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueTimestampRecordingExp(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
@@ -8928,6 +8972,133 @@ urEnqueueTimestampRecordingExp(
                                               ///< reports the timestamp at the time of the call to this function.
                                               ///< Querying `UR_PROFILING_INFO_COMMAND_START` or `UR_PROFILING_INFO_COMMAND_END`
                                               ///< reports the timestamp recorded when the command is executed on the device.
+);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
+// Intel 'oneAPI' Unified Runtime Experimental APIs for (kernel) Launch Properties
+#if !defined(__GNUC__)
+#pragma region launch properties(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+#ifndef UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP
+/// @brief The extension string that defines support for the Launch Properties
+///        extension, which is returned when querying device extensions.
+#define UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP "ur_exp_launch_properties"
+#endif // UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Specifies a launch property id
+///
+/// @remarks
+///   _Analogues_
+///     - **CUlaunchAttributeID**
+typedef enum ur_exp_launch_property_id_t {
+    UR_EXP_LAUNCH_PROPERTY_ID_IGNORE = 0,            ///< The property has no effect
+    UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE = 1,       ///< Whether to launch a cooperative kernel
+    UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION = 2, ///< work-group cluster dimensions
+    /// @cond
+    UR_EXP_LAUNCH_PROPERTY_ID_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_exp_launch_property_id_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Specifies a launch property value
+///
+/// @remarks
+///   _Analogues_
+///     - **CUlaunchAttributeValue**
+typedef union ur_exp_launch_property_value_t {
+    uint32_t clusterDim[3]; ///< [in] dimensions of the cluster (units of work-group) (x, y, z). Each
+                            ///< value must be a divisor of the corresponding global work-size
+                            ///< dimension (in units of work-group).
+    int cooperative;        ///< [in] non-zero value indicates a cooperative kernel
+
+} ur_exp_launch_property_value_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Kernel launch property
+///
+/// @remarks
+///   _Analogues_
+///     - **cuLaunchAttribute**
+typedef struct ur_exp_launch_property_t {
+    ur_exp_launch_property_id_t id;       ///< [in] launch property id
+    ur_exp_launch_property_value_t value; ///< [in][tagged_by(id)] launch property value
+
+} ur_exp_launch_property_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Launch kernel with custom launch properties
+///
+/// @details
+///     - Launches the kernel using the specified launch properties
+///     - If numPropsInLaunchPropList == 0 then a regular kernel launch is used:
+///       `urEnqueueKernelLaunch`
+///     - Consult the appropriate adapter driver documentation for details of
+///       adapter specific behavior and native error codes that may be returned.
+///
+/// @remarks
+///   _Analogues_
+///     - **cuLaunchKernelEx**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///         + `NULL == hKernel`
+///         + NULL == hQueue
+///         + NULL == hKernel
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalWorkSize`
+///         + `NULL == launchPropList`
+///         + NULL == pGlobalWorkSize
+///         + numPropsInLaunchpropList != 0 && launchPropList == NULL
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + phEventWaitList == NULL && numEventsInWaitList > 0
+///         + phEventWaitList != NULL && numEventsInWaitList == 0
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in phEventWaitList has ::UR_EVENT_STATUS_ERROR
+///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
+///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL
+urEnqueueKernelLaunchCustomExp(
+    ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
+    ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
+    uint32_t workDim,                               ///< [in] number of dimensions, from 1 to 3, to specify the global and
+                                                    ///< work-group work-items
+    const size_t *pGlobalWorkSize,                  ///< [in] pointer to an array of workDim unsigned values that specify the
+                                                    ///< number of global work-items in workDim that will execute the kernel
+                                                    ///< function
+    const size_t *pLocalWorkSize,                   ///< [in][optional] pointer to an array of workDim unsigned values that
+                                                    ///< specify the number of local work-items forming a work-group that will
+                                                    ///< execute the kernel function. If nullptr, the runtime implementation
+                                                    ///< will choose the work-group size.
+    uint32_t numPropsInLaunchPropList,              ///< [in] size of the launch prop list
+    const ur_exp_launch_property_t *launchPropList, ///< [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
+                                                    ///< properties
+    uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
+    const ur_event_handle_t *phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                    ///< events that must be complete before the kernel execution. If nullptr,
+                                                    ///< the numEventsInWaitList must be 0, indicating that no wait event.
+    ur_event_handle_t *phEvent                      ///< [out][optional] return an event object that identifies this particular
+                                                    ///< kernel execution instance.
 );
 
 #if !defined(__GNUC__)
@@ -9811,6 +9982,19 @@ typedef struct ur_kernel_create_with_native_handle_params_t {
 } ur_kernel_create_with_native_handle_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urKernelGetSuggestedLocalWorkSize
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_kernel_get_suggested_local_work_size_params_t {
+    ur_kernel_handle_t *phKernel;
+    ur_queue_handle_t *phQueue;
+    uint32_t *pnumWorkDim;
+    const size_t **ppGlobalWorkOffset;
+    const size_t **ppGlobalWorkSize;
+    size_t **ppSuggestedLocalWorkSize;
+} ur_kernel_get_suggested_local_work_size_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urKernelSetArgValue
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -10623,6 +10807,23 @@ typedef struct ur_enqueue_write_host_pipe_params_t {
     const ur_event_handle_t **pphEventWaitList;
     ur_event_handle_t **pphEvent;
 } ur_enqueue_write_host_pipe_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEnqueueKernelLaunchCustomExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_kernel_launch_custom_exp_params_t {
+    ur_queue_handle_t *phQueue;
+    ur_kernel_handle_t *phKernel;
+    uint32_t *pworkDim;
+    const size_t **ppGlobalWorkSize;
+    const size_t **ppLocalWorkSize;
+    uint32_t *pnumPropsInLaunchPropList;
+    const ur_exp_launch_property_t **plaunchPropList;
+    uint32_t *pnumEventsInWaitList;
+    const ur_event_handle_t **pphEventWaitList;
+    ur_event_handle_t **pphEvent;
+} ur_enqueue_kernel_launch_custom_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urEnqueueCooperativeKernelLaunchExp

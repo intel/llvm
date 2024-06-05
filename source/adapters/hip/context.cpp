@@ -78,7 +78,8 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
   case UR_CONTEXT_INFO_NUM_DEVICES:
     return ReturnValue(static_cast<uint32_t>(hContext->Devices.size()));
   case UR_CONTEXT_INFO_DEVICES:
-    return ReturnValue(hContext->getDevices());
+    return ReturnValue(hContext->getDevices().data(),
+                       hContext->getDevices().size());
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
     return ReturnValue(hContext->getReferenceCount());
   case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:

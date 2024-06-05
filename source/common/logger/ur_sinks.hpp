@@ -39,8 +39,10 @@ class Sink {
     std::ostream *ostream;
     logger::Level flush_level;
 
-    Sink(std::string logger_name, bool skip_prefix = false)
-        : logger_name(std::move(logger_name)), skip_prefix(skip_prefix) {
+    Sink(std::string logger_name, bool skip_prefix = false,
+         bool skip_linebreak = false)
+        : logger_name(std::move(logger_name)), skip_prefix(skip_prefix),
+          skip_linebreak(skip_linebreak) {
         ostream = nullptr;
         flush_level = logger::Level::ERR;
     }
@@ -56,6 +58,7 @@ class Sink {
   private:
     std::string logger_name;
     bool skip_prefix;
+    bool skip_linebreak;
     std::mutex output_mutex;
     const char *error_prefix = "Log message syntax error: ";
 
@@ -83,7 +86,9 @@ class Sink {
                 }
             }
         }
-        buffer << "\n";
+        if (!skip_linebreak) {
+            buffer << "\n";
+        }
     }
 
     template <typename Arg, typename... Args>
@@ -129,14 +134,15 @@ class Sink {
 
 class StdoutSink : public Sink {
   public:
-    StdoutSink(std::string logger_name, bool skip_prefix = false)
-        : Sink(std::move(logger_name), skip_prefix) {
+    StdoutSink(std::string logger_name, bool skip_prefix = false,
+               bool skip_linebreak = false)
+        : Sink(std::move(logger_name), skip_prefix, skip_linebreak) {
         this->ostream = &std::cout;
     }
 
     StdoutSink(std::string logger_name, Level flush_lvl,
-               bool skip_prefix = false)
-        : StdoutSink(std::move(logger_name), skip_prefix) {
+               bool skip_prefix = false, bool skip_linebreak = false)
+        : StdoutSink(std::move(logger_name), skip_prefix, skip_linebreak) {
         this->flush_level = flush_lvl;
     }
 
@@ -145,13 +151,15 @@ class StdoutSink : public Sink {
 
 class StderrSink : public Sink {
   public:
-    StderrSink(std::string logger_name, bool skip_prefix = false)
-        : Sink(std::move(logger_name), skip_prefix) {
+    StderrSink(std::string logger_name, bool skip_prefix = false,
+               bool skip_linebreak = false)
+        : Sink(std::move(logger_name), skip_prefix, skip_linebreak) {
         this->ostream = &std::cerr;
     }
 
-    StderrSink(std::string logger_name, Level flush_lvl, bool skip_prefix)
-        : StderrSink(std::move(logger_name), skip_prefix) {
+    StderrSink(std::string logger_name, Level flush_lvl, bool skip_prefix,
+               bool skip_linebreak)
+        : StderrSink(std::move(logger_name), skip_prefix, skip_linebreak) {
         this->flush_level = flush_lvl;
     }
 
@@ -161,8 +169,8 @@ class StderrSink : public Sink {
 class FileSink : public Sink {
   public:
     FileSink(std::string logger_name, filesystem::path file_path,
-             bool skip_prefix = false)
-        : Sink(std::move(logger_name), skip_prefix) {
+             bool skip_prefix = false, bool skip_linebreak = false)
+        : Sink(std::move(logger_name), skip_prefix, skip_linebreak) {
         ofstream = std::ofstream(file_path);
         if (!ofstream.good()) {
             std::stringstream ss;
@@ -174,8 +182,10 @@ class FileSink : public Sink {
     }
 
     FileSink(std::string logger_name, filesystem::path file_path,
-             Level flush_lvl, bool skip_prefix = false)
-        : FileSink(std::move(logger_name), std::move(file_path), skip_prefix) {
+             Level flush_lvl, bool skip_prefix = false,
+             bool skip_linebreak = false)
+        : FileSink(std::move(logger_name), std::move(file_path), skip_prefix,
+                   skip_linebreak) {
         this->flush_level = flush_lvl;
     }
 
@@ -188,14 +198,17 @@ class FileSink : public Sink {
 inline std::unique_ptr<Sink> sink_from_str(std::string logger_name,
                                            std::string name,
                                            filesystem::path file_path = "",
-                                           bool skip_prefix = false) {
+                                           bool skip_prefix = false,
+                                           bool skip_linebreak = false) {
     if (name == "stdout" && file_path.empty()) {
-        return std::make_unique<logger::StdoutSink>(logger_name, skip_prefix);
+        return std::make_unique<logger::StdoutSink>(logger_name, skip_prefix,
+                                                    skip_linebreak);
     } else if (name == "stderr" && file_path.empty()) {
-        return std::make_unique<logger::StderrSink>(logger_name, skip_prefix);
+        return std::make_unique<logger::StderrSink>(logger_name, skip_prefix,
+                                                    skip_linebreak);
     } else if (name == "file" && !file_path.empty()) {
         return std::make_unique<logger::FileSink>(logger_name, file_path,
-                                                  skip_prefix);
+                                                  skip_prefix, skip_linebreak);
     }
 
     throw std::invalid_argument(

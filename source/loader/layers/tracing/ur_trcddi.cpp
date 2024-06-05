@@ -40,10 +40,16 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_ADAPTER_GET, "urAdapterGet", &params);
 
+    context.logger.info("---> urAdapterGet");
+
     ur_result_t result = pfnAdapterGet(NumEntries, phAdapters, pNumAdapters);
 
     context.notify_end(UR_FUNCTION_ADAPTER_GET, "urAdapterGet", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_ADAPTER_GET, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -63,10 +69,17 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
     uint64_t instance = context.notify_begin(UR_FUNCTION_ADAPTER_RELEASE,
                                              "urAdapterRelease", &params);
 
+    context.logger.info("---> urAdapterRelease");
+
     ur_result_t result = pfnAdapterRelease(hAdapter);
 
     context.notify_end(UR_FUNCTION_ADAPTER_RELEASE, "urAdapterRelease", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_ADAPTER_RELEASE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -86,10 +99,17 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRetain(
     uint64_t instance = context.notify_begin(UR_FUNCTION_ADAPTER_RETAIN,
                                              "urAdapterRetain", &params);
 
+    context.logger.info("---> urAdapterRetain");
+
     ur_result_t result = pfnAdapterRetain(hAdapter);
 
     context.notify_end(UR_FUNCTION_ADAPTER_RETAIN, "urAdapterRetain", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_ADAPTER_RETAIN,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -117,10 +137,17 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetLastError(
     uint64_t instance = context.notify_begin(UR_FUNCTION_ADAPTER_GET_LAST_ERROR,
                                              "urAdapterGetLastError", &params);
 
+    context.logger.info("---> urAdapterGetLastError");
+
     ur_result_t result = pfnAdapterGetLastError(hAdapter, ppMessage, pError);
 
     context.notify_end(UR_FUNCTION_ADAPTER_GET_LAST_ERROR,
                        "urAdapterGetLastError", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ADAPTER_GET_LAST_ERROR, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -151,11 +178,18 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
     uint64_t instance = context.notify_begin(UR_FUNCTION_ADAPTER_GET_INFO,
                                              "urAdapterGetInfo", &params);
 
+    context.logger.info("---> urAdapterGetInfo");
+
     ur_result_t result = pfnAdapterGetInfo(hAdapter, propName, propSize,
                                            pPropValue, pPropSizeRet);
 
     context.notify_end(UR_FUNCTION_ADAPTER_GET_INFO, "urAdapterGetInfo",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_ADAPTER_GET_INFO,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -189,11 +223,18 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
     uint64_t instance = context.notify_begin(UR_FUNCTION_PLATFORM_GET,
                                              "urPlatformGet", &params);
 
+    context.logger.info("---> urPlatformGet");
+
     ur_result_t result =
         pfnGet(phAdapters, NumAdapters, NumEntries, phPlatforms, pNumPlatforms);
 
     context.notify_end(UR_FUNCTION_PLATFORM_GET, "urPlatformGet", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_PLATFORM_GET,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -224,11 +265,18 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
     uint64_t instance = context.notify_begin(UR_FUNCTION_PLATFORM_GET_INFO,
                                              "urPlatformGetInfo", &params);
 
+    context.logger.info("---> urPlatformGetInfo");
+
     ur_result_t result =
         pfnGetInfo(hPlatform, propName, propSize, pPropValue, pPropSizeRet);
 
     context.notify_end(UR_FUNCTION_PLATFORM_GET_INFO, "urPlatformGetInfo",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_PLATFORM_GET_INFO,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -250,10 +298,17 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetApiVersion(
         context.notify_begin(UR_FUNCTION_PLATFORM_GET_API_VERSION,
                              "urPlatformGetApiVersion", &params);
 
+    context.logger.info("---> urPlatformGetApiVersion");
+
     ur_result_t result = pfnGetApiVersion(hPlatform, pVersion);
 
     context.notify_end(UR_FUNCTION_PLATFORM_GET_API_VERSION,
                        "urPlatformGetApiVersion", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_PLATFORM_GET_API_VERSION, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -277,10 +332,17 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
         context.notify_begin(UR_FUNCTION_PLATFORM_GET_NATIVE_HANDLE,
                              "urPlatformGetNativeHandle", &params);
 
+    context.logger.info("---> urPlatformGetNativeHandle");
+
     ur_result_t result = pfnGetNativeHandle(hPlatform, phNativePlatform);
 
     context.notify_end(UR_FUNCTION_PLATFORM_GET_NATIVE_HANDLE,
                        "urPlatformGetNativeHandle", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_PLATFORM_GET_NATIVE_HANDLE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -308,12 +370,19 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
         context.notify_begin(UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE,
                              "urPlatformCreateWithNativeHandle", &params);
 
+    context.logger.info("---> urPlatformCreateWithNativeHandle");
+
     ur_result_t result =
         pfnCreateWithNativeHandle(hNativePlatform, pProperties, phPlatform);
 
     context.notify_end(UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE,
                        "urPlatformCreateWithNativeHandle", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -340,12 +409,19 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
         context.notify_begin(UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION,
                              "urPlatformGetBackendOption", &params);
 
+    context.logger.info("---> urPlatformGetBackendOption");
+
     ur_result_t result =
         pfnGetBackendOption(hPlatform, pFrontendOption, ppPlatformOption);
 
     context.notify_end(UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION,
                        "urPlatformGetBackendOption", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -378,11 +454,17 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGet(
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_DEVICE_GET, "urDeviceGet", &params);
 
+    context.logger.info("---> urDeviceGet");
+
     ur_result_t result =
         pfnGet(hPlatform, DeviceType, NumEntries, phDevices, pNumDevices);
 
     context.notify_end(UR_FUNCTION_DEVICE_GET, "urDeviceGet", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_DEVICE_GET, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -414,11 +496,18 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     uint64_t instance = context.notify_begin(UR_FUNCTION_DEVICE_GET_INFO,
                                              "urDeviceGetInfo", &params);
 
+    context.logger.info("---> urDeviceGetInfo");
+
     ur_result_t result =
         pfnGetInfo(hDevice, propName, propSize, pPropValue, pPropSizeRet);
 
     context.notify_end(UR_FUNCTION_DEVICE_GET_INFO, "urDeviceGetInfo", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_DEVICE_GET_INFO,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -439,10 +528,17 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRetain(
     uint64_t instance = context.notify_begin(UR_FUNCTION_DEVICE_RETAIN,
                                              "urDeviceRetain", &params);
 
+    context.logger.info("---> urDeviceRetain");
+
     ur_result_t result = pfnRetain(hDevice);
 
     context.notify_end(UR_FUNCTION_DEVICE_RETAIN, "urDeviceRetain", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_DEVICE_RETAIN,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -462,10 +558,17 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRelease(
     uint64_t instance = context.notify_begin(UR_FUNCTION_DEVICE_RELEASE,
                                              "urDeviceRelease", &params);
 
+    context.logger.info("---> urDeviceRelease");
+
     ur_result_t result = pfnRelease(hDevice);
 
     context.notify_end(UR_FUNCTION_DEVICE_RELEASE, "urDeviceRelease", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_DEVICE_RELEASE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -496,11 +599,18 @@ __urdlllocal ur_result_t UR_APICALL urDevicePartition(
     uint64_t instance = context.notify_begin(UR_FUNCTION_DEVICE_PARTITION,
                                              "urDevicePartition", &params);
 
+    context.logger.info("---> urDevicePartition");
+
     ur_result_t result = pfnPartition(hDevice, pProperties, NumDevices,
                                       phSubDevices, pNumDevicesRet);
 
     context.notify_end(UR_FUNCTION_DEVICE_PARTITION, "urDevicePartition",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_DEVICE_PARTITION,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -530,11 +640,18 @@ __urdlllocal ur_result_t UR_APICALL urDeviceSelectBinary(
     uint64_t instance = context.notify_begin(UR_FUNCTION_DEVICE_SELECT_BINARY,
                                              "urDeviceSelectBinary", &params);
 
+    context.logger.info("---> urDeviceSelectBinary");
+
     ur_result_t result =
         pfnSelectBinary(hDevice, pBinaries, NumBinaries, pSelectedBinary);
 
     context.notify_end(UR_FUNCTION_DEVICE_SELECT_BINARY, "urDeviceSelectBinary",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_DEVICE_SELECT_BINARY,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -557,10 +674,17 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
         context.notify_begin(UR_FUNCTION_DEVICE_GET_NATIVE_HANDLE,
                              "urDeviceGetNativeHandle", &params);
 
+    context.logger.info("---> urDeviceGetNativeHandle");
+
     ur_result_t result = pfnGetNativeHandle(hDevice, phNativeDevice);
 
     context.notify_end(UR_FUNCTION_DEVICE_GET_NATIVE_HANDLE,
                        "urDeviceGetNativeHandle", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_DEVICE_GET_NATIVE_HANDLE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -589,12 +713,19 @@ __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
         context.notify_begin(UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE,
                              "urDeviceCreateWithNativeHandle", &params);
 
+    context.logger.info("---> urDeviceCreateWithNativeHandle");
+
     ur_result_t result = pfnCreateWithNativeHandle(hNativeDevice, hPlatform,
                                                    pProperties, phDevice);
 
     context.notify_end(UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE,
                        "urDeviceCreateWithNativeHandle", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -623,12 +754,19 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
         context.notify_begin(UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS,
                              "urDeviceGetGlobalTimestamps", &params);
 
+    context.logger.info("---> urDeviceGetGlobalTimestamps");
+
     ur_result_t result =
         pfnGetGlobalTimestamps(hDevice, pDeviceTimestamp, pHostTimestamp);
 
     context.notify_end(UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS,
                        "urDeviceGetGlobalTimestamps", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -655,11 +793,18 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
     uint64_t instance = context.notify_begin(UR_FUNCTION_CONTEXT_CREATE,
                                              "urContextCreate", &params);
 
+    context.logger.info("---> urContextCreate");
+
     ur_result_t result =
         pfnCreate(DeviceCount, phDevices, pProperties, phContext);
 
     context.notify_end(UR_FUNCTION_CONTEXT_CREATE, "urContextCreate", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_CONTEXT_CREATE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -680,10 +825,17 @@ __urdlllocal ur_result_t UR_APICALL urContextRetain(
     uint64_t instance = context.notify_begin(UR_FUNCTION_CONTEXT_RETAIN,
                                              "urContextRetain", &params);
 
+    context.logger.info("---> urContextRetain");
+
     ur_result_t result = pfnRetain(hContext);
 
     context.notify_end(UR_FUNCTION_CONTEXT_RETAIN, "urContextRetain", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_CONTEXT_RETAIN,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -703,10 +855,17 @@ __urdlllocal ur_result_t UR_APICALL urContextRelease(
     uint64_t instance = context.notify_begin(UR_FUNCTION_CONTEXT_RELEASE,
                                              "urContextRelease", &params);
 
+    context.logger.info("---> urContextRelease");
+
     ur_result_t result = pfnRelease(hContext);
 
     context.notify_end(UR_FUNCTION_CONTEXT_RELEASE, "urContextRelease", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_CONTEXT_RELEASE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -739,11 +898,18 @@ __urdlllocal ur_result_t UR_APICALL urContextGetInfo(
     uint64_t instance = context.notify_begin(UR_FUNCTION_CONTEXT_GET_INFO,
                                              "urContextGetInfo", &params);
 
+    context.logger.info("---> urContextGetInfo");
+
     ur_result_t result =
         pfnGetInfo(hContext, propName, propSize, pPropValue, pPropSizeRet);
 
     context.notify_end(UR_FUNCTION_CONTEXT_GET_INFO, "urContextGetInfo",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_CONTEXT_GET_INFO,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -767,10 +933,17 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
         context.notify_begin(UR_FUNCTION_CONTEXT_GET_NATIVE_HANDLE,
                              "urContextGetNativeHandle", &params);
 
+    context.logger.info("---> urContextGetNativeHandle");
+
     ur_result_t result = pfnGetNativeHandle(hContext, phNativeContext);
 
     context.notify_end(UR_FUNCTION_CONTEXT_GET_NATIVE_HANDLE,
                        "urContextGetNativeHandle", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_CONTEXT_GET_NATIVE_HANDLE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -801,12 +974,19 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
         context.notify_begin(UR_FUNCTION_CONTEXT_CREATE_WITH_NATIVE_HANDLE,
                              "urContextCreateWithNativeHandle", &params);
 
+    context.logger.info("---> urContextCreateWithNativeHandle");
+
     ur_result_t result = pfnCreateWithNativeHandle(
         hNativeContext, numDevices, phDevices, pProperties, phContext);
 
     context.notify_end(UR_FUNCTION_CONTEXT_CREATE_WITH_NATIVE_HANDLE,
                        "urContextCreateWithNativeHandle", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_CONTEXT_CREATE_WITH_NATIVE_HANDLE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -833,11 +1013,18 @@ __urdlllocal ur_result_t UR_APICALL urContextSetExtendedDeleter(
         context.notify_begin(UR_FUNCTION_CONTEXT_SET_EXTENDED_DELETER,
                              "urContextSetExtendedDeleter", &params);
 
+    context.logger.info("---> urContextSetExtendedDeleter");
+
     ur_result_t result = pfnSetExtendedDeleter(hContext, pfnDeleter, pUserData);
 
     context.notify_end(UR_FUNCTION_CONTEXT_SET_EXTENDED_DELETER,
                        "urContextSetExtendedDeleter", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_CONTEXT_SET_EXTENDED_DELETER, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -864,11 +1051,18 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
     uint64_t instance = context.notify_begin(UR_FUNCTION_MEM_IMAGE_CREATE,
                                              "urMemImageCreate", &params);
 
+    context.logger.info("---> urMemImageCreate");
+
     ur_result_t result =
         pfnImageCreate(hContext, flags, pImageFormat, pImageDesc, pHost, phMem);
 
     context.notify_end(UR_FUNCTION_MEM_IMAGE_CREATE, "urMemImageCreate",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_MEM_IMAGE_CREATE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -895,11 +1089,18 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
     uint64_t instance = context.notify_begin(UR_FUNCTION_MEM_BUFFER_CREATE,
                                              "urMemBufferCreate", &params);
 
+    context.logger.info("---> urMemBufferCreate");
+
     ur_result_t result =
         pfnBufferCreate(hContext, flags, size, pProperties, phBuffer);
 
     context.notify_end(UR_FUNCTION_MEM_BUFFER_CREATE, "urMemBufferCreate",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_MEM_BUFFER_CREATE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -919,10 +1120,16 @@ __urdlllocal ur_result_t UR_APICALL urMemRetain(
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_MEM_RETAIN, "urMemRetain", &params);
 
+    context.logger.info("---> urMemRetain");
+
     ur_result_t result = pfnRetain(hMem);
 
     context.notify_end(UR_FUNCTION_MEM_RETAIN, "urMemRetain", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_MEM_RETAIN, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -942,10 +1149,16 @@ __urdlllocal ur_result_t UR_APICALL urMemRelease(
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_MEM_RELEASE, "urMemRelease", &params);
 
+    context.logger.info("---> urMemRelease");
+
     ur_result_t result = pfnRelease(hMem);
 
     context.notify_end(UR_FUNCTION_MEM_RELEASE, "urMemRelease", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_MEM_RELEASE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -973,11 +1186,18 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
     uint64_t instance = context.notify_begin(UR_FUNCTION_MEM_BUFFER_PARTITION,
                                              "urMemBufferPartition", &params);
 
+    context.logger.info("---> urMemBufferPartition");
+
     ur_result_t result =
         pfnBufferPartition(hBuffer, flags, bufferCreateType, pRegion, phMem);
 
     context.notify_end(UR_FUNCTION_MEM_BUFFER_PARTITION, "urMemBufferPartition",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_MEM_BUFFER_PARTITION,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1001,10 +1221,17 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
     uint64_t instance = context.notify_begin(UR_FUNCTION_MEM_GET_NATIVE_HANDLE,
                                              "urMemGetNativeHandle", &params);
 
+    context.logger.info("---> urMemGetNativeHandle");
+
     ur_result_t result = pfnGetNativeHandle(hMem, hDevice, phNativeMem);
 
     context.notify_end(UR_FUNCTION_MEM_GET_NATIVE_HANDLE,
                        "urMemGetNativeHandle", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_MEM_GET_NATIVE_HANDLE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1033,12 +1260,19 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
         context.notify_begin(UR_FUNCTION_MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE,
                              "urMemBufferCreateWithNativeHandle", &params);
 
+    context.logger.info("---> urMemBufferCreateWithNativeHandle");
+
     ur_result_t result = pfnBufferCreateWithNativeHandle(hNativeMem, hContext,
                                                          pProperties, phMem);
 
     context.notify_end(UR_FUNCTION_MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE,
                        "urMemBufferCreateWithNativeHandle", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1071,12 +1305,19 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
         context.notify_begin(UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE,
                              "urMemImageCreateWithNativeHandle", &params);
 
+    context.logger.info("---> urMemImageCreateWithNativeHandle");
+
     ur_result_t result = pfnImageCreateWithNativeHandle(
         hNativeMem, hContext, pImageFormat, pImageDesc, pProperties, phMem);
 
     context.notify_end(UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE,
                        "urMemImageCreateWithNativeHandle", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1109,11 +1350,18 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_MEM_GET_INFO, "urMemGetInfo", &params);
 
+    context.logger.info("---> urMemGetInfo");
+
     ur_result_t result =
         pfnGetInfo(hMemory, propName, propSize, pPropValue, pPropSizeRet);
 
     context.notify_end(UR_FUNCTION_MEM_GET_INFO, "urMemGetInfo", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_MEM_GET_INFO,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1145,11 +1393,18 @@ __urdlllocal ur_result_t UR_APICALL urMemImageGetInfo(
     uint64_t instance = context.notify_begin(UR_FUNCTION_MEM_IMAGE_GET_INFO,
                                              "urMemImageGetInfo", &params);
 
+    context.logger.info("---> urMemImageGetInfo");
+
     ur_result_t result =
         pfnImageGetInfo(hMemory, propName, propSize, pPropValue, pPropSizeRet);
 
     context.notify_end(UR_FUNCTION_MEM_IMAGE_GET_INFO, "urMemImageGetInfo",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_MEM_IMAGE_GET_INFO,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1172,10 +1427,17 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreate(
     uint64_t instance = context.notify_begin(UR_FUNCTION_SAMPLER_CREATE,
                                              "urSamplerCreate", &params);
 
+    context.logger.info("---> urSamplerCreate");
+
     ur_result_t result = pfnCreate(hContext, pDesc, phSampler);
 
     context.notify_end(UR_FUNCTION_SAMPLER_CREATE, "urSamplerCreate", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_SAMPLER_CREATE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1196,10 +1458,17 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRetain(
     uint64_t instance = context.notify_begin(UR_FUNCTION_SAMPLER_RETAIN,
                                              "urSamplerRetain", &params);
 
+    context.logger.info("---> urSamplerRetain");
+
     ur_result_t result = pfnRetain(hSampler);
 
     context.notify_end(UR_FUNCTION_SAMPLER_RETAIN, "urSamplerRetain", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_SAMPLER_RETAIN,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1220,10 +1489,17 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRelease(
     uint64_t instance = context.notify_begin(UR_FUNCTION_SAMPLER_RELEASE,
                                              "urSamplerRelease", &params);
 
+    context.logger.info("---> urSamplerRelease");
+
     ur_result_t result = pfnRelease(hSampler);
 
     context.notify_end(UR_FUNCTION_SAMPLER_RELEASE, "urSamplerRelease", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_SAMPLER_RELEASE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1252,11 +1528,18 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetInfo(
     uint64_t instance = context.notify_begin(UR_FUNCTION_SAMPLER_GET_INFO,
                                              "urSamplerGetInfo", &params);
 
+    context.logger.info("---> urSamplerGetInfo");
+
     ur_result_t result =
         pfnGetInfo(hSampler, propName, propSize, pPropValue, pPropSizeRet);
 
     context.notify_end(UR_FUNCTION_SAMPLER_GET_INFO, "urSamplerGetInfo",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_SAMPLER_GET_INFO,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1280,10 +1563,17 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetNativeHandle(
         context.notify_begin(UR_FUNCTION_SAMPLER_GET_NATIVE_HANDLE,
                              "urSamplerGetNativeHandle", &params);
 
+    context.logger.info("---> urSamplerGetNativeHandle");
+
     ur_result_t result = pfnGetNativeHandle(hSampler, phNativeSampler);
 
     context.notify_end(UR_FUNCTION_SAMPLER_GET_NATIVE_HANDLE,
                        "urSamplerGetNativeHandle", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_SAMPLER_GET_NATIVE_HANDLE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1312,12 +1602,19 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
         context.notify_begin(UR_FUNCTION_SAMPLER_CREATE_WITH_NATIVE_HANDLE,
                              "urSamplerCreateWithNativeHandle", &params);
 
+    context.logger.info("---> urSamplerCreateWithNativeHandle");
+
     ur_result_t result = pfnCreateWithNativeHandle(hNativeSampler, hContext,
                                                    pProperties, phSampler);
 
     context.notify_end(UR_FUNCTION_SAMPLER_CREATE_WITH_NATIVE_HANDLE,
                        "urSamplerCreateWithNativeHandle", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_SAMPLER_CREATE_WITH_NATIVE_HANDLE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1345,10 +1642,17 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
     uint64_t instance = context.notify_begin(UR_FUNCTION_USM_HOST_ALLOC,
                                              "urUSMHostAlloc", &params);
 
+    context.logger.info("---> urUSMHostAlloc");
+
     ur_result_t result = pfnHostAlloc(hContext, pUSMDesc, pool, size, ppMem);
 
     context.notify_end(UR_FUNCTION_USM_HOST_ALLOC, "urUSMHostAlloc", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_HOST_ALLOC,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1377,11 +1681,18 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
     uint64_t instance = context.notify_begin(UR_FUNCTION_USM_DEVICE_ALLOC,
                                              "urUSMDeviceAlloc", &params);
 
+    context.logger.info("---> urUSMDeviceAlloc");
+
     ur_result_t result =
         pfnDeviceAlloc(hContext, hDevice, pUSMDesc, pool, size, ppMem);
 
     context.notify_end(UR_FUNCTION_USM_DEVICE_ALLOC, "urUSMDeviceAlloc",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_DEVICE_ALLOC,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1410,11 +1721,18 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
     uint64_t instance = context.notify_begin(UR_FUNCTION_USM_SHARED_ALLOC,
                                              "urUSMSharedAlloc", &params);
 
+    context.logger.info("---> urUSMSharedAlloc");
+
     ur_result_t result =
         pfnSharedAlloc(hContext, hDevice, pUSMDesc, pool, size, ppMem);
 
     context.notify_end(UR_FUNCTION_USM_SHARED_ALLOC, "urUSMSharedAlloc",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_SHARED_ALLOC,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1435,10 +1753,16 @@ __urdlllocal ur_result_t UR_APICALL urUSMFree(
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_USM_FREE, "urUSMFree", &params);
 
+    context.logger.info("---> urUSMFree");
+
     ur_result_t result = pfnFree(hContext, pMem);
 
     context.notify_end(UR_FUNCTION_USM_FREE, "urUSMFree", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_FREE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1469,11 +1793,18 @@ __urdlllocal ur_result_t UR_APICALL urUSMGetMemAllocInfo(
     uint64_t instance = context.notify_begin(UR_FUNCTION_USM_GET_MEM_ALLOC_INFO,
                                              "urUSMGetMemAllocInfo", &params);
 
+    context.logger.info("---> urUSMGetMemAllocInfo");
+
     ur_result_t result = pfnGetMemAllocInfo(hContext, pMem, propName, propSize,
                                             pPropValue, pPropSizeRet);
 
     context.notify_end(UR_FUNCTION_USM_GET_MEM_ALLOC_INFO,
                        "urUSMGetMemAllocInfo", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_USM_GET_MEM_ALLOC_INFO, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1497,10 +1828,17 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
     uint64_t instance = context.notify_begin(UR_FUNCTION_USM_POOL_CREATE,
                                              "urUSMPoolCreate", &params);
 
+    context.logger.info("---> urUSMPoolCreate");
+
     ur_result_t result = pfnPoolCreate(hContext, pPoolDesc, ppPool);
 
     context.notify_end(UR_FUNCTION_USM_POOL_CREATE, "urUSMPoolCreate", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_POOL_CREATE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1520,10 +1858,17 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolRetain(
     uint64_t instance = context.notify_begin(UR_FUNCTION_USM_POOL_RETAIN,
                                              "urUSMPoolRetain", &params);
 
+    context.logger.info("---> urUSMPoolRetain");
+
     ur_result_t result = pfnPoolRetain(pPool);
 
     context.notify_end(UR_FUNCTION_USM_POOL_RETAIN, "urUSMPoolRetain", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_POOL_RETAIN,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1543,10 +1888,17 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolRelease(
     uint64_t instance = context.notify_begin(UR_FUNCTION_USM_POOL_RELEASE,
                                              "urUSMPoolRelease", &params);
 
+    context.logger.info("---> urUSMPoolRelease");
+
     ur_result_t result = pfnPoolRelease(pPool);
 
     context.notify_end(UR_FUNCTION_USM_POOL_RELEASE, "urUSMPoolRelease",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_POOL_RELEASE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1574,11 +1926,18 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
     uint64_t instance = context.notify_begin(UR_FUNCTION_USM_POOL_GET_INFO,
                                              "urUSMPoolGetInfo", &params);
 
+    context.logger.info("---> urUSMPoolGetInfo");
+
     ur_result_t result =
         pfnPoolGetInfo(hPool, propName, propSize, pPropValue, pPropSizeRet);
 
     context.notify_end(UR_FUNCTION_USM_POOL_GET_INFO, "urUSMPoolGetInfo",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_POOL_GET_INFO,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1615,12 +1974,19 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
         context.notify_begin(UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO,
                              "urVirtualMemGranularityGetInfo", &params);
 
+    context.logger.info("---> urVirtualMemGranularityGetInfo");
+
     ur_result_t result = pfnGranularityGetInfo(
         hContext, hDevice, propName, propSize, pPropValue, pPropSizeRet);
 
     context.notify_end(UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO,
                        "urVirtualMemGranularityGetInfo", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1650,10 +2016,17 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemReserve(
     uint64_t instance = context.notify_begin(UR_FUNCTION_VIRTUAL_MEM_RESERVE,
                                              "urVirtualMemReserve", &params);
 
+    context.logger.info("---> urVirtualMemReserve");
+
     ur_result_t result = pfnReserve(hContext, pStart, size, ppStart);
 
     context.notify_end(UR_FUNCTION_VIRTUAL_MEM_RESERVE, "urVirtualMemReserve",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_VIRTUAL_MEM_RESERVE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1676,10 +2049,17 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemFree(
     uint64_t instance = context.notify_begin(UR_FUNCTION_VIRTUAL_MEM_FREE,
                                              "urVirtualMemFree", &params);
 
+    context.logger.info("---> urVirtualMemFree");
+
     ur_result_t result = pfnFree(hContext, pStart, size);
 
     context.notify_end(UR_FUNCTION_VIRTUAL_MEM_FREE, "urVirtualMemFree",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_VIRTUAL_MEM_FREE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1709,11 +2089,18 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemMap(
     uint64_t instance = context.notify_begin(UR_FUNCTION_VIRTUAL_MEM_MAP,
                                              "urVirtualMemMap", &params);
 
+    context.logger.info("---> urVirtualMemMap");
+
     ur_result_t result =
         pfnMap(hContext, pStart, size, hPhysicalMem, offset, flags);
 
     context.notify_end(UR_FUNCTION_VIRTUAL_MEM_MAP, "urVirtualMemMap", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_VIRTUAL_MEM_MAP,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1736,10 +2123,17 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemUnmap(
     uint64_t instance = context.notify_begin(UR_FUNCTION_VIRTUAL_MEM_UNMAP,
                                              "urVirtualMemUnmap", &params);
 
+    context.logger.info("---> urVirtualMemUnmap");
+
     ur_result_t result = pfnUnmap(hContext, pStart, size);
 
     context.notify_end(UR_FUNCTION_VIRTUAL_MEM_UNMAP, "urVirtualMemUnmap",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_VIRTUAL_MEM_UNMAP,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1765,10 +2159,17 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemSetAccess(
     uint64_t instance = context.notify_begin(UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS,
                                              "urVirtualMemSetAccess", &params);
 
+    context.logger.info("---> urVirtualMemSetAccess");
+
     ur_result_t result = pfnSetAccess(hContext, pStart, size, flags);
 
     context.notify_end(UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS,
                        "urVirtualMemSetAccess", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1803,11 +2204,18 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGetInfo(
     uint64_t instance = context.notify_begin(UR_FUNCTION_VIRTUAL_MEM_GET_INFO,
                                              "urVirtualMemGetInfo", &params);
 
+    context.logger.info("---> urVirtualMemGetInfo");
+
     ur_result_t result = pfnGetInfo(hContext, pStart, size, propName, propSize,
                                     pPropValue, pPropSizeRet);
 
     context.notify_end(UR_FUNCTION_VIRTUAL_MEM_GET_INFO, "urVirtualMemGetInfo",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_VIRTUAL_MEM_GET_INFO,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1836,11 +2244,18 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemCreate(
     uint64_t instance = context.notify_begin(UR_FUNCTION_PHYSICAL_MEM_CREATE,
                                              "urPhysicalMemCreate", &params);
 
+    context.logger.info("---> urPhysicalMemCreate");
+
     ur_result_t result =
         pfnCreate(hContext, hDevice, size, pProperties, phPhysicalMem);
 
     context.notify_end(UR_FUNCTION_PHYSICAL_MEM_CREATE, "urPhysicalMemCreate",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_PHYSICAL_MEM_CREATE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1861,10 +2276,17 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRetain(
     uint64_t instance = context.notify_begin(UR_FUNCTION_PHYSICAL_MEM_RETAIN,
                                              "urPhysicalMemRetain", &params);
 
+    context.logger.info("---> urPhysicalMemRetain");
+
     ur_result_t result = pfnRetain(hPhysicalMem);
 
     context.notify_end(UR_FUNCTION_PHYSICAL_MEM_RETAIN, "urPhysicalMemRetain",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_PHYSICAL_MEM_RETAIN,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1885,10 +2307,17 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRelease(
     uint64_t instance = context.notify_begin(UR_FUNCTION_PHYSICAL_MEM_RELEASE,
                                              "urPhysicalMemRelease", &params);
 
+    context.logger.info("---> urPhysicalMemRelease");
+
     ur_result_t result = pfnRelease(hPhysicalMem);
 
     context.notify_end(UR_FUNCTION_PHYSICAL_MEM_RELEASE, "urPhysicalMemRelease",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_PHYSICAL_MEM_RELEASE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1915,11 +2344,18 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
     uint64_t instance = context.notify_begin(UR_FUNCTION_PROGRAM_CREATE_WITH_IL,
                                              "urProgramCreateWithIL", &params);
 
+    context.logger.info("---> urProgramCreateWithIL");
+
     ur_result_t result =
         pfnCreateWithIL(hContext, pIL, length, pProperties, phProgram);
 
     context.notify_end(UR_FUNCTION_PROGRAM_CREATE_WITH_IL,
                        "urProgramCreateWithIL", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_PROGRAM_CREATE_WITH_IL, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1949,11 +2385,18 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
         context.notify_begin(UR_FUNCTION_PROGRAM_CREATE_WITH_BINARY,
                              "urProgramCreateWithBinary", &params);
 
+    context.logger.info("---> urProgramCreateWithBinary");
+
     ur_result_t result = pfnCreateWithBinary(hContext, hDevice, size, pBinary,
                                              pProperties, phProgram);
 
     context.notify_end(UR_FUNCTION_PROGRAM_CREATE_WITH_BINARY,
                        "urProgramCreateWithBinary", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_PROGRAM_CREATE_WITH_BINARY, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -1976,10 +2419,17 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
     uint64_t instance = context.notify_begin(UR_FUNCTION_PROGRAM_BUILD,
                                              "urProgramBuild", &params);
 
+    context.logger.info("---> urProgramBuild");
+
     ur_result_t result = pfnBuild(hContext, hProgram, pOptions);
 
     context.notify_end(UR_FUNCTION_PROGRAM_BUILD, "urProgramBuild", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_BUILD,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2003,10 +2453,17 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompile(
     uint64_t instance = context.notify_begin(UR_FUNCTION_PROGRAM_COMPILE,
                                              "urProgramCompile", &params);
 
+    context.logger.info("---> urProgramCompile");
+
     ur_result_t result = pfnCompile(hContext, hProgram, pOptions);
 
     context.notify_end(UR_FUNCTION_PROGRAM_COMPILE, "urProgramCompile", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_COMPILE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2034,11 +2491,18 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
     uint64_t instance = context.notify_begin(UR_FUNCTION_PROGRAM_LINK,
                                              "urProgramLink", &params);
 
+    context.logger.info("---> urProgramLink");
+
     ur_result_t result =
         pfnLink(hContext, count, phPrograms, pOptions, phProgram);
 
     context.notify_end(UR_FUNCTION_PROGRAM_LINK, "urProgramLink", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_LINK,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2058,10 +2522,17 @@ __urdlllocal ur_result_t UR_APICALL urProgramRetain(
     uint64_t instance = context.notify_begin(UR_FUNCTION_PROGRAM_RETAIN,
                                              "urProgramRetain", &params);
 
+    context.logger.info("---> urProgramRetain");
+
     ur_result_t result = pfnRetain(hProgram);
 
     context.notify_end(UR_FUNCTION_PROGRAM_RETAIN, "urProgramRetain", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_RETAIN,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2081,10 +2552,17 @@ __urdlllocal ur_result_t UR_APICALL urProgramRelease(
     uint64_t instance = context.notify_begin(UR_FUNCTION_PROGRAM_RELEASE,
                                              "urProgramRelease", &params);
 
+    context.logger.info("---> urProgramRelease");
+
     ur_result_t result = pfnRelease(hProgram);
 
     context.notify_end(UR_FUNCTION_PROGRAM_RELEASE, "urProgramRelease", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_RELEASE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2116,12 +2594,19 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetFunctionPointer(
         context.notify_begin(UR_FUNCTION_PROGRAM_GET_FUNCTION_POINTER,
                              "urProgramGetFunctionPointer", &params);
 
+    context.logger.info("---> urProgramGetFunctionPointer");
+
     ur_result_t result = pfnGetFunctionPointer(hDevice, hProgram, pFunctionName,
                                                ppFunctionPointer);
 
     context.notify_end(UR_FUNCTION_PROGRAM_GET_FUNCTION_POINTER,
                        "urProgramGetFunctionPointer", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_PROGRAM_GET_FUNCTION_POINTER, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2155,6 +2640,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
         context.notify_begin(UR_FUNCTION_PROGRAM_GET_GLOBAL_VARIABLE_POINTER,
                              "urProgramGetGlobalVariablePointer", &params);
 
+    context.logger.info("---> urProgramGetGlobalVariablePointer");
+
     ur_result_t result = pfnGetGlobalVariablePointer(
         hDevice, hProgram, pGlobalVariableName, pGlobalVariableSizeRet,
         ppGlobalVariablePointerRet);
@@ -2162,6 +2649,11 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
     context.notify_end(UR_FUNCTION_PROGRAM_GET_GLOBAL_VARIABLE_POINTER,
                        "urProgramGetGlobalVariablePointer", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_PROGRAM_GET_GLOBAL_VARIABLE_POINTER, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2193,11 +2685,18 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetInfo(
     uint64_t instance = context.notify_begin(UR_FUNCTION_PROGRAM_GET_INFO,
                                              "urProgramGetInfo", &params);
 
+    context.logger.info("---> urProgramGetInfo");
+
     ur_result_t result =
         pfnGetInfo(hProgram, propName, propSize, pPropValue, pPropSizeRet);
 
     context.notify_end(UR_FUNCTION_PROGRAM_GET_INFO, "urProgramGetInfo",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_GET_INFO,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2231,11 +2730,18 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetBuildInfo(
     uint64_t instance = context.notify_begin(UR_FUNCTION_PROGRAM_GET_BUILD_INFO,
                                              "urProgramGetBuildInfo", &params);
 
+    context.logger.info("---> urProgramGetBuildInfo");
+
     ur_result_t result = pfnGetBuildInfo(hProgram, hDevice, propName, propSize,
                                          pPropValue, pPropSizeRet);
 
     context.notify_end(UR_FUNCTION_PROGRAM_GET_BUILD_INFO,
                        "urProgramGetBuildInfo", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_PROGRAM_GET_BUILD_INFO, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2262,12 +2768,19 @@ __urdlllocal ur_result_t UR_APICALL urProgramSetSpecializationConstants(
         context.notify_begin(UR_FUNCTION_PROGRAM_SET_SPECIALIZATION_CONSTANTS,
                              "urProgramSetSpecializationConstants", &params);
 
+    context.logger.info("---> urProgramSetSpecializationConstants");
+
     ur_result_t result =
         pfnSetSpecializationConstants(hProgram, count, pSpecConstants);
 
     context.notify_end(UR_FUNCTION_PROGRAM_SET_SPECIALIZATION_CONSTANTS,
                        "urProgramSetSpecializationConstants", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_PROGRAM_SET_SPECIALIZATION_CONSTANTS, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2291,10 +2804,17 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetNativeHandle(
         context.notify_begin(UR_FUNCTION_PROGRAM_GET_NATIVE_HANDLE,
                              "urProgramGetNativeHandle", &params);
 
+    context.logger.info("---> urProgramGetNativeHandle");
+
     ur_result_t result = pfnGetNativeHandle(hProgram, phNativeProgram);
 
     context.notify_end(UR_FUNCTION_PROGRAM_GET_NATIVE_HANDLE,
                        "urProgramGetNativeHandle", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_PROGRAM_GET_NATIVE_HANDLE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2323,12 +2843,19 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
         context.notify_begin(UR_FUNCTION_PROGRAM_CREATE_WITH_NATIVE_HANDLE,
                              "urProgramCreateWithNativeHandle", &params);
 
+    context.logger.info("---> urProgramCreateWithNativeHandle");
+
     ur_result_t result = pfnCreateWithNativeHandle(hNativeProgram, hContext,
                                                    pProperties, phProgram);
 
     context.notify_end(UR_FUNCTION_PROGRAM_CREATE_WITH_NATIVE_HANDLE,
                        "urProgramCreateWithNativeHandle", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_PROGRAM_CREATE_WITH_NATIVE_HANDLE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2351,10 +2878,17 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreate(
     uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_CREATE,
                                              "urKernelCreate", &params);
 
+    context.logger.info("---> urKernelCreate");
+
     ur_result_t result = pfnCreate(hProgram, pKernelName, phKernel);
 
     context.notify_end(UR_FUNCTION_KERNEL_CREATE, "urKernelCreate", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_KERNEL_CREATE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2381,11 +2915,18 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
     uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_SET_ARG_VALUE,
                                              "urKernelSetArgValue", &params);
 
+    context.logger.info("---> urKernelSetArgValue");
+
     ur_result_t result =
         pfnSetArgValue(hKernel, argIndex, argSize, pProperties, pArgValue);
 
     context.notify_end(UR_FUNCTION_KERNEL_SET_ARG_VALUE, "urKernelSetArgValue",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_KERNEL_SET_ARG_VALUE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2411,11 +2952,18 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
     uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_SET_ARG_LOCAL,
                                              "urKernelSetArgLocal", &params);
 
+    context.logger.info("---> urKernelSetArgLocal");
+
     ur_result_t result =
         pfnSetArgLocal(hKernel, argIndex, argSize, pProperties);
 
     context.notify_end(UR_FUNCTION_KERNEL_SET_ARG_LOCAL, "urKernelSetArgLocal",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_KERNEL_SET_ARG_LOCAL,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2448,11 +2996,18 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
     uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_GET_INFO,
                                              "urKernelGetInfo", &params);
 
+    context.logger.info("---> urKernelGetInfo");
+
     ur_result_t result =
         pfnGetInfo(hKernel, propName, propSize, pPropValue, pPropSizeRet);
 
     context.notify_end(UR_FUNCTION_KERNEL_GET_INFO, "urKernelGetInfo", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_KERNEL_GET_INFO,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2483,11 +3038,18 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetGroupInfo(
     uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_GET_GROUP_INFO,
                                              "urKernelGetGroupInfo", &params);
 
+    context.logger.info("---> urKernelGetGroupInfo");
+
     ur_result_t result = pfnGetGroupInfo(hKernel, hDevice, propName, propSize,
                                          pPropValue, pPropSizeRet);
 
     context.notify_end(UR_FUNCTION_KERNEL_GET_GROUP_INFO,
                        "urKernelGetGroupInfo", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_KERNEL_GET_GROUP_INFO,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2519,11 +3081,18 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSubGroupInfo(
         context.notify_begin(UR_FUNCTION_KERNEL_GET_SUB_GROUP_INFO,
                              "urKernelGetSubGroupInfo", &params);
 
+    context.logger.info("---> urKernelGetSubGroupInfo");
+
     ur_result_t result = pfnGetSubGroupInfo(hKernel, hDevice, propName,
                                             propSize, pPropValue, pPropSizeRet);
 
     context.notify_end(UR_FUNCTION_KERNEL_GET_SUB_GROUP_INFO,
                        "urKernelGetSubGroupInfo", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_KERNEL_GET_SUB_GROUP_INFO, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2543,10 +3112,17 @@ __urdlllocal ur_result_t UR_APICALL urKernelRetain(
     uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_RETAIN,
                                              "urKernelRetain", &params);
 
+    context.logger.info("---> urKernelRetain");
+
     ur_result_t result = pfnRetain(hKernel);
 
     context.notify_end(UR_FUNCTION_KERNEL_RETAIN, "urKernelRetain", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_KERNEL_RETAIN,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2566,10 +3142,17 @@ __urdlllocal ur_result_t UR_APICALL urKernelRelease(
     uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_RELEASE,
                                              "urKernelRelease", &params);
 
+    context.logger.info("---> urKernelRelease");
+
     ur_result_t result = pfnRelease(hKernel);
 
     context.notify_end(UR_FUNCTION_KERNEL_RELEASE, "urKernelRelease", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_KERNEL_RELEASE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2596,11 +3179,18 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
     uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_SET_ARG_POINTER,
                                              "urKernelSetArgPointer", &params);
 
+    context.logger.info("---> urKernelSetArgPointer");
+
     ur_result_t result =
         pfnSetArgPointer(hKernel, argIndex, pProperties, pArgValue);
 
     context.notify_end(UR_FUNCTION_KERNEL_SET_ARG_POINTER,
                        "urKernelSetArgPointer", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_KERNEL_SET_ARG_POINTER, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2628,11 +3218,18 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
     uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_SET_EXEC_INFO,
                                              "urKernelSetExecInfo", &params);
 
+    context.logger.info("---> urKernelSetExecInfo");
+
     ur_result_t result =
         pfnSetExecInfo(hKernel, propName, propSize, pProperties, pPropValue);
 
     context.notify_end(UR_FUNCTION_KERNEL_SET_EXEC_INFO, "urKernelSetExecInfo",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_KERNEL_SET_EXEC_INFO,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2657,11 +3254,18 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
     uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_SET_ARG_SAMPLER,
                                              "urKernelSetArgSampler", &params);
 
+    context.logger.info("---> urKernelSetArgSampler");
+
     ur_result_t result =
         pfnSetArgSampler(hKernel, argIndex, pProperties, hArgValue);
 
     context.notify_end(UR_FUNCTION_KERNEL_SET_ARG_SAMPLER,
                        "urKernelSetArgSampler", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_KERNEL_SET_ARG_SAMPLER, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2686,11 +3290,18 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
     uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ,
                                              "urKernelSetArgMemObj", &params);
 
+    context.logger.info("---> urKernelSetArgMemObj");
+
     ur_result_t result =
         pfnSetArgMemObj(hKernel, argIndex, pProperties, hArgValue);
 
     context.notify_end(UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ,
                        "urKernelSetArgMemObj", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2716,12 +3327,19 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetSpecializationConstants(
         context.notify_begin(UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS,
                              "urKernelSetSpecializationConstants", &params);
 
+    context.logger.info("---> urKernelSetSpecializationConstants");
+
     ur_result_t result =
         pfnSetSpecializationConstants(hKernel, count, pSpecConstants);
 
     context.notify_end(UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS,
                        "urKernelSetSpecializationConstants", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2744,10 +3362,17 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
         context.notify_begin(UR_FUNCTION_KERNEL_GET_NATIVE_HANDLE,
                              "urKernelGetNativeHandle", &params);
 
+    context.logger.info("---> urKernelGetNativeHandle");
+
     ur_result_t result = pfnGetNativeHandle(hKernel, phNativeKernel);
 
     context.notify_end(UR_FUNCTION_KERNEL_GET_NATIVE_HANDLE,
                        "urKernelGetNativeHandle", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_KERNEL_GET_NATIVE_HANDLE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2778,12 +3403,70 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
         context.notify_begin(UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE,
                              "urKernelCreateWithNativeHandle", &params);
 
+    context.logger.info("---> urKernelCreateWithNativeHandle");
+
     ur_result_t result = pfnCreateWithNativeHandle(
         hNativeKernel, hContext, hProgram, pProperties, phKernel);
 
     context.notify_end(UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE,
                        "urKernelCreateWithNativeHandle", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelGetSuggestedLocalWorkSize
+__urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel
+    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
+    uint32_t
+        numWorkDim, ///< [in] number of dimensions, from 1 to 3, to specify the global
+                    ///< and work-group work-items
+    const size_t *
+        pGlobalWorkOffset, ///< [in] pointer to an array of numWorkDim unsigned values that specify
+    ///< the offset used to calculate the global ID of a work-item
+    const size_t *
+        pGlobalWorkSize, ///< [in] pointer to an array of numWorkDim unsigned values that specify
+    ///< the number of global work-items in workDim that will execute the
+    ///< kernel function
+    size_t *
+        pSuggestedLocalWorkSize ///< [out] pointer to an array of numWorkDim unsigned values that specify
+    ///< suggested local work size that will contain the result of the query
+) {
+    auto pfnGetSuggestedLocalWorkSize =
+        context.urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize;
+
+    if (nullptr == pfnGetSuggestedLocalWorkSize) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_kernel_get_suggested_local_work_size_params_t params = {
+        &hKernel,           &hQueue,          &numWorkDim,
+        &pGlobalWorkOffset, &pGlobalWorkSize, &pSuggestedLocalWorkSize};
+    uint64_t instance =
+        context.notify_begin(UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE,
+                             "urKernelGetSuggestedLocalWorkSize", &params);
+
+    context.logger.info("---> urKernelGetSuggestedLocalWorkSize");
+
+    ur_result_t result = pfnGetSuggestedLocalWorkSize(
+        hKernel, hQueue, numWorkDim, pGlobalWorkOffset, pGlobalWorkSize,
+        pSuggestedLocalWorkSize);
+
+    context.notify_end(UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE,
+                       "urKernelGetSuggestedLocalWorkSize", &params, &result,
+                       instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2812,11 +3495,18 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
     uint64_t instance = context.notify_begin(UR_FUNCTION_QUEUE_GET_INFO,
                                              "urQueueGetInfo", &params);
 
+    context.logger.info("---> urQueueGetInfo");
+
     ur_result_t result =
         pfnGetInfo(hQueue, propName, propSize, pPropValue, pPropSizeRet);
 
     context.notify_end(UR_FUNCTION_QUEUE_GET_INFO, "urQueueGetInfo", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_QUEUE_GET_INFO,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2842,10 +3532,17 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
     uint64_t instance = context.notify_begin(UR_FUNCTION_QUEUE_CREATE,
                                              "urQueueCreate", &params);
 
+    context.logger.info("---> urQueueCreate");
+
     ur_result_t result = pfnCreate(hContext, hDevice, pProperties, phQueue);
 
     context.notify_end(UR_FUNCTION_QUEUE_CREATE, "urQueueCreate", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_QUEUE_CREATE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2865,10 +3562,17 @@ __urdlllocal ur_result_t UR_APICALL urQueueRetain(
     uint64_t instance = context.notify_begin(UR_FUNCTION_QUEUE_RETAIN,
                                              "urQueueRetain", &params);
 
+    context.logger.info("---> urQueueRetain");
+
     ur_result_t result = pfnRetain(hQueue);
 
     context.notify_end(UR_FUNCTION_QUEUE_RETAIN, "urQueueRetain", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_QUEUE_RETAIN,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2888,10 +3592,17 @@ __urdlllocal ur_result_t UR_APICALL urQueueRelease(
     uint64_t instance = context.notify_begin(UR_FUNCTION_QUEUE_RELEASE,
                                              "urQueueRelease", &params);
 
+    context.logger.info("---> urQueueRelease");
+
     ur_result_t result = pfnRelease(hQueue);
 
     context.notify_end(UR_FUNCTION_QUEUE_RELEASE, "urQueueRelease", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_QUEUE_RELEASE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2916,10 +3627,17 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
     uint64_t instance = context.notify_begin(
         UR_FUNCTION_QUEUE_GET_NATIVE_HANDLE, "urQueueGetNativeHandle", &params);
 
+    context.logger.info("---> urQueueGetNativeHandle");
+
     ur_result_t result = pfnGetNativeHandle(hQueue, pDesc, phNativeQueue);
 
     context.notify_end(UR_FUNCTION_QUEUE_GET_NATIVE_HANDLE,
                        "urQueueGetNativeHandle", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_QUEUE_GET_NATIVE_HANDLE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2949,12 +3667,19 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
         context.notify_begin(UR_FUNCTION_QUEUE_CREATE_WITH_NATIVE_HANDLE,
                              "urQueueCreateWithNativeHandle", &params);
 
+    context.logger.info("---> urQueueCreateWithNativeHandle");
+
     ur_result_t result = pfnCreateWithNativeHandle(
         hNativeQueue, hContext, hDevice, pProperties, phQueue);
 
     context.notify_end(UR_FUNCTION_QUEUE_CREATE_WITH_NATIVE_HANDLE,
                        "urQueueCreateWithNativeHandle", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_QUEUE_CREATE_WITH_NATIVE_HANDLE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2974,10 +3699,17 @@ __urdlllocal ur_result_t UR_APICALL urQueueFinish(
     uint64_t instance = context.notify_begin(UR_FUNCTION_QUEUE_FINISH,
                                              "urQueueFinish", &params);
 
+    context.logger.info("---> urQueueFinish");
+
     ur_result_t result = pfnFinish(hQueue);
 
     context.notify_end(UR_FUNCTION_QUEUE_FINISH, "urQueueFinish", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_QUEUE_FINISH,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -2997,10 +3729,16 @@ __urdlllocal ur_result_t UR_APICALL urQueueFlush(
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_QUEUE_FLUSH, "urQueueFlush", &params);
 
+    context.logger.info("---> urQueueFlush");
+
     ur_result_t result = pfnFlush(hQueue);
 
     context.notify_end(UR_FUNCTION_QUEUE_FLUSH, "urQueueFlush", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_QUEUE_FLUSH, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3027,11 +3765,18 @@ __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
     uint64_t instance = context.notify_begin(UR_FUNCTION_EVENT_GET_INFO,
                                              "urEventGetInfo", &params);
 
+    context.logger.info("---> urEventGetInfo");
+
     ur_result_t result =
         pfnGetInfo(hEvent, propName, propSize, pPropValue, pPropSizeRet);
 
     context.notify_end(UR_FUNCTION_EVENT_GET_INFO, "urEventGetInfo", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_EVENT_GET_INFO,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3062,11 +3807,18 @@ __urdlllocal ur_result_t UR_APICALL urEventGetProfilingInfo(
         context.notify_begin(UR_FUNCTION_EVENT_GET_PROFILING_INFO,
                              "urEventGetProfilingInfo", &params);
 
+    context.logger.info("---> urEventGetProfilingInfo");
+
     ur_result_t result = pfnGetProfilingInfo(hEvent, propName, propSize,
                                              pPropValue, pPropSizeRet);
 
     context.notify_end(UR_FUNCTION_EVENT_GET_PROFILING_INFO,
                        "urEventGetProfilingInfo", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_EVENT_GET_PROFILING_INFO, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3089,10 +3841,16 @@ __urdlllocal ur_result_t UR_APICALL urEventWait(
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_EVENT_WAIT, "urEventWait", &params);
 
+    context.logger.info("---> urEventWait");
+
     ur_result_t result = pfnWait(numEvents, phEventWaitList);
 
     context.notify_end(UR_FUNCTION_EVENT_WAIT, "urEventWait", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_EVENT_WAIT, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3112,10 +3870,17 @@ __urdlllocal ur_result_t UR_APICALL urEventRetain(
     uint64_t instance = context.notify_begin(UR_FUNCTION_EVENT_RETAIN,
                                              "urEventRetain", &params);
 
+    context.logger.info("---> urEventRetain");
+
     ur_result_t result = pfnRetain(hEvent);
 
     context.notify_end(UR_FUNCTION_EVENT_RETAIN, "urEventRetain", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_EVENT_RETAIN,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3135,10 +3900,17 @@ __urdlllocal ur_result_t UR_APICALL urEventRelease(
     uint64_t instance = context.notify_begin(UR_FUNCTION_EVENT_RELEASE,
                                              "urEventRelease", &params);
 
+    context.logger.info("---> urEventRelease");
+
     ur_result_t result = pfnRelease(hEvent);
 
     context.notify_end(UR_FUNCTION_EVENT_RELEASE, "urEventRelease", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_EVENT_RELEASE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3160,10 +3932,17 @@ __urdlllocal ur_result_t UR_APICALL urEventGetNativeHandle(
     uint64_t instance = context.notify_begin(
         UR_FUNCTION_EVENT_GET_NATIVE_HANDLE, "urEventGetNativeHandle", &params);
 
+    context.logger.info("---> urEventGetNativeHandle");
+
     ur_result_t result = pfnGetNativeHandle(hEvent, phNativeEvent);
 
     context.notify_end(UR_FUNCTION_EVENT_GET_NATIVE_HANDLE,
                        "urEventGetNativeHandle", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_EVENT_GET_NATIVE_HANDLE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3192,12 +3971,19 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
         context.notify_begin(UR_FUNCTION_EVENT_CREATE_WITH_NATIVE_HANDLE,
                              "urEventCreateWithNativeHandle", &params);
 
+    context.logger.info("---> urEventCreateWithNativeHandle");
+
     ur_result_t result =
         pfnCreateWithNativeHandle(hNativeEvent, hContext, pProperties, phEvent);
 
     context.notify_end(UR_FUNCTION_EVENT_CREATE_WITH_NATIVE_HANDLE,
                        "urEventCreateWithNativeHandle", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_EVENT_CREATE_WITH_NATIVE_HANDLE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3222,11 +4008,18 @@ __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
     uint64_t instance = context.notify_begin(UR_FUNCTION_EVENT_SET_CALLBACK,
                                              "urEventSetCallback", &params);
 
+    context.logger.info("---> urEventSetCallback");
+
     ur_result_t result =
         pfnSetCallback(hEvent, execStatus, pfnNotify, pUserData);
 
     context.notify_end(UR_FUNCTION_EVENT_SET_CALLBACK, "urEventSetCallback",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_EVENT_SET_CALLBACK,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3280,12 +4073,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH,
                                              "urEnqueueKernelLaunch", &params);
 
+    context.logger.info("---> urEnqueueKernelLaunch");
+
     ur_result_t result = pfnKernelLaunch(
         hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
         pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH,
                        "urEnqueueKernelLaunch", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3316,11 +4116,18 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWait(
     uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_EVENTS_WAIT,
                                              "urEnqueueEventsWait", &params);
 
+    context.logger.info("---> urEnqueueEventsWait");
+
     ur_result_t result =
         pfnEventsWait(hQueue, numEventsInWaitList, phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_ENQUEUE_EVENTS_WAIT, "urEnqueueEventsWait",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_ENQUEUE_EVENTS_WAIT,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3353,12 +4160,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
         context.notify_begin(UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER,
                              "urEnqueueEventsWaitWithBarrier", &params);
 
+    context.logger.info("---> urEnqueueEventsWaitWithBarrier");
+
     ur_result_t result = pfnEventsWaitWithBarrier(hQueue, numEventsInWaitList,
                                                   phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER,
                        "urEnqueueEventsWaitWithBarrier", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3396,12 +4210,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
     uint64_t instance = context.notify_begin(
         UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ, "urEnqueueMemBufferRead", &params);
 
+    context.logger.info("---> urEnqueueMemBufferRead");
+
     ur_result_t result =
         pfnMemBufferRead(hQueue, hBuffer, blockingRead, offset, size, pDst,
                          numEventsInWaitList, phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ,
                        "urEnqueueMemBufferRead", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3442,12 +4263,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
         context.notify_begin(UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE,
                              "urEnqueueMemBufferWrite", &params);
 
+    context.logger.info("---> urEnqueueMemBufferWrite");
+
     ur_result_t result =
         pfnMemBufferWrite(hQueue, hBuffer, blockingWrite, offset, size, pSrc,
                           numEventsInWaitList, phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE,
                        "urEnqueueMemBufferWrite", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3508,6 +4336,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
         context.notify_begin(UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ_RECT,
                              "urEnqueueMemBufferReadRect", &params);
 
+    context.logger.info("---> urEnqueueMemBufferReadRect");
+
     ur_result_t result = pfnMemBufferReadRect(
         hQueue, hBuffer, blockingRead, bufferOrigin, hostOrigin, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst,
@@ -3516,6 +4346,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     context.notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ_RECT,
                        "urEnqueueMemBufferReadRect", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ_RECT, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3580,6 +4415,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
         context.notify_begin(UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE_RECT,
                              "urEnqueueMemBufferWriteRect", &params);
 
+    context.logger.info("---> urEnqueueMemBufferWriteRect");
+
     ur_result_t result = pfnMemBufferWriteRect(
         hQueue, hBuffer, blockingWrite, bufferOrigin, hostOrigin, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
@@ -3588,6 +4425,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     context.notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE_RECT,
                        "urEnqueueMemBufferWriteRect", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE_RECT, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3625,12 +4467,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     uint64_t instance = context.notify_begin(
         UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY, "urEnqueueMemBufferCopy", &params);
 
+    context.logger.info("---> urEnqueueMemBufferCopy");
+
     ur_result_t result =
         pfnMemBufferCopy(hQueue, hBufferSrc, hBufferDst, srcOffset, dstOffset,
                          size, numEventsInWaitList, phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY,
                        "urEnqueueMemBufferCopy", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3680,6 +4529,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
         context.notify_begin(UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY_RECT,
                              "urEnqueueMemBufferCopyRect", &params);
 
+    context.logger.info("---> urEnqueueMemBufferCopyRect");
+
     ur_result_t result = pfnMemBufferCopyRect(
         hQueue, hBufferSrc, hBufferDst, srcOrigin, dstOrigin, region,
         srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch,
@@ -3688,6 +4539,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     context.notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY_RECT,
                        "urEnqueueMemBufferCopyRect", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY_RECT, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3730,12 +4586,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
     uint64_t instance = context.notify_begin(
         UR_FUNCTION_ENQUEUE_MEM_BUFFER_FILL, "urEnqueueMemBufferFill", &params);
 
+    context.logger.info("---> urEnqueueMemBufferFill");
+
     ur_result_t result =
         pfnMemBufferFill(hQueue, hBuffer, pPattern, patternSize, offset, size,
                          numEventsInWaitList, phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_FILL,
                        "urEnqueueMemBufferFill", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_MEM_BUFFER_FILL, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3779,12 +4642,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
     uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_MEM_IMAGE_READ,
                                              "urEnqueueMemImageRead", &params);
 
+    context.logger.info("---> urEnqueueMemImageRead");
+
     ur_result_t result = pfnMemImageRead(
         hQueue, hImage, blockingRead, origin, region, rowPitch, slicePitch,
         pDst, numEventsInWaitList, phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_ENQUEUE_MEM_IMAGE_READ,
                        "urEnqueueMemImageRead", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_MEM_IMAGE_READ, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3829,12 +4699,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
     uint64_t instance = context.notify_begin(
         UR_FUNCTION_ENQUEUE_MEM_IMAGE_WRITE, "urEnqueueMemImageWrite", &params);
 
+    context.logger.info("---> urEnqueueMemImageWrite");
+
     ur_result_t result = pfnMemImageWrite(
         hQueue, hImage, blockingWrite, origin, region, rowPitch, slicePitch,
         pSrc, numEventsInWaitList, phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_ENQUEUE_MEM_IMAGE_WRITE,
                        "urEnqueueMemImageWrite", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_MEM_IMAGE_WRITE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3878,12 +4755,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageCopy(
     uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_MEM_IMAGE_COPY,
                                              "urEnqueueMemImageCopy", &params);
 
+    context.logger.info("---> urEnqueueMemImageCopy");
+
     ur_result_t result =
         pfnMemImageCopy(hQueue, hImageSrc, hImageDst, srcOrigin, dstOrigin,
                         region, numEventsInWaitList, phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_ENQUEUE_MEM_IMAGE_COPY,
                        "urEnqueueMemImageCopy", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_MEM_IMAGE_COPY, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3923,12 +4807,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
     uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_MEM_BUFFER_MAP,
                                              "urEnqueueMemBufferMap", &params);
 
+    context.logger.info("---> urEnqueueMemBufferMap");
+
     ur_result_t result = pfnMemBufferMap(hQueue, hBuffer, blockingMap, mapFlags,
                                          offset, size, numEventsInWaitList,
                                          phEventWaitList, phEvent, ppRetMap);
 
     context.notify_end(UR_FUNCTION_ENQUEUE_MEM_BUFFER_MAP,
                        "urEnqueueMemBufferMap", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_MEM_BUFFER_MAP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -3962,12 +4853,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
     uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_MEM_UNMAP,
                                              "urEnqueueMemUnmap", &params);
 
+    context.logger.info("---> urEnqueueMemUnmap");
+
     ur_result_t result =
         pfnMemUnmap(hQueue, hMem, pMappedPtr, numEventsInWaitList,
                     phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_ENQUEUE_MEM_UNMAP, "urEnqueueMemUnmap",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_ENQUEUE_MEM_UNMAP,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4007,12 +4905,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
     uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_USM_FILL,
                                              "urEnqueueUSMFill", &params);
 
+    context.logger.info("---> urEnqueueUSMFill");
+
     ur_result_t result =
         pfnUSMFill(hQueue, pMem, patternSize, pPattern, size,
                    numEventsInWaitList, phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_ENQUEUE_USM_FILL, "urEnqueueUSMFill",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_ENQUEUE_USM_FILL,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4049,12 +4954,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_USM_MEMCPY,
                                              "urEnqueueUSMMemcpy", &params);
 
+    context.logger.info("---> urEnqueueUSMMemcpy");
+
     ur_result_t result =
         pfnUSMMemcpy(hQueue, blocking, pDst, pSrc, size, numEventsInWaitList,
                      phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_ENQUEUE_USM_MEMCPY, "urEnqueueUSMMemcpy",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_ENQUEUE_USM_MEMCPY,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4089,12 +5001,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_USM_PREFETCH,
                                              "urEnqueueUSMPrefetch", &params);
 
+    context.logger.info("---> urEnqueueUSMPrefetch");
+
     ur_result_t result =
         pfnUSMPrefetch(hQueue, pMem, size, flags, numEventsInWaitList,
                        phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_ENQUEUE_USM_PREFETCH, "urEnqueueUSMPrefetch",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_ENQUEUE_USM_PREFETCH,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4122,10 +5041,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
     uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_USM_ADVISE,
                                              "urEnqueueUSMAdvise", &params);
 
+    context.logger.info("---> urEnqueueUSMAdvise");
+
     ur_result_t result = pfnUSMAdvise(hQueue, pMem, size, advice, phEvent);
 
     context.notify_end(UR_FUNCTION_ENQUEUE_USM_ADVISE, "urEnqueueUSMAdvise",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_ENQUEUE_USM_ADVISE,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4170,12 +5096,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
     uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_USM_FILL_2D,
                                              "urEnqueueUSMFill2D", &params);
 
+    context.logger.info("---> urEnqueueUSMFill2D");
+
     ur_result_t result =
         pfnUSMFill2D(hQueue, pMem, pitch, patternSize, pPattern, width, height,
                      numEventsInWaitList, phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_ENQUEUE_USM_FILL_2D, "urEnqueueUSMFill2D",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_ENQUEUE_USM_FILL_2D,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4220,12 +5153,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D,
                                              "urEnqueueUSMMemcpy2D", &params);
 
+    context.logger.info("---> urEnqueueUSMMemcpy2D");
+
     ur_result_t result =
         pfnUSMMemcpy2D(hQueue, blocking, pDst, dstPitch, pSrc, srcPitch, width,
                        height, numEventsInWaitList, phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D,
                        "urEnqueueUSMMemcpy2D", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4268,6 +5208,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
         context.notify_begin(UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE,
                              "urEnqueueDeviceGlobalVariableWrite", &params);
 
+    context.logger.info("---> urEnqueueDeviceGlobalVariableWrite");
+
     ur_result_t result = pfnDeviceGlobalVariableWrite(
         hQueue, hProgram, name, blockingWrite, count, offset, pSrc,
         numEventsInWaitList, phEventWaitList, phEvent);
@@ -4275,6 +5217,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
     context.notify_end(UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE,
                        "urEnqueueDeviceGlobalVariableWrite", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4317,6 +5264,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
         context.notify_begin(UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ,
                              "urEnqueueDeviceGlobalVariableRead", &params);
 
+    context.logger.info("---> urEnqueueDeviceGlobalVariableRead");
+
     ur_result_t result = pfnDeviceGlobalVariableRead(
         hQueue, hProgram, name, blockingRead, count, offset, pDst,
         numEventsInWaitList, phEventWaitList, phEvent);
@@ -4324,6 +5273,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     context.notify_end(UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ,
                        "urEnqueueDeviceGlobalVariableRead", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4368,12 +5322,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
     uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_READ_HOST_PIPE,
                                              "urEnqueueReadHostPipe", &params);
 
+    context.logger.info("---> urEnqueueReadHostPipe");
+
     ur_result_t result =
         pfnReadHostPipe(hQueue, hProgram, pipe_symbol, blocking, pDst, size,
                         numEventsInWaitList, phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_ENQUEUE_READ_HOST_PIPE,
                        "urEnqueueReadHostPipe", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_READ_HOST_PIPE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4418,12 +5379,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     uint64_t instance = context.notify_begin(
         UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE, "urEnqueueWriteHostPipe", &params);
 
+    context.logger.info("---> urEnqueueWriteHostPipe");
+
     ur_result_t result =
         pfnWriteHostPipe(hQueue, hProgram, pipe_symbol, blocking, pSrc, size,
                          numEventsInWaitList, phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE,
                        "urEnqueueWriteHostPipe", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4457,12 +5425,19 @@ __urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
     uint64_t instance = context.notify_begin(UR_FUNCTION_USM_PITCHED_ALLOC_EXP,
                                              "urUSMPitchedAllocExp", &params);
 
+    context.logger.info("---> urUSMPitchedAllocExp");
+
     ur_result_t result =
         pfnPitchedAllocExp(hContext, hDevice, pUSMDesc, pool, widthInBytes,
                            height, elementSizeBytes, ppMem, pResultPitch);
 
     context.notify_end(UR_FUNCTION_USM_PITCHED_ALLOC_EXP,
                        "urUSMPitchedAllocExp", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_PITCHED_ALLOC_EXP,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4489,6 +5464,8 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
         UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP,
         "urBindlessImagesUnsampledImageHandleDestroyExp", &params);
 
+    context.logger.info("---> urBindlessImagesUnsampledImageHandleDestroyExp");
+
     ur_result_t result =
         pfnUnsampledImageHandleDestroyExp(hContext, hDevice, hImage);
 
@@ -4496,6 +5473,13 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
         UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP,
         "urBindlessImagesUnsampledImageHandleDestroyExp", &params, &result,
         instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str,
+        UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP,
+        &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4522,6 +5506,8 @@ urBindlessImagesSampledImageHandleDestroyExp(
         UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP,
         "urBindlessImagesSampledImageHandleDestroyExp", &params);
 
+    context.logger.info("---> urBindlessImagesSampledImageHandleDestroyExp");
+
     ur_result_t result =
         pfnSampledImageHandleDestroyExp(hContext, hDevice, hImage);
 
@@ -4529,6 +5515,12 @@ urBindlessImagesSampledImageHandleDestroyExp(
         UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP,
         "urBindlessImagesSampledImageHandleDestroyExp", &params, &result,
         instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP,
+        &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4557,12 +5549,19 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
         context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP,
                              "urBindlessImagesImageAllocateExp", &params);
 
+    context.logger.info("---> urBindlessImagesImageAllocateExp");
+
     ur_result_t result = pfnImageAllocateExp(hContext, hDevice, pImageFormat,
                                              pImageDesc, phImageMem);
 
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP,
                        "urBindlessImagesImageAllocateExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4587,11 +5586,18 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
         context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_FREE_EXP,
                              "urBindlessImagesImageFreeExp", &params);
 
+    context.logger.info("---> urBindlessImagesImageFreeExp");
+
     ur_result_t result = pfnImageFreeExp(hContext, hDevice, hImageMem);
 
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_FREE_EXP,
                        "urBindlessImagesImageFreeExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_BINDLESS_IMAGES_IMAGE_FREE_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4622,12 +5628,20 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
         UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP,
         "urBindlessImagesUnsampledImageCreateExp", &params);
 
+    context.logger.info("---> urBindlessImagesUnsampledImageCreateExp");
+
     ur_result_t result = pfnUnsampledImageCreateExp(
         hContext, hDevice, hImageMem, pImageFormat, pImageDesc, phImage);
 
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP,
                        "urBindlessImagesUnsampledImageCreateExp", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP,
+        &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4660,6 +5674,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
         UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP,
         "urBindlessImagesSampledImageCreateExp", &params);
 
+    context.logger.info("---> urBindlessImagesSampledImageCreateExp");
+
     ur_result_t result =
         pfnSampledImageCreateExp(hContext, hDevice, hImageMem, pImageFormat,
                                  pImageDesc, hSampler, phImage);
@@ -4667,6 +5683,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP,
                        "urBindlessImagesSampledImageCreateExp", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP,
+        &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4728,6 +5750,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_COPY_EXP,
                              "urBindlessImagesImageCopyExp", &params);
 
+    context.logger.info("---> urBindlessImagesImageCopyExp");
+
     ur_result_t result = pfnImageCopyExp(
         hQueue, pDst, pSrc, pImageFormat, pImageDesc, imageCopyFlags, srcOffset,
         dstOffset, copyExtent, hostExtent, numEventsInWaitList, phEventWaitList,
@@ -4736,6 +5760,11 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_COPY_EXP,
                        "urBindlessImagesImageCopyExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_BINDLESS_IMAGES_IMAGE_COPY_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4761,12 +5790,19 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
         context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_GET_INFO_EXP,
                              "urBindlessImagesImageGetInfoExp", &params);
 
+    context.logger.info("---> urBindlessImagesImageGetInfoExp");
+
     ur_result_t result =
         pfnImageGetInfoExp(hImageMem, propName, pPropValue, pPropSizeRet);
 
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_GET_INFO_EXP,
                        "urBindlessImagesImageGetInfoExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_BINDLESS_IMAGES_IMAGE_GET_INFO_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4795,12 +5831,19 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
         context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP,
                              "urBindlessImagesMipmapGetLevelExp", &params);
 
+    context.logger.info("---> urBindlessImagesMipmapGetLevelExp");
+
     ur_result_t result = pfnMipmapGetLevelExp(hContext, hDevice, hImageMem,
                                               mipmapLevel, phImageMem);
 
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP,
                        "urBindlessImagesMipmapGetLevelExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4825,11 +5868,18 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
         context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP,
                              "urBindlessImagesMipmapFreeExp", &params);
 
+    context.logger.info("---> urBindlessImagesMipmapFreeExp");
+
     ur_result_t result = pfnMipmapFreeExp(hContext, hDevice, hMem);
 
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP,
                        "urBindlessImagesMipmapFreeExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4858,12 +5908,19 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
         context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP,
                              "urBindlessImagesImportOpaqueFDExp", &params);
 
+    context.logger.info("---> urBindlessImagesImportOpaqueFDExp");
+
     ur_result_t result = pfnImportOpaqueFDExp(hContext, hDevice, size,
                                               pInteropMemDesc, phInteropMem);
 
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP,
                        "urBindlessImagesImportOpaqueFDExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4895,12 +5952,19 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
         context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP,
                              "urBindlessImagesMapExternalArrayExp", &params);
 
+    context.logger.info("---> urBindlessImagesMapExternalArrayExp");
+
     ur_result_t result = pfnMapExternalArrayExp(
         hContext, hDevice, pImageFormat, pImageDesc, hInteropMem, phImageMem);
 
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP,
                        "urBindlessImagesMapExternalArrayExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4926,11 +5990,18 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
         context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP,
                              "urBindlessImagesReleaseInteropExp", &params);
 
+    context.logger.info("---> urBindlessImagesReleaseInteropExp");
+
     ur_result_t result = pfnReleaseInteropExp(hContext, hDevice, hInteropMem);
 
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP,
                        "urBindlessImagesReleaseInteropExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4960,6 +6031,9 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
         UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP,
         "urBindlessImagesImportExternalSemaphoreOpaqueFDExp", &params);
 
+    context.logger.info(
+        "---> urBindlessImagesImportExternalSemaphoreOpaqueFDExp");
+
     ur_result_t result = pfnImportExternalSemaphoreOpaqueFDExp(
         hContext, hDevice, pInteropSemaphoreDesc, phInteropSemaphore);
 
@@ -4967,6 +6041,13 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
         UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP,
         "urBindlessImagesImportExternalSemaphoreOpaqueFDExp", &params, &result,
         instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str,
+        UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP,
+        &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -4992,6 +6073,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
         UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP,
         "urBindlessImagesDestroyExternalSemaphoreExp", &params);
 
+    context.logger.info("---> urBindlessImagesDestroyExternalSemaphoreExp");
+
     ur_result_t result =
         pfnDestroyExternalSemaphoreExp(hContext, hDevice, hInteropSemaphore);
 
@@ -4999,6 +6082,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
         UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP,
         "urBindlessImagesDestroyExternalSemaphoreExp", &params, &result,
         instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP,
+        &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5033,12 +6122,20 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
         UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP,
         "urBindlessImagesWaitExternalSemaphoreExp", &params);
 
+    context.logger.info("---> urBindlessImagesWaitExternalSemaphoreExp");
+
     ur_result_t result = pfnWaitExternalSemaphoreExp(
         hQueue, hSemaphore, numEventsInWaitList, phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP,
                        "urBindlessImagesWaitExternalSemaphoreExp", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP,
+        &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5073,6 +6170,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
         UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP,
         "urBindlessImagesSignalExternalSemaphoreExp", &params);
 
+    context.logger.info("---> urBindlessImagesSignalExternalSemaphoreExp");
+
     ur_result_t result = pfnSignalExternalSemaphoreExp(
         hQueue, hSemaphore, numEventsInWaitList, phEventWaitList, phEvent);
 
@@ -5080,6 +6179,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
         UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP,
         "urBindlessImagesSignalExternalSemaphoreExp", &params, &result,
         instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP,
+        &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5106,11 +6211,18 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
         context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_CREATE_EXP,
                              "urCommandBufferCreateExp", &params);
 
+    context.logger.info("---> urCommandBufferCreateExp");
+
     ur_result_t result =
         pfnCreateExp(hContext, hDevice, pCommandBufferDesc, phCommandBuffer);
 
     context.notify_end(UR_FUNCTION_COMMAND_BUFFER_CREATE_EXP,
                        "urCommandBufferCreateExp", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_CREATE_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5132,10 +6244,17 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainExp(
         context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_RETAIN_EXP,
                              "urCommandBufferRetainExp", &params);
 
+    context.logger.info("---> urCommandBufferRetainExp");
+
     ur_result_t result = pfnRetainExp(hCommandBuffer);
 
     context.notify_end(UR_FUNCTION_COMMAND_BUFFER_RETAIN_EXP,
                        "urCommandBufferRetainExp", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_RETAIN_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5157,10 +6276,17 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseExp(
         context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_RELEASE_EXP,
                              "urCommandBufferReleaseExp", &params);
 
+    context.logger.info("---> urCommandBufferReleaseExp");
+
     ur_result_t result = pfnReleaseExp(hCommandBuffer);
 
     context.notify_end(UR_FUNCTION_COMMAND_BUFFER_RELEASE_EXP,
                        "urCommandBufferReleaseExp", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_RELEASE_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5182,11 +6308,18 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferFinalizeExp(
         context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP,
                              "urCommandBufferFinalizeExp", &params);
 
+    context.logger.info("---> urCommandBufferFinalizeExp");
+
     ur_result_t result = pfnFinalizeExp(hCommandBuffer);
 
     context.notify_end(UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP,
                        "urCommandBufferFinalizeExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5236,6 +6369,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
         UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP,
         "urCommandBufferAppendKernelLaunchExp", &params);
 
+    context.logger.info("---> urCommandBufferAppendKernelLaunchExp");
+
     ur_result_t result = pfnAppendKernelLaunchExp(
         hCommandBuffer, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
         pLocalWorkSize, numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint,
@@ -5244,6 +6379,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP,
                        "urCommandBufferAppendKernelLaunchExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5278,6 +6418,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
         context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP,
                              "urCommandBufferAppendUSMMemcpyExp", &params);
 
+    context.logger.info("---> urCommandBufferAppendUSMMemcpyExp");
+
     ur_result_t result = pfnAppendUSMMemcpyExp(hCommandBuffer, pDst, pSrc, size,
                                                numSyncPointsInWaitList,
                                                pSyncPointWaitList, pSyncPoint);
@@ -5285,6 +6427,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP,
                        "urCommandBufferAppendUSMMemcpyExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5322,6 +6469,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
         context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP,
                              "urCommandBufferAppendUSMFillExp", &params);
 
+    context.logger.info("---> urCommandBufferAppendUSMFillExp");
+
     ur_result_t result = pfnAppendUSMFillExp(
         hCommandBuffer, pMemory, pPattern, patternSize, size,
         numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
@@ -5329,6 +6478,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
     context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP,
                        "urCommandBufferAppendUSMFillExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5372,6 +6526,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
         UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP,
         "urCommandBufferAppendMemBufferCopyExp", &params);
 
+    context.logger.info("---> urCommandBufferAppendMemBufferCopyExp");
+
     ur_result_t result = pfnAppendMemBufferCopyExp(
         hCommandBuffer, hSrcMem, hDstMem, srcOffset, dstOffset, size,
         numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
@@ -5379,6 +6535,12 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP,
                        "urCommandBufferAppendMemBufferCopyExp", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP,
+        &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5421,6 +6583,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
         UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP,
         "urCommandBufferAppendMemBufferWriteExp", &params);
 
+    context.logger.info("---> urCommandBufferAppendMemBufferWriteExp");
+
     ur_result_t result = pfnAppendMemBufferWriteExp(
         hCommandBuffer, hBuffer, offset, size, pSrc, numSyncPointsInWaitList,
         pSyncPointWaitList, pSyncPoint);
@@ -5428,6 +6592,12 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP,
                        "urCommandBufferAppendMemBufferWriteExp", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP,
+        &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5469,6 +6639,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
         UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP,
         "urCommandBufferAppendMemBufferReadExp", &params);
 
+    context.logger.info("---> urCommandBufferAppendMemBufferReadExp");
+
     ur_result_t result = pfnAppendMemBufferReadExp(
         hCommandBuffer, hBuffer, offset, size, pDst, numSyncPointsInWaitList,
         pSyncPointWaitList, pSyncPoint);
@@ -5476,6 +6648,12 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP,
                        "urCommandBufferAppendMemBufferReadExp", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP,
+        &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5530,6 +6708,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
         UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP,
         "urCommandBufferAppendMemBufferCopyRectExp", &params);
 
+    context.logger.info("---> urCommandBufferAppendMemBufferCopyRectExp");
+
     ur_result_t result = pfnAppendMemBufferCopyRectExp(
         hCommandBuffer, hSrcMem, hDstMem, srcOrigin, dstOrigin, region,
         srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch,
@@ -5539,6 +6719,12 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
         UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP,
         "urCommandBufferAppendMemBufferCopyRectExp", &params, &result,
         instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP,
+        &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5599,6 +6785,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
         UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP,
         "urCommandBufferAppendMemBufferWriteRectExp", &params);
 
+    context.logger.info("---> urCommandBufferAppendMemBufferWriteRectExp");
+
     ur_result_t result = pfnAppendMemBufferWriteRectExp(
         hCommandBuffer, hBuffer, bufferOffset, hostOffset, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
@@ -5608,6 +6796,12 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
         UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP,
         "urCommandBufferAppendMemBufferWriteRectExp", &params, &result,
         instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP,
+        &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5666,6 +6860,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
         UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP,
         "urCommandBufferAppendMemBufferReadRectExp", &params);
 
+    context.logger.info("---> urCommandBufferAppendMemBufferReadRectExp");
+
     ur_result_t result = pfnAppendMemBufferReadRectExp(
         hCommandBuffer, hBuffer, bufferOffset, hostOffset, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst,
@@ -5675,6 +6871,12 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
         UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP,
         "urCommandBufferAppendMemBufferReadRectExp", &params, &result,
         instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP,
+        &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5719,6 +6921,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
         UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP,
         "urCommandBufferAppendMemBufferFillExp", &params);
 
+    context.logger.info("---> urCommandBufferAppendMemBufferFillExp");
+
     ur_result_t result = pfnAppendMemBufferFillExp(
         hCommandBuffer, hBuffer, pPattern, patternSize, offset, size,
         numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
@@ -5726,6 +6930,12 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
     context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP,
                        "urCommandBufferAppendMemBufferFillExp", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP,
+        &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5765,6 +6975,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
         context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP,
                              "urCommandBufferAppendUSMPrefetchExp", &params);
 
+    context.logger.info("---> urCommandBufferAppendUSMPrefetchExp");
+
     ur_result_t result = pfnAppendUSMPrefetchExp(
         hCommandBuffer, pMemory, size, flags, numSyncPointsInWaitList,
         pSyncPointWaitList, pSyncPoint);
@@ -5772,6 +6984,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP,
                        "urCommandBufferAppendUSMPrefetchExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5811,6 +7028,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
         context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP,
                              "urCommandBufferAppendUSMAdviseExp", &params);
 
+    context.logger.info("---> urCommandBufferAppendUSMAdviseExp");
+
     ur_result_t result = pfnAppendUSMAdviseExp(hCommandBuffer, pMemory, size,
                                                advice, numSyncPointsInWaitList,
                                                pSyncPointWaitList, pSyncPoint);
@@ -5818,6 +7037,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP,
                        "urCommandBufferAppendUSMAdviseExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5851,11 +7075,18 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
         context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP,
                              "urCommandBufferEnqueueExp", &params);
 
+    context.logger.info("---> urCommandBufferEnqueueExp");
+
     ur_result_t result = pfnEnqueueExp(
         hCommandBuffer, hQueue, numEventsInWaitList, phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP,
                        "urCommandBufferEnqueueExp", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5878,11 +7109,18 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
         context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_RETAIN_COMMAND_EXP,
                              "urCommandBufferRetainCommandExp", &params);
 
+    context.logger.info("---> urCommandBufferRetainCommandExp");
+
     ur_result_t result = pfnRetainCommandExp(hCommand);
 
     context.notify_end(UR_FUNCTION_COMMAND_BUFFER_RETAIN_COMMAND_EXP,
                        "urCommandBufferRetainCommandExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_RETAIN_COMMAND_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5905,11 +7143,18 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
         context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_RELEASE_COMMAND_EXP,
                              "urCommandBufferReleaseCommandExp", &params);
 
+    context.logger.info("---> urCommandBufferReleaseCommandExp");
+
     ur_result_t result = pfnReleaseCommandExp(hCommand);
 
     context.notify_end(UR_FUNCTION_COMMAND_BUFFER_RELEASE_COMMAND_EXP,
                        "urCommandBufferReleaseCommandExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_RELEASE_COMMAND_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5935,12 +7180,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
         UR_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP,
         "urCommandBufferUpdateKernelLaunchExp", &params);
 
+    context.logger.info("---> urCommandBufferUpdateKernelLaunchExp");
+
     ur_result_t result =
         pfnUpdateKernelLaunchExp(hCommand, pUpdateKernelLaunch);
 
     context.notify_end(UR_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP,
                        "urCommandBufferUpdateKernelLaunchExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -5972,11 +7224,18 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetInfoExp(
         context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP,
                              "urCommandBufferGetInfoExp", &params);
 
+    context.logger.info("---> urCommandBufferGetInfoExp");
+
     ur_result_t result = pfnGetInfoExp(hCommandBuffer, propName, propSize,
                                        pPropValue, pPropSizeRet);
 
     context.notify_end(UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP,
                        "urCommandBufferGetInfoExp", &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6009,12 +7268,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferCommandGetInfoExp(
         context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP,
                              "urCommandBufferCommandGetInfoExp", &params);
 
+    context.logger.info("---> urCommandBufferCommandGetInfoExp");
+
     ur_result_t result = pfnCommandGetInfoExp(hCommand, propName, propSize,
                                               pPropValue, pPropSizeRet);
 
     context.notify_end(UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP,
                        "urCommandBufferCommandGetInfoExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6071,6 +7337,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
         context.notify_begin(UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP,
                              "urEnqueueCooperativeKernelLaunchExp", &params);
 
+    context.logger.info("---> urEnqueueCooperativeKernelLaunchExp");
+
     ur_result_t result = pfnCooperativeKernelLaunchExp(
         hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
         pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent);
@@ -6078,6 +7346,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
     context.notify_end(UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP,
                        "urEnqueueCooperativeKernelLaunchExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6107,6 +7380,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
         UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP,
         "urKernelSuggestMaxCooperativeGroupCountExp", &params);
 
+    context.logger.info("---> urKernelSuggestMaxCooperativeGroupCountExp");
+
     ur_result_t result = pfnSuggestMaxCooperativeGroupCountExp(
         hKernel, localWorkSize, dynamicSharedMemorySize, pGroupCountRet);
 
@@ -6114,6 +7389,12 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
         UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP,
         "urKernelSuggestMaxCooperativeGroupCountExp", &params, &result,
         instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP,
+        &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6154,12 +7435,85 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
         context.notify_begin(UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP,
                              "urEnqueueTimestampRecordingExp", &params);
 
+    context.logger.info("---> urEnqueueTimestampRecordingExp");
+
     ur_result_t result = pfnTimestampRecordingExp(
         hQueue, blocking, numEventsInWaitList, phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP,
                        "urEnqueueTimestampRecordingExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueKernelLaunchCustomExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
+    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
+    uint32_t
+        workDim, ///< [in] number of dimensions, from 1 to 3, to specify the global and
+                 ///< work-group work-items
+    const size_t *
+        pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify the
+    ///< number of global work-items in workDim that will execute the kernel
+    ///< function
+    const size_t *
+        pLocalWorkSize, ///< [in][optional] pointer to an array of workDim unsigned values that
+    ///< specify the number of local work-items forming a work-group that will
+    ///< execute the kernel function. If nullptr, the runtime implementation
+    ///< will choose the work-group size.
+    uint32_t numPropsInLaunchPropList, ///< [in] size of the launch prop list
+    const ur_exp_launch_property_t *
+        launchPropList, ///< [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
+                        ///< properties
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the kernel execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating that no wait event.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+                ///< kernel execution instance.
+) {
+    auto pfnKernelLaunchCustomExp =
+        context.urDdiTable.EnqueueExp.pfnKernelLaunchCustomExp;
+
+    if (nullptr == pfnKernelLaunchCustomExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_enqueue_kernel_launch_custom_exp_params_t params = {
+        &hQueue,          &hKernel,
+        &workDim,         &pGlobalWorkSize,
+        &pLocalWorkSize,  &numPropsInLaunchPropList,
+        &launchPropList,  &numEventsInWaitList,
+        &phEventWaitList, &phEvent};
+    uint64_t instance =
+        context.notify_begin(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP,
+                             "urEnqueueKernelLaunchCustomExp", &params);
+
+    context.logger.info("---> urEnqueueKernelLaunchCustomExp");
+
+    ur_result_t result = pfnKernelLaunchCustomExp(
+        hQueue, hKernel, workDim, pGlobalWorkSize, pLocalWorkSize,
+        numPropsInLaunchPropList, launchPropList, numEventsInWaitList,
+        phEventWaitList, phEvent);
+
+    context.notify_end(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP,
+                       "urEnqueueKernelLaunchCustomExp", &params, &result,
+                       instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6185,10 +7539,17 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     uint64_t instance = context.notify_begin(UR_FUNCTION_PROGRAM_BUILD_EXP,
                                              "urProgramBuildExp", &params);
 
+    context.logger.info("---> urProgramBuildExp");
+
     ur_result_t result = pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
 
     context.notify_end(UR_FUNCTION_PROGRAM_BUILD_EXP, "urProgramBuildExp",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_BUILD_EXP,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6215,11 +7576,18 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
     uint64_t instance = context.notify_begin(UR_FUNCTION_PROGRAM_COMPILE_EXP,
                                              "urProgramCompileExp", &params);
 
+    context.logger.info("---> urProgramCompileExp");
+
     ur_result_t result =
         pfnCompileExp(hProgram, numDevices, phDevices, pOptions);
 
     context.notify_end(UR_FUNCTION_PROGRAM_COMPILE_EXP, "urProgramCompileExp",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_COMPILE_EXP,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6251,11 +7619,18 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
     uint64_t instance = context.notify_begin(UR_FUNCTION_PROGRAM_LINK_EXP,
                                              "urProgramLinkExp", &params);
 
+    context.logger.info("---> urProgramLinkExp");
+
     ur_result_t result = pfnLinkExp(hContext, numDevices, phDevices, count,
                                     phPrograms, pOptions, phProgram);
 
     context.notify_end(UR_FUNCTION_PROGRAM_LINK_EXP, "urProgramLinkExp",
                        &params, &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_PROGRAM_LINK_EXP,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6277,10 +7652,17 @@ __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
     uint64_t instance = context.notify_begin(UR_FUNCTION_USM_IMPORT_EXP,
                                              "urUSMImportExp", &params);
 
+    context.logger.info("---> urUSMImportExp");
+
     ur_result_t result = pfnImportExp(hContext, pMem, size);
 
     context.notify_end(UR_FUNCTION_USM_IMPORT_EXP, "urUSMImportExp", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_IMPORT_EXP,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6301,10 +7683,17 @@ __urdlllocal ur_result_t UR_APICALL urUSMReleaseExp(
     uint64_t instance = context.notify_begin(UR_FUNCTION_USM_RELEASE_EXP,
                                              "urUSMReleaseExp", &params);
 
+    context.logger.info("---> urUSMReleaseExp");
+
     ur_result_t result = pfnReleaseExp(hContext, pMem);
 
     context.notify_end(UR_FUNCTION_USM_RELEASE_EXP, "urUSMReleaseExp", &params,
                        &result, instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_RELEASE_EXP,
+                                    &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6329,11 +7718,18 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
         context.notify_begin(UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP,
                              "urUsmP2PEnablePeerAccessExp", &params);
 
+    context.logger.info("---> urUsmP2PEnablePeerAccessExp");
+
     ur_result_t result = pfnEnablePeerAccessExp(commandDevice, peerDevice);
 
     context.notify_end(UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP,
                        "urUsmP2PEnablePeerAccessExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6358,11 +7754,18 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
         context.notify_begin(UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP,
                              "urUsmP2PDisablePeerAccessExp", &params);
 
+    context.logger.info("---> urUsmP2PDisablePeerAccessExp");
+
     ur_result_t result = pfnDisablePeerAccessExp(commandDevice, peerDevice);
 
     context.notify_end(UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP,
                        "urUsmP2PDisablePeerAccessExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6399,6 +7802,8 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
         context.notify_begin(UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP,
                              "urUsmP2PPeerAccessGetInfoExp", &params);
 
+    context.logger.info("---> urUsmP2PPeerAccessGetInfoExp");
+
     ur_result_t result =
         pfnPeerAccessGetInfoExp(commandDevice, peerDevice, propName, propSize,
                                 pPropValue, pPropSizeRet);
@@ -6406,6 +7811,11 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
     context.notify_end(UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP,
                        "urUsmP2PPeerAccessGetInfoExp", &params, &result,
                        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP, &params);
+    context.logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
 }
@@ -6866,6 +8276,10 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
+    dditable.pfnKernelLaunchCustomExp = pDdiTable->pfnKernelLaunchCustomExp;
+    pDdiTable->pfnKernelLaunchCustomExp =
+        ur_tracing_layer::urEnqueueKernelLaunchCustomExp;
+
     dditable.pfnCooperativeKernelLaunchExp =
         pDdiTable->pfnCooperativeKernelLaunchExp;
     pDdiTable->pfnCooperativeKernelLaunchExp =
@@ -6984,6 +8398,11 @@ __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
         ur_tracing_layer::urKernelCreateWithNativeHandle;
+
+    dditable.pfnGetSuggestedLocalWorkSize =
+        pDdiTable->pfnGetSuggestedLocalWorkSize;
+    pDdiTable->pfnGetSuggestedLocalWorkSize =
+        ur_tracing_layer::urKernelGetSuggestedLocalWorkSize;
 
     dditable.pfnSetArgValue = pDdiTable->pfnSetArgValue;
     pDdiTable->pfnSetArgValue = ur_tracing_layer::urKernelSetArgValue;
@@ -7678,6 +9097,10 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
     if (!enabledLayerNames.count(name)) {
         return result;
     }
+
+    // Recreate the logger in case env variables have been modified between
+    // program launch and the call to `urLoaderInit`
+    logger = logger::create_logger("tracing", true, true);
 
     ur_tracing_layer::context.codelocData = codelocData;
 

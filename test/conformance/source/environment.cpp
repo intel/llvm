@@ -465,9 +465,10 @@ ur_result_t KernelsEnvironment::CreateProgram(
                                        nullptr)) {
         return error;
     }
-    if (backend == UR_PLATFORM_BACKEND_HIP) {
-        // The HIP adapter does not support urProgramCreateWithIL so we need to
-        // use urProgramCreateWithBinary instead.
+    if (backend == UR_PLATFORM_BACKEND_HIP ||
+        backend == UR_PLATFORM_BACKEND_CUDA) {
+        // The CUDA and HIP adapters do not support urProgramCreateWithIL so we
+        // need to use urProgramCreateWithBinary instead.
         if (auto error = urProgramCreateWithBinary(
                 hContext, hDevice, binary.size(),
                 reinterpret_cast<const uint8_t *>(binary.data()), properties,

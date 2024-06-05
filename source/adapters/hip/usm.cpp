@@ -230,8 +230,12 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
       }
       return ReturnValue(Pool);
     }
+    case UR_USM_ALLOC_INFO_SIZE: {
+      size_t RangeSize = 0;
+      UR_CHECK_ERROR(hipMemPtrGetInfo(const_cast<void *>(pMem), &RangeSize));
+      return ReturnValue(RangeSize);
+    }
     case UR_USM_ALLOC_INFO_BASE_PTR:
-    case UR_USM_ALLOC_INFO_SIZE:
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     default:
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
