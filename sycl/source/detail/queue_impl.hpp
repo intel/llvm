@@ -844,7 +844,7 @@ protected:
           "function objects should use the sycl::handler API instead.");
     }
 
-    handler Handler(Self, PrimaryQueue, SecondaryQueue);
+    handler Handler(Self, PrimaryQueue, SecondaryQueue, false);
     Handler.saveCodeLoc(Loc);
     PreventSubmit = true;
     try {

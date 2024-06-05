@@ -402,8 +402,9 @@ public:
     try {
       // we're ready to call the user-defined lambda now
       if (HostTask.MHostTask->isInteropTask()) {
+        assert(HostTask.MQueue && "Submitted queue for host task must be device queue");
         interop_handle IH{MReqToMem, HostTask.MQueue,
-                        //  HostTask.MQueue->getDeviceImplPtr(),
+                          HostTask.MQueue->getDeviceImplPtr(),
                           HostTask.MQueue->getContextImplPtr()};
 
         HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo(), IH);

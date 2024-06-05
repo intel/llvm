@@ -80,12 +80,12 @@ void *getValueFromDynamicParameter(
 
 } // namespace detail
 
-handler::handler(std::shared_ptr<detail::queue_impl> Queue)
-    : handler(Queue, Queue, nullptr) {}
+handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool)
+    : handler(Queue, Queue, nullptr, false) {}
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  std::shared_ptr<detail::queue_impl> PrimaryQueue,
-                 std::shared_ptr<detail::queue_impl> SecondaryQueue)
+                 std::shared_ptr<detail::queue_impl> SecondaryQueue, bool)
     : MImpl(std::make_shared<detail::handler_impl>(std::move(PrimaryQueue),
                                                    std::move(SecondaryQueue))),
       MQueue(std::move(Queue)) {}
