@@ -99,24 +99,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 755a1e75e24ed55070a0f457d2d8a676521ad4f7
-  # Merge: 6469b890 5593d84c
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Jun 4 10:34:57 2024 +0100
-  #     Merge pull request #1385 from yingcong-wu/yc/new-api-suggestgroupsize
-  #     Implement urKernelGetSuggestedLocalWorkSize
-  set(UNIFIED_RUNTIME_TAG 755a1e75e24ed55070a0f457d2d8a676521ad4f7)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/nrspruit/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG 3a7445d6d7aacd3c40dc80d8a442b3469923c272)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit 8e47ab5057458c5522ce5d86f7996b2882020220
-    # Merge: b816fe82 3d3aba65
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Tue Jun 4 17:28:43 2024 +0100
-    #     Merge pull request #1694 from Bensuo/ewan/L0_update_query
-    #     Set minimum L0 device support to support UR kernel update
-    8e47ab5057458c5522ce5d86f7996b2882020220
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
