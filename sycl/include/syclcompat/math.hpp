@@ -82,22 +82,22 @@ public:
 /// extend for signed int.
 template <typename ValueT>
 inline auto zero_or_signed_extend(ValueT val, unsigned bit) {
-
-  if constexpr (std::is_same_v<ValueT, int32_t>) {
+  static_assert(std::is_integral_v<ValueT>);
+  if constexpr (sizeof(ValueT) == 4) {
     assert(bit < 64 &&
            "When extending int32 value, bit must be smaller than 64.");
     if constexpr (std::is_signed_v<ValueT>)
       return int64_t(val) << (64 - bit) >> (64 - bit);
     else
       return int64_t(val);
-  } else if constexpr (std::is_same_v<ValueT, int16_t>) {
+  } else if constexpr (sizeof(ValueT) == 2) {
     assert(bit < 32 &&
            "When extending int16 value, bit must be smaller than 32.");
     if constexpr (std::is_signed_v<ValueT>)
       return int32_t(val) << (32 - bit) >> (32 - bit);
     else
       return int32_t(val);
-  } else if constexpr (std::is_same_v<ValueT, int8_t>) {
+  } else if constexpr (sizeof(ValueT) == 1) {
     assert(bit < 16 &&
            "When extending int8 value, bit must be smaller than 16.");
     if constexpr (std::is_signed_v<ValueT>)
