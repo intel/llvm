@@ -12,4 +12,4 @@
 // RUN: python3 %S/instruction_count.py %t.dir 0 ZTSZZN11BitonicSort5SolveEPjS0_jENKUlRN4sycl3_V17handlerEE0_clES4_E5Merge.asm
 // RUN: echo "Baseline from driver version 1.3.29138"
 
-#include "BitonicSortKv2.hpp"
+#include "../BitonicSortKv2.cpp"
