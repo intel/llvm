@@ -40,9 +40,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ; RUN: sycl-post-link -symbols -emit-imported-symbols -split=source -S < %s -o %t_source.table
-
 ; RUN: FileCheck %s -input-file=%t_source_0.sym --check-prefixes CHECK-SOURCE-SYM-0
+; RUN: FileCheck %s -input-file=%t_source_0.prop --check-prefixes CHECK-SOURCE-IMPORTED-SYM-0 --implicit-check-not='inside'
 
+; RUN: sycl-post-link -symbols -emit-imported-symbols -split=source -S < %s -o %t_source.table -O0
+; RUN: FileCheck %s -input-file=%t_source_0.sym --check-prefixes CHECK-SOURCE-SYM-0
 ; RUN: FileCheck %s -input-file=%t_source_0.prop --check-prefixes CHECK-SOURCE-IMPORTED-SYM-0 --implicit-check-not='inside'
 
 ; CHECK-SOURCE-SYM-0-DAG: foo
@@ -79,7 +81,7 @@ define weak_odr spir_kernel void @bar() #0 {
 }
 
 define void @middle() #0 {
-  call void @childD() 
+  call void @childD()
   ret void
 }
 
@@ -88,7 +90,13 @@ declare void @childB()
 declare void @childC()
 declare void @childD()
 
-declare void @_Z8__insidev()
 declare void @_Z7outsidev()
+
+;; Verify unused functions are not imported
+declare void @insideUnusedFunction()
+
+;; Verify that demangled functions prefixed with double underscores are not imported
+declare void @_Z8__insidev()
+
 
 attributes #0 = { "sycl-module-id"="a.cpp" }
