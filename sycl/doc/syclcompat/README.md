@@ -1838,7 +1838,10 @@ inline constexpr RetT extend_max_sat(AT a, BT b, CT c,
                                      BinaryOperation second_op);
 ```
 
-The math header file provides APIs for bit-field insertion (`bfi_safe`) and bit-field extraction (`bfe_safe`). These are bounds-checked variants of underlying `detail` APIs (`detail::bfi`, `detail::bfe`) which, in future releases, will be exposed to the user.
+The math header file provides APIs for bit-field insertion (`bfi_safe`) and
+bit-field extraction (`bfe_safe`). These are bounds-checked variants of
+underlying `detail` APIs (`detail::bfi`, `detail::bfe`) which, in future
+releases, will be exposed to the user.
 
 ```c++
 
@@ -1854,9 +1857,8 @@ The math header file provides APIs for bit-field insertion (`bfi_safe`) and bit-
 /// \param bit_start The position to start insertion.
 /// \param num_bits The number of bits to insertion.
 template <typename T>
-inline std::enable_if_t<std::is_unsigned_v<T>, T>
-bfi_safe(const T x, const T y, const uint32_t bit_start,
-         const uint32_t num_bits)
+inline T bfi_safe(const T x, const T y, const uint32_t bit_start,
+                  const uint32_t num_bits);
 
 /// Bitfield-extract with boundary checking.
 ///
@@ -1874,8 +1876,8 @@ bfi_safe(const T x, const T y, const uint32_t bit_start,
 /// \param bit_start The position to start extracting.
 /// \param num_bits The number of bits to extracting.
 template <typename T>
-inline std::enable_if_t<std::is_integral_v<T>, T>
-bfe_safe(const T source, const uint32_t bit_start, const uint32_t num_bits)
+inline T bfe_safe(const T source, const uint32_t bit_start,
+                  const uint32_t num_bits);
 ```
 
 ## Sample Code
