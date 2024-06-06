@@ -11,6 +11,13 @@
 
 using namespace sycl;
 
-SYCL_EXTERNAL void nothing() {
-  // Intentionally empty
+int main() {
+  sycl::queue queue;
+  {
+    queue.submit(
+        [&](sycl::handler &cgh) { cgh.single_task<class t>([=]() {}); });
+    queue.wait();
+  }
+
+  return 0;
 }
