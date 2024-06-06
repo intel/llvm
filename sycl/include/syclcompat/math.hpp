@@ -126,6 +126,8 @@ inline bool isnan(const sycl::ext::oneapi::bfloat16 a) {
 }
 #endif
 
+// FIXME(syclcompat-lib-reviewers): move bfe outside detail once perf is
+// improved & semantics understood
 /// Bitfield-extract.
 ///
 /// \tparam T The type of \param source value, must be an integer.
@@ -133,10 +135,11 @@ inline bool isnan(const sycl::ext::oneapi::bfloat16 a) {
 /// \param bit_start The position to start extracting.
 /// \param num_bits The number of bits to extracting.
 template <typename T>
-inline std::enable_if_t<std::is_unsigned_v<T>, T>
-bfe(const T source, const uint32_t bit_start, const uint32_t num_bits) {
-  // FIXME(syclcompat-lib-reviewers): This ternary was added to catch a case which may be
-  // undefined anyway. Consider that we are losing perf here.
+inline T bfe(const T source, const uint32_t bit_start,
+             const uint32_t num_bits) {
+  static_assert(std::is_unsigned_v<T>);
+  // FIXME(syclcompat-lib-reviewers): This ternary was added to catch a case
+  // which may be undefined anyway. Consider that we are losing perf here.
   const T mask =
       num_bits >= CHAR_BIT * sizeof(T) ? T{-1} : ((T{1} << num_bits) - 1);
   return (source >> bit_start) & mask;
@@ -160,8 +163,9 @@ bfe(const T source, const uint32_t bit_start, const uint32_t num_bits) {
 /// \param bit_start The position to start extracting.
 /// \param num_bits The number of bits to extracting.
 template <typename T>
-inline std::enable_if_t<std::is_integral_v<T>, T>
-bfe_safe(const T source, const uint32_t bit_start, const uint32_t num_bits) {
+inline T bfe_safe(const T source, const uint32_t bit_start,
+                  const uint32_t num_bits) {
+  static_assert(std::is_integral_v<T>);
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   if constexpr (std::is_same_v<T, int8_t> || std::is_same_v<T, int16_t> ||
                 std::is_same_v<T, int32_t>) {
@@ -196,8 +200,8 @@ bfe_safe(const T source, const uint32_t bit_start, const uint32_t num_bits) {
   const uint32_t pos = std::min(bit_start, bit_width);
   const uint32_t len = std::min(pos + num_bits, bit_width) - pos;
   if constexpr (std::is_signed_v<T>) {
-    // FIXME(syclcompat-lib-reviewers): As above, catching a case whose result is undefined
-    // and likely losing perf.
+    // FIXME(syclcompat-lib-reviewers): As above, catching a case whose result
+    // is undefined and likely losing perf.
     const T mask = len >= bit_width ? T{-1} : static_cast<T>((T{1} << len) - 1);
 
     // Find the sign-bit, the result is padded with the sign bit of the
@@ -213,6 +217,8 @@ bfe_safe(const T source, const uint32_t bit_start, const uint32_t num_bits) {
 }
 
 namespace detail {
+// FIXME(syclcompat-lib-reviewers): move bfi outside detail once perf is
+// improved & semantics understood
 /// Bitfield-insert.
 ///
 /// \tparam T The type of \param x and \param y , must be an unsigned integer.
@@ -221,8 +227,9 @@ namespace detail {
 /// \param bit_start The position to start insertion.
 /// \param num_bits The number of bits to insertion.
 template <typename T>
-inline std::enable_if_t<std::is_unsigned_v<T>, T>
-bfi(const T x, const T y, const uint32_t bit_start, const uint32_t num_bits) {
+inline T bfi(const T x, const T y, const uint32_t bit_start,
+             const uint32_t num_bits) {
+  static_assert(std::is_unsigned_v<T>);
   constexpr unsigned bit_width = CHAR_BIT * sizeof(T);
 
   // if bit_start > bit_width || len == 0, should return y.
@@ -247,9 +254,9 @@ bfi(const T x, const T y, const uint32_t bit_start, const uint32_t num_bits) {
 /// \param bit_start The position to start insertion.
 /// \param num_bits The number of bits to insertion.
 template <typename T>
-inline std::enable_if_t<std::is_unsigned_v<T>, T>
-bfi_safe(const T x, const T y, const uint32_t bit_start,
-         const uint32_t num_bits) {
+inline T bfi_safe(const T x, const T y, const uint32_t bit_start,
+                  const uint32_t num_bits) {
+  static_assert(std::is_unsigned_v<T>);
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   if constexpr (std::is_same_v<T, uint8_t> || std::is_same_v<T, uint16_t> ||
                 std::is_same_v<T, uint32_t>) {

@@ -1838,7 +1838,7 @@ inline constexpr RetT extend_max_sat(AT a, BT b, CT c,
                                      BinaryOperation second_op);
 ```
 
-The math header file provides APIs for bit-field insertion (`bfi_safe`) and bit-field extraction (`bfe_safe`):
+The math header file provides APIs for bit-field insertion (`bfi_safe`) and bit-field extraction (`bfe_safe`). These are bounds-checked variants of underlying `detail` APIs (`detail::bfi`, `detail::bfe`) which, in future releases, will be exposed to the user.
 
 ```c++
 
