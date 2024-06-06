@@ -79,7 +79,7 @@ public:
 };
 
 /// Extend the 'val' to 'bit' size, zero extend for unsigned int and signed
-/// extend for signed int.
+/// extend for signed int. Returns a signed integer type.
 template <typename ValueT>
 inline auto zero_or_signed_extend(ValueT val, unsigned bit) {
   static_assert(std::is_integral_v<ValueT>);
@@ -105,8 +105,9 @@ inline auto zero_or_signed_extend(ValueT val, unsigned bit) {
     else
       return int16_t(val);
   } else {
+      static_assert(sizeof(ValueT) == 8);
     assert(bit < 64 && "Cannot extend int64 value.");
-    return val;
+    return static_cast<int64_t>(val);
   }
 }
 
