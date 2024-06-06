@@ -25,7 +25,7 @@
 /// Check the toolflow for SYCL compilation using new offload model
 // RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64 --offload-new-driver %s 2>&1 | FileCheck -check-prefix=CHK-FLOW %s
 // CHK-FLOW: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown" "-aux-triple" "x86_64-unknown-linux-gnu" "-fsycl-is-device" {{.*}} "-fsycl-int-header=[[HEADER:.*]].h" "-fsycl-int-footer=[[FOOTER:.*]].h" {{.*}} "--offload-new-driver" {{.*}} "-o" "[[CC1DEVOUT:.*]]" "-x" "c++" "[[INPUT:.*]]"
-// CHK-FLOW-NEXT: clang-offload-packager{{.*}} "-o" "[[PACKOUT:.*]]" "--image=file=[[CC1DEVOUT]],triple=spir64-unknown-unknown,arch=,kind=sycl"
+// CHK-FLOW-NEXT: clang-offload-packager{{.*}} "-o" "[[PACKOUT:.*]]" "--image=file=[[CC1DEVOUT]],triple=spir64-unknown-unknown,arch=,kind=sycl{{.*}}"
 // CHK-FLOW-NEXT: append-file{{.*}} "[[INPUT]]" "--append=[[FOOTER]].h" "--orig-filename=[[INPUT]]" "--output=[[APPENDOUT:.*]]" "--use-include"
 // CHK-FLOW-NEXT: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include" "[[HEADER]].h" "-dependency-filter" "[[HEADER]].h" {{.*}} "-fsycl-is-host"{{.*}} "-full-main-file-name" "[[INPUT]]" {{.*}} "--offload-new-driver" {{.*}} "-fembed-offload-object=[[PACKOUT]]" {{.*}} "-o" "[[CC1FINALOUT:.*]]" "-x" "c++" "[[APPENDOUT]]"
 // CHK-FLOW-NEXT: clang-linker-wrapper{{.*}} "--host-triple=x86_64-unknown-linux-gnu" "--triple=spir64"{{.*}} "--linker-path={{.*}}/ld" {{.*}} "[[CC1FINALOUT]]"
@@ -105,7 +105,19 @@
 // RUN:              -DTRIPLE=nvptx64-nvidia-cuda -DARCH=sm_50 %s
 // CHK_ARCH: clang{{.*}} "-triple" "[[TRIPLE]]"
 // CHK_ARCH-SAME: "-fsycl-is-device" {{.*}} "--offload-new-driver"{{.*}} "-o" "[[CC1DEVOUT:.+\.bc]]"
-// CHK_ARCH-NEXT: clang-offload-packager{{.*}} "--image=file=[[CC1DEVOUT]],triple=[[TRIPLE]],arch=[[ARCH]],kind=sycl"
+// CHK_ARCH-NEXT: clang-offload-packager{{.*}} "--image=file=[[CC1DEVOUT]],triple=[[TRIPLE]],arch=[[ARCH]],kind=sycl{{.*}}"
+
+// Verify offload-packager option values
+// RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl \
+// RUN:          -fsycl-targets=spir64,spir64_gen -Xsycl-target-backend=spir64 \
+// RUN:          -spir64-opt -Xsycl-target-backend=spir64_gen -spir64_gen-opt \
+// RUN:          -Xsycl-target-linker=spir64 -spir64-link-opt \
+// RUN:          -Xsycl-target-linker=spir64_gen -spir64_gen-link-opt \
+// RUN:          --offload-new-driver %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK_PACKAGER_OPTS %s
+// CHK_PACKAGER_OPTS: clang-offload-packager{{.*}} "-o"
+// CHK_PACKAGER_OPTS-SAME: {{.*}}triple=spir64-unknown-unknown,arch=,kind=sycl,compile-opts={{.*}}-spir64-opt,link-opts=-spir64-link-opt
+// CHK_PACKAGER_OPTS-SAME: {{.*}}triple=spir64_gen-unknown-unknown,arch=,kind=sycl,compile-opts={{.*}}-spir64_gen-opt,link-opts=-spir64_gen-link-opt
 
 /// Test option passing behavior for clang-offload-wrapper options.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
@@ -119,3 +131,14 @@
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_LINK %s
 // WRAPPER_OPTIONS_LINK: clang-linker-wrapper{{.*}} "--triple=spir64"
 // WRAPPER_OPTIONS_LINK-SAME: "--sycl-target-link-options={{.*}}-link-opt{{.*}}"
+
+/// Test option passing behavior for clang-offload-wrapper options for AOT.
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN:          -fsycl-targets=spir64_gen,spir64_x86_64 \
+// RUN:          -Xsycl-target-backend=spir64_gen -backend-gen-opt \
+// RUN:          -Xsycl-target-backend=spir64_x86_64 -backend-cpu-opt \
+// RUN:          -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_BACKEND_AOT %s
+// WRAPPER_OPTIONS_BACKEND_AOT: clang-linker-wrapper{{.*}}  "--host-triple=x86_64-unknown-linux-gnu"
+// WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--gen-tool-arg={{.*}}-backend-gen-opt"
+// WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--cpu-tool-arg={{.*}}-backend-cpu-opt"

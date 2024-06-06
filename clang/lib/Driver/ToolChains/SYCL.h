@@ -182,7 +182,8 @@ public:
   void TranslateLinkerTargetArgs(const llvm::Triple &Triple,
                                  const llvm::opt::ArgList &Args,
                                  llvm::opt::ArgStringList &CmdArgs) const;
-  void TranslateTargetOpt(const llvm::opt::ArgList &Args,
+  void TranslateTargetOpt(const llvm::Triple &Triple,
+                          const llvm::opt::ArgList &Args,
                           llvm::opt::ArgStringList &CmdArgs,
                           llvm::opt::OptSpecifier Opt,
                           llvm::opt::OptSpecifier Opt_EQ,

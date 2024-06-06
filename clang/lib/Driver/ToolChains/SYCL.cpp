@@ -1383,7 +1383,8 @@ static void WarnForDeprecatedBackendOpts(const Driver &D,
 
 // Expects a specific type of option (e.g. -Xsycl-target-backend) and will
 // extract the arguments.
-void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
+void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
+                                       const llvm::opt::ArgList &Args,
                                        llvm::opt::ArgStringList &CmdArgs,
                                        OptSpecifier Opt, OptSpecifier Opt_EQ,
                                        StringRef Device) const {
@@ -1393,12 +1394,11 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
     if (A->getOption().matches(Opt_EQ)) {
       // Passing device args: -X<Opt>=<triple> -opt=val.
       StringRef GenDevice = SYCL::gen::resolveGenDevice(A->getValue());
-      bool IsGenTriple =
-          getTriple().isSPIR() &&
-          getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen;
+      bool IsGenTriple = Triple.isSPIR() &&
+                         Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
       if (Device != GenDevice)
         continue;
-      if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != getTriple() &&
+      if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != Triple &&
           (!IsGenTriple || (IsGenTriple && GenDevice.empty())))
         // Triples do not match, but only skip when we know we are not comparing
         // against intel_gpu_* and non-spir64_gen
@@ -1424,8 +1424,7 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
     } else
       // Triple found, add the next argument in line.
       ArgString = A->getValue(1);
-    WarnForDeprecatedBackendOpts(getDriver(), getTriple(), Device, ArgString,
-                                 A);
+    WarnForDeprecatedBackendOpts(getDriver(), Triple, Device, ArgString, A);
     parseTargetOpts(ArgString, Args, CmdArgs);
     A->claim();
   }
@@ -1628,7 +1627,7 @@ void SYCLToolChain::TranslateBackendTargetArgs(
       Triple.isSPIROrSPIRV() && getDriver().isSYCLDefaultTripleImplied())
     return;
   // Handle -Xsycl-target-backend.
-  TranslateTargetOpt(Args, CmdArgs, options::OPT_Xsycl_backend,
+  TranslateTargetOpt(Triple, Args, CmdArgs, options::OPT_Xsycl_backend,
                      options::OPT_Xsycl_backend_EQ, Device);
   TranslateGPUTargetOpt(Args, CmdArgs, options::OPT_fsycl_targets_EQ);
 }
@@ -1641,7 +1640,7 @@ void SYCLToolChain::TranslateLinkerTargetArgs(
       Triple.isSPIROrSPIRV() && getDriver().isSYCLDefaultTripleImplied())
     return;
   // Handle -Xsycl-target-linker.
-  TranslateTargetOpt(Args, CmdArgs, options::OPT_Xsycl_linker,
+  TranslateTargetOpt(Triple, Args, CmdArgs, options::OPT_Xsycl_linker,
                      options::OPT_Xsycl_linker_EQ, StringRef());
 }
 

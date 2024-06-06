@@ -10273,6 +10273,39 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
       for (StringRef Feature : FeatureArgs)
         Parts.emplace_back("feature=" + Feature.str());
 
+    // Now that the standard parts are added to the packager string, add any
+    // additional supplemental options that cover compile and link opts that
+    // are used for SYCL based offloading.
+    if (OffloadAction->getOffloadingDeviceKind() == Action::OFK_SYCL) {
+      ArgStringList BuildArgs;
+      auto createArgString = [&](const char *Opt) {
+        if (BuildArgs.empty())
+          return;
+        SmallString<128> AL;
+        for (const char *A : BuildArgs) {
+          if (AL.empty()) {
+            AL = A;
+            continue;
+          }
+          AL += " ";
+          AL += A;
+        }
+        Parts.push_back(C.getArgs().MakeArgString(Twine(Opt) + AL));
+      };
+      const ArgList &Args =
+          C.getArgsForToolChain(nullptr, StringRef(), Action::OFK_SYCL);
+      const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+      const toolchains::SYCLToolChain &SYCLTC =
+          static_cast<const toolchains::SYCLToolChain &>(*TC);
+      SYCLTC.AddImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA, *HostTC,
+                                  Arch);
+      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
+      createArgString("compile-opts=");
+      BuildArgs.clear();
+      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
+      createArgString("link-opts=");
+    }
+
     CmdArgs.push_back(Args.MakeArgString("--image=" + llvm::join(Parts, ",")));
   }
 
@@ -10478,7 +10511,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Handle -Xspirv-translator
     TC.TranslateTargetOpt(
-        TCArgs, TranslatorArgs, options::OPT_Xspirv_translator,
+        Triple, TCArgs, TranslatorArgs, options::OPT_Xspirv_translator,
         options::OPT_Xspirv_translator_EQ, JA.getOffloadingArch());
   }
   for (auto I : Inputs) {
@@ -10715,7 +10748,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
 
   // Handle -Xdevice-post-link
-  TC.TranslateTargetOpt(TCArgs, CmdArgs, options::OPT_Xdevice_post_link,
+  TC.TranslateTargetOpt(T, TCArgs, CmdArgs, options::OPT_Xdevice_post_link,
                         options::OPT_Xdevice_post_link_EQ,
                         JA.getOffloadingArch());
 
@@ -10900,7 +10933,8 @@ void SpirvToIrWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
 
   // Handle -Xspirv-to-ir-wrapper
-  TC.TranslateTargetOpt(TCArgs, CmdArgs, options::OPT_Xspirv_to_ir_wrapper,
+  TC.TranslateTargetOpt(getToolChain().getTriple(), TCArgs, CmdArgs,
+                        options::OPT_Xspirv_to_ir_wrapper,
                         options::OPT_Xspirv_to_ir_wrapper_EQ,
                         JA.getOffloadingArch());
 
@@ -11132,25 +11166,50 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     const toolchains::SYCLToolChain &SYCLTC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
     // Only store compile/link opts in the image descriptor for the SPIR-V
-    // target.
+    // target.  For AOT, pass along the addition options via GPU or CPU
+    // specific clang-linker-wrapper options.
     const ArgList &Args =
         C.getArgsForToolChain(nullptr, StringRef(), Action::OFK_SYCL);
-    ArgStringList BuildArgs;
-    OptString.clear();
-    SYCLTC.TranslateBackendTargetArgs(TargetTriple, Args, BuildArgs);
-    for (const auto &A : BuildArgs)
-      appendOption(OptString, A);
-    if (!OptString.empty())
-      CmdArgs.push_back(
-          Args.MakeArgString("--sycl-backend-compile-options=" + OptString));
-    BuildArgs.clear();
-    OptString.clear();
-    SYCLTC.TranslateLinkerTargetArgs(TargetTriple, Args, BuildArgs);
-    for (const auto &A : BuildArgs)
-      appendOption(OptString, A);
-    if (!OptString.empty())
-      CmdArgs.push_back(
-          Args.MakeArgString("--sycl-target-link-options=" + OptString));
+    for (auto &ToolChainMember :
+         llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
+      const ToolChain *TC = ToolChainMember.second;
+      bool IsJIT = false;
+      StringRef WrapperOption;
+      StringRef WrapperLinkOption;
+      if (TC->getTriple().isSPIROrSPIRV()) {
+        if (TC->getTriple().getSubArch() == llvm::Triple::NoSubArch) {
+          IsJIT = true;
+          WrapperOption = "--sycl-backend-compile-options=";
+        }
+        if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
+          WrapperOption = "--gen-tool-arg=";
+        if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+          WrapperOption = "--cpu-tool-arg=";
+      } else
+        continue;
+      ArgStringList BuildArgs;
+      SmallString<128> BackendOptString;
+      SmallString<128> LinkOptString;
+      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
+      for (const auto &A : BuildArgs)
+        appendOption(BackendOptString, A);
+
+      BuildArgs.clear();
+      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
+      for (const auto &A : BuildArgs) {
+        if (IsJIT)
+          appendOption(LinkOptString, A);
+        else
+          // For AOT, combine the Backend and Linker strings into one.
+          appendOption(BackendOptString, A);
+      }
+      if (!BackendOptString.empty())
+        CmdArgs.push_back(
+            Args.MakeArgString(Twine(WrapperOption) + BackendOptString));
+      if (!LinkOptString.empty())
+        CmdArgs.push_back(
+            Args.MakeArgString("--sycl-target-link-options=" + LinkOptString));
+    }
   }
 
   // Construct the link job so we can wrap around it.
