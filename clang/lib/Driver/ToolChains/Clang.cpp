@@ -5843,10 +5843,15 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-emit-llvm-uselists");
 
     if (IsUsingLTO) {
+      bool IsUsingOffloadNewDriver =
+          Args.hasFlag(options::OPT_offload_new_driver,
+                       options::OPT_no_offload_new_driver, false);
+      bool IsSYCLLTOSupported = JA.isDeviceOffloading(Action::OFK_SYCL) &&
+                                Triple.isSPIROrSPIRV() &&
+                                IsUsingOffloadNewDriver;
       if (IsDeviceOffloadAction && !JA.isDeviceOffloading(Action::OFK_OpenMP) &&
-          !Args.hasFlag(options::OPT_offload_new_driver,
-                        options::OPT_no_offload_new_driver, false) &&
-          !Triple.isAMDGPU()) {
+          !IsUsingOffloadNewDriver && !Triple.isAMDGPU() &&
+          !IsSYCLLTOSupported) {
         D.Diag(diag::err_drv_unsupported_opt_for_target)
             << Args.getLastArg(options::OPT_foffload_lto,
                                options::OPT_foffload_lto_EQ)
@@ -11120,6 +11125,32 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     for (const auto &A : TranslatorArgs)
       appendOption(OptString, A);
     CmdArgs.push_back(Args.MakeArgString("--llvm-spirv-options=" + OptString));
+
+    // Formulate and add any offload-wrapper and AOT specific options. These
+    // are additional options passed in via -Xsycl-target-linker and
+    // -Xsycl-target-backend.
+    const toolchains::SYCLToolChain &SYCLTC =
+        static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+    // Only store compile/link opts in the image descriptor for the SPIR-V
+    // target.
+    const ArgList &Args =
+        C.getArgsForToolChain(nullptr, StringRef(), Action::OFK_SYCL);
+    ArgStringList BuildArgs;
+    OptString.clear();
+    SYCLTC.TranslateBackendTargetArgs(TargetTriple, Args, BuildArgs);
+    for (const auto &A : BuildArgs)
+      appendOption(OptString, A);
+    if (!OptString.empty())
+      CmdArgs.push_back(
+          Args.MakeArgString("--sycl-backend-compile-options=" + OptString));
+    BuildArgs.clear();
+    OptString.clear();
+    SYCLTC.TranslateLinkerTargetArgs(TargetTriple, Args, BuildArgs);
+    for (const auto &A : BuildArgs)
+      appendOption(OptString, A);
+    if (!OptString.empty())
+      CmdArgs.push_back(
+          Args.MakeArgString("--sycl-target-link-options=" + OptString));
   }
 
   // Construct the link job so we can wrap around it.

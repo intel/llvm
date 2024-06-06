@@ -54,6 +54,9 @@ If available, the following extensions extend SYCLcompat functionality:
 
 * [sycl_ext_intel_device_info](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_intel_device_info.md) \[Optional\]
 * [sycl_ext_oneapi_bfloat16_math_functions](../extensions/experimental/sycl_ext_oneapi_bfloat16_math_functions.asciidoc) \[Optional\]
+* [sycl_ext_oneapi_max_work_group_query](
+  https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_max_work_group_query.md)
+  \[Optional\]
 
 ## Usage
 
@@ -486,10 +489,12 @@ sycl::event memset_async(pitched_data pitch, int val,
                          sycl::range<3> size,
                          sycl::queue q = get_default_queue()); // 3D matrix
 
+// Free
+void wait_and_free(void *ptr, sycl::queue q = get_default_queue());
 void free(void *ptr, sycl::queue q = get_default_queue());
-sycl::event free_async(const std::vector<void *> &pointers,
-                       const std::vector<sycl::event> &events,
-                       sycl::queue q = get_default_queue());
+sycl::event enqueue_free(const std::vector<void *> &pointers,
+                         const std::vector<sycl::event> &events,
+                         sycl::queue q = get_default_queue());
 
 // Queries pointer allocation type
 class pointer_attributes {
@@ -813,6 +818,9 @@ public:
   uint32_t get_device_id() const;
   std::array<unsigned char, 16> get_uuid() const;
   unsigned int get_global_mem_cache_size() const;
+  int get_image1d_max() const;
+  auto get_image2d_max() const;
+  auto get_image3d_max() const;
 
   void set_name(const char *name);
   void set_max_work_item_sizes(const sycl::range<3> max_work_item_sizes);
@@ -831,6 +839,7 @@ public:
   void
   set_max_work_items_per_compute_unit(int max_work_items_per_compute_unit);
   void set_max_nd_range_size(int max_nd_range_size[]);
+  void set_max_nd_range_size(sycl::id<3> max_nd_range_size);
   void set_memory_clock_rate(unsigned int memory_clock_rate);
   void set_memory_bus_width(unsigned int memory_bus_width);
   void 
@@ -838,6 +847,12 @@ public:
   void set_device_id(uint32_t device_id);
   void set_uuid(std::array<unsigned char, 16> uuid);
   void set_global_mem_cache_size(unsigned int global_mem_cache_size);
+  void set_image1d_max(size_t image_max_buffer_size);
+  void set_image2d_max(size_t image_max_width_buffer_size,
+                       size_t image_max_height_buffer_size);
+  void set_image3d_max(size_t image_max_width_buffer_size,
+                       size_t image_max_height_buffer_size,
+                       size_t image_max_depth_buffer_size);
 };
 ```
 
@@ -889,6 +904,15 @@ static inline sycl::context get_default_context();
 // Util function to get a CPU device.
 static inline device_ext &cpu_device();
 
+/// Filter out devices; only keep the device whose name contains one of the
+/// subname in \p dev_subnames.
+/// May break device id mapping and change current device. It's better to be
+/// called before other SYCLcompat or SYCL APIs.
+static inline void filter_device(const std::vector<std::string> &dev_subnames);
+
+/// Print all the devices (and their IDs) in the dev_mgr
+static inline void list_devices();
+
 // Util function to select a device by its id
 static inline unsigned int select_device(unsigned int id);
 
@@ -906,12 +930,18 @@ independently of what is set in this parameter.
 Devices are managed through a helper class, `device_ext`. The `device_ext` class
 associates a vector of `sycl::queues` with its `sycl::device`. The `device_ext`
 destructor waits on a set of `sycl::event` which can be added to via
-`add_event`. This is used, for example, to implement `syclcompat::free_async` to
+`add_event`. This is used, for example, to implement `syclcompat::enqueue_free` to
 schedule release of memory after a kernel or `mempcy`. SYCL device properties
 can be queried through `device_ext` as well.
 `device_ext` also provides the `has_capability_or_fail` member function, which
 throws a `sycl::exception` if the device does not have the specified list of
 `sycl::aspect`.
+
+Devices can be listed and filtered using `syclcompat::list_devices()` and
+`syclcompat::filter_device()`. If `SYCLCOMPAT_VERBOSE` is defined at compile
+time, the available SYCL devices are printed to the standard output both at
+initialization time, and when the device list is filtered using
+`syclcompat::filter_device`.
 
 Users can manage queues through the `syclcompat::set_default_queue(sycl::queue
 q)` free function, and the `device_ext` `set_saved_queue`, `set_default_queue`,
@@ -967,6 +997,13 @@ class device_ext : public sycl::device {
 };
 
 } // syclcompat
+```
+
+Free functions are provided for querying major and minor version directly from a `sycl::device`, equivalent to the methods of `device_ext` described above:
+
+```c++
+static int get_major_version(const sycl::device &dev);
+static int get_minor_version(const sycl::device &dev);
 ```
 
 #### Multiple devices
