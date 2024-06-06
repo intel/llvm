@@ -87,6 +87,7 @@ enum DiagnosticKind {
   DK_DontCall,
   DK_MisExpect,
   DK_AspectMismatch,
+  DK_SYCLIllegalVirtualCall,
   DK_FirstPluginKind // Must be last value to work with
                      // getNextAvailablePluginDiagnosticKind
 };
@@ -1149,6 +1150,34 @@ public:
   void print(DiagnosticPrinter &DP) const override;
   static bool classof(const DiagnosticInfo *DI) {
     return DI->getKind() == DK_AspectMismatch;
+  }
+};
+
+void diagnoseSYCLIllegalVirtualFunctionCall(
+    const Function *F, const SmallVector<const Function *> &CallChain);
+
+// Diagnostic information for SYCL virtual functions
+class DiagnosticInfoIllegalVirtualCall : public DiagnosticInfo {
+  StringRef FunctionName;
+  unsigned LocCookie;
+  llvm::SmallVector<std::pair<StringRef, unsigned>, 8> CallChain;
+
+public:
+  DiagnosticInfoIllegalVirtualCall(
+      StringRef FunctionName, unsigned LocCookie,
+      const llvm::SmallVector<std::pair<StringRef, unsigned>, 8> &CallChain)
+      : DiagnosticInfo(DK_SYCLIllegalVirtualCall, DiagnosticSeverity::DS_Error),
+        FunctionName(FunctionName), LocCookie(LocCookie), CallChain(CallChain) {
+  }
+  StringRef getFunctionName() const { return FunctionName; }
+  unsigned getLocCookie() const { return LocCookie; }
+  const llvm::SmallVector<std::pair<StringRef, unsigned>, 8> &
+  getCallChain() const {
+    return CallChain;
+  }
+  void print(DiagnosticPrinter &DP) const override;
+  static bool classof(const DiagnosticInfo *DI) {
+    return DI->getKind() == DK_SYCLIllegalVirtualCall;
   }
 };
 } // end namespace llvm

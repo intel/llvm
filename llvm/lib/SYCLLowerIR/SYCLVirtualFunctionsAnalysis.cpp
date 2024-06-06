@@ -1,0 +1,116 @@
+//===--- SYCLVirtualFunctionsAnalysis.cpp ---------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// This file contains implementation of SYCLVirtualFunctionsAnalysis pass that
+// is responsible for checking that virtual functions are used properly in SYCL
+// device code:
+// - if a kernel submitted without calls_indirectly property performs virtual
+//   function calls, a diagnostic should be emitted
+//
+//===----------------------------------------------------------------------===//
+
+#include "llvm/SYCLLowerIR/SYCLVirtualFunctionsAnalysis.h"
+
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/DiagnosticInfo.h"
+#include "llvm/IR/InstIterator.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/Pass.h"
+
+using namespace llvm;
+
+namespace {
+
+using CallGraphTy = DenseMap<const Function *, SmallPtrSet<Value *, 8>>;
+
+void emitDiagnostic(SmallVector<const Function *> &Stack) {
+  diagnoseSYCLIllegalVirtualFunctionCall(Stack.back(), Stack);
+}
+
+void checkKernelImpl(const Function *F, CallGraphTy &CG,
+                     SmallVector<const Function *> &Stack) {
+  Stack.push_back(F);
+  for (Value *V : CG[F]) {
+    auto *Callee = dyn_cast<Function>(V);
+    if (Callee)
+      checkKernelImpl(Callee, CG, Stack);
+    else
+      emitDiagnostic(Stack);
+  }
+
+  Stack.pop_back();
+}
+
+void checkKernel(const Function *F, CallGraphTy &CG) {
+  SmallVector<const Function *> CallStack;
+  checkKernelImpl(F, CG, CallStack);
+}
+
+} // namespace
+
+PreservedAnalyses
+SYCLVirtualFunctionsAnalysisPass::run(Module &M, ModuleAnalysisManager &MAM) {
+
+  CallGraphTy CallGraph;
+  SmallVector<const Function *> Kernels;
+  SetVector<const Function *> WorkList;
+
+  // Identify list of kernels that we need to check
+  for (const Function &F : M) {
+    // We only traverse call graphs of SYCL kernels
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+      continue;
+
+    // If a kernel is annotated to use virtual functions, we skip it
+    if (F.hasFnAttribute("calls-indirectly"))
+      continue;
+
+    // Otherwise, we build call graph for a kernel to ensure that it does not
+    // perform virtual function calls since that is prohibited by the core
+    // SYCL 2020 specification
+    WorkList.insert(&F);
+    Kernels.push_back(&F);
+  }
+
+  // Build call graph for each of them
+  for (size_t I = 0; I < WorkList.size(); ++I) {
+    const Function *F = WorkList[I];
+    for (const Instruction &I : instructions(F)) {
+      const auto *CI = dyn_cast<CallInst>(&I);
+      if (!CI)
+        continue;
+
+      bool ToAdd = false;
+      if (const auto *CF = CI->getCalledFunction()) {
+        WorkList.insert(CF);
+        ToAdd = true;
+      } else if (CI->isIndirectCall() && CI->hasFnAttr("virtual-call"))
+        ToAdd = true;
+
+      if (ToAdd)
+        CallGraph[F].insert(CI->getCalledOperand());
+    }
+  }
+
+  // Emit a diagnostic if a kernel performs virtual function calls
+  for (const auto *K : Kernels) {
+    checkKernel(K, CallGraph);
+  }
+
+  // build call graph that starts from SYCL kernels
+  //   in form of Function -> Value map to be able to handle both direct and indirect calls
+  // analyze each call graph separately
+  //   if a kernel is annotated with calls_indirectly property, we do nothing. We can even omit such kernel from call graph
+  //   if a kernel is not annotated with calls_indirectly property, we analyze it call graph to see if there are any virtual function calls performed by it and emit an error for each case we found (including call chain)
+
+
+  return PreservedAnalyses::all();
+}

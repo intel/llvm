@@ -160,6 +160,8 @@ public:
   /// Note that misexpect remarks are emitted through ORE
   void MisExpectDiagHandler(const llvm::DiagnosticInfoMisExpect &D);
   void AspectMismatchDiagHandler(const llvm::DiagnosticInfoAspectsMismatch &D);
+  void SYCLIllegalVirtualCallDiagHandler(
+      const llvm::DiagnosticInfoIllegalVirtualCall &D);
 };
 
 } // namespace clang
