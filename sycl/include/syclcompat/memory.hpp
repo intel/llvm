@@ -531,26 +531,40 @@ static inline void *malloc(size_t &pitch, size_t x, size_t y,
   return detail::malloc(pitch, x, y, 1, q);
 }
 
-/// free
+/// Wait on the queue \p q and free the memory \p ptr.
 /// \param ptr Point to free.
 /// \param q Queue to execute the free task.
 /// \returns no return value.
-static inline void free(void *ptr, sycl::queue q = get_default_queue()) {
+static inline void wait_and_free(void *ptr,
+                                 sycl::queue q = get_default_queue()) {
+  get_current_device().queues_wait_and_throw();
+  q.wait();
   if (ptr) {
-    sycl::free(ptr, q.get_context());
+    sycl::free(ptr, q);
   }
 }
 
-/// Free the device memory pointed by a batch of pointers in \p pointers which
-/// are related to \p q after \p events completed.
+/// Free the memory \p ptr on the default queue without synchronizing
+/// \param ptr Point to free.
+/// \returns no return value.
+static inline void free(void *ptr, sycl::queue q = get_default_queue()) {
+  if (ptr) {
+    sycl::free(ptr, q);
+  }
+}
+
+/// Enqueues the release of all pointers in /p pointers on the /p q.
+/// The command waits on all passed /p events and returns an event that
+/// track the commands execution on the queue.
 ///
 /// \param pointers The pointers point to the device memory requested to be
-/// freed. \param events The events to be waited. \param q The sycl::queue the
-/// memory relates to.
+/// freed.
+/// \param events The events to be waited on.
+/// \param q The sycl::queue the memory relates to.
 // Can't be static due to the friend declaration in the memory header.
-inline sycl::event free_async(const std::vector<void *> &pointers,
-                              const std::vector<sycl::event> &events,
-                              sycl::queue q = get_default_queue()) {
+inline sycl::event enqueue_free(const std::vector<void *> &pointers,
+                                const std::vector<sycl::event> &events,
+                                sycl::queue q = get_default_queue()) {
   auto event = q.submit(
       [&pointers, &events, ctxt = q.get_context()](sycl::handler &cgh) {
         cgh.depends_on(events);
