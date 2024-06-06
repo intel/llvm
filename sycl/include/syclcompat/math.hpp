@@ -105,7 +105,7 @@ inline auto zero_or_signed_extend(ValueT val, unsigned bit) {
     else
       return int16_t(val);
   } else {
-      static_assert(sizeof(ValueT) == 8);
+    static_assert(sizeof(ValueT) == 8);
     assert(bit < 64 && "Cannot extend int64 value.");
     return static_cast<int64_t>(val);
   }
