@@ -9263,8 +9263,37 @@ __ESIMD_API std::enable_if_t<
         detail::is_simd_view_type_v<OffsetSimdViewT>,
     simd<T, N>>
 atomic_update(T *p, OffsetSimdViewT byte_offset, PropertyListT props = {}) {
-  simd_mask<N> mask = 1;
-  return atomic_update<Op, T, N>(p, byte_offset.read(), mask, props);
+  return atomic_update<Op, T, N>(p, byte_offset.read(), props);
+}
+
+/// simd<T, N>
+/// atomic_update(T *p, OffsetSimdViewT byte_offset,
+///               props = {});
+///
+/// A variation of \c atomic_update API with \c offsets represented as
+/// \c simd_view object without mask operand and allows the use without
+/// specifying \c T and \c N template parameters.
+///
+/// @tparam Op The atomic operation - can be \c atomic_op::inc,
+///   \c atomic_op::dec, or \c atomic_op::load.
+/// @param p The USM pointer.
+/// @param byte_offset The simd_view of 32-bit or 64-bit offsets in bytes.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+///   Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <
+    atomic_op Op, typename OffsetSimdViewT, typename T,
+    int N = OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 0 &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_simd_view_type_v<OffsetSimdViewT>,
+    simd<T, N>>
+atomic_update(T *p, OffsetSimdViewT byte_offset, PropertyListT props = {}) {
+  return atomic_update<Op, T, N>(p, byte_offset.read(), props);
 }
 
 /// A variation of \c atomic_update API with \c offset represented as
@@ -9400,16 +9429,61 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
 
 /// simd<T, N>
 /// atomic_update(T *ptr, simd<Toffset, N> byte_offset,
-///               simd<T, N> src0, props = {});                  // (usm-au1-2)
-
-/// A variation of \c atomic_update API without mask operand.
-
+///               SrcSimdViewT src0, simd_mask<N> mask, props = {});
+///
+/// Atomically updates \c N memory locations represented by a USM pointer and
+/// a vector of offsets relative to the pointer, and returns a vector of old
+/// values found at the memory locations before update. The update operation
+/// has 1 additional argument.
+/// A variation of \c atomic_update API with \c src0 represented as
+/// \c simd_view object and allows the use without specifying \c T and \c N
+/// template parameters.
+///
 /// @tparam Op The atomic operation - can be one of the following:
 /// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
 /// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
 /// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
 /// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
 /// atomic_op::fsub, \c atomic_op::store.
+/// @param p The USM pointer.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
+/// @param src0 The additional argument.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used. Other properties are
+///   ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <
+    atomic_op Op, typename SrcSimdViewT, typename T, int N, typename Toffset,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 1 &&
+        detail::is_simd_view_type_v<SrcSimdViewT> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(T *p, simd<Toffset, N> byte_offset, SrcSimdViewT src0,
+              simd_mask<N> mask, PropertyListT props = {}) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+                "Size of src0 parameter must correspond to the size of "
+                "byte_offset parameter.");
+  return atomic_update<Op, T, N>(p, byte_offset, src0.read(), mask, props);
+}
+
+/// simd<T, N>
+/// atomic_update(T *ptr, simd<Toffset, N> byte_offset,
+///               simd<T, N> src0, props = {});                  // (usm-au1-2)
+
+/// A variation of \c atomic_update API without mask operand.
+
+/// @tparam Op The atomic operation - can be one of the following:
+/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
+/// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
+/// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
+/// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -9432,6 +9506,47 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
               PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(p, byte_offset, src0, mask, props);
+}
+
+/// simd<T, N>
+/// atomic_update(T *ptr, simd<Toffset, N> byte_offset,
+///               SrcSimdViewT src0, props = {});
+
+/// A variation of \c atomic_update API with \c src0 represented as
+/// \c simd_view object and no mask operand and allows the use without
+/// specifying \c T and \c N template parameters.
+
+/// @tparam Op The atomic operation - can be one of the following:
+/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
+/// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
+/// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
+/// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
+/// @tparam T The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @param p The USM pointer.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
+/// @param src0 The additional argument.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used. Other properties are
+///   ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <
+    atomic_op Op, typename SrcSimdViewT, typename T, int N, typename Toffset,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 1 &&
+        detail::is_simd_view_type_v<SrcSimdViewT> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(T *p, simd<Toffset, N> byte_offset, SrcSimdViewT src0,
+              PropertyListT props = {}) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+                "Size of src0 parameter must correspond to the size of "
+                "byte_offset parameter.");
+  return atomic_update<Op, T, N>(p, byte_offset, src0.read(), props);
 }
 
 /// simd<T, N>
@@ -9476,6 +9591,54 @@ atomic_update(T *p, OffsetSimdViewT offsets, simd<T, N> src0, simd_mask<N> mask,
 
 /// simd<T, N>
 /// atomic_update(T *p, OffsetSimdViewT byte_offset,
+///               SrcSimdViewT src0,
+///               simd_mask<N> mask, props = {});
+///
+/// A variation of \c atomic_update API with \c byte_offset and \c src0
+/// represented as \c simd_view object and allows the use without specifying \c
+/// T and \c N template parameters.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
+/// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
+/// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
+/// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
+/// @tparam T The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @param p The USM pointer.
+/// @param byte_offset The simd_view of 32-bit or 64-bit offsets in bytes.
+/// @param src0 The additional argument.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used. Other properties are
+///   ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <
+    atomic_op Op, typename OffsetSimdViewT, typename SrcSimdViewT, typename T,
+    int N,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 1 &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_simd_view_type_v<OffsetSimdViewT> &&
+        detail::is_simd_view_type_v<SrcSimdViewT>,
+    simd<T, N>>
+atomic_update(T *p, OffsetSimdViewT offsets, SrcSimdViewT src0,
+              simd_mask<N> mask, PropertyListT props = {}) {
+  static_assert(
+      N == OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY() &&
+          N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+      "Size of src0 and offsets parameters must correspond to the size of "
+      "mask parameter.");
+  return atomic_update<Op, T, N>(p, offsets.read(), src0.read(), mask, props);
+}
+
+/// simd<T, N>
+/// atomic_update(T *p, OffsetSimdViewT byte_offset,
 ///               simd<T, N> src0,
 ///               props = {});                                   // (usm-au1-4)
 ///
@@ -9511,6 +9674,48 @@ atomic_update(T *p, OffsetSimdViewT offsets, simd<T, N> src0,
               PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(p, offsets.read(), src0, mask, props);
+}
+
+/// simd<T, N>
+/// atomic_update(T *p, OffsetSimdViewT byte_offset,
+///               SrcSimdViewT src0,
+///               props = {});
+///
+/// A variation of \c atomic_update API with \c byte_offset represented as
+/// \c simd_view object and no mask operand and allows the use without
+/// specifying \c T and \c N template parameters.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
+/// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
+/// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
+/// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
+/// @param p The USM pointer.
+/// @param byte_offset The simd_view of 32-bit or 64-bit offsets in bytes.
+/// @param src0 The additional argument.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used. Other properties are
+///   ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <
+    atomic_op Op, typename OffsetSimdViewT, typename SrcSimdViewT, typename T,
+    int N = SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 1 &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_simd_view_type_v<OffsetSimdViewT> &&
+        detail::is_simd_view_type_v<SrcSimdViewT>,
+    simd<T, N>>
+atomic_update(T *p, OffsetSimdViewT offsets, SrcSimdViewT src0,
+              PropertyListT props = {}) {
+  static_assert(N == OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of src0 parameter must correspond to the size of "
+                "offsets parameter.");
+  return atomic_update<Op, T, N>(p, offsets.read(), src0.read(), props);
 }
 
 /// A variation of \c atomic_update API with \c offset represented as
@@ -9644,6 +9849,127 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
 
 /// simd<T, N>
 /// atomic_update(T *p, simd<Toffset, N> byte_offset,
+///               SrcSimdViewT src0, simd<T, N> src1,
+///               simd_mask<N> mask, props = {});
+///
+/// A variation of \c atomic_update API with \c src0 represented as
+/// \c simd_view object and allows the use without specifying \c T and \c N
+/// template parameters.
+
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @param p The USM pointer.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <
+    atomic_op Op, typename SrcSimdViewT, typename T, int N, typename Toffset,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 &&
+        detail::is_simd_view_type_v<SrcSimdViewT> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(T *p, simd<Toffset, N> byte_offset, SrcSimdViewT src0,
+              simd<T, N> src1, simd_mask<N> mask, PropertyListT props = {}) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+                "Size of src0 parameter must correspond to the size of "
+                "byte_offset parameter.");
+  return atomic_update<Op, T, N>(p, byte_offset, src0.read(), src1, mask,
+                                 props);
+}
+
+/// simd<T, N>
+/// atomic_update(T *p, simd<Toffset, N> byte_offset,
+///               simd<T, N> src0, SrcSimdViewT src1,
+///               simd_mask<N> mask, props = {});
+///
+/// A variation of \c atomic_update API with \c src1 represented as
+/// \c simd_view object and allows the use without specifying \c T and \c N
+/// template parameters.
+
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @param p The USM pointer.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <
+    atomic_op Op, typename SrcSimdViewT, typename T, int N, typename Toffset,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 &&
+        detail::is_simd_view_type_v<SrcSimdViewT> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
+              SrcSimdViewT src1, simd_mask<N> mask, PropertyListT props = {}) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+                "Size of src1 parameter must correspond to the size of "
+                "byte_offset parameter.");
+  return atomic_update<Op, T, N>(p, byte_offset, src0, src1.read(), mask,
+                                 props);
+}
+
+/// simd<T, N>
+/// atomic_update(T *p, simd<Toffset, N> byte_offset,
+///               SrcSimdViewT src0, SrcSimdViewT src1,
+///               simd_mask<N> mask, props = {});
+///
+/// A variation of \c atomic_update API with \c src0 and \c src1 represented as
+/// \c simd_view object and allows the use without specifying \c T and \c N
+/// template parameters.
+
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @param p The USM pointer.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <
+    atomic_op Op, typename SrcSimdViewT, typename T, int N, typename Toffset,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 &&
+        detail::is_simd_view_type_v<SrcSimdViewT> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(T *p, simd<Toffset, N> byte_offset, SrcSimdViewT src0,
+              SrcSimdViewT src1, simd_mask<N> mask, PropertyListT props = {}) {
+  static_assert(
+      N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+      "Size of src1 and src0 parameters must correspond to the size of "
+      "byte_offset parameter.");
+  return atomic_update<Op, T, N>(p, byte_offset, src0.read(), src1.read(), mask,
+                                 props);
+}
+
+/// simd<T, N>
+/// atomic_update(T *p, simd<Toffset, N> byte_offset,
 ///               simd<T, N> src0, simd<T, N> src1,
 ///               props = {});                                  // (usm-au2-2)
 //
@@ -9672,6 +9998,119 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
               simd<T, N> src1, PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(p, byte_offset, src0, src1, mask, props);
+}
+
+/// simd<T, N>
+/// atomic_update(T *p, simd<Toffset, N> byte_offset,
+///               SrcSimdViewT src0, simd<T, N> src1,
+///               props = {});
+///
+/// A variation of \c atomic_update API with \c src0 represented as
+/// \c simd_view object without \c mask operand and allows the use without
+/// specifying \c T and \c N template parameters.
+
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @param p The USM pointer.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <
+    atomic_op Op, typename SrcSimdViewT, typename T, int N, typename Toffset,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 &&
+        detail::is_simd_view_type_v<SrcSimdViewT> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(T *p, simd<Toffset, N> byte_offset, SrcSimdViewT src0,
+              simd<T, N> src1, PropertyListT props = {}) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+                "Size of src0 parameter must correspond to the size of "
+                "byte_offset parameter.");
+  return atomic_update<Op, T, N>(p, byte_offset, src0.read(), src1, props);
+}
+
+/// simd<T, N>
+/// atomic_update(T *p, simd<Toffset, N> byte_offset,
+///               simd<T, N> src0, SrcSimdViewT src1,
+///               props = {});
+///
+/// A variation of \c atomic_update API with \c src1 represented as
+/// \c simd_view object without \c mask operand and allows the use without
+/// specifying \c T and \c N template parameters.
+
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @param p The USM pointer.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <
+    atomic_op Op, typename SrcSimdViewT, typename T, int N, typename Toffset,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 &&
+        detail::is_simd_view_type_v<SrcSimdViewT> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
+              SrcSimdViewT src1, PropertyListT props = {}) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+                "Size of src1 parameter must correspond to the size of "
+                "byte_offset parameter.");
+  return atomic_update<Op, T, N>(p, byte_offset, src0, src1.read(), props);
+}
+
+/// simd<T, N>
+/// atomic_update(T *p, simd<Toffset, N> byte_offset,
+///               SrcSimdViewT src0, SrcSimdViewT src1,
+///               props = {});
+///
+/// A variation of \c atomic_update API with \c src0 and \c src1 represented as
+/// \c simd_view object without \c mask operand and allows the use without
+/// specifying \c T and \c N template parameters.
+
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @param p The USM pointer.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <
+    atomic_op Op, typename SrcSimdViewT, typename T, int N, typename Toffset,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 &&
+        detail::is_simd_view_type_v<SrcSimdViewT> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(T *p, simd<Toffset, N> byte_offset, SrcSimdViewT src0,
+              SrcSimdViewT src1, PropertyListT props = {}) {
+  static_assert(
+      N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+      "Size of src1 and src0 parameters must correspond to the size of "
+      "byte_offset parameter.");
+  return atomic_update<Op, T, N>(p, byte_offset, src0.read(), src1.read(),
+                                 props);
 }
 
 /// simd<T, N>
@@ -9710,6 +10149,124 @@ atomic_update(T *p, OffsetSimdViewT byte_offset, simd<T, N> src0,
 
 /// simd<T, N>
 /// atomic_update(T *p, OffsetSimdViewT byte_offset,
+///               SrcSimdViewT src0, simd<T, N> src1,
+///               simd_mask<N> mask, props = {})
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @param p The USM pointer.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <
+    atomic_op Op, typename SrcSimdViewT, typename OffsetSimdViewT, typename T,
+    int N,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_simd_view_type_v<OffsetSimdViewT> &&
+        detail::is_simd_view_type_v<SrcSimdViewT>,
+    simd<T, N>>
+atomic_update(T *p, OffsetSimdViewT byte_offset, SrcSimdViewT src0,
+              simd<T, N> src1, simd_mask<N> mask, PropertyListT props = {}) {
+  static_assert(
+      N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY() &&
+          N == OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+      "Size of src0 and byte_offset parameters must correspond to the size of "
+      "mask parameter.");
+  return atomic_update<Op, T, N>(p, byte_offset.read(), src0.read(), src1, mask,
+                                 props);
+}
+
+/// simd<T, N>
+/// atomic_update(T *p, OffsetSimdViewT byte_offset,
+///               simd<T, N> src0, SrcSimdViewT src1,
+///               simd_mask<N> mask, props = {})
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @param p The USM pointer.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <
+    atomic_op Op, typename SrcSimdViewT, typename OffsetSimdViewT, typename T,
+    int N,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_simd_view_type_v<OffsetSimdViewT> &&
+        detail::is_simd_view_type_v<SrcSimdViewT>,
+    simd<T, N>>
+atomic_update(T *p, OffsetSimdViewT byte_offset, simd<T, N> src0,
+              SrcSimdViewT src1, simd_mask<N> mask, PropertyListT props = {}) {
+  static_assert(
+      N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY() &&
+          N == OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+      "Size of src1 and byte_offset parameters must correspond to the size of "
+      "mask parameter.");
+  return atomic_update<Op, T, N>(p, byte_offset.read(), src0, src1.read(), mask,
+                                 props);
+}
+
+/// simd<T, N>
+/// atomic_update(T *p, OffsetSimdViewT byte_offset,
+///               SrcSimdViewT src0, SrcSimdViewT src1,
+///               simd_mask<N> mask, props = {})
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @param p The USM pointer.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <
+    atomic_op Op, typename SrcSimdViewT, typename OffsetSimdViewT, typename T,
+    int N,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_simd_view_type_v<OffsetSimdViewT> &&
+        detail::is_simd_view_type_v<SrcSimdViewT>,
+    simd<T, N>>
+atomic_update(T *p, OffsetSimdViewT byte_offset, SrcSimdViewT src0,
+              SrcSimdViewT src1, simd_mask<N> mask, PropertyListT props = {}) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY() &&
+                    N == OffsetSimdViewT::getSizeX() *
+                             OffsetSimdViewT::getSizeY(),
+                "Size of src0, src1 and byte_offset parameters must correspond "
+                "to the size of "
+                "mask parameter.");
+  return atomic_update<Op, T, N>(p, byte_offset.read(), src0.read(),
+                                 src1.read(), mask, props);
+}
+
+/// simd<T, N>
+/// atomic_update(T *p, OffsetSimdViewT byte_offset,
 ///               simd<T, N> src0, simd<T, N> src1,
 ///               props = {})                                   // (usm-au2-4)
 ///
@@ -9739,6 +10296,114 @@ atomic_update(T *p, OffsetSimdViewT byte_offset, simd<T, N> src0,
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(p, byte_offset.read(), src0, src1, mask,
                                  props);
+}
+
+/// simd<T, N>
+/// atomic_update(T *p, OffsetSimdViewT byte_offset,
+///               SrcSimdViewT src0, simd<T, N> src1,
+///               props = {})
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @param p The USM pointer.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <
+    atomic_op Op, typename SrcSimdViewT, typename OffsetSimdViewT, typename T,
+    int N,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_simd_view_type_v<OffsetSimdViewT> &&
+        detail::is_simd_view_type_v<SrcSimdViewT>,
+    simd<T, N>>
+atomic_update(T *p, OffsetSimdViewT byte_offset, SrcSimdViewT src0,
+              simd<T, N> src1, PropertyListT props = {}) {
+  static_assert(
+      N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY() &&
+          N == OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+      "Size of src0 and byte_offset parameters must correspond to the size of "
+      "src1 parameter.");
+  return atomic_update<Op, T, N>(p, byte_offset.read(), src0.read(), src1,
+                                 props);
+}
+
+/// simd<T, N>
+/// atomic_update(T *p, OffsetSimdViewT byte_offset,
+///               simd<T, N> src0, SrcSimdViewT src1,
+///               props = {})
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @param p The USM pointer.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <
+    atomic_op Op, typename SrcSimdViewT, typename OffsetSimdViewT, typename T,
+    int N,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_simd_view_type_v<OffsetSimdViewT> &&
+        detail::is_simd_view_type_v<SrcSimdViewT>,
+    simd<T, N>>
+atomic_update(T *p, OffsetSimdViewT byte_offset, simd<T, N> src0,
+              SrcSimdViewT src1, PropertyListT props = {}) {
+  static_assert(
+      N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY() &&
+          N == OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+      "Size of src1 and byte_offset parameters must correspond to the size of "
+      "src0 parameter.");
+  return atomic_update<Op, T, N>(p, byte_offset.read(), src0, src1.read(),
+                                 props);
+}
+
+/// simd<T, N>
+/// atomic_update(T *p, OffsetSimdViewT byte_offset,
+///               SrcSimdViewT src0, SrcSimdViewT src1,
+///               props = {})
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @param p The USM pointer.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <
+    atomic_op Op, typename SrcSimdViewT, typename OffsetSimdViewT, typename T,
+    int N = SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_simd_view_type_v<OffsetSimdViewT> &&
+        detail::is_simd_view_type_v<SrcSimdViewT>,
+    simd<T, N>>
+atomic_update(T *p, OffsetSimdViewT byte_offset, SrcSimdViewT src0,
+              SrcSimdViewT src1, PropertyListT props = {}) {
+  static_assert(N == OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of src0, src1 and byte_offset parameters must be equal.");
+  return atomic_update<Op, T, N>(p, byte_offset.read(), src0.read(),
+                                 src1.read(), props);
 }
 
 /// A variation of \c atomic_update API with \c byte_offset represented as
