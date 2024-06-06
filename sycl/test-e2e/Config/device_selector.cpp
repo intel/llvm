@@ -9,7 +9,7 @@
 #include <iostream>
 
 int main() {
-  auto RejectEverything = [](const sycl::device &d) { return -1; };
+  auto RejectEverything = [](const sycl::device &) { return -1; };
   try {
     sycl::device Device(RejectEverything);
   } catch (sycl::exception &E) {
