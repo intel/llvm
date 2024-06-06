@@ -1051,7 +1051,7 @@ Parameters:
   are valid to pass here. One is `property::graph::updatable` to enable the
   returned executable graph to be <<executable-graph-update, updated>>.
   The other is <<enable-profiling, `property::graph::enable_profiling`>>
-  to enable profiling event returned from submissions of the executable graph.
+  to enable profiling events returned from submissions of the executable graph.
 
 Returns: A new executable graph object which can be submitted to a queue.
 
