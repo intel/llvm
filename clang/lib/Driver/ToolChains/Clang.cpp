@@ -5843,10 +5843,15 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-emit-llvm-uselists");
 
     if (IsUsingLTO) {
+      bool IsUsingOffloadNewDriver =
+          Args.hasFlag(options::OPT_offload_new_driver,
+                       options::OPT_no_offload_new_driver, false);
+      bool IsSYCLLTOSupported = JA.isDeviceOffloading(Action::OFK_SYCL) &&
+                                Triple.isSPIROrSPIRV() &&
+                                IsUsingOffloadNewDriver;
       if (IsDeviceOffloadAction && !JA.isDeviceOffloading(Action::OFK_OpenMP) &&
-          !Args.hasFlag(options::OPT_offload_new_driver,
-                        options::OPT_no_offload_new_driver, false) &&
-          !Triple.isAMDGPU()) {
+          !IsUsingOffloadNewDriver && !Triple.isAMDGPU() &&
+          !IsSYCLLTOSupported) {
         D.Diag(diag::err_drv_unsupported_opt_for_target)
             << Args.getLastArg(options::OPT_foffload_lto,
                                options::OPT_foffload_lto_EQ)

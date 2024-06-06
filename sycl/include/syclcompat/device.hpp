@@ -59,6 +59,38 @@
 namespace syclcompat {
 
 namespace detail {
+static void parse_version_string(const std::string &ver, int &major,
+                                 int &minor) {
+  // Version string has the following format:
+  // a. OpenCL<space><major.minor><space><vendor-specific-information>
+  // b. <major.minor>
+  // c. <AmdGcnArchName> e.g gfx1030
+  std::string::size_type i = 0;
+  while (i < ver.size()) {
+    if (isdigit(ver[i]))
+      break;
+    i++;
+  }
+  if (i < ver.size())
+    major = std::stoi(&(ver[i]));
+  else
+    major = 0;
+  while (i < ver.size()) {
+    if (ver[i] == '.')
+      break;
+    i++;
+  }
+  i++;
+  if (i < ver.size())
+    minor = std::stoi(&(ver[i]));
+  else
+    minor = 0;
+}
+
+static void get_version(const sycl::device &dev, int &major, int &minor) {
+  std::string ver = dev.get_info<sycl::info::device::version>();
+  parse_version_string(ver, major, minor);
+}
 
 /// SYCL default exception handler
 inline auto exception_handler = [](sycl::exception_list exceptions) {
@@ -288,6 +320,18 @@ private:
   int _image3d_max[3];
 };
 
+static int get_major_version(const sycl::device &dev) {
+  int major, minor;
+  detail::get_version(dev, major, minor);
+  return major;
+}
+
+static int get_minor_version(const sycl::device &dev) {
+  int major, minor;
+  detail::get_version(dev, major, minor);
+  return minor;
+}
+
 /// device extension
 class device_ext : public sycl::device {
 public:
@@ -310,13 +354,9 @@ public:
   }
 
   bool is_native_host_atomic_supported() { return false; }
-  int get_major_version() const {
-    return get_device_info().get_major_version();
-  }
+  int get_major_version() const { return syclcompat::get_major_version(*this); }
 
-  int get_minor_version() const {
-    return get_device_info().get_minor_version();
-  }
+  int get_minor_version() const { return syclcompat::get_minor_version(*this); }
 
   int get_max_compute_units() const {
     return get_device_info().get_max_compute_units();
@@ -618,32 +658,7 @@ private:
   }
 
   void get_version(int &major, int &minor) const {
-    // Version string has the following format:
-    // a. OpenCL<space><major.minor><space><vendor-specific-information>
-    // b. <major.minor>
-    // c. <AmdGcnArchName> e.g gfx1030
-    std::string ver;
-    ver = get_info<sycl::info::device::version>();
-    std::string::size_type i = 0;
-    while (i < ver.size()) {
-      if (isdigit(ver[i]))
-        break;
-      i++;
-    }
-    major = std::stoi(&(ver[i]));
-    while (i < ver.size()) {
-      if (ver[i] == '.')
-        break;
-      i++;
-    }
-    if (i < ver.size()) {
-      // a. and b.
-      i++;
-      minor = std::stoi(&(ver[i]));
-    } else {
-      // c.
-      minor = 0;
-    }
+    detail::get_version(*this, major, minor);
   }
   void add_event(sycl::event event) {
     std::lock_guard<std::mutex> lock(m_mutex);

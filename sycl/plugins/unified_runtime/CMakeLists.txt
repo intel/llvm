@@ -84,7 +84,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -151,7 +151,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    ${UNIFIED_RUNTIME_TAG}I
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
