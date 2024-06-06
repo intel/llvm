@@ -982,7 +982,8 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
                           *HostTC, Device);
   TC.TranslateBackendTargetArgs(getToolChain().getTriple(), Args, CmdArgs,
                                 Device);
-  TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
+  TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs,
+                               Device);
   SmallString<128> ExecPath(
       getToolChain().GetProgramPath(makeExeName(C, "ocloc")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
@@ -1396,13 +1397,21 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
       StringRef GenDevice = SYCL::gen::resolveGenDevice(A->getValue());
       bool IsGenTriple = Triple.isSPIR() &&
                          Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
-      if (Device != GenDevice)
-        continue;
-      if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != Triple &&
-          (!IsGenTriple || (IsGenTriple && GenDevice.empty())))
-        // Triples do not match, but only skip when we know we are not comparing
-        // against intel_gpu_* and non-spir64_gen
-        continue;
+      if (IsGenTriple) {
+        if (Device != GenDevice && !Device.empty())
+          continue;
+        if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != Triple &&
+            GenDevice.empty())
+          // Triples do not match, but only skip when we know we are not
+          // comparing against intel_gpu_*
+          continue;
+        if (getDriver().MakeSYCLDeviceTriple(A->getValue()) == Triple &&
+            !Device.empty())
+          // Triples match, but we are expecting a specific device to be set.
+          continue;
+      } else
+        if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != Triple)
+          continue;
     } else if (!OptNoTriple)
       // Don't worry about any of the other args, we only want to pass what is
       // passed in -X<Opt>
@@ -1634,14 +1643,14 @@ void SYCLToolChain::TranslateBackendTargetArgs(
 
 void SYCLToolChain::TranslateLinkerTargetArgs(
     const llvm::Triple &Triple, const llvm::opt::ArgList &Args,
-    llvm::opt::ArgStringList &CmdArgs) const {
+    llvm::opt::ArgStringList &CmdArgs, StringRef Device) const {
   // Do not process -Xsycl-target-linker for implied spir64/spirv64
   if (Triple.getSubArch() == llvm::Triple::NoSubArch &&
       Triple.isSPIROrSPIRV() && getDriver().isSYCLDefaultTripleImplied())
     return;
   // Handle -Xsycl-target-linker.
   TranslateTargetOpt(Triple, Args, CmdArgs, options::OPT_Xsycl_linker,
-                     options::OPT_Xsycl_linker_EQ, StringRef());
+                     options::OPT_Xsycl_linker_EQ, Device);
 }
 
 Tool *SYCLToolChain::buildBackendCompiler() const {

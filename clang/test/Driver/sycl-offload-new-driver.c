@@ -109,15 +109,16 @@
 
 // Verify offload-packager option values
 // RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl \
-// RUN:          -fsycl-targets=spir64,spir64_gen -Xsycl-target-backend=spir64 \
-// RUN:          -spir64-opt -Xsycl-target-backend=spir64_gen -spir64_gen-opt \
+// RUN:          -fsycl-targets=spir64,intel_gpu_pvc \
+// RUN:          -Xsycl-target-backend=spir64 -spir64-opt \
+// RUN:          -Xsycl-target-backend=intel_gpu_pvc -spir64_gen-opt \
 // RUN:          -Xsycl-target-linker=spir64 -spir64-link-opt \
-// RUN:          -Xsycl-target-linker=spir64_gen -spir64_gen-link-opt \
+// RUN:          -Xsycl-target-linker=intel_gpu_pvc -spir64_gen-link-opt \
 // RUN:          --offload-new-driver %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK_PACKAGER_OPTS %s
 // CHK_PACKAGER_OPTS: clang-offload-packager{{.*}} "-o"
 // CHK_PACKAGER_OPTS-SAME: {{.*}}triple=spir64-unknown-unknown,arch=,kind=sycl,compile-opts={{.*}}-spir64-opt,link-opts=-spir64-link-opt
-// CHK_PACKAGER_OPTS-SAME: {{.*}}triple=spir64_gen-unknown-unknown,arch=,kind=sycl,compile-opts={{.*}}-spir64_gen-opt,link-opts=-spir64_gen-link-opt
+// CHK_PACKAGER_OPTS-SAME: {{.*}}triple=spir64_gen-unknown-unknown,arch=pvc,kind=sycl,compile-opts={{.*}}-spir64_gen-opt,link-opts=-spir64_gen-link-opt
 
 /// Test option passing behavior for clang-offload-wrapper options.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \

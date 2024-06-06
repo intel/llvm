@@ -10299,10 +10299,10 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
           static_cast<const toolchains::SYCLToolChain &>(*TC);
       SYCLTC.AddImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA, *HostTC,
                                   Arch);
-      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
+      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs, Arch);
       createArgString("compile-opts=");
       BuildArgs.clear();
-      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
+      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs, Arch);
       createArgString("link-opts=");
     }
 
