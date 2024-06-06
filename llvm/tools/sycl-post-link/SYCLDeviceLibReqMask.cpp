@@ -668,6 +668,10 @@ SYCLDeviceLibFuncMap SDLMap = {
      DeviceLibExt::cl_intel_devicelib_bfloat16},
     {"__devicelib_ConvertBF16ToFINTEL",
      DeviceLibExt::cl_intel_devicelib_bfloat16},
+    {"__devicelib_ConvertFToBF16INTELVec",
+     DeviceLibExt::cl_intel_devicelib_bfloat16},
+    {"__devicelib_ConvertBF16ToFINTELVec",
+     DeviceLibExt::cl_intel_devicelib_bfloat16},
 };
 
 // Each fallback device library corresponds to one bit in "require mask" which
