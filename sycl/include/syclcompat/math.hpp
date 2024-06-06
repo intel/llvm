@@ -166,12 +166,11 @@ template <typename T> sycl::vec<int16_t, 4> extractAndExtend4(T a) {
 
 template <typename RetT, bool NeedSat, bool NeedAdd, typename AT, typename BT,
           typename BinaryOperation>
-inline constexpr std::enable_if_t<
-    std::is_integral_v<AT> && std::is_integral_v<BT> &&
-        std::is_integral_v<RetT> && sizeof(AT) == 4 && sizeof(BT) == 4 &&
-        sizeof(RetT) == 4,
-    RetT>
-extend_vbinary2(AT a, BT b, RetT c, BinaryOperation binary_op) {
+inline constexpr RetT extend_vbinary2(AT a, BT b, RetT c,
+                                      BinaryOperation binary_op) {
+  static_assert(std::is_integral_v<AT> && std::is_integral_v<BT> &&
+                std::is_integral_v<RetT> && sizeof(AT) == 4 &&
+                sizeof(BT) == 4 && sizeof(RetT) == 4);
   sycl::vec<int32_t, 2> extend_a = extractAndExtend2(a);
   sycl::vec<int32_t, 2> extend_b = extractAndExtend2(b);
   sycl::vec<int32_t, 2> temp{binary_op(extend_a[0], extend_b[0]),
