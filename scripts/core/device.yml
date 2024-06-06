@@ -522,7 +522,7 @@ params:
     - type: "$x_device_handle_t"
       name: hDevice
       desc: |
-            [in] handle of the device to release.
+            [in][release] handle of the device to release.
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Device affinity domain"
