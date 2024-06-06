@@ -34,7 +34,7 @@ using namespace sycl::ext::oneapi::experimental;
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL4FMININS2_8BFLOAT16EEENST9ENABLE_IFIXSR3STDE9IS_SAME_VIT_S5_EES7_E4TYPEES7_S7__EXIT_I:%.*]] ]
 // CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i64 [[I_0_I]], 2
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I:%.*]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL4FMINILI2EEENS0_3VECINS2_8BFLOAT16EXT_EEES7_S7__EXIT:%.*]]
+// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I:%.*]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL4FMININS0_3VECINS2_8BFLOAT16ELI2EEES7_LI2ELI2EEENST9ENABLE_IFIXAAAA24IS_VEC_OR_SWIZZLE_BF16_VIT_E24IS_VEC_OR_SWIZZLE_BF16_VIT0_EEQT1_T2_ENS5_IS6_XT1_EEEE4TYPEES9_SA__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = trunc nuw nsw i64 [[I_0_I]] to i32
 // CHECK-NEXT:    [[CALL_I:%.*]] = call spir_func noundef align 2 dereferenceable(2) ptr addrspace(4) @_ZN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi2EEixIS4_EENSt9enable_ifIXsr3stdE9is_same_vIT_S4_EERS4_E4typeEi(ptr addrspace(4) noundef align 4 dereferenceable_or_null(4) [[X_ASCAST_I]], i32 noundef [[CONV_I]]) #[[ATTR7:[0-9]+]]
@@ -92,7 +92,7 @@ using namespace sycl::ext::oneapi::experimental;
 // CHECK-NEXT:    store i16 [[REF_TMP_SROA_0_0_I]], ptr addrspace(4) [[CALL5_I]], align 2, !tbaa [[TBAA10]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP19:![0-9]+]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental4fminILi2EEENS0_3vecINS2_8bfloat16EXT_EEES7_S7_.exit:
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental4fminINS0_3vecINS2_8bfloat16ELi2EEES7_Li2ELi2EEENSt9enable_ifIXaaaa24is_vec_or_swizzle_bf16_vIT_E24is_vec_or_swizzle_bf16_vIT0_EeqT1_T2_ENS5_IS6_XT1_EEEE4typeES9_SA_.exit:
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 4, ptr nonnull [[AGG_TMP2]])
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 4, ptr nonnull [[AGG_TMP13]])
 // CHECK-NEXT:    ret void
@@ -122,7 +122,7 @@ SYCL_EXTERNAL auto TestFMin(vec<bfloat16, 2> a, vec<bfloat16, 2> b) {
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL4FMAXINS2_8BFLOAT16EEENST9ENABLE_IFIXSR3STDE9IS_SAME_VIT_S5_EES7_E4TYPEES7_S7__EXIT_I:%.*]] ]
 // CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i64 [[I_0_I]], 3
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I:%.*]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL4FMAXINS0_3VECINS2_8BFLOAT16ELI3EEES7_LI3ELI3EEENST9ENABLE_IFIXAAAA19IS_VEC_OR_SWIZZLE_VIT_E19IS_VEC_OR_SWIZZLE_VIT0_EEQT1_T2_ENS5_IS6_XT1_EEEE4TYPEES9_SA__EXIT:%.*]]
+// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I:%.*]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL4FMAXINS0_3VECINS2_8BFLOAT16ELI3EEES7_LI3ELI3EEENST9ENABLE_IFIXAAAA24IS_VEC_OR_SWIZZLE_BF16_VIT_E24IS_VEC_OR_SWIZZLE_BF16_VIT0_EEQT1_T2_ENS5_IS6_XT1_EEEE4TYPEES9_SA__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = trunc nuw nsw i64 [[I_0_I]] to i32
 // CHECK-NEXT:    [[CALL_I:%.*]] = call spir_func noundef align 2 dereferenceable(2) ptr addrspace(4) @_ZN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi3EEixIS4_EENSt9enable_ifIXsr3stdE9is_same_vIT_S4_EERS4_E4typeEi(ptr addrspace(4) noundef align 8 dereferenceable_or_null(8) [[X_ASCAST_I]], i32 noundef [[CONV_I]]) #[[ATTR7]]
@@ -180,7 +180,7 @@ SYCL_EXTERNAL auto TestFMin(vec<bfloat16, 2> a, vec<bfloat16, 2> b) {
 // CHECK-NEXT:    store i16 [[REF_TMP_SROA_0_0_I]], ptr addrspace(4) [[CALL5_I]], align 2, !tbaa [[TBAA10]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP30:![0-9]+]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental4fmaxINS0_3vecINS2_8bfloat16ELi3EEES7_Li3ELi3EEENSt9enable_ifIXaaaa19is_vec_or_swizzle_vIT_E19is_vec_or_swizzle_vIT0_EeqT1_T2_ENS5_IS6_XT1_EEEE4typeES9_SA_.exit:
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental4fmaxINS0_3vecINS2_8bfloat16ELi3EEES7_Li3ELi3EEENSt9enable_ifIXaaaa24is_vec_or_swizzle_bf16_vIT_E24is_vec_or_swizzle_bf16_vIT0_EeqT1_T2_ENS5_IS6_XT1_EEEE4typeES9_SA_.exit:
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[AGG_TMP2]])
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[AGG_TMP13]])
 // CHECK-NEXT:    ret void
@@ -202,7 +202,7 @@ SYCL_EXTERNAL auto TestFMax(vec<bfloat16, 3> a, vec<bfloat16, 3> b) {
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
 // CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i64 [[I_0_I]], 4
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL5ISNANINS0_3VECINS2_8BFLOAT16ELI4EEELI4EEENST9ENABLE_IFIX19IS_VEC_OR_SWIZZLE_VIT_EENS5_ISXT0_EEEE4TYPEES9__EXIT:%.*]]
+// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL5ISNANINS0_3VECINS2_8BFLOAT16ELI4EEELI4EEENST9ENABLE_IFIX24IS_VEC_OR_SWIZZLE_BF16_VIT_EENS5_ISXT0_EEEE4TYPEES9__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = trunc nuw nsw i64 [[I_0_I]] to i32
 // CHECK-NEXT:    [[CALL_I:%.*]] = call spir_func noundef align 2 dereferenceable(2) ptr addrspace(4) @_ZN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi4EEixIS4_EENSt9enable_ifIXsr3stdE9is_same_vIT_S4_EERS4_E4typeEi(ptr addrspace(4) noundef align 8 dereferenceable_or_null(8) [[X_ASCAST_I]], i32 noundef [[CONV_I]]) #[[ATTR7]], !noalias [[META32]]
@@ -218,7 +218,7 @@ SYCL_EXTERNAL auto TestFMax(vec<bfloat16, 3> a, vec<bfloat16, 3> b) {
 // CHECK-NEXT:    store i16 [[CONV2_I]], ptr addrspace(4) [[ARRAYIDX_I_I]], align 2, !tbaa [[TBAA10]], !alias.scope [[META32]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP35:![0-9]+]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental5isnanINS0_3vecINS2_8bfloat16ELi4EEELi4EEENSt9enable_ifIX19is_vec_or_swizzle_vIT_EENS5_IsXT0_EEEE4typeES9_.exit:
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental5isnanINS0_3vecINS2_8bfloat16ELi4EEELi4EEENSt9enable_ifIX24is_vec_or_swizzle_bf16_vIT_EENS5_IsXT0_EEEE4typeES9_.exit:
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[AGG_TMP1]])
 // CHECK-NEXT:    ret void
 //
@@ -238,7 +238,7 @@ SYCL_EXTERNAL auto TestIsNan(vec<bfloat16, 4> a) {
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
 // CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i64 [[I_0_I]], 8
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL4FABSINS0_3VECINS2_8BFLOAT16ELI8EEELI8EEENST9ENABLE_IFIX19IS_VEC_OR_SWIZZLE_VIT_EENS5_IS6_XT0_EEEE4TYPEES9__EXIT:%.*]]
+// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL4FABSINS0_3VECINS2_8BFLOAT16ELI8EEELI8EEENST9ENABLE_IFIX24IS_VEC_OR_SWIZZLE_BF16_VIT_EENS5_IS6_XT0_EEEE4TYPEES9__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = trunc nuw nsw i64 [[I_0_I]] to i32
 // CHECK-NEXT:    [[CALL_I:%.*]] = call spir_func noundef align 2 dereferenceable(2) ptr addrspace(4) @_ZN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi8EEixIS4_EENSt9enable_ifIXsr3stdE9is_same_vIT_S4_EERS4_E4typeEi(ptr addrspace(4) noundef align 16 dereferenceable_or_null(16) [[X_ASCAST_I]], i32 noundef [[CONV_I]]) #[[ATTR7]]
@@ -255,7 +255,7 @@ SYCL_EXTERNAL auto TestIsNan(vec<bfloat16, 4> a) {
 // CHECK-NEXT:    store i16 [[SPEC_SELECT_I_I]], ptr addrspace(4) [[CALL2_I]], align 2, !tbaa [[TBAA10]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP37:![0-9]+]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental4fabsINS0_3vecINS2_8bfloat16ELi8EEELi8EEENSt9enable_ifIX19is_vec_or_swizzle_vIT_EENS5_IS6_XT0_EEEE4typeES9_.exit:
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental4fabsINS0_3vecINS2_8bfloat16ELi8EEELi8EEENSt9enable_ifIX24is_vec_or_swizzle_bf16_vIT_EENS5_IS6_XT0_EEEE4typeES9_.exit:
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 16, ptr nonnull [[AGG_TMP1]])
 // CHECK-NEXT:    ret void
 //
@@ -279,7 +279,7 @@ SYCL_EXTERNAL auto TestFabs(vec<bfloat16, 8> a) {
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
 // CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i64 [[I_0_I]], 8
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL4CEILINS0_3VECINS2_8BFLOAT16ELI8EEELI8EEENST9ENABLE_IFIX19IS_VEC_OR_SWIZZLE_VIT_EENS5_IS6_XT0_EEEE4TYPEES9__EXIT:%.*]]
+// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL4CEILINS0_3VECINS2_8BFLOAT16ELI8EEELI8EEENST9ENABLE_IFIX24IS_VEC_OR_SWIZZLE_BF16_VIT_EENS5_IS6_XT0_EEEE4TYPEES9__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = trunc nuw nsw i64 [[I_0_I]] to i32
 // CHECK-NEXT:    [[CALL_I:%.*]] = call spir_func noundef align 2 dereferenceable(2) ptr addrspace(4) @_ZN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi8EEixIS4_EENSt9enable_ifIXsr3stdE9is_same_vIT_S4_EERS4_E4typeEi(ptr addrspace(4) noundef align 16 dereferenceable_or_null(16) [[X_ASCAST_I]], i32 noundef [[CONV_I]]) #[[ATTR7]]
@@ -297,7 +297,7 @@ SYCL_EXTERNAL auto TestFabs(vec<bfloat16, 8> a) {
 // CHECK-NEXT:    store i16 [[CALL_I_I2_I_I]], ptr addrspace(4) [[CALL2_I]], align 2, !tbaa [[TBAA10]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP48:![0-9]+]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental4ceilINS0_3vecINS2_8bfloat16ELi8EEELi8EEENSt9enable_ifIX19is_vec_or_swizzle_vIT_EENS5_IS6_XT0_EEEE4typeES9_.exit:
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental4ceilINS0_3vecINS2_8bfloat16ELi8EEELi8EEENSt9enable_ifIX24is_vec_or_swizzle_bf16_vIT_EENS5_IS6_XT0_EEEE4typeES9_.exit:
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 16, ptr nonnull [[AGG_TMP1]])
 // CHECK-NEXT:    ret void
 //
@@ -335,7 +335,7 @@ SYCL_EXTERNAL auto TestCeil(vec<bfloat16, 8> a) {
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
 // CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i64 [[I_0_I]], 16
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL3FMAINS0_3VECINS2_8BFLOAT16ELI16EEES7_S7_LI16ELI16ELI16EEENST9ENABLE_IFIXAAAAAAAA19IS_VEC_OR_SWIZZLE_VIT_E19IS_VEC_OR_SWIZZLE_VIT0_E19IS_VEC_OR_SWIZZLE_VIT1_EEQT2_T3_EQT3_T4_ENS5_IS6_XT2_EEEE4TYPEES9_SA_SB__EXIT:%.*]]
+// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL3FMAINS0_3VECINS2_8BFLOAT16ELI16EEES7_S7_LI16ELI16ELI16EEENST9ENABLE_IFIXAAAAAAAA24IS_VEC_OR_SWIZZLE_BF16_VIT_E24IS_VEC_OR_SWIZZLE_BF16_VIT0_E24IS_VEC_OR_SWIZZLE_BF16_VIT1_EEQT2_T3_EQT3_T4_ENS5_IS6_XT2_EEEE4TYPEES9_SA_SB__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = trunc nuw nsw i64 [[I_0_I]] to i32
 // CHECK-NEXT:    [[CALL_I:%.*]] = call spir_func noundef align 2 dereferenceable(2) ptr addrspace(4) @_ZN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi16EEixIS4_EENSt9enable_ifIXsr3stdE9is_same_vIT_S4_EERS4_E4typeEi(ptr addrspace(4) noundef align 32 dereferenceable_or_null(32) [[X_ASCAST_I]], i32 noundef [[CONV_I]]) #[[ATTR7]]
@@ -365,7 +365,7 @@ SYCL_EXTERNAL auto TestCeil(vec<bfloat16, 8> a) {
 // CHECK-NEXT:    store i16 [[CALL_I_I6_I_I]], ptr addrspace(4) [[CALL8_I]], align 2, !tbaa [[TBAA10]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP57:![0-9]+]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental3fmaINS0_3vecINS2_8bfloat16ELi16EEES7_S7_Li16ELi16ELi16EEENSt9enable_ifIXaaaaaaaa19is_vec_or_swizzle_vIT_E19is_vec_or_swizzle_vIT0_E19is_vec_or_swizzle_vIT1_EeqT2_T3_eqT3_T4_ENS5_IS6_XT2_EEEE4typeES9_SA_SB_.exit:
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental3fmaINS0_3vecINS2_8bfloat16ELi16EEES7_S7_Li16ELi16ELi16EEENSt9enable_ifIXaaaaaaaa24is_vec_or_swizzle_bf16_vIT_E24is_vec_or_swizzle_bf16_vIT0_E24is_vec_or_swizzle_bf16_vIT1_EeqT2_T3_eqT3_T4_ENS5_IS6_XT2_EEEE4typeES9_SA_SB_.exit:
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 32, ptr nonnull [[AGG_TMP3]])
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 32, ptr nonnull [[AGG_TMP14]])
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 32, ptr nonnull [[AGG_TMP25]])

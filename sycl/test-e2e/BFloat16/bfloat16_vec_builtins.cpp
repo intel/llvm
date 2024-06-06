@@ -82,9 +82,10 @@ bool check(bool a, bool b) { return (a != b); }
   { /* On Device */                                                            \
     buffer<int> err_buf(&err, 1);                                              \
     q.submit([&](handler &cgh) {                                               \
-      accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh); \
-      cgh.single_task([=]() { OPTEST(NAME, SZ, RETTY, INPVAL) });              \
-    });                                                                        \
+       accessor<int, 1, access::mode::write, target::device> ERR(err_buf,      \
+                                                                 cgh);         \
+       cgh.single_task([=]() { OPTEST(NAME, SZ, RETTY, INPVAL) });             \
+     }).wait();                                                                \
   }                                                                            \
   assert(err == 0);                                                            \
   { /* On Host */                                                              \
@@ -131,15 +132,15 @@ void test() {
   {
     buffer<int> err_buf(&err, 1);
     q.submit([&](handler &cgh) {
-      accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh);
-      cgh.single_task([=]() {
-        vec<bfloat16, 3> arg{1.0f, nan, 2.0f};
-        vec<int16_t, 3> res = sycl::ext::oneapi::experimental::isnan(arg);
-        if (res[0] != 0 || res[1] != -1 || res[2] != 0) {
-          ERR[0] += 1;
-        }
-      });
-    });
+       accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh);
+       cgh.single_task([=]() {
+         vec<bfloat16, 3> arg{1.0f, nan, 2.0f};
+         vec<int16_t, 3> res = sycl::ext::oneapi::experimental::isnan(arg);
+         if (res[0] != 0 || res[1] != -1 || res[2] != 0) {
+           ERR[0] += 1;
+         }
+       });
+     }).wait();
     assert(err == 0 && "isnan failed on device for vec");
   }
 
@@ -220,52 +221,52 @@ void test() {
   {
     buffer<int> err_buf(&err, 1);
     q.submit([&](handler &cgh) {
-      accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh);
-      cgh.single_task([=]() {
-        vec<bfloat16, 3> arg1, arg2, arg3;
-        bfloat16 inpVal1 = 1.0f;
-        bfloat16 inpVal2 = 2.0f;
-        bfloat16 inpVal3 = 3.0f;
-        /* Initialize the vector with INPVAL */
-        for (int i = 0; i < 3; i++) {
-          arg1[i] = inpVal1;
-          arg2[i] = inpVal2;
-          arg3[i] = inpVal3;
-        }
-        /* Perform the operation. */
-        auto res = sycl::ext::oneapi::experimental::fma(arg1, arg2, arg3);
+       accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh);
+       cgh.single_task([=]() {
+         vec<bfloat16, 3> arg1, arg2, arg3;
+         bfloat16 inpVal1 = 1.0f;
+         bfloat16 inpVal2 = 2.0f;
+         bfloat16 inpVal3 = 3.0f;
+         /* Initialize the vector with INPVAL */
+         for (int i = 0; i < 3; i++) {
+           arg1[i] = inpVal1;
+           arg2[i] = inpVal2;
+           arg3[i] = inpVal3;
+         }
+         /* Perform the operation. */
+         auto res = sycl::ext::oneapi::experimental::fma(arg1, arg2, arg3);
 
-        // Test different combination of vec an swizzle.
-        auto res1 = sycl::ext::oneapi::experimental::fma(
-            arg1.template swizzle<0, 0>(), arg2.template swizzle<0, 0>(),
-            arg3.template swizzle<0, 0>());
+         // Test different combination of vec an swizzle.
+         auto res1 = sycl::ext::oneapi::experimental::fma(
+             arg1.template swizzle<0, 0>(), arg2.template swizzle<0, 0>(),
+             arg3.template swizzle<0, 0>());
 
-        auto res2 = sycl::ext::oneapi::experimental::fma(
-            vec<bfloat16, 2>(arg1[0], arg1[0]), arg2.template swizzle<0, 0>(),
-            arg3.template swizzle<0, 0>());
+         auto res2 = sycl::ext::oneapi::experimental::fma(
+             vec<bfloat16, 2>(arg1[0], arg1[0]), arg2.template swizzle<0, 0>(),
+             arg3.template swizzle<0, 0>());
 
-        auto res3 = sycl::ext::oneapi::experimental::fma(
-            arg1.template swizzle<0, 0>(), vec<bfloat16, 2>(arg2[0], arg2[0]),
-            arg3.template swizzle<0, 0>());
+         auto res3 = sycl::ext::oneapi::experimental::fma(
+             arg1.template swizzle<0, 0>(), vec<bfloat16, 2>(arg2[0], arg2[0]),
+             arg3.template swizzle<0, 0>());
 
-        auto res4 = sycl::ext::oneapi::experimental::fma(
-            arg1.template swizzle<0, 0>(), arg2.template swizzle<0, 0>(),
-            vec<bfloat16, 2>(arg3[0], arg3[0]));
+         auto res4 = sycl::ext::oneapi::experimental::fma(
+             arg1.template swizzle<0, 0>(), arg2.template swizzle<0, 0>(),
+             vec<bfloat16, 2>(arg3[0], arg3[0]));
 
-        /* Check the result. */
-        if (res1[0] != res[0] || res1[1] != res[0] || res2[0] != res[0] ||
-            res2[1] != res[0] || res3[0] != res[0] || res3[1] != res[0] ||
-            res4[0] != res[0] || res4[1] != res[0]) {
-          ERR[0] += 1;
-        }
-        for (int i = 0; i < 3; i++) {
-          if (check(res[i], sycl::ext::oneapi::experimental::fma(
-                                inpVal1, inpVal2, inpVal3))) {
-            ERR[0] += 1;
-          }
-        }
-      });
-    });
+         /* Check the result. */
+         if (res1[0] != res[0] || res1[1] != res[0] || res2[0] != res[0] ||
+             res2[1] != res[0] || res3[0] != res[0] || res3[1] != res[0] ||
+             res4[0] != res[0] || res4[1] != res[0]) {
+           ERR[0] += 1;
+         }
+         for (int i = 0; i < 3; i++) {
+           if (check(res[i], sycl::ext::oneapi::experimental::fma(
+                                 inpVal1, inpVal2, inpVal3))) {
+             ERR[0] += 1;
+           }
+         }
+       });
+     }).wait();
     assert(err == 0);
   }
 }
