@@ -267,8 +267,8 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
 
     // Accessors
 
-    // CHECK-STATEFUL-COUNT-14:  call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 12, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
-    // CHECK-STATELESS-COUNT-14: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 12, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef, i32 0, <4 x i32> undef)
+    // CHECK-STATEFUL-COUNT-26:  call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 12, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATELESS-COUNT-26: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 12, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef, i32 0, <4 x i32> undef)
     auto res_atomic_9 =
         atomic_update<atomic_op::add, int>(acc, offsets, add, pred, props_a);
 
@@ -309,6 +309,42 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
         acc, offsets_view, add_view, props_a);
 
     res_atomic_16 = atomic_update<atomic_op::add, int, VL>(
+        acc, offsets_view.select<VL, 1>(), add_view.select<VL, 1>(), props_a);
+
+    res_atomic_11 =
+        atomic_update<atomic_op::add>(acc, offsets, add_view, pred, props_a);
+
+    res_atomic_11 = atomic_update<atomic_op::add>(
+        acc, offsets, add_view.select<VL, 1>(), pred, props_a);
+
+    res_atomic_12 =
+        atomic_update<atomic_op::add>(acc, offsets, add_view, props_a);
+
+    res_atomic_12 = atomic_update<atomic_op::add>(
+        acc, offsets, add_view.select<VL, 1>(), props_a);
+
+    res_atomic_13 =
+        atomic_update<atomic_op::add>(acc, offsets_view, add, pred, props_a);
+
+    res_atomic_13 = atomic_update<atomic_op::add>(
+        acc, offsets_view.select<VL, 1>(), add, pred, props_a);
+
+    res_atomic_14 =
+        atomic_update<atomic_op::add>(acc, offsets_view, add, props_a);
+    res_atomic_14 = atomic_update<atomic_op::add>(
+        acc, offsets_view.select<VL, 1>(), add, props_a);
+
+    res_atomic_15 = atomic_update<atomic_op::add>(acc, offsets_view, add_view,
+                                                  pred, props_a);
+
+    res_atomic_15 =
+        atomic_update<atomic_op::add>(acc, offsets_view.select<VL, 1>(),
+                                      add_view.select<VL, 1>(), pred, props_a);
+
+    res_atomic_16 =
+        atomic_update<atomic_op::add>(acc, offsets_view, add_view, props_a);
+
+    res_atomic_16 = atomic_update<atomic_op::add>(
         acc, offsets_view.select<VL, 1>(), add_view.select<VL, 1>(), props_a);
 
     // atomic_update without cache hints:
@@ -489,8 +525,8 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
 
     // Accessors
 
-    // CHECK-STATEFUL-COUNT-30:  call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> undef)
-    // CHECK-STATELESS-COUNT-30: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
+    // CHECK-STATEFUL-COUNT-58:  call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATELESS-COUNT-58: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
     auto res_atomic_17 = atomic_update<atomic_op::cmpxchg>(
         acc, offsets, swap, compare, pred, props_a);
 
@@ -586,6 +622,98 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
         compare_view.select<VL, 1>(), pred, props_a);
 
     res_atomic_32 = atomic_update<atomic_op::cmpxchg, int, VL>(
+        acc, offsets_view.select<VL, 1>(), swap_view.select<VL, 1>(),
+        compare_view.select<VL, 1>(), props_a);
+
+    res_atomic_19 = atomic_update<atomic_op::cmpxchg>(
+        acc, offsets, swap, compare_view, pred, props_a);
+
+    res_atomic_20 = atomic_update<atomic_op::cmpxchg>(acc, offsets, swap,
+                                                      compare_view, props_a);
+
+    res_atomic_21 = atomic_update<atomic_op::cmpxchg>(acc, offsets, swap_view,
+                                                      compare, pred, props_a);
+
+    res_atomic_22 = atomic_update<atomic_op::cmpxchg>(acc, offsets, swap_view,
+                                                      compare, props_a);
+
+    res_atomic_23 = atomic_update<atomic_op::cmpxchg>(
+        acc, offsets, swap_view, compare_view, pred, props_a);
+
+    res_atomic_24 = atomic_update<atomic_op::cmpxchg>(acc, offsets, swap_view,
+                                                      compare_view, props_a);
+
+    res_atomic_25 = atomic_update<atomic_op::cmpxchg>(acc, offsets_view, swap,
+                                                      compare, pred, props_a);
+
+    res_atomic_26 = atomic_update<atomic_op::cmpxchg>(acc, offsets_view, swap,
+                                                      compare, props_a);
+
+    res_atomic_27 = atomic_update<atomic_op::cmpxchg>(
+        acc, offsets_view, swap, compare_view, pred, props_a);
+
+    res_atomic_28 = atomic_update<atomic_op::cmpxchg>(acc, offsets_view, swap,
+                                                      compare_view, props_a);
+
+    res_atomic_29 = atomic_update<atomic_op::cmpxchg>(
+        acc, offsets_view, swap_view, compare, pred, props_a);
+
+    res_atomic_30 = atomic_update<atomic_op::cmpxchg>(
+        acc, offsets_view, swap_view, compare, props_a);
+
+    res_atomic_31 = atomic_update<atomic_op::cmpxchg>(
+        acc, offsets_view, swap_view, compare_view, pred, props_a);
+
+    res_atomic_32 = atomic_update<atomic_op::cmpxchg>(
+        acc, offsets_view, swap_view, compare_view, props_a);
+
+    res_atomic_19 = atomic_update<atomic_op::cmpxchg>(
+        acc, offsets, swap, compare_view.select<VL, 1>(), pred, props_a);
+
+    res_atomic_20 = atomic_update<atomic_op::cmpxchg>(
+        acc, offsets, swap, compare_view.select<VL, 1>(), props_a);
+
+    res_atomic_21 = atomic_update<atomic_op::cmpxchg>(
+        acc, offsets, swap_view.select<VL, 1>(), compare, pred, props_a);
+
+    res_atomic_22 = atomic_update<atomic_op::cmpxchg>(
+        acc, offsets, swap_view.select<VL, 1>(), compare, props_a);
+
+    res_atomic_23 = atomic_update<atomic_op::cmpxchg>(
+        acc, offsets, swap_view.select<VL, 1>(), compare_view.select<VL, 1>(),
+        pred, props_a);
+
+    res_atomic_24 = atomic_update<atomic_op::cmpxchg>(
+        acc, offsets, swap_view.select<VL, 1>(), compare_view.select<VL, 1>(),
+        props_a);
+
+    res_atomic_25 = atomic_update<atomic_op::cmpxchg>(
+        acc, offsets_view.select<VL, 1>(), swap, compare, pred, props_a);
+
+    res_atomic_26 = atomic_update<atomic_op::cmpxchg>(
+        acc, offsets_view.select<VL, 1>(), swap, compare, props_a);
+
+    res_atomic_27 = atomic_update<atomic_op::cmpxchg>(
+        acc, offsets_view.select<VL, 1>(), swap, compare_view.select<VL, 1>(),
+        pred, props_a);
+
+    res_atomic_28 = atomic_update<atomic_op::cmpxchg>(
+        acc, offsets_view.select<VL, 1>(), swap, compare_view.select<VL, 1>(),
+        props_a);
+
+    res_atomic_29 = atomic_update<atomic_op::cmpxchg>(
+        acc, offsets_view.select<VL, 1>(), swap_view.select<VL, 1>(), compare,
+        pred, props_a);
+
+    res_atomic_30 = atomic_update<atomic_op::cmpxchg>(
+        acc, offsets_view.select<VL, 1>(), swap_view.select<VL, 1>(), compare,
+        props_a);
+
+    res_atomic_31 = atomic_update<atomic_op::cmpxchg>(
+        acc, offsets_view.select<VL, 1>(), swap_view.select<VL, 1>(),
+        compare_view.select<VL, 1>(), pred, props_a);
+
+    res_atomic_32 = atomic_update<atomic_op::cmpxchg>(
         acc, offsets_view.select<VL, 1>(), swap_view.select<VL, 1>(),
         compare_view.select<VL, 1>(), props_a);
 
