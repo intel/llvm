@@ -242,7 +242,7 @@ struct DefaultContextReleaseHandler {
         << std::endl;
     // GlobalHandler::instance().releaseDefaultContexts();
 #ifdef _WIN32
-    //shutdown2();
+    // shutdown2();
 #else
     shutdown();
 #endif
@@ -379,8 +379,8 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
 
     shutdown();
     shutdown2();
-    
     break;
+
   case DLL_PROCESS_ATTACH:
     if (PrintPiTrace)
       std::cout << "---> DLL_PROCESS_ATTACH syclx.dll\n" << std::endl;

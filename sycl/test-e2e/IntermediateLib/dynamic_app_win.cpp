@@ -31,7 +31,7 @@ int main() {
   }
 
   int (*add_using_device)(int, int) =
-    (int (*)(int, int))GetProcAddress(handle, "add_using_device");
+      (int (*)(int, int))GetProcAddress(handle, "add_using_device");
   if (!add_using_device) {
     std::cout << "failed to get function" << std::endl;
     FreeLibrary(handle);

@@ -4,7 +4,7 @@
 // RUN: %clangxx -fsycl -fPIC -shared -o simple_lib.so %S/Inputs/simple_lib.cpp
 
 // build app
-// RUN: %{build} -o %t.out
+// RUN: %clangxx -o %t.out %s
 
 // RUN: %{run} %t.out
 // RUN: env UR_L0_LEAKS_DEBUG=1 %{run} %t.out
@@ -36,6 +36,7 @@ __attribute__((destructor(101))) static void Unload101() {
   std::cout << "app unload - __attribute__((destructor(101)))" << std::endl;
   if (handle) {
     dlclose(handle);
+    handle = nullptr;
   }
 }
 
@@ -49,10 +50,9 @@ int main() {
 
   // Function pointer to the exported function
   int (*add_using_device)(int, int) =
-      (int (*)(int, int))dlsym(handle, "_Z16add_using_deviceii");
+      (int (*)(int, int))dlsym(handle, "add_using_device");
   if (!add_using_device) {
     std::cout << "failed to get function" << std::endl;
-    dlclose(handle);
     return 2;
   }
 

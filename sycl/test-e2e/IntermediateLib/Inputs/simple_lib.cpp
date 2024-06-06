@@ -7,8 +7,8 @@
 
 */
 
-#include <sycl/sycl.hpp>
 #include "simple_lib.h"
+#include <sycl/sycl.hpp>
 
 const size_t BUFF_SIZE = 1;
 
@@ -32,13 +32,11 @@ public:
   ~Delay() { release(); }
 };
 
-
-
 #ifdef _WIN32
 static Delay theDelay;
-Delay * MyDelay = &theDelay;
+Delay *MyDelay = &theDelay;
 #else
-  Delay *MyDelay = new Delay;
+Delay *MyDelay = new Delay;
 
 __attribute__((destructor(101))) static void Unload101() {
   std::cout << "lib unload - __attribute__((destructor(101)))" << std::endl;
