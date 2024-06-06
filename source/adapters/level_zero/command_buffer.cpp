@@ -1278,8 +1278,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   UR_ASSERT(!(NewGlobalWorkSize && !NewLocalWorkSize) ||
                 (SupportedFeatures & ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_SIZE),
             UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+
+  ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
   if (NewGlobalWorkSize && Dim > 0) {
-    ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
     uint32_t WG[3];
     // If new global work size is provided but new local work size is not
     // provided then we still need to update local work size based on size
