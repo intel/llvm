@@ -6,8 +6,6 @@
 ; Test with -split=kernel
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; RUN: rm -f %t*.prop %t*.sym
-
 ; RUN: sycl-post-link -symbols -emit-imported-symbols -split=kernel -S < %s -o %t_kernel.table
 
 ; RUN: FileCheck %s -input-file=%t_kernel_0.sym --check-prefixes CHECK-KERNEL-SYM-0
