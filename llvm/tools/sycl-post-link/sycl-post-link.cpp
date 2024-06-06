@@ -425,6 +425,10 @@ bool isImportedFunction(const Function &F) {
       F.isIntrinsic())
     return false;
 
+  // StripDeadPrototypes is called during module splitting
+  // cleanup.  At this point all function decls should have uses.
+  assert(!F.use_empty() && "Function F has no uses");
+
   bool ReturnValue = true;
   if (char *NameStr = itaniumDemangle(F.getName())) {
     StringRef DemangledName(NameStr);
