@@ -489,10 +489,12 @@ sycl::event memset_async(pitched_data pitch, int val,
                          sycl::range<3> size,
                          sycl::queue q = get_default_queue()); // 3D matrix
 
+// Free
+void wait_and_free(void *ptr, sycl::queue q = get_default_queue());
 void free(void *ptr, sycl::queue q = get_default_queue());
-sycl::event free_async(const std::vector<void *> &pointers,
-                       const std::vector<sycl::event> &events,
-                       sycl::queue q = get_default_queue());
+sycl::event enqueue_free(const std::vector<void *> &pointers,
+                         const std::vector<sycl::event> &events,
+                         sycl::queue q = get_default_queue());
 
 // Queries pointer allocation type
 class pointer_attributes {
@@ -870,7 +872,7 @@ independently of what is set in this parameter.
 Devices are managed through a helper class, `device_ext`. The `device_ext` class
 associates a vector of `sycl::queues` with its `sycl::device`. The `device_ext`
 destructor waits on a set of `sycl::event` which can be added to via
-`add_event`. This is used, for example, to implement `syclcompat::free_async` to
+`add_event`. This is used, for example, to implement `syclcompat::enqueue_free` to
 schedule release of memory after a kernel or `mempcy`. SYCL device properties
 can be queried through `device_ext` as well.
 `device_ext` also provides the `has_capability_or_fail` member function, which
