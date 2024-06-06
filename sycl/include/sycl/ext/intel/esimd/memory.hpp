@@ -550,7 +550,7 @@ gather(const T *p, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 ///             simd<OffsetT, N / VS> byte_offsets,
 ///             simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
 ///             PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters. Loads ("gathers") elements of the type 'T'
 /// from memory locations addressed by the base pointer \p p and byte offsets \p
 /// byte_offsets, and returns the loaded elements. Access to any element's
@@ -591,7 +591,7 @@ gather(const T *p, simd<OffsetT, N / VS> byte_offsets, simd_mask<N / VS> mask,
 ///             OffsetSimdViewT byte_offsets,
 ///             simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
 ///             PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters. Loads ("gathers") elements of the type 'T'
 /// from memory locations addressed by the base pointer \p p and byte offsets \p
 /// byte_offsets, and returns the loaded elements. Access to any element's
@@ -637,7 +637,7 @@ gather(const T *p, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 ///             OffsetSimdViewT byte_offsets,
 ///             simd_mask<N / VS> mask, simd<T, N> pass_thru,
 ///             PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters. Loads ("gathers") elements of the type 'T'
 /// from memory locations addressed by the base pointer \p p and byte offsets \p
 /// byte_offsets, and returns the loaded elements. Access to any element's
@@ -711,7 +711,7 @@ gather(const T *p, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 /// simd <T, N> gather(const T *p,
 ///             OffsetSimdViewT byte_offsets,
 ///             simd_mask<N / VS> mask, PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters. Loads ("gathers") elements of the type 'T'
 /// from memory locations addressed by the base pointer \p p and byte offsets \p
 /// byte_offsets, and returns the loaded elements. Access to any element's
@@ -772,7 +772,7 @@ gather(const T *p, OffsetSimdViewT byte_offsets, PropertyListT props = {}) {
 /// simd <T, N> gather(const T *p,
 ///             OffsetSimdViewT byte_offsets,
 ///             PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.  Loads ("gathers") elements of the type 'T'
 /// from memory locations addressed by the base pointer \p p and byte offsets \p
 /// byte_offsets, and returns the loaded elements.
@@ -925,7 +925,7 @@ scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
 /// void scatter(T *p, simd<OffsetT, N / VS> byte_offsets, ValuesSimdViewT vals,
 /// simd_mask<N / VS> mask, PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Writes ("scatters") elements of the input vector to different memory
 /// locations. Each memory location is base address plus an offset - a
@@ -993,7 +993,7 @@ scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
 /// void scatter(T *p, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 /// 	simd_mask<N / VS> mask, PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Writes ("scatters") elements of the input vector to different memory
 /// locations. Each memory location is base address plus an offset - a
@@ -1033,7 +1033,7 @@ scatter(T *p, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 /// void scatter(T *p, simd<OffsetT, N / VS> byte_offsets, ValuesSimdViewT vals,
 /// 	PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Writes ("scatters") elements of the input vector to different memory
 /// locations. Each memory location is base address plus an offset - a
@@ -1101,7 +1101,7 @@ scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// void scatter(T *p, OffsetSimdViewT byte_offsets, simd<T,N> vals,
 /// 	simd_mask<N / VS> mask, PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Writes ("scatters") elements of the input vector to different memory
 /// locations. Each memory location is base address plus an offset - a
@@ -1140,7 +1140,7 @@ scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// void scatter(T *p, OffsetSimdViewT byte_offsets, simd<T,N> vals,
 /// 	PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Writes ("scatters") elements of the input vector to different memory
 /// locations. Each memory location is base address plus an offset - a
@@ -1214,7 +1214,7 @@ scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// void scatter(T *p, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 ///      PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Writes ("scatters") elements of the input vector to different memory
 /// locations. Each memory location is base address plus an offset - a
@@ -2067,7 +2067,7 @@ block_load(const T *ptr, size_t byte_offset, simd_mask<1> pred,
 /// simd<T, N> block_load(const T* ptr, size_t byte_offset,
 ///                       simd_mask<1> pred, PassThruSimdViewT pass_thru,
 ///                       props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// This function loads a contiguous memory block from address referenced
 /// by USM pointer \p ptr and the given \p byte_offset.
@@ -2393,7 +2393,7 @@ block_load(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
 /// simd<T, N>
 /// block_load(AccessorT acc, OffsetT byte_offset, simd_mask<1> pred,
 ///            PassThruSimdViewT pass_thru, props = {});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// This function loads a contiguous memory block referenced
 /// by accessor \p acc and the given \p byte_offset.
@@ -2533,7 +2533,7 @@ block_load(AccessorT acc, simd_mask<1> pred, simd<T, N> pass_thru,
 /// block_load(AccessorT acc, simd_mask<1> pred,
 ///            PassThruSimdViewT pass_thru, props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// This function loads a contiguous memory block referenced
 /// by accessor \p acc and implied offset=0.
@@ -2833,7 +2833,7 @@ block_store(T *ptr, size_t byte_offset, simd<T, N> vals, simd_mask<1> pred,
 }
 
 /// void block_store(T* ptr, ValuesSimdViewT vals, props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// This function stores a contiguous memory block to USM pointer \p ptr
 /// with data specified by \p vals.
@@ -2879,7 +2879,7 @@ block_store(T *ptr, ValuesSimdViewT vals, PropertyListT props = {}) {
 
 /// void block_store(T* ptr, size_t byte_offset,
 ///                          ValuesSimdViewT vals, props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// This function stores a contiguous memory block to USM pointer \p ptr and
 /// byte-offset \p byte_offset with data specified by \p vals.
@@ -2927,7 +2927,7 @@ block_store(T *ptr, size_t byte_offset, ValuesSimdViewT vals,
 
 /// void block_store(T* ptr, ValuesSimdViewT vals,
 ///             simd_mask<1> pred, props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// This function stores a contiguous memory block to USM pointer \p ptr
 /// with data specified by \p vals. If the predicate \p pred is set to 0,
@@ -2972,7 +2972,7 @@ block_store(T *ptr, ValuesSimdViewT vals, simd_mask<1> pred,
 
 /// void block_store(T* ptr, size_t byte_offset,
 /// ValuesSimdViewT vals, simd_mask<1> pred, props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// This function stores a contiguous memory block to USM pointer \p ptr
 /// and byte-offset \p byte_offset with data specified by \p vals.
@@ -3255,7 +3255,7 @@ block_store(AccessorT acc, simd<T, N> vals, simd_mask<1> pred,
 
 /// void block_store(AccessorT acc, OffsetT byte_offset,
 ///                   ValuesSimdViewT vals, props = {});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// This function stores a contiguous memory block to
 /// accessor \p acc and \p byte_offset with data specified by \p vals.
@@ -3315,7 +3315,7 @@ block_store(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
 }
 
 /// void block_store(AccessorT acc, ValuesSimdViewT vals, props = {});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// This function stores a contiguous memory block to
 /// accessor \p acc with data specified by \p vals and implied offset=0.
@@ -3362,7 +3362,7 @@ block_store(AccessorT acc, ValuesSimdViewT vals, PropertyListT props = {}) {
 
 /// void block_store(AccessorT acc, OffsetT byte_offset,
 ///     ValuesSimdViewT vals, simd_mask<1> pred, props = {});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// This function stores a contiguous memory block to
 /// accessor \p acc and \p byte_offset with data specified by \p vals.
@@ -3411,7 +3411,7 @@ block_store(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
 
 /// void block_store(AccessorT acc, ValuesSimdViewT vals,
 ///                  simd_mask<1> pred, props = {});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// This function stores a contiguous memory block to
 /// accessor \p acc with data specified by \p vals and implied offset=0.
@@ -4907,7 +4907,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// 	         simd_mask<N / VS> mask,
 ///              PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the accessor \p acc and byte offsets \p byte_offsets. Access to any
@@ -4948,7 +4948,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// 	         PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the accessor \p acc and byte offsets \p byte_offsets.
@@ -4989,7 +4989,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 ///              ValuesSimdViewT vals, simd_mask<N / VS> mask,
 ///              PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the accessor \p acc and byte offsets \p byte_offsets. Access to any
@@ -5037,7 +5037,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 /// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets,
 ///              ValuesSimdViewT vals, PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the accessor \p acc and byte offsets \p byte_offsets.
@@ -5082,7 +5082,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 ///              ValuesSimdViewT vals, simd_mask<N / VS> mask,
 ///              PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the accessor \p acc and byte offsets \p byte_offsets. Access to any
@@ -5125,7 +5125,7 @@ scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
 /// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
 ///              ValuesSimdViewT vals, PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the accessor \p acc and byte offsets \p byte_offsets.
@@ -6049,7 +6049,7 @@ slm_gather(OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 ///             OffsetSimdViewT byte_offsets,
 ///             simd_mask<N / VS> mask, simd<T, N> pass_thru,
 ///             PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Loads ("gathers") elements of the type 'T' from Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets, and returns the loaded
@@ -6094,7 +6094,7 @@ slm_gather(OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 ///             OffsetSimdViewT byte_offsets,
 ///             simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
 ///             PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Loads ("gathers") elements of the type 'T' from Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets, and returns the loaded
@@ -6143,7 +6143,7 @@ slm_gather(OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 ///             OffsetSimdViewT byte_offsets,
 ///             simd_mask<N / VS> mask, PassThruSimdViewT pass_thru,
 ///             PropertyListT props = {});
-/// Variation of the API that allows to use \c simd_view without specifying \c T
+/// Variation of the API that allows using \c simd_view without specifying \c T
 /// and \c N template parameters.
 /// Loads ("gathers") elements of the type 'T' from Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets, and returns the loaded
@@ -6424,7 +6424,7 @@ slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// void slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
 ///	         simd_mask<N / VS> mask, PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets.
@@ -6456,7 +6456,7 @@ slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// void slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
 ///	         PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets.
@@ -6491,7 +6491,7 @@ slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
 ///              ValuesSimdViewT vals, simd_mask<N / VS> mask,
 ///              PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets.
@@ -6528,7 +6528,7 @@ slm_scatter(OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 /// void slm_scatter(OffsetSimdViewT byte_offsets,
 ///              ValuesSimdViewT vals, PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets.
@@ -6566,7 +6566,7 @@ slm_scatter(OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 ///              ValuesSimdViewT vals, simd_mask<N / VS> mask,
 ///              PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets.
@@ -6598,7 +6598,7 @@ slm_scatter(simd<OffsetT, N / VS> byte_offsets, ValuesSimdViewT vals,
 /// void slm_scatter(simd<OffsetT, N / VS> byte_offsets,
 ///              ValuesSimdViewT vals, PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets.
@@ -6933,7 +6933,7 @@ slm_block_load(uint32_t offset, simd_mask<1> pred, simd<T, N> pass_thru,
 /// simd<T, N> slm_block_load(uint32_t byte_offset,
 ///                           simd_mask<1> pred,
 ///                           PassThruSimdViewT pass_thru, props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Loads a contiguous memory block from SLM (Shared Local Memory) at the
 /// given \p byte_offset.
@@ -7167,7 +7167,7 @@ block_load(AccessorT lacc, uint32_t byte_offset, simd_mask<1> pred,
 /// simd<T, N> block_load(local_accessor lacc, uint32_t byte_offset,
 ///                       simd_mask<1> pred, PassThruSimdViewT pass_thru,
 ///                       props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Loads a contiguous memory block from SLM (Shared Local Memory) associated
 /// the local accessor \p lacc at the given \p byte_offset.
@@ -7253,7 +7253,7 @@ block_load(AccessorT lacc, simd_mask<1> pred, simd<T, N> pass_thru,
 /// simd<T, N> block_load(local_accessor lacc,
 ///                       simd_mask<1> pred, PassThruSimdViewT pass_thru,
 ///                       props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Loads a contiguous memory block from SLM (Shared Local Memory) associated
 /// with the local accessor \p lacc at zero offset.
@@ -7463,7 +7463,7 @@ slm_block_store(uint32_t byte_offset, simd<T, N> vals,
 
 /// void slm_block_store(uint32_t byte_offset, ValuesSimdViewT vals,
 ///                      simd_mask<1> pred, props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores the vector \p vals to a contiguous memory block in SLM (Shared Local
 /// Memory) at the given \p byte_offset. The parameter \p pred is the
@@ -7503,7 +7503,7 @@ slm_block_store(uint32_t byte_offset, ValuesSimdViewT vals, simd_mask<1> pred,
 
 /// void slm_block_store(uint32_t byte_offset, ValuesSimdViewT vals,
 ///                      props = {});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores the vector \p vals to a contiguous memory block in SLM
 /// (Shared Local Memory) at the given \p byte_offset. The parameter 'props'
@@ -7665,7 +7665,7 @@ block_store(AccessorT lacc, simd<T, N> vals, simd_mask<1> pred,
 
 /// void block_store(local_accessor lacc, uint32_t byte_offset,
 ///                  ValuesSimdViewT vals, props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores the vector \p vals to a contiguous memory block in SLM (Shared Local
 /// Memory) associated with the local accessor \p lacc at the given \p
@@ -7699,7 +7699,7 @@ block_store(AccessorT lacc, uint32_t byte_offset, ValuesSimdViewT vals,
 
 /// void block_store(local_accessor lacc, ValuesSimdViewT vals,
 ///                  props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores the vector \p vals to a contiguous memory block in SLM
 /// (Shared Local Memory) associated with the local accessor \p lacc. The
@@ -7731,7 +7731,7 @@ block_store(AccessorT lacc, ValuesSimdViewT vals, PropertyListT props = {}) {
 
 /// void block_store(local_accessor lacc, uint32_t byte_offset,
 ///                  ValuesSimdViewT vals, simd_mask<1> pred, props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores the vector \p vals to a contiguous memory block in SLM (Shared Local
 /// Memory) associated with the local accessor \p lacc at the given \p
@@ -7775,7 +7775,7 @@ block_store(AccessorT lacc, uint32_t byte_offset, ValuesSimdViewT vals,
 
 /// void block_store(local_accessor lacc, ValuesSimdViewT vals,
 ///                  simd_mask<1> pred, props={});
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores the vector \p vals to a contiguous memory block in SLM (Shared Local
 /// Memory) associated with the local accessor \p lacc. The parameter \p pred is
@@ -9541,6 +9541,58 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
 
 /// simd<T, N>
 /// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
+///               SrcSimdViewT src0, simd_mask<N> mask, props = {});
+///
+/// Atomically updates \c N memory locations represented by an accessor and
+/// a vector of offsets, and returns a vector of old values found at the
+/// memory locations before update. The update operation has 1 additional
+/// argument.
+/// A variation of \c atomic_update API with \c src0 represented as
+/// \c simd_view object and allows the use without
+/// specifying \c T and \c N template parameters.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
+/// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
+/// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
+/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
+/// atomic_op::fsub, \c atomic_op::store.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes. 64-bit
+/// offsets are supported only when stateless memory accesses are enforced, i.e.
+/// accessor based accesses are automatically converted to stateless accesses.
+/// @param src0 The additional argument.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used. Other properties are
+///   ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+
+template <
+    atomic_op Op, typename SrcSimdViewT, typename Toffset,
+    typename T = SrcSimdViewT::value_type::element_type, int N,
+    typename AccessorTy,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 1 &&
+        detail::is_simd_view_type_v<SrcSimdViewT> &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, SrcSimdViewT src0,
+              simd_mask<N> mask, PropertyListT props = {}) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+                "Size of src0 parameter must correspond to the size of "
+                "byte_offset parameter.");
+  return atomic_update<Op, T, N>(acc, byte_offset, src0.read(), mask, props);
+}
+
+/// simd<T, N>
+/// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
 ///               simd<T, N> src0, props = {});                  // (acc-au1-2)
 ///
 /// A variation of \c atomic_update API with no mask operand.
@@ -9551,18 +9603,19 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
 /// argument.
 ///
 /// @tparam Op The atomic operation - can be one of the following:
-/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
-/// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
-/// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
-/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
-/// atomic_op::fsub, \c atomic_op::store.
+/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
+/// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
+/// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
+/// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @tparam AccessorTy type of the SYCL accessor.
 /// @param acc The SYCL accessor.
-/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes. 64-bit
-/// offsets are supported only when stateless memory accesses are enforced, i.e.
-/// accessor based accesses are automatically converted to stateless accesses.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
+/// 64-bit offsets are supported only when stateless memory accesses are
+/// enforced, i.e. accessor based accesses are automatically converted to
+/// stateless accesses.
 /// @param src0 The additional argument.
 /// @param props The parameter 'props' specifies the optional compile-time
 ///   properties list. Only L1/L2 properties are used. Other properties are
@@ -9582,6 +9635,57 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
               PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(acc, byte_offset, src0, mask, props);
+}
+
+/// simd<T, N>
+/// atomic_update(AccessorT acc, SrcSimdViewT byte_offset,
+///               simd<T, N> src0, props = {});
+///
+/// A variation of \c atomic_update API with no mask operand and \c src0
+/// represented as \c simd_view object that allows the use without specifying
+/// \c T and \c N template parameters.
+///
+/// Atomically updates \c N memory locations represented by an accessor and
+/// a vector of offsets, and returns a vector of old values found at the
+/// memory locations before update. The update operation has 1 additional
+/// argument.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
+/// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
+/// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
+/// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
+/// 64-bit offsets are supported only when stateless memory accesses are
+/// enforced, i.e. accessor based accesses are automatically converted to
+/// stateless accesses.
+/// @param src0 The additional argument.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used. Other properties are
+///   ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <
+    atomic_op Op, typename SrcSimdViewT, typename Toffset,
+    typename T = SrcSimdViewT::value_type::element_type, int N,
+    typename AccessorTy,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 1 &&
+        detail::is_simd_view_type_v<SrcSimdViewT> &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, SrcSimdViewT src0,
+              PropertyListT props = {}) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+                "Size of src0 parameter must correspond to the size of "
+                "byte_offset parameter.");
+  return atomic_update<Op, T, N>(acc, byte_offset, src0.read(), props);
 }
 
 /// simd<T, N>
@@ -9634,6 +9738,59 @@ atomic_update(AccessorTy acc, OffsetSimdViewT byte_offset, simd<T, N> src0,
 /// simd<T, N>
 /// atomic_update(AccessorT acc,
 ///               OffsetSimdViewT byte_offset,
+///               SrcSimdViewT src0,
+///               simd_mask<N> mask, props = {});
+///
+/// A variation of \c atomic_update API with \c byte_offset and \c src0
+/// represented as \c simd_view object that allows the use without specifying
+/// \c T and \c N template parameters.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
+/// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
+/// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
+/// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param byte_offset The simd_view of 32-bit or 64-bit offsets in bytes.
+/// 64-bit offsets are supported only when stateless memory accesses are
+/// enforced, i.e. accessor based accesses are automatically converted to
+/// stateless accesses.
+/// @param src0 The additional argument.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used. Other properties are
+///   ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <
+    atomic_op Op, typename SrcSimdViewT, typename OffsetSimdViewT,
+    typename T = SrcSimdViewT::value_type::element_type,
+    int N = SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+    typename AccessorTy,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 1 &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_simd_view_type_v<OffsetSimdViewT> &&
+        detail::is_simd_view_type_v<SrcSimdViewT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, OffsetSimdViewT byte_offset, SrcSimdViewT src0,
+              simd_mask<N> mask, PropertyListT props = {}) {
+  static_assert(N == OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of src0 parameter must correspond to the size of "
+                "byte_offset parameter.");
+  return atomic_update<Op, T, N>(acc, byte_offset.read(), src0.read(), mask,
+                                 props);
+}
+
+/// simd<T, N>
+/// atomic_update(AccessorT acc,
+///               OffsetSimdViewT byte_offset,
 ///               simd<T, N> src0,
 ///               props = {});                                   // (acc-au1-4)
 ///
@@ -9675,6 +9832,56 @@ atomic_update(AccessorTy acc, OffsetSimdViewT byte_offset, simd<T, N> src0,
               PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(acc, byte_offset.read(), src0, mask, props);
+}
+
+/// simd<T, N>
+/// atomic_update(AccessorT acc,
+///               OffsetSimdViewT byte_offset,
+///               SrcSimdViewT src0,
+///               props = {});
+///
+/// A variation of \c atomic_update API with \c byte_offset and \c src0
+/// represented as \c simd_view object and no \c mask operand that allows the
+/// use without specifying \c T and \c N template parameters.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
+/// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
+/// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
+/// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param byte_offset The simd_view of 32-bit or 64-bit offsets in bytes.
+/// 64-bit offsets are supported only when stateless memory accesses are
+/// enforced, i.e. accessor based accesses are automatically converted to
+/// stateless accesses.
+/// @param src0 The additional argument.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used. Other properties are
+///   ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <
+    atomic_op Op, typename SrcSimdViewT, typename OffsetSimdViewT,
+    typename T = SrcSimdViewT::value_type::element_type,
+    int N = SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+    typename AccessorTy,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 1 &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_simd_view_type_v<OffsetSimdViewT> &&
+        detail::is_simd_view_type_v<SrcSimdViewT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, OffsetSimdViewT byte_offset, SrcSimdViewT src0,
+              PropertyListT props = {}) {
+  static_assert(N == OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+                "Size of src0 parameter must correspond to the size of "
+                "byte_offset parameter.");
+  return atomic_update<Op, T, N>(acc, byte_offset.read(), src0.read(), props);
 }
 
 /// A variation of \c atomic_update API with \c offset represented as
@@ -9834,6 +10041,161 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
 
 /// simd<T, N>
 /// atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
+///               SrcSimdViewT src0, simd<T, N> src1,
+//                simd_mask<N> mask,props = {});
+///
+/// Atomically updates \c N memory locations represented by an accessor and
+/// a vector of offsets and returns a vector of old
+/// values found at the memory locations before update. The update operation
+/// has 2 additional arguments.
+///
+/// A variation of \c atomic_update API with \c src0 represented as
+/// \c simd_view object and allows the use without specifying \c T and \c N
+/// template parameters.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes. 64-bit
+/// offsets are supported only when stateless memory accesses are enforced,
+/// i.e. accessor based accesses are automatically converted to stateless
+/// accesses.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <
+    atomic_op Op, typename SrcSimdViewT, typename T, int N, typename Toffset,
+    typename AccessorTy,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 && std::is_integral_v<Toffset> &&
+        detail::is_simd_view_type_v<SrcSimdViewT> &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, SrcSimdViewT src0,
+              simd<T, N> src1, simd_mask<N> mask, PropertyListT props = {}) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+                "Size of src0 parameter must correspond to the size of "
+                "byte_offset parameter.");
+  return atomic_update<Op, T, N>(acc, byte_offset, src0.read(), src1, mask,
+                                 props);
+}
+
+/// simd<T, N>
+/// atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
+///               simd<T, N> src0, SrcSimdViewT src1,
+//                simd_mask<N> mask,props = {});
+///
+/// Atomically updates \c N memory locations represented by an accessor and
+/// a vector of offsets and returns a vector of old
+/// values found at the memory locations before update. The update operation
+/// has 2 additional arguments.
+///
+/// A variation of \c atomic_update API with \c src1 represented as
+/// \c simd_view object and allows the use without specifying \c T and \c N
+/// template parameters.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes. 64-bit
+/// offsets are supported only when stateless memory accesses are enforced,
+/// i.e. accessor based accesses are automatically converted to stateless
+/// accesses.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <
+    atomic_op Op, typename SrcSimdViewT, typename T, int N, typename Toffset,
+    typename AccessorTy,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 && std::is_integral_v<Toffset> &&
+        detail::is_simd_view_type_v<SrcSimdViewT> &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
+              SrcSimdViewT src1, simd_mask<N> mask, PropertyListT props = {}) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+                "Size of src1 parameter must correspond to the size of "
+                "byte_offset parameter.");
+  return atomic_update<Op, T, N>(acc, byte_offset, src0, src1.read(), mask,
+                                 props);
+}
+
+/// simd<T, N>
+/// atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
+///               SrcSimdViewT src0, SrcSimdViewT src1,
+//                simd_mask<N> mask,props = {});
+///
+/// Atomically updates \c N memory locations represented by an accessor and
+/// a vector of offsets and returns a vector of old
+/// values found at the memory locations before update. The update operation
+/// has 2 additional arguments.
+///
+/// A variation of \c atomic_update API with \c src0 and \c src1 represented as
+/// \c simd_view object and allows the use without specifying \c T and \c N
+/// template parameters.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes. 64-bit
+/// offsets are supported only when stateless memory accesses are enforced,
+/// i.e. accessor based accesses are automatically converted to stateless
+/// accesses.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <
+    atomic_op Op, typename SrcSimdViewT,
+    typename T = SrcSimdViewT::value_type::element_type, int N,
+    typename Toffset, typename AccessorTy,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 && std::is_integral_v<Toffset> &&
+        detail::is_simd_view_type_v<SrcSimdViewT> &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, SrcSimdViewT src0,
+              SrcSimdViewT src1, simd_mask<N> mask, PropertyListT props = {}) {
+  static_assert(
+      N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+      "Size of src0 and src1 parameters must correspond to the size of "
+      "byte_offset parameter.");
+  return atomic_update<Op, T, N>(acc, byte_offset, src0.read(), src1.read(),
+                                 mask, props);
+}
+
+/// simd<T, N>
+/// atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
 ///               simd<T, N> src0, simd<T, N> src1,
 ///               props = {});                                   // (acc-au2-2)
 ///
@@ -9865,6 +10227,159 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
               simd<T, N> src1, PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(acc, byte_offset, src0, src1, mask, props);
+}
+
+/// simd<T, N>
+/// atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
+///               SrcSimdViewT src0, simd<T, N> src1,
+//                props = {});
+///
+/// Atomically updates \c N memory locations represented by an accessor and
+/// a vector of offsets and returns a vector of old
+/// values found at the memory locations before update. The update operation
+/// has 2 additional arguments.
+///
+/// A variation of \c atomic_update API with no \c mask operand and with \c src0
+/// represented as \c simd_view object and allows the use without specifying \c
+/// T and \c N template parameters.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes. 64-bit
+/// offsets are supported only when stateless memory accesses are enforced,
+/// i.e. accessor based accesses are automatically converted to stateless
+/// accesses.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <
+    atomic_op Op, typename SrcSimdViewT, typename T, int N, typename Toffset,
+    typename AccessorTy,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 && std::is_integral_v<Toffset> &&
+        detail::is_simd_view_type_v<SrcSimdViewT> &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, SrcSimdViewT src0,
+              simd<T, N> src1, PropertyListT props = {}) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+                "Size of src0 parameter must correspond to the size of "
+                "byte_offset parameter.");
+  return atomic_update<Op, T, N>(acc, byte_offset, src0.read(), src1, props);
+}
+
+/// simd<T, N>
+/// atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
+///               simd<T, N> src0, SrcSimdViewT src1,
+//                props = {});
+///
+/// Atomically updates \c N memory locations represented by an accessor and
+/// a vector of offsets and returns a vector of old
+/// values found at the memory locations before update. The update operation
+/// has 2 additional arguments.
+///
+/// A variation of \c atomic_update API with no \c mask operand with \c src1
+/// represented as \c simd_view object and allows the use without specifying \c
+/// T and \c N template parameters.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes. 64-bit
+/// offsets are supported only when stateless memory accesses are enforced,
+/// i.e. accessor based accesses are automatically converted to stateless
+/// accesses.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <
+    atomic_op Op, typename SrcSimdViewT, typename T, int N, typename Toffset,
+    typename AccessorTy,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 && std::is_integral_v<Toffset> &&
+        detail::is_simd_view_type_v<SrcSimdViewT> &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
+              SrcSimdViewT src1, PropertyListT props = {}) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+                "Size of src1 parameter must correspond to the size of "
+                "byte_offset parameter.");
+  return atomic_update<Op, T, N>(acc, byte_offset, src0, src1.read(), props);
+}
+
+/// simd<T, N>
+/// atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
+///               SrcSimdViewT src0, SrcSimdViewT src1,
+//                props = {});
+///
+/// Atomically updates \c N memory locations represented by an accessor and
+/// a vector of offsets and returns a vector of old
+/// values found at the memory locations before update. The update operation
+/// has 2 additional arguments.
+///
+/// A variation of \c atomic_update API with no \c mask operand with \c src0 and
+/// \c src1 represented as \c simd_view object and allows the use without
+/// specifying \c T and \c N template parameters.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes. 64-bit
+/// offsets are supported only when stateless memory accesses are enforced,
+/// i.e. accessor based accesses are automatically converted to stateless
+/// accesses.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <
+    atomic_op Op, typename SrcSimdViewT,
+    typename T = SrcSimdViewT::value_type::element_type, int N,
+    typename Toffset, typename AccessorTy,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 && std::is_integral_v<Toffset> &&
+        detail::is_simd_view_type_v<SrcSimdViewT> &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, SrcSimdViewT src0,
+              SrcSimdViewT src1, PropertyListT props = {}) {
+  static_assert(
+      N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+      "Size of src0 and src1 parameters must correspond to the size of "
+      "byte_offset parameter.");
+  return atomic_update<Op, T, N>(acc, byte_offset, src0.read(), src1.read(),
+                                 props);
 }
 
 /// simd<T, N>
@@ -9907,6 +10422,146 @@ atomic_update(AccessorTy acc, OffsetSimdViewT byte_offset, simd<T, N> src0,
 }
 
 /// simd<T, N>
+/// atomic_update(AccessorTy acc, OffsetSimdViewT
+///               byte_offset, SrcSimdViewT src0, simd<T, N> src1,
+///               simd_mask<N> mask, props = {});
+///
+/// A variation of \c atomic_update API with \c byte_offset and \c src0
+/// represented as \c simd_view object and allows the use without specifying \c
+/// T and \c N template parameters.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @tparam T The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @param acc The SYCL accessor.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <
+    atomic_op Op, typename SrcSimdViewT, typename OffsetSimdViewT, typename T,
+    int N, typename AccessorTy,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_simd_view_type_v<OffsetSimdViewT> &&
+        detail::is_simd_view_type_v<SrcSimdViewT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, OffsetSimdViewT byte_offset, SrcSimdViewT src0,
+              simd<T, N> src1, simd_mask<N> mask, PropertyListT props = {}) {
+  static_assert(
+      N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY() &&
+          N == OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+      "Size of src0 and byte_offset parameters must correspond to the size of "
+      "src1 parameter.");
+  return atomic_update<Op, T, N>(acc, byte_offset.read(), src0.read(), src1,
+                                 mask, props);
+}
+
+/// simd<T, N>
+/// atomic_update(AccessorTy acc, OffsetSimdViewT
+///               byte_offset, simd<T, N> src0, SrcSimdViewT src1,
+///               simd_mask<N> mask, props = {});
+///
+/// A variation of \c atomic_update API with \c byte_offset and \c src1
+/// represented as \c simd_view object and allows the use without specifying \c
+/// T and \c N template parameters.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @tparam T The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @param acc The SYCL accessor.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <
+    atomic_op Op, typename SrcSimdViewT, typename OffsetSimdViewT, typename T,
+    int N, typename AccessorTy,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_simd_view_type_v<OffsetSimdViewT> &&
+        detail::is_simd_view_type_v<SrcSimdViewT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, OffsetSimdViewT byte_offset, simd<T, N> src0,
+              SrcSimdViewT src1, simd_mask<N> mask, PropertyListT props = {}) {
+  static_assert(
+      N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY() &&
+          N == OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+      "Size of src1 and byte_offset parameters must correspond to the size of "
+      "src0 parameter.");
+  return atomic_update<Op, T, N>(acc, byte_offset.read(), src0, src1.read(),
+                                 mask, props);
+}
+
+/// simd<T, N>
+/// atomic_update(AccessorTy acc, OffsetSimdViewT
+///               byte_offset, SrcSimdViewT src0, SrcSimdViewT src1,
+///               simd_mask<N> mask, props = {});
+///
+/// A variation of \c atomic_update API with \c byte_offset, \c src0 and
+/// \c src1 represented as \c simd_view object and allows the use without
+/// specifying \c T and \c N template parameters.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @tparam T The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @param acc The SYCL accessor.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <
+    atomic_op Op, typename SrcSimdViewT, typename OffsetSimdViewT,
+    typename T = SrcSimdViewT::value_type::element_type, int N,
+    typename AccessorTy,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_simd_view_type_v<OffsetSimdViewT> &&
+        detail::is_simd_view_type_v<SrcSimdViewT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, OffsetSimdViewT byte_offset, SrcSimdViewT src0,
+              SrcSimdViewT src1, simd_mask<N> mask, PropertyListT props = {}) {
+  static_assert(N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY() &&
+                    N == OffsetSimdViewT::getSizeX() *
+                             OffsetSimdViewT::getSizeY(),
+                "Size of src0, src1 and byte_offset parameters must correspond "
+                "to the size of "
+                "mask parameter.");
+  return atomic_update<Op, T, N>(acc, byte_offset.read(), src0.read(),
+                                 src1.read(), mask, props);
+}
+
+/// simd<T, N>
 /// atomic_update(AccessorTy acc,
 ///               OffsetSimdViewT, byte_offset,
 ///               simd<T, N> src0, simd<T, N> src1, props = {}); // (acc-au2-4)
@@ -9942,6 +10597,138 @@ atomic_update(AccessorTy acc, OffsetSimdViewT byte_offset, simd<T, N> src0,
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(acc, byte_offset.read(), src0, src1, mask,
                                  props);
+}
+
+/// simd<T, N>
+/// atomic_update(AccessorTy acc, OffsetSimdViewT
+///               byte_offset, SrcSimdViewT src0, simd<T, N> src1,
+///               props = {});
+///
+/// A variation of \c atomic_update API with with no mask operand and \c
+/// byte_offset and \c src0 represented as \c simd_view object and allows the
+/// use without specifying \c T and \c N template parameters.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @tparam T The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @param acc The SYCL accessor.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <
+    atomic_op Op, typename SrcSimdViewT, typename OffsetSimdViewT, typename T,
+    int N, typename AccessorTy,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_simd_view_type_v<OffsetSimdViewT> &&
+        detail::is_simd_view_type_v<SrcSimdViewT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, OffsetSimdViewT byte_offset, SrcSimdViewT src0,
+              simd<T, N> src1, PropertyListT props = {}) {
+  static_assert(
+      N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY() &&
+          N == OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+      "Size of src0 and byte_offset parameters must correspond to the size of "
+      "src1 parameter.");
+  return atomic_update<Op, T, N>(acc, byte_offset.read(), src0.read(), src1,
+                                 props);
+}
+
+/// simd<T, N>
+/// atomic_update(AccessorTy acc, OffsetSimdViewT
+///               byte_offset, simd<T, N> src0, SrcSimdViewT src1,
+///               props = {});
+///
+/// A variation of \c atomic_update API with no mask operand and \c byte_offset
+/// and \c src1 represented as \c simd_view object and allows the use without
+/// specifying \c T and \c N template parameters.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @tparam T The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @param acc The SYCL accessor.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <
+    atomic_op Op, typename SrcSimdViewT, typename OffsetSimdViewT, typename T,
+    int N, typename AccessorTy,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_simd_view_type_v<OffsetSimdViewT> &&
+        detail::is_simd_view_type_v<SrcSimdViewT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, OffsetSimdViewT byte_offset, simd<T, N> src0,
+              SrcSimdViewT src1, PropertyListT props = {}) {
+  static_assert(
+      N == SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY() &&
+          N == OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+      "Size of src1 and byte_offset parameters must correspond to the size of "
+      "src0 parameter.");
+  return atomic_update<Op, T, N>(acc, byte_offset.read(), src0, src1.read(),
+                                 props);
+}
+
+/// simd<T, N>
+/// atomic_update(AccessorTy acc, OffsetSimdViewT
+///               byte_offset, SrcSimdViewT src0, SrcSimdViewT src1,
+///               props = {});
+///
+/// A variation of \c atomic_update API with no mask operand and \c byte_offset,
+/// \c src0 and \c src1 represented as \c simd_view object and allows the use
+/// without specifying \c T and \c N template parameters.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @tparam T The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @param acc The SYCL accessor.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used.
+//    Other properties are ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <
+    atomic_op Op, typename SrcSimdViewT, typename OffsetSimdViewT,
+    typename T = SrcSimdViewT::value_type::element_type,
+    int N = SrcSimdViewT::getSizeX() * SrcSimdViewT::getSizeY(),
+    typename AccessorTy,
+    typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 2 &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_simd_view_type_v<OffsetSimdViewT> &&
+        detail::is_simd_view_type_v<SrcSimdViewT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, OffsetSimdViewT byte_offset, SrcSimdViewT src0,
+              SrcSimdViewT src1, PropertyListT props = {}) {
+  static_assert(
+      N == OffsetSimdViewT::getSizeX() * OffsetSimdViewT::getSizeY(),
+      "Size of src0, src1 and byte_offset parameters must correspond.");
+  return atomic_update<Op, T, N>(acc, byte_offset.read(), src0.read(),
+                                 src1.read(), props);
 }
 
 /// A variation of \c atomic_update API with \c offsets represented as
@@ -10799,7 +11586,7 @@ scatter(AccessorT acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// 	         simd_mask<N / VS> mask,
 ///              PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the local accessor \p acc and byte offsets \p byte_offsets. Access to any
@@ -10840,7 +11627,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// 	         PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the local accessor \p acc and byte offsets \p byte_offsets.
@@ -10881,7 +11668,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 ///              ValuesSimdViewT vals, simd_mask<N / VS> mask,
 ///              PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the local accessor \p acc and byte offsets \p byte_offsets. Access to any
@@ -10929,7 +11716,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 /// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets,
 ///              ValuesSimdViewT vals, PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the local accessor \p acc and byte offsets \p byte_offsets.
@@ -10974,7 +11761,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, ValuesSimdViewT vals,
 ///              ValuesSimdViewT vals, simd_mask<N / VS> mask,
 ///              PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the local accessor \p acc and byte offsets \p byte_offsets. Access to any
@@ -11017,7 +11804,7 @@ scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
 /// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
 ///              ValuesSimdViewT vals, PropertyListT props = {});
 ///
-/// Variation of the API that allows to use \c simd_view without specifying
+/// Variation of the API that allows using \c simd_view without specifying
 /// \c T and \c N template parameters.
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the local accessor \p acc and byte offsets \p byte_offsets.
