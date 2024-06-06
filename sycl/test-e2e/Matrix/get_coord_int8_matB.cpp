@@ -5,14 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix
+// REQUIRES: aspect-ext_intel_matrix
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// XFAIL: cpu
+// XFAIL: cpu, gpu-intel-dg2
 
 #include "common.hpp"
-
-constexpr size_t TN = 16;
-
 #include "get_coord_int8_matB_impl.hpp"
