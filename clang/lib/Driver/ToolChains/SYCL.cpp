@@ -1409,9 +1409,8 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
             !Device.empty())
           // Triples match, but we are expecting a specific device to be set.
           continue;
-      } else
-        if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != Triple)
-          continue;
+      } else if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != Triple)
+        continue;
     } else if (!OptNoTriple)
       // Don't worry about any of the other args, we only want to pass what is
       // passed in -X<Opt>
@@ -1641,9 +1640,10 @@ void SYCLToolChain::TranslateBackendTargetArgs(
   TranslateGPUTargetOpt(Args, CmdArgs, options::OPT_fsycl_targets_EQ);
 }
 
-void SYCLToolChain::TranslateLinkerTargetArgs(
-    const llvm::Triple &Triple, const llvm::opt::ArgList &Args,
-    llvm::opt::ArgStringList &CmdArgs, StringRef Device) const {
+void SYCLToolChain::TranslateLinkerTargetArgs(const llvm::Triple &Triple,
+                                              const llvm::opt::ArgList &Args,
+                                              llvm::opt::ArgStringList &CmdArgs,
+                                              StringRef Device) const {
   // Do not process -Xsycl-target-linker for implied spir64/spirv64
   if (Triple.getSubArch() == llvm::Triple::NoSubArch &&
       Triple.isSPIROrSPIRV() && getDriver().isSYCLDefaultTripleImplied())

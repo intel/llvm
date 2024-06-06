@@ -10276,6 +10276,8 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
     // Now that the standard parts are added to the packager string, add any
     // additional supplemental options that cover compile and link opts that
     // are used for SYCL based offloading.
+    // Here, we add the compile and link options that are required by backend
+    // compilers and the clang-offload-wrapper in the case of SYCL offloading.
     if (OffloadAction->getOffloadingDeviceKind() == Action::OFK_SYCL) {
       ArgStringList BuildArgs;
       auto createArgString = [&](const char *Opt) {
@@ -10290,7 +10292,7 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
           AL += " ";
           AL += A;
         }
-        Parts.push_back(C.getArgs().MakeArgString(Twine(Opt) + AL));
+        Parts.emplace_back(C.getArgs().MakeArgString(Twine(Opt) + AL));
       };
       const ArgList &Args =
           C.getArgsForToolChain(nullptr, StringRef(), Action::OFK_SYCL);
