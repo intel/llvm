@@ -376,7 +376,6 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
       return TRUE; // When doing xpti tracing, we can't safely call shutdown.
                    // TODO: figure out what XPTI is doing that prevents release.
 #endif
-
     shutdown();
     shutdown2();
     break;

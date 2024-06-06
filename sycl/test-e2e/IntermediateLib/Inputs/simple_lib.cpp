@@ -8,7 +8,7 @@
 */
 
 #include "simple_lib.h"
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 const size_t BUFF_SIZE = 1;
 
