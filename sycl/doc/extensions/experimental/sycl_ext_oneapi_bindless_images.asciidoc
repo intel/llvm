@@ -1702,6 +1702,14 @@ memory resources handles can take different forms of structure and type
 depending on the API and operating system, so do external semaphore resource 
 handles.
 
+It is important to note, that the use of imported external semaphore objects
+within SYCL has the restriction in that imported external semaphores can only
+be used in conjuction with SYCL queues that have been constructed with the
+`property::queue::in_order` property. The semaphore synchronization mechanism
+is not supported for the default SYCL out-of-order queues. Use of the semaphore 
+synchronization mechanism with SYCL queues which were not constructed with the 
+`queue::in_order` property will result in undefined behaviour.
+
 External semaphore import is facilitated through the following proposed 
 descriptor struct.
 

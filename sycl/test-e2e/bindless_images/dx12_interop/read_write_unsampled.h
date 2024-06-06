@@ -20,6 +20,8 @@
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
+#include <sycl/properties/queue_properties.hpp>
+
 using Microsoft::WRL::ComPtr;
 namespace syclexp = sycl::ext::oneapi::experimental;
 
@@ -39,8 +41,11 @@ class DX12InteropTest {
 public:
   DX12InteropTest(uint32_t width)
       : m_width(width), m_sharedFenceValue(1),
-        m_syclImageDesc({m_width}, 1, sycl::image_channel_type::unsigned_int32),
-        m_syclDevice(m_syclQueue.get_device()) {}
+        m_syclImageDesc({m_width}, 1,
+                        sycl::image_channel_type::unsigned_int32) {
+    m_syclQueue =
+        sycl::queue{m_syclDevice, {sycl::property::queue::in_order{}}};
+  }
   ~DX12InteropTest() {}
 
   void initDX12Device();

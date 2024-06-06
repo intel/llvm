@@ -9,6 +9,7 @@
 
 #include "../bindless_helpers.hpp"
 #include "vulkan_common.hpp"
+#include <sycl/properties/queue_properties.hpp>
 
 #include <random>
 
@@ -166,7 +167,7 @@ void run_ndim_test(sycl::range<NDims> global_size,
   using VecType = sycl::vec<DType, NChannels>;
 
   sycl::device dev;
-  sycl::queue q(dev);
+  sycl::queue q{dev, {sycl::property::queue::in_order{}}};
   auto ctxt = q.get_context();
 
   // Image descriptor - mapped to Vulkan image layout
