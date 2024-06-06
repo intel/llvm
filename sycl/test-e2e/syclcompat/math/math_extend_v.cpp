@@ -619,7 +619,7 @@ void test(const sycl::stream &s, int *ec) {
     auto res = vadd4();
     if (res.first) {
       s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 13;
+      *ec = 12;
       return;
     }
     s << "vadd4 check passed!\n";
@@ -628,7 +628,7 @@ void test(const sycl::stream &s, int *ec) {
     auto res = vsub4();
     if (res.first) {
       s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 14;
+      *ec = 13;
       return;
     }
     s << "vsub4 check passed!\n";
@@ -637,7 +637,7 @@ void test(const sycl::stream &s, int *ec) {
     auto res = vadd4_add();
     if (res.first) {
       s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 15;
+      *ec = 14;
       return;
     }
     s << "vadd4_add check passed!\n";
@@ -646,7 +646,7 @@ void test(const sycl::stream &s, int *ec) {
     auto res = vsub4_add();
     if (res.first) {
       s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 16;
+      *ec = 15;
       return;
     }
     s << "vsub4_add check passed!\n";
@@ -655,7 +655,7 @@ void test(const sycl::stream &s, int *ec) {
     auto res = vabsdiff4();
     if (res.first) {
       s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 17;
+      *ec = 16;
       return;
     }
     s << "vabsdiff4 check passed!\n";
@@ -664,7 +664,7 @@ void test(const sycl::stream &s, int *ec) {
     auto res = vabsdiff4_add();
     if (res.first) {
       s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 18;
+      *ec = 17;
       return;
     }
     s << "vabsdiff4_add check passed!\n";
@@ -673,10 +673,19 @@ void test(const sycl::stream &s, int *ec) {
     auto res = vmin4();
     if (res.first) {
       s << res.first << " = " << res.second << " check failed!\n";
-      *ec = 19;
+      *ec = 18;
       return;
     }
     s << "vmin4 check passed!\n";
+  }
+  {
+    auto res = vmax4();
+    if (res.first) {
+      s << res.first << " = " << res.second << " check failed!\n";
+      *ec = 19;
+      return;
+    }
+    s << "vmax4 check passed!\n";
   }
   {
     auto res = vmin2_vmax2_add();
