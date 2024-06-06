@@ -18,7 +18,6 @@
 #include <sycl/memory_enums.hpp>               // for memory_scope
 #include <sycl/multi_ptr.hpp>                  // for multi_ptr
 #include <sycl/range.hpp>                      // for range
-#include <sycl/types.hpp>                      // for vec
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/ext/oneapi/functional.hpp>
@@ -33,7 +32,7 @@ inline namespace _V1 {
 template <typename T, access::address_space Space,
           access::decorated DecorateAddress>
 class multi_ptr;
-
+template <typename Type, int NumElements> class vec;
 namespace detail {
 
 namespace sub_group {

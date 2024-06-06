@@ -347,6 +347,16 @@ bool isModuleUsingAsan(const Module &M) {
   return MDVal->getString() == "asan";
 }
 
+// Gets work_group_num_dim information for function Func, conviniently 0 if
+// metadata is not present.
+uint32_t getKernelWorkGroupNumDim(const Function &Func) {
+  MDNode *MaxDimMD = Func.getMetadata("work_group_num_dim");
+  if (!MaxDimMD)
+    return 0;
+  assert(MaxDimMD->getNumOperands() == 1 && "Malformed node.");
+  return mdconst::extract<ConstantInt>(MaxDimMD->getOperand(0))->getZExtValue();
+}
+
 // Gets reqd_work_group_size information for function Func.
 std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
   MDNode *ReqdWorkGroupSizeMD = Func.getMetadata("reqd_work_group_size");
@@ -473,15 +483,23 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   SmallVector<std::string, 4> MetadataNames;
 
   if (GlobProps.EmitProgramMetadata) {
-    // Add reqd_work_group_size information to program metadata
+    // Add reqd_work_group_size and work_group_num_dim information to
+    // program metadata.
     for (const Function &Func : M.functions()) {
       std::vector<uint32_t> KernelReqdWorkGroupSize =
           getKernelReqdWorkGroupSizeMetadata(Func);
-      if (KernelReqdWorkGroupSize.empty())
-        continue;
-      MetadataNames.push_back(Func.getName().str() + "@reqd_work_group_size");
-      PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
-                  KernelReqdWorkGroupSize);
+      if (!KernelReqdWorkGroupSize.empty()) {
+        MetadataNames.push_back(Func.getName().str() + "@reqd_work_group_size");
+        PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
+                    KernelReqdWorkGroupSize);
+      }
+
+      uint32_t WorkGroupNumDim = getKernelWorkGroupNumDim(Func);
+      if (WorkGroupNumDim) {
+        MetadataNames.push_back(Func.getName().str() + "@work_group_num_dim");
+        PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
+                    WorkGroupNumDim);
+      }
     }
 
     // Add global_id_mapping information with mapping between device-global

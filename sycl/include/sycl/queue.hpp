@@ -2590,6 +2590,11 @@ public:
         CodeLoc);
   }
 
+  /// Provides a hint to the  runtime that previously issued commands to this
+  /// queue should begin executing once their prerequisites have been satisfied.
+  ///
+  void ext_oneapi_prod();
+
   /// Returns whether the queue is in order or OoO
   ///
   /// Equivalent to has_property<property::queue::in_order>()

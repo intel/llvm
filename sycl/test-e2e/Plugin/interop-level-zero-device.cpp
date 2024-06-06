@@ -2,7 +2,10 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <numeric>
+#include <sycl/backend.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 template <typename FuncTy>
 void for_each_descendent_dev(sycl::device dev, FuncTy F) {
