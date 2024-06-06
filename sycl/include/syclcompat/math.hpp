@@ -192,12 +192,11 @@ inline constexpr RetT extend_vbinary2(AT a, BT b, RetT c,
 
 template <typename RetT, bool NeedSat, bool NeedAdd, typename AT, typename BT,
           typename BinaryOperation>
-inline constexpr std::enable_if_t<
-    std::is_integral_v<AT> && std::is_integral_v<BT> &&
-        std::is_integral_v<RetT> && sizeof(AT) == 4 && sizeof(BT) == 4 &&
-        sizeof(RetT) == 4,
-    RetT>
-extend_vbinary4(AT a, BT b, RetT c, BinaryOperation binary_op) {
+inline constexpr RetT extend_vbinary4(AT a, BT b, RetT c,
+                                      BinaryOperation binary_op) {
+  static_assert(std::is_integral_v<AT> && std::is_integral_v<BT> &&
+                std::is_integral_v<RetT> && sizeof(AT) == 4 &&
+                sizeof(BT) == 4 && sizeof(RetT) == 4);
   sycl::vec<int16_t, 4> extend_a = extractAndExtend4(a);
   sycl::vec<int16_t, 4> extend_b = extractAndExtend4(b);
   sycl::vec<int16_t, 4> temp{
