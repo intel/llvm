@@ -364,8 +364,18 @@ urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t,
     return ReturnValue(hProgram->BuildStatus);
   case UR_PROGRAM_BUILD_INFO_OPTIONS:
     return ReturnValue(hProgram->BuildOptions.c_str());
-  case UR_PROGRAM_BUILD_INFO_LOG:
-    return ReturnValue(hProgram->InfoLog, hProgram->MAX_LOG_SIZE);
+  case UR_PROGRAM_BUILD_INFO_LOG: {
+    // We only know the maximum log length, which (we assume) HIP guarantees
+    // will include the null terminator, like CUDA does.
+    // To determine the actual length of the log, search for the first null
+    // terminator, not searching past the known maximum. If that does find one,
+    // it will return the length excluding the null terminator, so remember to
+    // include that.
+    auto LogLen =
+        std::min(hProgram->MAX_LOG_SIZE,
+                 strnlen(hProgram->InfoLog, hProgram->MAX_LOG_SIZE) + 1);
+    return ReturnValue(hProgram->InfoLog, LogLen);
+  }
   case UR_PROGRAM_BUILD_INFO_BINARY_TYPE:
     return ReturnValue(hProgram->BinaryType);
   default:

@@ -75,6 +75,8 @@ TEST_P(urProgramGetBuildInfoSingleTest, LogIsNullTerminated) {
 
     ASSERT_SUCCESS(urProgramGetBuildInfo(
         program, device, UR_PROGRAM_BUILD_INFO_LOG, 0, nullptr, &logSize));
+    // The size should always include the null terminator.
+    ASSERT_GT(logSize, 0);
     log.resize(logSize);
     log[logSize - 1] = 'x';
     ASSERT_SUCCESS(urProgramGetBuildInfo(program, device,
