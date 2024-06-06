@@ -489,10 +489,12 @@ sycl::event memset_async(pitched_data pitch, int val,
                          sycl::range<3> size,
                          sycl::queue q = get_default_queue()); // 3D matrix
 
+// Free
+void wait_and_free(void *ptr, sycl::queue q = get_default_queue());
 void free(void *ptr, sycl::queue q = get_default_queue());
-sycl::event free_async(const std::vector<void *> &pointers,
-                       const std::vector<sycl::event> &events,
-                       sycl::queue q = get_default_queue());
+sycl::event enqueue_free(const std::vector<void *> &pointers,
+                         const std::vector<sycl::event> &events,
+                         sycl::queue q = get_default_queue());
 
 // Queries pointer allocation type
 class pointer_attributes {
@@ -844,6 +846,15 @@ static inline sycl::context get_default_context();
 // Util function to get a CPU device.
 static inline device_ext &cpu_device();
 
+/// Filter out devices; only keep the device whose name contains one of the
+/// subname in \p dev_subnames.
+/// May break device id mapping and change current device. It's better to be
+/// called before other SYCLcompat or SYCL APIs.
+static inline void filter_device(const std::vector<std::string> &dev_subnames);
+
+/// Print all the devices (and their IDs) in the dev_mgr
+static inline void list_devices();
+
 // Util function to select a device by its id
 static inline unsigned int select_device(unsigned int id);
 
@@ -861,12 +872,18 @@ independently of what is set in this parameter.
 Devices are managed through a helper class, `device_ext`. The `device_ext` class
 associates a vector of `sycl::queues` with its `sycl::device`. The `device_ext`
 destructor waits on a set of `sycl::event` which can be added to via
-`add_event`. This is used, for example, to implement `syclcompat::free_async` to
+`add_event`. This is used, for example, to implement `syclcompat::enqueue_free` to
 schedule release of memory after a kernel or `mempcy`. SYCL device properties
 can be queried through `device_ext` as well.
 `device_ext` also provides the `has_capability_or_fail` member function, which
 throws a `sycl::exception` if the device does not have the specified list of
 `sycl::aspect`.
+
+Devices can be listed and filtered using `syclcompat::list_devices()` and
+`syclcompat::filter_device()`. If `SYCLCOMPAT_VERBOSE` is defined at compile
+time, the available SYCL devices are printed to the standard output both at
+initialization time, and when the device list is filtered using
+`syclcompat::filter_device`.
 
 Users can manage queues through the `syclcompat::set_default_queue(sycl::queue
 q)` free function, and the `device_ext` `set_saved_queue`, `set_default_queue`,
