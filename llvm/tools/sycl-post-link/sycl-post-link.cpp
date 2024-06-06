@@ -422,7 +422,9 @@ bool isImportedFunction(const Function &F) {
   if ( // Functions with definitions are not imported
       !F.isDeclaration() ||
       // LLVM intrinsic functions cannot be imported
-      F.isIntrinsic())
+      F.isIntrinsic() ||
+      // Only SYCL External functions can be imported
+      !llvm::sycl::utils::isSYCLExternalFunction(&F))
     return false;
 
   // StripDeadPrototypes is called during module splitting

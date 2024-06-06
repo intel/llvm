@@ -75,6 +75,9 @@ define weak_odr spir_kernel void @foo() #0 {
 }
 
 define weak_odr spir_kernel void @bar() #0 {
+  ;; Functions that are not SYCL External (i.e. they have no sycl-module-id) cannot be imported
+  call spir_func void @__itt_offload_wi_start_wrapper()
+
   call void @childB()
   call void @childC()
   call void @middle()
@@ -83,6 +86,9 @@ define weak_odr spir_kernel void @bar() #0 {
   ;; Functions with a demangled name prefixed with a '__' are not imported
   call void @_Z8__insidev()
   call void @_Z7outsidev()
+
+  ;; Functions that are not SYCL External (i.e. they have no sycl-module-id) cannot be imported
+  call spir_func void @__itt_offload_wi_finish_wrapper()
   ret void
 }
 
@@ -91,15 +97,19 @@ define void @middle() #0 {
   ret void
 }
 
-declare void @childA()
-declare void @childB()
-declare void @childC()
-declare void @childD()
+declare void @childA() #1
+declare void @childB() #1
+declare void @childC() #1
+declare void @childD() #1
 
-declare void @_Z7outsidev()
+declare void @_Z7outsidev() #1
 ;; Verify unused functions are not imported
-declare void @insideUnusedFunction()
-declare void @_Z8__insidev()
+declare void @insideUnusedFunction() #1
+declare void @_Z8__insidev() #1
 declare i8 @llvm.bitreverse.i8(i8)
 
+declare spir_func void @__itt_offload_wi_start_wrapper()
+declare spir_func void @__itt_offload_wi_finish_wrapper()
+
 attributes #0 = { "sycl-module-id"="a.cpp" }
+attributes #1 = { "sycl-module-id"="external.cpp" }
