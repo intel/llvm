@@ -94,7 +94,7 @@
 // Usage of -save-temps with a file in $CWD should create the intermediate
 // files _not_ in /tmp.
 //
-// RUN: touch dummy.c
-// RUN: %clang -save-temps dummy.c -### 2>&1  \
+// RUN: touch dummy.cc
+// RUN: %clang -save-temps dummy.cc -### 2>&1  \
 // RUN:   | FileCheck %s -check-prefix=CHECK-CWD-FILE
 // CHECK-CWD-FILE: clang{{.*}} "-o" "dummy.ii"
