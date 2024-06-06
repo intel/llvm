@@ -20,8 +20,7 @@
  *    math extend-vectorized helpers tests
  **************************************************************************/
 
-// ===----------- math_extend_vfunc[2/4].cpp ---------- -*- C++ -*
-// --------------===//
+// ===------------- math_extend_vfunc[2/4].cpp --------------*- C++ -*-----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
