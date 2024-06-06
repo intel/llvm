@@ -368,4 +368,4 @@ jobs:
 
         grep 'exit code: [^0]' -r logs >> $GITHUB_STEP_SUMMARY
 
-        exit $ret 
+        exit $ret
