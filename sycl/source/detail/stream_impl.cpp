@@ -94,12 +94,12 @@ void stream_impl::initStreamHost(QueueImplPtr Queue) {
 }
 
 void stream_impl::flush(const EventImplPtr &LeadEvent) {
+  assert(LeadEvent && "LeadEvent is expected to be not nullptr");
   // We don't want stream flushing to be blocking operation that is why submit a
   // host task to print stream buffer. It will fire up as soon as the kernel
   // finishes execution.
-  auto Q = detail::createSyclObjFromImpl<queue>(
-      sycl::detail::Scheduler::getInstance().getDefaultHostQueue());
-  event Event = Q.submit([&](handler &cgh) {
+  auto Q = LeadEvent->getSubmittedQueue();
+  event Event = detail::createSyclObjFromImpl<sycl::queue>(Q).submit([&](handler &cgh) {
     auto BufHostAcc =
         Buf_.get_access<access::mode::read_write, access::target::host_buffer>(
             cgh, range<1>(BufferSize_), id<1>(OffsetSize));
@@ -131,14 +131,10 @@ void stream_impl::flush(const EventImplPtr &LeadEvent) {
       fflush(stdout);
     });
   });
-  if (LeadEvent) {
-    LeadEvent->attachEventToComplete(detail::getSyclObjImpl(Event));
-    LeadEvent->getSubmittedQueue()->registerStreamServiceEvent(
-        detail::getSyclObjImpl(Event));
-  }
+  LeadEvent->attachEventToComplete(detail::getSyclObjImpl(Event));
+  Q->registerStreamServiceEvent(detail::getSyclObjImpl(Event));
 }
 
-void stream_impl::flush() { flush(nullptr); }
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

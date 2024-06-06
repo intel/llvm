@@ -716,13 +716,6 @@ bool device_impl::has(aspect Aspect) const {
                       PI_ERROR_INVALID_DEVICE);
 }
 
-std::shared_ptr<device_impl> device_impl::getHostDeviceImpl() {
-  static std::shared_ptr<device_impl> HostImpl =
-      std::make_shared<device_impl>();
-
-  return HostImpl;
-}
-
 bool device_impl::isAssertFailSupported() const {
   return MIsAssertFailSupported;
 }

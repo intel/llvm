@@ -49,10 +49,6 @@ public:
   // LeadEvent as well as in queue LeadEvent associated with.
   void flush(const EventImplPtr &LeadEvent);
 
-  // Enqueue task to copy stream buffer to the host and print the contents
-  // Remove during next ABI breaking window
-  void flush();
-
   size_t size() const noexcept;
 
   size_t get_work_item_buffer_size() const;
