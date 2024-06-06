@@ -100,7 +100,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/przemektmalon/unified-runtime.git")
-  # commit 193d2c5faa832872552356d82c47ff8b9c93a5af
+  # commit 416e23afe9336b02cab45e94cc2778cb317f2a9e
   # Author: Przemek Malon <przemek.malon@codeplay.com>
   # Date:   Tue Feb 20 10:04:48 2024 +0000
   #   [Bindless][Exp] Windows & DX12 interop. Semaphores can take values.
@@ -127,7 +127,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   #
   #     Semaphore operations (wait/signal) can now take values which set the
   #     semaphore state to the value passed by the user.
-  set(UNIFIED_RUNTIME_TAG 193d2c5faa832872552356d82c47ff8b9c93a5af)
+  set(UNIFIED_RUNTIME_TAG 416e23afe9336b02cab45e94cc2778cb317f2a9e)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
