@@ -279,7 +279,7 @@ details:
 params:
     - type: $x_program_handle_t
       name: hProgram
-      desc: "[in] handle for the Program to release"
+      desc: "[in][release] handle for the Program to release"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves a device function pointer to a user-defined function."

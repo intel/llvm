@@ -727,7 +727,7 @@ params:
       desc: "[in] handle of the device object"
     - type: $x_exp_interop_mem_handle_t
       name: hInteropMem
-      desc: "[in] handle of interop memory to be freed"
+      desc: "[in][release] handle of interop memory to be freed"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
