@@ -1570,7 +1570,7 @@ bool tools::isDependentLibAdded(const ArgList &Args, StringRef Lib) {
   DepLib += Lib;
   return llvm::any_of(
       Args.getAllArgValues(options::OPT_Xclang),
-      [&DepLib](StringRef Option) { return Option.equals(DepLib); });
+      [&DepLib](StringRef Option) { return Option == DepLib; });
 }
 
 const char *tools::SplitDebugName(const JobAction &JA, const ArgList &Args,

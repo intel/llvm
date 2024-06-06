@@ -114,7 +114,7 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
   // If fsycl-dump-device-code is passed, put the PTX files
   // into the path provided in fsycl-dump-device-code.
   if (T->getToolChain().getTriple().isNVPTX() &&
-      C.getDriver().isDumpDeviceCodeEnabled() && Ext.equals("s")) {
+      C.getDriver().isDumpDeviceCodeEnabled() && Ext == "s") {
     SmallString<128> OutputDir;
 
     Arg *DumpDeviceCodeArg =
@@ -236,11 +236,11 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
         if (Val == "all") {
           for (const auto &K : DeviceLibLinkInfo.keys())
             DeviceLibLinkInfo[K] =
-                true && (!NoDeviceLibs || K.equals("internal"));
+                true && (!NoDeviceLibs || K == "internal");
           break;
         }
         auto LinkInfoIter = DeviceLibLinkInfo.find(Val);
-        if (LinkInfoIter == DeviceLibLinkInfo.end() || Val.equals("internal")) {
+        if (LinkInfoIter == DeviceLibLinkInfo.end() || Val == "internal") {
           // TODO: Move the diagnostic to the SYCL section of
           // Driver::CreateOffloadingDeviceToolChains() to minimize code
           // duplication.
@@ -488,7 +488,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       for (const auto &L : SYCLDeviceLibList) {
         std::string DeviceLibName(L);
         DeviceLibName.append(LibPostfix);
-        if (StringRef(PureLibName).equals(DeviceLibName) ||
+        if (StringRef(PureLibName) == DeviceLibName ||
             (IsNVPTX && StringRef(PureLibName).starts_with(L)))
           return true;
       }
@@ -899,7 +899,7 @@ static bool hasPVCDevice(const ArgStringList &CmdArgs) {
         DeviceArg = SplitArg;
         break;
       }
-      if (SplitArg.equals("-device"))
+      if (SplitArg == "-device")
         DeviceSeen = true;
     }
     if (DeviceSeen)
@@ -1468,8 +1468,8 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     auto ProcessElement = [&](StringRef Ele) {
       auto [DeviceName, RegAllocMode] = Ele.split(':');
       StringRef BackendOptName = SYCL::gen::getGenGRFFlag(RegAllocMode);
-      bool IsDefault = RegAllocMode.equals("default");
-      if (RegAllocMode.empty() || !DeviceName.equals("pvc") ||
+      bool IsDefault = RegAllocMode == "default";
+      if (RegAllocMode.empty() || DeviceName != "pvc" ||
           (BackendOptName.empty() && !IsDefault)) {
         getDriver().Diag(diag::err_drv_unsupported_option_argument)
             << A->getSpelling() << Ele;
@@ -1517,7 +1517,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
   if (Args.hasArg(options::OPT_fintelfpga) && getDriver().IsFPGAHWMode() &&
       Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
     if (Arg *A = Args.getLastArg(options::OPT_ffp_model_EQ)) {
-      if (StringRef(A->getValue()).equals("fast"))
+      if (StringRef(A->getValue()) == "fast")
         BeArgs.push_back("-vpfp-relaxed");
     }
   }
