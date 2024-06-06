@@ -217,8 +217,6 @@ public:
                    const Token &Tok) {
     return ConcatInfo.AvoidConcat(PrevPrevTok, PrevTok, Tok);
   }
-  void WriteFooterInfo(StringRef Footer);
-  void WriteFooterContent(StringRef CodeFooter);
   void WriteLineInfo(unsigned LineNo, const char *Extra=nullptr,
                      unsigned ExtraLen=0);
   bool LineMarkersAreDisabled() const { return DisableLineMarkers; }
@@ -237,19 +235,6 @@ public:
   void EndModule(const Module *M);
 };
 }  // end anonymous namespace
-
-void PrintPPOutputPPCallbacks::WriteFooterInfo(StringRef Footer) {
-  *OS << '#' << ' ' << 1 << ' ' << '"';
-  *OS << "<built-in>" << '"' << ' ' << "1";
-  *OS << '\n';
-  *OS << Twine("# 1 ") + "\"" + Footer + "\"" + Twine(" 1");
-  *OS << '\n';
-}
-
-void PrintPPOutputPPCallbacks::WriteFooterContent(StringRef CodeFooter) {
-  *OS << CodeFooter;
-  *OS << '\n';
-}
 
 void PrintPPOutputPPCallbacks::WriteLineInfo(unsigned LineNo,
                                              const char *Extra,
@@ -834,27 +819,6 @@ FileID ComputeValidFooterFileID(SourceManager &SM, StringRef Footer) {
   return FooterFileID;
 }
 
-static void PrintIncludeFooter(Preprocessor &PP, SourceLocation Loc,
-                               std::string Footer,
-                               PrintPPOutputPPCallbacks *Callbacks) {
-  SourceManager &SourceMgr = PP.getSourceManager();
-  PresumedLoc UserLoc = SourceMgr.getPresumedLoc(Loc);
-  if (UserLoc.isInvalid())
-    return;
-  FileID FooterFileID = ComputeValidFooterFileID(SourceMgr, Footer);
-  StringRef FooterContentBuffer = SourceMgr.getBufferData(FooterFileID);
-  // print out the name of the integration footer.
-  Callbacks->WriteFooterInfo(Footer);
-  SmallVector<StringRef, 8> FooterContentArr;
-  FooterContentBuffer.split(FooterContentArr, '\r');
-  // print out the content of the integration footer.
-  for (auto &Val : FooterContentArr) {
-    Val.consume_front("\n");
-    if (!Val.empty())
-      Callbacks->WriteFooterContent(Val);
-  }
-}
-
 static void PrintPreprocessedTokens(Preprocessor &PP, Token &Tok,
                                     PrintPPOutputPPCallbacks *Callbacks) {
   bool DropComments = PP.getLangOpts().TraditionalCPP &&
@@ -975,6 +939,29 @@ static void PrintPreprocessedTokens(Preprocessor &PP, Token &Tok,
 
     PP.Lex(Tok);
   }
+}
+
+static void PrintIncludeFooter(Preprocessor &PP, SourceLocation Loc,
+                               const std::string &Footer,
+                               PrintPPOutputPPCallbacks *Callbacks) {
+  SourceManager &SourceMgr = PP.getSourceManager();
+  PresumedLoc UserLoc = SourceMgr.getPresumedLoc(Loc);
+  if (UserLoc.isInvalid())
+    return;
+  FileID FooterFileID = ComputeValidFooterFileID(SourceMgr, Footer);
+  PP.EnterSourceFile(FooterFileID, nullptr, Loc);
+  // Make sure the footer header file is included.
+  if (OptionalFileEntryRef FE = SourceMgr.getFileEntryRefForID(FooterFileID))
+    PP.markIncluded(*FE);
+  Token Tok;
+  PP.Lex(Tok);
+  while (!Tok.is(tok::eof) && Tok.getLocation().isFileID()) {
+    PresumedLoc PLoc = SourceMgr.getPresumedLoc(Tok.getLocation());
+    if (PLoc.isInvalid() || std::string(PLoc.getFilename()) != "<built-in>")
+      break;
+    PP.Lex(Tok);
+  }
+  PrintPreprocessedTokens(PP, Tok, Callbacks);
 }
 
 typedef std::pair<const IdentifierInfo *, MacroInfo *> id_macro_pair;
@@ -1098,6 +1085,7 @@ void clang::DoPrintPreprocessedInput(Preprocessor &PP, raw_ostream *OS,
     SourceLocation Loc = Tok.getLocation();
     PrintIncludeFooter(PP, Loc, PP.getPreprocessorOpts().IncludeFooter,
                        Callbacks);
+    PP.EnterSourceFile(PP.getSourceManager().getMainFileID(), nullptr, Loc);
   }
 
   // Remove the handlers we just added to leave the preprocessor in a sane state
