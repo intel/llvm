@@ -39,7 +39,7 @@
 #include <sycl/detail/memcpy.hpp>              // for memcpy
 #include <sycl/detail/type_list.hpp>           // for is_contained
 #include <sycl/detail/type_traits.hpp>         // for is_floating_point
-#include <sycl/detail/vector_arith.hpp>        // for vec_arith_common and vec_arith
+#include <sycl/detail/vector_arith.hpp> // for vec_arith_common and vec_arith
 #include <sycl/detail/vector_convert.hpp>      // for convertImpl
 #include <sycl/detail/vector_traits.hpp>       // for vector_alignment
 #include <sycl/half_type.hpp>                  // for StorageT, half, Vec16...
@@ -335,6 +335,26 @@ __SYCL_DEFINE_BF16_VECSTORAGE(4)
 __SYCL_DEFINE_BF16_VECSTORAGE(8)
 __SYCL_DEFINE_BF16_VECSTORAGE(16)
 #undef __SYCL_DEFINE_BF16_VECSTORAGE
+
+// FIXME: Remove this class after eliminating setValue() and getValue()
+// dependencies from math operations on sycl::vec.
+// This class is a friend of sycl::vec and exposes getValue/setValue
+// that are used by sycl::vec math operations.
+template <typename VecT> class VecGetterSetter {
+public:
+  template <typename DataT = typename VecT::element_type, int N = VecT::size()>
+  constexpr static void setValue(VecT &v, int Index, const DataT &Value) {
+    if (N == 1)
+      v.setValue(Index, Value, 0);
+    else
+      v.setValue(Index, Value, 0.f);
+  }
+
+  template <typename DataT = typename VecT::element_type, int N = VecT::size()>
+  static DataT getValue(VecT v, int Index) {
+    return (N == 1) ? v.getValue(Index, 0) : v.getValue(Index, 0.f);
+  }
+};
 } // namespace detail
 
 template <typename T> using vec_data = detail::vec_helper<T>;
@@ -1011,7 +1031,6 @@ private:
   }
 #endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
-public:
   // setValue and getValue should be able to operate on different underlying
   // types: enum cl_float#N , builtin vector float#N, builtin type float.
   // These versions are for N > 1.
@@ -1082,7 +1101,6 @@ public:
     return (NumElements == 1) ? getValue(Index, 0) : getValue(Index, 0.f);
   }
 
-private:
   // fields
   // Alignment is the same as size, to a maximum size of 64.
   // detail::vector_alignment will return that value.
@@ -1096,6 +1114,7 @@ private:
   // To allow arithmetic operators access private members of vec.
   template <typename T1, int T2> friend class detail::vec_arith;
   template <typename T1, int T2> friend class detail::vec_arith_common;
+  template <typename T1> friend class detail::VecGetterSetter;
 };
 ///////////////////////// class sycl::vec /////////////////////////
 

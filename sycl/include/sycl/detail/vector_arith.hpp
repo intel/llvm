@@ -25,6 +25,8 @@ template <typename DataT, int NumElem> class vec;
 
 namespace detail {
 
+template <typename VecT> class VecGetterSetter;
+
 // Element type for relational operator return value.
 template <typename DataT>
 using rel_t = typename std::conditional_t<
@@ -50,7 +52,10 @@ using rel_t = typename std::conditional_t<
     vec_t Ret;                                                                 \
     if constexpr (vec_t::IsUsingArrayOnDevice) {                               \
       for (size_t I = 0; I < NumElements; ++I) {                               \
-        Ret.setValue(I, (Lhs.getValue(I) BINOP Rhs.getValue(I)));              \
+        detail::VecGetterSetter<vec_t>::setValue(                              \
+            Ret, I,                                                            \
+            (detail::VecGetterSetter<vec_t>::getValue(Lhs, I)                  \
+                 BINOP detail::VecGetterSetter<vec_t>::getValue(Rhs, I)));     \
       }                                                                        \
     } else {                                                                   \
       Ret.m_Data = Lhs.m_Data BINOP Rhs.m_Data;                                \
@@ -68,9 +73,12 @@ using rel_t = typename std::conditional_t<
                                                         const vec_t & Rhs) {   \
     vec_t Ret{};                                                               \
     for (size_t I = 0; I < NumElements; ++I)                                   \
-      Ret.setValue(I,                                                          \
-                   (DataT)(vec_data<DataT>::get(Lhs.getValue(I))               \
-                               BINOP vec_data<DataT>::get(Rhs.getValue(I))));  \
+      detail::VecGetterSetter<vec_t>::setValue(                                \
+          Ret, I,                                                              \
+          (DataT)(vec_data<DataT>::get(                                        \
+              detail::VecGetterSetter<vec_t>::getValue(Lhs, I))                \
+                      BINOP vec_data<DataT>::get(                              \
+                          detail::VecGetterSetter<vec_t>::getValue(Rhs, I)))); \
     return Ret;                                                                \
   }
 #endif // __SYCL_DEVICE_ONLY__
@@ -130,7 +138,10 @@ protected:
     if constexpr (vec_t::IsUsingArrayOnDevice || vec_t::IsUsingArrayOnHost) {
       vec_t Ret{};
       for (size_t I = 0; I < NumElements; ++I) {
-        Ret.setValue(I, !vec_data<DataT>::get(Rhs.getValue(I)));
+        detail::VecGetterSetter<vec_t>::setValue(
+            Ret, I,
+            !vec_data<DataT>::get(
+                detail::VecGetterSetter<vec_t>::getValue(Rhs, I)));
       }
       return Ret.template as<vec<rel_t<DataT>, NumElements>>();
     } else {
@@ -144,8 +155,10 @@ protected:
     if constexpr (vec_t::IsUsingArrayOnDevice || vec_t::IsUsingArrayOnHost) {
       vec_t Ret{};
       for (size_t I = 0; I < NumElements; ++I)
-        Ret.setValue(
-            I, vec_data<DataT>::get(+vec_data<DataT>::get(Lhs.getValue(I))));
+        detail::VecGetterSetter<vec_t>::setValue(
+            Ret, I,
+            vec_data<DataT>::get(+vec_data<DataT>::get(
+                detail::VecGetterSetter<vec_t>::getValue(Lhs, I))));
       return Ret;
     } else {
       return vec_t{+Lhs.m_Data};
@@ -169,8 +182,10 @@ protected:
     } else if constexpr (vec_t::IsUsingArrayOnDevice ||
                          vec_t::IsUsingArrayOnHost) {
       for (size_t I = 0; I < NumElements; ++I)
-        Ret.setValue(
-            I, vec_data<DataT>::get(-vec_data<DataT>::get(Lhs.getValue(I))));
+        detail::VecGetterSetter<vec_t>::setValue(
+            Ret, I,
+            vec_data<DataT>::get(-vec_data<DataT>::get(
+                detail::VecGetterSetter<vec_t>::getValue(Lhs, I))));
       return Ret;
     } else {
       Ret = vec_t{-Lhs.m_Data};
@@ -222,8 +237,11 @@ protected:
       for (size_t I = 0; I < NumElements; ++I) {                               \
         /* We cannot use SetValue here as the operator is not a friend of*/    \
         /* Ret on Windows. */                                                  \
-        Ret[I] = static_cast<ocl_t>(-(vec_data<DataT>::get(                    \
-            Lhs.getValue(I)) RELLOGOP vec_data<DataT>::get(Rhs.getValue(I)))); \
+        Ret[I] = static_cast<ocl_t>(                                           \
+            -(vec_data<DataT>::get(                                            \
+                detail::VecGetterSetter<vec_t>::getValue(Lhs, I))              \
+                  RELLOGOP vec_data<DataT>::get(                               \
+                      detail::VecGetterSetter<vec_t>::getValue(Rhs, I))));     \
       }                                                                        \
     } else {                                                                   \
       Ret = vec<ocl_t, NumElements>(                                           \
@@ -243,8 +261,11 @@ protected:
     for (size_t I = 0; I < NumElements; ++I) {                                 \
       /* We cannot use SetValue here as the operator is not a friend of*/      \
       /* Ret on Windows. */                                                    \
-      Ret[I] = static_cast<ocl_t>(-(vec_data<DataT>::get(                      \
-          Lhs.getValue(I)) RELLOGOP vec_data<DataT>::get(Rhs.getValue(I))));   \
+      Ret[I] = static_cast<ocl_t>(                                             \
+          -(vec_data<DataT>::get(                                              \
+              detail::VecGetterSetter<vec_t>::getValue(Lhs, I))                \
+                RELLOGOP vec_data<DataT>::get(                                 \
+                    detail::VecGetterSetter<vec_t>::getValue(Rhs, I))));       \
     }                                                                          \
     return Ret;                                                                \
   }
@@ -366,7 +387,8 @@ protected:
     if constexpr (vec_t::IsUsingArrayOnDevice || vec_t::IsUsingArrayOnHost) {
       vec_t Ret{};
       for (size_t I = 0; I < NumElements; ++I) {
-        Ret.setValue(I, ~Rhs.getValue(I));
+        detail::VecGetterSetter<vec_t>::setValue(
+            Ret, I, ~detail::VecGetterSetter<vec_t>::getValue(Rhs, I));
       }
       return Ret;
     } else {
