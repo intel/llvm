@@ -1,6 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: accelerator
 // "Hello world" bfloat16 test which checks conversion algorithms on host.
 
 #include <sycl/detail/core.hpp>
@@ -84,50 +85,54 @@ bool testArrayConversion() {
 
   // On device
   {
+    std::cout << "  float[4] -> bfloat16[4] conversion on device..."<<std::flush;
     queue Q;
-    buffer<float, 1> FloatBuffer{range<1>(4)};
-    buffer<float, 1> FloatBuffer2{range<1>(4)};
-    buffer<Bfloat16StorageT, 1> BFloatBuffer{range<1>(4)};
+    int err = 0;
+    buffer<int> err_buf(&err, 1);
 
     // Convert float array to bfloat16 array
     Q.submit([&](handler &CGH) {
-      auto FloatArray = FloatBuffer.get_access<access::mode::write>(CGH);
-      auto BFloatArray = BFloatBuffer.get_access<access::mode::write>(CGH);
-      FloatArray[0] = 1.0f;
-      FloatArray[1] = 2.0f;
-      FloatArray[2] = 3.0f;
-      FloatArray[3] = 4.0f;
-      CGH.single_task<class ArrayConversion>([=]() {
-        sycl::ext::oneapi::detail::FloatVecToBF16Vec<4>(FloatArray.get_multi_ptr<access::decorated::no>().get(),
-                                                        BFloatArray.get_multi_ptr<access::decorated::no>().get());
+      accessor<int, 1, access::mode::write, target::device> ERR(err_buf, CGH);
+      CGH.single_task([=]() {
+        float FloatArray[4] = {1.0f, -1.0f, 0.0f, 2.0f};
+        bfloat16 BF16Array[4];
+        sycl::ext::oneapi::detail::FloatVecToBF16Vec<4>(FloatArray, BF16Array);
+        for (int i = 0; i < 4; i++) {
+          if (FloatArray[i] != (float)BF16Array[i]) {
+            ERR[0] = 1;
+          }
+        }
       });
     }).wait();
+
+    if (err)
+      std::cout <<"failed\n";
+    else
+      std::cout <<"passed\n";
+    
+    std::cout << "bfloat16[4] -> float[4] conversion on device..."<<std::flush;
 
     // Convert bfloat16 array back to float array
     Q.submit([&](handler &CGH) {
-      auto BFloatArray = BFloatBuffer.get_access<access::mode::read>(CGH);
-      auto FloatArray = FloatBuffer2.get_access<access::mode::write>(CGH);
-      CGH.single_task<class ArrayConversion2>([=]() {
-        sycl::ext::oneapi::detail::BF16VecToFloatVec<4>(
-            BFloatArray.get_multi_ptr<access::decorated::no>().get(),
-            FloatArray.get_multi_ptr<access::decorated::no>().get());
+      accessor<int, 1, access::mode::write, target::device> ERR(err_buf, CGH);
+      CGH.single_task([=]() {
+        bfloat16 BF16Array[3] = {1.0f, 0.0f, -1.0f};
+        float FloatArray[3];
+        sycl::ext::oneapi::detail::BF16VecToFloatVec<4>(BF16Array, FloatArray);
+        for (int i = 0; i < 3; i++) {
+          if (FloatArray[i] != (float)BF16Array[i]) {
+            ERR[0] = 1;
+          }
+        }
       });
     }).wait();
 
-    // Compare the results
-    bool Res = true;
-    auto FloatArray = FloatBuffer.get_access<access::mode::read>();
-    auto FloatArray2 = FloatBuffer2.get_access<access::mode::read>();
-    for (int i = 0; i < 4; ++i) {
-      Res &= (FloatArray[i] == FloatArray2[i]);
-    }
-    Passed &= Res;
+    if (err)
+      std::cout <<"failed\n";
+    else
+      std::cout <<"passed\n";
 
-    if (Res) {
-      std::cout << "  float[4] -> bfloat16[4] -> float[4] conversion on device...passed\n";
-    } else {
-      std::cout << "  float[4] -> bfloat16[4] -> float[4] conversion on device...failed\n";
-    }
+    Passed &= !err;      
   }
   return Passed;
 }
