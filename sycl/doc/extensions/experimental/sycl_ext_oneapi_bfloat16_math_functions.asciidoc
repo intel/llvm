@@ -103,9 +103,6 @@ then it supports the `bfloat16` math functions described in the next section.
 
 === Math Functions
 
-The following functions are only available for scalar `bfloat16`, `marray`,
-and `vec` of type `bfloat16`.
-
 ==== isnan
 
 ```c++
