@@ -202,10 +202,10 @@ LLVM"](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/blob/main/docs/SPIR
 document. This is done by using the following rules:
 
 1. Each `llvm.loop.no_depends` is translated into a new
-   `spirv.dependency_accesses` metadata attached to the same loop and with
+   `spirv.loop.dependency_accesses` metadata attached to the same loop and with
    the same arguments as the original metadata. The last argument will be 0.
 2. Each `llvm.loop.no_depends_safelen` is translated into a new
-   `spirv.dependency_accesses` metadata attached the same loop and with the same
+   `spirv.loop.dependency_accesses` metadata attached the same loop and with the same
    arguments as the original metadata. This will also have the safelen as the
    last argument.
 
@@ -219,19 +219,19 @@ document. This is done by using the following rules:
    `AccessGroupMaskINTEL` memory operand, along with the corresponding literals.
 3. Atomic operations with assigned access group should get decorated using the
    `AccessGroupINTEL` decoration along with the corresponding literals.
-4. For each instance of `spirv.dependency_accesses`, or
+4. For each instance of `spirv.loop.dependency_accesses`, or
    `llvm.loop.parallel_accesses` on a given loop, a new `OpAccessGroupListINTEL`
    should be created to aggregate the access groups defined in the corresponding
    metadata. Each `OpAccessGroupListINTEL` will list the corresponding literals.
-5. All `spirv.dependency_accesses` metadata on a single loop should get
+5. All `spirv.loop.dependency_accesses` metadata on a single loop should get
    translated to one `DependencyAccessesINTEL` loop control. The first operand
    of the loop control will be the total number of metadata instances (e.g., if
-   we combine two `spirv.dependency_accesses` into one `DependencyAccessesINTEL`
-   then this will be `2`). Then, for each metadata instance, a pair should be
-   constructed and provided to the loop control. This pair consists of the
-   result of OpAccessGroupListINTEL for that metadata instance, and the last
-   argument of that metadata instance, which is either 0 or an integer
-   corresponding to the safelen.
+   we combine two `spirv.loop.dependency_accesses` into one
+   `DependencyAccessesINTEL` then this will be `2`). Then, for each metadata
+   instance, a pair should be constructed and provided to the loop control. This
+   pair consists of the result of OpAccessGroupListINTEL for that metadata
+   instance, and the last argument of that metadata instance, which is either 0
+   or an integer corresponding to the safelen.
 6. All `llvm.loop.parallel_accesses` metadata on a single loop should get
    translated to one `ParallelAccessINTEL` loop control.  The first operand of
    the loop control will be the total number of metadata instances. Then, for
