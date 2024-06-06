@@ -10,9 +10,9 @@ SYCLcompat provides:
 
 * A high-level API that provides closer semantics to other programming models,
 simplifying line by line conversions.
-* Alternative submission APIs that encapusulate SYCL-specific "queue" and
+* Alternative submission APIs that encapsulate SYCL-specific "queue" and
 "event" APIs for easier reference.
-* Ability to gradually introduce other SYCL concepts as the user familiarises
+* Ability to gradually introduce other SYCL concepts as the user familiarizes
 themselves with the core SYCL API.
 * Clear distinction between core SYCL API and the compatibility interface via
 separate namespaces.
@@ -54,6 +54,9 @@ If available, the following extensions extend SYCLcompat functionality:
 
 * [sycl_ext_intel_device_info](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_intel_device_info.md) \[Optional\]
 * [sycl_ext_oneapi_bfloat16_math_functions](../extensions/experimental/sycl_ext_oneapi_bfloat16_math_functions.asciidoc) \[Optional\]
+* [sycl_ext_oneapi_max_work_group_query](
+  https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_max_work_group_query.md)
+  \[Optional\]
 
 ## Usage
 
@@ -291,6 +294,40 @@ syclcompat::launch<vectorAdd>(range, mem_size, d_A, d_B, d_C, n);
 This `launch` interface allows users to define an internal memory pool, or
 scratchpad, that can then be reinterpreted as the datatype required by the user
 within the kernel function.
+
+To launch a kernel with a specified sub-group size, overloads similar to above
+`launch` functions are present in the `syclcompat::experimental` namespace,
+which accept SubgroupSize as a template parameter and can be called as
+`launch<Function, SubgroupSize>`
+
+```cpp
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(sycl::nd_range<3> launch_range, std::size_t local_memory_size,
+       sycl::queue queue, Args... args);
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(sycl::nd_range<Dim> launch_range, std::size_t local_memory_size,
+       Args... args);
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(::syclcompat::dim3 grid_dim, ::syclcompat::dim3 block_dim,
+       std::size_t local_memory_size, Args... args);
+
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(sycl::nd_range<3> launch_range, sycl::queue queue, 
+       Args... args);
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(sycl::nd_range<Dim> launch_range,
+       Args... args);
+
+template <auto F, int SubgroupSize, typename... Args>
+sycl::event launch(::syclcompat::dim3 grid_dim, ::syclcompat::dim3 block_dim,
+       Args... args);
+
+```
 
 ### Utilities
 
@@ -721,6 +758,9 @@ public:
   uint32_t get_device_id() const;
   std::array<unsigned char, 16> get_uuid() const;
   unsigned int get_global_mem_cache_size() const;
+  int get_image1d_max() const;
+  auto get_image2d_max() const;
+  auto get_image3d_max() const;
 
   void set_name(const char *name);
   void set_max_work_item_sizes(const sycl::range<3> max_work_item_sizes);
@@ -739,6 +779,7 @@ public:
   void
   set_max_work_items_per_compute_unit(int max_work_items_per_compute_unit);
   void set_max_nd_range_size(int max_nd_range_size[]);
+  void set_max_nd_range_size(sycl::id<3> max_nd_range_size);
   void set_memory_clock_rate(unsigned int memory_clock_rate);
   void set_memory_bus_width(unsigned int memory_bus_width);
   void 
@@ -746,6 +787,12 @@ public:
   void set_device_id(uint32_t device_id);
   void set_uuid(std::array<unsigned char, 16> uuid);
   void set_global_mem_cache_size(unsigned int global_mem_cache_size);
+  void set_image1d_max(size_t image_max_buffer_size);
+  void set_image2d_max(size_t image_max_width_buffer_size,
+                       size_t image_max_height_buffer_size);
+  void set_image3d_max(size_t image_max_width_buffer_size,
+                       size_t image_max_height_buffer_size,
+                       size_t image_max_depth_buffer_size);
 };
 ```
 
@@ -807,8 +854,9 @@ The exposed functionalities include creation and destruction of queues, through
 `syclcompat::create_queue` and `syclcompat::destroy_queue`, and providing the
 ability to wait for submitted kernels using `syclcompat::wait` or
 `syclcompat::wait_and_throw`. Any async errors will be output to `stderr` if
-`print_on_async_exceptions`, and will have the default behavior otherwise, which calls `std:terminate`. Synchronous exceptions have to be managed
-by users independently of what is set in this parameter.
+`print_on_async_exceptions`, and will have the default behavior otherwise, which
+calls `std:terminate`. Synchronous exceptions have to be managed by users
+independently of what is set in this parameter.
 
 Devices are managed through a helper class, `device_ext`. The `device_ext` class
 associates a vector of `sycl::queues` with its `sycl::device`. The `device_ext`
@@ -820,16 +868,16 @@ can be queried through `device_ext` as well.
 throws a `sycl::exception` if the device does not have the specified list of
 `sycl::aspect`.
 
-Users can manage queues through the `syclcompat::set_default_queue(sycl::queue q)`
-free function, and the `device_ext` `set_saved_queue`, `set_default_queue`,
+Users can manage queues through the `syclcompat::set_default_queue(sycl::queue
+q)` free function, and the `device_ext` `set_saved_queue`, `set_default_queue`,
 and `get_saved_queue` member functions.
-`set_default_queue` is blocking, and
-overwrites the previous default queue with a user defined one, waiting for any
-submitted kernels to finish.
+`set_default_queue` is blocking, and overwrites the previous default queue with
+a user defined one, waiting for any submitted kernels to finish.
 The `device_ext` automatically sets the saved queue to the default queue.
 Therefore, it's important to note that if the previous default queue was the
 device's saved queue, setting a new default queue will update the reference of
-the saved queue to the new default one to keep the state of the class consistent.
+the saved queue to the new default one to keep the state of the class
+consistent.
 
 The class is exposed as follows:
 
@@ -876,6 +924,13 @@ class device_ext : public sycl::device {
 } // syclcompat
 ```
 
+Free functions are provided for querying major and minor version directly from a `sycl::device`, equivalent to the methods of `device_ext` described above:
+
+```c++
+static int get_major_version(const sycl::device &dev);
+static int get_minor_version(const sycl::device &dev);
+```
+
 #### Multiple devices
 
 SYCLcompat allows you to manage multiple devices through
@@ -913,7 +968,7 @@ atomic operations is defined as `syclcompat::type_identity_t<T>` to avoid
 template deduction issues when an operand of a different type (e.g. double
 literal) is supplied. Atomic addition and subtraction free functions make use of
 `syclcompat::arith_t<T>` to differentiate between numeric and pointer
-arithmetics.
+arithmetic.
 
 The available operations are exposed as follows:
 
@@ -1006,8 +1061,8 @@ template <sycl::access::address_space addressSpace =
           sycl::memory_scope memoryScope = sycl::memory_scope::device,
           typename T>
 T atomic_compare_exchange_strong(
-    sycl::multi_ptr<T, sycl::access::address_space::generic_space> addr,
-    T expected, T desired,
+    sycl::multi_ptr<T, addressSpace> addr, type_identity_t<T> expected,
+    type_identity_t<T> desired,
     sycl::memory_order success = sycl::memory_order::relaxed,
     sycl::memory_order fail = sycl::memory_order::relaxed);
 template <sycl::access::address_space addressSpace =
@@ -1109,20 +1164,28 @@ low 32-bits back into an integer.
 position of the first least significant set bit in an integer.
 `byte_level_permute` returns a byte-permutation of two input unsigned integers,
 with bytes selected according to a third unsigned integer argument.
+`match_all_over_sub_group` and `match_any_over_sub_group` allows comparison of
+values across work-items within a sub-group.
 
-There is also an `experimental::logical_group` class which allows
-`sycl::sub_group`s to be further subdivided into 'logical' groups to perform
-sub-group level operations. This class provides methods to get the local & group
-id and range. The functions `select_from_sub_group`, `shift_sub_group_left`,
+The functions `select_from_sub_group`, `shift_sub_group_left`,
 `shift_sub_group_right` and `permute_sub_group_by_xor` provide equivalent
 functionality to `sycl::select_from_group`, `sycl::shift_group_left`,
 `sycl::shift_group_right` and `sycl::permute_group_by_xor`, respectively.
 However, they provide an optional argument to represent the `logical_group` size
 (default 32).
 
+`int_as_queue_ptr` helps with translation of code by reinterpret casting an
+address to `sycl::queue *`, or returning a pointer to SYCLcompat's default queue
+if the address is <= 2.
+`args_selector` is a helper class for extracting arguments from an array of
+pointers to arguments or buffer of arguments to pass to a kernel function.
+The class allows users to exclude parameters such as `sycl::nd_item`.
 Experimental support for masked versions of `select_from_sub_group`,
-`shift_sub_group_left`, `shift_sub_group_right` and `permute_sub_group_by_xor` is
-provided only for SPIRV or cuda devices.
+`shift_sub_group_left`, `shift_sub_group_right` and `permute_sub_group_by_xor`
+is provided only for SPIRV or CUDA devices.
+
+As part of the compatibility utilities to facilitate machine translation to
+SYCL, two aliases for errors are provided, `err0` and `err1`.
 
 ```c++
 namespace syclcompat {
@@ -1135,6 +1198,14 @@ inline unsigned int byte_level_permute(unsigned int a, unsigned int b,
                                        unsigned int s);
 
 template <typename ValueT> inline int ffs(ValueT a);
+
+template <typename T>
+unsigned int match_any_over_sub_group(sycl::sub_group g, unsigned member_mask,
+                                      T value);
+
+template <typename T>
+unsigned int match_all_over_sub_group(sycl::sub_group g, unsigned member_mask,
+                                      T value, int *pred);
 
 template <typename ValueT>
 ValueT select_from_sub_group(sycl::sub_group g, ValueT x, int remote_local_id,
@@ -1171,6 +1242,35 @@ ValueT permute_sub_group_by_xor(unsigned int member_mask, sycql::sub_group g, Va
                                 unsigned int mask, int logical_sub_group_size = 32);
 
 } // namespace experimental
+
+inline sycl::queue *int_as_queue_ptr(uintptr_t x);
+
+using err0 = detail::generic_error_type<struct err0_tag, int>;
+using err1 = detail::generic_error_type<struct err1_tag, int>;
+
+template <int n_nondefault_params, int n_default_params, typename T>
+class args_selector;
+
+template <int n_nondefault_params, int n_default_params, typename R,
+          typename... Ts>
+class args_selector<n_nondefault_params, n_default_params, R(Ts...)> {
+public:
+  // Get the type of the ith argument of R(Ts...)
+  template <int i>
+  using arg_type =
+      std::tuple_element_t<account_for_default_params<i>(), std::tuple<Ts...>>;
+
+  // If kernel_params is nonnull, then args_selector will
+  // extract arguments from kernel_params. Otherwise, it
+  // will extract them from extra.
+  args_selector(void **kernel_params, void **extra)
+      : kernel_params(kernel_params), args_buffer(get_args_buffer(extra)) {}
+
+  // Get a reference to the i-th argument extracted from kernel_params
+  // or extra.
+  template <int i> arg_type<i> &get();
+};
+
 } // namespace syclcompat
 ```
 
@@ -1179,28 +1279,41 @@ work groups within a SYCL kernel. This is not officially supported by the SYCL
 spec, and so should be used with caution.
 `experimental::calculate_max_active_wg_per_xecore` and
 `experimental::calculate_max_potential_wg` are used for occupancy calculation.
+There is also an `experimental::logical_group` class which allows
+`sycl::sub_group`s to be further subdivided into 'logical' groups to perform
+sub-group level operations. This class provides methods to get the local & group
+id and range. `experimental::group_type`, `experimental::group` and
+`experimental::group_base` are helper classes to manage the supported group
+types.
 
 ```c++
 namespace syclcompat {
 namespace experimental {
 
+#if defined(__AMDGPU__) || defined(__NVPTX__)
+// seq_cst currently not working for AMD nor Nvidia
+constexpr sycl::memory_order barrier_memory_order = sycl::memory_order::acq_rel;
+#else
+constexpr sycl::memory_order barrier_memory_order = sycl::memory_order::seq_cst;
+#endif
+
 template <int dimensions = 3>
 inline void nd_range_barrier(
     sycl::nd_item<dimensions> item,
-    sycl::atomic_ref<unsigned int, sycl::memory_order::acq_rel,
+    sycl::atomic_ref<unsigned int, barrier_memory_order,
                      sycl::memory_scope::device,
                      sycl::access::address_space::global_space> &counter);
 
 template <>
 inline void nd_range_barrier(
     sycl::nd_item<1> item,
-    sycl::atomic_ref<unsigned int, sycl::memory_order::acq_rel,
+    sycl::atomic_ref<unsigned int, barrier_memory_order,
                      sycl::memory_scope::device,
                      sycl::access::address_space::global_space> &counter);
 
-class logical_group {
+template <int dimensions = 3> class logical_group {
 public:
-  logical_group(sycl::nd_item<3> item, sycl::group<3> parent_group,
+  logical_group(sycl::nd_item<dimensions> item, sycl::group<dimensions> parent_group,
                 uint32_t size);
   uint32_t get_local_linear_id() const;
   uint32_t get_group_linear_id() const;
@@ -1219,6 +1332,31 @@ inline int calculate_max_potential_wg(int *num_wg, int *wg_size,
                                       int slm_size = 0, int sg_size = 32,
                                       bool used_barrier = false,
                                       bool used_large_grf = false);
+// Supported group types
+enum class group_type { work_group, sub_group, logical_group, root_group };
+
+// The group_base will dispatch the function call to the specific interface
+// based on the group type.
+template <int dimensions = 3> class group_base {
+public:
+  group_base(sycl::nd_item<dimensions> item);
+
+  // Returns the number of work-items in the group.
+  size_t get_local_linear_range();
+  // Returns the index of the work-item within the group.
+  size_t get_local_linear_id();
+
+  // Wait for all the elements within the group to complete their execution
+  // before proceeding.
+  void barrier();
+};
+
+// Container type that can store supported group_types.
+template <typename GroupT, int dimensions = 3>
+class group : public group_base<dimensions> {
+public:
+  group(GroupT g, sycl::nd_item<dimensions> item);
+};
 
 } // namespace experimental
 } // namespace syclcompat
@@ -1233,9 +1371,9 @@ kernel names during machine translation.
 SYCL spec supported by the current SYCL compiler.
 
 The `SYCLCOMPAT_CHECK_ERROR` macro encapsulates an error-handling mechanism for
-expressions that might throw `sycl::exception` and `std::runtime_error`.
-If no exceptions are thrown, it returns `syclcompat::error_code::SUCCESS`.
-If a `sycl::exception` is caught, it returns `syclcompat::error_code::BACKEND_ERROR`.
+expressions that might throw `sycl::exception` and `std::runtime_error`. If no
+exceptions are thrown, it returns `syclcompat::error_code::SUCCESS`. If a
+`sycl::exception` is caught, it returns `syclcompat::error_code::BACKEND_ERROR`.
 If a `std::runtime_error` exception is caught,
 `syclcompat::error_code::DEFAULT_ERROR` is returned instead. For both cases, it
 prints the error message to the standard error stream.
@@ -1268,6 +1406,7 @@ template <int Arg> class syclcompat_kernel_scalar;
 #define SYCLCOMPAT_EXPORT
 #endif
 
+
 namespace syclcompat {
 enum error_code { SUCCESS = 0, BACKEND_ERROR = 1, DEFAULT_ERROR = 999 };
 }
@@ -1287,6 +1426,15 @@ to get the kernel information. Overloads are provided to allow either returning
 a `kernel_function_info` object, or to return by pointer argument. In the
 current version, `kernel_function_info` describes only maximum work-group size.
 
+SYCLcompat also provides the `kernel_library` and `kernel_function` classes.
+`kernel_library` facilitates the loading and unloading of kernel libraries.
+`kernel_function` represents a specific kernel function within a loaded library
+and can be invoked with specified arguments.
+`load_kernel_library`, `load_kernel_library_mem`, and `unload_kernel_library`
+are free functions to handle the loading and unloading of `kernel_library`
+objects. `get_kernel_function`, and `invoke_kernel_function` offer a similar
+functionality for `kernel_function` objects.
+
 ``` c++
 namespace syclcompat {
 
@@ -1297,10 +1445,49 @@ struct kernel_function_info {
 static void get_kernel_function_info(kernel_function_info *kernel_info,
                                      const void *function);
 static kernel_function_info get_kernel_function_info(const void *function);
+
+class kernel_library {
+  constexpr kernel_library();
+  constexpr kernel_library(void *ptr);
+  operator void *() const;
+};
+
+static kernel_library load_kernel_library(const std::string &name);
+static kernel_library load_kernel_library_mem(char const *const image);
+static void unload_kernel_library(const kernel_library &library);
+
+class kernel_function {
+    constexpr kernel_function();
+    constexpr kernel_function(kernel_functor ptr);
+    operator void *() const;
+    void operator()(sycl::queue &q, const sycl::nd_range<3> &range,
+                    unsigned int local_mem_size, void **args, void **extra);
+};
+
+static kernel_function get_kernel_function(kernel_library &library,
+                                           const std::string &name);
+static void invoke_kernel_function(kernel_function &function,
+                                   sycl::queue &queue,
+                                   sycl::range<3> group_range,
+                                   sycl::range<3> local_range,
+                                   unsigned int local_mem_size,
+                                   void **kernel_params, void **extra);
+
 } // namespace syclcompat
 ```
 
 ### Math Functions
+
+The `funnelshift_*` APIs perform a concatenate-shift operation on two 32-bit
+values, and return a 32-bit result. The two unsigned integer arguments (`low`
+and `high`) are concatenated to a 64-bit value which is then shifted left or
+right by `shift` bits. The functions then return either the least- or
+most-significant 32 bits. The `_l*` variants shift *left* and return the *most*
+significant 32 bits, while the `_r*` variants shift *right* and return the
+*least* significant 32 bits. The `_l`/`_r` APIs differ from the `_lc`/`_rc` APIs
+in how they clamp the `shift` argument: `funnelshift_l` and `funnelshift_r`
+shift the result by `shift & 31` bits, whereas `funnelshift_lc` and
+`funnelshift_rc` shift the result by `min(shift, 32)` bits.
 
 `syclcompat::fast_length` provides a wrapper to SYCL's
 `fast_length(sycl::vec<float,N>)` that accepts arguments for a C++ array and a
@@ -1321,10 +1508,22 @@ as a vector of elements, and returning `0` for vector components for which
 `vectorized_sum_abs_diff` calculates the absolute difference for two values
 without modulo overflow for vector types.
 
-The functions `cmul`,`cdiv`,`cabs`, `cmul_add`, and `conj` define complex math operations
-which accept `sycl::vec<T,2>` arguments representing complex values.
+The functions `cmul`,`cdiv`,`cabs`, `cmul_add`, and `conj` define complex math
+operations which accept `sycl::vec<T,2>` arguments representing complex values.
 
 ```cpp
+inline unsigned int funnelshift_l(unsigned int low, unsigned int high,
+                                  unsigned int shift); 
+
+inline unsigned int funnelshift_lc(unsigned int low, unsigned int high,
+                                   unsigned int shift); 
+
+inline unsigned int funnelshift_r(unsigned int low, unsigned int high,
+                                  unsigned int shift);
+
+inline unsigned int funnelshift_rc(unsigned int low, unsigned int high,
+                                   unsigned int shift);
+
 inline float fast_length(const float *a, int len);
 
 template <typename ValueT>

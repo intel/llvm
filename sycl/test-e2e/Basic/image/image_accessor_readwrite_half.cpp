@@ -18,7 +18,9 @@
 #include <cassert>
 #include <iomanip>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/accessor_image.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/image.hpp>
 
 namespace s = sycl;
 

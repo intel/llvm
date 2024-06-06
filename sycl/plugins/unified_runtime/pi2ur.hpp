@@ -1270,6 +1270,24 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
         PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT,
         UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM,
+        UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D,
+        UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM,
+        UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D,
+        UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM,
+        UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D,
+        UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
         PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT,
         UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(
@@ -1281,6 +1299,9 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     PI_TO_UR_MAP_DEVICE_INFO(
         PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT,
         UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT,
+        UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT,
                              UR_DEVICE_INFO_ESIMD_SUPPORT)
     PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_COMPONENT_DEVICES,
@@ -2929,7 +2950,7 @@ static void pi2urImageDesc(const pi_image_format *ImageFormat,
                                      UR_IMAGE_CHANNEL_ORDER_SRGBA)
 #undef PI_TO_UR_MAP_IMAGE_CHANNEL_ORDER
   default: {
-    die("piMemImageCreate: unsuppported image_channel_data_type.");
+    die("piMemImageCreate: unsuppported image_channel_order.");
   }
   }
 
@@ -4344,6 +4365,23 @@ inline pi_result piEventRelease(pi_event Event) {
   return PI_SUCCESS;
 }
 
+inline pi_result piEnqueueTimestampRecordingExp(pi_queue Queue,
+                                                pi_bool Blocking,
+                                                pi_uint32 NumEventsInWaitList,
+                                                const pi_event *EventWaitList,
+                                                pi_event *Event) {
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  const ur_event_handle_t *UrEventWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventWaitList);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(Event);
+
+  HANDLE_ERRORS(urEnqueueTimestampRecordingExp(
+      UrQueue, Blocking, NumEventsInWaitList, UrEventWaitList, UREvent));
+
+  return PI_SUCCESS;
+}
+
 // Events
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -4496,6 +4534,8 @@ piextCommandBufferCreate(pi_context Context, pi_device Device,
   ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
   ur_exp_command_buffer_desc_t UrDesc;
   UrDesc.stype = UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC;
+  UrDesc.isInOrder = ur_bool_t(Desc->is_in_order);
+  UrDesc.enableProfiling = ur_bool_t(Desc->enable_profiling);
   UrDesc.isUpdatable = Desc->is_updatable;
   ur_exp_command_buffer_handle_t *UrCommandBuffer =
       reinterpret_cast<ur_exp_command_buffer_handle_t *>(RetCommandBuffer);
@@ -4984,13 +5024,14 @@ inline pi_result piextMemImageAllocate(pi_context Context, pi_device Device,
   return PI_SUCCESS;
 }
 
-inline pi_result piextMemUnsampledImageCreate(
-    pi_context Context, pi_device Device, pi_image_mem_handle ImgMem,
-    pi_image_format *ImageFormat, pi_image_desc *ImageDesc, pi_mem *RetMem,
-    pi_image_handle *RetHandle) {
+inline pi_result piextMemUnsampledImageCreate(pi_context Context,
+                                              pi_device Device,
+                                              pi_image_mem_handle ImgMem,
+                                              pi_image_format *ImageFormat,
+                                              pi_image_desc *ImageDesc,
+                                              pi_image_handle *RetHandle) {
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
-  PI_ASSERT(RetMem, PI_ERROR_INVALID_MEM_OBJECT);
 
   auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
@@ -5000,13 +5041,11 @@ inline pi_result piextMemUnsampledImageCreate(
   ur_image_desc_t UrDesc{};
   pi2urImageDesc(ImageFormat, ImageDesc, &UrFormat, &UrDesc);
 
-  ur_mem_handle_t *UrRetMem = reinterpret_cast<ur_mem_handle_t *>(RetMem);
   ur_exp_image_handle_t *UrRetHandle =
       reinterpret_cast<ur_exp_image_handle_t *>(RetHandle);
 
   HANDLE_ERRORS(urBindlessImagesUnsampledImageCreateExp(
-      UrContext, UrDevice, UrImgMem, &UrFormat, &UrDesc, UrRetMem,
-      UrRetHandle));
+      UrContext, UrDevice, UrImgMem, &UrFormat, &UrDesc, UrRetHandle));
 
   return PI_SUCCESS;
 }
@@ -5014,10 +5053,9 @@ inline pi_result piextMemUnsampledImageCreate(
 inline pi_result piextMemSampledImageCreate(
     pi_context Context, pi_device Device, pi_image_mem_handle ImgMem,
     pi_image_format *ImageFormat, pi_image_desc *ImageDesc, pi_sampler Sampler,
-    pi_mem *RetMem, pi_image_handle *RetHandle) {
+    pi_image_handle *RetHandle) {
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
-  PI_ASSERT(RetMem, PI_ERROR_INVALID_MEM_OBJECT);
   PI_ASSERT(Sampler, PI_ERROR_INVALID_SAMPLER);
 
   auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
@@ -5029,12 +5067,11 @@ inline pi_result piextMemSampledImageCreate(
   pi2urImageDesc(ImageFormat, ImageDesc, &UrFormat, &UrDesc);
 
   auto UrSampler = reinterpret_cast<ur_sampler_handle_t>(Sampler);
-  ur_mem_handle_t *UrRetMem = reinterpret_cast<ur_mem_handle_t *>(RetMem);
   ur_exp_image_handle_t *UrRetHandle =
       reinterpret_cast<ur_exp_image_handle_t *>(RetHandle);
 
   HANDLE_ERRORS(urBindlessImagesSampledImageCreateExp(
-      UrContext, UrDevice, UrImgMem, &UrFormat, &UrDesc, UrSampler, UrRetMem,
+      UrContext, UrDevice, UrImgMem, &UrFormat, &UrDesc, UrSampler,
       UrRetHandle));
 
   return PI_SUCCESS;

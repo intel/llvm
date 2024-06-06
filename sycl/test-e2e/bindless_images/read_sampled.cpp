@@ -18,6 +18,7 @@
 #include <cassert>
 #include <iostream>
 #include <random>
+#include <sycl/accessor_image.hpp>
 #include <sycl/detail/core.hpp>
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
@@ -755,7 +756,7 @@ runNDimTestDevice(sycl::queue &q, sycl::range<NDims> globalSize,
           sycl::nd_range<NDims>{globalSize, localSize},
           [=](sycl::nd_item<NDims> it) {
             sycl::id<NDims> accessorCoords;
-            sycl::float2 coords;
+            sycl::vec<float, NDims> coords;
 
             if (isNorm) {
               for (int i = 0; i < NDims; i++) {
@@ -787,8 +788,7 @@ runNDimTestDevice(sycl::queue &q, sycl::range<NDims> globalSize,
 }
 
 template <int NDims, typename DType, int NChannels,
-          sycl::image_channel_type CType, sycl::image_channel_order COrder,
-          typename KernelName>
+          sycl::image_channel_type CType, typename KernelName>
 static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
                     float offset, syclexp::bindless_image_sampler &samp,
                     unsigned int seed = 0) {
@@ -817,10 +817,20 @@ static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   }
 
   try {
-
-    syclexp::image_descriptor desc(dims, COrder, CType);
+    // Check default constructor for image_descriptor
+    syclexp::image_descriptor desc;
+    desc = syclexp::image_descriptor(dims, NChannels, CType);
 
     syclexp::image_mem imgMem(desc, q);
+
+    // Check that image_mem_handle can be constructed from raw_handle_type
+    syclexp::image_mem_handle img_mem_handle_copy{
+        static_cast<syclexp::image_mem_handle::raw_handle_type>(
+            imgMem.get_handle().raw_handle)};
+    if (img_mem_handle_copy.raw_handle != imgMem.get_handle().raw_handle) {
+      std::cerr << "Failed to copy raw_handle_type" << std::endl;
+      return false;
+    }
 
     auto img_input = syclexp::create_image(imgMem, samp, desc, q);
 
@@ -994,106 +1004,96 @@ bool runTests(sycl::range<1> dims, sycl::range<1> localSize, float offset,
       util::printTestName<NDims>("Running 1D short", dims, localSize);
       failed |=
           util::runTest<NDims, short, 1, sycl::image_channel_type::signed_int16,
-                        sycl::image_channel_order::r, class short_1d>(
-              dims, localSize, offset, samp, seed);
+                        class short_1d>(dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 1D short2", dims, localSize);
       failed |=
           util::runTest<NDims, short, 2, sycl::image_channel_type::signed_int16,
-                        sycl::image_channel_order::rg, class short2_1d>(
-              dims, localSize, offset, samp, seed);
+                        class short2_1d>(dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 1D short4", dims, localSize);
       failed |=
           util::runTest<NDims, short, 4, sycl::image_channel_type::signed_int16,
-                        sycl::image_channel_order::rgba, class short4_1d>(
-              dims, localSize, offset, samp, seed);
+                        class short4_1d>(dims, localSize, offset, samp, seed);
 
       util::printTestName<NDims>("Running 1D unsigned short", dims, localSize);
-      failed |= util::runTest<NDims, unsigned short, 1,
-                              sycl::image_channel_type::unsigned_int16,
-                              sycl::image_channel_order::r, class ushort_1d>(
-          dims, localSize, offset, samp, seed);
+      failed |=
+          util::runTest<NDims, unsigned short, 1,
+                        sycl::image_channel_type::unsigned_int16,
+                        class ushort_1d>(dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 1D unsigned short2", dims, localSize);
-      failed |= util::runTest<NDims, unsigned short, 2,
-                              sycl::image_channel_type::unsigned_int16,
-                              sycl::image_channel_order::rg, class ushort2_1d>(
-          dims, localSize, offset, samp, seed);
+      failed |=
+          util::runTest<NDims, unsigned short, 2,
+                        sycl::image_channel_type::unsigned_int16,
+                        class ushort2_1d>(dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 1D unsigned short4", dims, localSize);
       failed |=
           util::runTest<NDims, unsigned short, 4,
                         sycl::image_channel_type::unsigned_int16,
-                        sycl::image_channel_order::rgba, class ushort4_1d>(
-              dims, localSize, offset, samp, seed);
+                        class ushort4_1d>(dims, localSize, offset, samp, seed);
 
       util::printTestName<NDims>("Running 1D char", dims, localSize);
-      failed |= util::runTest<NDims, signed char, 1,
-                              sycl::image_channel_type::signed_int8,
-                              sycl::image_channel_order::r, class char_1d>(
-          dims, localSize, offset, samp, seed);
+      failed |=
+          util::runTest<NDims, signed char, 1,
+                        sycl::image_channel_type::signed_int8, class char_1d>(
+              dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 1D char2", dims, localSize);
-      failed |= util::runTest<NDims, signed char, 2,
-                              sycl::image_channel_type::signed_int8,
-                              sycl::image_channel_order::rg, class char2_1d>(
-          dims, localSize, offset, samp, seed);
+      failed |=
+          util::runTest<NDims, signed char, 2,
+                        sycl::image_channel_type::signed_int8, class char2_1d>(
+              dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 1D char4", dims, localSize);
-      failed |= util::runTest<NDims, signed char, 4,
-                              sycl::image_channel_type::signed_int8,
-                              sycl::image_channel_order::rgba, class char4_1d>(
-          dims, localSize, offset, samp, seed);
+      failed |=
+          util::runTest<NDims, signed char, 4,
+                        sycl::image_channel_type::signed_int8, class char4_1d>(
+              dims, localSize, offset, samp, seed);
 
       util::printTestName<NDims>("Running 1D unsigned char", dims, localSize);
-      failed |= util::runTest<NDims, unsigned char, 1,
-                              sycl::image_channel_type::unsigned_int8,
-                              sycl::image_channel_order::r, class uchar_1d>(
-          dims, localSize, offset, samp, seed);
+      failed |=
+          util::runTest<NDims, unsigned char, 1,
+                        sycl::image_channel_type::unsigned_int8,
+                        class uchar_1d>(dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 1D unsigned char2", dims, localSize);
-      failed |= util::runTest<NDims, unsigned char, 2,
-                              sycl::image_channel_type::unsigned_int8,
-                              sycl::image_channel_order::rg, class uchar2_1d>(
-          dims, localSize, offset, samp, seed);
+      failed |=
+          util::runTest<NDims, unsigned char, 2,
+                        sycl::image_channel_type::unsigned_int8,
+                        class uchar2_1d>(dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 1D unsigned char4", dims, localSize);
-      failed |= util::runTest<NDims, unsigned char, 4,
-                              sycl::image_channel_type::unsigned_int8,
-                              sycl::image_channel_order::rgba, class uchar4_1d>(
-          dims, localSize, offset, samp, seed);
+      failed |=
+          util::runTest<NDims, unsigned char, 4,
+                        sycl::image_channel_type::unsigned_int8,
+                        class uchar4_1d>(dims, localSize, offset, samp, seed);
 
       util::printTestName<NDims>("Running 1D float", dims, localSize);
-      failed |= util::runTest<NDims, float, 1, sycl::image_channel_type::fp32,
-                              sycl::image_channel_order::r, class float_1d>(
-          dims, localSize, offset, samp, seed);
+      failed |=
+          util::runTest<NDims, float, 1, sycl::image_channel_type::fp32,
+                        class float_1d>(dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 1D float2", dims, localSize);
-      failed |= util::runTest<NDims, float, 2, sycl::image_channel_type::fp32,
-                              sycl::image_channel_order::rg, class float2_1d>(
-          dims, localSize, offset, samp, seed);
+      failed |=
+          util::runTest<NDims, float, 2, sycl::image_channel_type::fp32,
+                        class float2_1d>(dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 1D float4", dims, localSize);
-      failed |= util::runTest<NDims, float, 4, sycl::image_channel_type::fp32,
-                              sycl::image_channel_order::rgba, class float4_1d>(
-          dims, localSize, offset, samp, seed);
+      failed |=
+          util::runTest<NDims, float, 4, sycl::image_channel_type::fp32,
+                        class float4_1d>(dims, localSize, offset, samp, seed);
 
       util::printTestName<NDims>("Running 1D half", dims, localSize);
       failed |=
           util::runTest<NDims, sycl::half, 1, sycl::image_channel_type::fp16,
-                        sycl::image_channel_order::r, class half_1d>(
-              dims, localSize, offset, samp, seed);
+                        class half_1d>(dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 1D half2", dims, localSize);
       failed |=
           util::runTest<NDims, sycl::half, 2, sycl::image_channel_type::fp16,
-                        sycl::image_channel_order::rg, class half2_1d>(
-              dims, localSize, offset, samp, seed);
+                        class half2_1d>(dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 1D half4", dims, localSize);
       failed |=
           util::runTest<NDims, sycl::half, 4, sycl::image_channel_type::fp16,
-                        sycl::image_channel_order::rgba, class half4_1d>(
-              dims, localSize, offset, samp, seed);
+                        class half4_1d>(dims, localSize, offset, samp, seed);
 
       util::printTestName<NDims>("Running 1D float", {512}, {32});
       failed |= util::runTest<NDims, float, 1, sycl::image_channel_type::fp32,
-                              sycl::image_channel_order::r, class float_1d1>(
-          {512}, {32}, offset, samp, seed);
+                              class float_1d1>({512}, {32}, offset, samp, seed);
       util::printTestName<NDims>("Running 1D float4", {512}, {8});
-      failed |=
-          util::runTest<NDims, float, 4, sycl::image_channel_type::fp32,
-                        sycl::image_channel_order::rgba, class float4_1d2>(
-              {512}, {8}, offset, samp, seed);
+      failed |= util::runTest<NDims, float, 4, sycl::image_channel_type::fp32,
+                              class float4_1d2>({512}, {8}, offset, samp, seed);
     }
   }
 
@@ -1142,106 +1142,98 @@ bool runTests(sycl::range<2> dims, sycl::range<2> localSize, float offset,
       util::printTestName<NDims>("Running 2D short", dims, localSize);
       failed |=
           util::runTest<NDims, short, 1, sycl::image_channel_type::signed_int16,
-                        sycl::image_channel_order::r, class short_2d>(
-              dims, localSize, offset, samp, seed);
+                        class short_2d>(dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 2D short2", dims, localSize);
       failed |=
           util::runTest<NDims, short, 2, sycl::image_channel_type::signed_int16,
-                        sycl::image_channel_order::rg, class short2_2d>(
-              dims, localSize, offset, samp, seed);
+                        class short2_2d>(dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 2D short4", dims, localSize);
       failed |=
           util::runTest<NDims, short, 4, sycl::image_channel_type::signed_int16,
-                        sycl::image_channel_order::rgba, class short4_2d>(
-              dims, localSize, offset, samp, seed);
+                        class short4_2d>(dims, localSize, offset, samp, seed);
 
       util::printTestName<NDims>("Running 2D unsigned short", dims, localSize);
-      failed |= util::runTest<NDims, unsigned short, 1,
-                              sycl::image_channel_type::unsigned_int16,
-                              sycl::image_channel_order::r, class ushort_2d>(
-          dims, localSize, offset, samp, seed);
+      failed |=
+          util::runTest<NDims, unsigned short, 1,
+                        sycl::image_channel_type::unsigned_int16,
+                        class ushort_2d>(dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 2D unsigned short2", dims, localSize);
-      failed |= util::runTest<NDims, unsigned short, 2,
-                              sycl::image_channel_type::unsigned_int16,
-                              sycl::image_channel_order::rg, class ushort2_2d>(
-          dims, localSize, offset, samp, seed);
+      failed |=
+          util::runTest<NDims, unsigned short, 2,
+                        sycl::image_channel_type::unsigned_int16,
+                        class ushort2_2d>(dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 2D unsigned short4", dims, localSize);
       failed |=
           util::runTest<NDims, unsigned short, 4,
                         sycl::image_channel_type::unsigned_int16,
-                        sycl::image_channel_order::rgba, class ushort4_2d>(
-              dims, localSize, offset, samp, seed);
+                        class ushort4_2d>(dims, localSize, offset, samp, seed);
 
       util::printTestName<NDims>("Running 2D char", dims, localSize);
-      failed |= util::runTest<NDims, signed char, 1,
-                              sycl::image_channel_type::signed_int8,
-                              sycl::image_channel_order::r, class char_2d>(
-          dims, localSize, offset, samp, seed);
+      failed |=
+          util::runTest<NDims, signed char, 1,
+                        sycl::image_channel_type::signed_int8, class char_2d>(
+              dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 2D char2", dims, localSize);
-      failed |= util::runTest<NDims, signed char, 2,
-                              sycl::image_channel_type::signed_int8,
-                              sycl::image_channel_order::rg, class char2_2d>(
-          dims, localSize, offset, samp, seed);
+      failed |=
+          util::runTest<NDims, signed char, 2,
+                        sycl::image_channel_type::signed_int8, class char2_2d>(
+              dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 2D char4", dims, localSize);
-      failed |= util::runTest<NDims, signed char, 4,
-                              sycl::image_channel_type::signed_int8,
-                              sycl::image_channel_order::rgba, class char4_2d>(
-          dims, localSize, offset, samp, seed);
+      failed |=
+          util::runTest<NDims, signed char, 4,
+                        sycl::image_channel_type::signed_int8, class char4_2d>(
+              dims, localSize, offset, samp, seed);
 
       util::printTestName<NDims>("Running 2D unsigned char", dims, localSize);
-      failed |= util::runTest<NDims, unsigned char, 1,
-                              sycl::image_channel_type::unsigned_int8,
-                              sycl::image_channel_order::r, class uchar_2d>(
-          dims, localSize, offset, samp, seed);
+      failed |=
+          util::runTest<NDims, unsigned char, 1,
+                        sycl::image_channel_type::unsigned_int8,
+                        class uchar_2d>(dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 2D unsigned char2", dims, localSize);
-      failed |= util::runTest<NDims, unsigned char, 2,
-                              sycl::image_channel_type::unsigned_int8,
-                              sycl::image_channel_order::rg, class uchar2_2d>(
-          dims, localSize, offset, samp, seed);
+      failed |=
+          util::runTest<NDims, unsigned char, 2,
+                        sycl::image_channel_type::unsigned_int8,
+                        class uchar2_2d>(dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 2D unsigned char4", dims, localSize);
-      failed |= util::runTest<NDims, unsigned char, 4,
-                              sycl::image_channel_type::unsigned_int8,
-                              sycl::image_channel_order::rgba, class uchar4_2d>(
-          dims, localSize, offset, samp, seed);
+      failed |=
+          util::runTest<NDims, unsigned char, 4,
+                        sycl::image_channel_type::unsigned_int8,
+                        class uchar4_2d>(dims, localSize, offset, samp, seed);
 
       util::printTestName<NDims>("Running 2D float", dims, localSize);
-      failed |= util::runTest<NDims, float, 1, sycl::image_channel_type::fp32,
-                              sycl::image_channel_order::r, class float_2d>(
-          dims, localSize, offset, samp, seed);
+      failed |=
+          util::runTest<NDims, float, 1, sycl::image_channel_type::fp32,
+                        class float_2d>(dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 2D float2", dims, localSize);
-      failed |= util::runTest<NDims, float, 2, sycl::image_channel_type::fp32,
-                              sycl::image_channel_order::rg, class float2_2d>(
-          dims, localSize, offset, samp, seed);
+      failed |=
+          util::runTest<NDims, float, 2, sycl::image_channel_type::fp32,
+                        class float2_2d>(dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 2D float4", dims, localSize);
-      failed |= util::runTest<NDims, float, 4, sycl::image_channel_type::fp32,
-                              sycl::image_channel_order::rgba, class float4_2d>(
-          dims, localSize, offset, samp, seed);
+      failed |=
+          util::runTest<NDims, float, 4, sycl::image_channel_type::fp32,
+                        class float4_2d>(dims, localSize, offset, samp, seed);
 
       util::printTestName<NDims>("Running 2D half", dims, localSize);
       failed |=
           util::runTest<NDims, sycl::half, 1, sycl::image_channel_type::fp16,
-                        sycl::image_channel_order::r, class half_2d>(
-              dims, localSize, offset, samp, seed);
+                        class half_2d>(dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 2D half2", dims, localSize);
       failed |=
           util::runTest<NDims, sycl::half, 2, sycl::image_channel_type::fp16,
-                        sycl::image_channel_order::rg, class half2_2d>(
-              dims, localSize, offset, samp, seed);
+                        class half2_2d>(dims, localSize, offset, samp, seed);
       util::printTestName<NDims>("Running 2D half4", dims, localSize);
       failed |=
           util::runTest<NDims, sycl::half, 4, sycl::image_channel_type::fp16,
-                        sycl::image_channel_order::rgba, class half4_2d>(
-              dims, localSize, offset, samp, seed);
+                        class half4_2d>(dims, localSize, offset, samp, seed);
 
       util::printTestName<NDims>("Running 2D float", {512, 512}, {32, 32});
       failed |= util::runTest<NDims, float, 1, sycl::image_channel_type::fp32,
-                              sycl::image_channel_order::r, class float_2d1>(
-          {512, 512}, {32, 32}, offset, samp, seed);
+                              class float_2d1>({512, 512}, {32, 32}, offset,
+                                               samp, seed);
       util::printTestName<NDims>("Running 2D float4", {512, 512}, {8, 8});
-      failed |=
-          util::runTest<NDims, float, 4, sycl::image_channel_type::fp32,
-                        sycl::image_channel_order::rgba, class float4_2d2>(
-              {512, 512}, {8, 8}, offset, samp, seed);
+      failed |= util::runTest<NDims, float, 4, sycl::image_channel_type::fp32,
+                              class float4_2d2>({512, 512}, {8, 8}, offset,
+                                                samp, seed);
     }
   }
 

@@ -165,9 +165,20 @@
 //        - Added device queries for cubemap support
 //          - PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SUPPORT
 //          - PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT
+// 15.50 Added device queries for sampled image fetch support
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D
+// 15.51 Removed ret_mem argument from piextMemUnsampledImageCreate and
+// piextMemSampledImageCreate
+// 15.52 Added piEnqueueTimestampRecordingExp and
+//       PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT.
 
 #define _PI_H_VERSION_MAJOR 15
-#define _PI_H_VERSION_MINOR 48
+#define _PI_H_VERSION_MINOR 52
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -430,7 +441,12 @@ typedef enum {
   // The number of max registers per block (device specific)
   PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP = 0x20009,
   PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT = 0x2000A,
-
+  PI_EXT_ONEAPI_DEVICE_INFO_WORK_GROUP_PROGRESS_AT_ROOT_GROUP_LEVEL = 0x2000B,
+  PI_EXT_ONEAPI_DEVICE_INFO_SUB_GROUP_PROGRESS_AT_ROOT_GROUP_LEVEL = 0x2000C,
+  PI_EXT_ONEAPI_DEVICE_INFO_SUB_GROUP_PROGRESS_AT_WORK_GROUP_LEVEL = 0x2000D,
+  PI_EXT_ONEAPI_DEVICE_INFO_WORK_ITEM_PROGRESS_AT_ROOT_GROUP_LEVEL = 0x2000E,
+  PI_EXT_ONEAPI_DEVICE_INFO_WORK_ITEM_PROGRESS_AT_WORK_GROUP_LEVEL = 0x2000F,
+  PI_EXT_ONEAPI_DEVICE_INFO_WORK_ITEM_PROGRESS_AT_SUB_GROUP_LEVEL = 0x20010,
   // Bindless images, mipmaps, interop
   PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT = 0x20100,
   PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT = 0x20101,
@@ -462,6 +478,17 @@ typedef enum {
   // Bindless images cubemaps
   PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SUPPORT = 0x20115,
   PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT = 0x20116,
+
+  // Bindless images sampled image fetch
+  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM = 0x20117,
+  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D = 0x20118,
+  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM = 0x20119,
+  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D = 0x2011A,
+  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM = 0x2011B,
+  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D = 0x2011C,
+
+  // Timestamp enqueue
+  PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT = 0x2011D,
 } _pi_device_info;
 
 typedef enum {
@@ -1752,6 +1779,10 @@ __SYCL_EXPORT pi_result piEventRetain(pi_event event);
 
 __SYCL_EXPORT pi_result piEventRelease(pi_event event);
 
+__SYCL_EXPORT pi_result piEnqueueTimestampRecordingExp(
+    pi_queue queue, pi_bool blocking, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event);
+
 /// Gets the native handle of a PI event object.
 ///
 /// \param event is the PI event to get the native handle of.
@@ -2358,6 +2389,8 @@ typedef enum {
 struct pi_ext_command_buffer_desc final {
   pi_ext_structure_type stype;
   const void *pNext;
+  pi_bool is_in_order;
+  pi_bool enable_profiling;
   pi_bool is_updatable;
 };
 
@@ -2758,7 +2791,7 @@ __SYCL_EXPORT pi_result piextMemMipmapFree(pi_context context, pi_device device,
 /// \param ret_handle is the returning memory handle to newly allocated memory
 __SYCL_EXPORT pi_result piextMemUnsampledImageCreate(
     pi_context context, pi_device device, pi_image_mem_handle img_mem,
-    pi_image_format *image_format, pi_image_desc *image_desc, pi_mem *ret_mem,
+    pi_image_format *image_format, pi_image_desc *image_desc,
     pi_image_handle *ret_handle);
 
 /// API to create sampled bindless image handles.
@@ -2774,7 +2807,7 @@ __SYCL_EXPORT pi_result piextMemUnsampledImageCreate(
 __SYCL_EXPORT pi_result piextMemSampledImageCreate(
     pi_context context, pi_device device, pi_image_mem_handle img_mem,
     pi_image_format *image_format, pi_image_desc *image_desc,
-    pi_sampler sampler, pi_mem *ret_mem, pi_image_handle *ret_handle);
+    pi_sampler sampler, pi_image_handle *ret_handle);
 
 /// API to create samplers for bindless images.
 ///

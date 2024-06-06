@@ -261,11 +261,6 @@ public:
     New->addUser(*this);
   }
 
-  void removeLastOperand() {
-    VPValue *Op = Operands.pop_back_val();
-    Op->removeUser(*this);
-  }
-
   typedef SmallVectorImpl<VPValue *>::iterator operand_iterator;
   typedef SmallVectorImpl<VPValue *>::const_iterator const_operand_iterator;
   typedef iterator_range<operand_iterator> operand_range;
@@ -356,7 +351,9 @@ public:
     VPWidenCanonicalIVSC,
     VPWidenCastSC,
     VPWidenGEPSC,
+    VPWidenLoadEVLSC,
     VPWidenLoadSC,
+    VPWidenStoreEVLSC,
     VPWidenStoreSC,
     VPWidenSC,
     VPWidenSelectSC,

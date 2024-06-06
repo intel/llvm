@@ -376,6 +376,11 @@ else:
     )
     config.substitutions.append(("%shared_lib", "-shared"))
 
+# Check if user passed verbose-print parameter, if yes, add VERBOSE_PRINT macro
+if "verbose-print" in lit_config.params:
+    config.substitutions.append(("%verbose_print", "-DVERBOSE_PRINT"))
+else:
+    config.substitutions.append(("%verbose_print", ""))
 
 config.substitutions.append(("%vulkan_include_dir", config.vulkan_include_dir))
 config.substitutions.append(("%vulkan_lib", config.vulkan_lib))
@@ -417,6 +422,8 @@ if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
     )
     sp = subprocess.check_output(cmd, text=True, shell=True)
     for line in sp.splitlines():
+        if "Intel(R) Data Center GPU Max 1100" in line:
+            config.available_features.add("gpu-intel-pvc-1T")
         if "gfx90a" in line:
             config.available_features.add("gpu-amd-gfx90a")
         if not line.startswith("["):
@@ -514,10 +521,11 @@ if os.path.exists(xptifw_lib_dir) and os.path.exists(
     config.available_features.add("xptifw")
     config.substitutions.append(("%xptifw_dispatcher", xptifw_dispatcher))
     if cl_options:
+        xptifw_lib_name = os.path.normpath(os.path.join(xptifw_lib_dir, "xptifw.lib"))
         config.substitutions.append(
             (
                 "%xptifw_lib",
-                " {}/xptifw.lib /I{} ".format(xptifw_lib_dir, xptifw_includes),
+                " {} /I{} ".format(xptifw_lib_name, xptifw_includes),
             )
         )
     else:

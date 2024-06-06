@@ -10,6 +10,7 @@
 
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Module.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/Support/PropertySetIO.h"
@@ -38,11 +39,19 @@ static llvm::StringRef ExtractStringFromMDNodeOperand(const MDNode *N,
 SYCLDeviceRequirements
 llvm::computeDeviceRequirements(const module_split::ModuleDesc &MD) {
   SYCLDeviceRequirements Reqs;
+  bool MultipleReqdWGSize = false;
   // Process all functions in the module
   for (const Function &F : MD.getModule()) {
     if (auto *MDN = F.getMetadata("sycl_used_aspects")) {
-      for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
-        auto Val = ExtractSignedIntegerFromMDNodeOperand(MDN, I);
+      for (auto &MDOp : MDN->operands()) {
+        int64_t Val;
+        if (auto Pair = dyn_cast<MDNode>(MDOp)) {
+          assert(Pair->getNumOperands() == 2);
+          Val = mdconst::extract<ConstantInt>(Pair->getOperand(1))
+                    ->getZExtValue();
+        } else {
+          Val = mdconst::extract<ConstantInt>(MDOp)->getZExtValue();
+        }
         // Don't put internal aspects (with negative integer value) into the
         // requirements, they are used only for device image splitting.
         if (Val >= 0)
@@ -57,6 +66,12 @@ llvm::computeDeviceRequirements(const module_split::ModuleDesc &MD) {
       }
     }
 
+    if (auto *MDN = F.getMetadata("work_group_num_dim")) {
+      uint32_t WGND = ExtractUnsignedIntegerFromMDNodeOperand(MDN, 0);
+      if (!Reqs.ReqdWorkGroupSize.has_value())
+        Reqs.WorkGroupNumDim = WGND;
+    }
+
     if (auto *MDN = F.getMetadata("reqd_work_group_size")) {
       llvm::SmallVector<uint64_t, 3> NewReqdWorkGroupSize;
       for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I)
@@ -64,6 +79,8 @@ llvm::computeDeviceRequirements(const module_split::ModuleDesc &MD) {
             ExtractUnsignedIntegerFromMDNodeOperand(MDN, I));
       if (!Reqs.ReqdWorkGroupSize.has_value())
         Reqs.ReqdWorkGroupSize = NewReqdWorkGroupSize;
+      if (Reqs.ReqdWorkGroupSize != NewReqdWorkGroupSize)
+        MultipleReqdWGSize = true;
     }
 
     if (auto *MDN = F.getMetadata("sycl_joint_matrix")) {
@@ -99,6 +116,14 @@ llvm::computeDeviceRequirements(const module_split::ModuleDesc &MD) {
         assert(*Reqs.SubGroupSize == static_cast<uint32_t>(MDValue));
     }
   }
+
+  // Usually, we would only expect one ReqdWGSize, as the module passed to
+  // this function would be split according to that. However, when splitting
+  // is disabled, this cannot be guaranteed. In this case, we reset the value,
+  // which makes so that no value is reqd_work_group_size data is attached in
+  // in the device image.
+  if (MultipleReqdWGSize)
+    Reqs.ReqdWorkGroupSize.reset();
   return Reqs;
 }
 
@@ -132,6 +157,9 @@ std::map<StringRef, util::PropertyValue> SYCLDeviceRequirements::asMap() const {
 
   if (SubGroupSize.has_value())
     Requirements["reqd_sub_group_size"] = *SubGroupSize;
+
+  if (WorkGroupNumDim.has_value())
+    Requirements["work_group_num_dim"] = *WorkGroupNumDim;
 
   return Requirements;
 }

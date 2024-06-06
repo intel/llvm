@@ -33,15 +33,15 @@ void test() {
       });
       assert(false && "There must be compilation error");
     } catch (const sycl::compile_program_error &e) {
-      fprintf(stderr, "Exception: %s, %d\n", e.what(), e.get_cl_code());
+      fprintf(stderr, "Exception: %s, %d\n", e.what(), e.code().value());
       if (Idx == 0) {
         Msg = e.what();
-        Result = e.get_cl_code();
+        Result = e.code().value();
       } else {
         // Exception constantly adds info on its error code in the message
         assert(Msg.find_first_of(e.what()) == 0 &&
                "PI_ERROR_BUILD_PROGRAM_FAILURE");
-        assert(Result == e.get_cl_code() && "Exception code differs");
+        assert(Result == e.code().value() && "Exception code differs");
       }
     } catch (...) {
       assert(false && "There must be sycl::compile_program_error");

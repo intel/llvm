@@ -915,8 +915,7 @@ bool getRetParamSignedness(Function *F, ParamSignedness &RetSignedness,
       StringRef Arg(stringify(Name));
       if (Arg.starts_with("unsigned"))
         return ParamSignedness::Unsigned;
-      if (Arg.equals("char") || Arg.equals("short") || Arg.equals("int") ||
-          Arg.equals("long"))
+      if (Arg == "char" || Arg == "short" || Arg == "int" || Arg == "long")
         return ParamSignedness::Signed;
     }
     return ParamSignedness::Unknown;
@@ -1567,6 +1566,9 @@ Type *getLLVMTypeForSPIRVImageSampledTypePostfix(StringRef Postfix,
   if (Postfix == kSPIRVImageSampledTypeName::Int ||
       Postfix == kSPIRVImageSampledTypeName::UInt)
     return Type::getInt32Ty(Ctx);
+  if (Postfix == kSPIRVImageSampledTypeName::Long ||
+      Postfix == kSPIRVImageSampledTypeName::ULong)
+    return Type::getInt64Ty(Ctx);
   llvm_unreachable("Invalid sampled type postfix");
   return nullptr;
 }
@@ -2274,7 +2276,7 @@ bool postProcessBuiltinWithArrayArguments(Function *F,
           auto *T = I->getType();
           if (!T->isArrayTy())
             continue;
-          auto *Alloca = new AllocaInst(T, 0, "", &(*FBegin));
+          auto *Alloca = new AllocaInst(T, 0, "", FBegin);
           new StoreInst(I, Alloca, false, CI->getIterator());
           auto *Zero =
               ConstantInt::getNullValue(Type::getInt32Ty(T->getContext()));
@@ -2331,7 +2333,7 @@ public:
 
   void init(StringRef UniqUnmangledName) override {
     UnmangledName = UniqUnmangledName.str();
-    switch (OC) {
+    switch (static_cast<unsigned>(OC)) {
     case OpConvertUToF:
     case OpUConvert:
     case OpSatConvertUToS:
@@ -2496,6 +2498,11 @@ public:
       }
       break;
     }
+    case internal::OpConvertHandleToImageINTEL:
+    case internal::OpConvertHandleToSamplerINTEL:
+    case internal::OpConvertHandleToSampledImageINTEL:
+      addUnsignedArg(0);
+      break;
     default:;
       // No special handling is needed
     }

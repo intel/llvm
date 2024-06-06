@@ -12,7 +12,6 @@
 
 #include <sycl/backend_types.hpp>             // for backend
 #include <sycl/detail/cl.h>                   // for cl_int
-#include <sycl/detail/common.hpp>             // for codeToString
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/pi.h>                   // for pi_int32
@@ -58,6 +57,13 @@ __SYCL_EXPORT std::error_code make_error_code(sycl::errc E) noexcept;
 __SYCL_EXPORT const std::error_category &sycl_category() noexcept;
 
 namespace detail {
+__SYCL_EXPORT const char *stringifyErrorCode(pi_int32 error);
+
+inline std::string codeToString(pi_int32 code) {
+  return std::string(std::to_string(code) + " (" + stringifyErrorCode(code) +
+                     ")");
+}
+
 class __SYCL_EXPORT SYCLCategory : public std::error_category {
 public:
   const char *name() const noexcept override { return "sycl"; }
@@ -87,6 +93,10 @@ public:
   exception(int, const std::error_category &, const char *);
   exception(int, const std::error_category &);
 
+  // context.hpp depends on exception.hpp but we can't define these ctors in
+  // exception.hpp while context is still an incomplete type.
+  // So, definition of ctors that require a context parameter are moved to
+  // context.hpp.
   exception(context, std::error_code, const std::string &);
   exception(context, std::error_code, const char *);
   exception(context, std::error_code);

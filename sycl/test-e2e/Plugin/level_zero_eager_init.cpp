@@ -12,7 +12,7 @@
 // CHECK-NOT: ZE ---> zeFenceCreate
 //
 
-#include <CL/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <array>
 #include <iostream>

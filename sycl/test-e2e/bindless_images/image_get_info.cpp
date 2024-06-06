@@ -37,8 +37,7 @@ int main() {
 
     // Extension: image descriptor - can use the same for both images
     sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width, height, depth}, sycl::image_channel_order::r,
-        sycl::image_channel_type::signed_int32);
+        {width, height, depth}, 1, sycl::image_channel_type::signed_int32);
 
     // Extension: returns the device pointer to the allocated memory
     // Input images memory
@@ -59,6 +58,29 @@ int main() {
               << bindlessSharedUsmSupport
               << "\nbindless_images_1d_usm_support: " << usm1dSupport
               << "\nbindless_images_2d_usm_support: " << usm2dSupport << "\n";
+#endif
+
+    // Extension: query for sampled image fetch capabilities
+    bool sampledFetch1DUSMSupport =
+        dev.has(sycl::aspect::ext_oneapi_bindless_sampled_image_fetch_1d_usm);
+    bool sampledFetch2DUSMSupport =
+        dev.has(sycl::aspect::ext_oneapi_bindless_sampled_image_fetch_2d_usm);
+    bool sampledFetch3DUSMSupport =
+        dev.has(sycl::aspect::ext_oneapi_bindless_sampled_image_fetch_3d_usm);
+    bool sampledFetch1DSupport =
+        dev.has(sycl::aspect::ext_oneapi_bindless_sampled_image_fetch_1d);
+    bool sampledFetch2DSupport =
+        dev.has(sycl::aspect::ext_oneapi_bindless_sampled_image_fetch_2d);
+    bool sampledFetch3DSupport =
+        dev.has(sycl::aspect::ext_oneapi_bindless_sampled_image_fetch_3d);
+
+#ifdef VERBOSE_PRINT
+    std::cout << "sampledFetch1DUSMSupport: " << sampledFetch1DUSMSupport
+              << "\nsampledFetch2DUSMSupport: " << sampledFetch2DUSMSupport
+              << "\nsampledFetch3DUSMSupport: " << sampledFetch3DUSMSupport
+              << "\nsampledFetch1DSupport: " << sampledFetch1DSupport
+              << "\nsampledFetch2DSupport: " << sampledFetch2DSupport
+              << "\nsampledFetch3DSupport: " << sampledFetch3DSupport << "\n";
 #endif
 
     // Extension: get pitch alignment information from device -- device info
@@ -174,14 +196,6 @@ int main() {
       printString("channel type is correct!\n");
     } else {
       printString("channel type is NOT correct!\n");
-      validated = false;
-    }
-
-    auto corder = imgMem.get_channel_order();
-    if (corder == sycl::image_channel_order::r) {
-      printString("channel order is correct!\n");
-    } else {
-      printString("channel order is NOT correct!\n");
       validated = false;
     }
 

@@ -1326,6 +1326,12 @@ def ElementwiseSqrt : Builtin {
   let Prototype = "void(...)";
 }
 
+def ElementwiseTan : Builtin {
+  let Spellings = ["__builtin_elementwise_tan"];
+  let Attributes = [NoThrow, Const, CustomTypeChecking];
+  let Prototype = "void(...)";
+}
+
 def ElementwiseTrunc : Builtin {
   let Spellings = ["__builtin_elementwise_trunc"];
   let Attributes = [NoThrow, Const, CustomTypeChecking];
@@ -4718,6 +4724,12 @@ def IntelSYCLPtrAnnotation : Builtin {
 
 def IntelSYCLAlloca : Builtin {
   let Spellings = ["__builtin_intel_sycl_alloca"];
+  let Attributes = [NoThrow, CustomTypeChecking];
+  let Prototype = "void *(void &)";
+}
+
+def IntelSYCLAllocaWithAlign : Builtin {
+  let Spellings = ["__builtin_intel_sycl_alloca_with_align"];
   let Attributes = [NoThrow, CustomTypeChecking];
   let Prototype = "void *(void &)";
 }

@@ -35,6 +35,8 @@ target_link_libraries(SYCLKernelFusion
   sycl-fusion-common
 )
 
+add_dependencies(SYCLKernelFusion sycl-headers)
+
 if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   target_compile_definitions(SYCLKernelFusion PRIVATE FUSION_JIT_SUPPORT_PTX)
 endif()
@@ -86,6 +88,8 @@ target_link_libraries(SYCLKernelFusionPasses
   PRIVATE
   sycl-fusion-common
 )
+
+add_dependencies(SYCLKernelFusionPasses sycl-headers)
 
 if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   target_compile_definitions(SYCLKernelFusionPasses PRIVATE FUSION_JIT_SUPPORT_PTX)

@@ -78,8 +78,7 @@ SPIRVModule::~SPIRVModule() {}
 class SPIRVModuleImpl : public SPIRVModule {
 public:
   SPIRVModuleImpl()
-      : SPIRVModule(), NextId(1),
-        SPIRVVersion(static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0)),
+      : SPIRVModule(), NextId(1), SPIRVVersion(VersionNumber::SPIRV_1_0),
         GeneratorId(SPIRVGEN_KhronosLLVMSPIRVTranslator), GeneratorVer(0),
         InstSchema(SPIRVISCH_Default), SrcLang(SourceLanguageOpenCL_C),
         SrcLangVer(102000), BoolTy(nullptr), VoidTy(nullptr) {
@@ -152,7 +151,7 @@ public:
   bool isEntryPoint(SPIRVExecutionModelKind, SPIRVId EP) const override;
   unsigned short getGeneratorId() const override { return GeneratorId; }
   unsigned short getGeneratorVer() const override { return GeneratorVer; }
-  SPIRVWord getSPIRVVersion() const override { return SPIRVVersion; }
+  VersionNumber getSPIRVVersion() const override { return SPIRVVersion; }
   const std::vector<SPIRVExtInst *> &getDebugInstVec() const override {
     return DebugInstVec;
   }
@@ -184,8 +183,8 @@ public:
   void resolveUnknownStructFields() override;
   void insertEntryNoId(SPIRVEntry *Entry) override { EntryNoId.insert(Entry); }
 
-  void setSPIRVVersion(SPIRVWord Ver) override {
-    if (!this->isAllowedToUseVersion(static_cast<VersionNumber>(Ver))) {
+  void setSPIRVVersion(VersionNumber Ver) override {
+    if (!this->isAllowedToUseVersion(Ver)) {
       std::stringstream SS;
       SS << "SPIR-V version was restricted to at most "
          << to_string(getMaximumAllowedSPIRVVersion())
@@ -496,7 +495,7 @@ public:
 private:
   SPIRVErrorLog ErrLog;
   SPIRVId NextId;
-  SPIRVWord SPIRVVersion;
+  VersionNumber SPIRVVersion;
   unsigned short GeneratorId;
   unsigned short GeneratorVer;
   SPIRVInstructionSchemaKind InstSchema;
@@ -1994,7 +1993,7 @@ spv_ostream &operator<<(spv_ostream &O, SPIRVModule &M) {
   MI.CurrentDebugLine.reset();
 
   SPIRVEncoder Encoder(O);
-  Encoder << MagicNumber << MI.SPIRVVersion
+  Encoder << MagicNumber << (SPIRVWord)MI.SPIRVVersion
           << (((SPIRVWord)MI.GeneratorId << 16) | MI.GeneratorVer)
           << MI.NextId /* Bound for Id */
           << MI.InstSchema;
@@ -2227,7 +2226,7 @@ std::istream &SPIRVModuleImpl::parseSPT(std::istream &I) {
     return I;
   }
 
-  MI.SPIRVVersion = ReadSPIRVWord(I);
+  MI.SPIRVVersion = static_cast<VersionNumber>(ReadSPIRVWord(I));
   if (!ErrorLog.checkError(!I.fail(), SPIRVEC_InvalidModule,
                            "header parsing error")) {
     MI.setInvalid();
@@ -2337,7 +2336,8 @@ std::istream &SPIRVModuleImpl::parseSPIRV(std::istream &I) {
       !ErrorLog.checkError(Header[0] == MagicNumber, SPIRVEC_InvalidModule,
                            "invalid magic number") ||
       !ErrorLog.checkError(
-          isSPIRVVersionKnown(Header[1]), SPIRVEC_InvalidModule,
+          isSPIRVVersionKnown(static_cast<VersionNumber>(Header[1])),
+          SPIRVEC_InvalidModule,
           "unsupported SPIR-V version number '" + to_string(Header[1]) +
               "'. Range of supported/known SPIR-V "
               "versions is " +
@@ -2355,7 +2355,7 @@ std::istream &SPIRVModuleImpl::parseSPIRV(std::istream &I) {
     return I;
   }
 
-  MI.SPIRVVersion = Header[1];
+  MI.SPIRVVersion = static_cast<VersionNumber>(Header[1]);
   MI.GeneratorId = Header[2] >> 16;
   MI.GeneratorVer = Header[2] & 0xFFFF;
   MI.NextId = Header[3];
