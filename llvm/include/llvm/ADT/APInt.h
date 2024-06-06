@@ -1398,6 +1398,13 @@ public:
     *this &= Keep;
   }
 
+  /// Set top hiBits bits to 0.
+  void clearHighBits(unsigned hiBits) {
+    assert(hiBits <= BitWidth && "More bits than bitwidth");
+    APInt Keep = getLowBitsSet(BitWidth, BitWidth - hiBits);
+    *this &= Keep;
+  }
+
   /// Set the sign bit to 0.
   void clearSignBit() { clearBit(BitWidth - 1); }
 
@@ -1740,8 +1747,8 @@ public:
     return *this;
   }
 
-  /// \returns the multiplicative inverse for a given modulo.
-  APInt multiplicativeInverse(const APInt &modulo) const;
+  /// \returns the multiplicative inverse of an odd APInt modulo 2^BitWidth.
+  APInt multiplicativeInverse() const;
 
   /// @}
   /// \name Building-block Operations for APInt and APFloat

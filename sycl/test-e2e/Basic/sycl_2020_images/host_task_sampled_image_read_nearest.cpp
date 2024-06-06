@@ -7,6 +7,8 @@
 
 #include "common.hpp"
 
+#include <sycl/detail/host_task_impl.hpp>
+
 constexpr size_t IMAGE_WIDTH = 5;
 constexpr size_t IMAGE_HEIGHT = 4;
 constexpr size_t IMAGE_DEPTH = 2;

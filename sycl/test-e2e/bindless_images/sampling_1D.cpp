@@ -5,7 +5,8 @@
 // RUN: %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -43,7 +44,7 @@ int main() {
   try {
     // Extension: image descriptor
     sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width}, sycl::image_channel_order::r, sycl::image_channel_type::fp32);
+        {width}, 1, sycl::image_channel_type::fp32);
 
     sycl::ext::oneapi::experimental::bindless_image_sampler samp(
         sycl::addressing_mode::repeat,
@@ -112,6 +113,6 @@ int main() {
     return 0;
   }
 
-  std::cout << "Test passed!" << std::endl;
+  std::cout << "Test failed!" << std::endl;
   return 3;
 }

@@ -9,6 +9,7 @@
 
 #else
 
+#include <sycl/accessor_image.hpp>
 #include <sycl/detail/core.hpp>
 
 using namespace sycl::access;

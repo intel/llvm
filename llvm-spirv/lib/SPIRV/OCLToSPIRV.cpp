@@ -168,11 +168,9 @@ bool OCLToSPIRVBase::runOCLToSPIRV(Module &Module) {
   auto Src = getSPIRVSource(&Module);
   // This is a pre-processing pass, which transform LLVM IR module to a more
   // suitable form for the SPIR-V translation: it is specifically designed to
-  // handle OpenCL C/C++ and C++ for OpenCL modules and shouldn't be launched
-  // for other source languages.
-  if (std::get<0>(Src) != spv::SourceLanguageOpenCL_C &&
-      std::get<0>(Src) != spv::SourceLanguageOpenCL_CPP &&
-      std::get<0>(Src) != spv::SourceLanguageCPP_for_OpenCL)
+  // handle OpenCL C built-in functions and shouldn't be launched for other
+  // source languages
+  if (std::get<0>(Src) != spv::SourceLanguageOpenCL_C)
     return false;
 
   CLVer = std::get<1>(Src);
@@ -499,7 +497,8 @@ CallInst *OCLToSPIRVBase::visitCallAtomicCmpXchg(CallInst *CI) {
 }
 
 void OCLToSPIRVBase::visitCallAtomicInit(CallInst *CI) {
-  auto *ST = new StoreInst(CI->getArgOperand(1), CI->getArgOperand(0), CI);
+  auto *ST = new StoreInst(CI->getArgOperand(1), CI->getArgOperand(0),
+                           CI->getIterator());
   ST->takeName(CI);
   CI->dropAllReferences();
   CI->eraseFromParent();
@@ -515,11 +514,11 @@ void OCLToSPIRVBase::visitCallAllAny(spv::Op OC, CallInst *CI) {
   auto *Zero = Constant::getNullValue(Args[0]->getType());
 
   auto *Cmp = CmpInst::Create(CmpInst::ICmp, CmpInst::ICMP_SLT, Args[0], Zero,
-                              "cast", CI);
+                              "cast", CI->getIterator());
 
   if (!isa<VectorType>(ArgTy)) {
-    auto *Cast = CastInst::CreateZExtOrBitCast(Cmp, Type::getInt32Ty(*Ctx), "",
-                                               Cmp->getNextNode());
+    auto *Cast = CastInst::CreateZExtOrBitCast(
+        Cmp, Type::getInt32Ty(*Ctx), "", Cmp->getNextNode()->getIterator());
     CI->replaceAllUsesWith(Cast);
     CI->eraseFromParent();
   } else {
@@ -1040,13 +1039,15 @@ void OCLToSPIRVBase::visitCallGetImageSize(CallInst *CI,
             Constant *Index[] = {getInt32(M, 0), getInt32(M, 1), getInt32(M, 2),
                                  getInt32(M, 3)};
             return new ShuffleVectorInst(NCI, ZeroVec,
-                                         ConstantVector::get(Index), "", CI);
+                                         ConstantVector::get(Index), "",
+                                         CI->getIterator());
 
           } else if (Desc.Dim == Dim2D && Desc.Arrayed) {
             Constant *Index[] = {getInt32(M, 0), getInt32(M, 1)};
             Constant *Mask = ConstantVector::get(Index);
             return new ShuffleVectorInst(NCI, UndefValue::get(NCI->getType()),
-                                         Mask, NCI->getName(), CI);
+                                         Mask, NCI->getName(),
+                                         CI->getIterator());
           }
           return NCI;
         }
@@ -1056,7 +1057,7 @@ void OCLToSPIRVBase::visitCallGetImageSize(CallInst *CI,
                          .Case(kOCLBuiltinName::GetImageDepth, 2)
                          .Case(kOCLBuiltinName::GetImageArraySize, Dim - 1);
         return ExtractElementInst::Create(NCI, getUInt32(M, I), "",
-                                          NCI->getNextNode());
+                                          NCI->getNextNode()->getIterator());
       });
 }
 
@@ -1371,11 +1372,12 @@ void OCLToSPIRVBase::visitCallScalToVec(CallInst *CI, StringRef MangledName,
                               getExtOp(MangledName, DemangledName)));
   for (auto I : ScalarPos)
     Mutator.mapArg(I, [&](Value *V) {
-      Instruction *Inst = InsertElementInst::Create(UndefValue::get(VecTy), V,
-                                                    getInt32(M, 0), "", CI);
+      Instruction *Inst = InsertElementInst::Create(
+          UndefValue::get(VecTy), V, getInt32(M, 0), "", CI->getIterator());
       return new ShuffleVectorInst(
           Inst, UndefValue::get(VecTy),
-          ConstantVector::getSplat(VecElemCount, getInt32(M, 0)), "", CI);
+          ConstantVector::getSplat(VecElemCount, getInt32(M, 0)), "",
+          CI->getIterator());
     });
 }
 
@@ -1488,7 +1490,7 @@ void OCLToSPIRVBase::visitCallEnqueueKernel(CallInst *CI,
           LocalSizeArray->getSourceElementType(), // Pointee type
           LocalSizeArray->getPointerOperand(),    // Alloca
           {getInt32(M, 0), getInt32(M, I)},       // Indices
-          "", CI));
+          "", CI->getIterator()));
   }
 
   StringRef NewName = "__spirv_EnqueueKernel__";
@@ -1497,7 +1499,7 @@ void OCLToSPIRVBase::visitCallEnqueueKernel(CallInst *CI,
   Function *NewF =
       Function::Create(FT, GlobalValue::ExternalLinkage, NewName, M);
   NewF->setCallingConv(CallingConv::SPIR_FUNC);
-  CallInst *NewCall = CallInst::Create(NewF, Args, "", CI);
+  CallInst *NewCall = CallInst::Create(NewF, Args, "", CI->getIterator());
   NewCall->setCallingConv(NewF->getCallingConv());
   CI->replaceAllUsesWith(NewCall);
   CI->eraseFromParent();
