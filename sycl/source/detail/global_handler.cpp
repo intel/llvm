@@ -38,6 +38,7 @@ SpinLock GlobalHandler::MSyclGlobalHandlerProtector{};
 
 // forward declaration
 void shutdown();
+void shutdown2();
 
 // Utility class to track references on object.
 // Used for GlobalHandler now and created as thread_local object on the first
@@ -240,7 +241,11 @@ struct DefaultContextReleaseHandler {
         << "~DefaultContextReleaseHandler()  - but now calls shutdown instead."
         << std::endl;
     // GlobalHandler::instance().releaseDefaultContexts();
+#ifdef _WIN32
+    //shutdown2();
+#else
     shutdown();
+#endif
   }
 };
 
@@ -293,6 +298,10 @@ void shutdown() {
   // now that we are shutting down, we no longer defer MemObj release.
   Handler->endDeferredRelease();
 
+#ifdef _WIN32
+  return;
+#else
+
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
   Handler->prepareSchedulerToRelease(true);
@@ -303,9 +312,10 @@ void shutdown() {
   // This releases our reference to the default context, but
   // it might not be the last one quite yet.
   Handler->releaseDefaultContexts();
+#endif
 }
 
-#ifdef _WIN32
+#ifdef NOONEWANTS // _WIN32
 // because of something not-yet-understood on Windows
 // threads may be shutdown once the end of main() is reached
 // making an orderly shutdown difficult. Fortunately, Windows
@@ -367,7 +377,9 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                    // TODO: figure out what XPTI is doing that prevents release.
 #endif
 
+    shutdown();
     shutdown2();
+    
     break;
   case DLL_PROCESS_ATTACH:
     if (PrintPiTrace)

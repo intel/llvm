@@ -1,7 +1,9 @@
 // REQUIRES: level_zero
 
+
+// DEFINE: %{fPIC_flag} =  %if windows %{%} %else %{-fPIC%}
 // build static library
-// RUN: %clangxx -fsycl -c -fPIC -o simple_lib.o %S/Inputs/simple_lib.cpp
+// RUN: %clangxx -fsycl -c  %{fPIC_flag} -o simple_lib.o %S/Inputs/simple_lib.cpp
 
 // build app
 // RUN:  %clangxx -fsycl -o %t.out %s simple_lib.o

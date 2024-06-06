@@ -8,6 +8,7 @@
 */
 
 #include <sycl/sycl.hpp>
+#include "simple_lib.h"
 
 const size_t BUFF_SIZE = 1;
 
@@ -31,14 +32,21 @@ public:
   ~Delay() { release(); }
 };
 
-Delay *MyDelay = new Delay;
+
+
+#ifdef _WIN32
+static Delay theDelay;
+Delay * MyDelay = &theDelay;
+#else
+  Delay *MyDelay = new Delay;
 
 __attribute__((destructor(101))) static void Unload101() {
   std::cout << "lib unload - __attribute__((destructor(101)))" << std::endl;
   delete MyDelay;
 }
+#endif
 
-int add_using_device(int a, int b) {
+EXPORTDECL int add_using_device(int a, int b) {
   sycl::queue q;
   sycl::buffer<int, 1> buf = MyDelay->getBuffer();
   q.submit([&](sycl::handler &cgh) {
