@@ -934,6 +934,9 @@ _Returns (1):_ The value `true` only if the device's architecture is equal to
 
 _Returns (2):_ The value `true` only if the device's architecture is in the
 category `category`.
+
+If current device architecture is not supported by the extension, a
+`sycl::exception` with error code `sycl::errc::runtime` will be thrown.
 |====
 
 === New device information descriptor
@@ -959,6 +962,9 @@ struct architecture;
 _Return type:_ `sycl::ext::oneapi::experimental::architecture`
 
 _Returns:_ The architecture of the device.
+
+If current device architecture is not supported by the extension, a
+`sycl::exception` with error code `sycl::errc::runtime` will be thrown.
 |====
 
 
