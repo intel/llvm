@@ -83,7 +83,7 @@ protected:
 
     detail::Command *NewCmd = MS.addCG(
         std::move(CmdGroup),
-        Type == TestCGType::HOST_TASK ? MS.getDefaultHostQueue() : QueueDevImpl,
+        Type == TestCGType::HOST_TASK ? nullptr : QueueDevImpl,
         ToEnqueue);
     EXPECT_EQ(ToEnqueue.size(), 0u);
     return NewCmd;
@@ -167,7 +167,6 @@ protected:
 
 TEST_F(DependsOnTests, EnqueueNoMemObjTwoHostTasks) {
   // Checks enqueue of two dependent host tasks
-  detail::QueueImplPtr QueueHostImpl = MS.getDefaultHostQueue();
   std::vector<EventImplPtr> Events;
 
   detail::Command *Cmd1 =

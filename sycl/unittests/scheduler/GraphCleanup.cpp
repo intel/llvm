@@ -172,7 +172,7 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
 }
 
 static void checkCleanupOnLeafUpdate(
-    MockScheduler &MS, detail::QueueImplPtr &QueueImpl, buffer<int, 1> &Buf,
+    MockScheduler &MS, detail::QueueImplPtr QueueImpl, buffer<int, 1> &Buf,
     detail::Requirement &MockReq,
     std::function<void(detail::MemObjRecord *)> SchedulerCall) {
   bool CommandDeleted = false;
@@ -247,15 +247,10 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
   checkCleanupOnLeafUpdate(
       MS, QueueImpl, Buf, MockReq, [&](detail::MemObjRecord *Record) {
         detail::Command *Leaf = *Record->MWriteLeaves.begin();
-        MS.addEmptyCmd(Leaf, {&MockReq}, QueueImpl,
-                       detail::Command::BlockReason::HostTask, ToEnqueue);
+        MS.addEmptyCmd(Leaf, {&MockReq}, detail::Command::BlockReason::HostTask, ToEnqueue);
       });
-  device HostDevice = detail::createSyclObjFromImpl<device>(
-      detail::device_impl::getHostDeviceImpl());
-  detail::QueueImplPtr DefaultHostQueue{
-      new detail::queue_impl(detail::getSyclObjImpl(HostDevice), {}, {})};
   checkCleanupOnLeafUpdate(
-      MS, DefaultHostQueue, Buf, MockReq, [&](detail::MemObjRecord *Record) {
+      MS, nullptr, Buf, MockReq, [&](detail::MemObjRecord *Record) {
         MS.getOrCreateAllocaForReq(Record, &MockReq, QueueImpl, ToEnqueue);
       });
   // Check cleanup on exceeding leaf limit.

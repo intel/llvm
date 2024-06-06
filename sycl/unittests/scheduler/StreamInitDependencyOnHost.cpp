@@ -80,12 +80,9 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
   unittest::ScopedEnvVar DisabledCleanup{
       DisableCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::reset};
-  std::shared_ptr<detail::queue_impl> HQueueImpl(new detail::queue_impl(
-      detail::device_impl::getHostDeviceImpl(), /*AsyncHandler=*/{},
-      /*PropList=*/{}));
 
   // Emulating processing of command group function
-  MockHandlerStreamInit MockCGH(HQueueImpl, true);
+  MockHandlerStreamInit MockCGH(nullptr, true);
   MockCGH.setType(detail::CG::Kernel);
 
   auto EmptyKernel = [](sycl::nd_item<1>) {};
@@ -114,11 +111,11 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
       static_cast<detail::CGExecKernel *>(MainCG.get())->getStreams();
   ASSERT_EQ(Streams.size(), 1u) << "Invalid number of stream objects";
 
-  Streams[0]->initStreamHost(HQueueImpl);
+  Streams[0]->initStreamHost(nullptr);
 
   MockScheduler MS;
   std::vector<detail::Command *> AuxCmds;
-  detail::Command *NewCmd = MS.addCG(std::move(MainCG), HQueueImpl, AuxCmds);
+  detail::Command *NewCmd = MS.addCG(std::move(MainCG), nullptr, AuxCmds);
   ASSERT_TRUE(!!NewCmd) << "Failed to add command group into scheduler";
   ASSERT_GT(NewCmd->MDeps.size(), 0u)
       << "No deps appeared in the new exec kernel command";
