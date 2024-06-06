@@ -1600,8 +1600,8 @@ inline constexpr RetT extend_vavrg2_sat(AT a, BT b, RetT c) {
 }
 
 /// Extend \p a and \p b to 33 bit and vectorized compare input values using
-///
 /// specified comparison \p cmp .
+///
 /// \tparam [in] AT The type of the first value, can only be 32 bit integer
 /// \tparam [in] BT The type of the second value, can only be 32 bit integer
 /// \tparam [in] BinaryOperation The type of the compare operation
@@ -1898,8 +1898,8 @@ inline constexpr RetT extend_vavrg4_sat(AT a, BT b, RetT c) {
 }
 
 /// Extend \p a and \p b to 33 bit and vectorized compare input values using
-///
 /// specified comparison \p cmp .
+///
 /// \tparam [in] AT The type of the first value, can only be 32 bit integer
 /// \tparam [in] BT The type of the second value, can only be 32 bit integer
 /// \tparam [in] BinaryOperation The type of the compare operation
