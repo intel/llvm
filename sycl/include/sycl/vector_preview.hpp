@@ -39,7 +39,7 @@
 #include <sycl/detail/memcpy.hpp>              // for memcpy
 #include <sycl/detail/type_list.hpp>           // for is_contained
 #include <sycl/detail/type_traits.hpp>         // for is_floating_point
-#include <sycl/detail/vector_arith.hpp> // for vec_arith_common and vec_arith
+#include <sycl/detail/vector_arith.hpp>        // for vec_arith_common and vec_arith
 #include <sycl/detail/vector_convert.hpp>      // for convertImpl
 #include <sycl/detail/vector_traits.hpp>       // for vector_alignment
 #include <sycl/half_type.hpp>                  // for StorageT, half, Vec16...
@@ -340,7 +340,7 @@ __SYCL_DEFINE_BF16_VECSTORAGE(16)
 // dependencies from math operations on sycl::vec.
 // This class is a friend of sycl::vec and exposes getValue/setValue
 // that are used by sycl::vec math operations.
-template <typename VecT> class VecGetterSetter {
+template <typename VecT> class VecAccess {
 public:
   template <typename DataT = typename VecT::element_type, int N = VecT::size()>
   constexpr static void setValue(VecT &v, int Index, const DataT &Value) {
@@ -1114,7 +1114,7 @@ private:
   // To allow arithmetic operators access private members of vec.
   template <typename T1, int T2> friend class detail::vec_arith;
   template <typename T1, int T2> friend class detail::vec_arith_common;
-  template <typename T1> friend class detail::VecGetterSetter;
+  template <typename T1> friend class detail::VecAccess;
 };
 ///////////////////////// class sycl::vec /////////////////////////
 
