@@ -1163,6 +1163,7 @@ static Error saveModuleIRInFile(Module &M, StringRef FilePath,
   raw_fd_ostream OS(FD, true);
   ModulePassManager MPM;
   ModuleAnalysisManager MAM;
+  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   if (OutputAssembly)
     MPM.addPass(PrintModulePass(OS));
   else
