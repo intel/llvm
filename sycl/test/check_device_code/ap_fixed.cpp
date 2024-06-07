@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include "CL/__spirv/spirv_ops.hpp"
 
 SYCL_EXTERNAL auto test_sqrt(sycl::detail::ap_int<13> a) {
   return __spirv_FixedSqrtINTEL<13, 5>(a, false, 2, 2);
