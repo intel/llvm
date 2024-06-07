@@ -127,7 +127,6 @@ class atomic_ref_base {
       "Invalid default memory_order for atomics.  Valid defaults are: "
       "relaxed, acq_rel, seq_cst");
 
-
 public:
   using value_type = T;
   static constexpr size_t required_alignment = sizeof(T);
