@@ -853,6 +853,45 @@ private:
       EvictionThresholds = Parser();
 
     return EvictionThresholds;
+template <> class SYCLConfig<SYCL_REDUCTION_ENABLE_USE_KERNEL_BUNDLES> {
+  using BaseT = SYCLConfigBase<SYCL_REDUCTION_ENABLE_USE_KERNEL_BUNDLES>;
+
+public:
+  static bool get() {
+    constexpr bool DefaultValue{false};
+
+    const char *ValStr = getCachedValue();
+    if (!ValStr)
+      return DefaultValue;
+    return ValStr[0] == '1';
+  }
+
+  // Overload where the default value is configurable on the device backend.
+  static bool get(backend Backend) {
+    constexpr bool DefaultValue{false};
+
+    const char *ValStr = getCachedValue();
+    if (!ValStr) {
+      // Cuda backend requires using kernel bundles so we can query work-group
+      // size limits according to the resource usage from the kernel object.
+      if (Backend == backend::ext_oneapi_cuda)
+        return true;
+
+      return DefaultValue;
+    }
+    return ValStr[0] == '1';
+  }
+
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static const char *getCachedValue(bool ResetCache = false) {
+    static const char *ValStr = BaseT::getRawValue();
+    if (ResetCache)
+      ValStr = BaseT::getRawValue();
+    return ValStr;
   }
 };
 

@@ -9,6 +9,7 @@
 #include <detail/config.hpp>
 #include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
+#include <sycl/backend_types.hpp>
 #include <sycl/reduction.hpp>
 
 namespace sycl {
@@ -49,6 +50,16 @@ __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
   return WGSize;
 }
 
+__SYCL_EXPORT bool
+reduShouldUseKernelBundle(std::shared_ptr<detail::queue_impl> Queue) {
+  if (!Queue)
+    return false;
+
+  const device Device = Queue->get_device();
+  const backend Backend = Device.get_backend();
+  return SYCLConfig<SYCL_REDUCTION_ENABLE_USE_KERNEL_BUNDLES>::get(Backend);
+};
+
 // Returns the estimated number of physical threads on the device associated
 // with the given queue.
 __SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(
@@ -70,6 +81,13 @@ __SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(
   if (Dev.is_gpu() && Dev.get_info<sycl::info::device::host_unified_memory>())
     NumThreads *= 8;
   return NumThreads;
+}
+
+// TODO: Remove this!!! - it was only a temporary fix.
+#define USE_CONSERVATIVE_CUDA_MAX_WG_SIZE_WORKAROUND 0
+/// Check if the (unsigned) value of N is a power-of-two.
+[[maybe_unused]] static inline bool IsPowerOfTwo(size_t N) noexcept {
+  return (N & (N - 1)) == 0;
 }
 
 __SYCL_EXPORT size_t
@@ -99,7 +117,7 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
   // if (WGSize * LocalMemBytesPerWorkItem) is equal to local_mem_size, then
   // the reduction local accessor takes all available local memory for it needs
   // not leaving any local memory for other kernel needs (barriers,
-  // builtin calls, etc), which often leads to crushes with CL_OUT_OF_RESOURCES
+  // builtin calls, etc), which often leads to crashes with OUT_OF_RESOURCES
   // error, or in even worse cases it may cause silent writes/clobbers of
   // the local memory assigned to one work-group by code in another work-group.
   // It seems the only good solution for this work-group detection problem is
@@ -110,6 +128,19 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
     WGSize /= 2;
   }
 
+#if USE_CONSERVATIVE_CUDA_MAX_WG_SIZE_WORKAROUND
+  // Terrible consrevative workaround without access to kernel properties.
+  if (Dev.get_backend() == backend::ext_oneapi_cuda) {
+    namespace codeplay = sycl::ext::codeplay;
+    const uint32_t MaxRegsPerWG = Dev.get_info<
+        codeplay::experimental::info::device::max_registers_per_work_group>();
+    // Assumes using max number of 32-bit registers per thread in CUDA (255).
+    // see: link-to-cuda-cap-table
+    constexpr uint8_t MaxRegsPerWI{255};
+    while (WGSize * MaxRegsPerWI > MaxRegsPerWG || !IsPowerOfTwo(WGSize))
+      WGSize--;
+  }
+#endif
   return WGSize;
 }
 
