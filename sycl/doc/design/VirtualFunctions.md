@@ -495,6 +495,40 @@ cache eviction was required with SYCL CTS test for specialization constants,
 which is very heavy. Therefore, it is not expected that any changes to in-memory
 cache eviction mechanism will be needed any time soon.
 
+## Design alternatives
+
+Discussions over this feature resulted in suggestion for an alternative
+implementation that would lift some of the usage restrictions of virtual
+functions, but they require more time for investigation and analysis than we
+currently have and therefore information below is recorded as a potential
+future changes to this design.
+
+### Do not record an absolute address of a vtable in an object
+
+One of the significant limitations of the design outlined above is that if a
+device image got recompiled in-between object creation and virtual call, then
+vtable pointer stored in an object is invalidated. Such re-compilation could
+happen if specialization constant value was changed, for example.
+
+As a possible solution to lift that limitation, we could have recorded an index
+of a vtable instead of its address into an object. We will need to change the
+LLVM IR we emit for object construction and making virtual function call, but
+it will allow to avoid invalidating of vtable pointer on device image
+recompilation.
+
+To introduce an order to vtables, we could generate a couple of helper functions
+to map between vtable and its index and vice-versa.
+
+Theoretically, this solution could be extended further to make sure that vtable
+index is still accessible even if an object is passed between different device
+images: if we make sure to include every vtable into every device image and
+somehow maintain the stable order of those.
+
+There are many questions that need to be explored and answered and therefore
+this implementation design is not being immediatly proposed, but it sounds like
+a promising direction to lift some of existing limitations and improve user
+experience.
+
 [1]: <../extensions/proposed/sycl_ext_intel_virtual_functions.asciidoc>
 [2]: <CompileTimeProperties.md>
 [3]: https://clang.llvm.org/docs/LanguageExtensions.html#builtin-sycl-unique-stable-name
