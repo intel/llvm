@@ -482,8 +482,6 @@ struct ur_mem_handle_t_ {
 
   void setLastEventWritingToMemObj(ur_event_handle_t NewEvent) {
     assert(NewEvent && "Invalid event!");
-    // This entry point should only ever be called when using multi device ctx
-    assert(Context->Devices.size() > 1);
     if (LastEventWritingToMemObj != nullptr) {
       urEventRelease(LastEventWritingToMemObj);
     }
