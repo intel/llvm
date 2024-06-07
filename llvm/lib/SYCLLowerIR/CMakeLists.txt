@@ -88,11 +88,12 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LLVMDemangle
   LLVMTargetParser
   LLVMTransformUtils
-  
+
   LINK_COMPONENTS
   Analysis
+  BitWriter
   Core
-  Passes
+  IRPrinter
   Support
   ipo
   )
