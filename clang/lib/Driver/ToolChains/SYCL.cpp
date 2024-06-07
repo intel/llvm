@@ -235,8 +235,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       for (StringRef Val : A->getValues()) {
         if (Val == "all") {
           for (const auto &K : DeviceLibLinkInfo.keys())
-            DeviceLibLinkInfo[K] =
-                true && (!NoDeviceLibs || K == "internal");
+            DeviceLibLinkInfo[K] = true && (!NoDeviceLibs || K == "internal");
           break;
         }
         auto LinkInfoIter = DeviceLibLinkInfo.find(Val);
