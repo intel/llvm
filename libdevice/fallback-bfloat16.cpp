@@ -43,4 +43,32 @@ __devicelib_ConvertBF16ToFINTEL(const uint16_t &a) {
   return floatValue;
 }
 
+DEVICE_EXTERN_C_INLINE
+void __devicelib_ConvertFToBF16INTELVec(const float *src, uint16_t *dst,
+                                        int size) {
+  if (size == 1 || size == 2 || size == 3 || size == 4 || size == 8 ||
+      size == 16) {
+    for (int i = 0; i < size; ++i) {
+      dst[i] = __devicelib_ConvertFToBF16INTEL(src[i]);
+    }
+  }
+  // Invalid size. Should we throw an exception/assert when size is invalid?
+  else {
+  }
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_ConvertBF16ToFINTELVec(const uint16_t *src, float *dst,
+                                        int size) {
+  if (size == 1 || size == 2 || size == 3 || size == 4 || size == 8 ||
+      size == 16) {
+    for (int i = 0; i < size; ++i) {
+      dst[i] = __devicelib_ConvertBF16ToFINTEL(src[i]);
+    }
+  }
+  // Invalid size. Should we throw an exception/assert when size is invalid?
+  else {
+  }
+}
+
 #endif // __SPIR__ || __SPIRV__
