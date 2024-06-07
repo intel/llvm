@@ -88,8 +88,7 @@ TEST_P(USMFillCommandTest, UpdateParameters) {
     Validate((uint32_t *)shared_ptr, global_size, val);
 
     // Allocate a new USM pointer of larger size if feature is supported.
-    size_t new_global_size =
-        updatable_execution_range_support ? 64 : global_size;
+    size_t new_global_size = global_size * 2;
     const size_t new_allocation_size = sizeof(val) * new_global_size;
     ASSERT_SUCCESS(urUSMSharedAlloc(context, device, nullptr, nullptr,
                                     new_allocation_size, &new_shared_ptr));
@@ -116,20 +115,20 @@ TEST_P(USMFillCommandTest, UpdateParameters) {
         &new_val, // hArgValue
     };
 
+    size_t new_local_size = local_size;
     ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
         nullptr,                                                        // pNext
-        0,                // numNewMemObjArgs
-        1,                // numNewPointerArgs
-        1,                // numNewValueArgs
-        0,                // newWorkDim
-        nullptr,          // pNewMemObjArgList
-        &new_output_desc, // pNewPointerArgList
-        &new_input_desc,  // pNewValueArgList
-        nullptr,          // pNewGlobalWorkOffset
-        updatable_execution_range_support ? &new_global_size
-                                          : nullptr, // pNewGlobalWorkSize
-        nullptr,                                     // pNewLocalWorkSize
+        0,                                   // numNewMemObjArgs
+        1,                                   // numNewPointerArgs
+        1,                                   // numNewValueArgs
+        static_cast<uint32_t>(n_dimensions), // newWorkDim
+        nullptr,                             // pNewMemObjArgList
+        &new_output_desc,                    // pNewPointerArgList
+        &new_input_desc,                     // pNewValueArgList
+        nullptr,                             // pNewGlobalWorkOffset
+        &new_global_size,                    // pNewGlobalWorkSize
+        &new_local_size,                     // pNewLocalWorkSize
     };
 
     // Update kernel and enqueue command-buffer again

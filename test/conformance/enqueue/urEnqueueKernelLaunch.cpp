@@ -364,7 +364,7 @@ TEST_P(urEnqueueKernelLaunchWithVirtualMemory, Success) {
     size_t global_size = alloc_size / sizeof(uint32_t);
     uint32_t fill_val = 42;
 
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, virtual_ptr));
+    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, &virtual_ptr));
     ASSERT_SUCCESS(
         urKernelSetArgValue(kernel, 1, sizeof(fill_val), nullptr, &fill_val));
 

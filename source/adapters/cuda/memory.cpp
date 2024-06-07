@@ -429,11 +429,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
 ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
                                            const ur_device_handle_t hDevice) {
   ScopedContext Active(hDevice);
+  auto DeviceIdx = Mem->getContext()->getDeviceIndex(hDevice);
   ur_lock LockGuard(Mem->MemoryAllocationMutex);
 
   if (Mem->isBuffer()) {
     auto &Buffer = std::get<BufferMem>(Mem->Mem);
-    auto &DevPtr = Buffer.Ptrs[hDevice->getIndex() % Buffer.Ptrs.size()];
+    auto &DevPtr = Buffer.Ptrs[DeviceIdx];
 
     // Allocation has already been made
     if (DevPtr != BufferMem::native_type{0}) {
@@ -456,11 +457,11 @@ ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
     try {
       auto &Image = std::get<SurfaceMem>(Mem->Mem);
       // Allocation has already been made
-      if (Image.Arrays[hDevice->getIndex() % Image.Arrays.size()]) {
+      if (Image.Arrays[DeviceIdx]) {
         return UR_RESULT_SUCCESS;
       }
       UR_CHECK_ERROR(cuArray3DCreate(&ImageArray, &Image.ArrayDesc));
-      Image.Arrays[hDevice->getIndex() % Image.Arrays.size()] = ImageArray;
+      Image.Arrays[DeviceIdx] = ImageArray;
 
       // CUDA_RESOURCE_DESC is a union of different structs, shown here
       // https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__TEXOBJECT.html
@@ -475,7 +476,7 @@ ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
       ImageResDesc.flags = 0;
 
       UR_CHECK_ERROR(cuSurfObjectCreate(&Surface, &ImageResDesc));
-      Image.SurfObjs[hDevice->getIndex() % Image.SurfObjs.size()] = Surface;
+      Image.SurfObjs[DeviceIdx] = Surface;
     } catch (ur_result_t Err) {
       if (ImageArray) {
         UR_CHECK_ERROR(cuArrayDestroy(ImageArray));
@@ -590,9 +591,8 @@ ur_result_t migrateMemoryToDeviceIfNeeded(ur_mem_handle_t Mem,
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   // Device allocation has already been initialized with most up to date
   // data in buffer
-  if (Mem->HaveMigratedToDeviceSinceLastWrite
-          [hDevice->getIndex() %
-           Mem->HaveMigratedToDeviceSinceLastWrite.size()]) {
+  if (Mem->HaveMigratedToDeviceSinceLastWrite[Mem->getContext()->getDeviceIndex(
+          hDevice)]) {
     return UR_RESULT_SUCCESS;
   }
 
@@ -603,8 +603,35 @@ ur_result_t migrateMemoryToDeviceIfNeeded(ur_mem_handle_t Mem,
     UR_CHECK_ERROR(migrateImageToDevice(Mem, hDevice));
   }
 
-  Mem->HaveMigratedToDeviceSinceLastWrite
-      [hDevice->getIndex() % Mem->HaveMigratedToDeviceSinceLastWrite.size()] =
-      true;
+  Mem->HaveMigratedToDeviceSinceLastWrite[Mem->getContext()->getDeviceIndex(
+      hDevice)] = true;
   return UR_RESULT_SUCCESS;
+}
+
+BufferMem::native_type
+BufferMem::getPtrWithOffset(const ur_device_handle_t Device, size_t Offset) {
+  if (ur_result_t Err = allocateMemObjOnDeviceIfNeeded(OuterMemStruct, Device);
+      Err != UR_RESULT_SUCCESS) {
+    throw Err;
+  }
+  return reinterpret_cast<native_type>(
+      reinterpret_cast<uint8_t *>(
+          Ptrs[OuterMemStruct->getContext()->getDeviceIndex(Device)]) +
+      Offset);
+}
+
+CUarray SurfaceMem::getArray(const ur_device_handle_t Device) {
+  if (ur_result_t Err = allocateMemObjOnDeviceIfNeeded(OuterMemStruct, Device);
+      Err != UR_RESULT_SUCCESS) {
+    throw Err;
+  }
+  return Arrays[OuterMemStruct->getContext()->getDeviceIndex(Device)];
+}
+
+CUsurfObject SurfaceMem::getSurface(const ur_device_handle_t Device) {
+  if (ur_result_t Err = allocateMemObjOnDeviceIfNeeded(OuterMemStruct, Device);
+      Err != UR_RESULT_SUCCESS) {
+    throw Err;
+  }
+  return SurfObjs[OuterMemStruct->getContext()->getDeviceIndex(Device)];
 }
