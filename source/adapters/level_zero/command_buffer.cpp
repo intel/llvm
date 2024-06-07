@@ -15,6 +15,9 @@
 https://github.com/intel/llvm/blob/sycl/sycl/doc/design/CommandGraph.md#level-zero
 */
 
+// Print the name of a variable and its value in the L0 debug log
+#define DEBUG_LOG(VAR) logger::debug(#VAR " {}", VAR);
+
 namespace {
 /// Checks the version of the level-zero driver.
 /// @param Context Execution context
@@ -495,6 +498,8 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
   ZeCommandListDesc.flags = IsInOrder ? ZE_COMMAND_LIST_FLAG_IN_ORDER
                                       : ZE_COMMAND_LIST_FLAG_RELAXED_ORDERING;
 
+  DEBUG_LOG(ZeCommandListDesc.flags);
+
   ZeStruct<ze_mutable_command_list_exp_desc_t> ZeMutableCommandListDesc;
   if (CommandBufferDesc && CommandBufferDesc->isUpdatable) {
     ZeMutableCommandListDesc.flags = 0;
@@ -678,6 +683,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ZE2UR_CALL(
         Plt->ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp,
         (CommandBuffer->ZeCommandList, &ZeMutableCommandDesc, &CommandId));
+    DEBUG_LOG(CommandId);
   }
   try {
     if (Command)
@@ -1201,6 +1207,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   auto SupportedFeatures =
       Command->CommandBuffer->Device->ZeDeviceMutableCmdListsProperties
           ->mutableCommandFlags;
+  logger::debug("Mutable features supported by device {}", SupportedFeatures);
 
   // We need the created descriptors to live till the point when
   // zexCommandListUpdateMutableCommandsExp is called at the end of the
@@ -1228,10 +1235,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     auto MutableGroupOffestDesc =
         std::make_unique<ZeStruct<ze_mutable_global_offset_exp_desc_t>>();
     MutableGroupOffestDesc->commandId = Command->CommandId;
+    DEBUG_LOG(MutableGroupOffestDesc->commandId);
     MutableGroupOffestDesc->pNext = NextDesc;
+    DEBUG_LOG(MutableGroupOffestDesc->pNext);
     MutableGroupOffestDesc->offsetX = NewGlobalWorkOffset[0];
+    DEBUG_LOG(MutableGroupOffestDesc->offsetX);
     MutableGroupOffestDesc->offsetY = Dim >= 2 ? NewGlobalWorkOffset[1] : 0;
+    DEBUG_LOG(MutableGroupOffestDesc->offsetY);
     MutableGroupOffestDesc->offsetZ = Dim == 3 ? NewGlobalWorkOffset[2] : 0;
+    DEBUG_LOG(MutableGroupOffestDesc->offsetZ);
     NextDesc = MutableGroupOffestDesc.get();
     OffsetDescs.push_back(std::move(MutableGroupOffestDesc));
   }
@@ -1245,10 +1257,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     auto MutableGroupSizeDesc =
         std::make_unique<ZeStruct<ze_mutable_group_size_exp_desc_t>>();
     MutableGroupSizeDesc->commandId = Command->CommandId;
+    DEBUG_LOG(MutableGroupSizeDesc->commandId);
     MutableGroupSizeDesc->pNext = NextDesc;
+    DEBUG_LOG(MutableGroupSizeDesc->pNext);
     MutableGroupSizeDesc->groupSizeX = NewLocalWorkSize[0];
+    DEBUG_LOG(MutableGroupSizeDesc->groupSizeX);
     MutableGroupSizeDesc->groupSizeY = Dim >= 2 ? NewLocalWorkSize[1] : 1;
+    DEBUG_LOG(MutableGroupSizeDesc->groupSizeY);
     MutableGroupSizeDesc->groupSizeZ = Dim == 3 ? NewLocalWorkSize[2] : 1;
+    DEBUG_LOG(MutableGroupSizeDesc->groupSizeZ);
     NextDesc = MutableGroupSizeDesc.get();
     GroupSizeDescs.push_back(std::move(MutableGroupSizeDesc));
   }
@@ -1273,9 +1290,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
         Dim, NewGlobalWorkSize, NewLocalWorkSize));
     auto MutableGroupCountDesc =
         std::make_unique<ZeStruct<ze_mutable_group_count_exp_desc_t>>();
-    MutableGroupCountDesc->pNext = NextDesc;
     MutableGroupCountDesc->commandId = Command->CommandId;
+    DEBUG_LOG(MutableGroupCountDesc->commandId);
+    MutableGroupCountDesc->pNext = NextDesc;
+    DEBUG_LOG(MutableGroupCountDesc->pNext);
     MutableGroupCountDesc->pGroupCount = &ZeThreadGroupDimensions;
+    DEBUG_LOG(MutableGroupCountDesc->pGroupCount->groupCountX);
+    DEBUG_LOG(MutableGroupCountDesc->pGroupCount->groupCountY);
+    DEBUG_LOG(MutableGroupCountDesc->pGroupCount->groupCountZ);
     NextDesc = MutableGroupCountDesc.get();
     GroupCountDescs.push_back(std::move(MutableGroupCountDesc));
 
@@ -1283,10 +1305,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
       auto MutableGroupSizeDesc =
           std::make_unique<ZeStruct<ze_mutable_group_size_exp_desc_t>>();
       MutableGroupSizeDesc->commandId = Command->CommandId;
+      DEBUG_LOG(MutableGroupSizeDesc->commandId);
       MutableGroupSizeDesc->pNext = NextDesc;
+      DEBUG_LOG(MutableGroupSizeDesc->pNext);
       MutableGroupSizeDesc->groupSizeX = WG[0];
+      DEBUG_LOG(MutableGroupSizeDesc->groupSizeX);
       MutableGroupSizeDesc->groupSizeY = WG[1];
+      DEBUG_LOG(MutableGroupSizeDesc->groupSizeY);
       MutableGroupSizeDesc->groupSizeZ = WG[2];
+      DEBUG_LOG(MutableGroupSizeDesc->groupSizeZ);
+
       NextDesc = MutableGroupSizeDesc.get();
       GroupSizeDescs.push_back(std::move(MutableGroupSizeDesc));
     }
@@ -1333,10 +1361,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     auto ZeMutableArgDesc =
         std::make_unique<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>>();
     ZeMutableArgDesc->commandId = Command->CommandId;
+    DEBUG_LOG(ZeMutableArgDesc->commandId);
     ZeMutableArgDesc->pNext = NextDesc;
+    DEBUG_LOG(ZeMutableArgDesc->pNext);
     ZeMutableArgDesc->argIndex = NewMemObjArgDesc.argIndex;
+    DEBUG_LOG(ZeMutableArgDesc->argIndex);
     ZeMutableArgDesc->argSize = sizeof(void *);
+    DEBUG_LOG(ZeMutableArgDesc->argSize);
     ZeMutableArgDesc->pArgValue = ZeHandlePtr;
+    DEBUG_LOG(ZeMutableArgDesc->pArgValue);
 
     NextDesc = ZeMutableArgDesc.get();
     ArgDescs.push_back(std::move(ZeMutableArgDesc));
@@ -1350,10 +1383,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     auto ZeMutableArgDesc =
         std::make_unique<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>>();
     ZeMutableArgDesc->commandId = Command->CommandId;
+    DEBUG_LOG(ZeMutableArgDesc->commandId);
     ZeMutableArgDesc->pNext = NextDesc;
+    DEBUG_LOG(ZeMutableArgDesc->pNext);
     ZeMutableArgDesc->argIndex = NewPointerArgDesc.argIndex;
+    DEBUG_LOG(ZeMutableArgDesc->argIndex);
     ZeMutableArgDesc->argSize = sizeof(void *);
+    DEBUG_LOG(ZeMutableArgDesc->argSize);
     ZeMutableArgDesc->pArgValue = NewPointerArgDesc.pNewPointerArg;
+    DEBUG_LOG(ZeMutableArgDesc->pArgValue);
 
     NextDesc = ZeMutableArgDesc.get();
     ArgDescs.push_back(std::move(ZeMutableArgDesc));
@@ -1367,9 +1405,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     auto ZeMutableArgDesc =
         std::make_unique<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>>();
     ZeMutableArgDesc->commandId = Command->CommandId;
+    DEBUG_LOG(ZeMutableArgDesc->commandId);
     ZeMutableArgDesc->pNext = NextDesc;
+    DEBUG_LOG(ZeMutableArgDesc->pNext);
     ZeMutableArgDesc->argIndex = NewValueArgDesc.argIndex;
+    DEBUG_LOG(ZeMutableArgDesc->argIndex);
     ZeMutableArgDesc->argSize = NewValueArgDesc.argSize;
+    DEBUG_LOG(ZeMutableArgDesc->argSize);
     // OpenCL: "the arg_value pointer can be NULL or point to a NULL value
     // in which case a NULL value will be used as the value for the argument
     // declared as a pointer to global or constant memory in the kernel"
@@ -1383,6 +1425,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
       ArgValuePtr = nullptr;
     }
     ZeMutableArgDesc->pArgValue = ArgValuePtr;
+    DEBUG_LOG(ZeMutableArgDesc->pArgValue);
     NextDesc = ZeMutableArgDesc.get();
     ArgDescs.push_back(std::move(ZeMutableArgDesc));
   }

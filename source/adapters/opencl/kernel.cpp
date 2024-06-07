@@ -419,3 +419,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
   CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
+    ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    size_t *pSuggestedLocalWorkSize) {
+  cl_device_id Device;
+  cl_platform_id Platform;
+
+  CL_RETURN_ON_FAILURE(clGetCommandQueueInfo(
+      cl_adapter::cast<cl_command_queue>(hQueue), CL_QUEUE_DEVICE,
+      sizeof(cl_device_id), &Device, nullptr));
+
+  CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+      Device, CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &Platform, nullptr));
+
+  auto GetKernelSuggestedLocalWorkSizeFuncPtr =
+      (clGetKernelSuggestedLocalWorkSizeKHR_fn)
+          clGetExtensionFunctionAddressForPlatform(
+              Platform, "clGetKernelSuggestedLocalWorkSizeKHR");
+  if (!GetKernelSuggestedLocalWorkSizeFuncPtr)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  CL_RETURN_ON_FAILURE(GetKernelSuggestedLocalWorkSizeFuncPtr(
+      cl_adapter::cast<cl_command_queue>(hQueue),
+      cl_adapter::cast<cl_kernel>(hKernel), workDim, pGlobalWorkOffset,
+      pGlobalWorkSize, pSuggestedLocalWorkSize));
+  return UR_RESULT_SUCCESS;
+}

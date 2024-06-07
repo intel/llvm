@@ -237,7 +237,7 @@ setKernelParams([[maybe_unused]] const ur_context_handle_t Context,
 
         if (hasExceededMaxRegistersPerBlock(Device, Kernel,
                                             KernelLocalWorkGroupSize)) {
-          return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+          return UR_RESULT_ERROR_OUT_OF_RESOURCES;
         }
       } else {
         guessLocalWorkSize(Device, ThreadsPerBlock, GlobalWorkSize, WorkDim,
@@ -535,6 +535,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  if (*pGlobalWorkOffset == 0 || pGlobalWorkOffset == nullptr) {
+    ur_exp_launch_property_t coop_prop;
+    coop_prop.id = UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE;
+    coop_prop.value.cooperative = 1;
+    return urEnqueueKernelLaunchCustomExp(
+        hQueue, hKernel, workDim, pGlobalWorkSize, pLocalWorkSize, 1,
+        &coop_prop, numEventsInWaitList, phEventWaitList, phEvent);
+  }
   return urEnqueueKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
                                pGlobalWorkSize, pLocalWorkSize,
                                numEventsInWaitList, phEventWaitList, phEvent);
@@ -553,7 +561,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
                           pLocalWorkSize, numEventsInWaitList, phEventWaitList,
                           phEvent);
   }
-
+#if CUDA_VERSION >= 11080
   // Preconditions
   UR_ASSERT(hQueue->getDevice() == hKernel->getProgram()->getDevice(),
             UR_RESULT_ERROR_INVALID_KERNEL);
@@ -722,6 +730,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     return Err;
   }
   return UR_RESULT_SUCCESS;
+#else
+  setErrorMessage("This feature requires cuda 11.8 or later.",
+                  UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+  return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+#endif // CUDA_VERSION >= 11080
 }
 
 /// Set parameters for general 3D memory copy.

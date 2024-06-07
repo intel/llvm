@@ -13,6 +13,93 @@
 #include "ur_api.h"
 #include "ur_level_zero.hpp"
 
+UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
+    ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue, uint32_t workDim,
+    [[maybe_unused]] const size_t *pGlobalWorkOffset,
+    const size_t *pGlobalWorkSize, size_t *pSuggestedLocalWorkSize) {
+  UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+  UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+  UR_ASSERT(pSuggestedLocalWorkSize != nullptr,
+            UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  uint32_t LocalWorkSize[3];
+  size_t GlobalWorkSize3D[3]{1, 1, 1};
+  std::copy(pGlobalWorkSize, pGlobalWorkSize + workDim, GlobalWorkSize3D);
+
+  ze_kernel_handle_t ZeKernel{};
+  UR_CALL(getZeKernel(hQueue, hKernel, &ZeKernel));
+
+  UR_CALL(getSuggestedLocalWorkSize(hQueue, ZeKernel, GlobalWorkSize3D,
+                                    LocalWorkSize));
+
+  std::copy(LocalWorkSize, LocalWorkSize + workDim, pSuggestedLocalWorkSize);
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t getZeKernel(ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel,
+                        ze_kernel_handle_t *phZeKernel) {
+  auto ZeDevice = hQueue->Device->ZeDevice;
+
+  if (hKernel->ZeKernelMap.empty()) {
+    *phZeKernel = hKernel->ZeKernel;
+  } else {
+    auto It = hKernel->ZeKernelMap.find(ZeDevice);
+    if (It == hKernel->ZeKernelMap.end()) {
+      /* kernel and queue don't match */
+      return UR_RESULT_ERROR_INVALID_QUEUE;
+    }
+    *phZeKernel = It->second;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t getSuggestedLocalWorkSize(ur_queue_handle_t hQueue,
+                                      ze_kernel_handle_t hZeKernel,
+                                      size_t GlobalWorkSize3D[3],
+                                      uint32_t SuggestedLocalWorkSize3D[3]) {
+  uint32_t *WG = SuggestedLocalWorkSize3D;
+
+  // We can't call to zeKernelSuggestGroupSize if 64-bit GlobalWorkSize
+  // values do not fit to 32-bit that the API only supports currently.
+  bool SuggestGroupSize = true;
+  for (int I : {0, 1, 2}) {
+    if (GlobalWorkSize3D[I] > UINT32_MAX) {
+      SuggestGroupSize = false;
+    }
+  }
+  if (SuggestGroupSize) {
+    ZE2UR_CALL(zeKernelSuggestGroupSize,
+               (hZeKernel, GlobalWorkSize3D[0], GlobalWorkSize3D[1],
+                GlobalWorkSize3D[2], &WG[0], &WG[1], &WG[2]));
+  } else {
+    for (int I : {0, 1, 2}) {
+      // Try to find a I-dimension WG size that the GlobalWorkSize[I] is
+      // fully divisable with. Start with the max possible size in
+      // each dimension.
+      uint32_t GroupSize[] = {
+          hQueue->Device->ZeDeviceComputeProperties->maxGroupSizeX,
+          hQueue->Device->ZeDeviceComputeProperties->maxGroupSizeY,
+          hQueue->Device->ZeDeviceComputeProperties->maxGroupSizeZ};
+      GroupSize[I] = (std::min)(size_t(GroupSize[I]), GlobalWorkSize3D[I]);
+      while (GlobalWorkSize3D[I] % GroupSize[I]) {
+        --GroupSize[I];
+      }
+      if (GlobalWorkSize3D[I] / GroupSize[I] > UINT32_MAX) {
+        logger::error("getSuggestedLocalWorkSize: can't find a WG size "
+                      "suitable for global work size > UINT32_MAX");
+        return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+      }
+      WG[I] = GroupSize[I];
+    }
+    logger::debug(
+        "getSuggestedLocalWorkSize: using computed WG size = {{{}, {}, {}}}",
+        WG[0], WG[1], WG[2]);
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t Queue,   ///< [in] handle of the queue object
     ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
@@ -43,19 +130,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular kernel execution instance.
 ) {
-  auto ZeDevice = Queue->Device->ZeDevice;
-
   ze_kernel_handle_t ZeKernel{};
-  if (Kernel->ZeKernelMap.empty()) {
-    ZeKernel = Kernel->ZeKernel;
-  } else {
-    auto It = Kernel->ZeKernelMap.find(ZeDevice);
-    if (It == Kernel->ZeKernelMap.end()) {
-      /* kernel and queue don't match */
-      return UR_RESULT_ERROR_INVALID_QUEUE;
-    }
-    ZeKernel = It->second;
-  }
+  UR_CALL(getZeKernel(Queue, Kernel, &ZeKernel));
+
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
       Queue->Mutex, Kernel->Mutex, Kernel->Program->Mutex);
@@ -92,54 +169,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   std::copy(GlobalWorkSize, GlobalWorkSize + WorkDim, GlobalWorkSize3D);
 
   if (LocalWorkSize) {
-    // L0
-    UR_ASSERT(LocalWorkSize[0] < (std::numeric_limits<uint32_t>::max)(),
-              UR_RESULT_ERROR_INVALID_VALUE);
-    UR_ASSERT(LocalWorkSize[1] < (std::numeric_limits<uint32_t>::max)(),
-              UR_RESULT_ERROR_INVALID_VALUE);
-    UR_ASSERT(LocalWorkSize[2] < (std::numeric_limits<uint32_t>::max)(),
-              UR_RESULT_ERROR_INVALID_VALUE);
-    WG[0] = static_cast<uint32_t>(LocalWorkSize[0]);
-    WG[1] = static_cast<uint32_t>(LocalWorkSize[1]);
-    WG[2] = static_cast<uint32_t>(LocalWorkSize[2]);
+    for (uint32_t I = 0; I < WorkDim; ++I) {
+      UR_ASSERT(LocalWorkSize[I] < (std::numeric_limits<uint32_t>::max)(),
+                UR_RESULT_ERROR_INVALID_VALUE);
+      WG[I] = static_cast<uint32_t>(LocalWorkSize[I]);
+    }
   } else {
-    // We can't call to zeKernelSuggestGroupSize if 64-bit GlobalWorkSize
-    // values do not fit to 32-bit that the API only supports currently.
-    bool SuggestGroupSize = true;
-    for (int I : {0, 1, 2}) {
-      if (GlobalWorkSize3D[I] > UINT32_MAX) {
-        SuggestGroupSize = false;
-      }
-    }
-    if (SuggestGroupSize) {
-      ZE2UR_CALL(zeKernelSuggestGroupSize,
-                 (ZeKernel, GlobalWorkSize3D[0], GlobalWorkSize3D[1],
-                  GlobalWorkSize3D[2], &WG[0], &WG[1], &WG[2]));
-    } else {
-      for (int I : {0, 1, 2}) {
-        // Try to find a I-dimension WG size that the GlobalWorkSize[I] is
-        // fully divisable with. Start with the max possible size in
-        // each dimension.
-        uint32_t GroupSize[] = {
-            Queue->Device->ZeDeviceComputeProperties->maxGroupSizeX,
-            Queue->Device->ZeDeviceComputeProperties->maxGroupSizeY,
-            Queue->Device->ZeDeviceComputeProperties->maxGroupSizeZ};
-        GroupSize[I] = (std::min)(size_t(GroupSize[I]), GlobalWorkSize3D[I]);
-        while (GlobalWorkSize3D[I] % GroupSize[I]) {
-          --GroupSize[I];
-        }
-
-        if (GlobalWorkSize3D[I] / GroupSize[I] > UINT32_MAX) {
-          logger::error("urEnqueueKernelLaunch: can't find a WG size "
-                        "suitable for global work size > UINT32_MAX");
-          return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-        }
-        WG[I] = GroupSize[I];
-      }
-      logger::debug(
-          "urEnqueueKernelLaunch: using computed WG size = {{{}, {}, {}}}",
-          WG[0], WG[1], WG[2]);
-    }
+    UR_CALL(getSuggestedLocalWorkSize(Queue, ZeKernel, GlobalWorkSize3D, WG));
   }
 
   // TODO: assert if sizes do not fit into 32-bit?

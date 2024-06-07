@@ -15,6 +15,24 @@ add_ur_library(ur_loader
     ${CMAKE_CURRENT_BINARY_DIR}/UrLoaderVersion.rc
 )
 
+if (MSVC)
+    set(TARGET_LIBNAME ur_loader)
+    string(TOUPPER ${TARGET_LIBNAME} TARGET_LIBNAME)
+    
+    set(LOADER_VERSION_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/ur_loader.def)
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/loader.def.in ${LOADER_VERSION_SCRIPT} @ONLY)
+    set_target_properties(ur_loader PROPERTIES
+        LINK_FLAGS "/DEF:${LOADER_VERSION_SCRIPT}"
+    )
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(TARGET_LIBNAME libur_loader_${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
+    string(TOUPPER ${TARGET_LIBNAME} TARGET_LIBNAME)
+
+    set(LOADER_VERSION_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/ur_loader.map)
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/loader.map.in ${LOADER_VERSION_SCRIPT} @ONLY)
+    target_link_options(ur_loader PRIVATE "-Wl,--version-script=${LOADER_VERSION_SCRIPT}")
+endif()
+
 set_target_properties(ur_loader PROPERTIES
     LIBRARY_OUTPUT_NAME ur_loader
     RUNTIME_OUTPUT_NAME ur_loader
@@ -108,6 +126,8 @@ if(UR_ENABLE_SANITIZER)
         ${CMAKE_CURRENT_SOURCE_DIR}/../ur/ur.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_allocator.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_allocator.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_buffer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_buffer.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_interceptor.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_interceptor.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_libdevice.hpp
