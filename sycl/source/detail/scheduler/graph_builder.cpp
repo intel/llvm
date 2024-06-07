@@ -1342,7 +1342,7 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
         CG::CodeplayHostTask,
         /* Payload */ {}));
     ConnectCmd = new ExecCGCommand(
-        std::move(ConnectCG), Cmd->getQueue());
+        std::move(ConnectCG), nullptr);
   } catch (const std::bad_alloc &) {
     throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
   }

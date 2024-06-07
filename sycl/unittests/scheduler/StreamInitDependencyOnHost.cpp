@@ -12,6 +12,7 @@
 #include <detail/config.hpp>
 #include <detail/handler_impl.hpp>
 #include <helpers/ScopedEnvVar.hpp>
+#include <helpers/PiMock.hpp>
 
 using namespace sycl;
 
@@ -81,8 +82,13 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
       DisableCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::reset};
 
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  sycl::queue Q(Plt.get_devices()[0]);
+  std::shared_ptr<detail::queue_impl> QImpl = detail::getSyclObjImpl(Q);
+
   // Emulating processing of command group function
-  MockHandlerStreamInit MockCGH(nullptr, true);
+  MockHandlerStreamInit MockCGH(QImpl, true);
   MockCGH.setType(detail::CG::Kernel);
 
   auto EmptyKernel = [](sycl::nd_item<1>) {};
@@ -111,7 +117,7 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
       static_cast<detail::CGExecKernel *>(MainCG.get())->getStreams();
   ASSERT_EQ(Streams.size(), 1u) << "Invalid number of stream objects";
 
-  Streams[0]->initStreamHost(nullptr);
+  Streams[0]->initStreamHost(QImpl);
 
   MockScheduler MS;
   std::vector<detail::Command *> AuxCmds;
