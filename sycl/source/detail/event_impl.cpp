@@ -566,7 +566,7 @@ void event_impl::setCommand(void *Cmd) {
   MCommand = Cmd;
   auto TypedCommand = static_cast<Command*>(Cmd);
   if (TypedCommand)
-    MIsHostTask = TypedCommand->isHostTask();
+    MIsHostEvent = TypedCommand->getWorkerContext() == nullptr;
 }
 
 } // namespace detail

@@ -209,7 +209,7 @@ void SYCLMemObjT::detachMemoryObject(
       !MOwnNativeHandle ||
       (MInteropContext && !MInteropContext->isOwnedByRuntime());
 
-  if (MRecord && MRecord->MCurContext->isOwnedByRuntime() &&
+  if (MRecord && MRecord->MCurContext && MRecord->MCurContext->isOwnedByRuntime() &&
       !InteropObjectsUsed && (!MHostPtrProvided || MIsInternal))
     Scheduler::getInstance().deferMemObjRelease(Self);
 }

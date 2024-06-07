@@ -337,7 +337,7 @@ public:
 
   void setEnqueued() { MIsEnqueued = true; }
 
-  bool isHost() { return MIsHostTask; }
+  bool isHost() { return MIsHostEvent; }
 
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
@@ -406,7 +406,7 @@ protected:
                   std::shared_ptr<sycl::detail::context_impl> Context);
 
   std::atomic_bool MIsEnqueued{false};
-  bool MIsHostTask{false};
+  bool MIsHostEvent{false};
 };
 
 } // namespace detail

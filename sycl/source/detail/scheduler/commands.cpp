@@ -459,6 +459,11 @@ void Command::waitForPreparedHostEvents() const {
 void Command::waitForEvents(QueueImplPtr Queue,
                             std::vector<EventImplPtr> &EventImpls,
                             sycl::detail::pi::PiEvent &Event) {
+  #ifndef NDEBUG
+      for (const EventImplPtr &Event : EventImpls)
+        assert(!Event->isHost() &&
+               "Only non-host events are expected to be waited for here");
+#endif
   if (!EventImpls.empty()) {
       if (!Queue) {
       // Host queue can wait for events from different contexts, i.e. it may
@@ -491,12 +496,6 @@ void Command::waitForEvents(QueueImplPtr Queue,
             RawEvents.size(), RawEvents.data());
       }
     } else {
-#ifndef NDEBUG
-      for (const EventImplPtr &Event : EventImpls)
-        assert(!Event->isHost() &&
-               "Only non-host events are expected to be waited for here");
-#endif
-
       std::vector<sycl::detail::pi::PiEvent> RawEvents =
           getPiEvents(EventImpls);
       flushCrossQueueDeps(EventImpls, MWorkerQueue);
@@ -1488,7 +1487,8 @@ void MemCpyCommand::emitInstrumentationData() {
 }
 
 ContextImplPtr MemCpyCommand::getWorkerContext() const {
-  assert(MWorkerQueue && "Worker queue for mem cpy command must be not nullptr");
+  if (!MWorkerQueue)
+    return nullptr;
   return MWorkerQueue->getContextImplPtr();
 }
 
@@ -1661,7 +1661,8 @@ void MemCpyCommandHost::emitInstrumentationData() {
 }
 
 ContextImplPtr MemCpyCommandHost::getWorkerContext() const {
-  assert(MWorkerQueue && "Worker queue for mem cpy host command must be not nullptr");
+  if (!MWorkerQueue)
+    return nullptr;
   return MWorkerQueue->getContextImplPtr();
 }
 
