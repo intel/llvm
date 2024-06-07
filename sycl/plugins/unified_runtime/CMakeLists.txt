@@ -4,9 +4,9 @@
 # Options to override the default behaviour of the FetchContent to include UR
 # source code.
 set(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO
-  "https://github.com/GeorgeWeb/unified-runtime.git" CACHE STRING "Override the Unified Runtime FetchContent repository")
+  "" CACHE STRING "Override the Unified Runtime FetchContent repository")
 set(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG
-  "df1701b9addb75b58e241a86ad4ec828573707a4" CACHE STRING "Override the Unified Runtime FetchContent tag")
+  "" CACHE STRING "Override the Unified Runtime FetchContent tag")
 
 # Options to disable use of FetchContent to include Unified Runtime source code
 # to improve developer workflow.
@@ -136,14 +136,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(hip
-    ${UNIFIED_RUNTIME_REPO}
+    https://github.com/GeorgeWeb/unified-runtime.git
     # commit 399430da9613269a0dc8ddf605415942e0a37e9c
     # Merge: 39cb69ab 10b04891
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
     # Date:   Tue Jun 4 17:15:33 2024 +0100
     #     Merge pull request #1688 from frasercrmck/hip-enqueue-mem-readwritecopy
     #     [HIP] Various fixes for urEnqueueMemImage(Read|Write|Copy)
-    399430da9613269a0dc8ddf605415942e0a37e9c
+    e3b256c6c0f737948c007c1e0de181ecc98c0274
   )
 
   fetch_adapter_source(native_cpu
