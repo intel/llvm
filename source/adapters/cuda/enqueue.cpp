@@ -912,7 +912,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     ur_event_handle_t *phEvent) {
   CUdeviceptr DevPtr =
       std::get<BufferMem>(hBuffer->Mem).getPtr(hQueue->getDevice());
-  std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
+  ur_lock MemMigrationLock{hBuffer->MemoryMigrationMutex};
 
   try {
     ScopedContext Active(hQueue->getDevice());
@@ -920,21 +920,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, cuStream, numEventsInWaitList,
                                      phEventWaitList));
 
-    if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_WRITE_RECT, hQueue, cuStream));
-      UR_CHECK_ERROR(RetImplEvent->start());
-    }
+    // With multi dev ctx we have no choice but to record this event
+    std::unique_ptr<ur_event_handle_t_> RetImplEvent =
+        std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+            UR_COMMAND_MEM_BUFFER_WRITE_RECT, hQueue, cuStream));
+    UR_CHECK_ERROR(RetImplEvent->start());
 
     UR_CHECK_ERROR(commonEnqueueMemBufferCopyRect(
         cuStream, region, pSrc, CU_MEMORYTYPE_HOST, hostOrigin, hostRowPitch,
         hostSlicePitch, &DevPtr, CU_MEMORYTYPE_DEVICE, bufferOrigin,
         bufferRowPitch, bufferSlicePitch));
 
-    if (phEvent) {
-      UR_CHECK_ERROR(RetImplEvent->record());
-    }
+    UR_CHECK_ERROR(RetImplEvent->record());
 
     if (blockingWrite) {
       UR_CHECK_ERROR(cuStreamSynchronize(cuStream));
@@ -942,6 +939,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
 
     if (phEvent) {
       *phEvent = RetImplEvent.release();
+      hBuffer->setLastEventWritingToMemObj(*phEvent);
+    } else {
+      hBuffer->setLastEventWritingToMemObj(RetImplEvent.release());
     }
 
   } catch (ur_result_t Err) {
@@ -1081,22 +1081,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
     ur_event_handle_t *phEvent) {
   UR_ASSERT(size + offset <= std::get<BufferMem>(hBuffer->Mem).getSize(),
             UR_RESULT_ERROR_INVALID_SIZE);
-
-  std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
+  ur_lock MemMigrationLock{hBuffer->MemoryMigrationMutex};
 
   try {
     ScopedContext Active(hQueue->getDevice());
 
     auto Stream = hQueue->getNextTransferStream();
-    ur_result_t Result =
-        enqueueEventsWait(hQueue, Stream, numEventsInWaitList, phEventWaitList);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, Stream, numEventsInWaitList,
+                                     phEventWaitList));
 
-    if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_FILL, hQueue, Stream));
-      UR_CHECK_ERROR(RetImplEvent->start());
-    }
+    // With multi dev ctx we have no choice but to record this event
+    std::unique_ptr<ur_event_handle_t_> RetImplEvent =
+        std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+            UR_COMMAND_MEM_BUFFER_FILL, hQueue, Stream));
+    UR_CHECK_ERROR(RetImplEvent->start());
 
     auto DstDevice = std::get<BufferMem>(hBuffer->Mem)
                          .getPtrWithOffset(hQueue->getDevice(), offset);
@@ -1120,23 +1118,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
       break;
     }
     default: {
-      Result = commonMemSetLargePattern(Stream, patternSize, size, pPattern,
-                                        DstDevice);
+      UR_CHECK_ERROR(commonMemSetLargePattern(Stream, patternSize, size,
+                                              pPattern, DstDevice));
       break;
     }
     }
 
+    UR_CHECK_ERROR(RetImplEvent->record());
     if (phEvent) {
-      UR_CHECK_ERROR(RetImplEvent->record());
       *phEvent = RetImplEvent.release();
+      hBuffer->setLastEventWritingToMemObj(*phEvent);
+    } else {
+      // Give buffer ownership if no event used
+      hBuffer->setLastEventWritingToMemObj(RetImplEvent.release());
     }
-
-    return Result;
   } catch (ur_result_t Err) {
     return Err;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
+  return UR_RESULT_SUCCESS;
 }
 
 static size_t imageElementByteSize(CUDA_ARRAY_DESCRIPTOR ArrayDesc) {
@@ -1927,7 +1928,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
   ur_result_t Result = UR_RESULT_SUCCESS;
   CUdeviceptr DevPtr =
       std::get<BufferMem>(hBuffer->Mem).getPtr(hQueue->getDevice());
-  std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
+  ur_lock MemMigrationLock{hBuffer->MemoryMigrationMutex};
 
   try {
     ScopedContext Active(hQueue->getDevice());
@@ -1936,18 +1937,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     Result = enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
                                phEventWaitList);
 
-    if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_WRITE, hQueue, CuStream));
-      UR_CHECK_ERROR(RetImplEvent->start());
-    }
+    // With multi dev ctx we have no choice but to record this event
+    std::unique_ptr<ur_event_handle_t_> RetImplEvent =
+        std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+            UR_COMMAND_MEM_BUFFER_WRITE, hQueue, CuStream));
+    UR_CHECK_ERROR(RetImplEvent->start());
 
     UR_CHECK_ERROR(cuMemcpyHtoDAsync(DevPtr + offset, pSrc, size, CuStream));
 
-    if (phEvent) {
-      UR_CHECK_ERROR(RetImplEvent->record());
-    }
+    UR_CHECK_ERROR(RetImplEvent->record());
 
     if (blockingWrite) {
       UR_CHECK_ERROR(cuStreamSynchronize(CuStream));
@@ -1955,6 +1953,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
 
     if (phEvent) {
       *phEvent = RetImplEvent.release();
+      hBuffer->setLastEventWritingToMemObj(*phEvent);
+    } else {
+      // Give buffer ownership if no event used
+      hBuffer->setLastEventWritingToMemObj(RetImplEvent.release());
     }
   } catch (ur_result_t Err) {
     Result = Err;
