@@ -17,9 +17,9 @@
 
 #if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__)
 #ifdef __SYCL_DEVICE_ONLY__
-#define DEVICE_EXTERNAL SYCL_EXTERNAL __attribute__((weak))
+#define DEVICE_EXTERNAL SYCL_EXTERNAL
 #else // __SYCL_DEVICE_ONLY__
-#define DEVICE_EXTERNAL __attribute__((weak))
+#define DEVICE_EXTERNAL
 #endif // __SYCL_DEVICE_ONLY__
 
 #define DEVICE_EXTERN_C DEVICE_EXTERNAL EXTERN_C
