@@ -65,7 +65,7 @@ This extension adds a lower overhead way to allocate device local memory,
 memory which is shared by all work-items in a work-group.
 The `local_accessor` class in the core SYCL specification provides a mechanism
 to do this also, but `local_accessor` has higher overhead because it
-encapsulates both a pointer to the memory and also its size.
+encapsulates both a pointer to the memory and the size of that memory.
 When a `local_accessor` has multiple dimensions, it contains the size in
 each dimension.
 By comparison, the `work_group_memory` class in this extension encapsulates
