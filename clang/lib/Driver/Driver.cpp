@@ -1245,6 +1245,8 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           // Only add the Triple to the Unique vector if it is truly unique.
           // We can have duplicate triples in cases where multiple implied
           // targets are used, i.e. intel_gpu_pvc,intel_gpu_gen11
+          // TODO: Improve usage by using a better container (like StringSet)
+          // to provide uniqueness in values.
           if (std::find(UniqueSYCLTriplesVec.begin(),
                         UniqueSYCLTriplesVec.end(),
                         DeviceTriple) == UniqueSYCLTriplesVec.end())
