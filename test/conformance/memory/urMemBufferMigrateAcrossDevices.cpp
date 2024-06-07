@@ -16,6 +16,10 @@ struct urMultiDeviceContextTest : uur::urPlatformTest {
         ASSERT_SUCCESS(urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr,
                                    &num_devices));
         ASSERT_NE(num_devices, 0);
+        if (num_devices == 1) {
+            return;
+        }
+
         devices = std::vector<ur_device_handle_t>(num_devices);
         ASSERT_SUCCESS(urDeviceGet(platform, UR_DEVICE_TYPE_ALL, num_devices,
                                    devices.data(), nullptr));
@@ -31,11 +35,14 @@ struct urMultiDeviceContextTest : uur::urPlatformTest {
 
     void TearDown() {
         uur::urPlatformTest::TearDown();
-        urContextRelease(context);
-        for (auto i = 0u; i < num_devices; ++i) {
-            urQueueRelease(queues[i]);
-            urDeviceRelease(devices[i]);
+        if (num_devices == 1) {
+            return;
         }
+        for (auto i = 0u; i < num_devices; ++i) {
+            urDeviceRelease(devices[i]);
+            urQueueRelease(queues[i]);
+        }
+        urContextRelease(context);
     }
 
     uint32_t num_devices = 0;
@@ -47,6 +54,9 @@ struct urMultiDeviceContextTest : uur::urPlatformTest {
 struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
     void SetUp() {
         urMultiDeviceContextTest::SetUp();
+        if (num_devices == 1) {
+            return;
+        }
         ASSERT_SUCCESS(urMemBufferCreate(context, 0 /*flags=*/,
                                          buffer_size_bytes,
                                          nullptr /*pProperties=*/, &buffer));
@@ -116,10 +126,13 @@ struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
     }
 
     void TearDown() {
-        for (auto i = 0u; i < num_devices; ++i) {
-            ASSERT_SUCCESS(urProgramRelease(programs[i]));
+        if (num_devices > 1) {
+            for (auto i = 0u; i < num_devices; ++i) {
+                ASSERT_SUCCESS(urKernelRelease(kernels[i]));
+                ASSERT_SUCCESS(urProgramRelease(programs[i]));
+            }
+            urMemRelease(buffer);
         }
-        urMemRelease(buffer);
         urMultiDeviceContextTest::TearDown();
     }
 
