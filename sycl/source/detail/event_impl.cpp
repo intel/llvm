@@ -81,7 +81,7 @@ void event_impl::waitInternal(bool *Success) {
 }
 
 void event_impl::setComplete() {
-  if (!MEvent) {
+  if (MIsHostEvent || !MEvent) {
     {
       std::unique_lock<std::mutex> lock(MMutex);
 #ifndef NDEBUG
@@ -126,6 +126,7 @@ const PluginPtr &event_impl::getPlugin() {
 void event_impl::setStateIncomplete() { MState = HES_NotComplete; }
 
 void event_impl::setContextImpl(const ContextImplPtr &Context) {
+  MIsHostEvent = Context == nullptr;
   MContext = Context;
   MIsContextInitialized = true;
 }

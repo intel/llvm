@@ -459,7 +459,8 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
 
   std::vector<Command *> ToCleanUp;
   auto CmdEvent = Cmd->getEvent();
-  auto QueueImpl = Cmd->getQueue();
+  auto QueueImpl = CmdEvent->getSubmittedQueue();
+  assert(QueueImpl && "Submitted queue for host task must not be null");
   {
     ReadLockT Lock = acquireReadLock();
 
