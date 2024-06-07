@@ -23,6 +23,8 @@
 #include "llvm/ADT/SetVector.h"
 
 namespace clang {
+class Decl;
+class ParsedAttr;
 
 class CXXMethodDecl;
 class MangleContext;
@@ -393,6 +395,8 @@ public:
                                        SourceLocation LParen,
                                        SourceLocation RParen,
                                        ParsedType ParsedTy);
+
+  void handleKernelAttr(Decl *D, const ParsedAttr &AL);
 };
 
 } // namespace clang

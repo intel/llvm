@@ -1869,25 +1869,23 @@ public:
   }
 
   Value *CreateGEP(Type *Ty, Value *Ptr, ArrayRef<Value *> IdxList,
-                   const Twine &Name = "", bool IsInBounds = false) {
-    if (auto *V = Folder.FoldGEP(Ty, Ptr, IdxList, IsInBounds))
+                   const Twine &Name = "",
+                   GEPNoWrapFlags NW = GEPNoWrapFlags::none()) {
+    if (auto *V = Folder.FoldGEP(Ty, Ptr, IdxList, NW))
       return V;
-    return Insert(IsInBounds
-                      ? GetElementPtrInst::CreateInBounds(Ty, Ptr, IdxList)
-                      : GetElementPtrInst::Create(Ty, Ptr, IdxList),
-                  Name);
+    return Insert(GetElementPtrInst::Create(Ty, Ptr, IdxList, NW), Name);
   }
 
   Value *CreateInBoundsGEP(Type *Ty, Value *Ptr, ArrayRef<Value *> IdxList,
                            const Twine &Name = "") {
-    return CreateGEP(Ty, Ptr, IdxList, Name, /* IsInBounds */ true);
+    return CreateGEP(Ty, Ptr, IdxList, Name, GEPNoWrapFlags::inBounds());
   }
 
   Value *CreateConstGEP1_32(Type *Ty, Value *Ptr, unsigned Idx0,
                             const Twine &Name = "") {
     Value *Idx = ConstantInt::get(Type::getInt32Ty(Context), Idx0);
 
-    if (auto *V = Folder.FoldGEP(Ty, Ptr, Idx, /*IsInBounds=*/false))
+    if (auto *V = Folder.FoldGEP(Ty, Ptr, Idx, GEPNoWrapFlags::none()))
       return V;
 
     return Insert(GetElementPtrInst::Create(Ty, Ptr, Idx), Name);
@@ -1897,7 +1895,7 @@ public:
                                     const Twine &Name = "") {
     Value *Idx = ConstantInt::get(Type::getInt32Ty(Context), Idx0);
 
-    if (auto *V = Folder.FoldGEP(Ty, Ptr, Idx, /*IsInBounds=*/true))
+    if (auto *V = Folder.FoldGEP(Ty, Ptr, Idx, GEPNoWrapFlags::inBounds()))
       return V;
 
     return Insert(GetElementPtrInst::CreateInBounds(Ty, Ptr, Idx), Name);
@@ -1910,7 +1908,7 @@ public:
       ConstantInt::get(Type::getInt32Ty(Context), Idx1)
     };
 
-    if (auto *V = Folder.FoldGEP(Ty, Ptr, Idxs, /*IsInBounds=*/false))
+    if (auto *V = Folder.FoldGEP(Ty, Ptr, Idxs, GEPNoWrapFlags::none()))
       return V;
 
     return Insert(GetElementPtrInst::Create(Ty, Ptr, Idxs), Name);
@@ -1923,7 +1921,7 @@ public:
       ConstantInt::get(Type::getInt32Ty(Context), Idx1)
     };
 
-    if (auto *V = Folder.FoldGEP(Ty, Ptr, Idxs, /*IsInBounds=*/true))
+    if (auto *V = Folder.FoldGEP(Ty, Ptr, Idxs, GEPNoWrapFlags::inBounds()))
       return V;
 
     return Insert(GetElementPtrInst::CreateInBounds(Ty, Ptr, Idxs), Name);
@@ -1933,7 +1931,7 @@ public:
                             const Twine &Name = "") {
     Value *Idx = ConstantInt::get(Type::getInt64Ty(Context), Idx0);
 
-    if (auto *V = Folder.FoldGEP(Ty, Ptr, Idx, /*IsInBounds=*/false))
+    if (auto *V = Folder.FoldGEP(Ty, Ptr, Idx, GEPNoWrapFlags::none()))
       return V;
 
     return Insert(GetElementPtrInst::Create(Ty, Ptr, Idx), Name);
@@ -1943,7 +1941,7 @@ public:
                                     const Twine &Name = "") {
     Value *Idx = ConstantInt::get(Type::getInt64Ty(Context), Idx0);
 
-    if (auto *V = Folder.FoldGEP(Ty, Ptr, Idx, /*IsInBounds=*/true))
+    if (auto *V = Folder.FoldGEP(Ty, Ptr, Idx, GEPNoWrapFlags::inBounds()))
       return V;
 
     return Insert(GetElementPtrInst::CreateInBounds(Ty, Ptr, Idx), Name);
@@ -1956,7 +1954,7 @@ public:
       ConstantInt::get(Type::getInt64Ty(Context), Idx1)
     };
 
-    if (auto *V = Folder.FoldGEP(Ty, Ptr, Idxs, /*IsInBounds=*/false))
+    if (auto *V = Folder.FoldGEP(Ty, Ptr, Idxs, GEPNoWrapFlags::none()))
       return V;
 
     return Insert(GetElementPtrInst::Create(Ty, Ptr, Idxs), Name);
@@ -1969,7 +1967,7 @@ public:
       ConstantInt::get(Type::getInt64Ty(Context), Idx1)
     };
 
-    if (auto *V = Folder.FoldGEP(Ty, Ptr, Idxs, /*IsInBounds=*/true))
+    if (auto *V = Folder.FoldGEP(Ty, Ptr, Idxs, GEPNoWrapFlags::inBounds()))
       return V;
 
     return Insert(GetElementPtrInst::CreateInBounds(Ty, Ptr, Idxs), Name);
@@ -1981,13 +1979,14 @@ public:
   }
 
   Value *CreatePtrAdd(Value *Ptr, Value *Offset, const Twine &Name = "",
-                      bool IsInBounds = false) {
-    return CreateGEP(getInt8Ty(), Ptr, Offset, Name, IsInBounds);
+                      GEPNoWrapFlags NW = GEPNoWrapFlags::none()) {
+    return CreateGEP(getInt8Ty(), Ptr, Offset, Name, NW);
   }
 
   Value *CreateInBoundsPtrAdd(Value *Ptr, Value *Offset,
                               const Twine &Name = "") {
-    return CreateGEP(getInt8Ty(), Ptr, Offset, Name, /*IsInBounds*/ true);
+    return CreateGEP(getInt8Ty(), Ptr, Offset, Name,
+                     GEPNoWrapFlags::inBounds());
   }
 
   /// Same as CreateGlobalString, but return a pointer with "i8*" type
