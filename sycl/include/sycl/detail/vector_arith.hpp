@@ -60,7 +60,7 @@ using rel_t = typename std::conditional_t<
     } else {                                                                   \
       Ret.m_Data = Lhs.m_Data BINOP Rhs.m_Data;                                \
       if constexpr (std::is_same_v<DataT, bool> && CONVERT) {                  \
-        vec_arith_common<bool, NumElements>::ConvertToDataT(Ret);              \
+        Ret.ConvertToDataT();                                                  \
       }                                                                        \
     }                                                                          \
     return Ret;                                                                \
@@ -189,7 +189,7 @@ protected:
     } else {
       Ret = vec_t{-Lhs.m_Data};
       if constexpr (std::is_same_v<DataT, bool>) {
-        vec_arith_common<bool, NumElements>::ConvertToDataT(Ret);
+        Ret.ConvertToDataT();
       }
       return Ret;
     }
@@ -391,22 +391,11 @@ protected:
     } else {
       vec_t Ret{(typename vec_t::DataType) ~Rhs.m_Data};
       if constexpr (std::is_same_v<DataT, bool>) {
-        vec_arith_common<bool, NumElements>::ConvertToDataT(Ret);
+        Ret.ConvertToDataT();
       }
       return Ret;
     }
   }
-
-#ifdef __SYCL_DEVICE_ONLY__
-  using vec_bool_t = vec<bool, NumElements>;
-  // Require only for std::bool.
-  static void ConvertToDataT(vec_bool_t &Ret) {
-    for (size_t i = 0; i < NumElements; ++i) {
-      DataT tmp = detail::VecAccess<vec_bool_t>::getValue(Ret, i);
-      detail::VecAccess<vec_bool_t>::setValue(Ret, i, tmp);
-    }
-  }
-#endif
 
   // friends
   template <typename T1, int T2> friend class vec;

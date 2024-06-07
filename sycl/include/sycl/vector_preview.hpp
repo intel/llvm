@@ -26,6 +26,10 @@
 #error "SYCL device compiler is built without ext_vector_type support"
 #endif
 
+#if defined(__SYCL_DEVICE_ONLY__)
+#define __SYCL_USE_EXT_VECTOR_TYPE__
+#endif
+
 #include <sycl/access/access.hpp>              // for decorated, address_space
 #include <sycl/aliases.hpp>                    // for half, cl_char, cl_int
 #include <sycl/detail/common.hpp>              // for ArrayCreator, RepeatV...
@@ -43,7 +47,7 @@
 #include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
 
 #include <array>       // for array
-#include <cassert>     // for assert
+#include <assert.h>    // for assert
 #include <cstddef>     // for size_t, NULL, byte
 #include <cstdint>     // for uint8_t, int16_t, int...
 #include <functional>  // for divides, multiplies
@@ -359,28 +363,18 @@ template <typename T>
 using vec_data_t = typename detail::vec_helper<T>::RetType;
 
 ///////////////////////// class sycl::vec /////////////////////////
-// Provides a cross-patform vector class template that works efficiently on
-// SYCL devices as well as in host C++ code.
+/// Provides a cross-patform vector class template that works efficiently on
+/// SYCL devices as well as in host C++ code.
+///
+/// \ingroup sycl_api
 template <typename Type, int NumElements>
 class vec : public detail::vec_arith<Type, NumElements> {
   using DataT = Type;
-
-  static constexpr size_t AdjustedNum = (NumElements == 3) ? 4 : NumElements;
 
   // This represent type of underlying value. There should be only one field
   // in the class, so vec<float, 16> should be equal to float16 in memory.
   using DataType = typename detail::VecStorage<DataT, NumElements>::DataType;
 
-public:
-#ifdef __SYCL_DEVICE_ONLY__
-  // Type used for passing sycl::vec to SPIRV builtins.
-  // We can not use ext_vector_type(1) as it's not supported by SPIRV
-  // plugins (CTS fails).
-  using vector_t =
-      typename detail::VecStorage<DataT, NumElements>::VectorDataType;
-#endif // __SYCL_DEVICE_ONLY__
-
-private:
   static constexpr bool IsHostHalf =
       std::is_same_v<DataT, sycl::detail::half_impl::half> &&
       std::is_same_v<sycl::detail::half_impl::StorageT,
@@ -389,6 +383,7 @@ private:
   static constexpr bool IsBfloat16 =
       std::is_same_v<DataT, sycl::ext::oneapi::bfloat16>;
 
+  static constexpr size_t AdjustedNum = (NumElements == 3) ? 4 : NumElements;
   static constexpr size_t Sz = sizeof(DataT) * AdjustedNum;
   static constexpr bool IsSizeGreaterThanMaxAlign =
       (Sz > detail::MaxVecAlignment);
@@ -461,8 +456,6 @@ private:
   }
   template <typename DataT_, typename T>
   static constexpr auto FlattenVecArgHelper(const T &A) {
-    // static_cast required to avoid narrowing conversion warning
-    // when T = unsigned long int and DataT_ = int.
     return std::array<DataT_, 1>{vec_data<DataT_>::get(static_cast<DataT_>(A))};
   }
   template <typename DataT_, typename T> struct FlattenVecArg {
@@ -558,7 +551,6 @@ private:
   using EnableIfSuitableNumElements =
       typename std::enable_if_t<SizeChecker<0, NumElements, argTN...>::value>;
 
-  // Implementation detail for the next public ctor.
   template <size_t... Is>
   constexpr vec(const std::array<vec_data_t<DataT>, NumElements> &Arr,
                 std::index_sequence<Is...>)
@@ -570,13 +562,14 @@ private:
         })(Arr[Is])...} {}
 
 public:
-  // Aliases required by SPEC to make sycl::vec consistent
-  // with that of marray and buffer.
   using element_type = DataT;
   using value_type = DataT;
   using rel_t = detail::rel_t<DataT>;
+#ifdef __SYCL_DEVICE_ONLY__
+  using vector_t =
+      typename detail::VecStorage<DataT, NumElements>::VectorDataType;
+#endif // __SYCL_DEVICE_ONLY__
 
-  /****************** Constructors **************/
   vec() = default;
 
   constexpr vec(const vec &Rhs) = default;
@@ -594,7 +587,7 @@ public:
     return *this;
   }
 
-#ifdef __SYCL_DEVICE_ONLY__
+#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
   template <typename T = void>
   using EnableIfNotHostHalf = typename std::enable_if_t<!IsHostHalf, T>;
 
@@ -608,7 +601,7 @@ public:
   template <typename T = void>
   using EnableIfNotUsingArrayOnDevice =
       typename std::enable_if_t<!IsUsingArrayOnDevice, T>;
-#endif // __SYCL_DEVICE_ONLY__
+#endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
   template <typename T = void>
   using EnableIfUsingArray =
@@ -619,7 +612,7 @@ public:
       typename std::enable_if_t<!IsUsingArrayOnDevice && !IsUsingArrayOnHost,
                                 T>;
 
-#ifdef __SYCL_DEVICE_ONLY__
+#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
 
   template <typename Ty = DataT>
   explicit constexpr vec(const EnableIfNotUsingArrayOnDevice<Ty> &arg)
@@ -652,17 +645,12 @@ public:
     }
     return *this;
   }
-#else  // __SYCL_DEVICE_ONLY__
+#else  // __SYCL_USE_EXT_VECTOR_TYPE__
   explicit constexpr vec(const DataT &arg)
       : vec{detail::RepeatValue<NumElements>(
                 static_cast<vec_data_t<DataT>>(arg)),
             std::make_index_sequence<NumElements>()} {}
 
-  /****************** Assignment Operators **************/
-
-  // Template required to prevent ambiguous overload with the copy assignment
-  // when NumElements == 1. The template prevents implicit conversion from
-  // vec<_, 1> to DataT.
   template <typename Ty = DataT>
   typename std::enable_if_t<
       std::is_fundamental_v<vec_data_t<Ty>> ||
@@ -674,9 +662,9 @@ public:
     }
     return *this;
   }
-#endif // __SYCL_DEVICE_ONLY__
+#endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
-#ifdef __SYCL_DEVICE_ONLY__
+#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
   // Optimized naive constructors with NumElements of DataT values.
   // We don't expect compilers to optimize vararg recursive functions well.
 
@@ -725,7 +713,7 @@ public:
                vec_data<Ty>::get(ArgA), vec_data<Ty>::get(ArgB),
                vec_data<Ty>::get(ArgC), vec_data<Ty>::get(ArgD),
                vec_data<Ty>::get(ArgE), vec_data<Ty>::get(ArgF)} {}
-#endif // __SYCL_DEVICE_ONLY__
+#endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
   // Constructor from values of base type or vec of base type. Checks that
   // base types are match and that the NumElements == sum of lengths of args.
@@ -748,10 +736,6 @@ public:
     }
   }
 
-  /* Available only when: compiled for the device.
-   * Converts this SYCL vec instance to the underlying backend-native vector
-   * type defined by vector_t.
-   */
   operator vector_t() const {
     if constexpr (!IsUsingArrayOnDevice) {
       return m_Data;
@@ -1002,9 +986,17 @@ public:
     store(Offset, MultiPtr);
   }
 
+  void ConvertToDataT() {
+    for (size_t i = 0; i < NumElements; ++i) {
+      DataT tmp = getValue(i);
+      setValue(i, tmp);
+    }
+  }
+
 private:
   // Generic method that execute "Operation" on underlying values.
-#ifdef __SYCL_DEVICE_ONLY__
+
+#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
   template <template <typename> class Operation,
             typename Ty = vec<DataT, NumElements>>
   vec<DataT, NumElements>
@@ -1026,7 +1018,7 @@ private:
     }
     return Result;
   }
-#else  // __SYCL_DEVICE_ONLY__
+#else  // __SYCL_USE_EXT_VECTOR_TYPE__
   template <template <typename> class Operation>
   vec<DataT, NumElements>
   operatorHelper(const vec<DataT, NumElements> &Rhs) const {
@@ -1037,12 +1029,12 @@ private:
     }
     return Result;
   }
-#endif // __SYCL_DEVICE_ONLY__
+#endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
   // setValue and getValue should be able to operate on different underlying
   // types: enum cl_float#N , builtin vector float#N, builtin type float.
   // These versions are for N > 1.
-#ifdef __SYCL_DEVICE_ONLY__
+#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
   template <int Num = NumElements, typename Ty = int,
             typename = typename std::enable_if_t<1 != Num>>
   constexpr void setValue(EnableIfNotHostHalf<Ty> Index, const DataT &Value,
@@ -1067,7 +1059,7 @@ private:
   constexpr DataT getValue(EnableIfHostHalf<Ty> Index, int) const {
     return vec_data<DataT>::get(m_Data.s[Index]);
   }
-#else  // __SYCL_DEVICE_ONLY__
+#else  // __SYCL_USE_EXT_VECTOR_TYPE__
   template <int Num = NumElements,
             typename = typename std::enable_if_t<1 != Num>>
   constexpr void setValue(int Index, const DataT &Value, int) {
@@ -1079,7 +1071,7 @@ private:
   constexpr DataT getValue(int Index, int) const {
     return vec_data<DataT>::get(m_Data[Index]);
   }
-#endif // __SYCL_DEVICE_ONLY__
+#endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
   // N==1 versions, used by host and device. Shouldn't trailing type be int?
   template <int Num = NumElements,
