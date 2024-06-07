@@ -193,7 +193,6 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
                                      unsigned int minor_version,
                                      const char *version_str,
                                      const char *stream_name) {
-  std::cout << "Initializing trace collector\n";
   // On first use, set up some data structures to track the streams we are
   // registering with and create some writer objects for formatted output
   static bool InitStreams = true;
@@ -417,6 +416,12 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::edge_create,
                          graphCallback);
+    xptiRegisterCallback(StreamID,
+                         (uint16_t)xpti::trace_point_type_t::function_begin,
+                         syclPiCallback);
+    xptiRegisterCallback(StreamID,
+                         (uint16_t)xpti::trace_point_type_t::function_end,
+                         syclPiCallback);
   } else if (std::string(GStreamMemory) == stream_name && Check) {
     auto StreamID = xptiRegisterStream(stream_name);
     xptiRegisterCallback(StreamID,

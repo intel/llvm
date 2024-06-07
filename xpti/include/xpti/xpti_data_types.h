@@ -715,40 +715,6 @@ enum class metadata_type_t {
   boolean = 5
 };
 
-/// @struct trace_event_t
-/// @brief Represents a trace event object in the system.
-///
-/// This structure represents a trace event, which is a record of some
-/// occurrence in the system. Each trace event has a unique identifier (`uid`),
-/// a source identifier (`source`), a target identifier (`target`), and an
-/// optional payload (`payload`).
-///
-/// The `uid` member is a unique identifier for the trace event. It is a `uid_t`
-/// object that contains information about the file, function, line number, and
-/// column number where the trace event was created.
-///
-/// The `source` member is a `uid_t` object that identifies the source trace
-/// event if the recorded event type is an edge.
-///
-/// The `target` member is a `uid_t` object that identifies the target trace
-/// event if the recorded event type is an edge.
-///
-/// The `payload` member is a pointer to a `payload_t` object that contains
-/// additional information about the trace event. This could include the name of
-/// the trace point, the source file, the line number, and the column number.
-/// The payload member is used to create the UID member and registered with the
-/// framework. The pointer to the payload is a reference to the registered
-/// payload and included here for efficiency and avoiding a lookup in the system
-///
-struct trace_event_t {
-  uid_t uid;    /// UID of the trace event and derived from the payload
-  uid_t source; /// If the event happens to be an edge (dependency), this field
-                /// defines the source
-  uid_t target; /// If the event happens to be an edge (dependency), this field
-                /// defines the target object
-  payload_t *payload = nullptr; /// Payload of the trace event
-};
-
 struct reserved_data_t {
   /// Has a reference to the associated payload field for an event
   payload_t *payload = nullptr;

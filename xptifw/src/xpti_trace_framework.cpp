@@ -599,7 +599,14 @@ private:
   ///
   xpti::trace_event_data_t *register_event(const xpti::payload_t *Payload) {
 
-    xpti::payload_t TempPayload = *Payload;
+    xpti::payload_t TempPayload;
+    // Copy the payload information to a temporary payload structure
+    TempPayload.name = Payload->name;
+    TempPayload.source_file = Payload->source_file;
+    TempPayload.line_no = Payload->line_no;
+    TempPayload.column_no = Payload->column_no;
+    TempPayload.flags = Payload->flags;
+
     // We need an explicit lock for the rest of the operations as the same
     // payload could be registered from multiple-threads.
     //

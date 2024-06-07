@@ -71,14 +71,16 @@ public:
       xptiFrameworkInitialize();
       // SYCL buffer events
       GBufferStreamID = xptiRegisterStream(SYCL_BUFFER_STREAM_NAME);
-      this->initializeStream(SYCL_BUFFER_STREAM_NAME, 0, 1, "0.1");
+      this->initializeStream(SYCL_BUFFER_STREAM_NAME, GMajVer, GMinVer,
+                             GVerStr);
       // SYCL image events
       GImageStreamID = xptiRegisterStream(SYCL_IMAGE_STREAM_NAME);
-      this->initializeStream(SYCL_IMAGE_STREAM_NAME, 0, 1, "0.1");
+      this->initializeStream(SYCL_IMAGE_STREAM_NAME, GMajVer, GMinVer, GVerStr);
 
       // Memory allocation events
       GMemAllocStreamID = xptiRegisterStream(SYCL_MEM_ALLOC_STREAM_NAME);
-      this->initializeStream(SYCL_MEM_ALLOC_STREAM_NAME, 0, 1, "0.1");
+      this->initializeStream(SYCL_MEM_ALLOC_STREAM_NAME, GMajVer, GMinVer,
+                             GVerStr);
       xpti::payload_t MAPayload("SYCL Memory Allocations Layer");
       uint64_t MAInstanceNo = 0;
       GMemAllocEvent = xptiMakeEvent("SYCL Memory Allocations", &MAPayload,
@@ -166,6 +168,7 @@ private:
 /// verbose call sequences. It also bridges the TLS data storage in the SYCL
 /// runtime with what needs to be in the XPTI framework.
 #if XPTI_ENABLE_INSTRUMENTATION
+#ifdef XPTI_USE_NEW_TRACEPOINT_SCOPE
 class XPTIScope {
 public:
   using TracePoint = xpti::framework::tracepoint_scope_t;
@@ -193,7 +196,7 @@ public:
     // MTP = new TracePoint(TData.fileName(), FuncName, TData.lineNumber(),
     //                      TData.columnNumber(), CodePtr);
     MTP = new TracePoint(TData.fileName(), FuncName, TData.lineNumber(),
-                         TData.columnNumber());
+                         TData.columnNumber(), true, UserData);
     if (TraceType == (uint16_t)xpti::trace_point_type_t::graph_create ||
         TraceType == (uint16_t)xpti::trace_point_type_t::node_create ||
         TraceType == (uint16_t)xpti::trace_point_type_t::edge_create ||
@@ -224,7 +227,7 @@ public:
       FuncName = UserData;
     // Create a tracepoint object that has a lifetime of this class
     MTP = new TracePoint(TData.fileName(), FuncName, TData.lineNumber(),
-                         TData.columnNumber());
+                         TData.columnNumber(), true, UserData);
     if (TraceType == (uint16_t)xpti::trace_point_type_t::graph_create ||
         TraceType == (uint16_t)xpti::trace_point_type_t::node_create ||
         TraceType == (uint16_t)xpti::trace_point_type_t::edge_create ||
@@ -251,7 +254,7 @@ public:
   XPTIScope &
   addMetadata(const std::function<void(xpti::trace_event_data_t *)> &Callback) {
     if (MTP)
-      MTP->addMetadata(Callback);
+      (void)MTP->addMetadata(Callback);
     return *this;
   }
 
@@ -279,8 +282,178 @@ private:
   // The const string that indicates the operation
   const char *MUserData = nullptr;
 }; // class XPTIScope
+
+#else
+
+class XPTIScope {
+public:
+  using TracePoint = xpti::framework::tracepoint_t;
+  /// @brief Scoped class for XPTI instrumentation using TLS data
+  /// @param CodePtr  The address of the class/function to help differentiate
+  /// actions in case the code location information is not available
+  /// @param TraceType The type of trace event being created
+  /// @param StreamName  The stream which will emit these notifications
+  /// @param InstanceID The instance ID associated with an object, otherwise 0
+  /// will auto-generate
+  /// @param UserData String value that provides metadata about the
+  /// instrumentation
+  XPTIScope(void *CodePtr, uint16_t TraceType, const char *StreamName,
+            uint64_t InstanceID, const char *UserData)
+      : MUserData(UserData), MStreamID(0), MInstanceID(InstanceID),
+        MScopedNotify(false), MTraceType(0) {
+    detail::tls_code_loc_t Tls;
+    auto TData = Tls.query();
+    // If TLS is not set, we can still genertate universal IDs with user data
+    // and CodePtr information
+    const char *FuncName = TData.functionName();
+    if (!TData.functionName() && !TData.fileName())
+      FuncName = UserData;
+    // Create a tracepoint object that has a lifetime of this class
+    MTP = new TracePoint(TData.fileName(), FuncName, TData.lineNumber(),
+                         TData.columnNumber(), CodePtr);
+    if (TraceType == (uint16_t)xpti::trace_point_type_t::graph_create ||
+        TraceType == (uint16_t)xpti::trace_point_type_t::node_create ||
+        TraceType == (uint16_t)xpti::trace_point_type_t::edge_create ||
+        TraceType == (uint16_t)xpti::trace_point_type_t::queue_create)
+      MTP->parent_event(GSYCLGraphEvent);
+    // Now if tracing is enabled, create trace events and notify
+    if (xptiTraceEnabled() && MTP) {
+      MTP->stream(StreamName).trace_type((xpti::trace_point_type_t)TraceType);
+      MTraceEvent = const_cast<xpti::trace_event_data_t *>(MTP->trace_event());
+      MStreamID = MTP->stream_id();
+      // This constructor uses a manual override for the instance ID as some
+      // objects such as queues keep track of instance IDs
+      MTP->override_instance_id(MInstanceID);
+    }
+  }
+
+  /// @brief Scoped class for XPTI instrumentation using TLS data
+  /// @param CodePtr  The address of the class/function to help differentiate
+  /// actions in case the code location information is not available
+  /// @param TraceType The type of trace event being created
+  /// @param StreamName  The stream which will emit these notifications
+  /// @param UserData String value that provides metadata about the
+  /// instrumentation
+  XPTIScope(void *CodePtr, uint16_t TraceType, const char *StreamName,
+            const char *UserData)
+      : MUserData(UserData), MStreamID(0), MInstanceID(0), MScopedNotify(false),
+        MTraceType(0) {
+    detail::tls_code_loc_t Tls;
+    auto TData = Tls.query();
+    // If TLS is not set, we can still genertate universal IDs with user data
+    // and CodePtr information
+    const char *FuncName = TData.functionName();
+    if (!TData.functionName() && !TData.fileName())
+      FuncName = UserData;
+    // Create a tracepoint object that has a lifetime of this class
+    MTP = new TracePoint(TData.fileName(), FuncName, TData.lineNumber(),
+                         TData.columnNumber(), CodePtr);
+    if (TraceType == (uint16_t)xpti::trace_point_type_t::graph_create ||
+        TraceType == (uint16_t)xpti::trace_point_type_t::node_create ||
+        TraceType == (uint16_t)xpti::trace_point_type_t::edge_create ||
+        TraceType == (uint16_t)xpti::trace_point_type_t::queue_create)
+      MTP->parent_event(GSYCLGraphEvent);
+    // Now if tracing is enabled, create trace events and notify
+    if (xptiTraceEnabled() && MTP) {
+      MTP->stream(StreamName).trace_type((xpti::trace_point_type_t)TraceType);
+      MTraceEvent = const_cast<xpti::trace_event_data_t *>(MTP->trace_event());
+      MStreamID = MTP->stream_id();
+      MInstanceID = MTP->instance_id();
+    }
+  }
+
+  XPTIScope(const XPTIScope &rhs) = delete;
+
+  XPTIScope &operator=(const XPTIScope &rhs) = delete;
+
+  xpti::trace_event_data_t *traceEvent() { return MTraceEvent; }
+
+  uint8_t streamID() { return MStreamID; }
+
+  uint64_t instanceID() { return MTP ? MTP->instance_id() : 0; }
+
+  XPTIScope &
+  addMetadata(const std::function<void(xpti::trace_event_data_t *)> &Callback) {
+    if (xptiTraceEnabled() && MTP) {
+      auto TEvent = const_cast<xpti::trace_event_data_t *>(MTP->trace_event());
+      Callback(TEvent);
+    }
+    return *this;
+  }
+
+  XPTIScope &notify() {
+    MTP->notify(static_cast<const void *>(MUserData));
+    return *this;
+  }
+
+  /// @brief Method that emits begin/end trace notifications
+  /// @return Current class
+  XPTIScope &scopedNotify(uint16_t TraceType) {
+    // Keep this data even if no subscribers are for this TraceType (begin).
+    // Someone could still use (end) emitted from destructor.
+    MTraceType = TraceType & 0xfffe;
+    MScopedNotify = true;
+    if (xptiCheckTraceEnabled(MStreamID, TraceType) && MTP) {
+      xptiNotifySubscribers(MStreamID, MTraceType, nullptr, MTraceEvent,
+                            MInstanceID, static_cast<const void *>(MUserData));
+    }
+    return *this;
+  }
+  ~XPTIScope() {
+    MTraceType = MTraceType | 1;
+    if (xptiCheckTraceEnabled(MStreamID, MTraceType) && MTP && MScopedNotify) {
+      if (MTraceType == (uint16_t)xpti::trace_point_type_t::signal ||
+          MTraceType == (uint16_t)xpti::trace_point_type_t::graph_create ||
+          MTraceType == (uint16_t)xpti::trace_point_type_t::node_create ||
+          MTraceType == (uint16_t)xpti::trace_point_type_t::edge_create ||
+          MTraceType == (uint16_t)xpti::trace_point_type_t::queue_create ||
+          MTraceType == (uint16_t)xpti::trace_point_type_t::queue_destroy ||
+          MTraceType == (uint16_t)xpti::trace_point_type_t::diagnostics)
+        return;
+
+      // Only notify for a trace type that has a begin/end
+      xptiNotifySubscribers(MStreamID, MTraceType, nullptr, MTraceEvent,
+                            MInstanceID, static_cast<const void *>(MUserData));
+    }
+    // Delete the tracepoint object which will clear TLS if it is the top of
+    // the scope
+    delete MTP;
+  }
+
+private:
+  // Tracepoint_t object who's lifetime is that of the class
+  TracePoint *MTP = nullptr;
+  // Trace event created from the TLS data, if it exists
+  xpti::trace_event_data_t *MTraceEvent = nullptr;
+  // The const string that indicates the operation
+  const char *MUserData = nullptr;
+  // The stream on which the notifications occur
+  uint8_t MStreamID;
+  // The instance ID for the trace event; if it is called in a loop, then the
+  // trace event ID will remain the same, but the instance ID will increment
+  uint64_t MInstanceID;
+  // If scoped notifcation is requested, this tracks the request
+  bool MScopedNotify;
+  // The trace type information for scoped notifications
+  uint16_t MTraceType;
+}; // class XPTIScope#endif
+
+#endif
 #endif
 
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
+
+#if XPTI_ENABLE_INSTRUMENTATION
+#define XPTI_USE_NEW_TRACEPOINT_SCOPE 1
+#ifdef XPTI_USE_NEW_TRACEPOINT_SCOPE
+#define XPTI_TRACE_POINT(File, Func, Line, Col)                                \
+  xpti::framework::tracepoint_scope_t(File, Func, Line, Col, true)
+#else
+#define XPTI_TRACE_POINT(File, Func, Line, Col)                                \
+  xpti::framework::tracepoint_t(File, Func, Line, Col)
+#endif
+#else
+#define XPTI_TRACE_POINT(File, Func, Line, Col)
+#endif

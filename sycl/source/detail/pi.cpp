@@ -454,6 +454,8 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins) {
   // this stream will register itself using this string or stream ID for this
   // string.
   uint8_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
+  xptiSetDefaultStreamID(StreamID);
+
   //  Let all tool plugins know that a stream by the name of 'sycl' has been
   //  initialized and will be generating the trace stream.
   GlobalHandler::instance().getXPTIRegistry().initializeStream(

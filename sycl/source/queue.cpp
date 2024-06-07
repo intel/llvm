@@ -9,6 +9,7 @@
 #include <detail/backend_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>
+#include <detail/xpti_registry.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception_list.hpp>
@@ -105,64 +106,84 @@ void queue::throw_asynchronous() { impl->throw_asynchronous(); }
 
 event queue::memset(void *Ptr, int Value, size_t Count,
                     const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  XPTI_TRACE_POINT(CodeLoc.functionName(), CodeLoc.fileName(),
+                   CodeLoc.lineNumber(), CodeLoc.columnNumber());
+  // detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->memset(impl, Ptr, Value, Count, {});
 }
 
 event queue::memset(void *Ptr, int Value, size_t Count, event DepEvent,
                     const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  XPTI_TRACE_POINT(CodeLoc.functionName(), CodeLoc.fileName(),
+                   CodeLoc.lineNumber(), CodeLoc.columnNumber());
+  //  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->memset(impl, Ptr, Value, Count, {DepEvent});
 }
 
 event queue::memset(void *Ptr, int Value, size_t Count,
                     const std::vector<event> &DepEvents,
                     const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  XPTI_TRACE_POINT(CodeLoc.functionName(), CodeLoc.fileName(),
+                   CodeLoc.lineNumber(), CodeLoc.columnNumber());
+  //  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->memset(impl, Ptr, Value, Count, DepEvents);
 }
 
 event queue::memcpy(void *Dest, const void *Src, size_t Count,
                     const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  XPTI_TRACE_POINT(CodeLoc.functionName(), CodeLoc.fileName(),
+                   CodeLoc.lineNumber(), CodeLoc.columnNumber());
+  //  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->memcpy(impl, Dest, Src, Count, {}, CodeLoc);
 }
 
 event queue::memcpy(void *Dest, const void *Src, size_t Count, event DepEvent,
                     const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  XPTI_TRACE_POINT(CodeLoc.functionName(), CodeLoc.fileName(),
+                   CodeLoc.lineNumber(), CodeLoc.columnNumber());
+  //  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->memcpy(impl, Dest, Src, Count, {DepEvent}, CodeLoc);
 }
 
 event queue::memcpy(void *Dest, const void *Src, size_t Count,
                     const std::vector<event> &DepEvents,
                     const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  XPTI_TRACE_POINT(CodeLoc.functionName(), CodeLoc.fileName(),
+                   CodeLoc.lineNumber(), CodeLoc.columnNumber());
+  //  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->memcpy(impl, Dest, Src, Count, DepEvents, CodeLoc);
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice,
                         const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  XPTI_TRACE_POINT(CodeLoc.functionName(), CodeLoc.fileName(),
+                   CodeLoc.lineNumber(), CodeLoc.columnNumber());
+  //  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return mem_advise(Ptr, Length, int(Advice));
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  XPTI_TRACE_POINT(CodeLoc.functionName(), CodeLoc.fileName(),
+                   CodeLoc.lineNumber(), CodeLoc.columnNumber());
+  //  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), {});
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         event DepEvent, const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  XPTI_TRACE_POINT(CodeLoc.functionName(), CodeLoc.fileName(),
+                   CodeLoc.lineNumber(), CodeLoc.columnNumber());
+  //  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), {DepEvent});
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         const std::vector<event> &DepEvents,
                         const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  XPTI_TRACE_POINT(CodeLoc.functionName(), CodeLoc.fileName(),
+                   CodeLoc.lineNumber(), CodeLoc.columnNumber());
+  //  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), DepEvents);
 }
 
@@ -176,17 +197,23 @@ event queue::discard_or_return(const event &Event) {
 
 event queue::submit_impl(std::function<void(handler &)> CGH,
                          const detail::code_location &CodeLoc) {
+  XPTI_TRACE_POINT(CodeLoc.functionName(), CodeLoc.fileName(),
+                   CodeLoc.lineNumber(), CodeLoc.columnNumber());
   return impl->submit(CGH, impl, CodeLoc);
 }
 
 event queue::submit_impl(std::function<void(handler &)> CGH, queue SecondQueue,
                          const detail::code_location &CodeLoc) {
+  XPTI_TRACE_POINT(CodeLoc.functionName(), CodeLoc.fileName(),
+                   CodeLoc.lineNumber(), CodeLoc.columnNumber());
   return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc);
 }
 
 event queue::submit_impl_and_postprocess(
     std::function<void(handler &)> CGH, const detail::code_location &CodeLoc,
     const SubmitPostProcessF &PostProcess) {
+  XPTI_TRACE_POINT(CodeLoc.functionName(), CodeLoc.fileName(),
+                   CodeLoc.lineNumber(), CodeLoc.columnNumber());
   return impl->submit(CGH, impl, CodeLoc, &PostProcess);
 }
 
@@ -194,14 +221,20 @@ event queue::submit_impl_and_postprocess(
     std::function<void(handler &)> CGH, queue SecondQueue,
     const detail::code_location &CodeLoc,
     const SubmitPostProcessF &PostProcess) {
+  XPTI_TRACE_POINT(CodeLoc.functionName(), CodeLoc.fileName(),
+                   CodeLoc.lineNumber(), CodeLoc.columnNumber());
   return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc, &PostProcess);
 }
 
 void queue::wait_proxy(const detail::code_location &CodeLoc) {
+  XPTI_TRACE_POINT(CodeLoc.functionName(), CodeLoc.fileName(),
+                   CodeLoc.lineNumber(), CodeLoc.columnNumber());
   impl->wait(CodeLoc);
 }
 
 void queue::wait_and_throw_proxy(const detail::code_location &CodeLoc) {
+  XPTI_TRACE_POINT(CodeLoc.functionName(), CodeLoc.fileName(),
+                   CodeLoc.lineNumber(), CodeLoc.columnNumber());
   impl->wait_and_throw(CodeLoc);
 }
 
@@ -240,6 +273,8 @@ getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
 /// \return a SYCL event object, which corresponds to the queue the command
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
+  XPTI_TRACE_POINT(CodeLoc.functionName(), CodeLoc.fileName(),
+                   CodeLoc.lineNumber(), CodeLoc.columnNumber());
   if (is_in_order() && !impl->getCommandGraph())
     return getBarrierEventForInorderQueueHelper(impl);
 
@@ -257,6 +292,8 @@ event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
                                        const detail::code_location &CodeLoc) {
+  XPTI_TRACE_POINT(CodeLoc.functionName(), CodeLoc.fileName(),
+                   CodeLoc.lineNumber(), CodeLoc.columnNumber());
   bool AllEventsEmptyOrNop = std::all_of(
       begin(WaitList), end(WaitList), [&](const event &Event) -> bool {
         auto EventImpl = detail::getSyclObjImpl(Event);
