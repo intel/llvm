@@ -1,6 +1,11 @@
 // Utilities for weak_object testing
 
-#include <sycl/sycl.hpp>
+#include <sycl/accessor_image.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/weak_object.hpp>
+#include <sycl/image.hpp>
+#include <sycl/sampler.hpp>
+#include <sycl/usm.hpp>
 
 class TestKernel1;
 class TestKernel2;

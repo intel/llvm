@@ -1,7 +1,8 @@
 name: HIP-specific bug report
-description: Please use this template in case of HIP-specific issue
-Before submitting an issue check that it is not already covered in the
-[troubleshooting guide](https://developer.codeplay.com/products/oneapi/amd/latest/guides/troubleshooting)
+description: >
+  Please use this template in case of HIP-specific issue.
+  Check https://developer.codeplay.com/products/oneapi/amd/latest/guides/troubleshooting
+  before submitting a bug report.
 labels: ["bug", "hip"]
 body:
   - type: textarea

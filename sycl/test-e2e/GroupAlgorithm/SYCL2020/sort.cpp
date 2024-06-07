@@ -25,7 +25,11 @@
 // TODO: Consider using USM instead of buffers
 // TODO: Add support for sorting over workgroup for CUDA and HIP BE
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
+#include <sycl/ext/oneapi/experimental/group_sort.hpp>
+#include <sycl/group_algorithm.hpp>
 
 #include <algorithm>
 #include <iostream>
@@ -182,6 +186,9 @@ void RunJointSort(sycl::queue &Q, const std::vector<T> &DataToSort,
              const size_t StartIdx = ChunkSize * PartID;
              const size_t EndIdx =
                  std::min(ChunkSize * (PartID + 1), NumOfElements);
+
+             if (EndIdx <= StartIdx)
+               return;
 
              // This version of API always sorts in ascending order
              if constexpr (std::is_same_v<Compare, std::less<T>>)

@@ -283,3 +283,302 @@ TEST_F(CommandGraphTest, EnqueueMultipleBarrier) {
     }
   }
 }
+
+TEST_F(CommandGraphTest, InOrderQueueWithPreviousCommand) {
+  sycl::property_list Properties{sycl::property::queue::in_order()};
+  sycl::queue InOrderQueue{Dev, Properties};
+
+  auto NonGraphEvent = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  Graph.begin_recording(InOrderQueue);
+
+  ASSERT_THROW(
+      {
+        try {
+          InOrderQueue.ext_oneapi_submit_barrier({NonGraphEvent});
+        } catch (const sycl::exception &e) {
+          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+          throw;
+        }
+      },
+      sycl::exception);
+
+  InOrderQueue.ext_oneapi_submit_barrier();
+  Graph.end_recording(InOrderQueue);
+
+  // Check the graph structure
+  // (B)
+  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+  ASSERT_EQ(GraphImpl->MRoots.size(), 1lu);
+
+  for (auto Root : GraphImpl->MRoots) {
+    auto RootNode = Root.lock();
+    ASSERT_EQ(RootNode->MSuccessors.size(), 0lu);
+    ASSERT_TRUE(RootNode->MCGType == sycl::detail::CG::Barrier);
+  }
+}
+
+TEST_F(CommandGraphTest, InOrderQueuesWithBarrier) {
+  sycl::property_list Properties{sycl::property::queue::in_order()};
+  sycl::queue InOrderQueue1{Dev, Properties};
+  sycl::queue InOrderQueue2{InOrderQueue1.get_context(), Dev, Properties};
+  sycl::queue InOrderQueue3{InOrderQueue1.get_context(), Dev, Properties};
+
+  experimental::command_graph<experimental::graph_state::modifiable> Graph{
+      InOrderQueue1};
+
+  Graph.begin_recording({InOrderQueue1, InOrderQueue2, InOrderQueue3});
+
+  auto Node1 = InOrderQueue1.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto Node2 = InOrderQueue2.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  InOrderQueue3.ext_oneapi_submit_barrier({Node1});
+
+  Graph.end_recording();
+
+  // Check the graph structure
+  // (1) (2)
+  //  |
+  // (B)
+  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+  ASSERT_EQ(GraphImpl->MRoots.size(), 2lu);
+
+  for (auto Root : GraphImpl->MRoots) {
+    auto RootNode = Root.lock();
+
+    if (GraphImpl->getEventForNode(RootNode) ==
+        sycl::detail::getSyclObjImpl(Node1)) {
+      ASSERT_EQ(RootNode->MSuccessors.size(), 1lu);
+
+      auto SuccNode = RootNode->MSuccessors.front().lock();
+      ASSERT_TRUE(SuccNode->MCGType == sycl::detail::CG::Barrier);
+
+      ASSERT_EQ(SuccNode->MPredecessors.size(), 1lu);
+      ASSERT_EQ(SuccNode->MSuccessors.size(), 0lu);
+    } else if (GraphImpl->getEventForNode(RootNode) ==
+               sycl::detail::getSyclObjImpl(Node2)) {
+      ASSERT_EQ(RootNode->MSuccessors.size(), 0lu);
+    } else {
+      ASSERT_TRUE(false && "Unexpected root node");
+    }
+  }
+}
+
+TEST_F(CommandGraphTest, InOrderQueuesWithBarrierWaitList) {
+  sycl::property_list Properties{sycl::property::queue::in_order()};
+  sycl::queue InOrderQueue1{Dev, Properties};
+  sycl::queue InOrderQueue2{InOrderQueue1.get_context(), Dev, Properties};
+
+  experimental::command_graph<experimental::graph_state::modifiable> Graph{
+      InOrderQueue1};
+
+  Graph.begin_recording({InOrderQueue1, InOrderQueue2});
+
+  auto Node1 = InOrderQueue1.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto Node2 = InOrderQueue2.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto BarrierNode = InOrderQueue2.ext_oneapi_submit_barrier({Node1});
+
+  Graph.end_recording();
+
+  // Check the graph structure
+  // (1) (2)
+  //  |  /
+  // (B)
+  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+  ASSERT_EQ(GraphImpl->MRoots.size(), 2lu);
+
+  for (auto Root : GraphImpl->MRoots) {
+    auto RootNode = Root.lock();
+
+    ASSERT_EQ(RootNode->MSuccessors.size(), 1lu);
+
+    auto SuccNode = RootNode->MSuccessors.front().lock();
+    ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
+              sycl::detail::getSyclObjImpl(BarrierNode));
+
+    ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
+    ASSERT_EQ(SuccNode->MSuccessors.size(), 0lu);
+  }
+}
+
+TEST_F(CommandGraphTest, InOrderQueuesWithEmptyBarrierWaitList) {
+  sycl::property_list Properties{sycl::property::queue::in_order()};
+  sycl::queue InOrderQueue1{Dev, Properties};
+  sycl::queue InOrderQueue2{InOrderQueue1.get_context(), Dev, Properties};
+
+  experimental::command_graph<experimental::graph_state::modifiable> Graph{
+      InOrderQueue1};
+
+  Graph.begin_recording({InOrderQueue1, InOrderQueue2});
+
+  auto Node1 = InOrderQueue1.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto Node2 = InOrderQueue2.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto BarrierNode = InOrderQueue1.ext_oneapi_submit_barrier();
+
+  auto Node3 = InOrderQueue2.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  Graph.end_recording();
+
+  // Check the graph structure
+  // (1)  (2)
+  //  \  / |
+  //   (B) |
+  //    | /
+  //   (3)
+  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+  ASSERT_EQ(GraphImpl->MRoots.size(), 2lu);
+
+  for (auto Root : GraphImpl->MRoots) {
+    auto RootNode = Root.lock();
+
+    if (GraphImpl->getEventForNode(RootNode) ==
+        sycl::detail::getSyclObjImpl(Node1)) {
+      ASSERT_EQ(RootNode->MSuccessors.size(), 1lu);
+    } else if (GraphImpl->getEventForNode(RootNode) ==
+               sycl::detail::getSyclObjImpl(Node2)) {
+      ASSERT_EQ(RootNode->MSuccessors.size(), 2lu);
+    } else {
+      ASSERT_TRUE(false && "Unexpected root node");
+    }
+
+    auto SuccNode = RootNode->MSuccessors.front().lock();
+
+    ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
+              sycl::detail::getSyclObjImpl(BarrierNode));
+    ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
+    ASSERT_EQ(SuccNode->MSuccessors.size(), 1lu);
+
+    auto SuccSuccNode = SuccNode->MSuccessors.front().lock();
+
+    ASSERT_EQ(SuccSuccNode->MPredecessors.size(), 2lu);
+    ASSERT_EQ(SuccSuccNode->MSuccessors.size(), 0lu);
+
+    ASSERT_EQ(GraphImpl->getEventForNode(SuccSuccNode),
+              sycl::detail::getSyclObjImpl(Node3));
+  }
+}
+
+TEST_F(CommandGraphTest, BarrierMixedQueueTypes) {
+  sycl::property_list Properties{sycl::property::queue::in_order()};
+  sycl::queue InOrderQueue{Dev, Properties};
+  sycl::queue OutOfOrderQueue{InOrderQueue.get_context(), Dev};
+
+  experimental::command_graph<experimental::graph_state::modifiable> Graph{
+      InOrderQueue};
+
+  Graph.begin_recording({InOrderQueue, OutOfOrderQueue});
+
+  auto Node1 = OutOfOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto Node2 = OutOfOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto BarrierNode = InOrderQueue.ext_oneapi_submit_barrier();
+
+  auto Node3 = OutOfOrderQueue.submit([&](sycl::handler &cgh) {
+    cgh.depends_on(Node2);
+    cgh.single_task<TestKernel<>>([]() {});
+  });
+
+  Graph.end_recording();
+
+  // Check the graph structure
+  // (1)  (2)
+  //  \   /|
+  //   (B) |
+  //    | /
+  //   (3)
+  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+  ASSERT_EQ(GraphImpl->MRoots.size(), 2lu);
+
+  for (auto Root : GraphImpl->MRoots) {
+    auto RootNode = Root.lock();
+
+    if (GraphImpl->getEventForNode(RootNode) ==
+        sycl::detail::getSyclObjImpl(Node1)) {
+      ASSERT_EQ(RootNode->MSuccessors.size(), 1lu);
+    } else if (GraphImpl->getEventForNode(RootNode) ==
+               sycl::detail::getSyclObjImpl(Node2)) {
+      ASSERT_EQ(RootNode->MSuccessors.size(), 2lu);
+    } else {
+      ASSERT_TRUE(false && "Unexpected root node");
+    }
+
+    auto SuccNode = RootNode->MSuccessors.front().lock();
+
+    ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
+              sycl::detail::getSyclObjImpl(BarrierNode));
+    ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
+    ASSERT_EQ(SuccNode->MSuccessors.size(), 1lu);
+
+    auto SuccSuccNode = SuccNode->MSuccessors.front().lock();
+
+    ASSERT_EQ(SuccSuccNode->MPredecessors.size(), 2lu);
+    ASSERT_EQ(SuccSuccNode->MSuccessors.size(), 0lu);
+
+    ASSERT_EQ(GraphImpl->getEventForNode(SuccSuccNode),
+              sycl::detail::getSyclObjImpl(Node3));
+  }
+}
+
+TEST_F(CommandGraphTest, BarrierBetweenExplicitNodes) {
+  sycl::property_list Properties{sycl::property::queue::in_order()};
+  sycl::queue InOrderQueue{Dev, Properties};
+
+  experimental::command_graph<experimental::graph_state::modifiable> Graph{
+      InOrderQueue};
+
+  auto Node1 = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  Graph.begin_recording(InOrderQueue);
+  auto BarrierNode = InOrderQueue.ext_oneapi_submit_barrier();
+  Graph.end_recording();
+
+  auto Node2 = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  // Check the graph structure
+  // (1)
+  //  |
+  // (B)
+  //  |
+  // (2)
+  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+  ASSERT_EQ(GraphImpl->MRoots.size(), 1lu);
+
+  for (auto Root : GraphImpl->MRoots) {
+    auto RootNode = Root.lock();
+    auto Node1Impl = sycl::detail::getSyclObjImpl(Node1);
+    ASSERT_EQ(RootNode, Node1Impl);
+
+    auto SuccNode = RootNode->MSuccessors.front().lock();
+
+    ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
+              sycl::detail::getSyclObjImpl(BarrierNode));
+    ASSERT_EQ(SuccNode->MPredecessors.size(), 1lu);
+    ASSERT_EQ(SuccNode->MSuccessors.size(), 1lu);
+
+    auto SuccSuccNode = SuccNode->MSuccessors.front().lock();
+
+    ASSERT_EQ(SuccSuccNode->MPredecessors.size(), 1lu);
+    ASSERT_EQ(SuccSuccNode->MSuccessors.size(), 0lu);
+
+    auto Node2Impl = sycl::detail::getSyclObjImpl(Node2);
+    ASSERT_EQ(SuccSuccNode, Node2Impl);
+  }
+}

@@ -54,7 +54,7 @@ struct SYCLInternalizerImpl {
   TargetFusionInfo TargetInfo;
 
   /// Implements internalization the pass run.
-  PreservedAnalyses operator()(Module &M, ModuleAnalysisManager &AM) const;
+  PreservedAnalyses operator()(Module &M) const;
 
   ///
   /// Update a value to be promoted in a function.
@@ -71,8 +71,8 @@ struct SYCLInternalizerImpl {
   void promoteValue(Value *Val, const PromotionInfo &PromInfo,
                     bool InAggregate) const;
 
-  void promoteGEPI(GetElementPtrInst *GEPI, const Value *Val,
-                   const PromotionInfo &PromInfo, bool InAggregate) const;
+  void promoteGEPI(GetElementPtrInst *GEPI, const PromotionInfo &PromInfo,
+                   bool InAggregate) const;
 
   void promoteCall(CallBase *C, const Value *Val,
                    const PromotionInfo &PromInfo) const;
@@ -103,8 +103,8 @@ struct SYCLInternalizerImpl {
   ///
   /// Check that the operand of a GEP can be promoted to its users, and
   /// propagate whether it represents a pointer into an aggregate object.
-  Error canPromoteGEP(GetElementPtrInst *GEPI, const Value *Val,
-                      const PromotionInfo &PromInfo, bool InAggregate) const;
+  Error canPromoteGEP(GetElementPtrInst *GEPI, const PromotionInfo &PromInfo,
+                      bool InAggregate) const;
 
   ///
   /// Check if operand to a function call can be promoted.
@@ -356,7 +356,6 @@ static int getGEPKind(GetElementPtrInst *GEPI, const PromotionInfo &PromInfo) {
 }
 
 Error SYCLInternalizerImpl::canPromoteGEP(GetElementPtrInst *GEPI,
-                                          const Value *Val,
                                           const PromotionInfo &PromInfo,
                                           bool InAggregate) const {
   if (cast<PointerType>(GEPI->getType())->getAddressSpace() == AS) {
@@ -405,7 +404,7 @@ Error SYCLInternalizerImpl::canPromoteValue(Value *Val,
       }
       break;
     case Instruction::GetElementPtr:
-      if (auto Err = canPromoteGEP(cast<GetElementPtrInst>(I), Val, PromInfo,
+      if (auto Err = canPromoteGEP(cast<GetElementPtrInst>(I), PromInfo,
                                    InAggregate)) {
         return Err;
       }
@@ -488,7 +487,6 @@ void SYCLInternalizerImpl::promoteCall(CallBase *C, const Value *Val,
 }
 
 void SYCLInternalizerImpl::promoteGEPI(GetElementPtrInst *GEPI,
-                                       const Value *Val,
                                        const PromotionInfo &PromInfo,
                                        bool InAggregate) const {
   // Not PointerType is unreachable. Other case is caught in caller.
@@ -523,7 +521,7 @@ void SYCLInternalizerImpl::promoteValue(Value *Val,
       promoteCall(cast<CallBase>(I), Val, PromInfo);
       break;
     case Instruction::GetElementPtr:
-      promoteGEPI(cast<GetElementPtrInst>(I), Val, PromInfo, InAggregate);
+      promoteGEPI(cast<GetElementPtrInst>(I), PromInfo, InAggregate);
       break;
     case Instruction::Load:
     case Instruction::Store:
@@ -637,8 +635,7 @@ Function *SYCLInternalizerImpl::promoteFunctionArgs(
   return NewF;
 }
 
-PreservedAnalyses
-SYCLInternalizerImpl::operator()(Module &M, ModuleAnalysisManager &AM) const {
+PreservedAnalyses SYCLInternalizerImpl::operator()(Module &M) const {
   bool Changed{false};
   SmallVector<Function *> ToUpdate;
   for (auto &F : M) {
@@ -729,10 +726,10 @@ PreservedAnalyses llvm::SYCLInternalizer::run(Module &M,
   TargetFusionInfo TFI{&M};
   // Private promotion
   const PreservedAnalyses Tmp = SYCLInternalizerImpl{
-      TFI.getPrivateAddressSpace(), PrivatePromotion, true, TFI}(M, AM);
+      TFI.getPrivateAddressSpace(), PrivatePromotion, true, TFI}(M);
   // Local promotion
-  PreservedAnalyses Res = SYCLInternalizerImpl{
-      TFI.getLocalAddressSpace(), LocalPromotion, false, TFI}(M, AM);
+  PreservedAnalyses Res = SYCLInternalizerImpl{TFI.getLocalAddressSpace(),
+                                               LocalPromotion, false, TFI}(M);
 
   Res.intersect(Tmp);
 

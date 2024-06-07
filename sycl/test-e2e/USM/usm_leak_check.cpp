@@ -6,7 +6,8 @@
 // RUN: %{l0_leak_check} %{run} %t.out s 2>&1 | FileCheck %s --implicit-check-not=LEAK
 // RUN: %{l0_leak_check} %{run} %t.out l 2>&1 | FileCheck %s --implicit-check-not=LEAK
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 using namespace sycl;
 
 #include <array>

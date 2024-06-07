@@ -1,13 +1,18 @@
 // REQUIRES: linux, cpu
-// RUN: %{build} %device_sanitizer_flags -DMALLOC_DEVICE -O1 -g -o %t
-// RUN: env SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-DEVICE --input-file %t.txt %s
-// RUN: %{build} %device_sanitizer_flags -DMALLOC_DEVICE -O2 -g -o %t
-// RUN: env SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-DEVICE --input-file %t.txt %s
-// RUN: %{build} %device_sanitizer_flags -DMALLOC_HOST -O2 -g -o %t
-// RUN: env SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-HOST --input-file %t.txt %s
-// RUN: %{build} %device_sanitizer_flags -DMALLOC_SHARED -O2 -g -o %t
-// RUN: env SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-SHARED --input-file %t.txt %s
-#include <sycl/sycl.hpp>
+// RUN: %{build} %device_asan_flags -DMALLOC_DEVICE -O0 -g -o %t
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-DEVICE %s
+// RUN: %{build} %device_asan_flags -DMALLOC_DEVICE -O1 -g -o %t
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-DEVICE %s
+// RUN: %{build} %device_asan_flags -DMALLOC_DEVICE -O2 -g -o %t
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-DEVICE %s
+// RUN: %{build} %device_asan_flags -DMALLOC_HOST -O2 -g -o %t
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-HOST %s
+// RUN: %{build} %device_asan_flags -DMALLOC_SHARED -O2 -g -o %t
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-SHARED --input-file %t.txt %s
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/usm.hpp>
 
 __attribute__((noinline)) void foo(int *array, size_t i) { array[i] = 1; }
 // CHECK-DEVICE: ERROR: DeviceSanitizer: out-of-bounds-access on Device USM
@@ -23,12 +28,8 @@ int main() {
   auto *array = sycl::malloc_host<int>(N, Q);
 #elif defined(MALLOC_SHARED)
   auto *array = sycl::malloc_shared<int>(N, Q);
-#elif defined(MALLOC_DEVICE)
+#else // defined(MALLOC_DEVICE)
   auto *array = sycl::malloc_device<int>(N, Q);
-#elif defined(MALLOC_SYSTEM)
-  auto *array = new int[N];
-#else
-#error "Must provide malloc type to run the test"
 #endif
 
   Q.submit([&](sycl::handler &h) {
@@ -38,5 +39,6 @@ int main() {
   });
   Q.wait();
 
+  sycl::free(array, Q);
   return 0;
 }

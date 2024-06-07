@@ -105,8 +105,8 @@ define { <4 x float>, <4 x i32> } @frexp_nonsplat_vector() {
 ; CHECK-SPIRV: ExtInst [[#TypeFloat]] [[#]] [[#ExtInstSetId]] frexp [[#]] [[#]]
 ; CHECK-SPIRV: ExtInst [[#TypeFloat]] [[#]] [[#ExtInstSetId]] frexp [[#]] [[#]]
 ; CHECK-LLVM: %[[#IntVar1:]] = alloca i32
-; CHECK-LLVM: %[[Frexp0:[a-z0-9.]+]] = call spir_func float @_Z5frexpfPi(float %x, ptr %[[#IntVar1]])
 ; CHECK-LLVM: %[[#IntVar2:]] = alloca i32
+; CHECK-LLVM: %[[Frexp0:[a-z0-9.]+]] = call spir_func float @_Z5frexpfPi(float %x, ptr %[[#IntVar1]])
 ; CHECK-LLVM: %[[Frexp1:[a-z0-9.]+]] = call spir_func float @_Z5frexpfPi(float %[[Frexp0]], ptr %[[#IntVar2]])
 ; CHECK-LLVM: %[[#LoadIntVar:]] = load i32, ptr %[[#IntVar2]]
 ; CHECK-LLVM: %[[#AllocaStrFloatInt:]] = alloca %[[StrTypeFloatInt]]

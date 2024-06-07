@@ -7,7 +7,8 @@
 
 #include <algorithm>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/group_algorithm.hpp>
 
 template <typename T, typename AccessorT>
 sycl::event compiler_group_scan_impl(sycl::queue *queue, AccessorT &in_data,

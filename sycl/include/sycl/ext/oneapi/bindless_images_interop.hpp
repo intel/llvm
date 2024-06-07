@@ -22,6 +22,40 @@ struct interop_mem_handle {
   raw_handle_type raw_handle;
 };
 
+/// Opaque interop semaphore handle type
+struct interop_semaphore_handle {
+  using raw_handle_type = pi_uint64;
+  raw_handle_type raw_handle;
+};
+
+// External resource file descriptor type
+struct resource_fd {
+  int file_descriptor;
+};
+
+// Windows external handle type
+struct resource_win32_handle {
+  void *handle;
+};
+
+// Windows external name type
+struct resource_win32_name {
+  const void *name;
+};
+
+/// Opaque external memory descriptor type
+template <typename ResourceType> struct external_mem_descriptor {
+  ResourceType external_resource;
+  size_t size_in_bytes;
+};
+
+// Opaque external semaphore descriptor type
+template <typename ResourceType> struct external_semaphore_descriptor {
+  ResourceType external_resource;
+};
+
+/// EVERYTHING BELOW IS DEPRECATED
+
 /// External memory file descriptor type
 struct external_mem_fd {
   int file_descriptor;
@@ -33,26 +67,9 @@ struct external_mem_win32 {
   const void *name;
 };
 
-/// Opaque external memory descriptor type
-template <typename HandleType> struct external_mem_descriptor {
-  HandleType external_handle;
-  size_t size_in_bytes;
-};
-
-/// Opaque interop semaphore handle type
-struct interop_semaphore_handle {
-  using raw_handle_type = pi_uint64;
-  raw_handle_type raw_handle;
-};
-
 /// External semaphore file descriptor type
 struct external_semaphore_fd {
   int file_descriptor;
-};
-
-/// Opaque external semaphore descriptor type
-template <typename HandleType> struct external_semaphore_descriptor {
-  HandleType external_handle;
 };
 
 } // namespace ext::oneapi::experimental

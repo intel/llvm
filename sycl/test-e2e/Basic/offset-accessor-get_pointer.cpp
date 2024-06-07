@@ -11,7 +11,7 @@
 // accessors in the past. Not relevant for images, which do not support offset
 // accessors.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <vector>
 using namespace sycl;
 

@@ -1,10 +1,12 @@
 // Test fusion works with reductions. Only algorithms automatically selected by
 // `sycl::reduction` are supported.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 #include "../helpers.hpp"
-#include "sycl/detail/reduction_forward.hpp"
+#include "sycl/reduction.hpp"
 
 using namespace sycl;
 

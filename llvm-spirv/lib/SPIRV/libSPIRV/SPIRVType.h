@@ -93,6 +93,7 @@ public:
   bool isTypeOpaque() const;
   bool isTypePointer() const;
   bool isTypeSampler() const;
+  bool isTypeSampledImage() const;
   bool isTypeStruct() const;
   bool isTypeVector() const;
   bool isTypeJointMatrixINTEL() const;
@@ -390,13 +391,13 @@ class SPIRVTypeArray : public SPIRVType {
 public:
   // Complete constructor
   SPIRVTypeArray(SPIRVModule *M, SPIRVId TheId, SPIRVType *TheElemType,
-                 SPIRVConstant *TheLength);
+                 SPIRVValue *TheLength);
   // Incomplete constructor
   SPIRVTypeArray()
       : SPIRVType(OpTypeArray), ElemType(nullptr), Length(SPIRVID_INVALID) {}
 
   SPIRVType *getElementType() const { return ElemType; }
-  SPIRVConstant *getLength() const;
+  SPIRVValue *getLength() const;
   SPIRVCapVec getRequiredCapability() const override {
     return getElementType()->getRequiredCapability();
   }

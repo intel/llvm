@@ -3,8 +3,12 @@ name: main branch sync
 on:
   workflow_dispatch:
 
+permissions: read-all
+
 jobs:
   sync:
+    permissions:
+      contents: write  # for Git to git push
     runs-on: ubuntu-20.04
     if: github.repository == 'intel/llvm'
     steps:

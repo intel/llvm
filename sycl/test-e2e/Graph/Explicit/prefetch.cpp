@@ -1,6 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %if linux && (level_zero || cuda) %{ env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 FileCheck %s %} %else %{ %{run} %t.out %}
 
+// REQUIRES: aspect-usm_shared_allocations
+
 // prefetch command not supported for OpenCL
 // UNSUPPORTED: opencl
 

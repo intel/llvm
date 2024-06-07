@@ -4,7 +4,7 @@
 // Tests that 3D accessors with 0 elements are allowed to be captured in a
 // kernel.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

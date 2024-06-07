@@ -32,6 +32,9 @@ on:
         type: string
         default: '{}'
         required: False
+
+permissions: read-all
+
 jobs:
   run:
     name: ${{ inputs.name }}

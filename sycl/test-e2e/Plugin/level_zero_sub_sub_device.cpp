@@ -1,8 +1,21 @@
 // REQUIRES:  gpu-intel-pvc, level_zero
 
+// UNSUPPORTED: gpu-intel-pvc-1T
+
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env UR_L0_DEBUG=1 env ZEX_NUMBER_OF_CCS=0:4  %{run} %t.out 2>&1 | FileCheck %s
-// RUN: env ZEX_NUMBER_OF_CCS=0:4 %{run} %t.out
+
+// TODO - at this time PVC 1T systems aren't correctly supporting affinity
+// subdomain partitioning so this test is marked as UNSUPPORTED on those
+// systems.
+
+// TODO - at this time ZEX_NUMBER_OF_CCS is not working with FLAT hierachy,
+// which is the new default on PVC.  Once it is supported, we'll test on both.
+// In the interim, these are the environment vars that must be used in
+// conjunction with ZEX_NUMBER_OF_CCS
+// DEFINE: %{setup_env} = env ZE_FLAT_DEVICE_HIERARCHY=COMPOSITE ZE_AFFINITY_MASK=0 ZEX_NUMBER_OF_CCS=0:4
+
+// RUN: %{setup_env} env UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: %{setup_env} %{run} %t.out
 
 // Check that queues created on sub-sub-devices are going to specific compute
 // engines:
@@ -15,7 +28,9 @@
 #include <cmath>
 #include <iostream>
 #include <math.h>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 #include <unistd.h>
 
 using namespace sycl;

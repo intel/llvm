@@ -81,6 +81,13 @@
 static_assert(__cplusplus >= 201703L,
               "DPCPP does not support C++ version earlier than C++17.");
 
+// Helper macro to identify if fallback assert is needed
+#if defined(SYCL_FALLBACK_ASSERT)
+#define __SYCL_USE_FALLBACK_ASSERT SYCL_FALLBACK_ASSERT
+#else
+#define __SYCL_USE_FALLBACK_ASSERT 0
+#endif
+
 #if defined(_WIN32) && !defined(_DLL) && !defined(__SYCL_DEVICE_ONLY__)
 // SYCL library is designed such a way that STL objects cross DLL boundary,
 // which is guaranteed to work properly only when the application uses the same

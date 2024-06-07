@@ -14,6 +14,7 @@
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
 #include <sycl/ext/intel/experimental/usm_properties.hpp>
+#include <sycl/ext/oneapi/memcpy2d.hpp>
 #include <sycl/usm.hpp>
 
 #include <array>

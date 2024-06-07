@@ -203,13 +203,6 @@ std::vector<PluginPtr> &GlobalHandler::getPlugins() {
   return getOrCreate(MPlugins);
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-device_filter_list &
-GlobalHandler::getDeviceFilterList(const std::string &InitValue) {
-  return getOrCreate(MDeviceFilterList, InitValue);
-}
-#endif
-
 ods_target_list &
 GlobalHandler::getOneapiDeviceSelectorTargets(const std::string &InitValue) {
   return getOrCreate(MOneapiDeviceSelectorTargets, InitValue);
@@ -357,7 +350,9 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
   case DLL_PROCESS_ATTACH:
     if (PrintPiTrace)
       std::cout << "---> DLL_PROCESS_ATTACH syclx.dll\n" << std::endl;
+    break;
   case DLL_THREAD_ATTACH:
+    break;
   case DLL_THREAD_DETACH:
     break;
   }

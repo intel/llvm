@@ -4,7 +4,12 @@
 // Test checks that dependency chain between commands is preserved for in-order
 // queue in the case when usm commands and host tasks are interleaved.
 
-#include <sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/detail/host_task_impl.hpp>
+
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
+
 using namespace sycl;
 
 int main() {

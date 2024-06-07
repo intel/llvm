@@ -1,9 +1,11 @@
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 
 #include <condition_variable> // std::conditional_variable
-#include <mutex>              // std::mutex, std::unique_lock
+#include <fstream>
+#include <mutex> // std::mutex, std::unique_lock
 #include <numeric>
 
 // Test constants.
@@ -458,11 +460,23 @@ bool inline check_value(const size_t index, const T &Ref, const T &Got,
   return true;
 }
 
-bool are_graphs_supported(queue &Queue) {
-  auto Device = Queue.get_device();
+kernel_bundle<bundle_state::executable>
+loadKernelsFromFile(queue &Q, std::string FileName) {
+  // Read the SPIR-V module from disk.
+  std::ifstream SpvStream(FileName, std::ios::binary);
+  SpvStream.seekg(0, std::ios::end);
+  size_t sz = SpvStream.tellg();
+  SpvStream.seekg(0);
+  std::vector<std::byte> Spv(sz);
+  SpvStream.read(reinterpret_cast<char *>(Spv.data()), sz);
 
-  exp_ext::graph_support_level SupportsGraphs =
-      Device.get_info<exp_ext::info::device::graph_support>();
+  // Create a kernel bundle from the binary SPIR-V.
+  kernel_bundle<bundle_state::ext_oneapi_source> KernelBundleSrc =
+      exp_ext::create_kernel_bundle_from_source(
+          Q.get_context(), exp_ext::source_language::spirv, Spv);
 
-  return SupportsGraphs != exp_ext::graph_support_level::unsupported;
+  // Build the SPIR-V module for our device.
+  kernel_bundle<bundle_state::executable> KernelBundleExe =
+      exp_ext::build(KernelBundleSrc);
+  return KernelBundleExe;
 }

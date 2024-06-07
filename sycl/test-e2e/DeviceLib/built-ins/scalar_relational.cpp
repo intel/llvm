@@ -2,7 +2,9 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out %{mathflags}
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
 
 #include <cassert>
 #include <cmath>

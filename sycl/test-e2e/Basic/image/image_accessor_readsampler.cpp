@@ -14,7 +14,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/accessor_image.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/image.hpp>
 
 #include <cassert>
 #include <iomanip>

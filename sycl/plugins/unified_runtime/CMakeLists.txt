@@ -56,14 +56,106 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
+  # The fetch_adapter_source function can be used to perform a separate content
+  # fetch for a UR adapter, this allows development of adapters to be decoupled
+  # from each other.
+  #
+  # A separate content fetch will not be performed if:
+  # * The adapter name is not present in the SYCL_ENABLE_PLUGINS variable.
+  # * The repo and tag provided match the values of the
+  #   UNIFIED_RUNTIME_REPO/UNIFIED_RUNTIME_TAG variables
+  #
+  # Args:
+  #   * name - Must be the directory name of the adapter
+  #   * repo - A valid Git URL of a Unified Runtime repo
+  #   * tag - A valid Git branch/tag/commit in the Unified Runtime repo
+  function(fetch_adapter_source name repo tag)
+    if(NOT ${name} IN_LIST SYCL_ENABLE_PLUGINS)
+      return()
+    endif()
+    if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
+        tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
+      return()
+    endif()
+    message(STATUS
+      "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
+    set(fetch-name ur-${name})
+    FetchContent_Declare(${fetch-name}
+      GIT_REPOSITORY ${repo} GIT_TAG ${tag})
+    # We don't want to add this repo to the build, only fetch its source.
+    FetchContent_Populate(${fetch-name})
+    # Get the path to the source directory
+    string(TOUPPER ${name} NAME)
+    set(source_dir_var UR_ADAPTER_${NAME}_SOURCE_DIR)
+    FetchContent_GetProperties(${fetch-name} SOURCE_DIR UR_ADAPTER_${NAME}_SOURCE_DIR)
+    # Set the variable which informs UR where to get the adapter source from.
+    set(UR_ADAPTER_${NAME}_SOURCE_DIR
+      "${UR_ADAPTER_${NAME}_SOURCE_DIR}/source/adapters/${name}"
+      CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
+  endfunction()
+
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 78e09f717f56ea8d6e5eb3aa1a22107cf58a8d41
-  # Merge: e0393a45 8a5d6d39
+  # commit 755a1e75e24ed55070a0f457d2d8a676521ad4f7
+  # Merge: 6469b890 5593d84c
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Feb 29 12:49:08 2024 +0000
-  #     Merge pull request #1392 from pbalcer/event-cache-different-fix
-  #     [L0] Event cache different fix
-  set(UNIFIED_RUNTIME_TAG 78e09f717f56ea8d6e5eb3aa1a22107cf58a8d41)
+  # Date:   Tue Jun 4 10:34:57 2024 +0100
+  #     Merge pull request #1385 from yingcong-wu/yc/new-api-suggestgroupsize
+  #     Implement urKernelGetSuggestedLocalWorkSize
+  set(UNIFIED_RUNTIME_TAG 755a1e75e24ed55070a0f457d2d8a676521ad4f7)
+
+  fetch_adapter_source(level_zero
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 8e47ab5057458c5522ce5d86f7996b2882020220
+    # Merge: b816fe82 3d3aba65
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Tue Jun 4 17:28:43 2024 +0100
+    #     Merge pull request #1694 from Bensuo/ewan/L0_update_query
+    #     Set minimum L0 device support to support UR kernel update
+    8e47ab5057458c5522ce5d86f7996b2882020220
+  )
+
+  fetch_adapter_source(opencl
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(cuda
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 0e38fda02ca00aaab28018240eb526da7dd08f56
+    # Merge: f4968809 b7c8ac18
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Tue Jun 4 14:18:15 2024 +0100
+    #     Merge pull request #1552 from mmoadeli/atomic-access-on-host-malloc
+    #     [CUDA] Remove the support of concurrent atomic access to host allocated pinned memory.
+    0e38fda02ca00aaab28018240eb526da7dd08f56
+  )
+
+  fetch_adapter_source(hip
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 399430da9613269a0dc8ddf605415942e0a37e9c
+    # Merge: 39cb69ab 10b04891
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Tue Jun 4 17:15:33 2024 +0100
+    #     Merge pull request #1688 from frasercrmck/hip-enqueue-mem-readwritecopy
+    #     [HIP] Various fixes for urEnqueueMemImage(Read|Write|Copy)
+    399430da9613269a0dc8ddf605415942e0a37e9c
+  )
+
+  fetch_adapter_source(native_cpu
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 31ee5d536130a6d2ce09661db1bef3bd1cd4d705
+    # Merge: ab151e98 53e43466
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Tue Jun 4 14:10:39 2024 +0100
+    #     Merge pull request #1527 from PietroGhg/pietro/report_atomics
+    #     [NATIVECPU] Report correct memory order capabilities for Native CPU
+    31ee5d536130a6d2ce09661db1bef3bd1cd4d705
+  )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

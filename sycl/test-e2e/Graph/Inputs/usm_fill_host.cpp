@@ -5,14 +5,6 @@
 int main() {
   queue Queue{};
 
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
-
-  if (!Queue.get_device().has(sycl::aspect::usm_host_allocations)) {
-    return 0;
-  }
-
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
   const size_t N = 10;

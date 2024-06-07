@@ -7,7 +7,11 @@
 // Kernels with different ND-ranges should be fused.
 // CHECK-NOT: Cannot fuse kernels with different offsets or local sizes
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 #include <algorithm>
 

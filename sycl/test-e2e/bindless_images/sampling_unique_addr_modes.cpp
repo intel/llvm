@@ -1,11 +1,12 @@
-// REQUIRES: linux
 // REQUIRES: cuda
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -44,8 +45,7 @@ int main() {
     namespace syclexp = sycl::ext::oneapi::experimental;
 
     // Extension: image descriptor
-    syclexp::image_descriptor desc({width, height, depth},
-                                   sycl::image_channel_order::r,
+    syclexp::image_descriptor desc({width, height, depth}, 1,
                                    sycl::image_channel_type::fp32);
 
     sycl::addressing_mode addrModes[3];
@@ -84,9 +84,9 @@ int main() {
             size_t dim2 = it.get_local_id(2);
 
             // Address outside dimension domain
-            float fdim0 = float(dim0 + width + 0.5) / (float)width;
-            float fdim1 = float(dim1 + height + 0.5) / (float)height;
-            float fdim2 = float(dim2 + depth + 0.5) / (float)depth;
+            float fdim0 = float(dim0 + width + 0.5f) / (float)width;
+            float fdim1 = float(dim1 + height + 0.5f) / (float)height;
+            float fdim2 = float(dim2 + depth + 0.5f) / (float)depth;
 
             // Extension: sample image data from handle
             float px1 = syclexp::sample_image<float>(

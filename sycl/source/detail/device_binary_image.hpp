@@ -11,6 +11,8 @@
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
 
+#include <sycl/detail/iostream_proxy.hpp>
+
 #include <atomic>
 #include <cstring>
 #include <memory>
@@ -243,7 +245,7 @@ protected:
 
 private:
   static std::atomic<uintptr_t> ImageCounter;
-  uintptr_t ImageId;
+  uintptr_t ImageId = 0;
 };
 
 // Dynamically allocated device binary image, which de-allocates its binary

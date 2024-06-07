@@ -15,7 +15,6 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/common_info.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/device.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -26,6 +25,8 @@
 #include <cstring>
 #include <memory>
 #include <vector>
+
+#include "split_string.hpp"
 
 namespace sycl {
 inline namespace _V1 {
@@ -563,9 +564,9 @@ public:
             MContext, KernelID.get_name(), /*PropList=*/{},
             SelectedImage->get_program_ref());
 
-    std::shared_ptr<kernel_impl> KernelImpl =
-        std::make_shared<kernel_impl>(Kernel, detail::getSyclObjImpl(MContext),
-                                      SelectedImage, Self, ArgMask, CacheMutex);
+    std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
+        Kernel, detail::getSyclObjImpl(MContext), SelectedImage, Self, ArgMask,
+        SelectedImage->get_program_ref(), CacheMutex);
 
     return detail::createSyclObjFromImpl<kernel>(KernelImpl);
   }

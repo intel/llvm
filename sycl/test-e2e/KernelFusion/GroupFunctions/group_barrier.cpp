@@ -4,7 +4,10 @@
 // Test complete_fusion preserves barriers by launching a kernel that requires a
 // barrier for correctness.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/group_barrier.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 #include "../helpers.hpp"
 

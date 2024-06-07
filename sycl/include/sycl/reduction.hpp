@@ -45,6 +45,14 @@
 #include <sycl/sycl_span.hpp>                       // for dynamic_e...
 #include <sycl/usm.hpp>                             // for malloc_de...
 
+// reduction::withAuxHandler calls handler::~handler() and that, in turn, needs
+// all the dtors from std::unique_pointer handler's data members, including the
+// host_task-related stuff. That's not the case for <sycl/detail/core.hpp>
+// because handler object is only ctor/dtor'ed inside SYCL shared library but
+// not in the current translation unit. It would be nice to find a better way
+// than this include in future.
+#include <sycl/detail/host_task_impl.hpp>
+
 #include <algorithm>   // for min
 #include <array>       // for array
 #include <assert.h>    // for assert
@@ -60,32 +68,6 @@
 
 namespace sycl {
 inline namespace _V1 {
-namespace detail {
-
-/// Base non-template class which is a base class for all reduction
-/// implementation classes. It is needed to detect the reduction classes.
-class reduction_impl_base {};
-
-/// Predicate returning true if a type is a reduction.
-template <typename T> struct IsReduction {
-  static constexpr bool value =
-      std::is_base_of_v<reduction_impl_base, std::remove_reference_t<T>>;
-};
-
-/// Predicate returning true if all template type parameters except the last one
-/// are reductions.
-template <typename FirstT, typename... RestT> struct AreAllButLastReductions {
-  static constexpr bool value =
-      IsReduction<FirstT>::value && AreAllButLastReductions<RestT...>::value;
-};
-
-/// Helper specialization of AreAllButLastReductions for one element only.
-/// Returns true if the template parameter is not a reduction.
-template <typename T> struct AreAllButLastReductions<T> {
-  static constexpr bool value = !IsReduction<T>::value;
-};
-} // namespace detail
-
 /// Class that is used to represent objects that are passed to user's lambda
 /// functions and representing users' reduction variable.
 /// The generic version of the class represents those reductions of those
@@ -118,7 +100,8 @@ using IsReduOptForFastAtomicFetch =
     std::bool_constant<false>;
 #else
     std::bool_constant<((is_sgenfloat_v<T> && sizeof(T) == 4) ||
-                        is_sgeninteger_v<T>)&&IsValidAtomicType<T>::value &&
+                        is_sgeninteger_v<T>) &&
+                       IsValidAtomicType<T>::value &&
                        (IsPlus<T, BinaryOperation>::value ||
                         IsMinimum<T, BinaryOperation>::value ||
                         IsMaximum<T, BinaryOperation>::value ||
@@ -156,11 +139,12 @@ using IsReduOptForFastReduce =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
     std::bool_constant<false>;
 #else
-    std::bool_constant<(
-        (is_sgeninteger_v<T> && (sizeof(T) == 4 || sizeof(T) == 8)) ||
-        is_sgenfloat_v<T>)&&(IsPlus<T, BinaryOperation>::value ||
-                             IsMinimum<T, BinaryOperation>::value ||
-                             IsMaximum<T, BinaryOperation>::value)>;
+    std::bool_constant<((is_sgeninteger_v<T> &&
+                         (sizeof(T) == 4 || sizeof(T) == 8)) ||
+                        is_sgenfloat_v<T>) &&
+                       (IsPlus<T, BinaryOperation>::value ||
+                        IsMinimum<T, BinaryOperation>::value ||
+                        IsMaximum<T, BinaryOperation>::value)>;
 #endif
 
 // std::tuple seems to be a) too heavy and b) not copyable to device now
@@ -853,6 +837,10 @@ using __sycl_init_mem_for =
     std::conditional_t<std::is_same_v<KernelName, auto_name>, auto_name,
                        reduction::InitMemKrn<KernelName>>;
 
+__SYCL_EXPORT void
+addCounterInit(handler &CGH, std::shared_ptr<sycl::detail::queue_impl> &Queue,
+               std::shared_ptr<int> &Counter);
+
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
           bool ExplicitIdentity, typename RedOutVar>
 class reduction_impl_algo {
@@ -1093,8 +1081,7 @@ public:
     std::shared_ptr<int> Counter(malloc_device<int>(1, q), Deleter);
     CGH.addReduction(Counter);
 
-    auto Event = q.memset(Counter.get(), 0, sizeof(int));
-    CGH.depends_on(Event);
+    addCounterInit(CGH, CGH.MQueue, Counter);
 
     return Counter.get();
   }

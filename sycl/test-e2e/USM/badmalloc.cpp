@@ -15,7 +15,8 @@
 // This test verifies that things fail in the proper way when they should.
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 

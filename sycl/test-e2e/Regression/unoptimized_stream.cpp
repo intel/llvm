@@ -1,12 +1,11 @@
-// Test hangs on AMD with https://github.com/intel/llvm/pull/8412
-// UNSUPPORTED: hip_amd
-
 // RUN: %{build} -O0 -o %t.out
 // RUN: %{run} %t.out
 
 // UNSUPPORTED: accelerator
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/stream.hpp>
 
 int main() {
   sycl::queue q;

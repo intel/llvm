@@ -4,7 +4,7 @@
 // XFAIL: hip_nvidia
 #include <cassert>
 #include <cstddef>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

@@ -19,12 +19,15 @@
 ; CHECK-SPIRV: ExecutionMode [[kernel]] 6446 0
 
 ; CHECK-LLVM: spir_kernel void @_ZTSZ4mainE7Kernel1() {{.*}} !intel_reqd_sub_group_size ![[MD:[0-9]+]]
-; CHECK-LLVM: ![[MD]] = !{i32 0}
+; CHECK-LLVM: ![[MD]] = !{i32 -1}
 
+; Check that with no SPV_INTEL_subgroup_requirements,
+; (1) No SubgroupRequirementsINTEL Capability nor SPV_INTEL_subgroup_requirements extension is attached
+; (2) the SubgroupSize (=35) ExecutionMode is attached with the value original value from the LLVM IR 
 ; CHECK-SPIRV-2-NOT: Capability SubgroupRequirementsINTEL
 ; CHECK-SPIRV-2-NOT: Extension "SPV_INTEL_subgroup_requirements"
 ; CHECK-SPIRV-2: EntryPoint 6 [[kernel:[0-9]+]] "_ZTSZ4mainE7Kernel1"
-; CHECK-SPIRV-2: ExecutionMode [[kernel]] 35 0
+; CHECK-SPIRV-2: ExecutionMode [[kernel]] 35 4294967295
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
@@ -51,4 +54,4 @@ attributes #0 = { mustprogress norecurse nounwind "frame-pointer"="all" "no-trap
 !4 = !{!"clang version 18.0.0git (/ws/llvm/clang 8fd29b3c2aa9f9ce163be557b51de39c95aaf230)"}
 !5 = !{i32 358}
 !6 = !{}
-!7 = !{i32 0}
+!7 = !{i32 -1}

@@ -5,7 +5,10 @@
 // UNSUPPORTED: ze_debug && windows
 // This test performs basic checks of reductions initialized with a sycl::span
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/reduction.hpp>
+
 using namespace sycl;
 
 int NumErrors = 0;

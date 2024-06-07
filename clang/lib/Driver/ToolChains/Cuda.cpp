@@ -82,6 +82,8 @@ CudaVersion getCudaVersion(uint32_t raw_version) {
     return CudaVersion::CUDA_122;
   if (raw_version < 12040)
     return CudaVersion::CUDA_123;
+  if (raw_version < 12050)
+    return CudaVersion::CUDA_124;
   return CudaVersion::NEW;
 }
 
@@ -512,18 +514,20 @@ void NVPTX::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
       Exec, CmdArgs, Inputs, Output));
 }
 
-static bool shouldIncludePTX(const ArgList &Args, const char *gpu_arch) {
-  bool includePTX = true;
-  for (Arg *A : Args) {
-    if (!(A->getOption().matches(options::OPT_cuda_include_ptx_EQ) ||
-          A->getOption().matches(options::OPT_no_cuda_include_ptx_EQ)))
-      continue;
+static bool shouldIncludePTX(const ArgList &Args, StringRef InputArch) {
+  // The new driver does not include PTX by default to avoid overhead.
+  bool includePTX = !Args.hasFlag(options::OPT_offload_new_driver,
+                                  options::OPT_no_offload_new_driver, false);
+  for (Arg *A : Args.filtered(options::OPT_cuda_include_ptx_EQ,
+                              options::OPT_no_cuda_include_ptx_EQ)) {
     A->claim();
     const StringRef ArchStr = A->getValue();
-    if (ArchStr == "all" || ArchStr == gpu_arch) {
-      includePTX = A->getOption().matches(options::OPT_cuda_include_ptx_EQ);
-      continue;
-    }
+    if (A->getOption().matches(options::OPT_cuda_include_ptx_EQ) &&
+        (ArchStr == "all" || ArchStr == InputArch))
+      includePTX = true;
+    else if (A->getOption().matches(options::OPT_no_cuda_include_ptx_EQ) &&
+             (ArchStr == "all" || ArchStr == InputArch))
+      includePTX = false;
   }
   return includePTX;
 }
@@ -774,6 +778,7 @@ void NVPTX::getNVPTXTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   case CudaVersion::CUDA_##CUDA_VER:                                           \
     PtxFeature = "+ptx" #PTX_VER;                                              \
     break;
+    CASE_CUDA_VERSION(124, 84);
     CASE_CUDA_VERSION(123, 83);
     CASE_CUDA_VERSION(122, 82);
     CASE_CUDA_VERSION(121, 81);
@@ -836,10 +841,12 @@ NVPTXToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
     if (!llvm::is_contained(*DAL, A))
       DAL->append(A);
 
-  // TODO: We should accept 'generic' as a valid architecture.
   if (!DAL->hasArg(options::OPT_march_EQ) && OffloadKind != Action::OFK_None) {
     DAL->AddJoinedArg(nullptr, Opts.getOption(options::OPT_march_EQ),
                       CudaArchToString(CudaArch::CudaDefault));
+  } else if (DAL->getLastArgValue(options::OPT_march_EQ) == "generic" &&
+             OffloadKind == Action::OFK_None) {
+    DAL->eraseArg(options::OPT_march_EQ);
   } else if (DAL->getLastArgValue(options::OPT_march_EQ) == "native") {
     auto GPUsOrErr = getSystemGPUArchs(Args);
     if (!GPUsOrErr) {
@@ -976,8 +983,8 @@ void CudaToolChain::addClangTargetOptions(
     }
   }
 
-  auto NoLibSpirv = DriverArgs.hasArg(options::OPT_fno_sycl_libspirv,
-                                      options::OPT_fsycl_device_only);
+  auto NoLibSpirv = DriverArgs.hasArg(options::OPT_fno_sycl_libspirv) ||
+                    getDriver().offloadDeviceOnly();
   if (DeviceOffloadingKind == Action::OFK_SYCL && !NoLibSpirv) {
     std::string LibSpirvFile;
 
@@ -1063,7 +1070,7 @@ void CudaToolChain::addClangTargetOptions(
       return;
 
     addOpenMPDeviceRTL(getDriver(), DriverArgs, CC1Args, GpuArch.str(),
-                       getTriple());
+                       getTriple(), HostTC);
     AddStaticDeviceLibsPostLinking(getDriver(), DriverArgs, CC1Args, "nvptx",
                                    GpuArch, /*isBitCodeSDL=*/true,
                                    /*postClangLink=*/true);
@@ -1149,7 +1156,10 @@ CudaToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
   }
 
   for (Arg *A : Args) {
-    DAL->append(A);
+    // Make sure flags are not duplicated.
+    if (!llvm::is_contained(*DAL, A)) {
+      DAL->append(A);
+    }
   }
 
   if (!BoundArch.empty()) {

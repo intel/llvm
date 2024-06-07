@@ -22,7 +22,9 @@
 
 */
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/stream.hpp>
 using namespace sycl;
 
 // llvm/sycl/doc/design/DeviceLibExtensions.rst

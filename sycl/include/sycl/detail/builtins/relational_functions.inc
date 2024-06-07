@@ -173,7 +173,7 @@ typename detail::builtin_enable_rel_all_any<T>::type any(T x) {
 }
 
 template <typename T>
-__SYCL_DEPRECATED("This overload is deprecated in SYCL 2020.")
+__SYCL2020_DEPRECATED("This overload is deprecated in SYCL 2020.")
 typename detail::builtin_enable_rel_all_any_deprecated<T>::type any(T x) {
   if constexpr (detail::is_marray_v<T>) {
     return std::any_of(x.begin(), x.end(),
@@ -196,7 +196,7 @@ typename detail::builtin_enable_rel_all_any<T>::type all(T x) {
 }
 
 template <typename T>
-__SYCL_DEPRECATED("This overload is deprecated in SYCL 2020.")
+__SYCL2020_DEPRECATED("This overload is deprecated in SYCL 2020.")
 typename detail::builtin_enable_rel_all_any_deprecated<T>::type all(T x) {
   if constexpr (detail::is_marray_v<T>) {
     return std::all_of(x.begin(), x.end(),

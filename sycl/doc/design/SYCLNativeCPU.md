@@ -46,6 +46,9 @@ python3 buildbot/configure.py \
   --cmake-opt=-DNATIVECPU_USE_OCK=Off
 ```
 
+By default the oneAPI Construction Kit is pulled at the project's configure time using CMake `FetchContent`. This behaviour can be overridden by setting `NATIVECPU_OCK_USE_FETCHCONTENT=Off` and `OCK_SOURCE_DIR=<path>`
+in order to use a local checkout of the oneAPI Construction Kit. The CMake variables `OCK_GIT_TAG` and `OCK_GIT_REPO` can be used to override the default git tag and repository used by `FetchContent`.
+
 The SYCL Native CPU device needs to be selected at runtime by setting the environment variable `ONEAPI_DEVICE_SELECTOR=native_cpu:cpu`. 
 
 # Supported features and current limitations

@@ -8,65 +8,24 @@
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
 
-#include <sycl/sycl.hpp>
-
+#include "../bindless_helpers.hpp"
 #include "vulkan_common.hpp"
 
-#include <cstdlib>
-#include <iostream>
-#include <stdexcept>
-#include <vector>
-
-template <typename DType, int NChannels>
-std::ostream &operator<<(std::ostream &os,
-                         const sycl::vec<DType, NChannels> &vec) {
-  std::string str{""};
-  for (int i = 0; i < NChannels; ++i) {
-    str += std::to_string(vec[i]) + ",";
-  }
-  str.pop_back();
-  os << str;
-  return os;
-}
-
-template <typename DType, int NChannels>
-bool equal_vec(sycl::vec<DType, NChannels> v1, sycl::vec<DType, NChannels> v2) {
-  for (int i = 0; i < NChannels; ++i) {
-    if (v1[i] != v2[i]) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-template <typename DType, int NChannel>
-constexpr sycl::vec<DType, NChannel> initVector(DType val) {
-  if constexpr (NChannel == 1) {
-    return sycl::vec<DType, NChannel>{val};
-  } else if constexpr (NChannel == 2) {
-    return sycl::vec<DType, NChannel>{val, val};
-  } else if constexpr (NChannel == 4) {
-    return sycl::vec<DType, NChannel>{val, val, val, val};
-  } else {
-    std::cerr << "unsupported number of channels " << NChannel << "\n";
-    exit(-1);
-  }
-}
+namespace syclexp = sycl::ext::oneapi::experimental;
 
 struct handles_t {
-  sycl::ext::oneapi::experimental::sampled_image_handle imgInput;
-  sycl::ext::oneapi::experimental::interop_mem_handle inputInteropMemHandle;
+  syclexp::sampled_image_handle imgInput;
+  syclexp::image_mem_handle imgMem;
+  syclexp::interop_mem_handle inputInteropMemHandle;
 };
 
-handles_t create_test_handles(
-    sycl::context &ctxt, sycl::device &dev,
-    const sycl::ext::oneapi::experimental::bindless_image_sampler &samp,
-    int input_image_fd, sycl::ext::oneapi::experimental::image_descriptor desc,
-    const size_t imgSize) {
-  namespace syclexp = sycl::ext::oneapi::experimental;
+handles_t create_test_handles(sycl::context &ctxt, sycl::device &dev,
+                              const syclexp::bindless_image_sampler &samp,
+                              int input_image_fd,
+                              syclexp::image_descriptor desc,
+                              const size_t imgSize) {
   // Extension: external memory descriptor
-  syclexp::external_mem_descriptor<syclexp::external_mem_fd> inputExtMemDesc{
+  syclexp::external_mem_descriptor<syclexp::resource_fd> inputExtMemDesc{
       input_image_fd, imgSize};
 
   // Extension: interop mem handle imported from file descriptor
@@ -82,24 +41,19 @@ handles_t create_test_handles(
   syclexp::sampled_image_handle imgInput =
       syclexp::create_image(inputMappedMemHandle, samp, desc, dev, ctxt);
 
-  return {imgInput, inputInteropMemHandle};
+  return {imgInput, inputMappedMemHandle, inputInteropMemHandle};
 }
 
 template <int NDims, typename DType, int NChannels,
-          sycl::image_channel_type CType, sycl::image_channel_order COrder,
-          typename KernelName>
+          sycl::image_channel_type CType, typename KernelName>
 bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
               int input_image_fd) {
   sycl::device dev;
   sycl::queue q(dev);
   auto ctxt = q.get_context();
 
-  namespace syclexp = sycl::ext::oneapi::experimental;
-
   // Image descriptor - mapped to Vulkan image layout
-  syclexp::image_descriptor desc(globalSize, COrder, CType,
-                                 syclexp::image_type::interop,
-                                 1 /*num_levels*/);
+  syclexp::image_descriptor desc(globalSize, NChannels, CType);
 
   syclexp::bindless_image_sampler samp(
       sycl::addressing_mode::repeat,
@@ -176,6 +130,8 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
     q.wait_and_throw();
 
     syclexp::destroy_image_handle(handles.imgInput, dev, ctxt);
+    syclexp::free_image_mem(handles.imgMem, syclexp::image_type::standard, dev,
+                            ctxt);
     syclexp::release_external_memory(handles.inputInteropMemHandle, dev, ctxt);
   } catch (sycl::exception e) {
     std::cerr << "\tKernel submission failed! " << e.what() << std::endl;
@@ -189,9 +145,9 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
   bool validated = true;
   for (int i = 0; i < globalSize.size(); i++) {
     bool mismatch = false;
-    VecType expected =
-        initVector<DType, NChannels>(i) * static_cast<DType>(10.1f);
-    if (!equal_vec<DType, NChannels>(out[i], expected)) {
+    VecType expected = bindless_helpers::init_vector<DType, NChannels>(i) *
+                       static_cast<DType>(10.1f);
+    if (!bindless_helpers::equal_vec<DType, NChannels>(out[i], expected)) {
       mismatch = true;
       validated = false;
     }
@@ -245,9 +201,11 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   auto inputImage = vkutil::createImage(imgType, format, {width, height, depth},
                                         VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                                             VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                            VK_IMAGE_USAGE_STORAGE_BIT);
+                                            VK_IMAGE_USAGE_STORAGE_BIT,
+                                        1 /*mipLevels*/);
+  VkMemoryRequirements memRequirements;
   auto inputImageMemoryTypeIndex = vkutil::getImageMemoryTypeIndex(
-      inputImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+      inputImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memRequirements);
   auto inputMemory =
       vkutil::allocateDeviceMemory(imageSizeBytes, inputImageMemoryTypeIndex);
   VK_CHECK_CALL(vkBindImageMemory(vk_device, inputImage, inputMemory,
@@ -273,7 +231,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
                             imageSizeBytes, 0 /*flags*/,
                             (void **)&inputStagingData));
   for (int i = 0; i < numElems; ++i) {
-    inputStagingData[i] = initVector<DType, NChannels>(i);
+    inputStagingData[i] = bindless_helpers::init_vector<DType, NChannels>(i);
   }
   vkUnmapMemory(vk_device, inputStagingMemory);
 
@@ -281,7 +239,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   // Transition image layouts
   {
     VkImageMemoryBarrier barrierInput =
-        vkutil::createImageMemoryBarrier(inputImage);
+        vkutil::createImageMemoryBarrier(inputImage, 1 /*mipLevels*/);
 
     VkCommandBufferBeginInfo cbbi = {};
     cbbi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -334,7 +292,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   printString("Getting memory file descriptors and calling into SYCL\n");
   // Pass memory to SYCL for modification
   auto input_fd = vkutil::getMemoryOpaqueFD(inputMemory);
-  bool result = run_sycl<NDims, DType, NChannels, CType, COrder, KernelName>(
+  bool result = run_sycl<NDims, DType, NChannels, CType, KernelName>(
       dims, localSize, input_fd);
 
   // Cleanup

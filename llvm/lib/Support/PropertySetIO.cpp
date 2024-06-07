@@ -126,7 +126,7 @@ void PropertySetRegistry::write(raw_ostream &Out) const {
     Out << "[" << PropSet.first << "]\n";
 
     for (const auto &Props : PropSet.second) {
-      Out << std::string(Props.first) << "=" << Props.second << "\n";
+      Out << Props.first << "=" << Props.second << "\n";
     }
   }
 }

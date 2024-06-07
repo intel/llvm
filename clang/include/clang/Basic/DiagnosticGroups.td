@@ -104,6 +104,7 @@ def EnumConversion : DiagGroup<"enum-conversion",
                                [EnumEnumConversion,
                                 EnumFloatConversion,
                                 EnumCompareConditional]>;
+def DeprecatedNoRelaxedTemplateTemplateArgs : DiagGroup<"deprecated-no-relaxed-template-template-args">;
 def ObjCSignedCharBoolImplicitIntConversion :
   DiagGroup<"objc-signed-char-bool-implicit-int-conversion">;
 def Shorten64To32 : DiagGroup<"shorten-64-to-32">;
@@ -230,6 +231,7 @@ def Deprecated : DiagGroup<"deprecated", [DeprecatedAnonEnumEnumConversion,
                                           DeprecatedLiteralOperator,
                                           DeprecatedPragma,
                                           DeprecatedRegister,
+                                          DeprecatedNoRelaxedTemplateTemplateArgs,
                                           DeprecatedThisCapture,
                                           DeprecatedType,
                                           DeprecatedVolatile,
@@ -522,7 +524,15 @@ def MethodSignatures : DiagGroup<"method-signatures">;
 def MismatchedParameterTypes : DiagGroup<"mismatched-parameter-types">;
 def MismatchedReturnTypes : DiagGroup<"mismatched-return-types">;
 def MismatchedTags : DiagGroup<"mismatched-tags">;
-def MissingFieldInitializers : DiagGroup<"missing-field-initializers">;
+def MissingDesignatedFieldInitializers : DiagGroup<"missing-designated-field-initializers">{
+  code Documentation = [{
+Warn about designated initializers with some fields missing (only in C++).
+  }];
+}
+// Default -Wmissing-field-initializers matches gcc behavior,
+// but missing-designated-field-initializers can be turned off to match old clang behavior.
+def MissingFieldInitializers : DiagGroup<"missing-field-initializers",
+                                         [MissingDesignatedFieldInitializers]>;
 def ModuleLock : DiagGroup<"module-lock">;
 def ModuleBuild : DiagGroup<"module-build">;
 def ModuleImport : DiagGroup<"module-import">;
@@ -570,7 +580,10 @@ def SelTypeCast : DiagGroup<"cast-of-sel-type">;
 def FunctionDefInObjCContainer : DiagGroup<"function-def-in-objc-container">;
 def BadFunctionCast : DiagGroup<"bad-function-cast">;
 def CastFunctionTypeStrict : DiagGroup<"cast-function-type-strict">;
-def CastFunctionType : DiagGroup<"cast-function-type", [CastFunctionTypeStrict]>;
+def CastFunctionTypeMismatch : DiagGroup<"cast-function-type-mismatch">;
+def CastFunctionType : DiagGroup<"cast-function-type",
+                                 [CastFunctionTypeStrict,
+                                  CastFunctionTypeMismatch]>;
 def ObjCPropertyImpl : DiagGroup<"objc-property-implementation">;
 def ObjCPropertyNoAttribute : DiagGroup<"objc-property-no-attribute">;
 def ObjCPropertyAssignOnObjectType : DiagGroup<"objc-property-assign-on-object-type">;
@@ -614,7 +627,9 @@ def GNURedeclaredEnum : DiagGroup<"gnu-redeclared-enum">;
 def RedundantMove : DiagGroup<"redundant-move">;
 def Register : DiagGroup<"register", [DeprecatedRegister]>;
 def ReturnTypeCLinkage : DiagGroup<"return-type-c-linkage">;
-def ReturnType : DiagGroup<"return-type", [ReturnTypeCLinkage]>;
+def ReturnMismatch : DiagGroup<"return-mismatch">;
+def ReturnType : DiagGroup<"return-type", [ReturnTypeCLinkage, ReturnMismatch]>;
+
 def BindToTemporaryCopy : DiagGroup<"bind-to-temporary-copy",
                                     [CXX98CompatBindToTemporaryCopy]>;
 def SelfAssignmentField : DiagGroup<"self-assign-field">;
@@ -876,6 +891,7 @@ def ZeroLengthArray : DiagGroup<"zero-length-array">;
 def GNUZeroLineDirective : DiagGroup<"gnu-zero-line-directive">;
 def GNUZeroVariadicMacroArguments : DiagGroup<"gnu-zero-variadic-macro-arguments">;
 def MisleadingIndentation : DiagGroup<"misleading-indentation">;
+def PtrAuthNullPointers : DiagGroup<"ptrauth-null-pointers">;
 
 // This covers both the deprecated case (in C++98)
 // and the extension case (in C++11 onwards).
@@ -982,6 +998,7 @@ def FormatSecurity : DiagGroup<"format-security">;
 def FormatNonStandard : DiagGroup<"format-non-iso">;
 def FormatY2K : DiagGroup<"format-y2k">;
 def FormatPedantic : DiagGroup<"format-pedantic">;
+def FormatSignedness : DiagGroup<"format-signedness">;
 def FormatTypeConfusion : DiagGroup<"format-type-confusion">;
 
 def FormatOverflowNonKprintf: DiagGroup<"format-overflow-non-kprintf">;
@@ -1038,6 +1055,7 @@ def Extra : DiagGroup<"extra", [
     EmptyInitStatement,
     StringConcatation,
     FUseLdPath,
+    CastFunctionTypeMismatch,
   ]>;
 
 def Most : DiagGroup<"most", [
@@ -1136,9 +1154,11 @@ def NonGCC : DiagGroup<"non-gcc",
 def CXX14Attrs : DiagGroup<"c++14-attribute-extensions">;
 def CXX17Attrs : DiagGroup<"c++17-attribute-extensions">;
 def CXX20Attrs : DiagGroup<"c++20-attribute-extensions">;
+def CXX23Attrs : DiagGroup<"c++23-attribute-extensions">;
 def FutureAttrs : DiagGroup<"future-attribute-extensions", [CXX14Attrs,
                                                             CXX17Attrs,
-                                                            CXX20Attrs]>;
+                                                            CXX20Attrs,
+                                                            CXX23Attrs]>;
 
 def CXX23AttrsOnLambda : DiagGroup<"c++23-lambda-attributes">;
 
@@ -1342,6 +1362,7 @@ def SyclTarget : DiagGroup<"sycl-target">;
 def SyclFPGAMismatch : DiagGroup<"sycl-fpga-mismatch">;
 def SyclAspectMismatch : DiagGroup<"sycl-aspect-mismatch">;
 def SyclNativeCPUTargets: DiagGroup<"sycl-native-cpu-targets">;
+def SyclPrivateAllocaPositiveSize : DiagGroup<"sycl-private-alloca-positive-size">;
 
 // OpenACC warnings.
 def SourceUsesOpenACC : DiagGroup<"source-uses-openacc">;
@@ -1417,6 +1438,9 @@ def MultiGPU: DiagGroup<"multi-gpu">;
 // Warnings which cause linking of the runtime libraries like
 // libc and the CRT to be skipped.
 def AVRRtlibLinkingQuirks : DiagGroup<"avr-rtlib-linking-quirks">;
+
+// A warning group related to AArch64 SME function attribues.
+def AArch64SMEAttributes : DiagGroup<"aarch64-sme-attributes">;
 
 // A warning group for things that will change semantics in the future.
 def FutureCompat : DiagGroup<"future-compat">;
@@ -1512,6 +1536,9 @@ def BranchProtection : DiagGroup<"branch-protection">;
 // Warnings for HLSL Clang extensions
 def HLSLExtension : DiagGroup<"hlsl-extensions">;
 
+// Warning for mix packoffset and non-packoffset.
+def HLSLMixPackOffset : DiagGroup<"mix-packoffset">;
+
 // Warnings for DXIL validation
 def DXILValidation : DiagGroup<"dxil-validation">;
 
@@ -1521,3 +1548,12 @@ def ReadOnlyPlacementChecks : DiagGroup<"read-only-types">;
 // Warnings and fixes to support the "safe buffers" programming model.
 def UnsafeBufferUsageInContainer : DiagGroup<"unsafe-buffer-usage-in-container">;
 def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage", [UnsafeBufferUsageInContainer]>;
+
+// Warnings and notes InstallAPI verification.
+def InstallAPIViolation : DiagGroup<"installapi-violation">;
+
+// Warnings related to _BitInt extension
+def BitIntExtension : DiagGroup<"bit-int-extension">;
+
+// Warnings about misuse of ExtractAPI options.
+def ExtractAPIMisuse : DiagGroup<"extractapi-misuse">;

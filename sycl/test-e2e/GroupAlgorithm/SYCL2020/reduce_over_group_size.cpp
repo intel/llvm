@@ -1,8 +1,6 @@
-// Test hangs on AMD with https://github.com/intel/llvm/pull/8412
-// UNSUPPORTED: hip_amd
-
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
+// REQUIRES: aspect-usm_shared_allocations
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -16,7 +14,9 @@
     (ie, byte size versus vector size)
 */
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/group_algorithm.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 

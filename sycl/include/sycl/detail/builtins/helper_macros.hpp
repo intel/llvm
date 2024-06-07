@@ -66,13 +66,19 @@
                 ARG4, ARG5, ARG6, ARG7, ARG8, ARG9, ARG10, ARG11)              \
   FOR_EACH4_A3(BASE_CASE, FIXED1, FIXED2, FIXED3, FIXED4, ARG12, ARG13, ARG14)
 
+// https://stackoverflow.com/a/5134656
+// Workaround for MSVC's non-standard preprocessor behavior. Alternatively,
+// /Zc:preprocessor could be used to to fix that. Only necessary for custom host
+// compiler scenario.
+#define EXPAND(x) x
+
 #define FOR_EACH4(BASE_CASE, FIXED1, FIXED2, FIXED3, FIXED4, ...)              \
-  GET_MACRO(__VA_ARGS__, FOR_EACH4##_A15, FOR_EACH4##_A14, FOR_EACH4##_A13,    \
-            FOR_EACH4##_A12, FOR_EACH4##_A11, FOR_EACH4##_A10, FOR_EACH4##_A9, \
-            FOR_EACH4##_A8, FOR_EACH4##_A7, FOR_EACH4##_A6, FOR_EACH4##_A5,    \
-            FOR_EACH4##_A4, FOR_EACH4##_A3, FOR_EACH4##_A2, FOR_EACH4##_A1,    \
-            _0, )                                                              \
-  (BASE_CASE, FIXED1, FIXED2, FIXED3, FIXED4, __VA_ARGS__)
+  EXPAND(GET_MACRO(                                                            \
+      __VA_ARGS__, FOR_EACH4##_A15, FOR_EACH4##_A14, FOR_EACH4##_A13,          \
+      FOR_EACH4##_A12, FOR_EACH4##_A11, FOR_EACH4##_A10, FOR_EACH4##_A9,       \
+      FOR_EACH4##_A8, FOR_EACH4##_A7, FOR_EACH4##_A6, FOR_EACH4##_A5,          \
+      FOR_EACH4##_A4, FOR_EACH4##_A3, FOR_EACH4##_A2, FOR_EACH4##_A1,          \
+      _0, )(BASE_CASE, FIXED1, FIXED2, FIXED3, FIXED4, __VA_ARGS__))
 
 #define FOR_EACH3_BASE(BASE_CASE, FIXED1, FIXED2, FIXED3, ARG1)                \
   BASE_CASE(FIXED1, FIXED2, FIXED3, ARG1)
@@ -178,14 +184,17 @@
 #define FIXED_WIDTH_INTEGER_TYPES                                              \
   int8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t, uint32_t, uint64_t
 
+// Use (NAME)/(NS::NAME) to deal win min/max macros in windows.h throughout this
+// file.
+
 #define DEVICE_IMPL_TEMPLATE_CUSTOM_DELEGATE(                                  \
     NUM_ARGS, NAME, ENABLER, DELEGATOR, NS, /*SCALAR_VEC_IMPL*/...)            \
   template <NUM_ARGS##_TYPENAME_TYPE>                                          \
-  detail::ENABLER<NUM_ARGS##_TEMPLATE_TYPE> NAME(                              \
+  detail::ENABLER<NUM_ARGS##_TEMPLATE_TYPE>(NAME)(                             \
       NUM_ARGS##_TEMPLATE_TYPE_ARG) {                                          \
     if constexpr (detail::is_marray_v<T0>) {                                   \
       return detail::DELEGATOR(                                                \
-          [](NUM_ARGS##_AUTO_ARG) { return NS::NAME(NUM_ARGS##_ARG); },        \
+          [](NUM_ARGS##_AUTO_ARG) { return (NS::NAME)(NUM_ARGS##_ARG); },      \
           NUM_ARGS##_ARG);                                                     \
     } else {                                                                   \
       return __VA_ARGS__(NUM_ARGS##_CONVERTED_ARG);                            \
@@ -222,7 +231,7 @@
     return __##NAME##_impl(xs...);                                             \
   }                                                                            \
   template <NUM_ARGS##_TYPENAME_TYPE>                                          \
-  detail::ENABLER<NUM_ARGS##_TEMPLATE_TYPE> NAME(                              \
+  detail::ENABLER<NUM_ARGS##_TEMPLATE_TYPE>(NAME)(                             \
       NUM_ARGS##_TEMPLATE_TYPE_ARG) {                                          \
     return detail::DELEGATOR(                                                  \
         [](auto... xs) { return __##FUNC_CLASS##_##NAME##_lambda(xs...); },    \
@@ -236,7 +245,7 @@
                                       builtin_default_host_impl)
 
 #define HOST_IMPL_SCALAR_RET_TYPE(NUM_ARGS, NAME, RET_TYPE, TYPE)              \
-  inline RET_TYPE NAME(NUM_ARGS##_TYPE_ARG(TYPE)) {                            \
+  inline RET_TYPE(NAME)(NUM_ARGS##_TYPE_ARG(TYPE)) {                           \
     extern SYCL_BUILTIN_EXPORT RET_TYPE __##NAME##_impl(                       \
         NUM_ARGS##_TYPE(TYPE));                                                \
     return __##NAME##_impl(NUM_ARGS##_ARG);                                    \

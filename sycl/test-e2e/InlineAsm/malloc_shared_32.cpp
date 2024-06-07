@@ -5,7 +5,7 @@
 
 #include "include/asmhelper.h"
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 constexpr size_t problem_size = 32;
 

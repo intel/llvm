@@ -5,7 +5,12 @@
 // XFAIL: hip_nvidia
 // REQUIRES: aspect-usm_shared_allocations
 #include <numeric>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/sycl_span.hpp>
+#include <sycl/usm.hpp>
+#include <sycl/usm/usm_allocator.hpp>
 
 using namespace sycl;
 

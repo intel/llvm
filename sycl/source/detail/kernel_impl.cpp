@@ -41,7 +41,7 @@ kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
                          KernelBundleImplPtr KernelBundleImpl,
                          const KernelArgMask *ArgMask)
     : MKernel(Kernel), MContext(ContextImpl),
-      MProgramImpl(std::move(ProgramImpl)),
+      MProgram(ProgramImpl->getHandleRef()),
       MCreatedFromSource(IsCreatedFromSource),
       MKernelBundleImpl(std::move(KernelBundleImpl)),
       MKernelArgMaskPtr{ArgMask} {
@@ -55,15 +55,16 @@ kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
         "Input context must be the same as the context of cl_kernel",
         PI_ERROR_INVALID_CONTEXT);
 
-  MIsInterop = MProgramImpl->isInterop();
+  MIsInterop = ProgramImpl->isInterop();
 }
 
 kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
                          ContextImplPtr ContextImpl,
                          DeviceImageImplPtr DeviceImageImpl,
                          KernelBundleImplPtr KernelBundleImpl,
-                         const KernelArgMask *ArgMask, std::mutex *CacheMutex)
-    : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgramImpl(nullptr),
+                         const KernelArgMask *ArgMask, PiProgram ProgramPI,
+                         std::mutex *CacheMutex)
+    : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgram(ProgramPI),
       MCreatedFromSource(false), MDeviceImageImpl(std::move(DeviceImageImpl)),
       MKernelBundleImpl(std::move(KernelBundleImpl)),
       MKernelArgMaskPtr{ArgMask}, MCacheMutex{CacheMutex} {
@@ -71,7 +72,7 @@ kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
 }
 
 kernel_impl::kernel_impl(ContextImplPtr Context, ProgramImplPtr ProgramImpl)
-    : MContext(Context), MProgramImpl(std::move(ProgramImpl)) {}
+    : MContext(Context), MProgram(ProgramImpl->getHandleRef()) {}
 
 kernel_impl::~kernel_impl() {
   // TODO catch an exception and put it to list of asynchronous exceptions
@@ -119,6 +120,52 @@ void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
       "info::kernel::num_args descriptor may only be used to query a kernel "
       "that resides in a kernel bundle constructed using a backend specific"
       "interoperability function or to query a device built-in kernel");
+}
+
+template <>
+typename info::platform::version::return_type
+kernel_impl::get_backend_info<info::platform::version>() const {
+  if (MContext->getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::platform::version info descriptor can "
+                          "only be queried with an OpenCL backend");
+  }
+  auto Devices = MKernelBundleImpl->get_devices();
+  return Devices[0].get_platform().get_info<info::platform::version>();
+}
+
+device select_device(DSelectorInvocableType DeviceSelectorInvocable,
+                     std::vector<device> &Devices);
+
+template <>
+typename info::device::version::return_type
+kernel_impl::get_backend_info<info::device::version>() const {
+  if (MContext->getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::version info descriptor can only "
+                          "be queried with an OpenCL backend");
+  }
+  auto Devices = MKernelBundleImpl->get_devices();
+  if (Devices.empty()) {
+    return "No available device";
+  }
+  // Use default selector to pick a device.
+  return select_device(default_selector_v, Devices)
+      .get_info<info::device::version>();
+}
+
+template <>
+typename info::device::backend_version::return_type
+kernel_impl::get_backend_info<info::device::backend_version>() const {
+  if (MContext->getBackend() != backend::ext_oneapi_level_zero) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::backend_version info descriptor "
+                          "can only be queried with a Level Zero backend");
+  }
+  return "";
+  // Currently The Level Zero backend does not define the value of this
+  // information descriptor and implementations are encouraged to return the
+  // empty string as per specification.
 }
 
 } // namespace detail

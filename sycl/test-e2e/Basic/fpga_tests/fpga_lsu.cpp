@@ -10,8 +10,8 @@
 // RUN: %{run} %t.out
 
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/fpga_extensions.hpp>
-#include <sycl/sycl.hpp>
 
 int test_lsu(sycl::queue Queue) {
   int output_data[2];
@@ -76,7 +76,7 @@ int test_lsu(sycl::queue Queue) {
 }
 
 int main() {
-  sycl::queue Queue{sycl::ext::intel::fpga_emulator_selector{}};
+  sycl::queue Queue{sycl::ext::intel::fpga_emulator_selector_v};
 
   return test_lsu(Queue);
 }

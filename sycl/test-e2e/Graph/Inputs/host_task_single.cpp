@@ -2,12 +2,10 @@
 
 #include "../graph_common.hpp"
 
+#include <sycl/detail/host_task_impl.hpp>
+
 int main() {
   queue Queue{};
-
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
 
   using T = int;
 

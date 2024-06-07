@@ -13,7 +13,7 @@
 // CHECK-ONE-CMDLIST: zeCommandListCreateImmediate = 2
 // CHECK-PER-THREAD-CMDLIST: zeCommandListCreateImmediate = 4
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <thread>
 
 using namespace sycl;

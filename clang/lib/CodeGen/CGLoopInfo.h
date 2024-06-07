@@ -191,6 +191,10 @@ public:
   /// been processed.
   void finish();
 
+  /// Returns the first outer loop containing this loop if any, nullptr
+  /// otherwise.
+  const LoopInfo *getParent() const { return Parent; }
+
 private:
   /// Loop ID metadata.
   llvm::TempMDTuple TempLoopID;
@@ -431,12 +435,13 @@ public:
     StagedAttrs.SYCLLoopPipeliningEnable = true;
   }
 
-private:
   /// Returns true if there is LoopInfo on the stack.
   bool hasInfo() const { return !Active.empty(); }
   /// Return the LoopInfo for the current loop. HasInfo should be called
   /// first to ensure LoopInfo is present.
   const LoopInfo &getInfo() const { return *Active.back(); }
+
+private:
   /// The set of attributes that will be applied to the next pushed loop.
   LoopAttributes StagedAttrs;
   /// Stack of active loops.

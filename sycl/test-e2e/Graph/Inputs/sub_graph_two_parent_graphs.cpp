@@ -6,10 +6,6 @@
 int main() {
   queue Queue{};
 
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
-
   exp_ext::command_graph GraphA{Queue.get_context(), Queue.get_device()};
   exp_ext::command_graph GraphB{Queue.get_context(), Queue.get_device()};
   exp_ext::command_graph SubGraph{Queue.get_context(), Queue.get_device()};

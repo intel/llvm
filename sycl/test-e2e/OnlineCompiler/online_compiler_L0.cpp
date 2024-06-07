@@ -8,7 +8,7 @@
 // re-used by other backends is kept in online_compiler_common.hpp file.
 
 #include <sycl/ext/intel/experimental/online_compiler.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <vector>
 

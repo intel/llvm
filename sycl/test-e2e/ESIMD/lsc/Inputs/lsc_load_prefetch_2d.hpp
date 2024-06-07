@@ -6,8 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 #include <iostream>
 
@@ -34,11 +35,10 @@ bool test(unsigned SurfaceWidth, unsigned SurfaceHeight, unsigned SurfacePitch,
    * buffer. Also Transformed load_2d extends BlockWidth to the next power of 2
    * and rounds up BlockHeight.
    */
-  constexpr int SH =
-      Transformed
-          ? sycl::ext::intel::experimental::esimd::detail::roundUpNextMultiple<
-                BlockHeight, 4 / sizeof(T)>()
-          : BlockHeight;
+  constexpr int SH = Transformed
+                         ? sycl::ext::intel::esimd::detail::roundUpNextMultiple<
+                               BlockHeight, 4 / sizeof(T)>()
+                         : BlockHeight;
   constexpr int SW =
       Transformed
           ? sycl::ext::intel::esimd::detail::getNextPowerOf2<BlockWidth>()

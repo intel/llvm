@@ -30,7 +30,11 @@
 // RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0 SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=";;2M,4,4M" %{run} %t.out h 2>&1 | FileCheck %s --check-prefix CHECK-15
 // RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0 SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=";;2M,4,4M" %{run} %t.out d 2>&1 | FileCheck %s --check-prefix CHECK-15
 // RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0 SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=";;2M,4,4M" %{run} %t.out s 2>&1 | FileCheck %s --check-prefix CHECK-15
-#include "CL/sycl.hpp"
+
+#include "sycl/detail/core.hpp"
+
+#include <sycl/usm.hpp>
+
 #include <iostream>
 using namespace sycl;
 

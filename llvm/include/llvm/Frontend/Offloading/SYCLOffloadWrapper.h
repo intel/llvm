@@ -12,6 +12,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/PropertySetIO.h"
 
 #include <string>
@@ -30,7 +31,20 @@ enum class SYCLBinaryImageFormat {
 };
 
 struct SYCLImage {
-  std::vector<char> Image;
+  SYCLImage() = default;
+  SYCLImage(const SYCLImage &) = delete;
+  SYCLImage &operator=(const SYCLImage &) = delete;
+  SYCLImage(SYCLImage &&) = default;
+  SYCLImage &operator=(SYCLImage &&) = default;
+
+  SYCLImage(std::unique_ptr<llvm::MemoryBuffer> Image,
+            const llvm::util::PropertySetRegistry &Registry,
+            llvm::StringRef Entries, llvm::StringRef Target = "")
+      : Image(std::move(Image)), PropertyRegistry(std::move(Registry)),
+        Entries(Entries.begin(), Entries.size()),
+        Target(Target.begin(), Target.size()) {}
+
+  std::unique_ptr<llvm::MemoryBuffer> Image;
   llvm::util::PropertySetRegistry PropertyRegistry;
 
   std::string Entries;
@@ -57,7 +71,7 @@ struct SYCLWrappingOptions {
 /// as global symbols and registers the images with the SYCL Runtime.
 /// \param Options Settings that allows to turn on optional data and settings.
 llvm::Error
-wrapSYCLBinaries(llvm::Module &M, llvm::SmallVector<SYCLImage> &Images,
+wrapSYCLBinaries(llvm::Module &M, const llvm::SmallVector<SYCLImage> &Images,
                  SYCLWrappingOptions Options = SYCLWrappingOptions());
 
 } // namespace offloading

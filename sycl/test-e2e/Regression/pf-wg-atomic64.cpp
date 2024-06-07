@@ -2,7 +2,10 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/atomic_ref.hpp>
+
 using namespace sycl;
 
 using AtomicRefT =

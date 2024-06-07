@@ -331,8 +331,7 @@ TEST_F(CommandGraphTest, BindlessExceptionCheck) {
 
   // Extension: image descriptor - can use the same for both images
   sycl::ext::oneapi::experimental::image_descriptor Desc(
-      {Width, Height, Depth}, sycl::image_channel_order::rgba,
-      sycl::image_channel_type::fp32);
+      {Width, Height, Depth}, 4, sycl::image_channel_type::fp32);
 
   // Extension: allocate memory on device and create the handle
   // Input images memory
@@ -533,4 +532,32 @@ TEST_F(CommandGraphTest, ProfilingException) {
                   "from a submission to a queue in the recording state.") ==
         std::string::npos);
   }
+}
+
+TEST_F(CommandGraphTest, ProfilingExceptionProperty) {
+  Graph.begin_recording(Queue);
+  auto Event1 = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  Graph.end_recording(Queue);
+
+  // Checks exception thrown if profiling is requested while profiling has
+  // not been enabled during the graph building.
+  auto GraphExecInOrder = Graph.finalize();
+  queue QueueProfile{Dev, {sycl::property::queue::enable_profiling()}};
+  auto EventInOrder = QueueProfile.submit(
+      [&](handler &CGH) { CGH.ext_oneapi_graph(GraphExecInOrder); });
+  QueueProfile.wait_and_throw();
+  bool Success = true;
+  try {
+    EventInOrder
+        .get_profiling_info<sycl::info::event_profiling::command_start>();
+  } catch (sycl::exception &Exception) {
+    ASSERT_FALSE(std::string(Exception.what())
+                     .find("Profiling information is unavailable as the queue "
+                           "associated with the event does not have the "
+                           "'enable_profiling' property.") ==
+                 std::string::npos);
+    Success = false;
+  }
+  ASSERT_EQ(Success, false);
 }

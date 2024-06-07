@@ -1,6 +1,6 @@
 // RUN: %{build} -fsyntax-only -o %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 namespace syclex = sycl::ext::oneapi::experimental;
 
 #ifdef SYCL_EXT_ONEAPI_ROOT_GROUP

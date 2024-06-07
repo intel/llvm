@@ -66,7 +66,7 @@ LockFileManager::readLockFile(StringRef LockFileName) {
   StringRef Hostname;
   StringRef PIDStr;
   std::tie(Hostname, PIDStr) = getToken(MB.getBuffer(), " ");
-  PIDStr = PIDStr.substr(PIDStr.find_first_not_of(" "));
+  PIDStr = PIDStr.substr(PIDStr.find_first_not_of(' '));
   int PID;
   if (!PIDStr.getAsInteger(10, PID)) {
     auto Owner = std::make_pair(std::string(Hostname), PID);
@@ -87,7 +87,7 @@ static std::error_code getHostID(SmallVectorImpl<char> &HostID) {
   struct timespec wait = {1, 0}; // 1 second.
   uuid_t uuid;
   if (gethostuuid(uuid, &wait) != 0)
-    return std::error_code(errno, std::system_category());
+    return errnoAsErrorCode();
 
   uuid_string_t UUIDStr;
   uuid_unparse(uuid, UUIDStr);
@@ -205,6 +205,8 @@ LockFileManager::LockFileManager(StringRef FileName)
       S.append(std::string(UniqueLockFileName));
       setError(Out.error(), S);
       sys::fs::remove(UniqueLockFileName);
+      // Don't call report_fatal_error.
+      Out.clear_error();
       return;
     }
   }

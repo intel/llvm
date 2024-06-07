@@ -60,6 +60,7 @@ using namespace llvm;
 
 namespace llvm {
 class IntrinsicInst;
+class IRBuilderBase;
 }
 
 namespace SPIRV {
@@ -290,6 +291,8 @@ const static char Float[] = "float";
 const static char Half[] = "half";
 const static char Int[] = "int";
 const static char UInt[] = "uint";
+const static char Long[] = "long";
+const static char ULong[] = "ulong";
 const static char Void[] = "void";
 } // namespace kSPIRVImageSampledTypeName
 
@@ -361,6 +364,10 @@ const static char TranslateOCLMemScope[] = "__translate_ocl_memory_scope";
 const static char TranslateSPIRVMemOrder[] = "__translate_spirv_memory_order";
 const static char TranslateSPIRVMemScope[] = "__translate_spirv_memory_scope";
 const static char TranslateSPIRVMemFence[] = "__translate_spirv_memory_fence";
+const static char ConvertHandleToImageINTEL[] = "ConvertHandleToImageINTEL";
+const static char ConvertHandleToSamplerINTEL[] = "ConvertHandleToSamplerINTEL";
+const static char ConvertHandleToSampledImageINTEL[] =
+    "ConvertHandleToSampledImageINTEL";
 } // namespace kSPIRVName
 
 namespace kSPIRVPostfix {
@@ -550,6 +557,10 @@ void saveLLVMModule(Module *M, const std::string &OutputFile);
 std::string mapLLVMTypeToOCLType(const Type *Ty, bool Signed,
                                  Type *PointerElementType = nullptr);
 SPIRVDecorate *mapPostfixToDecorate(StringRef Postfix, SPIRVEntry *Target);
+
+/// Return vector V extended with poison elements to match the number of
+/// components of NewType.
+Value *extendVector(Value *V, FixedVectorType *NewType, IRBuilderBase &Builder);
 
 /// Add decorations to a SPIR-V entry.
 /// \param Decs Each string is a postfix without _ at the beginning.
