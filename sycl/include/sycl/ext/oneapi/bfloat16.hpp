@@ -19,9 +19,9 @@ __devicelib_ConvertFToBF16INTEL(const float &) noexcept;
 extern "C" __DPCPP_SYCL_EXTERNAL float
 __devicelib_ConvertBF16ToFINTEL(const uint16_t &) noexcept;
 extern "C" __DPCPP_SYCL_EXTERNAL void
-__devicelib_ConvertFToBF16INTELVec(const float*, uint16_t*, int) noexcept;
+__devicelib_ConvertFToBF16INTELVec(const float *, uint16_t *, int) noexcept;
 extern "C" __DPCPP_SYCL_EXTERNAL void
-__devicelib_ConvertBF16ToFINTELVec(const uint16_t*, float*, int) noexcept;
+__devicelib_ConvertBF16ToFINTELVec(const uint16_t *, float *, int) noexcept;
 
 namespace sycl {
 inline namespace _V1 {
@@ -34,12 +34,9 @@ using Bfloat16StorageT = uint16_t;
 Bfloat16StorageT bfloat16ToBits(const bfloat16 &Value);
 bfloat16 bitsToBfloat16(const Bfloat16StorageT Value);
 
-template <int N>
-void BF16VecToFloatVec(const bfloat16 src[N], float dst[N]) {
+template <int N> void BF16VecToFloatVec(const bfloat16 src[N], float dst[N]) {
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
-  // BF16 is stored as uint16_t underneath so
-  // reinterpret_cast is safe here.
-  const uint16_t *src_i16 = reinterpret_cast<const uint16_t *>(src);
+  const uint16_t *src_i16 = sycl::bit_cast<const uint16_t *>(src);
   __devicelib_ConvertBF16ToFINTELVec(src_i16, dst, N);
 #else
   for (int i = 0; i < N; ++i) {
@@ -48,8 +45,7 @@ void BF16VecToFloatVec(const bfloat16 src[N], float dst[N]) {
 #endif
 }
 
-template <int N>
-void BF16VecToFloatVec(const uint16_t src[N], float dst[N]) {
+template <int N> void BF16VecToFloatVec(const uint16_t src[N], float dst[N]) {
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
   __devicelib_ConvertBF16ToFINTELVec(src, dst, N);
 #else
@@ -59,23 +55,20 @@ void BF16VecToFloatVec(const uint16_t src[N], float dst[N]) {
 #endif
 }
 
-template <int N>
-void FloatVecToBF16Vec(float src[N], bfloat16 dst[N]) {
+template <int N> void FloatVecToBF16Vec(float src[N], bfloat16 dst[N]) {
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
-  // BF16 is stored as uint16_t underneath so
-  // reinterpret_cast is safe here.
-  uint16_t *dst_i16 = reinterpret_cast<uint16_t *>(dst);
+  uint16_t *dst_i16 = sycl::bit_cast<uint16_t *>(dst);
   __devicelib_ConvertFToBF16INTELVec(src, dst_i16, N);
 #else
   for (int i = 0; i < N; ++i) {
-    // No need to cast as bfloat16 has a constructor that takes a float.
+    // No need to cast as bfloat16 has a assignment op overload that takes
+    // a float.
     dst[i] = src[i];
   }
 #endif
 }
 
-template <int N>
-void FloatVecToBF16Vec(float src[N], uint16_t dst[N]) {
+template <int N> void FloatVecToBF16Vec(float src[N], uint16_t dst[N]) {
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
   __devicelib_ConvertFToBF16INTELVec(src, dst, N);
 #else
