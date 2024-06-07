@@ -18,14 +18,13 @@ int main() {
   oneapi::properties props_user{oneapi::indirectly_callable<user_defined>};
 
   // expected-error-re@sycl/handler.hpp:* {{static assertion failed due to requirement {{.*}} indirectly_callable property cannot be applied to SYCL kernels}}
-  q.single_task(props_empty, [=](){});
+  q.single_task(props_empty, [=]() {});
   // expected-error-re@sycl/handler.hpp:* {{static assertion failed due to requirement {{.*}} indirectly_callable property cannot be applied to SYCL kernels}}
-  q.single_task(props_void, [=](){});
+  q.single_task(props_void, [=]() {});
   // expected-error-re@sycl/handler.hpp:* {{static assertion failed due to requirement {{.*}} indirectly_callable property cannot be applied to SYCL kernels}}
-  q.single_task(props_int, [=](){});
+  q.single_task(props_int, [=]() {});
   // expected-error-re@sycl/handler.hpp:* {{static assertion failed due to requirement {{.*}} indirectly_callable property cannot be applied to SYCL kernels}}
-  q.single_task(props_user, [=](){});
+  q.single_task(props_user, [=]() {});
 
   return 0;
 }
-
