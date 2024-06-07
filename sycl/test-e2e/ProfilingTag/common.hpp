@@ -1,6 +1,8 @@
 #pragma once
 
-#include <sycl/sycl.hpp>
+#include <sycl/builtins.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/profiling_tag.hpp>
 
 #define CHECK(Counter, Check)                                                  \
   if (!(Check)) {                                                              \

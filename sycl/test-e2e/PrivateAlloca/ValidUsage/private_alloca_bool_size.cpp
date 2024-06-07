@@ -9,6 +9,8 @@
 constexpr sycl::specialization_id<bool> size(true);
 
 int main() {
-  test<int, size, sycl::access::decorated::legacy>();
-  test<int, size, sycl::access::decorated::legacy, alignof(int) * 2>();
+  std::size_t n = 0;
+  std::cin >> n;
+  test<int, size, sycl::access::decorated::legacy>(n);
+  test<int, size, sycl::access::decorated::legacy, alignof(int) * 2>(n);
 }
