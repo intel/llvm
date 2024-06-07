@@ -459,8 +459,38 @@ void Command::waitForPreparedHostEvents() const {
 void Command::waitForEvents(QueueImplPtr Queue,
                             std::vector<EventImplPtr> &EventImpls,
                             sycl::detail::pi::PiEvent &Event) {
-  assert(Queue && "Device queue is expected here");
   if (!EventImpls.empty()) {
+      if (!Queue) {
+      // Host queue can wait for events from different contexts, i.e. it may
+      // contain events with different contexts in its MPreparedDepsEvents.
+      // OpenCL 2.1 spec says that clWaitForEvents will return
+      // CL_INVALID_CONTEXT if events specified in the list do not belong to
+      // the same context. Thus we split all the events into per-context map.
+      // An example. We have two queues for the same CPU device: Q1, Q2. Thus
+      // we will have two different contexts for the same CPU device: C1, C2.
+      // Also we have default host queue. This queue is accessible via
+      // Scheduler. Now, let's assume we have three different events: E1(C1),
+      // E2(C1), E3(C2). The command's MPreparedDepsEvents will contain all
+      // three events (E1, E2, E3). Now, if piEventsWait is called for all
+      // three events we'll experience failure with CL_INVALID_CONTEXT 'cause
+      // these events refer to different contexts.
+      std::map<context_impl *, std::vector<EventImplPtr>>
+          RequiredEventsPerContext;
+
+      for (const EventImplPtr &Event : EventImpls) {
+        ContextImplPtr Context = Event->getContextImpl();
+        assert(Context.get() &&
+               "Only non-host events are expected to be waited for here");
+        RequiredEventsPerContext[Context.get()].push_back(Event);
+      }
+
+      for (auto &CtxWithEvents : RequiredEventsPerContext) {
+        std::vector<sycl::detail::pi::PiEvent> RawEvents =
+            getPiEvents(CtxWithEvents.second);
+        CtxWithEvents.first->getPlugin()->call<PiApiKind::piEventsWait>(
+            RawEvents.size(), RawEvents.data());
+      }
+    } else {
 #ifndef NDEBUG
       for (const EventImplPtr &Event : EventImpls)
         assert(!Event->isHost() &&
@@ -476,6 +506,7 @@ void Command::waitForEvents(QueueImplPtr Queue,
         MEvent->setHostEnqueueTime();
       Plugin->call<PiApiKind::piEnqueueEventsWait>(
           Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
+  }
   }
 }
 
@@ -700,13 +731,11 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
 
   ContextImplPtr DepEventContext = DepEvent->getContextImpl();
   // If contexts don't match we'll connect them using host task
-  if (DepEventContext == WorkerContext)
-    MPreparedDepsEvents.push_back(std::move(DepEvent));
-  else
-  {
+  if (DepEventContext != WorkerContext && WorkerContext){
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
     ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep, ToCleanUp);
-  }
+  } else
+    MPreparedDepsEvents.push_back(std::move(DepEvent));
 
   return ConnectionCmd;
 }
