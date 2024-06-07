@@ -70,6 +70,10 @@ public:
     using T = typename sycl::detail::GetValueType<Ptr>::type;
     T *scratch_begin = nullptr;
     size_t n = last - first;
+    // We must have a barrier here before array placement new because it is
+    // possible that scratch memory is already in use, so we need to synchronize
+    // work items.
+    sycl::group_barrier(g);
     if (g.leader()) {
       void *scratch_ptr = scratch.data();
       size_t space = scratch.size();
@@ -97,6 +101,10 @@ public:
     T *scratch_begin = nullptr;
     std::size_t local_id = g.get_local_linear_id();
     auto range_size = g.get_local_range().size();
+    // We must have a barrier here before array placement new because it is
+    // possible that scratch memory is already in use, so we need to synchronize
+    // work items.
+    sycl::group_barrier(g);
     if (g.leader()) {
       void *scratch_ptr = scratch.data();
       size_t space = scratch.size();
