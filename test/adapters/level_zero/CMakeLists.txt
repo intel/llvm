@@ -69,4 +69,16 @@ if(NOT WIN32)
     target_link_libraries(test-adapter-level_zero_multi_queue PRIVATE zeCallMap)
 endif()
 
+add_adapter_test(level_zero_ipc
+    FIXTURE DEVICES
+    SOURCES
+        ipc.cpp
+    ENVIRONMENT
+        "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_level_zero>\""
+)
+
+target_link_libraries(test-adapter-level_zero_ipc PRIVATE
+    ur_umf
+)
+
 add_subdirectory(v2)
