@@ -84,7 +84,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -100,37 +100,31 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/steffenlarsen/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 33410b5e9c5fe1babee74fdce9eeea09a54031fd)
+  set(UNIFIED_RUNTIME_TAG e5baa6f0652f9581b2111eb2059c37a3a29e1ce2)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    33410b5e9c5fe1babee74fdce9eeea09a54031fd
+    e5baa6f0652f9581b2111eb2059c37a3a29e1ce2
   )
 
   fetch_adapter_source(opencl
     ${UNIFIED_RUNTIME_REPO}
-    33410b5e9c5fe1babee74fdce9eeea09a54031fd
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    e5baa6f0652f9581b2111eb2059c37a3a29e1ce2
   )
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit a3895dbf46a98c8a5cd58704efe85e12fa1050cd
-    # Merge: 30c5c553 67338dbe
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu May 30 10:04:14 2024 +0100
-    #     Merge pull request #1604 from kbenzie/benie/hip-kernel-spec-constants
-    #     [HIP] Implement kernel set spec constant query
-    a3895dbf46a98c8a5cd58704efe85e12fa1050cd
+    e5baa6f0652f9581b2111eb2059c37a3a29e1ce2
   )
 
   fetch_adapter_source(native_cpu
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    e5baa6f0652f9581b2111eb2059c37a3a29e1ce2
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
