@@ -129,8 +129,6 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   #     semaphore state to the value passed by the user.
   set(UNIFIED_RUNTIME_TAG 1d5f874ca34a172d1ce711891952618c9f33f277)
 
-
-  
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
     ${UNIFIED_RUNTIME_TAG}
