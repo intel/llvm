@@ -46,7 +46,7 @@
 
 ## Introduction
 
-The main motivation for introducing the "Explicit SIMD" SYCL extension 
+The main motivation for introducing the "Explicit SIMD" SYCL extension
 (or simply "ESIMD") is enabling efficient low-level programming for Intel graphics
 architectures. It provides APIs close to the Intel GPU ISA
 and allows writing explicitly vectorized device code.
@@ -356,7 +356,7 @@ See more details on the API documentation [page TODO](https://intel.github.io/ll
 ### Memory access APIs
 
 Explicit SIMD memory access interface is quite different from the standard SYCL
-memory access interface. It supports main SYCL's device memory representations:
+memory access interface. It supports main SYCL device memory representations:
 - USM pointers
 - SYCL accessors
   - 1D global accessors
@@ -651,7 +651,7 @@ ESIMD supports the following non-standard math functions implemented in hardware
 - Fraction - `frc`,  extracts the fractional parts of the input vector elements.
 - Count leading zeroes - `lzd`.
 - Linear interpolation - `lrp`. Basically computes `src1 * src0 + src2 * (1.0f - src0)`
-- Plane equation - `plane`. Solves a component-wise plane equation 
+- Plane equation - `plane`. Solves a component-wise plane equation
   `w = p*u + q*v + r` where `u`, `v`, `w` are vectors and `p`, `q`, `r` are scalars.
 
 
@@ -865,7 +865,7 @@ There are other useful miscellaneous APIs provided by ESIMD.
   types with saturation.
 - Conversion - `convert`. Converts between vectors with different element data
   types.
-- Reverse bits - `bf_reverse`. 
+- Reverse bits - `bf_reverse`.
 - Insert bit field - `bf_insert`.
 - Extract bit field - `bf_extract`.
 - Convert mask to integer and back - `pack_mask`, `unpack_mask`.
@@ -978,7 +978,7 @@ More examples of the unwrap/merge process:
       B6 b;
       char x;
       char y;
-    
+
       C6 foo() { return *this; }
     };
     ```
@@ -989,7 +989,7 @@ More examples of the unwrap/merge process:
       ```
       %struct.C6 = type { %struct.B6, i8, i8 }
       %struct.B6 = type { i32 addrspace(4)*, i32 }
-      ``` 
+      ```
 
 Note that `__regcall` does not guarantee passing through registers in the final
 generated code. For example, compiler will use a threshold for argument or
@@ -1162,8 +1162,7 @@ inside ESIMD kernels and functions. Most of missing SYCL features listed below
 must be supported eventually:
 - 2D and 3D target::device accessor and local_accessor;
 - Constant accessors;
-- `sycl::accessor::get_pointer()` and `sycl::accessor::operator[]` are supported only with `-fsycl-esimd-force-stateless-mem`. Otherwise, All memory accesses through an accessor are
-done via explicit APIs; e.g. `sycl::ext::intel::esimd::block_store(acc, offset)`
+- `sycl::accessor::get_pointer()` and `sycl::accessor::operator[]` are not supported with with `-fno-sycl-esimd-force-stateless-mem` compilation switch.
 - Accessors with non-zero offsets to accessed buffer;
 - Accessors with access/memory range specified;
 - `sycl::image`, `sycl::sampler` and `sycl::stream` classes.

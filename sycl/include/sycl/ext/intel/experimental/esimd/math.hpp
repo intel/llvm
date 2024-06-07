@@ -36,51 +36,13 @@ namespace ext::intel::experimental::esimd {
 /// @return vector of shifted left values.
 template <typename T0, typename T1, int SZ, typename U,
           class Sat = __ESIMD_NS::saturation_off_tag>
-__ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<U>::value,
-                             __ESIMD_NS::simd<T0, SZ>>
-shl(__ESIMD_NS::simd<T1, SZ> src0, U src1, Sat sat = {}) {
-  using ComputationTy =
-      __ESIMD_DNS::computation_type_t<decltype(src0), int32_t>;
-  ComputationTy Src0 = src0;
-  ComputationTy Src1 = src1;
-
-  if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_on_tag>) {
-    if constexpr (std::is_unsigned<T0>::value) {
-      if constexpr (std::is_unsigned<
-                        typename ComputationTy::element_type>::value)
-        return __esimd_uushl_sat<T0, typename ComputationTy::element_type, SZ>(
-            Src0.data(), Src1.data());
-      else
-        return __esimd_usshl_sat<T0, typename ComputationTy::element_type, SZ>(
-            Src0.data(), Src1.data());
-    } else {
-      if constexpr (std::is_signed<typename ComputationTy::element_type>::value)
-        return __esimd_sushl_sat<T0, typename ComputationTy::element_type, SZ>(
-            Src0.data(), Src1.data());
-      else
-        return __esimd_ssshl_sat<T0, typename ComputationTy::element_type, SZ>(
-            Src0.data(), Src1.data());
-    }
-  } else {
-    if constexpr (std::is_unsigned<T0>::value) {
-      if constexpr (std::is_unsigned<
-                        typename ComputationTy::element_type>::value)
-        return __esimd_uushl<T0, typename ComputationTy::element_type, SZ>(
-            Src0.data(), Src1.data());
-      else
-        return __esimd_usshl<T0, typename ComputationTy::element_type, SZ>(
-            Src0.data(), Src1.data());
-    } else {
-      if constexpr (std::is_signed<typename ComputationTy::element_type>::value)
-        return __esimd_sushl<T0, typename ComputationTy::element_type, SZ>(
-            Src0.data(), Src1.data());
-      else
-        return __esimd_ssshl<T0, typename ComputationTy::element_type, SZ>(
-            Src0.data(), Src1.data());
-    }
-  }
+__SYCL_DEPRECATED("Please use sycl::ext::intel::esimd::shl")
+__ESIMD_API std::enable_if_t<
+    std::is_integral<T0>::value && std::is_integral<T1>::value &&
+        std::is_integral<U>::value,
+    __ESIMD_NS::simd<T0, SZ>> shl(__ESIMD_NS::simd<T1, SZ> src0, U src1,
+                                  Sat sat = {}) {
+  return __ESIMD_NS::shl<T0, T1, SZ, U, Sat>(src0, src1, sat);
 }
 
 /// Shift left operation (scalar version)
@@ -94,18 +56,16 @@ shl(__ESIMD_NS::simd<T1, SZ> src0, U src1, Sat sat = {}) {
 /// @return shifted left value.
 template <typename T0, typename T1, typename T2,
           class Sat = __ESIMD_NS::saturation_off_tag>
+__SYCL_DEPRECATED("Please use sycl::ext::intel::esimd::shl")
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
                                  __ESIMD_DNS::is_esimd_scalar<T1>::value &&
                                  __ESIMD_DNS::is_esimd_scalar<T2>::value &&
                                  std::is_integral<T0>::value &&
                                  std::is_integral<T1>::value &&
                                  std::is_integral<T2>::value,
-                             std::remove_const_t<T0>>
-shl(T1 src0, T2 src1, Sat sat = {}) {
-  __ESIMD_NS::simd<T1, 1> Src0 = src0;
-  __ESIMD_NS::simd<T0, 1> Result =
-      esimd::shl<T0, T1, 1, T2, Sat>(Src0, src1, sat);
-  return Result[0];
+                             std::remove_const_t<T0>> shl(T1 src0, T2 src1,
+                                                          Sat sat = {}) {
+  return __ESIMD_NS::shl<T0, T1, T2, Sat>(src0, src1, sat);
 }
 
 /// Logical Shift Right (vector version)
@@ -120,22 +80,13 @@ shl(T1 src0, T2 src1, Sat sat = {}) {
 /// @return vector of shifted elements.
 template <typename T0, typename T1, int SZ, typename U,
           class Sat = __ESIMD_NS::saturation_off_tag>
-__ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<U>::value,
-                             __ESIMD_NS::simd<T0, SZ>>
-lsr(__ESIMD_NS::simd<T1, SZ> src0, U src1, Sat sat = {}) {
-  using IntermedTy = __ESIMD_DNS::computation_type_t<T1, T1>;
-  typedef typename std::make_unsigned<IntermedTy>::type ComputationTy;
-  __ESIMD_NS::simd<ComputationTy, SZ> Src0 = src0;
-  __ESIMD_NS::simd<ComputationTy, SZ> Src1 = src1;
-  // TODO H/W supports saturation with this op - map to more efficient version.
-  __ESIMD_NS::simd<ComputationTy, SZ> Result = Src0.data() >> Src1.data();
-
-  if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_off_tag>)
-    return Result;
-  else
-    return __ESIMD_NS::saturate<T0>(Result);
+__SYCL_DEPRECATED("Please use sycl::ext::intel::esimd::lsr")
+__ESIMD_API std::enable_if_t<
+    std::is_integral<T0>::value && std::is_integral<T1>::value &&
+        std::is_integral<U>::value,
+    __ESIMD_NS::simd<T0, SZ>> lsr(__ESIMD_NS::simd<T1, SZ> src0, U src1,
+                                  Sat sat = {}) {
+  return __ESIMD_NS::lsr<T0, T1, SZ, U, Sat>(src0, src1, sat);
 }
 
 /// Logical Shift Right (scalar version)
@@ -150,19 +101,16 @@ lsr(__ESIMD_NS::simd<T1, SZ> src0, U src1, Sat sat = {}) {
 /// @return shifted value.
 template <typename T0, typename T1, typename T2,
           class Sat = __ESIMD_NS::saturation_off_tag>
+__SYCL_DEPRECATED("Please use sycl::ext::intel::esimd::lsr")
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
                                  __ESIMD_DNS::is_esimd_scalar<T1>::value &&
                                  __ESIMD_DNS::is_esimd_scalar<T2>::value &&
                                  std::is_integral<T0>::value &&
                                  std::is_integral<T1>::value &&
                                  std::is_integral<T2>::value,
-                             std::remove_const_t<T0>>
-lsr(T1 src0, T2 src1, Sat sat = {}) {
-  __ESIMD_NS::simd<T1, 1> Src0 = src0;
-  __ESIMD_NS::simd<T0, 1> Result =
-      esimd::lsr<T0, T1, 1, T2, Sat>(Src0, src1, sat);
-
-  return Result[0];
+                             std::remove_const_t<T0>> lsr(T1 src0, T2 src1,
+                                                          Sat sat = {}) {
+  return __ESIMD_NS::lsr<T0, T1, T2, Sat>(src0, src1, sat);
 }
 
 /// Arithmetical Shift Right (vector version)
@@ -177,21 +125,13 @@ lsr(T1 src0, T2 src1, Sat sat = {}) {
 /// @return vector of shifted elements.
 template <typename T0, typename T1, int SZ, typename U,
           class Sat = __ESIMD_NS::saturation_off_tag>
-__ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<U>::value,
-                             __ESIMD_NS::simd<T0, SZ>>
-asr(__ESIMD_NS::simd<T1, SZ> src0, U src1, Sat sat = {}) {
-  using IntermedTy = __ESIMD_DNS::computation_type_t<T1, T1>;
-  typedef typename std::make_signed<IntermedTy>::type ComputationTy;
-  __ESIMD_NS::simd<ComputationTy, SZ> Src0 = src0;
-  // TODO H/W supports saturation with this op - map to more efficient version.
-  __ESIMD_NS::simd<ComputationTy, SZ> Result = Src0 >> src1;
-
-  if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_off_tag>)
-    return Result;
-  else
-    return __ESIMD_NS::saturate<T0>(Result);
+__SYCL_DEPRECATED("Please use sycl::ext::intel::esimd::asr")
+__ESIMD_API std::enable_if_t<
+    std::is_integral<T0>::value && std::is_integral<T1>::value &&
+        std::is_integral<U>::value,
+    __ESIMD_NS::simd<T0, SZ>> asr(__ESIMD_NS::simd<T1, SZ> src0, U src1,
+                                  Sat sat = {}) {
+  return __ESIMD_NS::asr<T0, T1, SZ, U, Sat>(src0, src1, sat);
 }
 
 /// Arithmetical Shift Right (scalar version)
@@ -206,18 +146,16 @@ asr(__ESIMD_NS::simd<T1, SZ> src0, U src1, Sat sat = {}) {
 /// @return shifted value.
 template <typename T0, typename T1, typename T2,
           class Sat = __ESIMD_NS::saturation_off_tag>
+__SYCL_DEPRECATED("Please use sycl::ext::intel::esimd::asr")
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
                                  __ESIMD_DNS::is_esimd_scalar<T1>::value &&
                                  __ESIMD_DNS::is_esimd_scalar<T2>::value &&
                                  std::is_integral<T0>::value &&
                                  std::is_integral<T1>::value &&
                                  std::is_integral<T2>::value,
-                             std::remove_const_t<T0>>
-asr(T1 src0, T2 src1, Sat sat = {}) {
-  __ESIMD_NS::simd<T1, 1> Src0 = src0;
-  __ESIMD_NS::simd<T0, 1> Result =
-      esimd::asr<T0, T1, 1, T2, Sat>(Src0, src1, sat);
-  return Result[0];
+                             std::remove_const_t<T0>> asr(T1 src0, T2 src1,
+                                                          Sat sat = {}) {
+  return __ESIMD_NS::asr<T0, T1, T2, Sat>(src0, src1, sat);
 }
 
 /// Shift right operation (vector version)
@@ -232,16 +170,13 @@ asr(T1 src0, T2 src1, Sat sat = {}) {
 /// @return vector of shifted right values.
 template <typename T0, typename T1, int SZ, typename U,
           class Sat = __ESIMD_NS::saturation_off_tag>
-__ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<U>::value,
-                             __ESIMD_NS::simd<T0, SZ>>
-shr(__ESIMD_NS::simd<T1, SZ> src0, U src1, Sat sat = {}) {
-  if constexpr (std::is_unsigned<T1>::value) {
-    return esimd::lsr<T0, T1, SZ, U, Sat>(src0, src1, sat);
-  } else {
-    return esimd::asr<T0, T1, SZ, U, Sat>(src0, src1, sat);
-  }
+__SYCL_DEPRECATED("Please use sycl::ext::intel::esimd::shr")
+__ESIMD_API std::enable_if_t<
+    std::is_integral<T0>::value && std::is_integral<T1>::value &&
+        std::is_integral<U>::value,
+    __ESIMD_NS::simd<T0, SZ>> shr(__ESIMD_NS::simd<T1, SZ> src0, U src1,
+                                  Sat sat = {}) {
+  return __ESIMD_NS::shr<T0, T1, SZ, U, Sat>(src0, src1, sat);
 }
 
 /// Shift right operation (scalar version)
@@ -255,18 +190,16 @@ shr(__ESIMD_NS::simd<T1, SZ> src0, U src1, Sat sat = {}) {
 /// @return shifted right value.
 template <typename T0, typename T1, typename T2,
           class Sat = __ESIMD_NS::saturation_off_tag>
+__SYCL_DEPRECATED("Please use sycl::ext::intel::esimd::shr")
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
                                  __ESIMD_DNS::is_esimd_scalar<T1>::value &&
                                  __ESIMD_DNS::is_esimd_scalar<T2>::value &&
                                  std::is_integral<T0>::value &&
                                  std::is_integral<T1>::value &&
                                  std::is_integral<T2>::value,
-                             std::remove_const_t<T0>>
-shr(T1 src0, T2 src1, Sat sat = {}) {
-  __ESIMD_NS::simd<T1, 1> Src0 = src0;
-  __ESIMD_NS::simd<T0, 1> Result =
-      esimd::shr<T0, T1, 1, T2, Sat>(Src0, src1, sat);
-  return Result[0];
+                             std::remove_const_t<T0>> shr(T1 src0, T2 src1,
+                                                          Sat sat = {}) {
+  return __ESIMD_NS::shr<T0, T1, T2, Sat>(src0, src1, sat);
 }
 
 /// Rotate left operation with two vector inputs
@@ -278,14 +211,15 @@ shr(T1 src0, T2 src1, Sat sat = {}) {
 /// the input vector \p src0 shall be rotated.
 /// @return vector of rotated elements.
 template <typename T0, typename T1, int SZ>
+__SYCL_DEPRECATED("Please use sycl::ext::intel::esimd::rol")
 __ESIMD_API std::enable_if_t<
     __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t,
                                 int64_t, uint64_t>() &&
         __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t,
                                     int64_t, uint64_t>(),
-    __ESIMD_NS::simd<T0, SZ>>
-rol(__ESIMD_NS::simd<T1, SZ> src0, __ESIMD_NS::simd<T1, SZ> src1) {
-  return __esimd_rol<T0, T1, SZ>(src0.data(), src1.data());
+    __ESIMD_NS::simd<T0, SZ>> rol(__ESIMD_NS::simd<T1, SZ> src0,
+                                  __ESIMD_NS::simd<T1, SZ> src1) {
+  return __ESIMD_NS::rol<T0, T1, SZ>(src0, src1);
 }
 
 /// Rotate left operation with a vector and a scalar inputs
@@ -306,8 +240,7 @@ __ESIMD_API std::enable_if_t<
                                     int64_t, uint64_t>(),
     __ESIMD_NS::simd<T0, SZ>>
 rol(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
-  __ESIMD_NS::simd<T1, SZ> Src1 = src1;
-  return esimd::rol<T0>(src0, Src1);
+  return __ESIMD_NS::rol<T0, T1, SZ, U>(src0, src1);
 }
 
 /// Rotate left operation with two scalar inputs
@@ -318,6 +251,7 @@ rol(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
 /// @param src1 the number of bit positions the input vector shall be rotated.
 /// @return rotated left value.
 template <typename T0, typename T1, typename T2>
+__SYCL_DEPRECATED("Please use sycl::ext::intel::esimd::rol")
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::is_esimd_scalar<T0>::value &&
         __ESIMD_DNS::is_esimd_scalar<T1>::value &&
@@ -328,11 +262,8 @@ __ESIMD_API std::enable_if_t<
                                     int64_t, uint64_t>() &&
         __ESIMD_NS::detail::is_type<T2, int16_t, uint16_t, int32_t, uint32_t,
                                     int64_t, uint64_t>(),
-    std::remove_const_t<T0>>
-rol(T1 src0, T2 src1) {
-  __ESIMD_NS::simd<T1, 1> Src0 = src0;
-  __ESIMD_NS::simd<T0, 1> Result = esimd::rol<T0, T1, 1, T2>(Src0, src1);
-  return Result[0];
+    std::remove_const_t<T0>> rol(T1 src0, T2 src1) {
+  return __ESIMD_NS::rol<T0, T1, T2>(src0, src1);
 }
 
 /// Rotate right operation with two vector inputs
@@ -344,14 +275,15 @@ rol(T1 src0, T2 src1) {
 /// the input vector \p src0 shall be rotated.
 /// @return vector of rotated elements.
 template <typename T0, typename T1, int SZ>
+__SYCL_DEPRECATED("Please use sycl::ext::intel::esimd::ror")
 __ESIMD_API std::enable_if_t<
     __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t,
                                 int64_t, uint64_t>() &&
         __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t,
                                     int64_t, uint64_t>(),
-    __ESIMD_NS::simd<T0, SZ>>
-ror(__ESIMD_NS::simd<T1, SZ> src0, __ESIMD_NS::simd<T1, SZ> src1) {
-  return __esimd_ror<T0, T1, SZ>(src0.data(), src1.data());
+    __ESIMD_NS::simd<T0, SZ>> ror(__ESIMD_NS::simd<T1, SZ> src0,
+                                  __ESIMD_NS::simd<T1, SZ> src1) {
+  return __ESIMD_NS::ror<T0, T1, SZ>(src0, src1);
 }
 
 /// Rotate right operation with a vector and a scalar inputs
@@ -363,6 +295,7 @@ ror(__ESIMD_NS::simd<T1, SZ> src0, __ESIMD_NS::simd<T1, SZ> src1) {
 /// @param src1 the number of bit positions the input vector shall be rotated.
 /// @return vector of rotated elements.
 template <typename T0, typename T1, int SZ, typename U>
+__SYCL_DEPRECATED("Please use sycl::ext::intel::esimd::ror")
 __ESIMD_API std::enable_if_t<
     __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t,
                                 int64_t, uint64_t>() &&
@@ -370,10 +303,8 @@ __ESIMD_API std::enable_if_t<
                                     int64_t, uint64_t>() &&
         __ESIMD_NS::detail::is_type<U, int16_t, uint16_t, int32_t, uint32_t,
                                     int64_t, uint64_t>(),
-    __ESIMD_NS::simd<T0, SZ>>
-ror(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
-  __ESIMD_NS::simd<T1, SZ> Src1 = src1;
-  return esimd::ror<T0>(src0, Src1);
+    __ESIMD_NS::simd<T0, SZ>> ror(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
+  return __ESIMD_NS::ror<T0, T1, SZ, U>(src0, src1);
 }
 
 /// Rotate right operation with two scalar inputs
@@ -384,6 +315,7 @@ ror(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
 /// @param src1 the number of bit positions the input vector shall be rotated.
 /// @return rotated right value.
 template <typename T0, typename T1, typename T2>
+__SYCL_DEPRECATED("Please use sycl::ext::intel::esimd::ror")
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::is_esimd_scalar<T0>::value &&
         __ESIMD_DNS::is_esimd_scalar<T1>::value &&
@@ -394,11 +326,42 @@ __ESIMD_API std::enable_if_t<
                                     int64_t, uint64_t>() &&
         __ESIMD_NS::detail::is_type<T2, int16_t, uint16_t, int32_t, uint32_t,
                                     int64_t, uint64_t>(),
-    std::remove_const_t<T0>>
-ror(T1 src0, T2 src1) {
-  __ESIMD_NS::simd<T1, 1> Src0 = src0;
-  __ESIMD_NS::simd<T0, 1> Result = esimd::ror<T0, T1, 1, T2>(Src0, src1);
-  return Result[0];
+    std::remove_const_t<T0>> ror(T1 src0, T2 src1) {
+  return __ESIMD_NS::ror<T0, T1, T2>(src0, src1);
+}
+
+/// Count the number of 1-bits.
+/// @tparam T element type.
+/// @tparam N vector length.
+/// @return the popcounted vector.
+template <typename T, int N>
+__ESIMD_API std::enable_if_t<std::is_integral_v<T> && sizeof(T) < 8,
+                             __ESIMD_NS::simd<T, N>>
+popcount(__ESIMD_NS::simd<T, N> vec) {
+  return __spirv_ocl_popcount<T, N>(vec.data());
+}
+
+/// Count the number of leading zeros.
+/// If the input is 0, the number of total bits is returned.
+/// @tparam T element type.
+/// @tparam N vector length.
+/// @return vector with number of leading zeros of the input vector.
+template <typename T, int N>
+__ESIMD_API std::enable_if_t<std::is_integral_v<T> && sizeof(T) < 8,
+                             __ESIMD_NS::simd<T, N>>
+clz(__ESIMD_NS::simd<T, N> vec) {
+  return __spirv_ocl_clz<T, N>(vec.data());
+}
+
+/// Count the number of trailing zeros.
+/// @tparam T element type.
+/// @tparam N vector length.
+/// @return vector with number of trailing zeros of the input vector.
+template <typename T, int N>
+__ESIMD_API std::enable_if_t<std::is_integral_v<T> && sizeof(T) < 8,
+                             __ESIMD_NS::simd<T, N>>
+ctz(__ESIMD_NS::simd<T, N> vec) {
+  return __spirv_ocl_ctz<T, N>(vec.data());
 }
 
 /// @} sycl_esimd_bitmanip
@@ -1445,22 +1408,22 @@ template <> ESIMD_INLINE float atan2_fast(float y, float x) {
 template <int N>
 ESIMD_INLINE __ESIMD_NS::simd<float, N> atan2(__ESIMD_NS::simd<float, N> y,
                                               __ESIMD_NS::simd<float, N> x) {
-  __ESIMD_NS::simd<float, N> v_distance;
   __ESIMD_NS::simd<float, N> atan2;
   __ESIMD_NS::simd_mask<N> mask;
+  __ESIMD_NS::simd<float, N> atan = esimd::atan(y / x);
 
   constexpr float CONST_DBL_EPSILON = 0.00001f;
 
-  mask = (x < -CONST_DBL_EPSILON && y < CONST_DBL_EPSILON && y >= 0.f);
-  atan2.merge(float(detail::__ESIMD_CONST_PI), 0.f, mask);
-  mask = (x < -CONST_DBL_EPSILON && y > -CONST_DBL_EPSILON && y < 0);
-  atan2.merge(float(-detail::__ESIMD_CONST_PI), mask);
-  mask = (x < CONST_DBL_EPSILON && __ESIMD_NS::abs(y) > CONST_DBL_EPSILON);
-  v_distance = __ESIMD_NS::sqrt(x * x + y * y);
-  atan2.merge(2.0f * esimd::atan((v_distance - x) / y), mask);
-
-  mask = (x > 0.f);
-  atan2.merge(2.0f * esimd::atan(y / (v_distance + x)), mask);
+  mask = (__ESIMD_NS::abs(x) < CONST_DBL_EPSILON && y < -CONST_DBL_EPSILON);
+  atan2.merge(float(-detail::__ESIMD_CONST_PI) / 2.f, 0.f, mask);
+  mask = (__ESIMD_NS::abs(x) < CONST_DBL_EPSILON && y > CONST_DBL_EPSILON);
+  atan2.merge(float(detail::__ESIMD_CONST_PI) / 2.f, mask);
+  mask = (x < -CONST_DBL_EPSILON && y < -CONST_DBL_EPSILON);
+  atan2.merge(atan - float(detail::__ESIMD_CONST_PI), mask);
+  mask = (x < -CONST_DBL_EPSILON && y >= -CONST_DBL_EPSILON);
+  atan2.merge(atan + float(detail::__ESIMD_CONST_PI), mask);
+  mask = (x > CONST_DBL_EPSILON);
+  atan2.merge(atan, mask);
 
   return atan2;
 }
@@ -1724,10 +1687,29 @@ __ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T>::value &&
 }
 
 /// rdtsc - get the value of timestamp counter.
-/// \return the current value of timestamp counter
-ESIMD_INLINE uint64_t rdtsc() {
-  __ESIMD_NS::simd<uint32_t, 4> retv = __esimd_timestamp();
-  return retv.template bit_cast_view<uint64_t>()[0];
+/// @return the current value of timestamp counter
+__SYCL_DEPRECATED("Please use sycl::ext::intel::esimd::rdtsc();")
+ESIMD_INLINE uint64_t rdtsc() { return __ESIMD_NS::rdtsc(); }
+
+/// Performs a fused multiply add computation with three vector operands.
+/// @tparam T type of the vector operands.
+/// @tparam N size of the vector operands.
+/// @param a First vector function argument.
+/// @param b Second vector function argument.
+/// @param c Third vector function argument.
+/// @return the computation result
+template <typename T, int N>
+ESIMD_INLINE __ESIMD_NS::simd<T, N> fma(__ESIMD_NS::simd<T, N> a,
+                                        __ESIMD_NS::simd<T, N> b,
+                                        __ESIMD_NS::simd<T, N> c) {
+  static_assert(__ESIMD_DNS::is_generic_floating_point_v<T>,
+                "fma only supports floating point types");
+  using CppT = __ESIMD_DNS::element_type_traits<T>::EnclosingCppT;
+  auto Ret = __spirv_ocl_fma<__ESIMD_DNS::__raw_t<CppT>, N>(
+      __ESIMD_DNS::convert_vector<CppT, T, N>(a.data()),
+      __ESIMD_DNS::convert_vector<CppT, T, N>(b.data()),
+      __ESIMD_DNS::convert_vector<CppT, T, N>(c.data()));
+  return __ESIMD_DNS::convert_vector<T, CppT, N>(Ret);
 }
 
 /// @} sycl_esimd_logical

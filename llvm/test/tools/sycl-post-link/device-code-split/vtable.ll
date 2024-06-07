@@ -72,13 +72,13 @@ entry:
   %0 = bitcast i8 addrspace(1)* %_arg_Storage to %class.Derived1 addrspace(1)*
   %1 = addrspacecast i8 addrspace(1)* %_arg_Storage to %class.Derived1 addrspace(4)*
   %2 = getelementptr %class.Derived1, %class.Derived1 addrspace(1)* %0, i64 0, i32 0, i32 0
-  store i32 (...)** bitcast (i8** getelementptr inbounds ({ [3 x i8*] }, { [3 x i8*] }* @_ZTV8Derived1, i64 0, inrange i32 0, i64 2) to i32 (...)**), i32 (...)** addrspace(1)* %2, align 8, !tbaa !52
+  store i32 (...)** bitcast (i8** getelementptr inbounds ({ [3 x i8*] }, { [3 x i8*] }* @_ZTV8Derived1, i64 0, i32 0, i64 2) to i32 (...)**), i32 (...)** addrspace(1)* %2, align 8, !tbaa !52
   %3 = getelementptr %class.Derived1, %class.Derived1 addrspace(4)* %1, i64 0, i32 0
   store %class.Base addrspace(4)* %3, %class.Base addrspace(4)* addrspace(1)* %_arg_Ptrs, align 8, !tbaa !55
   %arrayidx4.i5 = getelementptr inbounds i8, i8 addrspace(1)* %_arg_Storage, i64 8
   %arrayidx4.i = addrspacecast i8 addrspace(1)* %arrayidx4.i5 to i8 addrspace(4)*
   %4 = bitcast i8 addrspace(1)* %arrayidx4.i5 to i32 (...)** addrspace(1)*
-  store i32 (...)** bitcast (i8** getelementptr inbounds ({ [3 x i8*] }, { [3 x i8*] }* @_ZTV8Derived2, i64 0, inrange i32 0, i64 2) to i32 (...)**), i32 (...)** addrspace(1)* %4, align 8, !tbaa !52
+  store i32 (...)** bitcast (i8** getelementptr inbounds ({ [3 x i8*] }, { [3 x i8*] }* @_ZTV8Derived2, i64 0, i32 0, i64 2) to i32 (...)**), i32 (...)** addrspace(1)* %4, align 8, !tbaa !52
   %arrayidx6.i6 = getelementptr inbounds %class.Base addrspace(4)*, %class.Base addrspace(4)* addrspace(1)* %_arg_Ptrs, i64 1
   %5 = bitcast %class.Base addrspace(4)* addrspace(1)* %arrayidx6.i6 to i8 addrspace(4)* addrspace(1)*
   store i8 addrspace(4)* %arrayidx4.i, i8 addrspace(4)* addrspace(1)* %5, align 8, !tbaa !55

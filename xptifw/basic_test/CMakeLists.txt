@@ -1,6 +1,7 @@
 file(GLOB SOURCES *.cpp *.hpp)
 include_directories(${XPTIFW_DIR}/include)
 include_directories(${XPTI_DIR}/include)
+include_directories(${SAMPLES_DIR}/include)
 
 add_executable(XPTIFWBasicTests ${SOURCES})
 target_link_libraries(XPTIFWBasicTests PRIVATE xptifw ${CMAKE_DL_LIBS})

@@ -1,4 +1,4 @@
-// REQUIRES: level_zero_be
+// REQUIRES: level_zero
 // RUN: %clangxx %fsycl-host-only -fsyntax-only %s
 
 #include <sycl/sycl.hpp>

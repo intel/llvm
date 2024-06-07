@@ -1,7 +1,7 @@
 // RUN: %{build} -fsycl-instrument-device-code -o %t.out
 // RUN: %{run} %t.out
 
-#include "sycl/sycl.hpp"
+#include "sycl/detail/core.hpp"
 #include <vector>
 
 using namespace sycl;

@@ -50,10 +50,6 @@ device::device(const device_selector &deviceSelector) {
 
 std::vector<device> device::get_devices(info::device_type deviceType) {
   std::vector<device> devices;
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  detail::device_filter_list *FilterList =
-      detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
-#endif
   detail::ods_target_list *OdsTargetList =
       detail::SYCLConfig<detail::ONEAPI_DEVICE_SELECTOR>::get();
 
@@ -61,10 +57,6 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
   for (const auto &plt : thePlatforms) {
 
     backend platformBackend = plt.get_backend();
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    if (FilterList && !FilterList->backendCompatible(platformBackend))
-      continue;
-#endif
     if (OdsTargetList && !OdsTargetList->backendCompatible(platformBackend))
       continue;
 
@@ -135,22 +127,14 @@ bool device::has_extension(const std::string &extension_name) const {
 
 template <typename Param>
 detail::ABINeutralT_t<typename detail::is_device_info_desc<Param>::return_type>
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 device::get_info_impl() const {
-#else
-device::get_info() const {
-#endif
   return detail::convert_to_abi_neutral(impl->template get_info<Param>());
 }
 
 // Explicit override. Not fulfilled by #include device_traits.def below.
 template <>
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_EXPORT device
 device::get_info_impl<info::device::parent_device>() const {
-#else
-__SYCL_EXPORT device device::get_info<info::device::parent_device>() const {
-#endif
   // With ONEAPI_DEVICE_SELECTOR the impl.MRootDevice is preset and may be
   // overridden (ie it may be nullptr on a sub-device) The PI of the sub-devices
   // have parents, but we don't want to return them. They must pretend to be
@@ -165,11 +149,7 @@ __SYCL_EXPORT device device::get_info<info::device::parent_device>() const {
 
 template <>
 __SYCL_EXPORT std::vector<sycl::aspect>
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 device::get_info_impl<info::device::aspects>() const {
-#else
-device::get_info<info::device::aspects>() const {
-#endif
   std::vector<sycl::aspect> DeviceAspects{
 #define __SYCL_ASPECT(ASPECT, ID) aspect::ASPECT,
 #include <sycl/info/aspects.def>
@@ -193,25 +173,15 @@ device::get_info<info::device::aspects>() const {
 }
 
 template <>
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_EXPORT bool device::get_info_impl<info::device::image_support>() const {
-#else
-__SYCL_EXPORT bool device::get_info<info::device::image_support>() const {
-#endif
   // Explicit specialization is needed due to the class of info handle. The
   // implementation is done in get_device_info_impl.
   return impl->template get_info<info::device::image_support>();
 }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
   device::get_info_impl<info::device::Desc>() const;
-#else
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
-  device::get_info<info::device::Desc>() const;
-#endif
 
 #define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, PiCode)
 
@@ -219,19 +189,27 @@ __SYCL_EXPORT bool device::get_info<info::device::image_support>() const {
 #undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
   template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
   device::get_info_impl<Namespace::info::DescType::Desc>() const;
-#else
-#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
-  template __SYCL_EXPORT typename detail::ABINeutralT_t<ReturnT>               \
-  device::get_info<Namespace::info::DescType::Desc>() const;
-#endif
 
 #include <sycl/info/ext_codeplay_device_traits.def>
 #include <sycl/info/ext_intel_device_traits.def>
 #include <sycl/info/ext_oneapi_device_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC
+
+template <typename Param>
+typename detail::is_backend_info_desc<Param>::return_type
+device::get_backend_info() const {
+  return impl->get_backend_info<Param>();
+}
+
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
+  template __SYCL_EXPORT ReturnT                                               \
+  device::get_backend_info<info::DescType::Desc>() const;
+
+#include <sycl/info/sycl_backend_traits.def>
+
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 backend device::get_backend() const noexcept { return impl->getBackend(); }

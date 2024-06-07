@@ -10,9 +10,6 @@
 
 #include <sycl/access/access.hpp>    // for address_space
 #include <sycl/detail/type_list.hpp> // for type_list, address_space_list
-#include <sycl/half_type.hpp>        // for half
-
-#include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
 
 #include <cstddef>     // for byte, size_t
 #include <type_traits> // for conditional_t, is_signed_v, is_...
@@ -26,6 +23,16 @@ inline namespace _V1 {
 template <typename T, int N> class vec;
 template <typename Type, std::size_t NumElements> class marray;
 
+namespace detail {
+namespace half_impl {
+class half;
+}
+} // namespace detail
+using half = detail::half_impl::half;
+
+namespace ext::oneapi {
+class bfloat16;
+}
 namespace detail {
 namespace gtl {
 // floating point types
@@ -97,16 +104,8 @@ using scalar_vector_double_list =
 using double_list =
     tl_append<scalar_double_list, vector_double_list, marray_double_list>;
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 using scalar_floating_list = tl_append<scalar_float_list, scalar_double_list,
                                        scalar_half_list, scalar_bfloat16_list>;
-#else
-// Presently, this is used only by builtins_legacy_scalar.hpp for defining math
-// funcs. bfloat16 provides its own scalar math definitions so we skip its
-// inclusion.
-using scalar_floating_list =
-    tl_append<scalar_float_list, scalar_double_list, scalar_half_list>;
-#endif
 
 using vector_floating_list = tl_append<vector_float_list, vector_double_list,
                                        vector_half_list, vector_bfloat16_list>;

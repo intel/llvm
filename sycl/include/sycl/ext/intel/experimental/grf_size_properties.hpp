@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/detail/kernel_properties.hpp>
+#include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 

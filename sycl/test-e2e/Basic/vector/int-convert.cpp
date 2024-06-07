@@ -11,6 +11,7 @@
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 
 #include <sycl/detail/core.hpp>
+#include <sycl/types.hpp>
 
 #include <cstdint>
 #include <iostream>

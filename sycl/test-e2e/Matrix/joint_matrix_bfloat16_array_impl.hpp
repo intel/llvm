@@ -6,31 +6,34 @@
 //
 //===-------------------------------------------------------------------------===//
 
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
+template <typename T, size_t TM, size_t TN, size_t TK> class mult;
 
-static constexpr int TM = 8;
-static constexpr int TK = 16;
 static constexpr int JM_ARRAY_SZ = 2;
 
-template <typename T1, typename T2, size_t M, size_t N, size_t K>
-void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
-                     big_matrix<T2, K / 2, N * 2> &B) {
+template <typename TResult, typename T, size_t M, size_t N, size_t K, size_t TM,
+          size_t TN, size_t TK, size_t VNNI>
+void matrix_multiply(big_matrix<TResult, M, N> &C, big_matrix<T, M, K> &A,
+                     big_matrix<T, K / VNNI, N * VNNI> &B) {
   size_t NDRangeM = M / (TM * JM_ARRAY_SZ);
   size_t NDRangeN = N / TN;
-  buffer<bfloat16, 2> bufA(A.get_data(), range<2>(M, K));
-  buffer<bfloat16, 2> bufB(B.get_data(), range<2>(K, N));
-  buffer<float, 2> bufC((float *)C.get_data(), range<2>(M, N));
+  buffer<T, 2> bufA(A.get_data(), range<2>(M, K));
+  buffer<T, 2> bufB(B.get_data(), range<2>(K, N));
+  buffer<TResult, 2> bufC((TResult *)C.get_data(), range<2>(M, N));
 
   queue q;
+  size_t sg_size = get_sg_size<mult<T, TM, TN, TK>>(q);
   q.submit([&](handler &cgh) {
-     auto accC = bufC.get_access<access::mode::read_write>(cgh);
-     auto accA = bufA.get_access<access::mode::read_write>(cgh);
-     auto accB = bufB.get_access<access::mode::read_write>(cgh);
+     sycl::accessor accA{bufA, cgh, sycl::read_write};
+     sycl::accessor accB{bufB, cgh, sycl::read_write};
+     sycl::accessor accC{bufC, cgh, sycl::read_write};
 
-     cgh.parallel_for(
-         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]] {
+     cgh.parallel_for<mult<T, TM, TN, TK>>(
+         nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
+         [=](nd_item<2> spmd_item)
+#ifdef SG_SZ
+             [[intel::reqd_sub_group_size(SG_SZ)]]
+#endif
+         {
            // Matrix API has to be accessed by all the workitems in a
            // subgroup. These functions will be called once by the subgroup.
            // No code divergence between the workitems.
@@ -40,25 +43,25 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<sub_group, bfloat16, use::a, TM, TK, layout::row_major>
+           joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major>
                sub_a[JM_ARRAY_SZ];
 
            // For B, we assume B has been already VNNIed.
-           joint_matrix<sub_group, bfloat16, use::b, TK, TN,
-                        layout::ext_intel_packed>
+           joint_matrix<sub_group, T, use::b, TK, TN, layout::ext_intel_packed>
                sub_b;
-           joint_matrix<sub_group, float, use::accumulator, TM, TN>
+           joint_matrix<sub_group, TResult, use::accumulator, TM, TN>
                sub_c[JM_ARRAY_SZ];
 
            for (int i = 0; i < JM_ARRAY_SZ; ++i)
-             joint_matrix_fill(sg, sub_c[i], 1.0);
+             joint_matrix_fill(sg, sub_c[i], TResult(1));
 
            for (int k = 0; k < K / TK; ++k) {
              joint_matrix_load(
                  sg, sub_b,
                  accB.template get_multi_ptr<access::decorated::no>() +
-                     (k * TK / 2) * (N * 2) + sg_starty / SG_SZ * TN * 2,
-                 N * 2);
+                     (k * TK / VNNI) * (N * VNNI) +
+                     sg_starty / sg_size * TN * VNNI,
+                 N * VNNI);
 
              for (int i = 0; i < JM_ARRAY_SZ; ++i) {
                joint_matrix_load(
@@ -75,41 +78,76 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
                  sg, sub_c[i],
                  accC.template get_multi_ptr<access::decorated::no>() +
                      (sg_startx * TM * JM_ARRAY_SZ + TM * i) * N +
-                     sg_starty / SG_SZ * TN,
+                     sg_starty / sg_size * TN,
                  N, layout::row_major);
          }); // parallel for
    }).wait();
 }
 
-int main() {
+template <typename T, typename TResult, size_t VNNI, size_t TM, size_t TN,
+          size_t TK>
+void test() {
+  std::cout << "Testing: " << TM << " x " << TN << " x " << TK
+            << " [TM x TN x TK]" << std::endl;
   static constexpr size_t MATRIX_M = TM * 2;
   static constexpr size_t MATRIX_N = TN * 2;
   static constexpr size_t MATRIX_K = TK * 2;
 
-  bfloat16 A[MATRIX_M][MATRIX_K];
-  bfloat16 B[MATRIX_K / 2][MATRIX_N * 2];
+  T A[MATRIX_M][MATRIX_K];
+  T B[MATRIX_K / VNNI][MATRIX_N * VNNI];
 
-  float C[MATRIX_M][MATRIX_N];
-  float D[MATRIX_M][MATRIX_N];
+  TResult C[MATRIX_M][MATRIX_N];
+  TResult D[MATRIX_M][MATRIX_N];
 
-  matrix_fill(MATRIX_M, MATRIX_K, (bfloat16 *)A,
-              [](int i, int j) { return 1.0f * (i + j); });
-  matrix_fill(MATRIX_K / 2, MATRIX_N * 2, (bfloat16 *)B,
-              [](int i, int j) { return 2.0f * i + 3.0f * j; });
-  matrix_fill(MATRIX_M, MATRIX_N, (float *)C, 1.0f);
-  matrix_fill(MATRIX_M, MATRIX_N, (float *)D, 1.0f);
+  matrix_fill(MATRIX_M, MATRIX_K, (T *)A,
+              [](int i, int j) { return TResult(1) * (i + j); });
+  matrix_fill(MATRIX_K / VNNI, MATRIX_N * VNNI, (T *)B,
+              [](int i, int j) { return TResult(2) * i + TResult(3) * j; });
+  matrix_fill(MATRIX_M, MATRIX_N, (TResult *)C, TResult(1));
+  matrix_fill(MATRIX_M, MATRIX_N, (TResult *)D, TResult(1));
 
-  big_matrix<float, MATRIX_M, MATRIX_N> MC((float *)&C);
-  big_matrix<float, MATRIX_M, MATRIX_N> MD((float *)&D);
-  big_matrix<bfloat16, MATRIX_M, MATRIX_K> MA((bfloat16 *)&A);
-  big_matrix<bfloat16, MATRIX_K / 2, MATRIX_N * 2> MB((bfloat16 *)&B);
+  big_matrix<TResult, MATRIX_M, MATRIX_N> MC((TResult *)&C);
+  big_matrix<TResult, MATRIX_M, MATRIX_N> MD((TResult *)&D);
+  big_matrix<T, MATRIX_M, MATRIX_K> MA((T *)&A);
+  big_matrix<T, MATRIX_K / VNNI, MATRIX_N * VNNI> MB((T *)&B);
 
-  matrix_multiply(MC, MA, MB);
-  matrix_multiply_ref<bfloat16, bfloat16, float, 2>(
-      (bfloat16 *)A, (bfloat16 *)B, (float *)D, MATRIX_M, MATRIX_N,
-      MATRIX_K / 2);
+  matrix_multiply<TResult, T, MATRIX_M, MATRIX_N, MATRIX_K, TM, TN, TK, VNNI>(
+      MC, MA, MB);
+  matrix_multiply_ref<T, T, TResult, VNNI>((T *)A, (T *)B, (TResult *)D,
+                                           MATRIX_M, MATRIX_N, MATRIX_K / VNNI);
 
-  bool res = matrix_compare(MATRIX_M, MATRIX_N, (float *)C, (float *)D);
-  std::cout << (res ? "passed" : "failed") << std::endl;
-  return !res;
+  assert(matrix_compare(MATRIX_M, MATRIX_N, (TResult *)C, (TResult *)D));
+}
+
+int main() {
+  queue q;
+  std::vector<combination> combinations =
+      q.get_device()
+          .get_info<sycl::ext::oneapi::experimental::info::device::
+                        matrix_combinations>();
+
+  for (unsigned int i = 0; i < combinations.size(); i++) {
+    if (combinations[i].nsize == 0) { // Intel AMX
+      test<bfloat16, float, 2, /*TM*/ 16, /*TN*/ 16, /*TK*/ 32>();
+      break;
+    }
+
+    if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
+      test<bfloat16, float, 2, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
+#if (!defined(SG_SZ) || SG_SZ != 32)
+      // These combination are not currently supported for subgroup size = 32 in
+      // IGC
+      test<bfloat16, float, 2, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
+      test<bfloat16, float, 2, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
+      test<bfloat16, float, 2, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
+      break;
+#endif
+    }
+
+    if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
+      test<bfloat16, float, 2, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16>();
+      break;
+    }
+  }
+  return 0;
 }

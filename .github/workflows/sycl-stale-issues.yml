@@ -4,8 +4,7 @@ on:
   schedule:
     - cron: '30 1 * * *'
 
-permissions:
-  contents: read
+permissions: read-all
 
 jobs:
   close-issues:
