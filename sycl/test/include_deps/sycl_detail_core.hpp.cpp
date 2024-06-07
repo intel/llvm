@@ -175,7 +175,7 @@
 // CHECK-NEXT: detail/reduction_forward.hpp
 // CHECK-NEXT: ext/intel/experimental/fp_control_kernel_properties.hpp
 // CHECK-NEXT: ext/intel/experimental/kernel_execution_properties.hpp
-// CHECK-NEXT: ext/intel/experimental/virtual_functions.hpp
+// CHECK-NEXT: ext/oneapi/experimental/virtual_functions.hpp
 // CHECK-NEXT: ext/oneapi/bindless_images_interop.hpp
 // CHECK-NEXT: ext/oneapi/bindless_images_mem_handle.hpp
 // CHECK-NEXT: ext/oneapi/experimental/use_root_sync_prop.hpp

@@ -24,7 +24,6 @@
 
 #include <sycl/sycl.hpp>
 
-namespace intel = sycl::ext::intel::experimental;
 namespace oneapi = sycl::ext::oneapi::experimental;
 
 struct user_defined {
@@ -41,11 +40,11 @@ class KMultiple;
 int main() {
   sycl::queue q;
 
-  oneapi::properties props_empty{intel::calls_indirectly<>};
-  oneapi::properties props_int{intel::calls_indirectly<int>};
-  oneapi::properties props_void{intel::calls_indirectly<void>};
-  oneapi::properties props_user_defined{intel::calls_indirectly<user_defined>};
-  oneapi::properties props_multiple{intel::calls_indirectly<int, user_defined>};
+  oneapi::properties props_empty{oneapi::calls_indirectly<>};
+  oneapi::properties props_int{oneapi::calls_indirectly<int>};
+  oneapi::properties props_void{oneapi::calls_indirectly<void>};
+  oneapi::properties props_user_defined{oneapi::calls_indirectly<user_defined>};
+  oneapi::properties props_multiple{oneapi::calls_indirectly<int, user_defined>};
 
   q.single_task<KEmpty>(props_empty, [=]() {});
   q.single_task<KInt>(props_int, [=]() {});
