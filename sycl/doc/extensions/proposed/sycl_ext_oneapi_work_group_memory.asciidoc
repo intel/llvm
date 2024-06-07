@@ -135,10 +135,6 @@ work-group.
 If multiple work-groups execute simultaneously, each of those work-group
 receives its own independent copy of the allocated local memory.
 
-The `work_group_memory` class may only be used in an nd-range kernel.
-Attempting to use `work_group_memory` in a single-task kernel or a simple range
-kernel produces undefined behavior.
-
 The `work_group_memory` type is a legal kernel parameter type as defined in
 section 4.12.4 "Rules for parameter passing to kernels" of the core SYCL
 specification.
@@ -146,6 +142,12 @@ Applications typically construct an object of type `work_group_memory` in
 command group scope, pass the object as a kernel parameter, and then reference
 the object inside the kernel in order to access the device local memory that it
 contains.
+
+The `work_group_memory` class may only be used in an nd-range kernel.
+If an application passes a `work_group_memory` object as an argument to a
+single-task kernel or to a simple "range" kernel, the implementation must throw
+a synchronous `exception` with the `errc::kernel_argument` error code when the
+kernel is enqueued.
 
 The `DataT` template parameter identifies the type of the objects created in
 device local memory, and this type must be one of the types that is supported
