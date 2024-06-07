@@ -21,6 +21,7 @@ DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
   // removeAssociatedResources is expected to have cleaned up both the pointer
   // and the event. When asserts are enabled the values are set, so we check
   // these here.
+  CPOUT << "~DeviceGlobalUSMMem : " << (MPtr == nullptr) << " / " << !MInitEvent.has_value() << std::endl;
   assert(MPtr == nullptr && "MPtr has not been cleaned up.");
   assert(!MInitEvent.has_value() && "MInitEvent has not been cleaned up.");
 }
@@ -91,6 +92,7 @@ DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
 
 void DeviceGlobalMapEntry::removeAssociatedResources(
     const context_impl *CtxImpl) {
+  CPOUT << "DeviceGlobalMapEntry::removeAssociatedResources (impl/pi)" << std::hex << CtxImpl << " / " << CtxImpl->getHandleRef() << std::endl;
   std::lock_guard<std::mutex> Lock{MDeviceToUSMPtrMapMutex};
   for (device Device : CtxImpl->getDevices()) {
     auto USMPtrIt =

@@ -10,8 +10,8 @@
 
 // CP
 // clang-format off
-// #define CPOUT std::clog
-#define CPOUT std::clog.rdbuf(NULL); std::clog
+ #define CPOUT std::clog
+// #define CPOUT std::clog.rdbuf(NULL); std::clog
 // clang-format on
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE

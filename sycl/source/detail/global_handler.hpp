@@ -58,7 +58,12 @@ public:
   void registerSchedulerUsage(bool ModifyCounter = true);
   Scheduler &getScheduler();
   bool isSchedulerAlive() const;
-  bool isOkToDefer() const { return OkToDefer; }
+  bool isOkToDefer() const {
+    #ifdef _WIN32
+    return false;
+    #endif
+    return OkToDefer;
+  }
   void endDeferredRelease() { OkToDefer = false; }
   ProgramManager &getProgramManager();
   Sync &getSync();

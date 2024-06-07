@@ -242,7 +242,7 @@ struct DefaultContextReleaseHandler {
         << std::endl;
     // GlobalHandler::instance().releaseDefaultContexts();
 #ifdef _WIN32
-    // shutdown2();
+    //shutdown2();
 #else
     shutdown();
 #endif
@@ -289,17 +289,24 @@ void GlobalHandler::drainThreadPool() {
 }
 
 void shutdown() {
-  CPOUT << "shutdown() - endDeferredRelease" << std::endl;
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)
     return;
 
-  // now that we are shutting down, we no longer defer MemObj release.
+  CPOUT << "shutdown() endDeferredRelease()" << std::endl;
+  // now that we are shutting down, we no longer defer MemObj releases.
   Handler->endDeferredRelease();
 
 #ifdef _WIN32
-  return;
+  // Ensure neither host task is working so that no default context is accessed
+  // upon its release
+  //Handler->prepareSchedulerToRelease(true);
+  
+  // This releases our reference to the default context, but
+  // it might not be the last one quite yet.
+  Handler->releaseDefaultContexts();
+  shutdown2();
 #else
 
   // Ensure neither host task is working so that no default context is accessed
@@ -315,7 +322,7 @@ void shutdown() {
 #endif
 }
 
-#ifdef NOONEWANTS // _WIN32
+#ifdef  _WIN32
 // because of something not-yet-understood on Windows
 // threads may be shutdown once the end of main() is reached
 // making an orderly shutdown difficult. Fortunately, Windows
@@ -330,12 +337,13 @@ void shutdown2() {
 }
 #else
 void shutdown2() {
-  CPOUT << "shutdown2()" << std::endl;
+  
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)
     return;
 
+  CPOUT << "shutdown2()" << std::endl;
   // First, release resources, that may access plugins.
   Handler->MPlatformCache.Inst.reset(nullptr);
   Handler->MScheduler.Inst.reset(nullptr);
@@ -354,7 +362,9 @@ void shutdown2() {
 }
 #endif
 
+
 #ifdef _WIN32
+  
 extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                                              DWORD fdwReason,
                                              LPVOID lpReserved) {
@@ -376,13 +386,15 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
       return TRUE; // When doing xpti tracing, we can't safely call shutdown.
                    // TODO: figure out what XPTI is doing that prevents release.
 #endif
-    shutdown();
-    shutdown2();
+    //shutdown();
+    //shutdown2();
     break;
 
   case DLL_PROCESS_ATTACH:
     if (PrintPiTrace)
       std::cout << "---> DLL_PROCESS_ATTACH syclx.dll\n" << std::endl;
+
+    atexit(shutdown); //<-- latest of all, afaict. and not same order as an app
     break;
   case DLL_THREAD_ATTACH:
     break;

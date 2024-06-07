@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out | FileCheck %s
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out | FileCheck %s --dump-input
 //
 // XFAIL: hip_nvidia
 
