@@ -1242,7 +1242,11 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           // the following iterations.
           FoundNormalizedTriples[NormalizedName] = Val;
           llvm::Triple DeviceTriple(MakeSYCLDeviceTriple(UserTargetName));
-          UniqueSYCLTriplesVec.push_back(DeviceTriple);
+          // Only add the Triple to the Unique vector if it is truly unique.
+          // We can have duplicate triples in cases where multiple implied
+          // targets are used, i.e. intel_gpu_pvc,intel_gpu_gen11
+          if (std::find(UniqueSYCLTriplesVec.begin(), UniqueSYCLTriplesVec.end(), DeviceTriple) == UniqueSYCLTriplesVec.end())
+            UniqueSYCLTriplesVec.push_back(DeviceTriple);
           if (!Arch.empty())
             DerivedArchs[DeviceTriple.getTriple()].insert(Arch);
         }
