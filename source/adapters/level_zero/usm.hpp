@@ -126,6 +126,11 @@ public:
   umf_result_t get_min_page_size(void *, size_t *) override;
   // TODO: Different name for each provider (Host/Shared/SharedRO/Device)
   const char *get_name() override { return "L0"; };
+  umf_result_t get_ipc_handle_size(size_t *) override;
+  umf_result_t get_ipc_handle(const void *, size_t, void *) override;
+  umf_result_t put_ipc_handle(void *) override;
+  umf_result_t open_ipc_handle(void *, void **) override;
+  umf_result_t close_ipc_handle(void *, size_t) override;
 };
 
 // Allocation routines for shared memory type
