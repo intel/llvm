@@ -20,7 +20,6 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IRPrinter/IRPrintingPasses.h"
-#include "llvm/Passes/PassBuilder.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
@@ -1164,8 +1163,6 @@ static Error saveModuleIRInFile(Module &M, StringRef FilePath,
   raw_fd_ostream OS(FD, true);
   ModulePassManager MPM;
   ModuleAnalysisManager MAM;
-  PassBuilder PB;
-  PB.registerModuleAnalyses(MAM);
   if (OutputAssembly)
     MPM.addPass(PrintModulePass(OS));
   else
