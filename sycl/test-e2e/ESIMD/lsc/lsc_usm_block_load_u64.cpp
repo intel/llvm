@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc || gpu-intel-dg2
+// REQUIRES: gpu-intel-dg2
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -15,12 +15,11 @@ constexpr uint32_t Seed = 187;
 
 int main(void) {
   srand(Seed);
-  auto Q = queue{gpu_selector_v};
   bool Passed = true;
   Passed &= test_lsc_block_load<uint64_t>();
-  if (Q.get_device().has(sycl::aspect::fp64)) {
-    Passed &= test_lsc_block_load<double>();
-  }
+#ifdef USE_PVC
+  Passed &= test_lsc_block_load<double>();
+#endif
 
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;
