@@ -99,14 +99,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 755a1e75e24ed55070a0f457d2d8a676521ad4f7
-  # Merge: 6469b890 5593d84c
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Jun 4 10:34:57 2024 +0100
-  #     Merge pull request #1385 from yingcong-wu/yc/new-api-suggestgroupsize
-  #     Implement urKernelGetSuggestedLocalWorkSize
-  set(UNIFIED_RUNTIME_TAG 755a1e75e24ed55070a0f457d2d8a676521ad4f7)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/zhaomaosu/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG simplify-device-global)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
