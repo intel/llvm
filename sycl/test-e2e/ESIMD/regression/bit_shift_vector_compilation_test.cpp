@@ -6,13 +6,12 @@
 //
 //===---------------------------------------===//
 
-// RUN: %{build} -fsycl-device-code-split=per_kernel -std=c++20 -o %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
 // This is a basic test to validate the vector bit shifting functions.
 
 #include "../esimd_test_utils.hpp"
-#include <bit>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
