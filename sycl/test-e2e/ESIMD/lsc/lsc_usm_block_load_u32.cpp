@@ -19,8 +19,10 @@ int main(void) {
 
   Passed &= test_lsc_block_load<uint32_t>();
   Passed &= test_lsc_block_load<float>();
+#ifdef USE_PVC
   Passed &=
       test_lsc_block_load<sycl::ext::intel::experimental::esimd::tfloat32>();
+#endif
 
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;

@@ -30,7 +30,9 @@ int main(void) {
 
   Passed &= tests<uint32_t>();
   Passed &= tests<float>();
+#ifdef USE_PVC
   Passed &= tests<sycl::ext::intel::experimental::esimd::tfloat32>();
+#endif
 
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;
