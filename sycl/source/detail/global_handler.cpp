@@ -388,6 +388,7 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
 #endif
     //shutdown();
     //shutdown2();
+    
     break;
 
   case DLL_PROCESS_ATTACH:

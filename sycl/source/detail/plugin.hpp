@@ -253,19 +253,23 @@ public:
     if (pi::trace(pi::TraceLevel::PI_TRACE_CALLS)) {
       std::lock_guard<std::mutex> Guard(*TracingMutex);
       const char *FnName = PiCallInfo.getFuncName();
-      std::cout << "---> " << FnName << "(" << std::endl;
-      sycl::detail::pi::printArgs(Args...);
-      if (!pluginReleased) {
-        R = PiCallInfo.getFuncPtr(*MPlugin)(Args...);
-        std::cout << ") ---> ";
-        sycl::detail::pi::printArgs(R);
-        sycl::detail::pi::printOuts(Args...);
-        std::cout << std::endl;
-      } else {
-        std::cout << ") ---> ";
+      if(pluginReleased){
+	std::cout << "---! unable to call " << FnName << "(" << std::endl;
+	sycl::detail::pi::printArgs(Args...);
+	std::cout << ") ---> ";
         std::cout << "API Called After Plugin Teardown, Functon Call ignored.";
         std::cout << std::endl;
       }
+      else{
+	std::cout << "---> " << FnName << "(" << std::endl;
+	sycl::detail::pi::printArgs(Args...);
+	 R = PiCallInfo.getFuncPtr(*MPlugin)(Args...);
+	 std::cout << ") ---> ";
+        sycl::detail::pi::printArgs(R);
+        sycl::detail::pi::printOuts(Args...);
+        std::cout << std::endl;
+      }
+     
     } else {
       if (!pluginReleased) {
         R = PiCallInfo.getFuncPtr(*MPlugin)(Args...);

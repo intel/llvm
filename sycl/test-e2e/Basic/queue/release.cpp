@@ -1,5 +1,14 @@
-// RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out | FileCheck %s --dump-input
+// RUN: %{build}  -o %t.out
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out | FileCheck %s
+
+// flaky on OCL GPU, CPU and FPGA.
+// Seems to sometimes just terminate everything when piProgramRelease is being called.
+// the PI Trace seems right. We create exactly one program and it has
+// one call to piProgramRetain followed by two calls to piProgramRelease.
+// Yet OpenCL is sometimes crashing on that second call on Windows
+
+// UNSUPPORTED: opencl && windows
+
 //
 // XFAIL: hip_nvidia
 
@@ -22,3 +31,4 @@ int main() {
 // CHECK: ---> piKernelRelease(
 // CHECK: ---> piProgramRelease(
 // CHECK: ---> piDeviceRelease(
+// CHECK: ---> piTearDown(

@@ -10,7 +10,8 @@
 
 // CP
 // clang-format off
- #define CPOUT std::clog
+// #include <thread>
+#define CPOUT std::clog
 // #define CPOUT std::clog.rdbuf(NULL); std::clog
 // clang-format on
 

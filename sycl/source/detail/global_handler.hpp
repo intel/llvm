@@ -59,9 +59,9 @@ public:
   Scheduler &getScheduler();
   bool isSchedulerAlive() const;
   bool isOkToDefer() const {
-    #ifdef _WIN32
-    return false;
-    #endif
+    //#ifdef _WIN32
+    //return false;
+    //#endif
     return OkToDefer;
   }
   void endDeferredRelease() { OkToDefer = false; }

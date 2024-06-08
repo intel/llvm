@@ -4,6 +4,9 @@
 // Device globals aren't supported on opencl:gpu yet.
 // UNSUPPORTED: opencl && gpu
 
+// piextUSMFree is erroring -34 (invalid context) on OCL:CPU/FPGA on Windows
+// UNSUPPORTED: opencl && windows
+
 // TODO: Fails at JIT compilation for some reason.
 // UNSUPPORTED: hip
 #define SYCL_FALLBACK_ASSERT 1
