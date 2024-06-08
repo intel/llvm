@@ -143,9 +143,15 @@ template <typename T> bool test_lsc_block_load() {
   std::cout << "Running lsc_block_load() tests for T="
             << esimd_test::type_name<T>() << " on "
             << Q.get_device().get_info<sycl::info::device::name>() << std::endl;
+  // The test is enabled only on DG2 and PVC. fp64 is supported only on PVC so
+  // this flag makes sure that PVC specific test cases will be executed on PVC
+  // only.
+  bool IsPVC = Q.get_device().has(sycl::aspect::fp64);
 
   bool Passed = true;
-  Passed &= test<T, 64, DS, L1H, L2H, NoPrefetch, NoCheckMerge>(Q, 1, 4);
+  if (IsPVC || sizeof(T) * 64 < 256)
+    Passed &= test<T, 64, DS, L1H, L2H, NoPrefetch, NoCheckMerge>(Q, 1, 4);
+
   Passed &= test<T, 32, DS, L1H, L2H, NoPrefetch, NoCheckMerge>(Q, 1, 4);
   Passed &= test<T, 16, DS, L1H, L2H, NoPrefetch, NoCheckMerge>(Q, 2, 2);
   Passed &= test<T, 8, DS, L1H, L2H, NoPrefetch, NoCheckMerge>(Q, 2, 8);
@@ -154,26 +160,29 @@ template <typename T> bool test_lsc_block_load() {
     Passed &= test<T, 2, DS, L1H, L2H, NoPrefetch, NoCheckMerge>(Q, 5, 5);
   if constexpr (sizeof(T) >= sizeof(int))
     Passed &= test<T, 1, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 3, 5);
-  if constexpr (sizeof(T) <= 4) {
-    Passed &= test<T, 128, DS, L1H, L2H, NoPrefetch, CheckMerge,
-                   __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
-    Passed &= test<T, 128, DS, L1H, L2H, NoPrefetch, NoCheckMerge,
-                   __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
-    if constexpr (sizeof(T) == 2) {
-      Passed &= test<T, 256, DS, L1H, L2H, NoPrefetch, CheckMerge,
+  if (IsPVC) {
+    if constexpr (sizeof(T) <= 4) {
+      Passed &= test<T, 128, DS, L1H, L2H, NoPrefetch, CheckMerge,
                      __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
-      Passed &= test<T, 256, DS, L1H, L2H, NoPrefetch, NoCheckMerge,
+      Passed &= test<T, 128, DS, L1H, L2H, NoPrefetch, NoCheckMerge,
                      __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
-    }
-    if constexpr (sizeof(T) == 1) {
-      Passed &= test<T, 512, DS, L1H, L2H, NoPrefetch, CheckMerge,
-                     __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
-      Passed &= test<T, 512, DS, L1H, L2H, NoPrefetch, NoCheckMerge,
-                     __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
+      if constexpr (sizeof(T) == 2) {
+        Passed &= test<T, 256, DS, L1H, L2H, NoPrefetch, CheckMerge,
+                       __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
+        Passed &= test<T, 256, DS, L1H, L2H, NoPrefetch, NoCheckMerge,
+                       __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
+      }
+      if constexpr (sizeof(T) == 1) {
+        Passed &= test<T, 512, DS, L1H, L2H, NoPrefetch, CheckMerge,
+                       __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
+        Passed &= test<T, 512, DS, L1H, L2H, NoPrefetch, NoCheckMerge,
+                       __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
+      }
     }
   }
 
-  Passed &= test<T, 64, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 1, 4);
+  if (IsPVC || sizeof(T) * 64 < 256)
+    Passed &= test<T, 64, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 1, 4);
   Passed &= test<T, 32, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 2, 2);
   Passed &= test<T, 16, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 4, 4);
   Passed &= test<T, 8, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 2, 8);
@@ -182,17 +191,18 @@ template <typename T> bool test_lsc_block_load() {
     Passed &= test<T, 2, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 5, 5);
   if constexpr (sizeof(T) >= sizeof(int))
     Passed &= test<T, 1, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 3, 5);
-  // Only 512-bits maximum can be loaded at once (i.e. 4*128 bytes).
-  if constexpr (sizeof(T) <= 4)
-    Passed &= test<T, 128, DS, L1H, L2H, NoPrefetch, CheckMerge,
-                   __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
-  if constexpr (sizeof(T) <= 2)
-    Passed &= test<T, 256, DS, L1H, L2H, NoPrefetch, CheckMerge,
-                   __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
-  if constexpr (sizeof(T) == 1)
-    Passed &= test<T, 512, DS, L1H, L2H, NoPrefetch, CheckMerge,
-                   __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
-
+  if (IsPVC) {
+    // Only 512-bits maximum can be loaded at once (i.e. 4*128 bytes).
+    if constexpr (sizeof(T) <= 4)
+      Passed &= test<T, 128, DS, L1H, L2H, NoPrefetch, CheckMerge,
+                     __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
+    if constexpr (sizeof(T) <= 2)
+      Passed &= test<T, 256, DS, L1H, L2H, NoPrefetch, CheckMerge,
+                     __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
+    if constexpr (sizeof(T) == 1)
+      Passed &= test<T, 512, DS, L1H, L2H, NoPrefetch, CheckMerge,
+                     __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
+  }
   return Passed;
 }
 
@@ -207,9 +217,14 @@ std::enable_if_t<!IsGatherLikePrefetch, bool> test_lsc_prefetch() {
   std::cout << "Running block-load-like lsc_prefetch() tests for T="
             << esimd_test::type_name<T>() << " on "
             << Q.get_device().get_info<sycl::info::device::name>() << std::endl;
+  // The test is enabled only on DG2 and PVC. fp64 is supported only on PVC so
+  // this flag makes sure that PVC specific test cases will be executed on PVC
+  // only.
+  bool IsPVC = Q.get_device().has(sycl::aspect::fp64);
 
   bool Passed = true;
-  Passed &= test<T, 64, DS, L1H, L2H, DoPrefetch>(Q, 1, 4);
+  if (IsPVC || sizeof(T) * 64 < 256)
+    Passed &= test<T, 64, DS, L1H, L2H, DoPrefetch>(Q, 1, 4);
   Passed &= test<T, 32, DS, L1H, L2H, DoPrefetch>(Q, 1, 4);
   Passed &= test<T, 16, DS, L1H, L2H, DoPrefetch>(Q, 2, 2);
   Passed &= test<T, 8, DS, L1H, L2H, DoPrefetch>(Q, 2, 8);

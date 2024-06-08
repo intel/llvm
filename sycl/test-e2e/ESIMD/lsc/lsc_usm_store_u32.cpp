@@ -31,9 +31,14 @@ template <int TestCastNum, typename T> bool tests() {
   passed &= test<TestCastNum + 10, T, 4, 4, 1, 4, true>();
 
   // large number of elements
-  passed &= test<TestCastNum + 11, T, 4, 4, 1, 128, true,
-                 lsc_data_size::default_size, cache_hint::none,
-                 cache_hint::none, __ESIMD_NS::overaligned_tag<8>>();
+  auto Q = queue{gpu_selector_v};
+  // The test is enabled only on DG2 and PVC. fp64 is supported only on PVC so
+  // this check makes sure that the test case will be executed on PVC only.
+  if (Q.get_device().has(sycl::aspect::fp64)) {
+    passed &= test<TestCastNum + 11, T, 4, 4, 1, 128, true,
+                   lsc_data_size::default_size, cache_hint::none,
+                   cache_hint::none, __ESIMD_NS::overaligned_tag<8>>();
+  }
 
   return passed;
 }
