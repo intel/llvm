@@ -15,10 +15,12 @@ constexpr uint32_t Seed = 187;
 
 int main(void) {
   srand(Seed);
-
+  auto Q = queue{gpu_selector_v};
   bool Passed = true;
   Passed &= test_lsc_block_load<uint64_t>();
-  Passed &= test_lsc_block_load<double>();
+  if (Q.get_device().has(sycl::aspect::fp64)) {
+    Passed &= test_lsc_block_load<double>();
+  }
 
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;

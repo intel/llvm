@@ -25,11 +25,14 @@ template <typename T> bool tests() {
 
 int main(void) {
   constexpr uint32_t Seed = 188;
+  auto Q = queue{gpu_selector_v};
   srand(Seed);
   bool Passed = true;
 
   Passed &= tests<uint64_t>();
-  Passed &= tests<double>();
+  if (Q.get_device().has(sycl::aspect::fp64)) {
+    Passed &= tests<double>();
+  }
 
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;
