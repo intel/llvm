@@ -11059,7 +11059,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         bool UseJitLink =
             IsSPIR &&
             Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
-                        options::OPT_fno_sycl_device_lib_jit_link, false);
+                         options::OPT_fno_sycl_device_lib_jit_link, false);
         bool UseAOTLink = IsSPIR && (IsSpirvAOT || !UseJitLink);
         SYCLDeviceLibs = SYCL::getDeviceLibraries(C, TargetTriple, UseAOTLink);
         for (const auto &AddLib : SYCLDeviceLibs) {
