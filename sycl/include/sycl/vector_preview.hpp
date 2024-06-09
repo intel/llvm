@@ -730,8 +730,7 @@ public:
     if constexpr (!IsUsingArrayOnDevice) {
       return m_Data;
     } else {
-      auto ptr = bit_cast<const vector_t *>((&m_Data)->data());
-      return *ptr;
+      return sycl::bit_cast<vector_t>(m_Data);
     }
   }
 #endif // __SYCL_DEVICE_ONLY__
@@ -784,55 +783,74 @@ public:
                           detail::ConvertToOpenCLType_t<vec_data_t<convertT>>>,
       vec<convertT, NumElements>>
   convert() const {
+    using bfloat16 = sycl::ext::oneapi::bfloat16;
     static_assert(std::is_integral_v<vec_data_t<convertT>> ||
-                      detail::is_floating_point<convertT>::value,
+                      detail::is_floating_point<convertT>::value ||
+                      std::is_same_v<bfloat16, convertT>,
                   "Unsupported convertT");
     using T = vec_data_t<DataT>;
     using R = vec_data_t<convertT>;
     using OpenCLT = detail::ConvertToOpenCLType_t<T>;
     using OpenCLR = detail::ConvertToOpenCLType_t<R>;
+
     vec<convertT, NumElements> Result;
 
-#if defined(__SYCL_DEVICE_ONLY__)
-    using OpenCLVecT = OpenCLT __attribute__((ext_vector_type(NumElements)));
-    using OpenCLVecR = OpenCLR __attribute__((ext_vector_type(NumElements)));
-    // Whole vector conversion can only be done, if:
-    constexpr bool canUseNativeVectorConvert =
-#ifdef __NVPTX__
-        // - we are not on CUDA, see intel/llvm#11840
-        false &&
-#endif
-        // - both vectors are represented using native vector types;
-        NativeVec && vec<convertT, NumElements>::NativeVec &&
-        // - vec storage has an equivalent OpenCL native vector it is implicitly
-        //   convertible to. There are some corner cases where it is not the
-        //   case with char, long and long long types.
-        std::is_convertible_v<decltype(m_Data), OpenCLVecT> &&
-        std::is_convertible_v<decltype(Result.m_Data), OpenCLVecR> &&
-        // - it is not a signed to unsigned (or vice versa) conversion
-        //   see comments within 'convertImpl' for more details;
-        !detail::is_sint_to_from_uint<T, R>::value &&
-        // - destination type is not bool. bool is stored as integer under the
-        //   hood and therefore conversion to bool looks like conversion between
-        //   two integer types. Since bit pattern for true and false is not
-        //   defined, there is no guarantee that integer conversion yields
-        //   right results here;
-        !std::is_same_v<convertT, bool>;
-    if constexpr (canUseNativeVectorConvert) {
-      Result.m_Data = detail::convertImpl<T, R, roundingMode, NumElements,
-                                          OpenCLVecT, OpenCLVecR>(m_Data);
-    } else
-#endif // defined(__SYCL_DEVICE_ONLY__)
-    {
-      // Otherwise, we fallback to per-element conversion:
-      for (size_t I = 0; I < NumElements; ++I) {
-        Result.setValue(
-            I, vec_data<convertT>::get(
-                   detail::convertImpl<T, R, roundingMode, 1, OpenCLT, OpenCLR>(
-                       vec_data<DataT>::get(getValue(I)))));
+    // we are not on CUDA, see intel/llvm#11840
+#if defined(__SYCL_DEVICE_ONLY__) && !defined(__NVPTX__)
+    // Convert BF16 vector -> float vector and vice versa.
+    if constexpr (((IsBfloat16 && std::is_same_v<convertT, float>) ||
+          (std::is_same_v<convertT, bfloat16> && std::is_same_v<DataT, float>)) &&
+          NumElements > 1) {
+
+      using BF16ExtType = sycl::ext::oneapi::detail::Bfloat16StorageT __attribute__((ext_vector_type(NumElements)));
+      using FloatExtType = float __attribute__((ext_vector_type(NumElements)));
+      vec<convertT, NumElements> convertedVec;
+
+      if constexpr (IsBfloat16)
+        convertedVec = detail::convertImpl<bfloat16, float, roundingMode, NumElements,
+                                          BF16ExtType, FloatExtType>(static_cast<vector_t>(*this));
+      else
+        convertedVec = detail::convertImpl<float, bfloat16, roundingMode, NumElements,
+                                          FloatExtType, BF16ExtType>(static_cast<vector_t>(*this));
+      
+      return vec<convertT, NumElements>(convertedVec);
+    }
+    else if constexpr (NumElements > 1) {
+      using OpenCLVecT = OpenCLT __attribute__((ext_vector_type(NumElements)));
+      using OpenCLVecR = OpenCLR __attribute__((ext_vector_type(NumElements)));
+      // Whole vector conversion can only be done, if:
+      constexpr bool canUseNativeVectorConvert =
+          // - both vectors are represented using native vector types;
+          NativeVec && vec<convertT, NumElements>::NativeVec &&
+          // - vec storage has an equivalent OpenCL native vector it is implicitly
+          //   convertible to. There are some corner cases where it is not the
+          //   case with char, long and long long types.
+          std::is_convertible_v<decltype(m_Data), OpenCLVecT> &&
+          std::is_convertible_v<decltype(Result.m_Data), OpenCLVecR> &&
+          // - it is not a signed to unsigned (or vice versa) conversion
+          //   see comments within 'convertImpl' for more details;
+          !detail::is_sint_to_from_uint<T, R>::value &&
+          // - destination type is not bool. bool is stored as integer under the
+          //   hood and therefore conversion to bool looks like conversion between
+          //   two integer types. Since bit pattern for true and false is not
+          //   defined, there is no guarantee that integer conversion yields
+          //   right results here;
+          !std::is_same_v<convertT, bool>;
+      if constexpr (canUseNativeVectorConvert) {
+        Result.m_Data = detail::convertImpl<T, R, roundingMode, NumElements,
+                                            OpenCLVecT, OpenCLVecR>(m_Data);
+        return Result;
       }
     }
+#endif // defined(__SYCL_DEVICE_ONLY__)
 
+    // Otherwise, we fallback to per-element conversion:
+    for (size_t I = 0; I < NumElements; ++I) {
+      Result.setValue(
+          I, vec_data<convertT>::get(
+                  detail::convertImpl<T, R, roundingMode, 1, OpenCLT, OpenCLR>(
+                      vec_data<DataT>::get(getValue(I)))));
+    }
     return Result;
   }
 

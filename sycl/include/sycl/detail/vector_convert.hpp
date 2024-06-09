@@ -57,6 +57,8 @@
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
 #include <sycl/exception.hpp>                  // for errc
 
+#include <sycl/ext/oneapi/bfloat16.hpp>        // bfloat16
+
 #ifndef __SYCL_DEVICE_ONLY__
 #include <cfenv> // for fesetround, fegetround
 #endif
@@ -122,6 +124,17 @@ template <typename T, typename R>
 using is_float_to_float =
     std::bool_constant<detail::is_floating_point<T>::value &&
                        detail::is_floating_point<R>::value>;
+
+using bfloat16 = sycl::ext::oneapi::bfloat16;
+template <typename T, typename R>
+using is_bf16_to_float =
+    std::bool_constant<std::is_same_v<T, bfloat16> &&
+                       std::is_same_v<R, float>>;
+
+template <typename T, typename R>
+using is_float_to_bf16 =
+    std::bool_constant<std::is_same_v<R, bfloat16> &&
+                       std::is_same_v<T, float>>;
 
 #ifndef __SYCL_DEVICE_ONLY__
 template <typename From, typename To, int VecSize,
@@ -196,8 +209,21 @@ template <typename From, typename To, int VecSize,
 To ConvertFToU(From Value) {
   return ConvertFToS<From, To, VecSize, Enable, roundingMode>(Value);
 }
-#else
 
+template <typename NativeBFT, typename NativeFloatT, int VecSize>
+inline NativeFloatT ConvertBF16ToF(NativeBFT val) {
+  static_assert(VecSize == 1);
+  return (NativeFloatT)val;
+}
+
+// Create a bfloat16 from float.
+template <typename NativeFloatT, typename NativeBFT,int VecSize>
+inline NativeBFT ConvertFToBF16(NativeFloatT val) {
+  static_assert(VecSize == 1);
+  return NativeBFT(val);
+}
+
+#else
 // Bunch of helpers to "specialize" each template for its own destination type
 // and vector size.
 
@@ -498,6 +524,22 @@ __SYCL_FLOAT_FLOAT_CONVERT_FOR_TYPE(double)
 #undef __SYCL_FLOAT_FLOAT_CONVERT
 #undef __SYCL_FLOAT_FLOAT_CONVERT_FOR_TYPE
 
+template <typename NativeBFT, typename NativeFloatT, int VecSize>
+inline NativeFloatT ConvertBF16ToF(NativeBFT vec) {
+  if constexpr (VecSize == 1)
+    return (float)vec;
+  else
+    return __spirv_ConvertBF16ToFINTEL(vec);
+}
+
+template <typename NativeFloatT, typename NativeBFT, int VecSize>
+inline NativeBFT ConvertFToBF16(NativeFloatT vec) {
+  if constexpr (VecSize == 1)
+    return sycl::ext::oneapi::bfloat16(vec);
+  else
+    return __spirv_ConvertFToBF16INTEL(vec);
+}
+
 #endif // __SYCL_DEVICE_ONLY__
 
 /// Entry point helper for all kinds of converts between scalars and vectors, it
@@ -537,6 +579,10 @@ NativeToT convertImpl(NativeFromT Value) {
   else if constexpr (is_float_to_float<FromT, ToT>::value)
     return FConvert<NativeFromT, NativeToT, VecSize, ElemTy, RoundingMode>(
         Value);
+  else if constexpr (is_bf16_to_float<FromT, ToT>::value)
+    return ConvertBF16ToF<NativeFromT, NativeToT, VecSize>(Value);
+  else if constexpr (is_float_to_bf16<FromT, ToT>::value)
+    return ConvertFToBF16<NativeFromT, NativeToT, VecSize>(Value);
   else if constexpr (is_float_to_sint<FromT, ToT>::value)
     return ConvertFToS<NativeFromT, NativeToT, VecSize, ElemTy, RoundingMode>(
         Value);
