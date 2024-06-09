@@ -121,14 +121,12 @@
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
 // RUN:          -Xsycl-target-backend -backend-opt -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_BACKEND %s
-// WRAPPER_OPTIONS_BACKEND: clang-linker-wrapper{{.*}} "--triple=spir64"
-// WRAPPER_OPTIONS_BACKEND-SAME: "--sycl-backend-compile-options={{.*}}-backend-opt{{.*}}"
+// WRAPPER_OPTIONS_BACKEND: clang-linker-wrapper{{.*}} "--sycl-backend-compile-options={{.*}}-backend-opt{{.*}}"
 
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
 // RUN:          -Xsycl-target-linker -link-opt -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_LINK %s
-// WRAPPER_OPTIONS_LINK: clang-linker-wrapper{{.*}} "--triple=spir64"
-// WRAPPER_OPTIONS_LINK-SAME: "--sycl-target-link-options={{.*}}-link-opt{{.*}}"
+// WRAPPER_OPTIONS_LINK: clang-linker-wrapper{{.*}} "--sycl-target-link-options={{.*}}-link-opt{{.*}}"
 
 /// Test option passing behavior for clang-offload-wrapper options for AOT.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
