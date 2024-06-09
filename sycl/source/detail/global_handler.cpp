@@ -301,11 +301,15 @@ void shutdown() {
 #ifdef _WIN32
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
-  //Handler->prepareSchedulerToRelease(true);
+  Handler->prepareSchedulerToRelease(true);
+
+  if (Handler->MHostTaskThreadPool.Inst)
+    Handler->MHostTaskThreadPool.Inst->finishAndWait();
   
   // This releases our reference to the default context, but
   // it might not be the last one quite yet.
   Handler->releaseDefaultContexts();
+  
   shutdown2();
 #else
 
