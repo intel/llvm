@@ -83,3 +83,39 @@
 // RUN:          -shared %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHECK_SHARED %s
 // CHECK_SHARED: clang-linker-wrapper{{.*}} "-shared"
+
+// Verify 'arch' offload-packager values for known targets
+// RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl \
+// RUN:          -fsycl-targets=spir64 --offload-new-driver %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK_ARCH \
+// RUN:              -DTRIPLE=spir64-unknown-unknown -DARCH= %s
+// RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl \
+// RUN:          -fsycl-targets=intel_gpu_pvc --offload-new-driver %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK_ARCH \
+// RUN:              -DTRIPLE=spir64_gen-unknown-unknown -DARCH=pvc %s
+// RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl \
+// RUN:          -fno-sycl-libspirv -fsycl-targets=amd_gpu_gfx900 \
+// RUN:          -nogpulib --offload-new-driver %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK_ARCH \
+// RUN:              -DTRIPLE=amdgcn-amd-amdhsa -DARCH=gfx900 %s
+// RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl \
+// RUN:          -fno-sycl-libspirv -fsycl-targets=nvidia_gpu_sm_50 \
+// RUN:          -nogpulib --offload-new-driver %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK_ARCH \
+// RUN:              -DTRIPLE=nvptx64-nvidia-cuda -DARCH=sm_50 %s
+// CHK_ARCH: clang{{.*}} "-triple" "[[TRIPLE]]"
+// CHK_ARCH-SAME: "-fsycl-is-device" {{.*}} "--offload-new-driver"{{.*}} "-o" "[[CC1DEVOUT:.+\.bc]]"
+// CHK_ARCH-NEXT: clang-offload-packager{{.*}} "--image=file=[[CC1DEVOUT]],triple=[[TRIPLE]],arch=[[ARCH]],kind=sycl"
+
+/// Test option passing behavior for clang-offload-wrapper options.
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN:          -Xsycl-target-backend -backend-opt -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_BACKEND %s
+// WRAPPER_OPTIONS_BACKEND: clang-linker-wrapper{{.*}} "--triple=spir64"
+// WRAPPER_OPTIONS_BACKEND-SAME: "--sycl-backend-compile-options={{.*}}-backend-opt{{.*}}"
+
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN:          -Xsycl-target-linker -link-opt -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_LINK %s
+// WRAPPER_OPTIONS_LINK: clang-linker-wrapper{{.*}} "--triple=spir64"
+// WRAPPER_OPTIONS_LINK-SAME: "--sycl-target-link-options={{.*}}-link-opt{{.*}}"

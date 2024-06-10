@@ -7,6 +7,9 @@
 
 // REQUIRES: aspect-usm_host_allocations
 
+// Test is flaky on Windows, disable until it can be fixed
+// UNSUPPORTED: windows
+
 #define GRAPH_E2E_RECORD_REPLAY
 
 #include "../Inputs/basic_usm_host.cpp"

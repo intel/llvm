@@ -103,286 +103,556 @@ then it supports the `bfloat16` math functions described in the next section.
 
 === Math Functions
 
-The following functions are only available when `T` is `bfloat16` or
-`sycl::marray<bfloat16, {N}>`, where `{N}` means any positive value of
-`size_t` type.
-
 ==== isnan
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
 
-bool isnan(bfloat16 x);
+bool isnan(bfloat16 x);                                                 (1)
 
-template <size_t N>
-sycl::marray<bool, N> isnan(sycl::marray<bfloat16, N> x);
+template<typename NonScalar> 
+/*return type*/ isnan(NonScalar x);                                     (2)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ===== Description
+====== Overload (1)
 
-Returns true if x is NAN value, otherwise returns false.
+Returns `true` if `x` is a NaN value, otherwise returns `false`.
+
+====== Overload (2)
+
+*Constraints:* Available only if all of the following conditions are met:
+
+ - `NonScalar` is `marray`, `vec`, or the `[code]#+__swizzled_vec__+#` type; and
+ - The element type is `bfloat16`.
+
+*Returns:* If `NonScalar` is `marray`, returns `true` for each element of `x` only if `x[i]` has a NaN value. If `NonScalar` is `vec` or the `[code]#+__swizzled_vec__+#` type, returns -1 for each element of `x` if `x[i]` is a NaN value and returns 0 otherwise.
+
+The return type depends on `NonScalar`. For `marray`, the return type is `marray<bool, N>` and for `vec`, `[code]#+__swizzled_vec__+#` type, the return type is `vec<int16_t, N>`.
 
 ==== fma
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
 
-template <typename T>
-T fma(T a, T b, T c);
+bfloat16 fma(bfloat16 a, bfloat16 b, bfloat16 c);                          (1)
+
+template<typename NonScalar1, typename NonScalar2, typename NonScalar3>    (2)
+/*return-type*/ fma(NonScalar1 a, NonScalar2 b, NonScalar3 c)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ===== Description
 
-Returns the correctly rounded floating-point representation of the
+====== Overload (1)
+
+*Returns:* Returns the correctly rounded floating-point representation of the
 sum of `c` with the infinitely precise product of `a` and `b`.
 Rounding of intermediate products shall not occur. The mantissa
 LSB rounds to the nearest even. Subnormal numbers are supported.
+
+====== Overload (2)
+
+*Constraints:* Available only if all of the following conditions are met:
+
+* One of the following conditions must hold for `NonScalar1`, `NonScalar2`, and `NonScalar3`:
+** `NonScalar1`, `NonScalar2`, and `NonScalar3` are each `marray`; or
+** `NonScalar1`, `NonScalar2`, and `NonScalar3` are any combination of `vec` and the `[code]#+__swizzled_vec__+#` type;
+* `NonScalar1`, `NonScalar2`, and `NonScalar3` have the same number of elements;
+* `NonScalar1`, `NonScalar2`, and `NonScalar3` have the same element type; and
+* The element type of `NonScalar1`, `NonScalar2`, and `NonScalar3` is `bfloat16`.
+
+*Returns:* For each element of `a`, `b`, and `c`; the correctly rounded floating-point representation of the sum of `c[i]` with the infinitely precise product of `a[i]` and `b[i]`. Rounding of intermediate products shall not occur. Edge case behavior is per the IEEE 754-2008 standard.
+
+The return type is `NonScalar1` unless `NonScalar1` is the `[code]#+__swizzled_vec__+#` type, in which case the return type is the corresponding `vec`.
 
 ==== fmax
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
-template <typename T>
-T fmax(T x, T y);
+bfloat16 fmax(bfloat16 x, bfloat16 y);                                           (1)
+
+template<typename NonScalar1, typename NonScalar2>                               (2)
+/*return-type*/ fmax(NonScalar1 x, NonScalar2 y)
+
+template<typename NonScalar>                                                     (3)
+/*return-type*/ fmax(NonScalar x, bfloat16 y)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ===== Description
 
-Returns `y` if
-`x < y`, otherwise it
-returns `x`. If one argument is a
-NaN, `fmax()` returns the other
-argument. If both arguments are
-NaNs, `fmax()` returns a NaN.
+====== Overload (1)
+
+Returns `y` if `x < y`, otherwise it returns `x`. If one argument is a NaN, `fmax()` returns the other
+argument. If both arguments are NaNs, `fmax()` returns a NaN.
+
+====== Overload (2)
+
+*Constraints:* Available only if all of the following conditions are met:
+
+* One of the following conditions must hold for `NonScalar1` and `NonScalar2`:
+** Both `NonScalar1` and `NonScalar2` are `marray`; or
+** `NonScalar1` and `NonScalar2` are any combination of `vec` and the `[code]#+__swizzled_vec__+#` type;
+* `NonScalar1` and `NonScalar2` have the same number of elements;
+* `NonScalar1` and `NonScalar2` have the same element type; and
+* The element type of `NonScalar1` and `NonScalar2` is bfloat16.
+
+*Returns:* For each element of `x` and `y`, the value `y[i]` if `x[i] < y[i]`, otherwise `x[i]`. If one element is a NaN, the result is the other element. If both elements are NaNs, the result is NaN.
+
+The return type is `NonScalar1` unless `NonScalar1` is the `[code]#+__swizzled_vec__+#` type, in which case the return type is the corresponding `vec`.
+
+====== Overload (3)
+
+*Constraints:* Available only if all of the following conditions are met:
+
+* NonScalar is `marray`, `vec`, or the `[code]#+__swizzled_vec__+#` type; and
+* The element type is bfloat16.
+
+*Returns:* For each element of `x`, the value `y` if `x[i] < y`, otherwise `x[i]`. If one value is a NaN, the result is the other value. If both value are NaNs, the result is a NaN.
+
+The return type is `NonScalar` unless `NonScalar` is the `[code]#+__swizzled_vec__+#` type, in which case the return type is the corresponding `vec`.
 
 ==== fmin
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
-template <typename T>
-T fmin(T x, T y);
+bfloat16 fmin(bfloat16 x, bfloat16 y);                                           (1)
+
+template<typename NonScalar1, typename NonScalar2>                               (2)
+/*return-type*/ fmin(NonScalar1 x, NonScalar2 y)
+
+template<typename NonScalar>                                                     (3)
+/*return-type*/ fmin(NonScalar x, bfloat16 y)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ===== Description
 
-Returns `y` if
-`y < x`, otherwise it
-returns `x`. If one argument is a
-NaN, `fmax()` returns the other
-argument. If both arguments are
-NaNs, `fmax()` returns a NaN.
+====== Overload (1)
+
+Returns `x` if `x < y`, otherwise it returns `y`. If one argument is a
+NaN, `fmin()` returns the other argument. If both arguments are NaNs, `fmin()` returns a NaN.
+
+====== Overload (2)
+
+*Constraints:* Available only if all of the following conditions are met:
+
+* One of the following conditions must hold for `NonScalar1` and `NonScalar2`:
+** Both `NonScalar1` and `NonScalar2` are `marray`; or
+** `NonScalar1` and `NonScalar2` are any combination of `vec` and the `[code]#+__swizzled_vec__+#` type;
+* `NonScalar1` and `NonScalar2` have the same number of elements;
+* `NonScalar1` and `NonScalar2` have the same element type; and
+* The element type of `NonScalar1` and `NonScalar2` is bfloat16.
+
+*Returns:* For each element of `x` and `y`, the value `x[i]` if `x[i] < y[i]`, otherwise `y[i]`. If one element is a NaN, the result is the other element. If both elements are NaNs, the result is NaN.
+
+The return type is `NonScalar1` unless `NonScalar1` is the `[code]#+__swizzled_vec__+#` type, in which case the return type is the corresponding `vec`.
+
+====== Overload (3)
+
+*Constraints:* Available only if all of the following conditions are met:
+
+* NonScalar is `marray`, `vec`, or the `[code]#+__swizzled_vec__+#` type; and
+* The element type is bfloat16.
+
+*Returns:* For each element of `x`, the value `x[i]` if `x[i] < y`, otherwise `y`. If one value is a NaN, the result is the other value. If both value are NaNs, the result is a NaN.
+
+The return type is `NonScalar` unless `NonScalar` is the `[code]#+__swizzled_vec__+#` type, in which case the return type is the corresponding `vec`.
 
 ==== fabs
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
-template <typename T>
-T fabs(T x);
+bfloat16 fabs(bfloat16 x);                                            (1)
+
+template<typename NonScalar>                                          (2)
+/*return-type*/ fabs(NonScalar x)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
-===== Description
+===== Overload (1)
 
-Compute absolute value of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+Compute absolute value(s) of a scalar `bfloat16` value.
+
+====== Overload (2)
+
+*Constraints:* Available only if all of the following conditions are met:
+
+* `NonScalar` is `marray`, `vec`, or the `[code]#+__swizzled_vec__+#` type; and
+* The element type is `bfloat16`.
+
+*Returns:* For each element of `x`, the absolute value of `x[i]`.
+
+The return type is `NonScalar` unless `NonScalar` is the `[code]#+__swizzled_vec__+#` type, in which case the return type is the corresponding `vec`.
 
 ==== ceil
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
-template <typename T>
-T ceil(T x);
+bfloat16 ceil(bfloat16 x);                                            (1)
+
+template<typename NonScalar>                                          (2)
+/*return-type*/ ceil(NonScalar x)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
-===== Description
+===== Overload (1)
 
-Returns `x` rounded to an integral value using the round to positive infinity rounding mode
+The value `x` rounded to an integral value using the round to positive infinity rounding mode.
+
+====== Overload (2)
+
+*Constraints:* Available only if all of the following conditions are met:
+
+* `NonScalar` is `marray`, `vec`, or the `[code]#+__swizzled_vec__+#` type; and
+* The element type is `bfloat16`.
+
+*Returns:* For each element of `x`, the value `x[i]` rounded to an integral value using the round to positive infinity rounding mode.
+
+The return type is `NonScalar` unless `NonScalar` is the `[code]#+__swizzled_vec__+#` type, in which case the return type is the corresponding `vec`.
 
 ==== floor
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
-template <typename T>
-T floor(T x);
+bfloat16 floor(bfloat16 x);                                            (1)
+
+template<typename NonScalar>                                           (2)
+/*return-type*/ floor(NonScalar x)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
-===== Description
+===== Overload (1)
 
-Returns `x` rounded to an integral value using the round to negative infinity rounding mode
-for a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+The value `x` rounded to an integral value using the round to negative infinity rounding mode.
+
+====== Overload (2)
+
+*Constraints:* Available only if all of the following conditions are met:
+
+* `NonScalar` is `marray`, `vec`, or the `[code]#+__swizzled_vec__+#` type; and
+* The element type is `bfloat16`.
+
+*Returns:* For each element of `x`, the value `x[i]` rounded to an integral value using the round to negative infinity rounding mode.
+
+The return type is `NonScalar` unless `NonScalar` is the `[code]#+__swizzled_vec__+#` type, in which case the return type is the corresponding `vec`.
 
 ==== cos
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
-template <typename T>
-T cos(T x);
+bfloat16 cos(bfloat16 x);                                            (1)
+
+template<typename NonScalar>                                         (2)
+/*return-type*/ cos(NonScalar x)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
-===== Description
+===== Overload (1)
 
-Compute cosine of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+Returns the cosine of `x`.
+
+====== Overload (2)
+
+*Constraints:* Available only if all of the following conditions are met:
+
+* `NonScalar` is `marray`, `vec`, or the `[code]#+__swizzled_vec__+#` type; and
+* The element type is `bfloat16`.
+
+*Returns:* For each element of `x`, the cosine of `x[i]`.
+
+The return type is `NonScalar` unless `NonScalar` is the `[code]#+__swizzled_vec__+#` type, in which case the return type is the corresponding `vec`.
 
 ==== sin
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
-template <typename T>
-T sin(T x);
+bfloat16 sin(bfloat16 x);                                            (1)
+
+template<typename NonScalar>                                         (2)
+/*return-type*/ sin(NonScalar x)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
-===== Description
+===== Overload (1)
 
-Compute sine of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+Returns the sine of `x`.
 
+====== Overload (2)
+
+*Constraints:* Available only if all of the following conditions are met:
+
+* `NonScalar` is `marray`, `vec`, or the `[code]#+__swizzled_vec__+#` type; and
+* The element type is `bfloat16`.
+
+*Returns:* For each element of `x`, the sine of `x[i]`.
+
+The return type is `NonScalar` unless `NonScalar` is the `[code]#+__swizzled_vec__+#` type, in which case the return type is the corresponding `vec`.
 
 ==== exp
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
-template <typename T>
-T exp(T x);
+bfloat16 exp(bfloat16 x);                                            (1)
+
+template<typename NonScalar>                                         (2)
+/*return-type*/ exp(NonScalar x)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
-===== Description
+===== Overload (1)
 
-Compute the base-e exponential of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+Returns the base-e exponential of `x`.
+
+====== Overload (2)
+
+*Constraints:* Available only if all of the following conditions are met:
+
+* `NonScalar` is `marray`, `vec`, or the `[code]#+__swizzled_vec__+#` type; and
+* The element type is `bfloat16`.
+
+*Returns:* For each element of `x`, the base-e exponential of `x[i]`.
+
+The return type is `NonScalar` unless `NonScalar` is the `[code]#+__swizzled_vec__+#` type, in which case the return type is the corresponding `vec`.
 
 ==== exp2
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
-template <typename T>
-T exp2(T x);
+bfloat16 exp2(bfloat16 x);                                            (1)
+
+template<typename NonScalar>                                         (2)
+/*return-type*/ exp2(NonScalar x)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
-===== Description
+===== Overload (1)
 
-Compute the base-2 exponential of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+Returns the base-2 exponential of `x`.
+
+====== Overload (2)
+
+*Constraints:* Available only if all of the following conditions are met:
+
+* `NonScalar` is `marray`, `vec`, or the `[code]#+__swizzled_vec__+#` type; and
+* The element type is `bfloat16`.
+
+*Returns:* For each element of `x`, the base-2 exponential of `x[i]`.
+
+The return type is `NonScalar` unless `NonScalar` is the `[code]#+__swizzled_vec__+#` type, in which case the return type is the corresponding `vec`.
 
 ==== exp10
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
-template <typename T>
-T exp10(T x);
+bfloat16 exp10(bfloat16 x);                                            (1)
+
+template<typename NonScalar>                                           (2)
+/*return-type*/ exp10(NonScalar x)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
-===== Description
+===== Overload (1)
 
-Compute the base-10 exponential of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+Returns the base-10 exponential of `x`.
+
+====== Overload (2)
+
+*Constraints:* Available only if all of the following conditions are met:
+
+* `NonScalar` is `marray`, `vec`, or the `[code]#+__swizzled_vec__+#` type; and
+* The element type is `bfloat16`.
+
+*Returns:* For each element of `x`, the base-10 exponential of `x[i]`.
+
+The return type is `NonScalar` unless `NonScalar` is the `[code]#+__swizzled_vec__+#` type, in which case the return type is the corresponding `vec`.
 
 ==== log
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
-template <typename T>
-T log(T x);
+bfloat16 log(bfloat16 x);                                              (1)
+
+template<typename NonScalar>                                           (2)
+/*return-type*/ log(NonScalar x)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
-===== Description
+===== Overload (1)
 
-Compute natural logarithm of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+Returns the natural logarithm of `x`.
+
+====== Overload (2)
+
+*Constraints:* Available only if all of the following conditions are met:
+
+* `NonScalar` is `marray`, `vec`, or the `[code]#+__swizzled_vec__+#` type; and
+* The element type is `bfloat16`.
+
+*Returns:* For each element of `x`, the natural logarithm of `x[i]`.
+
+The return type is `NonScalar` unless `NonScalar` is the `[code]#+__swizzled_vec__+#` type, in which case the return type is the corresponding `vec`.
 
 ==== log2
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
-template <typename T>
-T log2(T x);
+bfloat16 log2(bfloat16 x);                                              (1)
+
+template<typename NonScalar>                                            (2)
+/*return-type*/ log2(NonScalar x)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
-===== Description
+===== Overload (1)
 
-Compute base-2 logarithm of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+Returns the base-2 logarithm of `x`.
+
+====== Overload (2)
+
+*Constraints:* Available only if all of the following conditions are met:
+
+* `NonScalar` is `marray`, `vec`, or the `[code]#+__swizzled_vec__+#` type; and
+* The element type is `bfloat16`.
+
+*Returns:* For each element of `x`, the base-2 logarithm of `x[i]`.
+
+The return type is `NonScalar` unless `NonScalar` is the `[code]#+__swizzled_vec__+#` type, in which case the return type is the corresponding `vec`.
 
 ==== log10
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
-template <typename T>
-T log10(T x);
+bfloat16 log10(bfloat16 x);                                              (1)
+
+template<typename NonScalar>                                             (2)
+/*return-type*/ log10(NonScalar x)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
-===== Description
+===== Overload (1)
 
-Compute base-10 logarithm of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+Returns the base-10 logarithm of `x`.
+
+====== Overload (2)
+
+*Constraints:* Available only if all of the following conditions are met:
+
+* `NonScalar` is `marray`, `vec`, or the `[code]#+__swizzled_vec__+#` type; and
+* The element type is `bfloat16`.
+
+*Returns:* For each element of `x`, the base-10 logarithm of `x[i]`.
+
+The return type is `NonScalar` unless `NonScalar` is the `[code]#+__swizzled_vec__+#` type, in which case the return type is the corresponding `vec`.
 
 
 ==== rint
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
-template <typename T>
-T rint(T x);
+bfloat16 rint(bfloat16 x);                                              (1)
+
+template<typename NonScalar>                                            (2)
+/*return-type*/ rint(NonScalar x)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
-===== Description
+===== Overload (1)
 
-Returns `x` rounded to an integral value using the round to nearest even rounding mode
-for a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+Returns the value `x` rounded to an integral value (using round to nearest even rounding mode) in floating-point format. Refer to section 7.1 of the OpenCL 1.2 specification document: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#opencl12 for a description of the rounding modes.
+
+====== Overload (2)
+
+*Constraints:* Available only if all of the following conditions are met:
+
+* `NonScalar` is `marray`, `vec`, or the `[code]#+__swizzled_vec__+#` type; and
+* The element type is `bfloat16`.
+
+*Returns:* For each element of `x`, the value `x[i]` rounded to an integral value (using round to nearest even rounding mode) in floating-point format.
+
+The return type is `NonScalar` unless `NonScalar` is the `[code]#+__swizzled_vec__+#` type, in which case the return type is the corresponding `vec`.
 
 ==== sqrt
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
-template <typename T>
-T sqrt(T x);
+bfloat16 sqrt(bfloat16 x);                                              (1)
+
+template<typename NonScalar>                                            (2)
+/*return-type*/ sqrt(NonScalar x)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
-===== Description
+===== Overload (1)
 
-Compute square root of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+Returns the square root of `x`.
+
+====== Overload (2)
+
+*Constraints:* Available only if all of the following conditions are met:
+
+* `NonScalar` is `marray`, `vec`, or the `[code]#+__swizzled_vec__+#` type; and
+* The element type is `bfloat16`.
+
+*Returns:* For each element of `x`, the square root of `x[i]`.
+
+The return type is `NonScalar` unless `NonScalar` is the `[code]#+__swizzled_vec__+#` type, in which case the return type is the corresponding `vec`.
 
 ==== rsqrt
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
-template <typename T>
-T rsqrt(T x);
+bfloat16 rsqrt(bfloat16 x);                                             (1)
+
+template<typename NonScalar>                                            (2)
+/*return-type*/ rsqrt(NonScalar x)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
-===== Description
+===== Overload (1)
 
-Compute inverse square root of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+Returns the inverse square root of `x`.
+
+====== Overload (2)
+
+*Constraints:* Available only if all of the following conditions are met:
+
+* `NonScalar` is `marray`, `vec`, or the `[code]#+__swizzled_vec__+#` type; and
+* The element type is `bfloat16`.
+
+*Returns:* For each element of `x`, the inverse square root of `x[i]`.
+
+The return type is `NonScalar` unless `NonScalar` is the `[code]#+__swizzled_vec__+#` type, in which case the return type is the corresponding `vec`.
 
 ==== trunc
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
-template <typename T>
-T trunc(T x);
+bfloat16 trunc(bfloat16 x);                                             (1)
+
+template<typename NonScalar>                                            (2)
+/*return-type*/ trunc(NonScalar x)
 } // namespace sycl::ext::oneapi::experimental
 ```
 
-===== Description
+===== Overload (1)
 
-Returns `x` rounded to an integral value using the round to zero rounding mode
-for a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+Returns the value `x` rounded to an integral value using the round to zero rounding mode.
+
+====== Overload (2)
+
+*Constraints:* Available only if all of the following conditions are met:
+
+* `NonScalar` is `marray`, `vec`, or the `[code]#+__swizzled_vec__+#` type; and
+* The element type is `bfloat16`.
+
+*Returns:* For each element of `x`, the value `x[i]` rounded to an integral value using the round to zero rounding mode.
+
+The return type is `NonScalar` unless `NonScalar` is the `[code]#+__swizzled_vec__+#` type, in which case the return type is the corresponding `vec`.
 
 == Issues
 
-1. The CUDA backend does not have a use case that would necessitate support
-of the `vec` class in bfloat16 math functions, and `marray` would always be
-preferred over `vec` if `vec` support were to be added in the CUDA backend.
-For portability reasons, support for the `vec` class can be easily added if
-other backends require it.
-
-2. We should decide on a roadmap to extend support of `bfloat16` to other
+1. We should decide on a roadmap to extend support of `bfloat16` to other
 SYCL 2020 math functions.

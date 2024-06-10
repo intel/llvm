@@ -75,11 +75,16 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
         tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
       return()
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -95,23 +100,23 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 396fb20498c315a526c961d7cb645b42795acd2c
-  # Merge: 719bb9cd e2ffea69
+  # commit f06bc02a24418990ecb9d41471b729f32aebd804
+  # Merge: 42c0b025 9868e3b0
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu May 23 10:53:03 2024 +0100
-  #     Merge pull request #1501 from RossBrunton/ross/kerneltests
-  #     [Testing] Spec clarifications and testing updates for kernel
-  set(UNIFIED_RUNTIME_TAG 396fb20498c315a526c961d7cb645b42795acd2c)
+  # Date:   Wed Jun 5 12:02:53 2024 +0100
+  #     Merge pull request #1669 from JackAKirk/fix-usmptr-get-dev
+  #     [CUDA][HIP] Fix urUSMGetMemAllocInfo impl to use single platform.
+  set(UNIFIED_RUNTIME_TAG f06bc02a24418990ecb9d41471b729f32aebd804)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit e428745588dd87e5db3c0bc0df1183eb7d0811a5
-    # Merge: fb3cbd16 80d46bb1
+    # commit 0f118d75f6bfe77eb8d933808f7a125e77ca7358
+    # Merge: ed4211cd 721d63c6
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri May 24 10:31:13 2024 +0100
-    #     Merge pull request #1656 from pbalcer/leaks-program-kernel
-    #     fix leaks on level-zero interop program and kernel handles
-    e428745588dd87e5db3c0bc0df1183eb7d0811a5
+    # Date:   Mon Jun 10 10:38:10 2024 +0100
+    #     Merge pull request #1629 from Bensuo/ewan/L0_update_host_wait
+    #     Use fence rather than event for sync in L0 command-buffer update
+    "0f118d75f6bfe77eb8d933808f7a125e77ca7358"
   )
 
   fetch_adapter_source(opencl

@@ -73,13 +73,11 @@ struct is_sorter : decltype(is_sorter_impl<Sorter, Group, ValOrPtr>::test(0)) {
 // ---- sort_over_group
 template <typename Group, typename T, typename Sorter>
 std::enable_if_t<detail::is_sorter<Sorter, Group, T>::value, T>
-sort_over_group(Group group, T value, Sorter sorter) {
+sort_over_group([[maybe_unused]] Group group, [[maybe_unused]] T value,
+                [[maybe_unused]] Sorter sorter) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sorter(group, value);
 #else
-  (void)group;
-  (void)value;
-  (void)sorter;
   throw sycl::exception(
       std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
       "Group algorithms are not supported on host device.");
@@ -106,14 +104,11 @@ sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
 // ---- joint_sort
 template <typename Group, typename Iter, typename Sorter>
 std::enable_if_t<detail::is_sorter<Sorter, Group, Iter>::value, void>
-joint_sort(Group group, Iter first, Iter last, Sorter sorter) {
+joint_sort([[maybe_unused]] Group group, [[maybe_unused]] Iter first,
+           [[maybe_unused]] Iter last, [[maybe_unused]] Sorter sorter) {
 #ifdef __SYCL_DEVICE_ONLY__
   sorter(group, first, last);
 #else
-  (void)group;
-  (void)first;
-  (void)last;
-  (void)sorter;
   throw sycl::exception(
       std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
       "Group algorithms are not supported on host device.");

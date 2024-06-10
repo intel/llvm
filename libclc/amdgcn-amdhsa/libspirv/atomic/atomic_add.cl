@@ -29,8 +29,13 @@ AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, unsigned long, m, __hip_atomic_fetch_add)
     return __hip_atomic_fetch_add(p, val, memory_order, atomic_scope);                                     \
   }
 
-AMDGPU_ATOMIC_FP32_ADD_IMPL(global, U3AS1, 1, AMDGPU_ARCH_BETWEEN(9010, 10000),
-                            __builtin_amdgcn_global_atomic_fadd_f32)
+// Global AS atomics can be unsafe for malloc shared atomics, so should be opt
+// in
+AMDGPU_ATOMIC_FP32_ADD_IMPL(
+    global, U3AS1, 1,
+    AMDGPU_ARCH_BETWEEN(9010, 10000) &&
+        __oclc_amdgpu_reflect("AMDGPU_OCLC_UNSAFE_FP_ATOMICS"),
+    __builtin_amdgcn_global_atomic_fadd_f32)
 AMDGPU_ATOMIC_FP32_ADD_IMPL(local, U3AS3, 1, AMDGPU_ARCH_GEQ(8000),
                             __builtin_amdgcn_ds_atomic_fadd_f32)
 AMDGPU_ATOMIC_FP32_ADD_IMPL(, , 0, AMDGPU_ARCH_BETWEEN(9400, 10000),
@@ -69,9 +74,13 @@ AMDGPU_ATOMIC_FP32_ADD_IMPL(, , 0, AMDGPU_ARCH_BETWEEN(9400, 10000),
   }
 
 #ifdef cl_khr_int64_base_atomics
-AMDGPU_ATOMIC_FP64_ADD_IMPL(global, U3AS1, 1, 5,
-                            AMDGPU_ARCH_BETWEEN(9010, 10000),
-                            __builtin_amdgcn_global_atomic_fadd_f64)
+// Global AS atomics can be unsafe for malloc shared atomics, so should be opt
+// in
+AMDGPU_ATOMIC_FP64_ADD_IMPL(
+    global, U3AS1, 1, 5,
+    AMDGPU_ARCH_BETWEEN(9010, 10000) &&
+        __oclc_amdgpu_reflect("AMDGPU_OCLC_UNSAFE_FP_ATOMICS"),
+    __builtin_amdgcn_global_atomic_fadd_f64)
 AMDGPU_ATOMIC_FP64_ADD_IMPL(local, U3AS3, 1, 5,
                             AMDGPU_ARCH_BETWEEN(9010, 10000),
                             __builtin_amdgcn_ds_atomic_fadd_f64)

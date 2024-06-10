@@ -47,6 +47,7 @@
 
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/DIBuilder.h"
+#include "llvm/IR/DebugProgramInstruction.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 
@@ -1547,7 +1548,7 @@ MDNode *SPIRVToLLVMDbgTran::transDebugInstImpl(const SPIRVExtInst *DebugInst) {
   }
 }
 
-Instruction *
+DbgInstPtr
 SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
                                         BasicBlock *BB) {
   auto GetLocalVar = [&](SPIRVId Id) -> std::pair<DILocalVariable *, DebugLoc> {
@@ -1572,6 +1573,7 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
   case SPIRVDebug::Declare: {
     using namespace SPIRVDebug::Operand::DebugDeclare;
     auto LocalVar = GetLocalVar(Ops[DebugLocalVarIdx]);
+    DIBuilder &DIB = getDIBuilder(DebugInst);
     if (getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[VariableIdx])) {
       // If we don't have the variable(e.g. alloca might be promoted by mem2reg)
       // we should generate the following IR:
@@ -1581,16 +1583,15 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
       // parameter. To work around this limitation we create a dummy temp
       // alloca, use it to create llvm.dbg.declare, and then remove the alloca.
       auto *AI = new AllocaInst(Type::getInt8Ty(M->getContext()), 0, "tmp", BB);
-      DbgInstPtr DbgDeclare = getDIBuilder(DebugInst).insertDeclare(
+      DbgInstPtr DbgDeclare = DIB.insertDeclare(
           AI, LocalVar.first, GetExpression(Ops[ExpressionIdx]),
           LocalVar.second, BB);
       AI->eraseFromParent();
-      return DbgDeclare.get<Instruction *>();
+      return DbgDeclare;
     }
-    return getDIBuilder(DebugInst)
-        .insertDeclare(GetValue(Ops[VariableIdx]), LocalVar.first,
-                       GetExpression(Ops[ExpressionIdx]), LocalVar.second, BB)
-        .get<Instruction *>();
+    return DIB.insertDeclare(GetValue(Ops[VariableIdx]), LocalVar.first,
+                             GetExpression(Ops[ExpressionIdx]), LocalVar.second,
+                             BB);
   }
   case SPIRVDebug::Value: {
     using namespace SPIRVDebug::Operand::DebugValue;
@@ -1606,10 +1607,15 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
     }
     if (!MDs.empty()) {
       DIArgList *AL = DIArgList::get(M->getContext(), MDs);
-      cast<DbgVariableIntrinsic>(DbgValIntr.get<Instruction *>())
-          ->setRawLocation(AL);
+      if (M->IsNewDbgInfoFormat) {
+        cast<DbgVariableRecord>(DbgValIntr.get<DbgRecord *>())
+            ->setRawLocation(AL);
+      } else {
+        cast<DbgVariableIntrinsic>(DbgValIntr.get<Instruction *>())
+            ->setRawLocation(AL);
+      }
     }
-    return DbgValIntr.get<Instruction *>();
+    return DbgValIntr;
   }
   default:
     llvm_unreachable("Unknown debug intrinsic!");
