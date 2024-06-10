@@ -225,7 +225,7 @@ getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
 /// \return a SYCL event object, which corresponds to the queue the command
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
-  if (is_in_order() && !impl->getCommandGraph())
+  if (is_in_order() && !impl->getCommandGraph() && !impl->MIsProfilingEnabled)
     return getBarrierEventForInorderQueueHelper(impl);
 
   return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
@@ -247,7 +247,8 @@ event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
         auto EventImpl = detail::getSyclObjImpl(Event);
         return !EventImpl->isContextInitialized() || EventImpl->isNOP();
       });
-  if (is_in_order() && !impl->getCommandGraph() && AllEventsEmptyOrNop)
+  if (is_in_order() && !impl->getCommandGraph() && !impl->MIsProfilingEnabled &&
+      AllEventsEmptyOrNop)
     return getBarrierEventForInorderQueueHelper(impl);
 
   return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
