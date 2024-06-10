@@ -11054,7 +11054,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           TC->getTriple().getSubArch() == llvm::Triple::NoSubArch) {
         TargetTriple = TC->getTriple();
         SmallVector<std::string, 8> SYCLDeviceLibs;
-        auto IsSPIR = TargetTriple.isSPIROrSPIRV();
+        bool IsSPIR = TargetTriple.isSPIROrSPIRV();
         bool IsSpirvAOT = TargetTriple.isSPIRAOT();
         bool UseJitLink =
             IsSPIR &&
