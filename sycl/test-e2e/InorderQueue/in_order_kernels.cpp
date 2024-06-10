@@ -80,7 +80,7 @@ int main() {
     q.submit([&](handler &cgh) {
       cgh.parallel_for_work_group<class WkGrp>(
           range<1>{N / 2}, range<1>{2}, [=](group<1> myGroup) {
-            auto j = myGroup.get_id(0);
+            auto j = myGroup.get_group_id(0);
             myGroup.parallel_for_work_item(
                 [&](h_item<1> it) { A[(j * 2) + it.get_local_id(0)]++; });
           });
@@ -89,7 +89,7 @@ int main() {
     q.submit([&](handler &cgh) {
       cgh.parallel_for_work_group(
           range<1>{N / 2}, range<1>{2}, [=](group<1> myGroup) {
-            auto j = myGroup.get_id(0);
+            auto j = myGroup.get_group_id(0);
             myGroup.parallel_for_work_item(
                 [&](h_item<1> it) { A[(j * 2) + it.get_local_id(0)]++; });
           });
