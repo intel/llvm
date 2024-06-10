@@ -81,9 +81,9 @@ static pi_result redefinedProgramCreate(pi_context context, const void *il,
   return PI_SUCCESS;
 }
 
-static pi_result redefinedProgramCreateOutOfHostMemory(pi_context context, const void *il,
-                                        size_t length,
-                                        pi_program *res_program) {
+static pi_result
+redefinedProgramCreateOutOfHostMemory(pi_context context, const void *il,
+                                      size_t length, pi_program *res_program) {
   ++nProgramCreate;
   if (outOfHostMemoryToggle) {
     outOfHostMemoryToggle = false;
