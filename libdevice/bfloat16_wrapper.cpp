@@ -54,11 +54,13 @@ void __devicelib_ConvertBF16ToFINTELVec1(const uint16_t *src, float *dst) {
     *reinterpret_cast<__ocl_vec_t<float, size> *>(dst) = y;                    \
   }
 
+// clang-format off
 GenerateConvertFunctionForVec(2)
 GenerateConvertFunctionForVec(3)
 GenerateConvertFunctionForVec(4)
 GenerateConvertFunctionForVec(8)
 GenerateConvertFunctionForVec(16)
+// clang-format on
 #undef GenerateConvertFunctionForVec
 
 #endif // __SPIR__ || __SPIRV__

@@ -60,12 +60,14 @@ __devicelib_ConvertBF16ToFINTEL(const uint16_t &a) {
     }                                                                          \
   }
 
+// clang-format off
 GenerateConvertFunctionForVec(1)
 GenerateConvertFunctionForVec(2)
 GenerateConvertFunctionForVec(3)
 GenerateConvertFunctionForVec(4)
 GenerateConvertFunctionForVec(8)
 GenerateConvertFunctionForVec(16)
+// clang-format on
 #undef GenerateConvertFunctionForVec
 
 #endif // __SPIR__ || __SPIRV__
