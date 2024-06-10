@@ -54,7 +54,7 @@ enum class FWColumns {
 };
 
 void TestPerformance::runDataStructureTestsThreads(
-    int RunNo, int NumThreads, test::utils::TableModel &Model) {
+    int RunNo, int NumThreads, xpti::utils::TableModel &Model) {
   xptiReset();
   uint64_t TimeInNS;
   double ElapsedTime;
@@ -402,9 +402,9 @@ void TestPerformance::runDataStructureTestsThreads(
 }
 
 void TestPerformance::runDataStructureTests() {
-  test::utils::TableModel Model;
+  xpti::utils::TableModel Model;
 
-  test::utils::titles_t Columns{"Threads",      "Str.Insert", "Str.Lookup",
+  xpti::utils::titles_t Columns{"Threads",      "Str.Insert", "Str.Lookup",
                                 "St.Ins/Lu",    "TP Create",  "TP Un-Cached",
                                 "TP FW-Cached", "TP Local",   "Notify"};
   std::cout << std::setw(Columns.size() * 15 / 2)
@@ -426,7 +426,7 @@ void TestPerformance::runDataStructureTests() {
 }
 
 void TestPerformance::runInstrumentationTestsThreads(
-    int RunNo, int NumThreads, test::utils::TableModel &Model) {
+    int RunNo, int NumThreads, xpti::utils::TableModel &Model) {
   xptiReset();
   uint64_t TimeInNS;
   double ElapsedTime;
@@ -535,9 +535,9 @@ void TestPerformance::runInstrumentationTestsThreads(
 }
 
 void TestPerformance::runInstrumentationTests() {
-  test::utils::TableModel Model;
+  xpti::utils::TableModel Model;
 
-  test::utils::titles_t Columns{
+  xpti::utils::titles_t Columns{
       "Threads",     "TP LU+Notify(ns)", "TP Create(ns)", "Ev/s,cb=10",
       "Ev/s,cb=100", "Ev/s,cb=500",      "Ev/s,cb=1000",  "Ev/s,cb=2000"};
   std::cout << std::setw(Columns.size() * 15 / 2) << "Framework Tests\n";

@@ -21,6 +21,46 @@
 #include "xpti/xpti_trace_framework.h"
 #endif
 
+#include <sycl/detail/iostream_proxy.hpp>
+
+#define __SYCL_REPORT_PI_ERR_TO_STREAM(expr)                                   \
+  {                                                                            \
+    auto code = expr;                                                          \
+    if (code != PI_SUCCESS) {                                                  \
+      std::cerr << __SYCL_PI_ERROR_REPORT << sycl::detail::codeToString(code)  \
+                << std::endl;                                                  \
+    }                                                                          \
+  }
+
+#define __SYCL_REPORT_PI_ERR_TO_EXC(expr, exc, str)                            \
+  {                                                                            \
+    auto code = expr;                                                          \
+    if (code != PI_SUCCESS) {                                                  \
+      std::string err_str =                                                    \
+          str ? "\n" + std::string(str) + "\n" : std::string{};                \
+      throw exc(__SYCL_PI_ERROR_REPORT + sycl::detail::codeToString(code) +    \
+                    err_str,                                                   \
+                code);                                                         \
+    }                                                                          \
+  }
+
+#define __SYCL_REPORT_ERR_TO_EXC_VIA_ERRC(expr, errc)                          \
+  {                                                                            \
+    auto code = expr;                                                          \
+    if (code != PI_SUCCESS) {                                                  \
+      throw sycl::exception(sycl::make_error_code(errc),                       \
+                            __SYCL_PI_ERROR_REPORT +                           \
+                                sycl::detail::codeToString(code));             \
+    }                                                                          \
+  }
+
+#define __SYCL_CHECK_OCL_CODE_THROW(X, EXC, STR)                               \
+  __SYCL_REPORT_PI_ERR_TO_EXC(X, EXC, STR)
+#define __SYCL_CHECK_OCL_CODE_NO_EXC(X) __SYCL_REPORT_PI_ERR_TO_STREAM(X)
+
+#define __SYCL_CHECK_CODE_THROW_VIA_ERRC(X, ERRC)                              \
+  __SYCL_REPORT_ERR_TO_EXC_VIA_ERRC(X, ERRC)
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -187,7 +227,9 @@ public:
       CorrelationID = pi::emitFunctionBeginTrace(PIFnName);
       CorrelationIDAvailable = true;
     }
-    unsigned char *ArgsDataPtr = nullptr;
+    using PackCallArgumentsTy =
+        decltype(packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...));
+    std::unique_ptr<PackCallArgumentsTy> ArgsDataPtr = nullptr;
     // If subscribers are listening to Pi debug call stream, only then prepare
     // the data for the notifications and emit notifications. Even though the
     // function emitFunctionWithArgsBeginTrace() checks for the trqace typoe
@@ -196,16 +238,14 @@ public:
     if (xptiCheckTraceEnabled(
             PiDebugCallStreamID,
             (uint16_t)xpti::trace_point_type_t::function_with_args_begin)) {
-      using PackCallArgumentsTy = decltype(packCallArguments<PiApiOffset>(
-          std::forward<ArgsT>(Args)...));
-      auto ArgsData =
+      // TODO check if stream is observed when corresponding API is present.
+      ArgsDataPtr = std::make_unique<PackCallArgumentsTy>(
           xptiTraceEnabled()
               ? packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...)
-              : PackCallArgumentsTy{};
-      // TODO check if stream is observed when corresponding API is present.
-      ArgsDataPtr = ArgsData.data();
+              : PackCallArgumentsTy{});
       CorrelationIDWithArgs = pi::emitFunctionWithArgsBeginTrace(
-          static_cast<uint32_t>(PiApiOffset), PIFnName, ArgsDataPtr, *MPlugin);
+          static_cast<uint32_t>(PiApiOffset), PIFnName, ArgsDataPtr->data(),
+          *MPlugin);
       CorrelationIDWithArgsAvailable = true;
     }
 #endif
@@ -240,9 +280,9 @@ public:
       pi::emitFunctionEndTrace(CorrelationID, PIFnName);
     }
     if (CorrelationIDWithArgsAvailable) {
-      pi::emitFunctionWithArgsEndTrace(CorrelationIDWithArgs,
-                                       static_cast<uint32_t>(PiApiOffset),
-                                       PIFnName, ArgsDataPtr, R, *MPlugin);
+      pi::emitFunctionWithArgsEndTrace(
+          CorrelationIDWithArgs, static_cast<uint32_t>(PiApiOffset), PIFnName,
+          ArgsDataPtr->data(), R, *MPlugin);
     }
 #endif
     return R;

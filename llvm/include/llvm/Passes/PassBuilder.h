@@ -268,12 +268,12 @@ public:
   /// the LTO run.
   ModulePassManager buildThinLTOPreLinkDefaultPipeline(OptimizationLevel Level);
 
-  /// Build an ThinLTO default optimization pipeline to a pass manager.
+  /// Build a ThinLTO default optimization pipeline to a pass manager.
   ///
   /// This provides a good default optimization pipeline for link-time
   /// optimization and code generation. It is particularly tuned to fit well
   /// when IR coming into the LTO phase was first run through \c
-  /// addPreLinkLTODefaultPipeline, and the two coordinate closely.
+  /// buildThinLTOPreLinkDefaultPipeline, and the two coordinate closely.
   ModulePassManager
   buildThinLTODefaultPipeline(OptimizationLevel Level,
                               const ModuleSummaryIndex *ImportSummary);
@@ -292,7 +292,7 @@ public:
   /// This provides a good default optimization pipeline for link-time
   /// optimization and code generation. It is particularly tuned to fit well
   /// when IR coming into the LTO phase was first run through \c
-  /// addPreLinkLTODefaultPipeline, and the two coordinate closely.
+  /// buildLTOPreLinkDefaultPipeline, and the two coordinate closely.
   ModulePassManager buildLTODefaultPipeline(OptimizationLevel Level,
                                             ModuleSummaryIndex *ExportSummary);
 
@@ -680,6 +680,13 @@ public:
     return Result;
   }
 
+  /// Handle passes only accept one bool-valued parameter.
+  ///
+  /// \return false when Params is empty.
+  static Expected<bool> parseSinglePassOption(StringRef Params,
+                                              StringRef OptionName,
+                                              StringRef PassName);
+
 private:
   // O1 pass pipeline
   FunctionPassManager
@@ -724,6 +731,7 @@ private:
                          bool AtomicCounterUpdate, std::string ProfileFile,
                          std::string ProfileRemappingFile,
                          IntrusiveRefCntPtr<vfs::FileSystem> FS);
+  void addPostPGOLoopRotation(ModulePassManager &MPM, OptimizationLevel Level);
 
   // Extension Point callbacks
   SmallVector<std::function<void(FunctionPassManager &, OptimizationLevel)>, 2>
@@ -910,8 +918,7 @@ struct NoOpLoopPass : PassInfoMixin<NoOpLoopPass> {
 };
 
 /// No-op machine function pass which does nothing.
-struct NoOpMachineFunctionPass
-    : public MachinePassInfoMixin<NoOpMachineFunctionPass> {
+struct NoOpMachineFunctionPass : public PassInfoMixin<NoOpMachineFunctionPass> {
   PreservedAnalyses run(MachineFunction &, MachineFunctionAnalysisManager &) {
     return PreservedAnalyses::all();
   }

@@ -64,6 +64,37 @@ pi_result after_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
 }
 
+pi_result after_piDeviceGetInfo_unsupported(pi_device device,
+                                            pi_device_info param_name,
+                                            size_t param_value_size,
+                                            void *param_value,
+                                            size_t *param_value_size_ret) {
+  switch (param_name) {
+  case PI_EXT_ONEAPI_DEVICE_INFO_COMPOSITE_DEVICE:
+  case PI_EXT_ONEAPI_DEVICE_INFO_COMPONENT_DEVICES:
+    return PI_ERROR_INVALID_VALUE;
+
+  default:
+    return PI_SUCCESS;
+  }
+}
+
+pi_result after_piDeviceGetInfo_no_component_devices(
+    pi_device device, pi_device_info param_name, size_t param_value_size,
+    void *param_value, size_t *param_value_size_ret) {
+  switch (param_name) {
+  case PI_EXT_ONEAPI_DEVICE_INFO_COMPOSITE_DEVICE:
+    return PI_ERROR_INVALID_VALUE;
+  case PI_EXT_ONEAPI_DEVICE_INFO_COMPONENT_DEVICES:
+    if (param_value_size_ret)
+      *param_value_size_ret = 0;
+    return PI_SUCCESS;
+
+  default:
+    return PI_SUCCESS;
+  }
+}
+
 thread_local std::vector<pi_device> DevicesUsedInContextCreation;
 
 pi_result after_piContextCreate(const pi_context_properties *,
@@ -79,7 +110,7 @@ pi_result after_piContextCreate(const pi_context_properties *,
 
 } // namespace
 
-TEST(CompositeDeviceTest, DescendentDeviceSupport) {
+TEST(CompositeDeviceTest, DescendentDeviceSupportInContext) {
   sycl::unittest::PiMock Mock(sycl::backend::ext_oneapi_level_zero);
   Mock.redefine<sycl::detail::PiApiKind::piDevicesGet>(redefine_piDevicesGet);
   Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
@@ -118,4 +149,62 @@ TEST(CompositeDeviceTest, DescendentDeviceSupport) {
   // by user to the context constructor.
   ASSERT_EQ(CompositeDevContext.get_devices().size(), 1u);
   ASSERT_EQ(CompositeDevContext.get_devices().front(), CompositeDevice);
+}
+
+TEST(CompositeDeviceTest, DescendentDeviceSupportInQueue) {
+  sycl::unittest::PiMock Mock(sycl::backend::ext_oneapi_level_zero);
+  Mock.redefine<sycl::detail::PiApiKind::piDevicesGet>(redefine_piDevicesGet);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+      after_piDeviceGetInfo);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piContextCreate>(
+      after_piContextCreate);
+
+  sycl::platform Plt = Mock.getPlatform();
+  ASSERT_EQ(Plt.get_backend(), sycl::backend::ext_oneapi_level_zero);
+
+  sycl::device ComponentDevice = Plt.get_devices()[0];
+  ASSERT_TRUE(ComponentDevice.has(sycl::aspect::ext_oneapi_is_component));
+
+  auto CompositeDevice = ComponentDevice.get_info<
+      sycl::ext::oneapi::experimental::info::device::composite_device>();
+  sycl::context CompositeDevContext(CompositeDevice);
+  // Component device should be implicitly usable as part of composite context,
+  // so there should be no errors during queue creation below.
+  sycl::queue Queue(CompositeDevContext, ComponentDevice);
+}
+
+TEST(CompositeDeviceTest, UnsupportedNegative) {
+  // For the unsupported case, the backend does not need to be L0.
+  sycl::unittest::PiMock Mock;
+  Mock.redefine<sycl::detail::PiApiKind::piDevicesGet>(redefine_piDevicesGet);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+      after_piDeviceGetInfo_unsupported);
+
+  sycl::platform Plt = Mock.getPlatform();
+
+  sycl::device ComponentDevice = Plt.get_devices()[0];
+  ASSERT_FALSE(ComponentDevice.has(sycl::aspect::ext_oneapi_is_component));
+
+  try {
+    std::ignore = ComponentDevice.get_info<
+        sycl::ext::oneapi::experimental::info::device::composite_device>();
+  } catch (sycl::exception &E) {
+    ASSERT_EQ(E.code(), sycl::make_error_code(sycl::errc::invalid));
+  }
+}
+
+TEST(CompositeDeviceTest, NoComponentDevices) {
+  sycl::unittest::PiMock Mock;
+  Mock.redefine<sycl::detail::PiApiKind::piDevicesGet>(redefine_piDevicesGet);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+      after_piDeviceGetInfo_no_component_devices);
+
+  sycl::platform Plt = Mock.getPlatform();
+
+  sycl::device ComponentDevice = Plt.get_devices()[0];
+  ASSERT_FALSE(ComponentDevice.has(sycl::aspect::ext_oneapi_is_composite));
+
+  std::vector<sycl::device> ComponentDevices = ComponentDevice.get_info<
+      sycl::ext::oneapi::experimental::info::device::component_devices>();
+  ASSERT_TRUE(ComponentDevices.empty());
 }

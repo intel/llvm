@@ -1,8 +1,8 @@
 #pragma once
 
 #include <string>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl::ext::oneapi::experimental;
 using namespace sycl;

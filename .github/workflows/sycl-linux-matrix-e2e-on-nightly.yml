@@ -10,8 +10,7 @@ on:
           Format: '{"VAR1":"VAL1","VAR2":"VAL2",...}'
         default: '{"LIT_FILTER":""}'
 
-permissions:
-  contents: read
+permissions: read-all
 
 jobs:
   linux_e2e_on_nightly:

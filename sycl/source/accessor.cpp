@@ -9,6 +9,7 @@
 #include <detail/queue_impl.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
 #include <sycl/accessor.hpp>
+#include <sycl/accessor_image.hpp>
 
 namespace sycl {
 inline namespace _V1 {

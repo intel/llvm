@@ -107,9 +107,6 @@ public:
              const async_handler &AsyncHandler, const property_list &PropList)
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList), MHostQueue(MDevice->is_host()),
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-        MAssertHappenedBuffer(range<1>{1}),
-#endif
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
@@ -291,9 +288,6 @@ public:
   queue_impl(sycl::detail::pi::PiQueue PiQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler)
       : MContext(Context), MAsyncHandler(AsyncHandler), MHostQueue(false),
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-        MAssertHappenedBuffer(range<1>{1}),
-#endif
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
@@ -316,9 +310,6 @@ public:
              const async_handler &AsyncHandler, const property_list &PropList)
       : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(PropList),
         MHostQueue(false),
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-        MAssertHappenedBuffer(range<1>{1}),
-#endif
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
@@ -390,6 +381,26 @@ public:
   ///
   /// The return type depends on information being queried.
   template <typename Param> typename Param::return_type get_info() const;
+
+  /// Queries SYCL queue for SYCL backend-specific information.
+  ///
+  /// The return type depends on information being queried.
+  template <typename Param>
+  typename Param::return_type get_backend_info() const;
+
+  /// Provides a hint to the backend to execute previously issued commands on
+  /// this queue. Overrides normal batching behaviour. Note that this is merely
+  /// a hint and not a guarantee.
+  void flush() {
+    if (MGraph.lock()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "flush cannot be called for a queue which is "
+                            "recording to a command graph.");
+    }
+    for (const auto &queue : MQueues) {
+      getPlugin()->call<PiApiKind::piQueueFlush>(queue);
+    }
+  }
 
   using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
 
@@ -688,12 +699,6 @@ public:
   /// \return a native handle.
   pi_native_handle getNative(int32_t &NativeHandleDesc) const;
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  buffer<AssertHappened, 1> &getAssertHappenedBuffer() {
-    return MAssertHappenedBuffer;
-  }
-#endif
-
   void registerStreamServiceEvent(const EventImplPtr &Event) {
     std::lock_guard<std::mutex> Lock(MStreamsServiceEventsMutex);
     MStreamsServiceEvents.push_back(Event);
@@ -727,7 +732,7 @@ public:
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
     std::lock_guard<std::mutex> Lock(MMutex);
     MGraph = Graph;
-    MGraphLastEventPtr = nullptr;
+    MExtGraphDeps.LastEventPtr = nullptr;
   }
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
@@ -754,6 +759,18 @@ public:
                           std::vector<event> &MutableVec,
                           std::unique_lock<std::mutex> &QueueLock);
 
+  // Helps to manage host tasks presence in scenario with barrier usage.
+  // Approach that tracks almost all tasks to provide barrier sync for both pi
+  // tasks and host tasks is applicable for out of order queues only. No-op
+  // for in order ones.
+  void tryToResetEnqueuedBarrierDep(const EventImplPtr &EnqueuedBarrierEvent);
+
+  // Called on host task completion that could block some kernels from enqueue.
+  // Approach that tracks almost all tasks to provide barrier sync for both pi
+  // tasks and host tasks is applicable for out of order queues only. Not neede
+  // for in order ones.
+  void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
+
 protected:
   event discard_or_return(const event &Event);
   // Hook to the scheduler to clean up any fusion command held on destruction.
@@ -773,11 +790,11 @@ protected:
       //    by a host task. This dependency allows to build the enqueue order in
       //    the RT but will not be passed to the backend. See getPIEvents in
       //    Command.
-      auto &EventToBuildDeps =
-          MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
+
+      auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
+                                                : MExtGraphDeps.LastEventPtr;
       if (EventToBuildDeps)
-        Handler.depends_on(
-            createSyclObjFromImpl<sycl::event>(EventToBuildDeps));
+        Handler.depends_on(EventToBuildDeps);
 
       // If there is an external event set, add it as a dependency and clear it.
       // We do not need to hold the lock as MLastEventMtx will ensure the last
@@ -788,11 +805,35 @@ protected:
 
       EventRet = Handler.finalize();
       EventToBuildDeps = getSyclObjImpl(EventRet);
-    } else
+    } else {
+      const CG::CGTYPE Type = Handler.getType();
+
+      // The following code supports barrier synchronization if host task is
+      // involved in the scenario. Native barriers cannot handle host task
+      // dependency so in the case where some commands were not enqueued
+      // (blocked), we track them to prevent barrier from being enqueued
+      // earlier.
+      std::lock_guard<std::mutex> Lock{MMutex};
+      auto &Deps = MGraph.expired() ? MDefaultGraphDeps : MExtGraphDeps;
+      if (Type == CG::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
+        Handler.depends_on(Deps.UnenqueuedCmdEvents);
+      }
+      if (Deps.LastBarrier)
+        Handler.depends_on(Deps.LastBarrier);
       EventRet = Handler.finalize();
+      EventImplPtr EventRetImpl = getSyclObjImpl(EventRet);
+      if (Type == CG::CodeplayHostTask)
+        Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
+      else if (!EventRetImpl->isEnqueued()) {
+        if (Type == CG::Barrier || Type == CG::BarrierWaitlist) {
+          Deps.LastBarrier = EventRetImpl;
+          Deps.UnenqueuedCmdEvents.clear();
+        } else
+          Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
+      }
+    }
   }
 
-protected:
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
@@ -808,53 +849,7 @@ protected:
                     const std::shared_ptr<queue_impl> &PrimaryQueue,
                     const std::shared_ptr<queue_impl> &SecondaryQueue,
                     const detail::code_location &Loc,
-                    const SubmitPostProcessF *PostProcess) {
-    // Flag used to detect nested calls to submit and report an error.
-    thread_local static bool PreventSubmit = false;
-
-    if (PreventSubmit) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Calls to sycl::queue::submit cannot be nested. Command group "
-          "function objects should use the sycl::handler API instead.");
-    }
-
-    handler Handler(Self, PrimaryQueue, SecondaryQueue, MHostQueue);
-    Handler.saveCodeLoc(Loc);
-    PreventSubmit = true;
-    try {
-      CGF(Handler);
-    } catch (...) {
-      PreventSubmit = false;
-      throw;
-    }
-    PreventSubmit = false;
-
-    // Scheduler will later omit events, that are not required to execute tasks.
-    // Host and interop tasks, however, are not submitted to low-level runtimes
-    // and require separate dependency management.
-    const CG::CGTYPE Type = Handler.getType();
-    event Event = detail::createSyclObjFromImpl<event>(
-        std::make_shared<detail::event_impl>());
-
-    if (PostProcess) {
-      bool IsKernel = Type == CG::Kernel;
-      bool KernelUsesAssert = false;
-
-      if (IsKernel)
-        // Kernel only uses assert if it's non interop one
-        KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
-                           ProgramManager::getInstance().kernelUsesAssert(
-                               Handler.MKernelName.c_str());
-      finalizeHandler(Handler, Event);
-
-      (*PostProcess)(IsKernel, KernelUsesAssert, Event);
-    } else
-      finalizeHandler(Handler, Event);
-
-    addEvent(Event);
-    return Event;
-  }
+                    const SubmitPostProcessF *PostProcess);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param Self is a shared_ptr to this queue.
@@ -934,18 +929,16 @@ protected:
   /// need to emulate it with multiple native in-order queues.
   bool MEmulateOOO = false;
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Buffer to store assert failure descriptor
-  buffer<AssertHappened, 1> MAssertHappenedBuffer;
-#endif
-
-  // This event is employed for enhanced dependency tracking with in-order queue
-  // Access to the event should be guarded with MMutex
-  EventImplPtr MLastEventPtr;
-  // Same as above but for graph begin-end recording cycle.
-  // Track deps within graph commands separately.
-  // Protected by common queue object mutex MMutex.
-  EventImplPtr MGraphLastEventPtr;
+  // Access should be guarded with MMutex
+  struct DependencyTrackingItems {
+    // This event is employed for enhanced dependency tracking with in-order
+    // queue
+    EventImplPtr LastEventPtr;
+    // The following two items are employed for proper out of order enqueue
+    // ordering
+    std::vector<EventImplPtr> UnenqueuedCmdEvents;
+    EventImplPtr LastBarrier;
+  } MDefaultGraphDeps, MExtGraphDeps;
 
   const bool MIsInorder;
 

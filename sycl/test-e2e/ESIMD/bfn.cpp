@@ -15,11 +15,6 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
-#include <iostream>
-
 using namespace sycl;
 using namespace sycl::ext::intel;
 
@@ -107,8 +102,9 @@ struct DeviceFunc {
   DeviceFunc(const T *In0, const T *In1, const T *In2, T *Out)
       : In0(In0), In1(In1), In2(In2), Out(Out) {}
 
-  void operator()(id<1> I) const SYCL_ESIMD_KERNEL {
-    unsigned int Offset = I * N;
+  void operator()(nd_item<1> ndi) const SYCL_ESIMD_KERNEL {
+    auto gid = ndi.get_global_id(0);
+    unsigned int Offset = gid * N;
     esimd::simd<T, N> V0;
     esimd::simd<T, N> V1;
     esimd::simd<T, N> V2;
@@ -116,7 +112,7 @@ struct DeviceFunc {
     V1.copy_from(In1 + Offset);
     V2.copy_from(In2 + Offset);
 
-    if (I.get(0) % 2 == 0) {
+    if (gid % 2 == 0) {
       for (int J = 0; J < N; J++) {
         Kernel<T, N, Op, AllSca> DevF{};
         T Val0 = V0[J];

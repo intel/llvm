@@ -4,11 +4,48 @@
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
+template <typename DType, int NChannels>
+std::ostream &operator<<(std::ostream &os,
+                         const sycl::vec<DType, NChannels> &vec) {
+  std::string str{""};
+  for (int i = 0; i < NChannels; ++i) {
+    str += std::to_string(vec[i]) + ",";
+  }
+  str.pop_back();
+  os << str;
+  return os;
+}
+
 namespace bindless_helpers {
+
+template <typename DType, int NChannel>
+constexpr sycl::vec<DType, NChannel> init_vector(DType val) {
+  if constexpr (NChannel == 1) {
+    return sycl::vec<DType, NChannel>{val};
+  } else if constexpr (NChannel == 2) {
+    return sycl::vec<DType, NChannel>{val, val};
+  } else if constexpr (NChannel == 4) {
+    return sycl::vec<DType, NChannel>{val, val, val, val};
+  } else {
+    std::cerr << "Unsupported number of channels " << NChannel << "\n";
+    exit(-1);
+  }
+}
+
+template <typename DType, int NChannels>
+bool equal_vec(sycl::vec<DType, NChannels> v1, sycl::vec<DType, NChannels> v2) {
+  for (int i = 0; i < NChannels; ++i) {
+    if (v1[i] != v2[i]) {
+      return false;
+    }
+  }
+  return true;
+}
 
 template <typename DType, int NChannels>
 static void fill_rand(std::vector<sycl::vec<DType, NChannels>> &v,
                       int seed = std::default_random_engine::default_seed) {
+  assert(!v.empty());
   std::default_random_engine generator;
   generator.seed(seed);
   auto distribution = [&]() {
@@ -16,6 +53,8 @@ static void fill_rand(std::vector<sycl::vec<DType, NChannels>> &v,
       return std::uniform_real_distribution<float>(0.0, 100.0);
     } else if constexpr (std::is_floating_point_v<DType>) {
       return std::uniform_real_distribution<DType>(0.0, 100.0);
+    } else if constexpr (sizeof(DType) == 1) {
+      return std::uniform_int_distribution<unsigned short>(0, 100);
     } else {
       return std::uniform_int_distribution<DType>(0, 100);
     }
@@ -24,7 +63,7 @@ static void fill_rand(std::vector<sycl::vec<DType, NChannels>> &v,
     sycl::vec<DType, NChannels> temp;
 
     for (int j = 0; j < NChannels; j++) {
-      temp[j] = distribution(generator);
+      temp[j] = static_cast<DType>(distribution(generator));
     }
 
     v[i] = temp;

@@ -292,64 +292,6 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
   // env only.
   //
   ods_target_list *OdsTargetList = SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
-
-  // Will we be filtering with SYCL_DEVICE_FILTER or ONEAPI_DEVICE_SELECTOR ?
-  // We do NOT attempt to support both simultaneously.
-  if (OdsTargetList && FilterList) {
-    throw sycl::exception(sycl::make_error_code(errc::invalid),
-                          "ONEAPI_DEVICE_SELECTOR cannot be used in "
-                          "conjunction with SYCL_DEVICE_FILTER");
-  }
-  if (FilterList) {
-    std::vector<device_filter> Filters = FilterList->get();
-    bool OpenCLFound = false;
-    bool LevelZeroFound = false;
-    bool CudaFound = false;
-    bool EsimdCpuFound = false;
-    bool HIPFound = false;
-    bool NativeCPUFound = false;
-    for (const device_filter &Filter : Filters) {
-      backend Backend = Filter.Backend ? Filter.Backend.value() : backend::all;
-      if (!OpenCLFound &&
-          (Backend == backend::opencl || Backend == backend::all)) {
-        PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
-        OpenCLFound = true;
-      }
-      if (!LevelZeroFound && (Backend == backend::ext_oneapi_level_zero ||
-                              Backend == backend::all)) {
-        PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
-                                 backend::ext_oneapi_level_zero);
-        LevelZeroFound = true;
-      }
-      if (!CudaFound &&
-          (Backend == backend::ext_oneapi_cuda || Backend == backend::all)) {
-        PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME,
-                                 backend::ext_oneapi_cuda);
-        CudaFound = true;
-      }
-      if (!EsimdCpuFound && Backend == backend::ext_intel_esimd_emulator) {
-        PluginNames.emplace_back(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME,
-                                 backend::ext_intel_esimd_emulator);
-        EsimdCpuFound = true;
-      }
-      if (!HIPFound &&
-          (Backend == backend::ext_oneapi_hip || Backend == backend::all)) {
-        PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME,
-                                 backend::ext_oneapi_hip);
-        HIPFound = true;
-      }
-      if (!NativeCPUFound && (Backend == backend::ext_oneapi_native_cpu ||
-                              Backend == backend::all)) {
-        PluginNames.emplace_back(__SYCL_NATIVE_CPU_PLUGIN_NAME,
-                                 backend::ext_oneapi_native_cpu);
-      }
-      PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
-    }
-    return PluginNames;
-  }
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   if (!OdsTargetList) {
     PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
     PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
@@ -373,12 +315,6 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
       PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME,
                                backend::ext_oneapi_cuda);
     }
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    if (list.backendCompatible(backend::ext_intel_esimd_emulator)) {
-      PluginNames.emplace_back(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME,
-                               backend::ext_intel_esimd_emulator);
-    }
-#endif
     if (list.backendCompatible(backend::ext_oneapi_hip)) {
       PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
     }
@@ -434,12 +370,16 @@ bool trace(TraceLevel Level) {
 
 // Initializes all available Plugins.
 std::vector<PluginPtr> &initialize() {
-  static std::once_flag PluginsInitDone;
-  // std::call_once is blocking all other threads if a thread is already
-  // creating a vector of plugins. So, no additional lock is needed.
-  std::call_once(PluginsInitDone, [&]() {
+  // This uses static variable initialization to work around a gcc bug with
+  // std::call_once and exceptions.
+  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66146
+  auto initializeHelper = []() {
     initializePlugins(GlobalHandler::instance().getPlugins());
-  });
+    return true;
+  };
+  static bool Initialized = initializeHelper();
+  std::ignore = Initialized;
+
   return GlobalHandler::instance().getPlugins();
 }
 

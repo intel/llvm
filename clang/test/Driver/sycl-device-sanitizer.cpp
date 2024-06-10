@@ -5,6 +5,7 @@
 // SYCL-ASAN-SAME: -fsanitize-address-use-after-return=never
 // SYCL-ASAN-SAME: -fno-sanitize-address-use-after-scope
 // SYCL-ASAN-SAME: "-mllvm" "-asan-instrumentation-with-call-threshold=0"
+// SYCL-ASAN-SAME: "-mllvm" "-asan-constructor-kind=none"
 // SYCL-ASAN-SAME: "-mllvm" "-asan-stack=0"
 // SYCL-ASAN-SAME: "-mllvm" "-asan-globals=0"
 

@@ -797,7 +797,8 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
         Arg->claim();
         if (LegacySanitizeCoverage != 0 && DiagnoseErrors) {
           D.Diag(diag::warn_drv_deprecated_arg)
-              << Arg->getAsString(Args) << "-fsanitize-coverage=trace-pc-guard";
+              << Arg->getAsString(Args) << /*hasReplacement=*/true
+              << "-fsanitize-coverage=trace-pc-guard";
         }
         continue;
       }
@@ -833,11 +834,11 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
     // enabled.
     if (CoverageFeatures & CoverageTraceBB)
       D.Diag(clang::diag::warn_drv_deprecated_arg)
-          << "-fsanitize-coverage=trace-bb"
+          << "-fsanitize-coverage=trace-bb" << /*hasReplacement=*/true
           << "-fsanitize-coverage=trace-pc-guard";
     if (CoverageFeatures & Coverage8bitCounters)
       D.Diag(clang::diag::warn_drv_deprecated_arg)
-          << "-fsanitize-coverage=8bit-counters"
+          << "-fsanitize-coverage=8bit-counters" << /*hasReplacement=*/true
           << "-fsanitize-coverage=trace-pc-guard";
   }
 
@@ -849,7 +850,7 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
   if ((CoverageFeatures & InsertionPointTypes) &&
       !(CoverageFeatures & InstrumentationTypes) && DiagnoseErrors) {
     D.Diag(clang::diag::warn_drv_deprecated_arg)
-        << "-fsanitize-coverage=[func|bb|edge]"
+        << "-fsanitize-coverage=[func|bb|edge]" << /*hasReplacement=*/true
         << "-fsanitize-coverage=[func|bb|edge],[trace-pc-guard|trace-pc],["
            "control-flow]";
   }
@@ -1139,8 +1140,9 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       return;
     GPUSanitize = true;
   }
-  // SPIR sanitizer support is experimental and will pass a fixed set of flags
-  if (TC.getTriple().isSPIR()) {
+  // SPIR/SPIRV sanitizer support is experimental and will pass a fixed set of
+  // flags
+  if (TC.getTriple().isSPIROrSPIRV()) {
     if (Sanitizers.has(SanitizerKind::Address)) {
       CmdArgs.push_back("-fsanitize=address");
       CmdArgs.push_back("-fsanitize-address-use-after-return=never");
@@ -1149,6 +1151,10 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       // -fsanitize-address-outline-instrumentation
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-asan-instrumentation-with-call-threshold=0");
+
+      // asan initialization is done in unified runtime rather than in ctor.
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-asan-constructor-kind=none");
 
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-asan-stack=0");
@@ -1210,7 +1216,9 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
                           BinaryMetadataIgnorelistFiles);
   }
 
-  if (TC.getTriple().isOSWindows() && needsUbsanRt()) {
+  if (TC.getTriple().isOSWindows() && needsUbsanRt() &&
+      Args.hasFlag(options::OPT_frtlib_defaultlib,
+                   options::OPT_fno_rtlib_defaultlib, true)) {
     // Instruct the code generator to embed linker directives in the object file
     // that cause the required runtime libraries to be linked.
     CmdArgs.push_back(
@@ -1221,7 +1229,9 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
           "--dependent-lib=" +
           TC.getCompilerRTBasename(Args, "ubsan_standalone_cxx")));
   }
-  if (TC.getTriple().isOSWindows() && needsStatsRt()) {
+  if (TC.getTriple().isOSWindows() && needsStatsRt() &&
+      Args.hasFlag(options::OPT_frtlib_defaultlib,
+                   options::OPT_fno_rtlib_defaultlib, true)) {
     CmdArgs.push_back(Args.MakeArgString(
         "--dependent-lib=" + TC.getCompilerRTBasename(Args, "stats_client")));
 

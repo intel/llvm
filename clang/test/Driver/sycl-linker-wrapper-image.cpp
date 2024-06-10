@@ -31,7 +31,7 @@ int main() {
 // CHECK-DAG: %__sycl.tgt_device_image = type { i16, i8, i8, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr }
 // CHECK-DAG: %__sycl.tgt_bin_desc = type { i16, i16, ptr, ptr, ptr }
 
-// CHECK-DAG: @.sycl_offloading.target.0 = internal unnamed_addr constant [23 x i8] c"spir64-unknown-unknown\00"
+// CHECK-DAG: @.sycl_offloading.target.0 = internal unnamed_addr constant [7 x i8] c"spir64\00"
 // CHECK-DAG: @.sycl_offloading.opts.compile.0 = internal unnamed_addr constant [1 x i8] zeroinitializer
 // CHECK-DAG: @.sycl_offloading.opts.link.0 = internal unnamed_addr constant [1 x i8] zeroinitializer
 // CHECK-DAG: @prop = internal unnamed_addr constant [17 x i8] c"DeviceLibReqMask\00"

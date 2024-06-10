@@ -8,11 +8,11 @@
 
 #pragma once
 #include <detail/device_impl.hpp>
+#include <detail/jit_compiler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_util.hpp>
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
-#include <sycl/detail/common_info.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
@@ -25,7 +25,10 @@
 #include <sycl/platform.hpp>
 
 #include <chrono>
+#include <sstream>
 #include <thread>
+
+#include "split_string.hpp"
 
 namespace sycl {
 inline namespace _V1 {
@@ -639,6 +642,11 @@ constexpr std::pair<const int, oneapi_exp_arch> IntelGPUArchitectures[] = {
     {0x030e4000, oneapi_exp_arch::intel_gpu_acm_g12},
     {0x030f0007, oneapi_exp_arch::intel_gpu_pvc},
     {0x030f4007, oneapi_exp_arch::intel_gpu_pvc_vg},
+    {0x03118004, oneapi_exp_arch::intel_gpu_mtl_u},
+    {0x0311c004, oneapi_exp_arch::intel_gpu_mtl_h},
+    {0x03128004, oneapi_exp_arch::intel_gpu_arl_h},
+    {0x05004004, oneapi_exp_arch::intel_gpu_bmg_g21},
+    {0x05010004, oneapi_exp_arch::intel_gpu_lnl_m},
 };
 
 // Only for Intel CPU architectures
@@ -803,6 +811,8 @@ struct get_device_info_impl<
           {8, 0, 0, 0, 16, 16, matrix_type::bf16, matrix_type::bf16,
            matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 16, 16, 16, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 1, 64, 16, matrix_type::bf16, matrix_type::bf16,
            matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 32, 64, 16, matrix_type::bf16, matrix_type::bf16,
            matrix_type::fp32, matrix_type::fp32},
@@ -1151,6 +1161,11 @@ struct get_device_info_impl<
     bool, ext::codeplay::experimental::info::device::supports_fusion> {
   static bool get(const DeviceImplPtr &Dev) {
 #if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+    // If the JIT library can't be loaded or entry points in the JIT library
+    // can't be resolved, fusion is not available.
+    if (!jit_compiler::get_instance().isAvailable()) {
+      return false;
+    }
     // Currently fusion is only supported for SPIR-V based backends,
     // CUDA and HIP.
     if (Dev->getBackend() == backend::opencl) {
@@ -1195,11 +1210,21 @@ struct get_device_info_impl<
       return {};
     size_t ResultSize = 0;
     // First call to get DevCount.
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+    pi_result Err = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<
             ext::oneapi::experimental::info::device::component_devices>::value,
         0, nullptr, &ResultSize);
+
+    // If the feature is unsupported or if the result was empty, return an empty
+    // list of devices.
+    if (Err == PI_ERROR_INVALID_VALUE || (Err == PI_SUCCESS && ResultSize == 0))
+      return {};
+
+    // Otherwise, if there was an error from PI it is unexpected and we should
+    // handle it accordingly.
+    Dev->getPlugin()->checkPiResult(Err);
+
     size_t DevCount = ResultSize / sizeof(pi_device);
     // Second call to get the list.
     std::vector<pi_device> Devs(DevCount);
@@ -1221,8 +1246,6 @@ template <>
 struct get_device_info_impl<
     sycl::device, ext::oneapi::experimental::info::device::composite_device> {
   static sycl::device get(const DeviceImplPtr &Dev) {
-    if (Dev->getBackend() != backend::ext_oneapi_level_zero)
-      return {};
     if (!Dev->has(sycl::aspect::ext_oneapi_is_component))
       throw sycl::exception(make_error_code(errc::invalid),
                             "Only devices with aspect::ext_oneapi_is_component "
@@ -2191,7 +2214,7 @@ inline uint32_t get_device_info_host<
 template <>
 inline float get_device_info_host<
     ext::oneapi::experimental::info::device::mipmap_max_anisotropy>() {
-  throw runtime_error("Bindless image mipaps are not supported on HOST device",
+  throw runtime_error("Bindless image mipmaps are not supported on HOST device",
                       PI_ERROR_INVALID_DEVICE);
 }
 
@@ -2208,6 +2231,180 @@ inline sycl::device get_device_info_host<
   throw runtime_error("Host devices cannot be composite devices.",
                       PI_ERROR_INVALID_DEVICE);
 }
+
+// Returns the list of all progress guarantees that can be requested for
+// work_groups from the coordination level of root_group when using host device.
+// First it calls getHostProgressGuarantee to get the strongest guarantee
+// available and then calls getProgressGuaranteesUpTo to get a list of all
+// guarantees that are either equal to the strongest guarantee or weaker than
+// it. The next 5 definitions follow the same model but for different scopes.
+template <>
+inline std::vector<ext::oneapi::experimental::forward_progress_guarantee>
+get_device_info_host<
+    ext::oneapi::experimental::info::device::work_group_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::root_group>>() {
+
+  using execution_scope = ext::oneapi::experimental::execution_scope;
+  using ReturnT =
+      std::vector<ext::oneapi::experimental::forward_progress_guarantee>;
+  return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+      device_impl::getHostProgressGuarantee(execution_scope::work_group,
+                                            execution_scope::root_group));
+}
+
+template <>
+inline std::vector<ext::oneapi::experimental::forward_progress_guarantee>
+get_device_info_host<
+    ext::oneapi::experimental::info::device::sub_group_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::root_group>>() {
+
+  using execution_scope = ext::oneapi::experimental::execution_scope;
+  using ReturnT =
+      std::vector<ext::oneapi::experimental::forward_progress_guarantee>;
+  return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+      device_impl::getHostProgressGuarantee(execution_scope::sub_group,
+                                            execution_scope::root_group));
+}
+
+template <>
+inline std::vector<ext::oneapi::experimental::forward_progress_guarantee>
+get_device_info_host<
+    ext::oneapi::experimental::info::device::sub_group_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::work_group>>() {
+  using execution_scope = ext::oneapi::experimental::execution_scope;
+  using ReturnT =
+      std::vector<ext::oneapi::experimental::forward_progress_guarantee>;
+  return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+      device_impl::getHostProgressGuarantee(execution_scope::sub_group,
+                                            execution_scope::work_group));
+}
+
+template <>
+inline std::vector<ext::oneapi::experimental::forward_progress_guarantee>
+get_device_info_host<
+    ext::oneapi::experimental::info::device::work_item_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::root_group>>() {
+
+  using execution_scope = ext::oneapi::experimental::execution_scope;
+  using ReturnT =
+      std::vector<ext::oneapi::experimental::forward_progress_guarantee>;
+  return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+      device_impl::getHostProgressGuarantee(execution_scope::work_item,
+                                            execution_scope::root_group));
+}
+
+template <>
+inline std::vector<ext::oneapi::experimental::forward_progress_guarantee>
+get_device_info_host<
+    ext::oneapi::experimental::info::device::work_item_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::work_group>>() {
+  using execution_scope = ext::oneapi::experimental::execution_scope;
+  using ReturnT =
+      std::vector<ext::oneapi::experimental::forward_progress_guarantee>;
+  return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+      device_impl::getHostProgressGuarantee(execution_scope::work_item,
+                                            execution_scope::work_group));
+}
+
+template <>
+inline std::vector<ext::oneapi::experimental::forward_progress_guarantee>
+get_device_info_host<
+    ext::oneapi::experimental::info::device::work_item_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::sub_group>>() {
+  using execution_scope = ext::oneapi::experimental::execution_scope;
+  using ReturnT =
+      std::vector<ext::oneapi::experimental::forward_progress_guarantee>;
+  return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+      device_impl::getHostProgressGuarantee(execution_scope::work_item,
+                                            execution_scope::sub_group));
+}
+
+// Returns the list of all progress guarantees that can be requested for
+// work_groups from the coordination level of root_group when using the device
+// given by Dev. First it calls getProgressGuarantee to get the strongest
+// guarantee available and then calls getProgressGuaranteesUpTo to get a list of
+// all guarantees that are either equal to the strongest guarantee or weaker
+// than it. The next 5 definitions follow the same model but for different
+// scopes.
+template <typename ReturnT>
+struct get_device_info_impl<
+    ReturnT,
+    ext::oneapi::experimental::info::device::work_group_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::root_group>> {
+  static ReturnT get(const DeviceImplPtr &Dev) {
+    using execution_scope = ext::oneapi::experimental::execution_scope;
+    return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+        Dev->getProgressGuarantee(execution_scope::work_group,
+                                  execution_scope::root_group));
+  }
+};
+template <typename ReturnT>
+struct get_device_info_impl<
+    ReturnT,
+    ext::oneapi::experimental::info::device::sub_group_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::root_group>> {
+  static ReturnT get(const DeviceImplPtr &Dev) {
+    using execution_scope = ext::oneapi::experimental::execution_scope;
+    return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+        Dev->getProgressGuarantee(execution_scope::sub_group,
+                                  execution_scope::root_group));
+  }
+};
+
+template <typename ReturnT>
+struct get_device_info_impl<
+    ReturnT,
+    ext::oneapi::experimental::info::device::sub_group_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::work_group>> {
+  static ReturnT get(const DeviceImplPtr &Dev) {
+
+    using execution_scope = ext::oneapi::experimental::execution_scope;
+    return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+        Dev->getProgressGuarantee(execution_scope::sub_group,
+                                  execution_scope::work_group));
+  }
+};
+
+template <typename ReturnT>
+struct get_device_info_impl<
+    ReturnT,
+    ext::oneapi::experimental::info::device::work_item_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::root_group>> {
+  static ReturnT get(const DeviceImplPtr &Dev) {
+
+    using execution_scope = ext::oneapi::experimental::execution_scope;
+    return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+        Dev->getProgressGuarantee(execution_scope::work_item,
+                                  execution_scope::root_group));
+  }
+};
+template <typename ReturnT>
+struct get_device_info_impl<
+    ReturnT,
+    ext::oneapi::experimental::info::device::work_item_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::work_group>> {
+  static ReturnT get(const DeviceImplPtr &Dev) {
+
+    using execution_scope = ext::oneapi::experimental::execution_scope;
+    return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+        Dev->getProgressGuarantee(execution_scope::work_item,
+                                  execution_scope::work_group));
+  }
+};
+
+template <typename ReturnT>
+struct get_device_info_impl<
+    ReturnT,
+    ext::oneapi::experimental::info::device::work_item_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::sub_group>> {
+  static ReturnT get(const DeviceImplPtr &Dev) {
+
+    using execution_scope = ext::oneapi::experimental::execution_scope;
+    return device_impl::getProgressGuaranteesUpTo<ReturnT>(
+        Dev->getProgressGuarantee(execution_scope::work_item,
+                                  execution_scope::sub_group));
+  }
+};
 
 } // namespace detail
 } // namespace _V1

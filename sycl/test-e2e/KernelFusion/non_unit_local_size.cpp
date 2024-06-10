@@ -42,8 +42,8 @@ int main() {
       auto accTmp = bTmp.get_access(
           cgh, sycl::ext::codeplay::experimental::property::promote_local{});
       cgh.parallel_for<class KernelOne>(
-          nd_range<1>{{128}, {8}}, [=](item<1> i) {
-            auto baseOffset = i.get_linear_id() * 4;
+          nd_range<1>{{128}, {8}}, [=](nd_item<1> ndi) {
+            auto baseOffset = ndi.get_global_linear_id() * 4;
             for (size_t j = 0; j < 4; ++j) {
               accTmp[baseOffset + j] =
                   accIn1[baseOffset + j] + accIn2[baseOffset + j];
@@ -57,8 +57,8 @@ int main() {
       auto accIn3 = bIn3.get_access(cgh);
       auto accOut = bOut.get_access(cgh);
       cgh.parallel_for<class KernelTwo>(
-          nd_range<1>{{128}, {8}}, [=](item<1> i) {
-            auto baseOffset = i.get_linear_id() * 4;
+          nd_range<1>{{128}, {8}}, [=](nd_item<1> ndi) {
+            auto baseOffset = ndi.get_global_linear_id() * 4;
             for (size_t j = 0; j < 4; ++j) {
               accOut[baseOffset + j] =
                   accTmp[baseOffset + j] * accIn3[baseOffset + j];

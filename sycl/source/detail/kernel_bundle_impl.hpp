@@ -15,7 +15,6 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/common_info.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/device.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -26,6 +25,8 @@
 #include <cstring>
 #include <memory>
 #include <vector>
+
+#include "split_string.hpp"
 
 namespace sycl {
 inline namespace _V1 {

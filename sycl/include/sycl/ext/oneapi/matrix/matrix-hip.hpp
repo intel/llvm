@@ -8,8 +8,15 @@
 // ===-------------------------------------------------------------------=== //
 
 #pragma once
+
 #include "matrix-unified-utils.hpp"
+
+#include <sycl/access/access.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/marray.hpp>
+#include <sycl/multi_ptr.hpp>
+
+#include <cstring>
 
 #define __HIP_PLATFORM_AMD_MFMA__
 
@@ -338,6 +345,7 @@ void joint_matrix_mad_hip(
     const joint_matrix_hip<
         Tc, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &C) {
+#ifdef __gfx90a__
   if constexpr (std::is_same_v<Tm, sycl::half>) {
     if constexpr (M == 16 && N == 16) {
       auto result = __builtin_amdgcn_mfma_f32_16x16x16f16(
@@ -388,6 +396,7 @@ void joint_matrix_mad_hip(
       std::memcpy(&D.wi_marray, &result, 16 * sizeof(int32_t));
     }
   }
+#endif // __gfx90a__
 }
 
 } // namespace detail

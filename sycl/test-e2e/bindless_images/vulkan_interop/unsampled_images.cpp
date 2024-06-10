@@ -8,8 +8,6 @@
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
 
-#include <sycl/sycl.hpp>
-
 #include "../bindless_helpers.hpp"
 #include "vulkan_common.hpp"
 
@@ -125,19 +123,12 @@ void run_ndim_test(sycl::range<NDims> global_size,
                    int sycl_wait_semaphore_fd, int sycl_done_semaphore_fd) {
   using VecType = sycl::vec<DType, NChannels>;
 
-  sycl::image_channel_order order = sycl::image_channel_order::r;
-  if constexpr (NChannels == 2) {
-    order = sycl::image_channel_order::rg;
-  } else if constexpr (NChannels == 4) {
-    order = sycl::image_channel_order::rgba;
-  }
-
   sycl::device dev;
   sycl::queue q(dev);
   auto ctxt = q.get_context();
 
   // Image descriptor - mapped to Vulkan image layout
-  syclexp::image_descriptor desc(global_size, order, CType);
+  syclexp::image_descriptor desc(global_size, NChannels, CType);
 
   const size_t img_size = global_size.size() * sizeof(DType) * NChannels;
 
@@ -264,8 +255,10 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
   printString("Populating staging buffer\n");
   // Populate staging memory
   using VecType = sycl::vec<DType, NChannels>;
-  std::vector<VecType> input_vector_0;
-  input_vector_0.reserve(num_elems);
+  auto init =
+      bindless_helpers::init_vector<DType, NChannels>(static_cast<DType>(0));
+
+  std::vector<VecType> input_vector_0(num_elems, init);
   std::srand(seed);
   bindless_helpers::fill_rand(input_vector_0);
 
@@ -278,8 +271,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
   }
   vkUnmapMemory(vk_device, inVkImgRes1.stagingMemory);
 
-  std::vector<VecType> input_vector_1;
-  input_vector_1.reserve(num_elems);
+  std::vector<VecType> input_vector_1(num_elems, init);
   std::srand(seed);
   bindless_helpers::fill_rand(input_vector_1);
 

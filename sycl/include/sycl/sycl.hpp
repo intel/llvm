@@ -10,6 +10,9 @@
 
 #include <sycl/detail/core.hpp>
 
+#include <sycl/detail/host_task_impl.hpp>
+
+#include <sycl/accessor_image.hpp>
 #include <sycl/aspects.hpp>
 #include <sycl/atomic.hpp>
 #include <sycl/atomic_fence.hpp>
@@ -27,7 +30,6 @@
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/experimental/group_sort.hpp>
-#include <sycl/feature_test.hpp>
 #include <sycl/functional.hpp>
 #include <sycl/group.hpp>
 #include <sycl/group_algorithm.hpp>
@@ -88,12 +90,17 @@
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
 #include <sycl/ext/oneapi/experimental/composite_device.hpp>
 #include <sycl/ext/oneapi/experimental/cuda/barrier.hpp>
+#include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/ext/oneapi/experimental/fixed_size_group.hpp>
+#include <sycl/ext/oneapi/experimental/forward_progress.hpp>
+#include <sycl/ext/oneapi/experimental/group_load_store.hpp>
 #include <sycl/ext/oneapi/experimental/opportunistic_group.hpp>
 #include <sycl/ext/oneapi/experimental/prefetch.hpp>
+#include <sycl/ext/oneapi/experimental/profiling_tag.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/ext/oneapi/experimental/tangle_group.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
+#include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/ext/oneapi/functional.hpp>
 #include <sycl/ext/oneapi/group_local_memory.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
@@ -105,25 +112,3 @@
 #include <sycl/ext/oneapi/sub_group.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
 #include <sycl/ext/oneapi/weak_object.hpp>
-#if !defined(SYCL2020_CONFORMANT_APIS) &&                                      \
-    !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-// We used to include those and some code might be reliant on that.
-#include <cmath>
-#include <complex>
-#endif
-
-#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-namespace sycl {
-inline namespace _V1 {
-// This wasn't put into "detail" so we can't just drop it outsdie ABI-breaking
-// window. DO NOT USE.
-template <typename T, typename... ArgsT>
-__SYCL_DEPRECATED(
-    "sycl::make_unique_ptr was never supposed to be anything other than "
-    "an implementation detail. Use std::make_unique instead.")
-std::unique_ptr<T> make_unique_ptr(ArgsT &&...Args) {
-  return std::unique_ptr<T>(new T(std::forward<ArgsT>(Args)...));
-}
-} // namespace _V1
-} // namespace sycl
-#endif

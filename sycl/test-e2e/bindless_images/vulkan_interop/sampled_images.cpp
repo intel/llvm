@@ -8,8 +8,7 @@
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
 
-#include <sycl/sycl.hpp>
-
+#include "../bindless_helpers.hpp"
 #include "vulkan_common.hpp"
 
 namespace syclexp = sycl::ext::oneapi::experimental;
@@ -46,8 +45,7 @@ handles_t create_test_handles(sycl::context &ctxt, sycl::device &dev,
 }
 
 template <int NDims, typename DType, int NChannels,
-          sycl::image_channel_type CType, sycl::image_channel_order COrder,
-          typename KernelName>
+          sycl::image_channel_type CType, typename KernelName>
 bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
               int input_image_fd) {
   sycl::device dev;
@@ -55,7 +53,7 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
   auto ctxt = q.get_context();
 
   // Image descriptor - mapped to Vulkan image layout
-  syclexp::image_descriptor desc(globalSize, COrder, CType);
+  syclexp::image_descriptor desc(globalSize, NChannels, CType);
 
   syclexp::bindless_image_sampler samp(
       sycl::addressing_mode::repeat,
@@ -147,9 +145,9 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
   bool validated = true;
   for (int i = 0; i < globalSize.size(); i++) {
     bool mismatch = false;
-    VecType expected =
-        initVector<DType, NChannels>(i) * static_cast<DType>(10.1f);
-    if (!equal_vec<DType, NChannels>(out[i], expected)) {
+    VecType expected = bindless_helpers::init_vector<DType, NChannels>(i) *
+                       static_cast<DType>(10.1f);
+    if (!bindless_helpers::equal_vec<DType, NChannels>(out[i], expected)) {
       mismatch = true;
       validated = false;
     }
@@ -233,7 +231,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
                             imageSizeBytes, 0 /*flags*/,
                             (void **)&inputStagingData));
   for (int i = 0; i < numElems; ++i) {
-    inputStagingData[i] = initVector<DType, NChannels>(i);
+    inputStagingData[i] = bindless_helpers::init_vector<DType, NChannels>(i);
   }
   vkUnmapMemory(vk_device, inputStagingMemory);
 
@@ -294,7 +292,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   printString("Getting memory file descriptors and calling into SYCL\n");
   // Pass memory to SYCL for modification
   auto input_fd = vkutil::getMemoryOpaqueFD(inputMemory);
-  bool result = run_sycl<NDims, DType, NChannels, CType, COrder, KernelName>(
+  bool result = run_sycl<NDims, DType, NChannels, CType, KernelName>(
       dims, localSize, input_fd);
 
   // Cleanup

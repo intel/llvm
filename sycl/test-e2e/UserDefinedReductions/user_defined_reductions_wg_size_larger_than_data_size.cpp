@@ -4,8 +4,8 @@
 #include <iostream>
 #include <numeric>
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/user_defined_reductions.hpp>
-#include <sycl/sycl.hpp>
 
 // 1. Allocate an buffer of 16 elements where first 8 elements filled with 1,
 //    ..., 8 and the second 8 elements filled with 0.

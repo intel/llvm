@@ -40,19 +40,19 @@
 #include <sycl/detail/core.hpp>
 #include <syclcompat.hpp>
 
-void kernel_1(
-    sycl::nd_item<3> item_ct1,
-    sycl::atomic_ref<unsigned int, sycl::memory_order::acq_rel,
-                     sycl::memory_scope::device,
-                     sycl::access::address_space::global_space> &sync_ct1) {
+void kernel_1(sycl::nd_item<3> item_ct1,
+              sycl::atomic_ref<
+                  unsigned int, syclcompat::experimental::barrier_memory_order,
+                  sycl::memory_scope::device,
+                  sycl::access::address_space::global_space> &sync_ct1) {
   syclcompat::experimental::nd_range_barrier(item_ct1, sync_ct1);
 }
 
-void kernel_2(
-    sycl::nd_item<3> item_ct1,
-    sycl::atomic_ref<unsigned int, sycl::memory_order::acq_rel,
-                     sycl::memory_scope::device,
-                     sycl::access::address_space::global_space> &sync_ct1) {
+void kernel_2(sycl::nd_item<3> item_ct1,
+              sycl::atomic_ref<
+                  unsigned int, syclcompat::experimental::barrier_memory_order,
+                  sycl::memory_scope::device,
+                  sycl::access::address_space::global_space> &sync_ct1) {
   syclcompat::experimental::nd_range_barrier(item_ct1, sync_ct1);
 
   syclcompat::experimental::nd_range_barrier(item_ct1, sync_ct1);
@@ -70,18 +70,18 @@ void test_nd_range_barrier_dim3() {
 
     q_ct1
         ->submit([&](sycl::handler &cgh) {
-          cgh.parallel_for(
-              sycl::nd_range<3>(sycl::range<3>(1, 1, 4) *
-                                    sycl::range<3>(1, 1, 4),
-                                sycl::range<3>(1, 1, 4)),
-              [=](sycl::nd_item<3> item_ct1) {
-                auto atm_sync_ct1 =
-                    sycl::atomic_ref<unsigned int, sycl::memory_order::acq_rel,
-                                     sycl::memory_scope::device,
-                                     sycl::access::address_space::global_space>(
-                        sync_ct1[0]);
-                kernel_1(item_ct1, atm_sync_ct1);
-              });
+          cgh.parallel_for(sycl::nd_range<3>(sycl::range<3>(1, 1, 4) *
+                                                 sycl::range<3>(1, 1, 4),
+                                             sycl::range<3>(1, 1, 4)),
+                           [=](sycl::nd_item<3> item_ct1) {
+                             auto atm_sync_ct1 = sycl::atomic_ref<
+                                 unsigned int,
+                                 syclcompat::experimental::barrier_memory_order,
+                                 sycl::memory_scope::device,
+                                 sycl::access::address_space::global_space>(
+                                 sync_ct1[0]);
+                             kernel_1(item_ct1, atm_sync_ct1);
+                           });
         })
         .wait();
   }
@@ -95,37 +95,37 @@ void test_nd_range_barrier_dim3() {
 
     q_ct1
         ->submit([&](sycl::handler &cgh) {
-          cgh.parallel_for(
-              sycl::nd_range<3>(sycl::range<3>(1, 1, 4) *
-                                    sycl::range<3>(1, 1, 4),
-                                sycl::range<3>(1, 1, 4)),
-              [=](sycl::nd_item<3> item_ct1) {
-                auto atm_sync_ct1 =
-                    sycl::atomic_ref<unsigned int, sycl::memory_order::acq_rel,
-                                     sycl::memory_scope::device,
-                                     sycl::access::address_space::global_space>(
-                        sync_ct1[0]);
-                kernel_2(item_ct1, atm_sync_ct1);
-              });
+          cgh.parallel_for(sycl::nd_range<3>(sycl::range<3>(1, 1, 4) *
+                                                 sycl::range<3>(1, 1, 4),
+                                             sycl::range<3>(1, 1, 4)),
+                           [=](sycl::nd_item<3> item_ct1) {
+                             auto atm_sync_ct1 = sycl::atomic_ref<
+                                 unsigned int,
+                                 syclcompat::experimental::barrier_memory_order,
+                                 sycl::memory_scope::device,
+                                 sycl::access::address_space::global_space>(
+                                 sync_ct1[0]);
+                             kernel_2(item_ct1, atm_sync_ct1);
+                           });
         })
         .wait();
   }
   dev_ct1.queues_wait_and_throw();
 }
 
-void kernel_1(
-    sycl::nd_item<1> item_ct1,
-    sycl::atomic_ref<unsigned int, sycl::memory_order::acq_rel,
-                     sycl::memory_scope::device,
-                     sycl::access::address_space::global_space> &sync_ct1) {
+void kernel_1(sycl::nd_item<1> item_ct1,
+              sycl::atomic_ref<
+                  unsigned int, syclcompat::experimental::barrier_memory_order,
+                  sycl::memory_scope::device,
+                  sycl::access::address_space::global_space> &sync_ct1) {
   syclcompat::experimental::nd_range_barrier(item_ct1, sync_ct1);
 }
 
-void kernel_2(
-    sycl::nd_item<1> item_ct1,
-    sycl::atomic_ref<unsigned int, sycl::memory_order::acq_rel,
-                     sycl::memory_scope::device,
-                     sycl::access::address_space::global_space> &sync_ct1) {
+void kernel_2(sycl::nd_item<1> item_ct1,
+              sycl::atomic_ref<
+                  unsigned int, syclcompat::experimental::barrier_memory_order,
+                  sycl::memory_scope::device,
+                  sycl::access::address_space::global_space> &sync_ct1) {
   syclcompat::experimental::nd_range_barrier(item_ct1, sync_ct1);
 
   syclcompat::experimental::nd_range_barrier(item_ct1, sync_ct1);
@@ -148,11 +148,11 @@ void test_nd_range_barrier_dim1() {
               sycl::nd_range<1>(sycl::range<1>(4) * sycl::range<1>(4),
                                 sycl::range<1>(4)),
               [=](sycl::nd_item<1> item_ct1) {
-                auto atm_sync_ct1 =
-                    sycl::atomic_ref<unsigned int, sycl::memory_order::acq_rel,
-                                     sycl::memory_scope::device,
-                                     sycl::access::address_space::global_space>(
-                        sync_ct1[0]);
+                auto atm_sync_ct1 = sycl::atomic_ref<
+                    unsigned int,
+                    syclcompat::experimental::barrier_memory_order,
+                    sycl::memory_scope::device,
+                    sycl::access::address_space::global_space>(sync_ct1[0]);
                 kernel_1(item_ct1, atm_sync_ct1);
               });
         })
@@ -171,11 +171,11 @@ void test_nd_range_barrier_dim1() {
               sycl::nd_range<1>(sycl::range<1>(4) * sycl::range<1>(4),
                                 sycl::range<1>(4)),
               [=](sycl::nd_item<1> item_ct1) {
-                auto atm_sync_ct1 =
-                    sycl::atomic_ref<unsigned int, sycl::memory_order::acq_rel,
-                                     sycl::memory_scope::device,
-                                     sycl::access::address_space::global_space>(
-                        sync_ct1[0]);
+                auto atm_sync_ct1 = sycl::atomic_ref<
+                    unsigned int,
+                    syclcompat::experimental::barrier_memory_order,
+                    sycl::memory_scope::device,
+                    sycl::access::address_space::global_space>(sync_ct1[0]);
                 kernel_2(item_ct1, atm_sync_ct1);
               });
         })

@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <sycl/backend.hpp>
 #include <sycl/detail/core.hpp>
 #include <unistd.h>
 
@@ -13,12 +14,7 @@ static buffer<char, 1> *inBufP = nullptr;
 
 int main(int argc, char *argv[]) {
   queue Q;
-  auto BE =
-      (bool)(Q.get_device()
-                 .template get_info<sycl::info::device::opencl_c_version>()
-                 .empty())
-          ? "L0"
-          : "OpenCL";
+  auto BE = (Q.get_device().get_backend() != backend::opencl) ? "L0" : "OpenCL";
   device dev = Q.get_device();
   size_t max_compute_units = dev.get_info<info::device::max_compute_units>();
   printf("Device: %s max_compute_units %zu, Backend: %s\n",

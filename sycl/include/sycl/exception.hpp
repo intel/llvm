@@ -12,10 +12,12 @@
 
 #include <sycl/backend_types.hpp>             // for backend
 #include <sycl/detail/cl.h>                   // for cl_int
-#include <sycl/detail/common.hpp>             // for codeToString
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/pi.h>                   // for pi_int32
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#include <sycl/detail/string.hpp>
+#endif
 
 #include <exception>    // for exception
 #include <memory>       // for allocator, shared_ptr, make...
@@ -55,6 +57,13 @@ __SYCL_EXPORT std::error_code make_error_code(sycl::errc E) noexcept;
 __SYCL_EXPORT const std::error_category &sycl_category() noexcept;
 
 namespace detail {
+__SYCL_EXPORT const char *stringifyErrorCode(pi_int32 error);
+
+inline std::string codeToString(pi_int32 code) {
+  return std::string(std::to_string(code) + " (" + stringifyErrorCode(code) +
+                     ")");
+}
+
 class __SYCL_EXPORT SYCLCategory : public std::error_category {
 public:
   const char *name() const noexcept override { return "sycl"; }
@@ -74,24 +83,20 @@ public:
 
   exception(std::error_code, const char *Msg);
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   exception(std::error_code Ec, const std::string &Msg)
       : exception(Ec, nullptr, Msg.c_str()) {}
-#else
-  exception(std::error_code, const std::string &Msg);
-#endif
 
   // new SYCL 2020 constructors
   exception(std::error_code);
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   exception(int EV, const std::error_category &ECat, const std::string &WhatArg)
       : exception(EV, ECat, WhatArg.c_str()) {}
-#else
-  exception(int, const std::error_category &, const std::string &);
-#endif
   exception(int, const std::error_category &, const char *);
   exception(int, const std::error_category &);
 
+  // context.hpp depends on exception.hpp but we can't define these ctors in
+  // exception.hpp while context is still an incomplete type.
+  // So, definition of ctors that require a context parameter are moved to
+  // context.hpp.
   exception(context, std::error_code, const std::string &);
   exception(context, std::error_code, const char *);
   exception(context, std::error_code);
@@ -114,7 +119,11 @@ public:
 private:
   // Exceptions must be noexcept copy constructible, so cannot use std::string
   // directly.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  std::shared_ptr<detail::string> MMsg;
+#else
   std::shared_ptr<std::string> MMsg;
+#endif
   pi_int32 MPIErr = 0;
   std::shared_ptr<context> MContext;
   std::error_code MErrC = make_error_code(sycl::errc::invalid);
@@ -132,21 +141,22 @@ protected:
   }
 
   exception(const std::string &Msg)
-      : MMsg(std::make_shared<std::string>(Msg)), MContext(nullptr) {}
-
-  // base constructor for all SYCL 2020 constructors
-  // exception(context *ctxPtr, std::error_code Ec, const std::string
-  // &what_arg);
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
-            const std::string &what_arg)
-      : exception(Ec, SharedPtrCtx, what_arg.c_str()) {}
+      : MMsg(std::make_shared<detail::string>(Msg)), MContext(nullptr){}
+#else
+      : MMsg(std::make_shared<std::string>(Msg)), MContext(nullptr) {
+  }
+#endif
+
+        // base constructor for all SYCL 2020 constructors
+        // exception(context *ctxPtr, std::error_code Ec, const std::string
+        // &what_arg);
+        exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
+                  const std::string &what_arg)
+      : exception(Ec, SharedPtrCtx, what_arg.c_str()) {
+  }
   exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
             const char *WhatArg);
-#else
-  exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
-            const std::string &what_arg);
-#endif
 };
 
 class __SYCL2020_DEPRECATED(

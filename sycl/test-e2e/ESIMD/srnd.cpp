@@ -11,10 +11,7 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
-#include <iostream>
+#include <cmath>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
