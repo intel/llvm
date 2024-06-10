@@ -41,17 +41,30 @@ bool IsDriverVersionNewerOrSimilar(ur_context_handle_t Context,
           (DriverVersionMinor >= VersionMinor) &&
           (DriverVersionBuild >= VersionBuild));
 }
+
+// Default to using compute engine for fill operation, but allow to
+// override this with an environment variable.
+bool PreferCopyEngineForFill = [] {
+  const char *UrRet = std::getenv("UR_L0_USE_COPY_ENGINE_FOR_FILL");
+  const char *PiRet =
+      std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_FILL");
+  return (UrRet ? std::stoi(UrRet) : (PiRet ? std::stoi(PiRet) : 0));
+}();
+
 }; // namespace
 
 ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     ur_context_handle_t Context, ur_device_handle_t Device,
     ze_command_list_handle_t CommandList,
     ze_command_list_handle_t CommandListResetEvents,
+    ze_command_list_handle_t CopyCommandList,
     ZeStruct<ze_command_list_desc_t> ZeDesc,
+    ZeStruct<ze_command_list_desc_t> ZeCopyDesc,
     const ur_exp_command_buffer_desc_t *Desc, const bool IsInOrderCmdList)
-    : Context(Context), Device(Device), ZeCommandList(CommandList),
+    : Context(Context), Device(Device), ZeComputeCommandList(CommandList),
       ZeCommandListResetEvents(CommandListResetEvents),
-      ZeCommandListDesc(ZeDesc), ZeFencesMap(), ZeActiveFence(nullptr),
+      ZeCommandListDesc(ZeDesc), ZeCopyCommandList(CopyCommandList),
+      ZeCopyCommandListDesc(ZeCopyDesc), ZeFencesMap(), ZeActiveFence(nullptr),
       QueueProperties(), SyncPoints(), NextSyncPoint(0),
       IsUpdatable(Desc ? Desc->isUpdatable : false),
       IsProfilingEnabled(Desc ? Desc->enableProfiling : false),
@@ -71,8 +84,11 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
 
   // Release the memory allocated to the CommandList stored in the
   // command_buffer
-  if (ZeCommandList) {
-    ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
+  if (ZeComputeCommandList) {
+    ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeComputeCommandList));
+  }
+  if (UseCopyEngine() && ZeCopyCommandList) {
+    ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCopyCommandList));
   }
 
   // Release the memory allocated to the CommandListResetEvents stored in the
@@ -304,13 +320,14 @@ static ur_result_t getEventsFromSyncPoints(
 // buffer.
 static ur_result_t enqueueCommandBufferMemCopyHelper(
     ur_command_t CommandType, ur_exp_command_buffer_handle_t CommandBuffer,
-    void *Dst, const void *Src, size_t Size, uint32_t NumSyncPointsInWaitList,
+    void *Dst, const void *Src, size_t Size, bool PreferCopyEngine,
+    uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *RetSyncPoint) {
   if (CommandBuffer->IsInOrderCmdList) {
-    ZE2UR_CALL(
-        zeCommandListAppendMemoryCopy,
-        (CommandBuffer->ZeCommandList, Dst, Src, Size, nullptr, 0, nullptr));
+    ZE2UR_CALL(zeCommandListAppendMemoryCopy,
+               (CommandBuffer->ZeComputeCommandList, Dst, Src, Size, nullptr, 0,
+                nullptr));
 
     logger::debug("calling zeCommandListAppendMemoryCopy()");
   } else {
@@ -331,9 +348,19 @@ static ur_result_t enqueueCommandBufferMemCopyHelper(
       *RetSyncPoint = SyncPoint;
     }
 
+    ze_command_list_handle_t ZeCommandList =
+        CommandBuffer->ZeComputeCommandList;
+    // If the copy engine available, the command is enqueued in the
+    // ZeCopyCommandList.
+    if (PreferCopyEngine && CommandBuffer->UseCopyEngine()) {
+      ZeCommandList = CommandBuffer->ZeCopyCommandList;
+      // We indicate that the ZeCopyCommandList contains commands to be
+      // submitted.
+      CommandBuffer->MCopyCommandListEmpty = false;
+    }
     ZE2UR_CALL(zeCommandListAppendMemoryCopy,
-               (CommandBuffer->ZeCommandList, Dst, Src, Size,
-                LaunchEvent->ZeEvent, ZeEventList.size(), ZeEventList.data()));
+               (ZeCommandList, Dst, Src, Size, LaunchEvent->ZeEvent,
+                ZeEventList.size(), ZeEventList.data()));
 
     logger::debug("calling zeCommandListAppendMemoryCopy() with"
                   "  ZeEvent {}",
@@ -349,7 +376,7 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
     void *Dst, const void *Src, ur_rect_offset_t SrcOrigin,
     ur_rect_offset_t DstOrigin, ur_rect_region_t Region, size_t SrcRowPitch,
     size_t DstRowPitch, size_t SrcSlicePitch, size_t DstSlicePitch,
-    uint32_t NumSyncPointsInWaitList,
+    bool PreferCopyEngine, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *RetSyncPoint) {
 
@@ -386,9 +413,9 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
 
   if (CommandBuffer->IsInOrderCmdList) {
     ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
-               (CommandBuffer->ZeCommandList, Dst, &ZeDstRegion, DstPitch,
-                DstSlicePitch, Src, &ZeSrcRegion, SrcPitch, SrcSlicePitch,
-                nullptr, 0, nullptr));
+               (CommandBuffer->ZeComputeCommandList, Dst, &ZeDstRegion,
+                DstPitch, DstSlicePitch, Src, &ZeSrcRegion, SrcPitch,
+                SrcSlicePitch, nullptr, 0, nullptr));
 
     logger::debug("calling zeCommandListAppendMemoryCopyRegion()");
   } else {
@@ -410,10 +437,21 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
       *RetSyncPoint = SyncPoint;
     }
 
+    ze_command_list_handle_t ZeCommandList =
+        CommandBuffer->ZeComputeCommandList;
+    // If the copy engine available, the command is enqueued in the
+    // ZeCopyCommandList.
+    if (PreferCopyEngine && CommandBuffer->UseCopyEngine()) {
+      ZeCommandList = CommandBuffer->ZeCopyCommandList;
+      // We indicate that the ZeCopyCommandList contains commands to be
+      // submitted.
+      CommandBuffer->MCopyCommandListEmpty = false;
+    }
+
     ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
-               (CommandBuffer->ZeCommandList, Dst, &ZeDstRegion, DstPitch,
-                DstSlicePitch, Src, &ZeSrcRegion, SrcPitch, SrcSlicePitch,
-                LaunchEvent->ZeEvent, ZeEventList.size(), ZeEventList.data()));
+               (ZeCommandList, Dst, &ZeDstRegion, DstPitch, DstSlicePitch, Src,
+                &ZeSrcRegion, SrcPitch, SrcSlicePitch, LaunchEvent->ZeEvent,
+                ZeEventList.size(), ZeEventList.data()));
 
     logger::debug("calling zeCommandListAppendMemoryCopyRegion() with"
                   "  ZeEvent {}",
@@ -427,25 +465,43 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
 static ur_result_t enqueueCommandBufferFillHelper(
     ur_command_t CommandType, ur_exp_command_buffer_handle_t CommandBuffer,
     void *Ptr, const void *Pattern, size_t PatternSize, size_t Size,
-    uint32_t NumSyncPointsInWaitList,
+    bool PreferCopyEngine, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *RetSyncPoint) {
   // Pattern size must be a power of two.
   UR_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
             UR_RESULT_ERROR_INVALID_VALUE);
 
-  // Pattern size must fit the compute queue capabilities.
-  UR_ASSERT(
+  ze_command_list_handle_t ZeCommandList;
+  // If the copy engine available and patternsize is valid, the command is
+  // enqueued in the ZeCopyCommandList, otherwise enqueue it in the compute
+  // command list.
+
+  if (PreferCopyEngine && CommandBuffer->UseCopyEngine() &&
       PatternSize <=
           CommandBuffer->Device
-              ->QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute]
-              .ZeProperties.maxMemoryFillPatternSize,
-      UR_RESULT_ERROR_INVALID_VALUE);
+              ->QueueGroup[ur_device_handle_t_::queue_group_info_t::MainCopy]
+              .ZeProperties.maxMemoryFillPatternSize) {
+
+    ZeCommandList = CommandBuffer->ZeCopyCommandList;
+    // We indicate that the ZeCopyCommandList contains commands to be
+    // submitted.
+    CommandBuffer->MCopyCommandListEmpty = false;
+  } else {
+    // Pattern size must fit the compute queue capabilities.
+    UR_ASSERT(
+        PatternSize <=
+            CommandBuffer->Device
+                ->QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute]
+                .ZeProperties.maxMemoryFillPatternSize,
+        UR_RESULT_ERROR_INVALID_VALUE);
+    ZeCommandList = CommandBuffer->ZeComputeCommandList;
+  }
 
   if (CommandBuffer->IsInOrderCmdList) {
     ZE2UR_CALL(zeCommandListAppendMemoryFill,
-               (CommandBuffer->ZeCommandList, Ptr, Pattern, PatternSize, Size,
-                nullptr, 0, nullptr));
+               (CommandBuffer->ZeComputeCommandList, Ptr, Pattern, PatternSize,
+                Size, nullptr, 0, nullptr));
 
     logger::debug("calling zeCommandListAppendMemoryFill()");
   } else {
@@ -468,7 +524,7 @@ static ur_result_t enqueueCommandBufferFillHelper(
     }
 
     ZE2UR_CALL(zeCommandListAppendMemoryFill,
-               (CommandBuffer->ZeCommandList, Ptr, Pattern, PatternSize, Size,
+               (ZeCommandList, Ptr, Pattern, PatternSize, Size,
                 LaunchEvent->ZeEvent, ZeEventList.size(), ZeEventList.data()));
 
     logger::debug("calling zeCommandListAppendMemoryFill() with"
@@ -490,8 +546,6 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
           ? (CommandBufferDesc ? CommandBufferDesc->isInOrder : false)
           : false;
 
-  // Force compute queue type for now. Copy engine types may be better suited
-  // for host to device copies.
   uint32_t QueueGroupOrdinal =
       Device->QueueGroup[ur_device_handle_t_::queue_group_info_t::type::Compute]
           .ZeOrdinal;
@@ -519,15 +573,43 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
     ZeCommandListDesc.pNext = &ZeMutableCommandListDesc;
   }
 
-  ze_command_list_handle_t ZeCommandList;
+  ze_command_list_handle_t ZeComputeCommandList;
   // TODO We could optimize this by pooling both Level Zero command-lists and UR
   // command-buffers, then reusing them.
   ZE2UR_CALL(zeCommandListCreate, (Context->ZeContext, Device->ZeDevice,
-                                   &ZeCommandListDesc, &ZeCommandList));
+                                   &ZeCommandListDesc, &ZeComputeCommandList));
+
+  // Create a list for copy commands.
+  // Note that to simplify the implementation, the current implementation only
+  // uses the main copy engine and does not use the link engine even if
+  // available.
+  ze_command_list_handle_t ZeCopyCommandList = nullptr;
+  ZeStruct<ze_command_list_desc_t> ZeCopyCommandListDesc;
+  if (Device->hasMainCopyEngine()) {
+    uint32_t QueueGroupOrdinalCopy =
+        Device
+            ->QueueGroup
+                [ur_device_handle_t_::queue_group_info_t::type::MainCopy]
+            .ZeOrdinal;
+
+    ZeCopyCommandListDesc.commandQueueGroupOrdinal = QueueGroupOrdinalCopy;
+    // Dependencies between commands are explicitly enforced by sync points when
+    // enqueuing. Consequently, relax the command ordering in the command list
+    // can enable the backend to further optimize the workload
+    ZeCopyCommandListDesc.flags = ZE_COMMAND_LIST_FLAG_RELAXED_ORDERING;
+
+    // TODO We could optimize this by pooling both Level Zero command-lists and
+    // UR command-buffers, then reusing them.
+    ZE2UR_CALL(zeCommandListCreate,
+               (Context->ZeContext, Device->ZeDevice, &ZeCopyCommandListDesc,
+                &ZeCopyCommandList));
+  }
+
   try {
     *CommandBuffer = new ur_exp_command_buffer_handle_t_(
-        Context, Device, ZeCommandList, ZeCommandListResetEvents,
-        ZeCommandListDesc, CommandBufferDesc, IsInOrder);
+        Context, Device, ZeComputeCommandList, ZeCommandListResetEvents,
+        ZeCopyCommandList, ZeCommandListDesc, ZeCopyCommandListDesc,
+        CommandBufferDesc, IsInOrder);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -554,9 +636,18 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
   std::vector<ze_event_handle_t> PrecondEvents = {
       RetCommandBuffer->WaitEvent->ZeEvent,
       RetCommandBuffer->AllResetEvent->ZeEvent};
-  ZE2UR_CALL(
-      zeCommandListAppendBarrier,
-      (ZeCommandList, nullptr, PrecondEvents.size(), PrecondEvents.data()));
+  ZE2UR_CALL(zeCommandListAppendBarrier,
+             (ZeComputeCommandList, nullptr, PrecondEvents.size(),
+              PrecondEvents.data()));
+
+  if (Device->hasMainCopyEngine()) {
+    // The copy command-list must be executed once the preconditions have been
+    // met. We therefore begin this command-list with a barrier on the
+    // preconditions.
+    ZE2UR_CALL(zeCommandListAppendBarrier,
+               (ZeCopyCommandList, nullptr, PrecondEvents.size(),
+                PrecondEvents.data()));
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -597,9 +688,9 @@ urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t CommandBuffer) {
               CommandBuffer->AllResetEvent->ZeEvent));
 
   if (CommandBuffer->IsInOrderCmdList) {
-    ZE2UR_CALL(
-        zeCommandListAppendSignalEvent,
-        (CommandBuffer->ZeCommandList, CommandBuffer->SignalEvent->ZeEvent));
+    ZE2UR_CALL(zeCommandListAppendSignalEvent,
+               (CommandBuffer->ZeComputeCommandList,
+                CommandBuffer->SignalEvent->ZeEvent));
   } else {
     // Create a list of events for our signal event to wait on
     const size_t NumEvents = CommandBuffer->SyncPoints.size();
@@ -610,15 +701,21 @@ urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t CommandBuffer) {
 
     // Wait for all the user added commands to complete, and signal the
     // command-buffer signal-event when they are done.
-    ZE2UR_CALL(zeCommandListAppendBarrier, (CommandBuffer->ZeCommandList,
+    ZE2UR_CALL(zeCommandListAppendBarrier, (CommandBuffer->ZeComputeCommandList,
                                             CommandBuffer->SignalEvent->ZeEvent,
                                             NumEvents, WaitEventList.data()));
   }
 
   // Close the command lists and have them ready for dispatch.
-  ZE2UR_CALL(zeCommandListClose, (CommandBuffer->ZeCommandList));
+  ZE2UR_CALL(zeCommandListClose, (CommandBuffer->ZeComputeCommandList));
   ZE2UR_CALL(zeCommandListClose, (CommandBuffer->ZeCommandListResetEvents));
+
+  if (CommandBuffer->UseCopyEngine()) {
+    ZE2UR_CALL(zeCommandListClose, (CommandBuffer->ZeCopyCommandList));
+  }
+
   CommandBuffer->IsFinalized = true;
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -693,9 +790,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     auto Plt = CommandBuffer->Context->getPlatform();
     UR_ASSERT(Plt->ZeMutableCmdListExt.Supported,
               UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
-    ZE2UR_CALL(
-        Plt->ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp,
-        (CommandBuffer->ZeCommandList, &ZeMutableCommandDesc, &CommandId));
+    ZE2UR_CALL(Plt->ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp,
+               (CommandBuffer->ZeComputeCommandList, &ZeMutableCommandDesc,
+                &CommandId));
     DEBUG_LOG(CommandId);
   }
   try {
@@ -710,7 +807,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 
   if (CommandBuffer->IsInOrderCmdList) {
     ZE2UR_CALL(zeCommandListAppendLaunchKernel,
-               (CommandBuffer->ZeCommandList, Kernel->ZeKernel,
+               (CommandBuffer->ZeComputeCommandList, Kernel->ZeKernel,
                 &ZeThreadGroupDimensions, nullptr, 0, nullptr));
 
     logger::debug("calling zeCommandListAppendLaunchKernel()");
@@ -733,7 +830,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     }
 
     ZE2UR_CALL(zeCommandListAppendLaunchKernel,
-               (CommandBuffer->ZeCommandList, Kernel->ZeKernel,
+               (CommandBuffer->ZeComputeCommandList, Kernel->ZeKernel,
                 &ZeThreadGroupDimensions, LaunchEvent->ZeEvent,
                 ZeEventList.size(), ZeEventList.data()));
 
@@ -750,8 +847,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     size_t Size, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *SyncPoint) {
+
+  bool PreferCopyEngine = !IsDevicePointer(CommandBuffer->Context, Src) ||
+                          !IsDevicePointer(CommandBuffer->Context, Dst);
+
+  PreferCopyEngine |= UseCopyEngineForD2DCopy;
+
   return enqueueCommandBufferMemCopyHelper(
-      UR_COMMAND_USM_MEMCPY, CommandBuffer, Dst, Src, Size,
+      UR_COMMAND_USM_MEMCPY, CommandBuffer, Dst, Src, Size, PreferCopyEngine,
       NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
 }
 
@@ -761,8 +864,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *SyncPoint) {
-  auto SrcBuffer = ur_cast<ur_mem_handle_t>(SrcMem);
-  auto DstBuffer = ur_cast<ur_mem_handle_t>(DstMem);
+  auto SrcBuffer = ur_cast<_ur_buffer *>(SrcMem);
+  auto DstBuffer = ur_cast<_ur_buffer *>(DstMem);
 
   std::shared_lock<ur_shared_mutex> SrcLock(SrcBuffer->Mutex, std::defer_lock);
   std::scoped_lock<std::shared_lock<ur_shared_mutex>, ur_shared_mutex> LockAll(
@@ -775,10 +878,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
   UR_CALL(DstBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
                                  CommandBuffer->Device));
 
+  bool PreferCopyEngine = (SrcBuffer->OnHost || SrcBuffer->OnHost);
+
+  PreferCopyEngine |= UseCopyEngineForD2DCopy;
+
   return enqueueCommandBufferMemCopyHelper(
       UR_COMMAND_MEM_BUFFER_COPY, CommandBuffer, ZeHandleDst + DstOffset,
-      ZeHandleSrc + SrcOffset, Size, NumSyncPointsInWaitList, SyncPointWaitList,
-      SyncPoint);
+      ZeHandleSrc + SrcOffset, Size, PreferCopyEngine, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
@@ -789,8 +896,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *SyncPoint) {
-  auto SrcBuffer = ur_cast<ur_mem_handle_t>(SrcMem);
-  auto DstBuffer = ur_cast<ur_mem_handle_t>(DstMem);
+  auto SrcBuffer = ur_cast<_ur_buffer *>(SrcMem);
+  auto DstBuffer = ur_cast<_ur_buffer *>(DstMem);
 
   std::shared_lock<ur_shared_mutex> SrcLock(SrcBuffer->Mutex, std::defer_lock);
   std::scoped_lock<std::shared_lock<ur_shared_mutex>, ur_shared_mutex> LockAll(
@@ -803,10 +910,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
   UR_CALL(DstBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
                                  CommandBuffer->Device));
 
+  bool PreferCopyEngine = (SrcBuffer->OnHost || SrcBuffer->OnHost);
+
+  PreferCopyEngine |= UseCopyEngineForD2DCopy;
+
   return enqueueCommandBufferMemCopyRectHelper(
       UR_COMMAND_MEM_BUFFER_COPY_RECT, CommandBuffer, ZeHandleDst, ZeHandleSrc,
       SrcOrigin, DstOrigin, Region, SrcRowPitch, DstRowPitch, SrcSlicePitch,
-      DstSlicePitch, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
+      DstSlicePitch, PreferCopyEngine, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
@@ -820,12 +932,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
   char *ZeHandleDst = nullptr;
   UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
                               CommandBuffer->Device));
+  // Always prefer copy engine for writes
+  bool PreferCopyEngine = true;
 
   return enqueueCommandBufferMemCopyHelper(
       UR_COMMAND_MEM_BUFFER_WRITE, CommandBuffer,
       ZeHandleDst + Offset, // dst
       Src,                  // src
-      Size, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
+      Size, PreferCopyEngine, NumSyncPointsInWaitList, SyncPointWaitList,
+      SyncPoint);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
@@ -841,11 +956,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
   char *ZeHandleDst = nullptr;
   UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
                               CommandBuffer->Device));
+
+  // Always prefer copy engine for writes
+  bool PreferCopyEngine = true;
+
   return enqueueCommandBufferMemCopyRectHelper(
       UR_COMMAND_MEM_BUFFER_WRITE_RECT, CommandBuffer, ZeHandleDst,
       const_cast<char *>(static_cast<const char *>(Src)), HostOffset,
       BufferOffset, Region, HostRowPitch, BufferRowPitch, HostSlicePitch,
-      BufferSlicePitch, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
+      BufferSlicePitch, PreferCopyEngine, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
@@ -858,9 +978,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
   char *ZeHandleSrc = nullptr;
   UR_CALL(Buffer->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
                               CommandBuffer->Device));
+
+  // Always prefer copy engine for reads
+  bool PreferCopyEngine = true;
+
   return enqueueCommandBufferMemCopyHelper(
       UR_COMMAND_MEM_BUFFER_READ, CommandBuffer, Dst, ZeHandleSrc + Offset,
-      Size, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
+      Size, PreferCopyEngine, NumSyncPointsInWaitList, SyncPointWaitList,
+      SyncPoint);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
@@ -876,11 +1001,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
   char *ZeHandleSrc;
   UR_CALL(Buffer->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
                               CommandBuffer->Device));
+
+  // Always prefer copy engine for reads
+  bool PreferCopyEngine = true;
+
   return enqueueCommandBufferMemCopyRectHelper(
       UR_COMMAND_MEM_BUFFER_READ_RECT, CommandBuffer, Dst, ZeHandleSrc,
       BufferOffset, HostOffset, Region, BufferRowPitch, HostRowPitch,
-      BufferSlicePitch, HostSlicePitch, NumSyncPointsInWaitList,
-      SyncPointWaitList, SyncPoint);
+      BufferSlicePitch, HostSlicePitch, PreferCopyEngine,
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
@@ -894,7 +1023,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     // Add the prefetch command to the command buffer.
     // Note that L0 does not handle migration flags.
     ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
-               (CommandBuffer->ZeCommandList, Mem, Size));
+               (CommandBuffer->ZeComputeCommandList, Mem, Size));
   } else {
     std::vector<ze_event_handle_t> ZeEventList;
     UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
@@ -902,7 +1031,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
 
     if (NumSyncPointsInWaitList) {
       ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-                 (CommandBuffer->ZeCommandList, NumSyncPointsInWaitList,
+                 (CommandBuffer->ZeComputeCommandList, NumSyncPointsInWaitList,
                   ZeEventList.data()));
     }
 
@@ -923,12 +1052,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     // Add the prefetch command to the command buffer.
     // Note that L0 does not handle migration flags.
     ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
-               (CommandBuffer->ZeCommandList, Mem, Size));
+               (CommandBuffer->ZeComputeCommandList, Mem, Size));
 
     // Level Zero does not have a completion "event" with the prefetch API,
     // so manually add command to signal our event.
     ZE2UR_CALL(zeCommandListAppendSignalEvent,
-               (CommandBuffer->ZeCommandList, LaunchEvent->ZeEvent));
+               (CommandBuffer->ZeComputeCommandList, LaunchEvent->ZeEvent));
   }
 
   return UR_RESULT_SUCCESS;
@@ -968,8 +1097,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 
   if (CommandBuffer->IsInOrderCmdList) {
     ZE2UR_CALL(zeCommandListAppendMemAdvise,
-               (CommandBuffer->ZeCommandList, CommandBuffer->Device->ZeDevice,
-                Mem, Size, ZeAdvice));
+               (CommandBuffer->ZeComputeCommandList,
+                CommandBuffer->Device->ZeDevice, Mem, Size, ZeAdvice));
   } else {
     std::vector<ze_event_handle_t> ZeEventList;
     UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
@@ -977,7 +1106,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 
     if (NumSyncPointsInWaitList) {
       ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-                 (CommandBuffer->ZeCommandList, NumSyncPointsInWaitList,
+                 (CommandBuffer->ZeComputeCommandList, NumSyncPointsInWaitList,
                   ZeEventList.data()));
     }
 
@@ -996,13 +1125,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     }
 
     ZE2UR_CALL(zeCommandListAppendMemAdvise,
-               (CommandBuffer->ZeCommandList, CommandBuffer->Device->ZeDevice,
-                Mem, Size, ZeAdvice));
+               (CommandBuffer->ZeComputeCommandList,
+                CommandBuffer->Device->ZeDevice, Mem, Size, ZeAdvice));
 
     // Level Zero does not have a completion "event" with the advise API,
     // so manually add command to signal our event.
     ZE2UR_CALL(zeCommandListAppendSignalEvent,
-               (CommandBuffer->ZeCommandList, LaunchEvent->ZeEvent));
+               (CommandBuffer->ZeComputeCommandList, LaunchEvent->ZeEvent));
   }
 
   return UR_RESULT_SUCCESS;
@@ -1026,7 +1155,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
       UR_COMMAND_MEM_BUFFER_FILL, CommandBuffer, ZeHandleDst + Offset,
       Pattern,     // It will be interpreted as an 8-bit value,
       PatternSize, // which is indicated with this pattern_size==1
-      Size, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
+      Size, PreferCopyEngineForFill, NumSyncPointsInWaitList, SyncPointWaitList,
+      SyncPoint);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
@@ -1040,7 +1170,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
       UR_COMMAND_MEM_BUFFER_FILL, CommandBuffer, Ptr,
       Pattern,     // It will be interpreted as an 8-bit value,
       PatternSize, // which is indicated with this pattern_size==1
-      Size, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
+      Size, PreferCopyEngineForFill, NumSyncPointsInWaitList, SyncPointWaitList,
+      SyncPoint);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
@@ -1115,8 +1246,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   // type, regardless of the UR Queue type. We therefore need to submit the list
   // directly using the Level-Zero API to avoid type mismatches if using UR
   // functions.
-  ZE2UR_CALL(zeCommandQueueExecuteCommandLists,
-             (ZeCommandQueue, 1, &CommandBuffer->ZeCommandList, ZeFence));
+  ZE2UR_CALL(
+      zeCommandQueueExecuteCommandLists,
+      (ZeCommandQueue, 1, &CommandBuffer->ZeComputeCommandList, ZeFence));
+
+  // The Copy command-list is submitted to the main copy queue if it is not
+  // empty.
+  if (!CommandBuffer->MCopyCommandListEmpty) {
+    auto &QGroupCopy = Queue->getQueueGroup(true);
+    uint32_t QueueGroupOrdinal;
+    auto &ZeCopyCommandQueue = QGroupCopy.getZeQueue(&QueueGroupOrdinal);
+    ZE2UR_CALL(
+        zeCommandQueueExecuteCommandLists,
+        (ZeCopyCommandQueue, 1, &CommandBuffer->ZeCopyCommandList, nullptr));
+  }
 
   // Execution event for this enqueue of the UR command-buffer
   ur_event_handle_t RetEvent{};
@@ -1126,6 +1269,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   UR_CALL(Queue->Context->getAvailableCommandList(Queue, SignalCommandList,
                                                   false, NumEventsInWaitList,
                                                   EventWaitList, false));
+
   // Reset the wait-event for the UR command-buffer that is signaled when its
   // submission dependencies have been satisfied.
   ZE2UR_CALL(zeCommandListAppendEventReset,
@@ -1475,8 +1619,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   UR_ASSERT(Plt->ZeMutableCmdListExt.Supported,
             UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
   ZE2UR_CALL(Plt->ZeMutableCmdListExt.zexCommandListUpdateMutableCommandsExp,
-             (CommandBuffer->ZeCommandList, &MutableCommandDesc));
-  ZE2UR_CALL(zeCommandListClose, (CommandBuffer->ZeCommandList));
+             (CommandBuffer->ZeComputeCommandList, &MutableCommandDesc));
+  ZE2UR_CALL(zeCommandListClose, (CommandBuffer->ZeComputeCommandList));
 
   return UR_RESULT_SUCCESS;
 }
