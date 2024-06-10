@@ -214,22 +214,7 @@ getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
   assert(!QueueImpl->getCommandGraph() &&
          "Should not be called in on graph recording.");
 
-  auto LastEvent = QueueImpl->getLastEvent();
-  if (QueueImpl->MDiscardEvents) {
-    std::cout << "Discard event enabled" << std::endl;
-    return LastEvent;
-  }
-
-  auto LastEventImpl = detail::getSyclObjImpl(LastEvent);
-  // If last event is default constructed event then we want to associate it
-  // with the queue and record submission time if profiling is enabled. Such
-  // event corresponds to NOP and its submit time is same as start time and
-  // end time.
-  if (!LastEventImpl->isContextInitialized()) {
-    LastEventImpl->associateWithQueue(QueueImpl);
-    LastEventImpl->setSubmissionTime();
-  }
-  return detail::createSyclObjFromImpl<event>(LastEventImpl);
+  return QueueImpl->getLastEvent();
 }
 
 /// Prevents any commands submitted afterward to this queue from executing
