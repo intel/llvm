@@ -791,7 +791,7 @@ void test(const sycl::stream &s, int *ec) {
     s << "vmax4 check passed!\n";
   }
   {
-    auto res = vmin2_vmax2_add();
+    auto res = vmin4_vmax4_add();
     if (res.first) {
       s << res.first << " = " << res.second << " check failed!\n";
       *ec = 20;
@@ -842,7 +842,7 @@ void test(const sycl::stream &s, int *ec) {
       *ec = 25;
       return;
     }
-    s << "vcompare2 check passed!\n";
+    s << "vcompare4 check passed!\n";
   }
   {
     auto res = vcompare4_add();
@@ -851,7 +851,7 @@ void test(const sycl::stream &s, int *ec) {
       *ec = 26;
       return;
     }
-    s << "vcompare2_add check passed!\n";
+    s << "vcompare4_add check passed!\n";
   }
   *ec = 0;
 }
