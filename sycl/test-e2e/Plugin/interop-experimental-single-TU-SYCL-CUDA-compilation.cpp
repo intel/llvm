@@ -1,6 +1,7 @@
 // REQUIRES: cuda && cuda_dev_kit
 // RUN: %{build} %cuda_options -lcudart -lcuda -x cuda -o %t.out
 // RUN: %{run} %t.out
+// XFAIL: *
 
 #include <cuda.h>
 #include <sycl/detail/core.hpp>

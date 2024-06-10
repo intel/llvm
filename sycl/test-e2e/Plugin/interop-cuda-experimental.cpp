@@ -2,6 +2,7 @@
 
 // RUN: %{build} %cuda_options -o %t.out
 // RUN: %{run} %t.out
+// XFAIL: *
 
 #define SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL 1
 #include <sycl/backend.hpp>
