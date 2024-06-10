@@ -687,7 +687,7 @@ void test(const sycl::stream &s, int *ec) {
     s << "vmax4 check passed!\n";
   }
   {
-    auto res = vmin2_vmax2_add();
+    auto res = vmin4_vmax4_add();
     if (res.first) {
       s << res.first << " = " << res.second << " check failed!\n";
       *ec = 20;
