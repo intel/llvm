@@ -10608,10 +10608,12 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
 }
 
 // Add any sycl-post-link options that rely on a specific Triple.
-static void getTripleBasedSYCLPostLinkOpts(
-    const ToolChain &TC, const JobAction &JA, const llvm::opt::ArgList &TCArgs,
-    llvm::Triple Triple, ArgStringList &PostLinkArgs, bool SpecConsts,
-    types::ID OutputType, bool NewOffloadDriver = false) {
+static void
+getTripleBasedSYCLPostLinkOpts(const ToolChain &TC, const JobAction &JA,
+                               const llvm::opt::ArgList &TCArgs,
+                               llvm::Triple Triple, ArgStringList &PostLinkArgs,
+                               bool SpecConsts, types::ID OutputType) {
+  bool NewOffloadDriver = TC.getDriver().getUseNewOffloadingDriver();
   // Note: Do not use Triple when NewOffloadDriver is 'true'.
   if (!NewOffloadDriver && (OutputType == types::TY_LLVM_BC)) {
     // single file output requested - this means only perform necessary IR
@@ -11100,8 +11102,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // user options. So, these options are partly computed here and then
     // updated inside the clang-linker-wrapper.
     getTripleBasedSYCLPostLinkOpts(getToolChain(), JA, Args, TargetTriple,
-                                   PostLinkArgs, SpecConsts, OutputType,
-                                   /* NewOffloadDriver = */ true);
+                                   PostLinkArgs, SpecConsts, OutputType);
     for (const auto &A : PostLinkArgs)
       appendOption(PostLinkOptString, A);
     if (!PostLinkOptString.empty())
