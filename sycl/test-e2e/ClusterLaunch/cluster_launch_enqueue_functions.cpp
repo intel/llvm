@@ -1,15 +1,20 @@
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_90 -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/sycl.hpp>
 
+#include <string>
+
 int main() {
   using namespace sycl::ext::oneapi::experimental;
 
   sycl::queue queue;
+  auto computeCapability =
+      std::stof(queue.get_device().get_info<sycl::info::device::backend_version>());
 
+  if (computeCapability >= 9.0) {
   cluster_size cluster_dims(sycl::range<3>(2, 2, 1));
   properties cluster_launch_property{cluster_dims};
 
@@ -48,4 +53,6 @@ int main() {
   }
 
   return !correct_result_flag_host;
+  }
+  return 0;
 }
