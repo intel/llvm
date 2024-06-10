@@ -16,6 +16,7 @@
 #define SYCL_EXT_ONEAPI_UNIFORM 1
 
 #include <sycl/ext/oneapi/free_function_queries.hpp>
+#include <sycl/group_algorithm.hpp>
 #include <type_traits>
 
 // Forward declarations of types not allowed to be wrapped in uniform:
