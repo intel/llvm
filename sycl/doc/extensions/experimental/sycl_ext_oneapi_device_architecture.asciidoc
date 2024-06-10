@@ -528,6 +528,7 @@ a|
 [source]
 ----
 nvidia_gpu_sm_90
+nvidia_gpu_sm_90a
 ----
 |-
 |NVIDIA Hopper architecture.
