@@ -20,11 +20,8 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 #include <cstdint>
-#include <iostream>
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
 
 using namespace sycl::ext;
 

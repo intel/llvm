@@ -1,4 +1,4 @@
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 sycl::event iota(size_t n, sycl::buffer<int, 1> &buf, sycl::queue &Q) {
   auto HK = [&](sycl::handler &H) {

@@ -1,7 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: env ZE_FLAT_DEVICE_HIERARCHY=COMBINED %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/composite_device.hpp>
 
 #ifdef SYCL_EXT_ONEAPI_COMPOSITE_DEVICE
 

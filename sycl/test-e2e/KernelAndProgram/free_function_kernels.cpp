@@ -8,7 +8,9 @@
 // This test tests free function kernel code generation and execution.
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/free_function_queries.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 

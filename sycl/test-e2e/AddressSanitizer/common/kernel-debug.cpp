@@ -15,6 +15,7 @@ int main() {
   // CHECK-DEBUG: [kernel]
   // CHECK-NOT: [kernel]
 
+  sycl::free(array, Q);
   std::cout << "PASS" << std::endl;
   return 0;
 }
