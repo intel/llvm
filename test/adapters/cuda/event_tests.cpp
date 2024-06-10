@@ -3,6 +3,7 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "device.hpp"
 #include "event.hpp"
 #include "fixtures.h"
 #include "raii.h"
@@ -15,7 +16,10 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(cudaEventTest);
 // initialized. In the Cuda adapter, an event can have nullptr command queue
 // because the interop API does not associate a UR-owned queue with the event.
 TEST_P(cudaEventTest, GetQueueFromEventCreatedWithNativeHandle) {
+    CUcontext cuda_ctx = device->getNativeContext();
+    EXPECT_NE(cuda_ctx, nullptr);
     RAIICUevent cuda_event;
+    ASSERT_SUCCESS_CUDA(cuCtxSetCurrent(cuda_ctx));
     ASSERT_SUCCESS_CUDA(cuEventCreate(cuda_event.ptr(), CU_EVENT_DEFAULT));
 
     auto native_event = reinterpret_cast<ur_native_handle_t>(cuda_event.get());
