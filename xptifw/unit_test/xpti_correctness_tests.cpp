@@ -335,8 +335,8 @@ TEST_F(xptiCorrectnessTest, xptiCheckTraceEnabledForDefaultTracePointTypes) {
   xpti::payload_t p("foo", "foo.cpp", 1, 0, (void *)13);
   xptiForceSetTraceEnabled(true);
 
-  uint8_t StreamID1 = xptiRegisterStream("test_foo");
-  uint8_t StreamID2 = xptiRegisterStream("foo");
+  uint8_t StreamID1 = xptiRegisterStream("bar");
+  uint8_t StreamID2 = xptiRegisterStream("foo_bar");
   auto Result = xptiRegisterCallback(
       StreamID1, (uint16_t)xpti::trace_point_type_t::graph_create, tpCallback);
   ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);

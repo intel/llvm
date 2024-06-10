@@ -11,7 +11,6 @@
 #include <cassert>
 #include <cstdint>
 #include <cstring>
-#include <iostream>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -20,8 +19,6 @@
 
 #include "xpti/xpti_data_types.h"
 #include "xpti/xpti_trace_framework.h"
-
-#define XPTI_USE_NEW_TRACEPOINT_SCOPE 1
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <string>
@@ -619,8 +616,6 @@ private:
 //   xpti::payload_t m_payload;
 // };
 
-#ifdef XPTI_USE_NEW_TRACEPOINT_SCOPE
-
 /// @class tracepoint_scope_t
 /// @brief This class is used to manage the lifecycle of a tracepoint.
 ///
@@ -657,14 +652,13 @@ public:
   tracepoint_scope_t(const char *fileName, const char *funcName, int line,
                      int column, bool selfNotify = false,
                      const char *callerFuncName = __builtin_FUNCTION())
-      : m_top(false), m_selfNotify(selfNotify),
-        m_callerFuncName(callerFuncName) {
+      : MTop(false), MSelfNotify(selfNotify), MCallerFuncName(callerFuncName) {
     if (!xptiTraceEnabled())
       return;
 
-    m_defaultStreamId = m_streamId = xptiGetDefaultStreamID();
-    m_data = xptiGetTracepointScopeData();
-    if (!m_data.isValid()) {
+    MDefaultStreamId = MStreamId = xptiGetDefaultStreamID();
+    MData = xptiGetTracepointScopeData();
+    if (!MData.isValid()) {
       // No scope data has been set, so we will initiate the scope here by
       // registering the payload
       payload_t tpPayload(funcName, fileName, line, column);
@@ -688,14 +682,13 @@ public:
   ///
   tracepoint_scope_t(payload_t &tpPayload, bool selfNotify = false,
                      const char *callerFuncName = __builtin_FUNCTION())
-      : m_top(false), m_selfNotify(selfNotify),
-        m_callerFuncName(callerFuncName) {
+      : MTop(false), MSelfNotify(selfNotify), MCallerFuncName(callerFuncName) {
     if (!xptiTraceEnabled())
       return;
 
-    m_defaultStreamId = m_streamId = xptiGetDefaultStreamID();
-    m_data = xptiGetTracepointScopeData();
-    if (!m_data.isValid()) {
+    MDefaultStreamId = MStreamId = xptiGetDefaultStreamID();
+    MData = xptiGetTracepointScopeData();
+    if (!MData.isValid()) {
       // No scope data has been set, so we will initiate the scope here by using
       // the payload object. If the object has already been registered, the
       // return value will have the same UID for the payload, but with an
@@ -727,13 +720,12 @@ public:
   ///
   tracepoint_scope_t(bool selfNotify = false,
                      const char *callerFuncName = __builtin_FUNCTION())
-      : m_top(false), m_selfNotify(selfNotify),
-        m_callerFuncName(callerFuncName) {
+      : MTop(false), MSelfNotify(selfNotify), MCallerFuncName(callerFuncName) {
     if (!xptiTraceEnabled())
       return;
 
-    m_defaultStreamId = m_streamId = xptiGetDefaultStreamID();
-    m_data = xptiGetTracepointScopeData();
+    MDefaultStreamId = MStreamId = xptiGetDefaultStreamID();
+    MData = xptiGetTracepointScopeData();
     selfNotifyBegin();
   }
 
@@ -756,16 +748,16 @@ public:
   void init(payload_t &tpPayload) {
     // Register the payload and prepare the tracepoint data. The function
     // returns a UID, associated payload and trace event
-    m_data = xptiRegisterPayloadAndPrepareTracepointData(tpPayload);
+    MData = xptiRegisterPayloadAndPrepareTracepointData(tpPayload);
     // Set the tracepoint scope with the prepared data so all nested functions
     // will have access to it; this call also sets the Universal ID separately
     // for backward compatibility.
-    xptiSetTracepointScopeData(m_data);
+    xptiSetTracepointScopeData(MData);
     // Set the trace event for this tracepoint; all notifications will use this
-    m_traceEvent = m_data.event;
+    MTraceEvent = MData.event;
     // Set the top flag to true, indicating that this is the top-level
     // tracepoint.
-    m_top = true;
+    MTop = true;
   }
 
   /// @brief Destructor for the tracepoint_scope_t class.
@@ -783,26 +775,25 @@ public:
     // subscribers with the closing trace type by setting the LSB to 1 so it
     // will correspond to the the one specified in scopedNotify(). We will check
     // if the trace type has a scope defined before notifying.
-    if (m_scopedNotify && m_traceType && isTraceTypeScoped()) {
+    if (MScopedNotify && MTraceType && isTraceTypeScoped()) {
 
-      m_traceType = m_traceType | 1;
-      if (xptiCheckTraceEnabled(m_streamId, m_traceType))
-        xptiNotifySubscribers(m_streamId, m_traceType, m_parentEvent,
-                              m_traceEvent, m_scopedCorrelationId,
-                              m_scopedUserData);
+      MTraceType = MTraceType | 1;
+      if (xptiCheckTraceEnabled(MStreamId, MTraceType))
+        xptiNotifySubscribers(MStreamId, MTraceType, MParentEvent, MTraceEvent,
+                              MScopedCorrelationId, MScopedUserData);
     }
     // If self notify flag is set, notify the end of the scope
     selfNotifyEnd();
     // If this is the top-level tracepoint, perform additional cleanup.
-    if (m_top) {
+    if (MTop) {
       // Release the event created since this instance of the payload is going
       // out of scope
-      xptiReleaseEvent(m_data.event);
+      xptiReleaseEvent(MData.event);
       // Reset TLS data to invalid
       xptiUnsetTracepointScopeData();
       // Clear internal state
-      m_data = xpti::trace_point_data_t();
-      m_top = false;
+      MData = xpti::trace_point_data_t();
+      MTop = false;
     }
   }
 
@@ -814,7 +805,7 @@ public:
   ///
   /// @return A reference to the UID of the tracepoint.
   ///
-  xpti::uid_t &uid() { return m_data.uid; }
+  xpti::uid_t &uid() { return MData.uid; }
 
   /// @brief Returns the payload of the tracepoint.
   ///
@@ -823,7 +814,7 @@ public:
   ///
   /// @return A pointer to the payload of the tracepoint.
   ///
-  xpti::payload_t *payload() { return m_data.payload; }
+  xpti::payload_t *payload() { return MData.payload; }
 
   /// @brief Returns the trace event data of the tracepoint.
   ///
@@ -832,7 +823,7 @@ public:
   ///
   /// @return A pointer to the trace event data of the tracepoint.
   ///
-  xpti::trace_event_data_t *traceEvent() { return m_traceEvent; }
+  xpti::trace_event_data_t *traceEvent() { return MTraceEvent; }
 
   /// @brief Returns the stream ID for the tracepoint.
   ///
@@ -841,7 +832,7 @@ public:
   ///
   /// @return The stream ID.
   ///
-  uint8_t streamId() { return m_streamId; }
+  uint8_t streamId() { return MStreamId; }
 
   /// @brief Sets the stream for the tracepoint scoped notification
   ///
@@ -854,7 +845,7 @@ public:
   tracepoint_scope_t &stream(const char *streamName) {
     // If tracing is not enabled, don't do anything
     if (xptiTraceEnabled()) {
-      m_streamId = xptiRegisterStream(streamName);
+      MStreamId = xptiRegisterStream(streamName);
     }
     return *this;
   }
@@ -869,7 +860,7 @@ public:
   /// @return A reference to this tracepoint_scope_t object.
   ///
   tracepoint_scope_t &traceType(xpti::trace_point_type_t type) {
-    m_traceType = (uint16_t)type;
+    MTraceType = (uint16_t)type;
     return *this;
   }
 
@@ -885,9 +876,9 @@ public:
   ///
   tracepoint_scope_t &eventType(xpti::trace_event_type_t type) {
     if (xptiTraceEnabled()) {
-      m_eventType = (uint16_t)type;
-      if (m_traceEvent)
-        m_traceEvent->event_type = m_eventType;
+      MEventType = (uint16_t)type;
+      if (MTraceEvent)
+        MTraceEvent->event_type = MEventType;
     }
     return *this;
   }
@@ -904,9 +895,9 @@ public:
   ///
   tracepoint_scope_t &activityType(xpti::trace_activity_type_t type) {
     if (xptiTraceEnabled()) {
-      m_activityType = type;
-      if (m_traceEvent)
-        m_traceEvent->activity_type = (uint16_t)m_activityType;
+      MActivityType = type;
+      if (MTraceEvent)
+        MTraceEvent->activity_type = (uint16_t)MActivityType;
     }
     return *this;
   }
@@ -922,7 +913,7 @@ public:
   ///
   tracepoint_scope_t &parentEvent(xpti::trace_event_data_t *event) {
     if (xptiTraceEnabled()) {
-      m_parentEvent = event;
+      MParentEvent = event;
     }
     return *this;
   }
@@ -938,10 +929,10 @@ public:
   ///
   void notify(const void *userData) {
     // If tracing is not enabled, don't notify
-    if (!xptiCheckTraceEnabled(m_streamId, m_traceType))
+    if (!xptiCheckTraceEnabled(MStreamId, MTraceType))
       return;
 
-    xptiNotifySubscribers(m_streamId, m_traceType, m_parentEvent, m_traceEvent,
+    xptiNotifySubscribers(MStreamId, MTraceType, MParentEvent, MTraceEvent,
                           xptiGetUniqueId(), userData);
   }
 
@@ -959,17 +950,17 @@ public:
   ///
   void scopedNotify(uint16_t traceType, const void *userData) {
     // If tracing is not enabled, don't notify
-    if (!xptiTraceEnabled() || !m_data.isValid())
+    if (!xptiTraceEnabled() || !MData.isValid())
       return;
 
-    m_traceType = traceType & 0xfffe;
-    m_scopedNotify = true;
-    if (xptiCheckTraceEnabled(m_streamId, traceType) && m_traceType) {
-      m_scopedUserData = const_cast<void *>(userData);
-      m_scopedCorrelationId = xptiGetUniqueId();
+    MTraceType = traceType & 0xfffe;
+    MScopedNotify = true;
+    if (xptiCheckTraceEnabled(MStreamId, traceType) && MTraceType) {
+      MScopedUserData = const_cast<void *>(userData);
+      MScopedCorrelationId = xptiGetUniqueId();
       // Notify all subscribers with the tracepoint related details
-      xptiNotifySubscribers(m_streamId, traceType, m_parentEvent, m_traceEvent,
-                            m_scopedCorrelationId, userData);
+      xptiNotifySubscribers(MStreamId, traceType, MParentEvent, MTraceEvent,
+                            MScopedCorrelationId, userData);
     }
   }
 
@@ -985,329 +976,94 @@ public:
   ///
   tracepoint_scope_t &
   addMetadata(const std::function<void(xpti::trace_event_data_t *)> &Callback) {
-    if (xptiCheckTraceEnabled(m_streamId, m_traceType) && m_traceEvent) {
-      Callback(m_traceEvent);
+    if (xptiCheckTraceEnabled(MStreamId, MTraceType) && MTraceEvent) {
+      Callback(MTraceEvent);
     }
     return *this;
   }
 
 private:
   void selfNotifyEnd() {
-    if (!m_data.isValid())
-      return;
-
+    // selfNotify() is supposed to capture the scope of all the tracepoints we
+    // have enbled; if we need to limit the notifications only to when the trace
+    // scope has valid TLS data, we can add the follwoing IF block if
+    // (!m_data.isValid())
+    //   return;
     uint16_t traceType = (uint16_t)xpti::trace_point_type_t::function_end;
-    std::cout << "SelfNotifyEnd(" << m_callerFuncName << "): " << m_selfNotify
-              << "," << (int)m_defaultStreamId << ","
-              << xptiCheckTraceEnabled(m_defaultStreamId, traceType)
-              << std::endl;
-    if (m_selfNotify && m_defaultStreamId &&
-        xptiCheckTraceEnabled(m_defaultStreamId, traceType)) {
-      const void *UserData = static_cast<const void *>(m_callerFuncName);
-      xptiNotifySubscribers(m_defaultStreamId, traceType, m_traceEvent, nullptr,
-                            m_correlationId, UserData);
+    if (MSelfNotify && MDefaultStreamId &&
+        xptiCheckTraceEnabled(MDefaultStreamId, traceType)) {
+      const void *UserData = static_cast<const void *>(MCallerFuncName);
+      xptiNotifySubscribers(MDefaultStreamId, traceType, nullptr, MTraceEvent,
+                            MCorrelationId, UserData);
     }
   }
 
   void selfNotifyBegin() {
-    if (!m_data.isValid())
-      return;
-    std::cout << "SelfNotifyBegin(" << m_callerFuncName << ") " << std::endl;
-    m_correlationId = xptiGetUniqueId();
+    // selfNotify() is supposed to capture the scope of all the tracepoints we
+    // have enbled; if we need to limit the notifications only to when the trace
+    // scope has valid TLS data, we can add the follwoing IF block if
+    // (!m_data.isValid())
+    //   return;
     uint16_t traceType = (uint16_t)xpti::trace_point_type_t::function_begin;
-    if (m_selfNotify && m_defaultStreamId &&
-        xptiCheckTraceEnabled(m_defaultStreamId, traceType)) {
-      const void *UserData = static_cast<const void *>(m_callerFuncName);
-      xptiNotifySubscribers(m_defaultStreamId, traceType, m_traceEvent, nullptr,
-                            m_correlationId, UserData);
+    if (MSelfNotify && MDefaultStreamId &&
+        xptiCheckTraceEnabled(MDefaultStreamId, traceType)) {
+      MCorrelationId = xptiGetUniqueId();
+      const void *UserData = static_cast<const void *>(MCallerFuncName);
+      xptiNotifySubscribers(MDefaultStreamId, traceType, nullptr, MTraceEvent,
+                            MCorrelationId, UserData);
     }
   }
 
   bool isTraceTypeScoped() {
-    if (m_traceType != (uint16_t)xpti::trace_point_type_t::signal &&
-        m_traceType != (uint16_t)xpti::trace_point_type_t::graph_create &&
-        m_traceType != (uint16_t)xpti::trace_point_type_t::node_create &&
-        m_traceType != (uint16_t)xpti::trace_point_type_t::edge_create &&
-        m_traceType != (uint16_t)xpti::trace_point_type_t::queue_create &&
-        m_traceType != (uint16_t)xpti::trace_point_type_t::queue_destroy &&
-        m_traceType != (uint16_t)xpti::trace_point_type_t::diagnostics)
+    if (MTraceType != (uint16_t)xpti::trace_point_type_t::signal &&
+        MTraceType != (uint16_t)xpti::trace_point_type_t::graph_create &&
+        MTraceType != (uint16_t)xpti::trace_point_type_t::node_create &&
+        MTraceType != (uint16_t)xpti::trace_point_type_t::edge_create &&
+        MTraceType != (uint16_t)xpti::trace_point_type_t::queue_create &&
+        MTraceType != (uint16_t)xpti::trace_point_type_t::queue_destroy &&
+        MTraceType != (uint16_t)xpti::trace_point_type_t::diagnostics)
       return true;
     else
       return false;
   }
 
   /// Indicates if this is the top-level tracepoint
-  bool m_top = false;
+  bool MTop = false;
   /// Indicates if the tracepoint should notify the scope of the tracepoint
-  bool m_selfNotify = true;
+  bool MSelfNotify = true;
   /// Indicates if scoped notification is enabled
-  bool m_scopedNotify = false;
+  bool MScopedNotify = false;
   /// Stores the tracepoint data from creating the tracepoint or from
   /// inheritance
-  trace_point_data_t m_data;
+  trace_point_data_t MData;
   /// Stores the name of the function that contains the tracepoint and self
   /// notification will use this information during notification.
-  const char *m_callerFuncName;
+  const char *MCallerFuncName;
   /// Stores the correlation ID for the tracepoint's scope notification.
-  uint64_t m_correlationId;
+  uint64_t MCorrelationId;
   /// Stores the correlation ID for the scoped tracepoint which is different
   /// from self notification
-  uint64_t m_scopedCorrelationId;
+  uint64_t MScopedCorrelationId;
   /// Stores the ID of the stream
-  uint8_t m_streamId = 0;
+  uint8_t MStreamId = 0;
   /// Stores the ID of the default stream use for self notification; the
   /// system sets the default stream ID at the start of the program
-  uint8_t m_defaultStreamId = 0;
+  uint8_t MDefaultStreamId = 0;
   /// Stores the user data for the scoped tracepoint notification
-  void *m_scopedUserData = nullptr;
+  void *MScopedUserData = nullptr;
   /// Stores the type of the tracepoint for scoped notification
-  uint16_t m_traceType = (uint16_t)xpti::trace_point_type_t::function_begin;
+  uint16_t MTraceType = (uint16_t)xpti::trace_point_type_t::function_begin;
   /// Stores the type of the event to describe the scoped notifications
-  uint16_t m_eventType = (uint16_t)xpti::trace_event_type_t::algorithm;
+  uint16_t MEventType = (uint16_t)xpti::trace_event_type_t::algorithm;
   /// Stores the type of the activity the scoped notification region performing
   /// - active, sleep, barrier, lock, overhead etc
-  xpti::trace_activity_type_t m_activityType =
+  xpti::trace_activity_type_t MActivityType =
       xpti::trace_activity_type_t::active;
   /// Stores a pointer to the trace event data
-  trace_event_data_t *m_traceEvent = nullptr;
+  trace_event_data_t *MTraceEvent = nullptr;
   /// Stores a pointer to the parent event data, if provided
-  trace_event_data_t *m_parentEvent = nullptr;
+  trace_event_data_t *MParentEvent = nullptr;
 };
-
-#else
-/// @brief Tracepoint data type allows the construction of Universal ID
-/// @details The tracepoint data type builds on the payload data type by
-/// combining the functionality of payload and xpti::makeEvent() to create the
-/// unique Universal ID and stash it in the TLS for use by downstream layers in
-/// the SW stack.
-///
-/// Usage:-
-/// #ifdef XPTI_TRACE_ENABLED
-///   xpti::payload_t p, *payload = &p;
-/// #ifdef SYCL_TOOL_PROFILE
-///   // sycl::detail::code_location cLoc =
-///   // sycl::detail::code_location::current();
-///   if(cLoc.valid())
-///     p = xpti::payload_t(cLoc.functionname(), cLoc.fileName(),
-///     cLoc.lineNumber(), cLoc.columnNumber(), codeptr);
-///   else
-///     p = xpti::payload_t(KernelInfo.funcName(), KernelInfo.sourceFileName(),
-///     KernelInfo.lineNo(), KernelInfor.columnNo(), codeptr);
-/// #else
-///   xpti::framework::backtrace_t b;
-///   payload = b.payload();
-/// #endif
-///   xpti::tracepoint_t t(payload);
-/// #endif
-///
-///  See also: xptiTracePointTest in xpti_correctness_tests.cpp
-class tracepoint_t {
-public:
-  // Constructor that makes calls to xpti API layer to register strings and
-  // create the Universal ID that is stored in the TLS entry for lookup
-  tracepoint_t(xpti::payload_t *p) : m_payload(nullptr), m_top(false) {
-    // If tracing is not enabled, don't do anything
-    if (!xptiTraceEnabled())
-      return;
-
-    init();
-    // We expect the payload input has been populated with the information
-    // available at that time; before we use this payload, we need to check if a
-    // tracepoint has been set at a higher scope.
-    auto uid = xptiGetUniversalId();
-    if (uid.isValid()) {
-      // We already have a parent SW layer that has a tracepoint defined. This
-      // should be associated with a trace event and a payload
-      m_trace_event =
-          const_cast<xpti::trace_event_data_t *>(xptiFindEvent(uid));
-      // If the trace event is valid, extract the payload
-      if (m_trace_event) {
-        m_payload = m_trace_event->reserved.payload;
-      } else {
-        // Trace event is unavailable, so let is create one with the payload
-        // associated with the UID;
-        m_payload = xptiQueryPayloadByUID(uid);
-        m_trace_event = xptiMakeEvent(
-            m_default_name, const_cast<xpti::payload_t *>(m_payload),
-            m_default_event_type, m_default_activity_type, &m_instID);
-      }
-    } else if (p) {
-      // We may have a valid Payload
-      m_top = true;
-      uid = xptiRegisterPayload(p);
-      // If the payload is valid, we will have a valid UID
-      if (uid.isValid()) {
-        xptiSetUniversalId(uid); // Set TLS with the UID
-        m_payload = xptiQueryPayloadByUID(uid);
-        m_trace_event = xptiMakeEvent(
-            m_default_name, const_cast<xpti::payload_t *>(m_payload),
-            m_default_event_type, m_default_activity_type, &m_instID);
-      }
-      // ELSE, we have a tracepoint that is invalid with a null trace event
-      // which will cause all notifications to fail
-    }
-  }
-  // Constructor that makes calls to xpti API layer to register strings and
-  // create the Universal ID that is stored in the TLS entry for lookup; this
-  // constructor is needed when only code location information is available
-  tracepoint_t(const char *fileName, const char *funcName, int line, int column,
-               void *codeptr = nullptr)
-      : m_payload(nullptr), m_top(false) {
-    // If tracing is not enabled, don't do anything
-    if (!xptiTraceEnabled())
-      return;
-    init();
-
-    // Before we use the code location information, we need to check if a
-    // tracepoint has been set at a higher scope.
-    auto uid = xptiGetUniversalId();
-    if (uid.isValid()) {
-      // We already have a parent SW layer that has a tracepoint defined. This
-      // should be associated with a trace event and a payload
-      m_trace_event =
-          const_cast<xpti::trace_event_data_t *>(xptiFindEvent(uid));
-      // If the trace event is valid, extract the payload
-      if (m_trace_event) {
-        m_payload = m_trace_event->reserved.payload;
-      } else {
-        // Trace event is unavailable, so let is create one with the payload
-        // associated with the UID;
-        m_payload = xptiQueryPayloadByUID(uid);
-        m_trace_event = xptiMakeEvent(
-            m_default_name, const_cast<xpti::payload_t *>(m_payload),
-            m_default_event_type, m_default_activity_type, &m_instID);
-      }
-    } else if (fileName || funcName) {
-      // We expect the the file name and function name to be valid
-      m_top = true;
-      // Create a payload structure from the code location data
-      payload_t p(funcName, fileName, line, column, codeptr);
-      // Register the payload to generate the UID
-      uid = xptiRegisterPayload(&p);
-      if (uid.isValid()) {
-        xptiSetUniversalId(uid);
-        m_payload = xptiQueryPayloadByUID(uid);
-        m_trace_event = xptiMakeEvent(
-            m_default_name, const_cast<xpti::payload_t *>(m_payload),
-            m_default_event_type, m_default_activity_type, &m_instID);
-      }
-    }
-  }
-  ~tracepoint_t() {
-    // If tracing is not enabled, don't do anything
-    if (!xptiTraceEnabled())
-      return;
-
-    if (m_top) {
-      xpti::uid_t null_uid;
-      xptiSetUniversalId(null_uid);
-    }
-  }
-
-  tracepoint_t &stream(const char *stream_name) {
-    // If tracing is not enabled, don't do anything
-    if (xptiTraceEnabled()) {
-      m_default_stream = xptiRegisterStream(stream_name);
-    }
-    return *this;
-  }
-
-  tracepoint_t &trace_type(xpti::trace_point_type_t type) {
-    m_default_trace_type = (uint16_t)type;
-    return *this;
-  }
-
-  tracepoint_t &event_type(xpti::trace_event_type_t type) {
-    if (xptiTraceEnabled()) {
-      m_default_event_type = (uint16_t)type;
-      if (m_trace_event)
-        m_trace_event->event_type = m_default_event_type;
-    }
-    return *this;
-  }
-
-  tracepoint_t &activity_type(xpti::trace_activity_type_t type) {
-    if (xptiTraceEnabled()) {
-      m_default_activity_type = type;
-      if (m_trace_event)
-        m_trace_event->activity_type = (uint16_t)m_default_activity_type;
-    }
-    return *this;
-  }
-
-  tracepoint_t &parent_event(xpti::trace_event_data_t *event) {
-    if (xptiTraceEnabled()) {
-      m_parent_event = event;
-    }
-    return *this;
-  }
-
-  void notify(const void *user_data) {
-    // If tracing is not enabled, don't notify
-    if (!xptiTraceEnabled())
-      return;
-
-    xptiNotifySubscribers(m_default_stream, m_default_trace_type,
-                          m_parent_event, m_trace_event, m_instID, user_data);
-  }
-  // The payload object that is returned will have the UID object populated and
-  // can be looked up in the xpti lookup APIs or be used to make an event.
-  const payload_t *payload() { return m_payload; }
-
-  // If the tracepoint has been successfully created, the trace event will be
-  // set; this method allows us to query and reuse
-  const xpti::trace_event_data_t *trace_event() { return m_trace_event; }
-
-  // Method to extract the stream used by the current tracepoint type
-  uint8_t stream_id() { return m_default_stream; }
-
-  // Method to extract the instance ID used by the current tracepoint type
-  uint64_t instance_id() { return m_instID; }
-
-  // Method to override the instance ID generated by the xptiMakeEvent() call
-  void override_instance_id(uint64_t instance) { m_instID = instance; }
-
-  xpti::uid_t universal_id() {
-    if (m_payload &&
-        (m_payload->flags &
-         static_cast<uint64_t>(xpti::payload_flag_t::UIDAvailable))) {
-      return m_payload->uid;
-    } else {
-      return xpti::uid_t();
-    }
-  }
-
-private:
-  /// @brief Initializes the default values for some parameters
-  void init() {
-    m_default_stream = xptiRegisterStream("diagnostics");
-    m_default_trace_type = (uint16_t)xpti::trace_point_type_t::diagnostics;
-    m_default_event_type = (uint16_t)xpti::trace_event_type_t::algorithm;
-    m_default_activity_type = xpti::trace_activity_type_t::active;
-    m_default_name = "Message"; // Likely never used
-  }
-  /// The payload data structure that is prepared from code_location(),
-  /// caller_callee string or kernel name/codepointer based on the opt-in flag.
-  const payload_t *m_payload;
-  /// Indicates if the Payload was added to TLS by current instance
-  bool m_top;
-  /// We define a default stream to push notifications to
-  uint8_t m_default_stream;
-  /// We define a default trace type for the notifications which can be
-  /// overridden
-  uint16_t m_default_trace_type;
-  /// Default sting to use in Notify() calls
-  const char *m_default_name;
-  /// Holds the event type that qualifies the event (as algorithm etc)
-  uint16_t m_default_event_type;
-  /// Holds the activity type; only needed to qualify activity
-  xpti::trace_activity_type_t m_default_activity_type;
-  /// Parent anc child trace event objects for graph actions
-  xpti::trace_event_data_t *m_trace_event = nullptr, *m_parent_event = nullptr;
-  /// Instance number of the event
-  uint64_t m_instID;
-};
-#endif
 
 /// @class notify_scope_t
 /// @brief A class that provides scope-based notification for tracing.
@@ -1430,7 +1186,6 @@ private:
                                           __builtin_FUNCTION())                \
       .scopedNotify();
 
-#ifdef XPTI_USE_NEW_TRACEPOINT_SCOPE
 /// @def XPTI_SET_TRACE_SCOPE(fileN, funcN, lineN, colN, traceType, traceEv)
 /// @brief A macro that sets a trace scope and sends a scoped notification.
 ///
@@ -1463,7 +1218,3 @@ private:
 /// @param self A pointer to the current function.
 ///
 #define XPTI_USE_TRACE_SCOPE() xpti::framework::tracepoint_scope_t TP(true);
-#else
-#define XPTI_SET_TRACE_SCOPE(fileN, funcN, lineN, colN, traceType)
-#define XPTI_USE_TRACE_SCOPE()
-#endif

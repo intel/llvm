@@ -100,6 +100,14 @@ xpti::trace_event_type_t g_default_event_type =
 xpti::trace_point_type_t g_default_trace_type =
     xpti::trace_point_type_t::function_begin;
 
+/// @brief A global boolean flag to control self-notification of trace points.
+///
+/// If this flag is set to true, the trace point will notify itself when it is
+/// hit. This can be useful for debugging or for generating more detailed trace
+/// information. By default, this flag is set to false, meaning that trace
+/// points do not notify themselves.
+bool g_tracepoint_self_notify = false;
+
 // This class is a helper class to load all the listed subscribers
 // provided by the user in XPTI_SUBSCRIBERS environment variable.
 class Subscribers {
@@ -499,6 +507,7 @@ public:
   uid_payload_t registerPayload(xpti::payload_t *Payload) {
     // Payload is updated with string references
     auto uid = makeUID(Payload);
+
     if (!uid.isValid())
       return std::make_pair(uid, nullptr);
 
@@ -551,11 +560,15 @@ public:
     if (!Payload->isValid())
       return xpti::uid_t();
 
-    // If the uid has already been generated and cached, return the cached uid;
-    // this is the case when the payload from treacepoint map is stored in the
-    // trace event data
-    if (Payload->flags & static_cast<uint64_t>(payload_flag_t::UIDAvailable))
+    // If the uid has already been generated and cached, return the cached
+    // uid; this is the case when the payload from tracepoint map is stored
+    // in the trace event data
+    if (Payload->flags & static_cast<uint64_t>(payload_flag_t::UIDAvailable) &&
+        Payload->uid.isValid())
       return Payload->uid;
+    else
+      // If the uid has not been generated and cached, update the flag to say so
+      Payload->flags &= (~static_cast<uint64_t>(payload_flag_t::UIDAvailable));
 
     // If the payload's function name is available, add it to the string table
     // and get its id
@@ -656,17 +669,62 @@ private:
 /// notifications are instrumentation points.
 class Notifications {
 public:
+  /// @typedef cb_entry_t
+  /// @brief Defines a callback entry as a pair consisting of a boolean and a
+  /// tracepoint callback function.
+  /// @details The boolean value indicates whether the callback is enabled
+  /// (true) or disabled (false). The tracepoint callback function is defined by
+  /// the xpti::tracepoint_callback_api_t type.
   using cb_entry_t = std::pair<bool, xpti::tracepoint_callback_api_t>;
+
+  /// @typedef cb_entries_t
+  /// @brief Represents a collection of callback entries.
+  /// @details This is a vector of cb_entry_t, allowing for multiple callbacks
+  /// to be associated with a single event or tracepoint.
   using cb_entries_t = std::vector<cb_entry_t>;
+
+  /// @typedef cb_t
+  /// @brief Maps a trace type to its associated callback entries.
+  /// @details This unordered map uses a uint16_t as the key to represent the
+  /// trace point type, and cb_entries_t to store the associated callbacks.
   using cb_t = std::unordered_map<uint16_t, cb_entries_t>;
+
+  /// @typedef stream_cb_t
+  /// @brief Maps a stream ID to its corresponding callbacks for different
+  /// trace types
+  /// @details This unordered map uses a uint16_t as the key for the stream ID,
+  /// and cb_t to map the stream to registered callbacks for each trace type
   using stream_cb_t = std::unordered_map<uint16_t, cb_t>;
+
+  /// @typedef statistics_t
+  /// @brief Keeps track of statistics, typically counts, associated with
+  /// different framework operations.
+  /// @details This unordered map uses a uint16_t as the key for the tracking
+  /// the type of statistical data and usually not defined by default. To enable
+  /// it, XPTI_STATISTICS has to be defined while compiling the frmaework
+  /// library.
   using statistics_t = std::unordered_map<uint16_t, uint64_t>;
+
+  /// @typedef trace_flags_t
+  /// @brief Maps an trace type to a boolean flag indicating its state.
+  /// @details This unordered map uses a uint16_t as the key for the trace type,
+  /// and a boolean value to indicate whether callbacks are registered for this
+  /// trace type (e.g., registered or unregisterted/no callback).
+  using trace_flags_t = std::unordered_map<uint16_t, bool>;
+
+  /// @typedef stream_flags_t
+  /// @brief Maps a stream ID to its corresponding trace flags for different
+  /// trace point types.
+  /// @details This unordered map uses a uint8_t as the key for trace type,
+  /// and trace_flags_t to map the trace type to their boolean that indiciates
+  /// whether a callback has been registered for this trace type in the given
+  /// stream.
+  using stream_flags_t = std::unordered_map<uint8_t, trace_flags_t>;
 
   xpti::result_t registerCallback(uint8_t StreamID, uint16_t TraceType,
                                   xpti::tracepoint_callback_api_t cbFunc) {
     if (!cbFunc)
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
-
 #ifdef XPTI_STATISTICS
     //  Initialize first encountered trace
     //  type statistics counters
@@ -681,6 +739,10 @@ public:
     // If reader-writer locks were emplyed, this is where the writer lock can
     // be used
     std::lock_guard<std::mutex> Lock(MCBsLock);
+    auto &TraceFlags = MStreamFlags[StreamID]; // Get the trace flags for the
+                                               // stream ID
+    TraceFlags[TraceType] = true; // Set the trace type flag to true
+
     auto &StreamCBs =
         MCallbacksByStream[StreamID]; // thread-safe
                                       // What we get is a concurrent_hash_map
@@ -703,9 +765,9 @@ public:
     // that it is no longer valid and is unregistered.
     for (auto &Ele : Acc->second) {
       if (Ele.second == cbFunc) {
-        if (Ele.first) // Already here and active
+        if (Ele.first) { // Already here and active
           return xpti::result_t::XPTI_RESULT_DUPLICATE;
-        else { // it has been unregistered before, re-enable
+        } else { // it has been unregistered before, re-enable
           Ele.first = true;
           return xpti::result_t::XPTI_RESULT_UNDELETE;
         }
@@ -726,6 +788,10 @@ public:
     // and only reset the flag, the writer lock is not held for very long; use
     // writer lock here.
     std::lock_guard<std::mutex> Lock(MCBsLock);
+    auto &TraceFlags = MStreamFlags[StreamID]; // Get the trace flags for the
+                                               // stream ID
+    TraceFlags[TraceType] = false; // Set the trace type flag to false
+
     auto &StreamCBs =
         MCallbacksByStream[StreamID]; // thread-safe
                                       //  What we get is a concurrent_hash_map
@@ -772,24 +838,47 @@ public:
     return xpti::result_t::XPTI_RESULT_SUCCESS;
   }
 
+  /// @brief Checks if a trace type is subscribed in a specific stream.
+  ///
+  /// This function determines whether a given trace type (event or tracepoint)
+  /// is currently subscribed to by a callback function in a specific stream.
+  /// Clients receive the data when they subscribe and instrumentation is
+  /// allowed only if there are subscribers registered for the trace type. This
+  /// function is now lock free and uses a shadow data structure which is
+  /// updated when a callback is registered or unregistered.
+  ///
+  /// @param StreamID The unique identifier for the stream being queried.
+  /// @param TraceType The unique identifier for the trace type being checked
+  /// for subscription.
+  /// @return Returns true if the trace type ihas subscribers in the stream;
+  /// otherwise, returns false.
   bool checkSubscribed(uint16_t StreamID, uint16_t TraceType) {
     if (StreamID == 0)
       return false;
 
-    // If the notification framework moves to reader-writer locks, use reader
-    // lock here
-    std::lock_guard<std::mutex> Lock(MCBsLock);
-    auto &StreamCBs =
-        MCallbacksByStream[StreamID]; // thread-safe
-                                      // What we get is a concurrent_hash_map
-                                      // of vectors holding the callbacks we
-                                      // need access to;
-    bool StreamSubscribed = (StreamCBs.size() > 0);
-    if (TraceType) {
-      bool TraceTypeSubscribed = (StreamCBs.count(TraceType) > 0);
-      return (StreamSubscribed && TraceTypeSubscribed);
-    } else
-      return StreamSubscribed;
+    // Instead of checking the MCallbacksByStream to see if there are registered
+    // callbacks for a given stream/trace type quesry, we check this against a
+    // shadow data structure that sets a boolean flag equals TRUE if a callback
+    // is registered for a Stream/Trace Type combination and false if the
+    // callback has been unregistered or if one is not present.
+    auto &StreamFlags = MStreamFlags[StreamID];
+    // When it is required that a particular stream has at least one active
+    // subscriber, the TraceType will be set to 0. In this case we scan the
+    // booleans of all set TraceType active subscribers and bail on the first
+    // occurreence of TRUE.
+    if (TraceType == 0) {
+      for (auto &e : StreamFlags) {
+        if (e.second)
+          return true;
+      }
+      return false;
+    } else {
+      // If a specific TraceType has to be examined, we returns tis boolean
+      // value
+      if (StreamFlags.count(TraceType) == 0)
+        return false;
+      return StreamFlags[TraceType];
+    }
   }
 
   xpti::result_t notifySubscribers(uint16_t StreamID, uint16_t TraceType,
@@ -898,6 +987,7 @@ private:
   }
 #endif
   stream_cb_t MCallbacksByStream;
+  stream_flags_t MStreamFlags;
   std::mutex MCBsLock;
   std::mutex MStatsLock;
   statistics_t MStats;
@@ -1450,6 +1540,15 @@ xptiSetTracepointScopeData(xpti::trace_point_data_t &data) {
 
 XPTI_EXPORT_API void xptiUnsetTracepointScopeData() {
   g_tls_tracepoint_scope_data = xpti::trace_point_data_t();
+}
+
+XPTI_EXPORT_API void
+xptiEnableTracepointScopeNotification(bool enableOrDisable) {
+  xpti::g_tracepoint_self_notify = enableOrDisable;
+}
+
+XPTI_EXPORT_API bool xptiCheckTracepointScopeNotification() {
+  return xpti::g_tracepoint_self_notify;
 }
 
 XPTI_EXPORT_API xpti::trace_point_data_t

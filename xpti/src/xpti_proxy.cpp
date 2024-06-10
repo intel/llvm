@@ -56,6 +56,8 @@ enum functions_t {
   XPTI_SET_TRACEPOINT_SCOPE_DATA,
   XPTI_UNSET_TRACEPOINT_SCOPE_DATA,
   XPTI_REGISTER_PAYLOAD_AND_PREPARE_TRACEPOINT_DATA,
+  XPTI_ENABLE_TRACEPOINT_SCOPE_NOTIFICATION,
+  XPTI_CHECK_TRACEPOINT_SCOPE_NOTIFICATION,
   // All additional functions need to appear before
   // the XPTI_FW_API_COUNT enum
   XPTI_FW_API_COUNT ///< This enum must always be the last one in the list
@@ -106,6 +108,10 @@ class ProxyLoader {
       {XPTI_UNSET_TRACEPOINT_SCOPE_DATA, "xptiUnsetTracepointScopeData"},
       {XPTI_REGISTER_PAYLOAD_AND_PREPARE_TRACEPOINT_DATA,
        "xptiRegisterPayloadAndPrepareTracepointData"},
+      {XPTI_ENABLE_TRACEPOINT_SCOPE_NOTIFICATION,
+       "xptiEnableTracepointScopeNotification"},
+      {XPTI_CHECK_TRACEPOINT_SCOPE_NOTIFICATION,
+       "xptiCheckTracepointScopeNotification"},
       {XPTI_RELEASE_EVENT, "xptiReleaseEvent"}};
 
 public:
@@ -662,4 +668,25 @@ xptiRegisterPayloadAndPrepareTracepointData(xpti::payload_t &payload) {
     }
   }
   return xpti::trace_point_data_t();
+}
+
+XPTI_EXPORT_API void xptiEnableTracepointScopeNotification(bool enable) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_ENABLE_TRACEPOINT_SCOPE_NOTIFICATION);
+    if (f) {
+      (*(xpti_enable_tracepoint_scope_notification_t)f)(enable);
+    }
+  }
+}
+
+XPTI_EXPORT_API bool xptiCheckTracepointScopeNotification() {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_CHECK_TRACEPOINT_SCOPE_NOTIFICATION);
+    if (f) {
+      return (*(xpti_check_tracepoint_scope_notification_t)f)();
+    }
+  }
+  return false;
 }

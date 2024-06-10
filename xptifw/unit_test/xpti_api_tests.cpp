@@ -260,14 +260,16 @@ TEST_F(xptiApiTest, xptiGetTracePointScopeData) {
   xpti::payload_t Payload("foo", "foo.cpp", 1, 4);
 
   Data.payload = &Payload;
-  Data.uid = xptiRegisterPayload(&Payload);
+  Data.uid = Payload.uid = xptiRegisterPayload(&Payload);
   Result = xptiSetTracepointScopeData(Data);
   // Data.event is nullptr
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
   EXPECT_EQ(Data.isValid(), false);
+  EXPECT_EQ(Payload.isValid(), true);
 
-  Data.event = xptiMakeEvent("foo", &Payload, 0, (xpti::trace_activity_type_t)1,
-                             &Instance);
+  xpti::payload_t NewPayload("foo", "foo.cpp", 1, 4);
+  Data.event = xptiMakeEvent("foo", &NewPayload, 0,
+                             (xpti::trace_activity_type_t)1, &Instance);
   Data.payload = Data.event->reserved.payload;
   Data.uid = Data.event->uid;
   Result = xptiSetTracepointScopeData(Data);
@@ -307,7 +309,9 @@ void trace_point_callback2(uint16_t /*trace_type*/,
   TPCB2Called = *static_cast<const int *>(user_data);
 }
 
-void fn_callback(uint16_t /*trace_type*/, xpti::trace_event_data_t * /*parent*/,
+void fn_callback(uint16_t /*trace_type*/,
+                 xpti::trace_event_data_t *
+                 /*parent*/,
                  xpti::trace_event_data_t * /*event*/, uint64_t /*instance*/,
                  const void * /*user_data*/) {
   func_callback_update++;
@@ -422,34 +426,40 @@ TEST_F(xptiApiTest, xptiCheckTraceEnabledGoodInput) {
   Check =
       xptiCheckTraceEnabled(ID, (uint16_t)xpti::trace_point_type_t::task_end);
   EXPECT_NE(Check, true);
+
+  Result = xptiUnregisterCallback(
+      ID, (uint16_t)xpti::trace_point_type_t::function_begin, fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+
+  Result = xptiUnregisterCallback(
+      ID, (uint16_t)xpti::trace_point_type_t::function_begin, fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_DUPLICATE);
+
+  Result = xptiUnregisterCallback(
+      ID, (uint16_t)xpti::trace_point_type_t::task_begin, fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+
+  Result = xptiUnregisterCallback(
+      ID, (uint16_t)xpti::trace_point_type_t::task_end, fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_NOTFOUND);
+
   Check = xptiCheckTraceEnabled(
-      ID, (uint16_t)xpti::trace_point_type_t::mem_alloc_begin);
+      ID, (uint16_t)xpti::trace_point_type_t::function_begin);
   EXPECT_NE(Check, true);
+  Check =
+      xptiCheckTraceEnabled(ID, (uint16_t)xpti::trace_point_type_t::task_begin);
+  EXPECT_NE(Check, true);
+  Check =
+      xptiCheckTraceEnabled(ID, (uint16_t)xpti::trace_point_type_t::task_end);
+  EXPECT_NE(Check, true);
+
+  Result = xptiRegisterCallback(
+      ID, (uint16_t)xpti::trace_point_type_t::function_begin, fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_UNDELETE);
   Check = xptiCheckTraceEnabled(
-      ID, (uint16_t)
-              xpti::trace_point_type_t::offload_alloc_memory_object_construct);
-  EXPECT_NE(Check, true);
-  Check = xptiCheckTraceEnabled(
-      ID, (uint16_t)
-              xpti::trace_point_type_t::offload_alloc_memory_object_associate);
-  EXPECT_NE(Check, true);
-  Check = xptiCheckTraceEnabled(
-      ID,
-      (uint16_t)xpti::trace_point_type_t::offload_alloc_memory_object_destruct);
-  EXPECT_NE(Check, true);
-  Check = xptiCheckTraceEnabled(
-      ID,
-      (uint16_t)xpti::trace_point_type_t::offload_alloc_memory_object_release);
-  EXPECT_NE(Check, true);
-  Check = xptiCheckTraceEnabled(
-      ID, (uint16_t)xpti::trace_point_type_t::offload_alloc_accessor);
-  EXPECT_NE(Check, true);
-  Check = xptiCheckTraceEnabled(
-      ID, (uint16_t)xpti::trace_point_type_t::mem_release_begin);
-  EXPECT_NE(Check, true);
-  Check = xptiCheckTraceEnabled(
-      ID, (uint16_t)xpti::trace_point_type_t::mem_release_end);
-  EXPECT_NE(Check, true);
+      ID, (uint16_t)xpti::trace_point_type_t::function_begin);
+  EXPECT_EQ(Check, true);
+
   // We expect to reset TraceEnabled() == false
   xptiForceSetTraceEnabled(false);
 }

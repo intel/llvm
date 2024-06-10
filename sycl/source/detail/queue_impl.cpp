@@ -350,8 +350,7 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
                               const std::shared_ptr<queue_impl> &SecondaryQueue,
                               const detail::code_location &Loc,
                               const SubmitPostProcessF *PostProcess) {
-  XPTI_TRACE_POINT(Loc.functionName(), Loc.fileName(), Loc.lineNumber(),
-                   Loc.columnNumber());
+  XPTI_TRACE_POINT_SCOPE(Loc);
 
   handler Handler(Self, PrimaryQueue, SecondaryQueue, MHostQueue);
   Handler.saveCodeLoc(Loc);

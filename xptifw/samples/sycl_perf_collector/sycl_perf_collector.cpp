@@ -24,6 +24,7 @@ bool CalibrationRun = false;
 bool MeasureEventCost = true;
 bool ShowDebugInformation = false;
 bool ShowVerboseOutput = false;
+bool EnableTPScopeOutput = false;
 bool ShowInColors;
 
 uint64_t GOutputFormats = 0;
@@ -240,6 +241,17 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     else
       ShowDebugInformation = false;
 
+    // Set up the tracepoint selfNotify  flag first so we can provide additional
+    // scope notifications
+    const char *TPScopeFlag = std::getenv("XPTI_TRACEPOINTS_SELFNOTIFY");
+    // Check the environment variable for verbose output and set the appropriate
+    // flag, if the variable is set
+    if (TPScopeFlag && std::stoi(TPScopeFlag) != 0)
+      EnableTPScopeOutput = true;
+    else
+      EnableTPScopeOutput = false;
+    xptiEnableTracepointScopeNotification(EnableTPScopeOutput);
+
     const char *ProfOutFile = std::getenv("XPTI_SYCL_PERF_OUTPUT");
     if (ShowVerboseOutput && ProfOutFile)
       std::cout << "XPTI_SYCL_PERF_OUTPUT=" << ProfOutFile << "\n";
@@ -257,11 +269,13 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
       std::cout << "XPTI_SIMULATION=" << SimulationOverheads << "\n";
     const char *CalibrationFlag = std::getenv("XPTI_CALIBRATE");
     if (ShowVerboseOutput && CalibrationFlag)
-      std::cout << "XPTI_SIMULATION=" << CalibrationFlag << "\n";
+      std::cout << "XPTI_CALIBRATE=" << CalibrationFlag << "\n";
     if (ShowVerboseOutput && VerboseFlag)
       std::cout << "XPTI_VERBOSE=" << VerboseFlag << "\n";
     if (ShowVerboseOutput && DebugFlag)
       std::cout << "XPTI_DEBUG=" << DebugFlag << "\n";
+    if (ShowVerboseOutput && TPScopeFlag)
+      std::cout << "XPTI_TRACEPOINTS_SELFNOTIFY=" << TPScopeFlag << "\n";
 
     // Check the environment variable for colored output and set the appropriate
     // flag, if the variable is set
@@ -711,6 +725,22 @@ void record_and_save(const char *StreamName, xpti::trace_event_data_t *Event,
           r = ele->second;
           GRecordsInProgress->erase(ele);
         } else {
+          std::cout << "Stream: " << StreamName << ", UserData: " << Name
+                    << ", Instance:" << Instance << ", TraceType: " << TraceType
+                    << std::endl;
+          if (Event) {
+            std::cout << "UID: {p1: " << Event->uid.p1
+                      << ", p2: " << Event->uid.p2
+                      << ", instance: " << Event->uid.instance << "}"
+                      << std::endl;
+            if (Event->reserved.payload) {
+              std::cout << "Payload: {name: " << Event->reserved.payload->name
+                        << ",file: " << Event->reserved.payload->source_file
+                        << ", line: " << Event->reserved.payload->line_no
+                        << ", col: " << Event->reserved.payload->column_no
+                        << "}" << std::endl;
+            }
+          }
           throw std::runtime_error("Instance id/correlation ID collision!");
         }
         // We are operating on a copy, so no data races
@@ -732,6 +762,22 @@ void record_and_save(const char *StreamName, xpti::trace_event_data_t *Event,
         std::lock_guard<std::mutex> _{GRecMutex};
         r.CorrID = Instance;
         if (GRecordsInProgress->count(Instance)) {
+          std::cout << "Stream: " << StreamName << ", UserData: " << Name
+                    << ", Instance:" << Instance << ", TraceType: " << TraceType
+                    << std::endl;
+          if (Event) {
+            std::cout << "UID: {p1: " << Event->uid.p1
+                      << ", p2: " << Event->uid.p2
+                      << ", instance: " << Event->uid.instance << "}"
+                      << std::endl;
+            if (Event->reserved.payload) {
+              std::cout << "Payload: {name: " << Event->reserved.payload->name
+                        << ",file: " << Event->reserved.payload->source_file
+                        << ", line: " << Event->reserved.payload->line_no
+                        << ", col: " << Event->reserved.payload->column_no
+                        << "}" << std::endl;
+            }
+          }
           throw std::runtime_error("Instance id/correlation ID collision!");
         }
         (*GRecordsInProgress)[Instance] = r;

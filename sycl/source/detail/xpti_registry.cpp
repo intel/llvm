@@ -17,6 +17,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+bool GTracepointSelfNotify = false;
 xpti::trace_event_data_t *XPTIRegistry::createTraceEvent(
     const void *Obj, const void *FuncPtr, uint64_t &IId,
     const detail::code_location &CodeLoc, uint16_t TraceEventType) {

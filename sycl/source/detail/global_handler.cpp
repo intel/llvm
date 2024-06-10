@@ -94,7 +94,6 @@ void GlobalHandler::TraceEventXPTI(const char *Message) {
     // set and not UID and (2) UID set
     detail::tls_code_loc_t Tls;
     auto CodeLocation = Tls.query();
-#ifdef XPTI_USE_NEW_TRACEPOINT_SCOPE
     // Creating a tracepoint will convert a CodeLocation to UID, if not set
     xpti::framework::tracepoint_scope_t TP(
         CodeLocation.fileName(), CodeLocation.functionName(),
@@ -110,16 +109,7 @@ void GlobalHandler::TraceEventXPTI(const char *Message) {
     TP.stream(SYCL_STREAM_NAME)
         .traceType(xpti::trace_point_type_t::diagnostics)
         .notify(static_cast<const void *>(Message));
-#else
-    xpti::framework::tracepoint_t TP(
-        CodeLocation.fileName(), CodeLocation.functionName(),
-        CodeLocation.lineNumber(), CodeLocation.columnNumber());
-    TP.stream(SYCL_STREAM_NAME)
-        .trace_type(xpti::trace_point_type_t::diagnostics)
-        .notify(static_cast<const void *>(Message));
-#endif
   }
-
 #endif
 }
 
