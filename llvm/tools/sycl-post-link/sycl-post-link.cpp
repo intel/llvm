@@ -239,8 +239,8 @@ cl::opt<bool> EmitOnlyKernelsAsEntryPoints{
              "device code split"),
     cl::cat(PostLinkCat), cl::init(false)};
 
-cl::opt<bool> SplitForRunTimeLinking{
-    "split-for-run-time-linking",
+cl::opt<bool> ExcludeExternalFunctions{
+    "exclude-external-functions",
     cl::desc("Do not add SYCL_EXTERNAL functions that are called to device "
              "code images"),
     cl::cat(PostLinkCat), cl::init(false)};
@@ -983,7 +983,7 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
   // when linked back because functions shared between graphs are cloned and
   // renamed.
   SmallVector<module_split::ModuleDesc, 2> Result = module_split::splitByESIMD(
-      std::move(MDesc), EmitOnlyKernelsAsEntryPoints, SplitForRunTimeLinking);
+      std::move(MDesc), EmitOnlyKernelsAsEntryPoints, ExcludeExternalFunctions);
 
   if (Result.size() > 1 && SplitOccurred &&
       (SplitMode == module_split::SPLIT_PER_KERNEL) && !SplitEsimd) {
@@ -1149,7 +1149,7 @@ processInputModule(std::unique_ptr<Module> M) {
   std::unique_ptr<module_split::ModuleSplitterBase> Splitter =
       module_split::getDeviceCodeSplitter(
           module_split::ModuleDesc{std::move(M)}, SplitMode, IROutputOnly,
-          EmitOnlyKernelsAsEntryPoints, SplitForRunTimeLinking);
+          EmitOnlyKernelsAsEntryPoints, ExcludeExternalFunctions);
   bool SplitOccurred = Splitter->remainingSplits() > 1;
   Modified |= SplitOccurred;
 
