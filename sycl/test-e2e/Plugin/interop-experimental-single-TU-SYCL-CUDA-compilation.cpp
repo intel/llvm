@@ -1,6 +1,8 @@
 // REQUIRES: cuda && cuda_dev_kit
 // RUN: %{build} %cuda_options -lcudart -lcuda -x cuda -o %t.out
 // RUN: %{run} %t.out
+
+// An issue has been reported in https://github.com/intel/llvm/issues/14115
 // XFAIL: *
 
 #include <cuda.h>
