@@ -90,7 +90,7 @@ sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
                 T value, Compare comp) {
   return sort_over_group(
       exec.get_group(), value,
-      experimental::default_sorter<Compare>(exec.get_memory(), comp));
+      default_sorters::group_sorter<T, Compare, 1>(exec.get_memory(), comp));
 }
 
 template <typename Group, typename T, size_t Extent>
@@ -98,7 +98,7 @@ std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, T>
 sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
                 T value) {
   return sort_over_group(exec.get_group(), value,
-                         experimental::default_sorter<>(exec.get_memory()));
+                         default_sorters::group_sorter<T>(exec.get_memory()));
 }
 
 // ---- joint_sort
@@ -120,7 +120,7 @@ std::enable_if_t<!detail::is_sorter<Compare, Group, Iter>::value, void>
 joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
            Iter last, Compare comp) {
   joint_sort(exec.get_group(), first, last,
-             experimental::default_sorter<Compare>(exec.get_memory(), comp));
+             default_sorters::joint_sorter<Compare>(exec.get_memory(), comp));
 }
 
 template <typename Group, typename Iter, size_t Extent>
@@ -128,7 +128,7 @@ std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, void>
 joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
            Iter last) {
   joint_sort(exec.get_group(), first, last,
-             experimental::default_sorter<>(exec.get_memory()));
+             default_sorters::joint_sorter<>(exec.get_memory()));
 }
 
 } // namespace ext::oneapi::experimental
