@@ -399,11 +399,11 @@ protected:
 
 #ifdef __SYCL_DEVICE_ONLY__
   using vec_bool_t = vec<bool, NumElements>;
-  // Require only for std::bool.
+  // Required only for std::bool.
   static void ConvertToDataT(vec_bool_t &Ret) {
-    for (size_t i = 0; i < NumElements; ++i) {
-      DataT tmp = detail::VecAccess<vec_bool_t>::getValue(Ret, i);
-      detail::VecAccess<vec_bool_t>::setValue(Ret, i, tmp);
+    for (size_t I = 0; I < NumElements; ++I) {
+      DataT Tmp = detail::VecAccess<vec_bool_t>::getValue(Ret, I);
+      detail::VecAccess<vec_bool_t>::setValue(Ret, I, Tmp);
     }
   }
 #endif

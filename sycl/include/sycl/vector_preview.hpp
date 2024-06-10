@@ -359,7 +359,7 @@ template <typename T>
 using vec_data_t = typename detail::vec_helper<T>::RetType;
 
 ///////////////////////// class sycl::vec /////////////////////////
-// Provides a cross-patform vector class template that works efficiently on
+// Provides a cross-platform vector class template that works efficiently on
 // SYCL devices as well as in host C++ code.
 template <typename Type, int NumElements>
 class vec : public detail::vec_arith<Type, NumElements> {
