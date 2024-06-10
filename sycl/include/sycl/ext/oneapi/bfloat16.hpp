@@ -32,6 +32,7 @@ bfloat16 bitsToBfloat16(const Bfloat16StorageT Value);
 
 // sycl::vec support
 namespace bf16 {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #ifdef __SYCL_DEVICE_ONLY__
 using Vec2StorageT = Bfloat16StorageT __attribute__((ext_vector_type(2)));
 using Vec3StorageT = Bfloat16StorageT __attribute__((ext_vector_type(3)));
@@ -45,6 +46,7 @@ using Vec4StorageT = std::array<Bfloat16StorageT, 4>;
 using Vec8StorageT = std::array<Bfloat16StorageT, 8>;
 using Vec16StorageT = std::array<Bfloat16StorageT, 16>;
 #endif
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 } // namespace bf16
 } // namespace detail
 
