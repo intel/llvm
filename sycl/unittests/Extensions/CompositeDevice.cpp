@@ -72,7 +72,23 @@ pi_result after_piDeviceGetInfo_unsupported(pi_device device,
   switch (param_name) {
   case PI_EXT_ONEAPI_DEVICE_INFO_COMPOSITE_DEVICE:
   case PI_EXT_ONEAPI_DEVICE_INFO_COMPONENT_DEVICES:
-    return PI_ERROR_UNSUPPORTED_FEATURE;
+    return PI_ERROR_INVALID_VALUE;
+
+  default:
+    return PI_SUCCESS;
+  }
+}
+
+pi_result after_piDeviceGetInfo_no_component_devices(
+    pi_device device, pi_device_info param_name, size_t param_value_size,
+    void *param_value, size_t *param_value_size_ret) {
+  switch (param_name) {
+  case PI_EXT_ONEAPI_DEVICE_INFO_COMPOSITE_DEVICE:
+    return PI_ERROR_INVALID_VALUE;
+  case PI_EXT_ONEAPI_DEVICE_INFO_COMPONENT_DEVICES:
+    if (param_value_size_ret)
+      *param_value_size_ret = 0;
+    return PI_SUCCESS;
 
   default:
     return PI_SUCCESS;
@@ -175,4 +191,20 @@ TEST(CompositeDeviceTest, UnsupportedNegative) {
   } catch (sycl::exception &E) {
     ASSERT_EQ(E.code(), sycl::make_error_code(sycl::errc::invalid));
   }
+}
+
+TEST(CompositeDeviceTest, NoComponentDevices) {
+  sycl::unittest::PiMock Mock;
+  Mock.redefine<sycl::detail::PiApiKind::piDevicesGet>(redefine_piDevicesGet);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+      after_piDeviceGetInfo_no_component_devices);
+
+  sycl::platform Plt = Mock.getPlatform();
+
+  sycl::device ComponentDevice = Plt.get_devices()[0];
+  ASSERT_FALSE(ComponentDevice.has(sycl::aspect::ext_oneapi_is_composite));
+
+  std::vector<sycl::device> ComponentDevices = ComponentDevice.get_info<
+      sycl::ext::oneapi::experimental::info::device::component_devices>();
+  ASSERT_TRUE(ComponentDevices.empty());
 }

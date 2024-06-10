@@ -75,11 +75,16 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
         tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
       return()
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
