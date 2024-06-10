@@ -5,6 +5,8 @@
 		urAdapterGetLastError;
 		urAdapterRelease;
 		urAdapterRetain;
+		urAdapterSetLoggerCallback;
+		urAdapterSetLoggerCallbackLevel;
 		urBindlessImagesImageAllocateExp;
 		urBindlessImagesImageCopyExp;
 		urBindlessImagesImageFreeExp;
@@ -103,6 +105,7 @@
 		urEventRetain;
 		urEventSetCallback;
 		urEventWait;
+		urGetAdapterProcAddrTable;
 		urGetBindlessImagesExpProcAddrTable;
 		urGetCommandBufferExpProcAddrTable;
 		urGetContextProcAddrTable;
@@ -177,6 +180,8 @@
 		urPrintAdapterInfo;
 		urPrintAdapterReleaseParams;
 		urPrintAdapterRetainParams;
+		urPrintAdapterSetLoggerCallbackLevelParams;
+		urPrintAdapterSetLoggerCallbackParams;
 		urPrintApiVersion;
 		urPrintBaseDesc;
 		urPrintBaseProperties;
@@ -383,6 +388,7 @@
 		urPrintLoaderConfigSetMockingEnabledParams;
 		urPrintLoaderInitParams;
 		urPrintLoaderTearDownParams;
+		urPrintLoggerLevel;
 		urPrintMapFlags;
 		urPrintMemBufferCreateParams;
 		urPrintMemBufferCreateWithNativeHandleParams;

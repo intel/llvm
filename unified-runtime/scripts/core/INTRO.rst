@@ -202,9 +202,9 @@ By default, no messages are printed.
 
 By default, there is a guarantee that *error* messages are flushed immediately. One can change this behavior to flush on lower-level messages.
 
-Loggers redirect messages to *stdout*, *stderr*, or a file (default: *stderr*).
+Loggers redirect messages to *stdout*, *stderr*, a file or a user configurable callback function (default: *stderr*).
 
-All of these logging options can be set with **UR_LOG_LOADER** and **UR_LOG_NULL** environment variables described in the **Environment Variables** section below.
+All of these logging options (except the callback) can be set with **UR_LOG_LOADER** and **UR_LOG_NULL** environment variables described in the **Environment Variables** section below.
 Both of these environment variables have the same syntax for setting logger options:
 
   "[level:debug|info|warning|error];[flush:<debug|info|warning|error>];[output:stdout|stderr|file,<path>]"
@@ -231,6 +231,10 @@ the ``out.log`` file::
 An example of an environment variable for setting up the null adapter library with logging level set to *warning* and output set to stdout::
 
   UR_LOG_NULL="level:warning;output:stdout"
+
+Logging callback
+^^^^^^^^^^^^^^^^^^^^^
+An API is available to configure the logging callback function :ref:`urAdapterSetLoggerCallback`. Additionally, the logging level can be set using :ref:`urAdapterSetLoggerCallbackLevel`.
 
 Adapter Discovery
 ---------------------
