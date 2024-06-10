@@ -1182,6 +1182,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     // of -fsycl*target options passed
     Arg *SYCLTargetsValues = SYCLTargets;
     if (SYCLTargetsValues) {
+      llvm::StringSet<> SYCLTriples;
       if (SYCLTargetsValues->getNumValues()) {
 
         // Multiple targets are currently not supported when using
@@ -1220,7 +1221,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             const ToolChain *HostTC =
                 C.getSingleOffloadToolChain<Action::OFK_Host>();
             llvm::Triple HostTriple = HostTC->getTriple();
-            UniqueSYCLTriplesVec.push_back(HostTriple);
+            SYCLTriples.insert(HostTriple.normalize());
             continue;
           }
 
@@ -1242,17 +1243,15 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           // the following iterations.
           FoundNormalizedTriples[NormalizedName] = Val;
           llvm::Triple DeviceTriple(MakeSYCLDeviceTriple(UserTargetName));
-          // Only add the Triple to the Unique vector if it is truly unique.
-          // We can have duplicate triples in cases where multiple implied
-          // targets are used, i.e. intel_gpu_pvc,intel_gpu_gen11
-          // TODO: Improve usage by using a better container (like StringSet)
-          // to provide uniqueness in values.
-          if (std::find(UniqueSYCLTriplesVec.begin(),
-                        UniqueSYCLTriplesVec.end(),
-                        DeviceTriple) == UniqueSYCLTriplesVec.end())
-            UniqueSYCLTriplesVec.push_back(DeviceTriple);
+          SYCLTriples.insert(DeviceTriple.normalize());
           if (!Arch.empty())
             DerivedArchs[DeviceTriple.getTriple()].insert(Arch);
+        }
+        if (!SYCLTriples.empty()) {
+          for (const auto &SYCLTriple : SYCLTriples) {
+            llvm::Triple Triple(SYCLTriple.getKey());
+            UniqueSYCLTriplesVec.push_back(Triple);
+          }
         }
         addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
       } else
@@ -5039,17 +5038,16 @@ class OffloadingActionBuilder final {
       }
 
       // By default, we produce an action for each device arch.
-      auto TC = ToolChains.begin();
-      for (Action *&A : SYCLDeviceActions) {
-        if ((*TC)->getTriple().isNVPTX() && CurPhase >= phases::Backend) {
+      for (auto TargetActionInfo :
+           llvm::zip(SYCLDeviceActions, SYCLTargetInfoList)) {
+        auto &TargetInfo = std::get<1>(TargetActionInfo);
+        if (TargetInfo.TC->getTriple().isNVPTX() && CurPhase >= phases::Backend)
           // For CUDA, stop to emit LLVM IR so it can be linked later on.
-          ++TC;
           continue;
-        }
 
+        Action *&A = std::get<0>(TargetActionInfo);
         A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
                                                AssociatedOffloadKind);
-        ++TC;
       }
 
       return ABRT_Success;
