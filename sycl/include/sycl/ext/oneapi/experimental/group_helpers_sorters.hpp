@@ -343,7 +343,7 @@ public:
   }
 };
 
-template <typename T, typename U, typename CompareT = std::less<>,
+template <typename KeyTy, typename ValueTy, typename CompareT = std::less<>,
           std::size_t ElementsPerWorkItem = 1>
 class group_key_value_sorter {
   CompareT comp;
@@ -356,14 +356,13 @@ public:
       : comp(comp_), scratch(scratch_) {}
 
   template <typename Group>
-  std::tuple<T, U> operator()(Group g, T key, U value) {
+  std::tuple<KeyTy, ValueTy> operator()(Group g, KeyTy key, ValueTy value) {
     static_assert(ElementsPerWorkItem == 1,
                   "ElementsPerWorkItem must be equal 1");
 
-    using KeyValue = std::tuple<T, U>;
-    auto this_comp = this->comp;
-    auto comp_key_value = [this_comp](const KeyValue &lhs,
-                                      const KeyValue &rhs) {
+    using KeyValue = std::tuple<KeyTy, ValueTy>;
+    auto comp_key_value = [this_comp = this->comp](const KeyValue &lhs,
+                                                   const KeyValue &rhs) {
       return this_comp(std::get<0>(lhs), std::get<0>(rhs));
     };
     return group_sorter<KeyValue, decltype(comp_key_value),
@@ -373,7 +372,7 @@ public:
 
   static constexpr std::size_t memory_required(sycl::memory_scope scope,
                                                std::size_t range_size) {
-    return group_sorter<std::tuple<T, U>, CompareT,
+    return group_sorter<std::tuple<KeyTy, ValueTy>, CompareT,
                         ElementsPerWorkItem>::memory_required(scope,
                                                               range_size);
   }
@@ -490,7 +489,7 @@ public:
   }
 };
 
-template <typename T, typename U,
+template <typename KeyTy, typename ValueTy,
           sorting_order Order = sorting_order::ascending,
           size_t ElementsPerWorkItem = 1, unsigned int BitsPerPass = 4>
 class group_key_value_sorter {
@@ -499,16 +498,16 @@ class group_key_value_sorter {
   uint32_t last_bit;
 
   static constexpr uint32_t bits = BitsPerPass;
-  using bitset_t = std::bitset<sizeof(T) * CHAR_BIT>;
+  using bitset_t = std::bitset<sizeof(KeyTy) * CHAR_BIT>;
 
 public:
   template <std::size_t Extent>
   group_key_value_sorter(sycl::span<std::byte, Extent> scratch_,
                          const bitset_t mask = bitset_t{}.set())
       : scratch(scratch_) {
-    static_assert(
-        (std::is_arithmetic<T>::value || std::is_same<T, sycl::half>::value),
-        "radix sort is not usable");
+    static_assert((std::is_arithmetic<KeyTy>::value ||
+                   std::is_same<KeyTy, sycl::half>::value),
+                  "radix sort is not usable");
     for (first_bit = 0; first_bit < mask.size() && !mask[first_bit];
          ++first_bit)
       ;
@@ -518,10 +517,11 @@ public:
   }
 
   template <typename Group>
-  std::tuple<T, U> operator()([[maybe_unused]] Group g, T key, U val) {
+  std::tuple<KeyTy, ValueTy> operator()([[maybe_unused]] Group g, KeyTy key,
+                                        ValueTy val) {
     static_assert(ElementsPerWorkItem == 1, "ElementsPerWorkItem must be 1");
-    T key_result[]{key};
-    U val_result[]{val};
+    KeyTy key_result[]{key};
+    ValueTy val_result[]{val};
 #ifdef __SYCL_DEVICE_ONLY__
     sycl::detail::privateStaticSort<
         /*is_key_value=*/true,
@@ -536,7 +536,7 @@ public:
   static constexpr std::size_t memory_required(sycl::memory_scope,
                                                std::size_t range_size) {
     return (std::max)(range_size * ElementsPerWorkItem *
-                          (sizeof(T) + sizeof(U)),
+                          (sizeof(KeyTy) + sizeof(ValueTy)),
                       range_size * (1 << bits) * sizeof(uint32_t));
   }
 };
