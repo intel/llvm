@@ -100,23 +100,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit f06bc02a24418990ecb9d41471b729f32aebd804
-  # Merge: 42c0b025 9868e3b0
+  # commit 4f105262c30ac231b8db1e250f36e88ef9f0a36d
+  # Merge: 0f118d75 92fce2ee
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jun 5 12:02:53 2024 +0100
-  #     Merge pull request #1669 from JackAKirk/fix-usmptr-get-dev
-  #     [CUDA][HIP] Fix urUSMGetMemAllocInfo impl to use single platform.
-  set(UNIFIED_RUNTIME_TAG f06bc02a24418990ecb9d41471b729f32aebd804)
+  # Date:   Mon Jun 10 13:23:16 2024 +0100
+  #     Merge pull request #1409 from omarahmed1111/Add-CTS-tests-for-image-format
+  #     [CTS] Add CTS tests for urMemImageCreate entry-point
+  set(UNIFIED_RUNTIME_TAG 4f105262c30ac231b8db1e250f36e88ef9f0a36d)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    # commit 0f118d75f6bfe77eb8d933808f7a125e77ca7358
-    # Merge: ed4211cd 721d63c6
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Mon Jun 10 10:38:10 2024 +0100
-    #     Merge pull request #1629 from Bensuo/ewan/L0_update_host_wait
-    #     Use fence rather than event for sync in L0 command-buffer update
-    "0f118d75f6bfe77eb8d933808f7a125e77ca7358"
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
