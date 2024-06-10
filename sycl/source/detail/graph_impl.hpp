@@ -24,6 +24,7 @@
 #include <deque>
 #include <fstream>
 #include <functional>
+#include <iomanip>
 #include <list>
 #include <set>
 #include <shared_mutex>
@@ -618,6 +619,17 @@ private:
           } else if (Arg.MType ==
                      sycl::detail::kernel_param_kind_t::kind_pointer) {
             Type = "Pointer";
+            auto Fill = Stream.fill();
+            Stream << i << ") Type: " << Type << " Ptr: " << Arg.MPtr << "(0x"
+                   << std::hex << std::setfill('0');
+            for (int i = Arg.MSize - 1; i >= 0; --i) {
+              Stream << std::setw(2)
+                     << static_cast<int16_t>(
+                            (static_cast<unsigned char *>(Arg.MPtr))[i]);
+            }
+            Stream.fill(Fill);
+            Stream << std::dec << ")\\n";
+            continue;
           } else if (Arg.MType == sycl::detail::kernel_param_kind_t::
                                       kind_specialization_constants_buffer) {
             Type = "Specialization Constants Buffer";
