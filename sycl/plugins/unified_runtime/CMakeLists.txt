@@ -131,7 +131,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     # Date:   Tue Jun 4 17:15:33 2024 +0100
     #     Merge pull request #1688 from frasercrmck/hip-enqueue-mem-readwritecopy
     #     [HIP] Various fixes for urEnqueueMemImage(Read|Write|Copy)
-    8c97222a0471b7c90ce490533e1aeebbe3dc7f38
+    3e011c7000b1c833a6843fa08f9257fc82045d7c
   )
 
   fetch_adapter_source(native_cpu
