@@ -910,7 +910,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION:
   case UR_DEVICE_INFO_BUILT_IN_KERNELS:
   case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES:
-  case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL:
   case UR_DEVICE_INFO_IP_VERSION: {
     /* We can just use the OpenCL outputs because the sizes of OpenCL types
      * are the same as UR.
@@ -928,6 +927,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                         propSize, pPropValue, pPropSizeRet));
 
     return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
+    // Have to convert size_t to uint32_t
+    size_t SubGroupSizesSize = 0;
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName, 0,
+                        nullptr, &SubGroupSizesSize));
+    std::vector<size_t> SubGroupSizes(SubGroupSizesSize / sizeof(size_t));
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
+                        SubGroupSizesSize, SubGroupSizes.data(), nullptr));
+    return ReturnValue.template operator()<uint32_t>(SubGroupSizes.data(),
+                                                     SubGroupSizes.size());
   }
   case UR_DEVICE_INFO_EXTENSIONS: {
     cl_device_id Dev = cl_adapter::cast<cl_device_id>(hDevice);
