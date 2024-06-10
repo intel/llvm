@@ -36,7 +36,7 @@ void nullptrRelationalOperatorTest() {
           if constexpr (address_space ==
                         sycl::access::address_space::local_space) {
             sycl::local_accessor<int, 1> locAcc(1, cgh);
-            cgh.parallel_for(sycl::nd_range<1>{1, 1}, [=](sycl::id<1>) {
+            cgh.parallel_for(sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1>) {
               locAcc[0] = 1;
               multi_ptr_t mp(locAcc);
               check(mp, dev_acc);

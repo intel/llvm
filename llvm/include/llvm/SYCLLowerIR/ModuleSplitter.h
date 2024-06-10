@@ -13,10 +13,13 @@
 #ifndef LLVM_SYCLLOWERIR_MODULE_SPLITTER_H
 #define LLVM_SYCLLOWERIR_MODULE_SPLITTER_H
 
+#include "SYCLDeviceRequirements.h"
+
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/PropertySetIO.h"
 
 #include <memory>
 #include <string>
@@ -108,6 +111,7 @@ class ModuleDesc {
   std::unique_ptr<Module> M;
   EntryPointGroup EntryPoints;
   bool IsTopLevel = false;
+  mutable std::optional<SYCLDeviceRequirements> Reqs;
 
 public:
   struct Properties {
@@ -193,6 +197,14 @@ public:
 
   ModuleDesc clone() const;
 
+  std::string makeSymbolTable() const;
+
+  const SYCLDeviceRequirements &getOrComputeDeviceRequirements() const {
+    if (!Reqs.has_value())
+      Reqs = computeDeviceRequirements(*this);
+    return *Reqs;
+  }
+
 #ifndef NDEBUG
   void verifyESIMDProperty() const;
   void dump() const;
@@ -260,6 +272,33 @@ void dumpEntryPoints(const EntryPointSet &C, const char *msg = "", int Tab = 0);
 void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints = false,
                      const char *msg = "", int Tab = 0);
 #endif // NDEBUG
+
+struct SplitModule {
+  std::string ModuleFilePath;
+  util::PropertySetRegistry Properties;
+  std::string Symbols;
+
+  SplitModule() = default;
+  SplitModule(const SplitModule &) = default;
+  SplitModule &operator=(const SplitModule &) = default;
+  SplitModule(SplitModule &&) = default;
+  SplitModule &operator=(SplitModule &&) = default;
+
+  SplitModule(std::string_view File, util::PropertySetRegistry Properties,
+              std::string Symbols)
+      : ModuleFilePath(File), Properties(std::move(Properties)),
+        Symbols(std::move(Symbols)) {}
+};
+
+struct ModuleSplitterSettings {
+  IRSplitMode Mode;
+  bool OutputAssembly = false; // Bitcode or LLVM IR.
+  StringRef OutputPrefix;
+};
+
+/// Splits the given module \p M according to the given \p Settings.
+Expected<std::vector<SplitModule>>
+splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings);
 
 } // namespace module_split
 

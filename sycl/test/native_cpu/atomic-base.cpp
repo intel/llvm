@@ -1,6 +1,6 @@
 // Simple test that checks that we can run a simple applications that uses
 // builtins
-// REQUIRES: native_cpu_be
+// REQUIRES: native_cpu
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
 #include <sycl/sycl.hpp>

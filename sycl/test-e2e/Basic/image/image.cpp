@@ -11,12 +11,16 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/accessor_image.hpp>
 #include <sycl/detail/core.hpp>
 
 #include <iostream>
 #include <vector>
 
 #include "../../helpers.hpp"
+
+#include <sycl/accessor_image.hpp>
+#include <sycl/image.hpp>
 
 int main() {
   const sycl::image_channel_order ChanOrder = sycl::image_channel_order::rgba;
@@ -87,7 +91,7 @@ int main() {
 
     constexpr int dims = 1;
 
-    using data_img = sycl::cl_float4;
+    using data_img = sycl::float4;
     constexpr auto mode_img = sycl::access::mode::read;
     constexpr auto target_img = sycl::target::image;
     const auto range_img = sycl::range<dims>(3);

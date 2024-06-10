@@ -1,4 +1,4 @@
-// REQUIRES: native_cpu_be
+// REQUIRES: native_cpu
 // Check that kernel can call a SYCL_EXTERNAL function defined in a
 // static library.
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu -DSOURCE1 %s -c -o %t1.o

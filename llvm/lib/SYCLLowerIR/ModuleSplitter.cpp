@@ -12,16 +12,19 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/IPO/StripDeadPrototypes.h"
@@ -733,6 +736,14 @@ void EntryPointGroup::rebuild(const Module &M) {
       Functions.insert(const_cast<Function *>(&F));
 }
 
+std::string ModuleDesc::makeSymbolTable() const {
+  std::string ST;
+  for (const Function *F : EntryPoints.Functions)
+    ST += (Twine(F->getName()) + "\n").str();
+
+  return ST;
+}
+
 namespace {
 // This is a helper class, which allows to group/categorize function based on
 // provided rules. It is intended to be used in device code split
@@ -800,6 +811,36 @@ public:
   // converted into strings listed in a metadata to a resulting identifier.
   void registerListOfIntegersInMetadataSortedRule(StringRef MetadataName) {
     Rules.emplace_back(Rule::RKind::K_SortedIntegersListMetadata, MetadataName);
+  }
+
+  // Creates a rule, which adds a list of sorted dash-separated integers from
+  // converted into strings listed in a metadata to a resulting identifier.
+  // The form of the metadata is expected to be a metadata node, with its
+  // operands being either an integer or another metadata node with the
+  // form of {!"<aspect_name>", iN <aspect_value>}.
+  void registerAspectListRule(StringRef MetadataName) {
+    registerRule([MetadataName](Function *F) {
+      SmallString<128> Result;
+      if (MDNode *UsedAspects = F->getMetadata(MetadataName)) {
+        SmallVector<std::uint64_t, 8> Values;
+        for (const MDOperand &MDOp : UsedAspects->operands()) {
+          if (auto MDN = dyn_cast<MDNode>(MDOp)) {
+            assert(MDN->getNumOperands() == 2);
+            Values.push_back(mdconst::extract<ConstantInt>(MDN->getOperand(1))
+                                 ->getZExtValue());
+          } else if (auto C = mdconst::dyn_extract<ConstantInt>(MDOp)) {
+            Values.push_back(C->getZExtValue());
+          }
+        }
+
+        llvm::sort(Values);
+
+        for (std::uint64_t V : Values)
+          Result += ("-" + Twine(V)).str();
+      }
+
+      return std::string(Result);
+    });
   }
 
 private:
@@ -980,8 +1021,9 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
     // output files in existing tests.
     Categorizer.registerSimpleStringAttributeRule("sycl-register-alloc-mode");
     Categorizer.registerSimpleStringAttributeRule("sycl-grf-size");
-    Categorizer.registerListOfIntegersInMetadataSortedRule("sycl_used_aspects");
+    Categorizer.registerAspectListRule("sycl_used_aspects");
     Categorizer.registerListOfIntegersInMetadataRule("reqd_work_group_size");
+    Categorizer.registerListOfIntegersInMetadataRule("work_group_num_dim");
     Categorizer.registerListOfIntegersInMetadataRule(
         "intel_reqd_sub_group_size");
     Categorizer.registerSimpleStringAttributeRule(
@@ -1110,6 +1152,63 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
   }
 
   return Result;
+}
+
+static Error saveModuleIRInFile(Module &M, StringRef FilePath,
+                                bool OutputAssembly) {
+  int FD = -1;
+  if (std::error_code EC = sys::fs::openFileForWrite(FilePath, FD))
+    return errorCodeToError(EC);
+
+  raw_fd_ostream OS(FD, true);
+  ModulePassManager MPM;
+  ModuleAnalysisManager MAM;
+  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+  if (OutputAssembly)
+    MPM.addPass(PrintModulePass(OS));
+  else
+    MPM.addPass(BitcodeWriterPass(OS));
+
+  MPM.run(M, MAM);
+  return Error::success();
+}
+
+static Expected<SplitModule> saveModuleDesc(ModuleDesc &MD, std::string Prefix,
+                                            bool OutputAssembly) {
+  SplitModule SM;
+  Prefix += OutputAssembly ? ".ll" : ".bc";
+  Error E = saveModuleIRInFile(MD.getModule(), Prefix, OutputAssembly);
+  if (E)
+    return E;
+
+  SM.ModuleFilePath = Prefix;
+  SM.Symbols = MD.makeSymbolTable();
+  return SM;
+}
+
+Expected<std::vector<SplitModule>>
+splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
+  ModuleDesc MD = std::move(M); // makeModuleDesc() ?
+  // FIXME: false arguments are temporary for now.
+  auto Splitter =
+      getDeviceCodeSplitter(std::move(MD), Settings.Mode, false, false);
+  size_t ID = 0;
+  std::vector<SplitModule> OutputImages;
+  while (Splitter->hasMoreSplits()) {
+    ModuleDesc MD2 = Splitter->nextSplit();
+    MD2.fixupLinkageOfDirectInvokeSimdTargets();
+
+    std::string OutIRFileName = (Settings.OutputPrefix + "_" + Twine(ID)).str();
+    auto SplittedImageOrErr =
+        saveModuleDesc(MD2, OutIRFileName, Settings.OutputAssembly);
+    if (!SplittedImageOrErr)
+      return SplittedImageOrErr.takeError();
+
+    OutputImages.emplace_back(std::move(*SplittedImageOrErr));
+    ++ID;
+  }
+
+  return OutputImages;
 }
 
 } // namespace module_split

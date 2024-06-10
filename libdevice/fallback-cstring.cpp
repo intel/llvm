@@ -9,7 +9,7 @@
 #include "wrapper.h"
 #include <cstdint>
 
-#if defined(__SPIR__) || defined(__NVPTX__)
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__)
 
 static void *__devicelib_memcpy_uint8_aligned(void *dest, const void *src,
                                               size_t n) {
@@ -202,4 +202,4 @@ int __devicelib_memcmp(const void *s1, const void *s2, size_t n) {
 
   return head_cmp;
 }
-#endif // __SPIR__ || __NVPTX__
+#endif // __SPIR__ || __SPIRV__ || __NVPTX__

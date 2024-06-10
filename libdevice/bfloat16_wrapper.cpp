@@ -8,7 +8,7 @@
 
 #include "device.h"
 
-#ifdef __SPIR__
+#if defined(__SPIR__) || defined(__SPIRV__)
 
 #include <CL/__spirv/spirv_ops.hpp>
 #include <cstdint>
@@ -23,4 +23,4 @@ float __devicelib_ConvertBF16ToFINTEL(const uint16_t &x) {
   return __spirv_ConvertBF16ToFINTEL(x);
 }
 
-#endif // __SPIR__
+#endif // __SPIR__ || __SPIRV__

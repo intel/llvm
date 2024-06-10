@@ -455,7 +455,7 @@ public:
   /// block.
   GlobalVariable *CreateGlobalString(StringRef Str, const Twine &Name = "",
                                      unsigned AddressSpace = 0,
-                                     Module *M = nullptr);
+                                     Module *M = nullptr, bool AddNull = true);
 
   /// Get a constant value representing either true or false.
   ConstantInt *getInt1(bool V) {
@@ -1997,8 +1997,9 @@ public:
   /// block.
   Constant *CreateGlobalStringPtr(StringRef Str, const Twine &Name = "",
                                   unsigned AddressSpace = 0,
-                                  Module *M = nullptr) {
-    GlobalVariable *GV = CreateGlobalString(Str, Name, AddressSpace, M);
+                                  Module *M = nullptr, bool AddNull = true) {
+    GlobalVariable *GV =
+        CreateGlobalString(Str, Name, AddressSpace, M, AddNull);
     Constant *Zero = ConstantInt::get(Type::getInt32Ty(Context), 0);
     Constant *Indices[] = {Zero, Zero};
     return ConstantExpr::getInBoundsGetElementPtr(GV->getValueType(), GV,
@@ -2009,8 +2010,18 @@ public:
   // Instruction creation methods: Cast/Conversion Operators
   //===--------------------------------------------------------------------===//
 
-  Value *CreateTrunc(Value *V, Type *DestTy, const Twine &Name = "") {
-    return CreateCast(Instruction::Trunc, V, DestTy, Name);
+  Value *CreateTrunc(Value *V, Type *DestTy, const Twine &Name = "",
+                     bool IsNUW = false, bool IsNSW = false) {
+    if (V->getType() == DestTy)
+      return V;
+    if (Value *Folded = Folder.FoldCast(Instruction::Trunc, V, DestTy))
+      return Folded;
+    Instruction *I = CastInst::Create(Instruction::Trunc, V, DestTy);
+    if (IsNUW)
+      I->setHasNoUnsignedWrap();
+    if (IsNSW)
+      I->setHasNoSignedWrap();
+    return Insert(I, Name);
   }
 
   Value *CreateZExt(Value *V, Type *DestTy, const Twine &Name = "",
@@ -2073,11 +2084,17 @@ public:
     return CreateCast(Instruction::FPToSI, V, DestTy, Name);
   }
 
-  Value *CreateUIToFP(Value *V, Type *DestTy, const Twine &Name = ""){
+  Value *CreateUIToFP(Value *V, Type *DestTy, const Twine &Name = "",
+                      bool IsNonNeg = false) {
     if (IsFPConstrained)
       return CreateConstrainedFPCast(Intrinsic::experimental_constrained_uitofp,
                                      V, DestTy, nullptr, Name);
-    return CreateCast(Instruction::UIToFP, V, DestTy, Name);
+    if (Value *Folded = Folder.FoldCast(Instruction::UIToFP, V, DestTy))
+      return Folded;
+    Instruction *I = Insert(new UIToFPInst(V, DestTy), Name);
+    if (IsNonNeg)
+      I->setNonNeg();
+    return I;
   }
 
   Value *CreateSIToFP(Value *V, Type *DestTy, const Twine &Name = ""){
@@ -2339,7 +2356,7 @@ public:
 
   Value *CreateICmp(CmpInst::Predicate P, Value *LHS, Value *RHS,
                     const Twine &Name = "") {
-    if (auto *V = Folder.FoldICmp(P, LHS, RHS))
+    if (auto *V = Folder.FoldCmp(P, LHS, RHS))
       return V;
     return Insert(new ICmpInst(P, LHS, RHS), Name);
   }
@@ -2713,6 +2730,7 @@ public:
   IRBuilder(const IRBuilder &) = delete;
 
   InserterTy &getInserter() { return Inserter; }
+  const InserterTy &getInserter() const { return Inserter; }
 };
 
 template <typename FolderTy, typename InserterTy>

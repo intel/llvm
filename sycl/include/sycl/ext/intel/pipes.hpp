@@ -8,7 +8,8 @@
 
 #pragma once
 
-#include <sycl/exception.hpp> // for make_error_code, errc, exception
+#include <CL/__spirv/spirv_types.hpp> // for ConstantPipeStorage
+#include <sycl/exception.hpp>         // for make_error_code, errc, exception
 
 #include <stddef.h> // for size_t
 #include <stdint.h> // for int32_t
@@ -170,7 +171,7 @@ private:
   static constexpr int32_t m_Alignment = alignof(_dataT);
   static constexpr int32_t ID = _name::id;
 #ifdef __SYCL_DEVICE_ONLY__
-  static constexpr struct ConstantPipeStorage m_Storage
+  static constexpr ConstantPipeStorage m_Storage
       __attribute__((io_pipe_id(ID))) = {m_Size, m_Alignment, min_capacity};
 #endif // __SYCL_DEVICE_ONLY__
 };
@@ -221,7 +222,7 @@ private:
   static constexpr int32_t m_Alignment = alignof(_dataT);
   static constexpr int32_t ID = _name::id;
 #ifdef __SYCL_DEVICE_ONLY__
-  static constexpr struct ConstantPipeStorage m_Storage
+  static constexpr ConstantPipeStorage m_Storage
       __attribute__((io_pipe_id(ID))) = {m_Size, m_Alignment, min_capacity};
 #endif // __SYCL_DEVICE_ONLY__
 };
