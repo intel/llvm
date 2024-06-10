@@ -550,18 +550,17 @@ inline ur_result_t enqueueMigrateBufferToDevice(ur_mem_handle_t Mem,
                                                 ur_device_handle_t hDevice,
                                                 hipStream_t Stream) {
   auto &Buffer = std::get<BufferMem>(Mem->Mem);
-  if (Mem->LastEventWritingToMemObj == nullptr) {
+  if (Mem->LastQueueWritingToMemObj == nullptr) {
     // Device allocation being initialized from host for the first time
     if (Buffer.HostPtr) {
       UR_CHECK_ERROR(hipMemcpyHtoDAsync(Buffer.getPtr(hDevice), Buffer.HostPtr,
                                         Buffer.Size, Stream));
     }
-  } else if (Mem->LastEventWritingToMemObj->getQueue()->getDevice() !=
-             hDevice) {
+  } else if (Mem->LastQueueWritingToMemObj->getDevice() != hDevice) {
     UR_CHECK_ERROR(hipMemcpyDtoDAsync(
         Buffer.getPtr(hDevice),
-        Buffer.getPtr(Mem->LastEventWritingToMemObj->getQueue()->getDevice()),
-        Buffer.Size, Stream));
+        Buffer.getPtr(Mem->LastQueueWritingToMemObj->getDevice()), Buffer.Size,
+        Stream));
   }
   return UR_RESULT_SUCCESS;
 }
@@ -599,7 +598,7 @@ inline ur_result_t enqueueMigrateImageToDevice(ur_mem_handle_t Mem,
     CpyDesc3D.Depth = Image.ImageDesc.depth;
   }
 
-  if (Mem->LastEventWritingToMemObj == nullptr) {
+  if (Mem->LastQueueWritingToMemObj == nullptr) {
     if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE1D) {
       UR_CHECK_ERROR(hipStreamSynchronize(Stream));
       UR_CHECK_ERROR(
@@ -612,29 +611,26 @@ inline ur_result_t enqueueMigrateImageToDevice(ur_mem_handle_t Mem,
       CpyDesc3D.srcMemoryType = hipMemoryTypeHost;
       UR_CHECK_ERROR(hipDrvMemcpy3D(&CpyDesc3D));
     }
-  } else if (Mem->LastEventWritingToMemObj->getQueue()->getDevice() !=
-             hDevice) {
+  } else if (Mem->LastQueueWritingToMemObj->getDevice() != hDevice) {
     if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE1D) {
-      // Blocking wait needed since we need to sync LastEventWritingToMemObj's
-      // queue, as well as the current queue with LastEventWritingToMemObj
-      UR_CHECK_ERROR(urEventWait(1, &Mem->LastEventWritingToMemObj));
+      // Blocking wait needed
+      UR_CHECK_ERROR(urQueueFinish(Mem->LastQueueWritingToMemObj));
       // FIXME: 1D memcpy from DtoD going through the host.
       UR_CHECK_ERROR(hipMemcpyAtoH(
           Image.HostPtr,
-          Image.getArray(
-              Mem->LastEventWritingToMemObj->getQueue()->getDevice()),
+          Image.getArray(Mem->LastQueueWritingToMemObj->getDevice()),
           0 /*srcOffset*/, ImageSizeBytes));
       UR_CHECK_ERROR(
           hipMemcpyHtoA(ImageArray, 0, Image.HostPtr, ImageSizeBytes));
     } else if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE2D) {
       CpyDesc2D.srcMemoryType = hipMemoryTypeDevice;
-      CpyDesc2D.srcArray = Image.getArray(
-          Mem->LastEventWritingToMemObj->getQueue()->getDevice());
+      CpyDesc2D.srcArray =
+          Image.getArray(Mem->LastQueueWritingToMemObj->getDevice());
       UR_CHECK_ERROR(hipMemcpyParam2DAsync(&CpyDesc2D, Stream));
     } else if (Image.ImageDesc.type == UR_MEM_TYPE_IMAGE3D) {
       CpyDesc3D.srcMemoryType = hipMemoryTypeDevice;
-      CpyDesc3D.srcArray = Image.getArray(
-          Mem->LastEventWritingToMemObj->getQueue()->getDevice());
+      CpyDesc3D.srcArray =
+          Image.getArray(Mem->LastQueueWritingToMemObj->getDevice());
       UR_CHECK_ERROR(hipDrvMemcpy3DAsync(&CpyDesc3D, Stream));
     }
   }
