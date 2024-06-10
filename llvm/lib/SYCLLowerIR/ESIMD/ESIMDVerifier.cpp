@@ -62,6 +62,7 @@ static const char *LegalSYCLFunctions[] = {
     "^sycl::_V1::exp",
     "^sycl::_V1::bit_cast<.+>",
     "^sycl::_V1::operator.+<.+>",
+    "^sycl::_V1::group_broadcast<sycl::_V1::sub_group.+>",
     "^sycl::_V1::ext::oneapi::experimental::properties",
     "^sycl::_V1::ext::oneapi::experimental::detail::ExtractProperties",
     "^sycl::_V1::ext::oneapi::sub_group::.+",

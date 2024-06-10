@@ -15,6 +15,7 @@
 // 1 - Initial extension version. Base features are supported.
 #define SYCL_EXT_ONEAPI_UNIFORM 1
 
+#include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <type_traits>
 
 // Forward declarations of types not allowed to be wrapped in uniform:
@@ -67,11 +68,22 @@ template <class T> class uniform {
   static_assert(can_be_uniform<T>() && "type not allowed to be `uniform`");
 
 public:
-  explicit uniform(T x) noexcept : Val(x) {}
-
-  // TODO provide a ways to reflect this conversion from uniform to T in the IR
-  // so that the compiler can take advantage of uniformness. Could be marked
-  // with some intrinsic call like `__builtin_uniform_unwrap(Val);`
+  // From the doc/extensions/experimental/sycl_ext_oneapi_uniform.asciidoc:
+  //
+  //   > if the input to the constructor was not uniform, or the constructor was
+  //   > not encountered in converged control flow, then the resulting value is
+  //   > undefined.
+  //
+  // Use sub-group broadcast to communicate the uniformity property to the
+  // compiler. Note that this is only capable of propagating the information
+  // "down" to the users in the def-use chain. E.g.
+  //
+  //   auto val = load(divergent-ptr) // Cannot be changed to a scalar load.
+  //   auto u = uniform(val)
+  //   use(u);                        // Can be optimized based on uniformity.
+  explicit uniform(T x) noexcept
+      : Val(group_broadcast(sycl::ext::oneapi::this_work_item::get_sub_group(),
+                            x)) {}
 
   /// Implicit conversion to the underlying type.
   operator const T() const { return Val; }
