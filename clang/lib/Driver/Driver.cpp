@@ -829,8 +829,8 @@ static bool isValidSYCLTriple(llvm::Triple T) {
   // SPIR/SPIRV arch, but has invalid SubArch for AOT.
   StringRef A(T.getArchName());
   if (T.getSubArch() == llvm::Triple::NoSubArch &&
-      ((T.getArch() == llvm::Triple::spir && !A.equals("spir")) ||
-       (T.getArch() == llvm::Triple::spir64 && !A.equals("spir64"))))
+      ((T.getArch() == llvm::Triple::spir && A != "spir") ||
+       (T.getArch() == llvm::Triple::spir64 && A != "spir64")))
     return false;
   return true;
 }
@@ -1149,7 +1149,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       return;
     const char *ArgValue = A->getValue();
     for (const StringRef AllowedValue : AllowedValues)
-      if (AllowedValue.equals(ArgValue))
+      if (AllowedValue == ArgValue)
         return;
     Diag(clang::diag::err_drv_invalid_argument_to_option)
         << ArgValue << A->getOption().getName();
@@ -1891,7 +1891,7 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
       // an external option setting is required to target hardware.
       setOffloadCompileMode(FPGAEmulationMode);
       for (StringRef ArgString : TargetArgs) {
-        if (ArgString.equals("-hardware") || ArgString.equals("-simulation")) {
+        if (ArgString == "-hardware" || ArgString == "-simulation") {
           setOffloadCompileMode(FPGAHWMode);
           break;
         }
@@ -6250,12 +6250,12 @@ class OffloadingActionBuilder final {
             using namespace tools::SYCL;
             StringRef Device{Value.first};
             if (Device.consume_front(gen::AmdGPU))
-              return TargetArch.equals(Device) && TargetTriple.isAMDGCN();
+              return TargetArch == Device && TargetTriple.isAMDGCN();
             if (Device.consume_front(gen::NvidiaGPU))
-              return TargetArch.equals(Device) && TargetTriple.isNVPTX();
+              return TargetArch == Device && TargetTriple.isNVPTX();
             if (Device.consume_front(gen::IntelGPU))
-              return TargetArch.equals(Device) && TargetTriple.isSPIRAOT();
-            return TargetArch.equals(Device) && isValidSYCLTriple(TargetTriple);
+              return TargetArch == Device && TargetTriple.isSPIRAOT();
+            return TargetArch == Device && isValidSYCLTriple(TargetTriple);
           });
         } else {
           TargetIt = TargetTable.find(TargetTriple.str());
@@ -9710,7 +9710,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     const auto &ResultFiles = C.getResultFiles();
     const auto CollidingFilenameIt =
         llvm::find_if(ResultFiles, [NamedOutput](const auto &It) {
-          return StringRef(NamedOutput).equals(It.second);
+          return StringRef(NamedOutput) == It.second;
         });
     if (CollidingFilenameIt != ResultFiles.end()) {
       // Upon any collision, a unique hash will be appended to the filename,
