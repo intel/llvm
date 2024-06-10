@@ -151,7 +151,7 @@ struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
 
 TEST_F(urMultiDeviceContextMemBufferTest, WriteRead) {
     if (num_devices == 1) {
-        return;
+        GTEST_SKIP();
     }
     T fill_val = 42;
     std::vector<T> in_vec(buffer_size, fill_val);
@@ -171,7 +171,7 @@ TEST_F(urMultiDeviceContextMemBufferTest, WriteRead) {
 
 TEST_F(urMultiDeviceContextMemBufferTest, FillRead) {
     if (num_devices == 1) {
-        return;
+        GTEST_SKIP();
     }
     T fill_val = 42;
     std::vector<T> in_vec(buffer_size, fill_val);
@@ -191,7 +191,7 @@ TEST_F(urMultiDeviceContextMemBufferTest, FillRead) {
 
 TEST_F(urMultiDeviceContextMemBufferTest, WriteKernelRead) {
     if (num_devices == 1) {
-        return;
+        GTEST_SKIP();
     }
 
     // Kernel to run on queues[1]
@@ -223,7 +223,7 @@ TEST_F(urMultiDeviceContextMemBufferTest, WriteKernelRead) {
 
 TEST_F(urMultiDeviceContextMemBufferTest, WriteKernelKernelRead) {
     if (num_devices == 1) {
-        return;
+        GTEST_SKIP();
     }
 
     AddBuffer1DArg(kernels[0], 0, buffer);
