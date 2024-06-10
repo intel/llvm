@@ -496,6 +496,8 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
              (ZeImageTranslated, &DeviceOffset));
   *phImage = DeviceOffset;
 
+  hDevice->ZeOffsetToImageHandleMap[*phImage] = ZeImage;
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -675,9 +677,16 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_native_handle_t hImage) {
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = hImage;
+  UR_ASSERT(hContext && hDevice && hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  auto item = hDevice->ZeOffsetToImageHandleMap.find(hImage);
+
+  if (item != hDevice->ZeOffsetToImageHandleMap.end()) {
+    ZE2UR_CALL(zeImageDestroy, (item->second));
+    hDevice->ZeOffsetToImageHandleMap.erase(item);
+  } else {
+    return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
 
   return UR_RESULT_SUCCESS;
 }

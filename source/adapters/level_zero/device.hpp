@@ -219,4 +219,8 @@ struct ur_device_handle_t_ : _ur_object {
   ZeCache<struct ze_global_memsize> ZeGlobalMemSize;
   ZeCache<ZeStruct<ze_mutable_command_list_exp_properties_t>>
       ZeDeviceMutableCmdListsProperties;
+
+  // Map device bindless image offset to corresponding host image handle.
+  std::unordered_map<ur_exp_image_native_handle_t, ze_image_handle_t>
+      ZeOffsetToImageHandleMap;
 };
