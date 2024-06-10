@@ -156,14 +156,15 @@ TEST_F(urMultiDeviceContextMemBufferTest, WriteRead) {
     T fill_val = 42;
     std::vector<T> in_vec(buffer_size, fill_val);
     std::vector<T> out_vec(buffer_size, 0);
+    ur_event_handle_t e1;
 
     ASSERT_SUCCESS(urEnqueueMemBufferWrite(queues[0], buffer, false, 0,
                                            buffer_size_bytes, in_vec.data(), 0,
-                                           nullptr, nullptr));
+                                           nullptr, &e1));
 
     ASSERT_SUCCESS(urEnqueueMemBufferRead(queues[1], buffer, false, 0,
-                                          buffer_size_bytes, out_vec.data(), 0,
-                                          nullptr, nullptr));
+                                          buffer_size_bytes, out_vec.data(), 1,
+                                          &e1, nullptr));
     for (auto &a : out_vec) {
         ASSERT_EQ(a, fill_val);
     }
@@ -176,14 +177,15 @@ TEST_F(urMultiDeviceContextMemBufferTest, FillRead) {
     T fill_val = 42;
     std::vector<T> in_vec(buffer_size, fill_val);
     std::vector<T> out_vec(buffer_size);
+    ur_event_handle_t e1;
 
-    ASSERT_SUCCESS(
-        urEnqueueMemBufferFill(queues[0], buffer, &fill_val, sizeof(fill_val),
-                               0, buffer_size_bytes, 0, nullptr, nullptr));
+    ASSERT_SUCCESS(urEnqueueMemBufferFill(queues[0], buffer, &fill_val,
+                                          sizeof(fill_val), 0,
+                                          buffer_size_bytes, 0, nullptr, &e1));
 
     ASSERT_SUCCESS(urEnqueueMemBufferRead(queues[1], buffer, false, 0,
-                                          buffer_size_bytes, out_vec.data(), 0,
-                                          nullptr, nullptr));
+                                          buffer_size_bytes, out_vec.data(), 1,
+                                          &e1, nullptr));
     for (auto &a : out_vec) {
         ASSERT_EQ(a, fill_val);
     }
@@ -200,22 +202,23 @@ TEST_F(urMultiDeviceContextMemBufferTest, WriteKernelRead) {
     T fill_val = 42;
     std::vector<T> in_vec(buffer_size, fill_val);
     std::vector<T> out_vec(buffer_size);
+    ur_event_handle_t e1, e2;
 
     ASSERT_SUCCESS(urEnqueueMemBufferWrite(queues[0], buffer, false, 0,
                                            buffer_size_bytes, in_vec.data(), 0,
-                                           nullptr, nullptr));
+                                           nullptr, &e1));
 
     size_t work_dims[3] = {buffer_size, 1, 1};
     size_t offset[3] = {0, 0, 0};
 
     // Kernel increments the fill val by 1
     ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[1], kernels[1], 1 /*workDim=*/,
-                                         offset, work_dims, nullptr, 0, nullptr,
-                                         nullptr));
+                                         offset, work_dims, nullptr, 1, &e1,
+                                         &e2));
 
     ASSERT_SUCCESS(urEnqueueMemBufferRead(queues[0], buffer, false, 0,
-                                          buffer_size_bytes, out_vec.data(), 0,
-                                          nullptr, nullptr));
+                                          buffer_size_bytes, out_vec.data(), 1,
+                                          &e2, nullptr));
     for (auto &a : out_vec) {
         ASSERT_EQ(a, fill_val + 1);
     }
@@ -232,27 +235,28 @@ TEST_F(urMultiDeviceContextMemBufferTest, WriteKernelKernelRead) {
     T fill_val = 42;
     std::vector<T> in_vec(buffer_size, fill_val);
     std::vector<T> out_vec(buffer_size);
+    ur_event_handle_t e1, e2, e3;
 
     ASSERT_SUCCESS(urEnqueueMemBufferWrite(queues[0], buffer, false, 0,
                                            buffer_size_bytes, in_vec.data(), 0,
-                                           nullptr, nullptr));
+                                           nullptr, &e1));
 
     size_t work_dims[3] = {buffer_size, 1, 1};
     size_t offset[3] = {0, 0, 0};
 
     // Kernel increments the fill val by 1
     ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[1], kernels[1], 1 /*workDim=*/,
-                                         offset, work_dims, nullptr, 0, nullptr,
-                                         nullptr));
+                                         offset, work_dims, nullptr, 1, &e1,
+                                         &e2));
 
     // Kernel increments the fill val by 1
     ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[0], kernels[0], 1 /*workDim=*/,
-                                         offset, work_dims, nullptr, 0, nullptr,
-                                         nullptr));
+                                         offset, work_dims, nullptr, 1, &e2,
+                                         &e3));
 
     ASSERT_SUCCESS(urEnqueueMemBufferRead(queues[1], buffer, false, 0,
-                                          buffer_size_bytes, out_vec.data(), 0,
-                                          nullptr, nullptr));
+                                          buffer_size_bytes, out_vec.data(), 1,
+                                          &e3, nullptr));
     for (auto &a : out_vec) {
         ASSERT_EQ(a, fill_val + 2);
     }
