@@ -589,7 +589,7 @@ void ur_context_handle_t_::addEventToContextCache(ur_event_handle_t Event) {
     Device = Event->UrQueue->Device;
   }
 
-  if (!Event->CounterBasedEventsEnabled) {
+  if (Event->CounterBasedEventsEnabled) {
     auto Cache = getCounterBasedEventCache(
         !Event->UrQueue || Event->UrQueue->UsingImmCmdLists, Device);
     Cache->emplace_back(Event);

@@ -208,10 +208,11 @@ struct ur_context_handle_t_ : _ur_object {
                                              bool UsingImmCmdList);
 
   // Get ur_event_handle_t from cache.
-  ur_event_handle_t
-  getEventFromContextCache(bool HostVisible, bool WithProfiling,
-                           ur_device_handle_t Device,
-                           bool CounterBasedEventEnabled bool UsingImmCmdList);
+  ur_event_handle_t getEventFromContextCache(bool HostVisible,
+                                             bool WithProfiling,
+                                             ur_device_handle_t Device,
+                                             bool CounterBasedEventEnabled,
+                                             bool UsingImmCmdList);
 
   // Add ur_event_handle_t to cache.
   void addEventToContextCache(ur_event_handle_t);
@@ -340,7 +341,7 @@ private:
         return WithProfiling ? &EventCaches[2] : &EventCaches[3];
       }
     }
-  }
+  };
   auto getCounterBasedEventCache(bool UsingImmediateCmdList,
                                  ur_device_handle_t Device) {
     if (UsingImmediateCmdList) {
@@ -368,9 +369,10 @@ private:
         return &EventCaches[5];
       }
     }
-  };
+  }
+};
 
-  // Helper function to release the context, a caller must lock the
-  // platform-level mutex guarding the container with contexts because the
-  // context can be removed from the list of tracked contexts.
-  ur_result_t ContextReleaseHelper(ur_context_handle_t Context);
+// Helper function to release the context, a caller must lock the
+// platform-level mutex guarding the container with contexts because the
+// context can be removed from the list of tracked contexts.
+ur_result_t ContextReleaseHelper(ur_context_handle_t Context);
