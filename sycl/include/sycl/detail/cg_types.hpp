@@ -141,12 +141,6 @@ public:
     for (int I = Dims; I < 3; ++I) {
       ClusterDimensions[I] = 1;
     }
-
-    for(int I=0; I < 3; ++I) {
-      if ((NumWorkGroups[I] %  ClusterDimensions[I]) != 0) {
-        throw std::runtime_error("number of work-groups in a cluster must be a factor of total number of work-groups");
-      }
-    }
   }
 
   sycl::range<3> GlobalSize;
