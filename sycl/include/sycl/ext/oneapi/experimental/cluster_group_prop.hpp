@@ -16,11 +16,9 @@ namespace sycl {
 namespace _V1 {
 namespace ext::oneapi::experimental {
 
-using cluster_runtime_property = detail::run_time_property_key<detail::ClusterLaunch>;
-
 namespace cuda {
 template <int Dim>
-struct cluster_size : cluster_runtime_property {
+struct cluster_size : detail::run_time_property_key<detail::ClusterLaunch> {
   cluster_size(const range<Dim> &size) : size(size) {}
   sycl::range<Dim> get_cluster_size() { return size; }
   range<Dim> size;
@@ -28,11 +26,14 @@ struct cluster_size : cluster_runtime_property {
 
 template <int Dim> using cluster_size_key = cluster_size<Dim>;
 
-}
+} // namespace cuda
 
-template <> struct is_property_key<cuda::cluster_size_key<1>> : std::true_type {};
-template <> struct is_property_key<cuda::cluster_size_key<2>> : std::true_type {};
-template <> struct is_property_key<cuda::cluster_size_key<3>> : std::true_type {};
+template <>
+struct is_property_key<cuda::cluster_size_key<1>> : std::true_type {};
+template <>
+struct is_property_key<cuda::cluster_size_key<2>> : std::true_type {};
+template <>
+struct is_property_key<cuda::cluster_size_key<3>> : std::true_type {};
 
 template <typename T>
 struct is_property_key_of<cuda::cluster_size_key<1>, T> : std::true_type {};
@@ -43,9 +44,15 @@ struct is_property_key_of<cuda::cluster_size_key<2>, T> : std::true_type {};
 template <typename T>
 struct is_property_key_of<cuda::cluster_size_key<3>, T> : std::true_type {};
 
-template<> struct is_property_value<cuda::cluster_size_key<1>> : is_property_key<cuda::cluster_size_key<1>> {};
-template<> struct is_property_value<cuda::cluster_size_key<2>> : is_property_key<cuda::cluster_size_key<2>> {};
-template<> struct is_property_value<cuda::cluster_size_key<3>> : is_property_key<cuda::cluster_size_key<3>> {};
+template <>
+struct is_property_value<cuda::cluster_size_key<1>>
+    : is_property_key<cuda::cluster_size_key<1>> {};
+template <>
+struct is_property_value<cuda::cluster_size_key<2>>
+    : is_property_key<cuda::cluster_size_key<2>> {};
+template <>
+struct is_property_value<cuda::cluster_size_key<3>>
+    : is_property_key<cuda::cluster_size_key<3>> {};
 
 template <typename O>
 struct is_property_value_of<cuda::cluster_size_key<1>, O>

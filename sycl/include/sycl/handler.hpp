@@ -945,7 +945,8 @@ private:
       sycl::ext::oneapi::experimental::execution_scope threadScope,
       sycl::ext::oneapi::experimental::execution_scope coordinationScope);
 
-  template <typename Properties> void checkAndSetClusterRange(const Properties &Props) {
+  template <typename Properties>
+  void checkAndSetClusterRange(const Properties &Props) {
     if constexpr (ext::oneapi::experimental::hasClusterDim<Properties, 1>()) {
       setKernelUsesClusterLaunch(true);
       MNDRDesc.setClusterDimensions(
@@ -961,7 +962,7 @@ private:
               .template get_property<
                   sycl::ext::oneapi::experimental::cuda::cluster_size_key<2>>()
               .get_cluster_size());
-    } else if constexpr(ext::oneapi::experimental::hasClusterDim<Properties,
+    } else if constexpr (ext::oneapi::experimental::hasClusterDim<Properties,
                                                                   3>()) {
       setKernelUsesClusterLaunch(true);
       MNDRDesc.setClusterDimensions(
@@ -1036,7 +1037,7 @@ private:
           sycl::ext::oneapi::experimental::execution_scope::work_item,
           prop.coordinationScope);
     }
-    
+
     checkAndSetClusterRange(Props);
   }
 
