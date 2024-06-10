@@ -50,13 +50,13 @@ using rel_t = typename std::conditional_t<
   friend std::enable_if_t<(COND), vec_t> operator BINOP(const vec_t & Lhs,     \
                                                         const vec_t & Rhs) {   \
     vec_t Ret;                                                                 \
-    if constexpr (vec_t::IsBfloat16) {                                                \
+    if constexpr (vec_t::IsBfloat16) {                                         \
       for (size_t I = 0; I < NumElements; ++I) {                               \
         Ret[I] = Lhs[I] BINOP Rhs[I];                                          \
       }                                                                        \
     } else {                                                                   \
-      auto ExtVecLhs = sycl::bit_cast<typename vec_t::vector_t>(Lhs);                      \
-      auto ExtVecRhs = sycl::bit_cast<typename vec_t::vector_t>(Rhs);                      \
+      auto ExtVecLhs = sycl::bit_cast<typename vec_t::vector_t>(Lhs);          \
+      auto ExtVecRhs = sycl::bit_cast<typename vec_t::vector_t>(Rhs);          \
       Ret = vec<DataT, NumElements>(ExtVecLhs BINOP ExtVecRhs);                \
       if constexpr (std::is_same_v<DataT, bool> && CONVERT) {                  \
         vec_arith_common<bool, NumElements>::ConvertToDataT(Ret);              \
@@ -191,12 +191,12 @@ protected:
 #endif
 #define __SYCL_UOP(UOP, OPASSIGN)                                              \
   friend vec_t &operator UOP(vec_t & Rhs) {                                    \
-    Rhs OPASSIGN DataT{1};                                       \
+    Rhs OPASSIGN DataT{1};                                                     \
     return Rhs;                                                                \
   }                                                                            \
   friend vec_t operator UOP(vec_t &Lhs, int) {                                 \
     vec_t Ret(Lhs);                                                            \
-    Lhs OPASSIGN  DataT{1};                                      \
+    Lhs OPASSIGN DataT{1};                                                     \
     return Ret;                                                                \
   }
 
@@ -220,15 +220,15 @@ protected:
     vec<ocl_t, NumElements> Ret{};                                             \
     /* ext_vector_type does not support bfloat16, so for these   */            \
     /* we do element-by-element operation on the underlying std::array.  */    \
-    if constexpr (vec_t::IsBfloat16) {                                                \
+    if constexpr (vec_t::IsBfloat16) {                                         \
       for (size_t I = 0; I < NumElements; ++I) {                               \
         /* We cannot use SetValue here as the operator is not a friend of*/    \
         /* Ret on Windows. */                                                  \
         Ret[I] = static_cast<ocl_t>(-(Lhs[I] RELLOGOP Rhs[I]));                \
       }                                                                        \
     } else {                                                                   \
-      auto ExtVecLhs = sycl::bit_cast<typename vec_t::vector_t>(Lhs);                      \
-      auto ExtVecRhs = sycl::bit_cast<typename vec_t::vector_t>(Rhs);                      \
+      auto ExtVecLhs = sycl::bit_cast<typename vec_t::vector_t>(Lhs);          \
+      auto ExtVecRhs = sycl::bit_cast<typename vec_t::vector_t>(Rhs);          \
       /* Cast required to convert unsigned char ext_vec_type to */             \
       /* char ext_vec_type. */                                                 \
       Ret = vec<ocl_t, NumElements>(                                           \
