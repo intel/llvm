@@ -535,8 +535,7 @@ static void updateCmdArgs(SmallVector<StringRef, 8> &CmdArgs,
   };
   // Add a new argument Arg to CmdArgs if not present already.
   auto addArg = [&](const StringRef &Arg) {
-    auto ArgPresent = (getArg(Arg) != "");
-    if (!ArgPresent)
+    if (getArg(Arg).empty())
       CmdArgs.push_back(Arg);
   };
   // Replace an argument in CmdArgs that contains Str with NewArg. If no such
@@ -558,17 +557,17 @@ static void updateCmdArgs(SmallVector<StringRef, 8> &CmdArgs,
   };
 
   // specialization constants processing.
-  bool IsAOT = Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isSPIRAOT();
-  if (!IsAOT)
+  bool IsAOTGPU = Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isSPIRAOT();
+  if (!IsAOTGPU)
     replaceOrAddArg("-spec-const=native", "-spec-const");
   else
     replaceOrAddArg("-spec-const=emulation", "-spec-const");
 
-  // -emit-only-kernels-as-entry-points is set by user and is enabled only for
-  // Intel targets.
+  // -emit-only-kernels-as-entry-points is set by the user and is enabled only
+  // for Intel targets.
   auto EmitOnlyKernelsAsEntryPointsArg =
       getArg("-emit-only-kernels-as-entry-points");
-  if ((EmitOnlyKernelsAsEntryPointsArg != "") && !Triple.isNVPTX() &&
+  if ((!EmitOnlyKernelsAsEntryPointsArg.empty()) && !Triple.isNVPTX() &&
       !Triple.isAMDGPU())
     addArg("-emit-only-kernels-as-entry-points");
   else
@@ -588,9 +587,9 @@ static void updateCmdArgs(SmallVector<StringRef, 8> &CmdArgs,
   }
 
   // Here, IsAOT includes x86_64 device as well.
-  IsAOT = IsAOT || Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
+  IsAOT = IsAOTGPU || Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
   auto GenDeviceImageArg = getArg("-generate-device-image-default-spec-consts");
-  if ((GenDeviceImageArg != "") && IsAOT)
+  if ((!GenDeviceImageArg.empty()) && IsAOT)
     addArg("-generate-device-image-default-spec-consts");
   else
     removeArg("-generate-device-image-default-spec-consts");

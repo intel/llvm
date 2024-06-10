@@ -10579,9 +10579,10 @@ static void addArgs(ArgStringList &DstArgs, const llvm::opt::ArgList &Alloc,
   }
 }
 
-static void getOtherSYCLPostLinkOpts(const ToolChain &TC, const JobAction &JA,
-                                     const llvm::opt::ArgList &TCArgs,
-                                     ArgStringList &PostLinkArgs) {
+static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
+                                              const JobAction &JA,
+                                              const llvm::opt::ArgList &TCArgs,
+                                              ArgStringList &PostLinkArgs) {
   // See if device code splitting is requested
   if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_device_code_split_EQ)) {
     auto CodeSplitValue = StringRef(A->getValue());
@@ -10716,7 +10717,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   ArgStringList CmdArgs;
 
   llvm::Triple T = getToolChain().getTriple();
-  getOtherSYCLPostLinkOpts(getToolChain(), JA, TCArgs, CmdArgs);
+  getNonTripleBasedSYCLPostLinkOpts(getToolChain(), JA, TCArgs, CmdArgs);
   getTripleBasedSYCLPostLinkOpts(getToolChain(), JA, TCArgs, T, CmdArgs,
                                  SYCLPostLink->getRTSetsSpecConstants(),
                                  SYCLPostLink->getTrueType());
@@ -11118,7 +11119,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
                                ? types::TY_Tempfiletable
                                : types::TY_LLVM_BC;
     bool SpecConsts = TargetTriple.isSPIROrSPIRV();
-    getOtherSYCLPostLinkOpts(getToolChain(), JA, Args, PostLinkArgs);
+    getNonTripleBasedSYCLPostLinkOpts(getToolChain(), JA, Args, PostLinkArgs);
     // Some options like -spec-consts=* depend on target triple as well as some
     // user options. So, these options are partly computed here and then
     // updated inside the clang-linker-wrapper.
