@@ -533,7 +533,7 @@ public:
     return {key, val};
   }
 
-  static constexpr std::size_t memory_required(sycl::memory_scope scope,
+  static constexpr std::size_t memory_required(sycl::memory_scope,
                                                std::size_t range_size) {
     return (std::max)(range_size * ElementsPerWorkItem *
                           (sizeof(T) + sizeof(U)),
