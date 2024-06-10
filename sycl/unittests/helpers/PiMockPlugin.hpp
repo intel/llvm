@@ -1549,3 +1549,13 @@ inline pi_result mock_piextUSMImport(const void *HostPtr, size_t Size,
 inline pi_result mock_piextUSMRelease(const void *HostPtr, pi_context Context) {
   return PI_SUCCESS;
 }
+
+inline pi_result mock_piextEnqueueKernelLaunchCustom(
+    pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+    pi_uint32 NumPropsInLaunchPropList,
+    const pi_launch_property *LaunchPropList, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *OutEvent) {
+
+  return PI_SUCCESS;
+}
