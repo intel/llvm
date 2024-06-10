@@ -326,7 +326,7 @@ void shutdown() {
 #endif
 }
 
-#ifdef  _WIN32
+#ifdef   _WIN32
 // because of something not-yet-understood on Windows
 // threads may be shutdown once the end of main() is reached
 // making an orderly shutdown difficult. Fortunately, Windows
@@ -337,7 +337,16 @@ void shutdown2() {
   CPOUT << "shutdown2()" << std::endl;
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
 
+    // First, release resources, that may access plugins.
+  Handler->MPlatformCache.Inst.reset(nullptr);
+  Handler->MScheduler.Inst.reset(nullptr);
+  Handler->MProgramManager.Inst.reset(nullptr);
+
   Handler->unloadPlugins();
+
+  // Release the rest of global resources.
+  delete Handler;
+  Handler = nullptr;
 }
 #else
 void shutdown2() {
