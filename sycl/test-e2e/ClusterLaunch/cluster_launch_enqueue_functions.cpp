@@ -1,3 +1,4 @@
+// REQUIRES: cuda
 // RUN: %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_90 -o %t.out
 // RUN: %{run} %t.out
 
