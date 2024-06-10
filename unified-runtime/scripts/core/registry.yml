@@ -529,77 +529,83 @@ etors:
 - name: ENQUEUE_TIMESTAMP_RECORDING_EXP
   desc: Enumerator for $xEnqueueTimestampRecordingExp
   value: '223'
-- name: ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP
-  desc: Enumerator for $xEnqueueKernelLaunchCustomExp
-  value: '224'
-- name: KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE
-  desc: Enumerator for $xKernelGetSuggestedLocalWorkSize
-  value: '225'
-- name: BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP
-  desc: Enumerator for $xBindlessImagesImportExternalMemoryExp
-  value: '226'
-- name: BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP
-  desc: Enumerator for $xBindlessImagesImportExternalSemaphoreExp
-  value: '227'
-- name: ENQUEUE_NATIVE_COMMAND_EXP
-  desc: Enumerator for $xEnqueueNativeCommandExp
-  value: '228'
 - name: LOADER_CONFIG_SET_MOCKING_ENABLED
   desc: Enumerator for $xLoaderConfigSetMockingEnabled
+  value: '224'
+- name: ADAPTER_SET_LOGGER_CALLBACK
+  desc: Enumerator for $xAdapterSetLoggerCallback
+  value: '225'
+- name: ADAPTER_SET_LOGGER_CALLBACK_LEVEL
+  desc: Enumerator for $xAdapterSetLoggerCallbackLevel
+  value: '226'
+- name: KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE
+  desc: Enumerator for $xKernelGetSuggestedLocalWorkSize
+  value: '227'
+- name: BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP
+  desc: Enumerator for $xBindlessImagesImportExternalMemoryExp
+  value: '228'
+- name: BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP
+  desc: Enumerator for $xBindlessImagesMapExternalLinearMemoryExp
   value: '229'
 - name: BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP
   desc: Enumerator for $xBindlessImagesReleaseExternalMemoryExp
   value: '230'
+- name: BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP
+  desc: Enumerator for $xBindlessImagesImportExternalSemaphoreExp
+  value: '231'
 - name: COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP
   desc: Enumerator for $xCommandBufferAppendUSMMemcpyExp
-  value: '231'
+  value: '232'
 - name: COMMAND_BUFFER_APPEND_USM_FILL_EXP
   desc: Enumerator for $xCommandBufferAppendUSMFillExp
-  value: '232'
+  value: '233'
 - name: COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP
   desc: Enumerator for $xCommandBufferAppendMemBufferCopyExp
-  value: '233'
+  value: '234'
 - name: COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP
   desc: Enumerator for $xCommandBufferAppendMemBufferWriteExp
-  value: '234'
+  value: '235'
 - name: COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP
   desc: Enumerator for $xCommandBufferAppendMemBufferReadExp
-  value: '235'
+  value: '236'
 - name: COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP
   desc: Enumerator for $xCommandBufferAppendMemBufferCopyRectExp
-  value: '236'
+  value: '237'
 - name: COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP
   desc: Enumerator for $xCommandBufferAppendMemBufferWriteRectExp
-  value: '237'
+  value: '238'
 - name: COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP
   desc: Enumerator for $xCommandBufferAppendMemBufferReadRectExp
-  value: '238'
+  value: '239'
 - name: COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP
   desc: Enumerator for $xCommandBufferAppendMemBufferFillExp
-  value: '239'
+  value: '240'
 - name: COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP
   desc: Enumerator for $xCommandBufferAppendUSMPrefetchExp
-  value: '240'
+  value: '241'
 - name: COMMAND_BUFFER_APPEND_USM_ADVISE_EXP
   desc: Enumerator for $xCommandBufferAppendUSMAdviseExp
-  value: '241'
+  value: '242'
 - name: COMMAND_BUFFER_ENQUEUE_EXP
   desc: Enumerator for $xCommandBufferEnqueueExp
-  value: '242'
+  value: '243'
 - name: COMMAND_BUFFER_UPDATE_SIGNAL_EVENT_EXP
   desc: Enumerator for $xCommandBufferUpdateSignalEventExp
-  value: '243'
+  value: '244'
 - name: COMMAND_BUFFER_UPDATE_WAIT_EVENTS_EXP
   desc: Enumerator for $xCommandBufferUpdateWaitEventsExp
-  value: '244'
-- name: BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP
-  desc: Enumerator for $xBindlessImagesMapExternalLinearMemoryExp
   value: '245'
-- name: ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT
-  desc: Enumerator for $xEnqueueEventsWaitWithBarrierExt
+- name: ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP
+  desc: Enumerator for $xEnqueueKernelLaunchCustomExp
   value: '246'
+- name: ENQUEUE_NATIVE_COMMAND_EXP
+  desc: Enumerator for $xEnqueueNativeCommandExp
+  value: '247'
 - name: PHYSICAL_MEM_GET_INFO
   desc: Enumerator for $xPhysicalMemGetInfo
+  value: '248'
+- name: ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT
+  desc: Enumerator for $xEnqueueEventsWaitWithBarrierExt
   value: '249'
 ---
 type: enum

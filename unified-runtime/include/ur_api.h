@@ -381,54 +381,58 @@ typedef enum ur_function_t {
   UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP = 221,
   /// Enumerator for ::urEnqueueTimestampRecordingExp
   UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP = 223,
-  /// Enumerator for ::urEnqueueKernelLaunchCustomExp
-  UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP = 224,
-  /// Enumerator for ::urKernelGetSuggestedLocalWorkSize
-  UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE = 225,
-  /// Enumerator for ::urBindlessImagesImportExternalMemoryExp
-  UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP = 226,
-  /// Enumerator for ::urBindlessImagesImportExternalSemaphoreExp
-  UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP = 227,
-  /// Enumerator for ::urEnqueueNativeCommandExp
-  UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP = 228,
   /// Enumerator for ::urLoaderConfigSetMockingEnabled
-  UR_FUNCTION_LOADER_CONFIG_SET_MOCKING_ENABLED = 229,
+  UR_FUNCTION_LOADER_CONFIG_SET_MOCKING_ENABLED = 224,
+  /// Enumerator for ::urAdapterSetLoggerCallback
+  UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK = 225,
+  /// Enumerator for ::urAdapterSetLoggerCallbackLevel
+  UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK_LEVEL = 226,
+  /// Enumerator for ::urKernelGetSuggestedLocalWorkSize
+  UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE = 227,
+  /// Enumerator for ::urBindlessImagesImportExternalMemoryExp
+  UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP = 228,
+  /// Enumerator for ::urBindlessImagesMapExternalLinearMemoryExp
+  UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP = 229,
   /// Enumerator for ::urBindlessImagesReleaseExternalMemoryExp
   UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP = 230,
+  /// Enumerator for ::urBindlessImagesImportExternalSemaphoreExp
+  UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP = 231,
   /// Enumerator for ::urCommandBufferAppendUSMMemcpyExp
-  UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP = 231,
+  UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP = 232,
   /// Enumerator for ::urCommandBufferAppendUSMFillExp
-  UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP = 232,
+  UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP = 233,
   /// Enumerator for ::urCommandBufferAppendMemBufferCopyExp
-  UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP = 233,
+  UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP = 234,
   /// Enumerator for ::urCommandBufferAppendMemBufferWriteExp
-  UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP = 234,
+  UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP = 235,
   /// Enumerator for ::urCommandBufferAppendMemBufferReadExp
-  UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP = 235,
+  UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP = 236,
   /// Enumerator for ::urCommandBufferAppendMemBufferCopyRectExp
-  UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP = 236,
+  UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP = 237,
   /// Enumerator for ::urCommandBufferAppendMemBufferWriteRectExp
-  UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP = 237,
+  UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP = 238,
   /// Enumerator for ::urCommandBufferAppendMemBufferReadRectExp
-  UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP = 238,
+  UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP = 239,
   /// Enumerator for ::urCommandBufferAppendMemBufferFillExp
-  UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP = 239,
+  UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP = 240,
   /// Enumerator for ::urCommandBufferAppendUSMPrefetchExp
-  UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP = 240,
+  UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP = 241,
   /// Enumerator for ::urCommandBufferAppendUSMAdviseExp
-  UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP = 241,
+  UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP = 242,
   /// Enumerator for ::urCommandBufferEnqueueExp
-  UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP = 242,
+  UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP = 243,
   /// Enumerator for ::urCommandBufferUpdateSignalEventExp
-  UR_FUNCTION_COMMAND_BUFFER_UPDATE_SIGNAL_EVENT_EXP = 243,
+  UR_FUNCTION_COMMAND_BUFFER_UPDATE_SIGNAL_EVENT_EXP = 244,
   /// Enumerator for ::urCommandBufferUpdateWaitEventsExp
-  UR_FUNCTION_COMMAND_BUFFER_UPDATE_WAIT_EVENTS_EXP = 244,
-  /// Enumerator for ::urBindlessImagesMapExternalLinearMemoryExp
-  UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP = 245,
-  /// Enumerator for ::urEnqueueEventsWaitWithBarrierExt
-  UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT = 246,
+  UR_FUNCTION_COMMAND_BUFFER_UPDATE_WAIT_EVENTS_EXP = 245,
+  /// Enumerator for ::urEnqueueKernelLaunchCustomExp
+  UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP = 246,
+  /// Enumerator for ::urEnqueueNativeCommandExp
+  UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP = 247,
   /// Enumerator for ::urPhysicalMemGetInfo
-  UR_FUNCTION_PHYSICAL_MEM_GET_INFO = 249,
+  UR_FUNCTION_PHYSICAL_MEM_GET_INFO = 248,
+  /// Enumerator for ::urEnqueueEventsWaitWithBarrierExt
+  UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT = 249,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -1390,6 +1394,80 @@ typedef enum ur_adapter_backend_t {
   /// @endcond
 
 } ur_adapter_backend_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Minimum level of messages to be processed by the logger.
+typedef enum ur_logger_level_t {
+  /// Debugging messages used for development purposes.
+  UR_LOGGER_LEVEL_DEBUG = 0,
+  /// General messages not related to debugging, warnings or errors.
+  UR_LOGGER_LEVEL_INFO = 1,
+  /// Used to warn users about potential problems.
+  UR_LOGGER_LEVEL_WARN = 2,
+  /// Used when an error has occurred.
+  UR_LOGGER_LEVEL_ERROR = 3,
+  /// Restrict logger processing any messages.
+  UR_LOGGER_LEVEL_QUIET = 4,
+  /// @cond
+  UR_LOGGER_LEVEL_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_logger_level_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function to retrieve output from the logger.
+typedef void (*ur_logger_callback_t)(
+    /// [out] Minimum level of messages to be processed by the logger.
+    ur_logger_level_t level,
+    /// [in][out] pointer to data to be passed to callback
+    const char *pLoggerMsg,
+    /// [in][out] pointer to data to be passed to callback
+    void *pUserData);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set a callback function for use by the logger to retrieve logging
+/// output.
+///        It is a requirement that the callback function is thread safe and the
+///        creator of the function will be responsible for this.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnLoggerCallback`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_LOGGER_LEVEL_QUIET < level`
+UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallback(
+    /// [in] handle of the adapter
+    ur_adapter_handle_t hAdapter,
+    /// [in] Function pointer to callback from the logger.
+    ur_logger_callback_t pfnLoggerCallback,
+    /// [in][out][optional] pointer to data to be passed to callback
+    void *pUserData,
+    /// [in] logging level
+    ur_logger_level_t level);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set the minimum logging level for the logger Callback function.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_LOGGER_LEVEL_QUIET < level`
+UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallbackLevel(
+    /// [in] handle of the adapter
+    ur_adapter_handle_t hAdapter,
+    /// [in] logging level
+    ur_logger_level_t level);
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -12148,6 +12226,26 @@ typedef struct ur_loader_config_set_mocking_enabled_params_t {
   ur_loader_config_handle_t *phLoaderConfig;
   ur_bool_t *penable;
 } ur_loader_config_set_mocking_enabled_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterSetLoggerCallback
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_set_logger_callback_params_t {
+  ur_adapter_handle_t *phAdapter;
+  ur_logger_callback_t *ppfnLoggerCallback;
+  void **ppUserData;
+  ur_logger_level_t *plevel;
+} ur_adapter_set_logger_callback_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterSetLoggerCallbackLevel
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_set_logger_callback_level_params_t {
+  ur_adapter_handle_t *phAdapter;
+  ur_logger_level_t *plevel;
+} ur_adapter_set_logger_callback_level_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urPlatformGet
