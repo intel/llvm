@@ -59,7 +59,7 @@ static constexpr ext::oneapi::experimental::architecture
         ext::oneapi::experimental::architecture::nvidia_gpu_sm_50;
 static constexpr ext::oneapi::experimental::architecture
     max_nvidia_gpu_architecture =
-        ext::oneapi::experimental::architecture::nvidia_gpu_sm_90;
+        ext::oneapi::experimental::architecture::nvidia_gpu_sm_90a;
 
 static constexpr ext::oneapi::experimental::architecture
     min_amd_gpu_architecture =
