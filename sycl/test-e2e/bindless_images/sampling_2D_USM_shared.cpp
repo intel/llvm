@@ -1,4 +1,3 @@
-// REQUIRES: linux
 // REQUIRES: cuda
 // REQUIRES: aspect-ext_oneapi_bindless_images_shared_usm
 
