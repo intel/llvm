@@ -307,7 +307,8 @@ bool Command::isFusable() const {
   }
   const auto &CG = (static_cast<const ExecCGCommand &>(*this)).getCG();
   return (CG.getType() == CG::CGTYPE::Kernel) &&
-         (!static_cast<const CGExecKernel &>(CG).MKernelIsCooperative);
+         (!static_cast<const CGExecKernel &>(CG).MKernelIsCooperative) &&
+         (!static_cast<const CGExecKernel &>(CG).MKernelUsesClusterLaunch);
 }
 
 static void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls,
