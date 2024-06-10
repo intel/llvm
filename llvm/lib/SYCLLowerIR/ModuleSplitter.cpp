@@ -421,9 +421,10 @@ public:
 
 class ModuleSplitter : public ModuleSplitterBase {
 public:
-  ModuleSplitter(ModuleDesc &&MD, EntryPointGroupVec &&GroupVec, bool SplitForRunTimeLinking)
+  ModuleSplitter(ModuleDesc &&MD, EntryPointGroupVec &&GroupVec,
+                 bool SplitForRunTimeLinking)
       : ModuleSplitterBase(std::move(MD), std::move(GroupVec)),
-        CG(Input.getModule(),SplitForRunTimeLinking) {}
+        CG(Input.getModule(), SplitForRunTimeLinking) {}
 
   ModuleDesc nextSplit() override {
     return extractCallGraph(Input, nextGroup(), CG);
@@ -1069,7 +1070,8 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
                   (Groups.size() > 1 || !Groups.cbegin()->Functions.empty()));
 
   if (DoSplit)
-    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups),SplitForRunTimeLinking);
+    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups),
+                                            SplitForRunTimeLinking);
 
   return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
 }
@@ -1138,7 +1140,7 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
     return Result;
   }
 
-  DependencyGraph CG(MD.getModule(),SplitForRunTimeLinking);
+  DependencyGraph CG(MD.getModule(), SplitForRunTimeLinking);
   for (auto &Group : EntryPointGroups) {
     if (Group.isEsimd()) {
       // For ESIMD module, we use full call graph of all entry points and all
@@ -1198,7 +1200,7 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
   ModuleDesc MD = std::move(M); // makeModuleDesc() ?
   // FIXME: false arguments are temporary for now.
   auto Splitter =
-    getDeviceCodeSplitter(std::move(MD), Settings.Mode, false, false, false);
+      getDeviceCodeSplitter(std::move(MD), Settings.Mode, false, false, false);
   size_t ID = 0;
   std::vector<SplitModule> OutputImages;
   while (Splitter->hasMoreSplits()) {
