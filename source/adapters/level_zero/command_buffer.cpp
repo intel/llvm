@@ -51,8 +51,8 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     const ur_exp_command_buffer_desc_t *Desc, const bool IsInOrderCmdList)
     : Context(Context), Device(Device), ZeCommandList(CommandList),
       ZeCommandListResetEvents(CommandListResetEvents),
-      ZeCommandListDesc(ZeDesc), ZeFencesList(), QueueProperties(),
-      SyncPoints(), NextSyncPoint(0),
+      ZeCommandListDesc(ZeDesc), ZeFencesMap(), ZeActiveFence(nullptr),
+      QueueProperties(), SyncPoints(), NextSyncPoint(0),
       IsUpdatable(Desc ? Desc->isUpdatable : false),
       IsProfilingEnabled(Desc ? Desc->enableProfiling : false),
       IsInOrderCmdList(IsInOrderCmdList) {
@@ -102,8 +102,9 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
     urEventReleaseInternal(Event);
   }
 
-  // Release Fences allocated to command_buffer
-  for (auto &ZeFence : ZeFencesList) {
+  // Release fences allocated to command-buffer
+  for (auto &ZeFencePair : ZeFencesMap) {
+    auto &ZeFence = ZeFencePair.second;
     ZE_CALL_NOCHECK(zeFenceDestroy, (ZeFence));
   }
 
@@ -1053,11 +1054,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   uint32_t QueueGroupOrdinal;
   auto &ZeCommandQueue = QGroup.getZeQueue(&QueueGroupOrdinal);
 
-  ze_fence_handle_t ZeFence;
-  ZeStruct<ze_fence_desc_t> ZeFenceDesc;
-
-  ZE2UR_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
-  CommandBuffer->ZeFencesList.push_back(ZeFence);
+  // If we already have created a fence for this queue, first reset then reuse
+  // it, otherwise create a new fence.
+  ze_fence_handle_t &ZeFence = CommandBuffer->ZeActiveFence;
+  auto ZeWorkloadFenceForQueue =
+      CommandBuffer->ZeFencesMap.find(ZeCommandQueue);
+  if (ZeWorkloadFenceForQueue == CommandBuffer->ZeFencesMap.end()) {
+    ZeStruct<ze_fence_desc_t> ZeFenceDesc;
+    ZE2UR_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
+    CommandBuffer->ZeFencesMap.insert({{ZeCommandQueue, ZeFence}});
+  } else {
+    ZeFence = ZeWorkloadFenceForQueue->second;
+    ZE2UR_CALL(zeFenceReset, (ZeFence));
+  }
 
   bool MustSignalWaitEvent = true;
   if (NumEventsInWaitList) {
@@ -1458,10 +1467,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   MutableCommandDesc.flags = 0;
 
   // We must synchronize mutable command list execution before mutating.
-  ZE2UR_CALL(zeEventHostSynchronize,
-             (CommandBuffer->SignalEvent->ZeEvent, UINT64_MAX));
+  if (ze_fence_handle_t &ZeFence = CommandBuffer->ZeActiveFence) {
+    ZE2UR_CALL(zeFenceHostSynchronize, (ZeFence, UINT64_MAX));
+  }
 
-  auto Plt = Command->CommandBuffer->Context->getPlatform();
+  auto Plt = CommandBuffer->Context->getPlatform();
   UR_ASSERT(Plt->ZeMutableCmdListExt.Supported,
             UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
   ZE2UR_CALL(Plt->ZeMutableCmdListExt.zexCommandListUpdateMutableCommandsExp,
