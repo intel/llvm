@@ -156,10 +156,6 @@ class vec : public detail::vec_arith<DataT, NumElements> {
   // It is required by the SPEC to align vec<DataT, 3> with vec<DataT, 4>.
   static constexpr size_t AdjustedNum = (NumElements == 3) ? 4 : NumElements;
 
-  // https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#memory-layout-and-alignment
-  // It is required by the SPEC to align vec<DataT, 3> with vec<DataT, 4>.
-  static constexpr size_t AdjustedNum = (NumElements == 3) ? 4 : NumElements;
-
   // This represent type of underlying value. There should be only one field
   // in the class, so vec<float, 16> should be equal to float16 in memory.
   using DataType = std::array<DataT, AdjustedNum>;
