@@ -387,7 +387,7 @@ returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
-      - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`"
+      - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`"
     - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
     - $X_RESULT_ERROR_INVALID_OPERATION
 --- #--------------------------------------------------------------------------
@@ -442,7 +442,7 @@ returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
-      - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`"
+      - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`"
     - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
     - $X_RESULT_ERROR_INVALID_OPERATION
 --- #--------------------------------------------------------------------------
@@ -479,7 +479,7 @@ returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
-      - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`"
+      - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`"
     - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
     - $X_RESULT_ERROR_INVALID_SAMPLER
     - $X_RESULT_ERROR_INVALID_OPERATION
@@ -542,7 +542,7 @@ returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
-      - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`"
+      - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`"
     - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
     - $X_RESULT_ERROR_INVALID_OPERATION
 --- #--------------------------------------------------------------------------
@@ -679,7 +679,7 @@ returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
-      - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`"
+      - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`"
     - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
     - $X_RESULT_ERROR_INVALID_OPERATION
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
