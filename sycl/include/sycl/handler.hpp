@@ -951,7 +951,7 @@ private:
       MNDRDesc.setClusterDimensions(
           Props
               .template get_property<
-                  sycl::ext::oneapi::experimental::cluster_size_key<1>>()
+                  sycl::ext::oneapi::experimental::cuda::cluster_size_key<1>>()
               .get_cluster_size());
     } else if constexpr (ext::oneapi::experimental::hasClusterDim<Properties,
                                                                   2>()) {
@@ -959,7 +959,7 @@ private:
       MNDRDesc.setClusterDimensions(
           Props
               .template get_property<
-                  sycl::ext::oneapi::experimental::cluster_size_key<2>>()
+                  sycl::ext::oneapi::experimental::cuda::cluster_size_key<2>>()
               .get_cluster_size());
     } else if constexpr(ext::oneapi::experimental::hasClusterDim<Properties,
                                                                   3>()) {
@@ -967,7 +967,7 @@ private:
       MNDRDesc.setClusterDimensions(
           Props
               .template get_property<
-                  sycl::ext::oneapi::experimental::cluster_size_key<3>>()
+                  sycl::ext::oneapi::experimental::cuda::cluster_size_key<3>>()
               .get_cluster_size());
     }
   }

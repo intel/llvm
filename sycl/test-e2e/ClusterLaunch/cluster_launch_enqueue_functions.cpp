@@ -16,7 +16,7 @@ int main() {
       std::stof(queue.get_device().get_info<sycl::info::device::backend_version>());
 
   if (computeCapability >= 9.0) {
-  cluster_size cluster_dims(sycl::range<3>(2, 2, 1));
+  cuda::cluster_size cluster_dims(sycl::range<3>(2, 2, 1));
   properties cluster_launch_property{cluster_dims};
 
   int *correct_result_flag = sycl::malloc_device<int>(1, queue);
