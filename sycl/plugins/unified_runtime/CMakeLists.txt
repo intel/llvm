@@ -110,7 +110,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    # commit 0f118d75f6bfe77eb8d933808f7a125e77ca7358
+    # Merge: ed4211cd 721d63c6
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Mon Jun 10 10:38:10 2024 +0100
+    #     Merge pull request #1629 from Bensuo/ewan/L0_update_host_wait
+    #     Use fence rather than event for sync in L0 command-buffer update
+    "0f118d75f6bfe77eb8d933808f7a125e77ca7358"
   )
 
   fetch_adapter_source(opencl
