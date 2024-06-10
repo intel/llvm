@@ -587,7 +587,8 @@ static void updateCmdArgs(SmallVector<StringRef, 8> &CmdArgs,
   }
 
   // Here, IsAOT includes x86_64 device as well.
-  IsAOT = IsAOTGPU || Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
+  bool IsAOT =
+      IsAOTGPU || Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
   auto GenDeviceImageArg = getArg("-generate-device-image-default-spec-consts");
   if ((!GenDeviceImageArg.empty()) && IsAOT)
     addArg("-generate-device-image-default-spec-consts");
