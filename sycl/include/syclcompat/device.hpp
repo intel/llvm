@@ -59,6 +59,38 @@
 namespace syclcompat {
 
 namespace detail {
+static void parse_version_string(const std::string &ver, int &major,
+                                 int &minor) {
+  // Version string has the following format:
+  // a. OpenCL<space><major.minor><space><vendor-specific-information>
+  // b. <major.minor>
+  // c. <AmdGcnArchName> e.g gfx1030
+  std::string::size_type i = 0;
+  while (i < ver.size()) {
+    if (isdigit(ver[i]))
+      break;
+    i++;
+  }
+  if (i < ver.size())
+    major = std::stoi(&(ver[i]));
+  else
+    major = 0;
+  while (i < ver.size()) {
+    if (ver[i] == '.')
+      break;
+    i++;
+  }
+  i++;
+  if (i < ver.size())
+    minor = std::stoi(&(ver[i]));
+  else
+    minor = 0;
+}
+
+static void get_version(const sycl::device &dev, int &major, int &minor) {
+  std::string ver = dev.get_info<sycl::info::device::version>();
+  parse_version_string(ver, major, minor);
+}
 
 /// SYCL default exception handler
 inline auto exception_handler = [](sycl::exception_list exceptions) {
@@ -288,6 +320,18 @@ private:
   int _image3d_max[3];
 };
 
+static int get_major_version(const sycl::device &dev) {
+  int major, minor;
+  detail::get_version(dev, major, minor);
+  return major;
+}
+
+static int get_minor_version(const sycl::device &dev) {
+  int major, minor;
+  detail::get_version(dev, major, minor);
+  return minor;
+}
+
 /// device extension
 class device_ext : public sycl::device {
 public:
@@ -310,13 +354,9 @@ public:
   }
 
   bool is_native_host_atomic_supported() { return false; }
-  int get_major_version() const {
-    return get_device_info().get_major_version();
-  }
+  int get_major_version() const { return syclcompat::get_major_version(*this); }
 
-  int get_minor_version() const {
-    return get_device_info().get_minor_version();
-  }
+  int get_minor_version() const { return syclcompat::get_minor_version(*this); }
 
   int get_max_compute_units() const {
     return get_device_info().get_max_compute_units();
@@ -618,39 +658,15 @@ private:
   }
 
   void get_version(int &major, int &minor) const {
-    // Version string has the following format:
-    // a. OpenCL<space><major.minor><space><vendor-specific-information>
-    // b. <major.minor>
-    // c. <AmdGcnArchName> e.g gfx1030
-    std::string ver;
-    ver = get_info<sycl::info::device::version>();
-    std::string::size_type i = 0;
-    while (i < ver.size()) {
-      if (isdigit(ver[i]))
-        break;
-      i++;
-    }
-    major = std::stoi(&(ver[i]));
-    while (i < ver.size()) {
-      if (ver[i] == '.')
-        break;
-      i++;
-    }
-    if (i < ver.size()) {
-      // a. and b.
-      i++;
-      minor = std::stoi(&(ver[i]));
-    } else {
-      // c.
-      minor = 0;
-    }
+    detail::get_version(*this, major, minor);
   }
   void add_event(sycl::event event) {
     std::lock_guard<std::mutex> lock(m_mutex);
     _events.push_back(event);
   }
-  friend sycl::event free_async(const std::vector<void *> &,
-                                const std::vector<sycl::event> &, sycl::queue);
+  friend sycl::event enqueue_free(const std::vector<void *> &,
+                                  const std::vector<sycl::event> &,
+                                  sycl::queue);
   queue_ptr _default_queue;
   queue_ptr _saved_queue;
   sycl::context _ctx;
@@ -711,14 +727,64 @@ public:
   unsigned int device_count() { return _devs.size(); }
 
   unsigned int get_device_id(const sycl::device &dev) {
+    if (!_devs.size()) {
+      throw std::runtime_error(
+          "[SYCLcompat] No SYCL devices found in the device list. Device list "
+          "may have been filtered by syclcompat::filter_device");
+    }
     unsigned int id = 0;
     for (auto dev_item : _devs) {
       if (*dev_item == dev) {
-        break;
+        return id;
       }
       id++;
     }
-    return id;
+    throw std::runtime_error("[SYCLcompat] The device[" +
+                             dev.get_info<sycl::info::device::name>() +
+                             "] is filtered out by syclcompat::filter_device "
+                             "in current device list!");
+  }
+
+  /// List all the devices with its id in dev_mgr.
+  void list_devices() const {
+    for (size_t i = 0; i < _devs.size(); ++i) {
+      std::cout << "Device " << i << ": "
+                << _devs[i]->get_info<sycl::info::device::name>() << std::endl;
+    }
+  }
+
+  /// Filter out devices; only keep the device whose name contains one of the
+  /// subname in \p dev_subnames.
+  /// May break device id mapping and change current device. It's better to be
+  /// called before other SYCLcompat/SYCL APIs.
+  void filter(const std::vector<std::string> &dev_subnames) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto iter = _devs.begin();
+    while (iter != _devs.end()) {
+      std::string dev_name = (*iter)->get_info<sycl::info::device::name>();
+      bool matched = false;
+      for (const auto &name : dev_subnames) {
+        if (dev_name.find(name) != std::string::npos) {
+          matched = true;
+          break;
+        }
+      }
+      if (matched)
+        ++iter;
+      else
+        iter = _devs.erase(iter);
+    }
+    _cpu_device = -1;
+    for (unsigned i = 0; i < _devs.size(); ++i) {
+      if (_devs[i]->is_cpu()) {
+        _cpu_device = i;
+        break;
+      }
+    }
+    _thread2dev_map.clear();
+#ifdef SYCLCOMPAT_VERBOSE
+    list_devices();
+#endif
   }
 
   /// Select device with a Device Selector
@@ -764,6 +830,9 @@ private:
         _cpu_device = _devs.size() - 1;
       }
     }
+#ifdef SYCLCOMPAT_VERBOSE
+    list_devices();
+#endif
   }
   void check_id(unsigned int id) const {
     if (id >= _devs.size()) {
@@ -836,6 +905,19 @@ static inline sycl::context get_default_context() {
 /// Util function to get a CPU device.
 static inline device_ext &cpu_device() {
   return detail::dev_mgr::instance().cpu_device();
+}
+
+/// Filter out devices; only keep the device whose name contains one of the
+/// subname in \p dev_subnames.
+/// May break device id mapping and change current device. It's better to be
+/// called before other SYCLcompat or SYCL APIs.
+static inline void filter_device(const std::vector<std::string> &dev_subnames) {
+  detail::dev_mgr::instance().filter(dev_subnames);
+}
+
+/// List all the devices with its id in dev_mgr.
+static inline void list_devices() {
+  detail::dev_mgr::instance().list_devices();
 }
 
 static inline unsigned int select_device(unsigned int id) {

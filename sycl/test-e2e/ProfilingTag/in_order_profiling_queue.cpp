@@ -16,6 +16,11 @@
 // https://github.com/intel/llvm/issues/12904
 // UNSUPPORTED: hip
 
+// CUDA backend seems to fail sporadically for expected profiling tag time
+// query orderings.
+// https://github.com/intel/llvm/issues/14053
+// UNSUPPORTED: cuda
+
 #include "common.hpp"
 
 int main() {

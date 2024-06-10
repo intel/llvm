@@ -83,8 +83,6 @@ static pi_result ur2piResult(ur_result_t urResult) {
     return PI_ERROR_INVALID_IMAGE_SIZE;
   case UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
     return PI_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
-  case UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED:
-    return PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
   case UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE:
     return PI_ERROR_MEM_OBJECT_ALLOCATION_FAILURE;
   case UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE:
@@ -2968,7 +2966,6 @@ static void pi2urImageDesc(const pi_image_format *ImageFormat,
     UrDesc->type = TO;                                                         \
     break;                                                                     \
   }
-    PI_TO_UR_MAP_IMAGE_TYPE(PI_MEM_TYPE_BUFFER, UR_MEM_TYPE_BUFFER)
     PI_TO_UR_MAP_IMAGE_TYPE(PI_MEM_TYPE_IMAGE2D, UR_MEM_TYPE_IMAGE2D)
     PI_TO_UR_MAP_IMAGE_TYPE(PI_MEM_TYPE_IMAGE3D, UR_MEM_TYPE_IMAGE3D)
     PI_TO_UR_MAP_IMAGE_TYPE(PI_MEM_TYPE_IMAGE2D_ARRAY,
@@ -2976,8 +2973,6 @@ static void pi2urImageDesc(const pi_image_format *ImageFormat,
     PI_TO_UR_MAP_IMAGE_TYPE(PI_MEM_TYPE_IMAGE1D, UR_MEM_TYPE_IMAGE1D)
     PI_TO_UR_MAP_IMAGE_TYPE(PI_MEM_TYPE_IMAGE1D_ARRAY,
                             UR_MEM_TYPE_IMAGE1D_ARRAY)
-    PI_TO_UR_MAP_IMAGE_TYPE(PI_MEM_TYPE_IMAGE1D_BUFFER,
-                            UR_MEM_TYPE_IMAGE1D_BUFFER)
     PI_TO_UR_MAP_IMAGE_TYPE(PI_MEM_TYPE_IMAGE_CUBEMAP,
                             UR_MEM_TYPE_IMAGE_CUBEMAP_EXP)
 #undef PI_TO_UR_MAP_IMAGE_TYPE
