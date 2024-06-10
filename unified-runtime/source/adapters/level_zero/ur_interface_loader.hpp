@@ -24,6 +24,12 @@ ur_result_t urAdapterGetInfo(ur_adapter_handle_t hAdapter,
 ur_result_t urPlatformGet(ur_adapter_handle_t hAdapter, uint32_t NumEntries,
                           ur_platform_handle_t *phPlatforms,
                           uint32_t *pNumPlatforms);
+ur_result_t urAdapterSetLoggerCallback(ur_adapter_handle_t hAdapter,
+                                       ur_logger_callback_t pfnLoggerCallback,
+                                       void *pUserData,
+                                       ur_logger_level_t level);
+ur_result_t urAdapterSetLoggerCallbackLevel(ur_adapter_handle_t hAdapter,
+                                            ur_logger_level_t level);
 ur_result_t urPlatformGetInfo(ur_platform_handle_t hPlatform,
                               ur_platform_info_t propName, size_t propSize,
                               void *pPropValue, size_t *pPropSizeRet);

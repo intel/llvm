@@ -457,6 +457,10 @@ typedef enum ur_function_t {
   UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP = 264,
   /// Enumerator for ::urUSMPoolSetInfoExp
   UR_FUNCTION_USM_POOL_SET_INFO_EXP = 265,
+  /// Enumerator for ::urAdapterSetLoggerCallback
+  UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK = 266,
+  /// Enumerator for ::urAdapterSetLoggerCallbackLevel
+  UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK_LEVEL = 267,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -1422,6 +1426,80 @@ typedef enum ur_adapter_backend_t {
   /// @endcond
 
 } ur_adapter_backend_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Minimum level of messages to be processed by the logger.
+typedef enum ur_logger_level_t {
+  /// Debugging messages used for development purposes.
+  UR_LOGGER_LEVEL_DEBUG = 0,
+  /// General messages not related to debugging, warnings or errors.
+  UR_LOGGER_LEVEL_INFO = 1,
+  /// Used to warn users about potential problems.
+  UR_LOGGER_LEVEL_WARN = 2,
+  /// Used when an error has occurred.
+  UR_LOGGER_LEVEL_ERROR = 3,
+  /// Restrict logger processing any messages.
+  UR_LOGGER_LEVEL_QUIET = 4,
+  /// @cond
+  UR_LOGGER_LEVEL_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_logger_level_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function to retrieve output from the logger.
+typedef void (*ur_logger_callback_t)(
+    /// [out] Minimum level of messages to be processed by the logger.
+    ur_logger_level_t level,
+    /// [in][out] pointer to data to be passed to callback
+    const char *pLoggerMsg,
+    /// [in][out] pointer to data to be passed to callback
+    void *pUserData);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set a callback function for use by the logger to retrieve logging
+/// output.
+///        It is a requirement that the callback function is thread safe and the
+///        creator of the function will be responsible for this.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnLoggerCallback`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_LOGGER_LEVEL_QUIET < level`
+UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallback(
+    /// [in] handle of the adapter
+    ur_adapter_handle_t hAdapter,
+    /// [in] Function pointer to callback from the logger.
+    ur_logger_callback_t pfnLoggerCallback,
+    /// [in][out][optional] pointer to data to be passed to callback
+    void *pUserData,
+    /// [in] logging level
+    ur_logger_level_t level);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set the minimum logging level for the logger Callback function.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_LOGGER_LEVEL_QUIET < level`
+UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallbackLevel(
+    /// [in] handle of the adapter
+    ur_adapter_handle_t hAdapter,
+    /// [in] logging level
+    ur_logger_level_t level);
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -12764,6 +12842,26 @@ typedef struct ur_loader_config_set_mocking_enabled_params_t {
   ur_loader_config_handle_t *phLoaderConfig;
   ur_bool_t *penable;
 } ur_loader_config_set_mocking_enabled_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterSetLoggerCallback
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_set_logger_callback_params_t {
+  ur_adapter_handle_t *phAdapter;
+  ur_logger_callback_t *ppfnLoggerCallback;
+  void **ppUserData;
+  ur_logger_level_t *plevel;
+} ur_adapter_set_logger_callback_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterSetLoggerCallbackLevel
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_set_logger_callback_level_params_t {
+  ur_adapter_handle_t *phAdapter;
+  ur_logger_level_t *plevel;
+} ur_adapter_set_logger_callback_level_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urPlatformGet

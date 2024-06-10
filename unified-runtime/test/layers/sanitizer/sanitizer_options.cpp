@@ -30,7 +30,7 @@ struct OptionParserTest : public ::testing::Test {
 
   OptionParserTest()
       : Logger(logger::create_logger("OptionParser", false, false,
-                                     logger::Level::DEBUG)),
+                                     UR_LOGGER_LEVEL_DEBUG)),
         Parser(EnvMap, Logger) {}
 };
 
@@ -122,7 +122,7 @@ struct SanitizerOptionsTest : public ::testing::Test {
 
   SanitizerOptionsTest()
       : Logger(logger::create_logger("SanitizerOptions", false, false,
-                                     logger::Level::DEBUG)) {}
+                                     UR_LOGGER_LEVEL_DEBUG)) {}
 
   void SetEnvAndInit(const std::string &Value) {
     setenv(EnvName.c_str(), Value.c_str(), 1);
