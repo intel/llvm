@@ -99,14 +99,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/JackAKirk/unified-runtime.git")
   # commit f06bc02a24418990ecb9d41471b729f32aebd804
   # Merge: 42c0b025 9868e3b0
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
   # Date:   Wed Jun 5 12:02:53 2024 +0100
   #     Merge pull request #1669 from JackAKirk/fix-usmptr-get-dev
   #     [CUDA][HIP] Fix urUSMGetMemAllocInfo impl to use single platform.
-  set(UNIFIED_RUNTIME_TAG f06bc02a24418990ecb9d41471b729f32aebd804)
+  set(UNIFIED_RUNTIME_TAG e18cf578b46c713e2ac89ae642ed8909ce9c57fc)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
