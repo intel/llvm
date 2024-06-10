@@ -84,7 +84,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 9f783837089c970a22cda08f768aa3dbed38f0d3
-  # Merge: c015f892 b9442104
+  # commit f06bc02a24418990ecb9d41471b729f32aebd804
+  # Merge: 42c0b025 9868e3b0
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri May 31 10:20:23 2024 +0100
-  #     Merge pull request #1533 from AllanZyne/sanitizer-buffer
-  #     [DeviceSanitizer] Support detecting out-of-bounds errors on sycl::buffer
-  set(UNIFIED_RUNTIME_TAG 9f783837089c970a22cda08f768aa3dbed38f0d3)
+  # Date:   Wed Jun 5 12:02:53 2024 +0100
+  #     Merge pull request #1669 from JackAKirk/fix-usmptr-get-dev
+  #     [CUDA][HIP] Fix urUSMGetMemAllocInfo impl to use single platform.
+  set(UNIFIED_RUNTIME_TAG f06bc02a24418990ecb9d41471b729f32aebd804)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

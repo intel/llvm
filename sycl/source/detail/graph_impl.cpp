@@ -1304,6 +1304,7 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
   auto NDRDesc = ExecCG.MNDRDesc;
 
   pi_kernel PiKernel = nullptr;
+  pi_program PiProgram = nullptr;
   auto Kernel = ExecCG.MSyclKernel;
   auto KernelBundleImplPtr = ExecCG.MKernelBundle;
   std::shared_ptr<sycl::detail::kernel_impl> SyclKernelImpl = nullptr;
@@ -1327,7 +1328,7 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
     PiKernel = Kernel->getHandleRef();
     EliminatedArgMask = Kernel->getKernelArgMask();
   } else {
-    std::tie(PiKernel, std::ignore, EliminatedArgMask, std::ignore) =
+    std::tie(PiKernel, std::ignore, EliminatedArgMask, PiProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
             ContextImpl, DeviceImpl, ExecCG.MKernelName);
   }
@@ -1450,6 +1451,12 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
   pi_result Res = Plugin->call_nocheck<
       sycl::detail::PiApiKind::piextCommandBufferUpdateKernelLaunch>(
       Command, &UpdateDesc);
+
+  if (PiProgram) {
+    // We retained these objects by calling getOrCreateKernel()
+    Plugin->call<sycl::detail::PiApiKind::piKernelRelease>(PiKernel);
+    Plugin->call<sycl::detail::PiApiKind::piProgramRelease>(PiProgram);
+  }
 
   if (Res != PI_SUCCESS) {
     throw sycl::exception(errc::invalid, "Error updating command_graph");
