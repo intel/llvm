@@ -5207,10 +5207,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool IsDeviceOffloadAction = !(JA.isDeviceOffloading(Action::OFK_None) ||
                                  JA.isDeviceOffloading(Action::OFK_Host));
   bool IsHostOffloadingAction =
-      JA.isHostOffloading(Action::OFK_OpenMP) ||
-      (JA.isHostOffloading(C.getActiveOffloadKinds()) &&
-       Args.hasFlag(options::OPT_offload_new_driver,
-                    options::OPT_no_offload_new_driver, false));
+      (JA.isHostOffloading(Action::OFK_OpenMP) ||
+       (JA.isHostOffloading(C.getActiveOffloadKinds()) &&
+        Args.hasFlag(options::OPT_offload_new_driver,
+                     options::OPT_no_offload_new_driver, false))) ||
+      (JA.isHostOffloading(Action::OFK_SYCL) &&
+       C.getDriver().GetUseNewOffloadDriverForSYCLOffload(C, Args));
 
   bool IsRDCMode =
       Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, IsSYCL);
@@ -11022,16 +11024,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         break;
       }
     }
-    // Pass the device triple to the linker wrapper tool for SYCL offload.
-    // Only spir64 or spirv64 is currently passed.
-    // TODO(NOM1): Support target triples in a more generic way.
-    // TODO(NOM3): Investigate why passing spirv64-unknown-unknown does not
-    // work.
-    if (TargetTriple.isSPIR())
-      CmdArgs.push_back("--triple=spir64");
-    else if (TargetTriple.isSPIRV())
-      CmdArgs.push_back("--triple=spirv64");
-
     SmallVector<std::string, 8> SYCLDeviceLibs;
     auto IsSPIR = TargetTriple.isSPIROrSPIRV();
     bool IsSpirvAOT = TargetTriple.isSPIRAOT();
