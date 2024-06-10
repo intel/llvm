@@ -2,8 +2,6 @@
 // RUN: %{build} --offload-new-driver -o %t.out
 // RUN: %{run} %t.out
 
-
-
 #include <sycl/sycl.hpp>
 
 int main() {
