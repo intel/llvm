@@ -696,7 +696,9 @@ for sycl_device in config.sycl_devices:
     if sycl_device == "opencl:fpga":
         architectures = set()
     else:
-        lit_config.note("Architectures for {}: {}".format(sycl_device, ", ".join(architectures)))
+        lit_config.note(
+            "Architectures for {}: {}".format(sycl_device, ", ".join(architectures))
+        )
         if len(architectures) != 1 or "unknown" in architectures:
             lit_config.error(
                 "Cannot detect architecture for {}\nstdout:\n{}\nstderr:\n{}".format(
