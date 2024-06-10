@@ -10628,43 +10628,27 @@ static void getTripleBasedSYCLPostLinkOpts(
   // See if device code splitting is requested.  The logic here works along side
   // the behavior in setOtherSYCLPostLinkOpts, where the option is added based
   // on the user setting of-fsycl-device-code-split.
-  if (!NewOffloadDriver) {
-    if (!(TCArgs.hasArg(options::OPT_fsycl_device_code_split_EQ) ||
-          Triple.getArchName() == "spir64_fpga"))
-      addArgs(PostLinkArgs, TCArgs, {"-split=auto"});
-  } else {
-    if (!(TCArgs.hasArg(options::OPT_fsycl_device_code_split_EQ)))
-      addArgs(PostLinkArgs, TCArgs, {"-split=auto"});
-  }
+  if (!TCArgs.hasArg(options::OPT_fsycl_device_code_split_EQ) &&
+      (NewOffloadDriver || !(Triple.getArchName() == "spir64_fpga")))
+    addArgs(PostLinkArgs, TCArgs, {"-split=auto"});
 
   // On Intel targets we don't need non-kernel functions as entry points,
   // because it only increases amount of code for device compiler to handle,
   // without any actual benefits.
   // TODO: Try to extend this feature for non-Intel GPUs.
-  if (!NewOffloadDriver) {
-    if (!TCArgs.hasFlag(options::OPT_fno_sycl_remove_unused_external_funcs,
-                        options::OPT_fsycl_remove_unused_external_funcs,
-                        false) &&
-        !Triple.isNVPTX() && !Triple.isAMDGPU() && !isSYCLNativeCPU(TC))
-      addArgs(PostLinkArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
-  } else {
-    if (!TCArgs.hasFlag(options::OPT_fno_sycl_remove_unused_external_funcs,
-                        options::OPT_fsycl_remove_unused_external_funcs,
-                        false) &&
-        !isSYCLNativeCPU(TC))
-      addArgs(PostLinkArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
-  }
+  if ((!TCArgs.hasFlag(options::OPT_fno_sycl_remove_unused_external_funcs,
+                       options::OPT_fsycl_remove_unused_external_funcs,
+                       false) &&
+       !isSYCLNativeCPU(TC)) &&
+      (NewOffloadDriver || (!Triple.isNVPTX() && !Triple.isAMDGPU())))
+    addArgs(PostLinkArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 
   if (!NewOffloadDriver && !Triple.isAMDGCN())
     addArgs(PostLinkArgs, TCArgs, {"-emit-param-info"});
-  // Enable PI program metadata
-  if (!NewOffloadDriver) {
-    if (Triple.isNVPTX() || Triple.isAMDGCN() || isSYCLNativeCPU(TC))
-      addArgs(PostLinkArgs, TCArgs, {"-emit-program-metadata"});
-  } else {
-    if (isSYCLNativeCPU(TC))
-      addArgs(PostLinkArgs, TCArgs, {"-emit-program-metadata"});
-  }
+  // Enable program metadata
+  if ((!NewOffloadDriver && (Triple.isNVPTX() || Triple.isAMDGCN())) ||
+      isSYCLNativeCPU(TC))
+    addArgs(PostLinkArgs, TCArgs, {"-emit-program-metadata"});
   if (OutputType != types::TY_LLVM_BC) {
     assert(OutputType == types::TY_Tempfiletable);
     bool SplitEsimdByDefault = !NewOffloadDriver && Triple.isSPIROrSPIRV();
@@ -10679,24 +10663,16 @@ static void getTripleBasedSYCLPostLinkOpts(
       addArgs(PostLinkArgs, TCArgs, {"-split-esimd"});
     addArgs(PostLinkArgs, TCArgs, {"-lower-esimd"});
   }
-  bool isAOT = Triple.isNVPTX() || Triple.isAMDGCN() ||
+  bool IsAOT = Triple.isNVPTX() || Triple.isAMDGCN() ||
                Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
                Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
                Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
-  if (!NewOffloadDriver) {
-    if (TCArgs.hasFlag(options::OPT_fsycl_add_default_spec_consts_image,
-                       options::OPT_fno_sycl_add_default_spec_consts_image,
-                       false) &&
-        isAOT)
-      addArgs(PostLinkArgs, TCArgs,
-              {"-generate-device-image-default-spec-consts"});
-  } else {
-    if (TCArgs.hasFlag(options::OPT_fsycl_add_default_spec_consts_image,
-                       options::OPT_fno_sycl_add_default_spec_consts_image,
-                       false))
-      addArgs(PostLinkArgs, TCArgs,
-              {"-generate-device-image-default-spec-consts"});
-  }
+  if (TCArgs.hasFlag(options::OPT_fsycl_add_default_spec_consts_image,
+                     options::OPT_fno_sycl_add_default_spec_consts_image,
+                     false) &&
+      (IsAOT || NewOffloadDriver))
+    addArgs(PostLinkArgs, TCArgs,
+            {"-generate-device-image-default-spec-consts"});
 }
 
 // sycl-post-link tool normally outputs a file table (see the tool sources for
