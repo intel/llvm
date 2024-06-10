@@ -1098,6 +1098,11 @@ std::string deviceTestWithParamPrinter(
     return uur::GetPlatformAndDeviceName(device) + "__" + ss.str();
 }
 
+template <>
+std::string deviceTestWithParamPrinter<ur_image_format_t>(
+    const ::testing::TestParamInfo<
+        std::tuple<ur_device_handle_t, ur_image_format_t>> &info);
+
 // Helper struct to allow bool param tests with meaningful names.
 struct BoolTestParam {
     std::string name;

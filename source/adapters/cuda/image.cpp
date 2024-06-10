@@ -35,7 +35,7 @@ ur_result_t urCalculateNumChannels(ur_image_channel_order_t order,
     *NumChannels = 2;
     return UR_RESULT_SUCCESS;
   case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_RGB:
-    return UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+    return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
   case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_RGBA:
   case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_ARGB:
   case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_BGRA:
@@ -49,7 +49,7 @@ ur_result_t urCalculateNumChannels(ur_image_channel_order_t order,
   case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_INTENSITY:
   case ur_image_channel_order_t::UR_IMAGE_CHANNEL_ORDER_LUMINANCE:
   default:
-    return UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+    return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
   }
 }
 
@@ -147,7 +147,7 @@ urToCudaImageChannelFormat(ur_image_channel_type_t image_channel_type,
       cuda_format = cuda_format_and_size.first;
       pixel_size_bytes = cuda_format_and_size.second;
     } catch (const std::out_of_range &) {
-      return UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+      return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
     }
   }
 
@@ -228,7 +228,7 @@ cudaToUrImageChannelFormat(CUarray_format cuda_format,
 #endif
 #undef MAP
   default:
-    return UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+    return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
   }
 }
 
