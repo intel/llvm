@@ -477,26 +477,24 @@ if "cuda:gpu" in config.sycl_devices:
                         if re.match(
                             r"^\d+\.\d+$", version
                         ):  # Match version pattern like 12.3
-                                cuda_versions.append(version)
+                            cuda_versions.append(version)
             latest_cuda_version = max(
                 cuda_versions, key=lambda v: [int(i) for i in v.split(".")]
             )
-            os.environ["CUDA_PATH"] = os.path.join(
-                cuda_root, f"v{latest_cuda_version}"
-            )
-    else:
-        cuda_root = "/usr/local"
-        cuda_versions = []
-        if os.path.exists(cuda_root):
-            for entry in os.listdir(cuda_root):
-                if os.path.isdir(
-                    os.path.join(cuda_root, entry)
-                ) and entry.startswith("cuda-"):
-                    version = entry.split("-")[1]
-                    if re.match(
-                        r"^\d+\.\d+$", version
-                    ):  # Match version pattern like 12.3
-                        cuda_versions.append(version)
+            os.environ["CUDA_PATH"] = os.path.join(cuda_root, f"v{latest_cuda_version}")
+        else:
+            cuda_root = "/usr/local"
+            cuda_versions = []
+            if os.path.exists(cuda_root):
+                for entry in os.listdir(cuda_root):
+                    if os.path.isdir(
+                        os.path.join(cuda_root, entry)
+                    ) and entry.startswith("cuda-"):
+                        version = entry.split("-")[1]
+                        if re.match(
+                            r"^\d+\.\d+$", version
+                        ):  # Match version pattern like 12.3
+                            cuda_versions.append(version)
             latest_cuda_version = max(
                 cuda_versions, key=lambda v: [int(i) for i in v.split(".")]
             )
