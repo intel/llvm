@@ -535,7 +535,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  if (*pGlobalWorkOffset == 0 || pGlobalWorkOffset == nullptr) {
+  if (pGlobalWorkOffset == nullptr || *pGlobalWorkOffset == 0) {
     ur_exp_launch_property_t coop_prop;
     coop_prop.id = UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE;
     coop_prop.value.cooperative = 1;
