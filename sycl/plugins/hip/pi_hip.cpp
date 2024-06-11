@@ -556,7 +556,7 @@ pi_result piextEnqueueCooperativeKernelLaunch(
       NumEventsInWaitList, EventWaitList, OutEvent);
 }
 
-__SYCL_EXPORT pi_result piextEnqueueKernelLaunchCustom(
+pi_result piextEnqueueKernelLaunchCustom(
     pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
     const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
     pi_uint32 NumPropsInLaunchPropList,
