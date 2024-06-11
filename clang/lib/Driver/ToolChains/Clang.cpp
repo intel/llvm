@@ -11005,13 +11005,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   if (Args.hasArg(options::OPT_v))
     CmdArgs.push_back("--wrapper-verbose");
 
-  // TODO(NOM2): Pass following options to clang-linker-wrapper.
-  // Please refer to sycl/doc/design/OffloadDesign.md for details.
-  // sycl-device-libraries
-  // sycl-device-library-location
-  // sycl-post-link-options
-  // llvm-spirv-options
-
   if (const Arg *A = Args.getLastArg(options::OPT_g_Group)) {
     if (!A->getOption().matches(options::OPT_g0))
       CmdArgs.push_back("--device-debug");
@@ -11044,12 +11037,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   // Add any SYCL offloading specific options to the clang-linker-wrapper
   if (C.hasOffloadToolChain<Action::OFK_SYCL>()) {
     // -sycl-device-libraries=<comma separated list> contains all of the SYCL
-    // device specific libraries that are needed.  This provides the list of
-    // files file only.
-    // TODO: This generic list will be populated with only device binaries
-    // for spir/spirv. Other targets (AOT and others) can represent a different
-    // set of device libraries.  We will cross that bridge when we begin to
-    // enable the other possible targets.
+    // device specific libraries that are needed. This generic list will be
+    // populated with device binaries for all target triples in the current
+    // compilation flow.
+
+    // Create a comma separated list to pass along to the linker wrapper.
+    SmallString<256> LibList;
+    // TODO: TargetTriple should not be used here for creating linker wrapper
+    // options. It should also not be passed to the linker wrapper.
     llvm::Triple TargetTriple;
     auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
     for (auto &I :
@@ -11058,38 +11053,24 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       if (TC->getTriple().isSPIROrSPIRV() &&
           TC->getTriple().getSubArch() == llvm::Triple::NoSubArch) {
         TargetTriple = TC->getTriple();
-        break;
+        SmallVector<std::string, 8> SYCLDeviceLibs;
+        bool IsSPIR = TargetTriple.isSPIROrSPIRV();
+        bool IsSpirvAOT = TargetTriple.isSPIRAOT();
+        bool UseJitLink =
+            IsSPIR &&
+            Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
+                         options::OPT_fno_sycl_device_lib_jit_link, false);
+        bool UseAOTLink = IsSPIR && (IsSpirvAOT || !UseJitLink);
+        SYCLDeviceLibs = SYCL::getDeviceLibraries(C, TargetTriple, UseAOTLink);
+        for (const auto &AddLib : SYCLDeviceLibs) {
+          if (LibList.size() > 0)
+            LibList += ",";
+          LibList += AddLib;
+        }
       }
-    }
-    // Pass the device triple to the linker wrapper tool for SYCL offload.
-    // Only spir64 or spirv64 is currently passed.
-    // TODO(NOM1): Support target triples in a more generic way.
-    // TODO(NOM3): Investigate why passing spirv64-unknown-unknown does not
-    // work.
-    if (TargetTriple.isSPIR())
-      CmdArgs.push_back("--triple=spir64");
-    else if (TargetTriple.isSPIRV())
-      CmdArgs.push_back("--triple=spirv64");
-
-    SmallVector<std::string, 8> SYCLDeviceLibs;
-    auto IsSPIR = TargetTriple.isSPIROrSPIRV();
-    bool IsSpirvAOT = TargetTriple.isSPIRAOT();
-    bool UseJitLink =
-        IsSPIR &&
-        Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
-                     options::OPT_fno_sycl_device_lib_jit_link, false);
-    bool UseAOTLink = IsSPIR && (IsSpirvAOT || !UseJitLink);
-    SYCLDeviceLibs = SYCL::getDeviceLibraries(C, TargetTriple, UseAOTLink);
-    // Create a comma separated list to pass along to the linker wrapper.
-    SmallString<256> LibList;
-    for (const auto &AddLib : SYCLDeviceLibs) {
-      if (LibList.size() > 0)
-        LibList += ",";
-      LibList += AddLib;
     }
     // -sycl-device-libraries=<libs> provides a comma separate list of
     // libraries to add to the device linking step.
-    // SYCL device libraries can be found.
     if (LibList.size())
       CmdArgs.push_back(
           Args.MakeArgString(Twine("-sycl-device-libraries=") + LibList));
