@@ -35,6 +35,7 @@
 #include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
+#include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group.hpp>
@@ -991,6 +992,10 @@ private:
                  sycl::ext::intel::experimental::fp_control_key>() &&
              KI::isESIMD()),
         "Floating point control property is supported for ESIMD kernels only.");
+    static_assert(
+        !PropertiesT::template has_property<
+            sycl::ext::oneapi::experimental::indirectly_callable_key>(),
+        "indirectly_callable property cannot be applied to SYCL kernels");
     if constexpr (PropertiesT::template has_property<
                       sycl::ext::intel::experimental::cache_config_key>()) {
       auto Config = Props.template get_property<
