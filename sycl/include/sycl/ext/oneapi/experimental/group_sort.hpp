@@ -154,11 +154,12 @@ joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
              default_sorters::joint_sorter<>(exec.get_memory()));
 }
 
-template <typename Group, typename T, typename U, typename Sorter>
-std::enable_if_t<detail::is_key_value_sorter<Sorter, Group, T, U>::value,
-                 std::tuple<T, U>>
-sort_key_value_over_group([[maybe_unused]] Group g, [[maybe_unused]] T key,
-                          [[maybe_unused]] U value,
+template <typename Group, typename KeyTy, typename ValueTy, typename Sorter>
+std::enable_if_t<
+    detail::is_key_value_sorter<Sorter, Group, KeyTy, ValueTy>::value,
+    std::tuple<KeyTy, ValueTy>>
+sort_key_value_over_group([[maybe_unused]] Group g, [[maybe_unused]] KeyTy key,
+                          [[maybe_unused]] ValueTy value,
                           [[maybe_unused]] Sorter sorter) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sorter(g, key, value);
@@ -169,26 +170,30 @@ sort_key_value_over_group([[maybe_unused]] Group g, [[maybe_unused]] T key,
 #endif
 }
 
-template <typename Group, typename T, typename U, typename Compare,
+template <typename Group, typename KeyTy, typename ValueTy, typename Compare,
           std::size_t Extent>
-std::enable_if_t<!detail::is_key_value_sorter<Compare, Group, T, U>::value,
-                 std::tuple<T, U>>
+std::enable_if_t<
+    !detail::is_key_value_sorter<Compare, Group, KeyTy, ValueTy>::value,
+    std::tuple<KeyTy, ValueTy>>
 sort_key_value_over_group(
-    experimental::group_with_scratchpad<Group, Extent> exec, T key, U value,
-    Compare comp) {
+    experimental::group_with_scratchpad<Group, Extent> exec, KeyTy key,
+    ValueTy value, Compare comp) {
   return sort_key_value_over_group(
       exec.get_group(), key, value,
-      default_sorters::group_key_value_sorter<T, U, Compare>(exec.get_memory(),
-                                                             comp));
+      default_sorters::group_key_value_sorter<KeyTy, ValueTy, Compare>(
+          exec.get_memory(), comp));
 }
 
-template <typename T, typename U, typename Group, std::size_t Extent>
-std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, std::tuple<T, U>>
+template <typename KeyTy, typename ValueTy, typename Group, std::size_t Extent>
+std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>,
+                 std::tuple<KeyTy, ValueTy>>
 sort_key_value_over_group(
-    experimental::group_with_scratchpad<Group, Extent> exec, T key, U value) {
+    experimental::group_with_scratchpad<Group, Extent> exec, KeyTy key,
+    ValueTy value) {
   return sort_key_value_over_group(
       exec.get_group(), key, value,
-      default_sorters::group_key_value_sorter<T, U>(exec.get_memory()));
+      default_sorters::group_key_value_sorter<KeyTy, ValueTy>(
+          exec.get_memory()));
 }
 
 } // namespace ext::oneapi::experimental
