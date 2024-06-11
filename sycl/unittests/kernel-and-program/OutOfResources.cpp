@@ -154,6 +154,9 @@ TEST(OutOfResourcesTest, piProgramCreate) {
 }
 
 TEST(OutOfHostMemoryTest, piProgramCreate) {
+  // Reset to zero.
+  nProgramCreate = 0;
+
   sycl::unittest::PiMock Mock;
   Mock.redefineBefore<detail::PiApiKind::piProgramCreate>(
       redefinedProgramCreateOutOfHostMemory);
@@ -281,6 +284,9 @@ TEST(OutOfResourcesTest, piProgramLink) {
 }
 
 TEST(OutOfHostMemoryTest, piProgramLink) {
+  // Reset to zero.
+  nProgramLink = 0;
+
   sycl::unittest::PiMock Mock;
   Mock.redefineBefore<detail::PiApiKind::piProgramLink>(
       redefinedProgramLinkOutOfHostMemory);
