@@ -478,10 +478,12 @@ if "cuda:gpu" in config.sycl_devices:
                             r"^\d+\.\d+$", version
                         ):  # Match version pattern like 12.3
                             cuda_versions.append(version)
-            latest_cuda_version = max(
-                cuda_versions, key=lambda v: [int(i) for i in v.split(".")]
-            )
-            os.environ["CUDA_PATH"] = os.path.join(cuda_root, f"v{latest_cuda_version}")
+                latest_cuda_version = max(
+                    cuda_versions, key=lambda v: [int(i) for i in v.split(".")]
+                )
+                os.environ["CUDA_PATH"] = os.path.join(
+                    cuda_root, f"v{latest_cuda_version}"
+                )
         else:
             cuda_root = "/usr/local"
             cuda_versions = []
@@ -495,12 +497,12 @@ if "cuda:gpu" in config.sycl_devices:
                             r"^\d+\.\d+$", version
                         ):  # Match version pattern like 12.3
                             cuda_versions.append(version)
-            latest_cuda_version = max(
-                cuda_versions, key=lambda v: [int(i) for i in v.split(".")]
-            )
-            os.environ["CUDA_PATH"] = os.path.join(
-                cuda_root, f"cuda-{latest_cuda_version}"
-            )
+                latest_cuda_version = max(
+                    cuda_versions, key=lambda v: [int(i) for i in v.split(".")]
+                )
+                os.environ["CUDA_PATH"] = os.path.join(
+                    cuda_root, f"cuda-{latest_cuda_version}"
+                )
 
     if "CUDA_PATH" not in os.environ:
         lit_config.error("Cannot run tests for CUDA without valid CUDA_PATH.")
