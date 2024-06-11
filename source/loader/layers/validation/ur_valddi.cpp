@@ -1067,7 +1067,7 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
-        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
+        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type) {
             return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
 
@@ -6952,7 +6952,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
+        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type) {
             return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
     }
@@ -7061,7 +7061,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
+        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type) {
             return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
     }
@@ -7132,7 +7132,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
+        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type) {
             return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
     }
@@ -7224,7 +7224,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
-        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
+        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type) {
             return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
 
@@ -7477,7 +7477,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
+        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type) {
             return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
     }
