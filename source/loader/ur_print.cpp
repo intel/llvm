@@ -1011,6 +1011,23 @@ ur_result_t urPrintExpCommandBufferUpdateKernelLaunchDesc(
     return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintExpLaunchPropertyId(enum ur_exp_launch_property_id_t value,
+                                       char *buffer, const size_t buff_size,
+                                       size_t *out_size) {
+    std::stringstream ss;
+    ss << value;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
+urPrintExpLaunchProperty(const struct ur_exp_launch_property_t params,
+                         char *buffer, const size_t buff_size,
+                         size_t *out_size) {
+    std::stringstream ss;
+    ss << params;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintExpPeerInfo(enum ur_exp_peer_info_t value, char *buffer,
                                const size_t buff_size, size_t *out_size) {
     std::stringstream ss;
@@ -1645,6 +1662,14 @@ ur_result_t urPrintEnqueueWriteHostPipeParams(
     return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintEnqueueKernelLaunchCustomExpParams(
+    const struct ur_enqueue_kernel_launch_custom_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << params;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintEnqueueCooperativeKernelLaunchExpParams(
     const struct ur_enqueue_cooperative_kernel_launch_exp_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
@@ -1790,6 +1815,14 @@ ur_result_t urPrintKernelGetNativeHandleParams(
 
 ur_result_t urPrintKernelCreateWithNativeHandleParams(
     const struct ur_kernel_create_with_native_handle_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << params;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintKernelGetSuggestedLocalWorkSizeParams(
+    const struct ur_kernel_get_suggested_local_work_size_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
     std::stringstream ss;
     ss << params;

@@ -1,11 +1,7 @@
 name: E2E OpenCL
 
 on:
-  schedule:
-    # Run every day at 23:00 UTC
-    - cron: '0 23 * * *'
-  issue_comment:
-    types: [created, edited]
+  workflow_call:
 
 permissions:
   contents: read
@@ -13,12 +9,10 @@ permissions:
 
 jobs:
   e2e-build-hw:
-    # trigger only if PR comment contains "e2e-opencl"
-    if: ${{ (github.event.issue.pull_request && contains(github.event.comment.body, '/e2e-opencl')) || (github.event_name == 'schedule') }}
+    if: github.repository == 'oneapi-src/unified-runtime'  # run only on upstream; forks will not have the HW
     name: Start e2e job
     # use core flow, run it with OpenCL specific parameters
     uses: ./.github/workflows/e2e_core.yml
-    # parameters that we pass to the core flow
     with:
       name: "OPENCL"
       runner_tag: "OPENCL"
@@ -26,4 +20,3 @@ jobs:
       prefix: ""
       config: ""
       unit: "cpu"
-      trigger: "${{github.event_name}}"

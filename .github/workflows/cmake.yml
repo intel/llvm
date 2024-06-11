@@ -161,14 +161,12 @@ jobs:
       run: ctest -C ${{matrix.build_type}} --output-on-failure -L "fuzz-short" --verbose
 
   level-zero:
-    if: github.repository == 'oneapi-src/unified-runtime'
     name: Level Zero
     uses: ./.github/workflows/build-hw-reusable.yml
     with:
       name: L0
 
   opencl:
-    if: github.repository == 'oneapi-src/unified-runtime'
     name: OpenCL
     uses: ./.github/workflows/build-hw-reusable.yml
     with:
@@ -176,21 +174,18 @@ jobs:
       platform: "Intel(R) OpenCL"
 
   cuda:
-    if: github.repository == 'oneapi-src/unified-runtime'
     name: CUDA
     uses: ./.github/workflows/build-hw-reusable.yml
     with:
       name: CUDA
 
   hip:
-    if: github.repository == 'oneapi-src/unified-runtime'
     name: HIP
     uses: ./.github/workflows/build-hw-reusable.yml
     with:
       name: HIP
 
   native-cpu:
-    if: github.repository == 'oneapi-src/unified-runtime'
     name: Native CPU
     uses: ./.github/workflows/build-hw-reusable.yml
     with:
@@ -211,6 +206,9 @@ jobs:
            adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'}
          - adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'}
            compiler: {c: clang-cl, cxx: clang-cl}
+         # TODO: testing is flaky on windows-2022 in Release mode
+         - os: 'windows-2022'
+           build_type: Release
 
         build_type: [Debug, Release]
         compiler: [{c: cl, cxx: cl}, {c: clang-cl, cxx: clang-cl}]
@@ -261,7 +259,6 @@ jobs:
     - name: Test
       working-directory: ${{github.workspace}}/build
       run: ctest -C ${{matrix.build_type}} --output-on-failure -L "umf|loader|validation|tracing|unit|urtrace"
-
 
   macos-build:
     name: Build - MacOS

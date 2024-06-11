@@ -32,6 +32,28 @@ size_t imageElementByteSize(hipArray_Format ArrayFormat) {
   return 0;
 }
 
+ur_result_t
+checkSupportedImageChannelType(ur_image_channel_type_t ImageChannelType) {
+  switch (ImageChannelType) {
+  case UR_IMAGE_CHANNEL_TYPE_SNORM_INT8:
+  case UR_IMAGE_CHANNEL_TYPE_SNORM_INT16:
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT8:
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8:
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8:
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT16:
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16:
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16:
+  case UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT:
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32:
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32:
+  case UR_IMAGE_CHANNEL_TYPE_FLOAT:
+    return UR_RESULT_SUCCESS;
+  default:
+    return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
 /// Decreases the reference count of the Mem object.
 /// If this is zero, calls the relevant HIP Free function
 /// \return UR_RESULT_SUCCESS unless deallocation error
@@ -339,7 +361,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
 
   UR_ASSERT(pImageDesc->stype == UR_STRUCTURE_TYPE_IMAGE_DESC,
             UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
-  UR_ASSERT(pImageDesc->type <= UR_MEM_TYPE_IMAGE1D_BUFFER,
+  UR_ASSERT(pImageDesc->type <= UR_MEM_TYPE_IMAGE1D_ARRAY,
             UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
   UR_ASSERT(pImageDesc->numMipLevel == 0,
             UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
@@ -355,7 +377,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
   // We only support RBGA channel order
   // TODO: check SYCL CTS and spec. May also have to support BGRA
   UR_ASSERT(pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_RGBA,
-            UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION);
+            UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT);
+
+  UR_CHECK_ERROR(checkSupportedImageChannelType(pImageFormat->channelType));
 
   auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(
       new ur_mem_handle_t_{hContext, flags, *pImageFormat, *pImageDesc, pHost});
@@ -455,11 +479,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRetain(ur_mem_handle_t hMem) {
 ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
                                            const ur_device_handle_t hDevice) {
   ScopedContext Active(hDevice);
+  auto DeviceIdx = Mem->getContext()->getDeviceIndex(hDevice);
   ur_lock LockGuard(Mem->MemoryAllocationMutex);
 
   if (Mem->isBuffer()) {
     auto &Buffer = std::get<BufferMem>(Mem->Mem);
-    hipDeviceptr_t &DevPtr = Buffer.Ptrs[hDevice->getIndex()];
+    hipDeviceptr_t &DevPtr = Buffer.Ptrs[DeviceIdx];
 
     // Allocation has already been made
     if (DevPtr != BufferMem::native_type{0}) {
@@ -482,12 +507,12 @@ ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
     try {
       auto &Image = std::get<SurfaceMem>(Mem->Mem);
       // Allocation has already been made
-      if (Image.Arrays[hDevice->getIndex()]) {
+      if (Image.Arrays[DeviceIdx]) {
         return UR_RESULT_SUCCESS;
       }
       UR_CHECK_ERROR(hipArray3DCreate(
           reinterpret_cast<hipCUarray *>(&ImageArray), &Image.ArrayDesc));
-      Image.Arrays[hDevice->getIndex()] = ImageArray;
+      Image.Arrays[DeviceIdx] = ImageArray;
       // HIP_RESOURCE_DESC is a union of different structs, shown here
       // We need to fill it as described here to use it for a surface or texture
       // HIP_RESOURCE_DESC::resType must be HIP_RESOURCE_TYPE_ARRAY and
@@ -499,7 +524,7 @@ ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
       ImageResDesc.resType = hipResourceTypeArray;
 
       UR_CHECK_ERROR(hipCreateSurfaceObject(&Surface, &ImageResDesc));
-      Image.SurfObjs[hDevice->getIndex()] = Surface;
+      Image.SurfObjs[DeviceIdx] = Surface;
     } catch (ur_result_t Err) {
       if (ImageArray) {
         UR_CHECK_ERROR(hipFreeArray(ImageArray));
@@ -608,11 +633,11 @@ inline ur_result_t migrateImageToDevice(ur_mem_handle_t Mem,
 ur_result_t migrateMemoryToDeviceIfNeeded(ur_mem_handle_t Mem,
                                           const ur_device_handle_t hDevice) {
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  auto DeviceIdx = Mem->getContext()->getDeviceIndex(hDevice);
   // Device allocation has already been initialized with most up to date
   // data in buffer
-  if (Mem->HaveMigratedToDeviceSinceLastWrite[hDevice->getIndex()]) {
+  if (Mem->HaveMigratedToDeviceSinceLastWrite[DeviceIdx])
     return UR_RESULT_SUCCESS;
-  }
 
   ScopedContext Active(hDevice);
   if (Mem->isBuffer()) {
@@ -621,6 +646,34 @@ ur_result_t migrateMemoryToDeviceIfNeeded(ur_mem_handle_t Mem,
     UR_CHECK_ERROR(migrateImageToDevice(Mem, hDevice));
   }
 
-  Mem->HaveMigratedToDeviceSinceLastWrite[hDevice->getIndex()] = true;
+  Mem->HaveMigratedToDeviceSinceLastWrite[DeviceIdx] = true;
   return UR_RESULT_SUCCESS;
+}
+
+BufferMem::native_type
+BufferMem::getPtrWithOffset(const ur_device_handle_t Device, size_t Offset) {
+  if (ur_result_t Err = allocateMemObjOnDeviceIfNeeded(OuterMemStruct, Device);
+      Err != UR_RESULT_SUCCESS) {
+    throw Err;
+  }
+  return reinterpret_cast<native_type>(
+      reinterpret_cast<uint8_t *>(
+          Ptrs[OuterMemStruct->getContext()->getDeviceIndex(Device)]) +
+      Offset);
+}
+
+hipArray *SurfaceMem::getArray(const ur_device_handle_t Device) {
+  if (ur_result_t Err = allocateMemObjOnDeviceIfNeeded(OuterMemStruct, Device);
+      Err != UR_RESULT_SUCCESS) {
+    throw Err;
+  }
+  return Arrays[OuterMemStruct->getContext()->getDeviceIndex(Device)];
+}
+
+hipSurfaceObject_t SurfaceMem::getSurface(const ur_device_handle_t Device) {
+  if (ur_result_t Err = allocateMemObjOnDeviceIfNeeded(OuterMemStruct, Device);
+      Err != UR_RESULT_SUCCESS) {
+    throw Err;
+  }
+  return SurfObjs[OuterMemStruct->getContext()->getDeviceIndex(Device)];
 }

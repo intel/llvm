@@ -54,10 +54,13 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   ze_command_list_handle_t ZeCommandListResetEvents;
   // Level Zero command list descriptor
   ZeStruct<ze_command_list_desc_t> ZeCommandListDesc;
-  // List of Level Zero fences created when submitting a graph.
-  // This list is needed to release all fences retained by the
-  // command_buffer.
-  std::vector<ze_fence_handle_t> ZeFencesList;
+  // Level Zero fences for each queue the command-buffer has been enqueued to.
+  // These should be destroyed when the command-buffer is released.
+  std::unordered_map<ze_command_queue_handle_t, ze_fence_handle_t> ZeFencesMap;
+  // The Level Zero fence from the most recent enqueue of the command-buffer.
+  // Must be an element in ZeFencesMap, so is not required to be destroyed
+  // itself.
+  ze_fence_handle_t ZeActiveFence;
   // Queue properties from command-buffer descriptor
   // TODO: Do we need these?
   ur_queue_properties_t QueueProperties;

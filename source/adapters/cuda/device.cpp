@@ -215,7 +215,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     int Major = 0;
     UR_CHECK_ERROR(cuDeviceGetAttribute(
         &Major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, hDevice->get()));
-    uint64_t Capabilities =
+    ur_memory_scope_capability_flags_t Capabilities =
         (Major >= 7) ? UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
@@ -270,7 +270,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     int WarpSize = 0;
     UR_CHECK_ERROR(cuDeviceGetAttribute(
         &WarpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE, hDevice->get()));
-    size_t Sizes[1] = {static_cast<size_t>(WarpSize)};
+    uint32_t Sizes[1] = {static_cast<uint32_t>(WarpSize)};
     return ReturnValue(Sizes, 1);
   }
   case UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY: {
@@ -418,7 +418,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(static_cast<size_t>(Min));
   }
   case UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE: {
-    return ReturnValue(0lu);
+    return ReturnValue(size_t(0));
   }
   case UR_DEVICE_INFO_MAX_SAMPLERS: {
     // This call is kind of meaningless for cuda, as samplers don't exist.
@@ -429,7 +429,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // https://docs.nvidia.com/cuda/cuda-c-programming-guide/#function-parameters
     // __global__ function parameters are passed to the device via constant
     // memory and are limited to 4 KB.
-    return ReturnValue(4000lu);
+    return ReturnValue(size_t(4000));
   }
   case UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN: {
     int MemBaseAddrAlign = 0;
@@ -542,7 +542,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION: {
     // Hard coded to value returned by clinfo for OpenCL 1.2 CUDA | GeForce GTX
     // 1060 3GB
-    return ReturnValue(1000lu);
+    return ReturnValue(size_t(1000));
   }
   case UR_DEVICE_INFO_ENDIAN_LITTLE: {
     return ReturnValue(true);
@@ -628,6 +628,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // Return supported for the UR command-buffer experimental feature
     SupportedExtensions += "ur_exp_command_buffer ";
     SupportedExtensions += "ur_exp_usm_p2p ";
+    SupportedExtensions += "ur_exp_launch_properties ";
     SupportedExtensions += " ";
 
     int Major = 0;
@@ -646,7 +647,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_PRINTF_BUFFER_SIZE: {
     // The minimum value for the FULL profile is 1 MB.
-    return ReturnValue(1024lu);
+    return ReturnValue(size_t(1024));
   }
   case UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC: {
     return ReturnValue(true);
@@ -691,8 +692,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         // respect to other CPUs and GPUs in the system
         Value = UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS |
                 UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_ACCESS |
-                UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS |
-                UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS;
+                UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS;
       } else {
         // on GPU architectures with compute capability lower than 6.x, atomic
         // operations from the GPU to CPU memory will not be atomic with respect
