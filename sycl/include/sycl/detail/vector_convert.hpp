@@ -528,16 +528,34 @@ template <typename NativeBFT, typename NativeFloatT, int VecSize>
 inline NativeFloatT ConvertBF16ToF(NativeBFT vec) {
   if constexpr (VecSize == 1)
     return (float)vec;
-  else
-    return __spirv_ConvertBF16ToFINTEL(vec);
+  else {
+    uint16_t *src = sycl::bit_cast<uint16_t*>(&vec);
+
+    // OpenCL vector of 3 elements is aligned to 4 multiplied by
+    // the size of data type.
+    constexpr int AdjustedSize = (VecSize == 3) ? 4 : VecSize;
+    float dst[AdjustedSize];
+    sycl::ext::oneapi::detail::BF16VecToFloatVec<VecSize>(src, dst);
+
+    return sycl::bit_cast<NativeFloatT>(dst);
+  }
 }
 
 template <typename NativeFloatT, typename NativeBFT, int VecSize>
 inline NativeBFT ConvertFToBF16(NativeFloatT vec) {
   if constexpr (VecSize == 1)
     return sycl::ext::oneapi::bfloat16(vec);
-  else
-    return __spirv_ConvertFToBF16INTEL(vec);
+  else {
+    float *src = sycl::bit_cast<float*>(&vec);
+
+    // OpenCL vector of 3 elements is aligned to 4 multiplied by
+    // the size of data type.
+    constexpr int AdjustedSize = (VecSize == 3) ? 4 : VecSize;
+    uint16_t dst[AdjustedSize];
+
+    sycl::ext::oneapi::detail::FloatVecToBF16Vec<VecSize>(src, dst);
+    return sycl::bit_cast<NativeBFT>(dst);
+  }
 }
 
 #endif // __SYCL_DEVICE_ONLY__
