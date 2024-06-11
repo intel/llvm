@@ -3178,7 +3178,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     return UR_RESULT_SUCCESS;
   }
   case CG::CGTYPE::ProfilingTag: {
-    const UrPluginPtr &Plugin = MQueue->getUrPlugin();
+    const auto &Plugin = MQueue->getPlugin();
     // If the queue is not in-order, we need to insert a barrier. This barrier
     // does not need output events as it will implicitly enforce the following
     // enqueue is blocked until it finishes.

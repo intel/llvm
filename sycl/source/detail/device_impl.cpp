@@ -780,11 +780,12 @@ bool device_impl::has(aspect Aspect) const {
            be == sycl::backend::opencl;
   }
   case aspect::ext_oneapi_queue_profiling_tag: {
-    pi_bool support = PI_FALSE;
+    ur_bool_t support = false;
     bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+        getPlugin()->call_nocheck(
+            urDeviceGetInfo, MUrDevice,
+            UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP, sizeof(ur_bool_t),
+            &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
   }

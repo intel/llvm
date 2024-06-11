@@ -36,10 +36,10 @@ void handleOutOfResources(const device_impl &DeviceImpl,
     const size_t TotalNumberOfWIs =
         NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
 
-    const UrPluginPtr &Plugin = DeviceImpl.getUrPlugin();
-    uint32_t NumRegisters = 0;
-    Plugin->call(urKernelGetInfo, Kernel, UR_KERNEL_INFO_NUM_REGS,
-                 sizeof(NumRegisters), &NumRegisters, nullptr);
+      const PluginPtr &Plugin = DeviceImpl.getPlugin();
+      uint32_t NumRegisters = 0;
+      Plugin->call(urKernelGetInfo, Kernel, UR_KERNEL_INFO_NUM_REGS,
+                   sizeof(NumRegisters), &NumRegisters, nullptr);
 
     uint32_t MaxRegistersPerBlock =
         DeviceImpl.get_info<ext::codeplay::experimental::info::device::
@@ -118,17 +118,18 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
           "to a device that does not support this work group size is invalid.");
 
     // OpenCL 1.x && 2.0:
-    // PI_ERROR_INVALID_WORK_GROUP_SIZE if local_work_size is NULL and the
-    // reqd_work_group_size attribute is used to declare the work-group size
+    // UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE if local_work_size is NULL and
+    // the reqd_work_group_size attribute is used to declare the work-group size
     // for kernel in the program source.
     if (!HasLocalSize && (IsOpenCLV1x || IsOpenCLVGE20)) {
       throw sycl::nd_range_error(
           "OpenCL 1.x and 2.0 requires to pass local size argument even if "
           "required work-group size was specified in the program source",
-          PI_ERROR_INVALID_WORK_GROUP_SIZE);
+          UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
     }
-    // PI_ERROR_INVALID_WORK_GROUP_SIZE if local_work_size is specified and does
-    // not match the required work-group size for kernel in the program source.
+    // UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE if local_work_size is specified
+    // and does not match the required work-group size for kernel in the program
+    // source.
     if (NDRDesc.LocalSize[0] != CompileWGSize[0] ||
         NDRDesc.LocalSize[1] != CompileWGSize[1] ||
         NDRDesc.LocalSize[2] != CompileWGSize[2])
@@ -141,7 +142,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
               std::to_string(CompileWGSize[2]) + ", " +
               std::to_string(CompileWGSize[1]) + ", " +
               std::to_string(CompileWGSize[0]) + "}",
-          PI_ERROR_INVALID_WORK_GROUP_SIZE);
+          UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
   }
 
   if (HasLocalSize) {
@@ -157,17 +158,17 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
                 std::to_string(MaxThreadsPerBlock[0]) + ", " +
                 std::to_string(MaxThreadsPerBlock[1]) + ", " +
                 std::to_string(MaxThreadsPerBlock[2]) + "} for this device",
-            PI_ERROR_INVALID_WORK_GROUP_SIZE);
+            UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
       }
     }
   }
 
   if (IsOpenCLV1x) {
     // OpenCL 1.x:
-    // PI_ERROR_INVALID_WORK_GROUP_SIZE if local_work_size is specified and
-    // the total number of work-items in the work-group computed as
+    // UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE if local_work_size is specified
+    // and the total number of work-items in the work-group computed as
     // local_work_size[0] * ... * local_work_size[work_dim - 1] is greater
-    // than the value specified by PI_DEVICE_MAX_WORK_GROUP_SIZE in
+    // than the value specified by UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE in
     // table 4.3
     const size_t TotalNumberOfWIs =
         NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
@@ -175,13 +176,13 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
       throw sycl::nd_range_error(
           "Total number of work-items in a work-group cannot exceed " +
               std::to_string(MaxWGSize),
-          PI_ERROR_INVALID_WORK_GROUP_SIZE);
+          UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
   } else if (IsOpenCLVGE20 || IsLevelZero) {
     // OpenCL 2.x or OneAPI Level Zero:
-    // PI_ERROR_INVALID_WORK_GROUP_SIZE if local_work_size is specified and
-    // the total number of work-items in the work-group computed as
+    // UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE if local_work_size is specified
+    // and the total number of work-items in the work-group computed as
     // local_work_size[0] * ... * local_work_size[work_dim - 1] is greater
-    // than the value specified by PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE in
+    // than the value specified by UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE in
     // table 5.21.
     size_t KernelWGSize = 0;
     Plugin->call(urKernelGetGroupInfo, Kernel, Device,
@@ -193,7 +194,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
       throw sycl::nd_range_error(
           "Total number of work-items in a work-group cannot exceed " +
               std::to_string(KernelWGSize) + " for this kernel",
-          PI_ERROR_INVALID_WORK_GROUP_SIZE);
+          UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
   } else {
     // TODO: Should probably have something similar for the other backends
   }
@@ -218,25 +219,25 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
       if (NonUniformWGs) {
         if (IsOpenCLV1x) {
           // OpenCL 1.x:
-          // PI_ERROR_INVALID_WORK_GROUP_SIZE if local_work_size is specified
-          // and number of workitems specified by global_work_size is not evenly
-          // divisible by size of work-group given by local_work_size
+          // UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE if local_work_size is
+          // specified and number of workitems specified by global_work_size is
+          // not evenly divisible by size of work-group given by local_work_size
           if (LocalExceedsGlobal)
             throw sycl::nd_range_error("Local workgroup size cannot be greater "
                                        "than global range in any dimension",
-                                       PI_ERROR_INVALID_WORK_GROUP_SIZE);
+                                       UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
           else
             throw sycl::nd_range_error(
                 "Global_work_size must be evenly divisible by local_work_size. "
                 "Non-uniform work-groups are not supported by the target "
                 "device",
-                PI_ERROR_INVALID_WORK_GROUP_SIZE);
+                UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
         } else {
           // OpenCL 2.x:
-          // PI_ERROR_INVALID_WORK_GROUP_SIZE if the program was compiled with
-          // –cl-uniform-work-group-size and the number of work-items specified
-          // by global_work_size is not evenly divisible by size of work-group
-          // given by local_work_size
+          // UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE if the program was compiled
+          // with –cl-uniform-work-group-size and the number of work-items
+          // specified by global_work_size is not evenly divisible by size of
+          // work-group given by local_work_size
 
           ur_program_handle_t Program = nullptr;
           Plugin->call(urKernelGetInfo, Kernel, UR_KERNEL_INFO_PROGRAM,
@@ -275,7 +276,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
                     "OpenCL 2.x implementation supports this feature "
                     "and to enable "
                     "it, build device program with -cl-std=CL2.0"),
-                PI_ERROR_INVALID_WORK_GROUP_SIZE);
+                UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
           else if (RequiresUniformWGSize)
             throw sycl::nd_range_error(
                 message.append(
@@ -285,7 +286,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
                     "is "
                     "being "
                     "disabled by -cl-uniform-work-group-size build flag"),
-                PI_ERROR_INVALID_WORK_GROUP_SIZE);
+                UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
           // else unknown.  fallback (below)
         }
       }
@@ -294,17 +295,17 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
     }
     throw sycl::nd_range_error(
         "Non-uniform work-groups are not supported by the target device",
-        PI_ERROR_INVALID_WORK_GROUP_SIZE);
+        UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
   }
   // TODO: required number of sub-groups, OpenCL 2.1:
-  // PI_ERROR_INVALID_WORK_GROUP_SIZE if local_work_size is specified and is not
-  // consistent with the required number of sub-groups for kernel in the
+  // UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE if local_work_size is specified and
+  // is not consistent with the required number of sub-groups for kernel in the
   // program source.
 
   // Fallback
-  constexpr pi_result Error = PI_ERROR_INVALID_WORK_GROUP_SIZE;
+  constexpr ur_result_t Error = UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
   throw runtime_error(
-      "PI backend failed. PI backend returns: " + codeToString(Error), Error);
+      "UR backend failed. UR backend returns: " + codeToString(Error), Error);
 }
 
 void handleInvalidWorkItemSize(const device_impl &DeviceImpl,
@@ -323,7 +324,7 @@ void handleInvalidWorkItemSize(const device_impl &DeviceImpl,
           "Number of work-items in a work-group exceed limit for dimension " +
               std::to_string(I) + " : " + std::to_string(NDRDesc.LocalSize[I]) +
               " > " + std::to_string(MaxWISize[I]),
-          PI_ERROR_INVALID_WORK_ITEM_SIZE);
+          UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE);
   }
 }
 
@@ -342,11 +343,11 @@ void handleInvalidValue(const device_impl &DeviceImpl,
           "Number of work-groups exceed limit for dimension " +
               std::to_string(I) + " : " + std::to_string(NWgs) + " > " +
               std::to_string(MaxNWGs[I]),
-          PI_ERROR_INVALID_VALUE);
+          UR_RESULT_ERROR_INVALID_VALUE);
   }
 
   // fallback
-  constexpr pi_result Error = PI_ERROR_INVALID_VALUE;
+  constexpr ur_result_t Error = UR_RESULT_ERROR_INVALID_VALUE;
   throw runtime_error(
       "Native API failed. Native API returns: " + codeToString(Error), Error);
 }
@@ -360,7 +361,6 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
   case UR_RESULT_ERROR_OUT_OF_RESOURCES:
     return handleOutOfResources(DeviceImpl, Kernel, NDRDesc);
 
-  case PI_ERROR_INVALID_WORK_GROUP_SIZE:
   case UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE:
     return handleInvalidWorkGroupSize(DeviceImpl, Kernel, NDRDesc);
 
@@ -369,17 +369,17 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
         "The kernel argument values have not been specified "
         " OR "
         "a kernel argument declared to be a pointer to a type.",
-        PI_ERROR_INVALID_KERNEL_ARGS);
+        UR_RESULT_ERROR_INVALID_KERNEL_ARGS);
 
   case UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE:
     return handleInvalidWorkItemSize(DeviceImpl, NDRDesc);
 
-  case UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED:
+  case UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT:
     throw sycl::nd_range_error(
         "image object is specified as an argument value"
         " and the image format is not supported by device associated"
         " with queue",
-        PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED);
+        UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT);
 
   case UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET:
     throw sycl::nd_range_error(
@@ -388,30 +388,31 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
         "when the sub-buffer object is created is not aligned "
         "to CL_DEVICE_MEM_BASE_ADDR_ALIGN value for device associated"
         " with queue",
-        PI_ERROR_MISALIGNED_SUB_BUFFER_OFFSET);
+        UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET);
 
   case UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE:
     throw sycl::nd_range_error(
         "failure to allocate memory for data store associated with image"
         " or buffer objects specified as arguments to kernel",
-        PI_ERROR_MEM_OBJECT_ALLOCATION_FAILURE);
+        UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE);
 
   case UR_RESULT_ERROR_INVALID_IMAGE_SIZE:
     throw sycl::nd_range_error(
         "image object is specified as an argument value and the image "
         "dimensions (image width, height, specified or compute row and/or "
         "slice pitch) are not supported by device associated with queue",
-        PI_ERROR_INVALID_IMAGE_SIZE);
+        UR_RESULT_ERROR_INVALID_IMAGE_SIZE);
 
   case UR_RESULT_ERROR_INVALID_VALUE:
     return handleInvalidValue(DeviceImpl, NDRDesc);
 
   case UR_RESULT_ERROR_ADAPTER_SPECIFIC:
-    // checkPiResult does all the necessary handling for
-    // PI_ERROR_PLUGIN_SPECIFIC_ERROR, making sure an error is thrown or not,
-    // depending on whether PI_ERROR_PLUGIN_SPECIFIC_ERROR contains an error or
-    // a warning. It also ensures that the contents of the error message buffer
-    // (used only by PI_ERROR_PLUGIN_SPECIFIC_ERROR) get handled correctly.
+    // checkUrResult does all the necessary handling for
+    // UR_RESULT_ERROR_ADAPTER_SPECIFIC_ERROR, making sure an error is thrown or
+    // not, depending on whether UR_RESULT_ERROR_ADAPTER_SPECIFIC_ERROR contains
+    // an error or a warning. It also ensures that the contents of the error
+    // message buffer (used only by UR_RESULT_ERROR_ADAPTER_SPECIFIC_ERROR) get
+    // handled correctly.
     return DeviceImpl.getPlugin()->checkUrResult(Error);
 
     // TODO: Handle other error codes
