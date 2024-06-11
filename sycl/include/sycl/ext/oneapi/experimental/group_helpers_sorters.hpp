@@ -281,8 +281,7 @@ public:
   }
 
   template <typename T>
-  static constexpr size_t memory_required(sycl::memory_scope,
-                                          size_t range_size) {
+  static size_t memory_required(sycl::memory_scope, size_t range_size) {
     return range_size * sizeof(T) + alignof(T);
   }
 };
@@ -336,8 +335,8 @@ public:
     return val;
   }
 
-  static constexpr std::size_t memory_required(sycl::memory_scope scope,
-                                               size_t range_size) {
+  static std::size_t memory_required(sycl::memory_scope scope,
+                                     size_t range_size) {
     return 2 * joint_sorter<>::template memory_required<T>(
                    scope, range_size * ElementsPerWorkItem);
   }
@@ -370,8 +369,8 @@ public:
         g, KeyValue(key, value));
   }
 
-  static constexpr std::size_t memory_required(sycl::memory_scope scope,
-                                               std::size_t range_size) {
+  static std::size_t memory_required(sycl::memory_scope scope,
+                                     std::size_t range_size) {
     return group_sorter<std::tuple<KeyTy, ValueTy>, CompareT,
                         ElementsPerWorkItem>::memory_required(scope,
                                                               range_size);
