@@ -286,7 +286,7 @@ event handler::finalize() {
               NewEvent->setHostEnqueueTime();
             [&](auto... Args) {
               if (MImpl->MKernelUsesClusterLaunch) {
-                return PI_ERROR_UNSUPPORTED_FEATURE;
+                Result = PI_ERROR_UNSUPPORTED_FEATURE;
               }
               if (MImpl->MKernelIsCooperative) {
                 MQueue->getPlugin()
