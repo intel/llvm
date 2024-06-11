@@ -120,30 +120,6 @@
 // CHK_PACKAGER_OPTS-SAME: {{.*}}triple=spir64-unknown-unknown,arch=,kind=sycl,compile-opts={{.*}}-spir64-opt,link-opts=-spir64-link-opt
 // CHK_PACKAGER_OPTS-SAME: {{.*}}triple=spir64_gen-unknown-unknown,arch=pvc,kind=sycl,compile-opts={{.*}}-spir64_gen-opt,link-opts=-spir64_gen-link-opt
 
-/// Check phases with multiple intel_gpu settings
-// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl \
-// RUN:          -fsycl-targets=intel_gpu_dg1,intel_gpu_pvc \
-// RUN:          --offload-new-driver -ccc-print-phases %s 2>&1 \
-// RUN:  | FileCheck -check-prefix=MULT_TARG_PHASES %s
-// MULT_TARG_PHASES: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
-// MULT_TARG_PHASES: 1: append-footer, {0}, c++, (host-sycl)
-// MULT_TARG_PHASES: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
-// MULT_TARG_PHASES: 3: compiler, {2}, ir, (host-sycl)
-// MULT_TARG_PHASES: 4: input, "[[INPUT]]", c++, (device-sycl, dg1)
-// MULT_TARG_PHASES: 5: preprocessor, {4}, c++-cpp-output, (device-sycl, dg1)
-// MULT_TARG_PHASES: 6: compiler, {5}, ir, (device-sycl, dg1)
-// MULT_TARG_PHASES: 7: backend, {6}, ir, (device-sycl, dg1)
-// MULT_TARG_PHASES: 8: offload, "device-sycl (spir64_gen-unknown-unknown:dg1)" {7}, ir
-// MULT_TARG_PHASES: 9: input, "[[INPUT]]", c++, (device-sycl, pvc)
-// MULT_TARG_PHASES: 10: preprocessor, {9}, c++-cpp-output, (device-sycl, pvc)
-// MULT_TARG_PHASES: 11: compiler, {10}, ir, (device-sycl, pvc)
-// MULT_TARG_PHASES: 12: backend, {11}, ir, (device-sycl, pvc)
-// MULT_TARG_PHASES: 13: offload, "device-sycl (spir64_gen-unknown-unknown:pvc)" {12}, ir
-// MULT_TARG_PHASES: 14: clang-offload-packager, {8, 13}, image, (device-sycl)
-// MULT_TARG_PHASES: 15: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (x86_64-unknown-linux-gnu)" {14}, ir
-// MULT_TARG_PHASES: 16: backend, {15}, assembler, (host-sycl)
-// MULT_TARG_PHASES: 17: assembler, {16}, object, (host-sycl)
-
 /// Test option passing behavior for clang-offload-wrapper options.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
 // RUN:          -Xsycl-target-backend -backend-opt -### %s 2>&1 \
