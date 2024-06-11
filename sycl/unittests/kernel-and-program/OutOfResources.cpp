@@ -231,13 +231,12 @@ redefinedProgramLink(pi_context context, pi_uint32 num_devices,
   return PI_SUCCESS;
 }
 
-static pi_result
-redefinedProgramLinkOutOfHostMemory(pi_context context, pi_uint32 num_devices,
-                     const pi_device *device_list, const char *options,
-                     pi_uint32 num_input_programs,
-                     const pi_program *input_programs,
-                     void (*pfn_notify)(pi_program program, void *user_data),
-                     void *user_data, pi_program *ret_program) {
+static pi_result redefinedProgramLinkOutOfHostMemory(
+    pi_context context, pi_uint32 num_devices, const pi_device *device_list,
+    const char *options, pi_uint32 num_input_programs,
+    const pi_program *input_programs,
+    void (*pfn_notify)(pi_program program, void *user_data), void *user_data,
+    pi_program *ret_program) {
   ++nProgramLink;
   if (outOfHostMemoryToggle) {
     outOfHostMemoryToggle = false;
@@ -283,7 +282,8 @@ TEST(OutOfResourcesTest, piProgramLink) {
 
 TEST(OutOfHostMemoryTest, piProgramLink) {
   sycl::unittest::PiMock Mock;
-  Mock.redefineBefore<detail::PiApiKind::piProgramLink>(redefinedProgramLinkOutOfHostMemory);
+  Mock.redefineBefore<detail::PiApiKind::piProgramLink>(
+      redefinedProgramLinkOutOfHostMemory);
 
   sycl::platform Plt{Mock.getPlatform()};
   sycl::context Ctx{Plt};
