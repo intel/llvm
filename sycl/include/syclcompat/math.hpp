@@ -140,23 +140,21 @@ inline constexpr RetT extend_binary(AT a, BT b, CT c,
   return second_op(extend_temp, extend_c);
 }
 
-template <typename T> sycl::vec<int32_t, 2> extractAndExtend2(T a) {
+template <typename T> sycl::vec<int32_t, 2> extract_and_extend2(T a) {
   sycl::vec<int32_t, 2> ret;
   sycl::vec<T, 1> va{a};
-  using Tint =
-      typename std::conditional<std::is_signed_v<T>, int16_t, uint16_t>::type;
-  auto v = va.template as<sycl::vec<Tint, 2>>();
+  using IntT = std::conditional_t<std::is_signed_v<T>, int16_t, uint16_t>;
+  auto v = va.template as<sycl::vec<IntT, 2>>();
   ret[0] = zero_or_signed_extend(v[0], 17);
   ret[1] = zero_or_signed_extend(v[1], 17);
   return ret;
 }
 
-template <typename T> sycl::vec<int16_t, 4> extractAndExtend4(T a) {
+template <typename T> sycl::vec<int16_t, 4> extract_and_extend4(T a) {
   sycl::vec<int16_t, 4> ret;
   sycl::vec<T, 1> va{a};
-  using Tint =
-std::conditional_t<std::is_signed_v<T>, int8_t, uint8_t>;
-  auto v = va.template as<sycl::vec<Tint, 4>>();
+  using IntT = std::conditional_t<std::is_signed_v<T>, int8_t, uint8_t>;
+  auto v = va.template as<sycl::vec<IntT, 4>>();
   ret[0] = zero_or_signed_extend(v[0], 9);
   ret[1] = zero_or_signed_extend(v[1], 9);
   ret[2] = zero_or_signed_extend(v[2], 9);
@@ -171,23 +169,22 @@ inline constexpr RetT extend_vbinary2(AT a, BT b, RetT c,
   static_assert(std::is_integral_v<AT> && std::is_integral_v<BT> &&
                 std::is_integral_v<RetT> && sizeof(AT) == 4 &&
                 sizeof(BT) == 4 && sizeof(RetT) == 4);
-  sycl::vec<int32_t, 2> extend_a = extractAndExtend2(a);
-  sycl::vec<int32_t, 2> extend_b = extractAndExtend2(b);
+  sycl::vec<int32_t, 2> extend_a = extract_and_extend2(a);
+  sycl::vec<int32_t, 2> extend_b = extract_and_extend2(b);
   sycl::vec<int32_t, 2> temp{binary_op(extend_a[0], extend_b[0]),
                              binary_op(extend_a[1], extend_b[1])};
-  using Tint = typename std::conditional<std::is_signed_v<RetT>, int16_t,
-                                         uint16_t>::type;
+  using IntT = std::conditional_t<std::is_signed_v<RetT>, int16_t, uint16_t>;
 
   if constexpr (NeedSat) {
     int32_t min_val = 0, max_val = 0;
-    min_val = std::numeric_limits<Tint>::min();
-    max_val = std::numeric_limits<Tint>::max();
+    min_val = std::numeric_limits<IntT>::min();
+    max_val = std::numeric_limits<IntT>::max();
     temp = detail::clamp(temp, {min_val, min_val}, {max_val, max_val});
   }
   if constexpr (NeedAdd) {
     return temp[0] + temp[1] + c;
   }
-  return sycl::vec<Tint, 2>{temp[0], temp[1]}.template as<sycl::vec<RetT, 1>>();
+  return sycl::vec<IntT, 2>{temp[0], temp[1]}.template as<sycl::vec<RetT, 1>>();
 }
 
 template <typename RetT, bool NeedSat, bool NeedAdd, typename AT, typename BT,
@@ -197,18 +194,17 @@ inline constexpr RetT extend_vbinary4(AT a, BT b, RetT c,
   static_assert(std::is_integral_v<AT> && std::is_integral_v<BT> &&
                 std::is_integral_v<RetT> && sizeof(AT) == 4 &&
                 sizeof(BT) == 4 && sizeof(RetT) == 4);
-  sycl::vec<int16_t, 4> extend_a = extractAndExtend4(a);
-  sycl::vec<int16_t, 4> extend_b = extractAndExtend4(b);
+  sycl::vec<int16_t, 4> extend_a = extract_and_extend4(a);
+  sycl::vec<int16_t, 4> extend_b = extract_and_extend4(b);
   sycl::vec<int16_t, 4> temp{
       binary_op(extend_a[0], extend_b[0]), binary_op(extend_a[1], extend_b[1]),
       binary_op(extend_a[2], extend_b[2]), binary_op(extend_a[3], extend_b[3])};
-  using Tint =
-      typename std::conditional<std::is_signed_v<RetT>, int8_t, uint8_t>::type;
+  using IntT = std::conditional_t<std::is_signed_v<RetT>, int8_t, uint8_t>;
 
   if constexpr (NeedSat) {
     int16_t min_val = 0, max_val = 0;
-    min_val = std::numeric_limits<Tint>::min();
-    max_val = std::numeric_limits<Tint>::max();
+    min_val = std::numeric_limits<IntT>::min();
+    max_val = std::numeric_limits<IntT>::max();
     temp = detail::clamp(temp, {min_val, min_val, min_val, min_val},
                          {max_val, max_val, max_val, max_val});
   }
@@ -216,7 +212,7 @@ inline constexpr RetT extend_vbinary4(AT a, BT b, RetT c,
     return temp[0] + temp[1] + temp[2] + temp[3] + c;
   }
 
-  return sycl::vec<Tint, 4>{temp[0], temp[1], temp[2], temp[3]}
+  return sycl::vec<IntT, 4>{temp[0], temp[1], temp[2], temp[3]}
       .template as<sycl::vec<RetT, 1>>();
 }
 
