@@ -8324,7 +8324,7 @@ let CategoryName = "Lambda Issue" in {
     "implicit capture of 'this' is not allowed for kernel functions. "
     "Either ensure the object is allocated in the memory available "
     "on the device (e.g., shared USM memory) and capture it explicitly "
-    "or consider capturing the current object by copy ([*this]).">;
+    "or consider capturing the current object by copy ([*this])">;
   def err_lambda_member_access : Error<
     "invalid attempt to access member of lambda">;
 
