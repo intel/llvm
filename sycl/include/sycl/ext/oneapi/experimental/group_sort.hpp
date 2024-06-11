@@ -70,7 +70,7 @@ struct is_sorter : decltype(is_sorter_impl<Sorter, Group, ValOrPtr>::test(0)) {
 };
 
 template <typename Sorter, typename Group, typename Key, typename Value,
-          typename RetTy = void>
+          typename = void>
 struct is_key_value_sorter : std::false_type {};
 
 template <typename Sorter, typename Group, typename Key, typename Value>
