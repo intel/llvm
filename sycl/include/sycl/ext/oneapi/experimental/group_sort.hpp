@@ -69,27 +69,17 @@ template <typename Sorter, typename Group, typename ValOrPtr>
 struct is_sorter : decltype(is_sorter_impl<Sorter, Group, ValOrPtr>::test(0)) {
 };
 
-template <typename Sorter, typename Group, typename Key, typename Value>
-struct is_key_value_sorter_impl {
-  template <typename G>
-  using is_expected_return_type =
-      typename std::is_same<std::tuple<Key, Value>,
-                            decltype(std::declval<Sorter>()(
-                                std::declval<G>(), std::declval<Key>(),
-                                std::declval<Value>()))>;
-
-  template <typename G = Group>
-  static decltype(std::integral_constant<bool,
-                                         is_expected_return_type<G>::value &&
-                                             sycl::is_group_v<G>>{})
-  test(int);
-
-  template <typename = Group> static std::false_type test(...);
-};
+template <typename Sorter, typename Group, typename Key, typename Value,
+          typename RetTy = void>
+struct is_key_value_sorter : std::false_type {};
 
 template <typename Sorter, typename Group, typename Key, typename Value>
-struct is_key_value_sorter
-    : decltype(is_key_value_sorter_impl<Sorter, Group, Key, Value>::test(0)){};
+struct is_key_value_sorter<
+    Sorter, Group, Key, Value,
+    std::enable_if_t<
+        std::is_same_v<std::invoke_result_t<Sorter, Group, Key, Value>,
+                       std::tuple<Key, Value>> &&
+        sycl::is_group_v<Group>>> : std::true_type {};
 
 } // namespace detail
 
