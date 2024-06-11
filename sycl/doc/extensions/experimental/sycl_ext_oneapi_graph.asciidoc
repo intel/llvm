@@ -1253,6 +1253,8 @@ Exceptions:
   
 ** The number of nodes in the graph does not match.
 ** The number of edges between nodes does not match.
+** Any node in `source` has a dependency which does not matched the paired node
+   in the target graph.
 
 * Throws synchronously with error code `invalid` if `source` contains any node
   which is not of the following `node_type`s:
