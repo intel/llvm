@@ -376,6 +376,11 @@
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_sampled_image_fetch_3d__ 0
 #endif
 
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_queue_profiling_tag__
+// __SYCL_ASPECT(ext_oneapi_queue_profiling_tag, 73)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_queue_profiling_tag__ 0
+#endif
+
 #ifndef __SYCL_ANY_DEVICE_HAS_host__
 // __SYCL_ASPECT(host, 0)
 #define __SYCL_ANY_DEVICE_HAS_host__ 0
@@ -739,4 +744,9 @@
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_sampled_image_fetch_3d__
 //__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_3d, 72)
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_sampled_image_fetch_3d__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_queue_profiling_tag__
+// __SYCL_ASPECT(ext_oneapi_queue_profiling_tag, 73)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_queue_profiling_tag__ 0
 #endif

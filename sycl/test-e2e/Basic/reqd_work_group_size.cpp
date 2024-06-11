@@ -144,9 +144,9 @@ int runNegativeTest(queue &Q, range<sizeof...(ReqdWGSizes)> GlobalRange,
     Q.wait_and_throw();
     std::cerr << TestCaseName << " failed: no exception has been thrown\n";
     return 1; // We shouldn't be here, exception is expected
-  } catch (nd_range_error &E) {
-    return 0;
   } catch (sycl::exception &E) {
+    if (E.code() == sycl::errc::nd_range)
+      return 0;
     std::cerr << TestCaseName
               << " failed: unexpected sycl::exception: " << E.what()
               << std::endl;

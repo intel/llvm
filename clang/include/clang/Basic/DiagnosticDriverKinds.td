@@ -446,6 +446,8 @@ def err_drv_print_header_env_var_combination_cc1 : Error<
   "unsupported combination: -header-include-format=%0 and -header-include-filtering=%1">;
 
 def warn_O4_is_O3 : Warning<"-O4 is equivalent to -O3">, InGroup<Deprecated>;
+def warn_unsupported_fsycl_fp64_conv_emu_use : Warning<"'-fsycl-fp64-conv-emu' option is supported only for AOT compilation of Intel GPUs. It will be ignored for other targets">,
+  InGroup<UnusedCommandLineArgument>;
 def warn_drv_optimization_value : Warning<"optimization level '%0' is not supported; using '%1%2' instead">,
   InGroup<InvalidCommandLineArgument>;
 def warn_ignored_gcc_optimization : Warning<"optimization flag '%0' is not supported">,
@@ -668,9 +670,6 @@ def warn_drv_unsupported_gpopt : Warning<
   "ignoring '-mgpopt' option as it cannot be used with %select{|the implicit"
   " usage of }0-mabicalls">,
   InGroup<UnsupportedGPOpt>;
-def warn_drv_unsupported_tocdata: Warning<
-  "ignoring '-mtocdata' as it is only supported for -mcmodel=small">,
-  InGroup<OptionIgnored>;
 def warn_drv_unsupported_sdata : Warning<
   "ignoring '-msmall-data-limit=' with -mcmodel=large for -fpic or RV64">,
   InGroup<OptionIgnored>;
