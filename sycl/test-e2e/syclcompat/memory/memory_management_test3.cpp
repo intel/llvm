@@ -29,7 +29,6 @@
 //
 //
 // ===----------------------------------------------------------------------===//
-
 // RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
@@ -68,8 +67,7 @@ void test_free_memory_q() {
 void test_wait_and_free_memory() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
-  sycl::queue q{{sycl::property::queue::in_order()}};
-  float *d_A = (float *)syclcompat::malloc(sizeof(float), q);
+  float *d_A = (float *)syclcompat::malloc(sizeof(float));
   syclcompat::wait_and_free((void *)d_A);
 
   syclcompat::wait_and_free(0);

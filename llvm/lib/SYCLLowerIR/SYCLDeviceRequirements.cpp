@@ -43,19 +43,20 @@ llvm::computeDeviceRequirements(const module_split::ModuleDesc &MD) {
   // Process all functions in the module
   for (const Function &F : MD.getModule()) {
     if (auto *MDN = F.getMetadata("sycl_used_aspects")) {
-      for (auto &MDOp : MDN->operands()) {
-        int64_t Val;
-        if (auto Pair = dyn_cast<MDNode>(MDOp)) {
+      for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
+        StringRef AspectName = "";
+        int64_t AspectValue;
+        if (auto Pair = dyn_cast<MDNode>(MDN->getOperand(I))) {
           assert(Pair->getNumOperands() == 2);
-          Val = mdconst::extract<ConstantInt>(Pair->getOperand(1))
-                    ->getZExtValue();
+          AspectName = ExtractStringFromMDNodeOperand(Pair, 0);
+          AspectValue = ExtractSignedIntegerFromMDNodeOperand(Pair, 1);
         } else {
-          Val = mdconst::extract<ConstantInt>(MDOp)->getZExtValue();
+          AspectValue = ExtractSignedIntegerFromMDNodeOperand(MDN, I);
         }
         // Don't put internal aspects (with negative integer value) into the
         // requirements, they are used only for device image splitting.
-        if (Val >= 0)
-          Reqs.Aspects.insert(Val);
+        if (AspectValue >= 0)
+          Reqs.Aspects.insert({AspectName, uint32_t(AspectValue)});
       }
     }
 
@@ -133,8 +134,11 @@ std::map<StringRef, util::PropertyValue> SYCLDeviceRequirements::asMap() const {
   // For all properties except for "aspects", we'll only add the
   // value to the map if the corresponding value from
   // SYCLDeviceRequirements has a value/is non-empty.
-  Requirements["aspects"] =
-      std::vector<uint32_t>(Aspects.begin(), Aspects.end());
+  std::vector<uint32_t> AspectValues;
+  AspectValues.reserve(Aspects.size());
+  for (auto Aspect : Aspects)
+    AspectValues.push_back(Aspect.Value);
+  Requirements["aspects"] = std::move(AspectValues);
 
   if (!FixedTarget.empty())
     Requirements["fixed_target"] =
