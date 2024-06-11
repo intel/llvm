@@ -12,6 +12,8 @@
 // CHECK: call{{.*}}void %[[#]](ptr
 // CHECK-DEVICE-SAME: #[[#ATTRS:]]
 // CHECK-HOST-SAME: %[[#]]){{[[:space:]]}}
+// CHECK: call{{.*}}void @_ZN8Derived17displayEv{{.*}}[[#DIRECT_CALL_ATTRS:]]
+// CHECK-NOT: attributes #[[#DIRECT_CALL_ATTRS]]{{.*}}"virtual-call"
 // CHECK-DEVICE: attributes #[[#ATTRS]] = {{.*}} "virtual-call"
 
 #ifndef SYCL_EXTERNAL
@@ -38,5 +40,6 @@ SYCL_EXTERNAL void test() {
   if (rand())
     b = &d1;
   b->display();
+  d1.display();
 }
 
