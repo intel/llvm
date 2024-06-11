@@ -1200,11 +1200,10 @@ Expected<std::vector<SplitModule>>
 splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
   ModuleDesc MD = std::move(M); // makeModuleDesc() ?
   // FIXME: false arguments are temporary for now.
-  auto Splitter =
-    getDeviceCodeSplitter(std::move(MD), Settings.Mode,
-                          false /* IROutputOnly */,
-                          false /* EmitOnlyKernelsAsEntryPoints */,
-                          false /* ExcludeExternalFunctions */);
+  auto Splitter = getDeviceCodeSplitter(
+      std::move(MD), Settings.Mode, false /* IROutputOnly */,
+      false /* EmitOnlyKernelsAsEntryPoints */,
+      false /* ExcludeExternalFunctions */);
   size_t ID = 0;
   std::vector<SplitModule> OutputImages;
   while (Splitter->hasMoreSplits()) {
