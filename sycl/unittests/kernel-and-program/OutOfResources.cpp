@@ -154,8 +154,6 @@ TEST(OutOfResourcesTest, piProgramCreate) {
 }
 
 TEST(OutOfHostMemoryTest, piProgramCreate) {
-  // Reset to zero after the previous test.
-  nProgramCreate = 0;
   sycl::unittest::PiMock Mock;
   Mock.redefineBefore<detail::PiApiKind::piProgramCreate>(
       redefinedProgramCreateOutOfHostMemory);
@@ -233,6 +231,21 @@ redefinedProgramLink(pi_context context, pi_uint32 num_devices,
   return PI_SUCCESS;
 }
 
+static pi_result
+redefinedProgramLinkOutOfHostMemory(pi_context context, pi_uint32 num_devices,
+                     const pi_device *device_list, const char *options,
+                     pi_uint32 num_input_programs,
+                     const pi_program *input_programs,
+                     void (*pfn_notify)(pi_program program, void *user_data),
+                     void *user_data, pi_program *ret_program) {
+  ++nProgramLink;
+  if (outOfHostMemoryToggle) {
+    outOfHostMemoryToggle = false;
+    return PI_ERROR_OUT_OF_HOST_MEMORY;
+  }
+  return PI_SUCCESS;
+}
+
 TEST(OutOfResourcesTest, piProgramLink) {
   sycl::unittest::PiMock Mock;
   Mock.redefineBefore<detail::PiApiKind::piProgramLink>(redefinedProgramLink);
@@ -258,6 +271,41 @@ TEST(OutOfResourcesTest, piProgramLink) {
   EXPECT_EQ(nProgramLink, 0);
   auto b3 = sycl::link({b1, b2});
   EXPECT_FALSE(outOfResourcesToggle);
+  // one restart due to out of resources, one link per each of b1 and b2.
+  EXPECT_EQ(nProgramLink, 3);
+  // no programs should be in the cache due to out of resources.
+  {
+    detail::KernelProgramCache::ProgramCache &Cache =
+        CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
+    EXPECT_EQ(Cache.size(), 0u) << "Expect no programs in the cache";
+  }
+}
+
+TEST(OutOfHostMemoryTest, piProgramLink) {
+  sycl::unittest::PiMock Mock;
+  Mock.redefineBefore<detail::PiApiKind::piProgramLink>(redefinedProgramLinkOutOfHostMemory);
+
+  sycl::platform Plt{Mock.getPlatform()};
+  sycl::context Ctx{Plt};
+  auto CtxImpl = detail::getSyclObjImpl(Ctx);
+  queue q(Ctx, default_selector_v);
+  // Put some programs in the cache
+  q.single_task<class OutOfResourcesKernel1>([] {});
+  q.single_task<class OutOfResourcesKernel2>([] {});
+  {
+    detail::KernelProgramCache::ProgramCache &Cache =
+        CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
+    EXPECT_EQ(Cache.size(), 2U) << "Expect 2 programs in the cache";
+  }
+
+  auto b1 = sycl::get_kernel_bundle<OutOfResourcesKernel1,
+                                    sycl::bundle_state::object>(Ctx);
+  auto b2 = sycl::get_kernel_bundle<OutOfResourcesKernel2,
+                                    sycl::bundle_state::object>(Ctx);
+  outOfHostMemoryToggle = true;
+  EXPECT_EQ(nProgramLink, 0);
+  auto b3 = sycl::link({b1, b2});
+  EXPECT_FALSE(outOfHostMemoryToggle);
   // one restart due to out of resources, one link per each of b1 and b2.
   EXPECT_EQ(nProgramLink, 3);
   // no programs should be in the cache due to out of resources.
