@@ -2,6 +2,16 @@
 // RUN: %clangxx -fsycl --offload-new-driver %s -o %t.out
 // RUN: %{run} %t.out
 
+//==------------------- buffer.cpp - SYCL buffer basic test ----------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+// 
+// A basic test using the --offload-new-driver flag
+
 #include <sycl/detail/core.hpp>
 
 int main() {
