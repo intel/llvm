@@ -2,7 +2,7 @@
 // RUN: %{build} --offload-new-driver -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   // Creating buffer of 4 elements to be used inside the kernel code
@@ -19,11 +19,10 @@ int main() {
     // Getting write only access to the buffer on a device.
     sycl::accessor Accessor{Buffer, cgh, sycl::write_only};
     // Executing kernel
-    cgh.parallel_for<class FillBuffer>(
-        NumOfWorkItems, [=](sycl::id<1> WIid) {
-          // Fill buffer with indexes.
-          Accessor[WIid] = WIid.get(0);
-        });
+    cgh.parallel_for<class FillBuffer>(NumOfWorkItems, [=](sycl::id<1> WIid) {
+      // Fill buffer with indexes.
+      Accessor[WIid] = WIid.get(0);
+    });
   });
 
   // Getting read only access to the buffer on the host.
