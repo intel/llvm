@@ -711,7 +711,7 @@ Updates to a graph will be scheduled after any in-flight executions of the same
 graph and will not affect previous submissions of the same graph. The user is
 not required to wait on any previous submissions of a graph before updating it.
 
-The only type of nodes that are currently supported for updating in a graph are
+The only type of nodes that are currently able to be updated in a graph are
 kernel execution nodes.
 
 The aspects of a kernel execution node that can be configured during update are:
@@ -780,7 +780,8 @@ topologically identical when:
 
 ** Both graphs have the same number of nodes and edges.
 ** Where edges are specified through the `depends_on` property or through event
-dependencies, these must be specified in the same order. 
+dependencies in recorded queue submisions, these must be specified in the same
+order. 
 ** Nodes with dependencies on events outside of the graph must have the same
 number of these dependencies.
 ** A kernel node's command function must have the same type in both graphs,
@@ -791,6 +792,10 @@ are:
 
 *** Explicit API calls to add nodes to the graph or calls to `make_edge()`.
 *** Nodes added to a graph via recorded queue submissions.
+
+Attempting to use whole-graph update with source or target graphs which do not
+satisfy these conditions results in undefined behaviour as it may prevent the
+runtime from pairing nodes in the source and target graphs.
 
 It is valid to use nodes that contain dynamic parameters in whole graph updates.
 If a node containing a dynamic parameter is updated through the whole graph
@@ -1217,8 +1222,7 @@ update(const command_graph<graph_state::modifiable>& source);
 topologically identical source graph in the modifiable state. The full
 definition of what constitutes a topologically identical graph can be found in
 the <<whole-graph-update, Whole-Graph Update>> section. Violating any of these
-topology requirements, other than those described below as exceptions, results
-in undefined behaviour.
+topology requirements results in undefined behaviour.
 
 The characteristics in the executable graph which will be updated are detailed
 in the section on <<executable-graph-update, Executable Graph Update>>.
@@ -1250,12 +1254,13 @@ Exceptions:
 ** The number of nodes in the graph does not match.
 ** The number of edges between nodes does not match.
 
-
-:handler-copy-functions: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#table.members.handler.copy
-
 * Throws synchronously with error code `invalid` if `source` contains any node
-  which is not a kernel command, e.g. {handler-copy-functions}[memory
-  operations].
+  which is not of the following `node_type`s:
+
+** `node_type::empty`  
+** `node_type::ext_oneapi_barrier`
+** `node_type::kernel`
+
 
 * Throws synchronously with error code `invalid` if the context or device
   associated with `source` does not match that of the `command_graph` being
