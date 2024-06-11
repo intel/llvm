@@ -32,6 +32,8 @@
 #include <sycl/sampler.hpp>                           // for image_sampler
 #include <sycl/types.hpp>                             // for vec
 
+#include <ur_api.h>
+
 #include <cstddef>     // for size_t, nullptr_t
 #include <functional>  // for function
 #include <memory>      // for shared_ptr
@@ -247,7 +249,7 @@ protected:
               uint8_t Dimensions);
 #endif
 
-  image_plain(pi_native_handle MemObject, const context &SyclContext,
+  image_plain(ur_native_handle_t MemObject, const context &SyclContext,
               event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
               uint8_t Dimensions, image_channel_order Order,

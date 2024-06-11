@@ -88,15 +88,14 @@ public:
     }
   };
 
-  struct ProgramBuildResult : public BuildResult<sycl::detail::pi::PiProgram> {
+  struct ProgramBuildResult : public BuildResult<ur_program_handle_t> {
     PluginPtr Plugin;
     ProgramBuildResult(const PluginPtr &Plugin) : Plugin(Plugin) {
       Val = nullptr;
     }
     ~ProgramBuildResult() {
       if (Val) {
-        sycl::detail::pi::PiResult Err =
-            Plugin->call_nocheck<PiApiKind::piProgramRelease>(Val);
+        ur_result_t Err = Plugin->call_nocheck(urProgramRelease, Val);
         __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
       }
     }
@@ -107,10 +106,9 @@ public:
    * when debugging environment variables are set and we can just ignore them
    * since all kernels will have their build options overridden with the same
    * string*/
-  using ProgramCacheKeyT = std::pair<std::pair<SerializedObj, std::uintptr_t>,
-                                     sycl::detail::pi::PiDevice>;
-  using CommonProgramKeyT =
-      std::pair<std::uintptr_t, sycl::detail::pi::PiDevice>;
+  using ProgramCacheKeyT =
+      std::pair<std::pair<SerializedObj, std::uintptr_t>, ur_device_handle_t>;
+  using CommonProgramKeyT = std::pair<std::uintptr_t, ur_device_handle_t>;
 
   struct ProgramCache {
     ::boost::unordered_map<ProgramCacheKeyT, ProgramBuildResultPtr> Cache;
@@ -122,7 +120,7 @@ public:
   using ContextPtr = context_impl *;
 
   using KernelArgMaskPairT =
-      std::pair<sycl::detail::pi::PiKernel, const KernelArgMask *>;
+      std::pair<ur_kernel_handle_t, const KernelArgMask *>;
   struct KernelBuildResult : public BuildResult<KernelArgMaskPairT> {
     PluginPtr Plugin;
     KernelBuildResult(const PluginPtr &Plugin) : Plugin(Plugin) {
@@ -130,8 +128,7 @@ public:
     }
     ~KernelBuildResult() {
       if (Val.first) {
-        sycl::detail::pi::PiResult Err =
-            Plugin->call_nocheck<PiApiKind::piKernelRelease>(Val.first);
+        ur_result_t Err = Plugin->call_nocheck(urKernelRelease, Val.first);
         __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
       }
     }
@@ -141,14 +138,13 @@ public:
   using KernelByNameT =
       ::boost::unordered_map<std::string, KernelBuildResultPtr>;
   using KernelCacheT =
-      ::boost::unordered_map<sycl::detail::pi::PiProgram, KernelByNameT>;
+      ::boost::unordered_map<ur_program_handle_t, KernelByNameT>;
 
   using KernelFastCacheKeyT =
-      std::tuple<SerializedObj, sycl::detail::pi::PiDevice, std::string,
-                 std::string>;
+      std::tuple<SerializedObj, ur_device_handle_t, std::string, std::string>;
   using KernelFastCacheValT =
-      std::tuple<sycl::detail::pi::PiKernel, std::mutex *,
-                 const KernelArgMask *, sycl::detail::pi::PiProgram>;
+      std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
+                 ur_program_handle_t>;
   // This container is used as a fast path for retrieving cached kernels.
   // unordered_flat_map is used here to reduce lookup overhead.
   // The slow path is used only once for each newly created kernel, so the
@@ -185,7 +181,7 @@ public:
   }
 
   std::pair<KernelBuildResultPtr, bool>
-  getOrInsertKernel(sycl::detail::pi::PiProgram Program,
+  getOrInsertKernel(ur_program_handle_t Program,
                     const std::string &KernelName) {
     auto LockedCache = acquireKernelsPerProgramCache();
     auto &Cache = LockedCache.get()[Program];

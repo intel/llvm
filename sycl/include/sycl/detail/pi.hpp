@@ -17,7 +17,7 @@
 #include <sycl/detail/export.hpp>  // for __SYCL_EXPORT
 #include <sycl/detail/os_util.hpp> // for __SYCL_RT_OS_LINUX
 #include <sycl/detail/pi.h>        // for piContextCreate, piContextGetInfo
-
+                                   //
 #include <cstdint>     // for uint64_t, uint32_t
 #include <memory>      // for shared_ptr
 #include <stddef.h>    // for size_t
@@ -43,6 +43,7 @@ enum class PiApiKind {
 #define _PI_API(api) api,
 #include <sycl/detail/pi.def>
 };
+
 class plugin;
 using PluginPtr = std::shared_ptr<plugin>;
 
@@ -183,30 +184,14 @@ std::string platformInfoToString(pi_platform_info info);
 // Want all the needed casts be explicit, do not define conversion operators.
 template <class To, class From> To cast(From value);
 
-// Holds the PluginInformation for the plugin that is bound.
-// Currently a global variable is used to store OpenCL plugin information to be
-// used with SYCL Interoperability Constructors.
-// TODO: GlobalPlugin does not seem to be needed anymore. Consider removing it!
-extern std::shared_ptr<plugin> GlobalPlugin;
-
 // Performs PI one-time initialization.
-std::vector<PluginPtr> &initialize();
+std::vector<PluginPtr> &initializeUr();
 
 // Get the plugin serving given backend.
 template <backend BE> __SYCL_EXPORT const PluginPtr &getPlugin();
 
 // Utility Functions to get Function Name for a PI Api.
 template <PiApiKind PiApiOffset> struct PiFuncInfo {};
-
-#define _PI_API(api)                                                           \
-  template <> struct PiFuncInfo<PiApiKind::api> {                              \
-    using FuncPtrT = decltype(&::api);                                         \
-    inline const char *getFuncName() { return #api; }                          \
-    inline FuncPtrT getFuncPtr(PiPlugin MPlugin) {                             \
-      return MPlugin.PiFunctionTable.api;                                      \
-    }                                                                          \
-  };
-#include <sycl/detail/pi.def>
 
 /// Emits an XPTI trace before a PI API call is made
 /// \param FName The name of the PI API call

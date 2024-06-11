@@ -60,9 +60,9 @@ public:
   device_image_impl(const RTDeviceBinaryImage *BinImage, context Context,
                     std::vector<device> Devices, bundle_state State,
                     std::shared_ptr<std::vector<kernel_id>> KernelIDs,
-                    sycl::detail::pi::PiProgram Program)
+                    ur_program_handle_t Program)
       : MBinImage(BinImage), MContext(std::move(Context)),
-        MDevices(std::move(Devices)), MState(State), MProgram(Program),
+        MDevices(std::move(Devices)), MState(State), MURProgram(Program),
         MKernelIDs(std::move(KernelIDs)),
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()) {
     updateSpecConstSymMap();
@@ -71,11 +71,11 @@ public:
   device_image_impl(const RTDeviceBinaryImage *BinImage, context Context,
                     std::vector<device> Devices, bundle_state State,
                     std::shared_ptr<std::vector<kernel_id>> KernelIDs,
-                    sycl::detail::pi::PiProgram Program,
+                    ur_program_handle_t Program,
                     const SpecConstMapT &SpecConstMap,
                     const std::vector<unsigned char> &SpecConstsBlob)
       : MBinImage(BinImage), MContext(std::move(Context)),
-        MDevices(std::move(Devices)), MState(State), MProgram(Program),
+        MDevices(std::move(Devices)), MState(State), MURProgram(Program),
         MKernelIDs(std::move(KernelIDs)), MSpecConstsBlob(SpecConstsBlob),
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
         MSpecConstSymMap(SpecConstMap) {}
@@ -247,6 +247,10 @@ public:
     return MProgram;
   }
 
+  const ur_program_handle_t &get_ur_program_ref() const noexcept {
+    return MURProgram;
+  }
+
   const RTDeviceBinaryImage *&get_bin_image_ref() noexcept { return MBinImage; }
 
   const context &get_context() const noexcept { return MContext; }
@@ -259,20 +263,21 @@ public:
     return MSpecConstsBlob;
   }
 
-  sycl::detail::pi::PiMem &get_spec_const_buffer_ref() noexcept {
+  ur_mem_handle_t &get_spec_const_buffer_ref() noexcept {
     std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
     if (nullptr == MSpecConstsBuffer && !MSpecConstsBlob.empty()) {
       const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
-      // Uses PI_MEM_FLAGS_HOST_PTR_COPY instead of PI_MEM_FLAGS_HOST_PTR_USE
-      // since post-enqueue cleanup might trigger destruction of
-      // device_image_impl and, as a result, destruction of MSpecConstsBlob
-      // while MSpecConstsBuffer is still in use.
-      // TODO consider changing the lifetime of device_image_impl instead
-      memBufferCreateHelper(Plugin,
-                            detail::getSyclObjImpl(MContext)->getHandleRef(),
-                            PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_COPY,
-                            MSpecConstsBlob.size(), MSpecConstsBlob.data(),
-                            &MSpecConstsBuffer, nullptr);
+      //  Uses PI_MEM_FLAGS_HOST_PTR_COPY instead of PI_MEM_FLAGS_HOST_PTR_USE
+      //  since post-enqueue cleanup might trigger destruction of
+      //  device_image_impl and, as a result, destruction of MSpecConstsBlob
+      //  while MSpecConstsBuffer is still in use.
+      //  TODO consider changing the lifetime of device_image_impl instead
+      ur_buffer_properties_t Properties = {UR_STRUCTURE_TYPE_BUFFER_PROPERTIES,
+                                           nullptr, MSpecConstsBlob.data()};
+      memBufferCreateHelper(
+          Plugin, detail::getSyclObjImpl(MContext)->getUrHandleRef(),
+          UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER,
+          MSpecConstsBlob.size(), &MSpecConstsBuffer, &Properties);
     }
     return MSpecConstsBuffer;
   }
@@ -285,25 +290,24 @@ public:
     return MSpecConstAccessMtx;
   }
 
-  pi_native_handle getNative() const {
+  ur_native_handle_t getNative() const {
     assert(MProgram);
     const auto &ContextImplPtr = detail::getSyclObjImpl(MContext);
     const PluginPtr &Plugin = ContextImplPtr->getPlugin();
 
     if (ContextImplPtr->getBackend() == backend::opencl)
-      Plugin->call<PiApiKind::piProgramRetain>(MProgram);
-    pi_native_handle NativeProgram = 0;
-    Plugin->call<PiApiKind::piextProgramGetNativeHandle>(MProgram,
-                                                         &NativeProgram);
+      Plugin->call(urProgramRetain, MURProgram);
+    ur_native_handle_t NativeProgram = nullptr;
+    Plugin->call(urProgramGetNativeHandle, MURProgram, &NativeProgram);
 
     return NativeProgram;
   }
 
   ~device_image_impl() {
 
-    if (MProgram) {
+    if (MURProgram) {
       const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
-      Plugin->call<PiApiKind::piProgramRelease>(MProgram);
+      Plugin->call(urProgramRelease, MURProgram);
     }
     if (MSpecConstsBuffer) {
       std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
@@ -393,6 +397,8 @@ private:
   bundle_state MState;
   // Native program handler which this device image represents
   sycl::detail::pi::PiProgram MProgram = nullptr;
+  ur_program_handle_t MURProgram = nullptr;
+
   // List of kernel ids available in this image, elements should be sorted
   // according to LessByNameComp
   std::shared_ptr<std::vector<kernel_id>> MKernelIDs;
@@ -409,7 +415,7 @@ private:
   // Buffer containing binary blob which can have values of all specialization
   // constants in the image, it is using for storing non-native specialization
   // constants
-  sycl::detail::pi::PiMem MSpecConstsBuffer = nullptr;
+  ur_mem_handle_t MSpecConstsBuffer = nullptr;
   // Contains map of spec const names to their descriptions + offsets in
   // the MSpecConstsBlob
   std::map<std::string, std::vector<SpecConstDescT>> MSpecConstSymMap;

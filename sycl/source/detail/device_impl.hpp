@@ -39,17 +39,15 @@ public:
   device_impl();
 
   /// Constructs a SYCL device instance using the provided raw device handle.
-  explicit device_impl(pi_native_handle, const PluginPtr &Plugin);
+  explicit device_impl(ur_native_handle_t, const PluginPtr &Plugin);
 
   /// Constructs a SYCL device instance using the provided
   /// PI device instance.
-  explicit device_impl(sycl::detail::pi::PiDevice Device,
-                       PlatformImplPtr Platform);
+  explicit device_impl(ur_device_handle_t Device, PlatformImplPtr Platform);
 
   /// Constructs a SYCL device instance using the provided
   /// PI device instance.
-  explicit device_impl(sycl::detail::pi::PiDevice Device,
-                       const PluginPtr &Plugin);
+  explicit device_impl(ur_device_handle_t Device, const PluginPtr &Plugin);
 
   ~device_impl();
 
@@ -64,12 +62,12 @@ public:
   /// For host device an exception is thrown
   ///
   /// \return non-constant reference to PI device
-  sycl::detail::pi::PiDevice &getHandleRef() {
+  ur_device_handle_t &getUrHandleRef() {
     if (MIsHostDevice)
       throw invalid_object_error("This instance of device is a host instance",
                                  PI_ERROR_INVALID_DEVICE);
 
-    return MDevice;
+    return MUrDevice;
   }
 
   /// Get constant reference to PI device
@@ -77,12 +75,12 @@ public:
   /// For host device an exception is thrown
   ///
   /// \return constant reference to PI device
-  const sycl::detail::pi::PiDevice &getHandleRef() const {
+  const ur_device_handle_t &getUrHandleRef() const {
     if (MIsHostDevice)
       throw invalid_object_error("This instance of device is a host instance",
                                  PI_ERROR_INVALID_DEVICE);
 
-    return MDevice;
+    return MUrDevice;
   }
 
   /// Check if SYCL device is a host device
@@ -93,24 +91,28 @@ public:
   /// Check if device is a CPU device
   ///
   /// \return true if SYCL device is a CPU device
-  bool is_cpu() const { return (!is_host() && (MType == PI_DEVICE_TYPE_CPU)); }
+  bool is_cpu() const {
+    return (!is_host() && (MUrType == UR_DEVICE_TYPE_CPU));
+  }
 
   /// Check if device is a GPU device
   ///
   /// \return true if SYCL device is a GPU device
-  bool is_gpu() const { return (!is_host() && (MType == PI_DEVICE_TYPE_GPU)); }
+  bool is_gpu() const {
+    return (!is_host() && (MUrType == UR_DEVICE_TYPE_GPU));
+  }
 
   /// Check if device is an accelerator device
   ///
   /// \return true if SYCL device is an accelerator device
   bool is_accelerator() const {
-    return (!is_host() && (MType == PI_DEVICE_TYPE_ACC));
+    return (!is_host() && (MUrType == UR_DEVICE_TYPE_FPGA));
   }
 
   /// Return device type
   ///
   /// \return the type of the device
-  sycl::detail::pi::PiDeviceType get_device_type() const { return MType; }
+  ur_device_type_t get_device_type() const { return MUrType; }
 
   /// Get associated SYCL platform
   ///
@@ -134,7 +136,7 @@ public:
   bool has_extension(const std::string &ExtensionName) const;
 
   std::vector<device>
-  create_sub_devices(const cl_device_partition_property *Properties,
+  create_sub_devices(const ur_device_partition_properties_t *Properties,
                      size_t SubDevicesCount) const;
 
   /// Partition device into sub devices
@@ -220,7 +222,7 @@ public:
   /// Gets the native handle of the SYCL device.
   ///
   /// \return a native handle.
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
   /// Indicates if the SYCL device has the given feature.
   ///
@@ -237,7 +239,7 @@ public:
 
   bool isAssertFailSupported() const;
 
-  bool isRootDevice() const { return MRootDevice == nullptr; }
+  bool isRootDevice() const { return MUrRootDevice == nullptr; }
 
   std::string getDeviceName() const;
 
@@ -317,16 +319,19 @@ public:
   std::string
   get_device_info_string(sycl::detail::pi::PiDeviceInfo InfoCode) const;
 
+  std::string get_device_info_string(ur_device_info_t InfoCode) const;
+
   /// Get device architecture
   ext::oneapi::experimental::architecture getDeviceArch() const;
 
 private:
-  explicit device_impl(pi_native_handle InteropDevice,
-                       sycl::detail::pi::PiDevice Device,
-                       PlatformImplPtr Platform, const PluginPtr &Plugin);
-  sycl::detail::pi::PiDevice MDevice = 0;
-  sycl::detail::pi::PiDeviceType MType;
-  sycl::detail::pi::PiDevice MRootDevice = nullptr;
+  explicit device_impl(ur_native_handle_t InteropDevice,
+                       ur_device_handle_t Device, PlatformImplPtr Platform,
+                       const PluginPtr &Plugin);
+
+  ur_device_handle_t MUrDevice = 0;
+  ur_device_type_t MUrType;
+  ur_device_handle_t MUrRootDevice = nullptr;
   bool MIsHostDevice;
   PlatformImplPtr MPlatform;
   bool MIsAssertFailSupported = false;

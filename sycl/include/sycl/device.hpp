@@ -352,7 +352,7 @@ private:
   std::shared_ptr<detail::device_impl> impl;
   device(std::shared_ptr<detail::device_impl> impl) : impl(impl) {}
 
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);

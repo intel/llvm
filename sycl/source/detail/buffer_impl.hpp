@@ -62,7 +62,7 @@ public:
             sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
       throw sycl::invalid_object_error(
           "The use_pinned_host_memory cannot be used with host pointer",
-          PI_ERROR_INVALID_OPERATION);
+          UR_RESULT_ERROR_INVALID_OPERATION);
 
     BaseT::handleHostData(HostData, RequiredAlign);
   }
@@ -76,7 +76,7 @@ public:
             sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
       throw sycl::invalid_object_error(
           "The use_pinned_host_memory cannot be used with host pointer",
-          PI_ERROR_INVALID_OPERATION);
+          UR_RESULT_ERROR_INVALID_OPERATION);
 
     BaseT::handleHostData(HostData, RequiredAlign);
   }
@@ -91,7 +91,7 @@ public:
             sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
       throw sycl::invalid_object_error(
           "The use_pinned_host_memory cannot be used with host pointer",
-          PI_ERROR_INVALID_OPERATION);
+          UR_RESULT_ERROR_INVALID_OPERATION);
 
     BaseT::handleHostData(std::const_pointer_cast<void>(HostData),
                           RequiredAlign, IsConstPtr);
@@ -107,7 +107,7 @@ public:
             sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
       throw sycl::invalid_object_error(
           "The use_pinned_host_memory cannot be used with host pointer",
-          PI_ERROR_INVALID_OPERATION);
+          UR_RESULT_ERROR_INVALID_OPERATION);
 
     BaseT::handleHostData(CopyFromInput, RequiredAlign, IsConstPtr);
   }
@@ -119,11 +119,11 @@ public:
   buffer_impl(cl_mem MemObject, const context &SyclContext,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
               event AvailableEvent)
-      : buffer_impl(pi::cast<pi_native_handle>(MemObject), SyclContext,
+      : buffer_impl(pi::cast<ur_native_handle_t>(MemObject), SyclContext,
                     std::move(Allocator), /*OwnNativeHandle*/ true,
                     std::move(AvailableEvent)) {}
 
-  buffer_impl(pi_native_handle MemObject, const context &SyclContext,
+  buffer_impl(ur_native_handle_t MemObject, const context &SyclContext,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
               bool OwnNativeHandle, event AvailableEvent)
       : BaseT(MemObject, SyclContext, OwnNativeHandle,
@@ -134,11 +134,11 @@ public:
               const size_t SizeInBytes,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
               event AvailableEvent)
-      : buffer_impl(pi::cast<pi_native_handle>(MemObject), SyclContext,
+      : buffer_impl(pi::cast<ur_native_handle_t>(MemObject), SyclContext,
                     SizeInBytes, std::move(Allocator),
                     std::move(AvailableEvent)) {}
 
-  buffer_impl(pi_native_handle MemObject, const context &SyclContext,
+  buffer_impl(ur_native_handle_t MemObject, const context &SyclContext,
               const size_t SizeInBytes,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
               event AvailableEvent)
@@ -146,8 +146,7 @@ public:
               std::move(Allocator)) {}
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    void *HostPtr,
-                    sycl::detail::pi::PiEvent &OutEventToWait) override;
+                    void *HostPtr, ur_event_handle_t &OutEventToWait) override;
   void constructorNotification(const detail::code_location &CodeLoc,
                                void *UserObj, const void *HostObj,
                                const void *Type, uint32_t Dim,
@@ -166,9 +165,9 @@ public:
 
   void resize(size_t size) { BaseT::MSizeInBytes = size; }
 
-  void addInteropObject(std::vector<pi_native_handle> &Handles) const;
+  void addInteropObject(std::vector<ur_native_handle_t> &Handles) const;
 
-  std::vector<pi_native_handle> getNativeVector(backend BackendName) const;
+  std::vector<ur_native_handle_t> getNativeVector(backend BackendName) const;
 };
 
 } // namespace detail

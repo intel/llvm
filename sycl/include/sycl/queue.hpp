@@ -2611,7 +2611,7 @@ public:
   /// completed, otherwise returns false.
   bool ext_oneapi_empty() const;
 
-  pi_native_handle getNative(int32_t &NativeHandleDesc) const;
+  ur_native_handle_t getNative(int32_t &NativeHandleDesc) const;
 
   event ext_oneapi_get_last_event() const;
 

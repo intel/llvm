@@ -145,9 +145,9 @@ public:
 private:
   event(std::shared_ptr<detail::event_impl> EventImpl);
 
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
-  std::vector<pi_native_handle> getNativeVector() const;
+  std::vector<ur_native_handle_t> getNativeVector() const;
 
   std::shared_ptr<detail::event_impl> impl;
 

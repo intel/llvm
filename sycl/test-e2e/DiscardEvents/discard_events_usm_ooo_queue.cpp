@@ -1,6 +1,6 @@
 // RUN: %{build} -o %t.out
 
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
+// RUN: env SYCL_UR_TRACE=1 %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
 // REQUIRES: aspect-usm_shared_allocations
 // The test checks that the last parameter is not `nullptr` for all PI calls
 // that should discard events.
@@ -12,118 +12,100 @@
 //       Since it is a warning it is safe to ignore for this test.
 //
 // Everything that follows TestQueueOperations()
-// CHECK: ---> piextUSMEnqueueMemset(
-// CHECK:        pi_event * :
-// CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// CHECK-NOT: ---> urEnqueueUSMFill({{.*}} .phEvent = nullptr
+// CHECK: ---> urEnqueueUSMFill(
+// CHECK-SAME: -> UR_RESULT_SUCCESS
 //
-// CHECK: ---> piextUSMEnqueueMemcpy(
-// CHECK:        pi_event * :
-// CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// CHECK-NOT: ---> urEnqueueUSMMemcpy({{.*}} .phEvent = nullptr
+// CHECK: ---> urEnqueueUSMMemcpy(
+// CHECK-SAME: -> UR_RESULT_SUCCESS
 //
 // Q.fill don't use piEnqueueMemBufferFill
-// CHECK: ---> piEnqueueKernelLaunch(
-// CHECK:        pi_event * :
-// CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// CHECK-NOT: ---> urEnqueueKernelLaunch({{.*}} .phEvent = nullptr
+// CHECK: ---> urEnqueueKernelLaunch(
+// CHECK-SAME: -> UR_RESULT_SUCCESS
 //
-// ---> piEnqueueMemBufferCopy(
-// CHECK: ---> piextUSMEnqueueMemcpy(
-// CHECK:        pi_event * :
-// CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// ---> urEnqueueUSMMemcpy(
+// CHECK-NOT: ---> urEnqueueUSMMemcpy({{.*}} .phEvent = nullptr
+// CHECK: ---> urEnqueueUSMMemcpy(
+// CHECK-SAME: -> UR_RESULT_SUCCESS
 //
-// CHECK: ---> piextUSMEnqueuePrefetch(
-// CHECK:        pi_event * :
-// CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : {{PI_SUCCESS|-996}}
+// CHECK-NOT: ---> urEnqueueUSMPrefetch({{.*}} .phEvent = nullptr
+// CHECK: ---> urEnqueueUSMPrefetch(
+// CHECK-SAME: ) -> {{UR_RESULT_SUCCESS|UR_RESULT_ERROR_ADAPTER_SPECIFIC}}
 //
-// CHECK: ---> piextUSMEnqueueMemAdvise(
-// CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : {{PI_SUCCESS|-996}}
+// CHECK-NOT: ---> urEnqueueUSMAdvise({{.*}} .phEvent = nullptr
+// CHECK: ---> urEnqueueUSMAdvise(
+// CHECK-SAME: ) -> {{UR_RESULT_SUCCESS|UR_RESULT_ERROR_ADAPTER_SPECIFIC}}
 //
-// CHECK: ---> piEnqueueEventsWaitWithBarrier(
-// CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// CHECK-NOT: ---> urEnqueueEventsWaitWithBarrier({{.*}} .phEvent = nullptr
+// CHECK: ---> urEnqueueEventsWaitWithBarrier(
+// CHECK-SAME: -> UR_RESULT_SUCCESS
 //
-// CHECK: ---> piEnqueueKernelLaunch(
-// CHECK:        pi_event * :
-// CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// CHECK-NOT: ---> urEnqueueKernelLaunch({{.*}} .phEvent = nullptr
+// CHECK: ---> urEnqueueKernelLaunch(
+// CHECK-SAME: -> UR_RESULT_SUCCESS
 //
-// CHECK: ---> piEnqueueKernelLaunch(
-// CHECK:        pi_event * :
-// CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// CHECK-NOT: ---> urEnqueueKernelLaunch({{.*}} .phEvent = nullptr
+// CHECK: ---> urEnqueueKernelLaunch(
+// CHECK-SAME: -> UR_RESULT_SUCCESS
 //
 // RegularQueue
-// CHECK: ---> piextUSMEnqueueMemset(
-// CHECK:        pi_event * :
-// CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// CHECK-NOT: ---> urEnqueueUSMFill({{.*}} .phEvent = nullptr
+// CHECK: ---> urEnqueueUSMFill(
+// CHECK-SAME: -> UR_RESULT_SUCCESS
 //
-// CHECK: ---> piEnqueueEventsWait(
-// CHECK:        pi_event * :
-// CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// CHECK-NOT: ---> urEnqueueEventsWait({{.*}} .phEvent = nullptr
+// CHECK: ---> urEnqueueEventsWait(
+// CHECK-SAME: -> UR_RESULT_SUCCESS
 //
 // Everything that follows TestQueueOperationsViaSubmit()
-// CHECK: ---> piextUSMEnqueueMemset(
-// CHECK:        pi_event * :
-// CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// CHECK-NOT: ---> urEnqueueUSMFill({{.*}} .phEvent = nullptr
+// CHECK: ---> urEnqueueUSMFill(
+// CHECK-SAME: -> UR_RESULT_SUCCESS
 //
-// CHECK: ---> piextUSMEnqueueMemcpy(
-// CHECK:        pi_event * :
-// CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// CHECK-NOT: ---> urEnqueueUSMMemcpy({{.*}} .phEvent = nullptr
+// CHECK: ---> urEnqueueUSMMemcpy(
+// CHECK-SAME: -> UR_RESULT_SUCCESS
 //
 // Q.fill don't use piEnqueueMemBufferFill
-// CHECK: ---> piEnqueueKernelLaunch(
-// CHECK:        pi_event * :
-// CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// CHECK-NOT: ---> urEnqueueKernelLaunch({{.*}} .phEvent = nullptr
+// CHECK: ---> urEnqueueKernelLaunch(
+// CHECK-SAME: -> UR_RESULT_SUCCESS
 //
-// ---> piEnqueueMemBufferCopy(
-// CHECK: ---> piextUSMEnqueueMemcpy(
-// CHECK:        pi_event * :
-// CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// ---> urEnqueueUSMMemcpy(
+// CHECK-NOT: ---> urEnqueueUSMMemcpy({{.*}} .phEvent = nullptr
+// CHECK: ---> urEnqueueUSMMemcpy(
+// CHECK-SAME: -> UR_RESULT_SUCCESS
 //
-// CHECK: ---> piextUSMEnqueuePrefetch(
-// CHECK:        pi_event * :
-// CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : {{PI_SUCCESS|-996}}
+// CHECK-NOT: ---> urEnqueueUSMPrefetch({{.*}} .phEvent = nullptr
+// CHECK: ---> urEnqueueUSMPrefetch(
+// CHECK-SAME: ) -> {{UR_RESULT_SUCCESS|UR_RESULT_ERROR_ADAPTER_SPECIFIC}}
 //
-// CHECK: ---> piextUSMEnqueueMemAdvise(
-// CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : {{PI_SUCCESS|-996}}
+// CHECK-NOT: ---> urEnqueueUSMAdvise({{.*}} .phEvent = nullptr
+// CHECK: ---> urEnqueueUSMAdvise(
+// CHECK-SAME: ) -> {{UR_RESULT_SUCCESS|UR_RESULT_ERROR_ADAPTER_SPECIFIC}}
 //
-// CHECK: ---> piEnqueueEventsWaitWithBarrier(
-// CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// CHECK-NOT: ---> urEnqueueEventsWaitWithBarrier({{.*}} .phEvent = nullptr
+// CHECK: ---> urEnqueueEventsWaitWithBarrier(
+// CHECK-SAME: -> UR_RESULT_SUCCESS
 //
-// CHECK: ---> piEnqueueKernelLaunch(
-// CHECK:        pi_event * :
-// CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// CHECK-NOT: ---> urEnqueueKernelLaunch({{.*}} .phEvent = nullptr
+// CHECK: ---> urEnqueueKernelLaunch(
+// CHECK-SAME: -> UR_RESULT_SUCCESS
 //
-// CHECK: ---> piEnqueueKernelLaunch(
-// CHECK:        pi_event * :
-// CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// CHECK-NOT: ---> urEnqueueKernelLaunch({{.*}} .phEvent = nullptr
+// CHECK: ---> urEnqueueKernelLaunch(
+// CHECK-SAME: -> UR_RESULT_SUCCESS
 //
 // RegularQueue
-// CHECK: ---> piextUSMEnqueueMemset(
-// CHECK:        pi_event * :
-// CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// CHECK-NOT: ---> urEnqueueUSMFill({{.*}} .phEvent = nullptr
+// CHECK: ---> urEnqueueUSMFill(
+// CHECK-SAME: -> UR_RESULT_SUCCESS
 //
-// CHECK: ---> piEnqueueEventsWait(
-// CHECK:        pi_event * :
-// CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// CHECK-NOT: ---> urEnqueueEventsWait({{.*}} .phEvent = nullptr
+// CHECK: ---> urEnqueueEventsWait(
+// CHECK-SAME: -> UR_RESULT_SUCCESS
 //
 // CHECK: The test passed.
 

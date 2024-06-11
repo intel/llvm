@@ -16,15 +16,16 @@
 namespace sycl {
 inline namespace _V1 {
 
+// TODO(pi2ur): Don't cast straight from cl_kernel below
 kernel::kernel(cl_kernel ClKernel, const context &SyclContext)
     : impl(std::make_shared<detail::kernel_impl>(
-          detail::pi::cast<sycl::detail::pi::PiKernel>(ClKernel),
+          detail::pi::cast<ur_kernel_handle_t>(ClKernel),
           detail::getSyclObjImpl(SyclContext), nullptr, nullptr)) {
   // This is a special interop constructor for OpenCL, so the kernel must be
   // retained.
   if (get_backend() == backend::opencl) {
-    impl->getPlugin()->call<detail::PiApiKind::piKernelRetain>(
-        detail::pi::cast<sycl::detail::pi::PiKernel>(ClKernel));
+    impl->getPlugin()->call(urKernelRetain,
+                            detail::pi::cast<ur_kernel_handle_t>(ClKernel));
   }
 }
 
@@ -119,9 +120,9 @@ template __SYCL_EXPORT typename ext::oneapi::experimental::info::
 
 kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
 
-pi_native_handle kernel::getNative() const { return impl->getNative(); }
+ur_native_handle_t kernel::getNative() const { return impl->getNative(); }
 
-pi_native_handle kernel::getNativeImpl() const { return impl->getNative(); }
+ur_native_handle_t kernel::getNativeImpl() const { return impl->getNative(); }
 
 } // namespace _V1
 } // namespace sycl

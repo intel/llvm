@@ -163,6 +163,37 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       ${CMAKE_THREAD_LIBS_INIT}
   )
 
+  # Link and include UR
+  target_link_libraries(${LIB_OBJ_NAME}
+    PRIVATE
+      UnifiedRuntimeLoader
+      UnifiedRuntime-Headers
+      UnifiedRuntimeCommon
+  )
+
+  target_include_directories(${LIB_OBJ_NAME}
+    PRIVATE
+      "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
+      "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
+  )
+
+  add_dependencies(${LIB_OBJ_NAME} UnifiedRuntimeAdapters)
+
+  target_link_libraries(${LIB_NAME}
+    PRIVATE
+      UnifiedRuntimeLoader
+      UnifiedRuntime-Headers
+      UnifiedRuntimeCommon
+  )
+
+  target_include_directories(${LIB_NAME}
+    PRIVATE
+      "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
+      "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
+  )
+
+  add_dependencies(${LIB_NAME} UnifiedRuntimeAdapters)
+
   add_common_options(${LIB_NAME} ${LIB_OBJ_NAME})
 
   set_target_properties(${LIB_NAME} PROPERTIES

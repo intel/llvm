@@ -10,6 +10,7 @@
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/pi.h> // for PI_DEVICE_AFFINITY_DOMAIN_L...
+#include <ur_api.h>
 
 // FIXME: .def files included to this file use all sorts of SYCL objects like
 // id, range, traits, etc. We have to include some headers before including .def
@@ -51,34 +52,75 @@ namespace context {
 } // namespace context
 
 // A.3 Device information descriptors
-enum class device_type : pi_uint64 {
-  cpu = PI_DEVICE_TYPE_CPU,
-  gpu = PI_DEVICE_TYPE_GPU,
-  accelerator = PI_DEVICE_TYPE_ACC,
+enum class device_type : pi_uint32 {
+  cpu = UR_DEVICE_TYPE_CPU,
+  gpu = UR_DEVICE_TYPE_GPU,
+  accelerator = UR_DEVICE_TYPE_FPGA,
   // TODO: figure out if we need all the below in PI
-  custom = PI_DEVICE_TYPE_CUSTOM,
+  // custom = PI_DEVICE_TYPE_CUSTOM,
+  custom,
   automatic,
   host,
-  all = PI_DEVICE_TYPE_ALL
+  all = UR_DEVICE_TYPE_ALL
 };
 
-enum class partition_property : pi_device_partition_property {
+enum class partition_property : intptr_t {
   no_partition = 0,
-  partition_equally = PI_DEVICE_PARTITION_EQUALLY,
-  partition_by_counts = PI_DEVICE_PARTITION_BY_COUNTS,
-  partition_by_affinity_domain = PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
-  ext_intel_partition_by_cslice = PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE
+  partition_equally = UR_DEVICE_PARTITION_EQUALLY,
+  partition_by_counts = UR_DEVICE_PARTITION_BY_COUNTS,
+  partition_by_affinity_domain = UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
+  ext_intel_partition_by_cslice = UR_DEVICE_PARTITION_BY_CSLICE
 };
 
-enum class partition_affinity_domain : pi_device_affinity_domain {
+// The old implementation would simply static cast the PI enum to the strongly
+// typed sycl one, but that only worked because the PR "enum" was actually a
+// typedef with some global constexpr values defined in the header. UR defines
+// an actual enum so we need this conversion helper
+// FIXME: maybe this should live elsewhere, maybe it should be implemented
+// differently
+inline partition_property
+ConvertPartitionProperty(const ur_device_partition_t &Partition) {
+  switch (Partition) {
+  case UR_DEVICE_PARTITION_EQUALLY:
+    return partition_property::partition_equally;
+  case UR_DEVICE_PARTITION_BY_COUNTS:
+    return partition_property::partition_by_counts;
+  case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN:
+    return partition_property::partition_by_affinity_domain;
+  case UR_DEVICE_PARTITION_BY_CSLICE:
+    return partition_property::ext_intel_partition_by_cslice;
+  default:
+    return partition_property::no_partition;
+  }
+}
+
+enum class partition_affinity_domain : intptr_t {
   not_applicable = 0,
-  numa = PI_DEVICE_AFFINITY_DOMAIN_NUMA,
-  L4_cache = PI_DEVICE_AFFINITY_DOMAIN_L4_CACHE,
-  L3_cache = PI_DEVICE_AFFINITY_DOMAIN_L3_CACHE,
-  L2_cache = PI_DEVICE_AFFINITY_DOMAIN_L2_CACHE,
-  L1_cache = PI_DEVICE_AFFINITY_DOMAIN_L1_CACHE,
-  next_partitionable = PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE
+  numa = UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA,
+  L4_cache = UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE,
+  L3_cache = UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE,
+  L2_cache = UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE,
+  L1_cache = UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE,
+  next_partitionable = UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE
 };
+
+inline partition_affinity_domain
+ConvertAffinityDomain(const ur_device_affinity_domain_flags_t Domain) {
+  switch (Domain) {
+  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA:
+    return partition_affinity_domain::numa;
+  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE:
+    return partition_affinity_domain::L1_cache;
+  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE:
+    return partition_affinity_domain::L2_cache;
+  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE:
+    return partition_affinity_domain::L3_cache;
+  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE:
+    return partition_affinity_domain::L4_cache;
+  default:
+    return info::partition_affinity_domain::not_applicable;
+  }
+}
 
 enum class local_mem_type : int { none, local, global };
 
@@ -141,10 +183,10 @@ namespace kernel_device_specific {
 } // namespace kernel_device_specific
 
 // A.6 Event information desctiptors
-enum class event_command_status : pi_int32 {
-  submitted = PI_EVENT_SUBMITTED,
-  running = PI_EVENT_RUNNING,
-  complete = PI_EVENT_COMPLETE,
+enum class event_command_status : int32_t {
+  submitted = UR_EVENT_STATUS_SUBMITTED,
+  running = UR_EVENT_STATUS_RUNNING,
+  complete = UR_EVENT_STATUS_COMPLETE,
   // Since all BE values are positive, it is safe to use a negative value If you
   // add other ext_oneapi values
   ext_oneapi_unknown = -1

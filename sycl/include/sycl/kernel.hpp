@@ -180,10 +180,10 @@ private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.
   kernel(std::shared_ptr<detail::kernel_impl> Impl);
 
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
   __SYCL_DEPRECATED("Use getNative() member function")
-  pi_native_handle getNativeImpl() const;
+  ur_native_handle_t getNativeImpl() const;
 
   std::shared_ptr<detail::kernel_impl> impl;
 

@@ -8,6 +8,7 @@
 
 #include <detail/device_binary_image.hpp>
 #include <sycl/detail/pi.hpp>
+#include <ur_api.h>
 
 #include <algorithm>
 #include <cstring>
@@ -152,6 +153,31 @@ RTDeviceBinaryImage::getProperty(const char *PropName) const {
   return *It;
 }
 
+inline ur_program_metadata_t
+mapPIMetadataToUR(const pi_device_binary_property &PIMetadata) {
+  ur_program_metadata_t URMetadata{};
+  URMetadata.pName = PIMetadata->Name;
+  URMetadata.size = PIMetadata->ValSize;
+  switch (PIMetadata->Type) {
+  case PI_PROPERTY_TYPE_UINT32:
+    URMetadata.type = UR_PROGRAM_METADATA_TYPE_UINT32;
+    URMetadata.value.data32 = PIMetadata->ValSize;
+    break;
+  case PI_PROPERTY_TYPE_BYTE_ARRAY:
+    URMetadata.type = UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY;
+    URMetadata.value.pData = PIMetadata->ValAddr;
+    break;
+  case PI_PROPERTY_TYPE_STRING:
+    URMetadata.type = UR_PROGRAM_METADATA_TYPE_STRING;
+    URMetadata.value.pString = reinterpret_cast<char *>(PIMetadata->ValAddr);
+    break;
+  default:
+    break;
+  }
+
+  return URMetadata;
+}
+
 void RTDeviceBinaryImage::init(pi_device_binary Bin) {
   // Bin != nullptr is guaranteed here.
   this->Bin = Bin;
@@ -177,6 +203,10 @@ void RTDeviceBinaryImage::init(pi_device_binary Bin) {
   DeviceGlobals.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS);
   DeviceRequirements.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS);
   HostPipes.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_HOST_PIPES);
+
+  for (const auto& ProgMD : ProgramMetadata) {
+    ProgramMetadataUR.emplace_back(mapPIMetadataToUR(ProgMD));
+  }
 
   ImageId = ImageCounter++;
 }

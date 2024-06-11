@@ -9,8 +9,8 @@
 // in the same program .
 
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
+// RUN: env SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=11 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
 
 #include "esimd_test_utils.hpp"
 
@@ -119,22 +119,13 @@ int main(void) {
 
 // Regular SYCL kernel is compiled without -vc-codegen option
 
-// CHECK-LABEL: ---> piProgramBuild(
-// CHECK-NOT: -vc-codegen
-// CHECK-WITH-VAR: -g
-// CHECK-NOT: -vc-codegen
-// CHECK: ) ---> pi_result : PI_SUCCESS
-// CHECK-LABEL: ---> piKernelCreate(
-// CHECK: <const char *>: {{.*}}SyclKernel
-// CHECK: ) ---> pi_result : PI_SUCCESS
+// CHECK-NOT: ---> urProgramBuild({{.*}}-vc-codegen{{.*}}-> UR_RESULT_SUCCESS
+// CHECK-WITH-VAR: ---> urProgramBuild({{.*}}-g{{.*}}-> UR_RESULT_SUCCESS
+// CHECK: ---> urKernelCreate({{.*}}SyclKernel{{.*}}-> UR_RESULT_SUCCESS
 
 // For ESIMD kernels, -vc-codegen option is always preserved,
 // regardless of SYCL_PROGRAM_COMPILE_OPTIONS value.
 
-// CHECK-LABEL: ---> piProgramBuild(
-// CHECK-NO-VAR: -vc-codegen
-// CHECK-WITH-VAR: -g -vc-codegen
-// CHECK: ) ---> pi_result : PI_SUCCESS
-// CHECK-LABEL: ---> piKernelCreate(
-// CHECK: <const char *>: {{.*}}EsimdKernel
-// CHECK: ) ---> pi_result : PI_SUCCESS
+// CHECK-NO-VAR: ---> urProgramBuild({{.*}}-vc-codegen
+// CHECK-WITH-VAR: ---> urProgramBuild({{.*}}-g -vc-codegen
+// CHECK: ---> urKernelCreate({{.*}}SyclKernel{{.*}}-> UR_RESULT_SUCCESS

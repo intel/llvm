@@ -24,8 +24,10 @@ get_native<backend::ext_oneapi_hip, device>(const device &Obj) {
   }
   // HIP uses a 32-bit int instead of an opaque pointer like other backends,
   // so we need a specialization with static_cast instead of reinterpret_cast.
-  return static_cast<backend_return_t<backend::ext_oneapi_hip, device>>(
-      Obj.getNative());
+  // TODO(pi2ur): Fix after move to intptr_t
+  return 0;
+  // return static_cast<backend_return_t<backend::ext_oneapi_hip, device>>(
+  //     Obj.getNative());
 }
 
 template <>

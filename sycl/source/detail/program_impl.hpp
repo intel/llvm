@@ -90,14 +90,16 @@ public:
   /// \param Context is a pointer to SYCL context impl.
   /// \param InteropProgram is an instance of plugin interface interoperability
   /// program.
-  program_impl(ContextImplPtr Context, pi_native_handle InteropProgram);
+  program_impl(ContextImplPtr Context, ur_native_handle_t InteropProgram);
 
   /// Constructs a program instance from plugin interface interoperability
   /// kernel.
   ///
   /// \param Context is a pointer to SYCL context impl.
   /// \param Kernel is a raw PI kernel handle.
-  program_impl(ContextImplPtr Context, sycl::detail::pi::PiKernel Kernel);
+  // program_impl(ContextImplPtr Context, sycl::detail::pi::PiKernel Kernel);
+
+  program_impl(ContextImplPtr Context, ur_kernel_handle_t Kernel);
 
   ~program_impl();
 
@@ -133,6 +135,8 @@ public:
   /// \return a constant reference to a raw PI program handle. PI program is
   /// not retained before return.
   const sycl::detail::pi::PiProgram &getHandleRef() const { return MProgram; }
+
+  const ur_program_handle_t &getUrHandleRef() const { return MURProgram; }
 
   /// \return true if this SYCL program is a host program.
   bool is_host() const { return MContext->is_host(); }
@@ -220,7 +224,7 @@ public:
     return createSyclObjFromImpl<context>(MContext);
   }
 
-  /// \return the Plugin associated with the context of this program.
+  /// \return the Plugin associated with the context of this program
   const PluginPtr &getPlugin() const {
     assert(!is_host() && "Plugin is not available for Host.");
     return MContext->getPlugin();
@@ -282,7 +286,7 @@ public:
   ///        is used
   void
   flush_spec_constants(const RTDeviceBinaryImage &Img,
-                       sycl::detail::pi::PiProgram NativePrg = nullptr) const;
+                       ur_program_handle_t NativePrg = nullptr) const;
 
   void stableSerializeSpecConstRegistry(SerializedObj &Dst) const {
     detail::stableSerializeSpecConstRegistry(SpecConstRegistry, Dst);
@@ -295,14 +299,14 @@ public:
   bool is_cacheable() const { return MProgramAndKernelCachingAllowed; }
 
   /// Returns the native plugin handle.
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
   bool isInterop() const { return MIsInterop; }
 
 private:
   // Deligating Constructor used in Implementation.
-  program_impl(ContextImplPtr Context, pi_native_handle InteropProgram,
-               sycl::detail::pi::PiProgram Program);
+  program_impl(ContextImplPtr Context, ur_native_handle_t InteropProgram,
+               ur_program_handle_t Program);
   /// Checks feature support for specific devices.
   ///
   /// If there's at least one device that does not support this feature,
@@ -327,7 +331,7 @@ private:
   /// \param JITCompilationIsRequired If JITCompilationIsRequired is true
   ///        add a check that kernel is compiled, otherwise don't add the check.
   void
-  create_pi_program_with_kernel_name(const std::string &KernelName,
+  create_ur_program_with_kernel_name(const std::string &KernelName,
                                      bool JITCompilationIsRequired = false);
 
   /// Compiles underlying plugin interface program.
@@ -343,6 +347,9 @@ private:
   /// \return a vector of devices managed by the plugin.
   std::vector<sycl::detail::pi::PiDevice> get_pi_devices() const;
 
+  /// \return a vector of devices managed by the plugin.
+  std::vector<ur_device_handle_t> get_ur_devices() const;
+
   /// \param Options is a string containing OpenCL C build options.
   /// \return true if caching is allowed for this program and build options.
   static bool is_cacheable_with_options(const std::string &Options) {
@@ -356,8 +363,8 @@ private:
   /// \param KernelName is a string containing PI kernel name.
   /// \return an instance of PI kernel with specific name. If kernel is
   /// unavailable, an invalid_object_error exception is thrown.
-  std::pair<sycl::detail::pi::PiKernel, const KernelArgMask *>
-  get_pi_kernel_arg_mask_pair(const std::string &KernelName) const;
+  std::pair<ur_kernel_handle_t, const KernelArgMask *>
+  get_ur_kernel_arg_mask_pair(const std::string &KernelName) const;
 
   /// \return a vector of sorted in ascending order SYCL devices.
   std::vector<device> sort_devices_by_cl_device_id(std::vector<device> Devices);
@@ -375,6 +382,7 @@ private:
   void throw_if_state_is_not(program_state State) const;
 
   sycl::detail::pi::PiProgram MProgram = nullptr;
+  ur_program_handle_t MURProgram = nullptr;
   program_state MState = program_state::none;
   std::mutex MMutex;
   ContextImplPtr MContext;

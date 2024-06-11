@@ -44,6 +44,10 @@ public:
   /// \param Kernel is a valid PiKernel instance
   /// \param Context is a valid SYCL context
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
+  kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr Context,
+              KernelBundleImplPtr KernelBundleImpl,
+              const KernelArgMask *ArgMask = nullptr);
+
   kernel_impl(sycl::detail::pi::PiKernel Kernel, ContextImplPtr Context,
               KernelBundleImplPtr KernelBundleImpl,
               const KernelArgMask *ArgMask = nullptr);
@@ -61,7 +65,7 @@ public:
   /// \param IsCreatedFromSource is a flag that indicates whether program
   /// is created from source code
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
-  kernel_impl(sycl::detail::pi::PiKernel Kernel, ContextImplPtr ContextImpl,
+  kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
               ProgramImplPtr ProgramImpl, bool IsCreatedFromSource,
               KernelBundleImplPtr KernelBundleImpl,
               const KernelArgMask *ArgMask);
@@ -72,10 +76,10 @@ public:
   /// \param Kernel is a valid PiKernel instance
   /// \param ContextImpl is a valid SYCL context
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
-  kernel_impl(sycl::detail::pi::PiKernel Kernel, ContextImplPtr ContextImpl,
+  kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
               DeviceImageImplPtr DeviceImageImpl,
               KernelBundleImplPtr KernelBundleImpl,
-              const KernelArgMask *ArgMask, PiProgram ProgramPI,
+              const KernelArgMask *ArgMask, ur_program_handle_t ProgramUR,
               std::mutex *CacheMutex);
 
   /// Constructs a SYCL kernel for host device
@@ -106,10 +110,12 @@ public:
     if (is_host()) {
       throw invalid_object_error(
           "This instance of kernel doesn't support OpenCL interoperability.",
-          PI_ERROR_INVALID_KERNEL);
+          UR_RESULT_ERROR_INVALID_KERNEL);
     }
-    getPlugin()->call<PiApiKind::piKernelRetain>(MKernel);
-    return pi::cast<cl_kernel>(MKernel);
+    getPlugin()->call(urKernelRetain, MURKernel);
+    ur_native_handle_t nativeHandle = nullptr;
+    getPlugin()->call(urKernelGetNativeHandle, MURKernel, &nativeHandle);
+    return pi::cast<cl_kernel>(nativeHandle);
   }
 
   /// Check if the associated SYCL context is a SYCL host context.
@@ -153,15 +159,12 @@ public:
   template <typename Param>
   typename Param::return_type ext_oneapi_get_info(const queue &q) const;
 
-  /// Get a reference to a raw kernel object.
-  ///
-  /// \return a reference to a valid PiKernel instance with raw kernel object.
-  sycl::detail::pi::PiKernel &getHandleRef() { return MKernel; }
+
   /// Get a constant reference to a raw kernel object.
   ///
   /// \return a constant reference to a valid PiKernel instance with raw
   /// kernel object.
-  const sycl::detail::pi::PiKernel &getHandleRef() const { return MKernel; }
+  const ur_kernel_handle_t &getUrHandleRef() const { return MURKernel; }
 
   /// Check if kernel was created from a program that had been created from
   /// source.
@@ -171,14 +174,14 @@ public:
 
   const DeviceImageImplPtr &getDeviceImage() const { return MDeviceImageImpl; }
 
-  pi_native_handle getNative() const {
+  ur_native_handle_t getNative() const {
     const PluginPtr &Plugin = MContext->getPlugin();
 
     if (MContext->getBackend() == backend::opencl)
-      Plugin->call<PiApiKind::piKernelRetain>(MKernel);
+      Plugin->call(urKernelRetain, MURKernel);
 
-    pi_native_handle NativeKernel = 0;
-    Plugin->call<PiApiKind::piextKernelGetNativeHandle>(MKernel, &NativeKernel);
+    ur_native_handle_t NativeKernel = 0;
+    Plugin->call(urKernelGetNativeHandle, MURKernel, &NativeKernel);
 
     return NativeKernel;
   }
@@ -188,6 +191,7 @@ public:
   bool isInterop() const { return MIsInterop; }
 
   PiProgram getProgramRef() const { return MProgram; }
+  ur_program_handle_t getUrProgramRef() const { return MURProgram; }
   ContextImplPtr getContextImplPtr() const { return MContext; }
 
   std::mutex &getNoncacheableEnqueueMutex() {
@@ -198,9 +202,10 @@ public:
   std::mutex *getCacheMutex() const { return MCacheMutex; }
 
 private:
-  sycl::detail::pi::PiKernel MKernel;
+  ur_kernel_handle_t MURKernel = nullptr;
   const ContextImplPtr MContext;
   const PiProgram MProgram = nullptr;
+  const ur_program_handle_t MURProgram = nullptr;
   bool MCreatedFromSource = true;
   const DeviceImageImplPtr MDeviceImageImpl;
   const KernelBundleImplPtr MKernelBundleImpl;
@@ -225,7 +230,7 @@ inline typename Param::return_type kernel_impl::get_info() const {
   if constexpr (std::is_same_v<Param, info::kernel::num_args>)
     checkIfValidForNumArgsInfoQuery();
 
-  return get_kernel_info<Param>(this->getHandleRef(), getPlugin());
+  return get_kernel_info<Param>(this->getUrHandleRef(), getPlugin());
 }
 
 template <>
@@ -252,7 +257,7 @@ kernel_impl::get_info(const device &Device) const {
     return get_kernel_device_specific_info_host<Param>(Device);
   }
   return get_kernel_device_specific_info<Param>(
-      this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(),
+      this->getUrHandleRef(), getSyclObjImpl(Device)->getUrHandleRef(),
       getPlugin());
 }
 
@@ -265,7 +270,7 @@ kernel_impl::get_info(const device &Device,
                         PI_ERROR_INVALID_DEVICE);
   }
   return get_kernel_device_specific_info_with_input<Param>(
-      this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(), WGSize,
+      this->getUrHandleRef(), getSyclObjImpl(Device)->getUrHandleRef(), WGSize,
       getPlugin());
 }
 
@@ -276,12 +281,12 @@ inline typename ext::oneapi::experimental::info::kernel_queue_specific::
         ext::oneapi::experimental::info::kernel_queue_specific::
             max_num_work_group_sync>(const queue &Queue) const {
   const auto &Plugin = getPlugin();
-  const auto &Handle = getHandleRef();
+  const auto &Handle = getUrHandleRef();
   const auto MaxWorkGroupSize =
       Queue.get_device().get_info<info::device::max_work_group_size>();
   pi_uint32 GroupCount = 0;
-  Plugin->call<PiApiKind::piextKernelSuggestMaxCooperativeGroupCount>(
-      Handle, MaxWorkGroupSize, /* DynamicSharedMemorySize */ 0, &GroupCount);
+  Plugin->call(urKernelSuggestMaxCooperativeGroupCountExp, Handle,
+               MaxWorkGroupSize, /* DynamicSharedMemorySize */ 0, &GroupCount);
   return GroupCount;
 }
 

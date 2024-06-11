@@ -1,5 +1,5 @@
 // RUN: %{build} -fsycl-dead-args-optimization -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s
 //
 // XFAIL: hip_nvidia
 
@@ -45,11 +45,11 @@ int main() {
   return Failed;
 }
 
-// CHECK:---> piContextCreate
-// CHECK:---> piextQueueCreate
-// CHECK:---> piProgramCreate
-// CHECK:---> piKernelCreate
-// CHECK:---> piQueueRelease
-// CHECK:---> piContextRelease
-// CHECK:---> piKernelRelease
-// CHECK:---> piProgramRelease
+// CHECK:---> urContextCreate
+// CHECK:---> urQueueCreate
+// CHECK:---> urProgramCreate
+// CHECK:---> urKernelCreate
+// CHECK:---> urQueueRelease
+// CHECK:---> urContextRelease
+// CHECK:---> urKernelRelease
+// CHECK:---> urProgramRelease

@@ -34,51 +34,52 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-inline std::vector<info::fp_config> read_fp_bitfield(pi_device_fp_config bits) {
+inline std::vector<info::fp_config>
+read_fp_bitfield(ur_device_fp_capability_flags_t bits) {
   std::vector<info::fp_config> result;
-  if (bits & PI_FP_DENORM)
+  if (bits & UR_DEVICE_FP_CAPABILITY_FLAG_DENORM)
     result.push_back(info::fp_config::denorm);
-  if (bits & PI_FP_INF_NAN)
+  if (bits & UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN)
     result.push_back(info::fp_config::inf_nan);
-  if (bits & PI_FP_ROUND_TO_NEAREST)
+  if (bits & UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST)
     result.push_back(info::fp_config::round_to_nearest);
-  if (bits & PI_FP_ROUND_TO_ZERO)
+  if (bits & UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO)
     result.push_back(info::fp_config::round_to_zero);
-  if (bits & PI_FP_ROUND_TO_INF)
+  if (bits & UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF)
     result.push_back(info::fp_config::round_to_inf);
-  if (bits & PI_FP_FMA)
+  if (bits & UR_DEVICE_FP_CAPABILITY_FLAG_FMA)
     result.push_back(info::fp_config::fma);
-  if (bits & PI_FP_SOFT_FLOAT)
+  if (bits & UR_DEVICE_FP_CAPABILITY_FLAG_SOFT_FLOAT)
     result.push_back(info::fp_config::soft_float);
-  if (bits & PI_FP_CORRECTLY_ROUNDED_DIVIDE_SQRT)
+  if (bits & UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT)
     result.push_back(info::fp_config::correctly_rounded_divide_sqrt);
   return result;
 }
 
 inline std::vector<info::partition_affinity_domain>
-read_domain_bitfield(pi_device_affinity_domain bits) {
+read_domain_bitfield(ur_device_affinity_domain_flags_t bits) {
   std::vector<info::partition_affinity_domain> result;
-  if (bits & PI_DEVICE_AFFINITY_DOMAIN_NUMA)
+  if (bits & UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA)
     result.push_back(info::partition_affinity_domain::numa);
-  if (bits & PI_DEVICE_AFFINITY_DOMAIN_L4_CACHE)
+  if (bits & UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE)
     result.push_back(info::partition_affinity_domain::L4_cache);
-  if (bits & PI_DEVICE_AFFINITY_DOMAIN_L3_CACHE)
+  if (bits & UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE)
     result.push_back(info::partition_affinity_domain::L3_cache);
-  if (bits & PI_DEVICE_AFFINITY_DOMAIN_L2_CACHE)
+  if (bits & UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE)
     result.push_back(info::partition_affinity_domain::L2_cache);
-  if (bits & PI_DEVICE_AFFINITY_DOMAIN_L1_CACHE)
+  if (bits & UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE)
     result.push_back(info::partition_affinity_domain::L1_cache);
-  if (bits & PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE)
+  if (bits & UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE)
     result.push_back(info::partition_affinity_domain::next_partitionable);
   return result;
 }
 
 inline std::vector<info::execution_capability>
-read_execution_bitfield(pi_device_exec_capabilities bits) {
+read_execution_bitfield(ur_device_exec_capability_flag_t bits) {
   std::vector<info::execution_capability> result;
-  if (bits & PI_EXEC_KERNEL)
+  if (bits & UR_DEVICE_EXEC_CAPABILITY_FLAG_KERNEL)
     result.push_back(info::execution_capability::exec_kernel);
-  if (bits & PI_EXEC_NATIVE_KERNEL)
+  if (bits & UR_DEVICE_EXEC_CAPABILITY_FLAG_NATIVE_KERNEL)
     result.push_back(info::execution_capability::exec_native_kernel);
   return result;
 }
@@ -123,6 +124,19 @@ template <> struct sycl_to_pi<platform> {
   using type = sycl::detail::pi::PiPlatform;
 };
 
+template <typename T> struct sycl_to_ur {
+  using type = T;
+};
+template <> struct sycl_to_ur<bool> {
+  using type = ur_bool_t;
+};
+template <> struct sycl_to_ur<device> {
+  using type = ur_device_handle_t;
+};
+template <> struct sycl_to_ur<platform> {
+  using type = ur_platform_handle_t;
+};
+
 // Mapping fp_config device info types to the values used to check fp support
 template <typename Param> struct check_fp_support {};
 
@@ -137,13 +151,13 @@ template <> struct check_fp_support<info::device::double_fp_config> {
 // Structs for emulating function template partial specialization
 // Default template for the general case
 // TODO: get rid of remaining uses of OpenCL directly
-//
+
 template <typename ReturnT, typename Param> struct get_device_info_impl {
   static ReturnT get(const DeviceImplPtr &Dev) {
-    typename sycl_to_pi<ReturnT>::type result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PiInfoCode<Param>::value, sizeof(result), &result,
-        nullptr);
+    typename sycl_to_ur<ReturnT>::type result;
+    Dev->getPlugin()->call(urDeviceGetInfo, Dev->getUrHandleRef(),
+                           UrInfoCode<Param>::value, sizeof(result), &result,
+                           nullptr);
     return ReturnT(result);
   }
 };
@@ -151,10 +165,10 @@ template <typename ReturnT, typename Param> struct get_device_info_impl {
 // Specialization for platform
 template <typename Param> struct get_device_info_impl<platform, Param> {
   static platform get(const DeviceImplPtr &Dev) {
-    typename sycl_to_pi<platform>::type result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PiInfoCode<Param>::value, sizeof(result), &result,
-        nullptr);
+    typename sycl_to_ur<platform>::type result;
+    Dev->getPlugin()->call(urDeviceGetInfo, Dev->getUrHandleRef(),
+                           UrInfoCode<Param>::value, sizeof(result), &result,
+                           nullptr);
     // TODO: Change PiDevice to device_impl.
     // Use the Plugin from the device_impl class after plugin details
     // are added to the class.
@@ -165,17 +179,17 @@ template <typename Param> struct get_device_info_impl<platform, Param> {
 
 // Helper function to allow using the specialization of get_device_info_impl
 // for string return type in other specializations.
-inline std::string device_impl::get_device_info_string(
-    sycl::detail::pi::PiDeviceInfo InfoCode) const {
+inline std::string
+device_impl::get_device_info_string(ur_device_info_t InfoCode) const {
   size_t resultSize = 0;
-  getPlugin()->call<PiApiKind::piDeviceGetInfo>(getHandleRef(), InfoCode, 0,
-                                                nullptr, &resultSize);
+  getPlugin()->call(urDeviceGetInfo, getUrHandleRef(), InfoCode, 0, nullptr,
+                    &resultSize);
   if (resultSize == 0) {
     return std::string();
   }
   std::unique_ptr<char[]> result(new char[resultSize]);
-  getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-      getHandleRef(), InfoCode, resultSize, result.get(), nullptr);
+  getPlugin()->call(urDeviceGetInfo, getUrHandleRef(), InfoCode, resultSize,
+                    result.get(), nullptr);
 
   return std::string(result.get());
 }
@@ -183,7 +197,7 @@ inline std::string device_impl::get_device_info_string(
 // Specialization for string return type, variable return size
 template <typename Param> struct get_device_info_impl<std::string, Param> {
   static std::string get(const DeviceImplPtr &Dev) {
-    return Dev->get_device_info_string(PiInfoCode<Param>::value);
+    return Dev->get_device_info_string(UrInfoCode<Param>::value);
   }
 };
 
@@ -203,10 +217,10 @@ struct get_device_info_impl<std::vector<info::fp_config>, Param> {
             typename check_fp_support<Param>::type>::get(Dev)) {
       return {};
     }
-    cl_device_fp_config result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PiInfoCode<Param>::value, sizeof(result), &result,
-        nullptr);
+    ur_device_fp_capability_flags_t result;
+    Dev->getPlugin()->call(urDeviceGetInfo, Dev->getUrHandleRef(),
+                           UrInfoCode<Param>::value, sizeof(result), &result,
+                           nullptr);
     return read_fp_bitfield(result);
   }
 };
@@ -215,7 +229,7 @@ struct get_device_info_impl<std::vector<info::fp_config>, Param> {
 template <> struct get_device_info_impl<std::string, info::device::version> {
   static std::string get(const DeviceImplPtr &Dev) {
     return Dev->get_device_info_string(
-        PiInfoCode<info::device::version>::value);
+        UrInfoCode<info::device::version>::value);
   }
 };
 
@@ -224,10 +238,10 @@ template <>
 struct get_device_info_impl<std::vector<info::fp_config>,
                             info::device::single_fp_config> {
   static std::vector<info::fp_config> get(const DeviceImplPtr &Dev) {
-    pi_device_fp_config result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PiInfoCode<info::device::single_fp_config>::value,
-        sizeof(result), &result, nullptr);
+    ur_device_fp_capability_flags_t result;
+    Dev->getPlugin()->call(urDeviceGetInfo, Dev->getUrHandleRef(),
+                           UrInfoCode<info::device::single_fp_config>::value,
+                           sizeof(result), &result, nullptr);
     return read_fp_bitfield(result);
   }
 };
@@ -237,11 +251,11 @@ struct get_device_info_impl<std::vector<info::fp_config>,
 // command_end will be calculated. See MFallbackProfiling
 template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
   static bool get(const DeviceImplPtr &Dev) {
-    pi_queue_properties Properties;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PiInfoCode<info::device::queue_profiling>::value,
-        sizeof(Properties), &Properties, nullptr);
-    return Properties & PI_QUEUE_FLAG_PROFILING_ENABLE;
+    ur_queue_flags_t Properties;
+    Dev->getPlugin()->call(urDeviceGetInfo, Dev->getUrHandleRef(),
+                           UrInfoCode<info::device::queue_profiling>::value,
+                           sizeof(Properties), &Properties, nullptr);
+    return Properties & UR_QUEUE_FLAG_PROFILING_ENABLE;
   }
 };
 
@@ -250,11 +264,11 @@ template <>
 struct get_device_info_impl<std::vector<memory_order>,
                             info::device::atomic_memory_order_capabilities> {
   static std::vector<memory_order> get(const DeviceImplPtr &Dev) {
-    pi_memory_order_capabilities result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::atomic_memory_order_capabilities>::value,
-        sizeof(pi_memory_order_capabilities), &result, nullptr);
+    ur_memory_order_capability_flag_t result;
+    Dev->getPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<info::device::atomic_memory_order_capabilities>::value,
+        sizeof(result), &result, nullptr);
     return readMemoryOrderBitfield(result);
   }
 };
@@ -264,11 +278,11 @@ template <>
 struct get_device_info_impl<std::vector<memory_order>,
                             info::device::atomic_fence_order_capabilities> {
   static std::vector<memory_order> get(const DeviceImplPtr &Dev) {
-    pi_memory_order_capabilities result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::atomic_fence_order_capabilities>::value,
-        sizeof(pi_memory_order_capabilities), &result, nullptr);
+    ur_memory_order_capability_flag_t result;
+    Dev->getPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<info::device::atomic_fence_order_capabilities>::value,
+        sizeof(result), &result, nullptr);
     return readMemoryOrderBitfield(result);
   }
 };
@@ -278,11 +292,12 @@ template <>
 struct get_device_info_impl<std::vector<memory_scope>,
                             info::device::atomic_memory_scope_capabilities> {
   static std::vector<memory_scope> get(const DeviceImplPtr &Dev) {
-    pi_memory_scope_capabilities result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::atomic_memory_scope_capabilities>::value,
-        sizeof(pi_memory_scope_capabilities), &result, nullptr);
+    // TODO(pi2ur): Work around cuda/hip adapters reporting the wrong size
+    size_t result;
+    Dev->getPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<info::device::atomic_memory_scope_capabilities>::value,
+        sizeof(result), &result, nullptr);
     return readMemoryScopeBitfield(result);
   }
 };
@@ -292,11 +307,12 @@ template <>
 struct get_device_info_impl<std::vector<memory_scope>,
                             info::device::atomic_fence_scope_capabilities> {
   static std::vector<memory_scope> get(const DeviceImplPtr &Dev) {
-    pi_memory_scope_capabilities result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::atomic_fence_scope_capabilities>::value,
-        sizeof(pi_memory_scope_capabilities), &result, nullptr);
+    // TODO(pi2ur): Work around cuda/hip adapters reporting the wrong size
+    size_t result;
+    Dev->getPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<info::device::atomic_fence_scope_capabilities>::value,
+        sizeof(result), &result, nullptr);
     return readMemoryScopeBitfield(result);
   }
 };
@@ -308,12 +324,11 @@ struct get_device_info_impl<bool,
   static bool get(const DeviceImplPtr &Dev) {
     bool result = false;
 
-    sycl::detail::pi::PiResult Err =
-        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-            Dev->getHandleRef(),
-            PiInfoCode<info::device::ext_oneapi_bfloat16_math_functions>::value,
-            sizeof(result), &result, nullptr);
-    if (Err != PI_SUCCESS) {
+    ur_result_t Err = Dev->getPlugin()->call_nocheck(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<info::device::ext_oneapi_bfloat16_math_functions>::value,
+        sizeof(result), &result, nullptr);
+    if (Err != UR_RESULT_SUCCESS) {
       return false;
     }
     return result;
@@ -325,10 +340,10 @@ template <>
 struct get_device_info_impl<std::vector<info::execution_capability>,
                             info::device::execution_capabilities> {
   static std::vector<info::execution_capability> get(const DeviceImplPtr &Dev) {
-    pi_device_exec_capabilities result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::execution_capabilities>::value, sizeof(result),
+    ur_device_exec_capability_flag_t result;
+    Dev->getPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<info::device::execution_capabilities>::value, sizeof(result),
         &result, nullptr);
     return read_execution_bitfield(result);
   }
@@ -340,7 +355,7 @@ struct get_device_info_impl<std::vector<kernel_id>,
                             info::device::built_in_kernel_ids> {
   static std::vector<kernel_id> get(const DeviceImplPtr &Dev) {
     std::string result = Dev->get_device_info_string(
-        PiInfoCode<info::device::built_in_kernels>::value);
+        UrInfoCode<info::device::built_in_kernels>::value);
     auto names = split_string(result, ';');
 
     std::vector<kernel_id> ids;
@@ -358,7 +373,7 @@ struct get_device_info_impl<std::vector<std::string>,
                             info::device::built_in_kernels> {
   static std::vector<std::string> get(const DeviceImplPtr &Dev) {
     std::string result = Dev->get_device_info_string(
-        PiInfoCode<info::device::built_in_kernels>::value);
+        UrInfoCode<info::device::built_in_kernels>::value);
     return split_string(result, ';');
   }
 };
@@ -391,20 +406,20 @@ template <>
 struct get_device_info_impl<std::vector<info::partition_property>,
                             info::device::partition_properties> {
   static std::vector<info::partition_property> get(const DeviceImplPtr &Dev) {
-    auto info_partition = PiInfoCode<info::device::partition_properties>::value;
+    auto info_partition = UrInfoCode<info::device::partition_properties>::value;
     const auto &Plugin = Dev->getPlugin();
 
     size_t resultSize;
-    Plugin->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), info_partition, 0, nullptr, &resultSize);
+    Plugin->call(urDeviceGetInfo,
+        Dev->getUrHandleRef(), info_partition, 0, nullptr, &resultSize);
 
-    size_t arrayLength = resultSize / sizeof(cl_device_partition_property);
+    size_t arrayLength = resultSize / sizeof(ur_device_partition_property_t);
     if (arrayLength == 0) {
       return {};
     }
-    std::unique_ptr<cl_device_partition_property[]> arrayResult(
-        new cl_device_partition_property[arrayLength]);
-    Plugin->call<PiApiKind::piDeviceGetInfo>(Dev->getHandleRef(),
+    std::unique_ptr<ur_device_partition_t[]> arrayResult(
+        new ur_device_partition_t[arrayLength]);
+    Plugin->call(urDeviceGetInfo,Dev->getUrHandleRef(),
                                              info_partition, resultSize,
                                              arrayResult.get(), nullptr);
 
@@ -413,7 +428,7 @@ struct get_device_info_impl<std::vector<info::partition_property>,
       // OpenCL extensions may have partition_properties that
       // are not yet defined for SYCL (eg. CL_DEVICE_PARTITION_BY_NAMES_INTEL)
       info::partition_property pp(
-          static_cast<info::partition_property>(arrayResult[i]));
+          info::ConvertPartitionProperty(arrayResult[i]));
       if (is_sycl_partition_property(pp))
         result.push_back(pp);
     }
@@ -427,40 +442,42 @@ struct get_device_info_impl<std::vector<info::partition_affinity_domain>,
                             info::device::partition_affinity_domains> {
   static std::vector<info::partition_affinity_domain>
   get(const DeviceImplPtr &Dev) {
-    pi_device_affinity_domain result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::partition_affinity_domains>::value,
+    ur_device_affinity_domain_flags_t result;
+    Dev->getPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<info::device::partition_affinity_domains>::value,
         sizeof(result), &result, nullptr);
     return read_domain_bitfield(result);
   }
 };
 
-// Specialization for partition type affinity domain, OpenCL can return other
+// Specialization for partition type affinity domain, UR can return other
 // partition properties instead
 template <>
 struct get_device_info_impl<info::partition_affinity_domain,
                             info::device::partition_type_affinity_domain> {
   static info::partition_affinity_domain get(const DeviceImplPtr &Dev) {
-    size_t resultSize;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::partition_type_affinity_domain>::value, 0,
-        nullptr, &resultSize);
-    if (resultSize != 1) {
+    std::vector<ur_device_partition_property_t> PartitionProperties;
+    size_t PropertiesSize = 0;
+    Dev->getPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<info::device::partition_type_affinity_domain>::value, 0,
+        nullptr, &PropertiesSize);
+    if (PropertiesSize == 0)
       return info::partition_affinity_domain::not_applicable;
-    }
-    cl_device_partition_property result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::partition_type_affinity_domain>::value,
-        sizeof(result), &result, nullptr);
-    if (result == PI_DEVICE_AFFINITY_DOMAIN_NUMA ||
-        result == PI_DEVICE_AFFINITY_DOMAIN_L4_CACHE ||
-        result == PI_DEVICE_AFFINITY_DOMAIN_L3_CACHE ||
-        result == PI_DEVICE_AFFINITY_DOMAIN_L2_CACHE ||
-        result == PI_DEVICE_AFFINITY_DOMAIN_L1_CACHE) {
-      return info::partition_affinity_domain(result);
+
+    PartitionProperties.resize(PropertiesSize /
+                               sizeof(ur_device_partition_property_t));
+
+    Dev->getPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<info::device::partition_type_affinity_domain>::value,
+        PropertiesSize, PartitionProperties.data(), nullptr);
+
+    for (const auto &PartitionProp : PartitionProperties) {
+      if (PartitionProp.type != UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN)
+        continue;
+      return info::ConvertAffinityDomain(PartitionProp.value.affinity_domain);
     }
 
     return info::partition_affinity_domain::not_applicable;
@@ -472,39 +489,48 @@ template <>
 struct get_device_info_impl<info::partition_property,
                             info::device::partition_type_property> {
   static info::partition_property get(const DeviceImplPtr &Dev) {
-    size_t resultSize;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PI_DEVICE_INFO_PARTITION_TYPE, 0, nullptr,
-        &resultSize);
-    if (!resultSize)
+    std::vector<ur_device_partition_property_t> PartitionProperties;
+    size_t PropertiesSize = 0;
+    Dev->getPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<info::device::partition_type_affinity_domain>::value, 0,
+        nullptr, &PropertiesSize);
+    if (PropertiesSize == 0)
       return info::partition_property::no_partition;
 
-    size_t arrayLength = resultSize / sizeof(cl_device_partition_property);
+    PartitionProperties.resize(PropertiesSize /
+                               sizeof(ur_device_partition_property_t));
 
-    std::unique_ptr<cl_device_partition_property[]> arrayResult(
-        new cl_device_partition_property[arrayLength]);
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PI_DEVICE_INFO_PARTITION_TYPE, resultSize,
-        arrayResult.get(), nullptr);
-    if (!arrayResult[0])
-      return info::partition_property::no_partition;
-    return info::partition_property(arrayResult[0]);
+    Dev->getPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<info::device::partition_type_affinity_domain>::value,
+        PropertiesSize, PartitionProperties.data(), nullptr);
+    // The old PI implementation also just checked the first element, is that
+    // correct?
+    return info::ConvertPartitionProperty(PartitionProperties[0].type);
   }
 };
+
 // Specialization for supported subgroup sizes
 template <>
 struct get_device_info_impl<std::vector<size_t>,
                             info::device::sub_group_sizes> {
   static std::vector<size_t> get(const DeviceImplPtr &Dev) {
     size_t resultSize = 0;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PiInfoCode<info::device::sub_group_sizes>::value,
-        0, nullptr, &resultSize);
+    Dev->getPlugin()->call(urDeviceGetInfo, Dev->getUrHandleRef(),
+                           UrInfoCode<info::device::sub_group_sizes>::value, 0,
+                           nullptr, &resultSize);
 
-    std::vector<size_t> result(resultSize / sizeof(size_t));
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PiInfoCode<info::device::sub_group_sizes>::value,
-        resultSize, result.data(), nullptr);
+    // FIXME: UR has this as a uint32_t, it should align with CL and be size_t
+    // instead
+    std::vector<uint32_t> urResult(resultSize / sizeof(uint32_t));
+    Dev->getPlugin()->call(urDeviceGetInfo, Dev->getUrHandleRef(),
+                           UrInfoCode<info::device::sub_group_sizes>::value,
+                           resultSize, urResult.data(), nullptr);
+    std::vector<size_t> result;
+    for (const auto &s : urResult) {
+      result.push_back(static_cast<size_t>(s));
+    }
     return result;
   }
 };
@@ -552,9 +578,9 @@ struct get_device_info_impl<range<Dimensions>,
                             info::device::max_work_item_sizes<Dimensions>> {
   static range<Dimensions> get(const DeviceImplPtr &Dev) {
     size_t result[3];
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::max_work_item_sizes<Dimensions>>::value,
+    Dev->getPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<info::device::max_work_item_sizes<Dimensions>>::value,
         sizeof(result), &result, nullptr);
     return construct_range<Dimensions>(result);
   }
@@ -674,9 +700,9 @@ struct get_device_info_impl<
             "sycl_ext_oneapi_device_architecture.");
       };
       uint32_t DeviceIp;
-      Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-          Dev->getHandleRef(),
-          PiInfoCode<
+      Dev->getPlugin()->call(
+          urDeviceGetInfo, Dev->getUrHandleRef(),
+          UrInfoCode<
               ext::oneapi::experimental::info::device::architecture>::value,
           sizeof(DeviceIp), &DeviceIp, nullptr);
       return MapArchIDToArchName(DeviceIp);
@@ -693,13 +719,13 @@ struct get_device_info_impl<
             "sycl_ext_oneapi_device_architecture.");
       };
       size_t ResultSize = 0;
-      Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-          Dev->getHandleRef(), PiInfoCode<info::device::version>::value, 0,
-          nullptr, &ResultSize);
+      Dev->getPlugin()->call(urDeviceGetInfo, Dev->getUrHandleRef(),
+                             UrInfoCode<info::device::version>::value, 0,
+                             nullptr, &ResultSize);
       std::unique_ptr<char[]> DeviceArch(new char[ResultSize]);
-      Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-          Dev->getHandleRef(), PiInfoCode<info::device::version>::value,
-          ResultSize, DeviceArch.get(), nullptr);
+      Dev->getPlugin()->call(urDeviceGetInfo, Dev->getUrHandleRef(),
+                             UrInfoCode<info::device::version>::value,
+                             ResultSize, DeviceArch.get(), nullptr);
       std::string DeviceArchCopy(DeviceArch.get());
       std::string DeviceArchSubstr =
           DeviceArchCopy.substr(0, DeviceArchCopy.find(":"));
@@ -713,9 +739,9 @@ struct get_device_info_impl<
         return sycl::ext::oneapi::experimental::architecture::x86_64;
       };
       uint32_t DeviceIp;
-      Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-          Dev->getHandleRef(),
-          PiInfoCode<
+      Dev->getPlugin()->call(
+          urDeviceGetInfo, Dev->getUrHandleRef(),
+          UrInfoCode<
               ext::oneapi::experimental::info::device::architecture>::value,
           sizeof(DeviceIp), &DeviceIp, nullptr);
       return MapArchIDToArchName(DeviceIp);
@@ -964,9 +990,9 @@ struct get_device_info_impl<
     size_t Limit =
         get_device_info_impl<size_t, ext::oneapi::experimental::info::device::
                                          max_global_work_groups>::get(Dev);
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<
+    Dev->getPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<
             ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
         sizeof(result), &result, nullptr);
     return id<1>(std::min(Limit, result[0]));
@@ -981,9 +1007,9 @@ struct get_device_info_impl<
     size_t Limit =
         get_device_info_impl<size_t, ext::oneapi::experimental::info::device::
                                          max_global_work_groups>::get(Dev);
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<
+    Dev->getPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<
             ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
         sizeof(result), &result, nullptr);
     return id<2>(std::min(Limit, result[1]), std::min(Limit, result[0]));
@@ -998,9 +1024,9 @@ struct get_device_info_impl<
     size_t Limit =
         get_device_info_impl<size_t, ext::oneapi::experimental::info::device::
                                          max_global_work_groups>::get(Dev);
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<
+    Dev->getPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<
             ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
         sizeof(result), &result, nullptr);
     return id<3>(std::min(Limit, result[2]), std::min(Limit, result[1]),
@@ -1059,14 +1085,14 @@ struct get_device_info_impl<id<3>,
 // Specialization for parent device
 template <> struct get_device_info_impl<device, info::device::parent_device> {
   static device get(const DeviceImplPtr &Dev) {
-    typename sycl_to_pi<device>::type result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PiInfoCode<info::device::parent_device>::value,
-        sizeof(result), &result, nullptr);
+    typename sycl_to_ur<device>::type result;
+    Dev->getPlugin()->call(urDeviceGetInfo, Dev->getUrHandleRef(),
+                           UrInfoCode<info::device::parent_device>::value,
+                           sizeof(result), &result, nullptr);
     if (result == nullptr)
       throw invalid_object_error(
           "No parent for device because it is not a subdevice",
-          PI_ERROR_INVALID_DEVICE);
+          UR_RESULT_ERROR_INVALID_DEVICE);
 
     const auto &Platform = Dev->getPlatformImpl();
     return createSyclObjFromImpl<device>(
@@ -1085,30 +1111,36 @@ template <> struct get_device_info_impl<bool, info::device::image_support> {
 // USM
 
 // Specialization for device usm query.
+
 template <>
 struct get_device_info_impl<bool, info::device::usm_device_allocations> {
   static bool get(const DeviceImplPtr &Dev) {
-    pi_usm_capabilities caps;
-    pi_result Err = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::usm_device_allocations>::value,
-        sizeof(pi_usm_capabilities), &caps, nullptr);
+    ur_device_usm_access_capability_flags_t caps;
+    ur_result_t Err = Dev->getPlugin()->call_nocheck(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<info::device::usm_device_allocations>::value,
+        sizeof(ur_device_usm_access_capability_flags_t), &caps, nullptr);
 
-    return (Err != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
+    return (Err != UR_RESULT_SUCCESS)
+               ? false
+               : (caps & UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
   }
 };
 
 // Specialization for host usm query.
+
 template <>
 struct get_device_info_impl<bool, info::device::usm_host_allocations> {
   static bool get(const DeviceImplPtr &Dev) {
-    pi_usm_capabilities caps;
-    pi_result Err = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::usm_host_allocations>::value,
-        sizeof(pi_usm_capabilities), &caps, nullptr);
+    ur_device_usm_access_capability_flags_t caps;
+    ur_result_t Err = Dev->getPlugin()->call_nocheck(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<info::device::usm_host_allocations>::value,
+        sizeof(ur_device_usm_access_capability_flags_t), &caps, nullptr);
 
-    return (Err != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
+    return (Err != UR_RESULT_SUCCESS)
+               ? false
+               : (caps & UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
   }
 };
 
@@ -1116,12 +1148,14 @@ struct get_device_info_impl<bool, info::device::usm_host_allocations> {
 template <>
 struct get_device_info_impl<bool, info::device::usm_shared_allocations> {
   static bool get(const DeviceImplPtr &Dev) {
-    pi_usm_capabilities caps;
-    pi_result Err = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::usm_shared_allocations>::value,
-        sizeof(pi_usm_capabilities), &caps, nullptr);
-    return (Err != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
+    ur_device_usm_access_capability_flags_t caps;
+    ur_result_t Err = Dev->getPlugin()->call_nocheck(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<info::device::usm_shared_allocations>::value,
+        sizeof(ur_device_usm_access_capability_flags_t), &caps, nullptr);
+    return (Err != UR_RESULT_SUCCESS)
+               ? false
+               : (caps & UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
   }
 };
 
@@ -1130,15 +1164,17 @@ template <>
 struct get_device_info_impl<bool,
                             info::device::usm_restricted_shared_allocations> {
   static bool get(const DeviceImplPtr &Dev) {
-    pi_usm_capabilities caps;
-    pi_result Err = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::usm_restricted_shared_allocations>::value,
-        sizeof(pi_usm_capabilities), &caps, nullptr);
+    ur_device_usm_access_capability_flags_t caps;
+    ur_result_t Err = Dev->getPlugin()->call_nocheck(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<info::device::usm_restricted_shared_allocations>::value,
+        sizeof(ur_device_usm_access_capability_flags_t), &caps, nullptr);
     // Check that we don't support any cross device sharing
-    return (Err != PI_SUCCESS)
+    return (Err != UR_RESULT_SUCCESS)
                ? false
-               : !(caps & (PI_USM_ACCESS | PI_USM_CONCURRENT_ACCESS));
+               : !(caps &
+                   (UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS |
+                    UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS));
   }
 };
 
@@ -1146,12 +1182,14 @@ struct get_device_info_impl<bool,
 template <>
 struct get_device_info_impl<bool, info::device::usm_system_allocations> {
   static bool get(const DeviceImplPtr &Dev) {
-    pi_usm_capabilities caps;
-    pi_result Err = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::usm_system_allocations>::value,
-        sizeof(pi_usm_capabilities), &caps, nullptr);
-    return (Err != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
+    ur_device_usm_access_capability_flags_t caps;
+    ur_result_t Err = Dev->getPlugin()->call_nocheck(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<info::device::usm_system_allocations>::value,
+        sizeof(ur_device_usm_access_capability_flags_t), &caps, nullptr);
+    return (Err != UR_RESULT_SUCCESS)
+               ? false
+               : (caps & UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
   }
 };
 
@@ -1191,9 +1229,9 @@ struct get_device_info_impl<
     ext::codeplay::experimental::info::device::max_registers_per_work_group> {
   static uint32_t get(const DeviceImplPtr &Dev) {
     uint32_t maxRegsPerWG;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<ext::codeplay::experimental::info::device::
+    Dev->getPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<ext::codeplay::experimental::info::device::
                        max_registers_per_work_group>::value,
         sizeof(maxRegsPerWG), &maxRegsPerWG, nullptr);
     return maxRegsPerWG;
@@ -1210,27 +1248,29 @@ struct get_device_info_impl<
       return {};
     size_t ResultSize = 0;
     // First call to get DevCount.
-    pi_result Err = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<
+    ur_result_t Err = Dev->getPlugin()->call_nocheck(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<
             ext::oneapi::experimental::info::device::component_devices>::value,
         0, nullptr, &ResultSize);
 
     // If the feature is unsupported or if the result was empty, return an empty
     // list of devices.
-    if (Err == PI_ERROR_INVALID_VALUE || (Err == PI_SUCCESS && ResultSize == 0))
+    if (Err == UR_RESULT_ERROR_UNSUPPORTED_FEATURE ||
+        (Err == UR_RESULT_SUCCESS && ResultSize == 0))
       return {};
 
     // Otherwise, if there was an error from PI it is unexpected and we should
     // handle it accordingly.
-    Dev->getPlugin()->checkPiResult(Err);
+    Dev->getPlugin()->checkUrResult(Err);
 
-    size_t DevCount = ResultSize / sizeof(pi_device);
+    size_t DevCount = ResultSize / sizeof(ur_device_handle_t);
+
     // Second call to get the list.
-    std::vector<pi_device> Devs(DevCount);
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<
+    std::vector<ur_device_handle_t> Devs(DevCount);
+    Dev->getPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<
             ext::oneapi::experimental::info::device::component_devices>::value,
         ResultSize, Devs.data(), nullptr);
     std::vector<sycl::device> Result;
@@ -1242,6 +1282,7 @@ struct get_device_info_impl<
     return Result;
   }
 };
+
 template <>
 struct get_device_info_impl<
     sycl::device, ext::oneapi::experimental::info::device::composite_device> {
@@ -1251,10 +1292,10 @@ struct get_device_info_impl<
                             "Only devices with aspect::ext_oneapi_is_component "
                             "can call this function.");
 
-    typename sycl_to_pi<device>::type Result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<
+    typename sycl_to_ur<device>::type Result;
+    Dev->getPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<
             ext::oneapi::experimental::info::device::composite_device>::value,
         sizeof(Result), &Result, nullptr);
 
@@ -1278,7 +1319,7 @@ typename Param::return_type get_device_info(const DeviceImplPtr &Dev) {
     if (!Dev->has(aspect::ext_intel_free_memory))
       throw invalid_object_error(
           "The device does not have the ext_intel_free_memory aspect",
-          PI_ERROR_INVALID_DEVICE);
+          UR_RESULT_ERROR_INVALID_DEVICE);
   }
   return get_device_info_impl<typename Param::return_type, Param>::get(Dev);
 }
@@ -1374,6 +1415,7 @@ inline id<3> get_device_info_host<
 
 // TODO:remove with deprecated feature
 // device::get_info<info::device::ext_oneapi_max_global_work_groups>
+
 template <>
 inline constexpr size_t
 get_device_info_host<info::device::ext_oneapi_max_global_work_groups>() {
@@ -1864,7 +1906,7 @@ inline bool get_device_info_host<info::device::preferred_interop_user_sync>() {
 template <> inline device get_device_info_host<info::device::parent_device>() {
   throw invalid_object_error(
       "Partitioning to subdevices of the host device is not implemented",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -1911,7 +1953,7 @@ template <>
 inline uint32_t get_device_info_host<info::device::max_num_sub_groups>() {
   // TODO update once subgroups are enabled
   throw runtime_error("Sub-group feature is not supported on HOST device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -1919,7 +1961,7 @@ inline std::vector<size_t>
 get_device_info_host<info::device::sub_group_sizes>() {
   // TODO update once subgroups are enabled
   throw runtime_error("Sub-group feature is not supported on HOST device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -1927,7 +1969,7 @@ inline bool
 get_device_info_host<info::device::sub_group_independent_forward_progress>() {
   // TODO update once subgroups are enabled
   throw runtime_error("Sub-group feature is not supported on HOST device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -1939,7 +1981,7 @@ template <>
 inline std::string get_device_info_host<info::device::backend_version>() {
   throw runtime_error(
       "Backend version feature is not supported on HOST device.",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -1978,67 +2020,67 @@ inline bool get_device_info_host<info::device::ext_intel_mem_channel>() {
 template <>
 inline uint32_t get_device_info_host<ext::intel::info::device::device_id>() {
   throw runtime_error("Obtaining the device ID is not supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 template <>
 inline std::string
 get_device_info_host<ext::intel::info::device::pci_address>() {
   throw runtime_error(
       "Obtaining the PCI address is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 template <>
 inline uint32_t get_device_info_host<ext::intel::info::device::gpu_eu_count>() {
   throw runtime_error("Obtaining the EU count is not supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 template <>
 inline uint32_t
 get_device_info_host<ext::intel::info::device::gpu_eu_simd_width>() {
   throw runtime_error(
       "Obtaining the EU SIMD width is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 template <>
 inline uint32_t get_device_info_host<ext::intel::info::device::gpu_slices>() {
   throw runtime_error(
       "Obtaining the number of slices is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 template <>
 inline uint32_t
 get_device_info_host<ext::intel::info::device::gpu_subslices_per_slice>() {
   throw runtime_error("Obtaining the number of subslices per slice is not "
                       "supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 template <>
 inline uint32_t
 get_device_info_host<ext::intel::info::device::gpu_eu_count_per_subslice>() {
   throw runtime_error(
       "Obtaining the EU count per subslice is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 template <>
 inline uint32_t
 get_device_info_host<ext::intel::info::device::gpu_hw_threads_per_eu>() {
   throw runtime_error(
       "Obtaining the HW threads count per EU is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 template <>
 inline uint64_t
 get_device_info_host<ext::intel::info::device::max_mem_bandwidth>() {
   throw runtime_error(
       "Obtaining the maximum memory bandwidth is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 template <>
 inline detail::uuid_type
 get_device_info_host<ext::intel::info::device::uuid>() {
   throw runtime_error(
       "Obtaining the device uuid is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 // TODO: Remove with deprecated feature
@@ -2047,14 +2089,14 @@ template <>
 inline std::string get_device_info_host<info::device::ext_intel_pci_address>() {
   throw runtime_error(
       "Obtaining the PCI address is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 // TODO: Remove with deprecated feature
 // device::get_info<info::device::ext_intel_gpu_eu_count>()
 template <>
 inline uint32_t get_device_info_host<info::device::ext_intel_gpu_eu_count>() {
   throw runtime_error("Obtaining the EU count is not supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 // TODO: Remove with deprecated feature
 // device::get_info<info::device::ext_intel_gpu_eu_simd_width>()
@@ -2063,7 +2105,7 @@ inline uint32_t
 get_device_info_host<info::device::ext_intel_gpu_eu_simd_width>() {
   throw runtime_error(
       "Obtaining the EU SIMD width is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 // TODO: Remove with deprecated feature
 // device::get_info<info::device::ext_intel_gpu_slices>()
@@ -2071,7 +2113,7 @@ template <>
 inline uint32_t get_device_info_host<info::device::ext_intel_gpu_slices>() {
   throw runtime_error(
       "Obtaining the number of slices is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 // TODO: Remove with deprecated feature
 // device::get_info<info::device::ext_intel_gpu_subslices_per_slice>()
@@ -2080,7 +2122,7 @@ inline uint32_t
 get_device_info_host<info::device::ext_intel_gpu_subslices_per_slice>() {
   throw runtime_error("Obtaining the number of subslices per slice is not "
                       "supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 // TODO: Remove with deprecated feature
 // device::get_info<info::device::ext_intel_gpu_eu_count_per_subslices>()
@@ -2089,7 +2131,7 @@ inline uint32_t
 get_device_info_host<info::device::ext_intel_gpu_eu_count_per_subslice>() {
   throw runtime_error(
       "Obtaining the EU count per subslice is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 // TODO: Remove with deprecated feature
 // device::get_info<info::device::ext_intel_gpu_hw_threads_per_eu>()
@@ -2098,7 +2140,7 @@ inline uint32_t
 get_device_info_host<info::device::ext_intel_gpu_hw_threads_per_eu>() {
   throw runtime_error(
       "Obtaining the HW threads count per EU is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 // TODO: Remove with deprecated feature
 // device::get_info<info::device::ext_intel_max_mem_bandwidth>()
@@ -2107,7 +2149,7 @@ inline uint64_t
 get_device_info_host<info::device::ext_intel_max_mem_bandwidth>() {
   throw runtime_error(
       "Obtaining the maximum memory bandwidth is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 // TODO:Move to namespace ext::intel::info::device
 template <> inline bool get_device_info_host<info::device::ext_oneapi_srgb>() {
@@ -2121,14 +2163,14 @@ inline detail::uuid_type
 get_device_info_host<info::device::ext_intel_device_info_uuid>() {
   throw runtime_error(
       "Obtaining the device uuid is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
 inline uint64_t get_device_info_host<ext::intel::info::device::free_memory>() {
   throw runtime_error(
       "Obtaining the device free memory is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -2136,7 +2178,7 @@ inline uint32_t
 get_device_info_host<ext::intel::info::device::memory_clock_rate>() {
   throw runtime_error(
       "Obtaining the device memory clock rate is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -2144,7 +2186,7 @@ inline uint32_t
 get_device_info_host<ext::intel::info::device::memory_bus_width>() {
   throw runtime_error(
       "Obtaining the device memory bus width is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -2152,9 +2194,8 @@ inline int32_t
 get_device_info_host<ext::intel::info::device::max_compute_queue_indices>() {
   throw runtime_error(
       "Obtaining max compute queue indices is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
-
 template <>
 inline bool get_device_info_host<
     ext::codeplay::experimental::info::device::supports_fusion>() {
@@ -2167,7 +2208,7 @@ inline uint32_t get_device_info_host<
     ext::codeplay::experimental::info::device::max_registers_per_work_group>() {
   throw runtime_error("Obtaining the maximum number of available registers per "
                       "work-group is not supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -2175,7 +2216,7 @@ inline uint32_t get_device_info_host<
     ext::oneapi::experimental::info::device::image_row_pitch_align>() {
   throw runtime_error("Obtaining image pitch alignment is not "
                       "supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -2183,7 +2224,7 @@ inline uint32_t get_device_info_host<
     ext::oneapi::experimental::info::device::max_image_linear_row_pitch>() {
   throw runtime_error("Obtaining max image linear pitch is not "
                       "supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -2192,7 +2233,7 @@ get_device_info_host<
     ext::oneapi::experimental::info::device::matrix_combinations>() {
   throw runtime_error("Obtaining matrix combinations is not "
                       "supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -2200,7 +2241,7 @@ inline uint32_t get_device_info_host<
     ext::oneapi::experimental::info::device::max_image_linear_width>() {
   throw runtime_error("Obtaining max image linear width is not "
                       "supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -2208,28 +2249,28 @@ inline uint32_t get_device_info_host<
     ext::oneapi::experimental::info::device::max_image_linear_height>() {
   throw runtime_error("Obtaining max image linear height is not "
                       "supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
 inline float get_device_info_host<
     ext::oneapi::experimental::info::device::mipmap_max_anisotropy>() {
   throw runtime_error("Bindless image mipmaps are not supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
 inline std::vector<sycl::device> get_device_info_host<
     ext::oneapi::experimental::info::device::component_devices>() {
   throw runtime_error("Host devices cannot be component devices.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
 inline sycl::device get_device_info_host<
     ext::oneapi::experimental::info::device::composite_device>() {
   throw runtime_error("Host devices cannot be composite devices.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 // Returns the list of all progress guarantees that can be requested for

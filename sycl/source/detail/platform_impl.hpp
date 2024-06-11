@@ -40,16 +40,15 @@ public:
   ///
   /// \param APlatform is a raw plug-in platform handle.
   /// \param APlugin is a plug-in handle.
-  explicit platform_impl(sycl::detail::pi::PiPlatform APlatform,
+  explicit platform_impl(ur_platform_handle_t APlatform,
                          const std::shared_ptr<plugin> &APlugin)
-      : MPlatform(APlatform), MPlugin(APlugin) {
-
+      : MUrPlatform(APlatform), MPlugin(APlugin) {
     // Find out backend of the platform
-    sycl::detail::pi::PiPlatformBackend PiBackend;
-    APlugin->call_nocheck<PiApiKind::piPlatformGetInfo>(
-        APlatform, PI_EXT_PLATFORM_INFO_BACKEND,
-        sizeof(sycl::detail::pi::PiPlatformBackend), &PiBackend, nullptr);
-    MBackend = convertBackend(PiBackend);
+    ur_platform_backend_t UrBackend = UR_PLATFORM_BACKEND_UNKNOWN;
+    APlugin->call_nocheck(urPlatformGetInfo, APlatform,
+                          UR_PLATFORM_INFO_BACKEND,
+                          sizeof(ur_platform_backend_t), &UrBackend, nullptr);
+    MBackend = convertUrBackend(UrBackend);
   }
 
   ~platform_impl() = default;
@@ -99,10 +98,10 @@ public:
   void getBackendOption(const char *frontend_option,
                         const char **backend_option) const {
     const auto &Plugin = getPlugin();
-    sycl::detail::pi::PiResult Err =
-        Plugin->call_nocheck<PiApiKind::piPluginGetBackendOption>(
-            MPlatform, frontend_option, backend_option);
-    Plugin->checkPiResult(Err);
+    ur_result_t Err =
+        Plugin->call_nocheck(urPlatformGetBackendOption, MUrPlatform,
+                             frontend_option, backend_option);
+    Plugin->checkUrResult(Err);
   }
 
   /// \return an instance of OpenCL cl_platform_id.
@@ -112,23 +111,12 @@ public:
           "This instance of platform doesn't support OpenCL interoperability.",
           PI_ERROR_INVALID_PLATFORM);
     }
-    return pi::cast<cl_platform_id>(MPlatform);
+    ur_native_handle_t nativeHandle = nullptr;
+    getPlugin()->call(urPlatformGetNativeHandle, MUrPlatform, &nativeHandle);
+    return pi::cast<cl_platform_id>(nativeHandle);
   }
 
-  /// Returns raw underlying plug-in platform handle.
-  ///
-  /// Unlike get() method, this method does not retain handler. It is caller
-  /// responsibility to make sure that platform stays alive while raw handle
-  /// is in use.
-  ///
-  /// \return a raw plug-in platform handle.
-  const sycl::detail::pi::PiPlatform &getHandleRef() const {
-    if (is_host())
-      throw invalid_object_error("This instance of platform is a host instance",
-                                 PI_ERROR_INVALID_PLATFORM);
-
-    return MPlatform;
-  }
+  const ur_platform_handle_t &getUrHandleRef() const { return MUrPlatform; }
 
   /// Returns all available SYCL platforms in the system.
   ///
@@ -139,26 +127,15 @@ public:
   /// \return a vector of all available SYCL platforms.
   static std::vector<platform> get_platforms();
 
-  // \return the Plugin associated with this platform.
   const PluginPtr &getPlugin() const {
     assert(!MHostPlatform && "Plugin is not available for Host.");
     return MPlugin;
   }
 
-  /// Sets the platform implementation to use another plugin.
-  ///
-  /// \param PluginPtr is a pointer to a plugin instance
-  /// \param Backend is the backend that we want this platform to use
-  void setPlugin(PluginPtr &PluginPtr, backend Backend) {
-    assert(!MHostPlatform && "Plugin is not available for Host");
-    MPlugin = PluginPtr;
-    MBackend = Backend;
-  }
-
   /// Gets the native handle of the SYCL platform.
   ///
   /// \return a native handle.
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
   /// Indicates if all of the SYCL devices on this platform have the
   /// given feature.
@@ -176,8 +153,9 @@ public:
   /// \param PiDevice is the PiDevice whose impl is requested
   ///
   /// \return a shared_ptr<device_impl> corresponding to the device
-  std::shared_ptr<device_impl>
-  getDeviceImpl(sycl::detail::pi::PiDevice PiDevice);
+  // std::shared_ptr<device_impl>
+  // getDeviceImpl(sycl::detail::pi::PiDevice PiDevice);
+  std::shared_ptr<device_impl> getDeviceImpl(ur_device_handle_t UrDevice);
 
   /// Queries the device_impl cache to either return a shared_ptr
   /// for the device_impl corresponding to the PiDevice or add
@@ -189,7 +167,7 @@ public:
   ///
   /// \return a shared_ptr<device_impl> corresponding to the device
   std::shared_ptr<device_impl>
-  getOrMakeDeviceImpl(sycl::detail::pi::PiDevice PiDevice,
+  getOrMakeDeviceImpl(ur_device_handle_t UrDevice,
                       const std::shared_ptr<platform_impl> &PlatformImpl);
 
   /// Static functions that help maintain platform uniquess and
@@ -208,8 +186,7 @@ public:
   /// \param Plugin is the PI plugin providing the backend for the platform
   /// \return the platform_impl representing the PI platform
   static std::shared_ptr<platform_impl>
-  getOrMakePlatformImpl(sycl::detail::pi::PiPlatform PiPlatform,
-                        const PluginPtr &Plugin);
+  getOrMakePlatformImpl(ur_platform_handle_t, const PluginPtr &Plugin);
 
   /// Queries the cache for the specified platform based on an input device.
   /// If found, returns the the cached platform_impl, otherwise creates a new
@@ -221,28 +198,27 @@ public:
   /// platform
   /// \return the platform_impl that contains the input device
   static std::shared_ptr<platform_impl>
-  getPlatformFromPiDevice(sycl::detail::pi::PiDevice PiDevice,
-                          const PluginPtr &Plugin);
+  getPlatformFromUrDevice(ur_device_handle_t UrDevice, const PluginPtr &Plugin);
 
   // when getting sub-devices for ONEAPI_DEVICE_SELECTOR we may temporarily
   // ensure every device is a root one.
   bool MAlwaysRootDevice = false;
 
 private:
-  std::shared_ptr<device_impl>
-  getDeviceImplHelper(sycl::detail::pi::PiDevice PiDevice);
+  std::shared_ptr<device_impl> getDeviceImplHelper(ur_device_handle_t UrDevice);
 
   // Helper to filter reportable devices in the platform
   template <typename ListT, typename FilterT>
   std::vector<int>
-  filterDeviceFilter(std::vector<sycl::detail::pi::PiDevice> &PiDevices,
+  filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
                      ListT *FilterList) const;
 
   bool MHostPlatform = false;
-  sycl::detail::pi::PiPlatform MPlatform = 0;
+  ur_platform_handle_t MUrPlatform = 0;
   backend MBackend;
 
   PluginPtr MPlugin;
+
   std::vector<std::weak_ptr<device_impl>> MDeviceCache;
   std::mutex MDeviceMapMutex;
 };

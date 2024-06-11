@@ -50,19 +50,6 @@ if (SYCL_ENABLE_XPTI_TRACING)
   set(XPTI_LIBS "${CMAKE_DL_LIBS}")
 endif()
 
-find_package(Python3 REQUIRED)
-
-add_custom_target(ze-api DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/ze_api.def)
-add_custom_command(
-  OUTPUT
-  ${CMAKE_CURRENT_BINARY_DIR}/ze_api.def
-  COMMAND ${Python3_EXECUTABLE}
-  ${CMAKE_CURRENT_SOURCE_DIR}/ze_api_generator.py
-  ${LEVEL_ZERO_INCLUDE_DIR}/ze_api.h
-  DEPENDS
-  ${LEVEL_ZERO_INCLUDE_DIR}/ze_api.h
-  )
-
 find_package(Threads REQUIRED)
 
 # Get the L0 adapter sources so they can be shared with the L0 PI plugin

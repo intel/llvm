@@ -26,11 +26,12 @@ event::event() : impl(std::make_shared<detail::event_impl>(std::nullopt)) {}
 
 event::event(cl_event ClEvent, const context &SyclContext)
     : impl(std::make_shared<detail::event_impl>(
-          detail::pi::cast<sycl::detail::pi::PiEvent>(ClEvent), SyclContext)) {
+          detail::pi::cast<ur_event_handle_t>(ClEvent), SyclContext)) {
   // This is a special interop constructor for OpenCL, so the event must be
   // retained.
-  impl->getPlugin()->call<detail::PiApiKind::piEventRetain>(
-      detail::pi::cast<sycl::detail::pi::PiEvent>(ClEvent));
+  // TODO(pi2ur): Don't just cast from cl_event above
+  impl->getPlugin()->call(urEventRetain,
+                          detail::pi::cast<ur_event_handle_t>(ClEvent));
 }
 
 bool event::operator==(const event &rhs) const { return rhs.impl == impl; }
@@ -124,10 +125,10 @@ event::get_profiling_info() const {
 
 backend event::get_backend() const noexcept { return getImplBackend(impl); }
 
-pi_native_handle event::getNative() const { return impl->getNative(); }
+ur_native_handle_t event::getNative() const { return impl->getNative(); }
 
-std::vector<pi_native_handle> event::getNativeVector() const {
-  std::vector<pi_native_handle> ReturnVector = {impl->getNative()};
+std::vector<ur_native_handle_t> event::getNativeVector() const {
+  std::vector<ur_native_handle_t> ReturnVector = {impl->getNative()};
   return ReturnVector;
 }
 

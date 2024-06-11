@@ -104,7 +104,7 @@ public:
 
   bool has_kernel(const kernel_id &KernelID, const device &Dev) const noexcept;
 
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
 protected:
   detail::DeviceImageImplPtr impl;

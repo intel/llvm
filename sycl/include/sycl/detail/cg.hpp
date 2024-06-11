@@ -176,7 +176,7 @@ public:
   std::string MKernelName;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
-  sycl::detail::pi::PiKernelCacheConfig MKernelCacheConfig;
+  ur_kernel_cache_config_t MKernelCacheConfig;
   bool MKernelIsCooperative = false;
 
   CGExecKernel(NDRDescT NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
@@ -187,7 +187,7 @@ public:
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGTYPE Type,
-               sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
+               ur_kernel_cache_config_t KernelCacheConfig,
                bool KernelIsCooperative, detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
@@ -321,17 +321,17 @@ public:
 class CGAdviseUSM : public CG {
   void *MDst;
   size_t MLength;
-  pi_mem_advice MAdvice;
+  ur_usm_advice_flags_t MAdvice;
 
 public:
-  CGAdviseUSM(void *DstPtr, size_t Length, pi_mem_advice Advice,
+  CGAdviseUSM(void *DstPtr, size_t Length, ur_usm_advice_flags_t Advice,
               CG::StorageInitHelper CGData, CGTYPE Type,
               detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)), MDst(DstPtr),
         MLength(Length), MAdvice(Advice) {}
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
-  pi_mem_advice getAdvice() { return MAdvice; }
+  ur_usm_advice_flags_t getAdvice() { return MAdvice; }
 };
 
 class CGBarrier : public CG {
@@ -495,22 +495,22 @@ public:
 class CGCopyImage : public CG {
   void *MSrc;
   void *MDst;
-  sycl::detail::pi::PiMemImageDesc MImageDesc;
-  sycl::detail::pi::PiMemImageFormat MImageFormat;
-  sycl::detail::pi::PiImageCopyFlags MImageCopyFlags;
-  sycl::detail::pi::PiImageOffset MSrcOffset;
-  sycl::detail::pi::PiImageOffset MDstOffset;
-  sycl::detail::pi::PiImageRegion MHostExtent;
-  sycl::detail::pi::PiImageRegion MCopyExtent;
+  ur_image_desc_t MImageDesc;
+  ur_image_format_t MImageFormat;
+  ur_exp_image_copy_flags_t MImageCopyFlags;
+  ur_rect_offset_t MSrcOffset;
+  ur_rect_offset_t MDstOffset;
+  ur_rect_region_t MHostExtent;
+  ur_rect_region_t MCopyExtent;
 
 public:
-  CGCopyImage(void *Src, void *Dst, sycl::detail::pi::PiMemImageDesc ImageDesc,
-              sycl::detail::pi::PiMemImageFormat ImageFormat,
-              sycl::detail::pi::PiImageCopyFlags ImageCopyFlags,
-              sycl::detail::pi::PiImageOffset SrcOffset,
-              sycl::detail::pi::PiImageOffset DstOffset,
-              sycl::detail::pi::PiImageRegion HostExtent,
-              sycl::detail::pi::PiImageRegion CopyExtent,
+  CGCopyImage(void *Src, void *Dst, ur_image_desc_t ImageDesc,
+              ur_image_format_t ImageFormat,
+              ur_exp_image_copy_flags_t ImageCopyFlags,
+              ur_rect_offset_t SrcOffset,
+              ur_rect_offset_t DstOffset,
+              ur_rect_region_t HostExtent,
+              ur_rect_region_t CopyExtent,
               CG::StorageInitHelper CGData, detail::code_location loc = {})
       : CG(CopyImage, std::move(CGData), std::move(loc)), MSrc(Src), MDst(Dst),
         MImageDesc(ImageDesc), MImageFormat(ImageFormat),
@@ -520,45 +520,44 @@ public:
 
   void *getSrc() const { return MSrc; }
   void *getDst() const { return MDst; }
-  sycl::detail::pi::PiMemImageDesc getDesc() const { return MImageDesc; }
-  sycl::detail::pi::PiMemImageFormat getFormat() const { return MImageFormat; }
-  sycl::detail::pi::PiImageCopyFlags getCopyFlags() const {
+  ur_image_desc_t getDesc() const { return MImageDesc; }
+  ur_image_format_t getFormat() const { return MImageFormat; }
+  ur_exp_image_copy_flags_t getCopyFlags() const {
     return MImageCopyFlags;
   }
-  sycl::detail::pi::PiImageOffset getSrcOffset() const { return MSrcOffset; }
-  sycl::detail::pi::PiImageOffset getDstOffset() const { return MDstOffset; }
-  sycl::detail::pi::PiImageRegion getHostExtent() const { return MHostExtent; }
-  sycl::detail::pi::PiImageRegion getCopyExtent() const { return MCopyExtent; }
+  ur_rect_offset_t getSrcOffset() const { return MSrcOffset; }
+  ur_rect_offset_t getDstOffset() const { return MDstOffset; }
+  ur_rect_region_t getHostExtent() const { return MHostExtent; }
+  ur_rect_region_t getCopyExtent() const { return MCopyExtent; }
 };
 
 /// "Semaphore Wait" command group class.
 class CGSemaphoreWait : public CG {
-  sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+  ur_exp_interop_semaphore_handle_t MInteropSemaphoreHandle;
 
 public:
-  CGSemaphoreWait(
-      sycl::detail::pi::PiInteropSemaphoreHandle InteropSemaphoreHandle,
-      CG::StorageInitHelper CGData, detail::code_location loc = {})
+  CGSemaphoreWait(ur_exp_interop_semaphore_handle_t InteropSemaphoreHandle,
+                  CG::StorageInitHelper CGData, detail::code_location loc = {})
       : CG(SemaphoreWait, std::move(CGData), std::move(loc)),
         MInteropSemaphoreHandle(InteropSemaphoreHandle) {}
 
-  sycl::detail::pi::PiInteropSemaphoreHandle getInteropSemaphoreHandle() const {
+  ur_exp_interop_semaphore_handle_t getInteropSemaphoreHandle() const {
     return MInteropSemaphoreHandle;
   }
 };
 
 /// "Semaphore Signal" command group class.
 class CGSemaphoreSignal : public CG {
-  sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+  ur_exp_interop_semaphore_handle_t MInteropSemaphoreHandle;
 
 public:
-  CGSemaphoreSignal(
-      sycl::detail::pi::PiInteropSemaphoreHandle InteropSemaphoreHandle,
-      CG::StorageInitHelper CGData, detail::code_location loc = {})
+  CGSemaphoreSignal(ur_exp_interop_semaphore_handle_t InteropSemaphoreHandle,
+                    CG::StorageInitHelper CGData,
+                    detail::code_location loc = {})
       : CG(SemaphoreSignal, std::move(CGData), std::move(loc)),
         MInteropSemaphoreHandle(InteropSemaphoreHandle) {}
 
-  sycl::detail::pi::PiInteropSemaphoreHandle getInteropSemaphoreHandle() const {
+  ur_exp_interop_semaphore_handle_t getInteropSemaphoreHandle() const {
     return MInteropSemaphoreHandle;
   }
 };
@@ -566,12 +565,12 @@ public:
 /// "Execute command-buffer" command group class.
 class CGExecCommandBuffer : public CG {
 public:
-  sycl::detail::pi::PiExtCommandBuffer MCommandBuffer;
+  ur_exp_command_buffer_handle_t MCommandBuffer;
   std::shared_ptr<sycl::ext::oneapi::experimental::detail::exec_graph_impl>
       MExecGraph;
 
   CGExecCommandBuffer(
-      const sycl::detail::pi::PiExtCommandBuffer &CommandBuffer,
+      const ur_exp_command_buffer_handle_t &CommandBuffer,
       const std::shared_ptr<
           sycl::ext::oneapi::experimental::detail::exec_graph_impl> &ExecGraph,
       CG::StorageInitHelper CGData)

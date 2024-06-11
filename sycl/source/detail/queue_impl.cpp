@@ -42,24 +42,24 @@ public:
   ~NestedCallsTracker() { NestedCallsDetector = false; }
 };
 
-static std::vector<sycl::detail::pi::PiEvent>
-getPIEvents(const std::vector<sycl::event> &DepEvents) {
-  std::vector<sycl::detail::pi::PiEvent> RetPiEvents;
+static std::vector<ur_event_handle_t>
+getUREvents(const std::vector<sycl::event> &DepEvents) {
+  std::vector<ur_event_handle_t> RetUrEvents;
   for (const sycl::event &Event : DepEvents) {
     const EventImplPtr &EventImpl = detail::getSyclObjImpl(Event);
     if (EventImpl->getHandleRef() != nullptr)
-      RetPiEvents.push_back(EventImpl->getHandleRef());
+      RetUrEvents.push_back(EventImpl->getHandleRef());
   }
-  return RetPiEvents;
+  return RetUrEvents;
 }
 
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
-  sycl::detail::pi::PiResult result = PI_SUCCESS;
+  ur_result_t result = UR_RESULT_SUCCESS;
   if (!is_host())
-    getPlugin()->call<PiApiKind::piQueueGetInfo>(
-        MQueues[0], PI_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
-        nullptr);
+    getPlugin()->call(urQueueGetInfo, MUrQueues[0],
+                      UR_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
+                      nullptr);
   return result;
 }
 
@@ -157,7 +157,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   PrepareNotify.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device",
                       reinterpret_cast<size_t>(
-                          MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+                          MDevice->is_host() ? 0 : MDevice->getUrHandleRef()));
     xpti::addMetadata(TEvent, "memory_ptr", reinterpret_cast<size_t>(Ptr));
     xpti::addMetadata(TEvent, "value_set", Value);
     xpti::addMetadata(TEvent, "memory_size", Count);
@@ -205,7 +205,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
   PrepareNotify.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device",
                       reinterpret_cast<size_t>(
-                          MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+                          MDevice->is_host() ? 0 : MDevice->getUrHandleRef()));
     xpti::addMetadata(TEvent, "src_memory_ptr", reinterpret_cast<size_t>(Src));
     xpti::addMetadata(TEvent, "dest_memory_ptr",
                       reinterpret_cast<size_t>(Dest));
@@ -239,6 +239,8 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
       [&](handler &CGH) { CGH.mem_advise(Ptr, Length, Advice); },
       [](const auto &...Args) { MemoryManager::advise_usm(Args...); }, Ptr,
       Self, Length, Advice);
+
+  return event();
 }
 
 event queue_impl::memcpyToDeviceGlobal(
@@ -255,6 +257,8 @@ event queue_impl::memcpyToDeviceGlobal(
         MemoryManager::copy_to_device_global(Args...);
       },
       DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src);
+
+  return event();
 }
 
 event queue_impl::memcpyFromDeviceGlobal(
@@ -271,6 +275,8 @@ event queue_impl::memcpyFromDeviceGlobal(
         MemoryManager::copy_from_device_global(Args...);
       },
       DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest);
+
+  return event();
 }
 
 event queue_impl::getLastEvent() {
@@ -417,7 +423,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
                                 ExpandedDepEvents, MContext)) {
       if (MSupportsDiscardingPiEvents) {
         NestedCallsTracker tracker;
-        MemOpFunc(MemOpArgs..., getPIEvents(ExpandedDepEvents),
+        MemOpFunc(MemOpArgs..., getUREvents(ExpandedDepEvents),
                   /*PiEvent*/ nullptr, /*EventImplPtr*/ nullptr);
         return createDiscardedEvent();
       }
@@ -426,7 +432,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
       auto EventImpl = detail::getSyclObjImpl(ResEvent);
       {
         NestedCallsTracker tracker;
-        MemOpFunc(MemOpArgs..., getPIEvents(ExpandedDepEvents),
+        MemOpFunc(MemOpArgs..., getUREvents(ExpandedDepEvents),
                   &EventImpl->getHandleRef(), EventImpl);
       }
 
@@ -597,7 +603,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   }
   if (SupportsPiFinish) {
     const PluginPtr &Plugin = getPlugin();
-    Plugin->call<detail::PiApiKind::piQueueFinish>(getHandleRef());
+    Plugin->call(urQueueFinish, getUrHandleRef());
     assert(SharedEvents.empty() && "Queues that support calling piQueueFinish "
                                    "shouldn't have shared events");
   } else {
@@ -618,13 +624,16 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 #endif
 }
 
-pi_native_handle queue_impl::getNative(int32_t &NativeHandleDesc) const {
+ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
   const PluginPtr &Plugin = getPlugin();
   if (getContextImplPtr()->getBackend() == backend::opencl)
-    Plugin->call<PiApiKind::piQueueRetain>(MQueues[0]);
-  pi_native_handle Handle{};
-  Plugin->call<PiApiKind::piextQueueGetNativeHandle>(MQueues[0], &Handle,
-                                                     &NativeHandleDesc);
+    Plugin->call(urQueueRetain, MUrQueues[0]);
+  ur_native_handle_t Handle{};
+  ur_queue_native_desc_t UrNativeDesc{UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC, nullptr, nullptr};
+  UrNativeDesc.pNativeData = &NativeHandleDesc;
+
+  Plugin->call(urQueueGetNativeHandle, MUrQueues[0], 
+                                                     &UrNativeDesc, &Handle);
   return Handle;
 }
 
@@ -647,10 +656,9 @@ bool queue_impl::ext_oneapi_empty() const {
 
   // Check the status of the backend queue if this is not a host queue.
   if (!is_host()) {
-    pi_bool IsReady = false;
-    getPlugin()->call<PiApiKind::piQueueGetInfo>(
-        MQueues[0], PI_EXT_ONEAPI_QUEUE_INFO_EMPTY, sizeof(pi_bool), &IsReady,
-        nullptr);
+    ur_bool_t IsReady = false;
+    getPlugin()->call(urQueueGetInfo, MUrQueues[0], UR_QUEUE_INFO_EMPTY,
+                      sizeof(IsReady), &IsReady, nullptr);
     if (!IsReady)
       return false;
   }

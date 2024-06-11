@@ -65,6 +65,7 @@
 // CHECK-NEXT: context.hpp
 // CHECK-NEXT: async_handler.hpp
 // CHECK-NEXT: detail/info_desc_helpers.hpp
+// CHECK-NEXT: ur_api.h
 // CHECK-NEXT: id.hpp
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: exception.hpp

@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/pi.h> // for PI_MEMORY_ORDER_ACQUIRE, PI_MEMORY_ORDER_ACQ_REL
+#include <ur_api.h>
 
 #include <atomic> // for memory_order
 #include <vector> // for vector
@@ -49,33 +49,33 @@ inline constexpr auto memory_order_seq_cst = memory_order::seq_cst;
 namespace detail {
 
 inline std::vector<memory_order>
-readMemoryOrderBitfield(pi_memory_order_capabilities bits) {
+readMemoryOrderBitfield(ur_memory_order_capability_flags_t bits) {
   std::vector<memory_order> result;
-  if (bits & PI_MEMORY_ORDER_RELAXED)
+  if (bits & UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED)
     result.push_back(memory_order::relaxed);
-  if (bits & PI_MEMORY_ORDER_ACQUIRE)
+  if (bits & UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE)
     result.push_back(memory_order::acquire);
-  if (bits & PI_MEMORY_ORDER_RELEASE)
+  if (bits & UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE)
     result.push_back(memory_order::release);
-  if (bits & PI_MEMORY_ORDER_ACQ_REL)
+  if (bits & UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL)
     result.push_back(memory_order::acq_rel);
-  if (bits & PI_MEMORY_ORDER_SEQ_CST)
+  if (bits & UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST)
     result.push_back(memory_order::seq_cst);
   return result;
 }
 
 inline std::vector<memory_scope>
-readMemoryScopeBitfield(pi_memory_scope_capabilities bits) {
+readMemoryScopeBitfield(ur_memory_scope_capability_flags_t bits) {
   std::vector<memory_scope> result;
-  if (bits & PI_MEMORY_SCOPE_WORK_ITEM)
+  if (bits & UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM)
     result.push_back(memory_scope::work_item);
-  if (bits & PI_MEMORY_SCOPE_SUB_GROUP)
+  if (bits & UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP)
     result.push_back(memory_scope::sub_group);
-  if (bits & PI_MEMORY_SCOPE_WORK_GROUP)
+  if (bits & UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP)
     result.push_back(memory_scope::work_group);
-  if (bits & PI_MEMORY_SCOPE_DEVICE)
+  if (bits & UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE)
     result.push_back(memory_scope::device);
-  if (bits & PI_MEMORY_SCOPE_SYSTEM)
+  if (bits & UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM)
     result.push_back(memory_scope::system);
   return result;
 }

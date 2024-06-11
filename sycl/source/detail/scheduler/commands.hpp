@@ -67,14 +67,14 @@ struct EnqueueResultT {
     SyclEnqueueFailed
   };
   EnqueueResultT(ResultT Result = SyclEnqueueSuccess, Command *Cmd = nullptr,
-                 pi_int32 ErrCode = PI_SUCCESS)
+                 ur_result_t ErrCode = UR_RESULT_SUCCESS)
       : MResult(Result), MCmd(Cmd), MErrCode(ErrCode) {}
   /// Indicates the result of enqueueing.
   ResultT MResult;
   /// Pointer to the command which failed to enqueue.
   Command *MCmd;
   /// Error code which is set when enqueueing fails.
-  pi_int32 MErrCode;
+  ur_result_t MErrCode;
 };
 
 /// Dependency between two commands.
@@ -122,9 +122,10 @@ public:
     UPDATE_CMD_BUFFER
   };
 
-  Command(CommandType Type, QueueImplPtr Queue,
-          sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
-          const std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints = {});
+  Command(
+      CommandType Type, QueueImplPtr Queue,
+      ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
+      const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints = {});
 
   /// \param NewDep dependency to be added
   /// \param ToCleanUp container for commands that can be cleaned up.
@@ -194,9 +195,9 @@ public:
       std::optional<access::mode> AccMode = std::nullopt);
   /// Creates an edge event when the dependency is an event.
   void emitEdgeEventForEventDependence(Command *Cmd,
-                                       sycl::detail::pi::PiEvent &EventAddr);
+                                       ur_event_handle_t &EventAddr);
   /// Creates a signal event with the enqueued kernel event handle.
-  void emitEnqueuedEventSignal(sycl::detail::pi::PiEvent &PiEventAddr);
+  void emitEnqueuedEventSignal(ur_event_handle_t &UrEventAddr);
   /// Create a trace event of node_create type; this must be guarded by a
   /// check for xptiTraceEnabled().
   /// Post Condition: MTraceEvent will be set to the event created.
@@ -238,15 +239,15 @@ public:
   /// Returns true iff this command is ready to be submitted for cleanup.
   virtual bool readyForCleanup() const;
 
-  /// Collect PI events from EventImpls and filter out some of them in case of
+  /// Collect UR events from EventImpls and filter out some of them in case of
   /// in order queue
-  std::vector<sycl::detail::pi::PiEvent>
-  getPiEvents(const std::vector<EventImplPtr> &EventImpls) const;
-  /// Collect PI events from EventImpls and filter out some of them in case of
-  /// in order queue. Does blocking enqueue if event is expected to produce pi
+  std::vector<ur_event_handle_t>
+  getUrEvents(const std::vector<EventImplPtr> &EventImpls) const;
+  /// Collect UR events from EventImpls and filter out some of them in case of
+  /// in order queue. Does blocking enqueue if event is expected to produce ur
   /// event but has empty native handle.
-  std::vector<sycl::detail::pi::PiEvent>
-  getPiEventsBlocking(const std::vector<EventImplPtr> &EventImpls) const;
+  std::vector<ur_event_handle_t>
+  getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls) const;
 
   bool isHostTask() const;
 
@@ -263,7 +264,7 @@ protected:
   std::vector<EventImplPtr> &MPreparedHostDepsEvents;
 
   void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
-                     sycl::detail::pi::PiEvent &Event);
+                     ur_event_handle_t &Event);
 
   void waitForPreparedHostEvents() const;
 
@@ -283,7 +284,7 @@ protected:
                                          std::vector<Command *> &ToCleanUp);
 
   /// Private interface. Derived classes should implement this method.
-  virtual pi_int32 enqueueImp() = 0;
+  virtual ur_result_t enqueueImp() = 0;
 
   /// The type of the command.
   CommandType MType;
@@ -400,15 +401,15 @@ public:
 
 protected:
   /// Gets the command buffer (if any) associated with this command.
-  sycl::detail::pi::PiExtCommandBuffer getCommandBuffer() const {
+  ur_exp_command_buffer_handle_t getCommandBuffer() const {
     return MCommandBuffer;
   }
 
   /// CommandBuffer which will be used to submit to instead of the queue, if
   /// set.
-  sycl::detail::pi::PiExtCommandBuffer MCommandBuffer;
+  ur_exp_command_buffer_handle_t MCommandBuffer;
   /// List of sync points for submissions to a command buffer.
-  std::vector<sycl::detail::pi::PiExtSyncPoint> MSyncPointDeps;
+  std::vector<ur_exp_command_buffer_sync_point_t> MSyncPointDeps;
 };
 
 /// The empty command does nothing during enqueue. The task can be used to
@@ -427,7 +428,7 @@ public:
   bool producesPiEvent() const final;
 
 private:
-  pi_int32 enqueueImp() final;
+  ur_result_t enqueueImp() final;
 
   // Employing deque here as it allows to push_back/emplace_back without
   // invalidation of pointer or reference to stored data item regardless of
@@ -448,7 +449,7 @@ public:
   bool readyForCleanup() const final;
 
 private:
-  pi_int32 enqueueImp() final;
+  ur_result_t enqueueImp() final;
 
   /// Command which allocates memory release command should dealocate.
   AllocaCommandBase *MAllocaCmd = nullptr;
@@ -512,7 +513,7 @@ public:
   void emitInstrumentationData() override;
 
 private:
-  pi_int32 enqueueImp() final;
+  ur_result_t enqueueImp() final;
 
   /// The flag indicates that alloca should try to reuse pointer provided by
   /// the user during memory object construction.
@@ -533,7 +534,7 @@ public:
   void emitInstrumentationData() override;
 
 private:
-  pi_int32 enqueueImp() final;
+  ur_result_t enqueueImp() final;
 
   AllocaCommandBase *MParentAlloca = nullptr;
 };
@@ -549,7 +550,7 @@ public:
   void emitInstrumentationData() override;
 
 private:
-  pi_int32 enqueueImp() final;
+  ur_result_t enqueueImp() final;
 
   AllocaCommandBase *MSrcAllocaCmd = nullptr;
   Requirement MSrcReq;
@@ -569,7 +570,7 @@ public:
   bool producesPiEvent() const final;
 
 private:
-  pi_int32 enqueueImp() final;
+  ur_result_t enqueueImp() final;
 
   AllocaCommandBase *MDstAllocaCmd = nullptr;
   Requirement MDstReq;
@@ -591,7 +592,7 @@ public:
   bool producesPiEvent() const final;
 
 private:
-  pi_int32 enqueueImp() final;
+  ur_result_t enqueueImp() final;
 
   QueueImplPtr MSrcQueue;
   Requirement MSrcReq;
@@ -614,7 +615,7 @@ public:
   const ContextImplPtr &getWorkerContext() const final;
 
 private:
-  pi_int32 enqueueImp() final;
+  ur_result_t enqueueImp() final;
 
   QueueImplPtr MSrcQueue;
   Requirement MSrcReq;
@@ -623,21 +624,21 @@ private:
   void **MDstPtr = nullptr;
 };
 
-pi_int32
+ur_result_t
 enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
                          bool blocking, void *ptr, size_t size,
-                         std::vector<sycl::detail::pi::PiEvent> &RawEvents,
+                         std::vector<ur_event_handle_t> &RawEvents,
                          const detail::EventImplPtr &OutEventImpl, bool read);
 
-pi_int32 enqueueImpKernel(
+ur_result_t enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
     const std::string &KernelName,
-    std::vector<sycl::detail::pi::PiEvent> &RawEvents,
+    std::vector<ur_event_handle_t> &RawEvents,
     const detail::EventImplPtr &Event,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
+    ur_kernel_cache_config_t KernelCacheConfig,
     bool KernelIsCooperative);
 
 class KernelFusionCommand;
@@ -648,8 +649,8 @@ class ExecCGCommand : public Command {
 public:
   ExecCGCommand(
       std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue,
-      sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
-      const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies = {});
+      ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
+      const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies = {});
 
   std::vector<std::shared_ptr<const void>> getAuxiliaryResources() const;
 
@@ -679,9 +680,9 @@ public:
   bool readyForCleanup() const final;
 
 private:
-  pi_int32 enqueueImp() final;
-  pi_int32 enqueueImpCommandBuffer();
-  pi_int32 enqueueImpQueue();
+  ur_result_t enqueueImp() final;
+  ur_result_t enqueueImpCommandBuffer();
+  ur_result_t enqueueImpQueue();
 
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
 
@@ -712,7 +713,7 @@ public:
   void emitInstrumentationData() final;
 
 private:
-  pi_int32 enqueueImp() final;
+  ur_result_t enqueueImp() final;
 
   AllocaCommandBase *MSrcAllocaCmd = nullptr;
   Requirement MDstReq;
@@ -752,7 +753,7 @@ public:
   bool readyForDeletion() const { return MStatus == FusionStatus::DELETED; }
 
 private:
-  pi_int32 enqueueImp() final;
+  ur_result_t enqueueImp() final;
 
   std::vector<ExecCGCommand *> MFusionList;
 
@@ -774,7 +775,7 @@ public:
   bool producesPiEvent() const final;
 
 private:
-  pi_int32 enqueueImp() final;
+  ur_result_t enqueueImp() final;
 
   ext::oneapi::experimental::detail::exec_graph_impl *MGraph;
   std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
@@ -782,20 +783,20 @@ private:
 };
 
 // Enqueues a given kernel to a PiExtCommandBuffer
-pi_int32 enqueueImpCommandBufferKernel(
+ur_result_t enqueueImpCommandBufferKernel(
     context Ctx, DeviceImplPtr DeviceImpl,
-    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+    ur_exp_command_buffer_handle_t CommandBuffer,
     const CGExecKernel &CommandGroup,
-    std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints,
-    sycl::detail::pi::PiExtSyncPoint *OutSyncPoint,
-    sycl::detail::pi::PiExtCommandBufferCommand *OutCommand,
+    std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints,
+    ur_exp_command_buffer_sync_point_t *OutSyncPoint,
+    ur_exp_command_buffer_command_handle_t *OutCommand,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc);
 
 // Sets arguments for a given kernel and device based on the argument type.
 // Refactored from SetKernelParamsAndLaunch to allow it to be used in the graphs
 // extension.
 void SetArgBasedOnType(
-    const detail::plugin &Plugin, sycl::detail::pi::PiKernel Kernel,
+    const detail::PluginPtr &Plugin, ur_kernel_handle_t Kernel,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     const sycl::context &Context, bool IsHost, detail::ArgDesc &Arg,

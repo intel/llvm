@@ -65,7 +65,8 @@ queue::queue(cl_command_queue clQueue, const context &SyclContext,
              const async_handler &AsyncHandler) {
   const property_list PropList{};
   impl = std::make_shared<detail::queue_impl>(
-      reinterpret_cast<sycl::detail::pi::PiQueue>(clQueue),
+      // TODO(pi2ur): Don't cast straight from cl_command_queue
+      reinterpret_cast<ur_queue_handle_t>(clQueue),
       detail::getSyclObjImpl(SyclContext), AsyncHandler, PropList);
 }
 
@@ -325,7 +326,7 @@ bool queue::ext_oneapi_empty() const { return impl->ext_oneapi_empty(); }
 
 void queue::ext_oneapi_prod() { impl->flush(); }
 
-pi_native_handle queue::getNative(int32_t &NativeHandleDesc) const {
+ur_native_handle_t queue::getNative(int32_t &NativeHandleDesc) const {
   return impl->getNative(NativeHandleDesc);
 }
 

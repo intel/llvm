@@ -29,6 +29,8 @@
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 
+#include <ur_api.h>
+
 #include <cstddef>     // for size_t, nullptr_t
 #include <functional>  // for function
 #include <iterator>    // for iterator_traits
@@ -111,7 +113,7 @@ protected:
                std::unique_ptr<detail::SYCLMemObjAllocator> Allocator,
                bool IsConstPtr);
 
-  buffer_plain(pi_native_handle MemObject, context SyclContext,
+  buffer_plain(ur_native_handle_t MemObject, context SyclContext,
                std::unique_ptr<detail::SYCLMemObjAllocator> Allocator,
                bool OwnNativeHandle, event AvailableEvent);
 
@@ -134,7 +136,7 @@ protected:
 
   template <typename propertyT> propertyT get_property() const;
 
-  std::vector<pi_native_handle> getNativeVector(backend BackendName) const;
+  std::vector<ur_native_handle_t> getNativeVector(backend BackendName) const;
 
   const std::unique_ptr<SYCLMemObjAllocator> &get_allocator_internal() const;
 

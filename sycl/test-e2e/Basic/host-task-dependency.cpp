@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out %threads_lib
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s
 //
 // TODO: Behaviour is unstable for level zero on Windows. Enable when fixed.
 // TODO: The test is sporadically fails on CUDA. Enable when fixed.
@@ -179,15 +179,15 @@ int main() {
 }
 
 // launch of Gen kernel
-// CHECK:---> piKernelCreate(
+// CHECK:---> urKernelCreate(
 // CHECK: NameGen
-// CHECK:---> piEnqueueKernelLaunch(
+// CHECK:---> urEnqueueKernelLaunch(
 // prepare for host task
-// CHECK:---> piEnqueueMemBuffer{{Map|Read}}(
+// CHECK:---> urEnqueueMemBuffer{{Map|Read}}(
 // launch of Copier kernel
-// CHECK:---> piKernelCreate(
+// CHECK:---> urKernelCreate(
 // CHECK: Copier
-// CHECK:---> piEnqueueKernelLaunch(
+// CHECK:---> urEnqueueKernelLaunch(
 
 // CHECK:Third buffer [  0] = 0
 // CHECK:Third buffer [  1] = 1
