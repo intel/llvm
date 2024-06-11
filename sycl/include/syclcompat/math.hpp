@@ -155,7 +155,7 @@ template <typename T> sycl::vec<int16_t, 4> extractAndExtend4(T a) {
   sycl::vec<int16_t, 4> ret;
   sycl::vec<T, 1> va{a};
   using Tint =
-      typename std::conditional<std::is_signed_v<T>, int8_t, uint8_t>::type;
+std::conditional_t<std::is_signed_v<T>, int8_t, uint8_t>;
   auto v = va.template as<sycl::vec<Tint, 4>>();
   ret[0] = zero_or_signed_extend(v[0], 9);
   ret[1] = zero_or_signed_extend(v[1], 9);
