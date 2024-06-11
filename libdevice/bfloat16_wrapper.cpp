@@ -41,17 +41,17 @@ void __devicelib_ConvertBF16ToFINTELVec1(const uint16_t *src, float *dst) {
   void __devicelib_ConvertFToBF16INTELVec##size(const float *src,              \
                                                 uint16_t *dst) {               \
     __ocl_vec_t<float, size> x =                                               \
-        *reinterpret_cast<const __ocl_vec_t<float, size> *>(src);              \
+        *__builtin_bit_cast(const __ocl_vec_t<float, size> *, src);            \
     __ocl_vec_t<uint16_t, size> y = __spirv_ConvertFToBF16INTEL(x);            \
-    *reinterpret_cast<__ocl_vec_t<uint16_t, size> *>(dst) = y;                 \
+    *__builtin_bit_cast(__ocl_vec_t<uint16_t, size> *, dst) = y;               \
   }                                                                            \
   DEVICE_EXTERN_C_INLINE                                                       \
   void __devicelib_ConvertBF16ToFINTELVec##size(const uint16_t *src,           \
                                                 float *dst) {                  \
     __ocl_vec_t<uint16_t, size> x =                                            \
-        *reinterpret_cast<const __ocl_vec_t<uint16_t, size> *>(src);           \
+        *__builtin_bit_cast(const __ocl_vec_t<uint16_t, size> *, src);         \
     __ocl_vec_t<float, size> y = __spirv_ConvertBF16ToFINTEL(x);               \
-    *reinterpret_cast<__ocl_vec_t<float, size> *>(dst) = y;                    \
+    *__builtin_bit_cast(__ocl_vec_t<float, size> *, dst) = y;                  \
   }
 
 // clang-format off

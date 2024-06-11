@@ -76,27 +76,6 @@ template <int N> void BF16VecToFloatVec(const bfloat16 src[N], float dst[N]) {
 #endif
 }
 
-template <int N> void BF16VecToFloatVec(const uint16_t src[N], float dst[N]) {
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
-  if constexpr (N == 1)
-    __devicelib_ConvertBF16ToFINTELVec1(src, dst);
-  else if constexpr (N == 2)
-    __devicelib_ConvertBF16ToFINTELVec2(src, dst);
-  else if constexpr (N == 3)
-    __devicelib_ConvertBF16ToFINTELVec3(src, dst);
-  else if constexpr (N == 4)
-    __devicelib_ConvertBF16ToFINTELVec4(src, dst);
-  else if constexpr (N == 8)
-    __devicelib_ConvertBF16ToFINTELVec8(src, dst);
-  else if constexpr (N == 16)
-    __devicelib_ConvertBF16ToFINTELVec16(src, dst);
-#else
-  for (int i = 0; i < N; ++i) {
-    dst[i] = (float)detail::bitsToBfloat16(src[i]);
-  }
-#endif
-}
-
 template <int N> void FloatVecToBF16Vec(float src[N], bfloat16 dst[N]) {
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
   uint16_t *dst_i16 = sycl::bit_cast<uint16_t *>(dst);
@@ -117,27 +96,6 @@ template <int N> void FloatVecToBF16Vec(float src[N], bfloat16 dst[N]) {
     // No need to cast as bfloat16 has a assignment op overload that takes
     // a float.
     dst[i] = src[i];
-  }
-#endif
-}
-
-template <int N> void FloatVecToBF16Vec(float src[N], uint16_t dst[N]) {
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
-  if constexpr (N == 1)
-    __devicelib_ConvertFToBF16INTELVec1(src, dst);
-  else if constexpr (N == 2)
-    __devicelib_ConvertFToBF16INTELVec2(src, dst);
-  else if constexpr (N == 3)
-    __devicelib_ConvertFToBF16INTELVec3(src, dst);
-  else if constexpr (N == 4)
-    __devicelib_ConvertFToBF16INTELVec4(src, dst);
-  else if constexpr (N == 8)
-    __devicelib_ConvertFToBF16INTELVec8(src, dst);
-  else if constexpr (N == 16)
-    __devicelib_ConvertFToBF16INTELVec16(src, dst);
-#else
-  for (int i = 0; i < N; ++i) {
-    dst[i] = detail::bfloat16ToBits(bfloat16(src[i]));
   }
 #endif
 }
