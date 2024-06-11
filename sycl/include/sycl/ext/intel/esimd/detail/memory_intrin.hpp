@@ -1160,4 +1160,8 @@ __ESIMD_INTRIN void
 __esimd_nbarrier_arrive(uint8_t id, uint8_t thread_role, uint8_t num_producers,
                         uint8_t num_consumers) __ESIMD_INTRIN_END;
 
+__ESIMD_INTRIN uint32_t __esimd_slm_alloc(uint32_t size) __ESIMD_INTRIN_END;
+
+__ESIMD_INTRIN void __esimd_slm_free(uint32_t id) __ESIMD_INTRIN_END;
+
 /// @endcond ESIMD_DETAIL

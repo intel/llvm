@@ -133,12 +133,6 @@
 // CHECK-NEXT: nd_item.hpp
 // CHECK-NEXT: nd_range.hpp
 // CHECK-NEXT: sub_group.hpp
-// CHECK-NEXT: types.hpp
-// CHECK-NEXT: marray.hpp
-// CHECK-NEXT: vector.hpp
-// CHECK-NEXT: detail/memcpy.hpp
-// CHECK-NEXT: detail/vector_convert.hpp
-// CHECK-NEXT: swizzles.def
 // CHECK-NEXT: ext/oneapi/functional.hpp
 // CHECK-NEXT: detail/spirv.hpp
 // CHECK-NEXT: ext/oneapi/experimental/non_uniform_groups.hpp
@@ -148,6 +142,12 @@
 // CHECK-NEXT: builtins_utils_vec.hpp
 // CHECK-NEXT: builtins_utils_scalar.hpp
 // CHECK-NEXT: detail/boolean.hpp
+// CHECK-NEXT: marray.hpp
+// CHECK-NEXT: types.hpp
+// CHECK-NEXT: vector.hpp
+// CHECK-NEXT: detail/memcpy.hpp
+// CHECK-NEXT: detail/vector_convert.hpp
+// CHECK-NEXT: swizzles.def
 // CHECK-NEXT: detail/builtins/common_functions.inc
 // CHECK-NEXT: detail/builtins/helper_macros.hpp
 // CHECK-NEXT: detail/builtins/geometric_functions.inc
@@ -178,5 +178,6 @@
 // CHECK-NEXT: ext/oneapi/bindless_images_interop.hpp
 // CHECK-NEXT: ext/oneapi/bindless_images_mem_handle.hpp
 // CHECK-NEXT: ext/oneapi/experimental/use_root_sync_prop.hpp
+// CHECK-NEXT: ext/oneapi/experimental/virtual_functions.hpp
 // CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
 // CHECK-EMPTY:

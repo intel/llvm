@@ -165,7 +165,13 @@ protected:
   };
 };
 
+#ifdef _WIN32
+// Disabled on Windows due to flaky behavior
+// https://github.com/intel/llvm/issues/14060
+TEST_F(DependsOnTests, DISABLED_EnqueueNoMemObjTwoHostTasks) {
+#else
 TEST_F(DependsOnTests, EnqueueNoMemObjTwoHostTasks) {
+#endif
   // Checks enqueue of two dependent host tasks
   detail::QueueImplPtr QueueHostImpl = MS.getDefaultHostQueue();
   std::vector<EventImplPtr> Events;

@@ -75,11 +75,16 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
         tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
       return()
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -95,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 85771876a5c2a13e3b24c048f0c0d81720d47ccc
-  # Merge: 42d72b66 00edaab9
+  # commit 4f105262c30ac231b8db1e250f36e88ef9f0a36d
+  # Merge: 0f118d75 92fce2ee
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue May 21 10:15:03 2024 +0100
-  #     Merge pull request #1401 from ph0b/patch-1
-  #     [UR][L0] Return device version based on DeviceIpVersion
-  set(UNIFIED_RUNTIME_TAG 85771876a5c2a13e3b24c048f0c0d81720d47ccc)
+  # Date:   Mon Jun 10 13:23:16 2024 +0100
+  #     Merge pull request #1409 from omarahmed1111/Add-CTS-tests-for-image-format
+  #     [CTS] Add CTS tests for urMemImageCreate entry-point
+  set(UNIFIED_RUNTIME_TAG 4f105262c30ac231b8db1e250f36e88ef9f0a36d)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -115,13 +120,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    # commit d3502dc1c1eac924736fc08529e4d5f149648fd1
-    # Merge: c911a9b6 71420060
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed May 22 10:38:34 2024 +0100
-    #     Merge pull request #1565 from hdelan/cuda-multi-dev-ctx
-    #     [CUDA] CUDA adapter multi device context
-    d3502dc1c1eac924736fc08529e4d5f149648fd1
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(hip

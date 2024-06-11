@@ -11,6 +11,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <sstream>
 #include <sycl/detail/core.hpp>
 
 using namespace sycl;

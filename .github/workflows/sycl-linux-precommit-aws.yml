@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   create-check:
-    runs-on: [Linux, build]
+    runs-on: [Linux, aux-tasks]
     permissions:
       checks: write
       statuses: write
@@ -64,7 +64,7 @@ jobs:
     with:
       name: CUDA E2E
       runner: '["aws_cuda-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}"]'
-      image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+      image: ghcr.io/intel/llvm/ubuntu2204_build:latest-0300ac924620a51f76c4929794637b82790f12ab
       image_options: -u 1001 --gpus all --cap-add SYS_ADMIN --env NVIDIA_DISABLE_REQUIRE=1
       target_devices: ext_oneapi_cuda:gpu
       # No idea why but that seems to work and be in sync with the main
@@ -79,7 +79,7 @@ jobs:
   update-check:
     needs: [create-check, e2e-cuda]
     if: always()
-    runs-on: [Linux, build]
+    runs-on: [Linux, aux-tasks]
     permissions:
       checks: write
       statuses: write

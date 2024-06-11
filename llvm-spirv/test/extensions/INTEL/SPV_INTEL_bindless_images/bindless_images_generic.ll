@@ -30,7 +30,7 @@ target triple = "spir64-unknown-unknown"
 
 ; CHECK-LLVM: call spir_func target("spirv.Image", i64, 2, 0, 0, 0, 0, 0, 0) @_Z76__spirv_ConvertHandleToImageINTEL_RPU3AS133__spirv_Image__long_2_0_0_0_0_0_0m(i64 %{{.*}})
 ; CHECK-LLVM: call spir_func target("spirv.Sampler") @_Z35__spirv_ConvertHandleToSamplerINTELm(i64 42)
-; CHECK-LLVM: call spir_func target("spirv.SampledImage", i64, 1, 0, 0, 0, 0, 0, 0) @_Z40__spirv_ConvertHandleToSampledImageINTELm(i64 43)
+; CHECK-LLVM: call spir_func target("spirv.SampledImage", i64, 1, 0, 0, 0, 0, 0, 0) @_Z90__spirv_ConvertHandleToSampledImageINTEL_RPU3AS140__spirv_SampledImage__long_1_0_0_0_0_0_0m(i64 43)
 
 define spir_func void @foo(i64 %in) {
   %img = call spir_func target("spirv.Image", i64, 2, 0, 0, 0, 0, 0, 0) @_Z33__spirv_ConvertHandleToImageINTELl(i64 %in)

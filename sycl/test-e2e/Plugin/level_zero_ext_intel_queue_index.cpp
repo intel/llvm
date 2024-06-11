@@ -1,6 +1,11 @@
 // REQUIRES: aspect-ext_intel_device_id
 // REQUIRES: level_zero
+// UNSUPPORTED: gpu-intel-pvc-1T
 // RUN: %{build} -o %t.out
+
+// TODO: at this time PVC 1T systems are not correctly supporting CSLICE
+// affinity partitioning So the test is marked as UNSUPPORTED until that is
+// fixed.
 
 // TODO - at this time ZEX_NUMBER_OF_CCS is not working with FLAT hierachy,
 // which is the new default on PVC.  Once it is supported, we'll test on both.
