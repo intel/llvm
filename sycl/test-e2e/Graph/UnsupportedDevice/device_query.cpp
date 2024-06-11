@@ -17,7 +17,7 @@ int main() {
   bool SupportsLimitedGraphs = Device.has(aspect::ext_oneapi_limited_graph);
   auto Backend = Device.get_backend();
 
-  if ((Backend == backend::ext_oneapi_level_zero)) {
+  if (Backend == backend::ext_oneapi_level_zero) {
     assert(!SupportsGraphs);
     assert(SupportsLimitedGraphs);
 
