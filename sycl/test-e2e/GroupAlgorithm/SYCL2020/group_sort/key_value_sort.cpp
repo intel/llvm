@@ -131,7 +131,7 @@ void RunSortKeyValueOverGroup(sycl::queue &Q,
                  return id.get_group();
              }();
 
-             // Each sub-group should use it's own part of the scratch pad
+             // Each sub-group should use its own part of the scratch pad
              const size_t ScratchShiftDefault =
                  UseGroup == UseGroupT::SubGroup
                      ? id.get_sub_group().get_group_linear_id() *
@@ -169,7 +169,7 @@ void RunSortKeyValueOverGroup(sycl::queue &Q,
                          sycl::span{ScratchPtrDefault,
                                     LocalMemorySizeDefault})); // (6)
 
-             // Each sub-group should use it's own part of the scratch pad
+             // Each sub-group should use its own part of the scratch pad
              const size_t ScratchShiftRadix =
                  UseGroup == UseGroupT::SubGroup
                      ? id.get_sub_group().get_group_linear_id() *
