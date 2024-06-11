@@ -1,5 +1,5 @@
 // REQUIRES: level_zero
-// RUN: %clangxx -fsycl --offload-new-driver -o %t.out
+// RUN: %clangxx -fsycl --offload-new-driver %s -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
