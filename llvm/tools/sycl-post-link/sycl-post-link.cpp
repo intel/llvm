@@ -418,12 +418,7 @@ std::string saveModuleIR(Module &M, int I, StringRef Suff) {
 }
 
 bool isImportedFunction(const Function &F) {
-
-  if ( // Functions with definitions are not imported
-      !F.isDeclaration() ||
-      // LLVM intrinsic functions cannot be imported
-      F.isIntrinsic() ||
-      // Only SYCL External functions can be imported
+  if (!F.isDeclaration() || F.isIntrinsic() ||
       !llvm::sycl::utils::isSYCLExternalFunction(&F))
     return false;
 
