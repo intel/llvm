@@ -762,7 +762,7 @@ public:
   unsigned int get_global_mem_cache_size() const;
   int get_image1d_max() const;
   auto get_image2d_max() const;
-  auto get_image2d_max() ;
+  auto get_image2d_max();
   auto get_image3d_max() const;
   auto get_image3d_max();
 
@@ -1501,9 +1501,9 @@ The `funnelshift_*` APIs perform a concatenate-shift operation on two 32-bit
 values, and return a 32-bit result. The two unsigned integer arguments (`low`
 and `high`) are concatenated to a 64-bit value which is then shifted left or
 right by `shift` bits. The functions then return either the least- or
-most-significant 32 bits. The `_l*` variants shift _left_ and return the _most_
-significant 32 bits, while the `_r*` variants shift _right_ and return the
-_least_ significant 32 bits. The `_l`/`_r` APIs differ from the `_lc`/`_rc` APIs
+most-significant 32 bits. The `_l*` variants shift *left* and return the *most*
+significant 32 bits, while the `_r*` variants shift *right* and return the
+*least* significant 32 bits. The `_l`/`_r` APIs differ from the `_lc`/`_rc` APIs
 in how they clamp the `shift` argument: `funnelshift_l` and `funnelshift_r`
 shift the result by `shift & 31` bits, whereas `funnelshift_lc` and
 `funnelshift_rc` shift the result by `min(shift, 32)` bits.
@@ -1882,13 +1882,13 @@ inline constexpr RetT extend_max_sat(AT a, BT b, CT c,
                                      BinaryOperation second_op);
 ```
 
-Another set of vectorized extend 32-bit operations is provided in the math
-header.These APIs treat each of the 32-bit operands as 2-elements vector
-(16-bits each) while handling sign extension to 17-bits internally. There is
-support for `add`, `sub`, `absdiff`, `min`, `max` and `avg` binary operations.
-Each operation provides has a `_sat` variat which determines if the returning
-value is saturated or not, and a `_add` variant that computes the binary sum
-of the the initial operation outputs and a third operand.
+Another set of vectorized extend 32-bit operations is provided in the math 
+header.These APIs treat each of the 32-bit operands as 2-elements vector 
+(16-bits each) while handling sign extension to 17-bits internally. There is 
+support for `add`, `sub`, `absdiff`, `min`, `max` and `avg` binary operations. 
+Each operation provides has a `_sat` variat which determines if the returning 
+value is saturated or not, and a `_add` variant that computes the binary sum 
+of the the initial operation outputs and a third operand. 
 
 ```cpp
 /// Compute vectorized addition of \p a and \p b, with each value treated as a
