@@ -123,6 +123,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnSetArgValue = urKernelSetArgValue;
   pDdiTable->pfnSetExecInfo = urKernelSetExecInfo;
   pDdiTable->pfnSetSpecializationConstants = urKernelSetSpecializationConstants;
+  pDdiTable->pfnGetSuggestedLocalWorkSize = urKernelGetSuggestedLocalWorkSize;
   return UR_RESULT_SUCCESS;
 }
 

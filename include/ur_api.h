@@ -223,6 +223,8 @@ typedef enum ur_function_t {
     UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP = 221,                             ///< Enumerator for ::urCommandBufferGetInfoExp
     UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP = 222,                     ///< Enumerator for ::urCommandBufferCommandGetInfoExp
     UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP = 223,                         ///< Enumerator for ::urEnqueueTimestampRecordingExp
+    UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP = 224,                        ///< Enumerator for ::urEnqueueKernelLaunchCustomExp
+    UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE = 225,                    ///< Enumerator for ::urKernelGetSuggestedLocalWorkSize
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -450,51 +452,50 @@ typedef enum ur_result_t {
                                                                               ///< device
     UR_RESULT_ERROR_INVALID_IMAGE_SIZE = 33,                                  ///< Invalid image size
     UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR = 34,                     ///< Invalid image format descriptor
-    UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED = 35,                          ///< Image format not supported
-    UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE = 36,                       ///< Memory object allocation failure
-    UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE = 37,                          ///< Program object parameter is invalid.
-    UR_RESULT_ERROR_UNINITIALIZED = 38,                                       ///< [Validation] adapter is not initialized or specific entry-point is not
+    UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE = 35,                       ///< Memory object allocation failure
+    UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE = 36,                          ///< Program object parameter is invalid.
+    UR_RESULT_ERROR_UNINITIALIZED = 37,                                       ///< [Validation] adapter is not initialized or specific entry-point is not
                                                                               ///< implemented
-    UR_RESULT_ERROR_OUT_OF_HOST_MEMORY = 39,                                  ///< Insufficient host memory to satisfy call
-    UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY = 40,                                ///< Insufficient device memory to satisfy call
-    UR_RESULT_ERROR_OUT_OF_RESOURCES = 41,                                    ///< Out of resources
-    UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE = 42,                               ///< Error occurred when building program, see build log for details
-    UR_RESULT_ERROR_PROGRAM_LINK_FAILURE = 43,                                ///< Error occurred when linking programs, see build log for details
-    UR_RESULT_ERROR_UNSUPPORTED_VERSION = 44,                                 ///< [Validation] generic error code for unsupported versions
-    UR_RESULT_ERROR_UNSUPPORTED_FEATURE = 45,                                 ///< [Validation] generic error code for unsupported features
-    UR_RESULT_ERROR_INVALID_ARGUMENT = 46,                                    ///< [Validation] generic error code for invalid arguments
-    UR_RESULT_ERROR_INVALID_NULL_HANDLE = 47,                                 ///< [Validation] handle argument is not valid
-    UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE = 48,                                ///< [Validation] object pointed to by handle still in-use by device
-    UR_RESULT_ERROR_INVALID_NULL_POINTER = 49,                                ///< [Validation] pointer argument may not be nullptr
-    UR_RESULT_ERROR_INVALID_SIZE = 50,                                        ///< [Validation] invalid size or dimensions (e.g., must not be zero, or is
+    UR_RESULT_ERROR_OUT_OF_HOST_MEMORY = 38,                                  ///< Insufficient host memory to satisfy call
+    UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY = 39,                                ///< Insufficient device memory to satisfy call
+    UR_RESULT_ERROR_OUT_OF_RESOURCES = 40,                                    ///< Out of resources
+    UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE = 41,                               ///< Error occurred when building program, see build log for details
+    UR_RESULT_ERROR_PROGRAM_LINK_FAILURE = 42,                                ///< Error occurred when linking programs, see build log for details
+    UR_RESULT_ERROR_UNSUPPORTED_VERSION = 43,                                 ///< [Validation] generic error code for unsupported versions
+    UR_RESULT_ERROR_UNSUPPORTED_FEATURE = 44,                                 ///< [Validation] generic error code for unsupported features
+    UR_RESULT_ERROR_INVALID_ARGUMENT = 45,                                    ///< [Validation] generic error code for invalid arguments
+    UR_RESULT_ERROR_INVALID_NULL_HANDLE = 46,                                 ///< [Validation] handle argument is not valid
+    UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE = 47,                                ///< [Validation] object pointed to by handle still in-use by device
+    UR_RESULT_ERROR_INVALID_NULL_POINTER = 48,                                ///< [Validation] pointer argument may not be nullptr
+    UR_RESULT_ERROR_INVALID_SIZE = 49,                                        ///< [Validation] invalid size or dimensions (e.g., must not be zero, or is
                                                                               ///< out of bounds)
-    UR_RESULT_ERROR_UNSUPPORTED_SIZE = 51,                                    ///< [Validation] size argument is not supported by the device (e.g., too
+    UR_RESULT_ERROR_UNSUPPORTED_SIZE = 50,                                    ///< [Validation] size argument is not supported by the device (e.g., too
                                                                               ///< large)
-    UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT = 52,                               ///< [Validation] alignment argument is not supported by the device (e.g.,
+    UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT = 51,                               ///< [Validation] alignment argument is not supported by the device (e.g.,
                                                                               ///< too small)
-    UR_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT = 53,                      ///< [Validation] synchronization object in invalid state
-    UR_RESULT_ERROR_INVALID_ENUMERATION = 54,                                 ///< [Validation] enumerator argument is not valid
-    UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION = 55,                             ///< [Validation] enumerator argument is not supported by the device
-    UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT = 56,                            ///< [Validation] image format is not supported by the device
-    UR_RESULT_ERROR_INVALID_NATIVE_BINARY = 57,                               ///< [Validation] native binary is not supported by the device
-    UR_RESULT_ERROR_INVALID_GLOBAL_NAME = 58,                                 ///< [Validation] global variable is not found in the program
-    UR_RESULT_ERROR_INVALID_FUNCTION_NAME = 59,                               ///< [Validation] function name is not found in the program
-    UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION = 60,                        ///< [Validation] group size dimension is not valid for the kernel or
+    UR_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT = 52,                      ///< [Validation] synchronization object in invalid state
+    UR_RESULT_ERROR_INVALID_ENUMERATION = 53,                                 ///< [Validation] enumerator argument is not valid
+    UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION = 54,                             ///< [Validation] enumerator argument is not supported by the device
+    UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT = 55,                            ///< [Validation] image format is not supported by the device
+    UR_RESULT_ERROR_INVALID_NATIVE_BINARY = 56,                               ///< [Validation] native binary is not supported by the device
+    UR_RESULT_ERROR_INVALID_GLOBAL_NAME = 57,                                 ///< [Validation] global variable is not found in the program
+    UR_RESULT_ERROR_INVALID_FUNCTION_NAME = 58,                               ///< [Validation] function name is not found in the program
+    UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION = 59,                        ///< [Validation] group size dimension is not valid for the kernel or
                                                                               ///< device
-    UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION = 61,                      ///< [Validation] global width dimension is not valid for the kernel or
+    UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION = 60,                      ///< [Validation] global width dimension is not valid for the kernel or
                                                                               ///< device
-    UR_RESULT_ERROR_PROGRAM_UNLINKED = 62,                                    ///< [Validation] compiled program or program with imports needs to be
+    UR_RESULT_ERROR_PROGRAM_UNLINKED = 61,                                    ///< [Validation] compiled program or program with imports needs to be
                                                                               ///< linked before kernels can be created from it.
-    UR_RESULT_ERROR_OVERLAPPING_REGIONS = 63,                                 ///< [Validation] copy operations do not support overlapping regions of
+    UR_RESULT_ERROR_OVERLAPPING_REGIONS = 62,                                 ///< [Validation] copy operations do not support overlapping regions of
                                                                               ///< memory
-    UR_RESULT_ERROR_INVALID_HOST_PTR = 64,                                    ///< Invalid host pointer
-    UR_RESULT_ERROR_INVALID_USM_SIZE = 65,                                    ///< Invalid USM size
-    UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE = 66,                           ///< Objection allocation failure
-    UR_RESULT_ERROR_ADAPTER_SPECIFIC = 67,                                    ///< An adapter specific warning/error has been reported and can be
+    UR_RESULT_ERROR_INVALID_HOST_PTR = 63,                                    ///< Invalid host pointer
+    UR_RESULT_ERROR_INVALID_USM_SIZE = 64,                                    ///< Invalid USM size
+    UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE = 65,                           ///< Objection allocation failure
+    UR_RESULT_ERROR_ADAPTER_SPECIFIC = 66,                                    ///< An adapter specific warning/error has been reported and can be
                                                                               ///< retrieved via the urPlatformGetLastError entry point.
-    UR_RESULT_ERROR_LAYER_NOT_PRESENT = 68,                                   ///< A requested layer was not found by the loader.
-    UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS = 69,                           ///< An event in the provided wait list has ::UR_EVENT_STATUS_ERROR.
-    UR_RESULT_ERROR_DEVICE_NOT_AVAILABLE = 70,                                ///< Device in question has `::UR_DEVICE_INFO_AVAILABLE == false`
+    UR_RESULT_ERROR_LAYER_NOT_PRESENT = 67,                                   ///< A requested layer was not found by the loader.
+    UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS = 68,                           ///< An event in the provided wait list has ::UR_EVENT_STATUS_ERROR.
+    UR_RESULT_ERROR_DEVICE_NOT_AVAILABLE = 69,                                ///< Device in question has `::UR_DEVICE_INFO_AVAILABLE == false`
     UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP = 0x1000,                      ///< Invalid Command-Buffer
     UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP = 0x1001,           ///< Sync point is not valid for the command-buffer
     UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP = 0x1002, ///< Sync point wait list is invalid
@@ -2440,13 +2441,11 @@ typedef enum ur_mem_flag_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Memory types
 typedef enum ur_mem_type_t {
-    UR_MEM_TYPE_BUFFER = 0,                 ///< Buffer object
-    UR_MEM_TYPE_IMAGE2D = 1,                ///< 2D image object
-    UR_MEM_TYPE_IMAGE3D = 2,                ///< 3D image object
-    UR_MEM_TYPE_IMAGE2D_ARRAY = 3,          ///< 2D image array object
-    UR_MEM_TYPE_IMAGE1D = 4,                ///< 1D image object
-    UR_MEM_TYPE_IMAGE1D_ARRAY = 5,          ///< 1D image array object
-    UR_MEM_TYPE_IMAGE1D_BUFFER = 6,         ///< 1D image buffer object
+    UR_MEM_TYPE_IMAGE2D = 0,                ///< 2D image object
+    UR_MEM_TYPE_IMAGE3D = 1,                ///< 3D image object
+    UR_MEM_TYPE_IMAGE2D_ARRAY = 2,          ///< 2D image array object
+    UR_MEM_TYPE_IMAGE1D = 3,                ///< 1D image object
+    UR_MEM_TYPE_IMAGE1D_ARRAY = 4,          ///< 1D image array object
     UR_MEM_TYPE_IMAGE_CUBEMAP_EXP = 0x2000, ///< Experimental cubemap image object
     /// @cond
     UR_MEM_TYPE_FORCE_UINT32 = 0x7fffffff
@@ -2557,6 +2556,22 @@ typedef struct ur_image_desc_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Create an image object
 ///
+/// @details
+///     - The primary ::ur_image_format_t that must be supported by all the
+///       adapters are {UR_IMAGE_CHANNEL_ORDER_RGBA,
+///       UR_IMAGE_CHANNEL_TYPE_UNORM_INT8},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNORM_INT16},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SNORM_INT8},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SNORM_INT16},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_FLOAT}.
+///
 /// @remarks
 ///   _Analogues_
 ///     - **clCreateImage**
@@ -2577,12 +2592,13 @@ typedef struct ur_image_desc_t {
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///     - ::UR_RESULT_ERROR_INVALID_HOST_PTR
 ///         + `pHost == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0`
 ///         + `pHost != NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) == 0`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -5229,6 +5245,43 @@ urKernelCreateWithNativeHandle(
     ur_kernel_handle_t *phKernel                      ///< [out] pointer to the handle of the kernel object created.
 );
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the suggested local work size for a kernel.
+///
+/// @details
+///     - Query a suggested local work size for a kernel given a global size for
+///       each dimension.
+///     - The application may call this function from simultaneous threads for
+///       the same context.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalWorkOffset`
+///         + `NULL == pGlobalWorkSize`
+///         + `NULL == pSuggestedLocalWorkSize`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelGetSuggestedLocalWorkSize(
+    ur_kernel_handle_t hKernel,      ///< [in] handle of the kernel
+    ur_queue_handle_t hQueue,        ///< [in] handle of the queue object
+    uint32_t numWorkDim,             ///< [in] number of dimensions, from 1 to 3, to specify the global
+                                     ///< and work-group work-items
+    const size_t *pGlobalWorkOffset, ///< [in] pointer to an array of numWorkDim unsigned values that specify
+                                     ///< the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkSize,   ///< [in] pointer to an array of numWorkDim unsigned values that specify
+                                     ///< the number of global work-items in workDim that will execute the
+                                     ///< kernel function
+    size_t *pSuggestedLocalWorkSize  ///< [out] pointer to an array of numWorkDim unsigned values that specify
+                                     ///< suggested local work size that will contain the result of the query
+);
+
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
@@ -7498,7 +7551,7 @@ urBindlessImagesSampledImageHandleDestroyExp(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -7558,7 +7611,7 @@ urBindlessImagesImageFreeExp(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -7595,7 +7648,7 @@ urBindlessImagesUnsampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_SAMPLER
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
@@ -7637,7 +7690,7 @@ urBindlessImagesSampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -7798,7 +7851,7 @@ urBindlessImagesImportOpaqueFDExp(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -8703,7 +8756,9 @@ urCommandBufferReleaseCommandExp(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Update a kernel launch command in a finalized command-buffer.
+/// @brief Update a kernel launch command in a finalized command-buffer. This
+///        entry-point is synchronous and may block if the command-buffer is
+///        executing when the entry-point is called.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -8933,6 +8988,133 @@ urEnqueueTimestampRecordingExp(
                                               ///< reports the timestamp at the time of the call to this function.
                                               ///< Querying `UR_PROFILING_INFO_COMMAND_START` or `UR_PROFILING_INFO_COMMAND_END`
                                               ///< reports the timestamp recorded when the command is executed on the device.
+);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
+// Intel 'oneAPI' Unified Runtime Experimental APIs for (kernel) Launch Properties
+#if !defined(__GNUC__)
+#pragma region launch properties(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+#ifndef UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP
+/// @brief The extension string that defines support for the Launch Properties
+///        extension, which is returned when querying device extensions.
+#define UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP "ur_exp_launch_properties"
+#endif // UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Specifies a launch property id
+///
+/// @remarks
+///   _Analogues_
+///     - **CUlaunchAttributeID**
+typedef enum ur_exp_launch_property_id_t {
+    UR_EXP_LAUNCH_PROPERTY_ID_IGNORE = 0,            ///< The property has no effect
+    UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE = 1,       ///< Whether to launch a cooperative kernel
+    UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION = 2, ///< work-group cluster dimensions
+    /// @cond
+    UR_EXP_LAUNCH_PROPERTY_ID_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_exp_launch_property_id_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Specifies a launch property value
+///
+/// @remarks
+///   _Analogues_
+///     - **CUlaunchAttributeValue**
+typedef union ur_exp_launch_property_value_t {
+    uint32_t clusterDim[3]; ///< [in] dimensions of the cluster (units of work-group) (x, y, z). Each
+                            ///< value must be a divisor of the corresponding global work-size
+                            ///< dimension (in units of work-group).
+    int cooperative;        ///< [in] non-zero value indicates a cooperative kernel
+
+} ur_exp_launch_property_value_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Kernel launch property
+///
+/// @remarks
+///   _Analogues_
+///     - **cuLaunchAttribute**
+typedef struct ur_exp_launch_property_t {
+    ur_exp_launch_property_id_t id;       ///< [in] launch property id
+    ur_exp_launch_property_value_t value; ///< [in][tagged_by(id)] launch property value
+
+} ur_exp_launch_property_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Launch kernel with custom launch properties
+///
+/// @details
+///     - Launches the kernel using the specified launch properties
+///     - If numPropsInLaunchPropList == 0 then a regular kernel launch is used:
+///       `urEnqueueKernelLaunch`
+///     - Consult the appropriate adapter driver documentation for details of
+///       adapter specific behavior and native error codes that may be returned.
+///
+/// @remarks
+///   _Analogues_
+///     - **cuLaunchKernelEx**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///         + `NULL == hKernel`
+///         + NULL == hQueue
+///         + NULL == hKernel
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalWorkSize`
+///         + `NULL == launchPropList`
+///         + NULL == pGlobalWorkSize
+///         + numPropsInLaunchpropList != 0 && launchPropList == NULL
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + phEventWaitList == NULL && numEventsInWaitList > 0
+///         + phEventWaitList != NULL && numEventsInWaitList == 0
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in phEventWaitList has ::UR_EVENT_STATUS_ERROR
+///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
+///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL
+urEnqueueKernelLaunchCustomExp(
+    ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
+    ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
+    uint32_t workDim,                               ///< [in] number of dimensions, from 1 to 3, to specify the global and
+                                                    ///< work-group work-items
+    const size_t *pGlobalWorkSize,                  ///< [in] pointer to an array of workDim unsigned values that specify the
+                                                    ///< number of global work-items in workDim that will execute the kernel
+                                                    ///< function
+    const size_t *pLocalWorkSize,                   ///< [in][optional] pointer to an array of workDim unsigned values that
+                                                    ///< specify the number of local work-items forming a work-group that will
+                                                    ///< execute the kernel function. If nullptr, the runtime implementation
+                                                    ///< will choose the work-group size.
+    uint32_t numPropsInLaunchPropList,              ///< [in] size of the launch prop list
+    const ur_exp_launch_property_t *launchPropList, ///< [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
+                                                    ///< properties
+    uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
+    const ur_event_handle_t *phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                    ///< events that must be complete before the kernel execution. If nullptr,
+                                                    ///< the numEventsInWaitList must be 0, indicating that no wait event.
+    ur_event_handle_t *phEvent                      ///< [out][optional] return an event object that identifies this particular
+                                                    ///< kernel execution instance.
 );
 
 #if !defined(__GNUC__)
@@ -9816,6 +9998,19 @@ typedef struct ur_kernel_create_with_native_handle_params_t {
 } ur_kernel_create_with_native_handle_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urKernelGetSuggestedLocalWorkSize
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_kernel_get_suggested_local_work_size_params_t {
+    ur_kernel_handle_t *phKernel;
+    ur_queue_handle_t *phQueue;
+    uint32_t *pnumWorkDim;
+    const size_t **ppGlobalWorkOffset;
+    const size_t **ppGlobalWorkSize;
+    size_t **ppSuggestedLocalWorkSize;
+} ur_kernel_get_suggested_local_work_size_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urKernelSetArgValue
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -10628,6 +10823,23 @@ typedef struct ur_enqueue_write_host_pipe_params_t {
     const ur_event_handle_t **pphEventWaitList;
     ur_event_handle_t **pphEvent;
 } ur_enqueue_write_host_pipe_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEnqueueKernelLaunchCustomExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_kernel_launch_custom_exp_params_t {
+    ur_queue_handle_t *phQueue;
+    ur_kernel_handle_t *phKernel;
+    uint32_t *pworkDim;
+    const size_t **ppGlobalWorkSize;
+    const size_t **ppLocalWorkSize;
+    uint32_t *pnumPropsInLaunchPropList;
+    const ur_exp_launch_property_t **plaunchPropList;
+    uint32_t *pnumEventsInWaitList;
+    const ur_event_handle_t **pphEventWaitList;
+    ur_event_handle_t **pphEvent;
+} ur_enqueue_kernel_launch_custom_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urEnqueueCooperativeKernelLaunchExp

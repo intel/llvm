@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "device.hpp"
+#include "adapter.hpp"
 #include "context.hpp"
 #include "event.hpp"
 
@@ -18,6 +19,18 @@ int getAttribute(ur_device_handle_t Device, hipDeviceAttribute_t Attribute) {
   int Value;
   UR_CHECK_ERROR(hipDeviceGetAttribute(&Value, Attribute, Device->get()));
   return Value;
+}
+
+uint64_t ur_device_handle_t_::getElapsedTime(hipEvent_t ev) const {
+  float Milliseconds = 0.0f;
+
+  // hipEventSynchronize waits till the event is ready for call to
+  // hipEventElapsedTime.
+  UR_CHECK_ERROR(hipEventSynchronize(EvBase));
+  UR_CHECK_ERROR(hipEventSynchronize(ev));
+  UR_CHECK_ERROR(hipEventElapsedTime(&Milliseconds, EvBase, ev));
+
+  return static_cast<uint64_t>(Milliseconds * 1.0e6);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
@@ -177,7 +190,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     int WarpSize = 0;
     UR_CHECK_ERROR(hipDeviceGetAttribute(&WarpSize, hipDeviceAttributeWarpSize,
                                          hDevice->get()));
-    size_t Sizes[1] = {static_cast<size_t>(WarpSize)};
+    uint32_t Sizes[1] = {static_cast<uint32_t>(WarpSize)};
     return ReturnValue(Sizes, 1);
   }
   case UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY: {
@@ -321,7 +334,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(static_cast<size_t>(Min));
   }
   case UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE: {
-    return ReturnValue(0lu);
+    return ReturnValue(size_t(0));
   }
   case UR_DEVICE_INFO_MAX_SAMPLERS: {
     // This call is kind of meaningless for HIP, as samplers don't exist.
@@ -331,7 +344,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MAX_PARAMETER_SIZE: {
     // __global__ function parameters are passed to the device via constant
     // memory and are limited to 4 KB.
-    return ReturnValue(4000lu);
+    return ReturnValue(size_t(4000));
   }
   case UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN: {
     int MemBaseAddrAlign = 0;
@@ -442,7 +455,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION: {
     // Hard coded to value returned by clinfo for OpenCL 1.2 HIP | GeForce GTX
     // 1060 3GB
-    return ReturnValue(1000lu);
+    return ReturnValue(size_t(1000));
   }
   case UR_DEVICE_INFO_ENDIAN_LITTLE: {
     return ReturnValue(true);
@@ -569,7 +582,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_PRINTF_BUFFER_SIZE: {
     // The minimum value for the FULL profile is 1 MB.
-    return ReturnValue(1024lu);
+    return ReturnValue(size_t(1024));
   }
   case UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC: {
     return ReturnValue(true);
@@ -761,6 +774,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(int32_t{1});
   }
 
+  case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS: {
+    return ReturnValue(ur_bool_t{false});
+  }
+
   case UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
     ur_memory_order_capability_flags_t Capabilities =
         UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
@@ -775,9 +792,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // Because scopes are hierarchical, wider scopes support all narrower
     // scopes. At a minimum, each device must support WORK_ITEM, SUB_GROUP and
     // WORK_GROUP. (https://github.com/KhronosGroup/SYCL-Docs/pull/382)
-    uint64_t Capabilities = UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
-                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
-                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP;
+    ur_memory_scope_capability_flags_t Capabilities =
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP;
     return ReturnValue(Capabilities);
   }
   case UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
@@ -950,8 +968,57 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
-    ur_native_handle_t, ur_platform_handle_t,
-    const ur_device_native_properties_t *, ur_device_handle_t *) {
+    ur_native_handle_t hNativeDevice, ur_platform_handle_t hPlatform,
+    [[maybe_unused]] const ur_device_native_properties_t *pProperties,
+    ur_device_handle_t *phDevice) {
+  // We can't cast between ur_native_handle_t and hipDevice_t, so memcpy the
+  // bits instead
+  hipDevice_t HIPDevice = 0;
+  memcpy(&HIPDevice, &hNativeDevice, sizeof(hipDevice_t));
+
+  auto IsDevice = [=](std::unique_ptr<ur_device_handle_t_> &Dev) {
+    return Dev->get() == HIPDevice;
+  };
+
+  // If a platform is provided just check if the device is in it
+  if (hPlatform) {
+    auto SearchRes = std::find_if(begin(hPlatform->Devices),
+                                  end(hPlatform->Devices), IsDevice);
+    if (SearchRes != end(hPlatform->Devices)) {
+      *phDevice = SearchRes->get();
+      return UR_RESULT_SUCCESS;
+    }
+  }
+
+  // Get list of platforms
+  uint32_t NumPlatforms = 0;
+  ur_adapter_handle_t AdapterHandle = &adapter;
+  ur_result_t Result =
+      urPlatformGet(&AdapterHandle, 1, 0, nullptr, &NumPlatforms);
+  if (Result != UR_RESULT_SUCCESS)
+    return Result;
+
+  // We can only have a maximum of one platform.
+  if (NumPlatforms != 1)
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+
+  ur_platform_handle_t Platform = nullptr;
+
+  Result = urPlatformGet(&AdapterHandle, 1, NumPlatforms, &Platform, nullptr);
+  if (Result != UR_RESULT_SUCCESS)
+    return Result;
+
+  // Iterate through the platform's devices to find the device that matches
+  // nativeHandle
+  auto SearchRes = std::find_if(std::begin(Platform->Devices),
+                                std::end(Platform->Devices), IsDevice);
+  if (SearchRes != end(Platform->Devices)) {
+    *phDevice = static_cast<ur_device_handle_t>((*SearchRes).get());
+    return UR_RESULT_SUCCESS;
+  }
+
+  // If the provided nativeHandle cannot be matched to an
+  // existing device return error
   return UR_RESULT_ERROR_INVALID_OPERATION;
 }
 
@@ -995,11 +1062,7 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
   if (pDeviceTimestamp) {
     UR_CHECK_ERROR(hipEventCreateWithFlags(&Event, hipEventDefault));
     UR_CHECK_ERROR(hipEventRecord(Event));
-    UR_CHECK_ERROR(hipEventSynchronize(Event));
-    float ElapsedTime = 0.0f;
-    UR_CHECK_ERROR(hipEventElapsedTime(&ElapsedTime,
-                                       ur_platform_handle_t_::EvBase, Event));
-    *pDeviceTimestamp = (uint64_t)(ElapsedTime * (double)1e6);
+    *pDeviceTimestamp = hDevice->getElapsedTime(Event);
   }
 
   if (pHostTimestamp) {

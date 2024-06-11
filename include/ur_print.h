@@ -1003,6 +1003,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintExpCommandBufferUpdateValueArgDesc(co
 UR_APIEXPORT ur_result_t UR_APICALL urPrintExpCommandBufferUpdateKernelLaunchDesc(const struct ur_exp_command_buffer_update_kernel_launch_desc_t params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_launch_property_id_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintExpLaunchPropertyId(enum ur_exp_launch_property_id_t value, char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_launch_property_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintExpLaunchProperty(const struct ur_exp_launch_property_t params, char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_exp_peer_info_t enum
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -1425,6 +1441,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintKernelGetNativeHandleParams(const str
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintKernelCreateWithNativeHandleParams(const struct ur_kernel_create_with_native_handle_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_kernel_get_suggested_local_work_size_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintKernelGetSuggestedLocalWorkSizeParams(const struct ur_kernel_get_suggested_local_work_size_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_kernel_set_arg_value_params_t struct
@@ -1945,6 +1969,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintEnqueueReadHostPipeParams(const struc
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintEnqueueWriteHostPipeParams(const struct ur_enqueue_write_host_pipe_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_enqueue_kernel_launch_custom_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintEnqueueKernelLaunchCustomExpParams(const struct ur_enqueue_kernel_launch_custom_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_enqueue_cooperative_kernel_launch_exp_params_t struct

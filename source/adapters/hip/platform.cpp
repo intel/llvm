@@ -11,8 +11,6 @@
 #include "platform.hpp"
 #include "context.hpp"
 
-hipEvent_t ur_platform_handle_t_::EvBase{nullptr};
-
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformGetInfo(ur_platform_handle_t, ur_platform_info_t propName,
                   size_t propSize, void *pPropValue, size_t *pSizeRet) {
@@ -81,18 +79,15 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
               UR_CHECK_ERROR(hipDeviceGet(&Device, i));
               hipCtx_t Context;
               UR_CHECK_ERROR(hipDevicePrimaryCtxRetain(&Context, Device));
-              Platform.Devices.emplace_back(
-                  new ur_device_handle_t_{Device, Context, &Platform, i});
-            }
-
-            // Setup EvBase
-            {
-              ScopedContext Active(Platform.Devices.front().get());
               hipEvent_t EvBase;
               UR_CHECK_ERROR(hipEventCreate(&EvBase));
-              UR_CHECK_ERROR(hipEventRecord(EvBase, 0));
 
-              ur_platform_handle_t_::EvBase = EvBase;
+              // Use the default stream to record base event counter
+              UR_CHECK_ERROR(hipEventRecord(EvBase, 0));
+              Platform.Devices.emplace_back(new ur_device_handle_t_{
+                  Device, Context, EvBase, &Platform, i});
+
+              ScopedContext Active(Platform.Devices.front().get());
             }
           } catch (const std::bad_alloc &) {
             // Signal out-of-memory situation

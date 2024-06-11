@@ -1470,6 +1470,22 @@ ur_result_t UR_APICALL urContextSetExtendedDeleter(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Create an image object
 ///
+/// @details
+///     - The primary ::ur_image_format_t that must be supported by all the
+///       adapters are {UR_IMAGE_CHANNEL_ORDER_RGBA,
+///       UR_IMAGE_CHANNEL_TYPE_UNORM_INT8},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNORM_INT16},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SNORM_INT8},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SNORM_INT16},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT},
+///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_FLOAT}.
+///
 /// @remarks
 ///   _Analogues_
 ///     - **clCreateImage**
@@ -1490,12 +1506,13 @@ ur_result_t UR_APICALL urContextSetExtendedDeleter(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///     - ::UR_RESULT_ERROR_INVALID_HOST_PTR
 ///         + `pHost == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0`
 ///         + `pHost != NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) == 0`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urMemImageCreate(
@@ -4097,6 +4114,58 @@ ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the suggested local work size for a kernel.
+///
+/// @details
+///     - Query a suggested local work size for a kernel given a global size for
+///       each dimension.
+///     - The application may call this function from simultaneous threads for
+///       the same context.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalWorkOffset`
+///         + `NULL == pGlobalWorkSize`
+///         + `NULL == pSuggestedLocalWorkSize`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel
+    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
+    uint32_t
+        numWorkDim, ///< [in] number of dimensions, from 1 to 3, to specify the global
+                    ///< and work-group work-items
+    const size_t *
+        pGlobalWorkOffset, ///< [in] pointer to an array of numWorkDim unsigned values that specify
+    ///< the offset used to calculate the global ID of a work-item
+    const size_t *
+        pGlobalWorkSize, ///< [in] pointer to an array of numWorkDim unsigned values that specify
+    ///< the number of global work-items in workDim that will execute the
+    ///< kernel function
+    size_t *
+        pSuggestedLocalWorkSize ///< [out] pointer to an array of numWorkDim unsigned values that specify
+    ///< suggested local work size that will contain the result of the query
+    ) try {
+    auto pfnGetSuggestedLocalWorkSize =
+        ur_lib::context->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize;
+    if (nullptr == pfnGetSuggestedLocalWorkSize) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnGetSuggestedLocalWorkSize(hKernel, hQueue, numWorkDim,
+                                        pGlobalWorkOffset, pGlobalWorkSize,
+                                        pSuggestedLocalWorkSize);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Query information about a command queue
 ///
 /// @remarks
@@ -6525,7 +6594,7 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageHandleDestroyExp(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
@@ -6607,7 +6676,7 @@ ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
@@ -6658,7 +6727,7 @@ ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_SAMPLER
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
@@ -6713,7 +6782,7 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
@@ -6936,7 +7005,7 @@ ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -8065,7 +8134,9 @@ ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Update a kernel launch command in a finalized command-buffer.
+/// @brief Update a kernel launch command in a finalized command-buffer. This
+///        entry-point is synchronous and may block if the command-buffer is
+///        executing when the entry-point is called.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -8355,6 +8426,95 @@ ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     }
 
     return pfnTimestampRecordingExp(hQueue, blocking, numEventsInWaitList,
+                                    phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Launch kernel with custom launch properties
+///
+/// @details
+///     - Launches the kernel using the specified launch properties
+///     - If numPropsInLaunchPropList == 0 then a regular kernel launch is used:
+///       `urEnqueueKernelLaunch`
+///     - Consult the appropriate adapter driver documentation for details of
+///       adapter specific behavior and native error codes that may be returned.
+///
+/// @remarks
+///   _Analogues_
+///     - **cuLaunchKernelEx**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///         + `NULL == hKernel`
+///         + NULL == hQueue
+///         + NULL == hKernel
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalWorkSize`
+///         + `NULL == launchPropList`
+///         + NULL == pGlobalWorkSize
+///         + numPropsInLaunchpropList != 0 && launchPropList == NULL
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + phEventWaitList == NULL && numEventsInWaitList > 0
+///         + phEventWaitList != NULL && numEventsInWaitList == 0
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in phEventWaitList has ::UR_EVENT_STATUS_ERROR
+///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
+///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
+    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
+    uint32_t
+        workDim, ///< [in] number of dimensions, from 1 to 3, to specify the global and
+                 ///< work-group work-items
+    const size_t *
+        pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify the
+    ///< number of global work-items in workDim that will execute the kernel
+    ///< function
+    const size_t *
+        pLocalWorkSize, ///< [in][optional] pointer to an array of workDim unsigned values that
+    ///< specify the number of local work-items forming a work-group that will
+    ///< execute the kernel function. If nullptr, the runtime implementation
+    ///< will choose the work-group size.
+    uint32_t numPropsInLaunchPropList, ///< [in] size of the launch prop list
+    const ur_exp_launch_property_t *
+        launchPropList, ///< [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
+                        ///< properties
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the kernel execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating that no wait event.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+                ///< kernel execution instance.
+    ) try {
+    auto pfnKernelLaunchCustomExp =
+        ur_lib::context->urDdiTable.EnqueueExp.pfnKernelLaunchCustomExp;
+    if (nullptr == pfnKernelLaunchCustomExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnKernelLaunchCustomExp(hQueue, hKernel, workDim, pGlobalWorkSize,
+                                    pLocalWorkSize, numPropsInLaunchPropList,
+                                    launchPropList, numEventsInWaitList,
                                     phEventWaitList, phEvent);
 } catch (...) {
     return exceptionToResult(std::current_exception());

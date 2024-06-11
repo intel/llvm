@@ -125,6 +125,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnSetArgValue = urKernelSetArgValue;
   pDdiTable->pfnSetExecInfo = urKernelSetExecInfo;
   pDdiTable->pfnSetSpecializationConstants = nullptr;
+  pDdiTable->pfnGetSuggestedLocalWorkSize = urKernelGetSuggestedLocalWorkSize;
   return UR_RESULT_SUCCESS;
 }
 
@@ -408,6 +409,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   pDdiTable->pfnCooperativeKernelLaunchExp =
       urEnqueueCooperativeKernelLaunchExp;
   pDdiTable->pfnTimestampRecordingExp = urEnqueueTimestampRecordingExp;
+  pDdiTable->pfnKernelLaunchCustomExp = urEnqueueKernelLaunchCustomExp;
 
   return UR_RESULT_SUCCESS;
 }
