@@ -9,7 +9,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// 
+//
 // A basic test using the --offload-new-driver flag
 
 #include <sycl/detail/core.hpp>
