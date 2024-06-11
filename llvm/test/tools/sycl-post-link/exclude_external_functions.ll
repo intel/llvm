@@ -1,4 +1,4 @@
-; This test checks that when device code splitting is done for run-time linking,
+; Test that when the -exclude-exernal-funtions option is used,
 ; dependencies to SYCL External functions do not cause the SYCL External function
 ; to be added to a device image.
 
