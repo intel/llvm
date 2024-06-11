@@ -24,6 +24,7 @@ set(SYCL_PI_UR_SOURCE_DIR
   "" CACHE PATH "Path to root of Unified Runtime repository")
 
 # Override default to enable building tests from unified-runtime
+set(UR_BUILD_EXAMPLES OFF CACHE BOOL "Build example applications.")
 set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests.")
 set(UMF_ENABLE_POOL_TRACKING ON)
 set(UR_BUILD_XPTI_LIBS OFF)
@@ -217,7 +218,6 @@ target_include_directories(UnifiedRuntime-Headers
 find_package(Threads REQUIRED)
 
 if(TARGET UnifiedRuntimeLoader)
-  set_target_properties(hello_world PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
   # Install the UR loader.
   # TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
   # When UR is moved to its separate repo perhaps we should introduce new component,
