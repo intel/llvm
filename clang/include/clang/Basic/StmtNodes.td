@@ -309,3 +309,4 @@ def OpenACCConstructStmt : StmtNode<Stmt, /*abstract=*/1>;
 def OpenACCAssociatedStmtConstruct
     : StmtNode<OpenACCConstructStmt, /*abstract=*/1>;
 def OpenACCComputeConstruct : StmtNode<OpenACCAssociatedStmtConstruct>;
+def OpenACCLoopConstruct : StmtNode<OpenACCAssociatedStmtConstruct>;
