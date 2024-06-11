@@ -241,8 +241,8 @@ cl::opt<bool> EmitOnlyKernelsAsEntryPoints{
 
 cl::opt<bool> ExcludeExternalFunctions{
     "exclude-external-functions",
-    cl::desc("A dependency to a SYCL_EXTERNAL function will not cause addition "
-             "of the function to a device image"),
+    cl::desc("A SYCL_EXTERNAL function will not be added to a device image "
+             "even if a dependency to it exists"),
     cl::cat(PostLinkCat), cl::init(false)};
 
 cl::opt<bool> DeviceGlobals{
