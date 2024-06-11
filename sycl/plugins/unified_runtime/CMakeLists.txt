@@ -98,7 +98,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       "${UR_ADAPTER_${NAME}_SOURCE_DIR}/source/adapters/${name}"
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
-  set(UNIFIED_RUNTIME_REPO "https://github.com/przemektmalon/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/Seanst98/unified-runtime.git")
   # commit 8cdd099ae3d1a34d3bcd7cbed7f5745c3dc8e112
   # Merge: fc9bb61b c893a3c4
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
