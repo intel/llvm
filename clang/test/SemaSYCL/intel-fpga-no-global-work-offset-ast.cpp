@@ -32,7 +32,7 @@ public:
 // CHECK-NEXT: SYCLIntelNoGlobalWorkOffsetAttr
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
 // CHECK: FunctionDecl {{.*}} func1 'void ()'
-// CHECK-NEXT: TemplateArgument integral 1
+// CHECK-NEXT: TemplateArgument integral '1'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLIntelNoGlobalWorkOffsetAttr
 // CHECK-NEXT: ConstantExpr{{.*}}'int'
