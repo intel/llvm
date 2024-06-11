@@ -271,9 +271,11 @@
 
 // When using -fintelfpga, we unbundle the device libraries instead of using
 // the LLVM-IR .bc files.
-// RUN: %clangxx -fintelfpga -ccc-print-phases %s 2>&1 \
+// RUN: %clangxx -fintelfpga -ccc-print-phases \
+// RUN:          --sysroot=%S/Inputs/SYCL %s 2>&1 \
 // RUN:  | FileCheck -check-prefix UNBUNDLE_DEVICELIB %s
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_fpga -ccc-print-phases %s 2>&1 \
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_fpga -ccc-print-phases \
+// RUN:          --sysroot=%S/Inputs/SYCL %s 2>&1 \
 // RUN:  | FileCheck -check-prefix UNBUNDLE_DEVICELIB %s
 // UNBUNDLE_DEVICELIB: [[#DEVLIB:]]: input, "{{.*}}libsycl-itt-user-wrappers{{.*}}", object
 // UNBUNDLE_DEVICELIB: [[#DEVLIB+1]]: clang-offload-unbundler, {[[#DEVLIB]]}, object

@@ -911,10 +911,9 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   AddToConfigHandle(
       ::jit_compiler::option::JITTargetInfo::set(std::move(TargetInfo)));
 
-  using ::jit_compiler::View;
   auto FusionResult = FuseKernelsHandle(
-      View{InputKernelInfo}, FusedKernelName.c_str(), View(ParamIdentities),
-      BarrierFlags, View(InternalizeParams), View(JITConstants));
+      InputKernelInfo, FusedKernelName.c_str(), ParamIdentities, BarrierFlags,
+      InternalizeParams, JITConstants);
 
   if (FusionResult.failed()) {
     if (DebugEnabled) {
