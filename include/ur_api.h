@@ -7624,7 +7624,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesImageFreeExp(
     ur_context_handle_t hContext,       ///< [in] handle of the context object
     ur_device_handle_t hDevice,         ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t hImageMem ///< [in] handle of image memory to be freed
+    ur_exp_image_mem_handle_t hImageMem ///< [in][release] handle of image memory to be freed
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7838,7 +7838,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesMipmapFreeExp(
     ur_context_handle_t hContext,  ///< [in] handle of the context object
     ur_device_handle_t hDevice,    ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t hMem ///< [in] handle of image memory to be freed
+    ur_exp_image_mem_handle_t hMem ///< [in][release] handle of image memory to be freed
 );
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -5581,7 +5581,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
-        hImageMem ///< [in] handle of image memory to be freed
+        hImageMem ///< [in][release] handle of image memory to be freed
 ) {
     auto pfnImageFreeExp = context.urDdiTable.BindlessImagesExp.pfnImageFreeExp;
 
@@ -5860,9 +5860,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesMipmapFreeExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
-    ur_context_handle_t hContext,  ///< [in] handle of the context object
-    ur_device_handle_t hDevice,    ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t hMem ///< [in] handle of image memory to be freed
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_exp_image_mem_handle_t
+        hMem ///< [in][release] handle of image memory to be freed
 ) {
     auto pfnMipmapFreeExp =
         context.urDdiTable.BindlessImagesExp.pfnMipmapFreeExp;

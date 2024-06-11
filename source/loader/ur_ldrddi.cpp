@@ -6008,7 +6008,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
-        hImageMem ///< [in] handle of image memory to be freed
+        hImageMem ///< [in][release] handle of image memory to be freed
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6031,6 +6031,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 
     // forward to device-platform
     result = pfnImageFreeExp(hContext, hDevice, hImageMem);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    // release loader handle
+    ur_exp_image_mem_factory.release(hImageMem);
 
     return result;
 }
@@ -6302,9 +6309,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesMipmapFreeExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
-    ur_context_handle_t hContext,  ///< [in] handle of the context object
-    ur_device_handle_t hDevice,    ///< [in] handle of the device object
-    ur_exp_image_mem_handle_t hMem ///< [in] handle of image memory to be freed
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_exp_image_mem_handle_t
+        hMem ///< [in][release] handle of image memory to be freed
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6326,6 +6334,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 
     // forward to device-platform
     result = pfnMipmapFreeExp(hContext, hDevice, hMem);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    // release loader handle
+    ur_exp_image_mem_factory.release(hMem);
 
     return result;
 }

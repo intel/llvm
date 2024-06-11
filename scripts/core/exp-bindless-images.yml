@@ -431,7 +431,7 @@ params:
       desc: "[in] handle of the device object"
     - type: $x_exp_image_mem_handle_t
       name: hImageMem
-      desc: "[in] handle of image memory to be freed"
+      desc: "[in][release] handle of image memory to be freed"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -642,7 +642,7 @@ params:
       desc: "[in] handle of the device object"
     - type: $x_exp_image_mem_handle_t
       name: hMem
-      desc: "[in] handle of image memory to be freed"
+      desc: "[in][release] handle of image memory to be freed"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
