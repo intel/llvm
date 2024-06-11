@@ -15,7 +15,9 @@
 // RUN: %if preview-breaking-changes-supported %{  %{build} -fpreview-breaking-changes -o %t2.out   %}
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out  %}
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/stream.hpp>
 
 constexpr unsigned N =
     10; // init plus arithmetic + - * /   for vec<1> and vec<2>

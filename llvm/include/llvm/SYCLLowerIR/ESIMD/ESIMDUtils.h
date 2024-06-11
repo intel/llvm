@@ -33,6 +33,9 @@ bool isSlmAlloc(const Function &F);
 bool isSlmFree(const Function &F);
 bool isAssertFail(const Function &F);
 
+bool isNbarrierInit(const Function &F);
+bool isNbarrierAllocate(const Function &F);
+
 // Tells whether given function is a ESIMD kernel.
 bool isESIMDKernel(const Function &F);
 // Tells whether given function is a ESIMD function.

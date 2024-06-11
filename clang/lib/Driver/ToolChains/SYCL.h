@@ -173,15 +173,18 @@ public:
   void AddImpliedTargetArgs(const llvm::Triple &Triple,
                             const llvm::opt::ArgList &Args,
                             llvm::opt::ArgStringList &CmdArgs,
-                            const JobAction &JA, const ToolChain &HostTC) const;
+                            const JobAction &JA, const ToolChain &HostTC,
+                            StringRef Device = "") const;
   void TranslateBackendTargetArgs(const llvm::Triple &Triple,
                                   const llvm::opt::ArgList &Args,
                                   llvm::opt::ArgStringList &CmdArgs,
                                   StringRef Device = "") const;
   void TranslateLinkerTargetArgs(const llvm::Triple &Triple,
                                  const llvm::opt::ArgList &Args,
-                                 llvm::opt::ArgStringList &CmdArgs) const;
-  void TranslateTargetOpt(const llvm::opt::ArgList &Args,
+                                 llvm::opt::ArgStringList &CmdArgs,
+                                 StringRef Device = "") const;
+  void TranslateTargetOpt(const llvm::Triple &Triple,
+                          const llvm::opt::ArgList &Args,
                           llvm::opt::ArgStringList &CmdArgs,
                           llvm::opt::OptSpecifier Opt,
                           llvm::opt::OptSpecifier Opt_EQ,

@@ -13,6 +13,8 @@
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/handler.hpp>
 
+#include <sycl/detail/host_task_impl.hpp>
+
 #include <detail/accessor_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/kernel_impl.hpp>
@@ -22,6 +24,7 @@
 #include <deque>
 #include <fstream>
 #include <functional>
+#include <iomanip>
 #include <list>
 #include <set>
 #include <shared_mutex>
@@ -181,6 +184,9 @@ public:
   /// @param IncomingReq Incoming requirement.
   /// @return True if a dependency is needed, false if not.
   bool hasRequirementDependency(sycl::detail::AccessorImplHost *IncomingReq) {
+    if (!MCommandGroup)
+      return false;
+
     access_mode InMode = IncomingReq->MAccessMode;
     switch (InMode) {
     case access_mode::read:
@@ -298,6 +304,8 @@ public:
       return createCGCopy<sycl::detail::CGSemaphoreSignal>();
     case sycl::detail::CG::SemaphoreWait:
       return createCGCopy<sycl::detail::CGSemaphoreWait>();
+    case sycl::detail::CG::ProfilingTag:
+      return createCGCopy<sycl::detail::CGProfilingTag>();
     case sycl::detail::CG::ExecCommandBuffer:
       return createCGCopy<sycl::detail::CGExecCommandBuffer>();
     case sycl::detail::CG::None:
@@ -611,6 +619,17 @@ private:
           } else if (Arg.MType ==
                      sycl::detail::kernel_param_kind_t::kind_pointer) {
             Type = "Pointer";
+            auto Fill = Stream.fill();
+            Stream << i << ") Type: " << Type << " Ptr: " << Arg.MPtr << "(0x"
+                   << std::hex << std::setfill('0');
+            for (int i = Arg.MSize - 1; i >= 0; --i) {
+              Stream << std::setw(2)
+                     << static_cast<int16_t>(
+                            (static_cast<unsigned char *>(Arg.MPtr))[i]);
+            }
+            Stream.fill(Fill);
+            Stream << std::dec << ")\\n";
+            continue;
           } else if (Arg.MType == sycl::detail::kernel_param_kind_t::
                                       kind_specialization_constants_buffer) {
             Type = "Specialization Constants Buffer";
@@ -684,10 +703,8 @@ private:
         sycl::detail::CGFillUSM *FillUSM =
             static_cast<sycl::detail::CGFillUSM *>(MCommandGroup.get());
         Stream << "Dst: " << FillUSM->getDst()
-               << " Length: " << FillUSM->getLength() << " Pattern: ";
-        for (auto byte : FillUSM->getPattern())
-          Stream << byte;
-        Stream << "\\n";
+               << " Length: " << FillUSM->getLength()
+               << " Pattern: " << FillUSM->getFill() << "\\n";
       }
       break;
     case sycl::detail::CG::CGTYPE::PrefetchUSM:
@@ -937,7 +954,7 @@ public:
   void addEventForNode(std::shared_ptr<graph_impl> GraphImpl,
                        std::shared_ptr<sycl::detail::event_impl> EventImpl,
                        std::shared_ptr<node_impl> NodeImpl) {
-    if (EventImpl && !(EventImpl->getCommandGraph()))
+    if (!(EventImpl->getCommandGraph()))
       EventImpl->setCommandGraph(GraphImpl);
     MEventsMap[EventImpl] = NodeImpl;
   }

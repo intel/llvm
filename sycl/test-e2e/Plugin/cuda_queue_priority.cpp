@@ -5,8 +5,10 @@
 //
 // Check that queue priority is passed to CUDA runtime
 #define SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL 1
+#include <sycl/backend.hpp>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/backend/cuda.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 #include <cuda.h>
 

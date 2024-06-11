@@ -76,6 +76,7 @@
 // CHECK-NEXT: range.hpp
 // CHECK-NEXT: info/info_desc.hpp
 // CHECK-NEXT: ext/oneapi/experimental/device_architecture.hpp
+// CHECK-NEXT: ext/oneapi/experimental/forward_progress.hpp
 // CHECK-NEXT: ext/oneapi/matrix/query-types.hpp
 // CHECK-NEXT: ext/oneapi/bfloat16.hpp
 // CHECK-NEXT: ext/oneapi/matrix/matrix-unified-utils.hpp
@@ -115,14 +116,6 @@
 // CHECK-NEXT: detail/handler_proxy.hpp
 // CHECK-NEXT: pointers.hpp
 // CHECK-NEXT: properties/accessor_properties.hpp
-// CHECK-NEXT: image.hpp
-// CHECK-NEXT: detail/backend_traits.hpp
-// CHECK-NEXT: sampler.hpp
-// CHECK-NEXT: types.hpp
-// CHECK-NEXT: marray.hpp
-// CHECK-NEXT: vector.hpp
-// CHECK-NEXT: detail/memcpy.hpp
-// CHECK-NEXT: detail/vector_convert.hpp
-// CHECK-NEXT: swizzles.def
 // CHECK-NEXT: properties/buffer_properties.hpp
+// CHECK-NEXT: sampler.hpp
 // CHECK-EMPTY:

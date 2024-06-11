@@ -134,7 +134,7 @@ int main(void) {
     e.wait();
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
-    return e.get_cl_code();
+    return e.code().value();
   }
 
   int err_cnt = 0;

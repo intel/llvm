@@ -3,7 +3,7 @@
 // RUN: %{run} %t.out
 
 #include <cuda.h>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 // ------------------------------------------------------------------------- //
 

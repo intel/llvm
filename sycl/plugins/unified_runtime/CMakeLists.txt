@@ -75,11 +75,16 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
         tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
       return()
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -95,23 +100,17 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ebf873fb5996c9ddca32bbb7c9330d3ffe15473c
-  # Merge: 633ec408 8f375039
+  # commit 4f105262c30ac231b8db1e250f36e88ef9f0a36d
+  # Merge: 0f118d75 92fce2ee
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu May 2 10:56:55 2024 +0100
-  #    Merge pull request #1535 from przemektmalon/przemek/sampled-image-fetch
-  #    [Bindless][Exp] Add device queries for sampled image fetch
-  set(UNIFIED_RUNTIME_TAG ebf873fb5996c9ddca32bbb7c9330d3ffe15473c)
+  # Date:   Mon Jun 10 13:23:16 2024 +0100
+  #     Merge pull request #1409 from omarahmed1111/Add-CTS-tests-for-image-format
+  #     [CTS] Add CTS tests for urMemImageCreate entry-point
+  set(UNIFIED_RUNTIME_TAG 4f105262c30ac231b8db1e250f36e88ef9f0a36d)
 
   fetch_adapter_source(level_zero
-    "https://github.com/oneapi-src/unified-runtime.git"
-    # commit fb342f06e1ac244c5995b7be458d0c32a1ba17ab
-    # Merge: a44e81b5 7186d6ce
-    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Fri May 3 11:55:26 2024 +0100
-    #     Merge pull request #1549 from igchor/event_fix
-    #     Fix adding event to queue cache
-    fb342f06e1ac244c5995b7be458d0c32a1ba17ab
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl

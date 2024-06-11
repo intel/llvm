@@ -6,6 +6,8 @@
 // RUN: %{run} %t.out | FileCheck %s
 #include <sycl/detail/core.hpp>
 
+#include <sycl/ext/oneapi/free_function_queries.hpp>
+
 constexpr int N = 3;
 
 using namespace sycl;

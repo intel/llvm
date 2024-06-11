@@ -182,7 +182,7 @@
 // RUN:   | FileCheck %s -check-prefix=SYCL_LLVM_LINK_NO_DEVICE_LIB
 // SYCL_LLVM_LINK_NO_DEVICE_LIB: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-device"
 // SYCL_LLVM_LINK_NO_DEVICE_LIB-NOT: llvm-link{{.*}}  "-only-needed"
-// SYCL_LLVM_LINK_NO_DEVICE_LIB: sycl-post-link{{.*}}  "-symbols"{{.*}} "-spec-const=native" {{.*}} "-o" "{{.*}}.table" "{{.*}}.bc"
+// SYCL_LLVM_LINK_NO_DEVICE_LIB: sycl-post-link{{.*}} "-spec-const=native" {{.*}} "-o" "{{.*}}.table" "{{.*}}.bc"
 
 /// ###########################################################################
 /// test clang-cl behavior for linking sycl-devicelib-host.lib by default

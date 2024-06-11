@@ -18,12 +18,6 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
-#include <iostream>
-#include <vector>
-
 class KernelID;
 
 ESIMD_NOINLINE int f1(int x) { return x + 1; }

@@ -12,7 +12,7 @@
 //       Since it is a warning it is safe to ignore for this test.
 //
 // Everything that follows TestQueueOperations()
-// CHECK: ---> piextUSMEnqueueFill(
+// CHECK: ---> piextUSMEnqueueMemset(
 // CHECK:        pi_event * :
 // CHECK-NEXT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
 //
@@ -20,7 +20,8 @@
 // CHECK:        pi_event * :
 // CHECK-NEXT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
 //
-// CHECK: ---> piextUSMEnqueueFill(
+// Q.fill don't use piEnqueueMemBufferFill
+// CHECK: ---> piEnqueueKernelLaunch(
 // CHECK:        pi_event * :
 // CHECK-NEXT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
 //
@@ -46,7 +47,7 @@
 // CHECK-NEXT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
 //
 // RegularQueue
-// CHECK: ---> piextUSMEnqueueFill(
+// CHECK: ---> piextUSMEnqueueMemset(
 // CHECK:        pi_event * :
 // CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
 // CHECK: --->  pi_result : PI_SUCCESS
@@ -56,7 +57,7 @@
 // CHECK-NEXT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
 //
 // Everything that follows TestQueueOperationsViaSubmit()
-// CHECK: ---> piextUSMEnqueueFill(
+// CHECK: ---> piextUSMEnqueueMemset(
 // CHECK:        pi_event * :
 // CHECK-NEXT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
 //
@@ -64,7 +65,8 @@
 // CHECK:        pi_event * :
 // CHECK-NEXT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
 //
-// CHECK: ---> piextUSMEnqueueFill(
+// Q.fill don't use piEnqueueMemBufferFill
+// CHECK: ---> piEnqueueKernelLaunch(
 // CHECK:        pi_event * :
 // CHECK-NEXT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
 //
@@ -90,7 +92,7 @@
 // CHECK-NEXT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
 //
 // RegularQueue
-// CHECK: ---> piextUSMEnqueueFill(
+// CHECK: ---> piextUSMEnqueueMemset(
 // CHECK:        pi_event * :
 // CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
 // CHECK: --->  pi_result : PI_SUCCESS

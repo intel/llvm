@@ -135,8 +135,8 @@ void bar() {
 } // namespace
 
 // CHECK: @llvm.global_ctors = appending global [2 x { i32, ptr, ptr addrspace(4) }] [{ i32, ptr, ptr addrspace(4) } { i32 65535, ptr @__cxx_global_var_init{{.*}}, ptr addrspace(4) addrspacecast (ptr addrspace(1) @[[TEMPL_DEV_GLOB]] to ptr addrspace(4)) }, { i32, ptr, ptr addrspace(4) } { i32 65535, ptr @_GLOBAL__sub_I_device_global.cpp, ptr addrspace(4) null }]
-// CHECK: @llvm.used = appending global [1 x ptr addrspace(4)] [ptr addrspace(4) addrspacecast (ptr addrspace(1) @[[TEMPL_DEV_GLOB]] to ptr addrspace(4))], section "llvm.metadata"
-// CHECK: @llvm.compiler.used = appending global [2 x ptr addrspace(4)]
+// CHECK: @llvm.used = appending addrspace(1) global [1 x ptr addrspace(4)] [ptr addrspace(4) addrspacecast (ptr addrspace(1) @[[TEMPL_DEV_GLOB]] to ptr addrspace(4))], section "llvm.metadata"
+// CHECK: @llvm.compiler.used = appending addrspace(1) global [2 x ptr addrspace(4)]
 // CHECK-SAME: @_ZL1B
 // CHECK-SAME: @_ZN12_GLOBAL__N_19same_nameE
 
