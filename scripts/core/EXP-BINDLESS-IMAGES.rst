@@ -50,6 +50,7 @@ Runtime:
   * Sampled images
   * Unsampled images
   * Mipmaps
+  * Image arrays
   * Cubemaps
   * USM backed images
 
@@ -206,6 +207,8 @@ Changelog
 |          | queries.                                                    |
 +------------------------------------------------------------------------+
 | 11.0     | Added device queries for sampled image fetch capabilities.  |
++----------+-------------------------------------------------------------+
+| 12.0     | Added image arrays to list of supported bindless images     |
 +----------+-------------------------------------------------------------+
 
 Contributors
