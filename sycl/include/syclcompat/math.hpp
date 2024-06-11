@@ -179,7 +179,8 @@ inline constexpr RetT extend_vbinary2(AT a, BT b, RetT c,
     int32_t min_val = 0, max_val = 0;
     min_val = std::numeric_limits<IntT>::min();
     max_val = std::numeric_limits<IntT>::max();
-    temp = detail::clamp(temp, {min_val, min_val}, {max_val, max_val});
+    temp = detail::clamp(temp, sycl::vec<int32_t, 2>(min_val),
+                         sycl::vec<int32_t, 2>(max_val));
   }
   if constexpr (NeedAdd) {
     return temp[0] + temp[1] + c;
@@ -205,8 +206,8 @@ inline constexpr RetT extend_vbinary4(AT a, BT b, RetT c,
     int16_t min_val = 0, max_val = 0;
     min_val = std::numeric_limits<IntT>::min();
     max_val = std::numeric_limits<IntT>::max();
-    temp = detail::clamp(temp, {min_val, min_val, min_val, min_val},
-                         {max_val, max_val, max_val, max_val});
+    temp = detail::clamp(temp, sycl::vec<int16_t, 4>(min_val),
+                         sycl::vec<int16_t, 4>(max_val));
   }
   if constexpr (NeedAdd) {
     return temp[0] + temp[1] + temp[2] + temp[3] + c;
