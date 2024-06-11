@@ -504,7 +504,7 @@ if "cuda:gpu" in config.sycl_devices:
                 cuda_root, f"cuda-{latest_cuda_version}"
             )
  
-     if "CUDA_PATH" not in os.environ:
+    if "CUDA_PATH" not in os.environ:
         lit_config.error("Cannot run tests for CUDA without valid CUDA_PATH.")
 
     llvm_config.with_system_environment("CUDA_PATH")
