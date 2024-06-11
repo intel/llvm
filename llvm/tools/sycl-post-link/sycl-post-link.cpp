@@ -499,7 +499,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
       // so they won't make it into the export list. Should the check be
       // F->getCallingConv() != CallingConv::SPIR_KERNEL?
       if (F->getCallingConv() == CallingConv::SPIR_FUNC) {
-        PropSet.add(PropSetRegTy::SYCL_EXPORTED_SYMBOLS, F->getName(), true);
+        PropSet.add(PropSetRegTy::SYCL_EXPORTED_SYMBOLS, F->getName(),
+                    /*PropVal=*/true);
       }
     }
   }
@@ -508,7 +509,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     // record imported functions in the property set
     for (const auto &F : M) {
       if (isImportedFunction(F))
-        PropSet.add(PropSetRegTy::SYCL_IMPORTED_SYMBOLS, F.getName(), true);
+        PropSet.add(PropSetRegTy::SYCL_IMPORTED_SYMBOLS, F.getName(),
+                    /*PropVal=*/true);
     }
   }
 
