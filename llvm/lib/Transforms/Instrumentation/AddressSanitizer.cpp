@@ -1355,7 +1355,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
   }
 
   // Fixup all users
-  for (auto [F, NewF] : SpirFuncs) {
+  for (auto &[F, NewF] : SpirFuncs) {
     SmallVector<User *, 16> Users(F->users());
     for (User *U : Users) {
       if (auto *CI = dyn_cast<CallInst>(U)) {
