@@ -84,7 +84,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit c0c607c3a88933b4c5c20a0aca4539781c678411
-  # Merge: e18c691d 0f2d1f42
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Wed May 29 15:02:39 2024 +0100
-  #     Merge pull request #1667 from nrspruit/fix_multi_device_event_cache
-  #     [UR] Fix Multi Device Event Cache for shared Root Device
-  set(UNIFIED_RUNTIME_TAG c0c607c3a88933b4c5c20a0aca4539781c678411)
+  # commit 4f105262c30ac231b8db1e250f36e88ef9f0a36d
+  # Merge: 0f118d75 92fce2ee
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Mon Jun 10 13:23:16 2024 +0100
+  #     Merge pull request #1409 from omarahmed1111/Add-CTS-tests-for-image-format
+  #     [CTS] Add CTS tests for urMemImageCreate entry-point
+  set(UNIFIED_RUNTIME_TAG 4f105262c30ac231b8db1e250f36e88ef9f0a36d)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

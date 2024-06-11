@@ -1218,8 +1218,7 @@ struct get_device_info_impl<
 
     // If the feature is unsupported or if the result was empty, return an empty
     // list of devices.
-    if (Err == PI_ERROR_UNSUPPORTED_FEATURE ||
-        (Err == PI_SUCCESS && ResultSize == 0))
+    if (Err == PI_ERROR_INVALID_VALUE || (Err == PI_SUCCESS && ResultSize == 0))
       return {};
 
     // Otherwise, if there was an error from PI it is unexpected and we should
