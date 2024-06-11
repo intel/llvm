@@ -491,7 +491,7 @@ SPIRVToLLVMDbgTran::transTypeVector(const SPIRVExtInst *DebugInst) {
   // Clang rounds up the memory size of vectors to a power of 2.
   // Vulkan allows vec3 to have a memory size of 12, but in RenderDoc memory
   // size is not derived from debug info.
-  uint64_t Size = getDerivedSizeInBits(BaseTy) * bit_ceil(Count);
+  uint64_t Size = getDerivedSizeInBits(BaseTy) * llvm::bit_ceil(Count);
 
   SmallVector<llvm::Metadata *, 8> Subscripts;
   Subscripts.push_back(getDIBuilder(DebugInst).getOrCreateSubrange(0, Count));
