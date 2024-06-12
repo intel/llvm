@@ -820,7 +820,9 @@ public:
   unsigned int get_global_mem_cache_size() const;
   int get_image1d_max() const;
   auto get_image2d_max() const;
+  auto get_image2d_max();
   auto get_image3d_max() const;
+  auto get_image3d_max();
 
   void set_name(const char *name);
   void set_max_work_item_sizes(const sycl::range<3> max_work_item_sizes);
