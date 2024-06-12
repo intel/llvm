@@ -57,6 +57,7 @@ CODEGENOPT(UniqueSectionNames, 1, 1) ///< Set for -funique-section-names.
 CODEGENOPT(UniqueBasicBlockSectionNames, 1, 1) ///< Set for -funique-basic-block-section-names,
                                                ///< Produce unique section names with
                                                ///< basic block sections.
+CODEGENOPT(SeparateNamedSections, 1, 0) ///< Set for -fseparate-named-sections.
 CODEGENOPT(EnableAIXExtendedAltivecABI, 1, 0) ///< Set for -mabi=vec-extabi. Enables the extended Altivec ABI on AIX.
 CODEGENOPT(XCOFFReadOnlyPointers, 1, 0) ///< Set for -mxcoff-roptr.
 CODEGENOPT(AllTocData, 1, 0) ///< AIX -mtocdata
@@ -309,6 +310,7 @@ CODEGENOPT(UnrollLoops       , 1, 0) ///< Control whether loops are unrolled.
 CODEGENOPT(RerollLoops       , 1, 0) ///< Control whether loops are rerolled.
 CODEGENOPT(NoUseJumpTables   , 1, 0) ///< Set when -fno-jump-tables is enabled.
 VALUE_CODEGENOPT(UnwindTables, 2, 0) ///< Unwind tables (1) or asynchronous unwind tables (2)
+CODEGENOPT(LinkBitcodePostopt, 1, 0) ///< Link builtin bitcodes after optimization pipeline.
 CODEGENOPT(VectorizeLoop     , 1, 0) ///< Run loop vectorizer.
 CODEGENOPT(VectorizeSLP      , 1, 0) ///< Run SLP vectorizer.
 CODEGENOPT(ProfileSampleAccurate, 1, 0) ///< Sample profile is accurate.
@@ -463,6 +465,11 @@ CODEGENOPT(DisableSYCLEarlyOpts, 1, 0)
 /// Optimize SYCL Framework functions. These are functions
 /// which do not contain "user" code.
 CODEGENOPT(OptimizeSYCLFramework, 1, 0)
+
+/// Turn on fp64 partial emulation for kernels with only fp64 conversion
+/// operations and no fp64 computation operations (requires Intel GPU backend
+/// supporting fp64 partial emulation)
+CODEGENOPT(FP64ConvEmu, 1, 0)
 /// FIXME: Make DebugOptions its own top-level .def file.
 #include "DebugOptions.def"
 

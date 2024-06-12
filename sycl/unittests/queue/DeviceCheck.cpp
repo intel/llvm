@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <gtest/gtest.h>

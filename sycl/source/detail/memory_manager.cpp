@@ -18,6 +18,8 @@
 #include <sycl/usm/usm_enums.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
 
+#include <sycl/ext/oneapi/bindless_images_memory.hpp>
+
 #include <algorithm>
 #include <cassert>
 #include <cstring>
@@ -1776,7 +1778,9 @@ void MemoryManager::copy_image_bindless(
   assert((Flags == (sycl::detail::pi::PiImageCopyFlags)
                        ext::oneapi::experimental::image_copy_flags::HtoD ||
           Flags == (sycl::detail::pi::PiImageCopyFlags)
-                       ext::oneapi::experimental::image_copy_flags::DtoH) &&
+                       ext::oneapi::experimental::image_copy_flags::DtoH ||
+          Flags == (sycl::detail::pi::PiImageCopyFlags)
+                       ext::oneapi::experimental::image_copy_flags::DtoD) &&
          "Invalid flags passed to copy_image_bindless.");
   if (!Dst || !Src)
     throw sycl::exception(

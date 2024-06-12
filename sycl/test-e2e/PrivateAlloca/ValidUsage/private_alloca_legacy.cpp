@@ -11,4 +11,9 @@
 
 constexpr sycl::specialization_id<int16_t> size(10);
 
-int main() { test<int, size, sycl::access::decorated::legacy>(); }
+int main() {
+  std::size_t n = 0;
+  std::cin >> n;
+  test<int, size, sycl::access::decorated::legacy>(n);
+  test<int, size, sycl::access::decorated::legacy, alignof(int) * 4>(n);
+}

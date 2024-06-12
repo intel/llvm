@@ -10,6 +10,7 @@
 
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
+#include <sycl/accessor_image.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/id.hpp>
 #include <sycl/property_list.hpp>

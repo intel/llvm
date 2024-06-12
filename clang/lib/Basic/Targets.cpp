@@ -698,15 +698,39 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     if (os != llvm::Triple::UnknownOS ||
         Triple.getEnvironment() != llvm::Triple::UnknownEnvironment)
       return nullptr;
-    return std::make_unique<SPIRV32TargetInfo>(Triple, Opts);
+    llvm::Triple HT(Opts.HostTriple);
+    switch (HT.getOS()) {
+    case llvm::Triple::Win32:
+      switch (HT.getEnvironment()) {
+      default: // Assume MSVC for unknown environments
+      case llvm::Triple::MSVC:
+        assert(HT.getArch() == llvm::Triple::x86 &&
+               "Unsupported host architecture");
+        return std::make_unique<MicrosoftX86_32SPIRV32TargetInfo>(Triple, Opts);
+      }
+    default:
+      return std::make_unique<SPIRV32TargetInfo>(Triple, Opts);
+    }
   }
   case llvm::Triple::spirv64: {
     if (os != llvm::Triple::UnknownOS ||
         Triple.getEnvironment() != llvm::Triple::UnknownEnvironment)
       return nullptr;
-    return std::make_unique<SPIRV64TargetInfo>(Triple, Opts);
+    llvm::Triple HT(Opts.HostTriple);
+    switch (HT.getOS()) {
+    case llvm::Triple::Win32:
+      switch (HT.getEnvironment()) {
+      default: // Assume MSVC for unknown environments
+      case llvm::Triple::MSVC:
+        assert(HT.getArch() == llvm::Triple::x86_64 &&
+               "Unsupported host architecture");
+        return std::make_unique<MicrosoftX86_64_SPIRV64TargetInfo>(Triple,
+                                                                   Opts);
+      }
+    default:
+      return std::make_unique<SPIRV64TargetInfo>(Triple, Opts);
+    }
   }
-
   case llvm::Triple::wasm32:
     if (Triple.getSubArch() != llvm::Triple::NoSubArch ||
         Triple.getVendor() != llvm::Triple::UnknownVendor ||
@@ -790,7 +814,7 @@ using namespace clang::targets;
 TargetInfo *
 TargetInfo::CreateTargetInfo(DiagnosticsEngine &Diags,
                              const std::shared_ptr<TargetOptions> &Opts) {
-  llvm::Triple Triple(Opts->Triple);
+  llvm::Triple Triple(llvm::Triple::normalize(Opts->Triple));
 
   // Construct the target
   std::unique_ptr<TargetInfo> Target = AllocateTarget(Triple, *Opts);

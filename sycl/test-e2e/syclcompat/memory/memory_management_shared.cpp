@@ -30,11 +30,11 @@
 //
 // ===----------------------------------------------------------------------===//
 
-// REQUIRES: usm_shared_allocations
+// REQUIRES: aspect-usm_shared_allocations
 // RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <syclcompat/memory.hpp>
 

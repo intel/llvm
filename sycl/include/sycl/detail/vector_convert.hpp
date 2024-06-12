@@ -55,6 +55,7 @@
 #pragma once
 
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
+#include <sycl/exception.hpp>                  // for errc
 
 #ifndef __SYCL_DEVICE_ONLY__
 #include <cfenv> // for fesetround, fegetround

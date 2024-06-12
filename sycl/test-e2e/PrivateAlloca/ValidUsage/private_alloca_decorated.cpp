@@ -11,4 +11,9 @@
 
 constexpr sycl::specialization_id<int> size(10);
 
-int main() { test<float, size, sycl::access::decorated::yes>(); }
+int main() {
+  std::size_t n = 0;
+  std::cin >> n;
+  test<float, size, sycl::access::decorated::yes>(n);
+  test<float, size, sycl::access::decorated::yes, alignof(float) * 2>(n);
+}

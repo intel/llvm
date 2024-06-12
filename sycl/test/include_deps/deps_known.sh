@@ -1,12 +1,3 @@
-HEADERS=(
-    sycl/detail/defines_elementary.hpp
-    sycl/detail/export.hpp
-
-    sycl/buffer.hpp
-
-    sycl/detail/core.hpp
-)
-
 function deps() {
     HEADER=$1
     echo "Dependencies for <$HEADER>:"
@@ -31,7 +22,5 @@ function deps() {
         | sed 's/ \\//'
 }
 
-for x in ${HEADERS[@]} ; do
-    deps $x
-    echo ""
-done
+deps $1
+echo ""

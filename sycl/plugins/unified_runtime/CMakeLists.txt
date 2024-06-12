@@ -75,11 +75,16 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
         tag STREQUAL UNIFIED_RUNTIME_TAG)
+      # If the adapter sources are taken from the main checkout, reset the
+      # adapter specific source path.
+      string(TOUPPER ${name} NAME)
+      set(UR_ADAPTER_${NAME}_SOURCE_DIR ""
+        CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
       return()
     endif()
     message(STATUS
       "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
-    set(fetch-name unified-runtime-${name})
+    set(fetch-name ur-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
     # We don't want to add this repo to the build, only fetch its source.
@@ -95,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 717791bfc636a1cd69f95f09fea15fcd70a9fb23
-  # Merge: 601062ba f8c4facd
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Fri Apr 19 10:35:14 2024 +0100
-  #    Merge pull request #1517 from nrspruit/fix_l0_coverity_sync
-  #    [L0] Store LastCommandEvent before unlock during queue sync
-  set(UNIFIED_RUNTIME_TAG 717791bfc636a1cd69f95f09fea15fcd70a9fb23)
+  # commit 4f13cd14bdd86f0cce4a19e00bf63eb7230e6369
+  # Merge: 4f105262 2c3096a3
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Mon Jun 10 16:02:26 2024 +0100
+  #     Merge pull request #1282 from al42and/fix-sub-group-size-info
+  #     Fix size confusion for several device property queries
+  set(UNIFIED_RUNTIME_TAG 4f13cd14bdd86f0cce4a19e00bf63eb7230e6369)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

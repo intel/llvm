@@ -74,6 +74,10 @@ inline bool isBinaryOpCode(Op OpCode) {
          OpCode == OpDot || OpCode == OpIAddCarry || OpCode == OpISubBorrow;
 }
 
+inline bool isBinaryPtrOpCode(Op OpCode) {
+  return (unsigned)OpCode >= OpPtrEqual && (unsigned)OpCode <= OpPtrDiff;
+}
+
 inline bool isShiftOpCode(Op OpCode) {
   return (unsigned)OpCode >= OpShiftRightLogical &&
          (unsigned)OpCode <= OpShiftLeftLogical;

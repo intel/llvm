@@ -19,14 +19,19 @@ static void DieUnsupported() {
 
 // Adapters may be released by piTearDown being called, or the global dtors
 // being called first. Handle releasing the adapters exactly once.
-static void releaseAdapters(std::vector<ur_adapter_handle_t> &Vec) {
+static void releaseAdapters(std::vector<ur_adapter_handle_t> &Vec) noexcept {
   static std::once_flag ReleaseFlag{};
-  std::call_once(ReleaseFlag, [&]() {
-    for (auto Adapter : Vec) {
-      urAdapterRelease(Adapter);
-    }
-    urLoaderTearDown();
-  });
+  try {
+    std::call_once(ReleaseFlag, [&]() {
+      for (auto Adapter : Vec) {
+        urAdapterRelease(Adapter);
+      }
+      urLoaderTearDown();
+    });
+  } catch (...) {
+    // Ignore any potential exceptions on teardown. Worst case scenario
+    // this just leaks some memory on exit.
+  }
 }
 
 struct AdapterHolder {
@@ -682,6 +687,13 @@ __SYCL_EXPORT pi_result piextEventCreateWithNativeHandle(
                                                  OwnNativeHandle, Event);
 }
 
+__SYCL_EXPORT pi_result piEnqueueTimestampRecordingExp(
+    pi_queue Queue, pi_bool Blocking, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *Event) {
+  return pi2ur::piEnqueueTimestampRecordingExp(
+      Queue, Blocking, NumEventsInWaitList, EventWaitList, Event);
+}
+
 __SYCL_EXPORT pi_result piEnqueueMemImageFill(
     pi_queue Queue, pi_mem Image, const void *FillColor, const size_t *Origin,
     const size_t *Region, pi_uint32 NumEventsInWaitList,
@@ -1226,19 +1238,18 @@ __SYCL_EXPORT pi_result piextMemImageAllocate(pi_context Context,
 
 __SYCL_EXPORT pi_result piextMemUnsampledImageCreate(
     pi_context Context, pi_device Device, pi_image_mem_handle ImgMem,
-    pi_image_format *ImageFormat, pi_image_desc *ImageDesc, pi_mem *RetMem,
+    pi_image_format *ImageFormat, pi_image_desc *ImageDesc,
     pi_image_handle *RetHandle) {
-  return pi2ur::piextMemUnsampledImageCreate(
-      Context, Device, ImgMem, ImageFormat, ImageDesc, RetMem, RetHandle);
+  return pi2ur::piextMemUnsampledImageCreate(Context, Device, ImgMem,
+                                             ImageFormat, ImageDesc, RetHandle);
 }
 
 __SYCL_EXPORT pi_result piextMemSampledImageCreate(
     pi_context Context, pi_device Device, pi_image_mem_handle ImgMem,
     pi_image_format *ImageFormat, pi_image_desc *ImageDesc, pi_sampler Sampler,
-    pi_mem *RetMem, pi_image_handle *RetHandle) {
+    pi_image_handle *RetHandle) {
   return pi2ur::piextMemSampledImageCreate(Context, Device, ImgMem, ImageFormat,
-                                           ImageDesc, Sampler, RetMem,
-                                           RetHandle);
+                                           ImageDesc, Sampler, RetHandle);
 }
 
 __SYCL_EXPORT pi_result piextBindlessImageSamplerCreate(
@@ -1512,6 +1523,7 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piextEventGetNativeHandle)
   _PI_API(piEventGetProfilingInfo)
   _PI_API(piEventCreate)
+  _PI_API(piEnqueueTimestampRecordingExp)
 
   _PI_API(piSamplerCreate)
   _PI_API(piSamplerGetInfo)

@@ -38,7 +38,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
 set( LIBCLC_MIN_LLVM 3.9.0 )
 
 set( LIBCLC_TARGETS_TO_BUILD "all"
-    CACHE STRING "Semicolon-separated list of targets to build, or 'all'." )
+    CACHE STRING "Semicolon-separated list of libclc targets to build, or 'all'." )
 
 option( ENABLE_RUNTIME_SUBNORMAL "Enable runtime linking of subnormal support." OFF )
 
@@ -56,8 +56,8 @@ if( LIBCLC_STANDALONE_BUILD OR CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DI
   endif()
 
   # Import required tools as targets
-  if ( NOT EXISTS LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR )
-    foreach( tool clang llvm-as llvm-link opt )
+  if( NOT EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
+    foreach( tool IN ITEMS clang llvm-as llvm-link opt )
       find_program( LLVM_TOOL_${tool} ${tool} PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
       add_executable( libclc::${tool} IMPORTED GLOBAL )
       set_target_properties( libclc::${tool} PROPERTIES IMPORTED_LOCATION ${LLVM_TOOL_${tool}} )
@@ -76,20 +76,27 @@ else()
     message(FATAL_ERROR "Clang is not enabled, but is required to build libclc in-tree")
   endif()
 
-  if ( NOT EXISTS LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR )
-    foreach( tool clang llvm-as llvm-link opt )
+  if( NOT EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
+    foreach( tool IN ITEMS clang llvm-as llvm-link opt )
       add_executable(libclc::${tool} ALIAS ${tool})
     endforeach()
   endif()
 endif()
 
-if ( EXISTS LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR )
+if( EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
   message( WARNING "Using custom LLVM tools to build libclc: "
     "${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR}, "
     " ensure the tools are up to date." )
-  foreach( tool clang llvm-as llvm-link opt llvm-spirv libclc-remangler )
-    find_program( LLVM_TOOL_${tool} ${tool}
+  # Note - use a differently named variable than LLVM_TOOL_${tool} as above, as
+  # the variable name is used to cache the result of find_program. If we used
+  # the same name, a user wouldn't be able to switch a build between default
+  # and custom tools.
+  foreach( tool IN ITEMS clang llvm-as llvm-link opt llvm-spirv libclc-remangler )
+    find_program( LLVM_CUSTOM_TOOL_${tool} ${tool}
       PATHS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+    add_executable( libclc::${tool} IMPORTED GLOBAL )
+    set_target_properties( libclc::${tool} PROPERTIES
+      IMPORTED_LOCATION ${LLVM_CUSTOM_TOOL_${tool}} )
   endforeach()
 
   # If we've requested a custom binary directory, there are some otherwise
@@ -99,9 +106,18 @@ if ( EXISTS LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR )
   endif()
 endif()
 
-if( NOT TARGET libclc::clang OR NOT TARGET libclc::opt
-    OR NOT TARGET libclc::llvm-as OR NOT TARGET libclc::llvm-link )
-  message( FATAL_ERROR "libclc toolchain incomplete!" )
+foreach( tool IN ITEMS clang opt llvm-as llvm-link )
+  if( NOT TARGET libclc::${tool} )
+    message( FATAL_ERROR "libclc toolchain incomplete - missing tool ${tool}!" )
+  endif()
+endforeach()
+
+# llvm-spirv is an optional dependency, used to build spirv-* targets.
+find_program( LLVM_SPIRV llvm-spirv PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+
+if( LLVM_SPIRV AND NOT TARGET libclc::llvm-spirv )
+  add_executable( libclc::llvm-spirv IMPORTED GLOBAL )
+  set_target_properties( libclc::llvm-spirv PROPERTIES IMPORTED_LOCATION ${LLVM_SPIRV} )
 endif()
 
 # List of all targets. Note that some are added dynamically below.
@@ -312,6 +328,10 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
         # Disables NVVM reflection to defer to after linking
         list( APPEND flags -Xclang -target-feature -Xclang +ptx72
              -march=sm_86 -mllvm --nvvm-reflect-enable=false)
+      elseif( ARCH STREQUAL amdgcn )
+        # AMDGCN needs libclc to be compiled to high bc version since all atomic
+        # clang builtins need to be accessible
+        list( APPEND flags -mcpu=gfx940 -mllvm --amdgpu-oclc-reflect-enable=false )
       elseif( ARCH  STREQUAL x86_64)
         # TODO: This is used by SYCL Native Cpu, we should define an option to set this flags
         list( APPEND flags -Xclang -target-feature -Xclang +avx
@@ -326,7 +346,19 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 
     message( STATUS "  device: ${d} ( ${${d}_aliases} )" )
 
+    # Note: when declaring builtins, we must consider that even if a target
+    # formally/nominally supports the generic address space, in practice that
+    # target may map it to the same target address space as another address
+    # space (often the private one). In such cases we must be careful not to
+    # multiply-define a builtin in a single target address space, as it would
+    # result in a mangling clash.
+    # For this reason we must consider the target support of the generic
+    # address space separately from the *implementation* decision about whether
+    # to declare certain builtins in that address space.
     set ( supports_generic_addrspace TRUE )
+    # Note: we assume that if there is no distinct generic address space, it
+    # maps to the private address space.
+    set ( has_distinct_generic_addrspace TRUE )
     if ( ARCH STREQUAL spirv OR ARCH STREQUAL spirv64 )
       set( opt_flags -O3 )
       set( spvflags --spirv-max-version=1.1 )
@@ -334,17 +366,12 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       set( opt_flags -O3 )
     elseif( ARCH STREQUAL nvptx OR ARCH STREQUAL nvptx64 )
       set( opt_flags -O3 "--nvvm-reflect-enable=false" )
-      # Note: when declaring builtins, we don't consider NVIDIA as supporting
-      # the generic address space. This is because it maps to the same target
-      # address space as the private address space, resulting in a mangling
-      # clash.
-      # Since we can't declare builtins overloaded on both address spaces
-      # simultaneously, we choose declare the builtins using the private space,
-      # which will also work for the generic address space.
-      set( supports_generic_addrspace FALSE )
+      set( has_distinct_generic_addrspace FALSE )
+    elseif( ARCH STREQUAL amdgcn )
+      set( opt_flags -O3 --amdgpu-oclc-reflect-enable=false )
     elseif( ARCH STREQUAL x86_64)
       set( opt_flags )
-      set( supports_generic_addrspace FALSE )
+      set( has_distinct_generic_addrspace FALSE )
     else()
       set( opt_flags -O3 )
     endif()
@@ -357,7 +384,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     file( MAKE_DIRECTORY ${LIBCLC_ARCH_OBJFILE_DIR} )
 
     # OpenCL 3.0 extensions
-    list( APPEND flags -cl-std=CL3.0 "-Xclang" )
     string(CONCAT CL_3_0_EXTENSIONS
       "-cl-ext="
       "+cl_khr_fp64,"
@@ -365,8 +391,11 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       "+__opencl_c_3d_image_writes,"
       "+__opencl_c_images,"
       "+cl_khr_3d_image_writes")
-    if(supports_generic_addrspace)
+    if( supports_generic_addrspace )
       string( APPEND CL_3_0_EXTENSIONS ",+__opencl_c_generic_address_space" )
+      if( has_distinct_generic_addrspace )
+        list( APPEND flags -D__CLC_DISTINCT_GENERIC_ADDRSPACE__ )
+      endif()
     else()
       # Explictly disable opencl_c_generic_address_space (it may be enabled
       # by default on some targets). We also disable opencl_c_pipes and
@@ -375,7 +404,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       string( APPEND CL_3_0_EXTENSIONS ",-__opencl_c_pipes" )
       string( APPEND CL_3_0_EXTENSIONS ",-__opencl_c_device_enqueue" )
     endif()
-    list( APPEND flags ${CL_3_0_EXTENSIONS})
+    list( APPEND flags -cl-std=CL3.0 "-Xclang" ${CL_3_0_EXTENSIONS} )
 
     # Add platform specific flags
     if(WIN32)

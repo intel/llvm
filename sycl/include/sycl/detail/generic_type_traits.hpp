@@ -253,6 +253,16 @@ inline constexpr bool is_genfloatptr_marray_v =
      IsDecorated == access::decorated::no);
 
 template <typename T>
+using is_byte = typename
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+    std::is_same<T, std::byte>;
+#else
+    std::false_type;
+#endif
+
+template <typename T> inline constexpr bool is_byte_v = is_byte<T>::value;
+
+template <typename T>
 using make_floating_point_t = make_type_t<T, gtl::scalar_floating_list>;
 
 template <typename T>
@@ -261,6 +271,13 @@ using make_singed_integer_t = make_type_t<T, gtl::scalar_signed_integer_list>;
 template <typename T>
 using make_unsinged_integer_t =
     make_type_t<T, gtl::scalar_unsigned_integer_list>;
+
+template <int Size>
+using cl_unsigned = std::conditional_t<
+    Size == 1, opencl::cl_uchar,
+    std::conditional_t<
+        Size == 2, opencl::cl_ushort,
+        std::conditional_t<Size == 4, opencl::cl_uint, opencl::cl_ulong>>>;
 
 // select_apply_cl_scalar_t selects from T8/T16/T32/T64 basing on
 // sizeof(IN).  expected to handle scalar types.
