@@ -610,6 +610,7 @@ class MarshallingInfoVisibility<KeyPathAndMacro kpm, code default>
 // Key paths that are constant during parsing of options with the same key path prefix.
 defvar cplusplus = LangOpts<"CPlusPlus">;
 defvar cpp11 = LangOpts<"CPlusPlus11">;
+defvar cpp14 = LangOpts<"CPlusPlus14">;
 defvar cpp17 = LangOpts<"CPlusPlus17">;
 defvar cpp20 = LangOpts<"CPlusPlus20">;
 defvar c99 = LangOpts<"C99">;
@@ -1929,13 +1930,13 @@ defm apinotes : BoolOption<"f", "apinotes",
     LangOpts<"APINotes">, DefaultFalse,
     PosFlag<SetTrue, [], [ClangOption], "Enable">,
     NegFlag<SetFalse, [], [ClangOption], "Disable">,
-    BothFlags<[], [ClangOption, CC1Option], "external API notes support">>,
+    BothFlags<[], [ClangOption, CC1Option], " external API notes support">>,
     Group<f_clang_Group>;
 defm apinotes_modules : BoolOption<"f", "apinotes-modules",
     LangOpts<"APINotesModules">, DefaultFalse,
     PosFlag<SetTrue, [], [ClangOption], "Enable">,
     NegFlag<SetFalse, [], [ClangOption], "Disable">,
-    BothFlags<[], [ClangOption, CC1Option], "module-based external API notes support">>,
+    BothFlags<[], [ClangOption, CC1Option], " module-based external API notes support">>,
     Group<f_clang_Group>;
 def fapinotes_swift_version : Joined<["-"], "fapinotes-swift-version=">,
   Group<f_clang_Group>, Visibility<[ClangOption, CC1Option]>,
@@ -3473,10 +3474,9 @@ defm relaxed_template_template_args : BoolFOption<"relaxed-template-template-arg
   NegFlag<SetFalse, [], [CC1Option], "Disable">,
   BothFlags<[], [ClangOption], " C++17 relaxed template template argument matching">>;
 defm sized_deallocation : BoolFOption<"sized-deallocation",
-  LangOpts<"SizedDeallocation">, DefaultFalse,
-  PosFlag<SetTrue, [], [ClangOption, CC1Option],
-          "Enable C++14 sized global deallocation functions">,
-  NegFlag<SetFalse>>;
+  LangOpts<"SizedDeallocation">, Default<cpp14.KeyPath>,
+  PosFlag<SetTrue, [], [], "Enable C++14 sized global deallocation functions">,
+  NegFlag<SetFalse>, BothFlags<[], [ClangOption, CC1Option]>>;
 defm aligned_allocation : BoolFOption<"aligned-allocation",
   LangOpts<"AlignedAllocation">, Default<cpp17.KeyPath>,
   PosFlag<SetTrue, [], [ClangOption], "Enable C++17 aligned allocation functions">,
@@ -3512,10 +3512,6 @@ def fobjc_nonfragile_abi : Flag<["-"], "fobjc-nonfragile-abi">, Group<f_Group>;
 def fno_objc_nonfragile_abi : Flag<["-"], "fno-objc-nonfragile-abi">, Group<f_Group>;
 
 def fobjc_sender_dependent_dispatch : Flag<["-"], "fobjc-sender-dependent-dispatch">, Group<f_Group>;
-def foffload_static_lib_EQ : CommaJoined<["-"], "foffload-static-lib=">, Flags<[NoXarchOption]>,
-  Visibility<[ClangOption, CLOption, DXCOption]>, Group<offload_lib_Group>;
-def foffload_whole_static_lib_EQ : CommaJoined<["-"], "foffload-whole-static-lib=">, Flags<[NoXarchOption]>,
-  Visibility<[ClangOption, CLOption, DXCOption]>, Group<offload_lib_Group>;
 def fobjc_disable_direct_methods_for_testing :
   Flag<["-"], "fobjc-disable-direct-methods-for-testing">,
   Group<f_Group>, Visibility<[ClangOption, CC1Option]>,
@@ -3958,14 +3954,6 @@ def fno_sycl_esimd_build_host_code :  Flag<["-"], "fno-sycl-esimd-build-host-cod
 def fsycl_targets_EQ : CommaJoined<["-"], "fsycl-targets=">, Flags<[NoXarchOption]>,
   Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
   HelpText<"Specify comma-separated list of triples SYCL offloading targets to be supported">;
-def fsycl_add_targets_EQ : CommaJoined<["-"], "fsycl-add-targets=">,
-  Flags<[NoXarchOption, Deprecated]>, Visibility<[ClangOption, CLOption, DXCOption]>,
-  HelpText<"Specify comma-separated list of triple and device binary image "
-           "pairs to add to the final SYCL binary (deprecated)">;
-def fsycl_link_targets_EQ : CommaJoined<["-"], "fsycl-link-targets=">,
-  Flags<[NoXarchOption, Deprecated]>, Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
-  HelpText<"Specify comma-separated list of triples SYCL offloading targets "
-           "to produce linked device images (deprecated)">;
 def fsycl_force_target_EQ : Joined<["-"], "fsycl-force-target=">,
   Flags<[NoXarchOption]>, Visibility<[ClangOption, CLOption, DXCOption]>,
   HelpText<"Force the usage of the given triple when extracting device code "
@@ -4086,6 +4074,10 @@ def fsycl_exp_range_rounding : Flag<["-"], "fsycl-exp-range-rounding">,
   Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
   HelpText<"Use experimental range rounding.">,
   MarshallingInfoFlag<LangOpts<"SYCLExperimentalRangeRounding">>;
+def fsycl_fp64_conv_emu : Flag<["-"], "fsycl-fp64-conv-emu">,
+  Visibility<[ClangOption, CLOption, CC1Option]>,
+  HelpText<"Enable fp64 partial emulation for kernels with only fp64 conversion operations and no fp64 computation operations (requires Intel GPU backend supporting fp64 partial emulation).">,
+  MarshallingInfoFlag<CodeGenOpts<"FP64ConvEmu">>;
 def fno_sycl_use_footer : Flag<["-"], "fno-sycl-use-footer">, Visibility<[ClangOption, CLOption, DXCOption]>,
   HelpText<"Disable usage of the integration footer during SYCL enabled "
    "compilations.">;
@@ -4473,6 +4465,14 @@ defm strict_return : BoolFOption<"strict-return",
 
 let Flags = [TargetSpecific] in {
 defm ptrauth_intrinsics : OptInCC1FFlag<"ptrauth-intrinsics", "Enable pointer authentication intrinsics">;
+defm ptrauth_calls : OptInCC1FFlag<"ptrauth-calls", "Enable signing and authentication of all indirect calls">;
+defm ptrauth_returns : OptInCC1FFlag<"ptrauth-returns", "Enable signing and authentication of return addresses">;
+defm ptrauth_auth_traps : OptInCC1FFlag<"ptrauth-auth-traps", "Enable traps on authentication failures">;
+defm ptrauth_vtable_pointer_address_discrimination :
+  OptInCC1FFlag<"ptrauth-vtable-pointer-address-discrimination", "Enable address discrimination of vtable pointers">;
+defm ptrauth_vtable_pointer_type_discrimination :
+  OptInCC1FFlag<"ptrauth-vtable-pointer-type-discrimination", "Enable type discrimination of vtable pointers">;
+defm ptrauth_init_fini : OptInCC1FFlag<"ptrauth-init-fini", "Enable signing of function pointers in init/fini arrays">;
 }
 
 def fenable_matrix : Flag<["-"], "fenable-matrix">, Group<f_Group>,
@@ -4711,6 +4711,10 @@ def image__base : Separate<["-"], "image_base">;
 def include_ : JoinedOrSeparate<["-", "--"], "include">, Group<clang_i_Group>, EnumName<"include">,
     MetaVarName<"<file>">, HelpText<"Include file before parsing">,
     Visibility<[ClangOption, CC1Option]>;
+def include_footer : Separate<["-"], "include-footer">, Group<clang_i_Group>,
+    Visibility<[CC1Option]>,
+    HelpText<"Name of the footer integration file">,  MetaVarName<"<file>">,
+    MarshallingInfoString<PreprocessorOpts<"IncludeFooter">>;
 def include_pch : Separate<["-"], "include-pch">, Group<clang_i_Group>,
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"Include precompiled header file">, MetaVarName<"<file>">,
@@ -5370,6 +5374,10 @@ def maix_small_local_dynamic_tls : Flag<["-"], "maix-small-local-dynamic-tls">,
            "where the offset from the TLS base is encoded as an "
            "immediate operand (AIX 64-bit only). "
            "This access sequence is not used for variables larger than 32KB.">;
+def maix_shared_lib_tls_model_opt : Flag<["-"], "maix-shared-lib-tls-model-opt">,
+  Group<m_ppc_Features_Group>,
+  HelpText<"For shared library loaded with the main program, change local-dynamic access(es) "
+           "to initial-exec access(es) at the function level (AIX 64-bit only).">;
 def maix_struct_return : Flag<["-"], "maix-struct-return">,
   Group<m_Group>, Visibility<[ClangOption, CC1Option]>,
   HelpText<"Return all structs in memory (PPC32 only)">,
@@ -5774,7 +5782,10 @@ def print_prog_name_EQ : Joined<["-", "--"], "print-prog-name=">,
   Visibility<[ClangOption, CLOption]>;
 def print_resource_dir : Flag<["-", "--"], "print-resource-dir">,
   HelpText<"Print the resource directory pathname">,
-  Visibility<[ClangOption, CLOption]>;
+  HelpTextForVariants<[FlangOption],
+                      "Print the resource directory pathname that contains lib and "
+                      "include directories with the runtime libraries and MODULE files.">,
+  Visibility<[ClangOption, CLOption, FlangOption]>;
 def print_search_dirs : Flag<["-", "--"], "print-search-dirs">,
   HelpText<"Print the paths used for finding libraries and programs">,
   Visibility<[ClangOption, CLOption]>;
@@ -6559,9 +6570,9 @@ def mno_gather : Flag<["-"], "mno-gather">, Group<m_Group>,
 def mno_scatter : Flag<["-"], "mno-scatter">, Group<m_Group>,
                   HelpText<"Disable generation of scatter instructions in auto-vectorization(x86 only)">;
 def mapx_features_EQ : CommaJoined<["-"], "mapx-features=">, Group<m_x86_Features_Group>,
-    HelpText<"Enable features of APX">, Values<"egpr,push2pop2,ppx,ndd,ccmp,cf">;
+    HelpText<"Enable features of APX">, Values<"egpr,push2pop2,ppx,ndd,ccmp,nf,cf">;
 def mno_apx_features_EQ : CommaJoined<["-"], "mno-apx-features=">, Group<m_x86_Features_Group>,
-    HelpText<"Disable features of APX">, Values<"egpr,push2pop2,ppx,ndd,ccmp,cf">;
+    HelpText<"Disable features of APX">, Values<"egpr,push2pop2,ppx,ndd,ccmp,nf,cf">;
 // Features egpr, push2pop2, ppx and ndd are validated with llvm-test-suite && cpu2017 on Intel SDE.
 // For stability, we turn on these features only for -mapxf. After a feature pass the validation,
 // we will add it to -mapxf.
@@ -6872,6 +6883,10 @@ def flang_deprecated_no_hlfir : Flag<["-"], "flang-deprecated-no-hlfir">,
   Flags<[HelpHidden]>, Visibility<[FlangOption, FC1Option]>,
   HelpText<"Do not use HLFIR lowering (deprecated)">;
 
+def flang_experimental_integer_overflow : Flag<["-"], "flang-experimental-integer-overflow">,
+  Flags<[HelpHidden]>, Visibility<[FlangOption, FC1Option]>,
+  HelpText<"Add nsw flag to internal operations such as do-variable increment (experimental)">;
+
 //===----------------------------------------------------------------------===//
 // FLangOption + Visibility<[FlangOption, CLOption, DXCOption] + NoXarchOption
 //===----------------------------------------------------------------------===//
@@ -6969,7 +6984,9 @@ def fdebug_unparse : Flag<["-"], "fdebug-unparse">, Group<Action_Group>,
   DocBrief<[{Run the parser and the semantic checks. Then unparse the
 parse-tree and output the generated Fortran source file.}]>;
 def fdebug_unparse_with_symbols : Flag<["-"], "fdebug-unparse-with-symbols">, Group<Action_Group>,
-  HelpText<"Unparse and stop.">;
+  HelpText<"Unparse with symbols and stop.">;
+def fdebug_unparse_with_modules : Flag<["-"], "fdebug-unparse-with-modules">, Group<Action_Group>,
+  HelpText<"Unparse with dependent modules and stop.">;
 def fdebug_dump_symbols : Flag<["-"], "fdebug-dump-symbols">, Group<Action_Group>,
   HelpText<"Dump symbols after the semantic analysis">;
 def fdebug_dump_parse_tree : Flag<["-"], "fdebug-dump-parse-tree">, Group<Action_Group>,

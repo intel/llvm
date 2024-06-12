@@ -3,9 +3,13 @@
 // RUN: %{build} %cuda_options -o %t.out
 // RUN: %{run} %t.out
 
+// An issue has been reported in https://github.com/intel/llvm/issues/14116
+// XFAIL: *
+
 #define SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL 1
+#include <sycl/backend.hpp>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/backend/cuda.hpp>
-#include <sycl/sycl.hpp>
 
 #include <cuda.h>
 

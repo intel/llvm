@@ -1040,7 +1040,7 @@ def Availability : InheritableAttr {
               VersionArgument<"deprecated">, VersionArgument<"obsoleted">,
               BoolArgument<"unavailable">, StringArgument<"message">,
               BoolArgument<"strict">, StringArgument<"replacement">,
-              IntArgument<"priority">];
+              IntArgument<"priority">, IdentifierArgument<"environment">];
   let AdditionalMembers =
 [{static llvm::StringRef getPrettyPlatformName(llvm::StringRef Platform) {
     return llvm::StringSwitch<llvm::StringRef>(Platform)
@@ -1060,7 +1060,7 @@ def Availability : InheritableAttr {
              .Case("xros", "visionOS")
              .Case("xros_app_extension", "visionOS (App Extension)")
              .Case("swift", "Swift")
-             .Case("shadermodel", "HLSL ShaderModel")
+             .Case("shadermodel", "Shader Model")
              .Case("ohos", "OpenHarmony OS")
              .Default(llvm::StringRef());
 }
@@ -1100,7 +1100,34 @@ static llvm::StringRef canonicalizePlatformName(llvm::StringRef Platform) {
              .Case("visionos_app_extension", "xros_app_extension")
              .Case("ShaderModel", "shadermodel")
              .Default(Platform);
-} }];
+}
+static llvm::StringRef getPrettyEnviromentName(llvm::StringRef Environment) {
+    return llvm::StringSwitch<llvm::StringRef>(Environment)
+             .Case("pixel", "pixel shader")
+             .Case("vertex", "vertex shader")
+             .Case("geometry", "geometry shader")
+             .Case("hull", "hull shader")
+             .Case("domain", "domain shader")
+             .Case("compute", "compute shader")
+             .Case("mesh", "mesh shader")
+             .Case("amplification", "amplification shader")
+             .Case("library", "shader library")
+             .Default(Environment);
+}
+static llvm::Triple::EnvironmentType getEnvironmentType(llvm::StringRef Environment) {
+    return llvm::StringSwitch<llvm::Triple::EnvironmentType>(Environment)
+             .Case("pixel", llvm::Triple::Pixel)
+             .Case("vertex", llvm::Triple::Vertex)
+             .Case("geometry", llvm::Triple::Geometry)
+             .Case("hull", llvm::Triple::Hull)
+             .Case("domain", llvm::Triple::Domain)
+             .Case("compute", llvm::Triple::Compute)
+             .Case("mesh", llvm::Triple::Mesh)
+             .Case("amplification", llvm::Triple::Amplification)
+             .Case("library", llvm::Triple::Library)
+             .Default(llvm::Triple::UnknownEnvironment);
+}
+}];
   let HasCustomParsing = 1;
   let InheritEvenIfAlreadyPresent = 1;
   let Subjects = SubjectList<[Named]>;
@@ -1769,6 +1796,30 @@ class SYCLAddIRAttrMemberCodeHolder<code Code> {
 // Common class for SYCL add_ir_attributes_* attributes.
 def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
   static std::optional<std::string>
+  getValidAttributeNameAsString(const APValue &Value,
+                                 const ASTContext &Context,
+                                 QualType ValueQType) {
+    assert(!Value.isLValue());
+    if (ValueQType->isCharType()) {
+      char C = static_cast<char>(Value.getInt().getExtValue());
+      return std::string(&C, 1);
+    }
+    if (ValueQType->isArrayType() &&
+        (ValueQType->getArrayElementTypeNoTypeQual()->isCharType())) {
+      SmallString<10> StrBuffer;
+      for (unsigned I = 0; I < Value.getArrayInitializedElts(); ++I) {
+        const APValue &ArrayElem = Value.getArrayInitializedElt(I);
+        char C = static_cast<char>(ArrayElem.getInt().getExtValue());
+        if (C == '\0')
+          break;
+        StrBuffer += C;
+      }
+      return std::string(StrBuffer);
+    }
+    return std::nullopt;
+  }
+
+  static std::optional<std::string>
   getValidAttributeNameAsString(const Expr *NameE, const ASTContext &Context) {
     if (const auto *NameLiteral = dyn_cast<StringLiteral>(NameE))
       return NameLiteral->getString().str();
@@ -1782,7 +1833,8 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
       NameLValue = NameCE->getAPValueResult();
 
     if (!NameLValue.isLValue())
-      return std::nullopt;
+      return getValidAttributeNameAsString(NameLValue, Context,
+                                            NameCE->getType());
 
     if (const auto *NameValExpr =
             NameLValue.getLValueBase().dyn_cast<const Expr *>())
@@ -1816,10 +1868,10 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
          ValueQType->getArrayElementTypeNoTypeQual()
                    ->isIntegralOrEnumerationType())) {
       SmallString<10> StrBuffer;
-      for (unsigned I = 0; I < Value.getArraySize(); ++I) {
+      for (unsigned I = 0; I < Value.getArrayInitializedElts(); ++I) {
         const APValue &ArrayElem = Value.getArrayInitializedElt(I);
         char C = static_cast<char>(ArrayElem.getInt().getExtValue());
-        if (C == 0)
+        if (C == '\0')
           break;
         StrBuffer += C;
       }
@@ -1859,7 +1911,7 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
       SmallString<10> StrBuffer;
       for (const auto *InitE : InitListE->inits()) {
         const Expr *InitNoImpCastE = InitE->IgnoreParenImpCasts();
-        char C = 0;
+        char C = '\0';
         if (const auto *CharacterVal =
               dyn_cast<CharacterLiteral>(InitNoImpCastE))
           C = static_cast<char>(CharacterVal->getValue());
@@ -1870,7 +1922,7 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
           return std::nullopt;
 
         // Null terminator will end the string reading.
-        if (C == 0)
+        if (C == '\0')
           break;
 
         StrBuffer += C;
@@ -2254,10 +2306,11 @@ def Unlikely : StmtAttr {
 def : MutualExclusions<[Likely, Unlikely]>;
 
 def CXXAssume : StmtAttr {
-  let Spellings = [CXX11<"", "assume", 202207>];
+  let Spellings = [CXX11<"", "assume", 202207>, Clang<"assume">];
   let Subjects = SubjectList<[NullStmt], ErrorDiag, "empty statements">;
   let Args = [ExprArgument<"Assumption">];
   let Documentation = [CXXAssumeDocs];
+  let HasCustomParsing = 1;
 }
 
 def NoMerge : DeclOrStmtAttr {
@@ -5234,7 +5287,7 @@ def OMPDeclareVariant : InheritableAttr {
 }
 
 def OMPAssume : InheritableAttr {
-  let Spellings = [Clang<"assume">, CXX11<"omp", "assume">];
+  let Spellings = [CXX11<"omp", "assume">];
   let Subjects = SubjectList<[Function, ObjCMethod]>;
   let InheritEvenIfAlreadyPresent = 1;
   let Documentation = [OMPAssumeDocs];
@@ -5421,6 +5474,18 @@ def HLSLResourceBinding: InheritableAttr {
   let Documentation = [HLSLResourceBindingDocs];
 }
 
+def HLSLPackOffset: HLSLAnnotationAttr {
+  let Spellings = [HLSLAnnotation<"packoffset">];
+  let LangOpts = [HLSL];
+  let Args = [IntArgument<"Subcomponent">, IntArgument<"Component">];
+  let Documentation = [HLSLPackOffsetDocs];
+  let AdditionalMembers = [{
+      unsigned getOffset() {
+        return subcomponent * 4 + component;
+      }
+  }];
+}
+
 def HLSLSV_DispatchThreadID: HLSLAnnotationAttr {
   let Spellings = [HLSLAnnotation<"SV_DispatchThreadID">];
   let Subjects = SubjectList<[ParmVar, Field]>;
@@ -5554,4 +5619,11 @@ def CodeAlign: StmtAttr {
     static constexpr int MinimumAlignment = 1;
     static constexpr int MaximumAlignment = 4096;
   }];
+}
+
+def ClspvLibclcBuiltin: InheritableAttr {
+  let Spellings = [Clang<"clspv_libclc_builtin">];
+  let Subjects = SubjectList<[Function]>;
+  let Documentation = [ClspvLibclcBuiltinDoc];
+  let SimpleHandler = 1;
 }

@@ -96,8 +96,11 @@ namespace ext ::oneapi ::experimental {
 enum class queue_state { executing, recording };
 struct image_descriptor;
 
+namespace detail {
 template <typename CommandGroupFunc>
-void submit(queue Q, CommandGroupFunc &&CGF);
+void submit_impl(queue &Q, CommandGroupFunc &&CGF,
+                 const sycl::detail::code_location &CodeLoc);
+} // namespace detail
 } // namespace ext::oneapi::experimental
 
 /// Encapsulates a single SYCL queue which schedules kernels on a SYCL device.
@@ -2593,6 +2596,11 @@ public:
         CodeLoc);
   }
 
+  /// Provides a hint to the  runtime that previously issued commands to this
+  /// queue should begin executing once their prerequisites have been satisfied.
+  ///
+  void ext_oneapi_prod();
+
   /// Returns whether the queue is in order or OoO
   ///
   /// Equivalent to has_property<property::queue::in_order>()
@@ -2633,6 +2641,11 @@ private:
                                            const detail::code_location &);
 #endif
 
+  template <typename CommandGroupFunc>
+  friend void ext::oneapi::experimental::detail::submit_impl(
+      queue &Q, CommandGroupFunc &&CGF,
+      const sycl::detail::code_location &CodeLoc);
+
   /// A template-free version of submit.
   event submit_impl(std::function<void(handler &)> CGH,
                     const detail::code_location &CodeLoc);
@@ -2652,8 +2665,7 @@ private:
   /// \param CodeLoc is the code location of the submit call (default argument)
   template <typename T>
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, void>
-  submit_without_event(T CGF, const detail::code_location &CodeLoc =
-                                  detail::code_location::current()) {
+  submit_without_event(T CGF, const detail::code_location &CodeLoc) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 #if __SYCL_USE_FALLBACK_ASSERT
     // If post-processing is needed, fall back to the regular submit.
@@ -2663,10 +2675,6 @@ private:
     submit_without_event_impl(CGF, CodeLoc);
 #endif // __SYCL_USE_FALLBACK_ASSERT
   }
-
-  template <typename CommandGroupFunc>
-  friend void ext::oneapi::experimental::submit(queue Q,
-                                                CommandGroupFunc &&CGF);
 
   /// Checks if the event needs to be discarded and if so, discards it and
   /// returns a discarded event. Otherwise, it returns input event.

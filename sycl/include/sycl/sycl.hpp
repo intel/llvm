@@ -30,7 +30,6 @@
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/experimental/group_sort.hpp>
-#include <sycl/feature_test.hpp>
 #include <sycl/functional.hpp>
 #include <sycl/group.hpp>
 #include <sycl/group_algorithm.hpp>
@@ -97,6 +96,7 @@
 #include <sycl/ext/oneapi/experimental/group_load_store.hpp>
 #include <sycl/ext/oneapi/experimental/opportunistic_group.hpp>
 #include <sycl/ext/oneapi/experimental/prefetch.hpp>
+#include <sycl/ext/oneapi/experimental/profiling_tag.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/ext/oneapi/experimental/tangle_group.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>

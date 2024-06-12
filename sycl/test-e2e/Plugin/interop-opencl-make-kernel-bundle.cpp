@@ -8,7 +8,8 @@
 #include <cassert>
 #include <iostream>
 #include <string>
-#include <sycl/sycl.hpp>
+#include <sycl/backend.hpp>
+#include <sycl/detail/core.hpp>
 #include <vector>
 
 char const *source = R"OCL(kernel void do_nothing() {})OCL";

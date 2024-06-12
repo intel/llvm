@@ -426,10 +426,6 @@ public:
     return ClangExecutable.c_str();
   }
 
-  /// Get the path to where the clang executable was installed.
-  const char *getInstalledDir() const {
-    return Dir.c_str();
-  }
   bool isDumpDeviceCodeEnabled() const { return DumpDeviceCode; }
 
   bool isSaveTempsEnabled() const { return SaveTemps != SaveTempsNone; }
@@ -786,6 +782,9 @@ private:
   /// Set the driver mode (cl, gcc, etc) from the value of the `--driver-mode`
   /// option.
   void setDriverMode(StringRef DriverModeValue);
+
+  /// Set the resource directory, depending on which driver is being used.
+  void setResourceDirectory();
 
   /// Parse the \p Args list for LTO options and record the type of LTO
   /// compilation based on which -f(no-)?lto(=.*)? option occurs last.

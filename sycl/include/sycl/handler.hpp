@@ -34,6 +34,7 @@
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
+#include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group.hpp>
@@ -175,6 +176,7 @@ class stream_impl;
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder>
 class image_accessor;
+class HandlerAccess;
 template <typename RetType, typename Func, typename Arg>
 static Arg member_ptr_helper(RetType (Func::*)(Arg) const);
 
@@ -998,6 +1000,10 @@ private:
                  sycl::ext::intel::experimental::fp_control_key>() &&
              KI::isESIMD()),
         "Floating point control property is supported for ESIMD kernels only.");
+    static_assert(
+        !PropertiesT::template has_property<
+            sycl::ext::oneapi::experimental::indirectly_callable_key>(),
+        "indirectly_callable property cannot be applied to SYCL kernels");
     if constexpr (PropertiesT::template has_property<
                       sycl::ext::intel::experimental::cache_config_key>()) {
       auto Config = Props.template get_property<
@@ -3715,12 +3721,29 @@ private:
   // Set that an ND Range was used during a call to parallel_for
   void setNDRangeUsed(bool Value);
 
+  inline void internalProfilingTagImpl() {
+    throwIfActionIsCreated();
+    setType(detail::CG::ProfilingTag);
+  }
+
+  friend class detail::HandlerAccess;
+
 protected:
   /// Registers event dependencies in this command group.
   void depends_on(const detail::EventImplPtr &Event);
   /// Registers event dependencies in this command group.
   void depends_on(const std::vector<detail::EventImplPtr> &Events);
 };
+
+namespace detail {
+class HandlerAccess {
+public:
+  static void internalProfilingTagImpl(handler &Handler) {
+    Handler.internalProfilingTagImpl();
+  }
+};
+} // namespace detail
+
 } // namespace _V1
 } // namespace sycl
 

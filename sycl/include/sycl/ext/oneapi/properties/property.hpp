@@ -203,8 +203,12 @@ enum PropKind : uint32_t {
   WorkGroupProgress = 62,
   SubGroupProgress = 63,
   WorkItemProgress = 64,
+  NDRangeKernel = 65,
+  SingleTaskKernel = 66,
+  IndirectlyCallable = 67,
+  CallsIndirectly = 68,
   // PropKindSize must always be the last value.
-  PropKindSize = 65,
+  PropKindSize = 69,
 };
 
 struct property_key_base_tag {};
