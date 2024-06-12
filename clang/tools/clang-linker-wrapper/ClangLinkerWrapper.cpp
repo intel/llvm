@@ -599,39 +599,6 @@ static void updateCmdArgs(SmallVector<StringRef, 8> &CmdArgs,
     removeArg("-generate-device-image-default-spec-consts");
 }
 
-// Run sycl-post-link tool
-static Expected<StringRef> runSYCLPostLink(ArrayRef<StringRef> InputFiles,
-                                           const ArgList &Args) {
-  Expected<std::string> SYCLPostLinkPath =
-      findProgram("sycl-post-link", {getMainExecutable("sycl-post-link")});
-  if (!SYCLPostLinkPath)
-    return SYCLPostLinkPath.takeError();
-
-  // Create a new file to write the output of sycl-post-link to.
-  auto TempFileOrErr =
-      createOutputFile(sys::path::filename(ExecutableName), "table");
-  if (!TempFileOrErr)
-    return TempFileOrErr.takeError();
-
-  StringRef SYCLPostLinkOptions;
-  if (Arg *A = Args.getLastArg(OPT_sycl_post_link_options_EQ))
-    SYCLPostLinkOptions = A->getValue();
-
-  SmallVector<StringRef, 8> CmdArgs;
-  CmdArgs.push_back(*SYCLPostLinkPath);
-  SYCLPostLinkOptions.split(CmdArgs, " ", /* MaxSplit = */ -1,
-                            /* KeepEmpty = */ false);
-  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  updateCmdArgs(CmdArgs, Triple);
-  CmdArgs.push_back("-o");
-  CmdArgs.push_back(*TempFileOrErr);
-  for (auto &File : InputFiles)
-    CmdArgs.push_back(File);
-  if (Error Err = executeCommands(*SYCLPostLinkPath, CmdArgs))
-    return std::move(Err);
-  return *TempFileOrErr;
-}
-
 // This table is used to manage the output table populated by sycl-post-link.
 struct Table {
   struct SYCLTableEntry {
@@ -764,6 +731,8 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
   CmdArgs.push_back(*SYCLPostLinkPath);
   SYCLPostLinkOptions.split(CmdArgs, " ", /* MaxSplit = */ -1,
                             /* KeepEmpty = */ false);
+  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  updateCmdArgs(CmdArgs, Triple);
   CmdArgs.push_back("-o");
   CmdArgs.push_back(*TempFileOrErr);
   for (auto &File : InputFiles)
@@ -929,8 +898,7 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
     if (!MBOrDesc)
       return createFileError(SI.ModuleFilePath, MBOrDesc.getError());
 
-    Images.emplace_back(std::move(*MBOrDesc), SI.Properties, SI.Symbols,
-                        A);
+    Images.emplace_back(std::move(*MBOrDesc), SI.Properties, SI.Symbols, A);
   }
 
   LLVMContext C;
