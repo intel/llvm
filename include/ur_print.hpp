@@ -929,6 +929,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP:
         os << "UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP";
         break;
+    case UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE:
+        os << "UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -1450,9 +1453,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
         break;
     case UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
         os << "UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR";
-        break;
-    case UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED:
-        os << "UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED";
         break;
     case UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE:
         os << "UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE";
@@ -5463,9 +5463,6 @@ inline ur_result_t printFlag<ur_mem_flag_t>(std::ostream &os, uint32_t flag) {
 ///     std::ostream &
 inline std::ostream &operator<<(std::ostream &os, enum ur_mem_type_t value) {
     switch (value) {
-    case UR_MEM_TYPE_BUFFER:
-        os << "UR_MEM_TYPE_BUFFER";
-        break;
     case UR_MEM_TYPE_IMAGE2D:
         os << "UR_MEM_TYPE_IMAGE2D";
         break;
@@ -5480,9 +5477,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_mem_type_t value) {
         break;
     case UR_MEM_TYPE_IMAGE1D_ARRAY:
         os << "UR_MEM_TYPE_IMAGE1D_ARRAY";
-        break;
-    case UR_MEM_TYPE_IMAGE1D_BUFFER:
-        os << "UR_MEM_TYPE_IMAGE1D_BUFFER";
         break;
     case UR_MEM_TYPE_IMAGE_CUBEMAP_EXP:
         os << "UR_MEM_TYPE_IMAGE_CUBEMAP_EXP";
@@ -11463,6 +11457,49 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_kernel_get_suggested_local_work_size_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_kernel_get_suggested_local_work_size_params_t *params) {
+
+    os << ".hKernel = ";
+
+    ur::details::printPtr(os,
+                          *(params->phKernel));
+
+    os << ", ";
+    os << ".hQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->phQueue));
+
+    os << ", ";
+    os << ".numWorkDim = ";
+
+    os << *(params->pnumWorkDim);
+
+    os << ", ";
+    os << ".pGlobalWorkOffset = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppGlobalWorkOffset));
+
+    os << ", ";
+    os << ".pGlobalWorkSize = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppGlobalWorkSize));
+
+    os << ", ";
+    os << ".pSuggestedLocalWorkSize = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppSuggestedLocalWorkSize));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_kernel_set_arg_value_params_t type
 /// @returns
 ///     std::ostream &
@@ -17142,6 +17179,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     } break;
     case UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE: {
         os << (const struct ur_kernel_create_with_native_handle_params_t *)params;
+    } break;
+    case UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE: {
+        os << (const struct ur_kernel_get_suggested_local_work_size_params_t *)params;
     } break;
     case UR_FUNCTION_KERNEL_SET_ARG_VALUE: {
         os << (const struct ur_kernel_set_arg_value_params_t *)params;

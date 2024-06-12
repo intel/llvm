@@ -1,11 +1,7 @@
 name: E2E Level Zero
 
 on:
-  schedule:
-    # Run every day at 23:00 UTC
-    - cron: '0 23 * * *'
-  issue_comment:
-    types: [created, edited]
+  workflow_call:
 
 permissions:
   contents: read
@@ -13,12 +9,10 @@ permissions:
 
 jobs:
   e2e-build-hw:
-    # trigger only if PR comment contains "e2e-level-zero"
-    if: ${{ (github.event.issue.pull_request && contains(github.event.comment.body, '/e2e-level-zero')) || (github.event_name == 'schedule') }}
+    if: github.repository == 'oneapi-src/unified-runtime'  # run only on upstream; forks will not have the HW
     name: Start e2e job
     # use core flow, run it with L0 specific parameters
     uses: ./.github/workflows/e2e_core.yml
-    # parameters that we pass to the core flow
     with:
       name: "L0"
       runner_tag: "L0_E2E"
@@ -26,7 +20,6 @@ jobs:
       prefix: "ext_oneapi_"
       config: ""
       unit: "gpu"
-      trigger: "${{github.event_name}}"
       # Failing tests
       xfail: "ESIMD/preemption.cpp;syclcompat/atomic/atomic_class.cpp;ProgramManager/uneven_kernel_split.cpp;Plugin/level_zero_ext_intel_queue_index.cpp;Plugin/level_zero_ext_intel_cslice.cpp;Matrix/joint_matrix_rowmajorA_rowmajorB.cpp;Matrix/element_wise_ops.cpp;Matrix/element_wise_all_ops.cpp;Matrix/SG32/element_wise_all_ops.cpp"
       # Flaky tests

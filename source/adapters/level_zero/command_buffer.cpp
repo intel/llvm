@@ -51,8 +51,8 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     const ur_exp_command_buffer_desc_t *Desc, const bool IsInOrderCmdList)
     : Context(Context), Device(Device), ZeCommandList(CommandList),
       ZeCommandListResetEvents(CommandListResetEvents),
-      ZeCommandListDesc(ZeDesc), ZeFencesList(), QueueProperties(),
-      SyncPoints(), NextSyncPoint(0),
+      ZeCommandListDesc(ZeDesc), ZeFencesMap(), ZeActiveFence(nullptr),
+      QueueProperties(), SyncPoints(), NextSyncPoint(0),
       IsUpdatable(Desc ? Desc->isUpdatable : false),
       IsProfilingEnabled(Desc ? Desc->enableProfiling : false),
       IsInOrderCmdList(IsInOrderCmdList) {
@@ -102,8 +102,9 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
     urEventReleaseInternal(Event);
   }
 
-  // Release Fences allocated to command_buffer
-  for (auto &ZeFence : ZeFencesList) {
+  // Release fences allocated to command-buffer
+  for (auto &ZeFencePair : ZeFencesMap) {
+    auto &ZeFence = ZeFencePair.second;
     ZE_CALL_NOCHECK(zeFenceDestroy, (ZeFence));
   }
 
@@ -305,7 +306,7 @@ static ur_result_t enqueueCommandBufferMemCopyHelper(
     ur_command_t CommandType, ur_exp_command_buffer_handle_t CommandBuffer,
     void *Dst, const void *Src, size_t Size, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *SyncPoint) {
+    ur_exp_command_buffer_sync_point_t *RetSyncPoint) {
   if (CommandBuffer->IsInOrderCmdList) {
     ZE2UR_CALL(
         zeCommandListAppendMemoryCopy,
@@ -323,8 +324,12 @@ static ur_result_t enqueueCommandBufferMemCopyHelper(
     LaunchEvent->CommandType = CommandType;
 
     // Get sync point and register the event with it.
-    *SyncPoint = CommandBuffer->GetNextSyncPoint();
-    CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+    ur_exp_command_buffer_sync_point_t SyncPoint =
+        CommandBuffer->GetNextSyncPoint();
+    CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
+    if (RetSyncPoint) {
+      *RetSyncPoint = SyncPoint;
+    }
 
     ZE2UR_CALL(zeCommandListAppendMemoryCopy,
                (CommandBuffer->ZeCommandList, Dst, Src, Size,
@@ -346,7 +351,7 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
     size_t DstRowPitch, size_t SrcSlicePitch, size_t DstSlicePitch,
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *SyncPoint) {
+    ur_exp_command_buffer_sync_point_t *RetSyncPoint) {
 
   uint32_t SrcOriginX = ur_cast<uint32_t>(SrcOrigin.x);
   uint32_t SrcOriginY = ur_cast<uint32_t>(SrcOrigin.y);
@@ -398,8 +403,12 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
     LaunchEvent->CommandType = CommandType;
 
     // Get sync point and register the event with it.
-    *SyncPoint = CommandBuffer->GetNextSyncPoint();
-    CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+    ur_exp_command_buffer_sync_point_t SyncPoint =
+        CommandBuffer->GetNextSyncPoint();
+    CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
+    if (RetSyncPoint) {
+      *RetSyncPoint = SyncPoint;
+    }
 
     ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
                (CommandBuffer->ZeCommandList, Dst, &ZeDstRegion, DstPitch,
@@ -420,7 +429,7 @@ static ur_result_t enqueueCommandBufferFillHelper(
     void *Ptr, const void *Pattern, size_t PatternSize, size_t Size,
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *SyncPoint) {
+    ur_exp_command_buffer_sync_point_t *RetSyncPoint) {
   // Pattern size must be a power of two.
   UR_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
             UR_RESULT_ERROR_INVALID_VALUE);
@@ -451,8 +460,12 @@ static ur_result_t enqueueCommandBufferFillHelper(
     LaunchEvent->CommandType = CommandType;
 
     // Get sync point and register the event with it.
-    *SyncPoint = CommandBuffer->GetNextSyncPoint();
-    CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+    ur_exp_command_buffer_sync_point_t SyncPoint =
+        CommandBuffer->GetNextSyncPoint();
+    CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
+    if (RetSyncPoint) {
+      *RetSyncPoint = SyncPoint;
+    }
 
     ZE2UR_CALL(zeCommandListAppendMemoryFill,
                (CommandBuffer->ZeCommandList, Ptr, Pattern, PatternSize, Size,
@@ -615,7 +628,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *SyncPoint,
+    ur_exp_command_buffer_sync_point_t *RetSyncPoint,
     ur_exp_command_buffer_command_handle_t *Command) {
   UR_ASSERT(CommandBuffer && Kernel && Kernel->Program,
             UR_RESULT_ERROR_INVALID_NULL_POINTER);
@@ -711,10 +724,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
                         !CommandBuffer->IsProfilingEnabled));
     LaunchEvent->CommandType = UR_COMMAND_KERNEL_LAUNCH;
 
-    if (SyncPoint) {
-      // Get sync point and register the event with it.
-      *SyncPoint = CommandBuffer->GetNextSyncPoint();
-      CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+    // Get sync point and register the event with it.
+    ur_exp_command_buffer_sync_point_t SyncPoint =
+        CommandBuffer->GetNextSyncPoint();
+    CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
+    if (RetSyncPoint) {
+      *RetSyncPoint = SyncPoint;
     }
 
     ZE2UR_CALL(zeCommandListAppendLaunchKernel,
@@ -872,7 +887,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     ur_exp_command_buffer_handle_t CommandBuffer, const void *Mem, size_t Size,
     ur_usm_migration_flags_t Flags, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *SyncPoint) {
+    ur_exp_command_buffer_sync_point_t *RetSyncPoint) {
   std::ignore = Flags;
 
   if (CommandBuffer->IsInOrderCmdList) {
@@ -898,8 +913,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     LaunchEvent->CommandType = UR_COMMAND_USM_PREFETCH;
 
     // Get sync point and register the event with it.
-    *SyncPoint = CommandBuffer->GetNextSyncPoint();
-    CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+    ur_exp_command_buffer_sync_point_t SyncPoint =
+        CommandBuffer->GetNextSyncPoint();
+    CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
+    if (RetSyncPoint) {
+      *RetSyncPoint = SyncPoint;
+    }
 
     // Add the prefetch command to the command buffer.
     // Note that L0 does not handle migration flags.
@@ -919,7 +938,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     ur_exp_command_buffer_handle_t CommandBuffer, const void *Mem, size_t Size,
     ur_usm_advice_flags_t Advice, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *SyncPoint) {
+    ur_exp_command_buffer_sync_point_t *RetSyncPoint) {
   // A memory chunk can be advised with muliple memory advices
   // We therefore prefer if statements to switch cases to combine all potential
   // flags
@@ -969,8 +988,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     LaunchEvent->CommandType = UR_COMMAND_USM_ADVISE;
 
     // Get sync point and register the event with it.
-    *SyncPoint = CommandBuffer->GetNextSyncPoint();
-    CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+    ur_exp_command_buffer_sync_point_t SyncPoint =
+        CommandBuffer->GetNextSyncPoint();
+    CommandBuffer->RegisterSyncPoint(SyncPoint, LaunchEvent);
+    if (RetSyncPoint) {
+      *RetSyncPoint = SyncPoint;
+    }
 
     ZE2UR_CALL(zeCommandListAppendMemAdvise,
                (CommandBuffer->ZeCommandList, CommandBuffer->Device->ZeDevice,
@@ -1031,11 +1054,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   uint32_t QueueGroupOrdinal;
   auto &ZeCommandQueue = QGroup.getZeQueue(&QueueGroupOrdinal);
 
-  ze_fence_handle_t ZeFence;
-  ZeStruct<ze_fence_desc_t> ZeFenceDesc;
-
-  ZE2UR_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
-  CommandBuffer->ZeFencesList.push_back(ZeFence);
+  // If we already have created a fence for this queue, first reset then reuse
+  // it, otherwise create a new fence.
+  ze_fence_handle_t &ZeFence = CommandBuffer->ZeActiveFence;
+  auto ZeWorkloadFenceForQueue =
+      CommandBuffer->ZeFencesMap.find(ZeCommandQueue);
+  if (ZeWorkloadFenceForQueue == CommandBuffer->ZeFencesMap.end()) {
+    ZeStruct<ze_fence_desc_t> ZeFenceDesc;
+    ZE2UR_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
+    CommandBuffer->ZeFencesMap.insert({{ZeCommandQueue, ZeFence}});
+  } else {
+    ZeFence = ZeWorkloadFenceForQueue->second;
+    ZE2UR_CALL(zeFenceReset, (ZeFence));
+  }
 
   bool MustSignalWaitEvent = true;
   if (NumEventsInWaitList) {
@@ -1278,8 +1309,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   UR_ASSERT(!(NewGlobalWorkSize && !NewLocalWorkSize) ||
                 (SupportedFeatures & ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_SIZE),
             UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+
+  ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
   if (NewGlobalWorkSize && Dim > 0) {
-    ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
     uint32_t WG[3];
     // If new global work size is provided but new local work size is not
     // provided then we still need to update local work size based on size
@@ -1295,7 +1327,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     MutableGroupCountDesc->pNext = NextDesc;
     DEBUG_LOG(MutableGroupCountDesc->pNext);
     MutableGroupCountDesc->pGroupCount = &ZeThreadGroupDimensions;
-    DEBUG_LOG(MutableGroupCountDesc->pGroupCount);
+    DEBUG_LOG(MutableGroupCountDesc->pGroupCount->groupCountX);
+    DEBUG_LOG(MutableGroupCountDesc->pGroupCount->groupCountY);
+    DEBUG_LOG(MutableGroupCountDesc->pGroupCount->groupCountZ);
     NextDesc = MutableGroupCountDesc.get();
     GroupCountDescs.push_back(std::move(MutableGroupCountDesc));
 
@@ -1433,10 +1467,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   MutableCommandDesc.flags = 0;
 
   // We must synchronize mutable command list execution before mutating.
-  ZE2UR_CALL(zeEventHostSynchronize,
-             (CommandBuffer->SignalEvent->ZeEvent, UINT64_MAX));
+  if (ze_fence_handle_t &ZeFence = CommandBuffer->ZeActiveFence) {
+    ZE2UR_CALL(zeFenceHostSynchronize, (ZeFence, UINT64_MAX));
+  }
 
-  auto Plt = Command->CommandBuffer->Context->getPlatform();
+  auto Plt = CommandBuffer->Context->getPlatform();
   UR_ASSERT(Plt->ZeMutableCmdListExt.Supported,
             UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
   ZE2UR_CALL(Plt->ZeMutableCmdListExt.zexCommandListUpdateMutableCommandsExp,

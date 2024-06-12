@@ -30,3 +30,7 @@ void setCopyRectParams(ur_rect_region_t Region, const void *SrcPtr,
                        const hipMemoryType DstType, ur_rect_offset_t DstOffset,
                        size_t DstRowPitch, size_t DstSlicePitch,
                        hipMemcpy3DParms &Params);
+
+void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
+                        const size_t *GlobalWorkSize, const uint32_t WorkDim,
+                        const size_t MaxThreadsPerBlock[3]);

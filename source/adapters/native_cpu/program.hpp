@@ -13,6 +13,8 @@
 #include <ur_api.h>
 
 #include "context.hpp"
+
+#include <array>
 #include <map>
 
 namespace native_cpu {

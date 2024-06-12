@@ -10,6 +10,9 @@
 #pragma once
 
 #include "common.hpp"
+#include <hip/hip_runtime.h>
+#include <mutex>
+#include <vector>
 
 using ur_stream_quard = std::unique_lock<std::mutex>;
 
@@ -22,6 +25,10 @@ struct ur_queue_handle_t_ {
 
   std::vector<native_type> ComputeStreams;
   std::vector<native_type> TransferStreams;
+  // Stream used for recording EvQueue, which holds information about when the
+  // command in question is enqueued on host, as opposed to started. It is
+  // created only if profiling is enabled - either for queue or per event.
+  native_type HostSubmitTimeStream{0};
   // DelayCompute keeps track of which streams have been recently reused and
   // their next use should be delayed. If a stream has been recently reused it
   // will be skipped the next time it would be selected round-robin style. When
@@ -94,6 +101,17 @@ struct ur_queue_handle_t_ {
                                    uint32_t *StreamToken = nullptr);
   native_type getNextTransferStream();
   native_type get() { return getNextComputeStream(); };
+
+  // Function which creates the profiling stream. Called only from makeNative
+  // event when profiling is required.
+  void createHostSubmitTimeStream() {
+    static std::once_flag HostSubmitTimeStreamFlag;
+    std::call_once(HostSubmitTimeStreamFlag, [&]() {
+      UR_CHECK_ERROR(hipStreamCreateWithFlags(&HostSubmitTimeStream,
+                                              hipStreamNonBlocking));
+    });
+  }
+  native_type getHostSubmitTimeStream() { return HostSubmitTimeStream; }
 
   bool hasBeenSynchronized(uint32_t StreamToken) {
     // stream token not associated with one of the compute streams
