@@ -91,6 +91,11 @@
 // RUN:  | FileCheck -check-prefix=CHK_ARCH \
 // RUN:              -DTRIPLE=spir64_gen-unknown-unknown -DARCH=pvc %s
 // RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl \
+// RUN:          -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen \
+// RUN:          "-device pvc" --offload-new-driver %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK_ARCH \
+// RUN:              -DTRIPLE=spir64_gen-unknown-unknown -DARCH=pvc %s
+// RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl \
 // RUN:          -fno-sycl-libspirv -fsycl-targets=amd_gpu_gfx900 \
 // RUN:          -nogpulib --offload-new-driver %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK_ARCH \
