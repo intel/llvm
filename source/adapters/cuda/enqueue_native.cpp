@@ -28,20 +28,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ScopedStream ActiveStream(hQueue, NumEventsInWaitList, phEventWaitList);
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
+    if (hQueue->getContext()->getDevices().size() > 1) {
+      for (auto i = 0u; i < NumMemsInMemList; ++i) {
+        enqueueMigrateMemoryToDeviceIfNeeded(phMemList[i], hQueue->getDevice(),
+                                             ActiveStream.getStream());
+        phMemList[i]->setLastQueueWritingToMemObj(hQueue);
+      }
+    }
+
     if (phEvent) {
       RetImplEvent =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_ENQUEUE_NATIVE_EXP, hQueue, ActiveStream.getStream()));
       UR_CHECK_ERROR(RetImplEvent->start());
-    }
-
-    if (hQueue->getContext()->getDevices().size() > 1) {
-      for (auto i = 0u; i < NumMemsInMemList; ++i) {
-        // FIXME: Update to enqueueMigrateMemory and also using
-        // setLastQueueWritingToMemObj when #1711 has merged
-        migrateMemoryToDeviceIfNeeded(phMemList[i], hQueue->getDevice());
-        phMemList[i]->setLastEventWritingToMemObj(RetImplEvent.get());
-      }
     }
 
     pfnNativeEnqueue(hQueue, data); // This is using urQueueGetNativeHandle to
