@@ -109,14 +109,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   set(UNIFIED_RUNTIME_TAG 755a1e75e24ed55070a0f457d2d8a676521ad4f7)
 
   fetch_adapter_source(level_zero
-    "https://github.com/againull/unified-runtime.git"
-    # commit fff36b70d303f47b06b62ed83e1bb23bdd11d333 (HEAD -> loader_in_tree, fork/loader_in_tree)
-    # Author: Artur Gainullin <artur.gainullin@intel.com>
-    # Date:   Fri May 31 10:51:21 2024 -0700
-    #
-    #    Add flexibility to change level zero repo
-    #
-    fff36b70d303f47b06b62ed83e1bb23bdd11d333
+    ${UNIFIED_RUNTIME_REPO}
+    # commit 8788bd13cceb3f8e6338538b624652e6249a4543
+    # Merge: 78d02039 3f502d8f
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Wed Jun 12 13:13:52 2024 +0100
+    #     Merge pull request #1697 from againull/review/againull/l0_loader
+    #     [L0] Add flexibility to change level zero repo
+    8788bd13cceb3f8e6338538b624652e6249a4543
   )
 
   fetch_adapter_source(opencl
