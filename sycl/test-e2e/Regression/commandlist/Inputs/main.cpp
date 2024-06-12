@@ -76,8 +76,7 @@ int main(int argc, char *argv[]) {
   std::vector<sycl::device> dlist;
   if (gpu_dev == 999) {
     try {
-      auto sel = sycl::gpu_selector();
-      sel_dev = sel.select_device();
+      sel_dev = sycl::device(sycl::gpu_selector_v);
     } catch (...) {
       cout << "no gpu device found\n";
     }
