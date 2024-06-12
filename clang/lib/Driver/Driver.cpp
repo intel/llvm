@@ -1332,8 +1332,8 @@ static void appendOneArg(InputArgList &Args, const Arg *Opt,
 }
 
 // Utility function to parse all devices passed via -fsycl-targets.
-// Return 'true' if only SPIR/SPIRV JIT targets are specified.
-// Otherwise return 'false'.
+// Return 'true' if only SPIR/SPIRV JIT targets or Intel GPU/CPU AOT targets
+// are specified. Otherwise return 'false'.
 bool Driver::GetUseNewOffloadDriverForSYCLOffload(Compilation &C,
                                                   const ArgList &Args) const {
   // Check only if enabled with -fsycl
@@ -1350,8 +1350,8 @@ bool Driver::GetUseNewOffloadDriverForSYCLOffload(Compilation &C,
   if (const Arg *A = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
     for (const char *Val : A->getValues()) {
       llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
-      if ((!TT.isSPIROrSPIRV()) || TT.isSPIRAOT())
-        // Non-JIT SPIR/SPIRV triple found
+      if ((!TT.isSPIROrSPIRV()) || TT.isNVPTX() || TT.isAMDGCN())
+        // Non-JIT SPIR/SPIRV triple or an AOT other than Intel CPU/GPU found.
         return false;
     }
   }
