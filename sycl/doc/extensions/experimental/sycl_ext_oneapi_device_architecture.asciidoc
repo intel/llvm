@@ -1029,7 +1029,7 @@ struct architecture;
 
 _Return type:_ `sycl::ext::oneapi::experimental::architecture`
 
-_Returns:_ The architecture of the device if architecture is supported, overwise 
+_Returns:_ The architecture of the device if architecture is supported, otherwise 
 `ext::oneapi::experimental::architecture::unknown`.
 |====
 
