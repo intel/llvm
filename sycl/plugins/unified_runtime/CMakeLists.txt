@@ -100,13 +100,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit f06bc02a24418990ecb9d41471b729f32aebd804
-  # Merge: 42c0b025 9868e3b0
+  # commit 4f13cd14bdd86f0cce4a19e00bf63eb7230e6369
+  # Merge: 4f105262 2c3096a3
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jun 5 12:02:53 2024 +0100
-  #     Merge pull request #1669 from JackAKirk/fix-usmptr-get-dev
-  #     [CUDA][HIP] Fix urUSMGetMemAllocInfo impl to use single platform.
-  set(UNIFIED_RUNTIME_TAG f06bc02a24418990ecb9d41471b729f32aebd804)
+  # Date:   Mon Jun 10 16:02:26 2024 +0100
+  #     Merge pull request #1282 from al42and/fix-sub-group-size-info
+  #     Fix size confusion for several device property queries
+  set(UNIFIED_RUNTIME_TAG 4f13cd14bdd86f0cce4a19e00bf63eb7230e6369)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
