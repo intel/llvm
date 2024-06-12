@@ -414,10 +414,11 @@ ur_result_t SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
         }
         if (AH.ErrorType == DeviceSanitizerErrorType::USE_AFTER_FREE) {
             ReportUseAfterFree(AH, Kernel, GetContext(Queue));
-        } else if (AH.ErrorType == DeviceSanitizerErrorType::OUT_OF_BOUNDS) {
-            ReportOutOfBoundsError(AH, Kernel);
+        } else if (AH.ErrorType == DeviceSanitizerErrorType::OUT_OF_BOUNDS ||
+                   AH.ErrorType == DeviceSanitizerErrorType::MISALIGNED) {
+            ReportGenericError(AH, Kernel);
         } else {
-            ReportGenericError(AH);
+            ReportFatalError(AH);
         }
     }
 
