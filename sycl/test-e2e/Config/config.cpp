@@ -13,6 +13,8 @@
 // RUN: env SYCL_PRINT_EXECUTION_GRAPH=always %t.out
 // RUN: cat *.dot > /dev/null
 // RUN: rm *.dot
+// RUN: %t.out
+// RUN: not cat *.dot > /dev/null
 
 #include <sycl/detail/core.hpp>
 
