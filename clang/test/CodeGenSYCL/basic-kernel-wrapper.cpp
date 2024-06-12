@@ -20,7 +20,7 @@ int main() {
 }
 
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_function
-// CHECK-SAME: ptr addrspace(1) noundef align 4 [[MEM_ARG:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: ptr addrspace(1) noundef [[MEM_ARG:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[ACC_RANGE:%[a-zA-Z0-9_]+1]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[MEM_RANGE:%[a-zA-Z0-9_]+2]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[OFFSET:%[a-zA-Z0-9_]+]])

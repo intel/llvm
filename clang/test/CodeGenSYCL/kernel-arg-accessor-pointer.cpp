@@ -102,11 +102,11 @@ int main() {
 
 // Check kernel_A parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_A
-// CHECK-SAME: ptr addrspace(1) noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: ptr addrspace(1) noundef [[MEM_ARG1:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+1]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+2]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+3]],
-// CHECK-SAME: ptr addrspace(1) noundef align 4 [[MEM_ARG2:%[a-zA-Z0-9_]+4]],
+// CHECK-SAME: ptr addrspace(1) noundef [[MEM_ARG2:%[a-zA-Z0-9_]+4]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[ACC_RANGE2:%[a-zA-Z0-9_]+6]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[MEM_RANGE2:%[a-zA-Z0-9_]+7]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[OFFSET2:%[a-zA-Z0-9_]+8]])
@@ -115,7 +115,7 @@ int main() {
 
 // Check kernel_readOnlyAcc parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_readOnlyAcc
-// CHECK-SAME: ptr addrspace(1) noundef readonly align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: ptr addrspace(1) noundef readonly [[MEM_ARG1:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+1]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+2]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+3]]
@@ -135,13 +135,13 @@ int main() {
 
 // Check usm_ptr parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}usm_ptr
-// CHECK-SAME: ptr addrspace(1) noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: ptr addrspace(1) noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]]
+// CHECK-SAME: ptr addrspace(1) noundef [[MEM_ARG1:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: ptr addrspace(1) noundef [[MEM_ARG1:%[a-zA-Z0-9_]+]]
 // CHECK-NOT: kernel_arg_runtime_aligned
 // CHECK-NOT: kernel_arg_exclusive_ptr
 
 // CHECK: define {{.*}}spir_kernel void @{{.*}}localAccessorDep
-// CHECK-SAME: ptr addrspace(1) noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: ptr addrspace(1) noundef [[MEM_ARG1:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+1]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+2]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+3]]
@@ -149,7 +149,7 @@ int main() {
 // CHECK-SAME: !kernel_arg_exclusive_ptr ![[#ACCESSORMD2]]
 
 // CHECK: define {{.*}}spir_kernel void @{{.*}}localAccessor
-// CHECK-SAME: ptr addrspace(3) noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: ptr addrspace(3) noundef [[MEM_ARG1:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+1]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+2]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+3]]
@@ -158,11 +158,11 @@ int main() {
 
 // Check kernel_acc_raw_ptr parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_acc_raw_ptr
-// CHECK-SAME: ptr addrspace(1) noundef readonly align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: ptr addrspace(1) noundef readonly [[MEM_ARG1:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+1]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+2]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+3]]
-// CHECK-SAME: ptr addrspace(1) noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]]
+// CHECK-SAME: ptr addrspace(1) noundef [[MEM_ARG1:%[a-zA-Z0-9_]+]]
 // CHECK-SAME: !kernel_arg_runtime_aligned ![[#ACCESSORMD3:]]
 // CHECK-SAME: !kernel_arg_exclusive_ptr ![[#ACCESSORMD3]]
 
