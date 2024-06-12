@@ -757,7 +757,7 @@ static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputTable,
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   assert(Triple.isSPIROrSPIRV() && "Unsupported target");
   StringRef Arch(Args.getLastArgValue(OPT_arch_EQ));
-  llvm::errs() << "Arch = " << Arch << "\n";
+  // llvm::errs() << "Arch = " << Arch << "\n";
   SmallVector<StringRef, 8> CmdArgs;
   Table LiveSYCLTable;
   Expected<std::string> OpenCLAOTPath =
@@ -2060,10 +2060,14 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
     if (HasSYCLOffloadKind) {
       const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
       // Only JIT targets are supported for SYCL offloads
-      if (!Triple.isSPIROrSPIRV() || Triple.isSPIRAOT())
-        reportError(createStringError(
-            inconvertibleErrorCode(),
-            "Only SPIR/SPIRV JIT targets supported for SYCL offload"));
+      if (!Triple.isSPIROrSPIRV() ||
+          (Triple.getSubArch() != llvm::Triple::NoSubArch &&
+           Triple.getSubArch() != llvm::Triple::SPIRSubArch_gen &&
+           Triple.getSubArch() != llvm::Triple::SPIRSubArch_x86_64))
+        reportError(
+            createStringError(inconvertibleErrorCode(),
+                              "Only SPIR/SPIRV JIT targets and Intel CPU/GPU "
+                              "AOT targets are supported for SYCL offload"));
       // Link the remaining device files using the device linker for SYCL
       // offload.
       auto TmpOutputOrErr = sycl::linkDevice(InputFiles, LinkerArgs);
