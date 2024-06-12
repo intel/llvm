@@ -112,6 +112,13 @@ struct ur_context_handle_t_ {
     return Devices;
   }
 
+  // Gets the index of the device relative to other devices in the context
+  size_t getDeviceIndex(ur_device_handle_t hDevice) {
+    auto It = std::find(Devices.begin(), Devices.end(), hDevice);
+    assert(It != Devices.end());
+    return std::distance(Devices.begin(), It);
+  }
+
   uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
 
   uint32_t decrementReferenceCount() noexcept { return --RefCount; }

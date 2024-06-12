@@ -258,16 +258,13 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
                                            CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL,
                                            (CUdeviceptr)pMem));
 
-      // currently each device is in its own platform, so find the platform at
-      // the same index
-      std::vector<ur_platform_handle_t> Platforms;
-      Platforms.resize(DeviceIndex + 1);
+      // cuda backend has only one platform containing all devices
+      ur_platform_handle_t platform;
       ur_adapter_handle_t AdapterHandle = &adapter;
-      Result = urPlatformGet(&AdapterHandle, 1, DeviceIndex + 1,
-                             Platforms.data(), nullptr);
+      Result = urPlatformGet(&AdapterHandle, 1, 1, &platform, nullptr);
 
       // get the device from the platform
-      ur_device_handle_t Device = Platforms[DeviceIndex]->Devices[0].get();
+      ur_device_handle_t Device = platform->Devices[DeviceIndex].get();
       return ReturnValue(Device);
     }
     case UR_USM_ALLOC_INFO_POOL: {

@@ -1067,7 +1067,7 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
-        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
+        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type) {
             return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
 
@@ -3853,6 +3853,71 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
         refCountContext.createRefCount(*phKernel);
     }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelGetSuggestedLocalWorkSize
+__urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel
+    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
+    uint32_t
+        numWorkDim, ///< [in] number of dimensions, from 1 to 3, to specify the global
+                    ///< and work-group work-items
+    const size_t *
+        pGlobalWorkOffset, ///< [in] pointer to an array of numWorkDim unsigned values that specify
+    ///< the offset used to calculate the global ID of a work-item
+    const size_t *
+        pGlobalWorkSize, ///< [in] pointer to an array of numWorkDim unsigned values that specify
+    ///< the number of global work-items in workDim that will execute the
+    ///< kernel function
+    size_t *
+        pSuggestedLocalWorkSize ///< [out] pointer to an array of numWorkDim unsigned values that specify
+    ///< suggested local work size that will contain the result of the query
+) {
+    auto pfnGetSuggestedLocalWorkSize =
+        context.urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize;
+
+    if (nullptr == pfnGetSuggestedLocalWorkSize) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hKernel) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hQueue) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pGlobalWorkOffset) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pGlobalWorkSize) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pSuggestedLocalWorkSize) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hKernel)) {
+        refCountContext.logInvalidReference(hKernel);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
+    ur_result_t result = pfnGetSuggestedLocalWorkSize(
+        hKernel, hQueue, numWorkDim, pGlobalWorkOffset, pGlobalWorkSize,
+        pSuggestedLocalWorkSize);
 
     return result;
 }
@@ -6887,7 +6952,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
+        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type) {
             return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
     }
@@ -6996,7 +7061,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
+        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type) {
             return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
     }
@@ -7067,7 +7132,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
+        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type) {
             return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
     }
@@ -7159,7 +7224,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
-        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
+        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type) {
             return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
 
@@ -7412,7 +7477,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
+        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type) {
             return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
     }
@@ -10005,6 +10070,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
         ur_validation_layer::urKernelCreateWithNativeHandle;
+
+    dditable.pfnGetSuggestedLocalWorkSize =
+        pDdiTable->pfnGetSuggestedLocalWorkSize;
+    pDdiTable->pfnGetSuggestedLocalWorkSize =
+        ur_validation_layer::urKernelGetSuggestedLocalWorkSize;
 
     dditable.pfnSetArgValue = pDdiTable->pfnSetArgValue;
     pDdiTable->pfnSetArgValue = ur_validation_layer::urKernelSetArgValue;

@@ -256,7 +256,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   // > The application must only use the module for the device, or its
   // > sub-devices, which was provided during creation.
   case UR_DEVICE_INFO_BUILD_ON_SUBDEVICE:
-    return ReturnValue(uint32_t{0});
+    return ReturnValue(ur_bool_t{0});
   case UR_DEVICE_INFO_COMPILER_AVAILABLE:
     return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_LINKER_AVAILABLE:
@@ -326,10 +326,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(Device->ZeDeviceImageProperties->maxImageDims1D > 0);
   case UR_DEVICE_INFO_HOST_UNIFIED_MEMORY:
     return ReturnValue(
-        static_cast<uint32_t>((Device->ZeDeviceProperties->flags &
-                               ZE_DEVICE_PROPERTY_FLAG_INTEGRATED) != 0));
+        static_cast<ur_bool_t>((Device->ZeDeviceProperties->flags &
+                                ZE_DEVICE_PROPERTY_FLAG_INTEGRATED) != 0));
   case UR_DEVICE_INFO_AVAILABLE:
-    return ReturnValue(static_cast<uint32_t>(ZeDevice ? true : false));
+    return ReturnValue(static_cast<ur_bool_t>(ZeDevice ? true : false));
   case UR_DEVICE_INFO_VENDOR:
     // TODO: Level-Zero does not return vendor's name at the moment
     // only the ID.
@@ -448,8 +448,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_ENDIAN_LITTLE:
     return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT:
-    return ReturnValue(static_cast<uint32_t>(Device->ZeDeviceProperties->flags &
-                                             ZE_DEVICE_PROPERTY_FLAG_ECC));
+    return ReturnValue(static_cast<ur_bool_t>(
+        Device->ZeDeviceProperties->flags & ZE_DEVICE_PROPERTY_FLAG_ECC));
   case UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION:
     return ReturnValue(
         static_cast<size_t>(Device->ZeDeviceProperties->timerResolution));
@@ -626,11 +626,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(static_cast<ur_bool_t>(false));
   }
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
-    // ze_device_compute_properties.subGroupSizes is in uint32_t whereas the
-    // expected return is size_t datatype. size_t can be 8 bytes of data.
-    return ReturnValue.template operator()<size_t>(
-        Device->ZeDeviceComputeProperties->subGroupSizes,
-        Device->ZeDeviceComputeProperties->numSubGroupSizes);
+    return ReturnValue(Device->ZeDeviceComputeProperties->subGroupSizes,
+                       Device->ZeDeviceComputeProperties->numSubGroupSizes);
   }
   case UR_DEVICE_INFO_IL_VERSION: {
     // Set to a space separated list of IL version strings of the form
@@ -875,13 +872,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
-    return ReturnValue(static_cast<uint32_t>(true));
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
 
   case UR_DEVICE_INFO_ESIMD_SUPPORT: {
     // ESIMD is only supported by Intel GPUs.
-    uint32_t result = Device->ZeDeviceProperties->type == ZE_DEVICE_TYPE_GPU &&
-                      Device->ZeDeviceProperties->vendorId == 0x8086;
+    ur_bool_t result = Device->ZeDeviceProperties->type == ZE_DEVICE_TYPE_GPU &&
+                       Device->ZeDeviceProperties->vendorId == 0x8086;
     return ReturnValue(result);
   }
 
@@ -947,18 +944,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP: {
-    // TODO: Level Zero API allows to check support for all sub-features:
-    // ZE_MUTABLE_COMMAND_EXP_FLAG_KERNEL_ARGUMENTS,
-    // ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_COUNT,
-    // ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_SIZE,
-    // ZE_MUTABLE_COMMAND_EXP_FLAG_GLOBAL_OFFSET,
-    // ZE_MUTABLE_COMMAND_EXP_FLAG_SIGNAL_EVENT,
-    // ZE_MUTABLE_COMMAND_EXP_FLAG_WAIT_EVENTS
-    // but UR has only one property to check the mutable command lists feature
-    // support. For now return true if kernel arguments can be updated.
-    auto KernelArgUpdateSupport =
-        Device->ZeDeviceMutableCmdListsProperties->mutableCommandFlags &
-        ZE_MUTABLE_COMMAND_EXP_FLAG_KERNEL_ARGUMENTS;
+    // Update support requires being able to update kernel arguments and all
+    // aspects of the kernel NDRange.
+    const ze_mutable_command_exp_flags_t UpdateMask =
+        ZE_MUTABLE_COMMAND_EXP_FLAG_KERNEL_ARGUMENTS |
+        ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_COUNT |
+        ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_SIZE |
+        ZE_MUTABLE_COMMAND_EXP_FLAG_GLOBAL_OFFSET;
+
+    const bool KernelArgUpdateSupport =
+        (Device->ZeDeviceMutableCmdListsProperties->mutableCommandFlags &
+         UpdateMask) == UpdateMask;
     return ReturnValue(KernelArgUpdateSupport &&
                        Device->Platform->ZeMutableCmdListExt.Supported);
   }

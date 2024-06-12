@@ -20,11 +20,6 @@
 #include "device.hpp"
 #include "event.hpp"
 
-ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t,
-                                           const ur_device_handle_t);
-ur_result_t migrateMemoryToDeviceIfNeeded(ur_mem_handle_t,
-                                          const ur_device_handle_t);
-
 // Handler for plain, pointer-based CUDA allocations
 struct BufferMem {
 
@@ -97,16 +92,7 @@ public:
 
   BufferMem(const BufferMem &Buffer) = default;
 
-  native_type getPtrWithOffset(const ur_device_handle_t Device, size_t Offset) {
-    if (ur_result_t Err =
-            allocateMemObjOnDeviceIfNeeded(OuterMemStruct, Device);
-        Err != UR_RESULT_SUCCESS) {
-      throw Err;
-    }
-    return reinterpret_cast<native_type>(
-        reinterpret_cast<uint8_t *>(Ptrs[Device->getIndex() % Ptrs.size()]) +
-        Offset);
-  }
+  native_type getPtrWithOffset(const ur_device_handle_t Device, size_t Offset);
 
   native_type getPtr(const ur_device_handle_t Device) {
     return getPtrWithOffset(Device, 0);
@@ -199,6 +185,7 @@ public:
   CUDA_ARRAY3D_DESCRIPTOR ArrayDesc;
   size_t PixelTypeSizeBytes;
   void *HostPtr;
+  ur_result_t error = UR_RESULT_SUCCESS;
 
   SurfaceMem(ur_context_handle_t Context, ur_mem_handle_t OuterMemStruct,
              ur_image_format_t ImageFormat, ur_image_desc_t ImageDesc,
@@ -233,6 +220,7 @@ public:
       ArrayDesc.Format = CU_AD_FORMAT_UNSIGNED_INT8;
       PixelTypeSizeBytes = 1;
       break;
+    case UR_IMAGE_CHANNEL_TYPE_SNORM_INT8:
     case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8:
       ArrayDesc.Format = CU_AD_FORMAT_SIGNED_INT8;
       PixelTypeSizeBytes = 1;
@@ -242,6 +230,7 @@ public:
       ArrayDesc.Format = CU_AD_FORMAT_UNSIGNED_INT16;
       PixelTypeSizeBytes = 2;
       break;
+    case UR_IMAGE_CHANNEL_TYPE_SNORM_INT16:
     case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16:
       ArrayDesc.Format = CU_AD_FORMAT_SIGNED_INT16;
       PixelTypeSizeBytes = 2;
@@ -263,29 +252,15 @@ public:
       PixelTypeSizeBytes = 4;
       break;
     default:
-      detail::ur::die(
-          "urMemImageCreate given unsupported image_channel_data_type");
+      break;
     }
   }
 
   // Will allocate a new array on device if not already allocated
-  CUarray getArray(const ur_device_handle_t Device) {
-    if (ur_result_t Err =
-            allocateMemObjOnDeviceIfNeeded(OuterMemStruct, Device);
-        Err != UR_RESULT_SUCCESS) {
-      throw Err;
-    }
-    return Arrays[Device->getIndex() % Arrays.size()];
-  }
+  CUarray getArray(const ur_device_handle_t Device);
+
   // Will allocate a new surface on device if not already allocated
-  CUsurfObject getSurface(const ur_device_handle_t Device) {
-    if (ur_result_t Err =
-            allocateMemObjOnDeviceIfNeeded(OuterMemStruct, Device);
-        Err != UR_RESULT_SUCCESS) {
-      throw Err;
-    }
-    return SurfObjs[Device->getIndex() % SurfObjs.size()];
-  }
+  CUsurfObject getSurface(const ur_device_handle_t Device);
 
   ur_mem_type_t getType() { return ImageDesc.type; }
 
@@ -515,9 +490,11 @@ struct ur_mem_handle_t_ {
     for (const auto &Device : Context->getDevices()) {
       // This event is never an interop event so will always have an associated
       // queue
-      HaveMigratedToDeviceSinceLastWrite
-          [Device->getIndex() % HaveMigratedToDeviceSinceLastWrite.size()] =
-              Device == NewEvent->getQueue()->getDevice();
+      HaveMigratedToDeviceSinceLastWrite[Context->getDeviceIndex(Device)] =
+          Device == NewEvent->getQueue()->getDevice();
     }
   }
 };
+
+ur_result_t migrateMemoryToDeviceIfNeeded(ur_mem_handle_t,
+                                          const ur_device_handle_t);
