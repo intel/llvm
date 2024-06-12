@@ -602,8 +602,8 @@ add_custom_command(OUTPUT ${obj_binary_dir}/fallback-imf-bf16-host.${new-offload
 =======
 add_lib_imf(libsycl-fallback-imf DEVICE DIR spv_binary_dir FTYPE spv DTYPE fp32)
 add_lib_imf(libsycl-fallback-imf DEVICE DIR spv_binary_dir FTYPE spv DTYPE fp32)
-add_lib_imf(libsycl-fallback-imf--cuda DEVICE;CUDA DIR bc_binary_dir FTYPE bc DTYPE fp32)
-add_lib_imf(libsycl-fallback-imf--amd DEVICE;AMD DIR bc_binary_dir FTYPE bc DTYPE fp32)
+add_lib_imf(libsycl-fallback-imf--cuda DEVICE CUDA DIR bc_binary_dir FTYPE bc DTYPE fp32)
+add_lib_imf(libsycl-fallback-imf--amd DEVICE AMD DIR bc_binary_dir FTYPE bc DTYPE fp32)
 add_lib_imf(libsycl-fallback-imf DEVICE DIR obj_binary_dir FTYPE ${lib-suffix} DTYPE fp32)
 add_lib_imf(libsycl-fallback-imf DEVICE DIR obj_binary_dir FTYPE ${new-offload-lib-suffix} DTYPE fp32)
 add_lib_imf(libsycl-fallback-imf-fp32-host HOST DIR obj_binary_dir FTYPE ${lib-suffix} DTYPE fp32)
