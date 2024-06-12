@@ -10159,6 +10159,17 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
       SmallString<128> LlcPath(C.getDriver().Dir);
       llvm::sys::path::append(LlcPath, "llc");
+      // Add any user-specified arguments.
+      if (Arg *LLCOpts = TCArgs.getLastArg(options::OPT_fsycl_llc_options_EQ)) {
+        SmallVector<const char *, 8> TargetArgs;
+        llvm::BumpPtrAllocator BPA;
+        llvm::StringSaver S(BPA);
+        // Tokenize the string.
+        llvm::cl::TokenizeGNUCommandLine(LLCOpts->getValue(), S, TargetArgs);
+        llvm::transform(
+            TargetArgs, std::back_inserter(LlcArgs),
+            [&TCArgs](StringRef A) { return TCArgs.MakeArgString(A); });
+      }
       const char *Llc = C.getArgs().MakeArgString(LlcPath);
       C.addCommand(std::make_unique<Command>(
           JA, *this, ResponseFileSupport::None(), Llc, LlcArgs, std::nullopt));

@@ -4099,6 +4099,10 @@ def fsycl_host_compiler_options_EQ : Joined<["-"], "fsycl-host-compiler-options=
   Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"When performing the host compilation with "
   "-fsycl-host-compiler specified, use the given options during that compile. "
   "Options are expected to be a quoted list of space separated options.">;
+def fsycl_llc_options_EQ : Joined<["-"], "fsycl-llc-options=">,
+  Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"Options to pass to the llc invocation used "
+  "to compile the IR module from clang-offload-wrapper."
+  "Options are expected to be a quoted list of space separated options.">;
 def fsycl_range_rounding_EQ : Joined<["-"], "fsycl-range-rounding=">,
   Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
   Values<"on,disable,force">,
