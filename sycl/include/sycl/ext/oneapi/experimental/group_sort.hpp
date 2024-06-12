@@ -68,6 +68,19 @@ struct is_sorter_impl<Sorter, Group, Ptr,
 template <typename Sorter, typename Group, typename ValOrPtr>
 struct is_sorter : decltype(is_sorter_impl<Sorter, Group, ValOrPtr>::test(0)) {
 };
+
+template <typename Sorter, typename Group, typename Key, typename Value,
+          typename = void>
+struct is_key_value_sorter : std::false_type {};
+
+template <typename Sorter, typename Group, typename Key, typename Value>
+struct is_key_value_sorter<
+    Sorter, Group, Key, Value,
+    std::enable_if_t<
+        std::is_same_v<std::invoke_result_t<Sorter, Group, Key, Value>,
+                       std::tuple<Key, Value>> &&
+        sycl::is_group_v<Group>>> : std::true_type {};
+
 } // namespace detail
 
 // ---- sort_over_group
@@ -129,6 +142,48 @@ joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
            Iter last) {
   joint_sort(exec.get_group(), first, last,
              default_sorters::joint_sorter<>(exec.get_memory()));
+}
+
+template <typename Group, typename KeyTy, typename ValueTy, typename Sorter>
+std::enable_if_t<
+    detail::is_key_value_sorter<Sorter, Group, KeyTy, ValueTy>::value,
+    std::tuple<KeyTy, ValueTy>>
+sort_key_value_over_group([[maybe_unused]] Group g, [[maybe_unused]] KeyTy key,
+                          [[maybe_unused]] ValueTy value,
+                          [[maybe_unused]] Sorter sorter) {
+#ifdef __SYCL_DEVICE_ONLY__
+  return sorter(g, key, value);
+#else
+  throw sycl::exception(
+      std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
+      "Group algorithms are not supported on host device.");
+#endif
+}
+
+template <typename Group, typename KeyTy, typename ValueTy, typename Compare,
+          std::size_t Extent>
+std::enable_if_t<
+    !detail::is_key_value_sorter<Compare, Group, KeyTy, ValueTy>::value,
+    std::tuple<KeyTy, ValueTy>>
+sort_key_value_over_group(
+    experimental::group_with_scratchpad<Group, Extent> exec, KeyTy key,
+    ValueTy value, Compare comp) {
+  return sort_key_value_over_group(
+      exec.get_group(), key, value,
+      default_sorters::group_key_value_sorter<KeyTy, ValueTy, Compare>(
+          exec.get_memory(), comp));
+}
+
+template <typename KeyTy, typename ValueTy, typename Group, std::size_t Extent>
+std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>,
+                 std::tuple<KeyTy, ValueTy>>
+sort_key_value_over_group(
+    experimental::group_with_scratchpad<Group, Extent> exec, KeyTy key,
+    ValueTy value) {
+  return sort_key_value_over_group(
+      exec.get_group(), key, value,
+      default_sorters::group_key_value_sorter<KeyTy, ValueTy>(
+          exec.get_memory()));
 }
 
 } // namespace ext::oneapi::experimental
