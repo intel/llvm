@@ -1,19 +1,17 @@
-//==---------- joint_matrix_colA_rowB_colC.cpp - DPC++ joint_matrix---------==//
+//==------- lsc_usm_store_u32_pvc.cpp - DPC++ ESIMD on-device test-------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix-xmx8
-
+// REQUIRES: gpu-intel-pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL:gpu
+// PVC variant of the test
 
-#include "../common.hpp"
+#define USE_64_BIT_OFFSET
+#define USE_PVC
 
-constexpr size_t TN = 8;
-
-#include "../joint_matrix_colA_rowB_colC_impl.hpp"
+#include "lsc_usm_store_u32.cpp"

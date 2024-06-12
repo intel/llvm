@@ -1,22 +1,16 @@
-//==----- joint_matrix_bfloat16_32x64.cpp  - DPC++ joint_matrix-------------==//
+//==--------- lsc_usm_prefetch_u64_pvc.cpp - DPC++ ESIMD on-device test ---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix-xmx8
-
+// REQUIRES: gpu-intel-pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: *
+// PVC variant of the test
 
-#include "../common.hpp"
+#define USE_PVC
 
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-
-constexpr size_t TN = 8;
-
-#include "../joint_matrix_bfloat16_32x64_impl.hpp"
+#include "lsc_usm_prefetch_u64.cpp"
