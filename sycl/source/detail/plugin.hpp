@@ -253,17 +253,17 @@ public:
     if (pi::trace(pi::TraceLevel::PI_TRACE_CALLS)) {
       std::unique_lock<std::mutex> Guard(*TracingMutex, std::defer_lock);
       const char *FnName = PiCallInfo.getFuncName();
-      if (FnName != "piextEnqueueNativeCommand") {
+      if (std::string{FnName} != "piextEnqueueNativeCommand") {
         Guard.lock();
       }
       std::cout << "---> " << FnName << "(" << std::endl;
       sycl::detail::pi::printArgs(Args...);
       if (!pluginReleased) {
-        if (FnName == "piextEnqueueNativeCommand") {
+        if (std::string{FnName} == "piextEnqueueNativeCommand") {
           std::cout << "---> Begin Native Command\n\n[\n" << std::endl;
         }
         R = PiCallInfo.getFuncPtr(*MPlugin)(Args...);
-        if (FnName == "piextEnqueueNativeCommand") {
+        if (std::string{FnName} == "piextEnqueueNativeCommand") {
           std::cout << "]\n---> End Native Command\n" << std::endl;
         }
         std::cout << ") ---> ";
