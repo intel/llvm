@@ -399,7 +399,7 @@ static void destroy_event(event_ptr event);
 } // syclcompat
 ```
 
-### Memory Allocation
+### Memory Operations
 
 This library provides interfaces to allocate memory to be accessed within kernel
 functions and on the host. The `syclcompat::malloc` function allocates device
@@ -508,6 +508,64 @@ public:
 };
 
 } // syclcompat
+```
+
+The `syclcompat::experimental` namespace contains currently unsupported `memcpy` overloads which take a `syclcompat::experimental::memcpy_parameter` argument. These are included for forwards compatibility and currently throw a `std::runtime_error`.
+
+```cpp
+namespace syclcompat {
+namespace experimental {
+// Forward declarations for types relating to unsupported memcpy_parameter API:
+
+enum memcpy_direction {
+  host_to_host,
+  host_to_device,
+  device_to_host,
+  device_to_device,
+  automatic
+};
+
+#ifdef SYCL_EXT_ONEAPI_BINDLESS_IMAGES
+class image_mem_wrapper;
+#endif
+class image_matrix;
+
+/// Memory copy parameters for 2D/3D memory data.
+struct memcpy_parameter {
+  struct data_wrapper {
+    pitched_data pitched{};
+    sycl::id<3> pos{};
+#ifdef SYCL_EXT_ONEAPI_BINDLESS_IMAGES
+    experimental::image_mem_wrapper *image_bindless{nullptr};
+#endif
+    image_matrix *image{nullptr};
+  };
+  data_wrapper from{};
+  data_wrapper to{};
+  sycl::range<3> size{};
+  syclcompat::detail::memcpy_direction direction{syclcompat::detail::memcpy_direction::automatic};
+};
+
+/// [UNSUPPORTED] Synchronously copies 2D/3D memory data specified by \p param .
+/// The function will return after the copy is completed.
+///
+/// \param param Memory copy parameters.
+/// \param q Queue to execute the copy task.
+/// \returns no return value.
+static inline void memcpy(const memcpy_parameter &param,
+                          sycl::queue q = get_default_queue());
+
+/// [UNSUPPORTED] Asynchronously copies 2D/3D memory data specified by \p param
+/// . The return of the function does NOT guarantee the copy is completed.
+///
+/// \param param Memory copy parameters.
+/// \param q Queue to execute the copy task.
+/// \returns no return value.
+static inline void memcpy_async(const memcpy_parameter &param,
+                                sycl::queue q = get_default_queue());
+
+} // namespace experimental
+} // namespace syclcompat
 ```
 
 Finally, the class `pitched_data`, which manages memory allocation for 3D
@@ -2116,6 +2174,48 @@ inline constexpr RetT extend_vavrg2_add(AT a, BT b, RetT c);
 /// \returns The extend vectorized average of the two values with saturation
 template <typename RetT, typename AT, typename BT>
 inline constexpr RetT extend_vavrg2_sat(AT a, BT b, RetT c);
+```
+
+The math header file provides APIs for bit-field insertion (`bfi_safe`) and
+bit-field extraction (`bfe_safe`). These are bounds-checked variants of
+underlying `detail` APIs (`detail::bfi`, `detail::bfe`) which, in future
+releases, will be exposed to the user.
+
+```c++
+
+/// Bitfield-insert with boundary checking.
+///
+/// Align and insert a bit field from \param x into \param y . Source \param
+/// bit_start gives the starting bit position for the insertion, and source
+/// \param num_bits gives the bit field length in bits.
+///
+/// \tparam T The type of \param x and \param y , must be an unsigned integer.
+/// \param x The source of the bitfield.
+/// \param y The source where bitfield is inserted.
+/// \param bit_start The position to start insertion.
+/// \param num_bits The number of bits to insertion.
+template <typename T>
+inline T bfi_safe(const T x, const T y, const uint32_t bit_start,
+                  const uint32_t num_bits);
+
+/// Bitfield-extract with boundary checking.
+///
+/// Extract bit field from \param source and return the zero or sign-extended
+/// result. Source \param bit_start gives the bit field starting bit position,
+/// and source \param num_bits gives the bit field length in bits.
+///
+/// The result is padded with the sign bit of the extracted field. If `num_bits`
+/// is zero, the  result is zero. If the start position is beyond the msb of the
+/// input, the result is filled with the replicated sign bit of the extracted
+/// field.
+///
+/// \tparam T The type of \param source value, must be an integer.
+/// \param source The source value to extracting.
+/// \param bit_start The position to start extracting.
+/// \param num_bits The number of bits to extracting.
+template <typename T>
+inline T bfe_safe(const T source, const uint32_t bit_start,
+                  const uint32_t num_bits);
 ```
 
 ## Sample Code
