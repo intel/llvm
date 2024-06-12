@@ -1239,11 +1239,11 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             const ToolChain *HostTC =
                 C.getSingleOffloadToolChain<Action::OFK_Host>();
             auto DeviceTC = std::make_unique<toolchains::SYCLToolChain>(
-                  *this, DeviceTriple, *HostTC, C.getInputArgs());
+                *this, DeviceTriple, *HostTC, C.getInputArgs());
             assert(DeviceTC && "Device toolchain not defined.");
             ArgStringList TargetArgs;
             DeviceTC->TranslateBackendTargetArgs(DeviceTC->getTriple(),
-                C.getInputArgs(), TargetArgs);
+                                                 C.getInputArgs(), TargetArgs);
             // Capture the argument for '-device'
             bool DeviceSeen = false;
             StringRef DeviceArg;
