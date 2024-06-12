@@ -48,6 +48,7 @@ enum class architecture : uint64_t {
   //       - DD is 2-digit number reserved for future unexpected modifications
   //         to keep uniqueness. It should be always 00 for now
   //
+  unknown = 0x9800000000000000,
   x86_64 = 0x9900000000000000,
   //
   // Intel CPU architectures
