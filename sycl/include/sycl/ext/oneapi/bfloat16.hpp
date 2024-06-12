@@ -19,9 +19,29 @@ __devicelib_ConvertFToBF16INTEL(const float &) noexcept;
 extern "C" __DPCPP_SYCL_EXTERNAL float
 __devicelib_ConvertBF16ToFINTEL(const uint16_t &) noexcept;
 extern "C" __DPCPP_SYCL_EXTERNAL void
-__devicelib_ConvertFToBF16INTELVec(const float *, uint16_t *, int) noexcept;
+__devicelib_ConvertFToBF16INTELVec1(const float *, uint16_t *) noexcept;
 extern "C" __DPCPP_SYCL_EXTERNAL void
-__devicelib_ConvertBF16ToFINTELVec(const uint16_t *, float *, int) noexcept;
+__devicelib_ConvertBF16ToFINTELVec1(const uint16_t *, float *) noexcept;
+extern "C" __DPCPP_SYCL_EXTERNAL void
+__devicelib_ConvertFToBF16INTELVec2(const float *, uint16_t *) noexcept;
+extern "C" __DPCPP_SYCL_EXTERNAL void
+__devicelib_ConvertBF16ToFINTELVec2(const uint16_t *, float *) noexcept;
+extern "C" __DPCPP_SYCL_EXTERNAL void
+__devicelib_ConvertFToBF16INTELVec3(const float *, uint16_t *) noexcept;
+extern "C" __DPCPP_SYCL_EXTERNAL void
+__devicelib_ConvertBF16ToFINTELVec3(const uint16_t *, float *) noexcept;
+extern "C" __DPCPP_SYCL_EXTERNAL void
+__devicelib_ConvertFToBF16INTELVec4(const float *, uint16_t *) noexcept;
+extern "C" __DPCPP_SYCL_EXTERNAL void
+__devicelib_ConvertBF16ToFINTELVec4(const uint16_t *, float *) noexcept;
+extern "C" __DPCPP_SYCL_EXTERNAL void
+__devicelib_ConvertFToBF16INTELVec8(const float *, uint16_t *) noexcept;
+extern "C" __DPCPP_SYCL_EXTERNAL void
+__devicelib_ConvertBF16ToFINTELVec8(const uint16_t *, float *) noexcept;
+extern "C" __DPCPP_SYCL_EXTERNAL void
+__devicelib_ConvertFToBF16INTELVec16(const float *, uint16_t *) noexcept;
+extern "C" __DPCPP_SYCL_EXTERNAL void
+__devicelib_ConvertBF16ToFINTELVec16(const uint16_t *, float *) noexcept;
 
 namespace sycl {
 inline namespace _V1 {
@@ -37,7 +57,18 @@ bfloat16 bitsToBfloat16(const Bfloat16StorageT Value);
 template <int N> void BF16VecToFloatVec(const bfloat16 src[N], float dst[N]) {
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
   const uint16_t *src_i16 = sycl::bit_cast<const uint16_t *>(src);
-  __devicelib_ConvertBF16ToFINTELVec(src_i16, dst, N);
+  if constexpr (N == 1)
+    __devicelib_ConvertBF16ToFINTELVec1(src_i16, dst);
+  else if constexpr (N == 2)
+    __devicelib_ConvertBF16ToFINTELVec2(src_i16, dst);
+  else if constexpr (N == 3)
+    __devicelib_ConvertBF16ToFINTELVec3(src_i16, dst);
+  else if constexpr (N == 4)
+    __devicelib_ConvertBF16ToFINTELVec4(src_i16, dst);
+  else if constexpr (N == 8)
+    __devicelib_ConvertBF16ToFINTELVec8(src_i16, dst);
+  else if constexpr (N == 16)
+    __devicelib_ConvertBF16ToFINTELVec16(src_i16, dst);
 #else
   for (int i = 0; i < N; ++i) {
     dst[i] = (float)src[i];
@@ -45,35 +76,26 @@ template <int N> void BF16VecToFloatVec(const bfloat16 src[N], float dst[N]) {
 #endif
 }
 
-template <int N> void BF16VecToFloatVec(const uint16_t src[N], float dst[N]) {
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
-  __devicelib_ConvertBF16ToFINTELVec(src, dst, N);
-#else
-  for (int i = 0; i < N; ++i) {
-    dst[i] = (float)detail::bitsToBfloat16(src[i]);
-  }
-#endif
-}
-
 template <int N> void FloatVecToBF16Vec(float src[N], bfloat16 dst[N]) {
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
   uint16_t *dst_i16 = sycl::bit_cast<uint16_t *>(dst);
-  __devicelib_ConvertFToBF16INTELVec(src, dst_i16, N);
+  if constexpr (N == 1)
+    __devicelib_ConvertFToBF16INTELVec1(src, dst_i16);
+  else if constexpr (N == 2)
+    __devicelib_ConvertFToBF16INTELVec2(src, dst_i16);
+  else if constexpr (N == 3)
+    __devicelib_ConvertFToBF16INTELVec3(src, dst_i16);
+  else if constexpr (N == 4)
+    __devicelib_ConvertFToBF16INTELVec4(src, dst_i16);
+  else if constexpr (N == 8)
+    __devicelib_ConvertFToBF16INTELVec8(src, dst_i16);
+  else if constexpr (N == 16)
+    __devicelib_ConvertFToBF16INTELVec16(src, dst_i16);
 #else
   for (int i = 0; i < N; ++i) {
     // No need to cast as bfloat16 has a assignment op overload that takes
     // a float.
     dst[i] = src[i];
-  }
-#endif
-}
-
-template <int N> void FloatVecToBF16Vec(float src[N], uint16_t dst[N]) {
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
-  __devicelib_ConvertFToBF16INTELVec(src, dst, N);
-#else
-  for (int i = 0; i < N; ++i) {
-    dst[i] = detail::bfloat16ToBits(bfloat16(src[i]));
   }
 #endif
 }
