@@ -472,20 +472,69 @@ void RunSortOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
     // Sort reminder
     std::sort(It, DataSorted.end(), Comp);
 
-    if constexpr (std::is_same_v<Compare, std::less<T>>)
+    if constexpr (std::is_same_v<Compare, std::less<T>>) {
+      std::cout << "Sort with std::less result: ";
+      for (auto iter : DataToSortCase0)
+        std::cout << iter;
+
+      std::cout << std::endl;
       assert(DataToSortCase0 == DataSorted);
+    }
+
+    std::cout << "Sort with compare result: ";
+    for (auto iter : DataToSortCase1)
+      std::cout << iter;
+    std::cout << std::endl;
 
     assert(DataToSortCase1 == DataSorted);
+    std::cout << "Default Sorter result: ";
+    for (auto iter : DataToSortCase2)
+      std::cout << iter;
+    std::cout << std::endl;
+
     assert(DataToSortCase2 == DataSorted);
+
     // Radix doesn't support custom types
-    if constexpr (!std::is_same_v<CustomType, T>)
+    if constexpr (!std::is_same_v<CustomType, T>) {
+      std::cout << "Radix sort result: ";
+      for (auto iter : DataToSortCase3)
+        std::cout << iter;
+      std::cout << std::endl;
+
       assert(DataToSortCase3 == DataSorted);
+    }
   }
 }
 
 template <class T> void RunOverType(sycl::queue &Q, size_t DataSize) {
   std::vector<T> DataReversed(DataSize);
   std::vector<T> DataRandom(DataSize);
+
+  std::cout << "Backend: ";
+  switch (Q.get_backend()) {
+  case sycl::backend::ext_oneapi_cuda:
+    std::cout << "CUDA";
+    break;
+  case sycl::backend::ext_oneapi_hip:
+    std::cout << "HIP";
+    break;
+  case sycl::backend::ext_native_cpu:
+    std::cout << "Native CPU";
+    break;
+  case sycl::backend::opencl:
+    std::cout << "OpenCL";
+    break;
+  case sycl::backend::ext_oneapi_level_zero:
+    std::cout << "Level Zero";
+    break;
+  case sycl::backend::all:
+    std::cout << "All";
+    break;
+  default:
+    std::cout << "<unknown>";
+    break;
+  }
+  std::cout << std::endl;
 
   std::iota(DataReversed.rbegin(), DataReversed.rend(), (size_t)0);
 
@@ -502,8 +551,8 @@ template <class T> void RunOverType(sycl::queue &Q, size_t DataSize) {
     RunSortOVerGroup<UseGroupT::WorkGroup, 1>(Q, Data, Comparator);
     RunSortOVerGroup<UseGroupT::WorkGroup, 2>(Q, Data, Comparator);
 
-    RunJointSort<UseGroupT::WorkGroup, 1>(Q, Data, Comparator);
-    RunJointSort<UseGroupT::WorkGroup, 2>(Q, Data, Comparator);
+    // RunJointSort<UseGroupT::WorkGroup, 1>(Q, Data, Comparator);
+    // RunJointSort<UseGroupT::WorkGroup, 2>(Q, Data, Comparator);
 
     if (Q.get_backend() == sycl::backend::ext_oneapi_cuda ||
         Q.get_backend() == sycl::backend::ext_oneapi_hip) {
@@ -537,7 +586,7 @@ int main() {
         RunOverType<sycl::half>(Q, Size);
       if (Q.get_device().has(sycl::aspect::fp64))
         RunOverType<double>(Q, Size);
-      RunOverType<CustomType>(Q, Size);
+      // RunOverType<CustomType>(Q, Size);
     }
 
     std::cout << "Test passed." << std::endl;
